@@ -2314,6 +2314,36 @@ export class SplitMapViewStateOp extends Operator<SplitMapViewStateOp> {
   }
 }
 
+export class SplitMapViewStateOp extends Operator<SplitMapViewStateOp> {
+  static displayName = 'SplitMapViewState'
+  static description = 'Split a viewState object into its individual components.'
+  createInputs() {
+    return {
+      viewState: new CompoundPropsField({
+        longitude: new NumberField(DEFAULT_LONGITUDE, { min: -180, max: 180, step: 0.001 }),
+        latitude: new NumberField(DEFAULT_LATITUDE, { min: -90, max: 90, step: 0.001 }),
+        zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
+        pitch: new NumberField(0, { min: 0, max: 60, optional: true }),
+        bearing: new NumberField(0, { optional: true }),
+      }),
+    }
+  }
+  createOutputs() {
+    return {
+      longitude: new NumberField(),
+      latitude: new NumberField(),
+      zoom: new NumberField(),
+      pitch: new NumberField(),
+      bearing: new NumberField(),
+    }
+  }
+  execute({
+    viewState,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    return { ...viewState }
+  }
+}
+
 export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
   static displayName = 'MaplibreBasemap'
   static description = 'A Maplibre basemap.'
