@@ -101,6 +101,88 @@ const SaveProjectDialog = ({
   )
 }
 
+const SaveAsProjectDialog = ({
+  projectName,
+  onAssignProjectName,
+  open,
+  setOpen,
+}: {
+  projectName: string | null
+  onAssignProjectName: (name: string) => void
+  open: boolean
+  setOpen: (open: boolean) => void
+}) => {
+  const [tempProjectName, setTempProjectName] = useState(projectName)
+  const [error, setError] = useState<string | null>(null)
+
+  const onSave = useCallback(() => {
+    if (!tempProjectName) {
+      setError('Project name is required')
+      return
+    }
+    // Theatre.js requirement
+    if (tempProjectName.length < 3 || tempProjectName.length > 32) {
+      setError('Project name must be between 3 and 32 characters')
+      return
+    }
+    // For OPFS, needs to match filesystem restrictions
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: From https://github.com/sindresorhus/filename-reserved-regex
+    if (/[<>:"/\\|?*\u0000-\u001F]/g.test(tempProjectName)) {
+      const [matches] = tempProjectName.match(/([<>:"/\\|?*\u0000-\u001F])/g)
+
+      setError(
+        `Project name cannot contain special characters (e.g. <, >, :, ", /, \\, |, ?, *, \u0000-\u001F). Found: ${matches}`
+      )
+      return
+    }
+    setError(null)
+    onAssignProjectName(tempProjectName)
+    setOpen(false)
+  }, [onAssignProjectName, tempProjectName, setOpen])
+
+  return (
+    <Dialog.Root open={open} onOpenChange={setOpen}>
+      <Dialog.Portal>
+        <Dialog.Overlay className={s.dialogOverlay} />
+        <Dialog.Content className={s.dialogContent}>
+          <Dialog.Title className={s.dialogTitle}>Save project as</Dialog.Title>
+          <Dialog.Description className={s.dialogDescription}>
+            Rename your project. Click save when done.
+          </Dialog.Description>
+          {error && <p className={s.dialogError}>{error}</p>}
+          <fieldset className={s.dialogFieldset}>
+            <label className={s.dialogLabel} htmlFor="save-as-project-name">
+              Name
+            </label>
+            <input
+              className={s.dialogInput}
+              id="save-as-project-name"
+              required
+              value={tempProjectName || ''}
+              onChange={e => setTempProjectName(e.target.value)}
+            />
+          </fieldset>
+          <div className={s.dialogRightSlot}>
+            <Dialog.Close asChild>
+              <button type="button" className={s.dialogButton}>
+                Cancel
+              </button>
+            </Dialog.Close>
+            <button type="button" className={cx(s.dialogButton, s.green)} onClick={onSave}>
+              Save changes
+            </button>
+          </div>
+          <Dialog.Close asChild>
+            <button type="button" className={s.dialogIconButton} aria-label="Close">
+              <Cross2Icon />
+            </button>
+          </Dialog.Close>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  )
+}
+
 const ReplaceProjectDialog = ({
   projectName,
   open,
@@ -142,6 +224,8 @@ const ReplaceProjectDialog = ({
   )
 }
 
+// DEPRECATED: OPFS is no longer used for project storage.
+// This component lists projects from OPFS and should not be used for new features.
 const ProjectList = ({
   selectedProject,
   setSelectedProject,
@@ -186,6 +270,8 @@ const ProjectList = ({
   )
 }
 
+// DEPRECATED: OPFS is no longer used for project storage.
+// This dialog shows projects from OPFS and should not be used for new features.
 const OpenProjectDialog = ({
   openDialog,
   setOpenDialog,
@@ -250,15 +336,22 @@ const OpenProjectDialog = ({
   )
 }
 
-// OPFS Project File System
+// ============================================================================
+// DEPRECATED: OPFS Project File System
+// Projects are now stored using File System Access API only.
+// The following functions are kept for backward compatibility but should not
+// be used for new features.
+// ============================================================================
+
 const PROJECTS = 'projects'
+// DEPRECATED: OPFS is no longer used for project storage
 async function getProjectHandle(projectName: string, create = false) {
   const root = await navigator.storage.getDirectory()
   const projectDirectory = await root.getDirectoryHandle(PROJECTS, { create })
   return await projectDirectory.getFileHandle(projectName, { create })
 }
 
-// test if a project exists
+// DEPRECATED: OPFS is no longer used for project storage
 async function checkProjectExists(projectName: string) {
   try {
     await getProjectHandle(projectName, false)
@@ -268,6 +361,7 @@ async function checkProjectExists(projectName: string) {
   }
 }
 
+// DEPRECATED: OPFS is no longer used for project storage
 async function deleteProject(projectName: string) {
   try {
     const fileHandle = await getProjectHandle(projectName, false)
@@ -285,7 +379,49 @@ async function deleteProject(projectName: string) {
   }
 }
 
-function saveProjectLocally(projectName: string, projectJson: NoodlesProjectJSON) {
+async function saveAsProject(
+  storageType: 'opfs' | 'fileSystemAccess',
+  oldProjectName: string,
+  newProjectName: string,
+  projectJson: NoodlesProjectJSON,
+  setCurrentDirectory: (handle: FileSystemDirectoryHandle, name: string) => void,
+  setError: (error: { type: string; message: string; details: string; originalError?: unknown }) => void
+) {
+  try {
+    // File System Access API: update the cache to point to the new project name
+    const { directoryHandleCache } = await import('../utils/directory-handle-cache')
+    const cached = await directoryHandleCache.getCachedHandle(oldProjectName)
+
+    if (!cached) {
+      setError({
+        type: 'not-found',
+        message: 'No cached directory handle found',
+        details: `Could not find directory handle for project: ${oldProjectName}`,
+      })
+      return
+    }
+
+    // Save with the new name (will create/update the cache with new name)
+    const result = await save(storageType, newProjectName, projectJson)
+    if (result.success) {
+      // Remove the old cache entry
+      await directoryHandleCache.removeHandle(oldProjectName)
+      addToRecentProjects(newProjectName, oldProjectName)
+      setCurrentDirectory(result.data.directoryHandle, newProjectName)
+    } else {
+      setError(result.error)
+    }
+  } catch (error) {
+    setError({
+      type: 'unknown',
+      message: 'Error saving project as',
+      details: error instanceof Error ? error.message : 'Unknown error',
+      originalError: error,
+    })
+  }
+}
+
+function exportProject(projectName: string, projectJson: NoodlesProjectJSON) {
   const contents = safeStringify(projectJson)
   const blob = new Blob([contents], { type: 'application/json' })
 
@@ -304,6 +440,7 @@ type ProjectList = {
   lastModified: Date
 }[]
 
+// DEPRECATED: OPFS is no longer used for project storage
 async function listProjects(): Promise<ProjectList> {
   const root = await navigator.storage.getDirectory()
   const projectDirectory = await root.getDirectoryHandle(PROJECTS, {
@@ -335,12 +472,12 @@ function getRecentProjects(): RecentProject[] {
 }
 
 const MAX_RECENT_PROJECTS = 6
-function addToRecentProjects(projectName: string) {
+function addToRecentProjects(projectName: string, previousProjectName?: string) {
   const recentProjects = getRecentProjects()
 
   // Remove the project if it's already in the list
   const existingIndex = recentProjects.findIndex(
-    (project: RecentProject) => project.name === projectName
+    (project: RecentProject) => project.name === (previousProjectName || projectName)
   )
   if (existingIndex !== -1) {
     recentProjects.splice(existingIndex, 1)
@@ -364,12 +501,12 @@ export function NodesMenubar({
   projectName,
   loadProjectFile,
   getTimelineJson,
-  setProjectName,
+  onChangeProjectName,
 }: {
-  projectName?: string
-  loadProjectFile: (project: NoodlesProjectJSON, projectName?: string) => void
+  projectName: string | null
+  loadProjectFile: (project: NoodlesProjectJSON, projectName: string) => void
   getTimelineJson: () => Record<string, unknown>
-  setProjectName: Dispatch<SetStateAction<string | null>>
+  onChangeProjectName: Dispatch<SetStateAction<string | null>>
 }) {
   const [recentlyOpened, setRecentlyOpened] = useState<RecentProject[]>([])
   const { toObject } = useReactFlow()
@@ -380,7 +517,7 @@ export function NodesMenubar({
   // "New" Menu Options
   const onNewProject = useCallback(async () => {
     const newProjectFile = await fetch(newProjectJSON).then(res => res.json())
-    loadProjectFile(newProjectFile)
+    loadProjectFile(newProjectFile, 'New Project')
   }, [loadProjectFile])
 
   const onImport = useCallback(async () => {
@@ -398,18 +535,19 @@ export function NodesMenubar({
     })
     const file = await fileHandle.getFile()
     const contents = await file.text()
+    const name = file.name.replace(/\.json$/, '')
     const parsed = JSON.parse(contents) as Partial<NoodlesProjectJSON>
     const project = await migrateProject({
       ...EMPTY_PROJECT,
       ...parsed,
     } as NoodlesProjectJSON)
     // "New project from local copy" means import a file into a blank project.
-    // Resets the name to avoid conflict with an existing stored projects.
-    loadProjectFile(project)
+    loadProjectFile(project, name)
   }, [loadProjectFile])
 
   // "Save" Menu Options
   const [saveProjectDialogOpen, setSaveProjectDialogOpen] = useState(false)
+  const [saveAsProjectDialogOpen, setSaveAsProjectDialogOpen] = useState(false)
   const [replaceProjectDialogOpen, setReplaceProjectDialogOpen] = useState(false)
 
   const getNodesProjectJson = useCallback((): NoodlesProjectJSON => {
@@ -446,10 +584,27 @@ export function NodesMenubar({
     }
   }, [projectName, storageType, getNodesProjectJson, setCurrentDirectory, setError])
 
+  const onMenuSaveAs = useCallback(() => {
+    setSaveAsProjectDialogOpen(true)
+  }, [])
+
+  const onSaveAsProject = useCallback(
+    async (newProjectName: string) => {
+      if (!projectName) {
+        console.error('Project name is missing.')
+        return
+      }
+      const nodesProjectJson = getNodesProjectJson()
+      await saveAsProject(storageType, projectName, newProjectName, nodesProjectJson, setCurrentDirectory, setError)
+      onChangeProjectName(newProjectName)
+    },
+    [projectName, storageType, getNodesProjectJson, onChangeProjectName, setCurrentDirectory, setError]
+  )
+
   // This is a new project, so they need to name it before saving.
   const maybeSetProjectName = useCallback(
     async (name: string) => {
-      setProjectName(name) // optimistically set project name
+      onChangeProjectName(name) // optimistically set project name
       // TODO: Check if project exists before saving (need projectExists in storage abstraction)
       if (await checkProjectExists(name)) {
         setReplaceProjectDialogOpen(true)
@@ -465,7 +620,7 @@ export function NodesMenubar({
         setError(result.error)
       }
     },
-    [storageType, getNodesProjectJson, setProjectName, setCurrentDirectory, setError]
+    [storageType, getNodesProjectJson, onChangeProjectName, setCurrentDirectory, setError]
   )
 
   // When the project name is taken and the user choose to replace that existing project
@@ -485,13 +640,13 @@ export function NodesMenubar({
   // User decided not to replace, revert back to an undecided name
   const onCancelReplaceProject = useCallback(() => {
     setReplaceProjectDialogOpen(false)
-    setProjectName(null)
+    onChangeProjectName(null)
     setSaveProjectDialogOpen(true)
-  }, [setProjectName])
+  }, [onChangeProjectName])
 
   const onExport = useCallback(async () => {
     const nodesProjectJson = getNodesProjectJson()
-    saveProjectLocally(projectName || 'untitled', nodesProjectJson)
+    exportProject(projectName || 'untitled', nodesProjectJson)
   }, [projectName, getNodesProjectJson])
 
   // "Open" Menu Options
@@ -576,16 +731,10 @@ export function NodesMenubar({
     }
   }, [loadProjectFile, setCurrentDirectory, setError])
 
-  // Handle "Open..." button click based on storage type
+  // Handle "Open..." button click - always use File System Access API
   const onOpenMenuClick = useCallback(() => {
-    if (storageType === 'fileSystemAccess') {
-      // For File System Access API, directly show folder picker
-      onOpenFileSystemFolder()
-    } else {
-      // For OPFS, show project list dialog
-      setOpenProjectDialogOpen(true)
-    }
-  }, [storageType, onOpenFileSystemFolder])
+    onOpenFileSystemFolder()
+  }, [onOpenFileSystemFolder])
 
   const updateRecentlyOpened = useCallback(() => {
     setRecentlyOpened(getRecentProjects())
@@ -638,8 +787,9 @@ export function NodesMenubar({
               <Menubar.Item className={s.menubarItem} onSelect={onMenuSave}>
                 Save
               </Menubar.Item>
-              {/* TODO: implement Save As... */}
-              {/* <Menubar.Item className={s.menubarItem}>Save As...</Menubar.Item> */}
+              <Menubar.Item className={s.menubarItem} onSelect={onMenuSaveAs}>
+                Save As...
+              </Menubar.Item>
               <Menubar.Item className={s.menubarItem} onSelect={onExport}>
                 Export
               </Menubar.Item>
@@ -697,23 +847,37 @@ export function NodesMenubar({
           </Menubar.Portal>
         </Menubar.Menu>
       </Menubar.Root>
-      <SaveProjectDialog
-        projectName={projectName ?? null}
-        onAssignProjectName={maybeSetProjectName}
-        open={saveProjectDialogOpen}
-        setOpen={setSaveProjectDialogOpen}
-      />
-      <ReplaceProjectDialog
-        projectName={projectName ?? null}
-        open={replaceProjectDialogOpen}
-        onReplace={onReplaceProject}
-        onCancel={onCancelReplaceProject}
-      />
-      <OpenProjectDialog
-        openDialog={openProjectDialogOpen}
-        setOpenDialog={setOpenProjectDialogOpen}
-        onSelectProject={onOpenProject}
-      />
+      {saveProjectDialogOpen && (
+        <SaveProjectDialog
+          projectName={projectName}
+          onAssignProjectName={maybeSetProjectName}
+          open={saveProjectDialogOpen}
+          setOpen={setSaveProjectDialogOpen}
+        />
+      )}
+      {saveAsProjectDialogOpen && (
+        <SaveAsProjectDialog
+          projectName={projectName}
+          open={saveAsProjectDialogOpen}
+          setOpen={setSaveAsProjectDialogOpen}
+          onAssignProjectName={onSaveAsProject}
+        />
+      )}
+      {replaceProjectDialogOpen && (
+        <ReplaceProjectDialog
+          projectName={projectName}
+          open={replaceProjectDialogOpen}
+          onReplace={onReplaceProject}
+          onCancel={onCancelReplaceProject}
+        />
+      )}
+      {openProjectDialogOpen && (
+        <OpenProjectDialog
+          openDialog={openProjectDialogOpen}
+          setOpenDialog={setOpenProjectDialogOpen}
+          onSelectProject={onOpenProject}
+        />
+      )}
     </>
   )
 }
