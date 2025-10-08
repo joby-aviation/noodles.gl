@@ -39,7 +39,7 @@
 .fill-widget.layout-noodles-on-top .output-area {
   top: 0;
   bottom: 0;
-  z-index: 0;
+  isolation: isolate;
 }
 
 .fill-widget.layout-noodles-on-top .noodles-area {
@@ -58,7 +58,7 @@
 .fill-widget.layout-output-on-top .noodles-area {
   top: 0;
   bottom: 0;
-  z-index: 0;
+  isolation: isolate;
 }
 
 /* In output-on-top mode, disable pointer events on the container but enable them on children */

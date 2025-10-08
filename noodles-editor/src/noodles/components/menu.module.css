@@ -124,7 +124,7 @@
 }
 
 [data-radix-popper-content-wrapper] {
-  z-index: 1000 !important;
+  z-index: var(--z-index-menu) !important;
 }
 
 /* save project dialog */
@@ -348,7 +348,7 @@
   white-space: nowrap;
   position: sticky;
   top: 0;
-  z-index: 1;
+  isolation: isolate;
   background-color: white;
 }
 
