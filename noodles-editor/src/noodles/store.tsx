@@ -15,6 +15,12 @@ export type NestingContextValue = {
 
 let currentContainerId = '/'
 
+// Track currently hovered output handle for viewer creation
+export let hoveredOutputHandle: { nodeId: string; handleId: string } | null = null
+export const setHoveredOutputHandle = (handle: { nodeId: string; handleId: string } | null) => {
+  hoveredOutputHandle = handle
+}
+
 const noodlesContextValue = {
   ops: {
     get: (id: OpId) => opMap.get(id),

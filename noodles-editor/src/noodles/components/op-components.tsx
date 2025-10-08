@@ -61,7 +61,7 @@ import {
   type TimeOp,
   type ViewerOp,
 } from '../operators'
-import { opMap, useOp, useSlice } from '../store'
+import { opMap, useOp, useSlice, setHoveredOutputHandle } from '../store'
 import type { NodeDataJSON } from '../transform-graph'
 import { edgeId } from '../utils/id-utils'
 import { generateQualifiedPath, getBaseName, getParentPath } from '../utils/path-utils'
@@ -371,6 +371,11 @@ function Port({
   const handleMouseEnter = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (type === SOURCE_HANDLE) {
+        // Track hovered output handle for viewer creation
+        if (nid) {
+          setHoveredOutputHandle({ nodeId: nid, handleId })
+        }
+
         // Store the current target immediately
         const currentTarget = e.currentTarget
         hoverTimerRef.current = setTimeout(() => {
@@ -381,16 +386,20 @@ function Port({
         }, 1000)
       }
     },
-    [type, field]
+    [type, field, nid, handleId]
   )
 
   const handleMouseLeave = useCallback(() => {
+    if (type === SOURCE_HANDLE) {
+      // Clear hovered output handle
+      setHoveredOutputHandle(null)
+    }
     if (hoverTimerRef.current) {
       clearTimeout(hoverTimerRef.current)
       hoverTimerRef.current = null
     }
     setPreviewData(null)
-  }, [])
+  }, [type])
 
   return (
     <>
