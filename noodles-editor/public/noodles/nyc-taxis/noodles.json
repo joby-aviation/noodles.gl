@@ -29,29 +29,26 @@
       "type": "FileOp",
       "data": {
         "inputs": {
-          "url": "@/data.csv",
-          "format": "csv"
+          "format": "csv",
+          "url": "@/data.csv"
         },
         "locked": false
       },
       "position": {
-        "x": -600,
-        "y": -400
+        "x": -602.0180737592499,
+        "y": -66.80713188950705
       }
     },
     {
       "id": "/arc-layer",
       "type": "ArcLayerOp",
       "data": {
-        "inputs": {
-          "greatCircle": false,
-          "getWidth": 1
-        },
+        "inputs": {},
         "locked": false
       },
       "position": {
-        "x": 600,
-        "y": -300
+        "x": 627.7209329347512,
+        "y": -426.6692629935162
       }
     },
     {
@@ -59,16 +56,15 @@
       "type": "ScatterplotLayerOp",
       "data": {
         "inputs": {
-          "radiusMinPixels": 1,
-          "radiusMaxPixels": 5,
-          "filled": true,
-          "opacity": 0.8
+          "opacity": 0.8,
+          "getLineColor": "#ffffffff",
+          "getRadius": 60
         },
         "locked": false
       },
       "position": {
         "x": 600,
-        "y": 0
+        "y": -100.90368796249467
       }
     },
     {
@@ -76,44 +72,15 @@
       "type": "ScatterplotLayerOp",
       "data": {
         "inputs": {
-          "radiusMinPixels": 2,
-          "radiusMaxPixels": 8,
-          "filled": true,
-          "opacity": 0.8
+          "opacity": 0.8,
+          "getLineColor": "#ffffffff",
+          "getRadius": 10
         },
         "locked": false
       },
       "position": {
         "x": 600,
         "y": 300
-      }
-    },
-    {
-      "id": "/source-position",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "[d.pickup_longitude, d.pickup_latitude]"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 0,
-        "y": -400
-      }
-    },
-    {
-      "id": "/target-position",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "[d.dropoff_longitude, d.dropoff_latitude]"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 0,
-        "y": -250
       }
     },
     {
@@ -126,8 +93,8 @@
         "locked": false
       },
       "position": {
-        "x": 0,
-        "y": -100
+        "x": 60.862340390076156,
+        "y": -175.49495612997913
       }
     },
     {
@@ -141,57 +108,15 @@
       },
       "position": {
         "x": 0,
-        "y": 50
-      }
-    },
-    {
-      "id": "/arc-color",
-      "type": "ColorOp",
-      "data": {
-        "inputs": {
-          "color": "#1081885f"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 300,
-        "y": -400
-      }
-    },
-    {
-      "id": "/pickup-color",
-      "type": "ColorOp",
-      "data": {
-        "inputs": {
-          "color": "#2473bdc8"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 300,
-        "y": 0
-      }
-    },
-    {
-      "id": "/dropoff-color",
-      "type": "ColorOp",
-      "data": {
-        "inputs": {
-          "color": "#223f9ac8"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 300,
-        "y": 300
+        "y": 320
       }
     },
     {
       "type": "MaplibreBasemapOp",
       "id": "/maplibre-basemap",
       "position": {
-        "x": 800,
-        "y": 400
+        "x": 559.9985420734731,
+        "y": 721.511387033649
       },
       "data": {
         "inputs": {
@@ -203,6 +128,34 @@
             "pitch": 56,
             "bearing": -15.25
           }
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "ColorOp",
+      "id": "/pickup",
+      "position": {
+        "x": 262.5265491234809,
+        "y": -0.10158781374900272
+      },
+      "data": {
+        "inputs": {
+          "color": "#8d12af"
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "ColorOp",
+      "id": "/dropoff",
+      "position": {
+        "x": 259.15636108257894,
+        "y": 118.59049673721273
+      },
+      "data": {
+        "inputs": {
+          "color": "#105b89"
         },
         "locked": false
       }
@@ -238,15 +191,15 @@
       "targetHandle": "par.data"
     },
     {
-      "id": "/source-position.out.accessor->/arc-layer.par.getSourcePosition",
-      "source": "/source-position",
+      "id": "/pickup-position.out.accessor->/arc-layer.par.getSourcePosition",
+      "source": "/pickup-position",
       "target": "/arc-layer",
       "sourceHandle": "out.accessor",
       "targetHandle": "par.getSourcePosition"
     },
     {
-      "id": "/target-position.out.accessor->/arc-layer.par.getTargetPosition",
-      "source": "/target-position",
+      "id": "/dropoff-position.out.accessor->/arc-layer.par.getTargetPosition",
+      "source": "/dropoff-position",
       "target": "/arc-layer",
       "sourceHandle": "out.accessor",
       "targetHandle": "par.getTargetPosition"
@@ -264,34 +217,6 @@
       "target": "/dropoff-layer",
       "sourceHandle": "out.accessor",
       "targetHandle": "par.getPosition"
-    },
-    {
-      "id": "/arc-color.out.color->/arc-layer.par.getSourceColor",
-      "source": "/arc-color",
-      "target": "/arc-layer",
-      "sourceHandle": "out.color",
-      "targetHandle": "par.getSourceColor"
-    },
-    {
-      "id": "/arc-color.out.color->/arc-layer.par.getTargetColor",
-      "source": "/arc-color",
-      "target": "/arc-layer",
-      "sourceHandle": "out.color",
-      "targetHandle": "par.getTargetColor"
-    },
-    {
-      "id": "/pickup-color.out.color->/pickup-layer.par.getFillColor",
-      "source": "/pickup-color",
-      "target": "/pickup-layer",
-      "sourceHandle": "out.color",
-      "targetHandle": "par.getFillColor"
-    },
-    {
-      "id": "/dropoff-color.out.color->/dropoff-layer.par.getFillColor",
-      "source": "/dropoff-color",
-      "target": "/dropoff-layer",
-      "sourceHandle": "out.color",
-      "targetHandle": "par.getFillColor"
     },
     {
       "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
@@ -320,23 +245,57 @@
       "target": "/deck",
       "sourceHandle": "out.layer",
       "targetHandle": "par.layers"
+    },
+    {
+      "source": "/pickup",
+      "sourceHandle": "out.color",
+      "target": "/arc-layer",
+      "targetHandle": "par.getSourceColor",
+      "id": "/pickup.out.color->/arc-layer.par.getSourceColor"
+    },
+    {
+      "source": "/pickup",
+      "sourceHandle": "out.color",
+      "target": "/pickup-layer",
+      "targetHandle": "par.getFillColor",
+      "id": "/pickup.out.color->/pickup-layer.par.getFillColor"
+    },
+    {
+      "source": "/dropoff",
+      "sourceHandle": "out.color",
+      "target": "/arc-layer",
+      "targetHandle": "par.getTargetColor",
+      "id": "/dropoff.out.color->/arc-layer.par.getTargetColor"
+    },
+    {
+      "source": "/dropoff",
+      "sourceHandle": "out.color",
+      "target": "/dropoff-layer",
+      "targetHandle": "par.getFillColor",
+      "id": "/dropoff.out.color->/dropoff-layer.par.getFillColor"
     }
   ],
   "viewport": {
-    "x": 400,
-    "y": 500,
-    "zoom": 0.6
+    "x": 500.17065142147646,
+    "y": 253.62828113726422,
+    "zoom": 0.3860932119498513
   },
-  "version": 6,
   "timeline": {
     "sheetsById": {
       "Noodles": {
         "staticOverrides": {
-          "byObject": {}
+          "byObject": {
+            "editor": {
+              "layoutMode": "noodles-on-top"
+            }
+          }
         }
       }
     },
     "definitionVersion": "0.4.0",
-    "revisionHistory": []
-  }
+    "revisionHistory": [
+      "SHipVxKbnMlkvs1H"
+    ]
+  },
+  "version": 6
 }

@@ -36,7 +36,7 @@
       },
       "position": {
         "x": -600,
-        "y": -200
+        "y": -150
       }
     },
     {
@@ -74,7 +74,7 @@
       }
     },
     {
-      "id": "/line-color",
+      "id": "/color-accessor",
       "type": "AccessorOp",
       "data": {
         "inputs": {
@@ -84,21 +84,7 @@
       },
       "position": {
         "x": -200,
-        "y": 0
-      }
-    },
-    {
-      "id": "/trip-color",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "utils.stringToColor(d.properties.origin_country)"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": -200,
-        "y": -300
+        "y": -150
       }
     },
     {
@@ -146,15 +132,15 @@
       "targetHandle": "par.data"
     },
     {
-      "id": "/line-color.out.accessor->/geojson-layer.par.getLineColor",
-      "source": "/line-color",
+      "id": "/color-accessor.out.accessor->/geojson-layer.par.getLineColor",
+      "source": "/color-accessor",
       "target": "/geojson-layer",
       "sourceHandle": "out.accessor",
       "targetHandle": "par.getLineColor"
     },
     {
-      "id": "/trip-color.out.accessor->/trips-layer.par.getColor",
-      "source": "/trip-color",
+      "id": "/color-accessor.out.accessor->/trips-layer.par.getColor",
+      "source": "/color-accessor",
       "target": "/trips-layer",
       "sourceHandle": "out.accessor",
       "targetHandle": "par.getColor"

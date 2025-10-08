@@ -36,7 +36,7 @@
       },
       "position": {
         "x": -600,
-        "y": -400
+        "y": -200
       }
     },
     {
@@ -62,7 +62,8 @@
           "radiusMinPixels": 1,
           "radiusMaxPixels": 3,
           "filled": true,
-          "opacity": 0.4
+          "opacity": 0.4,
+          "getFillColor": "#ffa50064"
         },
         "locked": false
       },
@@ -79,7 +80,8 @@
           "radiusMinPixels": 1,
           "radiusMaxPixels": 3,
           "filled": true,
-          "opacity": 0.3
+          "opacity": 0.3,
+          "getFillColor": "#8000804b"
         },
         "locked": false
       },
@@ -99,7 +101,7 @@
       },
       "position": {
         "x": 0,
-        "y": -400
+        "y": -280
       }
     },
     {
@@ -113,35 +115,7 @@
       },
       "position": {
         "x": 0,
-        "y": -250
-      }
-    },
-    {
-      "id": "/residence-position",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "[d.Home_long, d.Home_lat]"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 0,
-        "y": -100
-      }
-    },
-    {
-      "id": "/workplace-position",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "[d.Work_long, d.Work_lat]"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 0,
-        "y": 50
+        "y": 320
       }
     },
     {
@@ -155,35 +129,7 @@
       },
       "position": {
         "x": 300,
-        "y": -400
-      }
-    },
-    {
-      "id": "/residence-color",
-      "type": "ColorOp",
-      "data": {
-        "inputs": {
-          "color": "#ffa50064"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 300,
-        "y": 0
-      }
-    },
-    {
-      "id": "/workplace-color",
-      "type": "ColorOp",
-      "data": {
-        "inputs": {
-          "color": "#8000804b"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 300,
-        "y": 300
+        "y": -300
       }
     },
     {
@@ -252,15 +198,15 @@
       "targetHandle": "par.getTargetPosition"
     },
     {
-      "id": "/residence-position.out.accessor->/residence-layer.par.getPosition",
-      "source": "/residence-position",
+      "id": "/home-position.out.accessor->/residence-layer.par.getPosition",
+      "source": "/home-position",
       "target": "/residence-layer",
       "sourceHandle": "out.accessor",
       "targetHandle": "par.getPosition"
     },
     {
-      "id": "/workplace-position.out.accessor->/workplace-layer.par.getPosition",
-      "source": "/workplace-position",
+      "id": "/work-position.out.accessor->/workplace-layer.par.getPosition",
+      "source": "/work-position",
       "target": "/workplace-layer",
       "sourceHandle": "out.accessor",
       "targetHandle": "par.getPosition"
@@ -278,20 +224,6 @@
       "target": "/arc-layer",
       "sourceHandle": "out.color",
       "targetHandle": "par.getTargetColor"
-    },
-    {
-      "id": "/residence-color.out.color->/residence-layer.par.getFillColor",
-      "source": "/residence-color",
-      "target": "/residence-layer",
-      "sourceHandle": "out.color",
-      "targetHandle": "par.getFillColor"
-    },
-    {
-      "id": "/workplace-color.out.color->/workplace-layer.par.getFillColor",
-      "source": "/workplace-color",
-      "target": "/workplace-layer",
-      "sourceHandle": "out.color",
-      "targetHandle": "par.getFillColor"
     },
     {
       "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
