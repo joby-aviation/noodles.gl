@@ -188,6 +188,17 @@ async function getProjectDirectoryHandle(
       }
     }
 
+    case 'publicFolder': {
+      // Public folder projects don't have directory handles
+      return {
+        success: false,
+        error: {
+          type: 'not-found',
+          message: 'Public folder projects do not have directory handles',
+        },
+      }
+    }
+
     default:
       return {
         success: false,
@@ -240,6 +251,22 @@ export async function save(
 }
 
 export async function checkProjectExists(type: StorageType, projectName: string) {
+  // For public folder projects, check if the project file exists in public
+  if (type === 'publicFolder') {
+    try {
+      const publicPath = `./noodles/${projectName}/noodles.json`
+      const response = await fetch(publicPath, { method: 'HEAD' })
+      if (response.ok) return true
+      // Try alternative path
+      const altPath = `./noodles/${projectName}.json`
+      const altResponse = await fetch(altPath, { method: 'HEAD' })
+      return altResponse.ok
+    } catch (_error) {
+      return false
+    }
+  }
+
+  // For filesystem-based storage types
   const result = await getProjectDirectoryHandle(type, projectName, false)
   if (result.success) {
     const projectDirectory = result.data
@@ -309,13 +336,42 @@ export async function load(
   }
 }
 
-// Read an asset file from a project's data directory
+// Read an asset file from a project's data directory or from public folder
 export async function readAsset(
   type: StorageType,
   projectName: string,
   fileName: string
 ): Promise<FileSystemResult<string>> {
-  const projectDirectory = await getProjectDirectoryHandle(type, projectName, true)
+  // For public folder projects, fetch from public directory
+  if (type === 'publicFolder') {
+    try {
+      const publicPath = `./noodles/${projectName}/${fileName}`
+      const response = await fetch(publicPath)
+      if (!response.ok) {
+        return {
+          success: false,
+          error: {
+            type: 'not-found',
+            message: `Asset not found: ${fileName}`,
+            details: `Public path: ${publicPath}`,
+          },
+        }
+      }
+      const contents = await response.text()
+      return {
+        success: true,
+        data: contents,
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: handleError(error, 'read asset file from public folder'),
+      }
+    }
+  }
+
+  // For filesystem-based storage types (fileSystemAccess or opfs)
+  const projectDirectory = await getProjectDirectoryHandle(type, projectName, false)
   if (!projectDirectory.success) {
     return projectDirectory
   }
@@ -353,7 +409,19 @@ export async function checkAssetExists(
   projectName: string,
   fileName: string
 ): Promise<boolean> {
-  const projectDirectory = await getProjectDirectoryHandle(type, projectName, true)
+  // For public folder projects, try to fetch
+  if (type === 'publicFolder') {
+    try {
+      const publicPath = `./noodles/${projectName}/${fileName}`
+      const response = await fetch(publicPath, { method: 'HEAD' })
+      return response.ok
+    } catch (_error) {
+      return false
+    }
+  }
+
+  // For filesystem-based storage types
+  const projectDirectory = await getProjectDirectoryHandle(type, projectName, false)
   if (!projectDirectory.success) {
     return false
   }
@@ -377,6 +445,17 @@ export async function writeAsset(
   fileName: string,
   contents: string | Blob
 ): Promise<FileSystemResult<void>> {
+  // Public folder projects are read-only
+  if (type === 'publicFolder') {
+    return {
+      success: false,
+      error: {
+        type: 'unsupported',
+        message: 'Cannot write assets to public folder projects',
+      },
+    }
+  }
+
   const projectDirectory = await getProjectDirectoryHandle(type, projectName, true)
   if (!projectDirectory.success) {
     return projectDirectory
