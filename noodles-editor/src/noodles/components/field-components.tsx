@@ -100,6 +100,7 @@ export function TextFieldComponent({
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
+      if (typeof newVal === 'function') return
       setValue(formatText(newVal))
     })
     return () => sub.unsubscribe()
@@ -435,6 +436,7 @@ export function FileFieldComponent({
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
+      if (typeof newVal === 'function') return
       setValue(newVal)
     })
     return () => sub.unsubscribe()
@@ -1047,6 +1049,7 @@ export function BooleanFieldComponent({
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
+      if (typeof newVal === 'function') return
       setValue(newVal)
     })
     return () => sub.unsubscribe()
@@ -1091,6 +1094,7 @@ export function DateFieldComponent({
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
+      if (typeof newVal === 'function') return
       setValue(newVal)
     })
     return () => sub.unsubscribe()
