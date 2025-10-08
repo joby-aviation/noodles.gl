@@ -42,6 +42,7 @@ import { AddNodeMenu, type AddNodeMenuRef } from './components/add-node-menu'
 import { Breadcrumbs } from './components/Breadcrumbs'
 import { CopyControls } from './components/copy-controls'
 import { DropTarget } from './components/drop-target'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { NodesMenubar } from './components/menu'
 import { PropertyPanel } from './components/node-properties'
 import { categories, edgeComponents, nodeComponents } from './components/op-components'
@@ -491,47 +492,49 @@ export function getNoodles(): Visualization {
   }, [edges])
 
   const flowGraph = theatreReady && (
-    <div className={cx('react-flow-wrapper', !showOverlay && 'react-flow-wrapper-hidden')}>
-      <PrimeReactProvider>
-        <SheetProvider value={theatreSheet}>
-          <Breadcrumbs />
-          <ReactFlow
-            ref={reactFlowRef}
-            nodes={displayedNodes}
-            edges={activeEdges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            onReconnect={onReconnect}
-            onNodeClick={onNodeClick}
-            onNodesDelete={onNodesDelete}
-            onPaneContextMenu={onPaneContextMenu}
-            onPaneClick={onPaneClick}
-            minZoom={0.2}
-            fitView
-            fitViewOptions={fitViewOptions}
-            defaultEdgeOptions={defaultEdgeOptions}
-            nodeTypes={nodeComponents}
-            edgeTypes={edgeComponents}
-          >
-            <Background />
-            <Controls position="bottom-right" />
-            <AddNodeMenu ref={menuRef} reactFlowRef={reactFlowRef} />
-            <CopyControls />
-          </ReactFlow>
-        </SheetProvider>
-      </PrimeReactProvider>
-      <ProjectNotFoundDialog
-        projectName={projectId || ''}
-        open={showProjectNotFoundDialog}
-        onProjectLoaded={(project, name) => {
-          loadProjectFile(project, name)
-          setShowProjectNotFoundDialog(false)
-        }}
-        onClose={() => setShowProjectNotFoundDialog(false)}
-      />
-      <StorageErrorHandler />
-    </div>
+    <ErrorBoundary>
+      <div className={cx('react-flow-wrapper', !showOverlay && 'react-flow-wrapper-hidden')}>
+        <PrimeReactProvider>
+          <SheetProvider value={theatreSheet}>
+            <Breadcrumbs />
+            <ReactFlow
+              ref={reactFlowRef}
+              nodes={displayedNodes}
+              edges={activeEdges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onConnect={onConnect}
+              onReconnect={onReconnect}
+              onNodeClick={onNodeClick}
+              onNodesDelete={onNodesDelete}
+              onPaneContextMenu={onPaneContextMenu}
+              onPaneClick={onPaneClick}
+              minZoom={0.2}
+              fitView
+              fitViewOptions={fitViewOptions}
+              defaultEdgeOptions={defaultEdgeOptions}
+              nodeTypes={nodeComponents}
+              edgeTypes={edgeComponents}
+            >
+              <Background />
+              <Controls position="bottom-right" />
+              <AddNodeMenu ref={menuRef} reactFlowRef={reactFlowRef} />
+              <CopyControls />
+            </ReactFlow>
+          </SheetProvider>
+        </PrimeReactProvider>
+        <ProjectNotFoundDialog
+          projectName={projectId || ''}
+          open={showProjectNotFoundDialog}
+          onProjectLoaded={(project, name) => {
+            loadProjectFile(project, name)
+            setShowProjectNotFoundDialog(false)
+          }}
+          onClose={() => setShowProjectNotFoundDialog(false)}
+        />
+        <StorageErrorHandler />
+      </div>
+    </ErrorBoundary>
   )
 
   // Assume there's always one 'out' op.
