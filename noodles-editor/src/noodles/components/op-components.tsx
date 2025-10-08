@@ -168,6 +168,7 @@ export const categories = {
   ],
   geojson: ['GeoJsonOp', 'GeoJsonTransformOp', 'PointOp', 'RectangleOp'],
   layer: [
+    'A5LayerOp',
     'ArcLayerOp',
     'BitmapLayerOp',
     'ColumnLayerOp',

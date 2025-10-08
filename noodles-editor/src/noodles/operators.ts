@@ -27,6 +27,7 @@ import {
   _TerrainExtension as TerrainExtension,
 } from '@deck.gl/extensions'
 import type {
+  A5LayerProps,
   GeohashLayerProps,
   GreatCircleLayerProps,
   H3ClusterLayerProps,
@@ -3167,6 +3168,40 @@ export class H3HexagonLayerOp extends Operator<H3HexagonLayerOp> {
   }
 }
 
+export class A5LayerOp extends Operator<A5LayerOp> {
+  static displayName = 'A5Layer'
+  static description = 'Render filled and/or stroked polygons using the A5 geospatial indexing system'
+  static cacheable = false
+  createInputs() {
+    return {
+      data: new DataField(),
+      visible: new BooleanField(true),
+      opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
+      getPentagon: new UnknownField((d: unknown) => d?.pentagon || '', { accessor: true }),
+      getFillColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
+      getElevation: new NumberField(1000, { min: 0, max: 100000, accessor: true }),
+      elevationScale: new NumberField(1, { min: 0, max: 100 }),
+      extruded: new BooleanField(false),
+      pickable: new BooleanField(true),
+      extensions: new ListField(new ExtensionField()),
+    }
+  }
+  createOutputs() {
+    return {
+      layer: new LayerField<A5LayerProps>(),
+    }
+  }
+  execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const layer = {
+      ...parseLayerProps<A5LayerProps>(props),
+      type: 'A5Layer' as const,
+      id: this.id,
+      updateTriggers: gatherTriggers(this.inputs, props),
+    }
+    return { layer }
+  }
+}
+
 export class HeatmapLayerOp extends Operator<HeatmapLayerOp> {
   static displayName = 'HeatmapLayer'
   static description = 'Render a heatmap from points on the map'
@@ -4845,6 +4880,7 @@ export class MaskExtensionOp extends Operator<MaskExtensionOp> {
 
 export const opTypes = {
   AccessorOp,
+  A5LayerOp,
   ArcOp,
   ArcLayerOp,
   BezierCurveOp,
