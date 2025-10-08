@@ -337,7 +337,44 @@ export async function readAsset(
 
     return {
       success: true,
-      data: contents,
+      data: contents as string,
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: handleError(error, 'read asset file'),
+    }
+  }
+}
+
+export async function readAssetBinary(
+  type: StorageType,
+  projectName: string,
+  fileName: string
+): Promise<FileSystemResult<ArrayBuffer>> {
+  const projectDirectory = await getProjectDirectoryHandle(type, projectName, true)
+  if (!projectDirectory.success) {
+    return projectDirectory
+  }
+
+  try {
+    const hasDataDir = await directoryExists(projectDirectory.data, DATA_DIRECTORY_NAME)
+    if (!hasDataDir) {
+      return {
+        success: false,
+        error: {
+          type: 'not-found',
+          message: 'Data directory not found',
+        },
+      }
+    }
+
+    const dataDirectory = await projectDirectory.data.getDirectoryHandle(DATA_DIRECTORY_NAME)
+    const contents = await readFileFromDirectory(dataDirectory, fileName, 'binary')
+
+    return {
+      success: true,
+      data: contents as ArrayBuffer,
     }
   } catch (error) {
     return {
