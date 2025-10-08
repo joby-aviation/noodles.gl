@@ -21,6 +21,7 @@ import {
   ReactFlow,
   reconnectEdge,
   useEdgesState,
+  useKeyPress,
   useNodesState,
 } from '@xyflow/react'
 import cx from 'classnames'
@@ -56,10 +57,10 @@ import s from './noodles.module.css'
 import type { IOperator, Operator, OpType, OutOp } from './operators'
 import { extensionMap } from './operators'
 import { load } from './storage'
-import { opMap, useSlice } from './store'
+import { opMap, useSlice, hoveredOutputHandle } from './store'
 import { transformGraph } from './transform-graph'
 import { canConnect } from './utils/can-connect'
-import { edgeId } from './utils/id-utils'
+import { edgeId, nodeId } from './utils/id-utils'
 import { migrateProject } from './utils/migrate-schema'
 import { getParentPath, parseHandleId } from './utils/path-utils'
 import { pick } from './utils/pick'
@@ -160,6 +161,7 @@ export function getNoodles(): Visualization {
   const sheetObjects = useSlice(state => state.sheetObjects)
   const [nodes, setNodes, onNodesChange] = useNodesState<AnyNodeJSON>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<ReactFlowEdge<unknown>>([])
+  const vPressed = useKeyPress('v')
 
   // `transformGraph` needs all nodes to build the opMap and resolve connections
   const operators = useMemo(() => transformGraph({ nodes, edges }), [nodes, edges])
@@ -380,6 +382,100 @@ export function getNoodles(): Visualization {
     })
   }, [])
 
+  const vPressHandledRef = useRef(false)
+
+  const { currentContainerId } = useSlice(state => state.nesting)
+
+  // Handle 'v' key press to create ViewerOp
+  useEffect(() => {
+    if (!vPressed) {
+      // Reset the flag when key is released
+      vPressHandledRef.current = false
+      return
+    }
+
+    // Only handle once per key press
+    if (vPressHandledRef.current) return
+    vPressHandledRef.current = true
+
+    // Use a callback to get the latest nodes without depending on them
+    setNodes(currentNodes => {
+      const selectedNodes = currentNodes.filter(n => n.selected)
+      if (selectedNodes.length === 0) return currentNodes
+
+      // Find the rightmost selected node
+      const rightmostNode = selectedNodes.reduce((rightmost, node) => {
+        return node.position.x > rightmost.position.x ? node : rightmost
+      }, selectedNodes[0])
+
+      // Calculate position for new ViewerOp (to the right of the rightmost node)
+      const VIEWER_OFFSET_X = 400
+      const newViewerPosition = {
+        x: rightmostNode.position.x + VIEWER_OFFSET_X,
+        y: rightmostNode.position.y,
+      }
+
+      // Generate unique ID for ViewerOp
+      const toKebabCase = (str: string) => str.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase()
+      const baseName = toKebabCase('ViewerOp'.replace(/Op$/g, ''))
+      const viewerId = nodeId(baseName, currentContainerId)
+
+      // Create the ViewerOp node
+      const viewerNode: AnyNodeJSON = {
+        id: viewerId,
+        type: 'ViewerOp',
+        position: newViewerPosition,
+        data: undefined,
+      }
+
+      // Determine sourceHandle to use
+      let sourceNodeId = rightmostNode.id
+      let sourceHandle: string | null = null
+
+      // Check if a handle is hovered (from shared store)
+      console.log('Hovered handle:', hoveredOutputHandle)
+      console.log('Selected nodes:', selectedNodes.map(n => n.id))
+      if (hoveredOutputHandle && selectedNodes.some(n => n.id === hoveredOutputHandle.nodeId)) {
+        // Use hovered handle if it's on a selected node
+        // Handle ID is already in the format "out.fieldName"
+        console.log('Handle ID:', hoveredOutputHandle.handleId)
+        if (hoveredOutputHandle.handleId.startsWith('out.')) {
+          sourceNodeId = hoveredOutputHandle.nodeId
+          sourceHandle = hoveredOutputHandle.handleId
+          console.log('Using hovered handle:', sourceHandle)
+        }
+      }
+
+      // If no hovered handle, use the first output handle of the rightmost node
+      if (!sourceHandle) {
+        const sourceOp = ops.get(sourceNodeId)
+        if (sourceOp) {
+          const firstOutputKey = Object.keys(sourceOp.outputs)[0]
+          if (firstOutputKey) {
+            sourceHandle = `out.${firstOutputKey}`
+          }
+        }
+      }
+
+      // Create edge if we have a valid source handle
+      if (sourceHandle) {
+        const targetHandle = 'par.data'
+        const newEdge = {
+          id: edgeId({ source: sourceNodeId, sourceHandle, target: viewerId, targetHandle }),
+          source: sourceNodeId,
+          sourceHandle,
+          target: viewerId,
+          targetHandle,
+        }
+
+        // Add edge
+        setEdges(currentEdges => [...currentEdges, newEdge])
+      }
+
+      return [...currentNodes, viewerNode]
+    })
+  }, [vPressed, ops, setNodes, setEdges, currentContainerId])
+
   const editorSheet = useMemo(() => {
     return theatreSheet.object('editor', {
       showOverlay: types.boolean(!IS_PROD),
@@ -469,7 +565,6 @@ export function getNoodles(): Visualization {
     })()
   }, [])
 
-  const { currentContainerId } = useSlice(state => state.nesting)
   const displayedNodes = useMemo(() => {
     // If no containerId, show all nodes
     // TODO: add support for for-loop begin/end nodes
