@@ -44,7 +44,7 @@ import { Breadcrumbs } from './components/Breadcrumbs'
 import { CopyControls } from './components/copy-controls'
 import { DropTarget } from './components/drop-target'
 import { ErrorBoundary } from './components/ErrorBoundary'
-import { NodesMenubar } from './components/menu'
+import { NoodlesMenubar } from './components/menu'
 import { PropertyPanel } from './components/node-properties'
 import { categories, edgeComponents, nodeComponents } from './components/op-components'
 import { ProjectNameBar, UNSAVED_PROJECT_NAME } from './components/project-name-bar'
@@ -758,7 +758,7 @@ export function getNoodles(): Visualization {
   }, [outOp, selectedGeoJsonFeatures])
 
   const menuBar = (
-    <NodesMenubar
+    <NoodlesMenubar
       projectName={projectName}
       setProjectName={setProjectName}
       getTimelineJson={getTimelineJson}
