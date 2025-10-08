@@ -137,7 +137,7 @@ function useFileDropTarget() {
           throw new Error(result.error?.message || `Failed to write file: ${file.name}`)
         }
 
-        console.log(file)
+        console.log('File added', file)
         const type = file.type.includes('csv') ? 'csv' : 'json'
         const { nodes, edges } = createFileDropNodes(projectScheme + file.name, type)
 

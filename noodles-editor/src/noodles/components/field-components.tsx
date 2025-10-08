@@ -55,8 +55,8 @@ export const inputComponents = {
   compound: CompoundFieldComponent,
   data: EmptyFieldComponent,
   date: DateFieldComponent,
-  expression: TextFieldComponent,
   effect: EmptyFieldComponent,
+  expression: TextFieldComponent,
   file: FileFieldComponent,
   function: EmptyFieldComponent,
   'geopoint-2d': VectorFieldComponent,
@@ -73,6 +73,7 @@ export const inputComponents = {
   vec4: VectorFieldComponent,
   view: EmptyFieldComponent,
   visualization: EmptyFieldComponent,
+  widget: EmptyFieldComponent,
 } as const as Record<string, InputComponent>
 
 // Guard on accessor callbacks in `setValue`/`useState` for when fields are disconnected

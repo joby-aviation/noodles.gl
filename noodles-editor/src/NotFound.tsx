@@ -5,8 +5,6 @@ const nestedProjects = import.meta.glob('../public/noodles/**/noodles.json')
 
 const projects = {...rootProjects, ...nestedProjects}
 
-console.log('Available projects:', Object.keys(projects))
-
 export default function NotFound() {
   return (
     <div className="not-found">
