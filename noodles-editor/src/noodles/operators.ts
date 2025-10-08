@@ -294,7 +294,7 @@ export abstract class Operator<OP extends IOperator> {
   }
 
   // Left open for sub-classes to override
-  onError(_err: unknown) {}
+  onError(_err: unknown) { }
 
   // Needs to be called after sub-classes have created their inputs and outputs
   createListeners() {
@@ -2232,6 +2232,36 @@ export class MapViewStateOp extends Operator<MapViewStateOp> {
   }
 }
 
+export class SplitMapViewStateOp extends Operator<SplitMapViewStateOp> {
+  static displayName = 'SplitMapViewState'
+  static description = 'Split a viewState object into its individual components.'
+  createInputs() {
+    return {
+      viewState: new CompoundPropsField({
+        longitude: new NumberField(DEFAULT_LONGITUDE, { min: -180, max: 180, step: 0.001 }),
+        latitude: new NumberField(DEFAULT_LATITUDE, { min: -90, max: 90, step: 0.001 }),
+        zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
+        pitch: new NumberField(0, { min: 0, max: 60, optional: true }),
+        bearing: new NumberField(0, { optional: true }),
+      }),
+    }
+  }
+  createOutputs() {
+    return {
+      longitude: new NumberField(),
+      latitude: new NumberField(),
+      zoom: new NumberField(),
+      pitch: new NumberField(),
+      bearing: new NumberField(),
+    }
+  }
+  execute({
+    viewState,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    return { ...viewState }
+  }
+}
+
 export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
   static displayName = 'MaplibreBasemap'
   static description = 'A Maplibre basemap.'
@@ -2331,9 +2361,9 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
     const mapProps =
       basemap !== null
         ? {
-            ...basemap,
-            ...pick(viewState, ['longitude', 'latitude', 'zoom', 'pitch', 'bearing']),
-          }
+          ...basemap,
+          ...pick(viewState, ['longitude', 'latitude', 'zoom', 'pitch', 'bearing']),
+        }
         : undefined
 
     return {
@@ -2668,8 +2698,8 @@ type LayerExtensionFieldReturnValue = null | {
 export const extensionMap: Record<
   string,
   | (new (
-      ...args: unknown[]
-    ) => LayerExtension)
+    ...args: unknown[]
+  ) => LayerExtension)
   | { ExtensionClass: new (...args: unknown[]) => LayerExtension; args: unknown }
 > = {
   BrushingExtension,
@@ -3417,11 +3447,11 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
         ? { fetch: { headers: { 'X-GOOG-API-KEY': GOOGLE_MAPS_API_KEY } } }
         : provider === 'Cesium'
           ? {
-              tileset: {
-                throttleRequests,
-              },
-              'cesium-ion': { accessToken: CESIUM_ACCESS_TOKEN },
-            }
+            tileset: {
+              throttleRequests,
+            },
+            'cesium-ion': { accessToken: CESIUM_ACCESS_TOKEN },
+          }
           : null
 
     const onTilesetLoad = (tileset3d: Tileset3D) => {
@@ -3684,7 +3714,7 @@ class VibranceExtensionOp extends Operator<VibranceExtensionOp> {
 // TODO: Do we want to include the args as a property as well? Source is currently just the function body
 type FunctionWithSource = ((...args: unknown[]) => unknown | Promise<unknown>) & { source: string }
 // biome-ignore lint/complexity/useArrowFunction: This is a function declaration
-const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
+const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor
 
 // Create a function with a source property for debugging
 function fnWithSource(args: string[], body: string, id: string): FunctionWithSource {
@@ -4859,6 +4889,7 @@ export const opTypes = {
   SolidPolygonLayerOp,
   SortOp,
   SplitRGBAOp,
+  SplitMapViewStateOp,
   SplitXYOp,
   SplitXYZOp,
   StringOp,
@@ -4879,22 +4910,22 @@ export const opTypes = {
 // Execution state for visual debugging
 export type ExecutionState =
   | {
-      status: 'idle'
-    }
+    status: 'idle'
+  }
   | {
-      status: 'executing'
-    }
+    status: 'executing'
+  }
   | {
-      status: 'success'
-      lastExecuted: Date
-      executionTime: number
-    }
+    status: 'success'
+    lastExecuted: Date
+    executionTime: number
+  }
   | {
-      status: 'error'
-      lastExecuted?: Date
-      executionTime?: number
-      error?: string
-    }
+    status: 'error'
+    lastExecuted?: Date
+    executionTime?: number
+    error?: string
+  }
 
 export type OpType = keyof typeof opTypes
 
