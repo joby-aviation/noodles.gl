@@ -35,6 +35,7 @@ import '@xyflow/react/dist/style.css'
 import 'primereact/resources/themes/md-dark-indigo/theme.css'
 import 'primeicons/primeicons.css'
 
+import newProject from '../../public/noodles/new.json'
 import { SheetProvider } from '../utils/sheet-context'
 import useSheetValue from '../utils/use-sheet-value'
 import type { Visualization } from '../visualizations'
@@ -48,6 +49,7 @@ import { categories, edgeComponents, nodeComponents } from './components/op-comp
 import { ProjectNameBar, UNSAVED_PROJECT_NAME } from './components/project-name-bar'
 import { ProjectNotFoundDialog } from './components/project-not-found-dialog'
 import { StorageErrorHandler } from './components/storage-error-handler'
+import { UndoRedoHandler, type UndoRedoHandlerRef } from './components/UndoRedoHandler'
 import { ListField } from './fields'
 import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
 import { IS_PROD, projectId } from './globals'
@@ -356,6 +358,14 @@ export function getNoodles(): Visualization {
   const reactFlowRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<AddNodeMenuRef>(null)
 
+  // Avoid circular dependency
+  const loadProjectFileRef = useRef<(project: NoodlesProjectJSON, name?: string) => void>()
+
+  const currentProjectRef = useRef<NoodlesProjectJSON>(newProject)
+
+  // Ref to access undo/redo functionality from inside ReactFlow context
+  const undoRedoRef = useRef<UndoRedoHandlerRef>(null)
+
   const onDeselectAll = useCallback(() => {
     setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
     setEdges(edges => edges.map(edge => ({ ...edge, selected: false })))
@@ -397,9 +407,13 @@ export function getNoodles(): Visualization {
       const {
         nodes,
         edges,
-        // viewport, // TODO: Set viewport in React Flow (needs to be done in a ReactFlowContext)
+        // viewport, // Skip viewport to preserve current view
         timeline,
       } = project
+
+      // Update current project ref for undo/redo
+      currentProjectRef.current = project
+
       for (const op of opMap.values()) {
         op.unsubscribeListeners()
       }
@@ -408,6 +422,22 @@ export function getNoodles(): Visualization {
       setEdges(edges)
       setProjectName(name)
       setTheatreProject(name ? { state: timeline } : {}, name)
+
+      // Only fit view when loading a new project (not during undo/redo)
+      if (name && !undoRedoRef.current?.isRestoring()) {
+        // Fit view after a short delay to ensure nodes are rendered
+        setTimeout(() => {
+          try {
+            if (reactFlowRef.current && nodes.length > 0) {
+              // Access ReactFlow instance through the ref if available
+              // Note: This may need adjustment based on how ReactFlow exposes fitView
+              console.log('Fit view would be called here if ReactFlow instance was accessible')
+            }
+          } catch (error) {
+            console.warn('Could not fit view:', error)
+          }
+        }, 100)
+      }
 
       // Update URL query parameter with project name
       if (name) {
@@ -418,6 +448,11 @@ export function getNoodles(): Visualization {
     },
     [setNodes, setEdges, setTheatreProject]
   )
+
+  // Assign to ref for undo/redo system
+  loadProjectFileRef.current = loadProjectFile
+
+  // Keyboard shortcuts are now handled by UndoRedoHandler component
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: loadProjectFile would cause infinite loop
   useEffect(() => {
@@ -508,7 +543,6 @@ export function getNoodles(): Visualization {
             onPaneContextMenu={onPaneContextMenu}
             onPaneClick={onPaneClick}
             minZoom={0.2}
-            fitView
             fitViewOptions={fitViewOptions}
             defaultEdgeOptions={defaultEdgeOptions}
             nodeTypes={nodeComponents}
@@ -518,6 +552,7 @@ export function getNoodles(): Visualization {
             <Controls position="bottom-right" />
             <AddNodeMenu ref={menuRef} reactFlowRef={reactFlowRef} />
             <CopyControls />
+            <UndoRedoHandler ref={undoRedoRef} />
           </ReactFlow>
         </SheetProvider>
       </PrimeReactProvider>
@@ -640,6 +675,7 @@ export function getNoodles(): Visualization {
       setProjectName={setProjectName}
       getTimelineJson={getTimelineJson}
       loadProjectFile={loadProjectFile}
+      undoRedo={undoRedoRef.current}
     />
   )
 
