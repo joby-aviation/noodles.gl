@@ -774,16 +774,12 @@ export class CompoundPropsField extends Field<
   static defaultValue = {}
   fields: Record<string, Field<z.ZodTypeAny>> = {}
 
-  createSchema({ subschema = {} }: CompoundPropsFieldOptions) {
-    return z.looseObject(subschema).readonly()
-  }
-
-  get value() {
-    const data = { ...this._value }
-    for (const [key, field] of Object.entries(this.fields || {})) {
-      data[key] = field.value
+  createSchema({ subschema = {}, passthrough = false }: CompoundPropsFieldOptions) {
+    let schema = z.object(subschema)
+    if (passthrough) {
+      schema = schema.passthrough()
     }
-    return data
+    return schema
   }
 
   constructor(fields: Record<string, Field<z.ZodTypeAny>>, options?: CompoundPropsFieldOptions) {
@@ -797,55 +793,28 @@ export class CompoundPropsField extends Field<
       subschema[key] = field.schema
     }
 
-    const passthrough = options?.passthrough ?? true
-    super(defaults, { subschema, ...options, passthrough })
+    super(defaults, { subschema, ...options })
     this.fields = fields
 
+    let updating = false
+
     this.subscribe(value => {
+      if (updating) return
+      updating = true
       for (const [key, field] of Object.entries(fields)) {
         if (Object.hasOwn(value || {}, key)) {
           field.next(value[key])
         }
       }
+      updating = false
     })
 
-    let updating = false
     combineLatest(fields).subscribe(values => {
       if (updating) return
       updating = true
       this.next(values)
       updating = false
     })
-  }
-
-  next(parsed: ExtractProps<typeof this.fields>) {
-    // if (!parsed) return
-    super.next({ ...this.value, ...parsed })
-    for (const [key, field] of Object.entries(this.fields || {})) {
-      if (Object.hasOwn(parsed || {}, key)) {
-        field.next(parsed[key])
-      }
-    }
-  }
-
-  addConnection<F extends IField<z.ZodType<unknown, z.ZodTypeDef, unknown>>>(
-    id: string,
-    field: F,
-    connectionType: 'reference' | 'value' = 'value'
-  ): Subscription | undefined {
-    if (this.subscriptions.has(id)) {
-      return
-    }
-
-    const subscription = field.subscribe(_value => {
-      if (connectionType === 'value') {
-        this.next(field.value)
-      } else {
-        this.next(this.value)
-      }
-    })
-    this.subscriptions.set(id, subscription)
-    return subscription
   }
 }
 
