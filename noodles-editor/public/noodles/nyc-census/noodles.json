@@ -1,0 +1,194 @@
+{
+  "nodes": [
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 800,
+        "y": 0
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 1100,
+        "y": 0
+      }
+    },
+    {
+      "id": "/data-source",
+      "type": "FileOp",
+      "data": {
+        "inputs": {
+          "url": "@/data.json",
+          "format": "json"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -600,
+        "y": -200
+      }
+    },
+    {
+      "id": "/geojson-layer",
+      "type": "GeoJsonLayerOp",
+      "data": {
+        "inputs": {
+          "stroked": false,
+          "filled": true,
+          "extruded": true,
+          "wireframe": false,
+          "elevationScale": 11,
+          "opacity": 0.7
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 400,
+        "y": 0
+      }
+    },
+    {
+      "id": "/population-color",
+      "type": "ColorRampOp",
+      "data": {
+        "inputs": {
+          "colorScheme": "YlOrRd",
+          "domain": [0, 8000]
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 0,
+        "y": -50
+      }
+    },
+    {
+      "id": "/population-accessor",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "d.properties.population"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -300,
+        "y": -50
+      }
+    },
+    {
+      "id": "/elevation-accessor",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "d.properties.population"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -300,
+        "y": 100
+      }
+    },
+    {
+      "type": "MaplibreBasemapOp",
+      "id": "/maplibre-basemap",
+      "position": {
+        "x": 400,
+        "y": 200
+      },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
+          "viewState": {
+            "latitude": 40.70103,
+            "longitude": -73.91554,
+            "zoom": 11.98,
+            "pitch": 59.11,
+            "bearing": -91.5
+          }
+        },
+        "locked": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    },
+    {
+      "id": "/data-source.out.data->/geojson-layer.par.data",
+      "source": "/data-source",
+      "target": "/geojson-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/population-color.out.accessor->/geojson-layer.par.getFillColor",
+      "source": "/population-color",
+      "target": "/geojson-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getFillColor"
+    },
+    {
+      "id": "/elevation-accessor.out.accessor->/geojson-layer.par.getElevation",
+      "source": "/elevation-accessor",
+      "target": "/geojson-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getElevation"
+    },
+    {
+      "id": "/population-accessor.out.accessor->/population-color.par.value",
+      "source": "/population-accessor",
+      "target": "/population-color",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.value"
+    },
+    {
+      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
+      "source": "/maplibre-basemap",
+      "target": "/deck",
+      "sourceHandle": "out.maplibre",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/geojson-layer.out.layer->/deck.par.layers",
+      "source": "/geojson-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    }
+  ],
+  "viewport": {
+    "x": 600,
+    "y": 400,
+    "zoom": 0.8
+  },
+  "version": 6,
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": []
+  }
+}

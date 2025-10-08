@@ -1,0 +1,152 @@
+{
+  "nodes": [
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 800,
+        "y": 0
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 1100,
+        "y": 0
+      }
+    },
+    {
+      "id": "/data-source",
+      "type": "FileOp",
+      "data": {
+        "inputs": {
+          "url": "@/data.csv",
+          "format": "csv"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -600,
+        "y": -300
+      }
+    },
+    {
+      "id": "/hexagon-layer",
+      "type": "HexagonLayerOp",
+      "data": {
+        "inputs": {
+          "radius": 200,
+          "extruded": true,
+          "elevationScale": 5,
+          "coverage": 1,
+          "upperPercentile": 100,
+          "colorAggregation": "MEAN",
+          "elevationAggregation": "SUM"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 200,
+        "y": 0
+      }
+    },
+    {
+      "id": "/position-accessor",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "[d.longitude, d.latitude]"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -200,
+        "y": -300
+      }
+    },
+    {
+      "type": "MaplibreBasemapOp",
+      "id": "/maplibre-basemap",
+      "position": {
+        "x": 400,
+        "y": 200
+      },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+          "viewState": {
+            "latitude": 37.759,
+            "longitude": -122.448,
+            "zoom": 12.51,
+            "pitch": 40,
+            "bearing": 0
+          }
+        },
+        "locked": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    },
+    {
+      "id": "/data-source.out.data->/hexagon-layer.par.data",
+      "source": "/data-source",
+      "target": "/hexagon-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/position-accessor.out.accessor->/hexagon-layer.par.getPosition",
+      "source": "/position-accessor",
+      "target": "/hexagon-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getPosition"
+    },
+    {
+      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
+      "source": "/maplibre-basemap",
+      "target": "/deck",
+      "sourceHandle": "out.maplibre",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/hexagon-layer.out.layer->/deck.par.layers",
+      "source": "/hexagon-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    }
+  ],
+  "viewport": {
+    "x": 600,
+    "y": 400,
+    "zoom": 0.8
+  },
+  "version": 6,
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": []
+  }
+}

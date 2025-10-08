@@ -1,0 +1,201 @@
+{
+  "nodes": [
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 1000,
+        "y": 0
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 1300,
+        "y": 0
+      }
+    },
+    {
+      "id": "/data-source",
+      "type": "FileOp",
+      "data": {
+        "inputs": {
+          "url": "@/data.json",
+          "format": "json"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -600,
+        "y": -200
+      }
+    },
+    {
+      "id": "/geojson-layer",
+      "type": "GeoJsonLayerOp",
+      "data": {
+        "inputs": {
+          "stroked": true,
+          "filled": false,
+          "lineWidthMinPixels": 0.5,
+          "opacity": 0.6
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 200,
+        "y": 0
+      }
+    },
+    {
+      "id": "/trips-layer",
+      "type": "TripsLayerOp",
+      "data": {
+        "inputs": {
+          "widthMinPixels": 1.5,
+          "trailLength": 336,
+          "opacity": 0.8,
+          "currentTime": 0
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 200,
+        "y": -300
+      }
+    },
+    {
+      "id": "/line-color",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "utils.stringToColor(d.properties.origin_country)"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -200,
+        "y": 0
+      }
+    },
+    {
+      "id": "/trip-color",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "utils.stringToColor(d.properties.origin_country)"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -200,
+        "y": -300
+      }
+    },
+    {
+      "type": "MaplibreBasemapOp",
+      "id": "/maplibre-basemap",
+      "position": {
+        "x": 600,
+        "y": 200
+      },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+          "viewState": {
+            "latitude": 38.69,
+            "longitude": -1.76,
+            "zoom": 2.62,
+            "pitch": 0,
+            "bearing": 0
+          }
+        },
+        "locked": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    },
+    {
+      "id": "/data-source.out.data->/geojson-layer.par.data",
+      "source": "/data-source",
+      "target": "/geojson-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/data-source.out.data->/trips-layer.par.data",
+      "source": "/data-source",
+      "target": "/trips-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/line-color.out.accessor->/geojson-layer.par.getLineColor",
+      "source": "/line-color",
+      "target": "/geojson-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getLineColor"
+    },
+    {
+      "id": "/trip-color.out.accessor->/trips-layer.par.getColor",
+      "source": "/trip-color",
+      "target": "/trips-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getColor"
+    },
+    {
+      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
+      "source": "/maplibre-basemap",
+      "target": "/deck",
+      "sourceHandle": "out.maplibre",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/geojson-layer.out.layer->/deck.par.layers",
+      "source": "/geojson-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/trips-layer.out.layer->/deck.par.layers",
+      "source": "/trips-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    }
+  ],
+  "viewport": {
+    "x": 600,
+    "y": 400,
+    "zoom": 0.7
+  },
+  "version": 6,
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": []
+  }
+}

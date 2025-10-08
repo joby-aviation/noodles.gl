@@ -1,0 +1,213 @@
+{
+  "nodes": [
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 800,
+        "y": 0
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 1100,
+        "y": 0
+      }
+    },
+    {
+      "id": "/data-source",
+      "type": "FileOp",
+      "data": {
+        "inputs": {
+          "url": "@/data.csv",
+          "format": "csv"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -600,
+        "y": -300
+      }
+    },
+    {
+      "id": "/scatterplot-layer",
+      "type": "ScatterplotLayerOp",
+      "data": {
+        "inputs": {
+          "radiusMinPixels": 1,
+          "radiusMaxPixels": 30,
+          "filled": true,
+          "opacity": 0.4
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 200,
+        "y": 0
+      }
+    },
+    {
+      "id": "/position-accessor",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "[d.Longitude, d.Latitude]"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -200,
+        "y": -300
+      }
+    },
+    {
+      "id": "/radius-accessor",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "Math.sqrt(d.Magnitude) * 15"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -200,
+        "y": -150
+      }
+    },
+    {
+      "id": "/magnitude-color",
+      "type": "ColorRampOp",
+      "data": {
+        "inputs": {
+          "colorScheme": "Viridis",
+          "domain": [2.5, 7]
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -200,
+        "y": 0
+      }
+    },
+    {
+      "id": "/magnitude-accessor",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "d.Magnitude"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -500,
+        "y": 0
+      }
+    },
+    {
+      "type": "MaplibreBasemapOp",
+      "id": "/maplibre-basemap",
+      "position": {
+        "x": 400,
+        "y": 200
+      },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
+          "viewState": {
+            "latitude": 37.059,
+            "longitude": -122.8,
+            "zoom": 5.74,
+            "pitch": 0,
+            "bearing": 0
+          }
+        },
+        "locked": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    },
+    {
+      "id": "/data-source.out.data->/scatterplot-layer.par.data",
+      "source": "/data-source",
+      "target": "/scatterplot-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/position-accessor.out.accessor->/scatterplot-layer.par.getPosition",
+      "source": "/position-accessor",
+      "target": "/scatterplot-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getPosition"
+    },
+    {
+      "id": "/radius-accessor.out.accessor->/scatterplot-layer.par.getRadius",
+      "source": "/radius-accessor",
+      "target": "/scatterplot-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getRadius"
+    },
+    {
+      "id": "/magnitude-color.out.accessor->/scatterplot-layer.par.getFillColor",
+      "source": "/magnitude-color",
+      "target": "/scatterplot-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getFillColor"
+    },
+    {
+      "id": "/magnitude-accessor.out.accessor->/magnitude-color.par.value",
+      "source": "/magnitude-accessor",
+      "target": "/magnitude-color",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.value"
+    },
+    {
+      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
+      "source": "/maplibre-basemap",
+      "target": "/deck",
+      "sourceHandle": "out.maplibre",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/scatterplot-layer.out.layer->/deck.par.layers",
+      "source": "/scatterplot-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    }
+  ],
+  "viewport": {
+    "x": 600,
+    "y": 400,
+    "zoom": 0.8
+  },
+  "version": 6,
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": []
+  }
+}

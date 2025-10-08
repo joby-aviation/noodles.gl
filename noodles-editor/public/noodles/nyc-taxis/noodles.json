@@ -1,0 +1,342 @@
+{
+  "nodes": [
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 1200,
+        "y": 0
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 1500,
+        "y": 0
+      }
+    },
+    {
+      "id": "/data-source",
+      "type": "FileOp",
+      "data": {
+        "inputs": {
+          "url": "@/data.csv",
+          "format": "csv"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -600,
+        "y": -400
+      }
+    },
+    {
+      "id": "/arc-layer",
+      "type": "ArcLayerOp",
+      "data": {
+        "inputs": {
+          "greatCircle": false,
+          "getWidth": 1
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 600,
+        "y": -300
+      }
+    },
+    {
+      "id": "/pickup-layer",
+      "type": "ScatterplotLayerOp",
+      "data": {
+        "inputs": {
+          "radiusMinPixels": 1,
+          "radiusMaxPixels": 5,
+          "filled": true,
+          "opacity": 0.8
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 600,
+        "y": 0
+      }
+    },
+    {
+      "id": "/dropoff-layer",
+      "type": "ScatterplotLayerOp",
+      "data": {
+        "inputs": {
+          "radiusMinPixels": 2,
+          "radiusMaxPixels": 8,
+          "filled": true,
+          "opacity": 0.8
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 600,
+        "y": 300
+      }
+    },
+    {
+      "id": "/source-position",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "[d.pickup_longitude, d.pickup_latitude]"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 0,
+        "y": -400
+      }
+    },
+    {
+      "id": "/target-position",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "[d.dropoff_longitude, d.dropoff_latitude]"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 0,
+        "y": -250
+      }
+    },
+    {
+      "id": "/pickup-position",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "[d.pickup_longitude, d.pickup_latitude]"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 0,
+        "y": -100
+      }
+    },
+    {
+      "id": "/dropoff-position",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "[d.dropoff_longitude, d.dropoff_latitude]"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 0,
+        "y": 50
+      }
+    },
+    {
+      "id": "/arc-color",
+      "type": "ColorOp",
+      "data": {
+        "inputs": {
+          "color": "#1081885f"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 300,
+        "y": -400
+      }
+    },
+    {
+      "id": "/pickup-color",
+      "type": "ColorOp",
+      "data": {
+        "inputs": {
+          "color": "#2473bdc8"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 300,
+        "y": 0
+      }
+    },
+    {
+      "id": "/dropoff-color",
+      "type": "ColorOp",
+      "data": {
+        "inputs": {
+          "color": "#223f9ac8"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 300,
+        "y": 300
+      }
+    },
+    {
+      "type": "MaplibreBasemapOp",
+      "id": "/maplibre-basemap",
+      "position": {
+        "x": 800,
+        "y": 400
+      },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+          "viewState": {
+            "latitude": 40.74,
+            "longitude": -73.98,
+            "zoom": 12.09,
+            "pitch": 56,
+            "bearing": -15.25
+          }
+        },
+        "locked": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    },
+    {
+      "id": "/data-source.out.data->/arc-layer.par.data",
+      "source": "/data-source",
+      "target": "/arc-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/data-source.out.data->/pickup-layer.par.data",
+      "source": "/data-source",
+      "target": "/pickup-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/data-source.out.data->/dropoff-layer.par.data",
+      "source": "/data-source",
+      "target": "/dropoff-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/source-position.out.accessor->/arc-layer.par.getSourcePosition",
+      "source": "/source-position",
+      "target": "/arc-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getSourcePosition"
+    },
+    {
+      "id": "/target-position.out.accessor->/arc-layer.par.getTargetPosition",
+      "source": "/target-position",
+      "target": "/arc-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getTargetPosition"
+    },
+    {
+      "id": "/pickup-position.out.accessor->/pickup-layer.par.getPosition",
+      "source": "/pickup-position",
+      "target": "/pickup-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getPosition"
+    },
+    {
+      "id": "/dropoff-position.out.accessor->/dropoff-layer.par.getPosition",
+      "source": "/dropoff-position",
+      "target": "/dropoff-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getPosition"
+    },
+    {
+      "id": "/arc-color.out.color->/arc-layer.par.getSourceColor",
+      "source": "/arc-color",
+      "target": "/arc-layer",
+      "sourceHandle": "out.color",
+      "targetHandle": "par.getSourceColor"
+    },
+    {
+      "id": "/arc-color.out.color->/arc-layer.par.getTargetColor",
+      "source": "/arc-color",
+      "target": "/arc-layer",
+      "sourceHandle": "out.color",
+      "targetHandle": "par.getTargetColor"
+    },
+    {
+      "id": "/pickup-color.out.color->/pickup-layer.par.getFillColor",
+      "source": "/pickup-color",
+      "target": "/pickup-layer",
+      "sourceHandle": "out.color",
+      "targetHandle": "par.getFillColor"
+    },
+    {
+      "id": "/dropoff-color.out.color->/dropoff-layer.par.getFillColor",
+      "source": "/dropoff-color",
+      "target": "/dropoff-layer",
+      "sourceHandle": "out.color",
+      "targetHandle": "par.getFillColor"
+    },
+    {
+      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
+      "source": "/maplibre-basemap",
+      "target": "/deck",
+      "sourceHandle": "out.maplibre",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/arc-layer.out.layer->/deck.par.layers",
+      "source": "/arc-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/pickup-layer.out.layer->/deck.par.layers",
+      "source": "/pickup-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/dropoff-layer.out.layer->/deck.par.layers",
+      "source": "/dropoff-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    }
+  ],
+  "viewport": {
+    "x": 400,
+    "y": 500,
+    "zoom": 0.6
+  },
+  "version": 6,
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": []
+  }
+}
