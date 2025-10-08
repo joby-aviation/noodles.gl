@@ -34,14 +34,12 @@ yarn start
 ## 📁 Project Structure
 
 For detailed information about the codebase structure and architecture, see:
-
 - [Architecture Overview](https://github.com/joby-aviation/noodles.gl/blob/main/dev-docs/architecture.md) - Complete project structure and patterns
 - [Technology Stack](https://github.com/joby-aviation/noodles.gl/blob/main/dev-docs/tech-stack.md) - Full tech stack details
 
 ## 🛠️ Development Workflow
 
 ### Available Commands
-
 For complete development commands and code style guidelines, see [Development Guide](https://github.com/joby-aviation/noodles.gl/blob/main/dev-docs/developing.md).
 
 Key commands:
@@ -87,7 +85,6 @@ Key concepts:
 3. **Fork the repository** and create a feature branch
 
 ### Making Changes
-
 1. **Follow the code style** [guidelines](https://github.com/joby-aviation/noodles.gl/blob/main/dev-docs/developing.md)
 2. **Write tests** for new functionality
 3. **Migration Scripts**: Add any necessary migrations
