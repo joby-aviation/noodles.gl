@@ -81,15 +81,13 @@ const defaultEdgeOptions: DefaultEdgeOptions = {
   animated: false,
 }
 
-/**
- * TheatreJS is used by the Noodles framework to provide a timeline and keyframe animation for Op fields.
- * Naturally, the Noodles framework will load a new theatre state when a Noodles project is loaded.
- * TheatreJS doesn't support loading projects with the same ID more than once, so a new theatre project name is generated when a new Noodles project is loaded.
- * Currently a UUID is used, but a more human-readable name could be generated instead as long as its unique to the page session.
- *
- * TheatreJS project names are not included in the Noodles project file.
- * TheatreJS sheet names are included, so they should be the same for every project.
- */
+// TheatreJS is used by the Noodles framework to provide a timeline and keyframe animation for Op fields.
+// Naturally, the Noodles framework will load a new theatre state when a Noodles project is loaded.
+// TheatreJS doesn't support loading projects with the same ID more than once, so a new theatre project name is generated when a new Noodles project is loaded.
+// Currently a UUID is used, but a more human-readable name could be generated instead as long as its unique to the page session.
+//
+// TheatreJS project names are not included in the Noodles project file.
+// TheatreJS sheet names are included, so they should be the same for every project.
 const THEATRE_SHEET_ID = 'Noodles'
 function useTheatreJs(projectName?: string) {
   // Increment whenever a new theatre project is created to keep the project name unique *within theatre*.

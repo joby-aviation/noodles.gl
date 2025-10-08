@@ -377,7 +377,7 @@ export function NodesMenubar({
   const storageType = useActiveStorageType()
   const { setCurrentDirectory, setError } = useFileSystemStore()
 
-  /* "New" Menu Options */
+  // "New" Menu Options
   const onNewProject = useCallback(() => {
     loadProjectFile(newProjectJSON)
   }, [loadProjectFile])
@@ -407,7 +407,7 @@ export function NodesMenubar({
     loadProjectFile(project)
   }, [loadProjectFile])
 
-  /* "Save" Menu Options */
+  // "Save" Menu Options
   const [saveProjectDialogOpen, setSaveProjectDialogOpen] = useState(false)
   const [replaceProjectDialogOpen, setReplaceProjectDialogOpen] = useState(false)
 
@@ -493,7 +493,7 @@ export function NodesMenubar({
     saveProjectLocally(projectName || 'untitled', nodesProjectJson)
   }, [projectName, getNodesProjectJson])
 
-  /* "Open" Menu Options */
+  // "Open" Menu Options
   const [openProjectDialogOpen, setOpenProjectDialogOpen] = useState(false)
 
   // Load project by name (for OPFS projects from list)
