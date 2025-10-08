@@ -417,6 +417,95 @@ export class MapRangeOp extends Operator<MapRangeOp> {
   }
 }
 
+export class RampOp extends Operator<RampOp> {
+  static displayName = 'Ramp'
+  static description = 'Interpolate a value along a curve defined by control points (stops).'
+
+  createInputs() {
+    return {
+      displayCurveType: new StringLiteralField('linear', {
+        // For visual representation in BezierEditor
+        values: ['linear', 'basis', 'monotoneX', 'catmullRom'],
+      }),
+      value: new NumberField(1, { step: 0.01, optional: true }), // Value to scale the ramp output
+      position: new NumberField(0, { min: 0, max: 1, step: 0.01 }), // Position along the ramp (0-1)
+      // Stops are defined as { pos: number (0-1), val: number }
+      // Default to a linear ramp from [0,0] to [1,1]
+      stops: new DataField(
+        new ArrayField(
+          new CompoundPropsField({
+            id: new StringField(''),
+            pos: new NumberField(0, { min: 0, max: 1, step: 0.01 }),
+            val: new NumberField(0, { step: 0.01 }),
+          })
+        )
+      ),
+    }
+  }
+
+  createOutputs() {
+    return {
+      result: new NumberField(),
+    }
+  }
+
+  execute({
+    value,
+    position,
+    stops,
+    displayCurveType,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    // displayCurveType is only for the editor, not used in computation.
+    let rampStops = stops
+    // Ensure default stops if none are provided or if it's empty
+    if (!rampStops || rampStops.length === 0) {
+      rampStops = [
+        { id: 'beginning', pos: 0, val: 0 },
+        { id: 'end', pos: 1, val: 1 },
+      ]
+    }
+
+    // Ensure stops are sorted by position
+    const sortedStops = [...rampStops].sort((a, b) => a.pos - b.pos)
+
+    if (sortedStops.length === 0) {
+      return { result: 0 * (value ?? 1) } // Should not happen with default
+    }
+
+    // Handle edge cases for position
+    if (position <= sortedStops[0].pos) {
+      return { result: sortedStops[0].val * (value ?? 1) }
+    }
+    if (position >= sortedStops[sortedStops.length - 1].pos) {
+      return { result: sortedStops[sortedStops.length - 1].val * (value ?? 1) }
+    }
+
+    // Find the two stops that the position is between
+    let lowerStop = sortedStops[0]
+    let upperStop = sortedStops[sortedStops.length - 1]
+
+    for (let i = 0; i < sortedStops.length - 1; i++) {
+      if (position >= sortedStops[i].pos && position <= sortedStops[i + 1].pos) {
+        lowerStop = sortedStops[i]
+        upperStop = sortedStops[i + 1]
+        break
+      }
+    }
+
+    // Linear interpolation
+    const range = upperStop.pos - lowerStop.pos
+    // Avoid division by zero if stops are at the same position
+    if (range === 0) {
+      return { result: lowerStop.val * (value ?? 1) }
+    }
+
+    const t = (position - lowerStop.pos) / range
+    const interpolatedVal = lowerStop.val + t * (upperStop.val - lowerStop.val)
+
+    return { result: interpolatedVal * (value ?? 1) }
+  }
+}
+
 export class ExtentOp extends Operator<ExtentOp> {
   static displayName = 'Extent'
   static description =
@@ -4846,6 +4935,7 @@ export const opTypes = {
   PolygonLayerOp,
   ProjectOp,
   QuadkeyLayerOp,
+  RampOp,
   RandomizeAttributeOp,
   RasterTileLayerOp,
   RectangleOp,

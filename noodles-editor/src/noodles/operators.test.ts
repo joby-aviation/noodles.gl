@@ -18,6 +18,7 @@ import {
   ObjectMergeOp,
   Operator,
   ProjectOp,
+  RampOp,
   RectangleOp,
   ScatterplotLayerOp,
   SwitchOp,
@@ -1162,5 +1163,193 @@ describe('Viral Accessor Tests', () => {
       expect(isAccessor(result.object)).toBe(true)
       expect((result.object as Function)({ x: 1, y: 2 })).toEqual({ x: 1, z: 3, y: 2 })
     })
+  })
+})
+
+describe('RampOp', () => {
+  it('executes with default stops (0,0 to 1,1 linear)', async () => {
+    const operator = new RampOp('ramp-0')
+    operator.createListeners() // Initialize outputs
+
+    operator.inputs.position.setValue(0.5)
+    await Promise.resolve()
+    expect(operator.outputs.result.value).toBe(0.5)
+
+    operator.inputs.position.setValue(0)
+    await Promise.resolve()
+    expect(operator.outputs.result.value).toBe(0)
+
+    operator.inputs.position.setValue(1)
+    await Promise.resolve()
+    expect(operator.outputs.result.value).toBe(1)
+
+    operator.inputs.position.setValue(0.25)
+    await Promise.resolve()
+    expect(operator.outputs.result.value).toBe(0.25)
+  })
+
+  it('executes with custom stops', async () => {
+    const operator = new RampOp('ramp-1')
+    const stops = [
+      { id: 'stop-0', pos: 0, val: 10 },
+      { id: 'stop-1', pos: 0.5, val: 20 },
+      { id: 'stop-2', pos: 1, val: 0 },
+    ]
+    operator.inputs.stops.setValue(stops)
+    operator.createListeners()
+
+    operator.inputs.position.setValue(0)
+    await Promise.resolve()
+    expect(operator.outputs.result.value).toBe(10)
+
+    operator.inputs.position.setValue(1)
+    await Promise.resolve()
+    expect(operator.outputs.result.value).toBe(0)
+
+    operator.inputs.position.setValue(0.25) // Halfway between (0,10) and (0.5,20)
+    await Promise.resolve()
+    expect(operator.outputs.result.value).toBe(15)
+
+    operator.inputs.position.setValue(0.75) // Halfway between (0.5,20) and (1,0)
+    await Promise.resolve()
+    expect(operator.outputs.result.value).toBe(10)
+
+    operator.inputs.position.setValue(0.5)
+    await Promise.resolve()
+    expect(operator.outputs.result.value).toBe(20)
+  })
+
+  it('handles positions outside the stop range', async () => {
+    const operator = new RampOp('ramp-2')
+    const stops = [
+      { id: 'stop-0', pos: 0.2, val: 5 },
+      { id: 'stop-1', pos: 0.8, val: 15 },
+    ]
+    operator.inputs.stops.setValue(stops)
+    operator.createListeners()
+
+    operator.inputs.position.setValue(0) // Less than first stop
+    await Promise.resolve()
+    expect(operator.outputs.result.value).toBe(5)
+
+    operator.inputs.position.setValue(0.1) // Less than first stop
+    await Promise.resolve()
+    expect(operator.outputs.result.value).toBe(5)
+
+    operator.inputs.position.setValue(0.9) // Greater than last stop
+    await Promise.resolve()
+    expect(operator.outputs.result.value).toBe(15)
+
+    operator.inputs.position.setValue(1) // Greater than last stop
+    await Promise.resolve()
+    expect(operator.outputs.result.value).toBe(15)
+  })
+
+  it('applies the input value as a scaler', async () => {
+    const operator = new RampOp('ramp-3')
+    operator.createListeners()
+
+    operator.inputs.position.setValue(0.5)
+    operator.inputs.value.setValue(2)
+    await Promise.resolve()
+    expect(operator.outputs.result.value).toBe(1) // 0.5 (from ramp) * 2 (value)
+
+    operator.inputs.value.setValue(0.5)
+    await Promise.resolve()
+    expect(operator.outputs.result.value).toBe(0.25) // 0.5 * 0.5
+
+    const stops = [
+      { id: 'stop-0', pos: 0, val: 10 },
+      { id: 'stop-1', pos: 1, val: 20 },
+    ]
+    operator.inputs.stops.setValue(stops)
+    operator.inputs.position.setValue(0.5) // Ramp output is 15
+    operator.inputs.value.setValue(3)
+    await Promise.resolve()
+    expect(operator.outputs.result.value).toBe(45) // 15 * 3
+  })
+
+  it('handles unsorted stops correctly (internally sorts)', async () => {
+    const operator = new RampOp('ramp-4')
+    const stops = [
+      { id: 'stop-0', pos: 1, val: 0 },
+      { id: 'stop-1', pos: 0, val: 10 },
+      { id: 'stop-2', pos: 0.5, val: 20 },
+    ]
+    operator.inputs.stops.setValue(stops)
+    operator.createListeners()
+
+    // Same expectations as the sorted custom stops test
+    operator.inputs.position.setValue(0.25)
+    await Promise.resolve()
+    expect(operator.outputs.result.value).toBe(15)
+
+    operator.inputs.position.setValue(0.75)
+    await Promise.resolve()
+    expect(operator.outputs.result.value).toBe(10)
+  })
+
+  it('handles stops with identical positions', async () => {
+    const operator = new RampOp('ramp-5')
+    // The behavior here is that it will use the first encountered value at that position after sorting.
+    // Or, if position is exactly on the duplicated point, it might depend on iteration order.
+    // Let's test a specific case:
+    const stops = [
+      { id: 'stop-0', pos: 0, val: 0 },
+      { id: 'stop-1', pos: 0.5, val: 10 },
+      { id: 'stop-2', pos: 0.5, val: 20 }, // Duplicate position
+      { id: 'stop-3', pos: 1, val: 30 },
+    ]
+    operator.inputs.stops.setValue(stops)
+    operator.createListeners()
+
+    operator.inputs.position.setValue(0.25) // Between (0,0) and (0.5,10) or (0.5,20) -> (0,0) and (0.5,10)
+    await Promise.resolve()
+    expect(operator.outputs.result.value).toBe(5) // (0+10)/2
+
+    // If position is exactly 0.5. The RampOp's logic finds the segment.
+    // If pos = 0.5, it's >= sortedStops[i].pos (0.5) && <= sortedStops[i+1].pos (0.5)
+    // lowerStop = {pos:0.5, val:10}, upperStop = {pos:0.5, val:20}. Range is 0.
+    // So it should return lowerStop.val.
+    operator.inputs.position.setValue(0.5)
+    // The current implementation will pick the one that comes first in the sorted list for the lower bound
+    // if multiple stops have the same pos.
+    // sortedStops would be [{0,0}, {0.5,10}, {0.5,20}, {1,30}]
+    // if position is 0.5, lowerStop = {0.5,10}, upperStop = {0.5,20}. range = 0. returns lowerStop.val
+    await Promise.resolve()
+    expect(operator.outputs.result.value).toBe(10)
+
+    operator.inputs.position.setValue(0.75) // Between (0.5,10) or (0.5,20) and (1,30) -> (0.5,20) and (1,30)
+    // lowerStop = {0.5,20}, upperStop = {1,30}. (20+30)/2 = 25
+    await Promise.resolve()
+    expect(operator.outputs.result.value).toBe(25)
+  })
+
+  it('returns 0 if stops array is empty and no default value is used (though RampOp provides default)', async () => {
+    const operator = new RampOp('ramp-6')
+    operator.inputs.stops.setValue([]) // Explicitly set to empty
+    operator.createListeners()
+
+    operator.inputs.position.setValue(0.5)
+    // Default stops are [{pos:0, val:0}, {pos:1, val:1}]
+    await Promise.resolve()
+    expect(operator.outputs.result.value).toBe(0.5)
+  })
+
+  it('handles single stop correctly', async () => {
+    const operator = new RampOp('ramp-7')
+    const stops = [{ id: 'stop-0', pos: 0.5, val: 100 }]
+    operator.inputs.stops.setValue(stops)
+    operator.createListeners()
+
+    operator.inputs.position.setValue(0)
+    await Promise.resolve()
+    expect(operator.outputs.result.value).toBe(100)
+    operator.inputs.position.setValue(0.5)
+    await Promise.resolve()
+    expect(operator.outputs.result.value).toBe(100)
+    operator.inputs.position.setValue(1)
+    await Promise.resolve()
+    expect(operator.outputs.result.value).toBe(100)
   })
 })
