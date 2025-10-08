@@ -239,6 +239,7 @@ export const categories = {
   view: [
     'FirstPersonViewOp',
     'GlobeViewOp',
+    'InteractiveCameraOp',
     'MaplibreBasemapOp',
     'MapViewOp',
     'MapViewStateOp',

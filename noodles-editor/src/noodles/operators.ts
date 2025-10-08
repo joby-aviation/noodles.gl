@@ -122,6 +122,7 @@ import {
   schemeYlGn,
 } from 'd3'
 import * as deck from 'deck.gl'
+import type { MapProps, ViewState } from 'react-map-gl/maplibre'
 import { BehaviorSubject, combineLatest, type Subscription } from 'rxjs'
 import { debounceTime, filter, mergeMap } from 'rxjs/operators'
 import { Temporal } from 'temporal-polyfill'
@@ -1502,6 +1503,61 @@ export class BoundingBoxOp extends Operator<BoundingBoxOp> {
     }
 
     return { bounds, longitude, latitude, zoom, viewState }
+  }
+}
+
+export class InteractiveCameraOp extends Operator<InteractiveCameraOp> {
+  static displayName = 'InteractiveCamera'
+  static description = 'Interactive camera control'
+  createInputs() {
+    return {
+    }
+  }
+  createOutputs() {
+    return {
+      vis: new VisualizationField(),
+    }
+  }
+  execute(_: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    let viewState = {
+      longitude: 180,
+      latitude: 0,
+      zoom: 11,
+      bearing: 0,
+      pitch: 0,
+    } as ViewState
+
+    const onViewStateChange: DeckProps['onViewStateChange'] = e => {
+      viewState = e.viewState
+      const out = this.outputs?.vis
+      if (!out) return
+      const { value: { mapProps, deckProps } } = out
+      out.next({
+        ...out.value,
+        mapProps: {
+          ...mapProps,
+          ...viewState,
+        },
+        deckProps: {
+          ...deckProps,
+          viewState,
+        }
+      })
+    }
+
+    return {
+      vis: {
+        deckProps: {
+          viewState,
+          controller: true,
+        } as DeckProps,
+        mapProps: {
+          ...viewState,
+          onMove: onViewStateChange,
+          interactive: true,
+        } as Partial<MapProps>,
+      }
+    }
   }
 }
 
@@ -4935,6 +4991,7 @@ export const opTypes = {
   HSLOp,
   HueSaturationExtensionOp,
   IconLayerOp,
+  InteractiveCameraOp,
   JSONOp,
   LayerPropsOp,
   LineLayerOp,
