@@ -42,7 +42,7 @@ const config: Config = {
         docs: {
           path: '../docs',
           sidebarPath: './sidebars.ts',
-          editUrl: 'https://github.com/joby/noodles.gl/tree/main/docs/',
+          editUrl: 'https://github.com/joby-aviation/noodles.gl/tree/main/docs/',
           routeBasePath: '/', // Serve docs at root of baseURL instead of /docs
         },
         blog: false, // Disable blog since we're docs-only
@@ -72,7 +72,7 @@ const config: Config = {
           label: 'Docs',
         },
         {
-          href: 'https://github.com/joby/noodles.gl',
+          href: 'https://github.com/joby-aviation/noodles.gl',
           label: 'GitHub',
           position: 'right',
         },
@@ -95,11 +95,11 @@ const config: Config = {
           items: [
             {
               label: 'GitHub Issues',
-              href: 'https://github.com/joby/noodles.gl/issues',
+              href: 'https://github.com/joby-aviation/noodles.gl/issues',
             },
             {
               label: 'Discussions',
-              href: 'https://github.com/joby/noodles.gl/discussions',
+              href: 'https://github.com/joby-aviation/noodles.gl/discussions',
             },
           ],
         },
@@ -108,7 +108,7 @@ const config: Config = {
           items: [
             {
               label: 'GitHub',
-              href: 'https://github.com/joby/noodles.gl',
+              href: 'https://github.com/joby-aviation/noodles.gl',
             },
           ],
         },
