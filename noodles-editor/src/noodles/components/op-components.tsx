@@ -157,6 +157,7 @@ export const categories = {
     'ObjectMergeOp',
     'OutOp',
     'ScatterOp',
+    'SelectOp',
     'SliceOp',
     'SortOp',
     'SwitchOp',
