@@ -1,38 +1,43 @@
-// Validates that a ViewState object has valid latitude and longitude values.
+function validateProperty(
+  value: unknown,
+  property: string,
+  min: number,
+  max: number,
+  viewKey?: string
+): void {
+  if (typeof value === 'number') {
+    if (value < min || value > max) {
+      const prefix = viewKey ? `Invalid ViewState in view '${viewKey}': ` : 'Invalid ViewState: '
+      throw new Error(`${prefix}${property} ${value} is outside valid range [${min}, ${max}]`)
+    }
+  }
+}
+
+function validateSingleViewState(viewState: Record<string, unknown>, viewKey?: string): void {
+  validateProperty(viewState.latitude, 'latitude', -90, 90, viewKey)
+  validateProperty(viewState.longitude, 'longitude', -180, 180, viewKey)
+  validateProperty(viewState.pitch, 'pitch', 0, 90, viewKey)
+
+  if (typeof viewState.zoom === 'number') {
+    const hasLatLng = 'latitude' in viewState || 'longitude' in viewState
+    if (hasLatLng) {
+      validateProperty(viewState.zoom, 'zoom', 0, 24, viewKey)
+    }
+  }
+}
+
 export function validateViewState(viewState: unknown): void {
   if (!viewState || typeof viewState !== 'object') {
-    return // Skip validation for null/undefined/non-objects
+    return
   }
 
   const vs = viewState as Record<string, unknown>
 
-  // Check for direct latitude/longitude (MapViewState)
-  if ('latitude' in vs && typeof vs.latitude === 'number') {
-    if (vs.latitude < -90 || vs.latitude > 90) {
-      throw new Error(`Invalid ViewState: latitude ${vs.latitude} is outside valid range [-90, 90]`)
-    }
-  }
+  validateSingleViewState(vs)
 
-  if ('longitude' in vs && typeof vs.longitude === 'number') {
-    if (vs.longitude < -180 || vs.longitude > 180) {
-      throw new Error(`Invalid ViewState: longitude ${vs.longitude} is outside valid range [-180, 180]`)
-    }
-  }
-
-  // Check for nested viewStates (multi-view case)
   for (const [key, value] of Object.entries(vs)) {
     if (value && typeof value === 'object' && !Array.isArray(value)) {
-      const nested = value as Record<string, unknown>
-      if ('latitude' in nested && typeof nested.latitude === 'number') {
-        if (nested.latitude < -90 || nested.latitude > 90) {
-          throw new Error(`Invalid ViewState in view '${key}': latitude ${nested.latitude} is outside valid range [-90, 90]`)
-        }
-      }
-      if ('longitude' in nested && typeof nested.longitude === 'number') {
-        if (nested.longitude < -180 || nested.longitude > 180) {
-          throw new Error(`Invalid ViewState in view '${key}': longitude ${nested.longitude} is outside valid range [-180, 180]`)
-        }
-      }
+      validateSingleViewState(value as Record<string, unknown>, key)
     }
   }
 }
