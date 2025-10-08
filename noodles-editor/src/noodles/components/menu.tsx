@@ -4,7 +4,7 @@ import * as Menubar from '@radix-ui/react-menubar'
 import { useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
 import { type Dispatch, type SetStateAction, useCallback, useEffect, useState } from 'react'
-import newProjectJSON from '../../../public/noodles/new.json'
+import newProjectJSON from '../../../public/noodles/new.json?url'
 import { useActiveStorageType, useFileSystemStore } from '../filesystem-store'
 import { load, save } from '../storage'
 import { useSlice } from '../store'
@@ -378,8 +378,9 @@ export function NodesMenubar({
   const { setCurrentDirectory, setError } = useFileSystemStore()
 
   // "New" Menu Options
-  const onNewProject = useCallback(() => {
-    loadProjectFile(newProjectJSON)
+  const onNewProject = useCallback(async () => {
+    const newProjectFile = await fetch(newProjectJSON).then(res => res.json())
+    loadProjectFile(newProjectFile)
   }, [loadProjectFile])
 
   const onImport = useCallback(async () => {
