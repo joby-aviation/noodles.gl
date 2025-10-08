@@ -1231,16 +1231,20 @@ export function CompoundFieldComponent({
   field: CompoundPropsField
   disabled: boolean
 }) {
+  const [expanded, setExpanded] = useState(true)
   return (
     <div className={s.fieldWrapper}>
-      <label className={s.fieldLabel} htmlFor={id}>
+      <label className={s.fieldLabel} htmlFor={id} onClick={() => setExpanded(e => !e)}>
         {id}
+        <span>{expanded ? ' <' : ' >'}</span>
       </label>
-      <div id={id} className={s.fieldCompoundWrapper}>
-        {Object.entries(field.fields).map(([key, subField]) => (
-          <FieldComponent key={key} id={key} field={subField} disabled={disabled} />
-        ))}
-      </div>
+      {expanded && (
+        <div id={id} className={s.fieldCompoundWrapper}>
+          {Object.entries(field.fields).map(([key, subField]) => (
+            <FieldComponent key={key} id={key} field={subField} disabled={disabled} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
