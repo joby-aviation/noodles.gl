@@ -20,6 +20,7 @@ import {
   ProjectOp,
   RectangleOp,
   ScatterplotLayerOp,
+  SelectOp,
   SwitchOp,
 } from './operators'
 import { opMap } from './store'
@@ -1162,5 +1163,48 @@ describe('Viral Accessor Tests', () => {
       expect(isAccessor(result.object)).toBe(true)
       expect((result.object as Function)({ x: 1, y: 2 })).toEqual({ x: 1, z: 3, y: 2 })
     })
+  })
+})
+
+describe('SelectOp', () => {
+  it('returns undefined for empty array', () => {
+    const operator = new SelectOp('/select-0')
+    const result = operator.execute({
+      data: [],
+      index: 0,
+    })
+    expect(result.value).toEqual(undefined)
+  })
+
+  it('selects element', () => {
+    const operator = new SelectOp('/select-1')
+    const result = operator.execute({
+      data: ['a', 'b', 'c'],
+      index: 1,
+    })
+    expect(result.value).toEqual('b')
+  })
+
+  it('clamps index', () => {
+    const operator = new SelectOp('/select-2')
+    const result = operator.execute({
+      data: [10, 20, 30],
+      index: -5,
+    })
+    expect(result.value).toEqual(10)
+    const result2 = operator.execute({
+      data: [10, 20, 30],
+      index: 5,
+    })
+    expect(result2.value).toEqual(30)
+  })
+
+  it('floors decimal index values', () => {
+    const operator = new SelectOp('/select-4')
+    const result = operator.execute({
+      data: ['a', 'b', 'c', 'd'],
+      index: 2.7,
+    })
+    expect(result.value).toEqual('c')
   })
 })

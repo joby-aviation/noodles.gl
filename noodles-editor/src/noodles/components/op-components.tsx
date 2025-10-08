@@ -158,6 +158,7 @@ export const categories = {
     'OutOp',
     'RandomizeAttributeOp',
     'ScatterOp',
+    'SelectOp',
     'SliceOp',
     'SortOp',
     'SwitchOp',
