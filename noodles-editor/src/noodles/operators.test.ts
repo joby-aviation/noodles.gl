@@ -108,7 +108,7 @@ describe('Error handling', () => {
 
     const onError = vi.spyOn(operator, 'onError')
     const execute = vi.spyOn(operator, 'execute')
-    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => { })
 
     expect(operator.inputs.num.value).toEqual(0)
     expect(onError).not.toHaveBeenCalled()
@@ -316,11 +316,31 @@ describe('AccessorOp', () => {
 describe('BoundingBoxOp', () => {
   it('finds the bounding box of a list of points', () => {
     const operator = new BoundingBoxOp('/bbox-0')
+    operator.inputs.data.setValue([
+      { lng: 1, lat: 2 },
+      { lng: 3, lat: 4 },
+    ])
     const val = operator.execute({
-      data: [
-        { lng: 1, lat: 2 },
-        { lng: 3, lat: 4 },
+      data: operator.par.data,
+      padding: 0,
+    })
+    expect(val.viewState).toEqual({
+      latitude: 3.000457402301878,
+      longitude: 2.0000000000000027,
+      zoom: 7.185340053829005,
+    })
+  })
+  it('finds the bounding box of a geojson FeatureCollection', () => {
+    const operator = new BoundingBoxOp('/bbox-0')
+    operator.inputs.data.setValue({
+      type: 'FeatureCollection',
+      features: [
+        { type: 'Feature', geometry: { type: 'Point', coordinates: [1, 2] }, properties: {} },
+        { type: 'Feature', geometry: { type: 'Point', coordinates: [3, 4] }, properties: {} },
       ],
+    })
+    const val = operator.execute({
+      data: operator.par.data,
       padding: 0,
     })
     expect(val.viewState).toEqual({
