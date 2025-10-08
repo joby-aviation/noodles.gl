@@ -169,6 +169,7 @@ import {
   JSONUrlField,
   LayerField,
   ListField,
+  Matrix4Field,
   mustacheRe,
   NumberField,
   OUT_NS,
@@ -3073,8 +3074,16 @@ export class ScenegraphLayerOp extends Operator<ScenegraphLayerOp> {
       sizeScale: new NumberField(1, { min: 0, max: 10_000 }),
       sizeMinPixels: new NumberField(0, { min: 0, max: 100 }),
       sizeMaxPixels: new NumberField(100, { min: 0, max: 100 }),
+      modelMatrix: new Matrix4Field(
+        [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+        { returnType: 'tuple', accessor: true }
+      ),
       getColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
       getTranslation: new Vec3Field([0, 0, 0], { returnType: 'tuple', accessor: true }),
+      getTransformMatrix: new Matrix4Field(
+        [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+        { returnType: 'tuple', accessor: true }
+      ),
       extensions: new ListField(new ExtensionField()),
     }
   }

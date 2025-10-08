@@ -760,6 +760,22 @@ export class Vec4Field extends Field<
   }
 }
 
+export class Matrix3Field extends Field<z.ZodTuple> {
+  static type = 'matrix3'
+  static defaultValue = [1, 0, 0, 0, 1, 0, 0, 0, 1]
+  createSchema() {
+    return z.tuple(Array(3 * 3).fill(z.number()) as [z.ZodNumber, ...z.ZodNumber[]])
+  }
+}
+
+export class Matrix4Field extends Field<z.ZodTuple> {
+  static type = 'matrix4'
+  static defaultValue = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
+  createSchema() {
+    return z.tuple(Array(4 * 4).fill(z.number()) as [z.ZodNumber, ...z.ZodNumber[]])
+  }
+}
+
 export class CompoundPropsField extends Field<
   z.ZodObject<
     z.ZodRawShape,
