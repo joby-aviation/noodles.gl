@@ -6,6 +6,7 @@ import path from 'node:path'
 
 export default defineConfig(() => {
   return {
+    base: '/app/',
     server: {
       open: true,
     },
