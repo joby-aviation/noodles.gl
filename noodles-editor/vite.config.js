@@ -9,6 +9,10 @@ export default defineConfig(() => {
     server: {
       open: true,
     },
+    assetsInclude: ['**/*.wasm'],
+    optimizeDeps: {
+      exclude: ['parquet-wasm']
+    },
     plugins: [
       react(),
       nodePolyfills({

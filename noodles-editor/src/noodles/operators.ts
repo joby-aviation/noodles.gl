@@ -63,6 +63,7 @@ import { brightnessContrast, hueSaturation, vibrance } from '@luma.gl/effects'
 import { fitBounds } from '@math.gl/web-mercator'
 import * as Plot from '@observablehq/plot'
 import { onChange } from '@theatre/core'
+import * as Arrow from 'apache-arrow'
 import * as turf from '@turf/turf'
 import * as d3 from 'd3'
 import {
@@ -1067,11 +1068,10 @@ export class BezierCurveOp extends Operator<BezierCurveOp> {
 
 export class FileOp extends Operator<FileOp> {
   static displayName = 'File'
-  static description = 'Read a file from a URL or text. Supports csv and json'
+  static description = 'Read a file from a URL or text. Supports csv, json, parquet, and arrow formats'
   asDownload = () => this.outputData
   createInputs() {
     return {
-      format: new StringLiteralField('json', { values: ['json', 'csv'] }),
       url: new FileField(),
       text: new StringField(),
       autoType: new BooleanField(true), // TODO: Make this only available for csv
@@ -1084,11 +1084,14 @@ export class FileOp extends Operator<FileOp> {
     }
   }
   async execute({
-    format,
     url,
     text,
     autoType,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const format = extname(url || '').toLowerCase().replace('.', '') || 'csv'
+    if (!['csv', 'json', 'parquet', 'arrow'].includes(format)) {
+      throw new Error(`Unsupported file format: ${format}. Supported formats are csv, json, parquet, arrow`)
+    }
     try {
       if (format === 'csv') {
         let data: DSVRowArray<string> = []
@@ -1139,6 +1142,86 @@ export class FileOp extends Operator<FileOp> {
           data = await resp.json()
         } else if (text) {
           data = JSON.parse(text)
+        }
+        return { data }
+      }
+      if (format === 'parquet') {
+        let data: unknown[] = []
+
+        try {
+          // Import parquet-wasm dynamically to handle WASM initialization
+          const parquetModule = await import('parquet-wasm')
+
+          // Initialize WASM if it's a function (some versions require this)
+          if (typeof parquetModule.default === 'function') {
+            await parquetModule.default()
+          }
+
+          const readParquet = parquetModule.readParquet
+
+          if (!readParquet) {
+            throw new Error('readParquet function not available from parquet-wasm module')
+          }
+
+          let arrowTable: any
+
+          if (url?.startsWith(projectScheme)) {
+            // Lazy imports to avoid circular dependency
+            const { readAssetBinary } = await import('./storage')
+            const { useFileSystemStore } = await import('./filesystem-store')
+
+            const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
+            if (!currentProjectName) {
+              throw new Error('No project loaded. Please save or load a project first.')
+            }
+            const fileName = url.substring(projectScheme.length)
+            const result = await readAssetBinary(activeStorageType, currentProjectName, fileName)
+            if (!result.success) {
+              throw new Error(result.error.message)
+            }
+            arrowTable = readParquet(new Uint8Array(result.data))
+          } else if (url) {
+            const resp = await fetch(url)
+            const arrayBuffer = await resp.arrayBuffer()
+            arrowTable = readParquet(new Uint8Array(arrayBuffer))
+          }
+
+          if (arrowTable) {
+            data = arrowTable.toArray().map((row: any) => row.toJSON())
+          }
+        } catch (error) {
+          throw new Error(`Failed to read Parquet file: ${error.message}`)
+        }
+
+        return { data }
+      }
+      if (format === 'arrow') {
+        let data: unknown[] = []
+        try {
+          if (url?.startsWith(projectScheme)) {
+            // Lazy imports to avoid circular dependency
+            const { readAssetBinary } = await import('./storage')
+            const { useFileSystemStore } = await import('./filesystem-store')
+
+            const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
+            if (!currentProjectName) {
+              throw new Error('No project loaded. Please save or load a project first.')
+            }
+            const fileName = url.substring(projectScheme.length)
+            const result = await readAssetBinary(activeStorageType, currentProjectName, fileName)
+            if (!result.success) {
+              throw new Error(result.error.message)
+            }
+            const table = Arrow.tableFromIPC(new Uint8Array(result.data))
+            data = table.toArray().map(row => row.toJSON())
+          } else if (url) {
+            const resp = await fetch(url)
+            const arrayBuffer = await resp.arrayBuffer()
+            const table = Arrow.tableFromIPC(new Uint8Array(arrayBuffer))
+            data = table.toArray().map(row => row.toJSON())
+          }
+        } catch (error) {
+          throw new Error(`Failed to read Arrow file: ${error.message}`)
         }
         return { data }
       }

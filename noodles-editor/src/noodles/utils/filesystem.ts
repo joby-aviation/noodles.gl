@@ -46,11 +46,12 @@ export async function selectDirectory(): Promise<FileSystemDirectoryHandle> {
 
 export async function readFileFromDirectory(
   directoryHandle: FileSystemDirectoryHandle,
-  fileName: string
-): Promise<string> {
+  fileName: string,
+  mode: 'text' | 'binary' = 'text'
+): Promise<string | ArrayBuffer> {
   const fileHandle = await directoryHandle.getFileHandle(fileName)
   const file = await fileHandle.getFile()
-  return await file.text()
+  return mode === 'binary' ? await file.arrayBuffer() : await file.text()
 }
 
 export async function writeFileToDirectory(

@@ -5629,6 +5629,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/node@npm:^24.0.3":
+  version: 24.7.0
+  resolution: "@types/node@npm:24.7.0"
+  dependencies:
+    undici-types: ~7.14.0
+  checksum: 154e6113dae3e551386d37d9e84e15bbf2a81ee14700ce42815f123ff35904363ab86a5650f98b555a892f1502b45a0aaa91666a979ec8860d95b09179d7100f
+  languageName: node
+  linkType: hard
+
 "@types/normalize-package-data@npm:^2.4.0":
   version: 2.4.1
   resolution: "@types/normalize-package-data@npm:2.4.1"
@@ -6002,6 +6011,25 @@ __metadata:
   bin:
     arrow2csv: bin/arrow2csv.cjs
   checksum: 0533010044b36ec5b3c5d8def3f28039ffdab5381d0e21f4623f5136edceb76abd472a4d231cfac6308848af1cb2d1e4093792a2d826e19333e02a0294a236f6
+  languageName: node
+  linkType: hard
+
+"apache-arrow@npm:^21.0.0":
+  version: 21.1.0
+  resolution: "apache-arrow@npm:21.1.0"
+  dependencies:
+    "@swc/helpers": ^0.5.11
+    "@types/command-line-args": ^5.2.3
+    "@types/command-line-usage": ^5.0.4
+    "@types/node": ^24.0.3
+    command-line-args: ^6.0.1
+    command-line-usage: ^7.0.1
+    flatbuffers: ^25.1.24
+    json-bignum: ^0.0.3
+    tslib: ^2.6.2
+  bin:
+    arrow2csv: bin/arrow2csv.js
+  checksum: 0352703c8bf4969ab6af5775458473529309185245cf774c8fad7e0b054ff59ef0250a82baf37dea0767bdd10fd0f1901f566f8f70e51cffd351d17eab95ed00
   languageName: node
   linkType: hard
 
@@ -6718,6 +6746,23 @@ __metadata:
     lodash.camelcase: ^4.3.0
     typical: ^4.0.0
   checksum: e759519087be3cf2e86af8b9a97d3058b4910cd11ee852495be881a067b72891f6a32718fb685ee6d41531ab76b2b7bfb6602f79f882cd4b7587ff1e827982c7
+  languageName: node
+  linkType: hard
+
+"command-line-args@npm:^6.0.1":
+  version: 6.0.1
+  resolution: "command-line-args@npm:6.0.1"
+  dependencies:
+    array-back: ^6.2.2
+    find-replace: ^5.0.2
+    lodash.camelcase: ^4.3.0
+    typical: ^7.2.0
+  peerDependencies:
+    "@75lb/nature": "*"
+  peerDependenciesMeta:
+    "@75lb/nature":
+      optional: true
+  checksum: a620375999762a852f8866856206852bb9cc51283a0c940520db1cdb1524ba49d9468bf6b0c86ef9c261b4131eb5a2db2b25f99725c7e45d69bea8453bd28922
   languageName: node
   linkType: hard
 
@@ -7911,6 +7956,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"find-replace@npm:^5.0.2":
+  version: 5.0.2
+  resolution: "find-replace@npm:5.0.2"
+  peerDependencies:
+    "@75lb/nature": "*"
+  peerDependenciesMeta:
+    "@75lb/nature":
+      optional: true
+  checksum: 964fb76cf084638c4202628c65c03763fd8627b84b18c0948470b429371d18c5a0340167097961222d4decbcc4502880d776c57c1c3ef5f3d0081b8fde0e17ea
+  languageName: node
+  linkType: hard
+
 "find-up@npm:^4.1.0":
   version: 4.1.0
   resolution: "find-up@npm:4.1.0"
@@ -7935,6 +7992,13 @@ __metadata:
   version: 24.12.23
   resolution: "flatbuffers@npm:24.12.23"
   checksum: d32d6a7be0f03f4b92341fff1861c08aacc21d283af6f868d061ca201cbdf3c8ecb5773be377ae95b59a2867fa90d768b0ef7bd01651e0f643aea10324430935
+  languageName: node
+  linkType: hard
+
+"flatbuffers@npm:^25.1.24":
+  version: 25.9.23
+  resolution: "flatbuffers@npm:25.9.23"
+  checksum: f20704f6b6bd57c19067dedf1fd0c2635c56cadb41f08470536f61fbb61503f78dfc5122b8d067763c247eee6c29eb382b56cf8d44e56fe78341392f7e2f021e
   languageName: node
   linkType: hard
 
@@ -9660,6 +9724,7 @@ __metadata:
     "@vitejs/plugin-react": ^4.0.0
     "@vitest/browser": ^3.2.3
     "@xyflow/react": ^12.5.1
+    apache-arrow: ^21.0.0
     classnames: ^2.5.1
     d3: ^7.9.0
     deck.gl: v9.2.0-beta.3
@@ -9672,6 +9737,7 @@ __metadata:
     mediabunny: ^1.1.0
     memoize-one: ^6.0.0
     nanoid: ^5.0.2
+    parquet-wasm: ^0.7.0
     playwright: ^1.50.1
     primeicons: ^7.0.0
     primereact: ^10.9.7
@@ -9874,6 +9940,13 @@ __metadata:
   version: 1.0.11
   resolution: "pako@npm:1.0.11"
   checksum: 1be2bfa1f807608c7538afa15d6f25baa523c30ec870a3228a89579e474a4d992f4293859524e46d5d87fd30fa17c5edf34dbef0671251d9749820b488660b16
+  languageName: node
+  linkType: hard
+
+"parquet-wasm@npm:^0.7.0":
+  version: 0.7.1
+  resolution: "parquet-wasm@npm:0.7.1"
+  checksum: bc023b415258ba9a46b81470b88fc8994c71f874882af9afe56296fe122e1d43e19e832e3fb08ec77e7c5d3500a89b132ef8bf8c59bc5890d1f0320da67a898d
   languageName: node
   linkType: hard
 
@@ -11660,10 +11733,24 @@ __metadata:
   languageName: node
   linkType: hard
 
+"typical@npm:^7.2.0":
+  version: 7.3.0
+  resolution: "typical@npm:7.3.0"
+  checksum: edbb9beed7ffb355806d434d1dd0d41a2b78be0a41d9f1684fabbd4fb512ee220989b5ff91b04c79d19b850d6025d6c07417d63b8e7c9a3b2229a4a0676e17da
+  languageName: node
+  linkType: hard
+
 "undici-types@npm:~6.19.2":
   version: 6.19.8
   resolution: "undici-types@npm:6.19.8"
   checksum: de51f1b447d22571cf155dfe14ff6d12c5bdaec237c765085b439c38ca8518fc360e88c70f99469162bf2e14188a7b0bcb06e1ed2dc031042b984b0bb9544017
+  languageName: node
+  linkType: hard
+
+"undici-types@npm:~7.14.0":
+  version: 7.14.0
+  resolution: "undici-types@npm:7.14.0"
+  checksum: bd28cb36b33a51359f02c27b84bfe8563cdad57bdab0aa6ac605ce64d51aff49fd0aa4cb2d3b043caaa93c3ec42e96b5757df5d2d9bcc06a5f3e71899c765035
   languageName: node
   linkType: hard
 

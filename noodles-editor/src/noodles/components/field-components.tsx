@@ -467,10 +467,11 @@ export function FileFieldComponent({
     const [fileHandle] = await window.showOpenFilePicker({
       types: [
         {
-          description: 'CSV and JSON Files',
+          description: 'Data Files',
           accept: {
             'text/csv': ['.csv'],
             'application/json': ['.json'],
+            'application/octet-stream': ['.parquet', '.arrow', '.feather'],
           },
         },
       ],
