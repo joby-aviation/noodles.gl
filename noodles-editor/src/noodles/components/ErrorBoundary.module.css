@@ -1,0 +1,77 @@
+.container {
+  padding: 20px;
+  background-color: #2a1f1f;
+  border: 1px solid #ff4444;
+  border-radius: 4px;
+  color: #ff8888;
+  max-width: 600px;
+  margin: 20px;
+}
+
+.title {
+  margin-top: 0;
+}
+
+.details {
+  margin-top: 10px;
+}
+
+.summary {
+  cursor: pointer;
+}
+
+.errorStack {
+  margin-top: 10px;
+  padding: 10px;
+  background-color: #1a1515;
+  border-radius: 4px;
+  overflow: auto;
+  font-size: 12px;
+}
+
+.actions {
+  margin-top: 15px;
+}
+
+.button {
+  padding: 8px 16px;
+  background-color: #ff4444;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.button:hover {
+  background-color: #ff6666;
+}
+
+.button:disabled {
+  background-color: #664444;
+  cursor: not-allowed;
+}
+
+.warning {
+  margin-top: 10px;
+  font-size: 12px;
+  color: #ffaa88;
+}
+
+.errorMessage {
+  color: #ff4444;
+  font-weight: bold;
+}
+
+.refreshButton {
+  margin-top: 10px;
+  padding: 8px 16px;
+  background-color: #ff4444;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.refreshButton:hover {
+  background-color: #ff6666;
+}
