@@ -236,11 +236,12 @@ export const categories = {
   vector: ['CombineXYOp', 'CombineXYZOp', 'SplitXYOp', 'SplitXYZOp'],
   view: [
     'FirstPersonViewOp',
+    'GlobeViewOp',
     'MaplibreBasemapOp',
     'MapViewOp',
     'MapViewStateOp',
-    'GlobeViewOp',
     'OrbitViewOp',
+    'SplitMapViewStateOp',
   ],
   widget: ['FpsWidgetOp'],
 } as const as Record<string, NodeType[]>
