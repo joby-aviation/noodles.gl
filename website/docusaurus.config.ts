@@ -1,6 +1,6 @@
-import {themes as prismThemes} from 'prism-react-renderer';
-import type {Config} from '@docusaurus/types';
-import type * as Preset from '@docusaurus/preset-classic';
+import { themes as prismThemes } from 'prism-react-renderer'
+import type { Config } from '@docusaurus/types'
+import type * as Preset from '@docusaurus/preset-classic'
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
@@ -8,17 +8,17 @@ import type * as Preset from '@docusaurus/preset-classic';
 const config: Config = {
   title: 'Noodles.gl',
   tagline: 'Interactive geospatial visualization and animation platform',
-  favicon: 'img/noodles-logo.png',
+  favicon: 'img/noodles-favicon.png',
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   future: {
     v4: true, // Improve compatibility with the upcoming Docusaurus v4
   },
 
-  url: 'https://joby.github.io',
+  url: 'https://noodles.gl',
   // Set the /<baseUrl>/ pathname under which your site is served
-  // For GitHub pages deployment, it is often '/<projectName>/'
-  baseUrl: '/noodles.gl/docs/',
+  // For custom domain deployment
+  baseUrl: '/',
 
   // GitHub pages deployment config.
   organizationName: 'joby',
@@ -62,8 +62,8 @@ const config: Config = {
       title: 'Noodles.gl',
       logo: {
         alt: 'Noodles.gl Logo',
-        src: 'img/noodles-logo.png',
-        href: process.env.NODE_ENV === 'development' ? 'http://localhost:4173/' : 'https://joby.github.io/noodles.gl/',
+        src: 'img/noodles-favicon.png',
+        href: '/',
       },
       items: [
         {
@@ -120,6 +120,6 @@ const config: Config = {
       darkTheme: prismThemes.dracula,
     },
   } satisfies Preset.ThemeConfig,
-};
+}
 
-export default config;
+export default config

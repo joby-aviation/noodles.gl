@@ -1,0 +1,85 @@
+.heroBanner {
+  padding: 6rem 0;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.heroLogo {
+  width: 300px;
+  height: auto;
+  margin: 0 auto 2rem;
+  display: block;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.heroTitle {
+  font-size: 4.5rem;
+  font-weight: 700;
+  margin: 0 0 1.5rem;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: white !important;
+}
+
+.heroSubtitle {
+  font-size: 1.5rem;
+  font-weight: 400;
+  margin: 0 auto 3rem;
+  max-width: 700px;
+  line-height: 1.6;
+  opacity: 0.95;
+  letter-spacing: -0.01em;
+}
+
+.buttons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.ctaButton {
+  font-size: 1.25rem;
+  padding: 1rem 3rem;
+  font-weight: 600;
+  border-radius: 50px;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.ctaButton:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+}
+
+@media screen and (max-width: 768px) {
+  .heroBanner {
+    padding: 4rem 0;
+  }
+
+  .heroLogo {
+    width: 200px;
+  }
+
+  .heroTitle {
+    font-size: 3rem;
+  }
+
+  .heroSubtitle {
+    font-size: 1.25rem;
+  }
+
+  .buttons {
+    flex-direction: column;
+  }
+
+  .ctaButton {
+    font-size: 1.1rem;
+    padding: 0.8rem 2rem;
+  }
+}
