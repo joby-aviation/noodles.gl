@@ -52,7 +52,7 @@ export const NoodlesProvider = ({ children }: PropsWithChildren) => (
 export const useSlice: <T>(resolver: (state: NoodlesContextValue) => T) => T = resolver =>
   resolver(useContext(NoodlesContext))
 
-/* Helpful hook to get an op, just be careful not to break rule of hooks with it. */
+// Helpful hook to get an op, just be careful not to break rule of hooks with it.
 export const useOp = (id: OpId) => {
   const op = useSlice(state => state.ops).get(id)
   if (!op) {
