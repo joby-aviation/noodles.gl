@@ -1172,6 +1172,7 @@ describe('SelectOp', () => {
     const result = operator.execute({
       data: [],
       index: 0,
+      wrap: false,
     })
     expect(result.value).toEqual(undefined)
   })
@@ -1181,6 +1182,7 @@ describe('SelectOp', () => {
     const result = operator.execute({
       data: ['a', 'b', 'c'],
       index: 1,
+      wrap: false,
     })
     expect(result.value).toEqual('b')
   })
@@ -1190,11 +1192,13 @@ describe('SelectOp', () => {
     const result = operator.execute({
       data: [10, 20, 30],
       index: -5,
+      wrap: false,
     })
     expect(result.value).toEqual(10)
     const result2 = operator.execute({
       data: [10, 20, 30],
       index: 5,
+      wrap: false,
     })
     expect(result2.value).toEqual(30)
   })
@@ -1204,7 +1208,18 @@ describe('SelectOp', () => {
     const result = operator.execute({
       data: ['a', 'b', 'c', 'd'],
       index: 2.7,
+      wrap: false,
     })
     expect(result.value).toEqual('c')
+  })
+
+  it('wraps index around array bounds when wrap is true', () => {
+    const operator = new SelectOp('/select-5')
+    // Positive wrap
+    expect(operator.execute({ data: ['a', 'b', 'c'], index: 3, wrap: true }).value).toEqual('a')
+    expect(operator.execute({ data: ['a', 'b', 'c'], index: 5, wrap: true }).value).toEqual('c')
+    // Negative wrap
+    expect(operator.execute({ data: ['a', 'b', 'c'], index: -1, wrap: true }).value).toEqual('c')
+    expect(operator.execute({ data: ['a', 'b', 'c'], index: -4, wrap: true }).value).toEqual('c')
   })
 })
