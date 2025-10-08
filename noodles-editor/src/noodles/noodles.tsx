@@ -82,15 +82,16 @@ const defaultEdgeOptions: DefaultEdgeOptions = {
   animated: false,
 }
 
-/**
- * TheatreJS is used by the Noodles framework to provide a timeline and keyframe animation for Op fields.
- * Naturally, the Noodles framework will load a new theatre state when a Noodles project is loaded.
- * TheatreJS doesn't support loading projects with the same ID more than once, so a new theatre project name is generated when a new Noodles project is loaded.
- * Currently a UUID is used, but a more human-readable name could be generated instead as long as its unique to the page session.
- *
- * TheatreJS project names are not included in the Noodles project file.
- * TheatreJS sheet names are included, so they should be the same for every project.
- */
+// Offset to position new ViewerOps to the right of the source node when created via 'v' keypress
+const VIEWER_OFFSET_X = 400
+
+// TheatreJS is used by the Noodles framework to provide a timeline and keyframe animation for Op fields.
+// Naturally, the Noodles framework will load a new theatre state when a Noodles project is loaded.
+// TheatreJS doesn't support loading projects with the same ID more than once, so a new theatre project name is generated when a new Noodles project is loaded.
+// Currently a UUID is used, but a more human-readable name could be generated instead as long as its unique to the page session.
+//
+// TheatreJS project names are not included in the Noodles project file.
+// TheatreJS sheet names are included, so they should be the same for every project.
 const THEATRE_SHEET_ID = 'Noodles'
 function useTheatreJs(projectName?: string) {
   // Increment whenever a new theatre project is created to keep the project name unique *within theatre*.
@@ -398,10 +399,42 @@ export function getNoodles(): Visualization {
     if (vPressHandledRef.current) return
     vPressHandledRef.current = true
 
-    // Use a callback to get the latest nodes without depending on them
     setNodes(currentNodes => {
       const selectedNodes = currentNodes.filter(n => n.selected)
-      if (selectedNodes.length === 0) return currentNodes
+      if (selectedNodes.length === 0) {
+        if (hoveredOutputHandle) {
+          const hoveredNode = currentNodes.find(n => n.id === hoveredOutputHandle.nodeId)
+          if (hoveredNode) {
+            const newViewerPosition = {
+              x: hoveredNode.position.x + VIEWER_OFFSET_X,
+              y: hoveredNode.position.y,
+            }
+
+            const viewerId = nodeId('viewer', currentContainerId)
+
+            const viewerNode: AnyNodeJSON = {
+              id: viewerId,
+              type: 'ViewerOp',
+              position: newViewerPosition,
+              data: undefined,
+            }
+
+            const sourceHandle = hoveredOutputHandle.handleId
+            const targetHandle = 'par.data'
+            const newEdge = {
+              id: edgeId({ source: hoveredOutputHandle.nodeId, sourceHandle, target: viewerId, targetHandle }),
+              source: hoveredOutputHandle.nodeId,
+              sourceHandle,
+              target: viewerId,
+              targetHandle,
+            }
+
+            setEdges(currentEdges => [...currentEdges, newEdge])
+            return [...currentNodes, viewerNode]
+          }
+        }
+        return currentNodes
+      }
 
       // Find the rightmost selected node
       const rightmostNode = selectedNodes.reduce((rightmost, node) => {
@@ -409,16 +442,12 @@ export function getNoodles(): Visualization {
       }, selectedNodes[0])
 
       // Calculate position for new ViewerOp (to the right of the rightmost node)
-      const VIEWER_OFFSET_X = 400
       const newViewerPosition = {
         x: rightmostNode.position.x + VIEWER_OFFSET_X,
         y: rightmostNode.position.y,
       }
 
-      // Generate unique ID for ViewerOp
-      const toKebabCase = (str: string) => str.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase()
-      const baseName = toKebabCase('ViewerOp'.replace(/Op$/g, ''))
-      const viewerId = nodeId(baseName, currentContainerId)
+      const viewerId = nodeId('viewer', currentContainerId)
 
       // Create the ViewerOp node
       const viewerNode: AnyNodeJSON = {
@@ -433,16 +462,12 @@ export function getNoodles(): Visualization {
       let sourceHandle: string | null = null
 
       // Check if a handle is hovered (from shared store)
-      console.log('Hovered handle:', hoveredOutputHandle)
-      console.log('Selected nodes:', selectedNodes.map(n => n.id))
       if (hoveredOutputHandle && selectedNodes.some(n => n.id === hoveredOutputHandle.nodeId)) {
         // Use hovered handle if it's on a selected node
         // Handle ID is already in the format "out.fieldName"
-        console.log('Handle ID:', hoveredOutputHandle.handleId)
         if (hoveredOutputHandle.handleId.startsWith('out.')) {
           sourceNodeId = hoveredOutputHandle.nodeId
           sourceHandle = hoveredOutputHandle.handleId
-          console.log('Using hovered handle:', sourceHandle)
         }
       }
 
