@@ -190,6 +190,7 @@ import { projectScheme } from './utils/filesystem'
 import type { OpId } from './utils/id-utils'
 import { isDirectChild } from './utils/path-utils'
 import { pick } from './utils/pick'
+import { validateViewState } from './utils/viewstate-helpers'
 
 // https://stackoverflow.com/questions/66044717/typescript-infer-type-of-abstract-methods-implementation
 export interface IOperator {
@@ -2184,6 +2185,7 @@ export class ProjectOp extends Operator<ProjectOp> {
     height,
     width,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    validateViewState(viewState)
     const viewport = new WebMercatorViewport({
       ...viewState,
       height,
@@ -2223,6 +2225,7 @@ export class UnprojectOp extends Operator<UnprojectOp> {
     height,
     width,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    validateViewState(viewState)
     const viewport = new WebMercatorViewport({
       ...viewState,
       height,
@@ -2263,7 +2266,9 @@ export class MapViewStateOp extends Operator<MapViewStateOp> {
     pitch,
     bearing,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    return { viewState: { longitude, latitude, zoom, pitch, bearing } }
+    const viewState = { longitude, latitude, zoom, pitch, bearing }
+    validateViewState(viewState)
+    return { viewState }
   }
 }
 
@@ -2293,6 +2298,7 @@ export class SplitMapViewStateOp extends Operator<SplitMapViewStateOp> {
   execute({
     viewState,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    validateViewState(viewState)
     return { ...viewState }
   }
 }
@@ -2330,6 +2336,7 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
     mapStyle,
     viewState,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    validateViewState(viewState)
     return { maplibre: { mapStyle, ...viewState } }
   }
 }
@@ -2382,6 +2389,9 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
     views,
     layerFilter,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    // Validate the ViewState to ensure lat/lng are within valid bounds
+    validateViewState(viewState)
+
     const deckProps: DeckProps & { layers: (LayerProps & { type: string })[] } = {
       layers,
       effects,
@@ -2478,6 +2488,7 @@ export class MapViewOp extends Operator<MapViewOp> {
     viewState,
     ...props
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    validateViewState(viewState)
     return {
       view: new MapView({ id: this.id, ...props, viewState: { ...viewState, maxPitch: 90 } }),
     }
@@ -2540,6 +2551,7 @@ export class GlobeViewOp extends Operator<GlobeViewOp> {
   }
 
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    validateViewState(props.viewState)
     return { view: new GlobeView({ id: this.id, ...props }) }
   }
 }
@@ -2610,6 +2622,7 @@ export class FirstPersonViewOp extends Operator<FirstPersonViewOp> {
   }
 
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    validateViewState(props.viewState)
     return { view: new FirstPersonView({ id: this.id, ...props }) }
   }
 }
@@ -2641,6 +2654,7 @@ export class OrbitViewOp extends Operator<OrbitViewOp> {
   }
 
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    validateViewState(props.viewState)
     return { view: new OrbitView({ id: this.id, ...props }) }
   }
 }
