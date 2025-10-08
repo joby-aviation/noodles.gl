@@ -6,7 +6,7 @@
   font-size: 14px;
   border-bottom: 1px solid #1c1c1c;
   position: absolute;
-  z-index: 9999;
+  z-index: var(--z-index-breadcrumbs);
 }
 
 .segment {

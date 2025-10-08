@@ -23,7 +23,7 @@ code {
 .action-buttons {
   position: absolute;
   left: 50%;
-  z-index: 999;
+  z-index: var(--z-index-react-flow);
   display: flex;
   flex-direction: row;
 }
