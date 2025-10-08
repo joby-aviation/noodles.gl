@@ -1,0 +1,52 @@
+name: Bug Report
+description: Something does not work as expected
+title: "[Bug]"
+labels: bug
+body:
+- type: markdown
+  attributes:
+    value: |
+      Thank you for taking the time to report a bug!
+      You may find answers faster by searching in the documentation and [existing issues](https://github.com/joby/noodles.gl/issues).
+      If you are unsure whether it is a bug in your own implementation or the library itself, consider starting a conversation in [Discussions](https://github.com/joby/noodles.gl/discussions) instead.
+- type: textarea
+  attributes:
+    label: Description
+    description: What you're experiencing.
+  validations:
+    required: true
+- type: textarea
+  attributes:
+    label: Expected Behavior
+    description: What you expect to see.
+  validations:
+    required: false
+- type: textarea
+  attributes:
+    label: Steps to Reproduce
+    description: |
+      Providing the following could help us resolve this issue faster:
+        - A savefile of a minimal reproduction
+        - A sample of your dataset
+  validations:
+    required: true
+- type: textarea
+  attributes:
+    label: Environment
+    description: |
+      Example:
+        - **Noodles version**: noodles.gl@1.0.0
+        - **Browser**: Chrome 110.0
+        - **OS**: iOS 16.3
+    value: |
+        - Noodles version:
+        - Browser:
+        - OS:
+  validations:
+    required: true
+- type: textarea
+  attributes:
+    label: Logs
+    description: Check the browser console for any relevant errors or warnings.
+  validations:
+    required: false

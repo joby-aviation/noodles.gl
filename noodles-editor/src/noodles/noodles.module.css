@@ -1,0 +1,708 @@
+:root {
+  color-scheme: dark !important;
+
+  --node-string-color: #1299be;
+  --node-number-color: #bc1212;
+  --node-boolean-color: #c69a16;
+  --node-code-color: #493590;
+  --node-color-color: #c9750e;
+  --node-data-color: #0f892f;
+  --node-geojson-color: #22c55e;
+  --node-layer-color: #c90ec6;
+  --node-effect-color: #0044ff;
+  --node-extension-color: #16a34a;
+  --node-compound-color: #18a24b;
+  --node-grouping-color: #000000;
+  --node-deck-color: #303846;
+  --node-utility-color: #cfca35;
+  --node-vector-color: #610d4e;
+  --node-view-color: #0e8fc9;
+  --node-widget-color: #7a61d5;
+
+  --node-header-text-color: #dadada;
+  --node-header-text-color-dark: #292929;
+  --node-header-border-color: #e0e0e0;
+
+  --node-input-hover-color: #383838;
+  --node-input-focus-color: #2d2d2d;
+
+  --property-panel-width: 280px;
+  --property-panel-background-color: #282b2fcc;
+  --tooltip-icon-color: #919191;
+  --tooltip-background-color: #383838;
+
+  --xy-controls-button-color: #383838;
+  --xy-controls-button-color-hover: #262626;
+}
+
+/**
+ * Apply this class anywhere you need to bypass the global CSS reset
+ * Should be added first for proper cascade order
+ */
+:global(.revert) {
+  all: revert;
+}
+
+:global(.react-flow) {
+  --node-group-background-color: rgba(244, 79, 9, 0.1);
+
+  --node-background-color: #282b2fde;
+  --node-text-color: #e2dede;
+  --node-selected-color: #3367d9;
+  --node-add-menu-background-color: #404040;
+  --node-add-menu-header-text-color: #fff;
+  --node-add-menu-header-background-color: black;
+  --node-add-menu-hover-color: #313131;
+
+  --node-handle-outline-color: #808080;
+
+  --node-field-hint-color: #808080;
+
+  --node-input-disaabled-color: #1c1c1c;
+
+  /* Execution state indicators */
+  --node-execution-executing-color: #3b82f6;
+  --node-execution-error-color: #ef4444;
+  --node-execution-slow-color: #f59e0b;
+
+  --node-drop-target-text-color: #fff;
+}
+
+:global(.react-flow-wrapper) {
+  z-index: 999;
+  width: 100%;
+  height: 100%;
+}
+
+:global(.react-flow-wrapper-hidden) {
+  display: none;
+}
+
+:global(.react-flow__node) {
+  color: var(--node-text-color);
+  background: var(--node-background-color);
+  border-radius: 10px;
+}
+
+:global(.react-flow__handle) {
+  border-color: var(--node-handle-outline-color);
+  height: 8px;
+  width: 8px;
+}
+
+:global(.react-flow__handle-left) {
+  left: -3px;
+}
+
+:global(.react-flow__resize-control.line) {
+  /* Hide the border on resizable nodes. Overrides React Flow class */
+  border-width: 0 !important;
+}
+
+:global(.react-flow__node.selectable:focus) {
+  outline: 1px solid var(--node-selected-color);
+}
+
+:global(.react-flow__node-group) {
+  background: var(--node-group-background-color);
+  /* Allow nodes to be selected over the ForLoopBody. Needs to override the style prop */
+  z-index: -99 !important;
+  pointer-events: none !important;
+}
+
+:global(.deck-widget-icon-button) {
+  all: revert;
+}
+
+.header {
+  border-radius: 10px 10px 0 0;
+  border-color: var(--node-header-border-color);
+  color: var(--node-header-text-color);
+  font-weight: bold;
+  margin-bottom: 0.5em;
+  padding: .25em .75em .25em 1em;
+
+
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.headerTitle {
+  width: 100%;
+  max-width: 300px;
+  text-overflow: ellipsis;
+  text-wrap: nowrap;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.headerId {
+  width: 100px;
+}
+
+.headerIdInput {
+  background-color: rgba(0, 0, 0, .2);
+}
+
+.headerIdInputError {
+  border: 2px solid #ff4444;
+  background-color: rgba(255, 68, 68, 0.1);
+}
+
+/* Radix Tooltip */
+.tooltipArrow {
+  fill: var(--tooltip-background-color);
+}
+
+.headerActions {
+  display: flex;
+  gap: 5px;
+  color: var(--node-header-text-color);
+  align-items: center;
+}
+
+.headerLock {
+  font-size: 10px;
+  padding: 0;
+  width: 22px;
+  height: 22px;
+}
+
+.headerLockLocked {
+  filter: brightness(0.5);
+}
+
+.headerDownload {
+  font-size: 10px;
+  padding: 0;
+  width: 22px;
+  height: 22px;
+}
+
+/* Header background colors */
+
+.headerNumber {
+  background-color: var(--node-number-color);
+}
+
+.headerString {
+  background-color: var(--node-string-color);
+}
+
+.headerBoolean {
+  background-color: var(--node-boolean-color);
+}
+
+.headerColor {
+  background-color: var(--node-color-color);
+}
+
+.headerCode {
+  background-color: var(--node-code-color);
+}
+
+.headerData {
+  background-color: var(--node-data-color);
+}
+
+.headerGeojson {
+  background-color: var(--node-geojson-color);
+  color: var(--node-header-text-color-dark);
+}
+
+.headerLayer {
+  background-color: var(--node-layer-color);
+}
+
+.headerExtension {
+  background-color: var(--node-extension-color);
+}
+
+.headerCompound {
+  background-color: var(--node-compound-color);
+}
+
+.headerEffect {
+  background-color: var(--node-effect-color);
+}
+
+.headerDeck {
+  background-color: var(--node-deck-color);
+}
+
+.headerGrouping {
+  background-color: var(--node-grouping-color);
+}
+
+.headerUtility {
+  background-color: var(--node-utility-color);
+  color: var(--node-header-text-color-dark);
+}
+
+.headerVector {
+  background-color: var(--node-vector-color);
+}
+
+.headerView {
+  background-color: var(--node-view-color);
+}
+
+.headerWidget {
+  background-color: var(--node-widget-color);
+}
+
+/* Handle colors */
+
+.handleNumber {
+  background: var(--node-number-color);
+}
+
+.handleString {
+  background: var(--node-string-color);
+}
+
+.handleBoolean {
+  background: var(--node-boolean-color);
+  color: var(--node-header-text-color-dark);
+}
+
+.handleColor {
+  background: var(--node-color-color);
+}
+
+.handleData {
+  background: var(--node-data-color);
+}
+
+.handleVector {
+  background: var(--node-vector-color);
+}
+
+.handleCompound {
+  background: var(--node-compound-color);
+}
+
+.handleList {
+  height: .75em;
+  border-radius: 5px;
+}
+
+.handleView {
+  background: var(--node-view-color);
+}
+
+.handleLayer {
+  background: var(--node-layer-color);
+}
+
+.handleEffect {
+  background: var(--node-effect-color);
+}
+
+.handleExtension {
+  background: var(--node-extension-color);
+}
+
+.handleWidget {
+  background: var(--node-widget-color);
+}
+
+.content {
+  margin-bottom: 1em;
+  padding: 0 1em;
+  cursor: auto;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: inherit;
+}
+
+/* Field components */
+.fieldWrapper {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 25px;
+  gap: 10px;
+}
+
+.fieldLabel {
+  flex: 1;
+}
+
+.fieldInputWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 2;
+}
+
+.fieldInput {
+  border: none;
+  text-align: right;
+  flex: 1;
+  background: transparent;
+  color: var(--node-text-color);
+}
+
+.fieldInput:hover {
+  background: var(--node-input-hover-color);
+}
+
+.fieldInput:focus {
+  outline: none;
+  background: var(--node-input-focus-color);
+}
+
+.fieldInput:disabled {
+  background: var(--node-input-disaabled-color);
+}
+
+.fieldInputGroup {
+  gap: 8px;
+}
+
+.fieldInputGroup:hover {
+  background: var(--node-input-hover-color);
+}
+
+.fieldInputGroup:focus-within {
+  background: var(--node-input-focus-color);
+}
+
+.fieldCompoundWrapper {
+  flex: 1;
+  margin-left: 10px;
+}
+
+/* Field specific */
+:global(.react-flow__node-CodeOp) {
+  min-width: 425px;
+  min-height: 170px;
+}
+
+.fieldWrapperCode {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  min-width: 400px;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  position: relative;
+}
+
+.fieldInputWrapperCodeEditor {
+  display: block;
+  min-height: 100px;
+  width: 100%;
+  position: absolute;
+  inset: 0;
+}
+
+.fieldInputNumber {
+  margin-right: -12px;
+  cursor: ew-resize;
+  user-select: none;
+}
+
+.fieldInputNumber:focus {
+  outline: none;
+  background: var(--node-input-focus-color);
+  cursor: text;
+}
+
+.fieldInputNumber:not(:focus):hover {
+  background: var(--node-input-hover-color);
+}
+
+.fieldInputNumber:disabled {
+  background: var(--node-input-disabled-color);
+  cursor: not-allowed;
+}
+
+.fieldInputNumberDragging {
+  background: var(--node-input-focus-color);
+  cursor: grabbing;
+  user-select: none;
+  caret-color: transparent;
+}
+
+.fieldLabelVector {
+  width: 10px;
+  color: var(--node-field-hint-color);
+}
+
+.fieldInputWrapperVector {
+  display: flex;
+  gap: 5px;
+}
+
+.fieldInputVector {
+  width: 50px;
+}
+
+.fieldInputUpload {
+  cursor: pointer;
+}
+
+.fieldInputCheckbox {
+  flex: unset;
+  cursor: pointer;
+}
+
+.fieldInputColor {
+  height: 25px;
+  max-width: 32px;
+  border: none;
+}
+
+.fieldInputColorRamp {
+  background-color: white;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: pixelated;
+
+  width: 200px;
+  height: 40px;
+}
+
+.fieldInputSelect {
+  border: none;
+  background: transparent;
+  color: var(--node-text-color);
+  text-align: right;
+}
+
+.fieldInputButton {
+  background: var(--node-background-color);
+  border: 1px solid var(--node-text-color);
+  color: var(--node-text-color);
+  cursor: pointer;
+  font-size: 1em;
+  padding: 0.5em;
+  margin: 0.5em 0;
+}
+
+.stepLadder {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  background: var(--node-background-color);
+  border: 1px solid var(--node-handle-outline-color);
+  border-radius: 2px;
+  padding: 4px 2px;
+  z-index: 10000;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  min-width: 60px;
+  pointer-events: none;
+}
+
+.stepLadderItem {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 6px;
+  font-size: 11px;
+  font-family: 'Courier New', monospace;
+  color: var(--node-field-hint-color);
+  border-radius: 1px;
+  transition: all 0.1s ease;
+  cursor: default;
+  margin: 1px 0;
+}
+
+.stepLadderItemActive {
+  background-color: var(--node-selected-color);
+  color: white;
+  font-weight: bold;
+  transform: scale(1.1);
+  box-shadow: 0 0 4px rgba(51, 103, 217, 0.4);
+  border: 1px solid rgba(51, 103, 217, 0.6);
+}
+
+.stepLadderLabel {
+  white-space: nowrap;
+  text-align: center;
+}
+
+.referenceEdge {
+  stroke-dasharray: 5 5;
+  stroke-width: 1.5;
+  pointer-events: none;
+  stroke: #888;
+}
+
+/* Mapbox geocoder */
+:global(.mapboxgl-ctrl-geocoder--input) {
+  min-width: 200px;
+  color: var(--node-text-color);
+}
+
+:global(.mapboxgl-ctrl-geocoder--input:focus) {
+  color: var(--node-text-color);
+  outline: none;
+}
+
+:global(.mapboxgl-ctrl-geocoder),
+:global(.mapboxgl-ctrl-geocoder--button),
+:global(.mapboxgl-ctrl-geocoder .suggestions),
+:global(.mapboxgl-ctrl-geocoder--suggestion),
+:global(.mapboxgl-ctrl-geocoder .suggestions > .active > a),
+:global(.mapboxgl-ctrl-geocoder .suggestions > li > a:hover) {
+  background: var(--node-background-color);
+  color: var(--node-text-color);
+}
+
+/* Node add menu */
+.addNodeMenu {
+  background: var(--node-add-menu-background-color);
+  height: 300px;
+  width: 260px;
+  padding-bottom: 1em;
+  position: absolute;
+  z-index: 1000;
+  overflow: auto;
+  border-radius: 8px;
+}
+
+.addNodeMenuHeader {
+  font-weight: bold;
+  padding: .5em;
+  background: var(--node-add-menu-header-background-color);
+  color: var(--node-add-menu-header-text-color);
+  position: sticky;
+  top: 0;
+  width: 100%;
+}
+
+.addNodeMenuItem {
+  cursor: pointer;
+  padding: 0.5em;
+  line-height: 140%;
+}
+
+.addNodeItemHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.nodeCategoryCapsule {
+  height: 16px;
+  line-height: 16px;
+  padding: 0 8px;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.addNodeItemDescription {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--surface-600);
+  line-height: 140%;
+}
+
+.addNodeMenuItem:hover {
+  background: var(--node-add-menu-hover-color);
+}
+
+.addNodeSearchBox {
+  background: var(--node-add-menu-background-color);
+  padding: 0.5em;
+  border: none;
+  outline: none;
+  position: sticky;
+  top: 35px;
+  width: 100%;
+}
+
+.dropTarget {
+  width: 100%;
+  height: 100%;
+  padding: 8px;
+  flex: 2;
+}
+
+.dropTargetOverlay {
+  width: 100%;
+  height: 100%;
+  border-radius: 24px;
+  border: 4px dashed #3d424a;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--node-drop-target-text-color);
+  font-size: 24px;
+  pointer-events: none;
+  z-index: 1000;
+}
+
+.projectNameBar {
+  display: flex;
+  padding: 3px;
+  margin: 8px;
+  justify-content: center;
+}
+
+.rightPanel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  height: 100%;
+}
+
+.executionIndicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 8px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  font-size: 10px;
+  opacity: 0.9;
+}
+
+.executionIndicatorExecuting {
+  color: var(--node-execution-executing-color);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.executionIndicatorError {
+  color: var(--node-execution-error-color);
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+.executionIndicatorSlow {
+  color: var(--node-execution-slow-color);
+  background-color: rgba(245, 158, 11, 0.1);
+}
+
+@keyframes pulse {
+
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+.wrapper {}
+
+.wrapperError {
+  box-shadow: 0 0 0 1px var(--node-execution-error-color);
+}
+
+.wrapperExecuting {
+  box-shadow: 0 0 0 1px var(--node-execution-executing-color);
+}

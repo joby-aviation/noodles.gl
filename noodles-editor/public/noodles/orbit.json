@@ -1,0 +1,143 @@
+{
+  "nodes": [
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "data": {
+        "inputs": {
+          "basemap": null
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 390,
+        "y": 0
+      }
+    },
+    {
+      "id": "/orbitview-0",
+      "type": "OrbitViewOp",
+      "position": {
+        "x": -565.1875,
+        "y": 169.25
+      },
+      "data": {
+        "inputs": {
+          "clear": true,
+          "clearColor": "#2997ffff",
+          "fovy": 50
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/scenegraphlayer-0",
+      "type": "ScenegraphLayerOp",
+      "position": {
+        "x": -539.9180707890639,
+        "y": -285.7888584218722
+      },
+      "data": {
+        "inputs": {
+          "sizeMinPixels": 10,
+          "getColor": "#ffffffff"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/expression-0",
+      "type": "ExpressionOp",
+      "position": {
+        "x": -1013.8408708542686,
+        "y": -139.4872739249836
+      },
+      "data": {
+        "inputs": {
+          "expression": "[null]"
+        },
+        "locked": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    },
+    {
+      "source": "/orbitview-0",
+      "sourceHandle": "out.view",
+      "target": "/deck",
+      "targetHandle": "par.views",
+      "id": "/orbitview-0.out.view->/deck.par.views"
+    },
+    {
+      "source": "/scenegraphlayer-0",
+      "sourceHandle": "out.layer",
+      "target": "/deck",
+      "targetHandle": "par.layers",
+      "id": "/scenegraphlayer-0.out.layer->/deck.par.layers"
+    },
+    {
+      "source": "/expression-0",
+      "sourceHandle": "out.data",
+      "target": "/scenegraphlayer-0",
+      "targetHandle": "par.data",
+      "id": "/expression-0.out.data->/scenegraphlayer-0.par.data"
+    }
+  ],
+  "viewport": {
+    "x": 1368.6650642622628,
+    "y": 546.6972278664407,
+    "zoom": 0.981085979917294
+  },
+  "version": 6,
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {
+            "scenegraphlayer-0": {
+              "getColor": {
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
+              }
+            },
+            "orbitview-0": {
+              "clearColor": {
+                "r": 0.1607843137254902,
+                "g": 0.592156862745098,
+                "b": 1,
+                "a": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": [
+      "JtY15U_d_cPZoRLu",
+      "9EsczZKTvYsUK8uR",
+      "R6gN92Yj6dfyRehM"
+    ]
+  }
+}

@@ -1,0 +1,369 @@
+@import '@radix-ui/colors/black-alpha.css';
+@import '@radix-ui/colors/mauve.css';
+@import '@radix-ui/colors/violet.css';
+@import '@radix-ui/colors/green.css';
+@import '@radix-ui/colors/red.css';
+
+/* Order such that reset CSS does not get in the way of PrimeReact components. */
+@layer reset, primereact;
+
+/* Reset CSS */
+@layer reset {
+
+  fieldset,
+  button,
+  input {
+    all: unset;
+  }
+}
+
+.menubarRoot {
+  display: flex;
+  background-color: white;
+  padding: 3px;
+  border-radius: 6px;
+  box-shadow: 0 2px 10px var(--black-a7);
+}
+
+.menubarTrigger {
+  padding: 8px 12px;
+  outline: none;
+  user-select: none;
+  font-weight: 500;
+  line-height: 1;
+  border-radius: 4px;
+  color: var(--violet-11);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px;
+}
+
+.menubarTrigger[data-highlighted],
+.menubarTrigger[data-state='open'] {
+  background-color: var(--violet-4);
+}
+
+.menubarContent,
+.menubarSubContent {
+  min-width: 220px;
+  background-color: white;
+  border-radius: 6px;
+  padding: 5px;
+  box-shadow: 0px 10px 38px -10px rgba(22, 23, 24, 0.35), 0px 10px 20px -15px rgba(22, 23, 24, 0.2);
+  animation-duration: 400ms;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform, opacity;
+}
+
+.menubarItem,
+.menubarSubTrigger,
+.menubarCheckboxItem,
+.menubarRadioItem {
+  all: unset;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--violet-11);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  height: 25px;
+  padding: 0 10px;
+  position: relative;
+  user-select: none;
+}
+
+.menubarItem.inset,
+.menubarSubTrigger.inset,
+.menubarCheckboxItem.inset,
+.menubarRadioItem.inset {
+  padding-left: 20px;
+}
+
+.menubarItem[data-state='open'],
+.menubarSubTrigger[data-state='open'] {
+  background-color: var(--violet-4);
+  color: var(--violet-11);
+}
+
+.menubarItem[data-highlighted],
+.menubarSubTrigger[data-highlighted],
+.menubarCheckboxItem[data-highlighted],
+.menubarRadioItem[data-highlighted] {
+  background-image: linear-gradient(135deg, var(--violet-9) 0%, var(--violet-10) 100%);
+  color: var(--violet-1);
+}
+
+.menubarItem[data-disabled],
+.menubarSubTrigger[data-disabled],
+.menubarCheckboxItem[data-disabled],
+.menubarRadioItem[data-disabled] {
+  color: var(--mauve-8);
+  pointer-events: none;
+}
+
+.menubarSeparator {
+  height: 1px;
+  background-color: var(--violet-6);
+  margin: 5px;
+}
+
+.menubarItemRightSlot {
+  margin-left: auto;
+  padding-left: 20px;
+  color: var(--mauve-9);
+}
+
+[data-highlighted] > .menubarItemRightSlot {
+  color: white;
+}
+
+[data-disabled] > .menubarItemRightSlot {
+  color: var(--mauve-8);
+}
+
+[data-radix-popper-content-wrapper] {
+  z-index: 1000 !important;
+}
+
+/* save project dialog */
+
+.dialogOverlay {
+  background-color: var(--black-a9);
+  position: fixed;
+  inset: 0;
+  animation: overlayShow 150ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dialogContent {
+  background-color: white;
+  border-radius: 6px;
+  box-shadow: hsl(206 22% 7% / 35%) 0px 10px 38px -10px, hsl(206 22% 7% / 20%) 0px 10px 20px -15px;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 90vw;
+  max-width: 450px;
+  max-height: 85vh;
+  padding: 25px;
+  animation: contentShow 150ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dialogContent:focus {
+  outline: none;
+}
+
+.dialogTitle {
+  margin: 0;
+  font-weight: 500;
+  color: var(--mauve-12);
+  font-size: 17px;
+}
+
+.dialogError {
+  color: var(--red-11);
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+
+.dialogDescription {
+  margin: 10px 0 20px;
+  color: var(--mauve-11);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.dialogButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  padding: 0 15px;
+  font-size: 15px;
+  line-height: 1;
+  font-weight: 500;
+  height: 35px;
+}
+
+.dialogButton.violet {
+  background-color: white;
+  color: var(--violet-11);
+}
+
+.dialogButton.violet:hover {
+  background-color: var(--mauve-3);
+}
+
+.dialogButton.violet:focus {
+  box-shadow: 0 0 0 2px var(--violet-7);
+}
+
+.dialogButton.green {
+  background-color: var(--green-4);
+  color: var(--green-11);
+}
+
+.dialogButton.green:hover {
+  background-color: var(--green-5);
+}
+
+.dialogButton.green:focus {
+  box-shadow: 0 0 0 2px var(--green-7);
+}
+
+.dialogButton.red {
+  background-color: var(--red-4);
+  color: var(--red-11);
+}
+
+.dialogButton.red:hover {
+  background-color: var(--red-5);
+}
+
+.dialogButton.red:focus {
+  box-shadow: 0 0 0 2px var(--red-7);
+}
+
+.dialogButton:disabled {
+  color: var(--mauve-8);
+  background-color: unset;
+}
+
+.dialogButton:disabled:hover {
+  background-color: var(--mauve-4);
+}
+
+.dialogIconButton {
+  font-family: inherit;
+  border-radius: 100%;
+  height: 25px;
+  width: 25px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--violet-11);
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+
+.dialogIconButton:hover {
+  background-color: var(--violet-4);
+}
+
+.dialogIconButton:focus {
+  box-shadow: 0 0 0 2px var(--violet-7);
+}
+
+.dialogFieldset {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.dialogLabel {
+  font-size: 15px;
+  color: var(--violet-11);
+  width: 90px;
+  text-align: right;
+}
+
+.dialogInput {
+  width: 100%;
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  padding: 0 10px;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--violet-11);
+  box-shadow: 0 0 0 1px var(--violet-7);
+  height: 35px;
+}
+
+.dialogInput:focus {
+  box-shadow: 0 0 0 2px var(--violet-8);
+}
+
+@keyframes overlayShow {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes contentShow {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -48%) scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.dialogRightSlot {
+  display: flex;
+  margin-top: 25px;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* list projects dialog */
+
+.projectListWrapper {
+  width: 100%;
+  overflow: hidden;
+}
+
+.projectList {
+  overflow-y: auto;
+  max-height: 200px;
+}
+
+.projectTable {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.projectHeaderCell {
+  color: var(--violet-11);
+  font-size: 15px;
+  line-height: 18px;
+  font-weight: 500;
+  margin-top: 5px;
+  padding: 10px;
+  text-align: left;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background-color: white;
+}
+
+.projectRowCell {
+  color: var(--mauve-12);
+  font-size: 13px;
+  line-height: 18px;
+  padding: 5px 0px;
+  border-bottom: 1px solid var(--mauve-6);
+  text-indent: 10px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.projectRow:hover {
+  background-color: var(--mauve-3);
+  cursor: pointer;
+}

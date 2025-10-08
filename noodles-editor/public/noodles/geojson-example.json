@@ -1,0 +1,199 @@
+{
+  "nodes": [
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 400,
+        "y": 0
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 696,
+        "y": 0
+      }
+    },
+    {
+      "id": "/data-source",
+      "type": "FileOp",
+      "data": {
+        "inputs": {
+          "url": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/bart.geo.json"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -395.9478357380689,
+        "y": -300.04661487236405
+      }
+    },
+    {
+      "id": "/geojson-layer",
+      "type": "GeoJsonLayerOp",
+      "data": {
+        "inputs": {
+          "pointType": "circle+text",
+          "getPointRadius": 4,
+          "stroked": false,
+          "getLineWidth": 20,
+          "lineWidthMinPixels": 4,
+          "extruded": true,
+          "getElevation": 30
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 0,
+        "y": -300
+      }
+    },
+    {
+      "id": "/fill-color-accessor",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "utils.colorToHex([160, 160, 180, 200])"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -400,
+        "y": 17.466148723640398
+      }
+    },
+    {
+      "id": "/line-color-accessor",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "d.properties.color || '#000'"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -400,
+        "y": 122.86903440621529
+      }
+    },
+    {
+      "id": "/text-accessor",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "d.properties.name"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -397.2985571587125,
+        "y": -85.09544950055495
+      }
+    },
+    {
+      "type": "MaplibreBasemapOp",
+      "id": "/maplibre-basemap",
+      "position": {
+        "x": -1.3507214206437084,
+        "y": 546.3063263041065
+      },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
+          "viewState": {
+            "latitude": 37.74,
+            "longitude": -122.4,
+            "zoom": 13,
+            "pitch": 30,
+            "bearing": 0
+          }
+        },
+        "locked": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    },
+    {
+      "id": "/data-source.out.data->/geojson-layer.par.data",
+      "source": "/data-source",
+      "target": "/geojson-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/fill-color-accessor.out.accessor->/geojson-layer.par.getFillColor",
+      "source": "/fill-color-accessor",
+      "target": "/geojson-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getFillColor"
+    },
+    {
+      "id": "/line-color-accessor.out.accessor->/geojson-layer.par.getLineColor",
+      "source": "/line-color-accessor",
+      "target": "/geojson-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getLineColor"
+    },
+    {
+      "id": "/text-accessor.out.accessor->/geojson-layer.par.getText",
+      "source": "/text-accessor",
+      "target": "/geojson-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getText"
+    },
+    {
+      "id": "/geojson-layer.out.layer->/deck.par.layers",
+      "source": "/geojson-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "source": "/maplibre-basemap",
+      "sourceHandle": "out.maplibre",
+      "target": "/deck",
+      "targetHandle": "par.basemap",
+      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap"
+    }
+  ],
+  "viewport": {
+    "x": 530.7255546425637,
+    "y": 484.1814235438211,
+    "zoom": 0.7543138866064092
+  },
+  "version": 6,
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": [
+      "2fowPmUFZuTc-Tpb",
+      "gu9E8g8-RbexkhTI",
+      "EeNr7wIUZGeY0pqE",
+      "-AcuXX9WdPaXNlc4",
+      "hPcEOr80dLTuA80M"
+    ]
+  }
+}

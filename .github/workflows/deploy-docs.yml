@@ -1,0 +1,73 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+    # Review gh actions docs if you want to further define triggers, paths, etc
+    # https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#on
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
+# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Not needed if lastUpdated is not enabled
+      # - uses: pnpm/action-setup@v3 # Uncomment this if you use pnpm
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies for website
+        run: yarn install
+        working-directory: ./website
+
+      - name: Install dependencies for app
+        run: yarn install
+        working-directory: ./noodles-editor
+
+      - name: Build app
+        run: yarn build
+        working-directory: ./noodles-editor
+
+      - name: Build website
+        run: yarn build
+        working-directory: ./website
+
+      - name: Setup deployment structure  
+        run: |
+          # Create deployment directory structure
+          mkdir -p ./deployment
+          # Copy app to root
+          cp -r ./noodles-editor/dist/* ./deployment/
+          # Copy docs to /docs subdirectory
+          mkdir -p ./deployment/docs
+          cp -r ./website/build/* ./deployment/docs/
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # Upload deployment structure: app at root, docs at /docs
+          path: './deployment'
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
