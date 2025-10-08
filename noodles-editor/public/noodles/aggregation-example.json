@@ -1,0 +1,248 @@
+{
+  "nodes": [
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 773.8775821892834,
+        "y": -378.07249361978614
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 1072.3714048301424,
+        "y": -379.31940494021575
+      }
+    },
+    {
+      "id": "/data-source",
+      "type": "FileOp",
+      "data": {
+        "inputs": {
+          "url": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/sf-bike-parking.json"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -500.2487592119116,
+        "y": -528.1170745332273
+      }
+    },
+    {
+      "id": "/grid-layer",
+      "type": "GridLayerOp",
+      "data": {
+        "inputs": {
+          "cellSize": 200,
+          "elevationScale": 4
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 0,
+        "y": -300
+      }
+    },
+    {
+      "id": "/position-accessor",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "d.COORDINATES"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -500.24875921191165,
+        "y": -323.0023419203747
+      }
+    },
+    {
+      "id": "/spaces-accessor",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "d.SPACES"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -498.20286616677055,
+        "y": -224.02528844294523
+      }
+    },
+    {
+      "type": "MaplibreBasemapOp",
+      "id": "/maplibre-basemap",
+      "position": {
+        "x": 360.27092289302794,
+        "y": -196.06132487348802
+      },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
+          "viewState": {
+            "latitude": 37.74,
+            "longitude": -122.4,
+            "zoom": 13,
+            "pitch": 30,
+            "bearing": 0
+          }
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "HexagonLayerOp",
+      "id": "/hexagon-layer",
+      "position": {
+        "x": -0.6925638656726676,
+        "y": -982.6889355005047
+      },
+      "data": {
+        "inputs": {
+          "radius": 200,
+          "extruded": true,
+          "elevationScale": 4
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "SwitchOp",
+      "id": "/switch",
+      "position": {
+        "x": 361.0002896459933,
+        "y": -378.2848378568678
+      },
+      "data": {
+        "inputs": {},
+        "locked": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    },
+    {
+      "id": "/data-source.out.data->/grid-layer.par.data",
+      "source": "/data-source",
+      "target": "/grid-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/position-accessor.out.accessor->/grid-layer.par.getPosition",
+      "source": "/position-accessor",
+      "target": "/grid-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getPosition"
+    },
+    {
+      "id": "/spaces-accessor.out.accessor->/grid-layer.par.getColorWeight",
+      "source": "/spaces-accessor",
+      "target": "/grid-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getColorWeight"
+    },
+    {
+      "source": "/spaces-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/grid-layer",
+      "targetHandle": "par.getElevationWeight",
+      "id": "/spaces-accessor.out.accessor->/grid-layer.par.getElevationWeight"
+    },
+    {
+      "source": "/maplibre-basemap",
+      "sourceHandle": "out.maplibre",
+      "target": "/deck",
+      "targetHandle": "par.basemap",
+      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap"
+    },
+    {
+      "source": "/switch",
+      "sourceHandle": "out.value",
+      "target": "/deck",
+      "targetHandle": "par.layers",
+      "id": "/switch.out.value->/deck.par.layers"
+    },
+    {
+      "source": "/hexagon-layer",
+      "sourceHandle": "out.layer",
+      "target": "/switch",
+      "targetHandle": "par.values",
+      "id": "/hexagon-layer.out.layer->/switch.par.values"
+    },
+    {
+      "source": "/grid-layer",
+      "sourceHandle": "out.layer",
+      "target": "/switch",
+      "targetHandle": "par.values",
+      "id": "/grid-layer.out.layer->/switch.par.values"
+    },
+    {
+      "source": "/data-source",
+      "sourceHandle": "out.data",
+      "target": "/hexagon-layer",
+      "targetHandle": "par.data",
+      "id": "/data-source.out.data->/hexagon-layer.par.data"
+    },
+    {
+      "source": "/position-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/hexagon-layer",
+      "targetHandle": "par.getPosition",
+      "id": "/position-accessor.out.accessor->/hexagon-layer.par.getPosition"
+    },
+    {
+      "source": "/spaces-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/hexagon-layer",
+      "targetHandle": "par.getColorWeight",
+      "id": "/spaces-accessor.out.accessor->/hexagon-layer.par.getColorWeight"
+    },
+    {
+      "source": "/spaces-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/hexagon-layer",
+      "targetHandle": "par.getElevationWeight",
+      "id": "/spaces-accessor.out.accessor->/hexagon-layer.par.getElevationWeight"
+    }
+  ],
+  "viewport": {
+    "x": 671.0641779964585,
+    "y": 907.0984953781293,
+    "zoom": 0.8019816514742112
+  },
+  "version": 6,
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": [
+      "fBu1FW4HYanu9xRt",
+      "aiRAn66WU7kCXJZh",
+      "mtj8EgxoAJHG9vWu"
+    ]
+  }
+}

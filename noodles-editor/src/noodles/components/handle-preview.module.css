@@ -1,0 +1,68 @@
+/* Handle preview */
+.handlePreview {
+  position: fixed;
+  min-width: 200px;
+  max-width: 400px;
+  background: #282b2f;
+  border: 1px solid var(--node-handle-outline-color);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  font-size: 12px;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.handlePreviewHeader {
+  padding: 6px 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px 4px 0 0;
+  font-size: 11px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.handlePreviewName {
+  font-weight: bold;
+  color: var(--node-header-text-color);
+}
+
+.handlePreviewType {
+  color: var(--node-field-hint-color);
+  font-size: 10px;
+}
+
+.handlePreviewBody {
+  padding: 8px;
+  max-height: 300px;
+  overflow: auto;
+}
+
+.handlePreviewEmpty {
+  color: var(--node-field-hint-color);
+  padding: 4px;
+}
+
+.handlePreviewTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.handlePreviewTable th,
+.handlePreviewTable td {
+  padding: 4px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--node-handle-outline-color);
+}
+
+.handlePreviewTable th {
+  font-weight: bold;
+  color: var(--node-header-text-color);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.handlePreviewTable td {
+  color: var(--node-text-color);
+}

@@ -1,0 +1,331 @@
+/* Base panel */
+.panel {
+  width: var(--property-panel-width);
+  margin: 8px;
+  padding: 16px;
+  background-color: var(--property-panel-background-color);
+  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 0;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Header */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* Node properties capsule */
+.capsule {
+  height: 14px;
+  padding: 0 7px;
+  border-radius: 14px;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  font-weight: 500;
+  font-size: 11px;
+  line-height: normal;
+}
+
+/* Section */
+.section {
+  margin-bottom: 16px;
+}
+
+.sectionTitle {
+  font-size: 12px;
+  font-weight: 500;
+  margin-bottom: 12px;
+  color: var(--text-secondary);
+}
+
+/* Input */
+.input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 4px;
+  background-color: var(--node-input-hover-color);
+}
+
+.input > span {
+  color: var(--surface-600);
+}
+
+.input > input {
+  font-family: monospace;
+  min-width: 0px;
+  width: 100%;
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--input-background);
+}
+
+/* Property list */
+.propertyList {
+  display: flex;
+  gap: 8px;
+  flex-direction: column;
+  margin-left: 8px;
+}
+
+.property {
+  margin-bottom: 4px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.propertyHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.propertyDetails {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--tooltip-icon-color);
+}
+
+/* Port */
+.port {
+  width: 8px;
+  height: 8px;
+  border-radius: 8px;
+  border: 2px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+/* Connection */
+.connections {
+  margin: 2px 0 2px 24px;
+  border-left: 2px solid var(--border-color);
+  padding-left: 8px;
+}
+
+.connection {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: grab;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.connection:hover {
+  background: var(--node-input-hover-color);
+}
+
+.connection.dragging {
+  opacity: 0.5;
+  background: var(--node-input-hover-color);
+  cursor: grabbing;
+}
+
+.connectionSource {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  user-select: none;
+}
+
+/* Drag handle */
+.dragHandle {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  display: flex;
+  margin-top: 2px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  flex-shrink: 0;
+  opacity: 0.5;
+  transition: opacity 0.2s ease;
+}
+
+.connection:hover .dragHandle {
+  opacity: 1;
+}
+
+.dragHandle::before,
+.dragHandle::after {
+  content: "";
+  height: 1px;
+  background: currentColor;
+}
+
+/* Reference icon */
+.referenceIcon {
+  fill: var(--tooltip-icon-color);
+  height: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.referenceIcon:hover {
+  fill: white;
+}
+
+/* Tooltip */
+.tooltipContainer {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  /* above theatrejs */
+  z-index: 101;
+}
+
+.tooltipIcon {
+  fill: var(--tooltip-icon-color);
+  height: 14px;
+  cursor: help;
+}
+
+.tooltipIcon:hover {
+  fill: white;
+}
+
+.tooltipText {
+  visibility: hidden;
+  position: absolute;
+  z-index: 1;
+  display: block;
+  white-space: normal;
+  word-wrap: break-word;
+  width: max-content;
+  max-width: 280px;
+  background-color: var(--tooltip-background-color);
+  color: #fff;
+  border-radius: 4px;
+  padding: 4px 8px;
+
+  font-weight: 500;
+  font-size: 11px;
+
+  opacity: 0;
+  transition: opacity 0.3s;
+  /* Position above the tooltip icon by default */
+  bottom: 125%;
+  right: unset;
+}
+
+.tooltipText.right {
+  bottom: unset;
+  /* Position right of the tooltip icon */
+  left: 125%;
+}
+
+.tooltipText.left {
+  bottom: unset;
+  /* Position left of the tooltip icon */
+  right: 125%;
+}
+
+.tooltipText.bottom {
+  bottom: unset;
+  /* Position below the tooltip icon */
+  top: 125%;
+}
+
+.tooltipContainer:hover .tooltipText {
+  visibility: visible;
+  opacity: 1;
+}
+
+.tooltipContent {
+  background: var(--tooltip-background-color);
+  color: #fff;
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  max-width: 200px;
+  z-index: 1000;
+  animation-duration: 400ms;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform, opacity;
+}
+
+.tooltipContent[data-state='delayed-open'][data-side='bottom'],
+.tooltipContent[data-state='instant-open'][data-side='bottom'] {
+  animation-name: slideUpAndFade;
+}
+
+@keyframes slideUpAndFade {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Remove old button */
+.reorderButtons,
+.reorderBtn {
+  display: none;
+}
+
+.position {
+  display: flex;
+  gap: 8px;
+}
+
+.reorder {
+  display: flex;
+  gap: 2px;
+}
+
+.reorderBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  background: var(--node-input-hover-color);
+  color: var(--tooltip-icon-color);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0;
+}
+
+.reorderBtn:hover {
+  background: var(--node-input-focus-color);
+  color: white;
+}
+
+.reference {
+  padding: 8px;
+  border-radius: 4px;
+  font-family: monospace;
+  background-color: var(--node-input-hover-color);
+}

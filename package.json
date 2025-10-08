@@ -1,0 +1,18 @@
+{
+  "name": "noodles.gl",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "install:website": "cd website && yarn install",
+    "install:app": "cd noodles-editor && yarn install",
+    "install:all": "yarn install:website && yarn install:app",
+    "build:app": "cd noodles-editor && yarn build",
+    "build:website": "cd website && yarn build",
+    "build:all": "yarn build:app && yarn build:website && mkdir -p website/build/app && cp -r noodles-editor/dist/* website/build/app/",
+    "start:website": "cd website && yarn start",
+    "start:app": "cd noodles-editor && yarn start",
+    "serve:website": "cd website && yarn serve",
+    "serve:app": "cd noodles-editor && yarn serve"
+  },
+  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
+}

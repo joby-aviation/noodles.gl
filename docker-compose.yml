@@ -1,0 +1,9 @@
+version: '3'
+services:
+  noodles-editor:
+    image: 009661725111.dkr.ecr.us-west-2.amazonaws.com/visualization/noodles-editor
+    build:
+      context: .
+      dockerfile: ./docker/noodles-editor.Dockerfile
+    ports:
+      - "3000:3001"

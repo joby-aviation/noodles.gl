@@ -1,0 +1,195 @@
+{
+  "nodes": [
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 400,
+        "y": 0
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 696.1465517241379,
+        "y": 2.1194581280788167
+      }
+    },
+    {
+      "id": "/data-source",
+      "type": "FileOp",
+      "data": {
+        "inputs": {
+          "url": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/bart-stations.json"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -398.3985098486273,
+        "y": -292.07381101918014
+      }
+    },
+    {
+      "id": "/mesh-layer",
+      "type": "SimpleMeshLayerOp",
+      "data": {
+        "inputs": {
+          "sizeScale": 30
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -11.657019704433509,
+        "y": -292.48522167487687
+      }
+    },
+    {
+      "id": "/position-accessor",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "d.coordinates"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -402.21268038650896,
+        "y": -94.68299033727648
+      }
+    },
+    {
+      "id": "/color-accessor",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "utils.colorToHex([Math.sqrt(d.exits), 140, 0])"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -401.1063401932545,
+        "y": 0.8916488897056247
+      }
+    },
+    {
+      "id": "/orientation-accessor",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "[0, Math.random() * 180, 0]"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -402.21268038650896,
+        "y": 94.25360773017881
+      }
+    },
+    {
+      "type": "MaplibreBasemapOp",
+      "id": "/maplibre-basemap",
+      "position": {
+        "x": -8.134052678618417,
+        "y": 160.3387205830217
+      },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
+          "viewState": {
+            "latitude": 37.74,
+            "longitude": -122.4,
+            "zoom": 13,
+            "pitch": 30,
+            "bearing": 0
+          }
+        },
+        "locked": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    },
+    {
+      "id": "/data-source.out.data->/mesh-layer.par.data",
+      "source": "/data-source",
+      "target": "/mesh-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/position-accessor.out.accessor->/mesh-layer.par.getPosition",
+      "source": "/position-accessor",
+      "target": "/mesh-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getPosition"
+    },
+    {
+      "id": "/color-accessor.out.accessor->/mesh-layer.par.getColor",
+      "source": "/color-accessor",
+      "target": "/mesh-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getColor"
+    },
+    {
+      "id": "/orientation-accessor.out.accessor->/mesh-layer.par.getOrientation",
+      "source": "/orientation-accessor",
+      "target": "/mesh-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getOrientation"
+    },
+    {
+      "id": "/mesh-layer.out.layer->/deck.par.layers",
+      "source": "/mesh-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "source": "/maplibre-basemap",
+      "sourceHandle": "out.maplibre",
+      "target": "/deck",
+      "targetHandle": "par.basemap",
+      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap"
+    }
+  ],
+  "viewport": {
+    "x": 679.3077440622253,
+    "y": 608.5965459146154,
+    "zoom": 1.2637785153212067
+  },
+  "version": 6,
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": [
+      "-4HqGw_hUq1pa55L",
+      "EBEi5VXt4CzCbCdr",
+      "NbvX_508-pqp2M-w",
+      "U0JXRRBXArWC_imO",
+      "IjYmlFFngqi9OGlw",
+      "qU_B0bL0ImX9r18-",
+      "JLOlCBVrfoKUFxpr"
+    ]
+  }
+}
