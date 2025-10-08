@@ -93,7 +93,7 @@ const VIEWER_OFFSET_X = 400
 // TheatreJS project names are not included in the Noodles project file.
 // TheatreJS sheet names are included, so they should be the same for every project.
 const THEATRE_SHEET_ID = 'Noodles'
-function useTheatreJs(projectName?: string) {
+function useTheatreJs(projectName: string | null) {
   // Increment whenever a new theatre project is created to keep the project name unique *within theatre*.
   const _projectCounterRef = useRef(1)
   const name = `${projectName || UNSAVED_PROJECT_NAME}-${_projectCounterRef.current}`
@@ -152,7 +152,7 @@ function useTheatreJs(projectName?: string) {
 // Not using the top-level sheet since a Noodles theatre sheet and project are dynamically created.
 // Also, the top-level sheet is used for theatre-managed project files, whereas a Noodles project file is managed within this visType.
 export function getNoodles(): Visualization {
-  const [projectName, setProjectName] = useState<string>()
+  const [projectName, setProjectName] = useState<string | null>(projectId)
   const [showProjectNotFoundDialog, setShowProjectNotFoundDialog] = useState(false)
   const storageType = useActiveStorageType()
   const { setCurrentDirectory, setError } = useFileSystemStore()
@@ -515,7 +515,7 @@ export function getNoodles(): Visualization {
   const { showOverlay, layoutMode } = useSheetValue(editorSheet)
 
   const loadProjectFile = useCallback(
-    (project: NoodlesProjectJSON, name?: string) => {
+    (project: NoodlesProjectJSON, name: string) => {
       const {
         nodes,
         edges,
@@ -760,7 +760,7 @@ export function getNoodles(): Visualization {
   const menuBar = (
     <NodesMenubar
       projectName={projectName}
-      setProjectName={setProjectName}
+      onChangeProjectName={setProjectName}
       getTimelineJson={getTimelineJson}
       loadProjectFile={loadProjectFile}
     />
