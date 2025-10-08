@@ -450,6 +450,41 @@ export class ExtentOp extends Operator<ExtentOp> {
   }
 }
 
+export class SelectOp extends Operator<SelectOp> {
+  static displayName = 'Select'
+  static description = 'Select an element from an array using an index (clamped to array bounds by default, or wrapped around array bounds)'
+  createInputs() {
+    return {
+      data: new DataField(),
+      index: new NumberField(0, { step: 1 }),
+      wrap: new BooleanField(false),
+    }
+  }
+  createOutputs() {
+    return {
+      value: new UnknownField(undefined),
+    }
+  }
+  execute({ data, index, wrap }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!Array.isArray(data) || data.length === 0) {
+      return { value: undefined }
+    }
+
+    let finalIndex: number
+    if (wrap) {
+      // Use modulo to wrap index around array bounds
+      finalIndex = ((Math.floor(index) % data.length) + data.length) % data.length
+    } else {
+      // Clamp index to array bounds
+      finalIndex = Math.max(0, Math.min(Math.floor(index), data.length - 1))
+    }
+
+    return {
+      value: data[finalIndex],
+    }
+  }
+}
+
 // Allow adding a "virtual" operator from the Add Node menu that wraps the Math operator with a specific operation
 export const mathOps = {
   DivideOp: 'divide',
@@ -4885,6 +4920,7 @@ export const opTypes = {
   ScenegraphLayerOp,
   ScreenGridLayerOp,
   SimpleMeshLayerOp,
+  SelectOp,
   SliceOp,
   SolidPolygonLayerOp,
   SortOp,
