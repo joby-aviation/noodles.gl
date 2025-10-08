@@ -57,6 +57,7 @@ import {
   mathOps,
   Operator,
   opTypes,
+  type RampOp,
   type TableEditorOp,
   type TimeOp,
   type ViewerOp,
@@ -66,7 +67,9 @@ import type { NodeDataJSON } from '../transform-graph'
 import { edgeId } from '../utils/id-utils'
 import { generateQualifiedPath, getBaseName, getParentPath } from '../utils/path-utils'
 import type { NodeType } from './add-node-menu'
+import BezierEditor, { type Stop as BezierStop } from './BezierEditor'
 import { FieldComponent, type inputComponents } from './field-components'
+import { MultiThumbSlider } from './multi-thumb-slider'
 import previewStyles from './handle-preview.module.css'
 
 const MAPBOX_ACCESS_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
@@ -94,6 +97,7 @@ export const nodeComponents = {
   ...defaultNodeComponents,
   GeocoderOp: GeocoderOpComponent,
   MouseOp: MouseOpComponent,
+  RampOp: RampOpComponent,
   TableEditorOp: TableEditorOpComponent,
   TimeOp: TimeOpComponent,
   ViewerOp: ViewerOpComponent,
@@ -1053,6 +1057,157 @@ function MouseOpComponent({
       </div>
       {Object.entries(op.outputs).map(([key, field], i) => (
         <Port key={key} name={key} i={i} field={field} type={SOURCE_HANDLE} />
+      ))}
+    </>
+  )
+}
+
+function RampOpComponent({
+  id,
+  type,
+  data,
+  selected,
+}: ReactFlowNodeProps<NodeDataJSON<'RampOp'>> & { type: 'RampOp' }) {
+  const op = useOp(id) as RampOp | undefined
+  if (!op) return null
+
+  const locked = useLocked(op)
+
+  const [activeBezierStop, setActiveBezierStop] = useState<number>(0)
+  const [bezierStops, setBezierStops] = useState<BezierStop[]>(
+    (op.inputs.stops.value as BezierStop[]) || [
+      { id: 'beginning', pos: 0, val: 0 },
+      { id: 'end', pos: 1, val: 1 },
+    ]
+  )
+  const [curveType, setCurveType] = useState(
+    (op.inputs.displayCurveType.value as 'linear' | 'basis' | 'monotoneX' | 'catmullRom') ||
+      'linear'
+  )
+
+  // Subscribe to op.inputs.stops changes if they are modified externally (e.g., loading a project, undo/redo)
+  useEffect(() => {
+    const stopsSub = op.inputs.stops.subscribe(newOpStopsSource => {
+      setBezierStops(newOpStopsSource as BezierStop[])
+    })
+    const curveTypeSub = op.inputs.displayCurveType.subscribe(newVal => {
+      setCurveType(newVal as 'linear' | 'basis' | 'monotoneX' | 'catmullRom')
+    })
+    return () => {
+      stopsSub.unsubscribe()
+      curveTypeSub.unsubscribe()
+    }
+  }, [op.inputs.stops, op.inputs.displayCurveType, locked])
+
+  const handleStopsChange = useCallback(
+    (newStopsFromEditor: BezierStop[]) => {
+      if (locked) return
+      op.inputs.stops.setValue(newStopsFromEditor)
+    },
+    [op.inputs.stops, locked]
+  )
+
+  // Ensure op.inputs.stops has a default value if it's initially undefined or empty.
+  useEffect(() => {
+    if (!op.inputs.stops.value || (op.inputs.stops.value as any[]).length === 0) {
+      op.inputs.stops.setValue([
+        { id: 'beginning', pos: 0, val: 0 },
+        { id: 'end', pos: 1, val: 1 },
+      ])
+    }
+  }, [op.inputs.stops])
+
+  return (
+    <>
+      <NodeHeader id={id} type={type} op={op} />
+      {Object.entries(op.inputs)
+        .filter(([key]) => key !== 'stops')
+        .map(([key, field], i) => (
+          <Port key={key} name={key} field={field} i={i} type={TARGET_HANDLE} />
+        ))}
+      <div className={s.content}>
+        {Object.entries(op.inputs)
+          .filter(([key]) => key !== 'stops')
+          .map(([key, field]) => {
+            return <FieldComponent key={key} id={key} field={field} disabled={locked} />
+          })}
+        <div style={{ marginTop: '10px', padding: '5px', backgroundColor: '#22252a' }}>
+          <BezierEditor
+            stops={bezierStops}
+            onChangeStops={handleStopsChange}
+            onChangeActiveStop={id => {
+              setActiveBezierStop(bezierStops.findIndex(s => s.id === id))
+            }}
+            width={220}
+            height={80}
+            padding={10}
+            curveType={curveType}
+          />
+        </div>
+        <div style={{ marginTop: '10px' }}>
+          <MultiThumbSlider
+            values={bezierStops.map(s => s.pos)}
+            onClick={index => {
+              setActiveBezierStop(index)
+            }}
+            onChange={newValues => {
+              const updatedStops = bezierStops.map((s, i) => ({ ...s, pos: newValues[i] }))
+              setBezierStops(updatedStops)
+              handleStopsChange(updatedStops)
+            }}
+          />
+        </div>
+        <div style={{ marginTop: '10px' }}>
+          <label style={{ display: 'block', marginBottom: '5px' }}>Point #{activeBezierStop}</label>
+          <input
+            type="number"
+            value={activeBezierStop}
+            min={0}
+            max={bezierStops.length - 1}
+            step={1}
+            style={{ width: '100%' }}
+            onChange={e => {
+              setActiveBezierStop(Number(e.currentTarget.value))
+            }}
+          />
+        </div>
+        <div style={{ marginTop: '10px' }}>
+          <label style={{ display: 'block', marginBottom: '5px' }}>Position</label>
+          <input
+            type="number"
+            value={bezierStops[activeBezierStop]?.pos.toFixed(2)}
+            min={0}
+            max={1}
+            step={0.01}
+            style={{ width: '100%' }}
+            onChange={e => {
+              const updatedStops = bezierStops.map((s, i) =>
+                i === activeBezierStop ? { ...s, pos: Number(e.currentTarget.value) } : s
+              )
+              setBezierStops(updatedStops)
+              handleStopsChange(updatedStops)
+            }}
+          />
+        </div>
+        <div style={{ marginTop: '10px' }}>
+          <label style={{ display: 'block', marginBottom: '5px' }}>Value</label>
+          <input
+            type="number"
+            value={bezierStops[activeBezierStop]?.val.toFixed(2)}
+            step={0.01}
+            style={{ width: '100%' }}
+            onChange={e => {
+              const updatedStops = bezierStops.map((s, i) =>
+                i === activeBezierStop ? { ...s, val: Number(e.currentTarget.value) } : s
+              )
+              setBezierStops(updatedStops)
+              handleStopsChange(updatedStops)
+            }}
+          />
+        </div>
+      </div>
+      {Object.entries(op.outputs).map(([key, field], i) => (
+        <Port key={key} field={field} name={key} i={i} type={SOURCE_HANDLE} />
       ))}
     </>
   )
