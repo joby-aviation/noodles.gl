@@ -342,6 +342,100 @@ export const TARGET_HANDLE = 'target'
 export const PAR_NAMESPACE = 'par'
 export const OUT_NAMESPACE = 'out'
 
+function Port({
+  name,
+  field,
+  type,
+  i,
+}: {
+  name: string
+  field: Field<IField>
+  type: typeof SOURCE_HANDLE | typeof TARGET_HANDLE
+  i: number
+}) {
+  // TODO: provide additional information (count, properties, description, etc)
+  // TODO: make this dynamic based on the number of handles, and measure the height of input
+  const edges = useEdges()
+  const nid = useNodeId()
+  const [previewData, setPreviewData] = useState<unknown>(null)
+  const [previewPosition, setPreviewPosition] = useState({ x: 0, y: 0 })
+  const hoverTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Generate fully qualified handle ID using the operator's path
+  const namespace = type === SOURCE_HANDLE ? OUT_NAMESPACE : PAR_NAMESPACE
+  const handleId = `${namespace}.${name}`
+
+  const hasIncomers = edges.some(edge => edge.target === nid && edge.targetHandle === handleId)
+
+  const fieldOffset =
+    field instanceof CompoundPropsField && !hasIncomers
+      ? (Object.keys(field.fields).length - 1) * 3
+      : 0
+  const offset = type === SOURCE_HANDLE ? 10 : 25 + fieldOffset
+  const position = type === SOURCE_HANDLE ? Position.Right : Position.Left
+
+  const handleMouseEnter = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (type === SOURCE_HANDLE) {
+        // Track hovered output handle for viewer creation
+        if (nid) {
+          setHoveredOutputHandle({ nodeId: nid, handleId })
+        }
+
+        // Store the current target immediately
+        const currentTarget = e.currentTarget
+        hoverTimerRef.current = setTimeout(() => {
+          // Get the handle's position in the viewport
+          const rect = currentTarget.getBoundingClientRect()
+          setPreviewPosition({ x: rect.right, y: rect.top })
+          setPreviewData(viewerFormatter(field.value))
+        }, 1000)
+      }
+    },
+    [type, field, nid, handleId]
+  )
+
+  const handleMouseLeave = useCallback(() => {
+    if (type === SOURCE_HANDLE) {
+      // Clear hovered output handle
+      setHoveredOutputHandle(null)
+    }
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current)
+      hoverTimerRef.current = null
+    }
+    setPreviewData(null)
+  }, [type])
+
+  return (
+    <>
+      <Handle
+        id={handleId}
+        className={handleClass(field)}
+        style={{ top: `${i * offset + headerHeight}px` }}
+        type={type}
+        position={position}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+      />
+      {previewData &&
+        type === SOURCE_HANDLE &&
+        createPortal(
+          <div
+            className={previewStyles.handlePreview}
+            style={{
+              left: `${previewPosition.x}px`,
+              top: `${previewPosition.y}px`,
+            }}
+          >
+            <HandlePreviewContent data={previewData} name={name} type={field.constructor.type} />
+          </div>,
+          document.body
+        )}
+    </>
+  )
+}
+
 function colorToTheatreColor(color: [number, number, number, number] | string): Rgba {
   const val =
     typeof color === 'string' && isHexColor(color)
