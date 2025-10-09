@@ -1313,13 +1313,14 @@ export class BezierCurveField extends Field<z.ZodType<BezierCurveData>> {
 }
 
 // Helper to detect coordinate field names with various patterns (case-insensitive)
-// Recognizes: lat, latitude, _lat, _latitude, lng, lon, longitude, _lng, _lon, _longitude
+// Recognizes: lat, latitude, lng, lon, longitude, and any prefixed versions like pickup_lat, dropoff_lng, etc.
 function findCoordinateFields(obj: Record<string, unknown>): { lng: number; lat: number } | null {
   if (typeof obj !== 'object' || obj === null) return null
 
   // Patterns to match longitude and latitude field names (case-insensitive)
-  const lngPatterns = /^(_)?(lng|lon|longitude)$/i
-  const latPatterns = /^(_)?(lat|latitude)$/i
+  // Matches: lng, _lng, pickup_lng, dropoff_lon, start_longitude, etc.
+  const lngPatterns = /^(\w*_)?(lng|lon|longitude)$/i
+  const latPatterns = /^(\w*_)?(lat|latitude)$/i
 
   let lng: number | undefined
   let lat: number | undefined
@@ -1337,7 +1338,7 @@ function findCoordinateFields(obj: Record<string, unknown>): { lng: number; lat:
   return lng !== undefined && lat !== undefined ? { lng, lat } : null
 }
 
-// Helper to convert various point formats to GeoJSON Feature
+// Helper to convert a single point to GeoJSON Feature
 function pointsToFeature(value: unknown): Feature | null {
   if (!value) return null
 
@@ -1356,35 +1357,6 @@ function pointsToFeature(value: unknown): Feature | null {
     const coords = findCoordinateFields(value as Record<string, unknown>)
     if (coords) {
       return turf.point([coords.lng, coords.lat], value)
-    }
-  }
-
-  // Array of points: try detecting coordinate fields
-  if (Array.isArray(value) && value.length > 0) {
-    const firstItem = value[0]
-
-    // Array of coordinate pairs: [[lng, lat], ...]
-    if (Array.isArray(firstItem) && firstItem.length === 2 && typeof firstItem[0] === 'number') {
-      const coords = value.map((p: [number, number]) => [p[0], p[1]])
-      return turf.multiPoint(coords)
-    }
-
-    // Array of objects with coordinate fields
-    if (typeof firstItem === 'object') {
-      const coords = findCoordinateFields(firstItem as Record<string, unknown>)
-      if (coords) {
-        // Convert array of points to MultiPoint
-        const allCoords = value
-          .map((p: Record<string, unknown>) => {
-            const c = findCoordinateFields(p)
-            return c ? [c.lng, c.lat] : null
-          })
-          .filter(Boolean) as [number, number][]
-
-        if (allCoords.length > 0) {
-          return turf.multiPoint(allCoords)
-        }
-      }
     }
   }
 
@@ -1530,16 +1502,20 @@ export class FeatureCollectionField extends Field<z.ZodType<FeatureCollection<Ge
 
   createSchema() {
     return z
-      .custom<FeatureCollection<Geometry>>((val): val is FeatureCollection<Geometry> => {
-        if (typeof val !== 'object' || val === null) return false
-        const fc = val as FeatureCollection
-        return fc.type === 'FeatureCollection' && 'features' in fc && Array.isArray(fc.features)
-      })
-      .transform((val: unknown) => {
-        const fc = pointsToFeatureCollection(val)
-        if (fc) return fc
-        return val as FeatureCollection
-      })
+      .union([
+        // Accept FeatureCollection directly
+        z.custom<FeatureCollection<Geometry>>((val): val is FeatureCollection<Geometry> => {
+          if (typeof val !== 'object' || val === null) return false
+          const fc = val as FeatureCollection
+          return fc.type === 'FeatureCollection' && 'features' in fc && Array.isArray(fc.features)
+        }),
+        // Accept points and convert to FeatureCollection
+        z.unknown().transform((val: unknown) => {
+          const fc = pointsToFeatureCollection(val)
+          return fc || (val as FeatureCollection)
+        }),
+      ])
+      .transform(val => val as FeatureCollection<Geometry>)
   }
 
   constructor(

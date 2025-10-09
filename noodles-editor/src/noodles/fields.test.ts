@@ -6,8 +6,11 @@ import {
   ColorField,
   CompoundPropsField,
   DataField,
+  FeatureCollectionField,
+  FeatureField,
   Field,
   FunctionField,
+  GeometryField,
   getFieldReferences,
   JSONUrlField,
   LayerField,
@@ -77,7 +80,7 @@ describe('basic Fields', () => {
     const noSetValue = vi.fn()
     class EmptyMockField extends Field {
       static defaultValue = undefined
-      createSchema() {}
+      createSchema() { }
       setValue() {
         noSetValue()
       }
@@ -234,7 +237,7 @@ describe('NumberField', () => {
     expect(field2.step, 'step').toEqual(0.1)
 
     // setValue should fail if the value is out of bounds
-    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => { })
     field2.setValue(15)
     expect(field2.value).toEqual(5)
     expect(consoleWarn).toHaveBeenCalledWith(
@@ -288,7 +291,7 @@ describe('StringLiteralField', () => {
     expect(field.choices).toEqual([])
     expect(canConnect(new StringField('foo'), field)).toBe(true)
     // expect(canConnect(new NumberField(5), field)).toBe(true)
-    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => { })
     field.setValue('foo')
     // field.setValue(5)
     expect(consoleWarn).not.toHaveBeenCalled()
@@ -579,7 +582,7 @@ describe('Accessor fields', () => {
     getPositionField.setValue({ lng: 5, lat: 6 })
     expect(getPositionField.value).toEqual([5, 6])
 
-    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => { })
     expect(canConnect(accessorField, getPositionField), 'should connect').toBe(true)
     expect(consoleWarn.calls).toMatchInlineSnapshot('undefined')
     expect(consoleWarn, 'should not warn').not.toHaveBeenCalled()
@@ -825,5 +828,301 @@ describe('Point3DField', () => {
 
   it('defaultValue is correct', () => {
     expect(Point3DField.defaultValue).toEqual({ lng: 0, lat: 0, alt: 0 })
+  })
+})
+
+describe('GeometryField coordinate detection', () => {
+  it('recognizes standard lng/lat fields', () => {
+    const field = new GeometryField()
+    field.setValue({ lng: -122.4, lat: 37.8 })
+    expect(field.value).toEqual({
+      type: 'Point',
+      coordinates: [-122.4, 37.8],
+    })
+  })
+
+  it('recognizes longitude/latitude fields', () => {
+    const field = new GeometryField()
+    field.setValue({ longitude: -122.4, latitude: 37.8 })
+    expect(field.value).toEqual({
+      type: 'Point',
+      coordinates: [-122.4, 37.8],
+    })
+  })
+
+  it('recognizes lon/lat fields', () => {
+    const field = new GeometryField()
+    field.setValue({ lon: -122.4, lat: 37.8 })
+    expect(field.value).toEqual({
+      type: 'Point',
+      coordinates: [-122.4, 37.8],
+    })
+  })
+
+  it('recognizes underscore-prefixed fields (*_lng/*_lat)', () => {
+    const field = new GeometryField()
+    field.setValue({ pickup_lng: -122.4, pickup_lat: 37.8 })
+    expect(field.value).toEqual({
+      type: 'Point',
+      coordinates: [-122.4, 37.8],
+    })
+  })
+
+  it('recognizes underscore-prefixed fields (*_lon/*_lat)', () => {
+    const field = new GeometryField()
+    field.setValue({ dropoff_lon: -122.4, dropoff_lat: 37.8 })
+    expect(field.value).toEqual({
+      type: 'Point',
+      coordinates: [-122.4, 37.8],
+    })
+  })
+
+  it('recognizes underscore-prefixed fields (*_longitude/*_latitude)', () => {
+    const field = new GeometryField()
+    field.setValue({ pickup_longitude: -122.4, pickup_latitude: 37.8 })
+    expect(field.value).toEqual({
+      type: 'Point',
+      coordinates: [-122.4, 37.8],
+    })
+  })
+
+  it('is case-insensitive for coordinate fields', () => {
+    const field = new GeometryField()
+    field.setValue({ Longitude: -122.4, Latitude: 37.8 })
+    expect(field.value).toEqual({
+      type: 'Point',
+      coordinates: [-122.4, 37.8],
+    })
+  })
+
+  it('handles coordinate tuples', () => {
+    const field = new GeometryField()
+    field.setValue([-122.4, 37.8])
+    expect(field.value).toEqual({
+      type: 'Point',
+      coordinates: [-122.4, 37.8],
+    })
+  })
+
+  it('accepts GeoJSON geometry directly', () => {
+    const field = new GeometryField()
+    const geometry = {
+      type: 'Point',
+      coordinates: [-122.4, 37.8],
+    }
+    field.setValue(geometry)
+    expect(field.value).toEqual(geometry)
+  })
+
+  it('preserves extra properties when detecting coordinates', () => {
+    const field = new FeatureField()
+    field.setValue({ lng: -122.4, lat: 37.8, name: 'San Francisco', population: 800000 })
+    expect(field.value).toMatchObject({
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: [-122.4, 37.8],
+      },
+      properties: { lng: -122.4, lat: 37.8, name: 'San Francisco', population: 800000 },
+    })
+  })
+})
+
+describe('FeatureField coordinate detection', () => {
+  it('recognizes longitude/latitude and preserves properties', () => {
+    const field = new FeatureField()
+    field.setValue({ longitude: 10, latitude: 20, name: 'Test Point' })
+    expect(field.value.type).toEqual('Feature')
+    expect(field.value.geometry).toEqual({
+      type: 'Point',
+      coordinates: [10, 20],
+    })
+    expect(field.value.properties).toMatchObject({
+      longitude: 10,
+      latitude: 20,
+      name: 'Test Point',
+    })
+  })
+
+  it('recognizes _lng/_lat variations', () => {
+    const field = new FeatureField()
+    field.setValue({ _lng: 5, _lat: 15 })
+    expect(field.value.geometry).toEqual({
+      type: 'Point',
+      coordinates: [5, 15],
+    })
+  })
+
+  it('accepts GeoJSON features directly', () => {
+    const field = new FeatureField()
+    const feature = {
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: [-122.4, 37.8],
+      },
+      properties: { name: 'Test' },
+    }
+    field.setValue(feature)
+    expect(field.value).toEqual(feature)
+  })
+})
+
+describe('FeatureCollectionField creates individual Point features', () => {
+  it('converts array of lng/lat objects to individual Point features', () => {
+    const field = new FeatureCollectionField()
+    field.setValue([
+      { lng: 1, lat: 2 },
+      { lng: 3, lat: 4 },
+      { lng: 5, lat: 6 },
+    ])
+
+    expect(field.value.type).toEqual('FeatureCollection')
+    expect(field.value.features).toHaveLength(3)
+    expect(field.value.features[0]).toMatchObject({
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: [1, 2],
+      },
+    })
+    expect(field.value.features[1]).toMatchObject({
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: [3, 4],
+      },
+    })
+    expect(field.value.features[2]).toMatchObject({
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: [5, 6],
+      },
+    })
+  })
+
+  it('converts array of longitude/latitude objects to individual Point features', () => {
+    const field = new FeatureCollectionField()
+    field.setValue([
+      { longitude: 10, latitude: 20, name: 'Point A' },
+      { longitude: 30, latitude: 40, name: 'Point B' },
+    ])
+
+    expect(field.value.type).toEqual('FeatureCollection')
+    expect(field.value.features).toHaveLength(2)
+    expect(field.value.features[0].geometry).toEqual({
+      type: 'Point',
+      coordinates: [10, 20],
+    })
+    expect(field.value.features[0].properties).toMatchObject({
+      longitude: 10,
+      latitude: 20,
+      name: 'Point A',
+    })
+  })
+
+  it('converts array of coordinate tuples to individual Point features', () => {
+    const field = new FeatureCollectionField()
+    field.setValue([
+      [1, 2],
+      [3, 4],
+      [5, 6],
+    ])
+
+    expect(field.value.type).toEqual('FeatureCollection')
+    expect(field.value.features).toHaveLength(3)
+    expect(field.value.features[0].geometry).toEqual({
+      type: 'Point',
+      coordinates: [1, 2],
+    })
+    // All features should be Point, not MultiPoint
+    for (const feature of field.value.features) {
+      expect(feature.geometry.type).toEqual('Point')
+    }
+  })
+
+  it('recognizes _lng/_lat and other variations', () => {
+    const field = new FeatureCollectionField()
+    field.setValue([
+      { _lng: 1, _lat: 2 },
+      { lon: 3, lat: 4 },
+      { _longitude: 5, _latitude: 6 },
+    ])
+
+    expect(field.value.features).toHaveLength(3)
+    expect(field.value.features[0].geometry.coordinates).toEqual([1, 2])
+    expect(field.value.features[1].geometry.coordinates).toEqual([3, 4])
+    expect(field.value.features[2].geometry.coordinates).toEqual([5, 6])
+  })
+
+  it('preserves properties for each point', () => {
+    const field = new FeatureCollectionField()
+    field.setValue([
+      { lng: 1, lat: 2, name: 'First', value: 100 },
+      { lng: 3, lat: 4, name: 'Second', value: 200 },
+    ])
+
+    expect(field.value.features[0].properties).toMatchObject({
+      lng: 1,
+      lat: 2,
+      name: 'First',
+      value: 100,
+    })
+    expect(field.value.features[1].properties).toMatchObject({
+      lng: 3,
+      lat: 4,
+      name: 'Second',
+      value: 200,
+    })
+  })
+
+  it('accepts existing FeatureCollection directly', () => {
+    const field = new FeatureCollectionField()
+    const featureCollection = {
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [1, 2] },
+          properties: {},
+        },
+      ],
+    }
+    field.setValue(featureCollection)
+    expect(field.value).toEqual(featureCollection)
+  })
+
+  it('accepts array of Features directly', () => {
+    const field = new FeatureCollectionField()
+    const features = [
+      {
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [1, 2] },
+        properties: {},
+      },
+      {
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [3, 4] },
+        properties: {},
+      },
+    ]
+    field.setValue(features)
+    expect(field.value.type).toEqual('FeatureCollection')
+    expect(field.value.features).toEqual(features)
+  })
+
+  it('does not create MultiPoint geometries', () => {
+    const field = new FeatureCollectionField()
+    field.setValue([
+      { lng: 1, lat: 2 },
+      { lng: 3, lat: 4 },
+    ])
+
+    // Verify no MultiPoint geometries are created
+    for (const feature of field.value.features) {
+      expect(feature.geometry.type).not.toEqual('MultiPoint')
+      expect(feature.geometry.type).toEqual('Point')
+    }
   })
 })
