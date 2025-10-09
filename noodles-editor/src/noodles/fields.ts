@@ -72,12 +72,11 @@ type CodeFieldOptions = BaseFieldOptions & {
 // to be able to be serialized and deserialized. It's also meant to serve as a template for
 // the UI, say to hint to the Node to render a Number input, a Geocoder or a ColorPicker.
 export abstract class Field<
-    S extends z.ZodType = z.ZodType,
-    O extends BaseFieldOptions = BaseFieldOptions,
-  >
+  S extends z.ZodType = z.ZodType,
+  O extends BaseFieldOptions = BaseFieldOptions,
+>
   extends BehaviorSubject<z.output<S>>
-  implements IField<S>
-{
+  implements IField<S> {
   static type: keyof typeof inputComponents
   static defaultValue: unknown // z.output<ReturnType<T['createSchema']>>
 
@@ -564,7 +563,7 @@ export class JSONUrlField extends Field<z.ZodUnion<readonly [z.ZodURL, z.ZodJSON
 }
 
 type Point3DFieldValue =
-  | { lng: number; lat: number; alt: number; [key: string]: unknown }
+  | { lng: number; lat: number; alt: number;[key: string]: unknown }
   | [number, number, number]
 
 // Should this just be a Vec2? Should it be a GeoJSON Point Or does it need to be a special case
@@ -619,7 +618,7 @@ export class Point3DField extends Field<
   }
 }
 
-type Point2DFieldValue = { lng: number; lat: number; [key: string]: unknown } | [number, number]
+type Point2DFieldValue = { lng: number; lat: number;[key: string]: unknown } | [number, number]
 
 // Should this just be a Vec2? Should it be a GeoJSON Point Or does it need to be a special case
 export class Point2DField extends Field<
@@ -1313,6 +1312,31 @@ export class BezierCurveField extends Field<z.ZodType<BezierCurveData>> {
   }
 }
 
+// Helper to detect coordinate field names with various patterns (case-insensitive)
+// Recognizes: lat, latitude, _lat, _latitude, lng, lon, longitude, _lng, _lon, _longitude
+function findCoordinateFields(obj: Record<string, unknown>): { lng: number; lat: number } | null {
+  if (typeof obj !== 'object' || obj === null) return null
+
+  // Patterns to match longitude and latitude field names (case-insensitive)
+  const lngPatterns = /^(_)?(lng|lon|longitude)$/i
+  const latPatterns = /^(_)?(lat|latitude)$/i
+
+  let lng: number | undefined
+  let lat: number | undefined
+
+  for (const [key, value] of Object.entries(obj)) {
+    if (typeof value === 'number') {
+      if (!lng && lngPatterns.test(key)) {
+        lng = value
+      } else if (!lat && latPatterns.test(key)) {
+        lat = value
+      }
+    }
+  }
+
+  return lng !== undefined && lat !== undefined ? { lng, lat } : null
+}
+
 // Helper to convert various point formats to GeoJSON Feature
 function pointsToFeature(value: unknown): Feature | null {
   if (!value) return null
@@ -1322,41 +1346,45 @@ function pointsToFeature(value: unknown): Feature | null {
     return value as Feature
   }
 
-  // Single point: {lng, lat} or {lat, lng}
-  if (
-    typeof value === 'object' &&
-    'lng' in value &&
-    'lat' in value &&
-    typeof value.lng === 'number' &&
-    typeof value.lat === 'number'
-  ) {
-    return turf.point([value.lng, value.lat])
-  }
-
   // Single point as array: [lng, lat]
   if (Array.isArray(value) && value.length === 2 && typeof value[0] === 'number') {
-    return turf.point([value[0], value[1]])
+    return turf.point([value[0], value[1]], value)
   }
 
-  // Array of points: [{lng, lat}, ...]
+  // Single point: try to detect coordinate fields with various naming patterns
+  if (typeof value === 'object') {
+    const coords = findCoordinateFields(value as Record<string, unknown>)
+    if (coords) {
+      return turf.point([coords.lng, coords.lat], value)
+    }
+  }
+
+  // Array of points: try detecting coordinate fields
   if (Array.isArray(value) && value.length > 0) {
     const firstItem = value[0]
-    if (
-      typeof firstItem === 'object' &&
-      'lng' in firstItem &&
-      'lat' in firstItem &&
-      typeof firstItem.lng === 'number' &&
-      typeof firstItem.lat === 'number'
-    ) {
-      // Convert array of points to MultiPoint
-      const coords = value.map((p: { lng: number; lat: number }) => [p.lng, p.lat])
+
+    // Array of coordinate pairs: [[lng, lat], ...]
+    if (Array.isArray(firstItem) && firstItem.length === 2 && typeof firstItem[0] === 'number') {
+      const coords = value.map((p: [number, number]) => [p[0], p[1]])
       return turf.multiPoint(coords)
     }
 
-    // Array of coordinate pairs
-    if (Array.isArray(firstItem) && firstItem.length === 2) {
-      const coords = value.map((p: [number, number]) => [p[0], p[1]])
-      return turf.multiPoint(coords)
+    // Array of objects with coordinate fields
+    if (typeof firstItem === 'object') {
+      const coords = findCoordinateFields(firstItem as Record<string, unknown>)
+      if (coords) {
+        // Convert array of points to MultiPoint
+        const allCoords = value
+          .map((p: Record<string, unknown>) => {
+            const c = findCoordinateFields(p)
+            return c ? [c.lng, c.lat] : null
+          })
+          .filter(Boolean) as [number, number][]
+
+        if (allCoords.length > 0) {
+          return turf.multiPoint(allCoords)
+        }
+      }
     }
   }
 
@@ -1364,6 +1392,7 @@ function pointsToFeature(value: unknown): Feature | null {
 }
 
 // Helper to convert various formats to GeoJSON FeatureCollection
+// Converts arrays of points to individual Point features (not MultiPoint)
 function pointsToFeatureCollection(value: unknown): FeatureCollection | null {
   if (!value) return null
 
@@ -1388,24 +1417,31 @@ function pointsToFeatureCollection(value: unknown): FeatureCollection | null {
     return turf.featureCollection(value)
   }
 
-  // Array of points: [{lng, lat}, ...]
+  // Array of points - convert each to an individual Point feature
   if (Array.isArray(value) && value.length > 0) {
     const firstItem = value[0]
-    if (
-      typeof firstItem === 'object' &&
-      'lng' in firstItem &&
-      'lat' in firstItem &&
-      typeof firstItem.lng === 'number' &&
-      typeof firstItem.lat === 'number'
-    ) {
-      const features = value.map((p: { lng: number; lat: number }) => turf.point([p.lng, p.lat]))
-      return turf.featureCollection(features)
-    }
 
     // Array of coordinate pairs: [[lng, lat], ...]
     if (Array.isArray(firstItem) && firstItem.length === 2 && typeof firstItem[0] === 'number') {
       const features = value.map((p: [number, number]) => turf.point([p[0], p[1]]))
       return turf.featureCollection(features)
+    }
+
+    // Array of objects with coordinate fields
+    if (typeof firstItem === 'object') {
+      const coords = findCoordinateFields(firstItem as Record<string, unknown>)
+      if (coords) {
+        const features = value
+          .map((p: Record<string, unknown>) => {
+            const c = findCoordinateFields(p)
+            return c ? turf.point([c.lng, c.lat], p) : null
+          })
+          .filter(Boolean) as Feature[]
+
+        if (features.length > 0) {
+          return turf.featureCollection(features)
+        }
+      }
     }
   }
 

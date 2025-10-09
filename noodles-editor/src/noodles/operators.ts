@@ -196,6 +196,12 @@ import { isDirectChild } from './utils/path-utils'
 import { pick } from './utils/pick'
 import { validateViewState } from './utils/viewstate-helpers'
 
+// Conversion factors for area units
+// 1 square meter = 1 / 1,000,000 square kilometers
+const SQ_METERS_TO_SQ_KM = 1_000_000
+// 1 square meter = 1 / 2,589,988.110336 square miles (exact conversion: 1 mi² = 2,589,988.110336 m²)
+const SQ_METERS_TO_SQ_MILES = 2_589_988.110336
+
 // https://stackoverflow.com/questions/66044717/typescript-infer-type-of-abstract-methods-implementation
 export interface IOperator {
   createInputs(): Record<string, Field<z.ZodType>>
@@ -4295,8 +4301,8 @@ export class AreaOp extends Operator<AreaOp> {
   }
   execute({ feature }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const area = turf.area(feature)
-    const areaKm2 = area / 1_000_000
-    const areaMi2 = area / 2_589_988.110336
+    const areaKm2 = area / SQ_METERS_TO_SQ_KM
+    const areaMi2 = area / SQ_METERS_TO_SQ_MILES
 
     return { area, areaKm2, areaMi2 }
   }
