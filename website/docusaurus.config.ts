@@ -58,6 +58,11 @@ const config: Config = {
   themeConfig: {
     // Replace with your project's social card
     image: 'img/docusaurus-social-card.jpg',
+    colorMode: {
+      defaultMode: 'dark',
+      disableSwitch: false,
+      respectPrefersColorScheme: false,
+    },
     navbar: {
       title: 'Noodles.gl',
       logo: {
@@ -113,7 +118,7 @@ const config: Config = {
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} Joby Aero, Inc.`,
+      copyright: `Copyright © ${new Date().getFullYear()} <a href="https://jobyaviation.com" target="_blank" rel="noopener noreferrer">Joby Aero, Inc.</a>`,
     },
     prism: {
       theme: prismThemes.github,
