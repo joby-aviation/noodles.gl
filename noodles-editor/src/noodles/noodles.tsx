@@ -504,7 +504,7 @@ export function getNoodles(): Visualization {
   const editorSheet = useMemo(() => {
     return theatreSheet.object('editor', {
       showOverlay: types.boolean(!IS_PROD),
-      layoutMode: types.stringLiteral('split', {
+      layoutMode: types.stringLiteral('noodles-on-top', {
         split: 'Split',
         'noodles-on-top': 'Noodles on Top',
         'output-on-top': 'Output on Top',
