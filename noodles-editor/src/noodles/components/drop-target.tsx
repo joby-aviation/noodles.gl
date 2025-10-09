@@ -50,7 +50,6 @@ function createFileDropNodes(url: string, format: string) {
         inputs: {
           getLineColor: '#000000',
           getFillColor: '#ffffff',
-          getRadius: 1000,
         },
       },
       position: { x: -400, y: -200 },

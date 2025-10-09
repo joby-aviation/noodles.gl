@@ -17,7 +17,7 @@ yarn build:all
 
 ## Documentation
 
-Refer to the documentation at [joby.github.io/noodles.gl/docs](https://joby.github.io/noodles.gl/docs).
+Refer to the documentation at [noodles.gl](https://noodles.gl).
 
 ## Contributing
 

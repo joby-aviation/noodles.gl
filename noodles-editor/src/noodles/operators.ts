@@ -3485,7 +3485,7 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
   createInputs() {
     return {
       visible: new BooleanField(true),
-      provider: new StringLiteralField('Cesium', ['Cesium', 'Google']),
+      provider: new StringLiteralField('Google', ['Cesium', 'Google']),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       operation: new StringLiteralField('terrain+draw', {
         values: ['terrain+draw', 'draw', 'terrain'],
