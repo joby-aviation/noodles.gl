@@ -8,8 +8,8 @@
         "locked": false
       },
       "position": {
-        "x": 800,
-        "y": 0
+        "x": 1200,
+        "y": 100
       }
     },
     {
@@ -20,8 +20,8 @@
         "locked": false
       },
       "position": {
-        "x": 1100,
-        "y": 0
+        "x": 1500,
+        "y": 100
       }
     },
     {
@@ -29,14 +29,13 @@
       "type": "FileOp",
       "data": {
         "inputs": {
-          "url": "@/data.geojson",
-          "format": "json"
+          "url": "@/data.geojson"
         },
         "locked": false
       },
       "position": {
-        "x": -600,
-        "y": -200
+        "x": 0,
+        "y": 50
       }
     },
     {
@@ -44,31 +43,27 @@
       "type": "GeoJsonLayerOp",
       "data": {
         "inputs": {
+          "opacity": 0.8,
           "stroked": false,
-          "filled": true,
-          "extruded": false,
-          "opacity": 0.8
+          "getLineColor": "#000000ff"
         },
         "locked": false
       },
       "position": {
-        "x": 400,
-        "y": 0
+        "x": 833.4203552164684,
+        "y": 8.119468876040457
       }
     },
     {
       "id": "/unemployment-color",
       "type": "ColorRampOp",
       "data": {
-        "inputs": {
-          "colorScheme": "RdPu",
-          "domain": [0, 15]
-        },
+        "inputs": {},
         "locked": false
       },
       "position": {
-        "x": 0,
-        "y": 0
+        "x": 374.2787652460753,
+        "y": 349.1371616697396
       }
     },
     {
@@ -81,16 +76,16 @@
         "locked": false
       },
       "position": {
-        "x": -300,
-        "y": 20
+        "x": -21.530967491202063,
+        "y": 373.495568297861
       }
     },
     {
       "type": "MaplibreBasemapOp",
       "id": "/maplibre-basemap",
       "position": {
-        "x": 400,
-        "y": 200
+        "x": 758.7212415568961,
+        "y": -220.5884877788956
       },
       "data": {
         "inputs": {
@@ -123,10 +118,10 @@
       "targetHandle": "par.data"
     },
     {
-      "id": "/unemployment-color.out.accessor->/geojson-layer.par.getFillColor",
+      "id": "/unemployment-color.out.color->/geojson-layer.par.getFillColor",
       "source": "/unemployment-color",
       "target": "/geojson-layer",
-      "sourceHandle": "out.accessor",
+      "sourceHandle": "out.color",
       "targetHandle": "par.getFillColor"
     },
     {
@@ -152,11 +147,10 @@
     }
   ],
   "viewport": {
-    "x": 600,
-    "y": 400,
-    "zoom": 0.8
+    "x": 32.46497320518563,
+    "y": 206.86749887589406,
+    "zoom": 0.6158038261288714
   },
-  "version": 6,
   "timeline": {
     "sheetsById": {
       "Noodles": {
@@ -167,5 +161,6 @@
     },
     "definitionVersion": "0.4.0",
     "revisionHistory": []
-  }
+  },
+  "version": 6
 }

@@ -8,8 +8,8 @@
         "locked": false
       },
       "position": {
-        "x": 800,
-        "y": 0
+        "x": 1200,
+        "y": 200
       }
     },
     {
@@ -20,8 +20,8 @@
         "locked": false
       },
       "position": {
-        "x": 1100,
-        "y": 0
+        "x": 1500,
+        "y": 200
       }
     },
     {
@@ -29,14 +29,14 @@
       "type": "FileOp",
       "data": {
         "inputs": {
-          "url": "@/data.csv",
-          "format": "csv"
+          "format": "csv",
+          "url": "@/data.csv"
         },
         "locked": false
       },
       "position": {
-        "x": -600,
-        "y": -300
+        "x": -30.281922090095136,
+        "y": -18.432474315710078
       }
     },
     {
@@ -44,16 +44,14 @@
       "type": "ScatterplotLayerOp",
       "data": {
         "inputs": {
-          "radiusMinPixels": 1,
-          "radiusMaxPixels": 30,
-          "filled": true,
-          "opacity": 0.4
+          "opacity": 0.4,
+          "getLineColor": "#ffffffff"
         },
         "locked": false
       },
       "position": {
-        "x": 200,
-        "y": 0
+        "x": 660.3778338957691,
+        "y": 152.6642123306002
       }
     },
     {
@@ -66,8 +64,8 @@
         "locked": false
       },
       "position": {
-        "x": -200,
-        "y": 20
+        "x": -58.11664384808154,
+        "y": 231.6605308265006
       }
     },
     {
@@ -80,23 +78,20 @@
         "locked": false
       },
       "position": {
-        "x": -200,
-        "y": 80
+        "x": 120.94167807595923,
+        "y": 513.3520633670713
       }
     },
     {
       "id": "/magnitude-color",
       "type": "ColorRampOp",
       "data": {
-        "inputs": {
-          "colorScheme": "Viridis",
-          "domain": [2.5, 7]
-        },
+        "inputs": {},
         "locked": false
       },
       "position": {
-        "x": -200,
-        "y": 0
+        "x": 239.2501455353884,
+        "y": 321.2516952166614
       }
     },
     {
@@ -109,27 +104,41 @@
         "locked": false
       },
       "position": {
-        "x": -500,
-        "y": 0
+        "x": -424.7814479314794,
+        "y": 390.13392481159116
       }
     },
     {
       "type": "MaplibreBasemapOp",
       "id": "/maplibre-basemap",
       "position": {
-        "x": 400,
-        "y": 200
+        "x": 562.9490410841586,
+        "y": 576.4871147356512
       },
       "data": {
         "inputs": {
           "mapStyle": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
           "viewState": {
             "latitude": 37.059,
-            "longitude": -122.8,
+            "longitude": -112.383,
             "zoom": 5.74,
             "pitch": 0,
             "bearing": 0
           }
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "MapRangeOp",
+      "id": "/map-range",
+      "position": {
+        "x": -77.87578429545218,
+        "y": 323.1939851432402
+      },
+      "data": {
+        "inputs": {
+          "inMax": 5
         },
         "locked": false
       }
@@ -165,18 +174,18 @@
       "targetHandle": "par.getRadius"
     },
     {
-      "id": "/magnitude-color.out.accessor->/scatterplot-layer.par.getFillColor",
       "source": "/magnitude-color",
+      "sourceHandle": "out.color",
       "target": "/scatterplot-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getFillColor"
+      "targetHandle": "par.getFillColor",
+      "id": "/magnitude-color.out.color->/scatterplot-layer.par.getFillColor"
     },
     {
-      "id": "/magnitude-accessor.out.accessor->/magnitude-color.par.value",
-      "source": "/magnitude-accessor",
+      "source": "/map-range",
+      "sourceHandle": "out.scaled",
       "target": "/magnitude-color",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.value"
+      "targetHandle": "par.value",
+      "id": "/map-range.out.scaled->/magnitude-color.par.value"
     },
     {
       "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
@@ -191,14 +200,20 @@
       "target": "/deck",
       "sourceHandle": "out.layer",
       "targetHandle": "par.layers"
+    },
+    {
+      "source": "/magnitude-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/map-range",
+      "targetHandle": "par.val",
+      "id": "/magnitude-accessor.out.accessor->/map-range.par.val"
     }
   ],
   "viewport": {
-    "x": 600,
-    "y": 400,
-    "zoom": 0.8
+    "x": 143.291766562843,
+    "y": 172.88548024794358,
+    "zoom": 0.4813563009649149
   },
-  "version": 6,
   "timeline": {
     "sheetsById": {
       "Noodles": {
@@ -208,6 +223,9 @@
       }
     },
     "definitionVersion": "0.4.0",
-    "revisionHistory": []
-  }
+    "revisionHistory": [
+      "nHO9RdPmd2OTxHpO"
+    ]
+  },
+  "version": 6
 }

@@ -9,7 +9,7 @@
       },
       "position": {
         "x": 1200,
-        "y": 0
+        "y": 200
       }
     },
     {
@@ -21,7 +21,7 @@
       },
       "position": {
         "x": 1500,
-        "y": 0
+        "y": 200
       }
     },
     {
@@ -29,14 +29,14 @@
       "type": "FileOp",
       "data": {
         "inputs": {
-          "url": "@/data.csv",
-          "format": "csv"
+          "format": "csv",
+          "url": "@/data.csv"
         },
         "locked": false
       },
       "position": {
-        "x": -600,
-        "y": -200
+        "x": 0,
+        "y": 200
       }
     },
     {
@@ -44,14 +44,13 @@
       "type": "ArcLayerOp",
       "data": {
         "inputs": {
-          "greatCircle": true,
           "getWidth": 2
         },
         "locked": false
       },
       "position": {
-        "x": 600,
-        "y": -300
+        "x": 856.0014285714285,
+        "y": -90.31285714285714
       }
     },
     {
@@ -59,17 +58,15 @@
       "type": "ScatterplotLayerOp",
       "data": {
         "inputs": {
-          "radiusMinPixels": 1,
-          "radiusMaxPixels": 3,
-          "filled": true,
           "opacity": 0.4,
-          "getFillColor": "#ffa50064"
+          "getFillColor": "#ffa500ff",
+          "getLineColor": "#ffffffff"
         },
         "locked": false
       },
       "position": {
-        "x": 600,
-        "y": 0
+        "x": 781.8985714285714,
+        "y": 257.89285714285717
       }
     },
     {
@@ -77,17 +74,15 @@
       "type": "ScatterplotLayerOp",
       "data": {
         "inputs": {
-          "radiusMinPixels": 1,
-          "radiusMaxPixels": 3,
-          "filled": true,
           "opacity": 0.3,
-          "getFillColor": "#8000804b"
+          "getFillColor": "#800080ff",
+          "getLineColor": "#ffffffff"
         },
         "locked": false
       },
       "position": {
-        "x": 600,
-        "y": 300
+        "x": 798.1085714285715,
+        "y": 657.0442857142856
       }
     },
     {
@@ -95,13 +90,13 @@
       "type": "AccessorOp",
       "data": {
         "inputs": {
-          "expression": "[d.Home_long, d.Home_lat]"
+          "expression": "[d.residence_lng, d.residence_lat]"
         },
         "locked": false
       },
       "position": {
-        "x": 0,
-        "y": -280
+        "x": 245.69571428571436,
+        "y": 431.14714285714285
       }
     },
     {
@@ -109,13 +104,13 @@
       "type": "AccessorOp",
       "data": {
         "inputs": {
-          "expression": "[d.Work_long, d.Work_lat]"
+          "expression": "[d.workplace_lng, d.workplace_lat]"
         },
         "locked": false
       },
       "position": {
-        "x": 0,
-        "y": 320
+        "x": 234.11714285714288,
+        "y": 598.7271428571429
       }
     },
     {
@@ -123,21 +118,21 @@
       "type": "ColorOp",
       "data": {
         "inputs": {
-          "color": "#ff991f4b"
+          "color": "#ff991f"
         },
         "locked": false
       },
       "position": {
-        "x": 300,
-        "y": -300
+        "x": 489.70793658494136,
+        "y": 60.857634523930294
       }
     },
     {
       "type": "MaplibreBasemapOp",
       "id": "/maplibre-basemap",
       "position": {
-        "x": 800,
-        "y": 400
+        "x": 1183.273628275652,
+        "y": 464.1829877832712
       },
       "data": {
         "inputs": {
@@ -145,7 +140,7 @@
           "viewState": {
             "latitude": 52.25,
             "longitude": -2.69,
-            "zoom": 6.66,
+            "zoom": 7.56,
             "pitch": 49.18,
             "bearing": 0
           }
@@ -255,11 +250,10 @@
     }
   ],
   "viewport": {
-    "x": 400,
-    "y": 500,
-    "zoom": 0.6
+    "x": 110.09970280160951,
+    "y": 138.99036470751906,
+    "zoom": 0.46798777100021355
   },
-  "version": 6,
   "timeline": {
     "sheetsById": {
       "Noodles": {
@@ -270,5 +264,6 @@
     },
     "definitionVersion": "0.4.0",
     "revisionHistory": []
-  }
+  },
+  "version": 6
 }

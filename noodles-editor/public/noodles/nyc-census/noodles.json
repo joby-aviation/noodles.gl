@@ -8,8 +8,8 @@
         "locked": false
       },
       "position": {
-        "x": 800,
-        "y": 0
+        "x": 1200,
+        "y": 150
       }
     },
     {
@@ -20,8 +20,8 @@
         "locked": false
       },
       "position": {
-        "x": 1100,
-        "y": 0
+        "x": 1500,
+        "y": 150
       }
     },
     {
@@ -29,14 +29,13 @@
       "type": "FileOp",
       "data": {
         "inputs": {
-          "url": "@/data.json",
-          "format": "json"
+          "url": "@/data.json"
         },
         "locked": false
       },
       "position": {
-        "x": -600,
-        "y": -200
+        "x": 108.52630719568747,
+        "y": -122.97570510099875
       }
     },
     {
@@ -44,18 +43,17 @@
       "type": "GeoJsonLayerOp",
       "data": {
         "inputs": {
+          "opacity": 0.7,
           "stroked": false,
-          "filled": true,
+          "getLineColor": "#000000ff",
           "extruded": true,
-          "wireframe": false,
-          "elevationScale": 11,
-          "opacity": 0.7
+          "elevationScale": 11
         },
         "locked": false
       },
       "position": {
-        "x": 400,
-        "y": 0
+        "x": 863.7581300813008,
+        "y": -94.96747967479675
       }
     },
     {
@@ -63,14 +61,13 @@
       "type": "ColorRampOp",
       "data": {
         "inputs": {
-          "colorScheme": "YlOrRd",
-          "domain": [0, 8000]
+          "colorScheme": "turbo"
         },
         "locked": false
       },
       "position": {
-        "x": 0,
-        "y": -50
+        "x": 442.56042758935484,
+        "y": 253.73756330259326
       }
     },
     {
@@ -78,13 +75,13 @@
       "type": "AccessorOp",
       "data": {
         "inputs": {
-          "expression": "d.properties.population"
+          "expression": "d.properties.Population"
         },
         "locked": false
       },
       "position": {
-        "x": -300,
-        "y": 20
+        "x": -253.33131274420933,
+        "y": 249.151944688691
       }
     },
     {
@@ -92,21 +89,21 @@
       "type": "AccessorOp",
       "data": {
         "inputs": {
-          "expression": "d.properties.population"
+          "expression": "d.properties.Population"
         },
         "locked": false
       },
       "position": {
-        "x": -300,
-        "y": 80
+        "x": -199.29590867423792,
+        "y": 549.2119133097201
       }
     },
     {
       "type": "MaplibreBasemapOp",
       "id": "/maplibre-basemap",
       "position": {
-        "x": 400,
-        "y": 200
+        "x": 847.2845528455284,
+        "y": 902.3536585365853
       },
       "data": {
         "inputs": {
@@ -118,6 +115,35 @@
             "pitch": 59.11,
             "bearing": -91.5
           }
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "MapRangeOp",
+      "id": "/map-range",
+      "position": {
+        "x": 94.11925250078963,
+        "y": 260.9424297076135
+      },
+      "data": {
+        "inputs": {
+          "inMax": 10000
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "MapRangeOp",
+      "id": "/map-range-1",
+      "position": {
+        "x": 418.01764914528434,
+        "y": 519.3400164575731
+      },
+      "data": {
+        "inputs": {
+          "inMax": 10000,
+          "outMax": 200
         },
         "locked": false
       }
@@ -139,25 +165,25 @@
       "targetHandle": "par.data"
     },
     {
-      "id": "/population-color.out.accessor->/geojson-layer.par.getFillColor",
       "source": "/population-color",
+      "sourceHandle": "out.color",
       "target": "/geojson-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getFillColor"
+      "targetHandle": "par.getFillColor",
+      "id": "/population-color.out.color->/geojson-layer.par.getFillColor"
     },
     {
-      "id": "/elevation-accessor.out.accessor->/geojson-layer.par.getElevation",
-      "source": "/elevation-accessor",
+      "source": "/map-range-1",
+      "sourceHandle": "out.scaled",
       "target": "/geojson-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getElevation"
+      "targetHandle": "par.getElevation",
+      "id": "/map-range-1.out.scaled->/geojson-layer.par.getElevation"
     },
     {
-      "id": "/population-accessor.out.accessor->/population-color.par.value",
-      "source": "/population-accessor",
+      "source": "/map-range",
+      "sourceHandle": "out.scaled",
       "target": "/population-color",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.value"
+      "targetHandle": "par.value",
+      "id": "/map-range.out.scaled->/population-color.par.value"
     },
     {
       "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
@@ -172,14 +198,27 @@
       "target": "/deck",
       "sourceHandle": "out.layer",
       "targetHandle": "par.layers"
+    },
+    {
+      "source": "/population-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/map-range",
+      "targetHandle": "par.val",
+      "id": "/population-accessor.out.accessor->/map-range.par.val"
+    },
+    {
+      "source": "/elevation-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/map-range-1",
+      "targetHandle": "par.val",
+      "id": "/elevation-accessor.out.accessor->/map-range-1.par.val"
     }
   ],
   "viewport": {
-    "x": 600,
-    "y": 400,
-    "zoom": 0.8
+    "x": 47.242109497431784,
+    "y": 75.01093484232683,
+    "zoom": 0.4556733508888464
   },
-  "version": 6,
   "timeline": {
     "sheetsById": {
       "Noodles": {
@@ -190,5 +229,6 @@
     },
     "definitionVersion": "0.4.0",
     "revisionHistory": []
-  }
+  },
+  "version": 6
 }

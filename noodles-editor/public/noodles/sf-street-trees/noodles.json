@@ -8,8 +8,8 @@
         "locked": false
       },
       "position": {
-        "x": 800,
-        "y": 0
+        "x": 1200,
+        "y": 100
       }
     },
     {
@@ -20,8 +20,8 @@
         "locked": false
       },
       "position": {
-        "x": 1100,
-        "y": 0
+        "x": 1500,
+        "y": 100
       }
     },
     {
@@ -35,8 +35,8 @@
         "locked": false
       },
       "position": {
-        "x": -600,
-        "y": -300
+        "x": 0,
+        "y": 0
       }
     },
     {
@@ -55,7 +55,7 @@
         "locked": false
       },
       "position": {
-        "x": 200,
+        "x": 900,
         "y": 0
       }
     },
@@ -69,15 +69,15 @@
         "locked": false
       },
       "position": {
-        "x": -200,
-        "y": 20
+        "x": 600,
+        "y": 0
       }
     },
     {
       "type": "MaplibreBasemapOp",
       "id": "/maplibre-basemap",
       "position": {
-        "x": 400,
+        "x": 900,
         "y": 200
       },
       "data": {

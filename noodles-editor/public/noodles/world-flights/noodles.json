@@ -8,8 +8,8 @@
         "locked": false
       },
       "position": {
-        "x": 1000,
-        "y": 0
+        "x": 1200,
+        "y": 150
       }
     },
     {
@@ -20,8 +20,8 @@
         "locked": false
       },
       "position": {
-        "x": 1300,
-        "y": 0
+        "x": 1500,
+        "y": 150
       }
     },
     {
@@ -29,14 +29,13 @@
       "type": "FileOp",
       "data": {
         "inputs": {
-          "url": "@/data.json",
-          "format": "json"
+          "url": "@/data.json"
         },
         "locked": false
       },
       "position": {
-        "x": -600,
-        "y": -150
+        "x": 0,
+        "y": 150
       }
     },
     {
@@ -44,16 +43,16 @@
       "type": "GeoJsonLayerOp",
       "data": {
         "inputs": {
-          "stroked": true,
+          "opacity": 0.6,
           "filled": false,
-          "lineWidthMinPixels": 0.5,
-          "opacity": 0.6
+          "getFillColor": "#006ac6ff",
+          "lineWidthMinPixels": 0.5
         },
         "locked": false
       },
       "position": {
-        "x": 200,
-        "y": 0
+        "x": 814.3185714285714,
+        "y": 614.0885714285715
       }
     },
     {
@@ -61,16 +60,15 @@
       "type": "TripsLayerOp",
       "data": {
         "inputs": {
-          "widthMinPixels": 1.5,
-          "trailLength": 336,
           "opacity": 0.8,
-          "currentTime": 0
+          "trailLength": 336,
+          "widthMinPixels": 1.5
         },
         "locked": false
       },
       "position": {
-        "x": 200,
-        "y": -300
+        "x": 816.6342857142857,
+        "y": 105.05571428571426
       }
     },
     {
@@ -83,16 +81,16 @@
         "locked": false
       },
       "position": {
-        "x": -200,
-        "y": -150
+        "x": 104.43714285714285,
+        "y": 469.56857142857143
       }
     },
     {
       "type": "MaplibreBasemapOp",
       "id": "/maplibre-basemap",
       "position": {
-        "x": 600,
-        "y": 200
+        "x": 793.4771428571428,
+        "y": -144.61714285714282
       },
       "data": {
         "inputs": {
@@ -168,11 +166,10 @@
     }
   ],
   "viewport": {
-    "x": 600,
-    "y": 400,
-    "zoom": 0.7
+    "x": 175,
+    "y": 130.22023442319554,
+    "zoom": 0.431832202344232
   },
-  "version": 6,
   "timeline": {
     "sheetsById": {
       "Noodles": {
@@ -183,5 +180,6 @@
     },
     "definitionVersion": "0.4.0",
     "revisionHistory": []
-  }
+  },
+  "version": 6
 }

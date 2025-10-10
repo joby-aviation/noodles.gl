@@ -8,8 +8,8 @@
         "locked": false
       },
       "position": {
-        "x": 800,
-        "y": 0
+        "x": 1200,
+        "y": 100
       }
     },
     {
@@ -20,8 +20,8 @@
         "locked": false
       },
       "position": {
-        "x": 1100,
-        "y": 0
+        "x": 1500,
+        "y": 100
       }
     },
     {
@@ -29,14 +29,13 @@
       "type": "FileOp",
       "data": {
         "inputs": {
-          "url": "@/data.json",
-          "format": "json"
+          "url": "@/data.json"
         },
         "locked": false
       },
       "position": {
-        "x": -600,
-        "y": -200
+        "x": 0,
+        "y": 50
       }
     },
     {
@@ -44,15 +43,14 @@
       "type": "GeoJsonLayerOp",
       "data": {
         "inputs": {
-          "stroked": true,
-          "filled": true,
-          "lineWidthMinPixels": 0.2,
-          "opacity": 0.38
+          "opacity": 0.38,
+          "lineWidthScale": 8,
+          "lineWidthMinPixels": 0.2
         },
         "locked": false
       },
       "position": {
-        "x": 400,
+        "x": 900,
         "y": 0
       }
     },
@@ -60,15 +58,12 @@
       "id": "/elevation-color",
       "type": "ColorRampOp",
       "data": {
-        "inputs": {
-          "colorScheme": "YlGnBu",
-          "domain": [0, 400]
-        },
+        "inputs": {},
         "locked": false
       },
       "position": {
-        "x": 0,
-        "y": 0
+        "x": 418.8432510885341,
+        "y": 308.2017416545719
       }
     },
     {
@@ -81,16 +76,16 @@
         "locked": false
       },
       "position": {
-        "x": -300,
-        "y": 20
+        "x": 22.383164005805497,
+        "y": 357.60812772133534
       }
     },
     {
       "type": "MaplibreBasemapOp",
       "id": "/maplibre-basemap",
       "position": {
-        "x": 400,
-        "y": 200
+        "x": 1224.6705370101597,
+        "y": 352.92452830188677
       },
       "data": {
         "inputs": {
@@ -98,7 +93,7 @@
           "viewState": {
             "latitude": 37.75,
             "longitude": -122.46,
-            "zoom": 11.8,
+            "zoom": 14.1,
             "pitch": 52.59,
             "bearing": 25.07
           }
@@ -123,17 +118,17 @@
       "targetHandle": "par.data"
     },
     {
-      "id": "/elevation-color.out.accessor->/geojson-layer.par.getFillColor",
+      "id": "/elevation-color.out.color->/geojson-layer.par.getFillColor",
       "source": "/elevation-color",
       "target": "/geojson-layer",
-      "sourceHandle": "out.accessor",
+      "sourceHandle": "out.color",
       "targetHandle": "par.getFillColor"
     },
     {
-      "id": "/elevation-color.out.accessor->/geojson-layer.par.getLineColor",
+      "id": "/elevation-color.out.color->/geojson-layer.par.getLineColor",
       "source": "/elevation-color",
       "target": "/geojson-layer",
-      "sourceHandle": "out.accessor",
+      "sourceHandle": "out.color",
       "targetHandle": "par.getLineColor"
     },
     {
@@ -159,11 +154,10 @@
     }
   ],
   "viewport": {
-    "x": 600,
-    "y": 400,
-    "zoom": 0.8
+    "x": 149,
+    "y": 48.131400370141876,
+    "zoom": 0.42504626773596543
   },
-  "version": 6,
   "timeline": {
     "sheetsById": {
       "Noodles": {
@@ -174,5 +168,6 @@
     },
     "definitionVersion": "0.4.0",
     "revisionHistory": []
-  }
+  },
+  "version": 6
 }
