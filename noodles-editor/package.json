@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.27.0",
     "@codeium/react-code-editor": "^1.0.12",
     "@duckdb/duckdb-wasm": "1.30.0",
     "@loaders.gl/3d-tiles": "^4.3.4",
@@ -32,6 +33,7 @@
     "classnames": "^2.5.1",
     "d3": "^7.9.0",
     "deck.gl": "v9.2.0-beta.3",
+    "flexsearch": "^0.7.43",
     "geojson2h3": "^1.2.0",
     "gl-matrix": "^3.4.0",
     "h3-js": "^4.1.0",
@@ -67,7 +69,8 @@
     "lint": "biome lint ./src/**/*.{ts,tsx}",
     "fix-lint": "biome check --write --unsafe ./src/**/*.{ts,tsx}",
     "build:migrate-script": "vite build --config vite.config.migrate.ts",
-    "migrate-projects": "yarn build:migrate-script && node dist/migrate-project-files.js"
+    "migrate-projects": "yarn build:migrate-script && node dist/migrate-project-files.js",
+    "generate:context": "tsx scripts/generate-context.ts"
   },
   "browserslist": {
     "production": [
@@ -88,6 +91,7 @@
     "@testing-library/user-event": "^14.6.1",
     "@types/d3": "^7.4.3",
     "@types/dom-mediacapture-transform": "^0.1.6",
+    "@types/flexsearch": "^0.7.6",
     "@types/geojson": "^7946.0.10",
     "@types/jest": "^27.0.1",
     "@types/lodash": "^4.17.0",
@@ -98,6 +102,7 @@
     "@types/validator": "^13.11.9",
     "@vitest/browser": "^3.2.3",
     "playwright": "^1.50.1",
+    "tsx": "^4.19.2",
     "type-fest": "^4.12.0",
     "typescript": "^5.8.2",
     "vite": "^6.3.5",

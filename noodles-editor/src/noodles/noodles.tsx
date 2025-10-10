@@ -51,10 +51,12 @@ import { categories, edgeComponents, nodeComponents } from './components/op-comp
 import { ProjectNameBar, UNSAVED_PROJECT_NAME } from './components/project-name-bar'
 import { ProjectNotFoundDialog } from './components/project-not-found-dialog'
 import { StorageErrorHandler } from './components/storage-error-handler'
+import { ChatPanel } from '../ai-chat/chat-panel'
 import { ListField } from './fields'
 import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
 import { IS_PROD, projectId } from './globals'
 import s from './noodles.module.css'
+import chatStyles from './components/chat-toggle.module.css'
 import type { IOperator, Operator, OpType, OutOp } from './operators'
 import { extensionMap } from './operators'
 import { load } from './storage'
@@ -164,6 +166,7 @@ export function getNoodles(): Visualization {
   const [nodes, setNodes, onNodesChange] = useNodesState<AnyNodeJSON>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<ReactFlowEdge<unknown>>([])
   const vPressed = useKeyPress('v')
+  const [showChatPanel, setShowChatPanel] = useState(false)
 
   // `transformGraph` needs all nodes to build the opMap and resolve connections
   const operators = useMemo(() => transformGraph({ nodes, edges }), [nodes, edges])
@@ -765,6 +768,11 @@ export function getNoodles(): Visualization {
     }
   }, [outOp, selectedGeoJsonFeatures])
 
+  const handleProjectUpdate = useCallback((updatedProject: { nodes: AnyNodeJSON[], edges: ReactFlowEdge<unknown>[] }) => {
+    setNodes(updatedProject.nodes)
+    setEdges(updatedProject.edges)
+  }, [setNodes, setEdges])
+
   const menuBar = (
     <NoodlesMenubar
       projectName={projectName}
@@ -776,8 +784,26 @@ export function getNoodles(): Visualization {
 
   const right = (
     <div className={s.rightPanel}>
-      <PropertyPanel />
-      <DropTarget />
+      <div className={chatStyles.chatToggleContainer}>
+        <button
+          onClick={() => setShowChatPanel(!showChatPanel)}
+          className={showChatPanel ? chatStyles.chatToggleBtnActive : chatStyles.chatToggleBtn}
+          title="Toggle Claude Assistant"
+        >
+          {showChatPanel ? '✕ Close Chat' : '💬 Claude'}
+        </button>
+      </div>
+      {showChatPanel ? (
+        <ChatPanel
+          project={{ nodes, edges }}
+          onProjectUpdate={handleProjectUpdate}
+        />
+      ) : (
+        <>
+          <PropertyPanel />
+          <DropTarget />
+        </>
+      )}
     </div>
   )
 

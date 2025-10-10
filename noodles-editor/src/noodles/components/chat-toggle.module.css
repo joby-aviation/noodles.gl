@@ -1,0 +1,35 @@
+.chatToggleContainer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px;
+  border-bottom: 1px solid #333;
+}
+
+.chatToggleBtn {
+  background: #333;
+  border: 1px solid #444;
+  color: #e0e0e0;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.chatToggleBtn:hover {
+  background: #4a9eff;
+  border-color: #4a9eff;
+  color: white;
+}
+
+.chatToggleBtnActive {
+  background: #4a9eff;
+  border: 1px solid #444;
+  color: #e0e0e0;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}

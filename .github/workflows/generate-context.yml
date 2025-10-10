@@ -1,0 +1,38 @@
+name: Generate Claude Context
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'noodles-editor/src/**'
+      - 'docs/**'
+      - 'noodles-editor/public/noodles/**'
+  workflow_dispatch:
+
+jobs:
+  generate-context:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'yarn'
+
+      - name: Install dependencies
+        run: yarn install:all
+
+      - name: Generate context bundles
+        run: |
+          cd noodles-editor
+          yarn generate:context
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./noodles-editor/dist/context
+          destination_dir: app/context
+          keep_files: true

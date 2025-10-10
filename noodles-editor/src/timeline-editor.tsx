@@ -158,6 +158,11 @@ export default function TimelineEditor() {
   // TODO: Detect if deck is in othorgraphic mode, and disable?
   const basemapEnabled = Boolean(visualization.mapProps)
   // console.log(rgbaToClearColor(mapState.background))
+
+  // Track deck.gl rendering stats for Claude AI debugging
+  const lastFrameTimeRef = useRef(Date.now())
+  const fpsRef = useRef(0)
+
   const deckProps: DeckProps = {
     _animate,
     deviceProps: {
@@ -172,6 +177,23 @@ export default function TimelineEditor() {
     onDeviceInitialized: device => {
       visualization.deckProps?.onDeviceInitialized?.(device)
       redraw()
+    },
+    onAfterRender: () => {
+      visualization.deckProps?.onAfterRender?.()
+
+      // Track FPS and stats for Claude AI debugging
+      const now = Date.now()
+      const deltaTime = now - lastFrameTimeRef.current
+      lastFrameTimeRef.current = now
+      fpsRef.current = deltaTime > 0 ? Math.round(1000 / deltaTime) : 0
+
+      // Expose stats globally for MCPTools
+      ;(window as any).__deckStats = {
+        fps: fpsRef.current,
+        lastFrameTime: deltaTime,
+        layerCount: deckRef.current?.layerManager?.getLayers().length || 0,
+        timestamp: now,
+      }
     },
   }
 
@@ -195,6 +217,20 @@ export default function TimelineEditor() {
       mapRef.current?.redraw()
     }
   }, [_animate])
+
+  // Expose deck.gl canvas and instance for Claude AI visual debugging
+  useEffect(() => {
+    if (deckRef.current) {
+      // @ts-expect-error canvas is protected but accessible
+      const canvas = deckRef.current.canvas
+      if (canvas) {
+        // Store canvas globally for MCPTools to access
+        ;(window as any).__deckCanvas = canvas
+      }
+      // Store deck instance globally for layer inspection
+      ;(window as any).__deckInstance = deckRef.current
+    }
+  }, [deckRef.current])
 
   // onIdle resolves when all data is loaded and drawing has settled.
   mapProps.onIdle = ({ target: map }) => {
