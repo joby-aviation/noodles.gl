@@ -32,13 +32,13 @@ yarn start
 ## 📁 Project Structure
 
 For detailed information about the codebase structure and architecture, see:
-- [Architecture Overview](https://github.com/joby/noodles.gl/blob/main/dev-docs/architecture.md) - Complete project structure and patterns
-- [Technology Stack](https://github.com/joby/noodles.gl/blob/main/dev-docs/tech-stack.md) - Full tech stack details
+- [Architecture Overview](https://github.com/joby-aviation/noodles.gl/blob/main/dev-docs/architecture.md) - Complete project structure and patterns
+- [Technology Stack](https://github.com/joby-aviation/noodles.gl/blob/main/dev-docs/tech-stack.md) - Full tech stack details
 
 ## 🛠️ Development Workflow
 
 ### Available Commands
-For complete development commands and code style guidelines, see [Development Guide](https://github.com/joby/noodles.gl/blob/main/dev-docs/developing.md).
+For complete development commands and code style guidelines, see [Development Guide](https://github.com/joby-aviation/noodles.gl/blob/main/dev-docs/developing.md).
 
 Key commands:
 ```bash
@@ -64,7 +64,7 @@ yarn test src/visualizations/noodles/
 
 ## 🎨 Architecture Overview
 
-For detailed architecture information, see [Architecture Guide](https://github.com/joby/noodles.gl/blob/main/dev-docs/architecture.md).
+For detailed architecture information, see [Architecture Guide](https://github.com/joby-aviation/noodles.gl/blob/main/dev-docs/architecture.md).
 
 Key concepts:
 - **Node-based system** for visual programming
@@ -79,7 +79,7 @@ Key concepts:
 3. **Fork the repository** and create a feature branch
 
 ### Making Changes
-1. **Follow the code style** [guidelines](https://github.com/joby/noodles.gl/blob/main/dev-docs/developing.md)
+1. **Follow the code style** [guidelines](https://github.com/joby-aviation/noodles.gl/blob/main/dev-docs/developing.md)
 2. **Write tests** for new functionality
 3. **Migration Scripts**: Add any necessary migrations
 4. **Update documentation** if needed
@@ -113,8 +113,8 @@ When reporting bugs or requesting features:
 
 ## 📚 Additional Resources
 
-- [Product Overview](https://github.com/joby/noodles.gl/blob/main/docs/product.md) - What Noodles.gl does and key features
-- [Development Guide](https://github.com/joby/noodles.gl/blob/main/docs/developing.md) - Additional development commands
+- [Product Overview](https://github.com/joby-aviation/noodles.gl/blob/main/docs/product.md) - What Noodles.gl does and key features
+- [Development Guide](https://github.com/joby-aviation/noodles.gl/blob/main/docs/developing.md) - Additional development commands
 
 ## 🤝 Community
 

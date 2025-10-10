@@ -155,7 +155,7 @@ export function getNoodles(): Visualization {
   const [projectName, setProjectName] = useState<string>()
   const [showProjectNotFoundDialog, setShowProjectNotFoundDialog] = useState(false)
   const storageType = useActiveStorageType()
-  const { setCurrentDirectory, setError } = useFileSystemStore()
+  const { setCurrentDirectory, setActiveStorageType, setError } = useFileSystemStore()
   const { theatreReady, theatreProject, theatreSheet, setTheatreProject, getTimelineJson } =
     useTheatreJs(projectName)
   const ops = useSlice(state => state.ops)
@@ -504,7 +504,7 @@ export function getNoodles(): Visualization {
   const editorSheet = useMemo(() => {
     return theatreSheet.object('editor', {
       showOverlay: types.boolean(!IS_PROD),
-      layoutMode: types.stringLiteral('split', {
+      layoutMode: types.stringLiteral('noodles-on-top', {
         split: 'Split',
         'noodles-on-top': 'Noodles on Top',
         'output-on-top': 'Output on Top',
@@ -556,6 +556,9 @@ export function getNoodles(): Visualization {
             ...EMPTY_PROJECT,
             ...noodlesFile,
           } as NoodlesProjectJSON)
+          // Set project name and storage type for public projects so @/ asset paths work
+          setCurrentDirectory(null, projectId)
+          setActiveStorageType('publicFolder')
           loadProjectFile(project, projectId)
           return
         } catch (_error) {
@@ -567,8 +570,9 @@ export function getNoodles(): Visualization {
           const result = await load(storageType, projectId)
           if (result.success) {
             const project = await migrateProject(result.data.projectData)
-            // Update store with directory handle and project name
+            // Update store with directory handle, project name, and storage type
             setCurrentDirectory(result.data.directoryHandle, projectId)
+            // storageType here is already correct (opfs or fileSystemAccess)
             loadProjectFile(project, projectId)
           } else {
             // Project not found in storage - show dialog

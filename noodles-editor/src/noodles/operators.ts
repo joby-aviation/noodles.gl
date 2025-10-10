@@ -2853,10 +2853,10 @@ export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
       getFillColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
       getLineColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
-      getRadius: new NumberField(600, { min: 0, max: 1_000_000, accessor: true }),
+      getRadius: new NumberField(20, { min: 0, max: 1_000_000, accessor: true }),
       getLineWidth: new NumberField(0, { accessor: true }),
       radiusScale: new NumberField(1, { min: 0, max: 100 }),
-      radiusUnits: new StringLiteralField('meters', ['pixels', 'meters']),
+      radiusUnits: new StringLiteralField('pixels', ['pixels', 'meters']),
       extensions: new ListField(new ExtensionField()),
     }
   }
@@ -2979,7 +2979,7 @@ export class TextLayerOp extends Operator<TextLayerOp> {
         values: ['start', 'middle', 'end'],
         accessor: true,
       }),
-      getPixelOffset: new Vec2Field({ x: 96, y: 124 }, { returnType: 'tuple', accessor: true }),
+      getPixelOffset: new Vec2Field({ x: 0, y: 0 }, { returnType: 'tuple', accessor: true }),
       getAlignmentBaseline: new StringLiteralField('center', {
         values: ['top', 'center', 'bottom'],
         accessor: true,
@@ -3485,7 +3485,7 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
   createInputs() {
     return {
       visible: new BooleanField(true),
-      provider: new StringLiteralField('Cesium', ['Cesium', 'Google']),
+      provider: new StringLiteralField('Google', ['Cesium', 'Google']),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       operation: new StringLiteralField('terrain+draw', {
         values: ['terrain+draw', 'draw', 'terrain'],

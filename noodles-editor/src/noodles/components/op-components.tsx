@@ -301,8 +301,12 @@ export function headerClass(type: NodeType) {
 
 const handleClasses = {
   array: s.handleArray,
+  'bezier-curve': s.handleData,
   boolean: s.handleBoolean,
+  'category-color-ramp': s.handleColor,
+  code: s.handleCode,
   color: s.handleColor,
+  'color-ramp': s.handleColor,
   compound: s.handleCompound,
   data: s.handleData,
   effect: s.handleEffect,
@@ -312,6 +316,7 @@ const handleClasses = {
   function: s.handleCode,
   'geopoint-2d': s.handleVector,
   'geopoint-3d': s.handleVector,
+  'json-url': s.handleString,
   layer: s.handleLayer,
   list: s.handleList,
   number: s.handleNumber,
@@ -322,6 +327,7 @@ const handleClasses = {
   vec3: s.handleVector,
   vec4: s.handleVector,
   view: s.handleView,
+  visualization: s.handleData,
   widget: s.handleWidget,
 } as const as Record<keyof typeof inputComponents, string>
 
@@ -1084,7 +1090,7 @@ function TableEditorOpComponent({
     })
     return () => sub.unsubscribe()
   }, [op])
-  // console.log(dataArray)
+
   const columns =
     dataArray?.length > 0
       ? Object.keys(dataArray[0]).map(field => ({

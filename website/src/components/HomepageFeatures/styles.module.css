@@ -1,8 +1,9 @@
 .features {
   display: flex;
   align-items: center;
-  padding: 2rem 0;
+  padding: 4rem 0;
   width: 100%;
+  background: var(--ifm-background-color);
 }
 
 .featureSvg {
@@ -14,4 +15,67 @@
   font-size: 4rem;
   margin-bottom: 1rem;
   display: inline-block;
+  filter: drop-shadow(0 4px 12px rgba(102, 126, 234, 0.3));
+  transition: transform 0.3s ease;
+}
+
+.col {
+  margin-bottom: 2rem;
+}
+
+.col > div {
+  height: 100%;
+  padding: 2rem;
+  border-radius: 16px;
+  background: var(--card-bg);
+  border: 2px solid var(--card-border);
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+  position: relative;
+  overflow: hidden;
+}
+
+.col > div::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--feature-gradient-1), var(--feature-gradient-2));
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.col > div:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 12px 40px rgba(102, 126, 234, 0.2);
+  border-color: var(--ifm-color-primary);
+}
+
+.col > div:hover::before {
+  opacity: 1;
+}
+
+.col > div:hover .featureIcon {
+  transform: scale(1.1) rotate(5deg);
+}
+
+.col h3 {
+  color: var(--text-primary);
+  font-weight: 600;
+  margin-top: 0.5rem;
+}
+
+.col p {
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+[data-theme='dark'] .col > div {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme='dark'] .col > div:hover {
+  box-shadow: 0 12px 40px rgba(102, 126, 234, 0.3);
 }

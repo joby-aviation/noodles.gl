@@ -50,7 +50,6 @@ function createFileDropNodes(url: string, format: string) {
         inputs: {
           getLineColor: '#000000',
           getFillColor: '#ffffff',
-          getRadius: 1000,
         },
       },
       position: { x: -400, y: -200 },
@@ -137,7 +136,7 @@ function useFileDropTarget() {
           throw new Error(result.error?.message || `Failed to write file: ${file.name}`)
         }
 
-        console.log(file)
+        console.log('File added', file)
         const type = file.type.includes('csv') ? 'csv' : 'json'
         const { nodes, edges } = createFileDropNodes(projectScheme + file.name, type)
 
