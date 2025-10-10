@@ -3,6 +3,7 @@ import Link from '@docusaurus/Link';
 import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 import Layout from '@theme/Layout';
 import HomepageFeatures from '@site/src/components/HomepageFeatures';
+import MediaShowcase from '@site/src/components/MediaShowcase';
 import Heading from '@theme/Heading';
 
 import styles from './index.module.css';
@@ -19,7 +20,7 @@ function HomepageHeader() {
     <header className={clsx('hero', styles.heroBanner)}>
       <div className="container">
         <img
-          src="/noodles.png"
+          src="/img/noodles.png"
           alt="Noodles.gl"
           className={styles.heroLogo}
         />
@@ -53,6 +54,7 @@ export default function Home() {
       <HomepageHeader />
       <main>
         <HomepageFeatures />
+        <MediaShowcase />
       </main>
     </Layout>
   );
