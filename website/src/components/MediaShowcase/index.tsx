@@ -64,7 +64,7 @@ export default function MediaShowcase(): ReactNode {
             </div>
             <div className={styles.galleryCaption}>
               <Heading as="h4">Fast geospatial apps</Heading>
-              <p>Create quick apps and repeatable workflows that makes dataflow understandable</p>
+              <p>Create quick apps and repeatable workflows that make dataflow understandable</p>
             </div>
           </div>
 
