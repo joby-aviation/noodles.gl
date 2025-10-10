@@ -1,6 +1,6 @@
 import cx from 'classnames'
 import { type PropsWithChildren, useEffect, useRef, useState } from 'react'
-import './WidgetContainer.css'
+import './widget-container.css'
 
 const TheatreSheetTree = ({ width }: { width: number }) => (
   <div style={{ width: `${width + 16}px` }} />
