@@ -621,6 +621,11 @@ export function getNoodles(): Visualization {
     }))
   }, [edges])
 
+  const handleProjectUpdate = useCallback((updatedProject: { nodes: AnyNodeJSON[], edges: ReactFlowEdge<unknown>[] }) => {
+    setNodes(updatedProject.nodes)
+    setEdges(updatedProject.edges)
+  }, [setNodes, setEdges])
+
   const flowGraph = theatreReady && (
     <ErrorBoundary>
       <div className={cx('react-flow-wrapper', !showOverlay && 'react-flow-wrapper-hidden')}>
@@ -664,6 +669,27 @@ export function getNoodles(): Visualization {
           onClose={() => setShowProjectNotFoundDialog(false)}
         />
         <StorageErrorHandler />
+
+        {/* Floating Chat Window */}
+        <div className={chatStyles.floatingChatContainer}>
+          {showChatPanel ? (
+            <div className={chatStyles.floatingChatWindow}>
+              <ChatPanel
+                project={{ nodes, edges }}
+                onProjectUpdate={handleProjectUpdate}
+                onClose={() => setShowChatPanel(false)}
+              />
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowChatPanel(true)}
+              className={chatStyles.floatingChatButton}
+              title="Open Claude Assistant"
+            >
+              💬 Claude
+            </button>
+          )}
+        </div>
       </div>
     </ErrorBoundary>
   )
@@ -768,42 +794,21 @@ export function getNoodles(): Visualization {
     }
   }, [outOp, selectedGeoJsonFeatures])
 
-  const handleProjectUpdate = useCallback((updatedProject: { nodes: AnyNodeJSON[], edges: ReactFlowEdge<unknown>[] }) => {
-    setNodes(updatedProject.nodes)
-    setEdges(updatedProject.edges)
-  }, [setNodes, setEdges])
-
   const menuBar = (
     <NoodlesMenubar
       projectName={projectName}
       setProjectName={setProjectName}
       getTimelineJson={getTimelineJson}
       loadProjectFile={loadProjectFile}
+      showChatPanel={showChatPanel}
+      setShowChatPanel={setShowChatPanel}
     />
   )
 
   const right = (
     <div className={s.rightPanel}>
-      <div className={chatStyles.chatToggleContainer}>
-        <button
-          onClick={() => setShowChatPanel(!showChatPanel)}
-          className={showChatPanel ? chatStyles.chatToggleBtnActive : chatStyles.chatToggleBtn}
-          title="Toggle Claude Assistant"
-        >
-          {showChatPanel ? '✕ Close Chat' : '💬 Claude'}
-        </button>
-      </div>
-      {showChatPanel ? (
-        <ChatPanel
-          project={{ nodes, edges }}
-          onProjectUpdate={handleProjectUpdate}
-        />
-      ) : (
-        <>
-          <PropertyPanel />
-          <DropTarget />
-        </>
-      )}
+      <PropertyPanel />
+      <DropTarget />
     </div>
   )
 

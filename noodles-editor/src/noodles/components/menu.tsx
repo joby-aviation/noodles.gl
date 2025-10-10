@@ -365,11 +365,15 @@ export function NoodlesMenubar({
   loadProjectFile,
   getTimelineJson,
   setProjectName,
+  showChatPanel,
+  setShowChatPanel,
 }: {
   projectName?: string
   loadProjectFile: (project: NoodlesProjectJSON, projectName?: string) => void
   getTimelineJson: () => Record<string, unknown>
   setProjectName: Dispatch<SetStateAction<string | null>>
+  showChatPanel?: boolean
+  setShowChatPanel?: (show: boolean) => void
 }) {
   const [recentlyOpened, setRecentlyOpened] = useState<RecentProject[]>([])
   const { toObject } = useReactFlow()
@@ -679,6 +683,36 @@ export function NoodlesMenubar({
             </Menubar.Content>
           </Menubar.Portal>
         </Menubar.Menu>
+
+        <Menubar.Menu>
+          <Menubar.Trigger className={s.menubarTrigger}>View</Menubar.Trigger>
+          <Menubar.Portal>
+            <Menubar.Content
+              className={s.menubarContent}
+              align="start"
+              sideOffset={5}
+              alignOffset={-3}
+            >
+              <Menubar.Item className={s.menubarItem}>Hide Nodes</Menubar.Item>
+              <Menubar.Item className={s.menubarItem}>Hide TheatreJS</Menubar.Item>
+              <Menubar.Separator className={s.menubarSeparator} />
+              <Menubar.Item className={s.menubarItem}>Toggle Fullscreen</Menubar.Item>
+            </Menubar.Content>
+          </Menubar.Portal>
+        </Menubar.Menu>
+
+        {/* Chat button on the right side */}
+        {setShowChatPanel && (
+          <div className={s.menubarRightSlot}>
+            <button
+              onClick={() => setShowChatPanel(!showChatPanel)}
+              className={s.chatButton}
+              title="Toggle Claude Assistant"
+            >
+              💬 {showChatPanel ? 'Hide' : 'Claude'}
+            </button>
+          </div>
+        )}
       </Menubar.Root>
       <SaveProjectDialog
         projectName={projectName ?? null}

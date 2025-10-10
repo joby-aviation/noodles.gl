@@ -1,35 +1,55 @@
-.chatToggleContainer {
+/* Floating Chat Container */
+.floatingChatContainer {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 1000;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px;
-  border-bottom: 1px solid #333;
+  flex-direction: column;
+  align-items: flex-end;
 }
 
-.chatToggleBtn {
-  background: #333;
-  border: 1px solid #444;
-  color: #e0e0e0;
-  border-radius: 4px;
-  padding: 6px 12px;
-  font-size: 12px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.chatToggleBtn:hover {
+/* Floating Chat Button (collapsed state) */
+.floatingChatButton {
   background: #4a9eff;
-  border-color: #4a9eff;
+  border: none;
   color: white;
+  border-radius: 24px;
+  padding: 12px 24px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(74, 158, 255, 0.4);
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.chatToggleBtnActive {
-  background: #4a9eff;
-  border: 1px solid #444;
-  color: #e0e0e0;
-  border-radius: 4px;
-  padding: 6px 12px;
-  font-size: 12px;
-  cursor: pointer;
-  transition: all 0.2s;
+.floatingChatButton:hover {
+  background: #3a8eef;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(74, 158, 255, 0.5);
+}
+
+/* Floating Chat Window (expanded state) */
+.floatingChatWindow {
+  width: 500px;
+  height: 600px;
+  background: #1e1e1e;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

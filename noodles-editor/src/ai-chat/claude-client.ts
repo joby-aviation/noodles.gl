@@ -204,7 +204,26 @@ ${JSON.stringify(project, null, 2)}
 
 3. **Modifying projects**: When suggesting changes, provide complete node and edge specifications with proper operator paths.
 
-4. **Project modifications format**: Output JSON like:
+4. **IMPORTANT - Node layout**: When creating or modifying nodes:
+   - **Always arrange nodes as a tree to the LEFT of the "out" node** (which is typically at x: 800, y: 400)
+   - Place data source nodes on the far left (x: 0-200)
+   - Place transformation/layer nodes in the middle (x: 300-600)
+   - Connect all nodes so data flows from left to right, ending at the "out" node
+   - **Always wire up connections so the data is visible** - ensure all nodes connect to the output or a viewer
+
+5. **IMPORTANT - Code output**: **Do not output code snippets or implementation details unless explicitly asked**. Focus on:
+   - Creating visualizations through the node graph
+   - Explaining what the visualization does
+   - Modifying the node graph to achieve the desired result
+
+6. **CRITICAL - Verification after data operations**: When performing any data operation or transformation:
+   - **First, make the changes** to the node graph
+   - **Then, capture a screenshot** using \`capture_visualization\`
+   - **Verify the result** by examining the screenshot
+   - **Report what you see** and whether the operation worked correctly
+   - If something went wrong, check console errors with \`get_console_errors\` and try to fix it
+
+7. **Project modifications format**: Output JSON like:
 \`\`\`json
 {
   "modifications": [
@@ -221,7 +240,7 @@ ${JSON.stringify(project, null, 2)}
 }
 \`\`\`
 
-5. **Debugging**: ${hasContext ? 'Use `analyze_project` to validate, check console errors, and inspect implementations.' : 'Use `get_console_errors` and visual debugging tools to diagnose issues.'}
+8. **Debugging**: ${hasContext ? 'Use `analyze_project` to validate, check console errors, and inspect implementations.' : 'Use `get_console_errors` and visual debugging tools to diagnose issues.'}
 
 ## Operator Types
 
@@ -231,7 +250,12 @@ ${JSON.stringify(project, null, 2)}
 - **Accessors**: AccessorOp, ColorRampOp
 - **Utilities**: ExpressionOp, CodeOp, NumberOp, ContainerOp
 
-Be helpful, thorough, and use your vision capabilities for comprehensive debugging!`
+## Working Philosophy
+
+- **Visual-first**: Always use screenshots to verify your work
+- **Node graph over code**: Build with nodes, not code snippets
+- **Left-to-right flow**: Data sources on left → transformations in middle → output on right
+- **Always verify**: After making changes, capture a screenshot and confirm the result`
   }
 
   private getTools(): Anthropic.Tool[] {
