@@ -1,4 +1,4 @@
-import TimelineEditor from './TimelineEditor'
+import TimelineEditor from './timeline-editor'
 
 function App() {
   return <TimelineEditor />
