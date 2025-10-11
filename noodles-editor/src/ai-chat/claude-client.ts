@@ -1,5 +1,6 @@
 /**
  * ClaudeClient - Main interface to Claude AI API
+ * Updated: 2025-10-11
  */
 
 import Anthropic from '@anthropic-ai/sdk'
@@ -25,48 +26,27 @@ export class ClaudeClient {
    * Strip images from message content to reduce token usage in conversation history
    */
   private stripImages(content: string | any[]): string {
-    // If content is already a string, return as-is
-    if (typeof content === 'string') {
-      return content
-    }
-
-    // If content is an array (multi-part message with text and images)
-    // Extract only text parts and concatenate them
-    if (Array.isArray(content)) {
-      return content
-        .filter(part => part.type === 'text')
-        .map(part => part.text)
-        .join('\n')
-    }
-
-    return String(content)
-  }
-
-  // Sanitize tool results to remove large data (screenshots) that would cause token overflow
-  // Screenshots are attached as images in the next message instead
-  private sanitizeToolResult(result: ToolResult): ToolResult {
-    if (!result.success || !result.data) {
-      return result
-    }
-
-    const data = { ...result.data }
-
-    // Remove screenshot data but keep metadata
-    if ('screenshot' in data) {
-      delete data.screenshot
-      // Let Claude know the screenshot will be attached
-      return {
-        success: true,
-        data: {
-          ...data,
-          message: 'Screenshot captured successfully and attached to this message for your analysis'
-        }
+    try {
+      // If content is already a string, return as-is
+      if (typeof content === 'string') {
+        return content
       }
-    }
 
-    return {
-      ...result,
-      data
+      // If content is an array (multi-part message with text and images)
+      // Extract only text parts and concatenate them
+      if (Array.isArray(content)) {
+        return content
+          .filter(part => part && part.type === 'text')
+          .map(part => part.text || '')
+          .join('\n')
+      }
+
+      // Fallback for unexpected content types
+      console.warn('Unexpected content type in stripImages:', typeof content, content)
+      return String(content)
+    } catch (error) {
+      console.error('Error in stripImages:', error, content)
+      return ''
     }
   }
 
@@ -132,14 +112,29 @@ export class ClaudeClient {
     // Define tools for Claude
     const tools = this.getTools()
 
-    // Send to Claude
-    let response = await this.client.messages.create({
-      model: ClaudeClient.MODEL,
-      max_tokens: ClaudeClient.MAX_TOKENS,
-      system: systemPrompt,
-      messages,
-      tools
+    // Log message being sent for debugging
+    console.log('Sending to Claude:', {
+      messageCount: messages.length,
+      systemPromptLength: systemPrompt.length,
+      hasScreenshot: !!screenshot,
+      conversationHistoryLength: limitedHistory.length
     })
+
+    // Send to Claude with error handling
+    let response
+    try {
+      response = await this.client.messages.create({
+        model: ClaudeClient.MODEL,
+        max_tokens: ClaudeClient.MAX_TOKENS,
+        system: systemPrompt,
+        messages,
+        tools
+      })
+    } catch (error) {
+      console.error('Claude API error:', error)
+      console.error('Messages sent:', JSON.stringify(messages, null, 2))
+      throw error
+    }
 
     const toolCalls: ToolCall[] = []
     let finalText = ''
@@ -183,7 +178,18 @@ export class ClaudeClient {
 
           // Strip large data (like screenshots) from tool results before sending back to Claude
           // to prevent token overflow. Screenshots are attached as images in the next message.
-          const sanitizedResult = this.sanitizeToolResult(result)
+          let sanitizedResult: ToolResult = result
+          if (result.success && result.data && 'screenshot' in result.data) {
+            const data = { ...result.data }
+            delete data.screenshot
+            sanitizedResult = {
+              success: true,
+              data: {
+                ...data,
+                message: 'Screenshot captured successfully and attached to this message for your analysis'
+              }
+            }
+          }
 
           (toolResults.content as any[]).push({
             type: 'tool_result',
@@ -226,13 +232,19 @@ export class ClaudeClient {
         messages.push(toolResults)
       }
 
-      response = await this.client.messages.create({
-        model: ClaudeClient.MODEL,
-        max_tokens: ClaudeClient.MAX_TOKENS,
-        system: systemPrompt,
-        messages,
-        tools
-      })
+      try {
+        response = await this.client.messages.create({
+          model: ClaudeClient.MODEL,
+          max_tokens: ClaudeClient.MAX_TOKENS,
+          system: systemPrompt,
+          messages,
+          tools
+        })
+      } catch (error) {
+        console.error('Claude API error in tool use loop:', error)
+        console.error('Messages at error:', JSON.stringify(messages.slice(-3), null, 2))
+        throw error
+      }
     }
 
     // Extract final text response
