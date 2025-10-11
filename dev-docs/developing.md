@@ -25,7 +25,7 @@
   - PascalCase for components and classes
   - camelCase for variables and functions
   - Use descriptive names for operators (with 'Op' suffix)
-- **Comments**: Use inline comments (`//`) for non-obvious code, avoid jsdoc-style comments (`/** */`)
+- **Comments**: Use inline comments (`//`) for non-obvious code. Avoid jsdoc-style block comments (`/** */`) in favor of concise inline comments.
 - **Async Functions**: Use async/await for async operations with try/catch for error handling
 - **Side Effects**: Minimize side effects in functions, use hooks for managing state
 - **Styling**: Use CSS modules or styled-components for component-specific styles
