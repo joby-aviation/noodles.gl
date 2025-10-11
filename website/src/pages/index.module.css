@@ -27,7 +27,7 @@
 }
 
 .heroLogo {
-  width: 300px;
+  width: 500px;
   height: auto;
   margin: 0 auto 2rem;
   display: block;
@@ -101,7 +101,8 @@
   }
 
   .heroLogo {
-    width: 200px;
+    width: 100%;
+    max-width: 600px;
   }
 
   .heroTitle {
