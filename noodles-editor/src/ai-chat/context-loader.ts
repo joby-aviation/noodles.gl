@@ -1,6 +1,4 @@
-/**
- * ContextLoader - Loads and caches Claude AI context bundles
- */
+// ContextLoader - Loads and caches Claude AI context bundles
 
 import type {
   Manifest,
@@ -19,9 +17,7 @@ export class ContextLoader {
   private docsIndex: DocsIndex | null = null
   private examples: ExamplesIndex | null = null
 
-  /**
-   * Load all context bundles with progress tracking
-   */
+  // Load all context bundles with progress tracking
   async load(onProgress?: (progress: LoadProgress) => void): Promise<void> {
     // 1. Load manifest
     onProgress?.({
@@ -122,9 +118,7 @@ export class ContextLoader {
     })
   }
 
-  /**
-   * Fetch bundle with browser cache support (IndexedDB)
-   */
+  // Fetch bundle with browser cache support (IndexedDB)
   private async fetchCachedBundle<T>(filename: string, hash: string): Promise<T> {
     // Try IndexedDB cache first
     const cached = await this.getCachedBundle<T>(hash)

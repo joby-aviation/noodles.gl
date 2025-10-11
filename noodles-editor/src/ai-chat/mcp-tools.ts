@@ -15,9 +15,7 @@ export class MCPTools {
     this.setupConsoleTracking()
   }
 
-  /**
-   * Extract common operator properties to avoid duplication
-   */
+  // Extract common operator properties to avoid duplication
   private mapOperatorProperties(op: any) {
     return {
       type: op.type,
@@ -27,9 +25,7 @@ export class MCPTools {
     }
   }
 
-  /**
-   * Extract common example properties to avoid duplication
-   */
+  // Extract common example properties to avoid duplication
   private mapExampleProperties(ex: any) {
     return {
       id: ex.id,
@@ -40,9 +36,7 @@ export class MCPTools {
     }
   }
 
-  /**
-   * Check if context has been loaded successfully
-   */
+  // Check if context has been loaded successfully
   hasContext(): boolean {
     return this.contextLoader.getCodeIndex() !== null ||
       this.contextLoader.getOperatorRegistry() !== null ||
@@ -50,16 +44,12 @@ export class MCPTools {
       this.contextLoader.getExamples() !== null
   }
 
-  /**
-   * Get deck.gl canvas from global reference
-   */
+  // Get deck.gl canvas from global reference
   private getCanvas(): HTMLCanvasElement | null {
     return (window as any).__deckCanvas || null
   }
 
-  /**
-   * Search source code using regex or text matching
-   */
+  // Search source code using regex or text matching
   async searchCode(params: SearchCodeParams): Promise<ToolResult> {
     try {
       const codeIndex = this.contextLoader.getCodeIndex()
@@ -103,9 +93,7 @@ export class MCPTools {
     }
   }
 
-  /**
-   * Get source code for a specific file and line range
-   */
+  // Get source code for a specific file and line range
   async getSourceCode(params: {
     file: string
     startLine?: number
@@ -143,9 +131,7 @@ export class MCPTools {
     }
   }
 
-  /**
-   * Get schema for a specific operator type
-   */
+  // Get schema for a specific operator type
   async getOperatorSchema(params: { type: string }): Promise<ToolResult> {
     try {
       const registry = this.contextLoader.getOperatorRegistry()
@@ -170,9 +156,7 @@ export class MCPTools {
     }
   }
 
-  /**
-   * List all available operators, optionally filtered by category
-   */
+  // List all available operators, optionally filtered by category
   async listOperators(params: { category?: string }): Promise<ToolResult> {
     try {
       const registry = this.contextLoader.getOperatorRegistry()
@@ -198,9 +182,7 @@ export class MCPTools {
     }
   }
 
-  /**
-   * Search documentation
-   */
+  // Search documentation
   async getDocumentation(params: {
     query: string
     section?: 'users' | 'developers'
@@ -231,9 +213,7 @@ export class MCPTools {
     }
   }
 
-  /**
-   * Get an example project by ID
-   */
+  // Get an example project by ID
   async getExample(params: { id: string }): Promise<ToolResult> {
     try {
       const examples = this.contextLoader.getExamples()
@@ -255,9 +235,7 @@ export class MCPTools {
     }
   }
 
-  /**
-   * List all available examples
-   */
+  // List all available examples
   async listExamples(params: { category?: string; tag?: string }): Promise<ToolResult> {
     try {
       const examples = this.contextLoader.getExamples()
@@ -287,9 +265,7 @@ export class MCPTools {
     }
   }
 
-  /**
-   * Find a symbol (class, function, type) by name
-   */
+  // Find a symbol (class, function, type) by name
   async findSymbol(params: { name: string }): Promise<ToolResult> {
     try {
       const codeIndex = this.contextLoader.getCodeIndex()
@@ -330,9 +306,7 @@ export class MCPTools {
     }
   }
 
-  /**
-   * Analyze the current project for issues and suggestions
-   */
+  // Analyze the current project for issues and suggestions
   async analyzeProject(params: {
     project: any
     analysisType: 'validation' | 'performance' | 'suggestions'
@@ -448,9 +422,7 @@ export class MCPTools {
     }
   }
 
-  /**
-   * Get recent console errors and warnings
-   */
+  // Get recent console errors and warnings
   async getConsoleErrors(params: {
     since?: number
     level?: 'error' | 'warn' | 'all'
@@ -486,9 +458,7 @@ export class MCPTools {
     }
   }
 
-  /**
-   * Get deck.gl rendering statistics
-   */
+  // Get deck.gl rendering statistics
   async getRenderStats(): Promise<ToolResult> {
     try {
       const stats = (window as any).__deckStats
@@ -528,9 +498,7 @@ export class MCPTools {
     }
   }
 
-  /**
-   * Inspect a specific layer in the visualization
-   */
+  // Inspect a specific layer in the visualization
   async inspectLayer(params: { layerId: string }): Promise<ToolResult> {
     try {
       const deckInstance = (window as any).__deckInstance

@@ -692,9 +692,7 @@ export class ContextLoader {
     docs?: Document;
   } = {};
 
-  /**
-   * Load all context bundles with progress tracking
-   */
+  // Load all context bundles with progress tracking
   async load(onProgress?: (progress: LoadProgress) => void): Promise<void> {
     // 1. Load manifest
     onProgress?.({
@@ -784,9 +782,7 @@ export class ContextLoader {
     });
   }
 
-  /**
-   * Fetch bundle with browser cache support (IndexedDB)
-   */
+  // Fetch bundle with browser cache support (IndexedDB)
   private async fetchCachedBundle<T>(filename: string, hash: string): Promise<T> {
     // Try IndexedDB cache first
     const cached = await this.getCachedBundle<T>(hash);
@@ -922,9 +918,7 @@ export interface SearchCodeResult {
 export class MCPTools {
   constructor(private contextLoader: ContextLoader) {}
 
-  /**
-   * Search source code using regex or fuzzy matching
-   */
+  // Search source code using regex or fuzzy matching
   async searchCode(params: SearchCodeParams): Promise<ToolResult> {
     try {
       const codeIndex = this.contextLoader.getCodeIndex();
@@ -977,9 +971,7 @@ export class MCPTools {
     }
   }
 
-  /**
-   * Get source code for a specific file and line range
-   */
+  // Get source code for a specific file and line range
   async getSourceCode(params: {
     file: string;
     startLine?: number;
@@ -1017,9 +1009,7 @@ export class MCPTools {
     }
   }
 
-  /**
-   * Get schema for a specific operator type
-   */
+  // Get schema for a specific operator type
   async getOperatorSchema(params: { type: string }): Promise<ToolResult> {
     try {
       const registry = this.contextLoader.getOperatorRegistry();
@@ -1044,9 +1034,7 @@ export class MCPTools {
     }
   }
 
-  /**
-   * List all available operators, optionally filtered by category
-   */
+  // List all available operators, optionally filtered by category
   async listOperators(params: { category?: string }): Promise<ToolResult> {
     try {
       const registry = this.contextLoader.getOperatorRegistry();
@@ -1077,9 +1065,7 @@ export class MCPTools {
     }
   }
 
-  /**
-   * Search documentation
-   */
+  // Search documentation
   async getDocumentation(params: {
     query: string;
     section?: 'users' | 'developers';
@@ -1106,9 +1092,7 @@ export class MCPTools {
     }
   }
 
-  /**
-   * Get an example project by ID
-   */
+  // Get an example project by ID
   async getExample(params: { id: string }): Promise<ToolResult> {
     try {
       const examples = this.contextLoader.getExamples();
@@ -1130,9 +1114,7 @@ export class MCPTools {
     }
   }
 
-  /**
-   * List all available examples
-   */
+  // List all available examples
   async listExamples(params: { category?: string; tag?: string }): Promise<ToolResult> {
     try {
       const examples = this.contextLoader.getExamples();
@@ -1168,9 +1150,7 @@ export class MCPTools {
     }
   }
 
-  /**
-   * Find a symbol (class, function, type) by name
-   */
+  // Find a symbol (class, function, type) by name
   async findSymbol(params: { name: string }): Promise<ToolResult> {
     try {
       const codeIndex = this.contextLoader.getCodeIndex();
@@ -1207,9 +1187,7 @@ export class MCPTools {
     }
   }
 
-  /**
-   * Analyze the current project for issues and suggestions
-   */
+  // Analyze the current project for issues and suggestions
   async analyzeProject(params: {
     project: NoodlesProject;
     analysisType: 'validation' | 'performance' | 'suggestions';
@@ -1412,9 +1390,7 @@ export class ClaudeClient {
     this.tools = tools;
   }
 
-  /**
-   * Send a message to Claude with current project context
-   */
+  // Send a message to Claude with current project context
   async sendMessage(params: {
     message: string;
     project: NoodlesProject;
@@ -1871,16 +1847,12 @@ export class MCPTools {
     this.setupConsoleTracking();
   }
 
-  /**
-   * Set reference to deck.gl canvas for screenshot capture
-   */
+  // Set reference to deck.gl canvas for screenshot capture
   setCanvasRef(canvas: HTMLCanvasElement | null) {
     this.canvasRef = canvas;
   }
 
-  /**
-   * Capture screenshot of the current visualization
-   */
+  // Capture screenshot of the current visualization
   async captureVisualization(params: {
     includeUI?: boolean;
     format?: 'png' | 'jpeg';
@@ -1920,9 +1892,7 @@ export class MCPTools {
     }
   }
 
-  /**
-   * Get recent console errors and warnings
-   */
+  // Get recent console errors and warnings
   async getConsoleErrors(params: {
     since?: number; // Timestamp
     level?: 'error' | 'warn' | 'all';
@@ -1959,9 +1929,7 @@ export class MCPTools {
     }
   }
 
-  /**
-   * Get deck.gl rendering statistics
-   */
+  // Get deck.gl rendering statistics
   async getRenderStats(): Promise<ToolResult> {
     try {
       const stats = (window as any).__deckStats;
@@ -2007,9 +1975,7 @@ export class MCPTools {
     }
   }
 
-  /**
-   * Inspect a specific layer in the visualization
-   */
+  // Inspect a specific layer in the visualization
   async inspectLayer(params: { layerId: string }): Promise<ToolResult> {
     try {
       const deckInstance = (window as any).__deckInstance;
@@ -2068,9 +2034,7 @@ export class MCPTools {
     }
   }
 
-  /**
-   * Set up console error/warning tracking
-   */
+  // Set up console error/warning tracking
   private setupConsoleTracking() {
     // Intercept console.error
     const originalError = console.error;

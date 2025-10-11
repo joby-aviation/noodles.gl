@@ -89,21 +89,7 @@ export function CopyControls() {
         return
       }
 
-      // Try to parse as JSON, but don't fail if it's not valid JSON (e.g., plain text like API keys)
-      let parsedData: CopiedNodesJSON
-      try {
-        parsedData = JSON.parse(copied)
-      } catch {
-        // Not valid JSON, ignore this paste event
-        return
-      }
-
-      // Validate that it has the expected structure
-      if (!parsedData.nodes || !parsedData.edges) {
-        return
-      }
-
-      const { nodes, edges } = parsedData
+      const { nodes, edges } = JSON.parse(copied) as CopiedNodesJSON
 
       // update node ids to not conflict, and then remap edges to new node ids
       const idMap = new Map<string, string>()

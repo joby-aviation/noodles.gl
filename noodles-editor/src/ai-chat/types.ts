@@ -1,6 +1,4 @@
-/**
- * Type definitions for Claude AI integration
- */
+// Type definitions for Claude AI integration
 
 export interface Manifest {
   version: string
