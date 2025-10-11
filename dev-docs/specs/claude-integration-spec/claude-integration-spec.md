@@ -163,83 +163,83 @@ This script should:
 
 ```typescript
 interface CodeIndex {
-  version: string;
-  files: Record<string, FileIndex>;
-  searchIndex: SearchIndex;
-  symbolMap: Record<string, SymbolReference[]>;
+  version: string
+  files: Record<string, FileIndex>
+  searchIndex: SearchIndex
+  symbolMap: Record<string, SymbolReference[]>
 }
 
 interface FileIndex {
-  path: string;
-  fullText: string;
-  lines: string[];
-  hash: string;
-  lastModified: string;
-  symbols: Symbol[];
-  imports: Import[];
-  exports: Export[];
+  path: string
+  fullText: string
+  lines: string[]
+  hash: string
+  lastModified: string
+  symbols: Symbol[]
+  imports: Import[]
+  exports: Export[]
 }
 
 interface Symbol {
-  name: string;
-  type: 'class' | 'function' | 'interface' | 'type' | 'const' | 'enum';
-  line: number;
-  endLine: number;
-  docstring?: string;
-  signature?: string;
-  properties?: Property[];
-  methods?: Method[];
-  extends?: string[];
-  implements?: string[];
+  name: string
+  type: 'class' | 'function' | 'interface' | 'type' | 'const' | 'enum'
+  line: number
+  endLine: number
+  docstring?: string
+  signature?: string
+  properties?: Property[]
+  methods?: Method[]
+  extends?: string[]
+  implements?: string[]
 }
 
 interface Property {
-  name: string;
-  type: string;
-  line: number;
-  optional: boolean;
-  docstring?: string;
+  name: string
+  type: string
+  line: number
+  optional: boolean
+  docstring?: string
 }
 
 interface Method {
-  name: string;
-  signature: string;
-  line: number;
-  endLine: number;
-  docstring?: string;
-  parameters: Parameter[];
-  returnType: string;
+  name: string
+  signature: string
+  line: number
+  endLine: number
+  docstring?: string
+  parameters: Parameter[]
+  returnType: string
 }
 
 interface Parameter {
-  name: string;
-  type: string;
-  optional: boolean;
-  defaultValue?: string;
+  name: string
+  type: string
+  optional: boolean
+  defaultValue?: string
 }
 
 interface Import {
-  module: string;
-  imports: string[];
-  line: number;
+  module: string
+  imports: string[]
+  line: number
 }
 
 interface Export {
-  name: string;
-  type: string;
-  line: number;
+  name: string
+  type: string
+  line: number
 }
 
 interface SearchIndex {
   // Serialized flexsearch index
   // Supports full-text search across all source files
-  index: any;
+  index: any
 }
 
 interface SymbolReference {
-  file: string;
-  line: number;
-  context: string;
+  file: string
+  line: number
+  context: string
 }
 ```
 
@@ -334,42 +334,42 @@ interface SymbolReference {
 
 ```typescript
 interface OperatorRegistry {
-  version: string;
-  operators: Record<string, OperatorSchema>;
-  categories: Record<string, string[]>;
+  version: string
+  operators: Record<string, OperatorSchema>
+  categories: Record<string, string[]>
 }
 
 interface OperatorSchema {
-  name: string;
-  type: string;
-  category: 'data' | 'layer' | 'renderer' | 'accessor' | 'utility' | 'container';
-  description: string;
-  docstring?: string;
-  inputs: Record<string, FieldSchema>;
-  outputs: Record<string, FieldSchema>;
-  sourceFile: string;
-  sourceLine: number;
-  examples: string[];
-  relatedOperators: string[];
+  name: string
+  type: string
+  category: 'data' | 'layer' | 'renderer' | 'accessor' | 'utility' | 'container'
+  description: string
+  docstring?: string
+  inputs: Record<string, FieldSchema>
+  outputs: Record<string, FieldSchema>
+  sourceFile: string
+  sourceLine: number
+  examples: string[]
+  relatedOperators: string[]
 }
 
 interface FieldSchema {
-  name: string;
-  type: string; // 'number' | 'string' | 'boolean' | 'accessor' | 'data' | etc.
-  description?: string;
-  required: boolean;
-  defaultValue?: any;
+  name: string
+  type: string // 'number' | 'string' | 'boolean' | 'accessor' | 'data' | etc.
+  description?: string
+  required: boolean
+  defaultValue?: any
   validation?: {
-    min?: number;
-    max?: number;
-    options?: any[];
-    pattern?: string;
-  };
+    min?: number
+    max?: number
+    options?: any[]
+    pattern?: string
+  }
   uiHints?: {
-    control: 'slider' | 'input' | 'select' | 'checkbox' | 'code' | 'color';
-    label?: string;
-    step?: number;
-  };
+    control: 'slider' | 'input' | 'select' | 'checkbox' | 'code' | 'color'
+    label?: string
+    step?: number
+  }
 }
 ```
 
@@ -497,32 +497,32 @@ interface FieldSchema {
 
 ```typescript
 interface DocsIndex {
-  version: string;
-  topics: Record<string, DocTopic>;
-  searchIndex: any; // Serialized flexsearch index
+  version: string
+  topics: Record<string, DocTopic>
+  searchIndex: any // Serialized flexsearch index
 }
 
 interface DocTopic {
-  id: string;
-  title: string;
-  section: 'users' | 'developers' | 'intro';
-  file: string;
-  content: string;
-  headings: Heading[];
-  codeExamples: CodeExample[];
-  relatedTopics: string[];
+  id: string
+  title: string
+  section: 'users' | 'developers' | 'intro'
+  file: string
+  content: string
+  headings: Heading[]
+  codeExamples: CodeExample[]
+  relatedTopics: string[]
 }
 
 interface Heading {
-  level: number;
-  text: string;
-  anchor: string;
+  level: number
+  text: string
+  anchor: string
 }
 
 interface CodeExample {
-  language: string;
-  code: string;
-  description?: string;
+  language: string
+  code: string
+  description?: string
 }
 ```
 
@@ -578,28 +578,28 @@ interface CodeExample {
 
 ```typescript
 interface ExamplesIndex {
-  version: string;
-  examples: Record<string, Example>;
+  version: string
+  examples: Record<string, Example>
 }
 
 interface Example {
-  id: string;
-  name: string;
-  description: string;
-  category: string;
-  project: NoodlesProject; // Full project JSON
-  annotations: Record<string, NodeAnnotation>;
-  tags: string[];
-  dataSourceTypes: string[];
-  layerTypes: string[];
-  techniques: string[];
+  id: string
+  name: string
+  description: string
+  category: string
+  project: NoodlesProject // Full project JSON
+  annotations: Record<string, NodeAnnotation>
+  tags: string[]
+  dataSourceTypes: string[]
+  layerTypes: string[]
+  techniques: string[]
 }
 
 interface NodeAnnotation {
-  nodeId: string;
-  description: string;
-  purpose: string;
-  configurationNotes?: string;
+  nodeId: string
+  description: string
+  purpose: string
+  configurationNotes?: string
 }
 ```
 
@@ -669,28 +669,28 @@ interface NodeAnnotation {
 **Location**: `noodles-editor/src/claude/ContextLoader.ts`
 
 ```typescript
-import { Document } from 'flexsearch';
+import { Document } from 'flexsearch'
 
 export interface LoadProgress {
-  stage: 'manifest' | 'code' | 'operators' | 'docs' | 'examples' | 'complete';
-  loaded: number;
-  total: number;
-  bytesLoaded: number;
-  bytesTotal: number;
+  stage: 'manifest' | 'code' | 'operators' | 'docs' | 'examples' | 'complete'
+  loaded: number
+  total: number
+  bytesLoaded: number
+  bytesTotal: number
 }
 
 export class ContextLoader {
-  private baseUrl = '/app/context';
-  private manifest: Manifest | null = null;
-  private codeIndex: CodeIndex | null = null;
-  private operatorRegistry: OperatorRegistry | null = null;
-  private docsIndex: DocsIndex | null = null;
-  private examples: ExamplesIndex | null = null;
+  private baseUrl = '/app/context'
+  private manifest: Manifest | null = null
+  private codeIndex: CodeIndex | null = null
+  private operatorRegistry: OperatorRegistry | null = null
+  private docsIndex: DocsIndex | null = null
+  private examples: ExamplesIndex | null = null
 
   private searchIndexes: {
-    code?: Document;
-    docs?: Document;
-  } = {};
+    code?: Document
+    docs?: Document
+  } = {}
 
   // Load all context bundles with progress tracking
   async load(onProgress?: (progress: LoadProgress) => void): Promise<void> {
@@ -701,14 +701,14 @@ export class ContextLoader {
       total: 5,
       bytesLoaded: 0,
       bytesTotal: 0
-    });
+    })
 
-    this.manifest = await this.fetchJSON<Manifest>(`${this.baseUrl}/manifest.json`);
+    this.manifest = await this.fetchJSON<Manifest>(`${this.baseUrl}/manifest.json`)
 
     // 2. Load bundles (check cache first)
-    const bundles = this.manifest.bundles;
-    const totalBytes = Object.values(bundles).reduce((sum, b) => sum + b.size, 0);
-    let bytesLoaded = 0;
+    const bundles = this.manifest.bundles
+    const totalBytes = Object.values(bundles).reduce((sum, b) => sum + b.size, 0)
+    let bytesLoaded = 0
 
     // Load code index
     onProgress?.({
@@ -717,13 +717,13 @@ export class ContextLoader {
       total: 5,
       bytesLoaded,
       bytesTotal: totalBytes
-    });
+    })
 
     this.codeIndex = await this.fetchCachedBundle<CodeIndex>(
       bundles.codeIndex.file,
       bundles.codeIndex.hash
-    );
-    bytesLoaded += bundles.codeIndex.size;
+    )
+    bytesLoaded += bundles.codeIndex.size
 
     // Load operator registry
     onProgress?.({
@@ -732,13 +732,13 @@ export class ContextLoader {
       total: 5,
       bytesLoaded,
       bytesTotal: totalBytes
-    });
+    })
 
     this.operatorRegistry = await this.fetchCachedBundle<OperatorRegistry>(
       bundles.operatorRegistry.file,
       bundles.operatorRegistry.hash
-    );
-    bytesLoaded += bundles.operatorRegistry.size;
+    )
+    bytesLoaded += bundles.operatorRegistry.size
 
     // Load docs index
     onProgress?.({
@@ -747,13 +747,13 @@ export class ContextLoader {
       total: 5,
       bytesLoaded,
       bytesTotal: totalBytes
-    });
+    })
 
     this.docsIndex = await this.fetchCachedBundle<DocsIndex>(
       bundles.docsIndex.file,
       bundles.docsIndex.hash
-    );
-    bytesLoaded += bundles.docsIndex.size;
+    )
+    bytesLoaded += bundles.docsIndex.size
 
     // Load examples
     onProgress?.({
@@ -762,16 +762,16 @@ export class ContextLoader {
       total: 5,
       bytesLoaded,
       bytesTotal: totalBytes
-    });
+    })
 
     this.examples = await this.fetchCachedBundle<ExamplesIndex>(
       bundles.examples.file,
       bundles.examples.hash
-    );
-    bytesLoaded += bundles.examples.size;
+    )
+    bytesLoaded += bundles.examples.size
 
     // 3. Build search indexes
-    await this.buildSearchIndexes();
+    await this.buildSearchIndexes()
 
     onProgress?.({
       stage: 'complete',
@@ -779,69 +779,69 @@ export class ContextLoader {
       total: 5,
       bytesLoaded: totalBytes,
       bytesTotal: totalBytes
-    });
+    })
   }
 
   // Fetch bundle with browser cache support (IndexedDB)
   private async fetchCachedBundle<T>(filename: string, hash: string): Promise<T> {
     // Try IndexedDB cache first
-    const cached = await this.getCachedBundle<T>(hash);
+    const cached = await this.getCachedBundle<T>(hash)
     if (cached) {
-      return cached;
+      return cached
     }
 
     // Fetch from network
-    const data = await this.fetchJSON<T>(`${this.baseUrl}/${filename}`);
+    const data = await this.fetchJSON<T>(`${this.baseUrl}/${filename}`)
 
     // Store in IndexedDB
-    await this.setCachedBundle(hash, data);
+    await this.setCachedBundle(hash, data)
 
-    return data;
+    return data
   }
 
   private async fetchJSON<T>(url: string): Promise<T> {
-    const response = await fetch(url);
+    const response = await fetch(url)
     if (!response.ok) {
-      throw new Error(`Failed to fetch ${url}: ${response.statusText}`);
+      throw new Error(`Failed to fetch ${url}: ${response.statusText}`)
     }
-    return response.json();
+    return response.json()
   }
 
   private async getCachedBundle<T>(hash: string): Promise<T | null> {
     // Use IndexedDB to cache bundles persistently
-    const db = await this.openDB();
-    const tx = db.transaction('bundles', 'readonly');
-    const store = tx.objectStore('bundles');
-    const result = await store.get(hash);
-    return result?.data || null;
+    const db = await this.openDB()
+    const tx = db.transaction('bundles', 'readonly')
+    const store = tx.objectStore('bundles')
+    const result = await store.get(hash)
+    return result?.data || null
   }
 
   private async setCachedBundle<T>(hash: string, data: T): Promise<void> {
-    const db = await this.openDB();
-    const tx = db.transaction('bundles', 'readwrite');
-    const store = tx.objectStore('bundles');
-    await store.put({ hash, data, timestamp: Date.now() });
+    const db = await this.openDB()
+    const tx = db.transaction('bundles', 'readwrite')
+    const store = tx.objectStore('bundles')
+    await store.put({ hash, data, timestamp: Date.now() })
   }
 
   private async openDB(): Promise<IDBDatabase> {
     return new Promise((resolve, reject) => {
-      const request = indexedDB.open('noodles-context', 1);
+      const request = indexedDB.open('noodles-context', 1)
 
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error)
+      request.onsuccess = () => resolve(request.result)
 
       request.onupgradeneeded = (event) => {
-        const db = (event.target as IDBOpenDBRequest).result;
+        const db = (event.target as IDBOpenDBRequest).result
         if (!db.objectStoreNames.contains('bundles')) {
-          db.createObjectStore('bundles', { keyPath: 'hash' });
+          db.createObjectStore('bundles', { keyPath: 'hash' })
         }
-      };
-    });
+      }
+    })
   }
 
   private async buildSearchIndexes(): Promise<void> {
     if (!this.codeIndex || !this.docsIndex) {
-      throw new Error('Indexes not loaded');
+      throw new Error('Indexes not loaded')
     }
 
     // Deserialize and rebuild flexsearch indexes
@@ -850,14 +850,14 @@ export class ContextLoader {
         id: 'path',
         index: ['content']
       }
-    });
+    })
 
     // Re-index code
     for (const [path, file] of Object.entries(this.codeIndex.files)) {
       this.searchIndexes.code.add({
         path,
         content: file.fullText
-      });
+      })
     }
 
     // Re-index docs
@@ -866,23 +866,23 @@ export class ContextLoader {
         id: 'id',
         index: ['title', 'content']
       }
-    });
+    })
 
     for (const [id, topic] of Object.entries(this.docsIndex.topics)) {
       this.searchIndexes.docs.add({
         id,
         title: topic.title,
         content: topic.content
-      });
+      })
     }
   }
 
   // Getters for loaded data
-  getCodeIndex(): CodeIndex | null { return this.codeIndex; }
-  getOperatorRegistry(): OperatorRegistry | null { return this.operatorRegistry; }
-  getDocsIndex(): DocsIndex | null { return this.docsIndex; }
-  getExamples(): ExamplesIndex | null { return this.examples; }
-  getSearchIndexes() { return this.searchIndexes; }
+  getCodeIndex(): CodeIndex | null { return this.codeIndex }
+  getOperatorRegistry(): OperatorRegistry | null { return this.operatorRegistry }
+  getDocsIndex(): DocsIndex | null { return this.docsIndex }
+  getExamples(): ExamplesIndex | null { return this.examples }
+  getSearchIndexes() { return this.searchIndexes }
 }
 ```
 
@@ -891,28 +891,28 @@ export class ContextLoader {
 **Location**: `noodles-editor/src/claude/MCPTools.ts`
 
 ```typescript
-import { ContextLoader } from './ContextLoader';
-import type { NoodlesProject } from '../noodles/noodles';
+import { ContextLoader } from './ContextLoader'
+import type { NoodlesProject } from '../noodles/noodles'
 
 export interface ToolResult {
-  success: boolean;
-  data?: any;
-  error?: string;
+  success: boolean
+  data?: any
+  error?: string
 }
 
 export interface SearchCodeParams {
-  pattern: string;
-  path?: string;
-  contextLines?: number;
-  maxResults?: number;
+  pattern: string
+  path?: string
+  contextLines?: number
+  maxResults?: number
 }
 
 export interface SearchCodeResult {
-  file: string;
-  line: number;
-  endLine?: number;
-  context: string[];
-  symbol?: string;
+  file: string
+  line: number
+  endLine?: number
+  context: string[]
+  symbol?: string
 }
 
 export class MCPTools {
@@ -921,75 +921,75 @@ export class MCPTools {
   // Search source code using regex or fuzzy matching
   async searchCode(params: SearchCodeParams): Promise<ToolResult> {
     try {
-      const codeIndex = this.contextLoader.getCodeIndex();
-      const searchIndex = this.contextLoader.getSearchIndexes().code;
+      const codeIndex = this.contextLoader.getCodeIndex()
+      const searchIndex = this.contextLoader.getSearchIndexes().code
 
       if (!codeIndex || !searchIndex) {
-        return { success: false, error: 'Code index not loaded' };
+        return { success: false, error: 'Code index not loaded' }
       }
 
-      const results: SearchCodeResult[] = [];
-      const contextLines = params.contextLines ?? 3;
-      const maxResults = params.maxResults ?? 20;
+      const results: SearchCodeResult[] = []
+      const contextLines = params.contextLines ?? 3
+      const maxResults = params.maxResults ?? 20
 
       // Use flexsearch for full-text search
-      const searchResults = searchIndex.search(params.pattern);
+      const searchResults = searchIndex.search(params.pattern)
 
       for (const result of searchResults.slice(0, maxResults)) {
-        const filePath = result as string;
-        const file = codeIndex.files[filePath];
+        const filePath = result as string
+        const file = codeIndex.files[filePath]
 
-        if (!file) continue;
-        if (params.path && !filePath.includes(params.path)) continue;
+        if (!file) continue
+        if (params.path && !filePath.includes(params.path)) continue
 
         // Find matching lines in file
-        const regex = new RegExp(params.pattern, 'gi');
+        const regex = new RegExp(params.pattern, 'gi')
         file.lines.forEach((line, idx) => {
           if (regex.test(line)) {
-            const startLine = Math.max(0, idx - contextLines);
-            const endLine = Math.min(file.lines.length - 1, idx + contextLines);
+            const startLine = Math.max(0, idx - contextLines)
+            const endLine = Math.min(file.lines.length - 1, idx + contextLines)
 
             results.push({
               file: filePath,
               line: idx + 1, // 1-indexed
               context: file.lines.slice(startLine, endLine + 1),
               symbol: this.findSymbolAtLine(file, idx + 1)
-            });
+            })
           }
-        });
+        })
       }
 
       return {
         success: true,
         data: results
-      };
+      }
     } catch (error) {
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'
-      };
+      }
     }
   }
 
   // Get source code for a specific file and line range
   async getSourceCode(params: {
-    file: string;
-    startLine?: number;
-    endLine?: number;
+    file: string
+    startLine?: number
+    endLine?: number
   }): Promise<ToolResult> {
     try {
-      const codeIndex = this.contextLoader.getCodeIndex();
+      const codeIndex = this.contextLoader.getCodeIndex()
       if (!codeIndex) {
-        return { success: false, error: 'Code index not loaded' };
+        return { success: false, error: 'Code index not loaded' }
       }
 
-      const fileIndex = codeIndex.files[params.file];
+      const fileIndex = codeIndex.files[params.file]
       if (!fileIndex) {
-        return { success: false, error: `File not found: ${params.file}` };
+        return { success: false, error: `File not found: ${params.file}` }
       }
 
-      const startLine = params.startLine ?? 1;
-      const endLine = params.endLine ?? fileIndex.lines.length;
+      const startLine = params.startLine ?? 1
+      const endLine = params.endLine ?? fileIndex.lines.length
 
       return {
         success: true,
@@ -1000,52 +1000,52 @@ export class MCPTools {
           lines: fileIndex.lines.slice(startLine - 1, endLine),
           fullText: fileIndex.lines.slice(startLine - 1, endLine).join('\n')
         }
-      };
+      }
     } catch (error) {
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'
-      };
+      }
     }
   }
 
   // Get schema for a specific operator type
   async getOperatorSchema(params: { type: string }): Promise<ToolResult> {
     try {
-      const registry = this.contextLoader.getOperatorRegistry();
+      const registry = this.contextLoader.getOperatorRegistry()
       if (!registry) {
-        return { success: false, error: 'Operator registry not loaded' };
+        return { success: false, error: 'Operator registry not loaded' }
       }
 
-      const schema = registry.operators[params.type];
+      const schema = registry.operators[params.type]
       if (!schema) {
         return {
           success: false,
           error: `Operator type not found: ${params.type}`
-        };
+        }
       }
 
-      return { success: true, data: schema };
+      return { success: true, data: schema }
     } catch (error) {
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'
-      };
+      }
     }
   }
 
   // List all available operators, optionally filtered by category
   async listOperators(params: { category?: string }): Promise<ToolResult> {
     try {
-      const registry = this.contextLoader.getOperatorRegistry();
+      const registry = this.contextLoader.getOperatorRegistry()
       if (!registry) {
-        return { success: false, error: 'Operator registry not loaded' };
+        return { success: false, error: 'Operator registry not loaded' }
       }
 
-      let operators = Object.values(registry.operators);
+      let operators = Object.values(registry.operators)
 
       if (params.category) {
-        operators = operators.filter(op => op.category === params.category);
+        operators = operators.filter(op => op.category === params.category)
       }
 
       return {
@@ -1056,80 +1056,80 @@ export class MCPTools {
           category: op.category,
           description: op.description
         }))
-      };
+      }
     } catch (error) {
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'
-      };
+      }
     }
   }
 
   // Search documentation
   async getDocumentation(params: {
-    query: string;
-    section?: 'users' | 'developers';
+    query: string
+    section?: 'users' | 'developers'
   }): Promise<ToolResult> {
     try {
-      const docsIndex = this.contextLoader.getDocsIndex();
-      const searchIndex = this.contextLoader.getSearchIndexes().docs;
+      const docsIndex = this.contextLoader.getDocsIndex()
+      const searchIndex = this.contextLoader.getSearchIndexes().docs
 
       if (!docsIndex || !searchIndex) {
-        return { success: false, error: 'Docs index not loaded' };
+        return { success: false, error: 'Docs index not loaded' }
       }
 
-      const searchResults = searchIndex.search(params.query);
+      const searchResults = searchIndex.search(params.query)
       const results = searchResults
         .map((id: any) => docsIndex.topics[id as string])
-        .filter(topic => !params.section || topic.section === params.section);
+        .filter(topic => !params.section || topic.section === params.section)
 
-      return { success: true, data: results };
+      return { success: true, data: results }
     } catch (error) {
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'
-      };
+      }
     }
   }
 
   // Get an example project by ID
   async getExample(params: { id: string }): Promise<ToolResult> {
     try {
-      const examples = this.contextLoader.getExamples();
+      const examples = this.contextLoader.getExamples()
       if (!examples) {
-        return { success: false, error: 'Examples not loaded' };
+        return { success: false, error: 'Examples not loaded' }
       }
 
-      const example = examples.examples[params.id];
+      const example = examples.examples[params.id]
       if (!example) {
-        return { success: false, error: `Example not found: ${params.id}` };
+        return { success: false, error: `Example not found: ${params.id}` }
       }
 
-      return { success: true, data: example };
+      return { success: true, data: example }
     } catch (error) {
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'
-      };
+      }
     }
   }
 
   // List all available examples
   async listExamples(params: { category?: string; tag?: string }): Promise<ToolResult> {
     try {
-      const examples = this.contextLoader.getExamples();
+      const examples = this.contextLoader.getExamples()
       if (!examples) {
-        return { success: false, error: 'Examples not loaded' };
+        return { success: false, error: 'Examples not loaded' }
       }
 
-      let results = Object.values(examples.examples);
+      let results = Object.values(examples.examples)
 
       if (params.category) {
-        results = results.filter(ex => ex.category === params.category);
+        results = results.filter(ex => ex.category === params.category)
       }
 
       if (params.tag) {
-        results = results.filter(ex => ex.tags.includes(params.tag));
+        results = results.filter(ex => ex.tags.includes(params.tag))
       }
 
       return {
@@ -1141,33 +1141,33 @@ export class MCPTools {
           category: ex.category,
           tags: ex.tags
         }))
-      };
+      }
     } catch (error) {
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'
-      };
+      }
     }
   }
 
   // Find a symbol (class, function, type) by name
   async findSymbol(params: { name: string }): Promise<ToolResult> {
     try {
-      const codeIndex = this.contextLoader.getCodeIndex();
+      const codeIndex = this.contextLoader.getCodeIndex()
       if (!codeIndex) {
-        return { success: false, error: 'Code index not loaded' };
+        return { success: false, error: 'Code index not loaded' }
       }
 
-      const references = codeIndex.symbolMap[params.name] || [];
+      const references = codeIndex.symbolMap[params.name] || []
 
       if (references.length === 0) {
-        return { success: false, error: `Symbol not found: ${params.name}` };
+        return { success: false, error: `Symbol not found: ${params.name}` }
       }
 
       // Get full symbol details from first reference (definition)
-      const mainRef = references[0];
-      const file = codeIndex.files[mainRef.file];
-      const symbol = file?.symbols.find(s => s.name === params.name);
+      const mainRef = references[0]
+      const file = codeIndex.files[mainRef.file]
+      const symbol = file?.symbols.find(s => s.name === params.name)
 
       return {
         success: true,
@@ -1178,55 +1178,55 @@ export class MCPTools {
             ? file.lines.slice(symbol.line - 1, symbol.endLine).join('\n')
             : null
         }
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
-    }
-  }
-
-  // Analyze the current project for issues and suggestions
-  async analyzeProject(params: {
-    project: NoodlesProject;
-    analysisType: 'validation' | 'performance' | 'suggestions';
-  }): Promise<ToolResult> {
-    try {
-      const { project, analysisType } = params;
-
-      switch (analysisType) {
-        case 'validation':
-          return this.validateProject(project);
-        case 'performance':
-          return this.analyzePerformance(project);
-        case 'suggestions':
-          return this.generateSuggestions(project);
-        default:
-          return { success: false, error: `Unknown analysis type: ${analysisType}` };
       }
     } catch (error) {
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'
-      };
+      }
+    }
+  }
+
+  // Analyze the current project for issues and suggestions
+  async analyzeProject(params: {
+    project: NoodlesProject
+    analysisType: 'validation' | 'performance' | 'suggestions'
+  }): Promise<ToolResult> {
+    try {
+      const { project, analysisType } = params
+
+      switch (analysisType) {
+        case 'validation':
+          return this.validateProject(project)
+        case 'performance':
+          return this.analyzePerformance(project)
+        case 'suggestions':
+          return this.generateSuggestions(project)
+        default:
+          return { success: false, error: `Unknown analysis type: ${analysisType}` }
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
     }
   }
 
   private validateProject(project: NoodlesProject): ToolResult {
-    const issues: any[] = [];
-    const registry = this.contextLoader.getOperatorRegistry();
+    const issues: any[] = []
+    const registry = this.contextLoader.getOperatorRegistry()
 
     if (!registry) {
-      return { success: false, error: 'Registry not loaded' };
+      return { success: false, error: 'Registry not loaded' }
     }
 
     // Check for disconnected nodes
-    const connectedNodes = new Set<string>();
+    const connectedNodes = new Set<string>()
     project.edges.forEach(edge => {
-      connectedNodes.add(edge.source);
-      connectedNodes.add(edge.target);
-    });
+      connectedNodes.add(edge.source)
+      connectedNodes.add(edge.target)
+    })
 
     project.nodes.forEach(node => {
       if (!connectedNodes.has(node.id) && node.type !== 'OutOp') {
@@ -1235,25 +1235,25 @@ export class MCPTools {
           severity: 'warning',
           nodeId: node.id,
           message: `Node ${node.id} is not connected to the graph`
-        });
+        })
       }
 
       // Validate operator exists
-      const schema = registry.operators[node.type];
+      const schema = registry.operators[node.type]
       if (!schema) {
         issues.push({
           type: 'unknown-operator',
           severity: 'error',
           nodeId: node.id,
           message: `Unknown operator type: ${node.type}`
-        });
+        })
       } else {
         // Check required inputs
         Object.entries(schema.inputs).forEach(([key, field]) => {
           if (field.required && !node.data.inputs[key]) {
             const hasConnection = project.edges.some(
               edge => edge.target === node.id && edge.targetHandle?.includes(key)
-            );
+            )
 
             if (!hasConnection) {
               issues.push({
@@ -1262,61 +1262,61 @@ export class MCPTools {
                 nodeId: node.id,
                 field: key,
                 message: `Required input '${key}' is not provided`
-              });
+              })
             }
           }
-        });
+        })
       }
-    });
+    })
 
-    return { success: true, data: { issues } };
+    return { success: true, data: { issues } }
   }
 
   private analyzePerformance(project: NoodlesProject): ToolResult {
-    const suggestions: any[] = [];
+    const suggestions: any[] = []
 
     // Check for large data operations
     const dataOps = project.nodes.filter(n =>
       ['FileOp', 'DuckDbOp', 'JSONOp'].includes(n.type)
-    );
+    )
 
     if (dataOps.length > 5) {
       suggestions.push({
         type: 'performance',
         severity: 'info',
         message: `Found ${dataOps.length} data operations. Consider consolidating with DuckDbOp.`
-      });
+      })
     }
 
     // Check for deeply nested containers
-    const maxDepth = this.calculateMaxDepth(project);
+    const maxDepth = this.calculateMaxDepth(project)
     if (maxDepth > 3) {
       suggestions.push({
         type: 'performance',
         severity: 'warning',
         message: `Container nesting depth is ${maxDepth}. Consider flattening structure.`
-      });
+      })
     }
 
-    return { success: true, data: { suggestions } };
+    return { success: true, data: { suggestions } }
   }
 
   private generateSuggestions(project: NoodlesProject): ToolResult {
-    const suggestions: any[] = [];
-    const registry = this.contextLoader.getOperatorRegistry();
+    const suggestions: any[] = []
+    const registry = this.contextLoader.getOperatorRegistry()
 
     if (!registry) {
-      return { success: false, error: 'Registry not loaded' };
+      return { success: false, error: 'Registry not loaded' }
     }
 
     // Suggest related operators
     project.nodes.forEach(node => {
-      const schema = registry.operators[node.type];
+      const schema = registry.operators[node.type]
       if (schema?.relatedOperators.length > 0) {
-        const usedTypes = new Set(project.nodes.map(n => n.type));
+        const usedTypes = new Set(project.nodes.map(n => n.type))
         const unusedRelated = schema.relatedOperators.filter(
           op => !usedTypes.has(op)
-        );
+        )
 
         if (unusedRelated.length > 0) {
           suggestions.push({
@@ -1324,27 +1324,27 @@ export class MCPTools {
             severity: 'info',
             nodeId: node.id,
             message: `Consider using related operators: ${unusedRelated.join(', ')}`
-          });
+          })
         }
       }
-    });
+    })
 
-    return { success: true, data: { suggestions } };
+    return { success: true, data: { suggestions } }
   }
 
   private calculateMaxDepth(project: NoodlesProject): number {
-    let maxDepth = 0;
+    let maxDepth = 0
     project.nodes.forEach(node => {
-      const depth = (node.id.match(/\//g) || []).length;
-      maxDepth = Math.max(maxDepth, depth);
-    });
-    return maxDepth;
+      const depth = (node.id.match(/\//g) || []).length
+      maxDepth = Math.max(maxDepth, depth)
+    })
+    return maxDepth
   }
 
   private findSymbolAtLine(file: any, line: number): string | undefined {
     return file.symbols.find(
       (s: any) => s.line <= line && s.endLine >= line
-    )?.name;
+    )?.name
   }
 }
 ```
@@ -1354,52 +1354,52 @@ export class MCPTools {
 **Location**: `noodles-editor/src/claude/ClaudeClient.ts`
 
 ```typescript
-import Anthropic from '@anthropic-ai/sdk';
-import { MCPTools, ToolResult } from './MCPTools';
-import type { NoodlesProject } from '../noodles/noodles';
+import Anthropic from '@anthropic-ai/sdk'
+import { MCPTools, ToolResult } from './MCPTools'
+import type { NoodlesProject } from '../noodles/noodles'
 
 export interface Message {
-  role: 'user' | 'assistant';
-  content: string;
+  role: 'user' | 'assistant'
+  content: string
 }
 
 export interface ClaudeResponse {
-  message: string;
-  projectModifications?: ProjectModification[];
-  toolCalls?: ToolCall[];
+  message: string
+  projectModifications?: ProjectModification[]
+  toolCalls?: ToolCall[]
 }
 
 export interface ProjectModification {
-  type: 'add_node' | 'update_node' | 'delete_node' | 'add_edge' | 'delete_edge';
-  data: any;
+  type: 'add_node' | 'update_node' | 'delete_node' | 'add_edge' | 'delete_edge'
+  data: any
 }
 
 export interface ToolCall {
-  name: string;
-  params: any;
-  result: ToolResult;
+  name: string
+  params: any
+  result: ToolResult
 }
 
 export class ClaudeClient {
-  private client: Anthropic;
-  private tools: MCPTools;
-  private conversationHistory: Message[] = [];
+  private client: Anthropic
+  private tools: MCPTools
+  private conversationHistory: Message[] = []
 
   constructor(apiKey: string, tools: MCPTools) {
-    this.client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
-    this.tools = tools;
+    this.client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true })
+    this.tools = tools
   }
 
   // Send a message to Claude with current project context
   async sendMessage(params: {
-    message: string;
-    project: NoodlesProject;
-    conversationHistory?: Message[];
+    message: string
+    project: NoodlesProject
+    conversationHistory?: Message[]
   }): Promise<ClaudeResponse> {
-    const { message, project, conversationHistory = [] } = params;
+    const { message, project, conversationHistory = [] } = params
 
     // Build system prompt with project context
-    const systemPrompt = this.buildSystemPrompt(project);
+    const systemPrompt = this.buildSystemPrompt(project)
 
     // Prepare messages
     const messages: Anthropic.MessageParam[] = [
@@ -1411,7 +1411,7 @@ export class ClaudeClient {
         role: 'user' as const,
         content: message
       }
-    ];
+    ]
 
     // Define tools for Claude
     const tools: Anthropic.Tool[] = [
@@ -1568,7 +1568,7 @@ export class ClaudeClient {
           required: ['project', 'analysisType']
         }
       }
-    ];
+    ]
 
     // Send to Claude
     let response = await this.client.messages.create({
@@ -1577,10 +1577,10 @@ export class ClaudeClient {
       system: systemPrompt,
       messages,
       tools
-    });
+    })
 
-    const toolCalls: ToolCall[] = [];
-    let finalText = '';
+    const toolCalls: ToolCall[] = []
+    let finalText = ''
 
     // Handle tool use loop
     while (response.stop_reason === 'tool_use') {
@@ -1588,24 +1588,24 @@ export class ClaudeClient {
       const toolResults: Anthropic.MessageParam = {
         role: 'user',
         content: []
-      };
+      }
 
       for (const content of response.content) {
         if (content.type === 'tool_use') {
-          const result = await this.executeTool(content.name, content.input);
+          const result = await this.executeTool(content.name, content.input)
           toolCalls.push({
             name: content.name,
             params: content.input,
             result
-          });
+          })
 
           (toolResults.content as any[]).push({
             type: 'tool_result',
             tool_use_id: content.id,
             content: JSON.stringify(result)
-          });
+          })
         } else if (content.type === 'text') {
-          finalText += content.text;
+          finalText += content.text
         }
       }
 
@@ -1613,8 +1613,8 @@ export class ClaudeClient {
       messages.push({
         role: 'assistant',
         content: response.content
-      });
-      messages.push(toolResults);
+      })
+      messages.push(toolResults)
 
       response = await this.client.messages.create({
         model: 'claude-3-5-sonnet-20241022',
@@ -1622,24 +1622,24 @@ export class ClaudeClient {
         system: systemPrompt,
         messages,
         tools
-      });
+      })
     }
 
     // Extract final text response
     for (const content of response.content) {
       if (content.type === 'text') {
-        finalText += content.text;
+        finalText += content.text
       }
     }
 
     // Parse project modifications from response
-    const projectModifications = this.extractProjectModifications(finalText);
+    const projectModifications = this.extractProjectModifications(finalText)
 
     return {
       message: finalText,
       projectModifications,
       toolCalls
-    };
+    }
   }
 
   private buildSystemPrompt(project: NoodlesProject): string {
@@ -1735,7 +1735,7 @@ Common operators you'll work with:
 - **Reactive references**: Use \`op('/path').par.field\` in CodeOp/ExpressionOp or \`{{/path.out.field}}\` in DuckDbOp.
 - **Theatre.js timeline**: Any operator input can be keyframed for animation.
 
-Be helpful, thorough, and always validate your suggestions against the actual operator schemas!`;
+Be helpful, thorough, and always validate your suggestions against the actual operator schemas!`
   }
 
   private async executeTool(name: string, params: any): Promise<ToolResult> {
@@ -1749,17 +1749,17 @@ Be helpful, thorough, and always validate your suggestions against the actual op
       list_examples: (p) => this.tools.listExamples(p),
       find_symbol: (p) => this.tools.findSymbol(p),
       analyze_project: (p) => this.tools.analyzeProject(p)
-    };
+    }
 
-    const method = methodMap[name];
+    const method = methodMap[name]
     if (!method) {
       return {
         success: false,
         error: `Unknown tool: ${name}`
-      };
+      }
     }
 
-    return method(params);
+    return method(params)
   }
 
   private extractProjectModifications(text: string): ProjectModification[] {
@@ -1840,38 +1840,38 @@ This makes Claude significantly more effective at debugging visual issues like "
 
 ```typescript
 export class MCPTools {
-  private canvasRef: HTMLCanvasElement | null = null;
-  private consoleErrors: ConsoleError[] = [];
+  private canvasRef: HTMLCanvasElement | null = null
+  private consoleErrors: ConsoleError[] = []
 
   constructor(private contextLoader: ContextLoader) {
-    this.setupConsoleTracking();
+    this.setupConsoleTracking()
   }
 
   // Set reference to deck.gl canvas for screenshot capture
   setCanvasRef(canvas: HTMLCanvasElement | null) {
-    this.canvasRef = canvas;
+    this.canvasRef = canvas
   }
 
   // Capture screenshot of the current visualization
   async captureVisualization(params: {
-    includeUI?: boolean;
-    format?: 'png' | 'jpeg';
-    quality?: number;
+    includeUI?: boolean
+    format?: 'png' | 'jpeg'
+    quality?: number
   }): Promise<ToolResult> {
     try {
       if (!this.canvasRef) {
         return {
           success: false,
           error: 'Canvas not available. Make sure deck.gl is initialized.'
-        };
+        }
       }
 
-      const format = params.format || 'png';
-      const quality = params.quality || 0.95;
+      const format = params.format || 'png'
+      const quality = params.quality || 0.95
 
       // Capture canvas
-      const dataUrl = this.canvasRef.toDataURL(`image/${format}`, quality);
-      const base64 = dataUrl.split(',')[1];
+      const dataUrl = this.canvasRef.toDataURL(`image/${format}`, quality)
+      const base64 = dataUrl.split(',')[1]
 
       return {
         success: true,
@@ -1883,34 +1883,34 @@ export class MCPTools {
           timestamp: Date.now(),
           pixelRatio: window.devicePixelRatio
         }
-      };
+      }
     } catch (error) {
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Screenshot capture failed'
-      };
+      }
     }
   }
 
   // Get recent console errors and warnings
   async getConsoleErrors(params: {
     since?: number; // Timestamp
-    level?: 'error' | 'warn' | 'all';
-    maxResults?: number;
+    level?: 'error' | 'warn' | 'all'
+    maxResults?: number
   }): Promise<ToolResult> {
     try {
       const since = params.since || Date.now() - (5 * 60 * 1000); // Default: last 5 minutes
-      const level = params.level || 'all';
-      const maxResults = params.maxResults || 50;
+      const level = params.level || 'all'
+      const maxResults = params.maxResults || 50
 
-      let filtered = this.consoleErrors.filter(err => err.timestamp >= since);
+      let filtered = this.consoleErrors.filter(err => err.timestamp >= since)
 
       if (level !== 'all') {
-        filtered = filtered.filter(err => err.level === level);
+        filtered = filtered.filter(err => err.level === level)
       }
 
       // Sort by timestamp (newest first)
-      filtered.sort((a, b) => b.timestamp - a.timestamp);
+      filtered.sort((a, b) => b.timestamp - a.timestamp)
 
       return {
         success: true,
@@ -1920,30 +1920,30 @@ export class MCPTools {
           since,
           level
         }
-      };
+      }
     } catch (error) {
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to retrieve console errors'
-      };
+      }
     }
   }
 
   // Get deck.gl rendering statistics
   async getRenderStats(): Promise<ToolResult> {
     try {
-      const stats = (window as any).__deckStats;
+      const stats = (window as any).__deckStats
 
       if (!stats) {
         return {
           success: false,
           error: 'Deck.gl stats not available. Ensure onAfterRender is configured.'
-        };
+        }
       }
 
       // Also get general performance metrics
-      const memory = (performance as any).memory;
-      const navigation = performance.getEntriesByType('navigation')[0] as any;
+      const memory = (performance as any).memory
+      const navigation = performance.getEntriesByType('navigation')[0] as any
 
       return {
         success: true,
@@ -1966,36 +1966,36 @@ export class MCPTools {
             domContentLoaded: navigation?.domContentLoadedEventEnd - navigation?.fetchStart
           }
         }
-      };
+      }
     } catch (error) {
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to retrieve render stats'
-      };
+      }
     }
   }
 
   // Inspect a specific layer in the visualization
   async inspectLayer(params: { layerId: string }): Promise<ToolResult> {
     try {
-      const deckInstance = (window as any).__deckInstance;
+      const deckInstance = (window as any).__deckInstance
 
       if (!deckInstance) {
         return {
           success: false,
           error: 'Deck.gl instance not available'
-        };
+        }
       }
 
       // Find layer by ID
-      const layers = deckInstance.layerManager?.getLayers() || [];
-      const layer = layers.find((l: any) => l.id === params.layerId);
+      const layers = deckInstance.layerManager?.getLayers() || []
+      const layer = layers.find((l: any) => l.id === params.layerId)
 
       if (!layer) {
         return {
           success: false,
           error: `Layer not found: ${params.layerId}`
-        };
+        }
       }
 
       // Extract layer information
@@ -2013,31 +2013,31 @@ export class MCPTools {
           error: layer.state?.error
         },
         props: Object.keys(layer.props).reduce((acc: any, key) => {
-          const value = layer.props[key];
+          const value = layer.props[key]
           // Only include serializable props
           if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-            acc[key] = value;
+            acc[key] = value
           }
-          return acc;
+          return acc
         }, {})
-      };
+      }
 
       return {
         success: true,
         data: layerInfo
-      };
+      }
     } catch (error) {
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to inspect layer'
-      };
+      }
     }
   }
 
   // Set up console error/warning tracking
   private setupConsoleTracking() {
     // Intercept console.error
-    const originalError = console.error;
+    const originalError = console.error
     console.error = (...args: any[]) => {
       this.consoleErrors.push({
         level: 'error',
@@ -2046,18 +2046,18 @@ export class MCPTools {
         ).join(' '),
         stack: new Error().stack,
         timestamp: Date.now()
-      });
+      })
 
       // Limit stored errors
       if (this.consoleErrors.length > 100) {
-        this.consoleErrors = this.consoleErrors.slice(-100);
+        this.consoleErrors = this.consoleErrors.slice(-100)
       }
 
-      originalError.apply(console, args);
-    };
+      originalError.apply(console, args)
+    }
 
     // Intercept console.warn
-    const originalWarn = console.warn;
+    const originalWarn = console.warn
     console.warn = (...args: any[]) => {
       this.consoleErrors.push({
         level: 'warn',
@@ -2066,14 +2066,14 @@ export class MCPTools {
         ).join(' '),
         stack: new Error().stack,
         timestamp: Date.now()
-      });
+      })
 
       if (this.consoleErrors.length > 100) {
-        this.consoleErrors = this.consoleErrors.slice(-100);
+        this.consoleErrors = this.consoleErrors.slice(-100)
       }
 
-      originalWarn.apply(console, args);
-    };
+      originalWarn.apply(console, args)
+    }
 
     // Track unhandled errors
     window.addEventListener('error', (event) => {
@@ -2085,8 +2085,8 @@ export class MCPTools {
         colno: event.colno,
         stack: event.error?.stack,
         timestamp: Date.now()
-      });
-    });
+      })
+    })
 
     // Track unhandled promise rejections
     window.addEventListener('unhandledrejection', (event) => {
@@ -2095,19 +2095,19 @@ export class MCPTools {
         message: `Unhandled Promise Rejection: ${event.reason}`,
         stack: event.reason?.stack,
         timestamp: Date.now()
-      });
-    });
+      })
+    })
   }
 }
 
 interface ConsoleError {
-  level: 'error' | 'warn';
-  message: string;
-  filename?: string;
-  lineno?: number;
-  colno?: number;
-  stack?: string;
-  timestamp: number;
+  level: 'error' | 'warn'
+  message: string
+  filename?: string
+  lineno?: number
+  colno?: number
+  stack?: string
+  timestamp: number
 }
 ```
 
@@ -2116,7 +2116,7 @@ interface ConsoleError {
 **Location**: `noodles-editor/src/render/DeckRenderer.tsx` (or wherever Deck is initialized)
 
 ```typescript
-import { Deck } from '@deck.gl/core';
+import { Deck } from '@deck.gl/core'
 
 // When initializing deck.gl
 const deck = new Deck({
@@ -2130,19 +2130,19 @@ const deck = new Deck({
       layerCount: params.layerManager.getLayers().length,
       drawCalls: params.stats?.drawCalls || 0,
       timestamp: Date.now()
-    };
+    }
   }
-});
+})
 
 // Expose deck instance globally
-(window as any).__deckInstance = deck;
+(window as any).__deckInstance = deck
 
 // Pass canvas ref to MCPTools
 useEffect(() => {
   if (canvasRef.current && mcpTools) {
-    mcpTools.setCanvasRef(canvasRef.current);
+    mcpTools.setCanvasRef(canvasRef.current)
   }
-}, [canvasRef.current, mcpTools]);
+}, [canvasRef.current, mcpTools])
 ```
 
 #### Enhanced Claude Client with Vision
@@ -2154,32 +2154,32 @@ export class ClaudeClient {
   // ... existing code ...
 
   async sendMessage(params: {
-    message: string;
-    project: NoodlesProject;
+    message: string
+    project: NoodlesProject
     screenshot?: string; // Base64-encoded image
     autoCapture?: boolean; // Auto-capture on visual keywords
-    conversationHistory?: Message[];
+    conversationHistory?: Message[]
   }): Promise<ClaudeResponse> {
-    const { message, project, conversationHistory = [] } = params;
+    const { message, project, conversationHistory = [] } = params
 
     // Auto-capture screenshot if message suggests visual issue
-    let screenshot = params.screenshot;
-    const visualKeywords = ['see', 'look', 'show', 'appear', 'display', 'visual', 'render', 'color', 'layer'];
+    let screenshot = params.screenshot
+    const visualKeywords = ['see', 'look', 'show', 'appear', 'display', 'visual', 'render', 'color', 'layer']
     const shouldAutoCapture = params.autoCapture !== false &&
-      visualKeywords.some(kw => message.toLowerCase().includes(kw));
+      visualKeywords.some(kw => message.toLowerCase().includes(kw))
 
     if (shouldAutoCapture && !screenshot) {
-      const result = await this.tools.captureVisualization({});
+      const result = await this.tools.captureVisualization({})
       if (result.success) {
-        screenshot = result.data.screenshot;
+        screenshot = result.data.screenshot
       }
     }
 
     // Build system prompt
-    const systemPrompt = this.buildSystemPrompt(project);
+    const systemPrompt = this.buildSystemPrompt(project)
 
     // Prepare message content (with optional screenshot)
-    const userContent: any[] = [{ type: 'text', text: message }];
+    const userContent: any[] = [{ type: 'text', text: message }]
 
     if (screenshot) {
       userContent.push({
@@ -2189,7 +2189,7 @@ export class ClaudeClient {
           media_type: 'image/png',
           data: screenshot
         }
-      });
+      })
     }
 
     const messages: Anthropic.MessageParam[] = [
@@ -2201,7 +2201,7 @@ export class ClaudeClient {
         role: 'user' as const,
         content: userContent
       }
-    ];
+    ]
 
     // Add visual debugging tools
     const visualTools: Anthropic.Tool[] = [
@@ -2267,10 +2267,10 @@ export class ClaudeClient {
           required: ['layerId']
         }
       }
-    ];
+    ]
 
     // Combine with existing tools
-    const allTools = [...this.getStandardTools(), ...visualTools];
+    const allTools = [...this.getStandardTools(), ...visualTools]
 
     // Send to Claude (rest of implementation same as before)
     let response = await this.client.messages.create({
@@ -2279,7 +2279,7 @@ export class ClaudeClient {
       system: systemPrompt,
       messages,
       tools: allTools
-    });
+    })
 
     // ... rest of existing tool execution loop ...
   }
@@ -2366,7 +2366,7 @@ ${JSON.stringify(project, null, 2)}
 
 (... existing guidelines ...)
 
-Be helpful, thorough, and use your vision capabilities to provide comprehensive visual debugging!`;
+Be helpful, thorough, and use your vision capabilities to provide comprehensive visual debugging!`
   }
 
   private async executeTool(name: string, params: any): Promise<ToolResult> {
@@ -2387,24 +2387,24 @@ Be helpful, thorough, and use your vision capabilities to provide comprehensive 
       get_console_errors: (p) => this.tools.getConsoleErrors(p),
       get_render_stats: (p) => this.tools.getRenderStats(p),
       inspect_layer: (p) => this.tools.inspectLayer(p)
-    };
+    }
 
-    const method = methodMap[name];
+    const method = methodMap[name]
     if (!method) {
       return {
         success: false,
         error: `Unknown tool: ${name}`
-      };
+      }
     }
 
-    return method(params);
+    return method(params)
   }
 
   private getStandardTools(): Anthropic.Tool[] {
     // Return the original tools array from section 3.3
     return [
       // ... all the existing tools ...
-    ];
+    ]
   }
 }
 ```
@@ -2415,13 +2415,13 @@ Be helpful, thorough, and use your vision capabilities to provide comprehensive 
 
 ```typescript
 export const ChatPanel: React.FC<ChatPanelProps> = ({ onClose, isPopout }) => {
-  const [autoCapture, setAutoCapture] = useState(true);
-  const [lastScreenshot, setLastScreenshot] = useState<string | null>(null);
+  const [autoCapture, setAutoCapture] = useState(true)
+  const [lastScreenshot, setLastScreenshot] = useState<string | null>(null)
 
   // ... existing state ...
 
   const handleSend = async () => {
-    if (!input.trim() || !claudeClient || !project) return;
+    if (!input.trim() || !claudeClient || !project) return
 
     // ... existing message setup ...
 
@@ -2431,24 +2431,24 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ onClose, isPopout }) => {
         project,
         autoCapture, // Pass auto-capture preference
         conversationHistory: messages
-      });
+      })
 
       // ... handle response ...
     } catch (error) {
       // ... handle error ...
     }
-  };
+  }
 
   const handleManualCapture = async () => {
-    if (!mcpTools) return;
+    if (!mcpTools) return
 
-    const result = await mcpTools.captureVisualization({});
+    const result = await mcpTools.captureVisualization({})
     if (result.success) {
-      setLastScreenshot(result.data.screenshot);
+      setLastScreenshot(result.data.screenshot)
       // Show preview or add to next message
-      alert('Screenshot captured! It will be included with your next message.');
+      alert('Screenshot captured! It will be included with your next message.')
     }
-  };
+  }
 
   return (
     <div className="chat-panel">
@@ -2477,8 +2477,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ onClose, isPopout }) => {
 
       {/* ... rest of UI ... */}
     </div>
-  );
-};
+  )
+}
 ```
 
 **Location**: Add to `noodles-editor/src/claude/ChatPanel.css`
@@ -2649,148 +2649,148 @@ Add to `noodles-editor/package.json`:
 **Location**: `noodles-editor/src/claude/ChatPanel.tsx`
 
 ```typescript
-import React, { useState, useEffect, useRef } from 'react';
-import { ClaudeClient, Message, ClaudeResponse } from './ClaudeClient';
-import { ContextLoader } from './ContextLoader';
-import { MCPTools } from './MCPTools';
-import { useNoodlesStore } from '../noodles/store';
-import type { NoodlesProject } from '../noodles/noodles';
-import './ChatPanel.css';
+import React, { useState, useEffect, useRef } from 'react'
+import { ClaudeClient, Message, ClaudeResponse } from './ClaudeClient'
+import { ContextLoader } from './ContextLoader'
+import { MCPTools } from './MCPTools'
+import { useNoodlesStore } from '../noodles/store'
+import type { NoodlesProject } from '../noodles/noodles'
+import './ChatPanel.css'
 
 interface ChatPanelProps {
-  onClose?: () => void;
-  isPopout?: boolean;
+  onClose?: () => void
+  isPopout?: boolean
 }
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({ onClose, isPopout = false }) => {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [contextLoading, setContextLoading] = useState(true);
-  const [apiKey, setApiKey] = useState<string>('');
-  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
-  const [claudeClient, setClaudeClient] = useState<ClaudeClient | null>(null);
+  const [messages, setMessages] = useState<Message[]>([])
+  const [input, setInput] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [contextLoading, setContextLoading] = useState(true)
+  const [apiKey, setApiKey] = useState<string>('')
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false)
+  const [claudeClient, setClaudeClient] = useState<ClaudeClient | null>(null)
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const project = useNoodlesStore(state => state.project);
-  const updateProject = useNoodlesStore(state => state.updateProject);
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const project = useNoodlesStore(state => state.project)
+  const updateProject = useNoodlesStore(state => state.updateProject)
 
   // Initialize context loader and Claude client
   useEffect(() => {
     const init = async () => {
       // Load API key from localStorage
-      const storedKey = localStorage.getItem('noodles-claude-api-key');
+      const storedKey = localStorage.getItem('noodles-claude-api-key')
       if (!storedKey) {
-        setShowApiKeyModal(true);
-        setContextLoading(false);
-        return;
+        setShowApiKeyModal(true)
+        setContextLoading(false)
+        return
       }
 
-      setApiKey(storedKey);
+      setApiKey(storedKey)
 
       // Load context
-      const loader = new ContextLoader();
+      const loader = new ContextLoader()
       await loader.load((progress) => {
-        console.log('Loading context:', progress);
-      });
+        console.log('Loading context:', progress)
+      })
 
       // Initialize tools and client
-      const tools = new MCPTools(loader);
-      const client = new ClaudeClient(storedKey, tools);
-      setClaudeClient(client);
-      setContextLoading(false);
-    };
+      const tools = new MCPTools(loader)
+      const client = new ClaudeClient(storedKey, tools)
+      setClaudeClient(client)
+      setContextLoading(false)
+    }
 
-    init();
-  }, []);
+    init()
+  }, [])
 
   // Auto-scroll to bottom
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
 
   const handleSend = async () => {
-    if (!input.trim() || !claudeClient || !project) return;
+    if (!input.trim() || !claudeClient || !project) return
 
     const userMessage: Message = {
       role: 'user',
       content: input
-    };
+    }
 
-    setMessages(prev => [...prev, userMessage]);
-    setInput('');
-    setLoading(true);
+    setMessages(prev => [...prev, userMessage])
+    setInput('')
+    setLoading(true)
 
     try {
       const response = await claudeClient.sendMessage({
         message: input,
         project,
         conversationHistory: messages
-      });
+      })
 
       const assistantMessage: Message = {
         role: 'assistant',
         content: response.message
-      };
+      }
 
-      setMessages(prev => [...prev, assistantMessage]);
+      setMessages(prev => [...prev, assistantMessage])
 
       // Apply project modifications if any
       if (response.projectModifications && response.projectModifications.length > 0) {
-        applyProjectModifications(response.projectModifications, project);
+        applyProjectModifications(response.projectModifications, project)
       }
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('Error sending message:', error)
       const errorMessage: Message = {
         role: 'assistant',
         content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
-      };
-      setMessages(prev => [...prev, errorMessage]);
+      }
+      setMessages(prev => [...prev, errorMessage])
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const applyProjectModifications = (modifications: any[], currentProject: NoodlesProject) => {
-    let updatedProject = { ...currentProject };
+    let updatedProject = { ...currentProject }
 
     modifications.forEach(mod => {
       switch (mod.type) {
         case 'add_node':
-          updatedProject.nodes.push(mod.data);
-          break;
+          updatedProject.nodes.push(mod.data)
+          break
         case 'update_node':
           updatedProject.nodes = updatedProject.nodes.map(node =>
             node.id === mod.data.id ? { ...node, ...mod.data } : node
-          );
-          break;
+          )
+          break
         case 'delete_node':
           updatedProject.nodes = updatedProject.nodes.filter(
             node => node.id !== mod.data.id
-          );
-          break;
+          )
+          break
         case 'add_edge':
-          updatedProject.edges.push(mod.data);
-          break;
+          updatedProject.edges.push(mod.data)
+          break
         case 'delete_edge':
           updatedProject.edges = updatedProject.edges.filter(
             edge => edge.id !== mod.data.id
-          );
-          break;
+          )
+          break
       }
-    });
+    })
 
-    updateProject(updatedProject);
-  };
+    updateProject(updatedProject)
+  }
 
   const handleApiKeySubmit = (key: string) => {
-    localStorage.setItem('noodles-claude-api-key', key);
-    setApiKey(key);
-    setShowApiKeyModal(false);
+    localStorage.setItem('noodles-claude-api-key', key)
+    setApiKey(key)
+    setShowApiKeyModal(false)
 
     // Re-initialize with new key
-    window.location.reload();
-  };
+    window.location.reload()
+  }
 
   const handlePopout = () => {
     // Open chat panel in new window
@@ -2798,15 +2798,15 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ onClose, isPopout = false 
       '/chat-panel',
       'Noodles.gl Chat',
       'width=600,height=800,resizable=yes'
-    );
+    )
 
     if (popout && onClose) {
-      onClose();
+      onClose()
     }
-  };
+  }
 
   if (showApiKeyModal) {
-    return <ApiKeyModal onSubmit={handleApiKeySubmit} />;
+    return <ApiKeyModal onSubmit={handleApiKeySubmit} />
   }
 
   if (contextLoading) {
@@ -2817,7 +2817,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ onClose, isPopout = false 
           <p>Loading context...</p>
         </div>
       </div>
-    );
+    )
   }
 
   return (
@@ -2902,8 +2902,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ onClose, isPopout = false 
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              handleSend();
+              e.preventDefault()
+              handleSend()
             }
           }}
           placeholder="Ask Claude for help..."
@@ -2919,8 +2919,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ onClose, isPopout = false 
         </button>
       </div>
     </div>
-  );
-};
+  )
+}
 
 // Render message content with markdown support
 const MessageContent: React.FC<{ content: string }> = ({ content }) => {
@@ -3321,10 +3321,10 @@ The chat panel integrates with Noodles.gl's existing store (likely Redux or Zust
 
 ```typescript
 // Example integration with global undo
-import { useUndoStore } from '../undo/store';
+import { useUndoStore } from '../undo/store'
 
 const applyProjectModifications = (modifications: any[], currentProject: NoodlesProject) => {
-  const undoStore = useUndoStore.getState();
+  const undoStore = useUndoStore.getState()
 
   // Create undo snapshot before applying changes
   undoStore.pushSnapshot({
@@ -3332,16 +3332,16 @@ const applyProjectModifications = (modifications: any[], currentProject: Noodles
     description: 'Claude AI modifications',
     previousState: currentProject,
     modifications
-  });
+  })
 
   // Apply modifications
-  let updatedProject = { ...currentProject };
+  let updatedProject = { ...currentProject }
   modifications.forEach(mod => {
     // ... apply modifications
-  });
+  })
 
-  updateProject(updatedProject);
-};
+  updateProject(updatedProject)
+}
 ```
 
 ---
@@ -3373,8 +3373,8 @@ Add to `noodles-editor/package.json`:
 Update `noodles-editor/vite.config.ts`:
 
 ```typescript
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
@@ -3384,14 +3384,14 @@ export default defineConfig({
         // Ensure context bundles are copied to dist
         assetFileNames: (assetInfo) => {
           if (assetInfo.name?.includes('context/')) {
-            return 'context/[name].[hash][extname]';
+            return 'context/[name].[hash][extname]'
           }
-          return 'assets/[name].[hash][extname]';
+          return 'assets/[name].[hash][extname]'
         }
       }
     }
   }
-});
+})
 ```
 
 ### 6.3 TypeScript Configuration
