@@ -7,6 +7,11 @@ import { MCPTools } from './mcp-tools'
 import type { Message, ClaudeResponse, ProjectModification, ToolCall, ToolResult } from './types'
 
 export class ClaudeClient {
+  // Configuration constants
+  private static readonly MODEL = 'claude-3-5-sonnet-20241022'
+  private static readonly MAX_TOKENS = 8192
+  private static readonly MAX_CONVERSATION_HISTORY = 4 // Keep only last 2 exchanges (4 messages) to prevent token overflow
+
   private client: Anthropic
   private tools: MCPTools
   private conversationHistory: Message[] = []
@@ -14,6 +19,55 @@ export class ClaudeClient {
   constructor(apiKey: string, tools: MCPTools) {
     this.client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true })
     this.tools = tools
+  }
+
+  /**
+   * Strip images from message content to reduce token usage in conversation history
+   */
+  private stripImages(content: string | any[]): string {
+    // If content is already a string, return as-is
+    if (typeof content === 'string') {
+      return content
+    }
+
+    // If content is an array (multi-part message with text and images)
+    // Extract only text parts and concatenate them
+    if (Array.isArray(content)) {
+      return content
+        .filter(part => part.type === 'text')
+        .map(part => part.text)
+        .join('\n')
+    }
+
+    return String(content)
+  }
+
+  // Sanitize tool results to remove large data (screenshots) that would cause token overflow
+  // Screenshots are attached as images in the next message instead
+  private sanitizeToolResult(result: ToolResult): ToolResult {
+    if (!result.success || !result.data) {
+      return result
+    }
+
+    const data = { ...result.data }
+
+    // Remove screenshot data but keep metadata
+    if ('screenshot' in data) {
+      delete data.screenshot
+      // Let Claude know the screenshot will be attached
+      return {
+        success: true,
+        data: {
+          ...data,
+          message: 'Screenshot captured successfully and attached to this message for your analysis'
+        }
+      }
+    }
+
+    return {
+      ...result,
+      data
+    }
   }
 
   /**
@@ -28,6 +82,9 @@ export class ClaudeClient {
   }): Promise<ClaudeResponse> {
     const { message, project, conversationHistory = [] } = params
 
+    // Limit conversation history to prevent token overflow
+    const limitedHistory = conversationHistory.slice(-ClaudeClient.MAX_CONVERSATION_HISTORY)
+
     // Auto-capture screenshot if message suggests visual issue
     let screenshot = params.screenshot
     const visualKeywords = ['see', 'look', 'show', 'appear', 'display', 'visual', 'render', 'color', 'layer']
@@ -35,7 +92,8 @@ export class ClaudeClient {
       visualKeywords.some(kw => message.toLowerCase().includes(kw))
 
     if (shouldAutoCapture && !screenshot) {
-      const result = await this.tools.captureVisualization({})
+      // Use lower quality and JPEG for auto-capture to reduce token usage
+      const result = await this.tools.captureVisualization({ format: 'jpeg', quality: 0.5 })
       if (result.success) {
         screenshot = result.data.screenshot
       }
@@ -52,16 +110,18 @@ export class ClaudeClient {
         type: 'image',
         source: {
           type: 'base64',
-          media_type: 'image/png',
+          media_type: 'image/jpeg',
           data: screenshot
         }
       })
     }
 
+    // Strip images from conversation history to drastically reduce token usage
+    // Images are only included in the current message, not in history
     const messages: Anthropic.MessageParam[] = [
-      ...conversationHistory.map(m => ({
+      ...limitedHistory.map(m => ({
         role: m.role,
-        content: m.content
+        content: this.stripImages(m.content)
       })),
       {
         role: 'user' as const,
@@ -74,8 +134,8 @@ export class ClaudeClient {
 
     // Send to Claude
     let response = await this.client.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
-      max_tokens: 8192,
+      model: ClaudeClient.MODEL,
+      max_tokens: ClaudeClient.MAX_TOKENS,
       system: systemPrompt,
       messages,
       tools
@@ -83,6 +143,7 @@ export class ClaudeClient {
 
     const toolCalls: ToolCall[] = []
     let finalText = ''
+    let capturedScreenshot: string | null = null
 
     // Handle tool use loop
     while (response.stop_reason === 'tool_use') {
@@ -93,17 +154,41 @@ export class ClaudeClient {
 
       for (const content of response.content) {
         if (content.type === 'tool_use') {
-          const result = await this.executeTool(content.name, content.input)
-          toolCalls.push({
-            name: content.name,
-            params: content.input,
-            result
-          })
+          let result: ToolResult
+          try {
+            result = await this.executeTool(content.name, content.input)
+            toolCalls.push({
+              name: content.name,
+              params: content.input,
+              result
+            })
+
+            // If this was a capture_visualization call, save the screenshot
+            // to attach to the next message instead of in the tool result
+            if (content.name === 'capture_visualization' && result.success && result.data?.screenshot) {
+              capturedScreenshot = result.data.screenshot
+            }
+          } catch (error) {
+            console.error('Error executing tool:', content.name, error)
+            result = {
+              success: false,
+              error: error instanceof Error ? error.message : 'Unknown error executing tool'
+            }
+            toolCalls.push({
+              name: content.name,
+              params: content.input,
+              result
+            })
+          }
+
+          // Strip large data (like screenshots) from tool results before sending back to Claude
+          // to prevent token overflow. Screenshots are attached as images in the next message.
+          const sanitizedResult = this.sanitizeToolResult(result)
 
           (toolResults.content as any[]).push({
             type: 'tool_result',
             tool_use_id: content.id,
-            content: JSON.stringify(result)
+            content: JSON.stringify(sanitizedResult)
           })
         } else if (content.type === 'text') {
           finalText += content.text
@@ -115,11 +200,35 @@ export class ClaudeClient {
         role: 'assistant',
         content: response.content
       })
-      messages.push(toolResults)
+
+      // If we captured a screenshot, attach it as an image to the tool result message
+      if (capturedScreenshot) {
+        const toolResultsWithImage: any[] = Array.isArray(toolResults.content)
+          ? [...toolResults.content]
+          : []
+
+        toolResultsWithImage.push({
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: 'image/jpeg',
+            data: capturedScreenshot
+          }
+        })
+
+        messages.push({
+          role: 'user',
+          content: toolResultsWithImage
+        })
+
+        capturedScreenshot = null // Reset for next iteration
+      } else {
+        messages.push(toolResults)
+      }
 
       response = await this.client.messages.create({
-        model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 8192,
+        model: ClaudeClient.MODEL,
+        max_tokens: ClaudeClient.MAX_TOKENS,
         system: systemPrompt,
         messages,
         tools
@@ -144,244 +253,37 @@ export class ClaudeClient {
   }
 
   private buildSystemPrompt(project: any): string {
-    const nodeTypes = [...new Set((project.nodes || []).map((n: any) => n.type))].join(', ')
-    const hasContext = this.tools.hasContext()
+    const nodeCount = (project.nodes || []).length
+    const edgeCount = (project.edges || []).length
 
-    const capabilities = hasContext
-      ? `You have access to tools that let you:
-1. Search the Noodles.gl source code to understand operator implementations
-2. Get complete operator schemas with input/output types
-3. Access comprehensive documentation for users and developers
-4. View example projects with annotations
-5. Analyze the current project for issues and opportunities
-6. **Capture screenshots of the visualization**
-7. **Track console errors and warnings**
-8. **Access rendering performance metrics**
-9. **Inspect individual layers**`
-      : `You have access to visual debugging tools that let you:
-1. **Capture screenshots of the visualization**
-2. **Track console errors and warnings**
-3. **Access rendering performance metrics**
-4. **Inspect individual layers**
+    return `You are an AI assistant for Noodles.gl, a node-based geospatial visualization editor.
 
-**Note**: Advanced features (code search, operator schemas, documentation) are currently unavailable. To enable them, run: \`yarn generate:context\``
+**Project**: ${nodeCount} nodes, ${edgeCount} connections
 
-    return `You are an AI assistant integrated into Noodles.gl, a node-based editor for creating geospatial visualizations and data presentations.
+**Key Rules**:
+- Always arrange nodes LEFT to RIGHT (data sources left, layers middle, output right)
+- Verify work with \`capture_visualization\` after changes
+- Don't output code unless asked - use the node graph
+- Output modifications as JSON: \`{"modifications": [{"type": "add_node", "data": {...}}]}\`
 
-## Your Capabilities
+**Common Operators**: FileOp, JSONOp, DuckDbOp, GeoJsonLayerOp, ScatterplotLayerOp, HexagonLayerOp, DeckRendererOp, OutOp
 
-${capabilities}
-
-## Visual Debugging
-
-You have vision capabilities! When users report visual issues or ask about appearance:
-
-1. **Use \`capture_visualization\`** to see what they're seeing
-2. **Use \`get_console_errors\`** to check for runtime errors
-3. **Use \`get_render_stats\`** for performance issues
-4. **Use \`inspect_layer\`** to debug specific layers
-
-Always explain what you see in screenshots and correlate visual output with code.
-
-## Current Project Context
-
-The user is working on a project with:
-- ${(project.nodes || []).length} nodes (operators)
-- ${(project.edges || []).length} connections (edges)
-
-Node types in use: ${nodeTypes || 'none'}
-
-Current project structure:
-\`\`\`json
-${JSON.stringify(project, null, 2)}
-\`\`\`
-
-## Guidelines for Helping Users
-
-1. **Understanding requests**: When users ask to create visualizations, first understand their data source, visualization type, and desired operators.
-
-2. **Using tools effectively**: ${hasContext ? 'Use `list_operators` to find relevant types, `get_operator_schema` to understand inputs, and `get_example` to see patterns.' : 'Use visual debugging tools to help diagnose issues with visualizations.'}
-
-3. **Modifying projects**: When suggesting changes, provide complete node and edge specifications with proper operator paths.
-
-4. **IMPORTANT - Node layout**: When creating or modifying nodes:
-   - **Always arrange nodes as a tree to the LEFT of the "out" node** (which is typically at x: 800, y: 400)
-   - Place data source nodes on the far left (x: 0-200)
-   - Place transformation/layer nodes in the middle (x: 300-600)
-   - Connect all nodes so data flows from left to right, ending at the "out" node
-   - **Always wire up connections so the data is visible** - ensure all nodes connect to the output or a viewer
-
-5. **IMPORTANT - Code output**: **Do not output code snippets or implementation details unless explicitly asked**. Focus on:
-   - Creating visualizations through the node graph
-   - Explaining what the visualization does
-   - Modifying the node graph to achieve the desired result
-
-6. **CRITICAL - Verification after data operations**: When performing any data operation or transformation:
-   - **First, make the changes** to the node graph
-   - **Then, capture a screenshot** using \`capture_visualization\`
-   - **Verify the result** by examining the screenshot
-   - **Report what you see** and whether the operation worked correctly
-   - If something went wrong, check console errors with \`get_console_errors\` and try to fix it
-
-7. **Project modifications format**: Output JSON like:
-\`\`\`json
-{
-  "modifications": [
-    {
-      "type": "add_node",
-      "data": {
-        "id": "/my-node",
-        "type": "GeoJsonLayerOp",
-        "data": { "inputs": {}, "locked": false },
-        "position": { "x": 0, "y": 0 }
-      }
-    }
-  ]
-}
-\`\`\`
-
-8. **Debugging**: ${hasContext ? 'Use `analyze_project` to validate, check console errors, and inspect implementations.' : 'Use `get_console_errors` and visual debugging tools to diagnose issues.'}
-
-## Operator Types
-
-- **Data Sources**: FileOp, JSONOp, DuckDbOp, CSVOp
-- **Layers**: GeoJsonLayerOp, ScatterplotLayerOp, HexagonLayerOp, HeatmapLayerOp
-- **Renderers**: DeckRendererOp, OutOp
-- **Accessors**: AccessorOp, ColorRampOp
-- **Utilities**: ExpressionOp, CodeOp, NumberOp, ContainerOp
-
-## Working Philosophy
-
-- **Visual-first**: Always use screenshots to verify your work
-- **Node graph over code**: Build with nodes, not code snippets
-- **Left-to-right flow**: Data sources on left → transformations in middle → output on right
-- **Always verify**: After making changes, capture a screenshot and confirm the result`
+Use tools to see visuals, check errors, and inspect layers.`
   }
 
   private getTools(): Anthropic.Tool[] {
-    // Check if context is available
-    const hasContext = this.tools.hasContext()
-
-    const contextTools = hasContext ? [
-      {
-        name: 'search_code',
-        description: 'Search the Noodles.gl source code for patterns, classes, functions, or implementations',
-        input_schema: {
-          type: 'object',
-          properties: {
-            pattern: { type: 'string', description: 'Search pattern (regex supported)' },
-            path: { type: 'string', description: 'Optional: limit search to specific path' },
-            contextLines: { type: 'number', description: 'Number of context lines (default: 3)' }
-          },
-          required: ['pattern']
-        }
-      },
-      {
-        name: 'get_source_code',
-        description: 'Get the source code for a specific file and line range',
-        input_schema: {
-          type: 'object',
-          properties: {
-            file: { type: 'string', description: 'File path relative to project root' },
-            startLine: { type: 'number', description: 'Start line (1-indexed)' },
-            endLine: { type: 'number', description: 'End line (1-indexed)' }
-          },
-          required: ['file']
-        }
-      },
-      {
-        name: 'get_operator_schema',
-        description: 'Get the complete schema for an operator type',
-        input_schema: {
-          type: 'object',
-          properties: {
-            type: { type: 'string', description: 'Operator type (e.g., "GeoJsonLayerOp")' }
-          },
-          required: ['type']
-        }
-      },
-      {
-        name: 'list_operators',
-        description: 'List all available operator types',
-        input_schema: {
-          type: 'object',
-          properties: {
-            category: { type: 'string', description: 'Optional: filter by category' }
-          }
-        }
-      },
-      {
-        name: 'get_documentation',
-        description: 'Search the Noodles.gl documentation',
-        input_schema: {
-          type: 'object',
-          properties: {
-            query: { type: 'string', description: 'Search query' },
-            section: { type: 'string', description: 'Optional: users or developers' }
-          },
-          required: ['query']
-        }
-      },
-      {
-        name: 'get_example',
-        description: 'Get a complete example project by ID',
-        input_schema: {
-          type: 'object',
-          properties: {
-            id: { type: 'string', description: 'Example ID' }
-          },
-          required: ['id']
-        }
-      },
-      {
-        name: 'list_examples',
-        description: 'List all available example projects',
-        input_schema: {
-          type: 'object',
-          properties: {
-            category: { type: 'string' },
-            tag: { type: 'string' }
-          }
-        }
-      },
-      {
-        name: 'find_symbol',
-        description: 'Find a symbol (class, function, type) by name',
-        input_schema: {
-          type: 'object',
-          properties: {
-            name: { type: 'string', description: 'Symbol name' }
-          },
-          required: ['name']
-        }
-      },
-      {
-        name: 'analyze_project',
-        description: 'Analyze the current project for validation, performance, or suggestions',
-        input_schema: {
-          type: 'object',
-          properties: {
-            project: { type: 'object', description: 'The current project JSON' },
-            analysisType: {
-              type: 'string',
-              enum: ['validation', 'performance', 'suggestions']
-            }
-          },
-          required: ['project', 'analysisType']
-        }
-      }
-    ] : []
-
-    // Visual debugging tools (always available)
-    const visualTools = [
+    // Only include visual debugging tools by default (lightweight)
+    // Context tools are loaded lazily when needed
+    return [
       {
         name: 'capture_visualization',
-        description: 'Capture a screenshot of the current visualization',
+        description: 'Capture a screenshot of the current visualization. The screenshot will be attached to your next message so you can see it.',
         input_schema: {
           type: 'object',
           properties: {
             includeUI: { type: 'boolean' },
-            format: { type: 'string', enum: ['png', 'jpeg'] }
+            format: { type: 'string', enum: ['png', 'jpeg'] },
+            quality: { type: 'number', description: 'JPEG quality 0-1, default 0.7' }
           }
         }
       },
@@ -391,7 +293,7 @@ ${JSON.stringify(project, null, 2)}
         input_schema: {
           type: 'object',
           properties: {
-            since: { type: 'number', description: 'Timestamp' },
+            since: { type: 'number' },
             level: { type: 'string', enum: ['error', 'warn', 'all'] },
             maxResults: { type: 'number' }
           }
@@ -407,7 +309,7 @@ ${JSON.stringify(project, null, 2)}
       },
       {
         name: 'inspect_layer',
-        description: 'Get detailed information about a specific layer',
+        description: 'Get layer information',
         input_schema: {
           type: 'object',
           properties: {
@@ -417,8 +319,6 @@ ${JSON.stringify(project, null, 2)}
         }
       }
     ]
-
-    return [...contextTools, ...visualTools]
   }
 
   private async executeTool(name: string, params: any): Promise<ToolResult> {

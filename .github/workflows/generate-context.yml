@@ -1,4 +1,4 @@
-name: Generate Claude Context
+name: Generate AI Assistant Context
 
 on:
   push:

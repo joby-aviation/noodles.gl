@@ -1,4 +1,4 @@
-# Claude AI Integration Spec
+# Agentic AI Assistant Integration Spec
 
 ## Overview
 
@@ -48,7 +48,7 @@ This document specifies the integration of Claude AI (Anthropic's LLM) into Nood
 ### Workflow File: `.github/workflows/generate-context.yml`
 
 ```yaml
-name: Generate Claude Context
+name: Generate Noodles AI Agent Context
 
 on:
   push:
@@ -2859,7 +2859,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ onClose, isPopout = false 
   return (
     <div className={`chat-panel ${isPopout ? 'chat-panel-popout' : ''}`}>
       <div className="chat-panel-header">
-        <h3>Claude Assistant</h3>
+        <h3>Noodles Assistant</h3>
         <div className="chat-panel-actions">
           {!isPopout && (
             <button
@@ -2892,7 +2892,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ onClose, isPopout = false 
       <div className="chat-panel-messages">
         {messages.length === 0 && (
           <div className="chat-panel-welcome">
-            <h4>Welcome to Noodles.gl Claude Assistant!</h4>
+            <h4>Welcome to Noodles.gl Assistant!</h4>
             <p>I can help you:</p>
             <ul>
               <li>Create visualizations from scratch</li>
@@ -2989,7 +2989,7 @@ const ApiKeyModal: React.FC<{ onSubmit: (key: string) => void }> = ({ onSubmit }
       <div className="api-key-modal">
         <h3>Enter Anthropic API Key</h3>
         <p>
-          To use the Claude assistant, you need an API key from{' '}
+          To use the Noodles assistant, you need a Claude API key from{' '}
           <a href="https://console.anthropic.com/" target="_blank" rel="noopener noreferrer">
             Anthropic Console
           </a>

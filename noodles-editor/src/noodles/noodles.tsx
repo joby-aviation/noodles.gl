@@ -671,8 +671,8 @@ export function getNoodles(): Visualization {
         <StorageErrorHandler />
 
         {/* Floating Chat Window */}
-        <div className={chatStyles.floatingChatContainer}>
-          {showChatPanel ? (
+        {showChatPanel && (
+          <div className={chatStyles.floatingChatContainer}>
             <div className={chatStyles.floatingChatWindow}>
               <ChatPanel
                 project={{ nodes, edges }}
@@ -680,16 +680,8 @@ export function getNoodles(): Visualization {
                 onClose={() => setShowChatPanel(false)}
               />
             </div>
-          ) : (
-            <button
-              onClick={() => setShowChatPanel(true)}
-              className={chatStyles.floatingChatButton}
-              title="Open Claude Assistant"
-            >
-              💬 Claude
-            </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </ErrorBoundary>
   )

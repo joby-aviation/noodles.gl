@@ -1,0 +1,153 @@
+.historyPanel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #1a1a1a;
+  border-left: 1px solid #333;
+  width: 300px;
+  flex-shrink: 0;
+}
+
+.historyHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid #333;
+}
+
+.historyHeader h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.closeBtn {
+  background: none;
+  border: none;
+  color: #999;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px 8px;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.closeBtn:hover {
+  color: #fff;
+}
+
+.emptyState {
+  padding: 32px 16px;
+  text-align: center;
+  color: #999;
+}
+
+.emptyState p {
+  margin: 0 0 8px 0;
+}
+
+.emptyStateHint {
+  font-size: 12px;
+  color: #666;
+}
+
+.conversationList {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.conversationItem {
+  padding: 12px;
+  margin-bottom: 8px;
+  background: #222;
+  border: 1px solid #333;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.conversationItem:hover {
+  background: #2a2a2a;
+  border-color: #444;
+}
+
+.conversationItemActive {
+  background: #2d3748;
+  border-color: #4a5568;
+}
+
+.conversationHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  margin-bottom: 8px;
+}
+
+.conversationTitle {
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-right: 8px;
+}
+
+.deleteBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font-size: 14px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.conversationItem:hover .deleteBtn {
+  opacity: 0.6;
+}
+
+.deleteBtn:hover {
+  opacity: 1 !important;
+}
+
+.conversationPreview {
+  font-size: 12px;
+  color: #999;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-bottom: 8px;
+}
+
+.conversationMeta {
+  font-size: 11px;
+  color: #666;
+}
+
+.historyFooter {
+  padding: 16px;
+  border-top: 1px solid #333;
+}
+
+.clearAllBtn {
+  width: 100%;
+  padding: 8px;
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 6px;
+  color: #999;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.clearAllBtn:hover {
+  background: #333;
+  color: #fff;
+  border-color: #555;
+}

@@ -1,6 +1,4 @@
-/**
- * MCPTools - Client-side tool implementations for Claude AI
- */
+// MCPTools - Client-side tool implementations for Claude AI
 
 import { ContextLoader } from './context-loader'
 import type {
@@ -18,13 +16,38 @@ export class MCPTools {
   }
 
   /**
+   * Extract common operator properties to avoid duplication
+   */
+  private mapOperatorProperties(op: any) {
+    return {
+      type: op.type,
+      name: op.name,
+      category: op.category,
+      description: op.description
+    }
+  }
+
+  /**
+   * Extract common example properties to avoid duplication
+   */
+  private mapExampleProperties(ex: any) {
+    return {
+      id: ex.id,
+      name: ex.name,
+      description: ex.description,
+      category: ex.category,
+      tags: ex.tags
+    }
+  }
+
+  /**
    * Check if context has been loaded successfully
    */
   hasContext(): boolean {
     return this.contextLoader.getCodeIndex() !== null ||
-           this.contextLoader.getOperatorRegistry() !== null ||
-           this.contextLoader.getDocsIndex() !== null ||
-           this.contextLoader.getExamples() !== null
+      this.contextLoader.getOperatorRegistry() !== null ||
+      this.contextLoader.getDocsIndex() !== null ||
+      this.contextLoader.getExamples() !== null
   }
 
   /**
@@ -165,12 +188,7 @@ export class MCPTools {
 
       return {
         success: true,
-        data: operators.map(op => ({
-          type: op.type,
-          name: op.name,
-          category: op.category,
-          description: op.description
-        }))
+        data: operators.map(op => this.mapOperatorProperties(op))
       }
     } catch (error) {
       return {
@@ -200,7 +218,7 @@ export class MCPTools {
         .filter(topic => {
           if (params.section && topic.section !== params.section) return false
           return topic.title.toLowerCase().includes(query) ||
-                 topic.content.toLowerCase().includes(query)
+            topic.content.toLowerCase().includes(query)
         })
         .slice(0, 5); // Limit results
 
@@ -259,13 +277,7 @@ export class MCPTools {
 
       return {
         success: true,
-        data: results.map(ex => ({
-          id: ex.id,
-          name: ex.name,
-          description: ex.description,
-          category: ex.category,
-          tags: ex.tags
-        }))
+        data: results.map(ex => this.mapExampleProperties(ex))
       }
     } catch (error) {
       return {
@@ -348,9 +360,48 @@ export class MCPTools {
 
   // Visual debugging tools
 
-  /**
-   * Capture screenshot of the current visualization
-   */
+  // Resize canvas to reduce token usage while maintaining aspect ratio
+  private resizeCanvas(sourceCanvas: HTMLCanvasElement, maxDimension: number = 1024): HTMLCanvasElement {
+    const { width, height } = sourceCanvas
+
+    // If already small enough, return original
+    if (width <= maxDimension && height <= maxDimension) {
+      return sourceCanvas
+    }
+
+    // Calculate new dimensions maintaining aspect ratio
+    let newWidth = width
+    let newHeight = height
+
+    if (width > height) {
+      newWidth = maxDimension
+      newHeight = Math.round((height / width) * maxDimension)
+    } else {
+      newHeight = maxDimension
+      newWidth = Math.round((width / height) * maxDimension)
+    }
+
+    // Create resized canvas
+    const resizedCanvas = document.createElement('canvas')
+    resizedCanvas.width = newWidth
+    resizedCanvas.height = newHeight
+
+    const ctx = resizedCanvas.getContext('2d')
+    if (!ctx) {
+      return sourceCanvas
+    }
+
+    // Use high-quality image smoothing
+    ctx.imageSmoothingEnabled = true
+    ctx.imageSmoothingQuality = 'high'
+
+    // Draw resized image
+    ctx.drawImage(sourceCanvas, 0, 0, newWidth, newHeight)
+
+    return resizedCanvas
+  }
+
+  // Capture screenshot of the current visualization
   async captureVisualization(params: {
     includeUI?: boolean
     format?: 'png' | 'jpeg'
@@ -365,11 +416,15 @@ export class MCPTools {
         }
       }
 
-      const format = params.format || 'png'
-      const quality = params.quality || 0.95
+      const format = params.format || 'jpeg'
+      const quality = params.quality || 0.5
 
-      // Capture canvas
-      const dataUrl = canvas.toDataURL(`image/${format}`, quality)
+      // Resize to max 1024px on longest side to reduce token usage
+      // This typically reduces a 1920x1080 screenshot from ~500KB to ~50KB
+      const resizedCanvas = this.resizeCanvas(canvas, 1024)
+
+      // Capture resized canvas
+      const dataUrl = resizedCanvas.toDataURL(`image/${format}`, quality)
       const base64 = dataUrl.split(',')[1]
 
       return {
@@ -377,8 +432,10 @@ export class MCPTools {
         data: {
           screenshot: base64,
           format,
-          width: canvas.width,
-          height: canvas.height,
+          width: resizedCanvas.width,
+          height: resizedCanvas.height,
+          originalWidth: canvas.width,
+          originalHeight: canvas.height,
           timestamp: Date.now(),
           pixelRatio: window.devicePixelRatio
         }
@@ -527,31 +584,31 @@ export class MCPTools {
     }
 
     const connectedNodes = new Set<string>()
-    (project.edges || []).forEach((edge: any) => {
-      connectedNodes.add(edge.source)
-      connectedNodes.add(edge.target)
-    })
+      (project.edges || []).forEach((edge: any) => {
+        connectedNodes.add(edge.source)
+        connectedNodes.add(edge.target)
+      })
 
-    (project.nodes || []).forEach((node: any) => {
-      if (!connectedNodes.has(node.id) && node.type !== 'OutOp') {
-        issues.push({
-          type: 'disconnected',
-          severity: 'warning',
-          nodeId: node.id,
-          message: `Node ${node.id} is not connected to the graph`
-        })
-      }
+      (project.nodes || []).forEach((node: any) => {
+        if (!connectedNodes.has(node.id) && node.type !== 'OutOp') {
+          issues.push({
+            type: 'disconnected',
+            severity: 'warning',
+            nodeId: node.id,
+            message: `Node ${node.id} is not connected to the graph`
+          })
+        }
 
-      const schema = registry.operators[node.type]
-      if (!schema) {
-        issues.push({
-          type: 'unknown-operator',
-          severity: 'error',
-          nodeId: node.id,
-          message: `Unknown operator type: ${node.type}`
-        })
-      }
-    })
+        const schema = registry.operators[node.type]
+        if (!schema) {
+          issues.push({
+            type: 'unknown-operator',
+            severity: 'error',
+            nodeId: node.id,
+            message: `Unknown operator type: ${node.type}`
+          })
+        }
+      })
 
     return { success: true, data: { issues } }
   }

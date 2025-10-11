@@ -7,6 +7,12 @@ import { ClaudeClient } from './claude-client'
 import { ContextLoader } from './context-loader'
 import { MCPTools } from './mcp-tools'
 import type { Message } from './types'
+import {
+  saveConversation,
+  loadConversation,
+  type Conversation
+} from './conversation-history'
+import { ConversationHistoryPanel } from './conversation-history-panel'
 import styles from './chat-panel.module.css'
 
 interface ChatPanelProps {
@@ -31,41 +37,69 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   const [claudeClient, setClaudeClient] = useState<ClaudeClient | null>(null)
   const [mcpTools, setMcpTools] = useState<MCPTools | null>(null)
   const [autoCapture, setAutoCapture] = useState(true)
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
+  const [showHistory, setShowHistory] = useState(false)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // Initialize context loader and Claude client
+  // Initialize Claude client (without heavy context loading)
   useEffect(() => {
     const init = async () => {
-      // Load API key from localStorage
-      const storedKey = localStorage.getItem('noodles-claude-api-key')
+      // Try to load API key from localStorage first
+      let storedKey = localStorage.getItem('noodles-claude-api-key')
+
+      // If not in localStorage, check environment variable
+      if (!storedKey) {
+        const envKey = import.meta.env.VITE_CLAUDE_API_KEY
+        if (envKey && typeof envKey === 'string') {
+          storedKey = envKey
+        }
+      }
+
+      // If still no key, prompt user
       if (!storedKey) {
         setShowApiKeyModal(true)
         setContextLoading(false)
         return
       }
 
-      setApiKey(storedKey)
+      // Sanitize stored key to remove any non-ASCII characters
+      const sanitizedKey = storedKey.replace(/[^\x00-\x7F]/g, '')
+
+      // If sanitized key is invalid, clear and prompt for new key
+      if (!sanitizedKey || !sanitizedKey.startsWith('sk-ant-') || sanitizedKey.length < 20) {
+        localStorage.removeItem('noodles-claude-api-key')
+        setShowApiKeyModal(true)
+        setContextLoading(false)
+        return
+      }
+
+      // If we had to sanitize, save the clean version back to localStorage
+      if (sanitizedKey !== storedKey && localStorage.getItem('noodles-claude-api-key')) {
+        localStorage.setItem('noodles-claude-api-key', sanitizedKey)
+      }
+
+      setApiKey(sanitizedKey)
 
       try {
-        // Load context
+        // Initialize with minimal context - load context lazily when needed
         const loader = new ContextLoader()
-        await loader.load((progress) => {
-          console.log('Loading context:', progress.stage, `${progress.loaded}/${progress.total}`)
-        })
-
-        // Initialize tools and client
         const tools = new MCPTools(loader)
-        const client = new ClaudeClient(storedKey, tools)
+        const client = new ClaudeClient(sanitizedKey, tools)
 
         setMcpTools(tools)
         setClaudeClient(client)
         setContextLoading(false)
+
+        // Load context in background (non-blocking)
+        loader.load((progress) => {
+          console.log('Loading context:', progress.stage, `${progress.loaded}/${progress.total}`)
+        }).catch(error => {
+          console.warn('Context loading failed, continuing without advanced features:', error)
+        })
       } catch (error) {
         console.error('Failed to initialize Claude:', error)
         setContextLoading(false)
-        // Don't show alert - just log warning and continue
-        // Basic chat will still work, just without advanced context features
       }
     }
 
@@ -110,11 +144,30 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       }
     } catch (error) {
       console.error('Error sending message:', error)
-      const errorMessage: Message = {
-        role: 'assistant',
-        content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}. Please check your API key and try again.`
+
+      // Check if this is an authentication error
+      const errorStr = error instanceof Error ? error.message : String(error)
+      const isAuthError = errorStr.includes('authentication') ||
+                          errorStr.includes('401') ||
+                          errorStr.includes('invalid_api_key') ||
+                          errorStr.includes('api_key')
+
+      if (isAuthError) {
+        // Clear invalid API key and prompt for re-entry
+        localStorage.removeItem('noodles-claude-api-key')
+        const errorMessage: Message = {
+          role: 'assistant',
+          content: `Authentication Error: Your API key appears to be invalid. Please enter a valid API key.`
+        }
+        setMessages(prev => [...prev, errorMessage])
+        setShowApiKeyModal(true)
+      } else {
+        const errorMessage: Message = {
+          role: 'assistant',
+          content: `Error: ${errorStr}. Please check your API key and try again.`
+        }
+        setMessages(prev => [...prev, errorMessage])
       }
-      setMessages(prev => [...prev, errorMessage])
     } finally {
       setLoading(false)
     }
@@ -152,11 +205,29 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     onProjectUpdate(updatedProject)
   }
 
-  const handleApiKeySubmit = (key: string) => {
+  const handleApiKeySubmit = async (key: string) => {
     localStorage.setItem('noodles-claude-api-key', key)
     setApiKey(key)
     setShowApiKeyModal(false)
-    window.location.reload()
+
+    // Reinitialize Claude client without full page reload
+    try {
+      // Load context
+      const loader = new ContextLoader()
+      await loader.load((progress) => {
+        console.log('Loading context:', progress.stage, `${progress.loaded}/${progress.total}`)
+      })
+
+      // Initialize tools and client with new API key
+      const tools = new MCPTools(loader)
+      const client = new ClaudeClient(key, tools)
+
+      setMcpTools(tools)
+      setClaudeClient(client)
+    } catch (error) {
+      console.error('Failed to reinitialize Claude:', error)
+      // Chat will still work, just without advanced context features
+    }
   }
 
   const handleManualCapture = async () => {
@@ -167,6 +238,58 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       alert('Screenshot captured! It will be included with your next message.')
     } else {
       alert('Failed to capture screenshot: ' + result.error)
+    }
+  }
+
+  const startNewConversation = () => {
+    // Auto-save current conversation if it has messages
+    if (messages.length > 0 && !currentConversationId) {
+      try {
+        const id = saveConversation(messages)
+        console.log('Auto-saved conversation:', id)
+      } catch (error) {
+        console.warn('Failed to auto-save conversation:', error)
+      }
+    }
+
+    // Start fresh
+    setMessages([])
+    setCurrentConversationId(null)
+    setShowHistory(false)
+  }
+
+  const saveCurrentConversation = () => {
+    if (messages.length === 0) {
+      alert('No messages to save')
+      return
+    }
+
+    try {
+      const id = saveConversation(messages)
+      setCurrentConversationId(id)
+      alert('Conversation saved!')
+    } catch (error) {
+      alert('Failed to save conversation: ' + (error instanceof Error ? error.message : 'Unknown error'))
+    }
+  }
+
+  const loadConversationById = (id: string) => {
+    // Auto-save current conversation if it has messages and hasn't been saved
+    if (messages.length > 0 && !currentConversationId) {
+      try {
+        saveConversation(messages)
+      } catch (error) {
+        console.warn('Failed to auto-save before loading:', error)
+      }
+    }
+
+    const conversation = loadConversation(id)
+    if (conversation) {
+      setMessages(conversation.messages)
+      setCurrentConversationId(id)
+      setShowHistory(false)
+    } else {
+      alert('Failed to load conversation')
     }
   }
 
@@ -187,9 +310,24 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
   return (
     <div className={`${styles.chatPanel} ${isPopout ? styles.chatPanelPopout : ''}`}>
+      <div className={styles.chatPanelContent}>
       <div className={styles.chatPanelHeader}>
-        <h3>Claude Assistant</h3>
+        <h3>Noodles Assistant</h3>
         <div className={styles.chatPanelActions}>
+          <button
+            className={styles.chatPanelActionBtn}
+            onClick={startNewConversation}
+            title="Start New Conversation"
+          >
+            ➕
+          </button>
+          <button
+            className={styles.chatPanelActionBtn}
+            onClick={() => setShowHistory(!showHistory)}
+            title="Conversation History"
+          >
+            📋
+          </button>
           <button
             className={styles.chatPanelActionBtn}
             onClick={() => setShowApiKeyModal(true)}
@@ -230,7 +368,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       <div className={styles.chatPanelMessages}>
         {messages.length === 0 && (
           <div className={styles.chatPanelWelcome}>
-            <h4>Welcome to Noodles.gl Claude Assistant!</h4>
+            <h4>Welcome to Noodles.gl AI Assistant!</h4>
             <p>I can help you:</p>
             <ul>
               <li>Create visualizations from scratch</li>
@@ -292,6 +430,15 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           Send
         </button>
       </div>
+      </div>
+
+      {showHistory && (
+        <ConversationHistoryPanel
+          onLoadConversation={loadConversationById}
+          onClose={() => setShowHistory(false)}
+          currentConversationId={currentConversationId}
+        />
+      )}
     </div>
   )
 }
@@ -319,13 +466,44 @@ const MessageContent: React.FC<{ content: string }> = ({ content }) => {
 // API Key Modal
 const ApiKeyModal: React.FC<{ onSubmit: (key: string) => void }> = ({ onSubmit }) => {
   const [key, setKey] = useState('')
+  const [error, setError] = useState('')
+
+  const handleSubmit = () => {
+    const trimmedKey = key.trim()
+
+    if (!trimmedKey) {
+      setError('API key is required')
+      return
+    }
+
+    // Remove any non-ASCII characters that might cause encoding issues
+    const sanitizedKey = trimmedKey.replace(/[^\x00-\x7F]/g, '')
+
+    if (sanitizedKey !== trimmedKey) {
+      setError('API key contains invalid characters. Please copy it again carefully.')
+      return
+    }
+
+    if (!sanitizedKey.startsWith('sk-ant-')) {
+      setError('API key must start with "sk-ant-"')
+      return
+    }
+
+    if (sanitizedKey.length < 20) {
+      setError('API key appears to be too short')
+      return
+    }
+
+    setError('')
+    onSubmit(sanitizedKey)
+  }
 
   return (
     <div className={styles.apiKeyModalOverlay}>
       <div className={styles.apiKeyModal}>
         <h3>Enter Anthropic API Key</h3>
         <p>
-          To use the Claude assistant, you need an API key from{' '}
+          To use the Noodles assistant, you need a Claude API key from{' '}
           <a href="https://console.anthropic.com/" target="_blank" rel="noopener noreferrer">
             Anthropic Console
           </a>
@@ -333,13 +511,22 @@ const ApiKeyModal: React.FC<{ onSubmit: (key: string) => void }> = ({ onSubmit }
         <input
           type="password"
           value={key}
-          onChange={(e) => setKey(e.target.value)}
+          onChange={(e) => {
+            setKey(e.target.value)
+            setError('') // Clear error when user types
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              handleSubmit()
+            }
+          }}
           placeholder="sk-ant-..."
           className={styles.apiKeyInput}
         />
+        {error && <p className={styles.apiKeyError}>{error}</p>}
         <div className={styles.apiKeyModalActions}>
           <button
-            onClick={() => onSubmit(key)}
+            onClick={handleSubmit}
             disabled={!key.trim()}
             className={styles.apiKeySubmitBtn}
           >

@@ -707,9 +707,9 @@ export function NoodlesMenubar({
             <button
               onClick={() => setShowChatPanel(!showChatPanel)}
               className={s.chatButton}
-              title="Toggle Claude Assistant"
+              title="Toggle Noodles AI Assistant"
             >
-              💬 {showChatPanel ? 'Hide' : 'Claude'}
+              💬 {showChatPanel ? 'Hide' : 'Assistant'}
             </button>
           </div>
         )}
