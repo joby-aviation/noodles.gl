@@ -19,16 +19,3 @@ code {
 #deckgl-wrapper {
   height: 100vh;
 }
-
-.action-buttons {
-  position: absolute;
-  left: 50%;
-  z-index: var(--z-index-react-flow);
-  display: flex;
-  flex-direction: row;
-}
-
-.not-found {
-  text-align: center;
-  margin: 0;
-}
