@@ -22,6 +22,8 @@ import {
   type FileField,
   getFieldReferences,
   type IField,
+  Matrix3Field,
+  type Matrix4Field,
   type NumberField,
   Point2DField,
   Point3DField,
@@ -64,6 +66,8 @@ export const inputComponents = {
   'json-url': TextFieldComponent,
   layer: EmptyFieldComponent,
   list: EmptyFieldComponent,
+  matrix3: MatrixFieldComponent,
+  matrix4: MatrixFieldComponent,
   number: NumberFieldComponent,
   string: TextFieldComponent,
   'string-literal': TextFieldComponent,
@@ -270,6 +274,63 @@ export function VectorFieldComponent({
           )
         })}
       </div>
+    </div>
+  )
+}
+
+export function MatrixFieldComponent({
+  id,
+  field,
+  disabled,
+}: { id: OpId; field: Matrix3Field | Matrix4Field; disabled: boolean }) {
+  const [value, setValue] = useState(guardAccessorFallback(field.value))
+
+  useEffect(() => {
+    const sub = field.subscribe(newVal => {
+      if (typeof newVal === 'function') return
+      setValue(newVal)
+    })
+    return () => sub.unsubscribe()
+  }, [field])
+
+  useEffect(() => {
+    if (field.value !== value) {
+      field.setValue(value)
+    }
+  }, [value, field])
+
+  const inputs = useMemo(() => {
+    return Array.from({ length: field instanceof Matrix3Field ? 3 * 3 : 4 * 4 }, (_, i) => {
+      return (
+        <Fragment key={i}>
+          <input
+            type="number"
+            className={cx(s.fieldInput, s.fieldInputMatrix)}
+            value={value[i]}
+            onChange={e =>
+              setValue(value.map((v, j) => (j === i ? +e.currentTarget.value : v)))
+            }
+            disabled={disabled}
+          />
+        </Fragment>
+      )
+    })
+  }, [field, value, disabled])
+
+  return (
+    <div className={s.fieldWrapper}>
+      <label className={s.fieldLabel} htmlFor={id}>
+        {id}
+        <div
+          id={id}
+          className={cx(
+            s.fieldMatrixWrapper,
+            field instanceof Matrix3Field ? s.fieldMatrixWrapper3x3 : s.fieldMatrixWrapper4x4
+          )}
+        >
+          {inputs}
+        </div>
+      </label>
     </div>
   )
 }

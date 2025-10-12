@@ -319,6 +319,8 @@ const handleClasses = {
   'json-url': s.handleString,
   layer: s.handleLayer,
   list: s.handleList,
+  matrix3: s.handleVector,
+  matrix4: s.handleVector,
   number: s.handleNumber,
   string: s.handleString,
   'string-literal': s.handleString,

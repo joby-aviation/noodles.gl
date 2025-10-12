@@ -453,6 +453,29 @@
   width: 50px;
 }
 
+.fieldInputMatrix {
+  height: 10px;
+  width: 90px;
+  font-size: 10px;
+  text-align: center;
+}
+
+.fieldMatrixWrapper {
+  display: grid;
+  gap: 2px;
+  max-width: 200px;
+}
+
+.fieldMatrixWrapper3x3 {
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+}
+
+.fieldMatrixWrapper4x4 {
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(4, 1fr);
+}
+
 .fieldInputUpload {
   cursor: pointer;
 }
