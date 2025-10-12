@@ -1,4 +1,4 @@
-.widget-container {
+.widgetContainer {
   display: grid;
   height: 100vh;
   grid-template-areas:
@@ -10,14 +10,14 @@
   position: relative;
 }
 
-.fill-widget {
+.fillWidget {
   grid-area: fill-widget;
   position: relative;
   overflow: hidden;
 }
 
-.output-area,
-.noodles-area {
+.outputArea,
+.noodlesArea {
   position: absolute;
   left: 0;
   right: 0;
@@ -25,47 +25,47 @@
 }
 
 /* Split mode: divide space vertically */
-.fill-widget.layout-split .output-area {
+.fillWidget.layoutSplit .outputArea {
   top: 0;
   bottom: 50%;
 }
 
-.fill-widget.layout-split .noodles-area {
+.fillWidget.layoutSplit .noodlesArea {
   top: 50%;
   bottom: 0;
 }
 
 /* Noodles on top mode: noodles overlays output */
-.fill-widget.layout-noodles-on-top .output-area {
+.fillWidget.layoutNoodlesOnTop .outputArea {
   top: 0;
   bottom: 0;
   isolation: isolate;
 }
 
-.fill-widget.layout-noodles-on-top .noodles-area {
+.fillWidget.layoutNoodlesOnTop .noodlesArea {
   top: 0;
   bottom: 0;
   z-index: 1;
 }
 
 /* Output on top mode: output overlays noodles */
-.fill-widget.layout-output-on-top .output-area {
+.fillWidget.layoutOutputOnTop .outputArea {
   top: 0;
   bottom: 0;
   z-index: 1;
 }
 
-.fill-widget.layout-output-on-top .noodles-area {
+.fillWidget.layoutOutputOnTop .noodlesArea {
   top: 0;
   bottom: 0;
   isolation: isolate;
 }
 
 /* In output-on-top mode, disable pointer events on the container but enable them on children */
-.fill-widget.layout-output-on-top .output-area {
+.fillWidget.layoutOutputOnTop .outputArea {
   pointer-events: none;
 }
 
-.fill-widget.layout-output-on-top .output-area > * {
+.fillWidget.layoutOutputOnTop .outputArea > * {
   pointer-events: auto;
 }

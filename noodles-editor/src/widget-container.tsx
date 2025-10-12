@@ -1,6 +1,6 @@
 import cx from 'classnames'
 import { type PropsWithChildren, useEffect, useRef, useState } from 'react'
-import './widget-container.css'
+import s from './widget-container.module.css'
 
 const TheatreSheetTree = ({ width }: { width: number }) => (
   <div style={{ width: `${width + 16}px` }} />
@@ -10,9 +10,9 @@ const TheatrePropPanel = ({ width, height }: { width: number; height: number }) 
 )
 
 const LAYOUT_CLASSES = {
-  split: 'layout-split',
-  'noodles-on-top': 'layout-noodles-on-top',
-  'output-on-top': 'layout-output-on-top',
+  split: s.layoutSplit,
+  'noodles-on-top': s.layoutNoodlesOnTop,
+  'output-on-top': s.layoutOutputOnTop,
 } as const
 
 export function WidgetContainer({
@@ -80,7 +80,7 @@ export function WidgetContainer({
   }, [])
 
   return (
-    <div className={cx('widget-container', layoutClass)}>
+    <div className={cx(s.widgetContainer, layoutClass)}>
       <div style={{ gridArea: 'top-widget' }}>{widgets?.top}</div>
       <div style={{ gridArea: 'left-widget' }}>
         <TheatreSheetTree width={sheetTreeWidth} />
@@ -93,9 +93,9 @@ export function WidgetContainer({
       <div ref={bottomRef} style={{ gridArea: 'bottom-widget' }}>
         {widgets?.bottom}
       </div>
-      <div className={cx('fill-widget', layoutClass)}>
-        <div className="output-area">{children}</div>
-        <div className="noodles-area">{widgets?.flowGraph}</div>
+      <div className={cx(s.fillWidget, layoutClass)}>
+        <div className={s.outputArea}>{children}</div>
+        <div className={s.noodlesArea}>{widgets?.flowGraph}</div>
       </div>
     </div>
   )

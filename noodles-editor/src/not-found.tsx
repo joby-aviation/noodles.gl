@@ -1,4 +1,5 @@
 import { basename, dirname } from 'node:path'
+import s from './not-found.module.css'
 
 const rootProjects = import.meta.glob('../public/noodles/*.json')
 const nestedProjects = import.meta.glob('../public/noodles/**/noodles.json')
@@ -7,7 +8,7 @@ const projects = {...rootProjects, ...nestedProjects}
 
 export default function NotFound() {
   return (
-    <div className="not-found">
+    <div className={s.notFound}>
       <h1>Not Found</h1>
       <h2>
         Options:

@@ -17,6 +17,7 @@ import { projectId } from './noodles/globals'
 import { getNoodles } from './noodles/noodles'
 import { NoodlesProvider } from './noodles/store'
 import { WidgetContainer } from './widget-container'
+import s from './timeline-editor.module.css'
 
 import 'maplibre-gl/dist/maplibre-gl.css'
 
@@ -322,7 +323,7 @@ export default function TimelineEditor() {
   return (
     <>
       {isRendering && (
-        <div className="action-buttons">
+        <div className={s.actionButtons}>
           <progress
             max={val(sequence.pointer.length) * renderer.framerate}
             value={currentFrame}
