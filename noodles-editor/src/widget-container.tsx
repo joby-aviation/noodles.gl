@@ -44,11 +44,15 @@ export function WidgetContainer({
     const theatreUi = theatreRoot?.shadowRoot?.querySelectorAll<HTMLDivElement>(
       '#pointer-root > div > div'
     )
+    const toolbar = theatreUi?.[1]
     const sheetTree = theatreUi?.[2]
     const propPanel = theatreUi?.[3]
 
+    // hide the toolbar completely, we don't need it
+    toolbar?.style.setProperty('display', 'none', 'important')
+
     const updateStyles = () => {
-      // prevent thetare from overlaying the map area
+      // prevent theatre from overlaying the map area
       if (sheetTree) {
         setSheetTreeWidth(sheetTree.offsetWidth)
       }

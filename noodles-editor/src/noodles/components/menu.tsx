@@ -679,23 +679,6 @@ export function NoodlesMenubar({
             </Menubar.Content>
           </Menubar.Portal>
         </Menubar.Menu>
-
-        <Menubar.Menu>
-          <Menubar.Trigger className={s.menubarTrigger}>View</Menubar.Trigger>
-          <Menubar.Portal>
-            <Menubar.Content
-              className={s.menubarContent}
-              align="start"
-              sideOffset={5}
-              alignOffset={-3}
-            >
-              <Menubar.Item className={s.menubarItem}>Hide Nodes</Menubar.Item>
-              <Menubar.Item className={s.menubarItem}>Hide TheatreJS</Menubar.Item>
-              <Menubar.Separator className={s.menubarSeparator} />
-              <Menubar.Item className={s.menubarItem}>Toggle Fullscreen</Menubar.Item>
-            </Menubar.Content>
-          </Menubar.Portal>
-        </Menubar.Menu>
       </Menubar.Root>
       <SaveProjectDialog
         projectName={projectName ?? null}
