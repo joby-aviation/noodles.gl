@@ -60,6 +60,7 @@ import { CesiumIonLoader, Tiles3DLoader } from '@loaders.gl/3d-tiles'
 import { OBJLoader } from '@loaders.gl/obj'
 import { PLYLoader } from '@loaders.gl/ply'
 import type { Tileset3D } from '@loaders.gl/tiles'
+import { GL } from '@luma.gl/constants'
 import { brightnessContrast, hueSaturation, vibrance } from '@luma.gl/effects'
 import { fitBounds } from '@math.gl/web-mercator'
 import * as Plot from '@observablehq/plot'
@@ -2795,6 +2796,94 @@ function parseLayerProps<P extends LayerProps>({
   return result
 }
 
+export class BlendingOp extends Operator<BlendingOp> {
+  static displayName = 'Blending'
+  static description = 'Configure WebGL blending mode for layers (additive, normal, subtractive)'
+  createInputs() {
+    return {
+      mode: new StringLiteralField('normal', {
+        values: ['normal', 'additive', 'subtractive', 'custom'],
+      }),
+      // Custom mode fields (only used when mode='custom')
+      blendColorSrcFactor: new StringLiteralField('src-alpha', {
+        values: [
+          'src-alpha',
+          'one',
+          'zero',
+          'dst-alpha',
+          'one-minus-src-alpha',
+          'one-minus-dst-alpha',
+          'one-minus-dst-color',
+        ],
+        optional: true,
+      }),
+      blendColorDstFactor: new StringLiteralField('one-minus-src-alpha', {
+        values: [
+          'src-alpha',
+          'one',
+          'zero',
+          'dst-alpha',
+          'one-minus-src-alpha',
+          'one-minus-dst-alpha',
+          'one-minus-dst-color',
+        ],
+        optional: true,
+      }),
+    }
+  }
+  createOutputs() {
+    return {
+      parameters: new UnknownField({}),
+    }
+  }
+  execute({
+    mode,
+    blendColorSrcFactor,
+    blendColorDstFactor,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    // Kepler-style presets using luma.gl v9 parameter names
+    const presets = {
+      normal: {
+        blend: true,
+        blendColorSrcFactor: 'src-alpha',
+        blendColorDstFactor: 'one-minus-src-alpha',
+        blendAlphaSrcFactor: 'one',
+        blendAlphaDstFactor: 'one-minus-src-alpha',
+        blendColorOperation: 'add',
+        blendAlphaOperation: 'add',
+      },
+      additive: {
+        blend: true,
+        blendColorSrcFactor: 'src-alpha',
+        blendColorDstFactor: 'dst-alpha',
+        blendColorOperation: 'add',
+      },
+      subtractive: {
+        blend: true,
+        blendColorSrcFactor: 'one',
+        blendColorDstFactor: 'one-minus-dst-color',
+        blendAlphaSrcFactor: 'src-alpha',
+        blendAlphaDstFactor: 'dst-alpha',
+        blendColorOperation: 'reverse-subtract',
+        blendAlphaOperation: 'add',
+      },
+    }
+
+    if (mode === 'custom' && blendColorSrcFactor && blendColorDstFactor) {
+      return {
+        parameters: {
+          blend: true,
+          blendColorSrcFactor,
+          blendColorDstFactor,
+          blendColorOperation: 'add',
+        },
+      }
+    }
+
+    return { parameters: presets[mode] || presets.normal }
+  }
+}
+
 export class PathLayerOp extends Operator<PathLayerOp> {
   static displayName = 'PathLayer'
   static description = 'Render a path on the map'
@@ -2857,6 +2946,8 @@ export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
       getLineWidth: new NumberField(0, { accessor: true }),
       radiusScale: new NumberField(1, { min: 0, max: 100 }),
       radiusUnits: new StringLiteralField('pixels', ['pixels', 'meters']),
+      parameters: new CompoundPropsField({
+      }),
       extensions: new ListField(new ExtensionField()),
     }
   }
@@ -2906,6 +2997,8 @@ export class TripsLayerOp extends Operator<TripsLayerOp> {
       widthUnits: new StringLiteralField('meters', ['pixels', 'meters']),
       widthMinPixels: new NumberField(2, { min: 0, max: 100 }),
       widthScale: new NumberField(20, { min: 0, max: 100 }),
+      parameters: new CompoundPropsField({
+      }),
       extensions: new ListField(new ExtensionField()),
     }
   }
@@ -2938,6 +3031,8 @@ export class SolidPolygonLayerOp extends Operator<SolidPolygonLayerOp> {
       getFillColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
       getLineColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
       getLineWidth: new NumberField(0, { accessor: true }),
+      parameters: new CompoundPropsField({
+      }),
       extensions: new ListField(new ExtensionField()),
     }
   }
@@ -2984,6 +3079,8 @@ export class TextLayerOp extends Operator<TextLayerOp> {
         values: ['top', 'center', 'bottom'],
         accessor: true,
       }),
+      parameters: new CompoundPropsField({
+      }),
       extensions: new ListField(new ExtensionField()),
     }
   }
@@ -3029,6 +3126,8 @@ export class IconLayerOp extends Operator<IconLayerOp> {
       getPixelOffset: new Vec2Field({ x: 0, y: 0 }, { returnType: 'tuple', accessor: true }),
       getColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
       getAngle: new NumberField(0, { accessor: true }),
+      parameters: new CompoundPropsField({
+      }),
       extensions: new ListField(new ExtensionField()),
     }
   }
@@ -3075,6 +3174,8 @@ export class ScenegraphLayerOp extends Operator<ScenegraphLayerOp> {
       sizeMaxPixels: new NumberField(100, { min: 0, max: 100 }),
       getColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
       getTranslation: new Vec3Field([0, 0, 0], { returnType: 'tuple', accessor: true }),
+      parameters: new CompoundPropsField({
+      }),
       extensions: new ListField(new ExtensionField()),
     }
   }
@@ -3115,6 +3216,8 @@ export class SimpleMeshLayerOp extends Operator<SimpleMeshLayerOp> {
       getScale: new Vec3Field([1, 1, 1], { returnType: 'tuple', accessor: true }),
       sizeScale: new NumberField(1, { min: 0, max: 1000 }),
       getTranslation: new Vec3Field([0, 0, 0], { returnType: 'tuple', accessor: true }),
+      parameters: new CompoundPropsField({
+      }),
       extensions: new ListField(new ExtensionField()),
     }
   }
@@ -3149,6 +3252,8 @@ export class H3HexagonLayerOp extends Operator<H3HexagonLayerOp> {
       getFillColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
       getRadius: new NumberField(1, { accessor: true }),
       getLineWidth: new NumberField(1, { accessor: true }),
+      parameters: new CompoundPropsField({
+      }),
       extensions: new ListField(new ExtensionField()),
     }
   }
@@ -3183,6 +3288,8 @@ export class A5LayerOp extends Operator<A5LayerOp> {
       elevationScale: new NumberField(1, { min: 0, max: 100 }),
       extruded: new BooleanField(false),
       pickable: new BooleanField(true),
+      parameters: new CompoundPropsField({
+      }),
       extensions: new ListField(new ExtensionField()),
     }
   }
@@ -3217,6 +3324,8 @@ export class HeatmapLayerOp extends Operator<HeatmapLayerOp> {
       radiusPixels: new NumberField(30, { min: 0, max: 10_000 }),
       intensity: new NumberField(1, { min: 0, max: 1 }),
       threshold: new NumberField(0.05, { min: 0, max: 1, step: 0.01 }),
+      parameters: new CompoundPropsField({
+      }),
       extensions: new ListField(new ExtensionField()),
     }
   }
@@ -3285,6 +3394,8 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
       getElevation: new NumberField(1000, { min: 0, max: 100000, accessor: true }),
       elevationScale: new NumberField(1, { min: 0, max: 100 }),
       _full3d: new BooleanField(false),
+      parameters: new CompoundPropsField({
+      }),
       extensions: new ListField(new ExtensionField()),
     }
   }
@@ -3319,6 +3430,8 @@ export class ArcLayerOp extends Operator<ArcLayerOp> {
       getTargetColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
       widthUnits: new StringLiteralField('meters', ['pixels', 'meters']),
       getWidth: new NumberField(1, { min: 0, max: 100, accessor: true }),
+      parameters: new CompoundPropsField({
+      }),
       extensions: new ListField(new ExtensionField()),
     }
   }
@@ -3393,6 +3506,8 @@ export class GridLayerOp extends Operator<GridLayerOp> {
 
       coverage: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       gpuAggregation: new BooleanField(true),
+      parameters: new CompoundPropsField({
+      }),
       extensions: new ListField(new ExtensionField()),
     }
   }
@@ -3459,6 +3574,8 @@ export class HexagonLayerOp extends Operator<HexagonLayerOp> {
 
       coverage: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       gpuAggregation: new BooleanField(true),
+      parameters: new CompoundPropsField({
+      }),
       extensions: new ListField(new ExtensionField()),
     }
   }
@@ -3497,6 +3614,8 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
       maxLodMetricValue: new NumberField(2, { min: 0, max: 10 }),
       maxScreenSpaceError: new NumberField(50, { min: 0, max: 1_000 }),
       maxMemoryUsage: new NumberField(2024, { min: 0, max: 10_000 }),
+      parameters: new CompoundPropsField({
+      }),
       extensions: new ListField(new ExtensionField()),
     }
   }
@@ -3835,7 +3954,7 @@ export class AccessorOp extends Operator<AccessorOp> {
   }
   execute({ expression }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const fn = fnWithSource(
-      ['d', 'dInfo', 'op', ...Object.keys(freeExports)],
+      ['d', 'dInfo', 'i', 'op', ...Object.keys(freeExports)],
       `return ${expression}`,
       this.id
     )
@@ -3843,7 +3962,7 @@ export class AccessorOp extends Operator<AccessorOp> {
     const accessor = (d: unknown, dInfo: { index: number; data: unknown; target: number[] }) => {
       // Create a context-aware getOp function for the accessor execution
       const contextualGetOp = (path: string) => getOp(path, this.id)
-      return fn(d, dInfo, contextualGetOp, ...Object.values(freeExports))
+      return fn(d, dInfo, dInfo.index, contextualGetOp, ...Object.values(freeExports))
     }
     return { accessor }
   }
@@ -4144,6 +4263,8 @@ export class BitmapLayerOp extends Operator<BitmapLayerOp> {
       desaturate: new NumberField(0, { min: 0, max: 1, step: 0.01 }),
       transparentColor: new ColorField(null, { optional: true, transform: hexToColor }),
       tintColor: new ColorField(null, { optional: true, transform: hexToColor }),
+      parameters: new CompoundPropsField({
+      }),
       extensions: new ListField(new ExtensionField()),
     }
   }
@@ -4189,6 +4310,8 @@ export class ColumnLayerOp extends Operator<ColumnLayerOp> {
       getLineColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getElevation: new NumberField(1000, { min: 0, accessor: true }),
       getLineWidth: new NumberField(1, { min: 0, accessor: true }),
+      parameters: new CompoundPropsField({
+      }),
       extensions: new ListField(new ExtensionField()),
     }
   }
@@ -4228,6 +4351,8 @@ export class GridCellLayerOp extends Operator<GridCellLayerOp> {
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
       getColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getElevation: new NumberField(1000, { min: 0, accessor: true }),
+      parameters: new CompoundPropsField({
+      }),
       extensions: new ListField(new ExtensionField()),
     }
   }
@@ -4264,6 +4389,8 @@ export class LineLayerOp extends Operator<LineLayerOp> {
       getTargetPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
       getColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getWidth: new NumberField(1, { min: 0, accessor: true }),
+      parameters: new CompoundPropsField({
+      }),
       extensions: new ListField(new ExtensionField()),
     }
   }
@@ -4297,6 +4424,8 @@ export class PointCloudLayerOp extends Operator<PointCloudLayerOp> {
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
       getNormal: new Vec3Field([0, 0, 1], { returnType: 'tuple', accessor: true }),
       getColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
+      parameters: new CompoundPropsField({
+      }),
       extensions: new ListField(new ExtensionField()),
     }
   }
@@ -4341,6 +4470,8 @@ export class PolygonLayerOp extends Operator<PolygonLayerOp> {
       getLineColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getLineWidth: new NumberField(1, { min: 0, accessor: true }),
       getElevation: new NumberField(1000, { min: 0, accessor: true }),
+      parameters: new CompoundPropsField({
+      }),
       extensions: new ListField(new ExtensionField()),
     }
   }
@@ -4382,6 +4513,8 @@ export class ContourLayerOp extends Operator<ContourLayerOp> {
       zOffset: new NumberField(0.005, { min: 0, max: 1, step: 0.001 }),
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
       getWeight: new NumberField(1, { min: 0, accessor: true }),
+      parameters: new CompoundPropsField({
+      }),
       extensions: new ListField(new ExtensionField()),
     }
   }
@@ -4417,6 +4550,8 @@ export class ScreenGridLayerOp extends Operator<ScreenGridLayerOp> {
       aggregation: new StringLiteralField('SUM', { values: ['SUM', 'MEAN', 'MIN', 'MAX'] }),
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
       getWeight: new NumberField(1, { min: 0, accessor: true }),
+      parameters: new CompoundPropsField({
+      }),
       extensions: new ListField(new ExtensionField()),
     }
   }
@@ -4457,6 +4592,8 @@ export class GreatCircleLayerOp extends Operator<GreatCircleLayerOp> {
       getSourceColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getTargetColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getWidth: new NumberField(1, { min: 0, accessor: true }),
+      parameters: new CompoundPropsField({
+      }),
       extensions: new ListField(new ExtensionField()),
     }
   }
@@ -4489,6 +4626,8 @@ export class H3ClusterLayerOp extends Operator<H3ClusterLayerOp> {
       getLineWidth: new NumberField(1, { accessor: true }),
       getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getElevation: new NumberField(1000, { accessor: true }),
+      parameters: new CompoundPropsField({
+      }),
       extensions: new ListField(new ExtensionField()),
     }
   }
@@ -4526,6 +4665,8 @@ export class GeohashLayerOp extends Operator<GeohashLayerOp> {
       filled: new BooleanField(true),
       stroked: new BooleanField(false),
       extruded: new BooleanField(false),
+      parameters: new CompoundPropsField({
+      }),
       extensions: new ListField(new ExtensionField()),
     }
   }
@@ -4563,6 +4704,8 @@ export class S2LayerOp extends Operator<S2LayerOp> {
       filled: new BooleanField(true),
       stroked: new BooleanField(false),
       extruded: new BooleanField(false),
+      parameters: new CompoundPropsField({
+      }),
       extensions: new ListField(new ExtensionField()),
     }
   }
@@ -4600,6 +4743,8 @@ export class QuadkeyLayerOp extends Operator<QuadkeyLayerOp> {
       filled: new BooleanField(true),
       stroked: new BooleanField(false),
       extruded: new BooleanField(false),
+      parameters: new CompoundPropsField({
+      }),
       extensions: new ListField(new ExtensionField()),
     }
   }
@@ -4638,6 +4783,8 @@ export class MVTLayerOp extends Operator<MVTLayerOp> {
       getLineWidth: new NumberField(1, { accessor: true }),
       getPointRadius: new NumberField(1, { accessor: true }),
       pointRadiusUnits: new StringLiteralField('pixels', ['pixels', 'meters']),
+      parameters: new CompoundPropsField({
+      }),
       extensions: new ListField(new ExtensionField()),
     }
   }
@@ -4677,6 +4824,8 @@ export class TerrainLayerOp extends Operator<TerrainLayerOp> {
       bounds: new UnknownField(null, { optional: true }),
       color: new ColorField('#ffffff', { transform: hexToColor }),
       wireframe: new BooleanField(false),
+      parameters: new CompoundPropsField({
+      }),
       extensions: new ListField(new ExtensionField()),
     }
   }
@@ -4716,6 +4865,8 @@ export class TileLayerOp extends Operator<TileLayerOp> {
       zRange: new UnknownField([0, 24], { optional: true }),
       extent: new UnknownField([-Infinity, -Infinity, Infinity, Infinity], { optional: true }),
       renderSubLayers: new FunctionField(null, { optional: true }),
+      parameters: new CompoundPropsField({
+      }),
       extensions: new ListField(new ExtensionField()),
     }
   }
@@ -4885,6 +5036,7 @@ export const opTypes = {
   ArcLayerOp,
   BezierCurveOp,
   BitmapLayerOp,
+  BlendingOp,
   BooleanOp,
   BoundingBoxOp,
   BoundsOp,
@@ -5035,6 +5187,7 @@ const freeExports = {
   d3,
   turf,
   deck,
+  GL,
   Plot,
   vega,
   Temporal,
