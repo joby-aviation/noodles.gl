@@ -23,6 +23,11 @@ Basic workflows for using Noodles.gl to create geospatial visualizations and ani
 
 **Data Source** → **Filter/Transform** → **Deck.gl Layer**
 
+<video controls autoplay="true" muted="true" width="100%" style={{maxWidth: '800px'}}>
+  <source src="/img/first-project-walkthrough.mp4" type="video/mp4" />
+  Your browser does not support the video tag.
+</video>
+
 1. **Load Data**: Start by adding a data source operator (JSON, CSV, or API)
 2. **Add Visualization**: Connect your data to a Deck.gl layer operator
 3. **Style & Configure**: Use the properties panel to customize appearance
