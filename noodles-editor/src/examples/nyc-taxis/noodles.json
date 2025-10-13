@@ -43,7 +43,9 @@
       "id": "/arc-layer",
       "type": "ArcLayerOp",
       "data": {
-        "inputs": {},
+        "inputs": {
+          "getWidth": 10
+        },
         "locked": false
       },
       "position": {
@@ -156,6 +158,20 @@
       "data": {
         "inputs": {
           "color": "#105b89"
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "BlendingOp",
+      "id": "/blending",
+      "position": {
+        "x": 272.8555514364492,
+        "y": 705.7558236067697
+      },
+      "data": {
+        "inputs": {
+          "mode": "additive"
         },
         "locked": false
       }
@@ -273,6 +289,27 @@
       "target": "/dropoff-layer",
       "targetHandle": "par.getFillColor",
       "id": "/dropoff.out.color->/dropoff-layer.par.getFillColor"
+    },
+    {
+      "source": "/blending",
+      "sourceHandle": "out.parameters",
+      "target": "/pickup-layer",
+      "targetHandle": "par.parameters",
+      "id": "/blending.out.parameters->/pickup-layer.par.parameters"
+    },
+    {
+      "source": "/blending",
+      "sourceHandle": "out.parameters",
+      "target": "/arc-layer",
+      "targetHandle": "par.parameters",
+      "id": "/blending.out.parameters->/arc-layer.par.parameters"
+    },
+    {
+      "source": "/blending",
+      "sourceHandle": "out.parameters",
+      "target": "/dropoff-layer",
+      "targetHandle": "par.parameters",
+      "id": "/blending.out.parameters->/dropoff-layer.par.parameters"
     }
   ],
   "viewport": {
