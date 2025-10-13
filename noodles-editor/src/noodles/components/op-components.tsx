@@ -366,6 +366,8 @@ function Port({
   const namespace = type === SOURCE_HANDLE ? OUT_NAMESPACE : PAR_NAMESPACE
   const handleId = `${namespace}.${name}`
 
+  const title = type === TARGET_HANDLE ? handleId : undefined
+
   const hasIncomers = edges.some(edge => edge.target === nid && edge.targetHandle === handleId)
 
   const fieldOffset =
@@ -415,6 +417,7 @@ function Port({
         className={handleClass(field)}
         style={{ top: `${i * offset + headerHeight}px` }}
         type={type}
+        title={title}
         position={position}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
