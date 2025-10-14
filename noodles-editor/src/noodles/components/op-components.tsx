@@ -458,22 +458,6 @@ function useLocked(op: Operator<IOperator>) {
   return locked
 }
 
-// Helper to format values for the handle preview
-function viewerFormatterForHandle(value: unknown): unknown {
-  if (typeof value === 'function') {
-    return { value: `Function(${value.name || 'anonymous'})` }
-  }
-  if (
-    typeof value === 'string' ||
-    typeof value === 'number' ||
-    typeof value === 'boolean' ||
-    value instanceof Date
-  ) {
-    return { value }
-  }
-  return value
-}
-
 function HandlePreviewContent({ data, name, type }: { data: unknown; name: string; type: string }) {
   return (
     <>
@@ -484,8 +468,46 @@ function HandlePreviewContent({ data, name, type }: { data: unknown; name: strin
       <div className={previewStyles.handlePreviewBody}>
         {data === null || data === undefined ? (
           <div className={previewStyles.handlePreviewEmpty}>No data</div>
+        ) : data instanceof Element ? (
+          <ViewerDOMContent content={data} />
+        ) : data instanceof Set ? (
+          <ReactJson src={Array.from(data)} theme="twilight" collapsed={1} />
+        ) : Array.isArray(data) &&
+          data.length > 0 &&
+          data.length < 10 &&
+          isPlainObject(data[0]) &&
+          Object.keys(data[0]).length < 10 ? (
+          (() => {
+            const keys = Object.keys(data[0] || {})
+            return (
+              <table className={previewStyles.handlePreviewTable}>
+                <thead>
+                  <tr>
+                    {keys.map(key => (
+                      <th key={key}>{key}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.map((row, i) => (
+                    <tr key={i}>
+                      {keys.map(key => (
+                        <td key={key}>
+                          {typeof row[key] === 'string' ? row[key] : JSON.stringify(row[key])}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )
+          })()
+        ) : data instanceof Operator ? (
+          <ReactJson src={data} theme="twilight" />
+        ) : data instanceof Promise ? (
+          <div className={previewStyles.handlePreviewEmpty}>Loading...</div>
         ) : (
-          <pre style={{ margin: 0, fontSize: '11px' }}>{JSON.stringify(data, null, 2)}</pre>
+          <ReactJson src={data} theme="twilight" />
         )}
       </div>
     </>
@@ -515,7 +537,7 @@ function OutputHandle({ id, field }: { id: string; field: Field<IField> }) {
         // Get the handle's position in the viewport
         const rect = currentTarget.getBoundingClientRect()
         setPreviewPosition({ x: rect.right, y: rect.top })
-        setPreviewData(viewerFormatterForHandle(field.value))
+        setPreviewData(viewerFormatter(field.value))
       }, 1000)
     },
     [field, nid, qualifiedFieldId]
