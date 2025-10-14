@@ -108,7 +108,7 @@ describe('Error handling', () => {
 
     const onError = vi.spyOn(operator, 'onError')
     const execute = vi.spyOn(operator, 'execute')
-    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => { })
 
     expect(operator.inputs.num.value).toEqual(0)
     expect(onError).not.toHaveBeenCalled()
@@ -296,12 +296,12 @@ describe('AccessorOp', () => {
     const { accessor: val1 } = operator.execute({
       expression: 'd + 1',
     })
-    expect(val1(1)).toEqual(2)
+    expect(val1(1, { index: 0 })).toEqual(2)
 
     const { accessor: val2 } = operator.execute({
-      expression: 'dInfo',
+      expression: 'dInfo.data.c + i',
     })
-    expect(val2(undefined, { c: 3 })).toEqual({ c: 3 })
+    expect(val2(undefined, { index: 1, data: { c: 3 } })).toEqual(4)
   })
 
   it('returns a function', () => {
