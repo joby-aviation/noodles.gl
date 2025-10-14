@@ -270,6 +270,43 @@ export const specialDescriptions = {
   'Abs': 'Get the absolute value of a number',
 } as const as Record<NodeType, string>
 
+const mathOpDescriptions = {
+  DivideOp: 'Divide two numbers',
+  MultiplyOp: 'Multiply two numbers',
+  SubtractOp: 'Subtract two numbers',
+  AddOp: 'Add two numbers',
+  ModuloOp: 'Calculate the remainder of division',
+  SineOp: 'Calculate the sine of a number',
+  CosineOp: 'Calculate the cosine of a number',
+  MinOp: 'Get the minimum of two numbers',
+  MaxOp: 'Get the maximum of two numbers',
+  RoundOp: 'Round a number to the nearest integer',
+  FloorOp: 'Round down to the nearest integer',
+  CeilOp: 'Round up to the nearest integer',
+  AbsOp: 'Get the absolute value of a number',
+} as const
+
+
+// Get the description for any node type, including special cases like ForLoop and math operators
+export function getNodeDescription(type: NodeType): string {
+  // Check for regular operators first
+  if (type in opTypes) {
+    return opTypes[type]?.description || ''
+  }
+
+  // Check for math operators
+  if (type in mathOps) {
+    return mathOpDescriptions[type] || 'Perform a mathematical operation'
+  }
+
+  // Check for ForLoop
+  if (type === 'ForLoop') {
+    return 'Control flow to loop over all elements in an array'
+  }
+
+  return ''
+}
+
 export function typeCategory(type: NodeType) {
   for (const [category, types] of Object.entries(categories)) {
     if (types.includes(type)) {

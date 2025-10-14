@@ -1,4 +1,4 @@
-import { useReactFlow, type Node } from '@xyflow/react'
+import { useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
 import { matchSorter } from 'match-sorter'
 import {
@@ -11,11 +11,10 @@ import {
   useState,
 } from 'react'
 import s from './block-library.module.css'
-import { type MathOpType, mathOps, type OpType, opTypes } from '../operators'
+import { opTypes } from '../operators'
 import { useSlice } from '../store'
-import { edgeId, nodeId } from '../utils/id-utils'
-import { headerClass, typeCategory, typeDisplayName } from './op-components'
-import type { NodeType } from './add-node-menu'
+import { createNodesForType, getNodeTypeOptions, type NodeType } from '../utils/node-creation-utils'
+import { getNodeDescription, headerClass, typeCategory, typeDisplayName } from './op-components'
 
 export interface BlockLibraryRef {
   openModal: () => void
@@ -78,124 +77,14 @@ export const BlockLibrary = forwardRef<BlockLibraryRef, BlockLibraryProps>(
       const mousePos = mousePositionRef.current
 
       // Use mouse position if available, otherwise center
-      let x: number, y: number
+      let position: { x: number; y: number }
       if (mousePos && mousePos.x >= 0 && mousePos.x <= pane.width && mousePos.y >= 0 && mousePos.y <= pane.height) {
-        const flowPos = screenToFlowPosition({ x: e.clientX, y: e.clientY })
-        x = flowPos.x
-        y = flowPos.y
+        position = screenToFlowPosition({ x: e.clientX, y: e.clientY })
       } else {
-        const flowPos = screenToFlowPosition({ x: pane.width / 2, y: pane.height / 2 })
-        x = flowPos.x
-        y = flowPos.y
+        position = screenToFlowPosition({ x: pane.width / 2, y: pane.height / 2 })
       }
 
-      function makeOpId(type: OpType, containerId: string = currentContainerId) {
-        const baseName = toKebabCase(type.replace(/Op$/g, ''))
-        return nodeId(baseName, containerId)
-      }
-
-      function toKebabCase(str: string): string {
-        return str.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase()
-      }
-      const nodes: NodeJSON<unknown>[] = []
-      const edges = []
-
-      if (type === 'ForLoop') {
-        const bodyId = nodeId('for-loop-body', currentContainerId)
-        const beginNode = {
-          id: makeOpId('ForLoopBeginOp', currentContainerId),
-          type: 'ForLoopBeginOp',
-          data: undefined,
-          parentNode: bodyId,
-          expandParent: true,
-          position: { x: 0, y: 100 },
-        }
-        const endNode = {
-          id: makeOpId('ForLoopEndOp', currentContainerId),
-          type: 'ForLoopEndOp',
-          data: undefined,
-          parentNode: bodyId,
-          expandParent: true,
-          position: { x: 900, y: 100 },
-        }
-        nodes.push({
-          id: bodyId,
-          type: 'group',
-          selectable: false,
-          draggable: false,
-          style: { width: 1200, height: 300 },
-          position: { x, y },
-        } as NodeJSON<'group'>)
-        nodes.push(beginNode)
-        nodes.push(endNode)
-        edges.push({
-          id: edgeId({
-            source: beginNode.id,
-            sourceHandle: 'd',
-            target: endNode.id,
-            targetHandle: 'd',
-          }),
-          source: beginNode.id,
-          target: endNode.id,
-          sourceHandle: 'd',
-          targetHandle: 'd',
-        })
-      } else if (type === 'ContainerOp') {
-        const id = nodeId('container', currentContainerId)
-        const containerInputId = nodeId('container-input', id)
-        const containerOutputId = nodeId('container-output', id)
-        nodes.push(
-          {
-            id,
-            type,
-            data: undefined,
-            position: { x, y },
-          },
-          {
-            id: containerInputId,
-            type: 'GraphInputOp',
-            position: { x: -700, y: 0 },
-          },
-          {
-            id: containerOutputId,
-            type: 'GraphOutputOp',
-            position: { x: 0, y: 0 },
-          }
-        )
-        const inputSourceHandle = 'par.in'
-        const inputTargetHandle = 'par.parentValue'
-
-        const inEdge = {
-          source: id,
-          sourceHandle: inputSourceHandle,
-          target: containerInputId,
-          targetHandle: inputTargetHandle,
-        }
-
-        const outputSourceHandle = 'out.propagatedValue'
-        const outputTargetHandle = 'out.out'
-
-        const outEdge = {
-          source: containerOutputId,
-          sourceHandle: outputSourceHandle,
-          target: id,
-          targetHandle: outputTargetHandle,
-        }
-        edges.push({ ...inEdge, id: edgeId(inEdge) }, { ...outEdge, id: edgeId(outEdge) })
-      } else if (mathOps[type]) {
-        const operator = mathOps[type] as MathOpType
-        nodes.push({
-          id: nodeId(operator, currentContainerId),
-          type: 'MathOp',
-          data: {
-            inputs: { operator },
-          },
-          position: { x, y },
-        })
-      } else {
-        nodes.push({ type, id: makeOpId(type, currentContainerId), position: { x, y } })
-      }
-
+      const { nodes, edges } = createNodesForType(type, position, currentContainerId)
       addNodes(nodes)
       addEdges(edges)
       onCloseModal()
@@ -211,12 +100,7 @@ export const BlockLibrary = forwardRef<BlockLibraryRef, BlockLibraryProps>(
       setSearchText(e.target.value)
     }
 
-    const options = useMemo(() => {
-      return (Object.keys(opTypes) as NodeType[])
-        .filter(type => type !== 'ForLoopBeginOp' && type !== 'ForLoopEndOp')
-        .concat(['ForLoop', ...Object.keys(mathOps)])
-        .sort()
-    }, [])
+    const options = useMemo(() => getNodeTypeOptions(), [])
 
     // Get all unique categories
     const categories = useMemo(() => {
@@ -334,7 +218,7 @@ export const BlockLibrary = forwardRef<BlockLibraryRef, BlockLibraryProps>(
                 <div className={s.blockLibraryContentCategoryHeader}>{category}</div>
                 <div className={s.blockLibraryGrid}>
                   {types.map(type => {
-                    const description = opTypes[type]?.description
+                    const description = getNodeDescription(type)
                     const displayName = opTypes[type]?.displayName || typeDisplayName(type)
                     return (
                       <div
