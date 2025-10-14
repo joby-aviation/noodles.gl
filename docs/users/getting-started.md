@@ -23,13 +23,10 @@ Basic workflows for using Noodles.gl to create geospatial visualizations and ani
 
 **Data Source** → **Filter/Transform** → **Deck.gl Layer**
 
-<video controls autoplay="true" muted="true" width="100%" style={{maxWidth: '800px'}}>
-  <source src="/img/first-project-walkthrough.mp4" type="video/mp4" />
-  Your browser does not support the video tag.
-</video>
+<iframe src="https://drive.google.com/file/d/13e933pV8w_NfLUlmXa1vEw8JB4KfmL4z/preview" width="800" height="460" allow="autoplay"></iframe>
 
 1. **Load Data**: Start by adding a data source operator (JSON, CSV, or API)
 2. **Add Visualization**: Connect your data to a Deck.gl layer operator
 3. **Style & Configure**: Use the properties panel to customize appearance
-4. **Animate**: Add timeline keyframes to create smooth animations
+4. **Animate**: [Add timeline keyframes](./animation-and-rendering.md) to create smooth animations
 5. **Export**: Generate images, videos, or interactive applications

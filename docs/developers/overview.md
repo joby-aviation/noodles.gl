@@ -7,9 +7,10 @@ Learn how to extend Noodles.gl by creating custom operators and fields. This gui
 Noodles.gl uses a reactive programming model built on RxJS with the following core concepts:
 
 - **Operators**: Processing nodes that transform data
-- **Fields**: Typed inputs/outputs with validation and UI hints  
+- **Fields**: Typed inputs/outputs with validation and UI hints
 - **Reactive Flow**: Automatic updates when upstream data changes
-- **Path System**: Unix-style paths for operator identification
+
+You can also read about [prior art with node-based tools](./node-based-tools.md).
 
 ## Development Setup
 
@@ -40,7 +41,7 @@ field.setValue(value) // Equivalent to field.next(field.schema.parse(value))
 
 const currentValue = field.value
 
-// Listen to changes 
+// Listen to changes
 field.subscribe(value => {
   // Handle updates
 })
@@ -60,11 +61,11 @@ field.subscribe(value => {
 
 ### Custom Operators
 - **Data Sources**: New APIs, databases, file formats
-- **Processors**: Custom algorithms and transformations  
+- **Processors**: Custom algorithms and transformations
 - **Visualizations**: New Deck.gl layers or rendering engines
 - **Utilities**: Helper functions and data manipulation
 
-### Custom Fields  
+### Custom Fields
 - **Input Types**: Specialized UI controls
 - **Validation**: Custom data validation rules
 - **Complex Types**: Arrays, objects, and nested structures
@@ -80,7 +81,7 @@ field.subscribe(value => {
 ```typescript
 class CustomOperator extends Operator {
   static path = "custom/my-operator"
-  
+
   execute(inputs: InputSchema): OutputSchema {
     // Pure function: inputs → outputs
     return processedData
@@ -89,14 +90,14 @@ class CustomOperator extends Operator {
 ```
 
 ### 2. Define Fields
-```typescript  
+```typescript
 const inputs = {
-  data: new ArrayField([], { 
-    element: recordSchema 
+  data: new ArrayField([], {
+    element: recordSchema
   }),
-  threshold: new NumberField(50, { 
-    min: 0, 
-    max: 100 
+  threshold: new NumberField(50, {
+    min: 0,
+    max: 100
   })
 }
 ```
@@ -117,7 +118,7 @@ describe('CustomOperator', () => {
 ## Next Steps
 
 - **[Creating Operators](./creating-operators)** - Build custom processing nodes
-- **[Field System](./field-system)** - Understand inputs, outputs, and validation  
+- **[Field System](./field-system)** - Understand inputs, outputs, and validation
 - **[Data Flow](./data-flow)** - Master reactive programming patterns
 - **[Path System](./paths-containers)** - Organization and referencing
 - **[Contributing](./contributing)** - Contribute back to the framework
@@ -125,7 +126,7 @@ describe('CustomOperator', () => {
 ## Framework Philosophy
 
 - **Composability**: Small, focused operators that work together
-- **Type Safety**: Runtime validation with developer experience  
+- **Type Safety**: Runtime validation with developer experience
 - **Performance**: Efficient reactive updates and memoization
 - **Extensibility**: Easy to add new operators and field types
 - **Developer Experience**: Hot reload, debugging tools, clear APIs
