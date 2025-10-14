@@ -1839,8 +1839,8 @@ export function FieldComponent({
       )}
       {
         incomers.length > 0
-          ? <InputComp id={fieldId} field={field} disabled={disabled} />
-          : <EmptyFieldComponent id={fieldId} field={field} />
+          ? <EmptyFieldComponent id={fieldId} field={field} />
+          : <InputComp id={fieldId} field={field} disabled={disabled} />
       }
     </div>
   )
