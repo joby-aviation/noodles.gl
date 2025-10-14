@@ -5,11 +5,29 @@ Operators are the core processing units in the Noodles.gl system. They take inpu
 ## Operator Fundamentals
 
 ### Basic Structure
+
 ```typescript
-class MyOperator extends Operator {
-  execute(inputs: InputType): OutputType {
-    // Pure function: inputs → outputs
-    return processedData
+export class SliceOp extends Operator<SliceOp> {
+  static displayName = 'Slice'
+  static description = 'Slice an array of data'
+  createInputs() {
+    return {
+      data: new DataField(),
+      start: new NumberField(0, { min: 0, step: 1 }),
+      end: new NumberField(10, { min: 0, step: 1, optional: true }),
+    }
+  }
+  createOutputs() {
+    return {
+      data: new DataField(),
+    }
+  }
+  execute({
+    data,
+    start,
+    end,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    return { data: data.slice(start, end) }
   }
 }
 ```
@@ -54,6 +72,7 @@ class MyOperator extends Operator {
 ## Code Operators
 
 ### CodeOp
+
 For complex data processing with full JavaScript support:
 
 ```javascript
@@ -76,6 +95,7 @@ return distances
 - All Operator classes for instantiation
 
 ### AccessorOp
+
 For Deck.gl layer accessors (per-item functions):
 
 ```javascript
@@ -92,6 +112,7 @@ d.value > 100 ? [255, 0, 0] : [0, 255, 0]
 - `data` - Full dataset array
 
 ### ExpressionOp
+
 For simple single-line calculations:
 
 ```javascript
@@ -206,7 +227,7 @@ Path resolution in SQL:
 Operators can be organized into containers to create logical groupings and avoid naming conflicts:
 
 ```
-/                          (root)
+/                         (root)
 ├── data-loader           (root-level operator)
 ├── threshold             (root-level operator)
 └── analysis/             (container)
