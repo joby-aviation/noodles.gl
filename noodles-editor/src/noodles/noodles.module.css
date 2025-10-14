@@ -37,10 +37,10 @@
   --z-index-for-loop: -99;
   --z-index-tooltip-container: 101;
   --z-index-react-flow: 999;
-  --z-index-menu: 1000;
-  --z-index-breadcrumbs: 9999;
+  --z-index-breadcrumbs: 1000;
+  --z-index-menu: 10000;
   --z-index-viewer-preview: 9999;
-  --z-index-step-ladder: 10000;
+  --z-index-step-ladder: 10001;
 }
 
 /**

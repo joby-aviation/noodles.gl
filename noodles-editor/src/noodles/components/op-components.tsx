@@ -127,6 +127,7 @@ export const categories = {
   code: ['AccessorOp', 'CodeOp', 'DuckDbOp', 'JSONOp', 'ExpressionOp'],
   grouping: [
     'ContainerOp',
+    'ForLoop',
     'ForLoopOp',
     'ForLoopBeginOp',
     'ForLoopEndOp',
@@ -262,6 +263,12 @@ function toPascal(str: string) {
 export function typeDisplayName(type: NodeType) {
   return type.replace(/Op$/, '')
 }
+
+export const specialDescriptions = {
+  'ForLoop': 'Control flow to loop over all elements in an array',
+  'Add': 'Add two numbers',
+  'Abs': 'Get the absolute value of a number',
+} as const as Record<NodeType, string>
 
 export function typeCategory(type: NodeType) {
   for (const [category, types] of Object.entries(categories)) {

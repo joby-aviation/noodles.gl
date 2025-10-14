@@ -15,7 +15,7 @@ import s from '../noodles.module.css'
 import { type MathOpType, mathOps, type OpType, opTypes } from '../operators'
 import { useSlice } from '../store'
 import { edgeId, nodeId } from '../utils/id-utils'
-import { headerClass, typeCategory, typeDisplayName } from './op-components'
+import { headerClass, specialDescriptions, typeCategory, typeDisplayName } from './op-components'
 
 export type MenuState = {
   top: number
@@ -48,38 +48,7 @@ export const AddNodeMenu = forwardRef<AddNodeMenuRef, AddNodeMenuProps>(({ react
     setSearchText('')
   }, [])
 
-  const toggleMenu = useCallback(() => {
-    // If menu is already open, close it
-    if (menuState !== null) {
-      onCloseMenu()
-      return
-    }
-
-    const pane = reactFlowRef.current?.getBoundingClientRect()
-    if (!pane) return
-
-    const mousePos = mousePositionRef.current
-
-    // Use mouse position if available and within bounds, otherwise center
-    if (mousePos && mousePos.x >= 0 && mousePos.x <= pane.width && mousePos.y >= 0 && mousePos.y <= pane.height) {
-      setMenuState({
-        top: mousePos.y < pane.height - 200 ? mousePos.y : 0,
-        left: mousePos.x < pane.width - 400 ? mousePos.x - 200 : 0,
-        right: mousePos.x >= pane.width - 200 ? pane.width - mousePos.x : 0,
-        bottom: mousePos.y >= pane.height - 200 ? pane.height - mousePos.y : 0,
-      })
-    } else {
-      // Fallback to center if mouse is not tracked or outside pane
-      setMenuState({
-        top: pane.height / 2 - 100,
-        left: pane.width / 2 - 200,
-        right: pane.width / 2 - 200,
-        bottom: pane.height / 2 - 100,
-      })
-    }
-  }, [reactFlowRef, menuState, onCloseMenu])
-
-  // Track mouse position and handle Tab key press
+  // Track mouse position (Tab key now handled by BlockLibrary)
   useEffect(() => {
     const pane = reactFlowRef.current
     if (!pane) return
@@ -96,23 +65,14 @@ export const AddNodeMenu = forwardRef<AddNodeMenuRef, AddNodeMenuProps>(({ react
       mousePositionRef.current = null
     }
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Tab') {
-        e.preventDefault()
-        toggleMenu()
-      }
-    }
-
     pane.addEventListener('mousemove', handleMouseMove)
     pane.addEventListener('mouseleave', handleMouseLeave)
-    document.addEventListener('keydown', handleKeyDown)
 
     return () => {
       pane.removeEventListener('mousemove', handleMouseMove)
       pane.removeEventListener('mouseleave', handleMouseLeave)
-      document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [reactFlowRef, toggleMenu])
+  }, [reactFlowRef])
 
   useEffect(() => {
     const pane = reactFlowRef.current?.getBoundingClientRect()
@@ -290,7 +250,7 @@ export const AddNodeMenu = forwardRef<AddNodeMenuRef, AddNodeMenuProps>(({ react
         onChange={onSearch}
       />
       {searchResults.map(type => {
-        const description = opTypes[type]?.description
+        const description = opTypes[type]?.description || specialDescriptions[type]
         // Would be undefined for "aliased" ops like "Add" for "Math"
         const displayName = opTypes[type]?.displayName || typeDisplayName(type)
         return (
