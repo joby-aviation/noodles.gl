@@ -53,7 +53,15 @@ const config: Config = {
     ],
   ],
 
-  plugins: ['./symlink-plugin'],
+  plugins: [
+    './symlink-plugin',
+    [
+      '@docusaurus/plugin-google-gtag',
+      {
+        trackingID: 'G-Q2MLT93C10',
+      },
+    ],
+  ],
 
   themeConfig: {
     // Replace with your project's social card
