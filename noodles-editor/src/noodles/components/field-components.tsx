@@ -1,12 +1,13 @@
 import { CodeiumEditor } from '@codeium/react-code-editor'
 import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
-import { useEdges, useNodeId, useReactFlow } from '@xyflow/react'
+import { Handle, Position, useEdges, useNodeId, useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
 import type { ScaleLinear, ScaleOrdinal } from 'd3'
 import { Button } from 'primereact/button'
 import { InputText } from 'primereact/inputtext'
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 import { colorToHex } from '../../utils/color'
 import {
@@ -36,13 +37,37 @@ import type { IOperator, Operator } from '../operators'
 import { checkAssetExists, writeAsset } from '../storage'
 import { projectScheme } from '../utils/filesystem'
 import { edgeId, type OpId } from '../utils/id-utils'
+import { handleClass } from './op-components'
+import previewStyles from './handle-preview.module.css'
 import menuStyles from './menu.module.css'
+import { setHoveredOutputHandle } from '../store'
 
 type InputComponent = React.ComponentType<{
   id: OpId
   field: Field
   disabled: boolean
 }>
+
+export interface HandleOptions {
+  type: 'target' | 'source'
+  namespace: 'par' | 'out'
+}
+
+// Helper to format values for the handle preview
+function viewerFormatter(value: unknown): unknown {
+  if (typeof value === 'function') {
+    return { value: `Function(${value.name || 'anonymous'})` }
+  }
+  if (
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    value instanceof Date
+  ) {
+    return { value }
+  }
+  return value
+}
 
 export const inputComponents = {
   array: EmptyFieldComponent,
@@ -813,7 +838,7 @@ function DraggableNumberInput({
   className?: string
   title?: string
 }) {
-  const [displayValue, setDisplayValue] = useState<string>(value.toString())
+  const [displayValue, setDisplayValue] = useState<string>(value?.toString() ?? '0')
   const [isActive, setIsActive] = useState<boolean>(false)
   const [currentStepMultiplier, setCurrentStepMultiplier] = useState<number>(1)
   const [isDragStarted, setIsDragStarted] = useState<boolean>(false)
@@ -827,7 +852,7 @@ function DraggableNumberInput({
   const ladderTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
-    setDisplayValue(value.toString())
+    setDisplayValue(value?.toString() ?? '0')
   }, [value])
 
   useEffect(() => {
@@ -1783,25 +1808,40 @@ export function FieldComponent({
   id: fieldId,
   field,
   disabled,
+  handle,
 }: {
   id: OpId
   field: Field<IField>
   disabled: boolean
+  handle?: HandleOptions
 }) {
   const nid = useNodeId()
   const edges = useEdges()
-  const qualifiedFieldId = `par.${fieldId}`
+  const qualifiedFieldId = handle ? `${handle.namespace}.${fieldId}` : `par.${fieldId}`
   const incomers = edges.filter(
     edge =>
       edge.target === nid && edge.targetHandle === qualifiedFieldId && edge.type !== 'ReferenceEdge'
   )
 
-  if (incomers.length > 0) {
-    return <EmptyFieldComponent id={fieldId} field={field} />
-  }
-
   const ctor = field.constructor as unknown as Field<IField>
-
   const InputComp = inputComponents[ctor.type]
-  return <InputComp id={fieldId} field={field} disabled={disabled} />
+
+  return (
+    <div style={{ position: 'relative' }}>
+      {handle && (
+        <Handle
+          id={qualifiedFieldId}
+          className={handleClass(field)}
+          style={{ transform: 'translate(-17px, -50%)' }}
+          type={handle.type}
+          position={Position.Left}
+        />
+      )}
+      {
+        incomers.length > 0
+          ? <EmptyFieldComponent id={fieldId} field={field} />
+          : <InputComp id={fieldId} field={field} disabled={disabled} />
+      }
+    </div>
+  )
 }

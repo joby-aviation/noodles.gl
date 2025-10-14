@@ -13,7 +13,6 @@ import {
   type EdgeTypes as ReactFlowEdgeTypes,
   type NodeProps as ReactFlowNodeProps,
   type NodeTypes as ReactFlowNodeTypes,
-  useEdges,
   useNodeId,
   useNodes,
   useReactFlow,
@@ -61,7 +60,7 @@ import {
   type TimeOp,
   type ViewerOp,
 } from '../operators'
-import { opMap, useOp, useSlice, setHoveredOutputHandle } from '../store'
+import { opMap, setHoveredOutputHandle, useOp, useSlice } from '../store'
 import type { NodeDataJSON } from '../transform-graph'
 import { edgeId } from '../utils/id-utils'
 import { generateQualifiedPath, getBaseName, getParentPath } from '../utils/path-utils'
@@ -343,103 +342,6 @@ export const TARGET_HANDLE = 'target'
 export const PAR_NAMESPACE = 'par'
 export const OUT_NAMESPACE = 'out'
 
-function Port({
-  name,
-  field,
-  type,
-  i,
-}: {
-  name: string
-  field: Field<IField>
-  type: typeof SOURCE_HANDLE | typeof TARGET_HANDLE
-  i: number
-}) {
-  // TODO: provide additional information (count, properties, description, etc)
-  // TODO: make this dynamic based on the number of handles, and measure the height of input
-  const edges = useEdges()
-  const nid = useNodeId()
-  const [previewData, setPreviewData] = useState<unknown>(null)
-  const [previewPosition, setPreviewPosition] = useState({ x: 0, y: 0 })
-  const hoverTimerRef = useRef<NodeJS.Timeout | null>(null)
-
-  // Generate fully qualified handle ID using the operator's path
-  const namespace = type === SOURCE_HANDLE ? OUT_NAMESPACE : PAR_NAMESPACE
-  const handleId = `${namespace}.${name}`
-
-  const title = type === TARGET_HANDLE ? handleId : undefined
-
-  const hasIncomers = edges.some(edge => edge.target === nid && edge.targetHandle === handleId)
-
-  const fieldOffset =
-    field instanceof CompoundPropsField && !hasIncomers
-      ? (Object.keys(field.fields).length - 1) * 3
-      : 0
-  const offset = type === SOURCE_HANDLE ? 10 : 25 + fieldOffset
-  const position = type === SOURCE_HANDLE ? Position.Right : Position.Left
-
-  const handleMouseEnter = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      if (type === SOURCE_HANDLE) {
-        // Track hovered output handle for viewer creation
-        if (nid) {
-          setHoveredOutputHandle({ nodeId: nid, handleId })
-        }
-
-        // Store the current target immediately
-        const currentTarget = e.currentTarget
-        hoverTimerRef.current = setTimeout(() => {
-          // Get the handle's position in the viewport
-          const rect = currentTarget.getBoundingClientRect()
-          setPreviewPosition({ x: rect.right, y: rect.top })
-          setPreviewData(viewerFormatter(field.value))
-        }, 1000)
-      }
-    },
-    [type, field, nid, handleId]
-  )
-
-  const handleMouseLeave = useCallback(() => {
-    if (type === SOURCE_HANDLE) {
-      // Clear hovered output handle
-      setHoveredOutputHandle(null)
-    }
-    if (hoverTimerRef.current) {
-      clearTimeout(hoverTimerRef.current)
-      hoverTimerRef.current = null
-    }
-    setPreviewData(null)
-  }, [type])
-
-  return (
-    <>
-      <Handle
-        id={handleId}
-        className={handleClass(field)}
-        style={{ top: `${i * offset + headerHeight}px` }}
-        type={type}
-        title={title}
-        position={position}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-      />
-      {previewData &&
-        type === SOURCE_HANDLE &&
-        createPortal(
-          <div
-            className={previewStyles.handlePreview}
-            style={{
-              left: `${previewPosition.x}px`,
-              top: `${previewPosition.y}px`,
-            }}
-          >
-            <HandlePreviewContent data={previewData} name={name} type={field.constructor.type} />
-          </div>,
-          document.body
-        )}
-    </>
-  )
-}
-
 function colorToTheatreColor(color: [number, number, number, number] | string): Rgba {
   const val =
     typeof color === 'string' && isHexColor(color)
@@ -556,6 +458,139 @@ function useLocked(op: Operator<IOperator>) {
   return locked
 }
 
+function HandlePreviewContent({ data, name, type }: { data: unknown; name: string; type: string }) {
+  return (
+    <>
+      <div className={previewStyles.handlePreviewHeader}>
+        <span className={previewStyles.handlePreviewName}>{name}</span>
+        <span className={previewStyles.handlePreviewType}>({type})</span>
+      </div>
+      <div className={previewStyles.handlePreviewBody}>
+        {data === null || data === undefined ? (
+          <div className={previewStyles.handlePreviewEmpty}>No data</div>
+        ) : data instanceof Element ? (
+          <ViewerDOMContent content={data} />
+        ) : data instanceof Set ? (
+          <ReactJson src={Array.from(data)} theme="twilight" collapsed={1} />
+        ) : Array.isArray(data) &&
+          data.length > 0 &&
+          data.length < 10 &&
+          isPlainObject(data[0]) &&
+          Object.keys(data[0]).length < 10 ? (
+          (() => {
+            const keys = Object.keys(data[0] || {})
+            return (
+              <table className={previewStyles.handlePreviewTable}>
+                <thead>
+                  <tr>
+                    {keys.map(key => (
+                      <th key={key}>{key}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.map((row, i) => (
+                    <tr key={i}>
+                      {keys.map(key => (
+                        <td key={key}>
+                          {typeof row[key] === 'string' ? row[key] : JSON.stringify(row[key])}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )
+          })()
+        ) : data instanceof Operator ? (
+          <ReactJson src={data} theme="twilight" />
+        ) : data instanceof Promise ? (
+          <div className={previewStyles.handlePreviewEmpty}>Loading...</div>
+        ) : (
+          <ReactJson src={data} theme="twilight" />
+        )}
+      </div>
+    </>
+  )
+}
+
+// Output handle component that renders just a handle (no label, no input UI)
+function OutputHandle({ id, field }: { id: string; field: Field<IField> }) {
+  const nid = useNodeId()
+  const qualifiedFieldId = `${OUT_NAMESPACE}.${id}`
+
+  // Handle preview state
+  const [previewData, setPreviewData] = useState<unknown>(null)
+  const [previewPosition, setPreviewPosition] = useState({ x: 0, y: 0 })
+  const hoverTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  const handleMouseEnter = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      // Track hovered output handle for viewer creation
+      if (nid) {
+        setHoveredOutputHandle({ nodeId: nid, handleId: qualifiedFieldId })
+      }
+
+      // Store the current target immediately
+      const currentTarget = e.currentTarget
+      hoverTimerRef.current = setTimeout(() => {
+        // Get the handle's position in the viewport
+        const rect = currentTarget.getBoundingClientRect()
+        setPreviewPosition({ x: rect.right, y: rect.top })
+        setPreviewData(viewerFormatter(field.value))
+      }, 1000)
+    },
+    [field, nid, qualifiedFieldId]
+  )
+
+  const handleMouseLeave = useCallback(() => {
+    // Clear hovered output handle
+    setHoveredOutputHandle(null)
+
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current)
+      hoverTimerRef.current = null
+    }
+    setPreviewData(null)
+  }, [])
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (hoverTimerRef.current) {
+        clearTimeout(hoverTimerRef.current)
+      }
+    }
+  }, [])
+
+  return (
+    <div style={{ position: 'relative', flex: 1, pointerEvents: 'auto' }}>
+      <Handle
+        id={qualifiedFieldId}
+        className={handleClass(field)}
+        style={{ transform: 'translate(4px, -50%)' }}
+        type="source"
+        position={Position.Right}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+      />
+      {previewData &&
+        createPortal(
+          <div
+            className={previewStyles.handlePreview}
+            style={{
+              left: `${previewPosition.x}px`,
+              top: `${previewPosition.y}px`,
+            }}
+          >
+            <HandlePreviewContent data={previewData} name={id} type={field.constructor.type} />
+          </div>,
+          document.body
+        )}
+    </div>
+  )
+}
+
 function NodeComponent({
   id,
   type,
@@ -661,17 +696,22 @@ function NodeComponent({
       {resizeableNodes.includes(type) && (
         <NodeResizer isVisible={selected} minWidth={200} minHeight={100} />
       )}
-      {Object.entries(op.inputs).map(([key, field], i) => (
-        <Port key={key} name={key} field={field} i={i} type={TARGET_HANDLE} />
-      ))}
       <div className={s.content}>
         {Object.entries(op.inputs).map(([key, field]) => (
-          <FieldComponent key={key} id={key} field={field} disabled={locked} />
+          <FieldComponent
+            key={key}
+            id={key}
+            field={field}
+            disabled={locked}
+            handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
+          />
         ))}
+        <div className={s.outputHandleContainer}>
+          {Object.entries(op.outputs).map(([key, field]) => (
+            <OutputHandle key={key} id={key} field={field} />
+          ))}
+        </div>
       </div>
-      {Object.entries(op.outputs).map(([key, field], i) => (
-        <Port key={key} field={field} name={key} i={i} type={SOURCE_HANDLE} />
-      ))}
     </div>
   )
 }
@@ -1021,16 +1061,23 @@ function GeocoderOpComponent({
   return (
     <>
       <NodeHeader id={id} type={type} op={op} />
-      {/* TODO: calculate top from i and account for CompoundProps. Keep a running offset */}
-      {Object.entries(op.inputs).map(([key, field], i) => (
-        <Port key={key} name={key} i={i} field={field} type={TARGET_HANDLE} />
-      ))}
       <div className={s.content}>
+        {Object.entries(op.inputs).map(([key, field]) => (
+          <FieldComponent
+            key={key}
+            id={key}
+            field={field}
+            disabled={locked}
+            handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
+          />
+        ))}
         <div ref={containerRef} className={s.fieldWrapper} />
+        <div className={s.outputHandleContainer}>
+          {Object.entries(op.outputs).map(([key, field]) => (
+            <OutputHandle key={key} id={key} field={field} />
+          ))}
+        </div>
       </div>
-      {Object.entries(op.outputs).map(([key, field], i) => (
-        <Port key={key} name={key} i={i} field={field} type={SOURCE_HANDLE} />
-      ))}
     </>
   )
 }
@@ -1071,10 +1118,12 @@ function MouseOpComponent({
             y: {mousePosition.y.toFixed(2)}
           </div>
         </div>
+        <div className={s.outputHandleContainer}>
+          {Object.entries(op.outputs).map(([key, field]) => (
+            <OutputHandle key={key} id={key} field={field} />
+          ))}
+        </div>
       </div>
-      {Object.entries(op.outputs).map(([key, field], i) => (
-        <Port key={key} name={key} i={i} field={field} type={SOURCE_HANDLE} />
-      ))}
     </>
   )
 }
@@ -1143,61 +1192,74 @@ function TableEditorOpComponent({
     )
   }
 
+  const locked = useLocked(op)
+
   return (
     <>
       <NodeHeader id={id} type={type} op={op} />
       <NodeResizer isVisible={selected} minWidth={400} minHeight={200} />
-      {Object.entries(op.inputs).map(([key, field], i) => (
-        <Port key={key} name={key} i={i} field={field} type={TARGET_HANDLE} />
-      ))}
-      <div className="card p-fluid">
-        <DataTable
-          value={dataArray}
-          editMode="cell"
-          size="small"
-          resizableColumns
-          reorderableRows
-          onRowReorder={e => {
-            op.inputs.data.setValue(e.value.slice())
-          }}
-          showGridlines
-          stripedRows
-          scrollable
-          scrollHeight="400px"
-          tableStyle={{ minWidth: '50rem' }}
-        >
-          <Column rowReorder style={{ width: '3rem' }} />
-          {columns.map((col, _i) => (
-            <Column
-              key={col.field}
-              field={col.field}
-              header={col.header}
-              editor={options => cellEditor(options)}
-              onCellEditComplete={onCellEditComplete}
-              sortable
-            />
-          ))}
-          <Column
-            header={
-              columns.length ? (
-                <Button
-                  label="+"
-                  icon="pi pi-plus"
-                  className="p-button-success mr-2"
-                  onClick={addColumn}
-                />
-              ) : null
-            }
+      <div className={s.content}>
+        {Object.entries(op.inputs).map(([key, field]) => (
+          <FieldComponent
+            key={key}
+            id={key}
+            field={field}
+            disabled={locked}
+            handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
           />
-        </DataTable>
+        ))}
+        <div className="card p-fluid">
+          <DataTable
+            value={dataArray}
+            editMode="cell"
+            size="small"
+            resizableColumns
+            reorderableRows
+            onRowReorder={e => {
+              op.inputs.data.setValue(e.value.slice())
+            }}
+            showGridlines
+            stripedRows
+            scrollable
+            scrollHeight="400px"
+            tableStyle={{ minWidth: '50rem' }}
+          >
+            <Column rowReorder style={{ width: '3rem' }} />
+            {columns.map((col, _i) => (
+              <Column
+                key={col.field}
+                field={col.field}
+                header={col.header}
+                editor={options => cellEditor(options)}
+                onCellEditComplete={onCellEditComplete}
+                sortable
+              />
+            ))}
+            <Column
+              header={
+                columns.length ? (
+                  <Button
+                    label="+"
+                    icon="pi pi-plus"
+                    className="p-button-success mr-2"
+                    onClick={addColumn}
+                  />
+                ) : null
+              }
+            />
+          </DataTable>
+        </div>
+        <div className={s.outputHandleContainer}>
+          {Object.entries(op.outputs).map(([key, field]) => (
+            <OutputHandle key={key} id={key} field={field} />
+          ))}
+        </div>
       </div>
-      {Object.entries(op.outputs).map(([key, field], i) => (
-        <Port key={key} field={field} name={key} i={i} type={SOURCE_HANDLE} />
-      ))}
     </>
   )
 }
 
+// Helper for ViewerOp to format Layer and Operator instances
 const viewerFormatter = (value: unknown) => {
   if (value instanceof Layer) {
     // Guard against ReactJson crash since layer.props has no `hasOwnProperty` method
@@ -1228,62 +1290,6 @@ const viewerFormatter = (value: unknown) => {
     return { value }
   }
   return value
-}
-
-function HandlePreviewContent({ data, name, type }: { data: unknown; name: string; type: string }) {
-  return (
-    <>
-      <div className={previewStyles.handlePreviewHeader}>
-        <span className={previewStyles.handlePreviewName}>{name}</span>
-        <span className={previewStyles.handlePreviewType}>({type})</span>
-      </div>
-      <div className={previewStyles.handlePreviewBody}>
-        {data === null || data === undefined ? (
-          <div className={previewStyles.handlePreviewEmpty}>No data</div>
-        ) : data instanceof Element ? (
-          <ViewerDOMContent content={data} />
-        ) : data instanceof Set ? (
-          <ReactJson src={Array.from(data)} theme="twilight" collapsed={1} />
-        ) : Array.isArray(data) &&
-          data.length > 0 &&
-          data.length < 10 &&
-          isPlainObject(data[0]) &&
-          Object.keys(data[0]).length < 10 ? (
-          (() => {
-            const keys = Object.keys(data[0] || {})
-            return (
-              <table className={previewStyles.handlePreviewTable}>
-                <thead>
-                  <tr>
-                    {keys.map(key => (
-                      <th key={key}>{key}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.map((row, i) => (
-                    <tr key={i}>
-                      {keys.map(key => (
-                        <td key={key}>
-                          {typeof row[key] === 'string' ? row[key] : JSON.stringify(row[key])}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )
-          })()
-        ) : data instanceof Operator ? (
-          <ReactJson src={data} theme="twilight" />
-        ) : data instanceof Promise ? (
-          <div className={previewStyles.handlePreviewEmpty}>Loading...</div>
-        ) : (
-          <ReactJson src={data} theme="twilight" />
-        )}
-      </div>
-    </>
-  )
 }
 
 function ViewerDOMContent({ content }: { content: Element }) {
@@ -1354,14 +1360,29 @@ function ViewerOpComponent({
     content = <ReactJson src={viewerData} theme="twilight" />
   }
 
+  const locked = useLocked(op)
+
   return (
     <>
       <NodeHeader id={id} type={type} op={op} />
       <NodeResizer isVisible={selected} minWidth={400} minHeight={200} />
-      {Object.entries(op.inputs).map(([key, field], i) => (
-        <Port key={key} name={key} i={i} field={field} type={TARGET_HANDLE} />
-      ))}
-      <div className={s.content}>{content}</div>
+      <div className={s.content}>
+        {Object.entries(op.inputs).map(([key, field]) => (
+          <FieldComponent
+            key={key}
+            id={key}
+            field={field}
+            disabled={locked}
+            handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
+          />
+        ))}
+        {content}
+        <div className={s.outputHandleContainer}>
+          {Object.entries(op.outputs).map(([key, field]) => (
+            <OutputHandle key={key} id={key} field={field} />
+          ))}
+        </div>
+      </div>
     </>
   )
 }
@@ -1377,6 +1398,8 @@ function ContainerOpComponent({
   const nodes = useNodes()
   const children = nodes.filter(node => getParentPath(node.id) === id)
 
+  const locked = useLocked(op)
+
   return (
     // Add a specific class for styling the container
     <div
@@ -1387,15 +1410,24 @@ function ContainerOpComponent({
     >
       <NodeHeader id={id} type={type} op={op} />
       <NodeResizer isVisible={selected} minWidth={200} minHeight={50} />
-      <div className={s.content}>Children: {children.length}</div>
-      {Object.entries(op.inputs).map(([key, field], i) => (
-        <Port key={key} name={key} field={field} i={i} type={TARGET_HANDLE} />
-      ))}
-      {/* ContainerOp does not render FieldComponents for its own inputs/outputs directly */}
-      {/* Children nodes are rendered by React Flow normally */}
-      {Object.entries(op.outputs).map(([key, field], i) => (
-        <Port key={key} field={field} name={key} i={i} type={SOURCE_HANDLE} />
-      ))}
+      <div className={s.content}>
+        {Object.entries(op.inputs).map(([key, field]) => (
+          <FieldComponent
+            key={key}
+            id={key}
+            field={field}
+            disabled={locked}
+            handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
+          />
+        ))}
+        <div>Children: {children.length}</div>
+        {/* Children nodes are rendered by React Flow normally */}
+        <div className={s.outputHandleContainer}>
+          {Object.entries(op.outputs).map(([key, field]) => (
+            <OutputHandle key={key} id={key} field={field} />
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
@@ -1436,15 +1468,19 @@ function TimeOpComponent({
     <>
       <NodeHeader id={id} type={type} op={op} />
       <div className={s.content}>
-        Now: {now}
-        <br />
-        Sequence time: {sequenceTime.toFixed(2)}
-        <br />
-        Tick: {tick}
+        <div>
+          Now: {now}
+          <br />
+          Sequence time: {sequenceTime.toFixed(2)}
+          <br />
+          Tick: {tick}
+        </div>
+        <div className={s.outputHandleContainer}>
+          {Object.entries(op.outputs).map(([key, field]) => (
+            <OutputHandle key={key} id={key} field={field} />
+          ))}
+        </div>
       </div>
-      {Object.entries(op.outputs).map(([key, field], i) => (
-        <Port key={key} field={field} name={key} i={i} type={SOURCE_HANDLE} />
-      ))}
     </>
   )
 }
