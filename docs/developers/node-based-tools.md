@@ -34,6 +34,8 @@ Other node-based tools to check out:
 * [flyde](https://flyde.dev/) - Workflow builder for AI projects. Shows how nodes can integrate with AI APIs
 * [Bitspace](https://bitspace.sh/) - Circuits for creative coding. Beautiful aesthetic and UX
 * [Three Point Square](https://www.threepointsquare.net/) - Particle systems and agent modeling with architectural focus. Procedural urban design
+* [Luna Park](https://luna-park.app/) - Browser-based visual scripting editor with a great environment
+* [Node-RED](https://nodered.org/) - Focused on IOT apps, with a huge selection of nodes and a strong community
 * [nodezator](https://nodezator.com/) - Node wrapper UI for Python. Makes any Python function into a node
 * [Notch](https://www.notch.one/) - Real-time VFX for live shows and broadcast. Used by top VJs and live performers
 * [vvvv](https://vvvv.org/) - Visual live-programming for .NET. Strong in generative graphics and physical computing
