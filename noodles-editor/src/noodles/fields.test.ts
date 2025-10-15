@@ -394,32 +394,6 @@ describe('CompoundPropsField', () => {
     })
   })
 
-  it('fills in missing values', () => {
-    const viewState = new CompoundPropsField({
-      latitude: new NumberField(1, { min: -90, max: 90 }),
-      longitude: new NumberField(2, { min: -180, max: 180 }),
-      zoom: new NumberField(3, { min: 0, max: 24 }),
-      pitch: new NumberField(4, { min: 0, max: 60 }),
-      bearing: new NumberField(5),
-    })
-
-    const upstream = new CompoundPropsField({
-      latitude: new NumberField(10, { min: -90, max: 90 }),
-      longitude: new NumberField(20, { min: -180, max: 180 }),
-      zoom: new NumberField(13, { min: 0, max: 24 }),
-    })
-
-    viewState.addConnection('upstream', upstream, 'value')
-
-    expect(viewState.value).toEqual({
-      latitude: 10,
-      longitude: 20,
-      zoom: 13,
-      pitch: 4,
-      bearing: 5,
-    })
-  })
-
   it('allows DataFields to connect to CompoundPropsFields', () => {
     const viewState = new CompoundPropsField({
       latitude: new NumberField(1, { min: -90, max: 90 }),
@@ -466,7 +440,7 @@ describe('CompoundPropsField', () => {
   })
 
   it('allows arbitrary DataFields to connect to CompoundPropsFields', () => {
-    const compoundField = new CompoundPropsField({})
+    const compoundField = new CompoundPropsField({}, { passthrough: true })
 
     const dataField = new DataField()
     compoundField.addConnection('data', dataField, 'value')
@@ -481,21 +455,44 @@ describe('CompoundPropsField', () => {
     })
   })
 
-  it('passes through extra values', () => {
+  it('passes through extra values when passthrough is true', () => {
     const viewState = new CompoundPropsField({
       latitude: new NumberField(1, { min: -90, max: 90 }),
       longitude: new NumberField(2, { min: -180, max: 180 }),
       zoom: new NumberField(3, { min: 0, max: 24 }),
       pitch: new NumberField(4, { min: 0, max: 60 }),
       bearing: new NumberField(5),
+    }, { passthrough: true })
+
+    expect(() => {
+      viewState.setValue({
+        latitude: 10,
+        longitude: 20,
+        zoom: 5.1,
+        pitch: 6.2,
+        bearing: 7.3,
+        extra: 'extra',
+      })
+    }).not.toThrow()
+    expect(viewState.value).toEqual({
+      latitude: 10,
+      longitude: 20,
+      zoom: 5.1,
+      pitch: 6.2,
+      bearing: 7.3,
+      extra: 'extra',
     })
 
     const upstream = new CompoundPropsField({
       latitude: new NumberField(10, { min: -90, max: 90 }),
       longitude: new NumberField(20, { min: -180, max: 180 }),
       zoom: new NumberField(13, { min: 0, max: 24 }),
+      pitch: new NumberField(14, { min: 0, max: 60 }),
+      bearing: new NumberField(15),
       extra: new StringField('extra'),
     })
+
+    expect(canConnect(upstream, viewState)).toBe(true)
 
     viewState.addConnection('upstream', upstream, 'value')
 
@@ -503,14 +500,14 @@ describe('CompoundPropsField', () => {
       latitude: 10,
       longitude: 20,
       zoom: 13,
-      pitch: 4,
-      bearing: 5,
+      pitch: 14,
+      bearing: 15,
       extra: 'extra',
     })
-    expect(upstream.value.extra).toBeDefined()
+    expect(viewState.fields.extra).not.toBeDefined()
   })
 
-  it('guards against undefined values', () => {
+  it('guards against undefined values by default', () => {
     const viewState = new CompoundPropsField({
       latitude: new NumberField(1, { min: -90, max: 90 }),
       longitude: new NumberField(2, { min: -180, max: 180 }),
@@ -518,7 +515,7 @@ describe('CompoundPropsField', () => {
     })
 
     expect(() => {
-      viewState.next(undefined)
+      viewState.setValue(undefined)
     }).not.toThrow()
 
     expect(viewState.value).toEqual({
@@ -526,6 +523,20 @@ describe('CompoundPropsField', () => {
       longitude: 2,
       zoom: 3,
     })
+  })
+
+  it('sets undefined values when optional is true', () => {
+    const viewState = new CompoundPropsField({
+      latitude: new NumberField(1, { min: -90, max: 90 }),
+      longitude: new NumberField(2, { min: -180, max: 180 }),
+      zoom: new NumberField(3, { min: 0, max: 24 }),
+    }, { optional: true })
+
+    expect(() => {
+      viewState.setValue(undefined)
+    }).not.toThrow()
+
+    expect(viewState.value).toEqual(undefined)
   })
 })
 
