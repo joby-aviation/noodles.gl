@@ -3570,14 +3570,31 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
   }
 }
 
+function toGeocentric(longitude: number, latitude: number, height = 50) {
+  const a = 6378137.0; // Semi-major axis (meters)
+  const f = 1 / 298.257223563; // Flattening
+  const b = a * (1 - f); // Semi-minor axis
+  const e2 = 1 - (b * b) / (a * a); // Eccentricity squared
+
+  const latRad = (latitude * Math.PI) / 180;
+  const lonRad = (-1 * longitude * Math.PI) / 180;
+  const N = a / Math.sqrt(1 - e2 * Math.sin(latRad) * Math.sin(latRad));
+
+  const X = (N + height) * Math.cos(latRad) * Math.cos(lonRad);
+  const Y = (N + height) * Math.cos(latRad) * Math.sin(lonRad);
+  const Z = (N * (1 - e2) + height) * Math.sin(latRad);
+
+  return [X, Y, Z];
+}
+
 export class Mask3DExtensionOp extends Operator<Mask3DExtensionOp> {
   static displayName = 'Mask3DExtension'
   static description = 'Mask a sphere (used with Tile3DLayer)'
   createInputs() {
     return {
-      targetPosition: new Vec3Field([0, 0, 0], { returnType: 'tuple' }),
-      innerRadius: new NumberField(0, { min: 0, max: 10_000 }),
-      fadeRange: new NumberField(0, { min: 0, max: 10_000 }),
+      targetPosition: new Point3DField([-118.26370299999999, 34.017137999999996, 0], { returnType: 'tuple' }),
+      innerRadius: new NumberField(1000, { min: 0 }),
+      fadeRange: new NumberField(7, { min: 0 }),
     }
   }
   createOutputs() {
@@ -3586,9 +3603,13 @@ export class Mask3DExtensionOp extends Operator<Mask3DExtensionOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const targetPosition = toGeocentric(...props.targetPosition)
     const extension = {
       extension: { type: 'Mask3DExtension' },
-      props,
+      props: {
+        ...props,
+        targetPosition,
+      },
     }
     return { extension }
   }

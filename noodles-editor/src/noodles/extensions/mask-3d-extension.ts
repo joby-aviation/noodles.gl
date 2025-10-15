@@ -39,6 +39,7 @@ const mask3DUniforms: ShaderModule<Props> = {
 
 // Forked from https://github.com/grahambates-code/3d_tiles_mask
 export class Mask3DExtension extends LayerExtension {
+  static extensionName = 'Mask3DExtension'
   getShaders() {
     return {
       modules: [project32, mask3DUniforms],
