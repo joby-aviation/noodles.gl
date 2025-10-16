@@ -1461,7 +1461,7 @@ export class BoundingBoxOp extends Operator<BoundingBoxOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      data: new GeometryField(),
+      data: new FeatureCollectionField(),
       // TODO: could be a union, either a number or object with top, right, bottom, left
       padding: new NumberField(0, { min: -1_000, max: 1_000 }),
     }
