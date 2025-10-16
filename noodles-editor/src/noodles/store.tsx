@@ -15,6 +15,12 @@ export type NestingContextValue = {
 
 let currentContainerId = '/'
 
+// Track currently hovered output handle for viewer creation
+export let hoveredOutputHandle: { nodeId: string; handleId: string } | null = null
+export const setHoveredOutputHandle = (handle: { nodeId: string; handleId: string } | null) => {
+  hoveredOutputHandle = handle
+}
+
 const noodlesContextValue = {
   ops: {
     get: (id: OpId) => opMap.get(id),
@@ -46,7 +52,7 @@ export const NoodlesProvider = ({ children }: PropsWithChildren) => (
 export const useSlice: <T>(resolver: (state: NoodlesContextValue) => T) => T = resolver =>
   resolver(useContext(NoodlesContext))
 
-/* Helpful hook to get an op, just be careful not to break rule of hooks with it. */
+// Helpful hook to get an op, just be careful not to break rule of hooks with it.
 export const useOp = (id: OpId) => {
   const op = useSlice(state => state.ops).get(id)
   if (!op) {

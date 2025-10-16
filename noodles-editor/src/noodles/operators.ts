@@ -27,6 +27,7 @@ import {
   _TerrainExtension as TerrainExtension,
 } from '@deck.gl/extensions'
 import type {
+  A5LayerProps,
   GeohashLayerProps,
   GreatCircleLayerProps,
   H3ClusterLayerProps,
@@ -121,7 +122,6 @@ import {
   schemeYlGn,
 } from 'd3'
 import * as deck from 'deck.gl'
-import type { MapProps, ViewState } from 'react-map-gl/maplibre'
 import { BehaviorSubject, combineLatest, type Subscription } from 'rxjs'
 import { debounceTime, filter, mergeMap } from 'rxjs/operators'
 import { Temporal } from 'temporal-polyfill'
@@ -191,6 +191,7 @@ import { projectScheme } from './utils/filesystem'
 import type { OpId } from './utils/id-utils'
 import { isDirectChild } from './utils/path-utils'
 import { pick } from './utils/pick'
+import { validateViewState } from './utils/viewstate-helpers'
 
 // https://stackoverflow.com/questions/66044717/typescript-infer-type-of-abstract-methods-implementation
 export interface IOperator {
@@ -451,6 +452,41 @@ export class ExtentOp extends Operator<ExtentOp> {
   }
 }
 
+export class SelectOp extends Operator<SelectOp> {
+  static displayName = 'Select'
+  static description = 'Select an element from an array using an index (clamped to array bounds by default, or wrapped around array bounds)'
+  createInputs() {
+    return {
+      data: new DataField(),
+      index: new NumberField(0, { step: 1 }),
+      wrap: new BooleanField(false),
+    }
+  }
+  createOutputs() {
+    return {
+      value: new UnknownField(undefined),
+    }
+  }
+  execute({ data, index, wrap }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!Array.isArray(data) || data.length === 0) {
+      return { value: undefined }
+    }
+
+    let finalIndex: number
+    if (wrap) {
+      // Use modulo to wrap index around array bounds
+      finalIndex = ((Math.floor(index) % data.length) + data.length) % data.length
+    } else {
+      // Clamp index to array bounds
+      finalIndex = Math.max(0, Math.min(Math.floor(index), data.length - 1))
+    }
+
+    return {
+      value: data[finalIndex],
+    }
+  }
+}
+
 // Allow adding a "virtual" operator from the Add Node menu that wraps the Math operator with a specific operation
 export const mathOps = {
   DivideOp: 'divide',
@@ -467,6 +503,22 @@ export const mathOps = {
   CeilOp: 'ceil',
   AbsOp: 'abs',
 } as const
+
+export const mathOpDescriptions = {
+  DivideOp: 'Divide two numbers',
+  MultiplyOp: 'Multiply two numbers',
+  SubtractOp: 'Subtract two numbers',
+  AddOp: 'Add two numbers',
+  ModuloOp: 'Calculate the remainder of division',
+  SineOp: 'Calculate the sine of a number',
+  CosineOp: 'Calculate the cosine of a number',
+  MinOp: 'Get the minimum of two numbers',
+  MaxOp: 'Get the maximum of two numbers',
+  RoundOp: 'Round a number to the nearest integer',
+  FloorOp: 'Round down to the nearest integer',
+  CeilOp: 'Round up to the nearest integer',
+  AbsOp: 'Get the absolute value of a number',
+} as const as Record<keyof typeof mathOps, string>
 
 export type MathOpType = keyof typeof mathOps
 
@@ -1469,61 +1521,6 @@ export class BoundingBoxOp extends Operator<BoundingBoxOp> {
   }
 }
 
-export class InteractiveCameraOp extends Operator<InteractiveCameraOp> {
-  static displayName = 'InteractiveCamera'
-  static description = 'Interactive camera control'
-  createInputs() {
-    return {
-    }
-  }
-  createOutputs() {
-    return {
-      vis: new VisualizationField(),
-    }
-  }
-  execute(_: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    let viewState = {
-      longitude: 180,
-      latitude: 0,
-      zoom: 11,
-      bearing: 0,
-      pitch: 0,
-    } as ViewState
-
-    const onViewStateChange: DeckProps['onViewStateChange'] = e => {
-      viewState = e.viewState
-      const out = this.outputs?.vis
-      if (!out) return
-      const { value: { mapProps, deckProps } } = out
-      out.next({
-        ...out.value,
-        mapProps: {
-          ...mapProps,
-          ...viewState,
-        },
-        deckProps: {
-          ...deckProps,
-          viewState,
-        }
-      })
-    }
-
-    return {
-      vis: {
-        deckProps: {
-          viewState,
-          controller: true,
-        } as DeckProps,
-        mapProps: {
-          ...viewState,
-          onMove: onViewStateChange,
-          interactive: true,
-        } as Partial<MapProps>,
-      }
-    }
-  }
-}
-
 export class GeocoderOp extends Operator<GeocoderOp> {
   static displayName = 'Geocoder'
   static description = 'Get the location of a query string'
@@ -2205,6 +2202,7 @@ export class ProjectOp extends Operator<ProjectOp> {
     height,
     width,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    validateViewState(viewState)
     const viewport = new WebMercatorViewport({
       ...viewState,
       height,
@@ -2244,6 +2242,7 @@ export class UnprojectOp extends Operator<UnprojectOp> {
     height,
     width,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    validateViewState(viewState)
     const viewport = new WebMercatorViewport({
       ...viewState,
       height,
@@ -2284,7 +2283,9 @@ export class MapViewStateOp extends Operator<MapViewStateOp> {
     pitch,
     bearing,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    return { viewState: { longitude, latitude, zoom, pitch, bearing } }
+    const viewState = { longitude, latitude, zoom, pitch, bearing }
+    validateViewState(viewState)
+    return { viewState }
   }
 }
 
@@ -2314,6 +2315,7 @@ export class SplitMapViewStateOp extends Operator<SplitMapViewStateOp> {
   execute({
     viewState,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    validateViewState(viewState)
     return { ...viewState }
   }
 }
@@ -2351,6 +2353,7 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
     mapStyle,
     viewState,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    validateViewState(viewState)
     return { maplibre: { mapStyle, ...viewState } }
   }
 }
@@ -2403,6 +2406,9 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
     views,
     layerFilter,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    // Validate the ViewState to ensure lat/lng are within valid bounds
+    validateViewState(viewState)
+
     const deckProps: DeckProps & { layers: (LayerProps & { type: string })[] } = {
       layers,
       effects,
@@ -2499,6 +2505,7 @@ export class MapViewOp extends Operator<MapViewOp> {
     viewState,
     ...props
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    validateViewState(viewState)
     return {
       view: new MapView({ id: this.id, ...props, viewState: { ...viewState, maxPitch: 90 } }),
     }
@@ -2561,6 +2568,7 @@ export class GlobeViewOp extends Operator<GlobeViewOp> {
   }
 
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    validateViewState(props.viewState)
     return { view: new GlobeView({ id: this.id, ...props }) }
   }
 }
@@ -2631,6 +2639,7 @@ export class FirstPersonViewOp extends Operator<FirstPersonViewOp> {
   }
 
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    validateViewState(props.viewState)
     return { view: new FirstPersonView({ id: this.id, ...props }) }
   }
 }
@@ -2662,6 +2671,7 @@ export class OrbitViewOp extends Operator<OrbitViewOp> {
   }
 
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    validateViewState(props.viewState)
     return { view: new OrbitView({ id: this.id, ...props }) }
   }
 }
@@ -2859,10 +2869,10 @@ export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
       getFillColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
       getLineColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
-      getRadius: new NumberField(600, { min: 0, max: 1_000_000, accessor: true }),
+      getRadius: new NumberField(20, { min: 0, max: 1_000_000, accessor: true }),
       getLineWidth: new NumberField(0, { accessor: true }),
       radiusScale: new NumberField(1, { min: 0, max: 100 }),
-      radiusUnits: new StringLiteralField('meters', ['pixels', 'meters']),
+      radiusUnits: new StringLiteralField('pixels', ['pixels', 'meters']),
       extensions: new ListField(new ExtensionField()),
     }
   }
@@ -2985,7 +2995,7 @@ export class TextLayerOp extends Operator<TextLayerOp> {
         values: ['start', 'middle', 'end'],
         accessor: true,
       }),
-      getPixelOffset: new Vec2Field({ x: 96, y: 124 }, { returnType: 'tuple', accessor: true }),
+      getPixelOffset: new Vec2Field({ x: 0, y: 0 }, { returnType: 'tuple', accessor: true }),
       getAlignmentBaseline: new StringLiteralField('center', {
         values: ['top', 'center', 'bottom'],
         accessor: true,
@@ -3167,6 +3177,40 @@ export class H3HexagonLayerOp extends Operator<H3HexagonLayerOp> {
     const layer = {
       ...parseLayerProps<H3HexagonLayerProps>(props),
       type: 'H3HexagonLayer' as const,
+      id: this.id,
+      updateTriggers: gatherTriggers(this.inputs, props),
+    }
+    return { layer }
+  }
+}
+
+export class A5LayerOp extends Operator<A5LayerOp> {
+  static displayName = 'A5Layer'
+  static description = 'Render filled and/or stroked polygons using the A5 geospatial indexing system'
+  static cacheable = false
+  createInputs() {
+    return {
+      data: new DataField(),
+      visible: new BooleanField(true),
+      opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
+      getPentagon: new UnknownField((d: unknown) => d?.pentagon || '', { accessor: true }),
+      getFillColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
+      getElevation: new NumberField(1000, { min: 0, max: 100000, accessor: true }),
+      elevationScale: new NumberField(1, { min: 0, max: 100 }),
+      extruded: new BooleanField(false),
+      pickable: new BooleanField(true),
+      extensions: new ListField(new ExtensionField()),
+    }
+  }
+  createOutputs() {
+    return {
+      layer: new LayerField<A5LayerProps>(),
+    }
+  }
+  execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const layer = {
+      ...parseLayerProps<A5LayerProps>(props),
+      type: 'A5Layer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
     }
@@ -3457,7 +3501,7 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
   createInputs() {
     return {
       visible: new BooleanField(true),
-      provider: new StringLiteralField('Cesium', ['Cesium', 'Google']),
+      provider: new StringLiteralField('Google', ['Cesium', 'Google']),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       operation: new StringLiteralField('terrain+draw', {
         values: ['terrain+draw', 'draw', 'terrain'],
@@ -4852,6 +4896,7 @@ export class MaskExtensionOp extends Operator<MaskExtensionOp> {
 
 export const opTypes = {
   AccessorOp,
+  A5LayerOp,
   ArcOp,
   ArcLayerOp,
   BezierCurveOp,
@@ -4906,7 +4951,6 @@ export const opTypes = {
   HSLOp,
   HueSaturationExtensionOp,
   IconLayerOp,
-  InteractiveCameraOp,
   JSONOp,
   LayerPropsOp,
   LineLayerOp,
@@ -4942,6 +4986,7 @@ export const opTypes = {
   ScenegraphLayerOp,
   ScreenGridLayerOp,
   SimpleMeshLayerOp,
+  SelectOp,
   SliceOp,
   SolidPolygonLayerOp,
   SortOp,

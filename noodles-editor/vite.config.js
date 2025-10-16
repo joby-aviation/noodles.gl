@@ -4,8 +4,9 @@ import { nodePolyfills } from 'vite-plugin-node-polyfills'
 import fs from 'node:fs'
 import path from 'node:path'
 
-export default defineConfig(() => {
+export default defineConfig(({ mode }) => {
   return {
+    base: mode === 'development' ? '/' : '/app/',
     server: {
       open: true,
     },

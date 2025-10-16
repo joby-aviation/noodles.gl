@@ -1,0 +1,231 @@
+{
+  "nodes": [
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 1200,
+        "y": 200
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 1500,
+        "y": 200
+      }
+    },
+    {
+      "id": "/data-source",
+      "type": "FileOp",
+      "data": {
+        "inputs": {
+          "format": "csv",
+          "url": "@/data.csv"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -30.281922090095136,
+        "y": -18.432474315710078
+      }
+    },
+    {
+      "id": "/scatterplot-layer",
+      "type": "ScatterplotLayerOp",
+      "data": {
+        "inputs": {
+          "opacity": 0.4,
+          "getLineColor": "#ffffffff"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 660.3778338957691,
+        "y": 152.6642123306002
+      }
+    },
+    {
+      "id": "/position-accessor",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "[d.Longitude, d.Latitude]"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -58.11664384808154,
+        "y": 231.6605308265006
+      }
+    },
+    {
+      "id": "/radius-accessor",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "Math.sqrt(d.Magnitude) * 15"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 120.94167807595923,
+        "y": 513.3520633670713
+      }
+    },
+    {
+      "id": "/magnitude-color",
+      "type": "ColorRampOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 239.2501455353884,
+        "y": 321.2516952166614
+      }
+    },
+    {
+      "id": "/magnitude-accessor",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "d.Magnitude"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -424.7814479314794,
+        "y": 390.13392481159116
+      }
+    },
+    {
+      "type": "MaplibreBasemapOp",
+      "id": "/maplibre-basemap",
+      "position": {
+        "x": 562.9490410841586,
+        "y": 576.4871147356512
+      },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
+          "viewState": {
+            "latitude": 37.059,
+            "longitude": -112.383,
+            "zoom": 5.74,
+            "pitch": 0,
+            "bearing": 0
+          }
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "MapRangeOp",
+      "id": "/map-range",
+      "position": {
+        "x": -77.87578429545218,
+        "y": 323.1939851432402
+      },
+      "data": {
+        "inputs": {
+          "inMax": 5
+        },
+        "locked": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    },
+    {
+      "id": "/data-source.out.data->/scatterplot-layer.par.data",
+      "source": "/data-source",
+      "target": "/scatterplot-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/position-accessor.out.accessor->/scatterplot-layer.par.getPosition",
+      "source": "/position-accessor",
+      "target": "/scatterplot-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getPosition"
+    },
+    {
+      "id": "/radius-accessor.out.accessor->/scatterplot-layer.par.getRadius",
+      "source": "/radius-accessor",
+      "target": "/scatterplot-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getRadius"
+    },
+    {
+      "source": "/magnitude-color",
+      "sourceHandle": "out.color",
+      "target": "/scatterplot-layer",
+      "targetHandle": "par.getFillColor",
+      "id": "/magnitude-color.out.color->/scatterplot-layer.par.getFillColor"
+    },
+    {
+      "source": "/map-range",
+      "sourceHandle": "out.scaled",
+      "target": "/magnitude-color",
+      "targetHandle": "par.value",
+      "id": "/map-range.out.scaled->/magnitude-color.par.value"
+    },
+    {
+      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
+      "source": "/maplibre-basemap",
+      "target": "/deck",
+      "sourceHandle": "out.maplibre",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/scatterplot-layer.out.layer->/deck.par.layers",
+      "source": "/scatterplot-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "source": "/magnitude-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/map-range",
+      "targetHandle": "par.val",
+      "id": "/magnitude-accessor.out.accessor->/map-range.par.val"
+    }
+  ],
+  "viewport": {
+    "x": 143.291766562843,
+    "y": 172.88548024794358,
+    "zoom": 0.4813563009649149
+  },
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": [
+      "nHO9RdPmd2OTxHpO"
+    ]
+  },
+  "version": 6
+}

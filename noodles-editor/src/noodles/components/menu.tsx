@@ -4,14 +4,14 @@ import * as Menubar from '@radix-ui/react-menubar'
 import { useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
 import { type Dispatch, type SetStateAction, useCallback, useEffect, useState } from 'react'
-import newProjectJSON from '../../../public/noodles/new.json'
+import newProjectJSON from '../../../public/noodles/new.json?url'
 import { useActiveStorageType, useFileSystemStore } from '../filesystem-store'
 import { load, save } from '../storage'
 import { useSlice } from '../store'
 import { migrateProject } from '../utils/migrate-schema'
 import {
   EMPTY_PROJECT,
-  NODES_VERSION,
+  NOODLES_VERSION,
   type NoodlesProjectJSON,
   safeStringify,
   serializeEdges,
@@ -360,7 +360,7 @@ function addToRecentProjects(projectName: string) {
   localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(recentProjects))
 }
 
-export function NodesMenubar({
+export function NoodlesMenubar({
   projectName,
   loadProjectFile,
   getTimelineJson,
@@ -377,9 +377,10 @@ export function NodesMenubar({
   const storageType = useActiveStorageType()
   const { setCurrentDirectory, setError } = useFileSystemStore()
 
-  /* "New" Menu Options */
-  const onNewProject = useCallback(() => {
-    loadProjectFile(newProjectJSON)
+  // "New" Menu Options
+  const onNewProject = useCallback(async () => {
+    const newProjectFile = await fetch(newProjectJSON).then(res => res.json())
+    loadProjectFile(newProjectFile)
   }, [loadProjectFile])
 
   const onImport = useCallback(async () => {
@@ -407,11 +408,11 @@ export function NodesMenubar({
     loadProjectFile(project)
   }, [loadProjectFile])
 
-  /* "Save" Menu Options */
+  // "Save" Menu Options
   const [saveProjectDialogOpen, setSaveProjectDialogOpen] = useState(false)
   const [replaceProjectDialogOpen, setReplaceProjectDialogOpen] = useState(false)
 
-  const getNodesProjectJson = useCallback((): NoodlesProjectJSON => {
+  const getNoodlesProjectJson = useCallback((): NoodlesProjectJSON => {
     const { nodes, edges, viewport } = toObject()
     // sync op and node data
     const serializedNodes = serializeNodes(ops, nodes, edges)
@@ -423,7 +424,7 @@ export function NodesMenubar({
       edges: serializedEdges,
       viewport,
       timeline,
-      version: NODES_VERSION,
+      version: NOODLES_VERSION,
     }
   }, [toObject, ops, getTimelineJson])
 
@@ -434,8 +435,8 @@ export function NodesMenubar({
       setSaveProjectDialogOpen(true)
       return // return early if the project has no name
     }
-    const nodesProjectJson = getNodesProjectJson()
-    const result = await save(storageType, projectName, nodesProjectJson)
+    const noodlesProjectJson = getNoodlesProjectJson()
+    const result = await save(storageType, projectName, noodlesProjectJson)
     if (result.success) {
       addToRecentProjects(projectName)
       // Update store with directory handle returned from save
@@ -443,7 +444,7 @@ export function NodesMenubar({
     } else {
       setError(result.error)
     }
-  }, [projectName, storageType, getNodesProjectJson, setCurrentDirectory, setError])
+  }, [projectName, storageType, getNoodlesProjectJson, setCurrentDirectory, setError])
 
   // This is a new project, so they need to name it before saving.
   const maybeSetProjectName = useCallback(
@@ -454,8 +455,8 @@ export function NodesMenubar({
         setReplaceProjectDialogOpen(true)
         return // return early if project is going to be replaced
       }
-      const nodesProjectJson = getNodesProjectJson()
-      const result = await save(storageType, name, nodesProjectJson)
+      const noodlesProjectJson = getNoodlesProjectJson()
+      const result = await save(storageType, name, noodlesProjectJson)
       if (result.success) {
         addToRecentProjects(name)
         // Update store with directory handle returned from save
@@ -464,14 +465,14 @@ export function NodesMenubar({
         setError(result.error)
       }
     },
-    [storageType, getNodesProjectJson, setProjectName, setCurrentDirectory, setError]
+    [storageType, getNoodlesProjectJson, setProjectName, setCurrentDirectory, setError]
   )
 
   // When the project name is taken and the user choose to replace that existing project
   const onReplaceProject = useCallback(async () => {
     setReplaceProjectDialogOpen(false)
-    const nodesProjectJson = getNodesProjectJson()
-    const result = await save(storageType, projectName!, nodesProjectJson)
+    const noodlesProjectJson = getNoodlesProjectJson()
+    const result = await save(storageType, projectName!, noodlesProjectJson)
     if (result.success) {
       addToRecentProjects(projectName!)
       // Update store with directory handle returned from save
@@ -479,7 +480,7 @@ export function NodesMenubar({
     } else {
       setError(result.error)
     }
-  }, [projectName, storageType, getNodesProjectJson, setCurrentDirectory, setError])
+  }, [projectName, storageType, getNoodlesProjectJson, setCurrentDirectory, setError])
 
   // User decided not to replace, revert back to an undecided name
   const onCancelReplaceProject = useCallback(() => {
@@ -489,11 +490,11 @@ export function NodesMenubar({
   }, [setProjectName])
 
   const onExport = useCallback(async () => {
-    const nodesProjectJson = getNodesProjectJson()
-    saveProjectLocally(projectName || 'untitled', nodesProjectJson)
-  }, [projectName, getNodesProjectJson])
+    const noodlesProjectJson = getNoodlesProjectJson()
+    saveProjectLocally(projectName || 'untitled', noodlesProjectJson)
+  }, [projectName, getNoodlesProjectJson])
 
-  /* "Open" Menu Options */
+  // "Open" Menu Options
   const [openProjectDialogOpen, setOpenProjectDialogOpen] = useState(false)
 
   // Load project by name (for OPFS projects from list)
@@ -675,23 +676,6 @@ export function NodesMenubar({
                   </Menubar.SubContent>
                 </Menubar.Portal>
               </Menubar.Sub>
-            </Menubar.Content>
-          </Menubar.Portal>
-        </Menubar.Menu>
-
-        <Menubar.Menu>
-          <Menubar.Trigger className={s.menubarTrigger}>View</Menubar.Trigger>
-          <Menubar.Portal>
-            <Menubar.Content
-              className={s.menubarContent}
-              align="start"
-              sideOffset={5}
-              alignOffset={-3}
-            >
-              <Menubar.Item className={s.menubarItem}>Hide Nodes</Menubar.Item>
-              <Menubar.Item className={s.menubarItem}>Hide TheatreJS</Menubar.Item>
-              <Menubar.Separator className={s.menubarSeparator} />
-              <Menubar.Item className={s.menubarItem}>Toggle Fullscreen</Menubar.Item>
             </Menubar.Content>
           </Menubar.Portal>
         </Menubar.Menu>

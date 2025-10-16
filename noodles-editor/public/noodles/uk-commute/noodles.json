@@ -1,0 +1,269 @@
+{
+  "nodes": [
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 1200,
+        "y": 200
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 1500,
+        "y": 200
+      }
+    },
+    {
+      "id": "/data-source",
+      "type": "FileOp",
+      "data": {
+        "inputs": {
+          "format": "csv",
+          "url": "@/data.csv"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 0,
+        "y": 200
+      }
+    },
+    {
+      "id": "/arc-layer",
+      "type": "ArcLayerOp",
+      "data": {
+        "inputs": {
+          "getWidth": 2
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 856.0014285714285,
+        "y": -90.31285714285714
+      }
+    },
+    {
+      "id": "/residence-layer",
+      "type": "ScatterplotLayerOp",
+      "data": {
+        "inputs": {
+          "opacity": 0.4,
+          "getFillColor": "#ffa500ff",
+          "getLineColor": "#ffffffff"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 781.8985714285714,
+        "y": 257.89285714285717
+      }
+    },
+    {
+      "id": "/workplace-layer",
+      "type": "ScatterplotLayerOp",
+      "data": {
+        "inputs": {
+          "opacity": 0.3,
+          "getFillColor": "#800080ff",
+          "getLineColor": "#ffffffff"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 798.1085714285715,
+        "y": 657.0442857142856
+      }
+    },
+    {
+      "id": "/home-position",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "[d.residence_lng, d.residence_lat]"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 245.69571428571436,
+        "y": 431.14714285714285
+      }
+    },
+    {
+      "id": "/work-position",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "[d.workplace_lng, d.workplace_lat]"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 234.11714285714288,
+        "y": 598.7271428571429
+      }
+    },
+    {
+      "id": "/arc-color",
+      "type": "ColorOp",
+      "data": {
+        "inputs": {
+          "color": "#ff991f"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 489.70793658494136,
+        "y": 60.857634523930294
+      }
+    },
+    {
+      "type": "MaplibreBasemapOp",
+      "id": "/maplibre-basemap",
+      "position": {
+        "x": 1183.273628275652,
+        "y": 464.1829877832712
+      },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+          "viewState": {
+            "latitude": 52.25,
+            "longitude": -2.69,
+            "zoom": 7.56,
+            "pitch": 49.18,
+            "bearing": 0
+          }
+        },
+        "locked": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    },
+    {
+      "id": "/data-source.out.data->/arc-layer.par.data",
+      "source": "/data-source",
+      "target": "/arc-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/data-source.out.data->/residence-layer.par.data",
+      "source": "/data-source",
+      "target": "/residence-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/data-source.out.data->/workplace-layer.par.data",
+      "source": "/data-source",
+      "target": "/workplace-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/home-position.out.accessor->/arc-layer.par.getSourcePosition",
+      "source": "/home-position",
+      "target": "/arc-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getSourcePosition"
+    },
+    {
+      "id": "/work-position.out.accessor->/arc-layer.par.getTargetPosition",
+      "source": "/work-position",
+      "target": "/arc-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getTargetPosition"
+    },
+    {
+      "id": "/home-position.out.accessor->/residence-layer.par.getPosition",
+      "source": "/home-position",
+      "target": "/residence-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getPosition"
+    },
+    {
+      "id": "/work-position.out.accessor->/workplace-layer.par.getPosition",
+      "source": "/work-position",
+      "target": "/workplace-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getPosition"
+    },
+    {
+      "id": "/arc-color.out.color->/arc-layer.par.getSourceColor",
+      "source": "/arc-color",
+      "target": "/arc-layer",
+      "sourceHandle": "out.color",
+      "targetHandle": "par.getSourceColor"
+    },
+    {
+      "id": "/arc-color.out.color->/arc-layer.par.getTargetColor",
+      "source": "/arc-color",
+      "target": "/arc-layer",
+      "sourceHandle": "out.color",
+      "targetHandle": "par.getTargetColor"
+    },
+    {
+      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
+      "source": "/maplibre-basemap",
+      "target": "/deck",
+      "sourceHandle": "out.maplibre",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/arc-layer.out.layer->/deck.par.layers",
+      "source": "/arc-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/residence-layer.out.layer->/deck.par.layers",
+      "source": "/residence-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/workplace-layer.out.layer->/deck.par.layers",
+      "source": "/workplace-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    }
+  ],
+  "viewport": {
+    "x": 110.09970280160951,
+    "y": 138.99036470751906,
+    "zoom": 0.46798777100021355
+  },
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": []
+  },
+  "version": 6
+}

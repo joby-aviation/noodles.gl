@@ -21,12 +21,10 @@ function edgeId(edge: ReactFlowEdge) {
   return `${edge.source}:${edge.sourceHandle}->${edge.target}:${edge.targetHandle}`
 }
 
-/**
- *  1. Create a MaplibreBasemapOp.
- *   - Move mapStyle and viewState connections from DeckRendererOp to MaplibreBasemapOp too
- *  2. Create a OutOp and connect the DeckRenderer
- *  3. Rename ViewStateOp to MapViewStateOp
- */
+//  1. Create a MaplibreBasemapOp.
+//   - Move mapStyle and viewState connections from DeckRendererOp to MaplibreBasemapOp too
+//  2. Create a OutOp and connect the DeckRenderer
+//  3. Rename ViewStateOp to MapViewStateOp
 export async function up(project: NoodlesProjectJSON) {
   const { nodes, edges, ...rest } = project
 
@@ -161,16 +159,14 @@ export async function up(project: NoodlesProjectJSON) {
   return { ...rest, nodes: newNodes, edges: newEdges }
 }
 
-/**
- * Revert the migration
- * 1. Convert MapViewStateOp back to ViewStateOp
- * 2. Restore DeckRendererOp id to 'deck'
- * 3. Restore viewState and mapStyle from MaplibreBasemapOp to DeckRendererOp, if it was set
- *   - Move viewState connection from MaplibreBasemapOp to DeckRendererOp too,
- *     unless something was already connected to the DeckRendererOp viewState
- * 4. Remove MaplibreBasemapOp and OutOp
- * 5. Edges: Remove MaplibreBasemapOp and OutOp edges
- * */
+// Revert the migration
+// 1. Convert MapViewStateOp back to ViewStateOp
+// 2. Restore DeckRendererOp id to 'deck'
+// 3. Restore viewState and mapStyle from MaplibreBasemapOp to DeckRendererOp, if it was set
+//   - Move viewState connection from MaplibreBasemapOp to DeckRendererOp too,
+//     unless something was already connected to the DeckRendererOp viewState
+// 4. Remove MaplibreBasemapOp and OutOp
+// 5. Edges: Remove MaplibreBasemapOp and OutOp edges
 export async function down(project: NoodlesProjectJSON) {
   const { nodes, edges, ...rest } = project
 
@@ -221,10 +217,10 @@ export async function down(project: NoodlesProjectJSON) {
     | DeckOpJson
     | undefined
   if (basemapSource) {
-    ;(newNodes[deckRendererNode] as DeckOpJson).data.inputs.mapStyle =
+    ; (newNodes[deckRendererNode] as DeckOpJson).data.inputs.mapStyle =
       basemapSource.data.inputs.mapStyle
-    ;(newNodes[deckRendererNode] as DeckOpJson).data.inputs.viewState =
-      basemapSource.data.inputs.viewState
+      ; (newNodes[deckRendererNode] as DeckOpJson).data.inputs.viewState =
+        basemapSource.data.inputs.viewState
   }
 
   // Edge: If viewState was connected to MaplibreBasemapOp, move connection to DeckRenderer
@@ -260,7 +256,7 @@ export async function down(project: NoodlesProjectJSON) {
       | DeckOpJson
       | undefined
     if (viewStateSource) {
-      ;(newNodes[deckRendererNode] as DeckOpJson).data.inputs.viewState = null
+      ; (newNodes[deckRendererNode] as DeckOpJson).data.inputs.viewState = null
     }
   }
 

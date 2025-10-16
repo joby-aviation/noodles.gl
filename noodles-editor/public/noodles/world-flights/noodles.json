@@ -1,0 +1,185 @@
+{
+  "nodes": [
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 1200,
+        "y": 150
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 1500,
+        "y": 150
+      }
+    },
+    {
+      "id": "/data-source",
+      "type": "FileOp",
+      "data": {
+        "inputs": {
+          "url": "@/data.json"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 0,
+        "y": 150
+      }
+    },
+    {
+      "id": "/geojson-layer",
+      "type": "GeoJsonLayerOp",
+      "data": {
+        "inputs": {
+          "opacity": 0.6,
+          "filled": false,
+          "getFillColor": "#006ac6ff",
+          "lineWidthMinPixels": 0.5
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 814.3185714285714,
+        "y": 614.0885714285715
+      }
+    },
+    {
+      "id": "/trips-layer",
+      "type": "TripsLayerOp",
+      "data": {
+        "inputs": {
+          "opacity": 0.8,
+          "trailLength": 336,
+          "widthMinPixels": 1.5
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 816.6342857142857,
+        "y": 105.05571428571426
+      }
+    },
+    {
+      "id": "/color-accessor",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "utils.stringToColor(d.properties.origin_country)"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 104.43714285714285,
+        "y": 469.56857142857143
+      }
+    },
+    {
+      "type": "MaplibreBasemapOp",
+      "id": "/maplibre-basemap",
+      "position": {
+        "x": 793.4771428571428,
+        "y": -144.61714285714282
+      },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+          "viewState": {
+            "latitude": 38.69,
+            "longitude": -1.76,
+            "zoom": 2.62,
+            "pitch": 0,
+            "bearing": 0
+          }
+        },
+        "locked": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    },
+    {
+      "id": "/data-source.out.data->/geojson-layer.par.data",
+      "source": "/data-source",
+      "target": "/geojson-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/data-source.out.data->/trips-layer.par.data",
+      "source": "/data-source",
+      "target": "/trips-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/color-accessor.out.accessor->/geojson-layer.par.getLineColor",
+      "source": "/color-accessor",
+      "target": "/geojson-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getLineColor"
+    },
+    {
+      "id": "/color-accessor.out.accessor->/trips-layer.par.getColor",
+      "source": "/color-accessor",
+      "target": "/trips-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getColor"
+    },
+    {
+      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
+      "source": "/maplibre-basemap",
+      "target": "/deck",
+      "sourceHandle": "out.maplibre",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/geojson-layer.out.layer->/deck.par.layers",
+      "source": "/geojson-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/trips-layer.out.layer->/deck.par.layers",
+      "source": "/trips-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    }
+  ],
+  "viewport": {
+    "x": 175,
+    "y": 130.22023442319554,
+    "zoom": 0.431832202344232
+  },
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": []
+  },
+  "version": 6
+}

@@ -1,0 +1,166 @@
+{
+  "nodes": [
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 1200,
+        "y": 100
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 1500,
+        "y": 100
+      }
+    },
+    {
+      "id": "/data-source",
+      "type": "FileOp",
+      "data": {
+        "inputs": {
+          "url": "@/data.geojson"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 0,
+        "y": 50
+      }
+    },
+    {
+      "id": "/geojson-layer",
+      "type": "GeoJsonLayerOp",
+      "data": {
+        "inputs": {
+          "opacity": 0.8,
+          "stroked": false,
+          "getLineColor": "#000000ff"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 833.4203552164684,
+        "y": 8.119468876040457
+      }
+    },
+    {
+      "id": "/unemployment-color",
+      "type": "ColorRampOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 374.2787652460753,
+        "y": 349.1371616697396
+      }
+    },
+    {
+      "id": "/unemployment-accessor",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "d.properties.unemployment_rate"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -21.530967491202063,
+        "y": 373.495568297861
+      }
+    },
+    {
+      "type": "MaplibreBasemapOp",
+      "id": "/maplibre-basemap",
+      "position": {
+        "x": 758.7212415568961,
+        "y": -220.5884877788956
+      },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
+          "viewState": {
+            "latitude": 40.017,
+            "longitude": -102.647,
+            "zoom": 2.95,
+            "pitch": 0,
+            "bearing": 0
+          }
+        },
+        "locked": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    },
+    {
+      "id": "/data-source.out.data->/geojson-layer.par.data",
+      "source": "/data-source",
+      "target": "/geojson-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/unemployment-color.out.color->/geojson-layer.par.getFillColor",
+      "source": "/unemployment-color",
+      "target": "/geojson-layer",
+      "sourceHandle": "out.color",
+      "targetHandle": "par.getFillColor"
+    },
+    {
+      "id": "/unemployment-accessor.out.accessor->/unemployment-color.par.value",
+      "source": "/unemployment-accessor",
+      "target": "/unemployment-color",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.value"
+    },
+    {
+      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
+      "source": "/maplibre-basemap",
+      "target": "/deck",
+      "sourceHandle": "out.maplibre",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/geojson-layer.out.layer->/deck.par.layers",
+      "source": "/geojson-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    }
+  ],
+  "viewport": {
+    "x": 32.46497320518563,
+    "y": 206.86749887589406,
+    "zoom": 0.6158038261288714
+  },
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": []
+  },
+  "version": 6
+}

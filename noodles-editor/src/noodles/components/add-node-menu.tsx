@@ -1,4 +1,3 @@
-import type { NodeJSON } from 'SKIP-@xyflow/react'
 import { useKeyPress, useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
 import { matchSorter } from 'match-sorter'
@@ -12,16 +11,18 @@ import {
   useState,
 } from 'react'
 import s from '../noodles.module.css'
-import { type MathOpType, mathOps, type OpType, opTypes } from '../operators'
+import { opTypes } from '../operators'
 import { useSlice } from '../store'
-import { edgeId, nodeId } from '../utils/id-utils'
-import { headerClass, typeCategory, typeDisplayName } from './op-components'
+import { createNodesForType, getNodeTypeOptions, type NodeType } from '../utils/node-creation-utils'
+import { getNodeDescription, headerClass, typeCategory, typeDisplayName } from './op-components'
 
 export type MenuState = {
   top: number
   left: number
   right: number
   bottom: number
+  screenX: number  // Add screen coordinates for node placement
+  screenY: number
 }
 
 export interface AddNodeMenuRef {
@@ -33,214 +34,43 @@ type AddNodeMenuProps = {
   reactFlowRef: React.RefObject<HTMLDivElement>
 }
 
-export type NodeType = OpType | MathOpType | 'ForLoop'
-
 export const AddNodeMenu = forwardRef<AddNodeMenuRef, AddNodeMenuProps>(({ reactFlowRef }, ref) => {
   const { addNodes, addEdges, screenToFlowPosition } = useReactFlow()
   const aPressed = useKeyPress('a')
 
   const [menuState, setMenuState] = useState<MenuState | null>(null)
   const { currentContainerId } = useSlice(state => state.nesting)
-  const mousePositionRef = useRef<{ x: number; y: number } | null>(null)
 
   const onCloseMenu = useCallback(() => {
     setMenuState(null)
     setSearchText('')
   }, [])
 
-  const toggleMenu = useCallback(() => {
-    // If menu is already open, close it
-    if (menuState !== null) {
-      onCloseMenu()
-      return
-    }
-
-    const pane = reactFlowRef.current?.getBoundingClientRect()
-    if (!pane) return
-
-    const mousePos = mousePositionRef.current
-
-    // Use mouse position if available and within bounds, otherwise center
-    if (mousePos && mousePos.x >= 0 && mousePos.x <= pane.width && mousePos.y >= 0 && mousePos.y <= pane.height) {
-      setMenuState({
-        top: mousePos.y < pane.height - 200 ? mousePos.y : 0,
-        left: mousePos.x < pane.width - 400 ? mousePos.x - 200 : 0,
-        right: mousePos.x >= pane.width - 200 ? pane.width - mousePos.x : 0,
-        bottom: mousePos.y >= pane.height - 200 ? pane.height - mousePos.y : 0,
-      })
-    } else {
-      // Fallback to center if mouse is not tracked or outside pane
-      setMenuState({
-        top: pane.height / 2 - 100,
-        left: pane.width / 2 - 200,
-        right: pane.width / 2 - 200,
-        bottom: pane.height / 2 - 100,
-      })
-    }
-  }, [reactFlowRef, menuState, onCloseMenu])
-
-  // Track mouse position and handle Tab key press
-  useEffect(() => {
-    const pane = reactFlowRef.current
-    if (!pane) return
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const rect = pane.getBoundingClientRect()
-      mousePositionRef.current = {
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top,
-      }
-    }
-
-    const handleMouseLeave = () => {
-      mousePositionRef.current = null
-    }
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Tab') {
-        e.preventDefault()
-        toggleMenu()
-      }
-    }
-
-    pane.addEventListener('mousemove', handleMouseMove)
-    pane.addEventListener('mouseleave', handleMouseLeave)
-    document.addEventListener('keydown', handleKeyDown)
-
-    return () => {
-      pane.removeEventListener('mousemove', handleMouseMove)
-      pane.removeEventListener('mouseleave', handleMouseLeave)
-      document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [reactFlowRef, toggleMenu])
-
   useEffect(() => {
     const pane = reactFlowRef.current?.getBoundingClientRect()
     if (!pane) return
 
     if (aPressed) {
+      const centerX = pane.left + pane.width / 2
+      const centerY = pane.top + pane.height / 2
       setMenuState({
         top: pane.height / 2 - 100,
         left: pane.width / 2 - 200,
         right: pane.width / 2 - 200,
         bottom: pane.height / 2 - 100,
+        screenX: centerX,
+        screenY: centerY,
       })
     }
   }, [aPressed, reactFlowRef])
 
-  const addNode = (e: React.MouseEvent<HTMLDivElement>, type: NodeType) => {
-    const { x, y } = screenToFlowPosition({ x: e.clientX, y: e.clientY })
+  const addNode = (_e: React.MouseEvent<HTMLDivElement>, type: NodeType) => {
+    // Use the stored screen position from when the menu was opened
+    const position = menuState
+      ? screenToFlowPosition({ x: menuState.screenX, y: menuState.screenY })
+      : screenToFlowPosition({ x: 0, y: 0 })
 
-    function makeOpId(type: OpType, containerId: string = currentContainerId) {
-      const baseName = toKebabCase(type.replace(/Op$/g, ''))
-      return nodeId(baseName, containerId)
-    }
-
-    function toKebabCase(str: string): string {
-      return str.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase()
-    }
-    const nodes: NodeJSON<unknown>[] = []
-    const edges = []
-
-    if (type === 'ForLoop') {
-      const bodyId = nodeId('for-loop-body', currentContainerId)
-      const beginNode = {
-        id: makeOpId('ForLoopBeginOp', currentContainerId),
-        type: 'ForLoopBeginOp',
-        data: undefined,
-        parentNode: bodyId,
-        expandParent: true,
-        position: { x: 0, y: 100 },
-      }
-      const endNode = {
-        id: makeOpId('ForLoopEndOp', currentContainerId),
-        type: 'ForLoopEndOp',
-        data: undefined,
-        parentNode: bodyId,
-        expandParent: true,
-        position: { x: 900, y: 100 },
-      }
-      // Create a group node to contain the ForLoop body
-      nodes.push({
-        id: bodyId,
-        type: 'group',
-        selectable: false,
-        draggable: false,
-        style: { width: 1200, height: 300 },
-        position: { x, y },
-      } as NodeJSON<'group'>)
-      nodes.push(beginNode)
-      nodes.push(endNode)
-      edges.push({
-        id: edgeId({
-          source: beginNode.id,
-          sourceHandle: 'd',
-          target: endNode.id,
-          targetHandle: 'd',
-        }),
-        source: beginNode.id,
-        target: endNode.id,
-        sourceHandle: 'd',
-        targetHandle: 'd',
-      })
-    } else if (type === 'ContainerOp') {
-      const id = nodeId('container', currentContainerId)
-      const containerInputId = nodeId('container-input', id)
-      const containerOutputId = nodeId('container-output', id)
-      nodes.push(
-        {
-          id,
-          type,
-          data: undefined,
-          position: { x, y },
-        },
-        {
-          id: containerInputId,
-          type: 'GraphInputOp',
-          position: { x: -700, y: 0 },
-        },
-        {
-          id: containerOutputId,
-          type: 'GraphOutputOp',
-          position: { x: 0, y: 0 },
-        }
-      )
-      const inputSourceHandle = 'par.in'
-      const inputTargetHandle = 'par.parentValue'
-
-      const inEdge = {
-        source: id,
-        sourceHandle: inputSourceHandle,
-        target: containerInputId,
-        targetHandle: inputTargetHandle,
-      }
-
-      const outputSourceHandle = 'out.propagatedValue'
-      const outputTargetHandle = 'out.out'
-
-      const outEdge = {
-        source: containerOutputId,
-        sourceHandle: outputSourceHandle,
-        target: id,
-        targetHandle: outputTargetHandle,
-      }
-      edges.push({ ...inEdge, id: edgeId(inEdge) }, { ...outEdge, id: edgeId(outEdge) })
-    } else if (mathOps[type]) {
-      // TODO: refine "type" to not include types that would have been handled by earlier branches.
-      // e.g. Op types would never make it to this point.
-      const operator = mathOps[type] as MathOpType
-      nodes.push({
-        id: nodeId(operator, currentContainerId),
-        type: 'MathOp',
-        data: {
-          inputs: { operator },
-        },
-        position: { x, y },
-      })
-    } else {
-      nodes.push({ type, id: makeOpId(type, currentContainerId), position: { x, y } })
-    }
-
+    const { nodes, edges } = createNodesForType(type, position, currentContainerId)
     addNodes(nodes)
     addEdges(edges)
     onCloseMenu()
@@ -261,12 +91,7 @@ export const AddNodeMenu = forwardRef<AddNodeMenuRef, AddNodeMenuProps>(({ react
     setSearchText(e.target.value)
   }
 
-  const options = useMemo(() => {
-    return (Object.keys(opTypes) as NodeType[])
-      .filter(type => type !== 'ForLoopBeginOp' && type !== 'ForLoopEndOp')
-      .concat(['ForLoop', ...Object.keys(mathOps)])
-      .sort()
-  }, [])
+  const options = useMemo(() => getNodeTypeOptions(), [])
 
   // TODO: replace this and Geocoder with a typeahead / autocomplete component
   const searchResults = useMemo(() => {
@@ -290,7 +115,7 @@ export const AddNodeMenu = forwardRef<AddNodeMenuRef, AddNodeMenuProps>(({ react
         onChange={onSearch}
       />
       {searchResults.map(type => {
-        const description = opTypes[type]?.description
+        const description = getNodeDescription(type)
         // Would be undefined for "aliased" ops like "Add" for "Math"
         const displayName = opTypes[type]?.displayName || typeDisplayName(type)
         return (

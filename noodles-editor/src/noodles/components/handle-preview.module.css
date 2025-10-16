@@ -11,6 +11,7 @@
   pointer-events: none;
   display: flex;
   flex-direction: column;
+  z-index: var(--z-index-viewer-preview);
 }
 
 .handlePreviewHeader {
