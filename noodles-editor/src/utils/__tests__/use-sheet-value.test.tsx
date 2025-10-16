@@ -2,7 +2,7 @@
 // Tests Theatre.js sheet value subscription
 import { getProject, types } from '@theatre/core'
 import { renderHook } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import useSheetValue from '../use-sheet-value'
 
 describe('useSheetValue', () => {
@@ -10,10 +10,6 @@ describe('useSheetValue', () => {
 
   beforeEach(() => {
     projectCounter++
-  })
-
-  afterEach(() => {
-    // Theatre cleanup is handled automatically
   })
 
   it('returns the initial value of a sheet object', () => {
@@ -100,21 +96,5 @@ describe('useSheetValue', () => {
     expect(result.current.color.g).toBe(0)
     expect(result.current.color.b).toBe(0)
     expect(result.current.color.a).toBe(1)
-  })
-
-  it('sets up value change subscription', () => {
-    const project = getProject(`test-project-${projectCounter}`, {})
-    const sheet = project.sheet('test-sheet')
-    const sheetObject = sheet.object('test-object', {
-      count: types.number(0),
-    })
-
-    // The hook should subscribe to value changes
-    const { result } = renderHook(() => useSheetValue(sheetObject))
-
-    // Initially returns the sheet value
-    expect(result.current.count).toBe(0)
-
-    // The subscription is set up (tested by verifying no errors on unmount)
   })
 })

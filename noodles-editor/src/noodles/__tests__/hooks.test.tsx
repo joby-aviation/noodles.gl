@@ -1,15 +1,11 @@
 // Tests for custom React hooks
 // Tests useSlice, useOp, and integration with the Noodles context
-import { renderHook } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { act, renderHook } from '@testing-library/react'
+import { afterEach, describe, expect, it } from 'vitest'
 import { NumberOp } from '../operators'
 import { NoodlesProvider, opMap, useOp, useSlice } from '../store'
 
 describe('Noodles Hooks', () => {
-  beforeEach(() => {
-    opMap.clear()
-  })
-
   afterEach(() => {
     opMap.clear()
   })
@@ -40,7 +36,9 @@ describe('Noodles Hooks', () => {
         wrapper: NoodlesProvider,
       })
 
-      result.current.setCurrentContainerId('/container1')
+      act(() => {
+        result.current.setCurrentContainerId('/container1')
+      })
       expect(result.current.currentContainerId).toBe('/container1')
     })
 
@@ -128,7 +126,9 @@ describe('Noodles Hooks', () => {
       expect(result.current.inputs.val.value).toBe(10)
 
       // Update the operator
-      op.inputs.val.setValue(20)
+      act(() => {
+        op.inputs.val.setValue(20)
+      })
 
       expect(result.current.inputs.val.value).toBe(20)
     })

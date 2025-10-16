@@ -1,7 +1,7 @@
 // Tests for filesystem store hooks
 // Tests Zustand-based state management for file system operations
 import { act, renderHook } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import {
   useActiveStorageType,
   useCurrentDirectory,
@@ -20,12 +20,6 @@ function createMockDirectoryHandle(name: string): FileSystemDirectoryHandle {
 }
 
 describe('FileSystem Hooks', () => {
-  beforeEach(() => {
-    // Reset the store before each test
-    const { reset } = useFileSystemStore.getState()
-    reset()
-  })
-
   afterEach(() => {
     const { reset } = useFileSystemStore.getState()
     reset()

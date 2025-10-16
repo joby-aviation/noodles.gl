@@ -1,7 +1,7 @@
 // Integration tests for core Noodles graph editor flows
 // Tests node addition, connection, deletion, and graph manipulation
 import type { Node as ReactFlowNode } from '@xyflow/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MathOp, NumberOp } from '../operators'
 import { opMap } from '../store'
 import { transformGraph } from '../transform-graph'
@@ -18,10 +18,6 @@ vi.mock('@theatre/studio', () => ({
 }))
 
 describe('Noodles Graph Integration', () => {
-  beforeEach(() => {
-    opMap.clear()
-  })
-
   afterEach(() => {
     opMap.clear()
   })

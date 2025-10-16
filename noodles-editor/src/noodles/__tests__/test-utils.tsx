@@ -13,25 +13,31 @@ import { SheetProvider } from '../../utils/sheet-context'
 // Counter to ensure unique project names for each test
 let projectCounter = 0
 
+// Track created projects to avoid recreating during cleanup
+const createdProjects = new Map<string, { project: ReturnType<typeof getProject>; sheet: ReturnType<ReturnType<typeof getProject>['sheet']> }>()
+
 // Create a unique Theatre.js project for testing
 // Prevents conflicts when multiple tests run in parallel
 export function createTestTheatreProject(name?: string) {
   const uniqueName = name || `test-project-${projectCounter++}`
   const project = getProject(uniqueName, {})
   const sheet = project.sheet('test-sheet')
+  createdProjects.set(uniqueName, { project, sheet })
   return { project, sheet, uniqueName }
 }
 
 // Clean up a Theatre.js project after testing
 export function cleanupTheatreProject(projectName: string, sheetId: string) {
   try {
-    const project = getProject(projectName)
-    const sheet = project.sheet(sheetId)
-    studio.transaction(api => {
-      api.__experimental_forgetSheet(sheet)
-    })
+    const cached = createdProjects.get(projectName)
+    if (cached) {
+      studio.transaction(api => {
+        api.__experimental_forgetSheet(cached.sheet)
+      })
+      createdProjects.delete(projectName)
+    }
   } catch (e) {
-    // Project may not exist, that's fine
+    // Project may not exist or cleanup already happened, that's fine
   }
 }
 
