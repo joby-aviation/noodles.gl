@@ -7,7 +7,6 @@ import type { ScaleLinear, ScaleOrdinal } from 'd3'
 import { Button } from 'primereact/button'
 import { InputText } from 'primereact/inputtext'
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 
 import { colorToHex } from '../../utils/color'
 import {
@@ -1261,16 +1260,34 @@ export function CompoundFieldComponent({
   field: CompoundPropsField
   disabled: boolean
 }) {
+  const [expanded, setExpanded] = useState(true)
   return (
     <div className={s.fieldWrapper}>
-      <label className={s.fieldLabel} htmlFor={id}>
+      <button
+        className={s.fieldLabel}
+        type="button"
+        onClick={() => setExpanded(e => !e)}
+        aria-expanded={expanded}
+      >
         {id}
-      </label>
-      <div id={id} className={s.fieldCompoundWrapper}>
-        {Object.entries(field.fields).map(([key, subField]) => (
-          <FieldComponent key={key} id={key} field={subField} disabled={disabled} />
-        ))}
-      </div>
+        <span className={cx(s.compoundPropsExpander, expanded && s.compoundPropsExpanderExpanded)}>►</span>
+      </button>
+      {expanded ? (
+        <div id={id} className={s.fieldCompoundWrapper}>
+          {Object.entries(field.fields).map(([key, subField]) => (
+            <FieldComponent key={key} id={key} field={subField} disabled={disabled} />
+          ))}
+        </div>
+      ) : (
+          <button
+            className={s.compoundPropsExpander}
+            type="button"
+            onClick={() => setExpanded(e => !e)}
+          >
+            ({Object.entries(field.fields).length} hidden props)
+          </button>
+        )
+      }
     </div>
   )
 }
