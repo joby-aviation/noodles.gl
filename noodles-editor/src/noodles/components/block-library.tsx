@@ -2,85 +2,73 @@ import { useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
 import { matchSorter } from 'match-sorter'
 import {
-  forwardRef,
   useCallback,
   useEffect,
-  useImperativeHandle,
   useMemo,
   useRef,
   useState,
 } from 'react'
+import { createPortal } from 'react-dom'
 import s from './block-library.module.css'
 import { useSlice } from '../store'
 import { createNodesForType, getNodeTypeOptions, type NodeType } from '../utils/node-creation-utils'
 import { getNodeDescription, headerClass, typeCategory, typeDisplayName } from './op-components'
 
-export interface BlockLibraryRef {
-  openModal: () => void
-  closeModal: () => void
-}
-
 type BlockLibraryProps = {
   reactFlowRef: React.RefObject<HTMLDivElement>
 }
 
-export const BlockLibrary = forwardRef<BlockLibraryRef, BlockLibraryProps>(
-  ({ reactFlowRef }, ref) => {
+export function BlockLibrary({ reactFlowRef }: BlockLibraryProps) {
     const { addNodes, addEdges, screenToFlowPosition } = useReactFlow()
     const [isOpen, setIsOpen] = useState(false)
     const { currentContainerId } = useSlice(state => state.nesting)
     const [searchText, setSearchText] = useState('')
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
-    const mousePositionRef = useRef<{ x: number; y: number } | null>(null)
+    // Store the screen coordinates where the modal was opened
+    const [openScreenPosition, setOpenScreenPosition] = useState<{ x: number; y: number } | null>(null)
 
     const onCloseModal = useCallback(() => {
       setIsOpen(false)
       setSearchText('')
       setSelectedCategory(null)
+      setOpenScreenPosition(null)
     }, [])
 
-    const onOpenModal = useCallback(() => {
+    const onOpenModal = useCallback((screenX?: number, screenY?: number) => {
+      // Capture the current mouse/click position when opening
+      if (screenX !== undefined && screenY !== undefined) {
+        setOpenScreenPosition({ x: screenX, y: screenY })
+      } else {
+        setOpenScreenPosition(null)
+      }
       setIsOpen(true)
     }, [])
 
-    // Track mouse position for node placement
+    // Track last mouse position to use when Tab is pressed
+    const lastMousePosRef = useRef<{ x: number; y: number } | null>(null)
+
     useEffect(() => {
       const pane = reactFlowRef.current
       if (!pane) return
 
       const handleMouseMove = (e: MouseEvent) => {
-        const rect = pane.getBoundingClientRect()
-        mousePositionRef.current = {
-          x: e.clientX - rect.left,
-          y: e.clientY - rect.top,
-        }
-      }
-
-      const handleMouseLeave = () => {
-        mousePositionRef.current = null
+        lastMousePosRef.current = { x: e.clientX, y: e.clientY }
       }
 
       pane.addEventListener('mousemove', handleMouseMove)
-      pane.addEventListener('mouseleave', handleMouseLeave)
-
-      return () => {
-        pane.removeEventListener('mousemove', handleMouseMove)
-        pane.removeEventListener('mouseleave', handleMouseLeave)
-      }
+      return () => pane.removeEventListener('mousemove', handleMouseMove)
     }, [reactFlowRef])
 
-    const addNode = (e: React.MouseEvent<HTMLDivElement>, type: NodeType) => {
+    const addNode = (_e: React.MouseEvent<HTMLDivElement>, type: NodeType) => {
       const pane = reactFlowRef.current?.getBoundingClientRect()
       if (!pane) return
 
-      const mousePos = mousePositionRef.current
-
-      // Use mouse position if available, otherwise center
+      // Use the position where the modal was opened, or center of the pane
       let position: { x: number; y: number }
-      if (mousePos && mousePos.x >= 0 && mousePos.x <= pane.width && mousePos.y >= 0 && mousePos.y <= pane.height) {
-        position = screenToFlowPosition({ x: e.clientX, y: e.clientY })
+      if (openScreenPosition) {
+        position = screenToFlowPosition(openScreenPosition)
       } else {
-        // Fix: pane coordinates need to be converted to screen coordinates
+        // Fallback to center of the pane
         position = screenToFlowPosition({ x: pane.left + pane.width / 2, y: pane.top + pane.height / 2 })
       }
 
@@ -89,12 +77,6 @@ export const BlockLibrary = forwardRef<BlockLibraryRef, BlockLibraryProps>(
       addEdges(edges)
       onCloseModal()
     }
-
-    // Expose methods to parent component
-    useImperativeHandle(ref, () => ({
-      openModal: onOpenModal,
-      closeModal: onCloseModal,
-    }))
 
     const onSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
       setSearchText(e.target.value)
@@ -163,7 +145,9 @@ export const BlockLibrary = forwardRef<BlockLibraryRef, BlockLibraryProps>(
           if (isOpen) {
             onCloseModal()
           } else {
-            onOpenModal()
+            // Pass the last known mouse position when opening via Tab
+            const lastPos = lastMousePosRef.current
+            onOpenModal(lastPos?.x, lastPos?.y)
           }
         } else if (e.key === 'Escape' && isOpen) {
           onCloseModal()
@@ -176,11 +160,11 @@ export const BlockLibrary = forwardRef<BlockLibraryRef, BlockLibraryProps>(
 
     if (!isOpen) return null
 
-    return (
+    return createPortal(
       <div className={s.blockLibraryOverlay} onClick={onCloseModal}>
         <div className={s.blockLibraryModal} onClick={e => e.stopPropagation()}>
           <div className={s.blockLibrarySidebar}>
-            <div className={s.blockLibraryHeader}>Block Library</div>
+            <div className={s.blockLibraryHeader}>Operator Library</div>
             <input
               ref={inputRef}
               type="text"
@@ -246,7 +230,7 @@ export const BlockLibrary = forwardRef<BlockLibraryRef, BlockLibraryProps>(
             ))}
           </div>
         </div>
-      </div>
+      </div>,
+      document.body
     )
-  }
-)
+}

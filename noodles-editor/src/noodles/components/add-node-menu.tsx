@@ -21,6 +21,8 @@ export type MenuState = {
   left: number
   right: number
   bottom: number
+  screenX: number  // Add screen coordinates for node placement
+  screenY: number
 }
 
 export interface AddNodeMenuRef {
@@ -38,55 +40,36 @@ export const AddNodeMenu = forwardRef<AddNodeMenuRef, AddNodeMenuProps>(({ react
 
   const [menuState, setMenuState] = useState<MenuState | null>(null)
   const { currentContainerId } = useSlice(state => state.nesting)
-  const mousePositionRef = useRef<{ x: number; y: number } | null>(null)
 
   const onCloseMenu = useCallback(() => {
     setMenuState(null)
     setSearchText('')
   }, [])
 
-  // Track mouse position (Tab key now handled by BlockLibrary)
-  useEffect(() => {
-    const pane = reactFlowRef.current
-    if (!pane) return
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const rect = pane.getBoundingClientRect()
-      mousePositionRef.current = {
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top,
-      }
-    }
-
-    const handleMouseLeave = () => {
-      mousePositionRef.current = null
-    }
-
-    pane.addEventListener('mousemove', handleMouseMove)
-    pane.addEventListener('mouseleave', handleMouseLeave)
-
-    return () => {
-      pane.removeEventListener('mousemove', handleMouseMove)
-      pane.removeEventListener('mouseleave', handleMouseLeave)
-    }
-  }, [reactFlowRef])
-
   useEffect(() => {
     const pane = reactFlowRef.current?.getBoundingClientRect()
     if (!pane) return
 
     if (aPressed) {
+      const centerX = pane.left + pane.width / 2
+      const centerY = pane.top + pane.height / 2
       setMenuState({
         top: pane.height / 2 - 100,
         left: pane.width / 2 - 200,
         right: pane.width / 2 - 200,
         bottom: pane.height / 2 - 100,
+        screenX: centerX,
+        screenY: centerY,
       })
     }
   }, [aPressed, reactFlowRef])
 
-  const addNode = (e: React.MouseEvent<HTMLDivElement>, type: NodeType) => {
-    const position = screenToFlowPosition({ x: e.clientX, y: e.clientY })
+  const addNode = (_e: React.MouseEvent<HTMLDivElement>, type: NodeType) => {
+    // Use the stored screen position from when the menu was opened
+    const position = menuState
+      ? screenToFlowPosition({ x: menuState.screenX, y: menuState.screenY })
+      : screenToFlowPosition({ x: 0, y: 0 })
+
     const { nodes, edges } = createNodesForType(type, position, currentContainerId)
     addNodes(nodes)
     addEdges(edges)

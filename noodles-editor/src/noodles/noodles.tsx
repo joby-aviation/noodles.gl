@@ -40,7 +40,7 @@ import { SheetProvider } from '../utils/sheet-context'
 import useSheetValue from '../utils/use-sheet-value'
 import type { Visualization } from '../visualizations'
 import { AddNodeMenu, type AddNodeMenuRef } from './components/add-node-menu'
-import { BlockLibrary, type BlockLibraryRef } from './components/block-library'
+import { BlockLibrary } from './components/block-library'
 import { Breadcrumbs } from './components/breadcrumbs'
 import { CopyControls } from './components/copy-controls'
 import { DropTarget } from './components/drop-target'
@@ -360,7 +360,6 @@ export function getNoodles(): Visualization {
 
   const reactFlowRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<AddNodeMenuRef>(null)
-  const blockLibraryRef = useRef<BlockLibraryRef>(null)
 
   const onDeselectAll = useCallback(() => {
     setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
@@ -382,6 +381,8 @@ export function getNoodles(): Visualization {
       left: event.clientX < pane.width - 400 ? event.clientX - 200 : 0,
       right: event.clientX >= pane.width - 200 ? pane.width - event.clientX : 0,
       bottom: event.clientY >= pane.height - 200 ? pane.height - event.clientY : 0,
+      screenX: event.clientX,
+      screenY: event.clientY,
     })
   }, [])
 
@@ -645,7 +646,7 @@ export function getNoodles(): Visualization {
               <Background />
               <Controls position="bottom-right" />
               <AddNodeMenu ref={menuRef} reactFlowRef={reactFlowRef} />
-              <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />
+              <BlockLibrary reactFlowRef={reactFlowRef} />
               <CopyControls />
             </ReactFlow>
           </SheetProvider>
