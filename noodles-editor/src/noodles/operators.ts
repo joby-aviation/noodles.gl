@@ -65,6 +65,7 @@ import { fitBounds } from '@math.gl/web-mercator'
 import * as Plot from '@observablehq/plot'
 import { onChange } from '@theatre/core'
 import * as turf from '@turf/turf'
+import type { Feature, FeatureCollection, Geometry } from 'geojson'
 import * as d3 from 'd3'
 import {
   csv,
@@ -177,6 +178,7 @@ import {
   OUT_NS,
   Point2DField,
   Point3DField,
+  pointsToFeatureCollection,
   StringField,
   StringLiteralField,
   UnknownField,
@@ -4062,11 +4064,11 @@ export class PointOp extends Operator<PointOp> {
 
 export class GeoJsonOp extends Operator<GeoJsonOp> {
   static displayName = 'GeoJson'
-  static description = 'Create a GeoJSON FeatureCollection from a list of features'
+  static description = 'Create a GeoJSON FeatureCollection from an array of features or objects'
   asDownload = () => this.outputData
   createInputs() {
     return {
-      features: new ListField(new FeatureField()),
+      features: new DataField(),
     }
   }
   createOutputs() {
@@ -4075,11 +4077,15 @@ export class GeoJsonOp extends Operator<GeoJsonOp> {
     }
   }
   execute({ features }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const featureCollection = {
-      type: 'FeatureCollection',
-      features,
+    // Use the existing helper function to convert various formats to FeatureCollection
+    const featureCollection = pointsToFeatureCollection(features)
+
+    if (featureCollection) {
+      return { featureCollection }
     }
-    return { featureCollection }
+
+    // Fallback: return empty FeatureCollection
+    return { featureCollection: turf.featureCollection([]) }
   }
 }
 

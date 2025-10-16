@@ -1314,7 +1314,7 @@ export class BezierCurveField extends Field<z.ZodType<BezierCurveData>> {
 
 // Helper to detect coordinate field names with various patterns (case-insensitive)
 // Recognizes: lat, latitude, lng, lon, longitude, and any prefixed versions like pickup_lat, dropoff_lng, etc.
-function findCoordinateFields(obj: Record<string, unknown>): { lng: number; lat: number } | null {
+export function findCoordinateFields(obj: Record<string, unknown>): { lng: number; lat: number } | null {
   if (typeof obj !== 'object' || obj === null) return null
 
   // Patterns to match longitude and latitude field names (case-insensitive)
@@ -1339,7 +1339,7 @@ function findCoordinateFields(obj: Record<string, unknown>): { lng: number; lat:
 }
 
 // Helper to convert a single point to GeoJSON Feature
-function pointsToFeature(value: unknown): Feature | null {
+export function pointsToFeature(value: unknown): Feature | null {
   if (!value) return null
 
   // Already a GeoJSON Feature
@@ -1365,7 +1365,7 @@ function pointsToFeature(value: unknown): Feature | null {
 
 // Helper to convert various formats to GeoJSON FeatureCollection
 // Converts arrays of points to individual Point features (not MultiPoint)
-function pointsToFeatureCollection(value: unknown): FeatureCollection | null {
+export function pointsToFeatureCollection(value: unknown): FeatureCollection | null {
   if (!value) return null
 
   // Already a GeoJSON FeatureCollection
