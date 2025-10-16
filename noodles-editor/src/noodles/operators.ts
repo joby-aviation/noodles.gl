@@ -504,6 +504,22 @@ export const mathOps = {
   AbsOp: 'abs',
 } as const
 
+export const mathOpDescriptions = {
+  DivideOp: 'Divide two numbers',
+  MultiplyOp: 'Multiply two numbers',
+  SubtractOp: 'Subtract two numbers',
+  AddOp: 'Add two numbers',
+  ModuloOp: 'Calculate the remainder of division',
+  SineOp: 'Calculate the sine of a number',
+  CosineOp: 'Calculate the cosine of a number',
+  MinOp: 'Get the minimum of two numbers',
+  MaxOp: 'Get the maximum of two numbers',
+  RoundOp: 'Round a number to the nearest integer',
+  FloorOp: 'Round down to the nearest integer',
+  CeilOp: 'Round up to the nearest integer',
+  AbsOp: 'Get the absolute value of a number',
+} as const as Record<keyof typeof mathOps, string>
+
 export type MathOpType = keyof typeof mathOps
 
 export class MathOp extends Operator<MathOp> {
