@@ -54,6 +54,7 @@ import {
   type GeocoderOp,
   type MouseOp,
   mathOps,
+  mathOpDescriptions,
   Operator,
   opTypes,
   type TableEditorOp,
@@ -127,6 +128,7 @@ export const categories = {
   code: ['AccessorOp', 'CodeOp', 'DuckDbOp', 'JSONOp', 'ExpressionOp'],
   grouping: [
     'ContainerOp',
+    'ForLoop',
     'ForLoopOp',
     'ForLoopBeginOp',
     'ForLoopEndOp',
@@ -261,6 +263,26 @@ function toPascal(str: string) {
 
 export function typeDisplayName(type: NodeType) {
   return type.replace(/Op$/, '')
+}
+
+// Get the description for any node type, including special cases like ForLoop and math operators
+export function getNodeDescription(type: NodeType): string {
+  // Check for regular operators first
+  if (type in opTypes) {
+    return opTypes[type]?.description || ''
+  }
+
+  // Check for math operators
+  if (type in mathOps) {
+    return mathOpDescriptions[type] || 'Perform a mathematical operation'
+  }
+
+  // Check for ForLoop
+  if (type === 'ForLoop') {
+    return 'Control flow to loop over all elements in an array'
+  }
+
+  return ''
 }
 
 export function typeCategory(type: NodeType) {
