@@ -54,6 +54,7 @@ import {
   type GeocoderOp,
   type MouseOp,
   mathOps,
+  mathOpDescriptions,
   Operator,
   opTypes,
   type TableEditorOp,
@@ -263,23 +264,6 @@ function toPascal(str: string) {
 export function typeDisplayName(type: NodeType) {
   return type.replace(/Op$/, '')
 }
-
-const mathOpDescriptions = {
-  DivideOp: 'Divide two numbers',
-  MultiplyOp: 'Multiply two numbers',
-  SubtractOp: 'Subtract two numbers',
-  AddOp: 'Add two numbers',
-  ModuloOp: 'Calculate the remainder of division',
-  SineOp: 'Calculate the sine of a number',
-  CosineOp: 'Calculate the cosine of a number',
-  MinOp: 'Get the minimum of two numbers',
-  MaxOp: 'Get the maximum of two numbers',
-  RoundOp: 'Round a number to the nearest integer',
-  FloorOp: 'Round down to the nearest integer',
-  CeilOp: 'Round up to the nearest integer',
-  AbsOp: 'Get the absolute value of a number',
-} as const
-
 
 // Get the description for any node type, including special cases like ForLoop and math operators
 export function getNodeDescription(type: NodeType): string {
