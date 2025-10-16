@@ -1512,7 +1512,7 @@ export class BoundingBoxOp extends Operator<BoundingBoxOp> {
       zoom,
     }
 
-    return { bounds, longitude, latitude, zoom, viewState, bbox, minLng, minLat, maxLng, maxLat }
+    return { bounds, longitude, latitude, zoom, viewState }
   }
 }
 
