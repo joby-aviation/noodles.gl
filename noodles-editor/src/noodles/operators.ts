@@ -4457,6 +4457,38 @@ export class DestinationOp extends Operator<DestinationOp> {
   }
 }
 
+export class CircleOp extends Operator<CircleOp> {
+  static displayName = 'Circle'
+  static description = 'Create a circular GeoJSON polygon from a center point and radius'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      center: new Point2DField(),
+      radius: new NumberField(5, { min: 0, step: 0.1 }),
+      units: new StringLiteralField('kilometers', {
+        values: ['meters', 'kilometers', 'miles', 'nauticalmiles', 'degrees', 'radians'],
+      }),
+      steps: new NumberField(64, { min: 3, max: 256, step: 1 }),
+    }
+  }
+  createOutputs() {
+    return {
+      feature: new FeatureField(),
+    }
+  }
+  execute({
+    center,
+    radius,
+    units,
+    steps,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const centerPoint = turf.point([center.lng, center.lat])
+    const circle = turf.circle(centerPoint, radius, { units, steps })
+
+    return { feature: circle }
+  }
+}
+
 // ==================== Core Layers (@deck.gl/layers) ====================
 
 export class BitmapLayerOp extends Operator<BitmapLayerOp> {
@@ -5226,6 +5258,7 @@ export const opTypes = {
   BufferOp,
   CategoricalColorRampOp,
   CentroidOp,
+  CircleOp,
   ClipExtensionOp,
   CodeOp,
   CollisionFilterExtensionOp,

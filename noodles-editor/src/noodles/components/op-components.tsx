@@ -171,6 +171,7 @@ export const categories = {
     'AreaOp',
     'BearingOp',
     'BufferOp',
+    'CircleOp',
     'CentroidOp',
     'DegreesToRadiansOp',
     'DestinationOp',
