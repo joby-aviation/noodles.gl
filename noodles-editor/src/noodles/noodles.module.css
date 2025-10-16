@@ -340,6 +340,19 @@
   flex: 1;
 }
 
+.compoundPropsExpander {
+  display: inline-block;
+  cursor: pointer;
+  margin-left: 3px;
+  font-size: 10px;
+  transition: transform 0.2s linear;
+  transform: rotate(0deg);
+}
+
+.compoundPropsExpanderExpanded {
+  transform: rotate(90deg);
+}
+
 .fieldInputWrapper {
   position: relative;
   display: flex;
