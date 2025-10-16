@@ -4,7 +4,6 @@ import { edgeId, nodeId } from './id-utils'
 
 export type NodeType = OpType | MathOpType | 'ForLoop'
 
-
 // Get all available node types (operators, math ops, and special types like ForLoop)
 export function getNodeTypeOptions(): NodeType[] {
   return (Object.keys(opTypes) as NodeType[])

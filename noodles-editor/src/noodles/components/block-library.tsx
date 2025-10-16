@@ -11,7 +11,6 @@ import {
   useState,
 } from 'react'
 import s from './block-library.module.css'
-import { opTypes } from '../operators'
 import { useSlice } from '../store'
 import { createNodesForType, getNodeTypeOptions, type NodeType } from '../utils/node-creation-utils'
 import { getNodeDescription, headerClass, typeCategory, typeDisplayName } from './op-components'
@@ -81,7 +80,8 @@ export const BlockLibrary = forwardRef<BlockLibraryRef, BlockLibraryProps>(
       if (mousePos && mousePos.x >= 0 && mousePos.x <= pane.width && mousePos.y >= 0 && mousePos.y <= pane.height) {
         position = screenToFlowPosition({ x: e.clientX, y: e.clientY })
       } else {
-        position = screenToFlowPosition({ x: pane.width / 2, y: pane.height / 2 })
+        // Fix: pane coordinates need to be converted to screen coordinates
+        position = screenToFlowPosition({ x: pane.left + pane.width / 2, y: pane.top + pane.height / 2 })
       }
 
       const { nodes, edges } = createNodesForType(type, position, currentContainerId)
@@ -138,8 +138,8 @@ export const BlockLibrary = forwardRef<BlockLibraryRef, BlockLibraryProps>(
       // Sort within each category alphabetically by display name
       for (const types of grouped.values()) {
         types.sort((a, b) => {
-          const displayNameA = opTypes[a]?.displayName || typeDisplayName(a)
-          const displayNameB = opTypes[b]?.displayName || typeDisplayName(b)
+          const displayNameA = typeDisplayName(a)
+          const displayNameB = typeDisplayName(b)
           return displayNameA.localeCompare(displayNameB)
         })
       }
@@ -219,7 +219,7 @@ export const BlockLibrary = forwardRef<BlockLibraryRef, BlockLibraryProps>(
                 <div className={s.blockLibraryGrid}>
                   {types.map(type => {
                     const description = getNodeDescription(type)
-                    const displayName = opTypes[type]?.displayName || typeDisplayName(type)
+                    const displayName = typeDisplayName(type)
                     return (
                       <div
                         key={type}

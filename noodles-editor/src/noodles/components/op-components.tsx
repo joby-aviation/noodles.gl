@@ -264,12 +264,6 @@ export function typeDisplayName(type: NodeType) {
   return type.replace(/Op$/, '')
 }
 
-export const specialDescriptions = {
-  'ForLoop': 'Control flow to loop over all elements in an array',
-  'Add': 'Add two numbers',
-  'Abs': 'Get the absolute value of a number',
-} as const as Record<NodeType, string>
-
 const mathOpDescriptions = {
   DivideOp: 'Divide two numbers',
   MultiplyOp: 'Multiply two numbers',
