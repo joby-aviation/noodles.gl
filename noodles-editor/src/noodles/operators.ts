@@ -3851,7 +3851,7 @@ export class AccessorOp extends Operator<AccessorOp> {
   }
   execute({ expression }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const fn = fnWithSource(
-      ['d', 'dInfo', 'op', ...Object.keys(freeExports)],
+      ['d', 'i', 'data', 'target', 'op', ...Object.keys(freeExports)],
       `return ${expression}`,
       this.id
     )
@@ -3859,7 +3859,7 @@ export class AccessorOp extends Operator<AccessorOp> {
     const accessor = (d: unknown, dInfo: { index: number; data: unknown; target: number[] }) => {
       // Create a context-aware getOp function for the accessor execution
       const contextualGetOp = (path: string) => getOp(path, this.id)
-      return fn(d, dInfo, contextualGetOp, ...Object.values(freeExports))
+      return fn(d, dInfo.index, dInfo.data, dInfo.target, contextualGetOp, ...Object.values(freeExports))
     }
     return { accessor }
   }
