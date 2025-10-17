@@ -860,12 +860,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@duckdb/duckdb-wasm@npm:1.30.0":
-  version: 1.30.0
-  resolution: "@duckdb/duckdb-wasm@npm:1.30.0"
+"@duckdb/duckdb-wasm@npm:1.31.0":
+  version: 1.31.0
+  resolution: "@duckdb/duckdb-wasm@npm:1.31.0"
   dependencies:
     apache-arrow: ^17.0.0
-  checksum: 124da3147eb0bb240ebebd590e49b902bd0ce4889687fbc37cbf777a0ba4e0b7c284a39246c95919952960b4dc8053ea40efb6435de6836b1efaff6cef415dcd
+  checksum: d4a2b1c709661cc0803a03ec1af3d4f21fc162da0f430bf16d759ef82ed0a6f772d485ebf2238e63716c32a6c4a593ad4928d462073effbf353075519b6e4a80
   languageName: node
   linkType: hard
 
@@ -9622,7 +9622,7 @@ __metadata:
   dependencies:
     "@biomejs/biome": ^2.2.4
     "@codeium/react-code-editor": ^1.0.12
-    "@duckdb/duckdb-wasm": 1.30.0
+    "@duckdb/duckdb-wasm": 1.31.0
     "@loaders.gl/3d-tiles": ^4.3.4
     "@loaders.gl/obj": ^4.3.4
     "@loaders.gl/ply": ^4.3.4

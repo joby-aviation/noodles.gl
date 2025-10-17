@@ -5,7 +5,7 @@
   "type": "module",
   "dependencies": {
     "@codeium/react-code-editor": "^1.0.12",
-    "@duckdb/duckdb-wasm": "1.30.0",
+    "@duckdb/duckdb-wasm": "1.31.0",
     "@loaders.gl/3d-tiles": "^4.3.4",
     "@loaders.gl/obj": "^4.3.4",
     "@loaders.gl/ply": "^4.3.4",

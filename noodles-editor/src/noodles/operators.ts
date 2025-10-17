@@ -1255,10 +1255,10 @@ export class DuckDbOp extends Operator<DuckDbOp> {
   }
 
   async execute({
-    query: queryString,
+    query: queryString = '',
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> | null {
-    const query = queryString?.trim()
-    if (!query) {
+    const queries = queryString.split(';').map(s => s.trim()).filter(Boolean).map(s => `${s};`)
+    if (!queries?.length) {
       return { data: [] }
     }
 
@@ -1266,32 +1266,42 @@ export class DuckDbOp extends Operator<DuckDbOp> {
     const conn = await db.connect()
 
     try {
-      // Parse the query and extract references
-      const references: FieldReference[] = []
-      const parameterizedQuery = query.replace(mustacheRe, (raw, opId, inOut, fieldPath) => {
-        // If the opId is a relative path (doesn't start with /), make it relative to current context
-        const resolvedOpId = opId.startsWith('/') ? opId : `./${opId}`
-        references.push({ opId: resolvedOpId, inOut, fieldPath, raw })
-        return `$${references.length}` // $1, $2, etc.
-      })
+      let data = []
+      for (const query of queries) {
+        if (!mustacheRe.test(query)) {
+          const result = await conn.query(query)
+          data = result.toArray()
+          continue
+        }
 
-      // Prepare the query with the current connection
-      const prepared = await conn.prepare(parameterizedQuery)
+        // Parse the query and extract references
+        const references: FieldReference[] = []
+        const parameterizedQuery = query.replace(mustacheRe, (raw, opId, inOut, fieldPath) => {
+          // If the opId is a relative path (doesn't start with /), make it relative to current context
+          const resolvedOpId = opId.startsWith('/') ? opId : `./${opId}`
+          references.push({ opId: resolvedOpId, inOut, fieldPath, raw })
+          return `$${references.length}` // $1, $2, etc.
+        })
 
-      // Resolve reference values
-      const positionalParams = references.map(({ opId, inOut, fieldPath }) => {
-        const op = getOp(opId, this.id)
-        const [firstKey, ...rest] = fieldPath.split('.')
-        return rest.reduce((d, prop) => d[prop], op?.[inOut][firstKey])
-      })
+        // Prepare the query with the current connection
+        const prepared = await conn.prepare(parameterizedQuery)
 
-      const result = await prepared.query(...positionalParams)
-      const data = await result.toArray()
+        // Resolve reference values
+        const positionalParams = references.map(({ opId, inOut, fieldPath }) => {
+          const op = getOp(opId, this.id)
+          const [firstKey, ...rest] = fieldPath.split('.')
+          return rest.reduce((d, prop) => d[prop], op?.[inOut][firstKey])
+        })
+
+        const result = await prepared.query(...positionalParams)
+        data = result.toArray()
+      }
       await conn.close()
       return { data }
     } catch (e) {
       console.error('Error executing query', e)
       await conn.close()
+      await db.reset()
       return null
     }
   }
