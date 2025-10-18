@@ -365,11 +365,15 @@ export function NoodlesMenubar({
   loadProjectFile,
   getTimelineJson,
   setProjectName,
+  showChatPanel,
+  setShowChatPanel,
 }: {
   projectName?: string
   loadProjectFile: (project: NoodlesProjectJSON, projectName?: string) => void
   getTimelineJson: () => Record<string, unknown>
   setProjectName: Dispatch<SetStateAction<string | null>>
+  showChatPanel?: boolean
+  setShowChatPanel?: (show: boolean) => void
 }) {
   const [recentlyOpened, setRecentlyOpened] = useState<RecentProject[]>([])
   const { toObject } = useReactFlow()
@@ -679,6 +683,19 @@ export function NoodlesMenubar({
             </Menubar.Content>
           </Menubar.Portal>
         </Menubar.Menu>
+
+        {/* Chat button on the right side */}
+        {setShowChatPanel && (
+          <div className={s.menubarRightSlot}>
+            <button
+              onClick={() => setShowChatPanel(!showChatPanel)}
+              className={s.chatButton}
+              title="Toggle Noodles AI Assistant"
+            >
+              💬 {showChatPanel ? 'Hide' : 'Assistant'}
+            </button>
+          </div>
+        )}
       </Menubar.Root>
       <SaveProjectDialog
         projectName={projectName ?? null}
