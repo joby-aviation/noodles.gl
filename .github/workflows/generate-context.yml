@@ -1,4 +1,6 @@
 name: Generate AI Assistant Context
+permissions:
+  contents: write
 
 on:
   push:
