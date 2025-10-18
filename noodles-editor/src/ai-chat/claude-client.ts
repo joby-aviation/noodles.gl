@@ -1,8 +1,3 @@
-/**
- * ClaudeClient - Main interface to Claude AI API
- * Updated: 2025-10-11
- */
-
 import Anthropic from '@anthropic-ai/sdk'
 import { MCPTools } from './mcp-tools'
 import type { Message, ClaudeResponse, ProjectModification, ToolCall, ToolResult } from './types'
@@ -22,9 +17,7 @@ export class ClaudeClient {
     this.tools = tools
   }
 
-  /**
-   * Strip images from message content to reduce token usage in conversation history
-   */
+  // Strip images from message content to reduce token usage in conversation history
   private stripImages(content: string | any[]): string {
     try {
       // If content is already a string, return as-is
@@ -50,13 +43,12 @@ export class ClaudeClient {
     }
   }
 
-  /**
-   * Send a message to Claude with current project context
-   */
+  // Send a message to Claude with current project context
   async sendMessage(params: {
     message: string
     project: any
     screenshot?: string
+    screenshotFormat?: 'png' | 'jpeg'
     autoCapture?: boolean
     conversationHistory?: Message[]
   }): Promise<ClaudeResponse> {
@@ -67,6 +59,7 @@ export class ClaudeClient {
 
     // Auto-capture screenshot if message suggests visual issue
     let screenshot = params.screenshot
+    let screenshotFormat = params.screenshotFormat || 'jpeg'
     const visualKeywords = ['see', 'look', 'show', 'appear', 'display', 'visual', 'render', 'color', 'layer']
     const shouldAutoCapture = params.autoCapture !== false &&
       visualKeywords.some(kw => message.toLowerCase().includes(kw))
@@ -76,6 +69,7 @@ export class ClaudeClient {
       const result = await this.tools.captureVisualization({ format: 'jpeg', quality: 0.5 })
       if (result.success) {
         screenshot = result.data.screenshot
+        screenshotFormat = result.data.format || 'jpeg'
       }
     }
 
@@ -90,7 +84,7 @@ export class ClaudeClient {
         type: 'image',
         source: {
           type: 'base64',
-          media_type: 'image/jpeg',
+          media_type: `image/${screenshotFormat}`,
           data: screenshot
         }
       })
@@ -139,6 +133,7 @@ export class ClaudeClient {
     const toolCalls: ToolCall[] = []
     let finalText = ''
     let capturedScreenshot: string | null = null
+    let capturedScreenshotFormat: 'png' | 'jpeg' = 'jpeg'
 
     // Handle tool use loop
     while (response.stop_reason === 'tool_use') {
@@ -162,6 +157,7 @@ export class ClaudeClient {
             // to attach to the next message instead of in the tool result
             if (content.name === 'capture_visualization' && result.success && result.data?.screenshot) {
               capturedScreenshot = result.data.screenshot
+              capturedScreenshotFormat = result.data.format || 'jpeg'
             }
           } catch (error) {
             console.error('Error executing tool:', content.name, error)
@@ -217,7 +213,7 @@ export class ClaudeClient {
           type: 'image',
           source: {
             type: 'base64',
-            media_type: 'image/jpeg',
+            media_type: `image/${capturedScreenshotFormat}`,
             data: capturedScreenshot
           }
         })
@@ -228,6 +224,7 @@ export class ClaudeClient {
         })
 
         capturedScreenshot = null // Reset for next iteration
+        capturedScreenshotFormat = 'jpeg' // Reset to default
       } else {
         messages.push(toolResults)
       }

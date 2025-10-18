@@ -16,7 +16,7 @@ export class MCPTools {
   }
 
   // Extract common operator properties to avoid duplication
-  private mapOperatorProperties(op: any) {
+  private mapOperatorProperties(op: { type: string; name: string; category: string; description: string }) {
     return {
       type: op.type,
       name: op.name,
@@ -26,7 +26,7 @@ export class MCPTools {
   }
 
   // Extract common example properties to avoid duplication
-  private mapExampleProperties(ex: any) {
+  private mapExampleProperties(ex: { id: string; name: string; description: string; category: string; tags: string[] }) {
     return {
       id: ex.id,
       name: ex.name,

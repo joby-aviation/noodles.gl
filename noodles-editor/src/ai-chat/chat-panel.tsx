@@ -1,8 +1,7 @@
-/**
- * ChatPanel - Main UI component for Claude AI integration
- */
+// ChatPanel - Main UI component for Claude AI integration
 
-import React, { useState, useEffect, useRef } from 'react'
+import { useEffect, useRef, useState, type FC } from 'react'
+
 import { ClaudeClient } from './claude-client'
 import { ContextLoader } from './context-loader'
 import { MCPTools } from './mcp-tools'
@@ -10,7 +9,6 @@ import type { Message } from './types'
 import {
   saveConversation,
   loadConversation,
-  type Conversation
 } from './conversation-history'
 import { ConversationHistoryPanel } from './conversation-history-panel'
 import styles from './chat-panel.module.css'
@@ -22,7 +20,7 @@ interface ChatPanelProps {
   isPopout?: boolean
 }
 
-export const ChatPanel: React.FC<ChatPanelProps> = ({
+export const ChatPanel: FC<ChatPanelProps> = ({
   project,
   onProjectUpdate,
   onClose,
@@ -32,7 +30,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [contextLoading, setContextLoading] = useState(true)
-  const [apiKey, setApiKey] = useState<string>('')
   const [showApiKeyModal, setShowApiKeyModal] = useState(false)
   const [claudeClient, setClaudeClient] = useState<ClaudeClient | null>(null)
   const [mcpTools, setMcpTools] = useState<MCPTools | null>(null)
@@ -78,8 +75,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       if (sanitizedKey !== storedKey && localStorage.getItem('noodles-claude-api-key')) {
         localStorage.setItem('noodles-claude-api-key', sanitizedKey)
       }
-
-      setApiKey(sanitizedKey)
 
       try {
         // Initialize with minimal context - load context lazily when needed
@@ -207,7 +202,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
   const handleApiKeySubmit = async (key: string) => {
     localStorage.setItem('noodles-claude-api-key', key)
-    setApiKey(key)
     setShowApiKeyModal(false)
 
     // Reinitialize Claude client without full page reload
@@ -444,7 +438,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 }
 
 // Render message content with basic markdown support
-const MessageContent: React.FC<{ content: string }> = ({ content }) => {
+const MessageContent: FC<{ content: string }> = ({ content }) => {
   const renderContent = () => {
     const parts = content.split(/(```[\s\S]*?```)/g)
     return parts.map((part, idx) => {
@@ -464,7 +458,7 @@ const MessageContent: React.FC<{ content: string }> = ({ content }) => {
 }
 
 // API Key Modal
-const ApiKeyModal: React.FC<{ onSubmit: (key: string) => void }> = ({ onSubmit }) => {
+const ApiKeyModal: FC<{ onSubmit: (key: string) => void }> = ({ onSubmit }) => {
   const [key, setKey] = useState('')
   const [error, setError] = useState('')
 

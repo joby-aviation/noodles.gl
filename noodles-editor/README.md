@@ -75,7 +75,7 @@ You can optionally set environment variables for the Claude AI chat feature:
    cp .env.example .env.local
    ```
 
-2. Add your Claude API key:
+2. Add your Claude, Mapbox, Google, etc. API keys to `.env.local`. For example:
    ```
    VITE_CLAUDE_API_KEY=sk-ant-your-api-key-here
    ```
