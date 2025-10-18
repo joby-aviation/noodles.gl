@@ -393,9 +393,24 @@
   cursor: not-allowed;
 }
 
+.rememberKeyLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: #333;
+  cursor: pointer;
+}
+
+.rememberKeyCheckbox {
+  cursor: pointer;
+}
+
 .apiKeyNote {
   margin-top: 16px;
   font-size: 11px;
   color: #666;
   font-style: italic;
+  line-height: 1.4;
 }

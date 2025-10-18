@@ -182,10 +182,15 @@ export default function TimelineEditor() {
       visualization.deckProps?.onAfterRender?.()
 
       // Track FPS and stats for Claude AI debugging
+      // Use deck.gl's built-in fps metric when available
       const now = Date.now()
       const deltaTime = now - lastFrameTimeRef.current
       lastFrameTimeRef.current = now
-      fpsRef.current = deltaTime > 0 ? Math.round(1000 / deltaTime) : 0
+      const calculatedFps = deltaTime > 0 ? Math.round(1000 / deltaTime) : 0
+
+      // Prefer deck.gl's built-in fps metric
+      const deckFps = deckRef.current?.metrics?.fps
+      fpsRef.current = deckFps !== undefined ? deckFps : calculatedFps
 
       // Expose stats globally for MCPTools
       ;(window as any).__deckStats = {

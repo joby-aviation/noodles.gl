@@ -39,58 +39,31 @@ export const ChatPanel: FC<ChatPanelProps> = ({
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // Initialize Claude client (without heavy context loading)
   useEffect(() => {
     const init = async () => {
-      // Try to load API key from localStorage first
-      let storedKey = localStorage.getItem('noodles-claude-api-key')
+      const apiKey = localStorage.getItem('noodles-claude-api-key') ||
+                     sessionStorage.getItem('noodles-claude-api-key') ||
+                     import.meta.env.VITE_CLAUDE_API_KEY
 
-      // If not in localStorage, check environment variable
-      if (!storedKey) {
-        const envKey = import.meta.env.VITE_CLAUDE_API_KEY
-        if (envKey && typeof envKey === 'string') {
-          storedKey = envKey
-        }
-      }
-
-      // If still no key, prompt user
-      if (!storedKey) {
+      if (!apiKey) {
         setShowApiKeyModal(true)
         setContextLoading(false)
         return
-      }
-
-      // Sanitize stored key to remove any non-ASCII characters
-      const sanitizedKey = storedKey.replace(/[^\x00-\x7F]/g, '')
-
-      // If sanitized key is invalid, clear and prompt for new key
-      if (!sanitizedKey || !sanitizedKey.startsWith('sk-ant-') || sanitizedKey.length < 20) {
-        localStorage.removeItem('noodles-claude-api-key')
-        setShowApiKeyModal(true)
-        setContextLoading(false)
-        return
-      }
-
-      // If we had to sanitize, save the clean version back to localStorage
-      if (sanitizedKey !== storedKey && localStorage.getItem('noodles-claude-api-key')) {
-        localStorage.setItem('noodles-claude-api-key', sanitizedKey)
       }
 
       try {
-        // Initialize with minimal context - load context lazily when needed
         const loader = new ContextLoader()
         const tools = new MCPTools(loader)
-        const client = new ClaudeClient(sanitizedKey, tools)
+        const client = new ClaudeClient(apiKey.trim(), tools)
 
         setMcpTools(tools)
         setClaudeClient(client)
         setContextLoading(false)
 
-        // Load context in background (non-blocking)
         loader.load((progress) => {
           console.log('Loading context:', progress.stage, `${progress.loaded}/${progress.total}`)
         }).catch(error => {
-          console.warn('Context loading failed, continuing without advanced features:', error)
+          console.warn('Context loading failed:', error)
         })
       } catch (error) {
         console.error('Failed to initialize Claude:', error)
@@ -148,20 +121,18 @@ export const ChatPanel: FC<ChatPanelProps> = ({
                           errorStr.includes('api_key')
 
       if (isAuthError) {
-        // Clear invalid API key and prompt for re-entry
         localStorage.removeItem('noodles-claude-api-key')
-        const errorMessage: Message = {
+        sessionStorage.removeItem('noodles-claude-api-key')
+        setMessages(prev => [...prev, {
           role: 'assistant',
-          content: `Authentication Error: Your API key appears to be invalid. Please enter a valid API key.`
-        }
-        setMessages(prev => [...prev, errorMessage])
+          content: 'Authentication Error: Your API key is invalid. Please enter a valid API key.'
+        }])
         setShowApiKeyModal(true)
       } else {
-        const errorMessage: Message = {
+        setMessages(prev => [...prev, {
           role: 'assistant',
-          content: `Error: ${errorStr}. Please check your API key and try again.`
-        }
-        setMessages(prev => [...prev, errorMessage])
+          content: `Error: ${errorStr}`
+        }])
       }
     } finally {
       setLoading(false)
@@ -169,7 +140,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({
   }
 
   const applyProjectModifications = (modifications: any[]) => {
-    let updatedProject = { ...project }
+    const updatedProject = { ...project }
 
     modifications.forEach(mod => {
       switch (mod.type) {
@@ -200,19 +171,23 @@ export const ChatPanel: FC<ChatPanelProps> = ({
     onProjectUpdate(updatedProject)
   }
 
-  const handleApiKeySubmit = async (key: string) => {
-    localStorage.setItem('noodles-claude-api-key', key)
+  const handleApiKeySubmit = async (key: string, remember: boolean) => {
+    if (remember) {
+      localStorage.setItem('noodles-claude-api-key', key)
+      sessionStorage.removeItem('noodles-claude-api-key')
+    } else {
+      sessionStorage.setItem('noodles-claude-api-key', key)
+      localStorage.removeItem('noodles-claude-api-key')
+    }
+
     setShowApiKeyModal(false)
 
-    // Reinitialize Claude client without full page reload
     try {
-      // Load context
       const loader = new ContextLoader()
       await loader.load((progress) => {
         console.log('Loading context:', progress.stage, `${progress.loaded}/${progress.total}`)
       })
 
-      // Initialize tools and client with new API key
       const tools = new MCPTools(loader)
       const client = new ClaudeClient(key, tools)
 
@@ -220,7 +195,6 @@ export const ChatPanel: FC<ChatPanelProps> = ({
       setClaudeClient(client)
     } catch (error) {
       console.error('Failed to reinitialize Claude:', error)
-      // Chat will still work, just without advanced context features
     }
   }
 
@@ -458,38 +432,19 @@ const MessageContent: FC<{ content: string }> = ({ content }) => {
 }
 
 // API Key Modal
-const ApiKeyModal: FC<{ onSubmit: (key: string) => void }> = ({ onSubmit }) => {
+const ApiKeyModal: FC<{ onSubmit: (key: string, remember: boolean) => void }> = ({ onSubmit }) => {
   const [key, setKey] = useState('')
   const [error, setError] = useState('')
+  const [rememberKey, setRememberKey] = useState(true)
 
   const handleSubmit = () => {
-    const trimmedKey = key.trim()
-
-    if (!trimmedKey) {
+    if (!key.trim()) {
       setError('API key is required')
       return
     }
 
-    // Remove any non-ASCII characters that might cause encoding issues
-    const sanitizedKey = trimmedKey.replace(/[^\x00-\x7F]/g, '')
-
-    if (sanitizedKey !== trimmedKey) {
-      setError('API key contains invalid characters. Please copy it again carefully.')
-      return
-    }
-
-    if (!sanitizedKey.startsWith('sk-ant-')) {
-      setError('API key must start with "sk-ant-"')
-      return
-    }
-
-    if (sanitizedKey.length < 20) {
-      setError('API key appears to be too short')
-      return
-    }
-
     setError('')
-    onSubmit(sanitizedKey)
+    onSubmit(key.trim(), rememberKey)
   }
 
   return (
@@ -518,6 +473,15 @@ const ApiKeyModal: FC<{ onSubmit: (key: string) => void }> = ({ onSubmit }) => {
           className={styles.apiKeyInput}
         />
         {error && <p className={styles.apiKeyError}>{error}</p>}
+        <label className={styles.rememberKeyLabel}>
+          <input
+            type="checkbox"
+            checked={rememberKey}
+            onChange={(e) => setRememberKey(e.target.checked)}
+            className={styles.rememberKeyCheckbox}
+          />
+          <span>Remember my API key (stored in browser localStorage)</span>
+        </label>
         <div className={styles.apiKeyModalActions}>
           <button
             onClick={handleSubmit}
@@ -528,7 +492,10 @@ const ApiKeyModal: FC<{ onSubmit: (key: string) => void }> = ({ onSubmit }) => {
           </button>
         </div>
         <p className={styles.apiKeyNote}>
-          Your API key is stored locally in your browser and never sent to Noodles.gl servers.
+          {rememberKey
+            ? 'Your API key will be stored in localStorage and persist across sessions.'
+            : 'Your API key will only be stored for this session and cleared when you close the tab.'}
+          {' '}Keys are never sent to Noodles.gl servers.
         </p>
       </div>
     </div>

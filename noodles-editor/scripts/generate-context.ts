@@ -13,6 +13,10 @@ import * as path from 'path'
 import { createHash } from 'crypto'
 import { execSync } from 'child_process'
 
+// Import categories directly from source
+// Note: We can't import operators.ts directly due to heavy runtime dependencies (DuckDB, deck.gl, etc.)
+import { categories as baseCategories } from '../src/noodles/components/categories.ts'
+
 const ROOT_DIR = path.join(process.cwd(), '..')
 const SRC_DIR = path.join(process.cwd(), 'src')
 const DOCS_DIR = path.join(ROOT_DIR, 'docs')
@@ -57,8 +61,11 @@ function ensureDir(dir: string) {
   }
 }
 
-function readFilesSafe(dir: string, extension: string): string[] {
+function readFilesSafe(dir: string, extension: string, required: boolean = false): string[] {
   if (!fs.existsSync(dir)) {
+    if (required) {
+      throw new Error(`Required directory not found: ${dir}`)
+    }
     console.warn(`Directory not found: ${dir}`)
     return []
   }
@@ -90,49 +97,62 @@ function generateOperatorRegistry(): OperatorRegistry {
 
   const operatorsFile = path.join(SRC_DIR, 'noodles', 'operators.ts')
 
+  // Fail loudly if required files are missing
   if (!fs.existsSync(operatorsFile)) {
-    console.warn('operators.ts not found, creating minimal registry')
-    return {
-      version: '1.0.0',
-      operators: {},
-      categories: {}
-    }
+    throw new Error(`Required file not found: ${operatorsFile}`)
   }
 
   const content = fs.readFileSync(operatorsFile, 'utf-8')
 
-  // Simple regex-based extraction (would ideally use TS compiler API)
-  const operatorRegex = /export class (\w+Op) extends Operator/g
-  const operators: Record<string, any> = {}
-  const categories: Record<string, string[]> = {
-    data: [],
-    layer: [],
-    renderer: [],
-    accessor: [],
-    utility: [],
-    container: []
+  console.log(`Found ${Object.keys(baseCategories).length} categories from categories.ts`)
+
+  // Build reverse lookup: operator -> category
+  const opToCategory: Record<string, string> = {}
+  for (const [category, ops] of Object.entries(baseCategories)) {
+    for (const op of ops) {
+      opToCategory[op] = category
+    }
   }
 
-  let match
-  while ((match = operatorRegex.exec(content)) !== null) {
-    const opName = match[1]
-    const category = inferCategory(opName)
+  // Convert categories to plain object for JSON serialization
+  const categoriesObject: Record<string, string[]> = {}
+  for (const [category, ops] of Object.entries(baseCategories)) {
+    categoriesObject[category] = [...ops] // Convert readonly array to regular array
+  }
+
+  // Parse operators from file - extract class declarations with their metadata
+  const operators: Record<string, any> = {}
+
+  // Match operator class declarations and their static properties
+  const classRegex = /export class (\w+Op) extends Operator[\s\S]*?(?=export class|\nexport const|$)/g
+  let classMatch: RegExpExecArray | null = null
+
+  // eslint-disable-next-line no-cond-assign
+  while ((classMatch = classRegex.exec(content)) !== null) {
+    const opName = classMatch[1]
+    const classBody = classMatch[0]
+    const category = opToCategory[opName] || 'utility'
+
+    // Extract displayName
+    const displayNameMatch = classBody.match(/static displayName = ['"](.+?)['"]/)
+    const displayName = displayNameMatch ? displayNameMatch[1] : opName.replace(/Op$/, '')
+
+    // Extract description
+    const descriptionMatch = classBody.match(/static description = ['"](.+?)['"]/)
+    const description = descriptionMatch ? descriptionMatch[1] : `${opName} operator`
 
     operators[opName] = {
       name: opName,
       type: opName,
       category,
-      description: `${opName} operator`,
+      description,
+      displayName,
       inputs: {},
       outputs: {},
       sourceFile: 'src/noodles/operators.ts',
       sourceLine: 0,
       examples: [],
       relatedOperators: []
-    }
-
-    if (categories[category]) {
-      categories[category].push(opName)
     }
   }
 
@@ -141,27 +161,8 @@ function generateOperatorRegistry(): OperatorRegistry {
   return {
     version: '1.0.0',
     operators,
-    categories
+    categories: categoriesObject
   }
-}
-
-function inferCategory(opName: string): string {
-  if (opName.includes('File') || opName.includes('JSON') || opName.includes('DuckDb') || opName.includes('CSV')) {
-    return 'data'
-  }
-  if (opName.includes('Layer')) {
-    return 'layer'
-  }
-  if (opName.includes('Renderer') || opName === 'OutOp') {
-    return 'renderer'
-  }
-  if (opName.includes('Accessor') || opName.includes('ColorRamp')) {
-    return 'accessor'
-  }
-  if (opName.includes('Container')) {
-    return 'container'
-  }
-  return 'utility'
 }
 
 function generateDocsIndex(): DocsIndex {
@@ -223,7 +224,8 @@ function extractHeadings(content: string): Array<{ level: number; text: string; 
 function generateExamplesIndex(): ExamplesIndex {
   console.log('Generating examples index...')
 
-  const exampleFiles = readFilesSafe(EXAMPLES_DIR, '.json')
+  // Mark examples directory as required - fail if it doesn't exist
+  const exampleFiles = readFilesSafe(EXAMPLES_DIR, '.json', true)
   const examples: Record<string, any> = {}
 
   for (const file of exampleFiles) {
@@ -268,7 +270,8 @@ function generateExamplesIndex(): ExamplesIndex {
 function generateCodeIndex(): CodeIndex {
   console.log('Generating code index...')
 
-  const sourceFiles = readFilesSafe(SRC_DIR, '.ts').concat(readFilesSafe(SRC_DIR, '.tsx'))
+  // Mark SRC_DIR as required - fail if it doesn't exist
+  const sourceFiles = readFilesSafe(SRC_DIR, '.ts', true).concat(readFilesSafe(SRC_DIR, '.tsx', true))
   const files: Record<string, any> = {}
 
   // Limit to key files to keep size manageable
@@ -278,6 +281,12 @@ function generateCodeIndex(): CodeIndex {
     f.includes('noodles/noodles.tsx') ||
     f.includes('README.md')
   )
+
+  // Verify critical files exist
+  const operatorsFile = keyFiles.find(f => f.includes('noodles/operators.ts'))
+  if (!operatorsFile) {
+    throw new Error('Required file not found: noodles/operators.ts')
+  }
 
   for (const file of keyFiles) {
     try {
