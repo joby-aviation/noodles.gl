@@ -1,6 +1,8 @@
 import { assert, type LayerProps, View } from '@deck.gl/core'
 import { interpolateLab, scaleOrdinal, schemeAccent } from 'd3'
+import type { Feature, FeatureCollection, Geometry } from 'geojson'
 import { BehaviorSubject, combineLatest, type Subscription } from 'rxjs'
+import * as turf from '@turf/turf'
 import { isHexColor } from 'validator'
 import z from 'zod/v4'
 import { colorToHex } from '../utils/color'
@@ -70,12 +72,11 @@ type CodeFieldOptions = BaseFieldOptions & {
 // to be able to be serialized and deserialized. It's also meant to serve as a template for
 // the UI, say to hint to the Node to render a Number input, a Geocoder or a ColorPicker.
 export abstract class Field<
-    S extends z.ZodType = z.ZodType,
-    O extends BaseFieldOptions = BaseFieldOptions,
-  >
+  S extends z.ZodType = z.ZodType,
+  O extends BaseFieldOptions = BaseFieldOptions,
+>
   extends BehaviorSubject<z.output<S>>
-  implements IField<S>
-{
+  implements IField<S> {
   static type: keyof typeof inputComponents
   static defaultValue: unknown // z.output<ReturnType<T['createSchema']>>
 
@@ -562,7 +563,7 @@ export class JSONUrlField extends Field<z.ZodUnion<readonly [z.ZodURL, z.ZodJSON
 }
 
 type Point3DFieldValue =
-  | { lng: number; lat: number; alt: number; [key: string]: unknown }
+  | { lng: number; lat: number; alt: number;[key: string]: unknown }
   | [number, number, number]
 
 // Should this just be a Vec2? Should it be a GeoJSON Point Or does it need to be a special case
@@ -617,7 +618,7 @@ export class Point3DField extends Field<
   }
 }
 
-type Point2DFieldValue = { lng: number; lat: number; [key: string]: unknown } | [number, number]
+type Point2DFieldValue = { lng: number; lat: number;[key: string]: unknown } | [number, number]
 
 // Should this just be a Vec2? Should it be a GeoJSON Point Or does it need to be a special case
 export class Point2DField extends Field<
@@ -1308,5 +1309,222 @@ export class BezierCurveField extends Field<z.ZodType<BezierCurveData>> {
       segments.push({ p0: points[i], p1: points[i + 1] })
     }
     return segments
+  }
+}
+
+// Helper to detect coordinate field names with various patterns (case-insensitive)
+// Recognizes: lat, latitude, lng, lon, longitude, and any prefixed versions like pickup_lat, dropoff_lng, etc.
+export function findCoordinateFields(obj: Record<string, unknown>): { lng: number; lat: number } | null {
+  if (typeof obj !== 'object' || obj === null) return null
+
+  // Patterns to match longitude and latitude field names (case-insensitive)
+  // Matches: lng, _lng, pickup_lng, dropoff_lon, start_longitude, etc.
+  const lngPatterns = /^(\w*_)?(lng|lon|longitude)$/i
+  const latPatterns = /^(\w*_)?(lat|latitude)$/i
+
+  let lng: number | undefined
+  let lat: number | undefined
+
+  for (const [key, value] of Object.entries(obj)) {
+    if (typeof value === 'number') {
+      if (!lng && lngPatterns.test(key)) {
+        lng = value
+      } else if (!lat && latPatterns.test(key)) {
+        lat = value
+      }
+    }
+  }
+
+  return lng !== undefined && lat !== undefined ? { lng, lat } : null
+}
+
+// Helper to convert a single point to GeoJSON Feature
+export function pointsToFeature(value: unknown): Feature | null {
+  if (!value) return null
+
+  // Already a GeoJSON Feature
+  if (typeof value === 'object' && 'type' in value && value.type === 'Feature') {
+    return value as Feature
+  }
+
+  // Single point as array: [lng, lat]
+  if (Array.isArray(value) && value.length === 2 && typeof value[0] === 'number') {
+    return turf.point([value[0], value[1]], value)
+  }
+
+  // Single point: try to detect coordinate fields with various naming patterns
+  if (typeof value === 'object') {
+    const coords = findCoordinateFields(value as Record<string, unknown>)
+    if (coords) {
+      return turf.point([coords.lng, coords.lat], value)
+    }
+  }
+
+  return null
+}
+
+// Helper to convert various formats to GeoJSON FeatureCollection
+// Converts arrays of points to individual Point features (not MultiPoint)
+export function pointsToFeatureCollection(value: unknown): FeatureCollection | null {
+  if (!value) return null
+
+  // Already a GeoJSON FeatureCollection
+  if (
+    typeof value === 'object' &&
+    'type' in value &&
+    value.type === 'FeatureCollection' &&
+    'features' in value
+  ) {
+    return value as FeatureCollection
+  }
+
+  // Array of features
+  if (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    typeof value[0] === 'object' &&
+    'type' in value[0] &&
+    value[0].type === 'Feature'
+  ) {
+    return turf.featureCollection(value)
+  }
+
+  // Array of points - convert each to an individual Point feature
+  if (Array.isArray(value) && value.length > 0) {
+    const firstItem = value[0]
+
+    // Array of coordinate pairs: [[lng, lat], ...]
+    if (Array.isArray(firstItem) && firstItem.length === 2 && typeof firstItem[0] === 'number') {
+      const features = value.map((p: [number, number]) => turf.point([p[0], p[1]]))
+      return turf.featureCollection(features)
+    }
+
+    // Array of objects with coordinate fields
+    if (typeof firstItem === 'object') {
+      const coords = findCoordinateFields(firstItem as Record<string, unknown>)
+      if (coords) {
+        const features = value
+          .map((p: Record<string, unknown>) => {
+            const c = findCoordinateFields(p)
+            return c ? turf.point([c.lng, c.lat], p) : null
+          })
+          .filter(Boolean) as Feature[]
+
+        if (features.length > 0) {
+          return turf.featureCollection(features)
+        }
+      }
+    }
+  }
+
+  return null
+}
+
+export class GeometryField extends Field<z.ZodType<Geometry>> {
+  static type = 'geometry'
+  static defaultValue = turf.point([0, 0]).geometry
+
+  createSchema() {
+    return z
+      .union([
+        // Accept Geometry directly
+        z.custom<Geometry>((val): val is Geometry => {
+          if (typeof val !== 'object' || val === null) return false
+          const geom = val as Geometry
+          return 'type' in geom && 'coordinates' in geom
+        }),
+        // Accept Feature and extract geometry
+        z
+          .custom<Feature>((val): val is Feature => {
+            if (typeof val !== 'object' || val === null) return false
+            const feature = val as Feature
+            return feature.type === 'Feature' && 'geometry' in feature
+          })
+          .transform((val: Feature) => val.geometry),
+        // Accept points and convert to Geometry
+        z.unknown().transform((val: unknown) => {
+          const feature = pointsToFeature(val)
+          return feature ? feature.geometry : (val as Geometry)
+        }),
+      ])
+      .transform(val => val as Geometry)
+  }
+
+  constructor(defaultValue?: Geometry | { lng: number; lat: number }, options?: BaseFieldOptions) {
+    const initialGeom = defaultValue
+      ? pointsToFeature(defaultValue)?.geometry || turf.point([0, 0]).geometry
+      : turf.point([0, 0]).geometry
+    super(initialGeom, options)
+  }
+}
+
+export class FeatureField extends Field<z.ZodType<Feature<Geometry>>> {
+  static type = 'feature'
+  static defaultValue = turf.point([0, 0])
+
+  createSchema() {
+    return z
+      .union([
+        // Accept Feature directly
+        z.custom<Feature<Geometry>>((val): val is Feature<Geometry> => {
+          if (typeof val !== 'object' || val === null) return false
+          const feature = val as Feature
+          return feature.type === 'Feature' && 'geometry' in feature
+        }),
+        // Accept Geometry and wrap it in a Feature
+        z
+          .custom<Geometry>((val): val is Geometry => {
+            if (typeof val !== 'object' || val === null) return false
+            const geom = val as Geometry
+            return 'type' in geom && 'coordinates' in geom && !('geometry' in geom)
+          })
+          .transform((val: Geometry) => turf.feature(val)),
+        // Accept points and convert to Feature
+        z.unknown().transform((val: unknown) => {
+          const feature = pointsToFeature(val)
+          return feature || (val as Feature)
+        }),
+      ])
+      .transform(val => val as Feature<Geometry>)
+  }
+
+  constructor(defaultValue?: Feature<Geometry> | { lng: number; lat: number }, options?: BaseFieldOptions) {
+    const initialFeature = defaultValue
+      ? pointsToFeature(defaultValue) || turf.point([0, 0])
+      : turf.point([0, 0])
+    super(initialFeature, options)
+  }
+}
+
+export class FeatureCollectionField extends Field<z.ZodType<FeatureCollection<Geometry>>> {
+  static type = 'feature-collection'
+  static defaultValue = turf.featureCollection([])
+
+  createSchema() {
+    return z
+      .union([
+        // Accept FeatureCollection directly
+        z.custom<FeatureCollection<Geometry>>((val): val is FeatureCollection<Geometry> => {
+          if (typeof val !== 'object' || val === null) return false
+          const fc = val as FeatureCollection
+          return fc.type === 'FeatureCollection' && 'features' in fc && Array.isArray(fc.features)
+        }),
+        // Accept points and convert to FeatureCollection
+        z.unknown().transform((val: unknown) => {
+          const fc = pointsToFeatureCollection(val)
+          return fc || (val as FeatureCollection)
+        }),
+      ])
+      .transform(val => val as FeatureCollection<Geometry>)
+  }
+
+  constructor(
+    defaultValue?: FeatureCollection<Geometry> | Array<{ lng: number; lat: number }>,
+    options?: BaseFieldOptions
+  ) {
+    const initialFC = defaultValue
+      ? pointsToFeatureCollection(defaultValue) || turf.featureCollection([])
+      : turf.featureCollection([])
+    super(initialFC, options)
   }
 }

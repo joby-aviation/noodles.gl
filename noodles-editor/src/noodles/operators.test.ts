@@ -8,6 +8,7 @@ import {
   DuckDbOp,
   ExpressionOp,
   FilterOp,
+  GeoJsonOp,
   GeoJsonTransformOp,
   JSONOp,
   LayerPropsOp,
@@ -316,11 +317,31 @@ describe('AccessorOp', () => {
 describe('BoundingBoxOp', () => {
   it('finds the bounding box of a list of points', () => {
     const operator = new BoundingBoxOp('/bbox-0')
+    operator.inputs.data.setValue([
+      { lng: 1, lat: 2 },
+      { lng: 3, lat: 4 },
+    ])
     const val = operator.execute({
-      data: [
-        { lng: 1, lat: 2 },
-        { lng: 3, lat: 4 },
+      data: operator.par.data,
+      padding: 0,
+    })
+    expect(val.viewState).toEqual({
+      latitude: 3.000457402301878,
+      longitude: 2.0000000000000027,
+      zoom: 7.185340053829005,
+    })
+  })
+  it('finds the bounding box of a geojson FeatureCollection', () => {
+    const operator = new BoundingBoxOp('/bbox-0')
+    operator.inputs.data.setValue({
+      type: 'FeatureCollection',
+      features: [
+        { type: 'Feature', geometry: { type: 'Point', coordinates: [1, 2] }, properties: {} },
+        { type: 'Feature', geometry: { type: 'Point', coordinates: [3, 4] }, properties: {} },
       ],
+    })
+    const val = operator.execute({
+      data: operator.par.data,
       padding: 0,
     })
     expect(val.viewState).toEqual({
@@ -1221,5 +1242,113 @@ describe('SelectOp', () => {
     // Negative wrap
     expect(operator.execute({ data: ['a', 'b', 'c'], index: -1, wrap: true }).value).toEqual('c')
     expect(operator.execute({ data: ['a', 'b', 'c'], index: -4, wrap: true }).value).toEqual('c')
+  })
+})
+
+describe('GeoJsonOp', () => {
+  it('creates a FeatureCollection from an array of Features', () => {
+    const operator = new GeoJsonOp('/geojson-0')
+    const features = [
+      { type: 'Feature', geometry: { type: 'Point', coordinates: [0, 0] }, properties: {} },
+      { type: 'Feature', geometry: { type: 'Point', coordinates: [1, 1] }, properties: { name: 'test' } },
+    ]
+
+    const result = operator.execute({ features })
+
+    expect(result.featureCollection).toBeDefined()
+    expect(result.featureCollection.type).toBe('FeatureCollection')
+    expect(result.featureCollection.features).toHaveLength(2)
+    expect(result.featureCollection.features[0].geometry.coordinates).toEqual([0, 0])
+    expect(result.featureCollection.features[1].properties?.name).toBe('test')
+  })
+
+  it('creates a FeatureCollection from an array of objects with lng/lat', () => {
+    const operator = new GeoJsonOp('/geojson-1')
+    const features = [
+      { lng: -122.4, lat: 37.8, name: 'San Francisco' },
+      { lng: -118.2, lat: 34.0, name: 'Los Angeles' },
+      { lng: -87.6, lat: 41.9, name: 'Chicago' },
+    ]
+
+    const result = operator.execute({ features })
+
+    expect(result.featureCollection).toBeDefined()
+    expect(result.featureCollection.type).toBe('FeatureCollection')
+    expect(result.featureCollection.features).toHaveLength(3)
+
+    // Verify the first feature
+    expect(result.featureCollection.features[0]?.type).toBe('Feature')
+    expect(result.featureCollection.features[0]?.geometry?.type).toBe('Point')
+    expect((result.featureCollection.features[0]?.geometry as any)?.coordinates).toEqual([-122.4, 37.8])
+    expect(result.featureCollection.features[0]?.properties?.name).toBe('San Francisco')
+
+    // Verify the last feature
+    expect((result.featureCollection.features[2]?.geometry as any)?.coordinates).toEqual([-87.6, 41.9])
+    expect(result.featureCollection.features[2]?.properties?.name).toBe('Chicago')
+  })
+
+  it('creates an empty FeatureCollection from an empty array', () => {
+    const operator = new GeoJsonOp('/geojson-empty')
+    const result = operator.execute({ features: [] })
+
+    expect(result.featureCollection).toBeDefined()
+    expect(result.featureCollection.type).toBe('FeatureCollection')
+    expect(result.featureCollection.features).toHaveLength(0)
+  })
+
+  it('creates a FeatureCollection from an array of objects with named coordinates ', () => {
+    const operator = new GeoJsonOp('/geojson-named')
+    const features = [
+      { pickup_longitude: -122.4, pickup_latitude: 37.8, dropoff_longitude: -122.5, dropoff_latitude: 37.9, name: 'San Francisco' },
+      { pickup_longitude: -118.2, pickup_latitude: 34.0, dropoff_longitude: -118.3, dropoff_latitude: 34.1, name: 'Los Angeles' },
+      { pickup_longitude: -87.6, pickup_latitude: 41.9, dropoff_longitude: -87.7, dropoff_latitude: 42.0, name: 'Chicago' },
+    ]
+
+    const result = operator.execute({ features })
+
+    expect(result.featureCollection).toBeDefined()
+    expect(result.featureCollection.type).toBe('FeatureCollection')
+    expect(result.featureCollection.features).toHaveLength(3)
+
+    // Verify the first feature
+    expect(result.featureCollection.features[0]?.type).toBe('Feature')
+    expect(result.featureCollection.features[0]?.geometry?.type).toBe('Point')
+    expect((result.featureCollection.features[0]?.geometry as any)?.coordinates).toEqual([-122.4, 37.8])
+    expect(result.featureCollection.features[0]?.properties?.name).toBe('San Francisco')
+
+    // Verify the last feature
+    expect((result.featureCollection.features[2]?.geometry as any)?.coordinates).toEqual([-87.6, 41.9])
+    expect(result.featureCollection.features[2]?.properties?.name).toBe('Chicago')
+  })
+
+  it('creates a FeatureCollection from an array of coordinate pairs', () => {
+    const operator = new GeoJsonOp('/geojson-2')
+    const coords = [
+      [-122.4, 37.8],
+      [-118.2, 34.0],
+      [-87.6, 41.9],
+    ]
+
+    const result = operator.execute({ features: coords })
+
+    expect(result.featureCollection).toBeDefined()
+    expect(result.featureCollection.type).toBe('FeatureCollection')
+    expect(result.featureCollection.features).toHaveLength(3)
+    expect(result.featureCollection.features[0].geometry.type).toBe('Point')
+    expect(result.featureCollection.features[0].geometry.coordinates).toEqual([-122.4, 37.8])
+  })
+
+  it('passes through an existing FeatureCollection unchanged', () => {
+    const operator = new GeoJsonOp('/geojson-3')
+    const existingFC = {
+      type: 'FeatureCollection',
+      features: [
+        { type: 'Feature', geometry: { type: 'Point', coordinates: [0, 0] }, properties: { id: 1 } },
+      ],
+    }
+
+    const result = operator.execute({ features: existingFC })
+
+    expect(result.featureCollection).toEqual(existingFC)
   })
 })

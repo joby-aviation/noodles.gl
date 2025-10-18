@@ -65,6 +65,7 @@ import { fitBounds } from '@math.gl/web-mercator'
 import * as Plot from '@observablehq/plot'
 import { onChange } from '@theatre/core'
 import * as turf from '@turf/turf'
+import type { Feature, FeatureCollection, Geometry } from 'geojson'
 import * as d3 from 'd3'
 import {
   csv,
@@ -160,10 +161,13 @@ import {
   EffectField,
   ExpressionField,
   ExtensionField,
+  FeatureCollectionField,
+  FeatureField,
   type Field,
   type FieldReference,
   FileField,
   FunctionField,
+  GeometryField,
   IN_NS,
   type InOut,
   JSONUrlField,
@@ -174,6 +178,7 @@ import {
   OUT_NS,
   Point2DField,
   Point3DField,
+  pointsToFeatureCollection,
   StringField,
   StringLiteralField,
   UnknownField,
@@ -192,6 +197,12 @@ import type { OpId } from './utils/id-utils'
 import { isDirectChild } from './utils/path-utils'
 import { pick } from './utils/pick'
 import { validateViewState } from './utils/viewstate-helpers'
+
+// Conversion factors for area units
+// 1 square meter = 1 / 1,000,000 square kilometers
+const SQ_METERS_TO_SQ_KM = 1_000_000
+// 1 square meter = 1 / 2,589,988.110336 square miles (exact conversion: 1 mi² = 2,589,988.110336 m²)
+const SQ_METERS_TO_SQ_MILES = 2_589_988.110336
 
 // https://stackoverflow.com/questions/66044717/typescript-infer-type-of-abstract-methods-implementation
 export interface IOperator {
@@ -1448,11 +1459,11 @@ export class BoundsOp extends Operator<BoundsOp> {
 export class BoundingBoxOp extends Operator<BoundingBoxOp> {
   static displayName = 'BoundingBox'
   static description =
-    'Get the bounding box of a set of points. They must have lat/lng keys. Returns a center point and zoom level.'
+    'Calculate the bounding box of a GeoJSON feature or collection. Returns bounds, center point, zoom level, and individual coordinate values.'
   asDownload = () => this.outputData
   createInputs() {
     return {
-      data: new ArrayField(new Point2DField()),
+      data: new FeatureCollectionField(),
       // TODO: could be a union, either a number or object with top, right, bottom, left
       padding: new NumberField(0, { min: -1_000, max: 1_000 }),
     }
@@ -1471,29 +1482,13 @@ export class BoundingBoxOp extends Operator<BoundingBoxOp> {
     }
   }
   execute({ data, padding }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    let east = -180
-    let west = 180
-    let north = -90
-    let south = 90
-    // Should this be a turf function? Do we need to cast data to GeoJSON first?
-    // Or allow the lat / lng keys to be configurable?
-    for (const d of data) {
-      if (d.lng < west) {
-        west = d.lng
-      }
-      if (d.lng > east) {
-        east = d.lng
-      }
-      if (d.lat < south) {
-        south = d.lat
-      }
-      if (d.lat > north) {
-        north = d.lat
-      }
-    }
+    // Use turf.bbox to calculate bounding box from GeoJSON or point data
+    const bbox = turf.bbox(data)
+    const [minLng, minLat, maxLng, maxLat] = bbox
+
     const bounds = [
-      [west, south],
-      [east, north],
+      [minLng, minLat],
+      [maxLng, maxLat],
     ] as [[number, number], [number, number]]
 
     // const { resolution: { width, height } } = useSlice(store => store.renderer)
@@ -3991,7 +3986,7 @@ export class RectangleOp extends Operator<RectangleOp> {
   }
   createOutputs() {
     return {
-      feature: new DataField(),
+      feature: new FeatureField(),
     }
   }
   execute({
@@ -4050,7 +4045,7 @@ export class PointOp extends Operator<PointOp> {
   }
   createOutputs() {
     return {
-      feature: new DataField(),
+      feature: new FeatureField(),
     }
   }
   execute({
@@ -4069,24 +4064,28 @@ export class PointOp extends Operator<PointOp> {
 
 export class GeoJsonOp extends Operator<GeoJsonOp> {
   static displayName = 'GeoJson'
-  static description = 'Create a GeoJSON FeatureCollection from a list of features'
+  static description = 'Create a GeoJSON FeatureCollection from an array of features or objects'
   asDownload = () => this.outputData
   createInputs() {
     return {
-      features: new ListField(new DataField()),
+      features: new DataField(),
     }
   }
   createOutputs() {
     return {
-      featureCollection: new DataField(),
+      featureCollection: new FeatureCollectionField(),
     }
   }
   execute({ features }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const featureCollection = {
-      type: 'FeatureCollection',
-      features,
+    // Use the existing helper function to convert various formats to FeatureCollection
+    const featureCollection = pointsToFeatureCollection(features)
+
+    if (featureCollection) {
+      return { featureCollection }
     }
-    return { featureCollection }
+
+    // Fallback: return empty FeatureCollection
+    return { featureCollection: turf.featureCollection([]) }
   }
 }
 
@@ -4096,7 +4095,7 @@ export class GeoJsonTransformOp extends Operator<GeoJsonTransformOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      feature: new DataField(),
+      feature: new FeatureField(),
       scale: new NumberField(1, { min: 0.001, max: 100, step: 0.1 }),
       translateX: new NumberField(0, { min: -10000, max: 10000, step: 0.1 }),
       translateY: new NumberField(0, { min: -10000, max: 10000, step: 0.1 }),
@@ -4105,7 +4104,7 @@ export class GeoJsonTransformOp extends Operator<GeoJsonTransformOp> {
   }
   createOutputs() {
     return {
-      feature: new DataField(),
+      feature: new FeatureField(),
     }
   }
   execute({
@@ -4139,6 +4138,354 @@ export class GeoJsonTransformOp extends Operator<GeoJsonTransformOp> {
     }
 
     return { feature: transformed }
+  }
+}
+
+export class SpatialJoinOp extends Operator<SpatialJoinOp> {
+  static displayName = 'SpatialJoin'
+  static description = 'Perform spatial operations on two GeoJSON features (union, difference, intersection)'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      featureA: new FeatureField(),
+      featureB: new FeatureField(),
+      operation: new StringLiteralField('union', {
+        values: ['union', 'difference', 'intersection', 'a', 'b'],
+      }),
+    }
+  }
+  createOutputs() {
+    return {
+      feature: new FeatureField(),
+    }
+  }
+  execute({
+    featureA,
+    featureB,
+    operation,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    let result: any
+
+    switch (operation) {
+      case 'union':
+        result = turf.union(turf.featureCollection([featureA, featureB]))
+        break
+      case 'difference':
+        result = turf.difference(turf.featureCollection([featureA, featureB]))
+        break
+      case 'intersection':
+        result = turf.intersect(turf.featureCollection([featureA, featureB]))
+        break
+      case 'a':
+        result = featureA
+        break
+      case 'b':
+        result = featureB
+        break
+      default:
+        result = featureA
+    }
+
+    return { feature: result }
+  }
+}
+
+export class DistanceOp extends Operator<DistanceOp> {
+  static displayName = 'Distance'
+  static description = 'Calculate distance between two points (great circle or rhumb line)'
+  createInputs() {
+    return {
+      from: new Point2DField(),
+      to: new Point2DField(),
+      units: new StringLiteralField('kilometers', {
+        values: ['meters', 'kilometers', 'miles', 'nauticalmiles', 'degrees', 'radians'],
+      }),
+      method: new StringLiteralField('haversine', {
+        values: ['haversine', 'rhumb'],
+      }),
+    }
+  }
+  createOutputs() {
+    return {
+      distance: new NumberField(),
+    }
+  }
+  execute({
+    from,
+    to,
+    units,
+    method,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const fromPoint = turf.point([from.lng, from.lat])
+    const toPoint = turf.point([to.lng, to.lat])
+
+    const distance =
+      method === 'rhumb'
+        ? turf.rhumbDistance(fromPoint, toPoint, { units })
+        : turf.distance(fromPoint, toPoint, { units })
+
+    return { distance }
+  }
+}
+
+export class RadiansToDegreesOp extends Operator<RadiansToDegreesOp> {
+  static displayName = 'RadiansToDegrees'
+  static description = 'Convert radians to degrees'
+  createInputs() {
+    return {
+      radians: new NumberField(0, { step: 0.01 }),
+    }
+  }
+  createOutputs() {
+    return {
+      degrees: new NumberField(),
+    }
+  }
+  execute({ radians }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const degrees = turf.radiansToDegrees(radians)
+    return { degrees }
+  }
+}
+
+export class DegreesToRadiansOp extends Operator<DegreesToRadiansOp> {
+  static displayName = 'DegreesToRadians'
+  static description = 'Convert degrees to radians'
+  createInputs() {
+    return {
+      degrees: new NumberField(0, { step: 1 }),
+    }
+  }
+  createOutputs() {
+    return {
+      radians: new NumberField(),
+    }
+  }
+  execute({ degrees }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const radians = turf.degreesToRadians(degrees)
+    return { radians }
+  }
+}
+
+export class CentroidOp extends Operator<CentroidOp> {
+  static displayName = 'Centroid'
+  static description = 'Calculate the centroid of a GeoJSON feature'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      feature: new FeatureField(),
+      properties: new DataField({}),
+    }
+  }
+  createOutputs() {
+    return {
+      centroid: new FeatureField(),
+    }
+  }
+  execute({
+    feature,
+    properties,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const centroid = turf.centroid(feature, { properties })
+    return { centroid }
+  }
+}
+
+export class AreaOp extends Operator<AreaOp> {
+  static displayName = 'Area'
+  static description = 'Calculate the area of a GeoJSON feature in square meters'
+  createInputs() {
+    return {
+      feature: new FeatureField(),
+    }
+  }
+  createOutputs() {
+    return {
+      area: new NumberField(),
+      areaKm2: new NumberField(),
+      areaMi2: new NumberField(),
+    }
+  }
+  execute({ feature }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const area = turf.area(feature)
+    const areaKm2 = area / SQ_METERS_TO_SQ_KM
+    const areaMi2 = area / SQ_METERS_TO_SQ_MILES
+
+    return { area, areaKm2, areaMi2 }
+  }
+}
+
+export class BufferOp extends Operator<BufferOp> {
+  static displayName = 'Buffer'
+  static description = 'Create a buffer around a GeoJSON feature'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      feature: new FeatureField(),
+      radius: new NumberField(1, { min: 0, max: 10000, step: 0.1 }),
+      units: new StringLiteralField('kilometers', {
+        values: ['meters', 'kilometers', 'miles', 'nauticalmiles', 'degrees', 'radians'],
+      }),
+      steps: new NumberField(64, { min: 8, max: 128, step: 8 }),
+    }
+  }
+  createOutputs() {
+    return {
+      buffer: new FeatureField(),
+    }
+  }
+  execute({
+    feature,
+    radius,
+    units,
+    steps,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const buffer = turf.buffer(feature, radius, { units, steps })
+    return { buffer }
+  }
+}
+
+export class SimplifyOp extends Operator<SimplifyOp> {
+  static displayName = 'Simplify'
+  static description = 'Simplify a GeoJSON feature by removing points'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      feature: new FeatureField(),
+      tolerance: new NumberField(0.01, { min: 0.001, max: 10, step: 0.001 }),
+      highQuality: new BooleanField(false),
+    }
+  }
+  createOutputs() {
+    return {
+      simplified: new FeatureField(),
+    }
+  }
+  execute({
+    feature,
+    tolerance,
+    highQuality,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const simplified = turf.simplify(feature, { tolerance, highQuality })
+    return { simplified }
+  }
+}
+
+export class LengthOp extends Operator<LengthOp> {
+  static displayName = 'Length'
+  static description = 'Calculate the length of a line feature'
+  createInputs() {
+    return {
+      feature: new FeatureField(),
+      units: new StringLiteralField('kilometers', {
+        values: ['meters', 'kilometers', 'miles', 'nauticalmiles', 'degrees', 'radians'],
+      }),
+    }
+  }
+  createOutputs() {
+    return {
+      length: new NumberField(),
+    }
+  }
+  execute({ feature, units }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const length = turf.length(feature, { units })
+    return { length }
+  }
+}
+
+export class BearingOp extends Operator<BearingOp> {
+  static displayName = 'Bearing'
+  static description = 'Calculate the bearing between two points'
+  createInputs() {
+    return {
+      from: new Point2DField(),
+      to: new Point2DField(),
+      final: new BooleanField(false),
+    }
+  }
+  createOutputs() {
+    return {
+      bearing: new NumberField(),
+    }
+  }
+  execute({
+    from,
+    to,
+    final,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const fromPoint = turf.point([from.lng, from.lat])
+    const toPoint = turf.point([to.lng, to.lat])
+
+    const bearing = final
+      ? turf.bearing(toPoint, fromPoint)
+      : turf.bearing(fromPoint, toPoint)
+
+    return { bearing }
+  }
+}
+
+export class DestinationOp extends Operator<DestinationOp> {
+  static displayName = 'Destination'
+  static description = 'Calculate a destination point from origin, distance, and bearing'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      origin: new Point2DField(),
+      distance: new NumberField(10, { min: 0, step: 0.1 }),
+      bearing: new NumberField(0, { min: -180, max: 180, step: 1 }),
+      units: new StringLiteralField('kilometers', {
+        values: ['meters', 'kilometers', 'miles', 'nauticalmiles', 'degrees', 'radians'],
+      }),
+      properties: new DataField({}),
+    }
+  }
+  createOutputs() {
+    return {
+      destination: new FeatureField(),
+    }
+  }
+  execute({
+    origin,
+    distance,
+    bearing,
+    units,
+    properties,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const originPoint = turf.point([origin.lng, origin.lat])
+    const destination = turf.destination(originPoint, distance, bearing, { units, properties })
+
+    return { destination }
+  }
+}
+
+export class CircleOp extends Operator<CircleOp> {
+  static displayName = 'Circle'
+  static description = 'Create a circular GeoJSON polygon from a center point and radius'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      center: new Point2DField(),
+      radius: new NumberField(5, { min: 0, step: 0.1 }),
+      units: new StringLiteralField('kilometers', {
+        values: ['meters', 'kilometers', 'miles', 'nauticalmiles', 'degrees', 'radians'],
+      }),
+      steps: new NumberField(64, { min: 3, max: 256, step: 1 }),
+    }
+  }
+  createOutputs() {
+    return {
+      feature: new FeatureField(),
+    }
+  }
+  execute({
+    center,
+    radius,
+    units,
+    steps,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const centerPoint = turf.point([center.lng, center.lat])
+    const circle = turf.circle(centerPoint, radius, { units, steps })
+
+    return { feature: circle }
   }
 }
 
@@ -4897,8 +5244,10 @@ export class MaskExtensionOp extends Operator<MaskExtensionOp> {
 export const opTypes = {
   AccessorOp,
   A5LayerOp,
+  AreaOp,
   ArcOp,
   ArcLayerOp,
+  BearingOp,
   BezierCurveOp,
   BitmapLayerOp,
   BooleanOp,
@@ -4906,7 +5255,10 @@ export const opTypes = {
   BoundsOp,
   BrightnessContrastExtensionOp,
   BrushingExtensionOp,
+  BufferOp,
   CategoricalColorRampOp,
+  CentroidOp,
+  CircleOp,
   ClipExtensionOp,
   CodeOp,
   CollisionFilterExtensionOp,
@@ -4922,7 +5274,10 @@ export const opTypes = {
   DataFilterExtensionOp,
   DateOp,
   DeckRendererOp,
+  DegreesToRadiansOp,
+  DestinationOp,
   DirectionsOp,
+  DistanceOp,
   DuckDbOp,
   ExpressionOp,
   ExtentOp,
@@ -4953,6 +5308,7 @@ export const opTypes = {
   IconLayerOp,
   JSONOp,
   LayerPropsOp,
+  LengthOp,
   LineLayerOp,
   MaplibreBasemapOp,
   MapRangeOp,
@@ -4977,6 +5333,7 @@ export const opTypes = {
   PolygonLayerOp,
   ProjectOp,
   QuadkeyLayerOp,
+  RadiansToDegreesOp,
   RandomizeAttributeOp,
   RasterTileLayerOp,
   RectangleOp,
@@ -4986,10 +5343,12 @@ export const opTypes = {
   ScenegraphLayerOp,
   ScreenGridLayerOp,
   SimpleMeshLayerOp,
+  SimplifyOp,
   SelectOp,
   SliceOp,
   SolidPolygonLayerOp,
   SortOp,
+  SpatialJoinOp,
   SplitRGBAOp,
   SplitMapViewStateOp,
   SplitXYOp,
