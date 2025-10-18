@@ -1,23 +1,23 @@
 .chatPanel {
+  /* Positioning (from floatingChatContainer) */
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 1000;
+
+  /* Sizing and styling (from floatingChatWindow) */
+  width: 500px;
+  height: 600px;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  animation: slideUp 0.3s ease-out;
+
+  /* Layout (original chatPanel) */
   display: flex;
-  flex-direction: row;
-  height: 100%;
-  width: 100%;
+  flex-direction: column;
   background: #1e1e1e;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
   overflow: hidden;
-}
-
-.chatPanelContent {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-width: 0;
-  height: 100%;
-}
-
-.chatPanelPopout {
-  border-left: none;
 }
 
 .chatPanelHeader {
@@ -413,4 +413,16 @@
   color: #666;
   font-style: italic;
   line-height: 1.4;
+}
+
+/* Animation for chat panel */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

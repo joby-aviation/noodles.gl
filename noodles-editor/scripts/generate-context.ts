@@ -14,14 +14,20 @@ import { createHash } from 'crypto'
 import { execSync } from 'child_process'
 
 // Import categories directly from source
-// Note: We can't import operators.ts directly due to heavy runtime dependencies (DuckDB, deck.gl, etc.)
 import { categories as baseCategories } from '../src/noodles/components/categories.ts'
+// Import operator parser
+import { parseOperatorsFile } from './parse-operators.ts'
 
 const ROOT_DIR = path.join(process.cwd(), '..')
 const SRC_DIR = path.join(process.cwd(), 'src')
 const DOCS_DIR = path.join(ROOT_DIR, 'docs')
 const EXAMPLES_DIR = path.join(process.cwd(), 'public', 'noodles')
 const OUTPUT_DIR = path.join(process.cwd(), 'dist', 'context')
+
+const packageJson = JSON.parse(
+  fs.readFileSync(path.join(ROOT_DIR, 'package.json'), 'utf-8')
+)
+const version = packageJson.version
 
 interface OperatorRegistry {
   version: string
@@ -102,8 +108,6 @@ function generateOperatorRegistry(): OperatorRegistry {
     throw new Error(`Required file not found: ${operatorsFile}`)
   }
 
-  const content = fs.readFileSync(operatorsFile, 'utf-8')
-
   console.log(`Found ${Object.keys(baseCategories).length} categories from categories.ts`)
 
   // Build reverse lookup: operator -> category
@@ -120,37 +124,34 @@ function generateOperatorRegistry(): OperatorRegistry {
     categoriesObject[category] = [...ops] // Convert readonly array to regular array
   }
 
-  // Parse operators from file - extract class declarations with their metadata
+  // Parse operators using TypeScript Compiler API
+  const parsedOperators = parseOperatorsFile(operatorsFile)
   const operators: Record<string, any> = {}
 
-  // Match operator class declarations and their static properties
-  const classRegex = /export class (\w+Op) extends Operator[\s\S]*?(?=export class|\nexport const|$)/g
-  let classMatch: RegExpExecArray | null = null
-
-  // eslint-disable-next-line no-cond-assign
-  while ((classMatch = classRegex.exec(content)) !== null) {
-    const opName = classMatch[1]
-    const classBody = classMatch[0]
+  for (const [opName, meta] of parsedOperators) {
     const category = opToCategory[opName] || 'utility'
-
-    // Extract displayName
-    const displayNameMatch = classBody.match(/static displayName = ['"](.+?)['"]/)
-    const displayName = displayNameMatch ? displayNameMatch[1] : opName.replace(/Op$/, '')
-
-    // Extract description
-    const descriptionMatch = classBody.match(/static description = ['"](.+?)['"]/)
-    const description = descriptionMatch ? descriptionMatch[1] : `${opName} operator`
 
     operators[opName] = {
       name: opName,
       type: opName,
       category,
-      description,
-      displayName,
-      inputs: {},
-      outputs: {},
+      description: meta.description,
+      displayName: meta.displayName,
+      inputs: meta.inputs.reduce<Record<string, unknown>>((acc, input) => {
+        acc[input.name] = {
+          type: input.fieldType,
+          default: input.defaultValue,
+          ...input.options,
+        }
+        return acc
+      }, {}),
+      outputs: meta.outputs.reduce<Record<string, unknown>>((acc, output) => {
+        acc[output.name] = {
+          type: output.fieldType,
+        }
+        return acc
+      }, {}),
       sourceFile: 'src/noodles/operators.ts',
-      sourceLine: 0,
       examples: [],
       relatedOperators: []
     }
@@ -159,7 +160,7 @@ function generateOperatorRegistry(): OperatorRegistry {
   console.log(`Found ${Object.keys(operators).length} operators`)
 
   return {
-    version: '1.0.0',
+    version,
     operators,
     categories: categoriesObject
   }

@@ -16,15 +16,15 @@ import styles from './chat-panel.module.css'
 interface ChatPanelProps {
   project: any
   onProjectUpdate: (project: any) => void
-  onClose?: () => void
-  isPopout?: boolean
+  onClose: () => void
+  isVisible: boolean
 }
 
 export const ChatPanel: FC<ChatPanelProps> = ({
   project,
   onProjectUpdate,
   onClose,
-  isPopout = false
+  isVisible
 }) => {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -261,8 +261,14 @@ export const ChatPanel: FC<ChatPanelProps> = ({
     }
   }
 
+  if (!isVisible) return null
+
   if (showApiKeyModal) {
-    return <ApiKeyModal onSubmit={handleApiKeySubmit} />
+    return (
+      <div className={styles.chatPanel}>
+        <ApiKeyModal onSubmit={handleApiKeySubmit} />
+      </div>
+    )
   }
 
   if (contextLoading) {
@@ -277,12 +283,12 @@ export const ChatPanel: FC<ChatPanelProps> = ({
   }
 
   return (
-    <div className={`${styles.chatPanel} ${isPopout ? styles.chatPanelPopout : ''}`}>
-      <div className={styles.chatPanelContent}>
+    <div className={styles.chatPanel}>
       <div className={styles.chatPanelHeader}>
         <h3>Noodles Assistant</h3>
         <div className={styles.chatPanelActions}>
           <button
+            type="button"
             className={styles.chatPanelActionBtn}
             onClick={startNewConversation}
             title="Start New Conversation"
@@ -290,6 +296,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({
             ➕
           </button>
           <button
+            type="button"
             className={styles.chatPanelActionBtn}
             onClick={() => setShowHistory(!showHistory)}
             title="Conversation History"
@@ -297,21 +304,21 @@ export const ChatPanel: FC<ChatPanelProps> = ({
             📋
           </button>
           <button
+            type="button"
             className={styles.chatPanelActionBtn}
             onClick={() => setShowApiKeyModal(true)}
             title="Change API Key"
           >
             ⚙
           </button>
-          {onClose && (
-            <button
-              className={styles.chatPanelActionBtn}
-              onClick={onClose}
-              title="Close"
-            >
-              ✕
-            </button>
-          )}
+          <button
+            type="button"
+            className={styles.chatPanelActionBtn}
+            onClick={onClose}
+            title="Close"
+          >
+            ✕
+          </button>
         </div>
       </div>
 
@@ -325,6 +332,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({
           <span>Auto-capture screenshots</span>
         </label>
         <button
+          type="button"
           onClick={handleManualCapture}
           className={styles.captureBtn}
           title="Capture current visualization"
@@ -350,12 +358,12 @@ export const ChatPanel: FC<ChatPanelProps> = ({
         )}
 
         {messages.map((msg, idx) => (
-          <div key={idx} className={`${styles.chatMessage} ${msg.role === 'user' ? styles.chatMessageUser : styles.chatMessageAssistant}`}>
+          <div key={`msg-${idx}-${msg.role}`} className={`${styles.chatMessage} ${msg.role === 'user' ? styles.chatMessageUser : styles.chatMessageAssistant}`}>
             <div className={styles.chatMessageRole}>
               {msg.role === 'user' ? 'You' : 'Claude'}
             </div>
             <div className={styles.chatMessageContent}>
-              <MessageContent content={msg.content} />
+              <MessageContent content={Array.isArray(msg.content) ? msg.content.join('\n') : msg.content} />
             </div>
           </div>
         ))}
@@ -391,13 +399,13 @@ export const ChatPanel: FC<ChatPanelProps> = ({
           rows={3}
         />
         <button
+          type="button"
           onClick={handleSend}
           disabled={loading || !input.trim()}
           className={styles.chatSendBtn}
         >
           Send
         </button>
-      </div>
       </div>
 
       {showHistory && (
@@ -484,6 +492,7 @@ const ApiKeyModal: FC<{ onSubmit: (key: string, remember: boolean) => void }> = 
         </label>
         <div className={styles.apiKeyModalActions}>
           <button
+            type="button"
             onClick={handleSubmit}
             disabled={!key.trim()}
             className={styles.apiKeySubmitBtn}

@@ -47,7 +47,8 @@ import { DropTarget } from './components/drop-target'
 import { ErrorBoundary } from './components/error-boundary'
 import { NoodlesMenubar } from './components/menu'
 import { PropertyPanel } from './components/node-properties'
-import { categories, edgeComponents, nodeComponents } from './components/op-components'
+import { categories } from './components/categories'
+import { edgeComponents, nodeComponents } from './components/op-components'
 import { ProjectNameBar, UNSAVED_PROJECT_NAME } from './components/project-name-bar'
 import { ProjectNotFoundDialog } from './components/project-not-found-dialog'
 import { StorageErrorHandler } from './components/storage-error-handler'
@@ -56,7 +57,6 @@ import { ListField } from './fields'
 import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
 import { IS_PROD, projectId } from './globals'
 import s from './noodles.module.css'
-import chatStyles from './components/chat-toggle.module.css'
 import type { IOperator, Operator, OpType, OutOp } from './operators'
 import { extensionMap } from './operators'
 import { load } from './storage'
@@ -670,18 +670,12 @@ export function getNoodles(): Visualization {
         />
         <StorageErrorHandler />
 
-        {/* Floating Chat Window */}
-        {showChatPanel && (
-          <div className={chatStyles.floatingChatContainer}>
-            <div className={chatStyles.floatingChatWindow}>
-              <ChatPanel
-                project={{ nodes, edges }}
-                onProjectUpdate={handleProjectUpdate}
-                onClose={() => setShowChatPanel(false)}
-              />
-            </div>
-          </div>
-        )}
+        <ChatPanel
+          project={{ nodes, edges }}
+          onProjectUpdate={handleProjectUpdate}
+          onClose={() => setShowChatPanel(false)}
+          isVisible={showChatPanel}
+        />
       </div>
     </ErrorBoundary>
   )
