@@ -37,9 +37,7 @@ import { checkAssetExists, writeAsset } from '../storage'
 import { projectScheme } from '../utils/filesystem'
 import { edgeId, type OpId } from '../utils/id-utils'
 import { handleClass } from './op-components'
-import previewStyles from './handle-preview.module.css'
 import menuStyles from './menu.module.css'
-import { setHoveredOutputHandle } from '../store'
 
 type InputComponent = React.ComponentType<{
   id: OpId

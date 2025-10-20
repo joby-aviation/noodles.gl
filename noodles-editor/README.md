@@ -66,6 +66,26 @@ The main info relevant to Noodles.gl is the `type` of the [Node object](https://
 
 # Developing
 
+## Environment Variables
+
+You can optionally set environment variables for the Claude AI chat feature:
+
+1. Copy `.env.example` to `.env.local`:
+   ```bash
+   cp .env.example .env.local
+   ```
+
+2. Add your Claude, Mapbox, Google, etc. API keys to `.env.local`. For example:
+   ```
+   VITE_CLAUDE_API_KEY=sk-ant-your-api-key-here
+   ```
+
+If set, this API key will be used as the default for the AI chat feature. Users can still override this by entering their own key in the UI (which will be saved to localStorage).
+
+Get your API key from: https://console.anthropic.com/
+
+**Note**: The `.env.local` file is ignored by git to keep your API key secure.
+
 ## Running
 * `yarn start`
 
