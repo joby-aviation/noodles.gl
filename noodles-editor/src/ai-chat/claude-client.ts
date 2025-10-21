@@ -294,16 +294,16 @@ export class ClaudeClient {
    - Data → Accessor (position) → Layer → Renderer → Output
    - Always include MaplibreBasemapOp for geographic context
    - Choose layer type based on data: ScatterplotLayerOp (points), ArcLayerOp (routes), GeoJsonLayerOp (polygons)
-   - Use AccessorOp for extracting coordinates: \`[d.longitude, d.latitude]\`
+   - Use AccessorOp for extracting coordinates: \`[d.longitude, d.latitude]\` or \`[d.lng, d.lat]\` depending on field names
    - Use \`capture_visualization\` tool ONLY when user explicitly asks to see the visualization
 
 2. **Updating Visualizations**:
    - Use \`list_nodes\` to see current nodes and find targets
    - Use \`get_node_info\` to see the node's inputs AND incoming edge connections
-   - **CRITICAL**: Properties like \`getFillColor\`, \`getRadius\` come from EDGES, not direct inputs
-   - To change these, update the SOURCE node connected via the edge (e.g., ColorOp, NumberOp)
-   - Example: Change color → update ColorOp's \`color\` input, NOT layer's \`getFillColor\`
-   - Direct properties (\`opacity\`, \`visible\`) can be updated on the layer itself
+   - **CRITICAL**: Properties like \`getFillColor\`, \`getRadius\` come from edges AND direct inputs - check both
+   - To change these, update the SOURCE node connected via the edge (e.g., ColorOp, NumberOp) if one exists
+   - Example: Change color → update ColorOp's \`color\` input, NOT layer's \`getFillColor\` if connected, OR update layer's \`getFillColor\` if not connected
+   - Direct properties (\`opacity\`, \`visible\`) can be updated on the layer itself if not connected via edges
    - Call \`apply_modifications\` tool with the correct source node
    - Modifications are applied automatically - visualization updates in real-time
 
