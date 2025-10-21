@@ -305,7 +305,6 @@ export class ClaudeClient {
    - Example: Change color → update ColorOp's \`color\` input, NOT layer's \`getFillColor\` if connected, OR update layer's \`getFillColor\` if not connected
    - Direct properties (\`opacity\`, \`visible\`) can be updated on the layer itself if not connected via edges
    - When adding new nodes, ensure proper connections via edges (output handles to input handles). Things like data, position accessors, and connecting the output of the layer to the DeckRenderer node are essential. Make sure the graph is complete.
-   - Make sure the handle names are correct (e.g., \`out.data\` to \`par.data\`). The handle names must match exactly from the node type's \`outputs\` and \`inputs\` schema definition. For example, the ScatterplotLayerOp's position input is \`par.getPosition\`, which typically connects to an AccessorOp's \`out.accessor\`.
    - Call \`apply_modifications\` tool with the correct source node
    - Modifications are applied automatically - visualization updates in real-time
 
@@ -333,6 +332,69 @@ export class ClaudeClient {
 - Layers: ScatterplotLayerOp, ArcLayerOp, GeoJsonLayerOp, HexagonLayerOp, PathLayerOp
 - Utilities: AccessorOp, ColorOp, ColorRampOp, MapRangeOp
 - Output: MaplibreBasemapOp, DeckRendererOp, OutOp
+
+**CRITICAL: Handle Naming Format**:
+
+ALL edge connections MUST use this exact handle format:
+- **Output handles**: ALWAYS use \`out.{fieldName}\` format
+  - Example: \`out.data\`, \`out.accessor\`, \`out.color\`, \`out.vis\`
+- **Input handles**: ALWAYS use \`par.{fieldName}\` format
+  - Example: \`par.data\`, \`par.getPosition\`, \`par.getFillColor\`, \`par.vis\`
+
+**NEVER use**: \`in.{fieldName}\`, \`input.{fieldName}\`, or any other prefix!
+
+**Edge Example**:
+\`\`\`json
+{
+  "id": "/data-loader.out.data->/scatterplot-layer.par.data",
+  "source": "/data-loader",
+  "target": "/scatterplot-layer",
+  "sourceHandle": "out.data",     // ✓ CORRECT: out.data
+  "targetHandle": "par.data"       // ✓ CORRECT: par.data
+}
+\`\`\`
+
+**WRONG Examples**:
+- ❌ \`"sourceHandle": "data"\` (missing out. prefix)
+- ❌ \`"targetHandle": "in.data"\` (wrong prefix, should be par.)
+- ❌ \`"targetHandle": "input.data"\` (wrong prefix, should be par.)
+
+To verify handle names for a node type, use \`get_operator_schema\` or check the operator registry. The field names in \`inputs\` become \`par.{fieldName}\` and fields in \`outputs\` become \`out.{fieldName}\`.
+
+**Complete Working Example - Creating a ScatterplotLayer**:
+\`\`\`json
+// 1. Data source node (FileOp outputs data)
+{ "id": "/data", "type": "FileOp", ... }
+
+// 2. Position accessor (AccessorOp outputs accessor)
+{ "id": "/position", "type": "AccessorOp", ... }
+
+// 3. Scatterplot layer (receives data and position)
+{ "id": "/layer", "type": "ScatterplotLayerOp", ... }
+
+// 4. Deck renderer (receives layer)
+{ "id": "/deck", "type": "DeckRendererOp", ... }
+
+// EDGES - Note the handle format:
+{
+  "source": "/data",
+  "target": "/layer",
+  "sourceHandle": "out.data",        // FileOp's data OUTPUT
+  "targetHandle": "par.data"          // ScatterplotLayerOp's data INPUT
+},
+{
+  "source": "/position",
+  "target": "/layer",
+  "sourceHandle": "out.accessor",     // AccessorOp's accessor OUTPUT
+  "targetHandle": "par.getPosition"   // ScatterplotLayerOp's getPosition INPUT
+},
+{
+  "source": "/layer",
+  "target": "/deck",
+  "sourceHandle": "out.layer",        // ScatterplotLayerOp's layer OUTPUT
+  "targetHandle": "par.layers"        // DeckRendererOp's layers INPUT
+}
+\`\`\`
 
 **CRITICAL: Understanding Node Inputs vs Edges**:
 

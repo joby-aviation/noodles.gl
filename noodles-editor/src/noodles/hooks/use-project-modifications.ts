@@ -3,18 +3,21 @@
 
 import { useCallback } from 'react'
 import {
-  useReactFlow,
   type Edge as ReactFlowEdge,
   type Node as ReactFlowNode,
+  type OnConnect,
   getConnectedEdges,
   getIncomers,
   getOutgoers,
+  addEdge as reactFlowAddEdge,
+  applyEdgeChanges,
 } from '@xyflow/react'
 
 import { opMap } from '../store'
 import { canConnect } from '../utils/can-connect'
 import { parseHandleId } from '../utils/path-utils'
 import { edgeId } from '../utils/id-utils'
+import { ListField } from '../fields'
 
 // Using ReactFlowNode instead of AnyNodeJSON for compatibility
 export type ProjectModification =
@@ -30,9 +33,48 @@ export interface ModificationResult {
   warnings?: string[]
 }
 
-export function useProjectModifications() {
-  const { getNodes, getEdges, setNodes, setEdges, addNodes, addEdges, deleteElements } =
-    useReactFlow()
+interface UseProjectModificationsOptions {
+  nodes: ReactFlowNode<any>[]
+  edges: ReactFlowEdge<any>[]
+  setNodes: (nodes: ReactFlowNode<any>[] | ((nodes: ReactFlowNode<any>[]) => ReactFlowNode<any>[])) => void
+  setEdges: (edges: ReactFlowEdge<any>[] | ((edges: ReactFlowEdge<any>[]) => ReactFlowEdge<any>[])) => void
+}
+
+export function useProjectModifications(options: UseProjectModificationsOptions) {
+  const { nodes, edges, setNodes, setEdges } = options
+
+  // Create getters from the current state
+  const getNodes = useCallback(() => nodes, [nodes])
+  const getEdges = useCallback(() => edges, [edges])
+
+  // Implement add/delete operations manually
+  const addNodes = useCallback(
+    (newNodes: ReactFlowNode[]) => {
+      setNodes(currentNodes => [...currentNodes, ...newNodes])
+    },
+    [setNodes]
+  )
+
+  const addEdges = useCallback(
+    (newEdges: ReactFlowEdge[]) => {
+      setEdges(currentEdges => [...currentEdges, ...newEdges])
+    },
+    [setEdges]
+  )
+
+  const deleteElements = useCallback(
+    ({ nodes: nodesToDelete, edges: edgesToDelete }: { nodes?: { id: string }[]; edges?: { id: string }[] }) => {
+      if (nodesToDelete && nodesToDelete.length > 0) {
+        const nodeIds = new Set(nodesToDelete.map(n => n.id))
+        setNodes(currentNodes => currentNodes.filter(n => !nodeIds.has(n.id)))
+      }
+      if (edgesToDelete && edgesToDelete.length > 0) {
+        const edgeIds = new Set(edgesToDelete.map(e => e.id))
+        setEdges(currentEdges => currentEdges.filter(e => !edgeIds.has(e.id)))
+      }
+    },
+    [setNodes, setEdges]
+  )
 
   // Delete nodes with intelligent edge handling (same logic as noodles.tsx onNodesDelete)
   const deleteNodes = useCallback(
@@ -335,12 +377,129 @@ export function useProjectModifications() {
     [addNodes, updateNode, deleteNodes, addEdgeWithValidation, deleteElements]
   )
 
+  // ReactFlow-compatible onConnect callback
+  // Handles edge creation with validation and field updates
+  const onConnect: OnConnect = useCallback(
+    connection => {
+      const nodes = getNodes()
+
+      const newEdge: ReactFlowEdge = {
+        ...connection,
+        id: edgeId(connection),
+        source: connection.source!,
+        target: connection.target!,
+        sourceHandle: connection.sourceHandle || null,
+        targetHandle: connection.targetHandle || null,
+      }
+
+      const source = nodes.find(n => n.id === connection.source)
+      if (!source) {
+        console.warn('Invalid source', connection)
+        return
+      }
+      const targetIndex = nodes.findIndex(n => n.id === connection.target)
+      const target = nodes[targetIndex]
+      if (!target) {
+        console.warn('Invalid target', connection)
+        return
+      }
+
+      const sourceOp = opMap.get(source.id)
+      const targetOp = opMap.get(target.id)
+
+      if (!sourceOp || !targetOp) {
+        console.warn('Invalid source or target', connection)
+        return
+      }
+
+      // Extract field names from qualified handle IDs
+      if (!connection.sourceHandle || !connection.targetHandle) {
+        console.warn('Invalid handle IDs', connection)
+        return
+      }
+      const sourceHandleInfo = parseHandleId(connection.sourceHandle)
+      const targetHandleInfo = parseHandleId(connection.targetHandle)
+
+      if (!sourceHandleInfo || !targetHandleInfo) {
+        console.warn('Invalid handle IDs', connection)
+        return
+      }
+
+      const sourceField = sourceOp.outputs[sourceHandleInfo.fieldName]
+      const targetField = targetOp.inputs[targetHandleInfo.fieldName]
+      if (!sourceField || !targetField) {
+        console.warn('Invalid connection', connection)
+        return
+      }
+
+      // Validate connection
+      if (!canConnect(sourceField, targetField)) {
+        return
+      }
+
+      // Update edges - replace existing if target is not a ListField
+      setEdges(eds => {
+        const existing = eds.find(
+          e => e.target === newEdge.target && e.targetHandle === newEdge.targetHandle
+        )
+        if (existing && !(targetField instanceof ListField)) {
+          return applyEdgeChanges([{ type: 'replace', id: existing.id, item: newEdge }], eds as ReactFlowEdge[])
+        }
+        return reactFlowAddEdge(newEdge, eds as ReactFlowEdge[])
+      })
+
+      // Update target node with new input value
+      setNodes(nds => {
+        const updated = [...nds]
+        const value =
+          targetField instanceof ListField
+            ? Array.from(targetField.fields.values()).map(f => f.value)
+            : sourceField.value
+
+        const targetData = target.data as Record<string, unknown> | undefined
+        updated[targetIndex] = {
+          ...target,
+          data: {
+            ...targetData,
+            inputs: {
+              ...(targetData?.inputs as Record<string, unknown>),
+              [targetHandleInfo.fieldName]: value,
+            },
+          },
+        }
+
+        return updated
+      })
+
+      // Add connection to field
+      targetField.addConnection(newEdge.id, sourceField)
+    },
+    [getNodes, setNodes, setEdges]
+  )
+
+  // ReactFlow-compatible onNodesDelete callback
+  // Handles node deletion with intelligent edge reconnection
+  const onNodesDelete = useCallback(
+    (deleted: ReactFlowNode[]) => {
+      const nodeIds = deleted.map(n => n.id)
+      deleteNodes(nodeIds)
+    },
+    [deleteNodes]
+  )
+
   return {
+    // Batch operations
     applyModifications,
+
+    // Individual operations
     addNode: (node: ReactFlowNode) => addNodes([node]),
     updateNode,
     deleteNodes,
     addEdge: addEdgeWithValidation,
     deleteEdge: (edgeId: string) => deleteElements({ edges: [{ id: edgeId }] }),
+
+    // ReactFlow callbacks
+    onConnect,
+    onNodesDelete,
   }
 }

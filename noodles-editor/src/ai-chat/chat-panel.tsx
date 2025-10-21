@@ -1,6 +1,7 @@
 // ChatPanel - Main UI component for Claude AI integration
 
 import { useEffect, useRef, useState, type FC } from 'react'
+import { useReactFlow } from '@xyflow/react'
 
 import { ClaudeClient } from './claude-client'
 import { ContextLoader } from './context-loader'
@@ -25,8 +26,16 @@ export const ChatPanel: FC<ChatPanelProps> = ({
   onClose,
   isVisible
 }) => {
-  // Use ReactFlow hooks for project modifications
-  const { applyModifications } = useProjectModifications()
+  // Get ReactFlow state for the modification hook
+  const { getNodes, getEdges, setNodes, setEdges } = useReactFlow()
+
+  // Use project modifications hook with ReactFlow state
+  const { applyModifications } = useProjectModifications({
+    nodes: getNodes(),
+    edges: getEdges(),
+    setNodes,
+    setEdges
+  })
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
