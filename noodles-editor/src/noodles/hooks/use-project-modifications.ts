@@ -309,64 +309,217 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
     [getNodes, setNodes]
   )
 
-  // Apply a batch of modifications sequentially
+  // Apply a batch of modifications atomically
+  // All nodes are added first, then edges are validated and added
+  // Edge validation failures are logged but don't stop other edges from being applied
   const applyModifications = useCallback(
     (modifications: ProjectModification[]): ModificationResult => {
-      const results: ModificationResult[] = []
       const allWarnings: string[] = []
+      const edgeErrors: string[] = []
 
+      // Collect all modifications by type
+      const nodesToAdd: ReactFlowNode[] = []
+      const nodesToUpdate: Array<{ id: string; updates: any }> = []
+      const nodesToDelete: string[] = []
+      const edgesToAdd: ReactFlowEdge[] = []
+      const edgesToDelete: string[] = []
+
+      // First pass: collect all modifications
       for (const mod of modifications) {
-        let result: ModificationResult
-
         switch (mod.type) {
           case 'add_node':
-            console.log('Adding node:', mod.data.id, mod.data.type)
-            addNodes([mod.data])
-            result = { success: true }
+            console.log('Queuing node addition:', mod.data.id, mod.data.type)
+            nodesToAdd.push(mod.data)
             break
 
           case 'update_node':
-            console.log('Updating node:', mod.data.id, 'with inputs:', mod.data.data?.inputs)
-            result = updateNode(mod.data.id, mod.data)
+            console.log('Queuing node update:', mod.data.id, 'with inputs:', mod.data.data?.inputs)
+            nodesToUpdate.push({ id: mod.data.id, updates: mod.data })
             break
 
           case 'delete_node':
-            console.log('Deleting node:', mod.data.id)
-            result = deleteNodes([mod.data.id])
+            console.log('Queuing node deletion:', mod.data.id)
+            nodesToDelete.push(mod.data.id)
             break
 
           case 'add_edge':
-            console.log('Adding edge:', mod.data.id)
-            result = addEdgeWithValidation(mod.data)
+            console.log('Queuing edge addition:', mod.data.id)
+            edgesToAdd.push(mod.data)
             break
 
           case 'delete_edge':
-            console.log('Deleting edge:', mod.data.id)
-            deleteElements({ edges: [{ id: mod.data.id }] })
-            result = { success: true }
+            console.log('Queuing edge deletion:', mod.data.id)
+            edgesToDelete.push(mod.data.id)
             break
 
           default:
-            result = {
+            return {
               success: false,
               error: `Unknown modification type: ${(mod as any).type}`,
             }
         }
+      }
 
-        results.push(result)
-
+      // Apply node deletions first
+      if (nodesToDelete.length > 0) {
+        const result = deleteNodes(nodesToDelete)
+        if (!result.success) {
+          return result
+        }
         if (result.warnings) {
           allWarnings.push(...result.warnings)
         }
+      }
 
-        // Stop on first error
-        if (!result.success) {
-          return {
-            success: false,
-            error: `Failed at modification ${results.length}: ${result.error}`,
-            warnings: allWarnings.length > 0 ? allWarnings : undefined,
+      // Build the complete node list (existing + new) for edge validation
+      let completeNodeList: ReactFlowNode[] = []
+
+      // Apply node additions and updates atomically
+      setNodes(currentNodes => {
+        let updatedNodes = [...currentNodes]
+
+        // Add new nodes
+        if (nodesToAdd.length > 0) {
+          updatedNodes = [...updatedNodes, ...nodesToAdd]
+        }
+
+        // Apply updates to existing nodes
+        if (nodesToUpdate.length > 0) {
+          updatedNodes = updatedNodes.map(n => {
+            const update = nodesToUpdate.find(u => u.id === n.id)
+            if (update) {
+              const nodeData = n.data as any
+              const updatesData = update.updates.data as any
+              return {
+                ...n,
+                ...update.updates,
+                data: {
+                  ...nodeData,
+                  ...updatesData,
+                  inputs: {
+                    ...nodeData?.inputs,
+                    ...updatesData?.inputs,
+                  },
+                },
+              }
+            }
+            return n
+          })
+        }
+
+        // Store the complete node list for edge validation
+        completeNodeList = updatedNodes
+        return updatedNodes
+      })
+
+      // Update operator inputs for node updates
+      for (const { id, updates } of nodesToUpdate) {
+        const operator = opMap.get(id)
+        if (operator && updates.data?.inputs) {
+          const inputs = updates.data.inputs as Record<string, unknown>
+          for (const [key, value] of Object.entries(inputs)) {
+            const operatorInputs = (operator as Record<string, any>).inputs
+            const input = operatorInputs?.[key]
+            if (input && typeof input.setValue === 'function') {
+              input.setValue(value)
+            }
           }
         }
+      }
+
+      // Validate and add edges (with non-fatal error handling)
+      if (edgesToAdd.length > 0) {
+        const validEdges: ReactFlowEdge[] = []
+        const edgeFieldConnections: Array<{
+          edge: ReactFlowEdge
+          sourceField: any
+          targetField: any
+        }> = []
+
+        for (const edge of edgesToAdd) {
+          // Validate the edge against the complete node list
+          const sourceNode = completeNodeList.find(n => n.id === edge.source)
+          const targetNode = completeNodeList.find(n => n.id === edge.target)
+
+          if (!sourceNode || !targetNode) {
+            const error = `Edge ${edge.id}: source or target node not found (source: ${edge.source}, target: ${edge.target})`
+            console.error('❌', error)
+            edgeErrors.push(error)
+            continue // Skip this edge but continue with others
+          }
+
+          const sourceOp = opMap.get(edge.source)
+          const targetOp = opMap.get(edge.target)
+
+          if (!sourceOp || !targetOp) {
+            const error = `Edge ${edge.id}: source or target operator not found in opMap`
+            console.error('❌', error)
+            edgeErrors.push(error)
+            continue
+          }
+
+          if (!edge.sourceHandle || !edge.targetHandle) {
+            const error = `Edge ${edge.id}: missing source or target handle`
+            console.error('❌', error)
+            edgeErrors.push(error)
+            continue
+          }
+
+          const sourceHandleInfo = parseHandleId(edge.sourceHandle)
+          const targetHandleInfo = parseHandleId(edge.targetHandle)
+
+          if (!sourceHandleInfo || !targetHandleInfo) {
+            const error = `Edge ${edge.id}: could not parse handle IDs`
+            console.error('❌', error)
+            edgeErrors.push(error)
+            continue
+          }
+
+          const sourceField = sourceOp.outputs[sourceHandleInfo.fieldName]
+          const targetField = targetOp.inputs[targetHandleInfo.fieldName]
+
+          if (!sourceField || !targetField) {
+            const error = `Edge ${edge.id}: source or target field not found (source: ${sourceHandleInfo.fieldName}, target: ${targetHandleInfo.fieldName})`
+            console.error('❌', error)
+            edgeErrors.push(error)
+            continue
+          }
+
+          if (!canConnect(sourceField, targetField)) {
+            const error = `Edge ${edge.id}: ${sourceField.constructor.name} cannot connect to ${targetField.constructor.name}`
+            console.error('❌', error)
+            edgeErrors.push(error)
+            continue
+          }
+
+          // Edge is valid!
+          console.log('✅ Edge validated:', edge.id)
+          validEdges.push(edge)
+          edgeFieldConnections.push({ edge, sourceField, targetField })
+        }
+
+        // Add all valid edges atomically
+        if (validEdges.length > 0) {
+          setEdges(currentEdges => [...currentEdges, ...validEdges])
+
+          // Update field connections for valid edges
+          for (const { edge, sourceField, targetField } of edgeFieldConnections) {
+            targetField.addConnection(edge.id, sourceField)
+          }
+
+          console.log(`✅ Successfully added ${validEdges.length}/${edgesToAdd.length} edges`)
+        }
+
+        if (edgeErrors.length > 0) {
+          allWarnings.push(
+            `${edgeErrors.length} edge(s) failed validation and were skipped. See console for details.`
+          )
+        }
+      }
+
+      // Delete edges
+      if (edgesToDelete.length > 0) {
+        deleteElements({ edges: edgesToDelete.map(id => ({ id })) })
       }
 
       return {
@@ -374,7 +527,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         warnings: allWarnings.length > 0 ? allWarnings : undefined,
       }
     },
-    [addNodes, updateNode, deleteNodes, addEdgeWithValidation, deleteElements]
+    [setNodes, setEdges, deleteNodes, deleteElements]
   )
 
   // ReactFlow-compatible onConnect callback
