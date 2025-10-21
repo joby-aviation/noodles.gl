@@ -115,10 +115,18 @@ function useTheatreJs(projectName?: string) {
 
   const setTheatreProject = useCallback(
     (theatreConfig: IProjectConfig, incomingProjectName?: string) => {
-      // Theatre stores too much state if you don't reset it
+      // Theatre stores too much state if you don't reset it properly.
+      // We need to detach special objects (editor, render) before forgetting the sheet.
+
+      // Detach the special Theatre objects that persist across the app
+      theatreSheet.detachObject('editor')
+      theatreSheet.detachObject('render')
+
+      // Then forget the sheet to clean up the Theatre.js UI
       studio.transaction(api => {
         api.__experimental_forgetSheet(theatreSheet)
       })
+
       // Increment the project counter to keep the project name unique
       _projectCounterRef.current += 1
       const newProjectName = `${incomingProjectName || UNSAVED_PROJECT_NAME}-${_projectCounterRef.current}`
@@ -601,11 +609,7 @@ export function getNoodles(): Visualization {
   }, [])
 
   const displayedNodes = useMemo(() => {
-    // If no containerId, show all nodes
     // TODO: add support for for-loop begin/end nodes
-    // return nodes.filter(node =>
-    //   'containerId' in node ? node.containerId === currentContainerId : currentContainerId === null
-    // )
 
     return nodes.map(node => ({
       ...node,
