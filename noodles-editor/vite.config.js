@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
 import fs from 'node:fs'
 import path from 'node:path'
+import { execSync } from 'node:child_process'
 
 const ENV_VARIABLES_WITH_INSTRUCTIONS = {
   VITE_GOOGLE_MAPS_API_KEY: 'Get token at https://developers.google.com/maps/documentation/javascript/get-api-key',
@@ -21,6 +22,79 @@ if (process.env.NODE_ENV === 'development') {
   })
 }
 
+// Vite plugin to auto-regenerate AI context bundles when relevant files change
+function contextGeneratorPlugin() {
+  let isGenerating = false
+  let needsRegeneration = false
+
+  const watchedPaths = [
+    'src/noodles/operators.ts',
+    'src/noodles/fields.ts',
+    'src/noodles/components/categories.ts',
+    'src/ai-chat/**/*.md',
+    'public/noodles/**/noodles.json',
+    'public/noodles/**/README.md',
+  ]
+
+  async function generateContext() {
+    if (isGenerating) {
+      needsRegeneration = true
+      return
+    }
+
+    isGenerating = true
+    needsRegeneration = false
+
+    try {
+      console.log('\n🔄 Regenerating AI context bundles...')
+      execSync('yarn generate:context', {
+        stdio: 'inherit',
+        cwd: process.cwd()
+      })
+      console.log('✅ AI context bundles updated\n')
+    } catch (error) {
+      console.error('❌ Failed to generate context:', error.message)
+    } finally {
+      isGenerating = false
+
+      // If files changed while we were generating, trigger another generation
+      if (needsRegeneration) {
+        setTimeout(() => generateContext(), 100)
+      }
+    }
+  }
+
+  return {
+    name: 'context-generator',
+    apply: 'serve', // Only run in dev mode
+    configureServer(server) {
+      // Generate context on server start
+      generateContext()
+
+      // Watch for file changes
+      server.watcher.on('change', (file) => {
+        const relativePath = path.relative(server.config.root, file)
+
+        // Check if the changed file matches any watched patterns
+        const shouldRegenerate = watchedPaths.some(pattern => {
+          if (pattern.includes('**')) {
+            const regex = new RegExp(
+              `^${pattern.replace(/\*\*/g, '.*').replace(/\*/g, '[^/]*')}$`
+            )
+            return regex.test(relativePath)
+          }
+          return relativePath === pattern
+        })
+
+        if (shouldRegenerate) {
+          console.log(`📝 Detected change in ${relativePath}`)
+          generateContext()
+        }
+      })
+    }
+  }
+}
+
 export default defineConfig(({ mode }) => {
   return {
     base: mode === 'development' ? '/' : '/app/',
@@ -32,6 +106,7 @@ export default defineConfig(({ mode }) => {
       nodePolyfills({
         protocolImports: true,
       }),
+      contextGeneratorPlugin(),
       {
         name: 'dev-asset-404',
         enforce: 'pre', // run before vite's history fallback
