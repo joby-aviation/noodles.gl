@@ -324,27 +324,22 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       for (const mod of modifications) {
         switch (mod.type) {
           case 'add_node':
-            console.log('Queuing node addition:', mod.data.id, mod.data.type)
             nodesToAdd.push(mod.data)
             break
 
           case 'update_node':
-            console.log('Queuing node update:', mod.data.id, 'with inputs:', mod.data.data?.inputs)
             nodesToUpdate.push({ id: mod.data.id, updates: mod.data })
             break
 
           case 'delete_node':
-            console.log('Queuing node deletion:', mod.data.id)
             nodesToDelete.push(mod.data.id)
             break
 
           case 'add_edge':
-            console.log('Queuing edge addition:', mod.data.id)
             edgesToAdd.push(mod.data)
             break
 
           case 'delete_edge':
-            console.log('Queuing edge deletion:', mod.data.id)
             edgesToDelete.push(mod.data.id)
             break
 
@@ -369,8 +364,6 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
       // Get current nodes before modifications
       const currentNodesBeforeAdd = getNodes()
-      console.log(`📊 Current nodes before add: ${currentNodesBeforeAdd.length}`, currentNodesBeforeAdd.map(n => n.id))
-      console.log(`📊 Nodes to add: ${nodesToAdd.length}`, nodesToAdd.map(n => n.id))
 
       // Build the complete node list (existing + new) for edge validation BEFORE setNodes
       let completeNodeList = [...currentNodesBeforeAdd]
@@ -403,8 +396,6 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
           return n
         })
       }
-
-      console.log(`📊 Complete node list built: ${completeNodeList.length}`, completeNodeList.map(n => n.id))
 
       // Apply node additions and updates atomically
       setNodes(currentNodes => {
@@ -465,23 +456,11 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
         if (hasNewNodes) {
           // Optimistic path: add edges without validation when nodes were just added
-          console.log(`⚡ Adding ${edgesToAdd.length} edge(s) optimistically (new nodes detected)`)
-          console.log(`   Complete node list has ${completeNodeList.length} nodes:`, completeNodeList.map(n => n.id))
-
           // Basic check: ensure nodes exist in our complete list
           const skippedEdges: string[] = []
           const edgesToAddOptimistically = edgesToAdd.filter(edge => {
             const sourceExists = completeNodeList.some(n => n.id === edge.source)
             const targetExists = completeNodeList.some(n => n.id === edge.target)
-
-            console.log(`   Checking edge ${edge.id}:`, {
-              source: edge.source,
-              sourceExists,
-              target: edge.target,
-              targetExists,
-              sourceHandle: edge.sourceHandle,
-              targetHandle: edge.targetHandle
-            })
 
             if (!sourceExists || !targetExists) {
               const error = `Edge ${edge.id}: source or target node not in node list (source: ${edge.source}, target: ${edge.target})`
@@ -493,22 +472,8 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
           })
 
           if (edgesToAddOptimistically.length > 0) {
-            console.log(`   Adding these edges:`, edgesToAddOptimistically.map(e => ({
-              id: e.id,
-              source: e.source,
-              target: e.target,
-              sourceHandle: e.sourceHandle,
-              targetHandle: e.targetHandle
-            })))
-            setEdges(currentEdges => {
-              console.log(`   Current edges before add:`, currentEdges.length)
-              const newEdges = [...currentEdges, ...edgesToAddOptimistically]
-              console.log(`   New edges after add:`, newEdges.length)
-              return newEdges
-            })
+            setEdges(currentEdges => [...currentEdges, ...edgesToAddOptimistically])
             console.log(`✅ Added ${edgesToAddOptimistically.length} edge(s) optimistically`)
-          } else {
-            console.warn(`⚠️ No edges passed validation!`)
           }
 
           if (skippedEdges.length > 0) {
@@ -531,8 +496,8 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
             const targetNode = completeNodeList.find(n => n.id === edge.target)
 
             if (!sourceNode || !targetNode) {
-              const error = `Edge ${edge.id}: source or target node not found (source: ${edge.source}, target: ${edge.target})`
-              console.error('❌', error)
+              const error = `Edge ${edge.id}: source or target node not found`
+              console.error(error)
               edgeErrors.push(error)
               continue
             }
@@ -541,15 +506,15 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
             const targetOp = opMap.get(edge.target)
 
             if (!sourceOp || !targetOp) {
-              const error = `Edge ${edge.id}: source or target operator not found in opMap`
-              console.error('❌', error)
+              const error = `Edge ${edge.id}: source or target operator not found`
+              console.error(error)
               edgeErrors.push(error)
               continue
             }
 
             if (!edge.sourceHandle || !edge.targetHandle) {
               const error = `Edge ${edge.id}: missing source or target handle`
-              console.error('❌', error)
+              console.error(error)
               edgeErrors.push(error)
               continue
             }
@@ -559,7 +524,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
             if (!sourceHandleInfo || !targetHandleInfo) {
               const error = `Edge ${edge.id}: could not parse handle IDs`
-              console.error('❌', error)
+              console.error(error)
               edgeErrors.push(error)
               continue
             }
@@ -568,21 +533,20 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
             const targetField = targetOp.inputs[targetHandleInfo.fieldName]
 
             if (!sourceField || !targetField) {
-              const error = `Edge ${edge.id}: source or target field not found (source: ${sourceHandleInfo.fieldName}, target: ${targetHandleInfo.fieldName})`
-              console.error('❌', error)
+              const error = `Edge ${edge.id}: field not found (${sourceHandleInfo.fieldName} -> ${targetHandleInfo.fieldName})`
+              console.error(error)
               edgeErrors.push(error)
               continue
             }
 
             if (!canConnect(sourceField, targetField)) {
-              const error = `Edge ${edge.id}: ${sourceField.constructor.name} cannot connect to ${targetField.constructor.name}`
-              console.error('❌', error)
+              const error = `Edge ${edge.id}: incompatible types (${sourceField.constructor.name} -> ${targetField.constructor.name})`
+              console.error(error)
               edgeErrors.push(error)
               continue
             }
 
-            // Edge is valid!
-            console.log('✅ Edge validated:', edge.id)
+            // Edge is valid
             validEdges.push(edge)
             edgeFieldConnections.push({ edge, sourceField, targetField })
           }
@@ -596,7 +560,9 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
               targetField.addConnection(edge.id, sourceField)
             }
 
-            console.log(`✅ Successfully added ${validEdges.length}/${edgesToAdd.length} edges`)
+            if (edgeErrors.length > 0) {
+              console.log(`Added ${validEdges.length}/${edgesToAdd.length} edges (${edgeErrors.length} skipped)`)
+            }
           }
 
           if (edgeErrors.length > 0) {
