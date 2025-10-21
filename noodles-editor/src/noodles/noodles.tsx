@@ -47,6 +47,7 @@ import { ProjectNameBar, UNSAVED_PROJECT_NAME } from './components/project-name-
 import { ProjectNotFoundDialog } from './components/project-not-found-dialog'
 import { StorageErrorHandler } from './components/storage-error-handler'
 import { ChatPanel } from '../ai-chat/chat-panel'
+import { globalContextManager } from '../ai-chat/global-context-manager'
 import { useProjectModifications } from './hooks/use-project-modifications'
 import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
 import { IS_PROD, projectId } from './globals'
@@ -161,13 +162,20 @@ export function getNoodles(): Visualization {
   const vPressed = useKeyPress('v')
   const [showChatPanel, setShowChatPanel] = useState(false)
 
+  // Eagerly start loading AI context bundles on app start
+  useEffect(() => {
+    globalContextManager.startLoading().catch(error => {
+      console.warn('Failed to preload AI context:', error)
+    })
+  }, [])
+
   // `transformGraph` needs all nodes to build the opMap and resolve connections
   const operators = useMemo(() => transformGraph({ nodes, edges }), [nodes, edges])
 
   // Use shared hook for project modifications
   const { onConnect, onNodesDelete } = useProjectModifications({
-    nodes,
-    edges,
+    getNodes: useCallback(() => nodes, [nodes]),
+    getEdges: useCallback(() => edges, [edges]),
     setNodes,
     setEdges
   })

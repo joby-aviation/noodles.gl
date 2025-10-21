@@ -274,7 +274,7 @@ export class ClaudeClient {
     }
   }
 
-  private buildSystemPrompt(project: any): string {
+  buildSystemPrompt(project: any): string {
     const nodeCount = (project.nodes || []).length
     const edgeCount = (project.edges || []).length
 

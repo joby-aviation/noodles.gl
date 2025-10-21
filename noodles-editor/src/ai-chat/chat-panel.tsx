@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type FC } from 'react'
 import { useReactFlow } from '@xyflow/react'
 
 import { ClaudeClient } from './claude-client'
-import { ContextLoader } from './context-loader'
+import { globalContextManager } from './global-context-manager'
 import { MCPTools } from './mcp-tools'
 import type { Message } from './types'
 import {
@@ -31,8 +31,8 @@ export const ChatPanel: FC<ChatPanelProps> = ({
 
   // Use project modifications hook with ReactFlow state
   const { applyModifications } = useProjectModifications({
-    nodes: getNodes(),
-    edges: getEdges(),
+    getNodes,
+    getEdges,
     setNodes,
     setEdges
   })
@@ -46,8 +46,22 @@ export const ChatPanel: FC<ChatPanelProps> = ({
   const [autoCapture, setAutoCapture] = useState(true)
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
   const [showHistory, setShowHistory] = useState(false)
+  const [contextProgress, setContextProgress] = useState<string>('')
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Subscribe to context loading progress
+  useEffect(() => {
+    const unsubscribe = globalContextManager.subscribe((state) => {
+      if (state.status === 'loading') {
+        setContextProgress(`Loading ${state.progress.stage}...`)
+      } else {
+        setContextProgress('')
+      }
+    })
+
+    return unsubscribe
+  }, [])
 
   useEffect(() => {
     const init = async () => {
@@ -62,19 +76,15 @@ export const ChatPanel: FC<ChatPanelProps> = ({
       }
 
       try {
-        const loader = new ContextLoader()
+        // Wait for context to be ready (should be instant if already loaded)
+        const loader = await globalContextManager.waitForReady()
+
         const tools = new MCPTools(loader)
         const client = new ClaudeClient(apiKey.trim(), tools)
 
         setMcpTools(tools)
         setClaudeClient(client)
         setContextLoading(false)
-
-        loader.load((progress) => {
-          console.log('Loading context:', progress.stage, `${progress.loaded}/${progress.total}`)
-        }).catch(error => {
-          console.warn('Context loading failed:', error)
-        })
       } catch (error) {
         console.error('Failed to initialize Claude:', error)
         setContextLoading(false)
@@ -137,8 +147,13 @@ export const ChatPanel: FC<ChatPanelProps> = ({
             content: errorMessage
           }])
         } else if (result.warnings && result.warnings.length > 0) {
-          // Show warnings but don't fail
+          // Show warnings in console and chat
           console.warn('Modification warnings:', result.warnings)
+          const warningMessage = `⚠️ Modifications applied with warnings:\n${result.warnings.map(w => `• ${w}`).join('\n')}`
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: warningMessage
+          }])
         }
       }
     } catch (error) {
@@ -183,10 +198,8 @@ export const ChatPanel: FC<ChatPanelProps> = ({
     setShowApiKeyModal(false)
 
     try {
-      const loader = new ContextLoader()
-      await loader.load((progress) => {
-        console.log('Loading context:', progress.stage, `${progress.loaded}/${progress.total}`)
-      })
+      // Wait for context to be ready (should be instant if already loaded)
+      const loader = await globalContextManager.waitForReady()
 
       const tools = new MCPTools(loader)
       const client = new ClaudeClient(key, tools)
@@ -276,7 +289,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({
       <div className={styles.chatPanel}>
         <div className={styles.chatPanelLoading}>
           <div className={styles.spinner} />
-          <p>Loading context...</p>
+          <p>{contextProgress || 'Loading context...'}</p>
         </div>
       </div>
     )

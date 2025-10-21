@@ -34,18 +34,14 @@ export interface ModificationResult {
 }
 
 interface UseProjectModificationsOptions {
-  nodes: ReactFlowNode<any>[]
-  edges: ReactFlowEdge<any>[]
+  getNodes: () => ReactFlowNode<any>[]
+  getEdges: () => ReactFlowEdge<any>[]
   setNodes: (nodes: ReactFlowNode<any>[] | ((nodes: ReactFlowNode<any>[]) => ReactFlowNode<any>[])) => void
   setEdges: (edges: ReactFlowEdge<any>[] | ((edges: ReactFlowEdge<any>[]) => ReactFlowEdge<any>[])) => void
 }
 
 export function useProjectModifications(options: UseProjectModificationsOptions) {
-  const { nodes, edges, setNodes, setEdges } = options
-
-  // Create getters from the current state
-  const getNodes = useCallback(() => nodes, [nodes])
-  const getEdges = useCallback(() => edges, [edges])
+  const { getNodes, getEdges, setNodes, setEdges } = options
 
   // Implement add/delete operations manually
   const addNodes = useCallback(
@@ -371,8 +367,44 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         }
       }
 
-      // Build the complete node list (existing + new) for edge validation
-      let completeNodeList: ReactFlowNode[] = []
+      // Get current nodes before modifications
+      const currentNodesBeforeAdd = getNodes()
+      console.log(`📊 Current nodes before add: ${currentNodesBeforeAdd.length}`, currentNodesBeforeAdd.map(n => n.id))
+      console.log(`📊 Nodes to add: ${nodesToAdd.length}`, nodesToAdd.map(n => n.id))
+
+      // Build the complete node list (existing + new) for edge validation BEFORE setNodes
+      let completeNodeList = [...currentNodesBeforeAdd]
+
+      // Add new nodes to the list
+      if (nodesToAdd.length > 0) {
+        completeNodeList = [...completeNodeList, ...nodesToAdd]
+      }
+
+      // Apply updates to existing nodes in the list
+      if (nodesToUpdate.length > 0) {
+        completeNodeList = completeNodeList.map(n => {
+          const update = nodesToUpdate.find(u => u.id === n.id)
+          if (update) {
+            const nodeData = n.data as any
+            const updatesData = update.updates.data as any
+            return {
+              ...n,
+              ...update.updates,
+              data: {
+                ...nodeData,
+                ...updatesData,
+                inputs: {
+                  ...nodeData?.inputs,
+                  ...updatesData?.inputs,
+                },
+              },
+            }
+          }
+          return n
+        })
+      }
+
+      console.log(`📊 Complete node list built: ${completeNodeList.length}`, completeNodeList.map(n => n.id))
 
       // Apply node additions and updates atomically
       setNodes(currentNodes => {
@@ -407,8 +439,6 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
           })
         }
 
-        // Store the complete node list for edge validation
-        completeNodeList = updatedNodes
         return updatedNodes
       })
 
@@ -427,93 +457,153 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         }
       }
 
-      // Validate and add edges (with non-fatal error handling)
+      // Add edges - with optional validation depending on whether new nodes were added
       if (edgesToAdd.length > 0) {
-        const validEdges: ReactFlowEdge[] = []
-        const edgeFieldConnections: Array<{
-          edge: ReactFlowEdge
-          sourceField: any
-          targetField: any
-        }> = []
+        // If we just added nodes, we can't validate edges yet because opMap hasn't been updated
+        // In this case, add edges optimistically and let the system handle them on next render
+        const hasNewNodes = nodesToAdd.length > 0
 
-        for (const edge of edgesToAdd) {
-          // Validate the edge against the complete node list
-          const sourceNode = completeNodeList.find(n => n.id === edge.source)
-          const targetNode = completeNodeList.find(n => n.id === edge.target)
+        if (hasNewNodes) {
+          // Optimistic path: add edges without validation when nodes were just added
+          console.log(`⚡ Adding ${edgesToAdd.length} edge(s) optimistically (new nodes detected)`)
+          console.log(`   Complete node list has ${completeNodeList.length} nodes:`, completeNodeList.map(n => n.id))
 
-          if (!sourceNode || !targetNode) {
-            const error = `Edge ${edge.id}: source or target node not found (source: ${edge.source}, target: ${edge.target})`
-            console.error('❌', error)
-            edgeErrors.push(error)
-            continue // Skip this edge but continue with others
+          // Basic check: ensure nodes exist in our complete list
+          const skippedEdges: string[] = []
+          const edgesToAddOptimistically = edgesToAdd.filter(edge => {
+            const sourceExists = completeNodeList.some(n => n.id === edge.source)
+            const targetExists = completeNodeList.some(n => n.id === edge.target)
+
+            console.log(`   Checking edge ${edge.id}:`, {
+              source: edge.source,
+              sourceExists,
+              target: edge.target,
+              targetExists,
+              sourceHandle: edge.sourceHandle,
+              targetHandle: edge.targetHandle
+            })
+
+            if (!sourceExists || !targetExists) {
+              const error = `Edge ${edge.id}: source or target node not in node list (source: ${edge.source}, target: ${edge.target})`
+              console.warn('⚠️', error)
+              skippedEdges.push(error)
+              return false
+            }
+            return true
+          })
+
+          if (edgesToAddOptimistically.length > 0) {
+            console.log(`   Adding these edges:`, edgesToAddOptimistically.map(e => ({
+              id: e.id,
+              source: e.source,
+              target: e.target,
+              sourceHandle: e.sourceHandle,
+              targetHandle: e.targetHandle
+            })))
+            setEdges(currentEdges => {
+              console.log(`   Current edges before add:`, currentEdges.length)
+              const newEdges = [...currentEdges, ...edgesToAddOptimistically]
+              console.log(`   New edges after add:`, newEdges.length)
+              return newEdges
+            })
+            console.log(`✅ Added ${edgesToAddOptimistically.length} edge(s) optimistically`)
+          } else {
+            console.warn(`⚠️ No edges passed validation!`)
           }
 
-          const sourceOp = opMap.get(edge.source)
-          const targetOp = opMap.get(edge.target)
+          if (skippedEdges.length > 0) {
+            allWarnings.push(
+              `${skippedEdges.length} edge(s) skipped due to missing nodes. See console for details.`
+            )
+          }
+        } else {
+          // Validated path: full validation when no new nodes
+          const validEdges: ReactFlowEdge[] = []
+          const edgeFieldConnections: Array<{
+            edge: ReactFlowEdge
+            sourceField: any
+            targetField: any
+          }> = []
 
-          if (!sourceOp || !targetOp) {
-            const error = `Edge ${edge.id}: source or target operator not found in opMap`
-            console.error('❌', error)
-            edgeErrors.push(error)
-            continue
+          for (const edge of edgesToAdd) {
+            // Validate the edge against existing operators
+            const sourceNode = completeNodeList.find(n => n.id === edge.source)
+            const targetNode = completeNodeList.find(n => n.id === edge.target)
+
+            if (!sourceNode || !targetNode) {
+              const error = `Edge ${edge.id}: source or target node not found (source: ${edge.source}, target: ${edge.target})`
+              console.error('❌', error)
+              edgeErrors.push(error)
+              continue
+            }
+
+            const sourceOp = opMap.get(edge.source)
+            const targetOp = opMap.get(edge.target)
+
+            if (!sourceOp || !targetOp) {
+              const error = `Edge ${edge.id}: source or target operator not found in opMap`
+              console.error('❌', error)
+              edgeErrors.push(error)
+              continue
+            }
+
+            if (!edge.sourceHandle || !edge.targetHandle) {
+              const error = `Edge ${edge.id}: missing source or target handle`
+              console.error('❌', error)
+              edgeErrors.push(error)
+              continue
+            }
+
+            const sourceHandleInfo = parseHandleId(edge.sourceHandle)
+            const targetHandleInfo = parseHandleId(edge.targetHandle)
+
+            if (!sourceHandleInfo || !targetHandleInfo) {
+              const error = `Edge ${edge.id}: could not parse handle IDs`
+              console.error('❌', error)
+              edgeErrors.push(error)
+              continue
+            }
+
+            const sourceField = sourceOp.outputs[sourceHandleInfo.fieldName]
+            const targetField = targetOp.inputs[targetHandleInfo.fieldName]
+
+            if (!sourceField || !targetField) {
+              const error = `Edge ${edge.id}: source or target field not found (source: ${sourceHandleInfo.fieldName}, target: ${targetHandleInfo.fieldName})`
+              console.error('❌', error)
+              edgeErrors.push(error)
+              continue
+            }
+
+            if (!canConnect(sourceField, targetField)) {
+              const error = `Edge ${edge.id}: ${sourceField.constructor.name} cannot connect to ${targetField.constructor.name}`
+              console.error('❌', error)
+              edgeErrors.push(error)
+              continue
+            }
+
+            // Edge is valid!
+            console.log('✅ Edge validated:', edge.id)
+            validEdges.push(edge)
+            edgeFieldConnections.push({ edge, sourceField, targetField })
           }
 
-          if (!edge.sourceHandle || !edge.targetHandle) {
-            const error = `Edge ${edge.id}: missing source or target handle`
-            console.error('❌', error)
-            edgeErrors.push(error)
-            continue
+          // Add all valid edges atomically
+          if (validEdges.length > 0) {
+            setEdges(currentEdges => [...currentEdges, ...validEdges])
+
+            // Update field connections for valid edges
+            for (const { edge, sourceField, targetField } of edgeFieldConnections) {
+              targetField.addConnection(edge.id, sourceField)
+            }
+
+            console.log(`✅ Successfully added ${validEdges.length}/${edgesToAdd.length} edges`)
           }
 
-          const sourceHandleInfo = parseHandleId(edge.sourceHandle)
-          const targetHandleInfo = parseHandleId(edge.targetHandle)
-
-          if (!sourceHandleInfo || !targetHandleInfo) {
-            const error = `Edge ${edge.id}: could not parse handle IDs`
-            console.error('❌', error)
-            edgeErrors.push(error)
-            continue
+          if (edgeErrors.length > 0) {
+            allWarnings.push(
+              `${edgeErrors.length} edge(s) failed validation and were skipped. See console for details.`
+            )
           }
-
-          const sourceField = sourceOp.outputs[sourceHandleInfo.fieldName]
-          const targetField = targetOp.inputs[targetHandleInfo.fieldName]
-
-          if (!sourceField || !targetField) {
-            const error = `Edge ${edge.id}: source or target field not found (source: ${sourceHandleInfo.fieldName}, target: ${targetHandleInfo.fieldName})`
-            console.error('❌', error)
-            edgeErrors.push(error)
-            continue
-          }
-
-          if (!canConnect(sourceField, targetField)) {
-            const error = `Edge ${edge.id}: ${sourceField.constructor.name} cannot connect to ${targetField.constructor.name}`
-            console.error('❌', error)
-            edgeErrors.push(error)
-            continue
-          }
-
-          // Edge is valid!
-          console.log('✅ Edge validated:', edge.id)
-          validEdges.push(edge)
-          edgeFieldConnections.push({ edge, sourceField, targetField })
-        }
-
-        // Add all valid edges atomically
-        if (validEdges.length > 0) {
-          setEdges(currentEdges => [...currentEdges, ...validEdges])
-
-          // Update field connections for valid edges
-          for (const { edge, sourceField, targetField } of edgeFieldConnections) {
-            targetField.addConnection(edge.id, sourceField)
-          }
-
-          console.log(`✅ Successfully added ${validEdges.length}/${edgesToAdd.length} edges`)
-        }
-
-        if (edgeErrors.length > 0) {
-          allWarnings.push(
-            `${edgeErrors.length} edge(s) failed validation and were skipped. See console for details.`
-          )
         }
       }
 
@@ -527,7 +617,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         warnings: allWarnings.length > 0 ? allWarnings : undefined,
       }
     },
-    [setNodes, setEdges, deleteNodes, deleteElements]
+    [getNodes, setNodes, setEdges, deleteNodes, deleteElements]
   )
 
   // ReactFlow-compatible onConnect callback
