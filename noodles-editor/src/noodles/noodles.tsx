@@ -621,11 +621,6 @@ export function getNoodles(): Visualization {
     }))
   }, [edges])
 
-  const handleProjectUpdate = useCallback((updatedProject: { nodes: AnyNodeJSON[], edges: ReactFlowEdge<unknown>[] }) => {
-    setNodes(updatedProject.nodes)
-    setEdges(updatedProject.edges)
-  }, [setNodes, setEdges])
-
   const flowGraph = theatreReady && (
     <ErrorBoundary>
       <div className={cx('react-flow-wrapper', !showOverlay && 'react-flow-wrapper-hidden')}>
@@ -672,7 +667,6 @@ export function getNoodles(): Visualization {
 
         <ChatPanel
           project={{ nodes, edges }}
-          onProjectUpdate={handleProjectUpdate}
           onClose={() => setShowChatPanel(false)}
           isVisible={showChatPanel}
         />

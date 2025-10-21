@@ -57,21 +57,23 @@ export class ClaudeClient {
     // Limit conversation history to prevent token overflow
     const limitedHistory = conversationHistory.slice(-ClaudeClient.MAX_CONVERSATION_HISTORY)
 
-    // Auto-capture screenshot if message suggests visual issue
-    let screenshot = params.screenshot
-    let screenshotFormat = params.screenshotFormat || 'jpeg'
-    const visualKeywords = ['see', 'look', 'show', 'appear', 'display', 'visual', 'render', 'color', 'layer']
-    const shouldAutoCapture = params.autoCapture !== false &&
-      visualKeywords.some(kw => message.toLowerCase().includes(kw))
+    // Auto-capture is disabled by default - too large for context
+    // AI should explicitly use capture_visualization tool when needed
+    const screenshot = params.screenshot
+    const screenshotFormat = params.screenshotFormat || 'jpeg'
 
-    if (shouldAutoCapture && !screenshot) {
-      // Use lower quality and JPEG for auto-capture to reduce token usage
-      const result = await this.tools.captureVisualization({ format: 'jpeg', quality: 0.5 })
-      if (result.success) {
-        screenshot = result.data.screenshot
-        screenshotFormat = result.data.format || 'jpeg'
-      }
-    }
+    // Disable auto-capture to reduce token usage
+    // const visualKeywords = ['see', 'look', 'show', 'appear', 'display', 'visual', 'render', 'color', 'layer']
+    // const shouldAutoCapture = params.autoCapture !== false &&
+    //   visualKeywords.some(kw => message.toLowerCase().includes(kw))
+    //
+    // if (shouldAutoCapture && !screenshot) {
+    //   const result = await this.tools.captureVisualization({ format: 'jpeg', quality: 0.5 })
+    //   if (result.success) {
+    //     screenshot = result.data.screenshot
+    //     screenshotFormat = result.data.format || 'jpeg'
+    //   }
+    // }
 
     // Build system prompt
     const systemPrompt = this.buildSystemPrompt(project)
@@ -134,6 +136,7 @@ export class ClaudeClient {
     let finalText = ''
     let capturedScreenshot: string | null = null
     let capturedScreenshotFormat: 'png' | 'jpeg' = 'jpeg'
+    const collectedModifications: ProjectModification[] = []
 
     // Handle tool use loop
     while (response.stop_reason === 'tool_use') {
@@ -158,6 +161,12 @@ export class ClaudeClient {
             if (content.name === 'capture_visualization' && result.success && result.data?.screenshot) {
               capturedScreenshot = result.data.screenshot
               capturedScreenshotFormat = result.data.format || 'jpeg'
+            }
+
+            // If this was an apply_modifications call, collect the modifications
+            if (content.name === 'apply_modifications' && result.success && result.data?.modifications) {
+              console.log('[Claude] Collected modifications from tool call:', result.data.modifications)
+              collectedModifications.push(...result.data.modifications)
             }
           } catch (error) {
             console.error('Error executing tool:', content.name, error)
@@ -251,12 +260,16 @@ export class ClaudeClient {
       }
     }
 
-    // Parse project modifications from response
-    const projectModifications = this.extractProjectModifications(finalText)
+    // Parse project modifications from response text
+    const textModifications = this.extractProjectModifications(finalText)
+
+    // Combine modifications from tool calls and text
+    const allModifications = [...collectedModifications, ...textModifications]
+    console.log('[Claude] Total modifications to apply:', allModifications.length)
 
     return {
       message: finalText,
-      projectModifications,
+      projectModifications: allModifications,
       toolCalls
     }
   }
@@ -267,23 +280,125 @@ export class ClaudeClient {
 
     return `You are an AI assistant for Noodles.gl, a node-based geospatial visualization editor.
 
-**Project**: ${nodeCount} nodes, ${edgeCount} connections
+**Current Project**: ${nodeCount} nodes, ${edgeCount} connections
 
-**Key Rules**:
-- Always arrange nodes LEFT to RIGHT (data sources left, layers middle, output right)
-- Verify work with \`capture_visualization\` after changes
-- Don't output code unless asked - use the node graph
-- Output modifications as JSON: \`{"modifications": [{"type": "add_node", "data": {...}}]}\`
+**Core Capabilities**:
+1. **Data Visualization**: Create maps and visualizations from geospatial data
+2. **State Updates**: Modify existing visualizations (size, color, filters, etc.)
+3. **Debugging**: Diagnose issues with visibility, errors, or rendering
+4. **Data Operations**: Query, filter, and transform data with SQL or operators
 
-**Common Operators**: FileOp, JSONOp, DuckDbOp, GeoJsonLayerOp, ScatterplotLayerOp, HexagonLayerOp, DeckRendererOp, OutOp
+**Critical Workflows**:
 
-Use tools to see visuals, check errors, and inspect layers.`
+1. **Basic Plotting**:
+   - Data → Accessor (position) → Layer → Renderer → Output
+   - Always include MaplibreBasemapOp for geographic context
+   - Choose layer type based on data: ScatterplotLayerOp (points), ArcLayerOp (routes), GeoJsonLayerOp (polygons)
+   - Use AccessorOp for extracting coordinates: \`[d.longitude, d.latitude]\`
+   - Use \`capture_visualization\` tool ONLY when user explicitly asks to see the visualization
+
+2. **Updating Visualizations**:
+   - Use \`list_nodes\` to see current nodes and find targets
+   - Use \`get_node_info\` to see the node's inputs AND incoming edge connections
+   - **CRITICAL**: Properties like \`getFillColor\`, \`getRadius\` come from EDGES, not direct inputs
+   - To change these, update the SOURCE node connected via the edge (e.g., ColorOp, NumberOp)
+   - Example: Change color → update ColorOp's \`color\` input, NOT layer's \`getFillColor\`
+   - Direct properties (\`opacity\`, \`visible\`) can be updated on the layer itself
+   - Call \`apply_modifications\` tool with the correct source node
+   - Modifications are applied automatically - visualization updates in real-time
+
+3. **Debugging Issues**:
+   - Use \`capture_visualization\` ONLY if user asks "why can't I see" or explicitly wants to see the current state
+   - Check \`get_console_errors\` for JavaScript errors
+   - Use \`list_nodes\` to verify graph structure
+   - Use \`get_node_info\` to check connections
+   - Common issues: missing edges, opacity=0, disconnected nodes, invalid accessors
+
+4. **Data Inspection & SQL**:
+   - Use \`get_node_output\` to read data from any operator
+   - Inspect data structure and sample rows
+   - DuckDbOp supports full SQL: SELECT, WHERE, JOIN, GROUP BY, etc.
+   - Example: \`SELECT * FROM data WHERE magnitude > 5\`
+   - Always verify data transformations with \`get_node_output\`
+
+**Node Graph Layout**:
+- Arrange LEFT → RIGHT: Data sources → Transforms/Accessors → Layers → Renderer → Output
+- Increment X position by ~300-400 for each step
+- Use consistent Y positions for related nodes
+
+**Common Operators & Properties**:
+- Data: FileOp, JSONOp, DuckDbOp
+- Layers: ScatterplotLayerOp, ArcLayerOp, GeoJsonLayerOp, HexagonLayerOp, PathLayerOp
+- Utilities: AccessorOp, ColorOp, ColorRampOp, MapRangeOp
+- Output: MaplibreBasemapOp, DeckRendererOp, OutOp
+
+**CRITICAL: Understanding Node Inputs vs Edges**:
+
+Each node has its OWN inputs. Nodes connect via EDGES that link outputs to inputs.
+
+Example graph: \`ColorOp → ScatterplotLayerOp\`
+- ColorOp has input: \`color: "#ff0000"\` ← UPDATE THIS to change color
+- ColorOp outputs to: \`out.color\`
+- Edge connects: \`ColorOp.out.color → ScatterplotLayerOp.par.getFillColor\`
+- ScatterplotLayerOp receives color via the edge
+
+**To change a property**:
+1. Use \`get_node_info\` to find which node owns the property
+2. Check edges to trace data flow
+3. Update the SOURCE node's input, not the target handle name
+4. Example: Change color → update ColorOp's \`color\` input, NOT ScatterplotLayerOp
+
+**Common Node Types & Their Inputs**:
+- ColorOp: \`color\` (hex string)
+- NumberOp: \`value\` (number)
+- AccessorOp: \`expression\` (JS string)
+- ScatterplotLayerOp: \`opacity\`, \`visible\`, \`radiusScale\` (direct properties only)
+- All layer inputs starting with \`get*\` come from connected nodes via edges!
+
+**Tool Usage Priority**:
+1. \`list_nodes\` - Understand project structure (lightweight, use often)
+2. \`get_node_info\` - Debug specific node issues (lightweight)
+3. \`get_node_output\` - Inspect data at any pipeline stage (lightweight)
+4. \`get_console_errors\` - Check for JavaScript errors when debugging
+5. \`capture_visualization\` - Use ONLY when explicitly requested by user (expensive)
+
+**Project Modifications**:
+Use the \`apply_modifications\` tool to modify the project. Pass an array of modifications:
+
+Example:
+\`\`\`
+apply_modifications({
+  modifications: [
+    {
+      type: "update_node",
+      data: {
+        id: "/existing-node",
+        data: {
+          inputs: { getRadius: 20 }
+        }
+      }
+    }
+  ]
+})
+\`\`\`
+
+**IMPORTANT**:
+- Always use the \`apply_modifications\` TOOL, not text/JSON
+- Modifications are applied immediately when you call the tool
+- When updating nodes, only specify fields you want to change (inputs are merged)
+- After applying, tell the user what you changed
+
+**Communication Style**:
+- Explain what you're doing and why
+- Verify changes with screenshots
+- Ask clarifying questions if request is ambiguous
+- Show data samples when inspecting pipelines`
   }
 
   private getTools(): Anthropic.Tool[] {
-    // Only include visual debugging tools by default (lightweight)
-    // Context tools are loaded lazily when needed
+    // Essential tools for visualization, debugging, and project state manipulation
     return [
+      // Visual debugging tools
       {
         name: 'capture_visualization',
         description: 'Capture a screenshot of the current visualization. The screenshot will be attached to your next message so you can see it.',
@@ -326,6 +441,74 @@ Use tools to see visuals, check errors, and inspect layers.`
           },
           required: ['layerId']
         }
+      },
+      // Project state tools
+      {
+        name: 'apply_modifications',
+        description: 'Apply modifications to the project (add/update/delete nodes or edges). Use this instead of returning JSON in text.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            modifications: {
+              type: 'array',
+              description: 'Array of modifications to apply',
+              items: {
+                type: 'object',
+                properties: {
+                  type: {
+                    type: 'string',
+                    enum: ['add_node', 'update_node', 'delete_node', 'add_edge', 'delete_edge']
+                  },
+                  data: {
+                    type: 'object',
+                    description: 'The node or edge data'
+                  }
+                },
+                required: ['type', 'data']
+              }
+            }
+          },
+          required: ['modifications']
+        }
+      },
+      {
+        name: 'get_current_project',
+        description: 'Get the current project state including all nodes and edges',
+        input_schema: {
+          type: 'object',
+          properties: {}
+        }
+      },
+      {
+        name: 'list_nodes',
+        description: 'List all nodes in the project with their current state and execution status',
+        input_schema: {
+          type: 'object',
+          properties: {}
+        }
+      },
+      {
+        name: 'get_node_info',
+        description: 'Get detailed information about a specific node including connections and schema',
+        input_schema: {
+          type: 'object',
+          properties: {
+            nodeId: { type: 'string', description: 'The ID of the node to inspect' }
+          },
+          required: ['nodeId']
+        }
+      },
+      {
+        name: 'get_node_output',
+        description: 'Read the output data from a specific operator/node. Useful for inspecting data at any point in the pipeline.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            nodeId: { type: 'string', description: 'The ID of the node to read output from' },
+            maxRows: { type: 'number', description: 'Maximum number of rows to return (default: 10)' }
+          },
+          required: ['nodeId']
+        }
       }
     ]
   }
@@ -344,7 +527,12 @@ Use tools to see visuals, check errors, and inspect layers.`
       capture_visualization: (p) => this.tools.captureVisualization(p),
       get_console_errors: (p) => this.tools.getConsoleErrors(p),
       get_render_stats: () => this.tools.getRenderStats(),
-      inspect_layer: (p) => this.tools.inspectLayer(p)
+      inspect_layer: (p) => this.tools.inspectLayer(p),
+      apply_modifications: (p) => this.tools.applyModifications(p),
+      get_current_project: () => this.tools.getCurrentProject(),
+      list_nodes: () => this.tools.listNodes(),
+      get_node_info: (p) => this.tools.getNodeInfo(p),
+      get_node_output: (p) => this.tools.getNodeOutput(p)
     }
 
     const method = methodMap[name]
@@ -359,17 +547,23 @@ Use tools to see visuals, check errors, and inspect layers.`
     const jsonBlockRegex = /```json\s*([\s\S]*?)\s*```/g
     const matches = [...text.matchAll(jsonBlockRegex)]
 
+    console.log('[Claude] Extracting modifications from response, found', matches.length, 'JSON blocks')
+
     for (const match of matches) {
       try {
         const json = JSON.parse(match[1])
+        console.log('[Claude] Parsed JSON block:', json)
         if (json.modifications && Array.isArray(json.modifications)) {
+          console.log('[Claude] Found modifications array with', json.modifications.length, 'modifications')
           return json.modifications
         }
       } catch (e) {
+        console.warn('[Claude] Failed to parse JSON block:', e)
         continue
       }
     }
 
+    console.log('[Claude] No modifications found in response')
     return []
   }
 }

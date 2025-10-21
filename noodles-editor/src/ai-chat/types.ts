@@ -71,8 +71,6 @@ export interface OperatorSchema {
   outputs: Record<string, FieldSchema>
   sourceFile: string
   sourceLine: number
-  examples: string[]
-  relatedOperators: string[]
 }
 
 export interface FieldSchema {
@@ -91,7 +89,7 @@ export interface DocsIndex {
 export interface DocTopic {
   id: string
   title: string
-  section: 'users' | 'developers' | 'intro'
+  section: 'users' | 'developers' | 'intro' | 'ai-assistant' | 'examples'
   file: string
   content: string
   headings: Heading[]

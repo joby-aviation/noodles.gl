@@ -26,50 +26,65 @@ field.subscribe(value => {
 3. **Lazy**: Nodes only execute when upstream values change
 4. **Memoized**: Results are cached to avoid recomputation
 
-## Path Resolution System
-
-### Operator Identification in project serialization
-
-Operators are identified by fully qualified paths that reflect their container hierarchy:
-
-```typescript
-// Path examples
-'/data-loader'                   // Root level operator
-'/analysis/filter'               // Nested in analysis container
-'/analysis/viz/scatter-plot'     // Deeply nested operator
-```
-
-### Handle Identification in project serialization
-
-Handles (connection points) use the operator's full path plus field information:
-
-```typescript
-// Handle ID format: operatorPath.namespace.fieldName
-'/analysis/processor.par.threshold'   // Parameter input
-'/data-loader.out.data'               // Data output
-'/viz/map.par.layers'                 // Nested operator parameter
-```
-
-### Path Resolution Rules in a `CodeField`
-
-The system supports Unix-style path resolution for operator references:
-
-```typescript
-// From operator at '/analysis/processor'
-op('/data-loader')       // Absolute: root level data-loader
-op('./filter')           // Relative: /analysis/filter
-op('../threshold')       // Parent: /threshold
-op('normalizer')         // Same container: /analysis/normalizer
-```
-
 ## Connection System
 
-### Creating Connections
+### Edge Structure in Project Serialization
+
+In the project serialization format (noodles.json), edges connect operators through their input and output handles:
 
 ```typescript
-// Connect nodes programmatically using fully qualified paths
+// Edge format
+{
+  "id": "edge-1",
+  "source": "node-id-1",         // Source node ID
+  "target": "node-id-2",         // Target node ID
+  "sourceHandle": "output-name", // Name of the output field
+  "targetHandle": "input-name"   // Name of the input field
+}
+```
+
+### Example Connection
+
+```typescript
+// Two nodes
+{
+  "id": "data-loader",
+  "type": "CsvFileOperator",
+  "data": {
+    "outputs": {
+      "table": { /* output field */ }
+    }
+  }
+}
+
+{
+  "id": "filter",
+  "type": "FilterOperator",
+  "data": {
+    "inputs": {
+      "data": { /* input field */ },
+      "condition": { /* parameter field */ }
+    },
+    "outputs": {
+      "filtered": { /* output field */ }
+    }
+  }
+}
+
+// Edge connecting them
+{
+  "source": "data-loader",
+  "target": "filter",
+  "sourceHandle": "table",    // Connect from data-loader's "table" output
+  "targetHandle": "data"      // to filter's "data" input
+}
+```
+
+### Creating Connections Programmatically
+
+```typescript
+// Connect nodes using field references
 sourceNode.fields.output.addConnection(
-  '/analysis/processor',  // target operator path
   targetNode.fields.input
 )
 ```
@@ -93,10 +108,21 @@ sourceNode.fields.output.addConnection(
 ### Operator Execution
 
 ```typescript
-class Operator {
+class AddOperator extends Operator {
+  createInputs() {
+    return {
+      a: new NumberField(this, 'a'),
+      b: new NumberField(this, 'b'),
+    }
+  }
+  createOutputs() {
+    return {
+      sum: new NumberField(this, 'sum'),
+    }
+  }
   execute(inputs: InputType): OutputType {
     // Pure function transformation
-    return processInputs(inputs)
+    return { sum: inputs.a + inputs.b }
   }
 }
 ```
@@ -190,14 +216,41 @@ try {
 - **Performance Profiling**: Measure execution times
 - **State Inspection**: Examine intermediate values
 
+## Operator References in CodeField
+
+When writing code expressions in a `CodeField`, you can reference other operators in the graph using path-based syntax:
+
+### Path Resolution Rules
+
+```typescript
+// Absolute paths (from root)
+op('/data-loader')              // Root level operator
+op('/analysis/filter')          // Nested in analysis container
+
+// Relative paths (from current operator)
+op('./sibling')                 // Same container
+op('../parent-sibling')         // Parent container
+op('local-name')                // Same container (shorthand)
+```
+
+### Example Usage in CodeField
+
+```typescript
+// In a CodeField expression, reference other operators
+const upstream = op('/data-loader').outputs.table
+const filtered = op('./filter').outputs.filtered
+```
+
+Note: This path-based syntax is only used within CodeField expressions for programmatic operator references. For regular node-to-node connections in the graph, use the edge format with `sourceHandle` and `targetHandle` as described in the Connection System section.
+
 ## Integration Points
 
 ### Theatre.js Timeline
 
 ```typescript
-// Keyframe field values over time using fully qualified paths
+// Keyframe field values over time
 const animatedValue = useSheetValue(
-  sheet.object('/node', '/analysis/processor').props.fieldName,
+  sheet.object('/node', nodeId).props.fieldName,
   defaultValue
 )
 ```

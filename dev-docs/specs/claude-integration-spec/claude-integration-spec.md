@@ -1200,8 +1200,6 @@ export class MCPTools {
           return this.validateProject(project)
         case 'performance':
           return this.analyzePerformance(project)
-        case 'suggestions':
-          return this.generateSuggestions(project)
         default:
           return { success: false, error: `Unknown analysis type: ${analysisType}` }
       }
@@ -1297,37 +1295,6 @@ export class MCPTools {
         message: `Container nesting depth is ${maxDepth}. Consider flattening structure.`
       })
     }
-
-    return { success: true, data: { suggestions } }
-  }
-
-  private generateSuggestions(project: NoodlesProject): ToolResult {
-    const suggestions: any[] = []
-    const registry = this.contextLoader.getOperatorRegistry()
-
-    if (!registry) {
-      return { success: false, error: 'Registry not loaded' }
-    }
-
-    // Suggest related operators
-    project.nodes.forEach(node => {
-      const schema = registry.operators[node.type]
-      if (schema?.relatedOperators.length > 0) {
-        const usedTypes = new Set(project.nodes.map(n => n.type))
-        const unusedRelated = schema.relatedOperators.filter(
-          op => !usedTypes.has(op)
-        )
-
-        if (unusedRelated.length > 0) {
-          suggestions.push({
-            type: 'related-operators',
-            severity: 'info',
-            nodeId: node.id,
-            message: `Consider using related operators: ${unusedRelated.join(', ')}`
-          })
-        }
-      }
-    })
 
     return { success: true, data: { suggestions } }
   }

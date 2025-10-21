@@ -7,12 +7,19 @@ import type {
   SearchCodeResult,
   ConsoleError
 } from './types'
+import { opMap } from '../noodles/store'
 
 export class MCPTools {
   private consoleErrors: ConsoleError[] = []
+  private project: any = null
 
   constructor(private contextLoader: ContextLoader) {
     this.setupConsoleTracking()
+  }
+
+  // Set current project for MCP tools to access
+  setProject(project: any) {
+    this.project = project
   }
 
   // Extract common operator properties to avoid duplication
@@ -185,7 +192,7 @@ export class MCPTools {
   // Search documentation
   async getDocumentation(params: {
     query: string
-    section?: 'users' | 'developers'
+    section?: 'users' | 'developers' | 'ai-assistant' | 'examples'
   }): Promise<ToolResult> {
     try {
       const docsIndex = this.contextLoader.getDocsIndex()
@@ -319,8 +326,6 @@ export class MCPTools {
           return this.validateProject(project)
         case 'performance':
           return this.analyzePerformance(project)
-        case 'suggestions':
-          return this.generateSuggestions(project)
         default:
           return { success: false, error: `Unknown analysis type: ${analysisType}` }
       }
@@ -541,6 +546,300 @@ export class MCPTools {
     }
   }
 
+  // Project state manipulation tools
+
+  // Apply modifications to the project
+  async applyModifications(params: { modifications: any[] }): Promise<ToolResult> {
+    try {
+      const modifications = params.modifications
+      if (!Array.isArray(modifications) || modifications.length === 0) {
+        return {
+          success: false,
+          error: 'modifications must be a non-empty array'
+        }
+      }
+
+      // Validate each modification
+      for (const mod of modifications) {
+        if (!mod.type || !mod.data) {
+          return {
+            success: false,
+            error: 'Each modification must have "type" and "data" fields'
+          }
+        }
+        const validTypes = ['add_node', 'update_node', 'delete_node', 'add_edge', 'delete_edge']
+        if (!validTypes.includes(mod.type)) {
+          return {
+            success: false,
+            error: `Invalid modification type: ${mod.type}. Must be one of: ${validTypes.join(', ')}`
+          }
+        }
+      }
+
+      // Return the modifications - they will be applied by the tool result handler
+      return {
+        success: true,
+        data: {
+          modificationsCount: modifications.length,
+          modifications,
+          message: `${modifications.length} modification(s) will be applied to the project`
+        }
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to validate modifications'
+      }
+    }
+  }
+
+  // Get current project state (nodes and edges)
+  async getCurrentProject(): Promise<ToolResult> {
+    try {
+      if (!this.project) {
+        return {
+          success: false,
+          error: 'No project loaded'
+        }
+      }
+
+      return {
+        success: true,
+        data: {
+          nodeCount: (this.project.nodes || []).length,
+          edgeCount: (this.project.edges || []).length,
+          nodes: (this.project.nodes || []).map((n: any) => ({
+            id: n.id,
+            type: n.type,
+            position: n.position,
+            inputs: n.data?.inputs || {}
+          })),
+          edges: (this.project.edges || []).map((e: any) => ({
+            id: e.id,
+            source: e.source,
+            target: e.target,
+            sourceHandle: e.sourceHandle,
+            targetHandle: e.targetHandle
+          }))
+        }
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to get project state'
+      }
+    }
+  }
+
+  // Read operator output data
+  async getNodeOutput(params: { nodeId: string; maxRows?: number }): Promise<ToolResult> {
+    try {
+      const operator = opMap.get(params.nodeId)
+
+      if (!operator) {
+        return {
+          success: false,
+          error: `Operator not found: ${params.nodeId}. Make sure the node exists and has been executed.`
+        }
+      }
+
+      // Get the output data from the operator
+      const outputData: any = {}
+      const outputs = (operator as any).outputs || {}
+
+      for (const [key, field] of Object.entries(outputs)) {
+        const value = (field as any).value
+        outputData[key] = value
+      }
+
+      // If there's a 'data' output, try to sample it
+      if (outputData.data) {
+        const data = outputData.data
+        const maxRows = params.maxRows || 10
+
+        // Sample the data for inspection
+        let sample = data
+        let totalRows = 0
+
+        if (Array.isArray(data)) {
+          totalRows = data.length
+          sample = data.slice(0, maxRows)
+        } else if (data && typeof data === 'object' && data.features) {
+          // GeoJSON
+          totalRows = data.features.length
+          sample = {
+            ...data,
+            features: data.features.slice(0, maxRows)
+          }
+        }
+
+        return {
+          success: true,
+          data: {
+            nodeId: params.nodeId,
+            operatorType: (operator as any).constructor.displayName || (operator as any).constructor.name,
+            outputs: Object.keys(outputs),
+            dataSample: sample,
+            totalRows,
+            sampleRows: Math.min(maxRows, totalRows),
+            executionState: (operator as any).executionState?.value || null
+          }
+        }
+      }
+
+      // If no data output, return all outputs
+      return {
+        success: true,
+        data: {
+          nodeId: params.nodeId,
+          operatorType: (operator as any).constructor.displayName || (operator as any).constructor.name,
+          outputs: Object.keys(outputs),
+          outputData,
+          executionState: (operator as any).executionState?.value || null
+        }
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to read operator output'
+      }
+    }
+  }
+
+  // List all nodes in the project with their current state
+  async listNodes(): Promise<ToolResult> {
+    try {
+      if (!this.project) {
+        return {
+          success: false,
+          error: 'No project loaded'
+        }
+      }
+
+      const nodes = (this.project.nodes || []).map((node: any) => {
+        const operator = opMap.get(node.id)
+        const executionState = operator ? (operator as any).executionState?.value : null
+
+        return {
+          id: node.id,
+          type: node.type,
+          position: node.position,
+          inputs: node.data?.inputs || {},
+          locked: node.data?.locked || false,
+          executionState: executionState ? {
+            status: executionState.status,
+            lastExecuted: executionState.lastExecuted,
+            executionTime: executionState.executionTime,
+            error: executionState.error
+          } : null
+        }
+      })
+
+      // Group by type for easier analysis
+      const byType: Record<string, number> = {}
+      nodes.forEach((n: any) => {
+        byType[n.type] = (byType[n.type] || 0) + 1
+      })
+
+      return {
+        success: true,
+        data: {
+          nodes,
+          totalCount: nodes.length,
+          byType,
+          dataNodes: nodes.filter((n: any) =>
+            ['FileOp', 'JSONOp', 'DuckDbOp', 'CSVOp'].includes(n.type)
+          ),
+          layerNodes: nodes.filter((n: any) =>
+            n.type.includes('Layer')
+          ),
+          rendererNodes: nodes.filter((n: any) =>
+            ['DeckRendererOp', 'OutOp'].includes(n.type)
+          )
+        }
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to list nodes'
+      }
+    }
+  }
+
+  // Get detailed information about a specific node
+  async getNodeInfo(params: { nodeId: string }): Promise<ToolResult> {
+    try {
+      if (!this.project) {
+        return {
+          success: false,
+          error: 'No project loaded'
+        }
+      }
+
+      const node = (this.project.nodes || []).find((n: any) => n.id === params.nodeId)
+      if (!node) {
+        return {
+          success: false,
+          error: `Node not found: ${params.nodeId}`
+        }
+      }
+
+      const operator = opMap.get(params.nodeId)
+      const edges = (this.project.edges || [])
+
+      // Find incoming and outgoing edges
+      const incomingEdges = edges.filter((e: any) => e.target === params.nodeId)
+      const outgoingEdges = edges.filter((e: any) => e.source === params.nodeId)
+
+      // Get execution state
+      const executionState = operator ? (operator as any).executionState?.value : null
+
+      // Get available inputs and outputs from operator schema
+      const registry = this.contextLoader.getOperatorRegistry()
+      const schema = registry?.operators[node.type]
+
+      return {
+        success: true,
+        data: {
+          id: node.id,
+          type: node.type,
+          position: node.position,
+          inputs: node.data?.inputs || {},
+          locked: node.data?.locked || false,
+          executionState: executionState ? {
+            status: executionState.status,
+            lastExecuted: executionState.lastExecuted,
+            executionTime: executionState.executionTime,
+            error: executionState.error
+          } : null,
+          connections: {
+            incoming: incomingEdges.map((e: any) => ({
+              from: e.source,
+              sourceHandle: e.sourceHandle,
+              targetHandle: e.targetHandle
+            })),
+            outgoing: outgoingEdges.map((e: any) => ({
+              to: e.target,
+              sourceHandle: e.sourceHandle,
+              targetHandle: e.targetHandle
+            }))
+          },
+          schema: schema ? {
+            description: schema.description,
+            category: schema.category,
+            inputs: schema.inputs,
+            outputs: schema.outputs
+          } : null
+        }
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to get node info'
+      }
+    }
+  }
+
   // Private helper methods
 
   private validateProject(project: any): ToolResult {
@@ -599,38 +898,43 @@ export class MCPTools {
     return { success: true, data: { suggestions } }
   }
 
-  private generateSuggestions(project: any): ToolResult {
-    const suggestions: any[] = []
-    const registry = this.contextLoader.getOperatorRegistry()
-
-    if (!registry) {
-      return { success: false, error: 'Registry not loaded' }
-    }
-
-    (project.nodes || []).forEach((node: any) => {
-      const schema = registry.operators[node.type]
-      if (schema?.relatedOperators.length > 0) {
-        const usedTypes = new Set((project.nodes || []).map((n: any) => n.type))
-        const unusedRelated = schema.relatedOperators.filter(op => !usedTypes.has(op))
-
-        if (unusedRelated.length > 0) {
-          suggestions.push({
-            type: 'related-operators',
-            severity: 'info',
-            nodeId: node.id,
-            message: `Consider using related operators: ${unusedRelated.join(', ')}`
-          })
-        }
-      }
-    })
-
-    return { success: true, data: { suggestions } }
-  }
-
   private findSymbolAtLine(file: any, line: number): string | undefined {
     return file.symbols.find(
       (s: any) => s.line <= line && s.endLine >= line
     )?.name
+  }
+
+  private safeStringify(obj: any): string {
+    try {
+      // Handle null/undefined
+      if (obj === null || obj === undefined) {
+        return String(obj)
+      }
+
+      // Handle primitives
+      if (typeof obj !== 'object') {
+        return String(obj)
+      }
+
+      // Try JSON.stringify with circular reference handler
+      const seen = new WeakSet()
+      return JSON.stringify(obj, (_key, value) => {
+        if (typeof value === 'object' && value !== null) {
+          if (seen.has(value)) {
+            return '[Circular]'
+          }
+          seen.add(value)
+        }
+        return value
+      }, 2)
+    } catch {
+      // Fallback to toString if JSON.stringify fails
+      try {
+        return obj.toString()
+      } catch {
+        return '[Object]'
+      }
+    }
   }
 
   private setupConsoleTracking() {
@@ -639,7 +943,7 @@ export class MCPTools {
       this.consoleErrors.push({
         level: 'error',
         message: args.map(arg =>
-          typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+          typeof arg === 'object' ? this.safeStringify(arg) : String(arg)
         ).join(' '),
         stack: new Error().stack,
         timestamp: Date.now()
@@ -657,7 +961,7 @@ export class MCPTools {
       this.consoleErrors.push({
         level: 'warn',
         message: args.map(arg =>
-          typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+          typeof arg === 'object' ? this.safeStringify(arg) : String(arg)
         ).join(' '),
         stack: new Error().stack,
         timestamp: Date.now()

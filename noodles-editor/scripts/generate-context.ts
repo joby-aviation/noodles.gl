@@ -21,6 +21,7 @@ import { parseOperatorsFile } from './parse-operators.ts'
 const ROOT_DIR = path.join(process.cwd(), '..')
 const SRC_DIR = path.join(process.cwd(), 'src')
 const DOCS_DIR = path.join(ROOT_DIR, 'docs')
+const AI_CHAT_DIR = path.join(SRC_DIR, 'ai-chat')
 const EXAMPLES_DIR = path.join(process.cwd(), 'public', 'noodles')
 const OUTPUT_DIR = path.join(process.cwd(), 'dist', 'context')
 
@@ -152,8 +153,6 @@ function generateOperatorRegistry(): OperatorRegistry {
         return acc
       }, {}),
       sourceFile: 'src/noodles/operators.ts',
-      examples: [],
-      relatedOperators: []
     }
   }
 
@@ -169,9 +168,10 @@ function generateOperatorRegistry(): OperatorRegistry {
 function generateDocsIndex(): DocsIndex {
   console.log('Generating docs index...')
 
-  const docFiles = readFilesSafe(DOCS_DIR, '.md')
   const topics: Record<string, any> = {}
 
+  // 1. Load main documentation from docs/ directory
+  const docFiles = readFilesSafe(DOCS_DIR, '.md')
   for (const file of docFiles) {
     const content = fs.readFileSync(file, 'utf-8')
     const relativePath = path.relative(DOCS_DIR, file)
@@ -194,6 +194,63 @@ function generateDocsIndex(): DocsIndex {
       headings: extractHeadings(content),
       codeExamples: [],
       relatedTopics: []
+    }
+  }
+
+  // 2. Load AI chat documentation from src/ai-chat/ (including subdirectories)
+  const aiChatFiles = readFilesSafe(AI_CHAT_DIR, '.md')
+  for (const file of aiChatFiles) {
+    // Skip if it's not a documentation file
+    const basename = path.basename(file)
+    if (basename === 'README.md') continue
+
+    const content = fs.readFileSync(file, 'utf-8')
+    const relativePath = path.relative(AI_CHAT_DIR, file)
+    const id = `ai-chat-${relativePath.replace(/\.md$/, '').replace(/\//g, '-')}`
+
+    // Extract title from first heading
+    const titleMatch = content.match(/^#\s+(.+)$/m)
+    const title = titleMatch ? titleMatch[1] : path.basename(file, '.md')
+
+    topics[id] = {
+      id,
+      title,
+      section: 'ai-assistant',
+      file: `ai-chat/${relativePath}`,
+      content,
+      headings: extractHeadings(content),
+      codeExamples: [],
+      relatedTopics: []
+    }
+  }
+
+  // 3. Load example READMEs from public/noodles/*/README.md
+  if (fs.existsSync(EXAMPLES_DIR)) {
+    const exampleDirs = fs.readdirSync(EXAMPLES_DIR, { withFileTypes: true })
+      .filter(entry => entry.isDirectory())
+      .map(entry => entry.name)
+
+    for (const exampleDir of exampleDirs) {
+      const readmePath = path.join(EXAMPLES_DIR, exampleDir, 'README.md')
+      if (fs.existsSync(readmePath)) {
+        const content = fs.readFileSync(readmePath, 'utf-8')
+        const id = `example-${exampleDir}`
+
+        // Extract title from first heading
+        const titleMatch = content.match(/^#\s+(.+)$/m)
+        const title = titleMatch ? titleMatch[1] : exampleDir
+
+        topics[id] = {
+          id,
+          title,
+          section: 'examples',
+          file: `examples/${exampleDir}/README.md`,
+          content,
+          headings: extractHeadings(content),
+          codeExamples: [],
+          relatedTopics: []
+        }
+      }
     }
   }
 
@@ -225,16 +282,37 @@ function extractHeadings(content: string): Array<{ level: number; text: string; 
 function generateExamplesIndex(): ExamplesIndex {
   console.log('Generating examples index...')
 
-  // Mark examples directory as required - fail if it doesn't exist
-  const exampleFiles = readFilesSafe(EXAMPLES_DIR, '.json', true)
   const examples: Record<string, any> = {}
 
-  for (const file of exampleFiles) {
+  // Only read noodles.json files from subdirectories
+  if (!fs.existsSync(EXAMPLES_DIR)) {
+    throw new Error(`Required directory not found: ${EXAMPLES_DIR}`)
+  }
+
+  const exampleDirs = fs.readdirSync(EXAMPLES_DIR, { withFileTypes: true })
+    .filter(entry => entry.isDirectory())
+    .map(entry => entry.name)
+
+  for (const exampleDir of exampleDirs) {
+    const noodlesPath = path.join(EXAMPLES_DIR, exampleDir, 'noodles.json')
+    const readmePath = path.join(EXAMPLES_DIR, exampleDir, 'README.md')
+
+    // Only process if noodles.json exists
+    if (!fs.existsSync(noodlesPath)) {
+      continue
+    }
+
     try {
-      const content = fs.readFileSync(file, 'utf-8')
+      // Read noodles.json
+      const content = fs.readFileSync(noodlesPath, 'utf-8')
       const project = JSON.parse(content)
-      const filename = path.basename(file, '.json')
-      const id = filename
+      const id = exampleDir
+
+      // Read README.md if it exists
+      let readme = ''
+      if (fs.existsSync(readmePath)) {
+        readme = fs.readFileSync(readmePath, 'utf-8')
+      }
 
       // Infer metadata from project
       const nodeTypes = new Set(project.nodes?.map((n: any) => n.type) || [])
@@ -243,20 +321,34 @@ function generateExamplesIndex(): ExamplesIndex {
         t.includes('File') || t.includes('JSON') || t.includes('DuckDb')
       )
 
+      // Extract title from README if available
+      const titleMatch = readme.match(/^#\s+(.+)$/m)
+      const name = titleMatch ? titleMatch[1] : exampleDir.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+
+      // Extract description from README (first paragraph after title)
+      let description = `Example project: ${exampleDir}`
+      if (readme) {
+        const descMatch = readme.match(/^#\s+.+\n\n(.+)/m)
+        if (descMatch) {
+          description = descMatch[1].trim()
+        }
+      }
+
       examples[id] = {
         id,
-        name: filename.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-        description: `Example project: ${filename}`,
+        name,
+        description,
         category: 'geospatial',
+        readme,
         project,
         annotations: {},
-        tags: [filename.replace('-example', '')],
+        tags: exampleDir.split('-'),
         dataSourceTypes,
         layerTypes,
         techniques: []
       }
     } catch (err) {
-      console.warn(`Failed to parse example: ${file}`, err)
+      console.warn(`Failed to parse example: ${exampleDir}`, err)
     }
   }
 

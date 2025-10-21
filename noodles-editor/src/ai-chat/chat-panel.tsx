@@ -12,20 +12,21 @@ import {
 } from './conversation-history'
 import { ConversationHistoryPanel } from './conversation-history-panel'
 import styles from './chat-panel.module.css'
+import { useProjectModifications, type ProjectModification } from '../noodles/hooks/use-project-modifications'
 
 interface ChatPanelProps {
   project: any
-  onProjectUpdate: (project: any) => void
   onClose: () => void
   isVisible: boolean
 }
 
 export const ChatPanel: FC<ChatPanelProps> = ({
   project,
-  onProjectUpdate,
   onClose,
   isVisible
 }) => {
+  // Use ReactFlow hooks for project modifications
+  const { applyModifications } = useProjectModifications()
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -74,6 +75,13 @@ export const ChatPanel: FC<ChatPanelProps> = ({
     init()
   }, [])
 
+  // Update MCPTools with current project whenever it changes
+  useEffect(() => {
+    if (mcpTools && project) {
+      mcpTools.setProject(project)
+    }
+  }, [mcpTools, project])
+
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -108,7 +116,21 @@ export const ChatPanel: FC<ChatPanelProps> = ({
 
       // Apply project modifications if any
       if (response.projectModifications && response.projectModifications.length > 0) {
-        applyProjectModifications(response.projectModifications)
+        console.log('Applying project modifications:', response.projectModifications)
+        const result = applyModifications(response.projectModifications as ProjectModification[])
+
+        if (!result.success) {
+          // Surface validation errors back to the user and AI
+          const errorMessage = `Failed to apply modifications: ${result.error}`
+          console.error(errorMessage)
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: errorMessage
+          }])
+        } else if (result.warnings && result.warnings.length > 0) {
+          // Show warnings but don't fail
+          console.warn('Modification warnings:', result.warnings)
+        }
       }
     } catch (error) {
       console.error('Error sending message:', error)
@@ -139,37 +161,6 @@ export const ChatPanel: FC<ChatPanelProps> = ({
     }
   }
 
-  const applyProjectModifications = (modifications: any[]) => {
-    const updatedProject = { ...project }
-
-    modifications.forEach(mod => {
-      switch (mod.type) {
-        case 'add_node':
-          updatedProject.nodes = [...(updatedProject.nodes || []), mod.data]
-          break
-        case 'update_node':
-          updatedProject.nodes = (updatedProject.nodes || []).map((node: any) =>
-            node.id === mod.data.id ? { ...node, ...mod.data } : node
-          )
-          break
-        case 'delete_node':
-          updatedProject.nodes = (updatedProject.nodes || []).filter(
-            (node: any) => node.id !== mod.data.id
-          )
-          break
-        case 'add_edge':
-          updatedProject.edges = [...(updatedProject.edges || []), mod.data]
-          break
-        case 'delete_edge':
-          updatedProject.edges = (updatedProject.edges || []).filter(
-            (edge: any) => edge.id !== mod.data.id
-          )
-          break
-      }
-    })
-
-    onProjectUpdate(updatedProject)
-  }
 
   const handleApiKeySubmit = async (key: string, remember: boolean) => {
     if (remember) {
@@ -353,7 +344,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({
               <li>Suggest operators and patterns</li>
               <li>Analyze data and create queries</li>
             </ul>
-            <p>Try asking: "Create a heatmap showing density"</p>
+            <p>Try asking: "Create a heatmap showing density of taxi pickups in NYC"</p>
           </div>
         )}
 
