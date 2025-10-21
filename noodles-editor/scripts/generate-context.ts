@@ -132,7 +132,6 @@ function generateOperatorRegistry(): OperatorRegistry {
     const category = opToCategory[opName] || 'utility'
 
     operators[opName] = {
-      name: opName,
       type: opName,
       category,
       description: meta.description,
