@@ -304,6 +304,8 @@ export class ClaudeClient {
    - To change these, update the SOURCE node connected via the edge (e.g., ColorOp, NumberOp) if one exists
    - Example: Change color → update ColorOp's \`color\` input, NOT layer's \`getFillColor\` if connected, OR update layer's \`getFillColor\` if not connected
    - Direct properties (\`opacity\`, \`visible\`) can be updated on the layer itself if not connected via edges
+   - When adding new nodes, ensure proper connections via edges (output handles to input handles). Things like data, position accessors, and connecting the output of the layer to the DeckRenderer node are essential. Make sure the graph is complete.
+   - Make sure the handle names are correct (e.g., \`out.data\` to \`par.data\`). The handle names must match exactly from the node type's \`outputs\` and \`inputs\` schema definition. For example, the ScatterplotLayerOp's position input is \`par.getPosition\`, which typically connects to an AccessorOp's \`out.accessor\`.
    - Call \`apply_modifications\` tool with the correct source node
    - Modifications are applied automatically - visualization updates in real-time
 
