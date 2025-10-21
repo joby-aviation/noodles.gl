@@ -35,49 +35,66 @@ In the project serialization format (noodles.json), edges connect operators thro
 ```typescript
 // Edge format
 {
-  "id": "edge-1",
-  "source": "node-id-1",         // Source node ID
-  "target": "node-id-2",         // Target node ID
-  "sourceHandle": "output-name", // Name of the output field
-  "targetHandle": "input-name"   // Name of the input field
+  "id": "/add-1.out.result->/viewer.par.data", // Unique edge ID
+  "source": "/add-1",            // Source node ID
+  "target": "/viewer",           // Target node ID
+  "sourceHandle": "out.result",  // Name of the output field
+  "targetHandle": "par.data"     // Name of the input field
 }
 ```
 
 ### Example Connection
 
 ```typescript
-// Two nodes
+// Two nodes, in the `nodes` array:
 {
   "id": "data-loader",
-  "type": "CsvFileOperator",
+  "type": "FileOp",
   "data": {
-    "outputs": {
-      "table": { /* output field */ }
-    }
+    "inputs": {
+      "format": "csv",
+      "url": "@/data.csv"
+    },
   }
-}
-
+},
 {
   "id": "filter",
   "type": "FilterOperator",
   "data": {
     "inputs": {
-      "data": { /* input field */ },
-      "condition": { /* parameter field */ }
+      "columnName": "age",
+      "condition": "greater than",
+      "value": 30
     },
-    "outputs": {
-      "filtered": { /* output field */ }
-    }
   }
 }
 
-// Edge connecting them
+// Edge connecting them, in the `edges` array:
 {
-  "source": "data-loader",
-  "target": "filter",
-  "sourceHandle": "table",    // Connect from data-loader's "table" output
-  "targetHandle": "data"      // to filter's "data" input
+  "id": "/data-loader.out.data->/filter.par.data",
+  "source": "/data-loader",  // Source node ID, matches data-loader operator
+  "target": "/filter",       // Target node ID, matches filter operator
+  "sourceHandle": "out.data",    // Connect from data-loader's "data" output
+  "targetHandle": "par.data"     // to filter's "data" input
 }
+```
+
+### Reactive references in CodeField
+
+When writing code expressions in a `CodeField`, you can reference other operators in the graph using path-based syntax:
+
+```typescript
+// In a CodeField expression, reference other operators
+const upstream = op('/data-loader').out.data
+const filtered = op('./filter').par.data
+```
+
+This will get parsed into a special `ReferenceEdge` in the edges array that connects the output of the referenced operator to the CodeField's input.
+
+You can also use mustache syntax for reactive references in fields that support it (like DuckDbOp):
+
+```sql
+SELECT * FROM 'data.csv' WHERE age > {{/age.par.value}}
 ```
 
 ### Creating Connections Programmatically
@@ -221,6 +238,8 @@ try {
 When writing code expressions in a `CodeField`, you can reference other operators in the graph using path-based syntax:
 
 ### Path Resolution Rules
+
+Operator paths use Unix-style notation, allowing both absolute and relative references. Slash (`/`) is used as the separator and special symbols like `.` and `..` denote the current and parent containers, respectively:
 
 ```typescript
 // Absolute paths (from root)
