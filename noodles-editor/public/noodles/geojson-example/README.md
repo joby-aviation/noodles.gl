@@ -1,5 +1,7 @@
 # GeoJSON BART Stations
 
+_Adapted from [Deck.gl examples](https://deck.gl/docs/api-reference/layers/path-layer)_
+
 ## Overview
 This example visualizes the BART transit system using a single GeoJSON layer that contains multiple geometry types: station points with text labels showing station names, rail route lines colored by their route ID (blue, orange, etc.), and polygon features. The GeoJSON layer automatically handles each geometry type differently while maintaining consistent styling through accessor functions.
 

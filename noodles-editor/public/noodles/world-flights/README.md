@@ -8,7 +8,9 @@ This example displays actual recorded flight trajectories as colored line paths 
 ## Key Techniques
 - **Data source**: `FileOp` loads GeoJSON with LineString flight paths
 - **Path layer**: `GeoJsonLayerOp` renders flight trajectories
-- **Color accessor**: `AccessorOp` with expression `utils.stringToColor(d.properties.origin_country)` colors paths by country
+- **Animated layer**: `TripsLayerOp` shows animated flight paths with trail effects
+- **Country accessor**: `AccessorOp` with expression `d.properties.origin_country` extracts country string
+- **Color mapping**: `CategoricalColorRampOp` assigns distinct colors to each country category
 - **Basemap**: `MaplibreBasemapOp` showing global view
 
 ## Data Structure
@@ -20,6 +22,15 @@ The GeoJSON file contains flight trajectory features with:
   - `callsign`: Flight callsign
   - `airline`: Airline name
   - `country`: Additional country information
+
+## Node Graph Flow
+```
+Data → GeoJSON Layer → Deck → Out
+     ↘ Trips Layer ↗
+     ↘ origin-country Accessor → CategoricalColorRamp → Layer Colors
+```
+
+The `origin-country` accessor extracts the country string from each flight feature. This string flows into a `CategoricalColorRampOp`, which automatically assigns a unique color from a predefined color scheme to each distinct country. The color output then flows to both the `GeoJsonLayerOp` (for static paths) and `TripsLayerOp` (for animated trails), ensuring consistent coloring across both visualization layers.
 
 ## Use Cases
 This pattern is useful for visualizing:
