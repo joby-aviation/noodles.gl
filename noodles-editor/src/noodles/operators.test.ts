@@ -22,6 +22,7 @@ import {
   ScatterplotLayerOp,
   SelectOp,
   SwitchOp,
+  TimeSeriesOp,
 } from './operators'
 import { opMap } from './store'
 import { isAccessor } from './utils/accessor-helpers'
@@ -1235,5 +1236,168 @@ describe('SelectOp', () => {
     // Negative wrap
     expect(operator.execute({ data: ['a', 'b', 'c'], index: -1, wrap: true }).value).toEqual('c')
     expect(operator.execute({ data: ['a', 'b', 'c'], index: -4, wrap: true }).value).toEqual('c')
+  })
+})
+
+describe('TimeSeriesOp', () => {
+  it('returns empty array when no data is provided', () => {
+    const operator = new TimeSeriesOp('timeseries-0')
+    const result = operator.execute({
+      data: [],
+      currentTime: 0,
+    })
+    expect(result.current).toEqual([])
+  })
+
+  it('passes through id field without interpolation', () => {
+    const operator = new TimeSeriesOp('timeseries-0')
+    const result = operator.execute({
+      data: [
+        {
+          id: 'test-id-1',
+          timeSeries: [
+            { time: 0, value: 10 },
+            { time: 10, value: 20 },
+          ],
+        },
+        {
+          id: 'test-id-2',
+          timeSeries: [
+            { time: 0, value: 5 },
+            { time: 10, value: 15 },
+          ],
+        },
+      ],
+      currentTime: 5,
+    })
+
+    expect(result.current).toHaveLength(2)
+    expect(result.current[0].id).toEqual('test-id-1')
+    expect(result.current[1].id).toEqual('test-id-2')
+  })
+
+  it('interpolates timeSeries data correctly', () => {
+    const operator = new TimeSeriesOp('timeseries-0')
+    const result = operator.execute({
+      data: [
+        {
+          id: 'object-1',
+          properties: { type: 'A' },
+          timeSeries: [
+            { time: 0, value: 10, altitude: 100 },
+            { time: 10, value: 20, altitude: 200 },
+          ],
+        },
+        {
+          id: 'object-2',
+          properties: { type: 'B' },
+          timeSeries: [
+            { time: 0, latitude: 37.0, longitude: -122.0, altitude: 1000, speed: 200 },
+            { time: 10, latitude: 37.1, longitude: -122.1, altitude: 2000, speed: 250 },
+          ],
+        },
+      ],
+      currentTime: 5,
+    })
+
+    expect(result.current[0].id, 'Id field should passthrough without interpolation').toEqual(
+      'object-1'
+    )
+    expect(result.current[0].properties, 'Non-interpolated fields should be preserved').toEqual({
+      type: 'A',
+    })
+
+    expect(result.current[1].id, 'Id field should passthrough without interpolation').toEqual(
+      'object-2'
+    )
+    expect(result.current[1].properties, 'Non-interpolated fields should be preserved').toEqual({
+      type: 'B',
+    })
+
+    expect(
+      result.current[0].value,
+      'All numeric values should be interpolated at the midpoint'
+    ).toEqual(15)
+    expect(
+      result.current[0].altitude,
+      'All numeric values should be interpolated at the midpoint'
+    ).toEqual(150)
+    expect(result.current[0].time, 'Time comes from the keyframe, not currentTime').toEqual(5)
+
+    expect(
+      result.current[1].latitude,
+      'All numeric values should be interpolated at the midpoint'
+    ).toEqual(37.05)
+    expect(
+      result.current[1].longitude,
+      'All numeric values should be interpolated at the midpoint'
+    ).toEqual(-122.05)
+    expect(
+      result.current[1].altitude,
+      'All numeric values should be interpolated at the midpoint'
+    ).toEqual(1500)
+    expect(
+      result.current[1].speed,
+      'All numeric values should be interpolated at the midpoint'
+    ).toEqual(225)
+    expect(result.current[1].time, 'Time comes from the keyframe, not currentTime').toEqual(5)
+  })
+
+  it('handles time values outside of data time domain', () => {
+    const operator = new TimeSeriesOp('timeseries-0')
+    const data = [
+      {
+        id: 'test-id',
+        properties: {},
+        timeSeries: [
+          { time: 5, value: 15, altitude: 150 },
+          { time: 10, value: 20, altitude: 200 },
+        ],
+      },
+    ]
+
+    const resultBefore = operator.execute({
+      data,
+      currentTime: 0,
+    })
+
+    expect(resultBefore.current[0].value, 'Should use first keyframe values').toEqual(15)
+    expect(resultBefore.current[0].altitude, 'Should use first keyframe values').toEqual(150)
+    expect(resultBefore.current[0].time, 'Should use first keyframe values').toEqual(5)
+
+    const resultAfter = operator.execute({
+      data,
+      currentTime: 20,
+    })
+
+    expect(resultAfter.current[0].value, 'Should use last keyframe values').toEqual(20)
+    expect(resultAfter.current[0].altitude, 'Should use last keyframe values').toEqual(200)
+    expect(resultAfter.current[0].time, 'Should use last keyframe values').toEqual(10)
+  })
+
+  it('preserves all non-timeSeries fields from input data', () => {
+    const operator = new TimeSeriesOp('timeseries-0')
+    const result = operator.execute({
+      data: [
+        {
+          id: 'test-id',
+          properties: { name: 'Test' },
+          customField: 'custom-value',
+          anotherField: { nested: 'data' },
+          timeSeries: [
+            { time: 0, value: 10 },
+            { time: 10, value: 20 },
+          ],
+        },
+      ],
+      currentTime: 5,
+    })
+
+    expect(result.current[0].id).toEqual('test-id')
+    expect(result.current[0].properties).toEqual({ name: 'Test' })
+    expect(result.current[0].customField).toEqual('custom-value')
+    expect(result.current[0].anotherField).toEqual({ nested: 'data' })
+    expect(result.current[0].value).toEqual(15) // interpolated
+    expect(result.current[0].time).toEqual(5) // current time
   })
 })

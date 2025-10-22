@@ -5014,6 +5014,136 @@ export class MaskExtensionOp extends Operator<MaskExtensionOp> {
   }
 }
 
+type TimeSeriesDataPoint = {
+  time: number
+  [key: string]: number
+}
+
+/**
+ * Interpolate time series data at a given time using linear interpolation
+ */
+function interpolateTimeSeries(
+  timeSeries: TimeSeriesDataPoint[],
+  currentTime: number
+): Record<string, number> {
+  if (!timeSeries || timeSeries.length === 0) {
+    return { time: currentTime }
+  }
+
+  // If only one data point, return it
+  if (timeSeries.length === 1) {
+    return { ...timeSeries[0] }
+  }
+
+  // Sort by time to ensure proper interpolation
+  const sortedData = [...timeSeries].sort((a, b) => a.time - b.time)
+
+  // If currentTime is before first point, return first point
+  if (currentTime <= sortedData[0].time) {
+    return { ...sortedData[0] }
+  }
+
+  // If currentTime is after last point, return last point
+  if (currentTime >= sortedData[sortedData.length - 1].time) {
+    return { ...sortedData[sortedData.length - 1] }
+  }
+
+  // Find the two points to interpolate between
+  let beforeIndex = 0
+  let afterIndex = 1
+
+  for (let i = 0; i < sortedData.length - 1; i++) {
+    if (currentTime >= sortedData[i].time && currentTime <= sortedData[i + 1].time) {
+      beforeIndex = i
+      afterIndex = i + 1
+      break
+    }
+  }
+
+  const before = sortedData[beforeIndex]
+  const after = sortedData[afterIndex]
+
+  // Calculate interpolation factor (0 to 1)
+  const timeDelta = after.time - before.time
+  const factor = timeDelta === 0 ? 0 : (currentTime - before.time) / timeDelta
+
+  // Interpolate all numeric fields
+  const result: Record<string, number> = {}
+  const allKeys = new Set([...Object.keys(before), ...Object.keys(after)])
+
+  for (const key of allKeys) {
+    const beforeVal = before[key] ?? 0
+    const afterVal = after[key] ?? 0
+    result[key] = beforeVal + (afterVal - beforeVal) * factor
+  }
+
+  return result
+}
+
+export class TimeSeriesOp extends Operator<TimeSeriesOp> {
+  static displayName = 'TimeSeries'
+  static description = 'Interpolate any time-based data series given a time value'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      data: new DataField(
+        // TODO: Support data schema helpers *and* custom data schemas
+        // new ArrayField(
+        //   new CompoundPropsField({
+        //     id: new StringField(''),
+        //     properties: new UnknownField({}, { optional: true }),
+        //     timeSeries: new ArrayField(
+        //       new CompoundPropsField(
+        //         {
+        //           time: new NumberField(0),
+        //         },
+        //         { passthrough: true }
+        //       )
+        //     ),
+        //   })
+        // )
+      ),
+      currentTime: new NumberField(0),
+    }
+  }
+  createOutputs() {
+    return {
+      current: new DataField(
+        // TODO: Support data schema helpers *and* custom data schemas
+        // new ArrayField(
+        //   new CompoundPropsField(
+        //     {
+        //       id: new StringField(''),
+        //       time: new NumberField(),
+        //       properties: new UnknownField(),
+        //     },
+        //     { passthrough: true }
+        //   )
+        // )
+      ),
+    }
+  }
+
+  execute({
+    data,
+    currentTime,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!Array.isArray(data) || !data.length) {
+      return { current: [] }
+    }
+
+    return {
+      current: data.map(({ timeSeries, ...other }: any) => {
+        const interpolated = interpolateTimeSeries(timeSeries, currentTime)
+        return {
+          ...interpolated,
+          ...other,
+        }
+      }),
+    }
+  }
+}
+
 export const opTypes = {
   AccessorOp,
   A5LayerOp,
@@ -5123,6 +5253,7 @@ export const opTypes = {
   Tile3DLayerOp,
   TileLayerOp,
   TimeOp,
+  TimeSeriesOp,
   TripsLayerOp,
   UnprojectOp,
   VibranceExtensionOp,
