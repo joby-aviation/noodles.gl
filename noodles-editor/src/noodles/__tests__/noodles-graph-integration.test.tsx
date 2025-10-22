@@ -122,8 +122,12 @@ describe('Noodles Graph Integration', () => {
     transformGraph({ nodes, edges })
 
     expect(opMap.size).toBeGreaterThanOrEqual(3)
+    const middleOp = opMap.get('/middle')
+    expect(middleOp).toBeDefined()
 
     // Now remove the middle node and create a direct connection
+    // In the app, transformGraph is called with the updated nodes/edges
+    // without clearing opMap - operators are reused when they exist
     const nodesAfterDelete = nodes.filter(n => n.id !== '/middle')
     const edgesAfterDelete = [
       {
@@ -135,17 +139,17 @@ describe('Noodles Graph Integration', () => {
       },
     ]
 
-    // Clear opMap to simulate a fresh transformation
-    opMap.clear()
-
-    // Transform the graph again
+    // Transform the graph again - this reuses existing operators
+    // and cleans up operators that are no longer in the nodes list
     const newOperators = transformGraph({
       nodes: nodesAfterDelete,
       edges: edgesAfterDelete,
     })
 
-    // Should only have 2 operators now
+    // Should only return 2 operators in this transform
     expect(newOperators).toHaveLength(2)
+    // The middle operator should be removed from opMap by transformGraph
+    // (it calls dispose() and deletes operators not in the nodes list)
     expect(opMap.has('/middle')).toBe(false)
 
     // Verify the new connection
@@ -166,9 +170,12 @@ describe('Noodles Graph Integration', () => {
     ]
 
     transformGraph({ nodes: initialNodes, edges: [] })
+    const initialSize = opMap.size
     expect(opMap.size).toBeGreaterThanOrEqual(1)
+    const num1Op = opMap.get('/num1')
 
-    // Add a new node
+    // Add a new node - in the app, transformGraph is called again
+    // with updated nodes/edges, reusing existing operators
     const updatedNodes: ReactFlowNode<{ inputs: Record<string, unknown> }>[] = [
       ...initialNodes,
       {
@@ -179,12 +186,15 @@ describe('Noodles Graph Integration', () => {
       },
     ]
 
-    // Clear and retransform (simulating React Flow's update)
-    opMap.clear()
+    // Transform again without clearing - operators are reused
     const operators = transformGraph({ nodes: updatedNodes, edges: [] })
 
     expect(operators).toHaveLength(2)
     expect(opMap.has('/num2')).toBe(true)
+    // Verify the original operator was reused
+    expect(opMap.get('/num1')).toBe(num1Op)
+    // opMap should have grown by 1
+    expect(opMap.size).toBe(initialSize + 1)
   })
 
   it('connects two existing nodes', () => {
@@ -210,7 +220,7 @@ describe('Noodles Graph Integration', () => {
     expect(addOp).toBeDefined()
     expect(addOp!.inputs.a.subscriptions.size).toBe(0)
 
-    // Add a connection
+    // Add a connection - in the app, transformGraph is called with updated edges
     const edges = [
       {
         id: '/num/out.val->/add/par.a',
@@ -221,11 +231,13 @@ describe('Noodles Graph Integration', () => {
       },
     ]
 
-    opMap.clear()
+    // Transform again without clearing - operators are reused and connection is established
     transformGraph({ nodes, edges })
 
     const connectedAddOp = opMap.get('/add')
     expect(connectedAddOp).toBeDefined()
+    // Should be the same operator instance
+    expect(connectedAddOp).toBe(addOp)
     expect(connectedAddOp!.inputs.a.subscriptions.size).toBe(1)
   })
 
@@ -301,7 +313,7 @@ describe('Noodles Graph Integration', () => {
     expect(multiplyOp!.inputs.b.subscriptions.size).toBe(1)
   })
 
-  it('properly cleans up when replacing edges', () => {
+  it('properly handles replacing edges', () => {
     const nodes: ReactFlowNode<{ inputs: Record<string, unknown> }>[] = [
       {
         id: '/num1',
@@ -339,7 +351,8 @@ describe('Noodles Graph Integration', () => {
     const addOp1 = opMap.get('/add')
     expect(addOp1!.inputs.a.subscriptions.size).toBe(1)
 
-    // Second connection: replace num1 with num2
+    // Replace connection: num1 with num2
+    // In the app, transformGraph is called with the new edges
     const edges2 = [
       {
         id: '/num2/out.val->/add/par.a',
@@ -350,11 +363,12 @@ describe('Noodles Graph Integration', () => {
       },
     ]
 
-    opMap.clear()
     transformGraph({ nodes, edges: edges2 })
 
     const addOp2 = opMap.get('/add')
-    // Should still have exactly 1 subscription (the new one)
+    // Should be the same operator instance
+    expect(addOp2).toBe(addOp1)
+    // Should still have exactly 1 subscription (the new one replaces the old)
     expect(addOp2!.inputs.a.subscriptions.size).toBe(1)
   })
 })
