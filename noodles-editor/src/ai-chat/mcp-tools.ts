@@ -7,6 +7,7 @@ import type {
   SearchCodeResult,
   ConsoleError
 } from './types'
+import { safeStringify } from '../noodles/utils/serialization'
 
 export class MCPTools {
   private consoleErrors: ConsoleError[] = []
@@ -634,20 +635,6 @@ export class MCPTools {
   }
 
   private setupConsoleTracking() {
-    // Safely stringify objects with circular references
-    const safeStringify = (obj: any, indent: number = 2): string => {
-      const seen = new WeakSet()
-      return JSON.stringify(obj, (key, value) => {
-        if (typeof value === 'object' && value !== null) {
-          if (seen.has(value)) {
-            return '[Circular]'
-          }
-          seen.add(value)
-        }
-        return value
-      }, indent)
-    }
-
     const originalError = console.error
     console.error = (...args: any[]) => {
       this.consoleErrors.push({
@@ -655,7 +642,7 @@ export class MCPTools {
         message: args.map(arg => {
           if (typeof arg === 'object' && arg !== null) {
             try {
-              return safeStringify(arg, 2)
+              return safeStringify(arg)
             } catch {
               return '[Object]'
             }
@@ -680,7 +667,7 @@ export class MCPTools {
         message: args.map(arg => {
           if (typeof arg === 'object' && arg !== null) {
             try {
-              return safeStringify(arg, 2)
+              return safeStringify(arg)
             } catch {
               return '[Object]'
             }
