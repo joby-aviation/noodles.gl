@@ -634,13 +634,34 @@ export class MCPTools {
   }
 
   private setupConsoleTracking() {
+    // Safely stringify objects with circular references
+    const safeStringify = (obj: any, indent: number = 2): string => {
+      const seen = new WeakSet()
+      return JSON.stringify(obj, (key, value) => {
+        if (typeof value === 'object' && value !== null) {
+          if (seen.has(value)) {
+            return '[Circular]'
+          }
+          seen.add(value)
+        }
+        return value
+      }, indent)
+    }
+
     const originalError = console.error
     console.error = (...args: any[]) => {
       this.consoleErrors.push({
         level: 'error',
-        message: args.map(arg =>
-          typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
-        ).join(' '),
+        message: args.map(arg => {
+          if (typeof arg === 'object' && arg !== null) {
+            try {
+              return safeStringify(arg, 2)
+            } catch {
+              return '[Object]'
+            }
+          }
+          return String(arg)
+        }).join(' '),
         stack: new Error().stack,
         timestamp: Date.now()
       })
@@ -656,9 +677,16 @@ export class MCPTools {
     console.warn = (...args: any[]) => {
       this.consoleErrors.push({
         level: 'warn',
-        message: args.map(arg =>
-          typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
-        ).join(' '),
+        message: args.map(arg => {
+          if (typeof arg === 'object' && arg !== null) {
+            try {
+              return safeStringify(arg, 2)
+            } catch {
+              return '[Object]'
+            }
+          }
+          return String(arg)
+        }).join(' '),
         stack: new Error().stack,
         timestamp: Date.now()
       })
