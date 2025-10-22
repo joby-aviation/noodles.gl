@@ -553,10 +553,7 @@ export function getNoodles(): Visualization {
       if (projectId) {
         // First try to load from static files (for built-in examples)
         try {
-          let req = await fetch(`./noodles/${projectId}.json`)
-          if (!req.ok) {
-            req = await fetch(`./noodles/${projectId}/noodles.json`)
-          }
+          const req = await fetch(`./noodles/${projectId}/noodles.json`)
           const noodlesFile = (await req.json()) as Partial<NoodlesProjectJSON>
           const project = await migrateProject({
             ...EMPTY_PROJECT,
