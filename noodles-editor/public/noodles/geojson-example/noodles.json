@@ -59,11 +59,11 @@
       }
     },
     {
-      "id": "/fill-color-accessor",
-      "type": "AccessorOp",
+      "id": "/fill-color",
+      "type": "ColorOp",
       "data": {
         "inputs": {
-          "expression": "utils.colorToHex([160, 160, 180, 200])"
+          "color": "#A0A0B4C8"
         },
         "locked": false
       },
@@ -138,10 +138,10 @@
       "targetHandle": "par.data"
     },
     {
-      "id": "/fill-color-accessor.out.accessor->/geojson-layer.par.getFillColor",
-      "source": "/fill-color-accessor",
+      "id": "/fill-color.out.color->/geojson-layer.par.getFillColor",
+      "source": "/fill-color",
       "target": "/geojson-layer",
-      "sourceHandle": "out.accessor",
+      "sourceHandle": "out.color",
       "targetHandle": "par.getFillColor"
     },
     {

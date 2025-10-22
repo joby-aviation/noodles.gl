@@ -1,27 +1,24 @@
 # UK Commute Patterns
 
-## Overview
-This example visualizes commute patterns across the United Kingdom, showing how people travel to work between different areas.
+_Adapted from [Kepler.gl examples](https://kepler.gl/demo/ukcommute)_
 
-## What It Demonstrates
-- **Flow mapping**: Movement between regions
-- **Origin-destination visualization**: Commute routes or flows
-- **National-scale data**: Country-wide coverage
-- **Transportation analysis**: Understanding commute patterns
+## Overview
+This example visualizes UK commute patterns using a three-layer approach: orange circles mark where people live (residence), purple circles show where they work (workplace), and orange arcs connect each home to its corresponding workplace. The visualization uses actual commute flow data to show real transportation patterns across regions.
 
 ## Key Techniques
-- **Data source**: Commute data with origin and destination regions
-- **Arc or flow layer**: Connections between areas
-- **Aggregated data**: Likely shows flows between districts/regions rather than individual trips
-- **UK basemap**: Centered on the United Kingdom
+- **Data source**: `FileOp` loads CSV with residence and workplace coordinates
+- **Residence position**: `AccessorOp` with expression `[d.residence_lng, d.residence_lat]`
+- **Workplace position**: `AccessorOp` with expression `[d.workplace_lng, d.workplace_lat]`
+- **Residence layer**: `ScatterplotLayerOp` with orange fill (`#ffa500ff`)
+- **Workplace layer**: `ScatterplotLayerOp` with purple fill (`#800080ff`)
+- **Arc layer**: `ArcLayerOp` with orange color (`#ff991f`) and `getWidth: 2`
+- **Basemap**: `MaplibreBasemapOp` with dark matter style, 49° pitch
 
 ## Data Structure
-Commute data typically includes:
-- Origin region/district
-- Destination region/district
-- Number of commuters
-- Mode of transport (car, train, bus, etc.)
-- Possibly origin/destination coordinates
+The CSV file contains:
+- `residence_lng`, `residence_lat`: Home location coordinates
+- `workplace_lng`, `workplace_lat`: Work location coordinates
+- `all_flows`: Number of commuters on this route
 
 ## Use Cases
 This pattern is useful for:

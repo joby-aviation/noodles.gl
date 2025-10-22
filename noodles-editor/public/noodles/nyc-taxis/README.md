@@ -1,29 +1,27 @@
 # NYC Taxis
 
-## Overview
-This example visualizes NYC taxi trip data showing pickup and dropoff locations, as well as the routes between them using arc layers.
+_Adapted from [Kepler.gl examples](https://kepler.gl/demo/nyctrips)_
 
-## What It Demonstrates
-- **Multi-layer visualization**: Three separate layers (pickup points, dropoff points, and arcs connecting them)
-- **Position accessors**: Using `AccessorOp` to extract longitude/latitude from different columns
-- **Color coding**: Distinct colors for pickup (purple) and dropoff (blue) locations
-- **Arc layer**: Showing directional flow from pickup to dropoff
-- **CSV data loading**: Reading taxi trip data from a CSV file
+## Overview
+This example visualizes NYC taxi trips as a three-layer visualization: purple circles for pickup locations, blue circles for dropoff locations, and arcs connecting each pickup to its corresponding dropoff. This creates a flow map that reveals transportation patterns, with the arcs showing the direction and path of each trip.
 
 ## Key Techniques
 - **Data source**: `FileOp` loads taxi trip data in CSV format
-- **Position extraction**: Two accessor operators extract pickup and dropoff coordinates
-- **Color operators**: `ColorOp` nodes define consistent colors for pickup and dropoff visualizations
-- **Layer types**:
-  - `ScatterplotLayerOp` for pickup and dropoff points
-  - `ArcLayerOp` for routes connecting pickup to dropoff
-- **Basemap**: Dark matter style provides good contrast for the bright colored data
+- **Position accessors**: `AccessorOp` nodes extract pickup and dropoff coordinates from separate columns
+- **Colors**: `ColorOp` nodes define colors for pickup (purple) and dropoff (blue) points
+- **Point layers**: Two `ScatterplotLayerOp` nodes for pickup and dropoff locations
+- **Arc layer**: `ArcLayerOp` draws routes from pickup to dropoff
+- **Basemap**: `MaplibreBasemapOp` with dark matter style
 
 ## Data Structure
 The CSV file contains taxi trip records with fields:
+- `VendorID`: Taxi company identifier
+- `tpep_pickup_datetime`, `tpep_dropoff_datetime`: Trip start and end times
+- `passenger_count`: Number of passengers
+- `trip_distance`: Distance in miles
 - `pickup_longitude`, `pickup_latitude`: Starting location
 - `dropoff_longitude`, `dropoff_latitude`: Ending location
-- Additional trip metadata (time, fare, etc.)
+- `fare_amount`, `tip_amount`, `total_amount`: Payment details
 
 ## Use Cases
 This pattern is useful for visualizing:

@@ -1,25 +1,24 @@
 # San Francisco Elevation Contours
 
-## Overview
-This example visualizes the topography of San Francisco using elevation contour lines, showing the city's famous hills and valleys.
+_Adapted from [Kepler.gl examples](https://github.com/keplergl/kepler.gl-data/tree/master/sfcontour)_
 
-## What It Demonstrates
-- **Contour line visualization**: Elevation isolines
-- **Topographic mapping**: Terrain representation using lines
-- **3D terrain data in 2D**: Conveying elevation through contours
-- **Geographic analysis**: Understanding terrain and slope
+## Overview
+This example displays San Francisco's topography through elevation contour lines - lines connecting points of equal elevation. Closely spaced lines indicate steep hills while widely spaced lines show flatter areas. Each line represents a specific elevation, creating a traditional topographic map that reveals the city's famous hills and valleys.
 
 ## Key Techniques
-- **Data source**: Contour line data (likely GeoJSON LineStrings)
-- **Line layer**: `PathLayerOp` or `GeoJsonLayerOp` for contour lines
-- **Color by elevation**: Different colors or line weights by height
-- **Dense line rendering**: Many overlapping contour lines
+- **Data source**: `FileOp` loads contour line data (GeoJSON LineStrings)
+- **Line layer**: `GeoJsonLayerOp` renders contour lines
+- **Color mapping**: Line colors or weights based on elevation values
+- **Basemap**: `MaplibreBasemapOp` centered on San Francisco
 
 ## Data Structure
-Contour data includes:
-- Line geometry (array of coordinates)
-- Elevation value for each contour
-- Possibly contour interval (e.g., every 50 feet)
+The GeoJSON file contains contour line features with:
+- `geometry`: LineString coordinates
+- `properties`:
+  - `elevation`: Elevation value for the contour line
+  - `objectid`: Unique identifier
+  - `isoline_ty`: Isoline type (e.g., "800 - Normal")
+  - `shape_len`: Length of the contour line
 
 ## Use Cases
 This pattern is useful for:
