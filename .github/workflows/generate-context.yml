@@ -26,6 +26,12 @@ jobs:
       - name: Install dependencies
         run: yarn install:all
 
+      - name: Clean old context files
+        run: |
+          cd noodles-editor
+          rm -rf public/app/context/*
+          mkdir -p public/app/context
+
       - name: Generate context bundles
         run: |
           cd noodles-editor

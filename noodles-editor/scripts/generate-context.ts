@@ -278,6 +278,43 @@ function extractHeadings(content: string): Array<{ level: number; text: string; 
   return headings
 }
 
+function stripLargeDataFields(project: any): any {
+  // Deep clone the project but exclude large data fields
+  // This removes embedded data from nodes to keep the context bundle small for GitHub Pages
+  const stripped = JSON.parse(JSON.stringify(project, (key, value) => {
+    // Skip data fields that typically contain large datasets
+    if (key === 'data' && typeof value === 'object' && value !== null) {
+      // Check if this looks like embedded data (arrays of objects, large strings, etc.)
+      if (Array.isArray(value) && value.length > 10) {
+        // Keep first 10 rows as a sample, then add a note about truncation
+        const sample = value.slice(0, 10)
+        return {
+          _sample: sample,
+          _note: `Sample of first 10 items. Full dataset has ${value.length} items (truncated for size).`
+        }
+      }
+      if (typeof value === 'string' && value.length > 1000) {
+        // Keep first 1000 chars as a sample
+        return {
+          _sample: value.substring(0, 1000),
+          _note: `Sample of first 1000 characters. Full string has ${value.length} characters (truncated for size).`
+        }
+      }
+      // For smaller data or metadata, keep it
+      return value
+    }
+
+    // Skip cached data fields
+    if (key === 'cachedData' || key === '_cachedData') {
+      return '<cached data omitted>'
+    }
+
+    return value
+  }))
+
+  return stripped
+}
+
 function generateExamplesIndex(): ExamplesIndex {
   console.log('Generating examples index...')
 
@@ -333,13 +370,16 @@ function generateExamplesIndex(): ExamplesIndex {
         }
       }
 
+      // Strip large data fields from project to reduce size for GitHub Pages
+      const projectMetadata = stripLargeDataFields(project)
+
       examples[id] = {
         id,
         name,
         description,
         category: 'geospatial',
         readme,
-        project,
+        project: projectMetadata,
         annotations: {},
         tags: exampleDir.split('-'),
         dataSourceTypes,
