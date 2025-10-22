@@ -426,6 +426,20 @@ describe('DuckDbOp', () => {
 
     expect(val).toEqual({ data: [expect.objectContaining({ lat: 0 })] })
   })
+
+  it('throws an error for unresolved references', async () => {
+    const ddb = new DuckDbOp('/ddb', {}, false)
+    await expect(ddb.execute({ query: 'SELECT {{missing.par.val}}' })).rejects.toThrowError('Field val not found on ./missing')
+  })
+
+  it('errors on a select including a semicolon', async () => {
+    const ddb = new DuckDbOp('/ddb', {}, false)
+    await expect(ddb.execute({ query: 'SELECT \'1;10\'' })).rejects.toThrowError(
+      expect.objectContaining({
+        message: expect.stringContaining('Parser Error: unterminated quoted string')
+      })
+    )
+  })
 })
 
 describe('ScatterplotLayerOp', () => {

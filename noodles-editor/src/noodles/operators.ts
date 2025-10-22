@@ -1283,15 +1283,21 @@ export class DuckDbOp extends Operator<DuckDbOp> {
           return `$${references.length}` // $1, $2, etc.
         })
 
-        // Prepare the query with the current connection
-        const prepared = await conn.prepare(parameterizedQuery)
-
         // Resolve reference values
         const positionalParams = references.map(({ opId, inOut, fieldPath }) => {
           const op = getOp(opId, this.id)
           const [firstKey, ...rest] = fieldPath.split('.')
-          return rest.reduce((d, prop) => d[prop], op?.[inOut][firstKey])
+
+          const field = op?.[inOut === 'par' ? 'inputs' : 'outputs']?.[firstKey]
+          if (!field) {
+            throw new Error(`Field ${firstKey} not found on ${opId}`)
+          }
+
+          return rest.reduce((d, prop) => d[prop], field.value)
         })
+
+        // Prepare the query with the current connection
+        const prepared = await conn.prepare(parameterizedQuery)
 
         const result = await prepared.query(...positionalParams)
         data = result.toArray()
@@ -1302,6 +1308,9 @@ export class DuckDbOp extends Operator<DuckDbOp> {
       console.error('Error executing query', e)
       await conn.close()
       await db.reset()
+      if (e instanceof Error) {
+        throw e
+      }
       return null
     }
   }
