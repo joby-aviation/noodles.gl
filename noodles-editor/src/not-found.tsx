@@ -1,10 +1,7 @@
 import { basename, dirname } from 'node:path'
 import s from './not-found.module.css'
 
-const rootProjects = import.meta.glob('../public/noodles/*.json')
-const nestedProjects = import.meta.glob('../public/noodles/**/noodles.json')
-
-const projects = {...rootProjects, ...nestedProjects}
+const projects = import.meta.glob('../public/noodles/**/noodles.json')
 
 export default function NotFound() {
   return (
@@ -14,8 +11,9 @@ export default function NotFound() {
         Options:
         <ul>
           {Object.keys(projects).map(path => {
-            const base = basename(path, '.json')
-            const projectName = base === 'noodles' ? basename(dirname(path)) : base
+            const projectName = basename(dirname(path))
+            // Filter out 'new' as it's a special template project
+            if (projectName === 'new') return null
             return (
               <li key={`${projectName}`}>
                 <a href={`?project=${projectName.toLowerCase()}`}>project: {projectName}</a>

@@ -47,10 +47,12 @@ import { DropTarget } from './components/drop-target'
 import { ErrorBoundary } from './components/error-boundary'
 import { NoodlesMenubar } from './components/menu'
 import { PropertyPanel } from './components/node-properties'
-import { categories, edgeComponents, nodeComponents } from './components/op-components'
+import { categories } from './components/categories'
+import { edgeComponents, nodeComponents } from './components/op-components'
 import { ProjectNameBar, UNSAVED_PROJECT_NAME } from './components/project-name-bar'
 import { ProjectNotFoundDialog } from './components/project-not-found-dialog'
 import { StorageErrorHandler } from './components/storage-error-handler'
+import { ChatPanel } from '../ai-chat/chat-panel'
 import { ListField } from './fields'
 import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
 import { IS_PROD, projectId } from './globals'
@@ -164,6 +166,7 @@ export function getNoodles(): Visualization {
   const [nodes, setNodes, onNodesChange] = useNodesState<AnyNodeJSON>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<ReactFlowEdge<unknown>>([])
   const vPressed = useKeyPress('v')
+  const [showChatPanel, setShowChatPanel] = useState(false)
 
   // `transformGraph` needs all nodes to build the opMap and resolve connections
   const operators = useMemo(() => transformGraph({ nodes, edges }), [nodes, edges])
@@ -550,10 +553,7 @@ export function getNoodles(): Visualization {
       if (projectId) {
         // First try to load from static files (for built-in examples)
         try {
-          let req = await fetch(`./noodles/${projectId}.json`)
-          if (!req.ok) {
-            req = await fetch(`./noodles/${projectId}/noodles.json`)
-          }
+          const req = await fetch(`./noodles/${projectId}/noodles.json`)
           const noodlesFile = (await req.json()) as Partial<NoodlesProjectJSON>
           const project = await migrateProject({
             ...EMPTY_PROJECT,
@@ -618,6 +618,11 @@ export function getNoodles(): Visualization {
     }))
   }, [edges])
 
+  const handleProjectUpdate = useCallback((updatedProject: { nodes: AnyNodeJSON[], edges: ReactFlowEdge<unknown>[] }) => {
+    setNodes(updatedProject.nodes)
+    setEdges(updatedProject.edges)
+  }, [setNodes, setEdges])
+
   const flowGraph = theatreReady && (
     <ErrorBoundary>
       <div className={cx('react-flow-wrapper', !showOverlay && 'react-flow-wrapper-hidden')}>
@@ -661,6 +666,13 @@ export function getNoodles(): Visualization {
           onClose={() => setShowProjectNotFoundDialog(false)}
         />
         <StorageErrorHandler />
+
+        <ChatPanel
+          project={{ nodes, edges }}
+          onProjectUpdate={handleProjectUpdate}
+          onClose={() => setShowChatPanel(false)}
+          isVisible={showChatPanel}
+        />
       </div>
     </ErrorBoundary>
   )
@@ -771,6 +783,8 @@ export function getNoodles(): Visualization {
       setProjectName={setProjectName}
       getTimelineJson={getTimelineJson}
       loadProjectFile={loadProjectFile}
+      showChatPanel={showChatPanel}
+      setShowChatPanel={setShowChatPanel}
     />
   )
 

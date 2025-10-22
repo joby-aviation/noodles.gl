@@ -68,8 +68,20 @@ import { generateQualifiedPath, getBaseName, getParentPath } from '../utils/path
 import type { NodeType } from './add-node-menu'
 import { FieldComponent, type inputComponents } from './field-components'
 import previewStyles from './handle-preview.module.css'
+import { categories as baseCategories } from './categories'
 
 const MAPBOX_ACCESS_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
+
+// Extend categories with mathOps for UI purposes (add node menu, header classes, typeCategory)
+// Base categories.ts doesn't include mathOps to keep it clean for context generation
+const categories: Record<string, string[]> = Object.fromEntries(
+  Object.entries(baseCategories).map(([key, value]) => {
+    if (key === 'number') {
+      return [key, [...value, ...Object.keys(mathOps)]]
+    }
+    return [key, [...value]]
+  })
+)
 
 const SLOW_EXECUTION_THRESHOLD_MS = 100
 
@@ -124,131 +136,6 @@ function ReferenceEdgeComponent({
   )
 }
 
-export const categories = {
-  code: ['AccessorOp', 'CodeOp', 'DuckDbOp', 'JSONOp', 'ExpressionOp'],
-  grouping: [
-    'ContainerOp',
-    'ForLoop',
-    'ForLoopOp',
-    'ForLoopBeginOp',
-    'ForLoopEndOp',
-    'GraphInputOp',
-    'GraphOutputOp',
-  ],
-  color: [
-    'CategoricalColorRampOp',
-    'ColorOp',
-    'ColorRampOp',
-    'CombineRGBAOp',
-    'HSLOp',
-    'SplitRGBAOp',
-  ],
-  data: [
-    'ArcOp',
-    'BoundingBoxOp',
-    'BoundsOp',
-    'DateOp',
-    'DeckRendererOp',
-    'DirectionsOp',
-    'FileOp',
-    'FilterOp',
-    'GeocoderOp',
-    'MergeOp',
-    'NetworkOp',
-    'ObjectMergeOp',
-    'OutOp',
-    'RandomizeAttributeOp',
-    'ScatterOp',
-    'SelectOp',
-    'SliceOp',
-    'SortOp',
-    'SwitchOp',
-    'TableEditorOp',
-    'ViewerOp',
-    'ViewStateOp',
-  ],
-  geojson: ['GeoJsonOp', 'GeoJsonTransformOp', 'PointOp', 'RectangleOp'],
-  layer: [
-    'A5LayerOp',
-    'ArcLayerOp',
-    'BitmapLayerOp',
-    'ColumnLayerOp',
-    'ContourLayerOp',
-    'GeoJsonLayerOp',
-    'GeohashLayerOp',
-    'GreatCircleLayerOp',
-    'GridCellLayerOp',
-    'GridLayerOp',
-    'H3ClusterLayerOp',
-    'H3HexagonLayerOp',
-    'HeatmapLayerOp',
-    'HexagonLayerOp',
-    'IconLayerOp',
-    'LineLayerOp',
-    'MVTLayerOp',
-    'PathLayerOp',
-    'PointCloudLayerOp',
-    'PolygonLayerOp',
-    'QuadkeyLayerOp',
-    'RasterTileLayerOp',
-    'S2LayerOp',
-    'ScatterplotLayerOp',
-    'ScenegraphLayerOp',
-    'ScreenGridLayerOp',
-    'SimpleMeshLayerOp',
-    'SolidPolygonLayerOp',
-    'TerrainLayerOp',
-    'TextLayerOp',
-    'Tile3DLayerOp',
-    'TileLayerOp',
-    'TripsLayerOp',
-  ],
-  extension: [
-    'BrightnessContrastExtensionOp',
-    'BrushingExtensionOp',
-    'ClipExtensionOp',
-    'CollisionFilterExtensionOp',
-    'DataFilterExtensionOp',
-    'FillStyleExtensionOp',
-    'HueSaturationExtensionOp',
-    'Mask3DExtensionOp',
-    'MaskExtensionOp',
-    'PathStyleExtensionOp',
-    'TerrainExtensionOp',
-    'VibranceExtensionOp',
-  ],
-  number: [
-    'NumberOp',
-    'MapRangeOp',
-    'ExtentOp',
-    'MathOp',
-    'BezierCurveOp',
-    ...Object.keys(mathOps),
-    'TimeOp',
-  ],
-  string: ['StringOp'],
-  utility: [
-    'BooleanOp',
-    'ConsoleOp',
-    'LayerPropsOp',
-    'MouseOp',
-    'ProjectOp',
-    'UnprojectOp',
-    'MapStyleOp',
-  ],
-  vector: ['CombineXYOp', 'CombineXYZOp', 'SplitXYOp', 'SplitXYZOp'],
-  view: [
-    'FirstPersonViewOp',
-    'GlobeViewOp',
-    'MaplibreBasemapOp',
-    'MapViewOp',
-    'MapViewStateOp',
-    'OrbitViewOp',
-    'SplitMapViewStateOp',
-  ],
-  widget: ['FpsWidgetOp'],
-} as const as Record<string, NodeType[]>
-
 export const resizeableNodes = [
   'ViewerOp',
   'TableEditorOp',
@@ -287,7 +174,7 @@ export function getNodeDescription(type: NodeType): string {
 
 export function typeCategory(type: NodeType) {
   for (const [category, types] of Object.entries(categories)) {
-    if (types.includes(type)) {
+    if ((types as readonly string[]).includes(type)) {
       return toPascal(category)
     }
   }
@@ -313,7 +200,7 @@ const headerClasses = {
 
 export function headerClass(type: NodeType) {
   for (const [category, types] of Object.entries(categories)) {
-    if (types.includes(type)) {
+    if ((types as readonly string[]).includes(type)) {
       return headerClasses[category]
     }
   }
