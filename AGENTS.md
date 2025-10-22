@@ -523,6 +523,88 @@ try {
 - Keep documentation up-to-date
 - Test operators in isolation
 
+## Testing Strategy
+
+### When to Add Tests
+
+**Always add tests for:**
+- New operators and core functionality
+- Changes to critical components (listed below)
+- Complex state management or hook modifications
+- Bug fixes to prevent regressions
+- Non-trivial utility functions
+
+**Test Types:**
+
+- **Unit Tests**: For operator logic, pure functions, and utilities
+- **Integration Tests**: For graph transformations, hook interactions, and data flow
+- **Component Tests**: For React components with React Testing Library
+- **E2E Tests**: For full user workflows with Playwright
+
+### Critical Components Requiring Extra Scrutiny
+
+These components are core to the application and require thorough testing and careful review:
+
+**Core Node System:**
+
+- `noodles-editor/src/noodles/operators.ts` - Operator registry and execution
+- `noodles-editor/src/noodles/fields.ts` - Field system and validation
+- `noodles-editor/src/noodles/noodles.tsx` - Main application orchestration
+
+**State Management:**
+
+- `noodles-editor/src/noodles/hooks/use-project-modifications.ts` - Project state mutations
+- `noodles-editor/src/noodles/storage.ts` - File system and persistence
+- All custom hooks in `noodles-editor/src/noodles/hooks/`
+
+**Data Flow:**
+
+- `noodles-editor/src/noodles/utils/path-utils.ts` - Operator path resolution
+- `noodles-editor/src/noodles/utils/serialization.ts` - Project save/load
+- Graph transformation functions in `noodles.tsx`
+
+### Testing Best Practices
+
+**For Operators:**
+
+```typescript
+describe('CustomOperator', () => {
+  it('should transform data correctly', () => {
+    const op = new CustomOperator('/test-op')
+    const result = op.execute({ data: testData, threshold: 50 })
+    expect(result.output).toEqual(expectedOutput)
+  })
+})
+```
+
+**For React Hooks:**
+
+```typescript
+import { renderHook, act } from '@testing-library/react'
+
+it('should update state correctly', () => {
+  const { result } = renderHook(() => useCustomHook())
+  act(() => {
+    result.current.setValue(newValue)
+  })
+  expect(result.current.value).toBe(newValue)
+})
+```
+
+**For Integration Tests:**
+
+- Test operator connectivity and data flow through the graph
+- Verify subscriptions are properly created and cleaned up
+- Test that graph transformations match real application behavior
+- Mock Theatre.js and other external dependencies appropriately
+
+### Test Organization
+
+- Co-locate unit tests with source files (`*.test.ts` alongside the file being tested)
+- Integration and component tests can go in `__tests__` directories when they span multiple files
+- Use descriptive test names that explain what is being tested
+- Clean up resources in `afterEach` to prevent test pollution
+
 ## Additional Resources
 
 - **Documentation**: [docs/](docs/) folder contains user and developer guides
@@ -540,15 +622,29 @@ try {
 4. Implement `execute()` method with pure function logic
 5. Register operator in operator registry
 6. Add to category in `components/categories.ts`
-7. Write unit tests
-8. Update documentation if needed
+7. **Write unit tests** (required for all operators)
+8. Document behavior and limitations if complex
+9. Test in UI with example projects
 
 ### Modifying Existing Operator
 1. Locate operator in `operators.ts`
 2. Modify inputs, outputs, or execute logic
 3. Consider migration if schema changes
-4. Update tests
-5. Test in UI with example projects
+4. **Update tests** to cover new behavior
+5. Add tests for bug fixes to prevent regressions
+6. Update documentation if behavior changes
+7. Test in UI with example projects
+
+### Modifying Critical Components
+
+When changing files listed in "Critical Components Requiring Extra Scrutiny":
+
+1. **Add tests first** if they don't exist
+2. Make your changes
+3. Ensure all existing tests pass
+4. **Add new tests** for changed behavior
+5. Consider integration tests for complex state changes
+6. If the change is large, consider splitting into smaller PRs
 
 ### Debugging Data Flow
 1. Check operator paths are correct (use absolute paths from root)
@@ -564,6 +660,50 @@ try {
 4. Add custom UI component in `field-components.tsx` if needed
 5. Register in field registry
 
+## Pull Request Guidelines
+
+### Creating Focused PRs
+
+When implementing features or fixes:
+
+- **Keep PRs focused**: Each PR should address a single concern or feature
+- **Split large changes**: Separate unrelated changes into different PRs (e.g., separate AI chat changes from core app state changes)
+- **Smaller is better**: Smaller PRs are easier to review thoroughly and catch issues
+- **Context matters**: Make it easy for reviewers by keeping related changes together
+
+### What to Include in PRs
+
+- **Tests**: Add tests for new features, bug fixes, and changes to critical components
+- **Documentation**: Update relevant docs when behavior changes or new features are added
+- **Operator Documentation**: For complex operators, document input/output behavior and limitations
+- **Edge Cases**: Document known limitations or edge cases in code comments or docs
+
+### Documentation Best Practices
+
+**When to Document:**
+
+- Non-obvious behavior or implementation choices
+- Known limitations or edge cases
+- Complex algorithms or data transformations
+- Operator-specific behavior (especially for SQL, code execution, etc.)
+
+**Where to Document:**
+
+- Code comments for implementation details
+- Operator reference pages for user-facing behavior
+- AGENTS.md for framework-level patterns and conventions
+- README files for examples and walkthroughs
+
+**Example - Documenting Edge Cases:**
+
+```typescript
+// DuckDbOp: Multi-statement SQL support
+// - Multiple statements separated by semicolons are executed sequentially
+// - Only the result from the final SELECT is returned
+// - Limitation: Semicolons inside string literals will incorrectly split statements
+// - Use SET statements for configuration, CTEs for complex queries
+```
+
 ## Important Notes for LLMs
 
 1. **Operators are pure functions** - They should not have side effects or maintain state
@@ -573,6 +713,9 @@ try {
 5. **Type safety is critical** - Always use Zod schemas for validation
 6. **Timeline integration** - Any parameter can be animated via Theatre.js
 7. **Project files are JSON** - Easy to parse and modify programmatically
+8. **Testing is expected** - Add tests for new features and changes to critical components
+9. **Document edge cases** - Users may not expect implementation-specific behavior
+10. **Keep PRs focused** - Split large changes into reviewable chunks when possible
 
 ---
 
