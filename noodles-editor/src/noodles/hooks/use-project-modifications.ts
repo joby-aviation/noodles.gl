@@ -72,15 +72,20 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
     [setNodes, setEdges]
   )
 
-  // Delete nodes with intelligent edge handling (same logic as noodles.tsx onNodesDelete)
-  const deleteNodes = useCallback(
-    (nodeIds: string[]): ModificationResult => {
-      const nodes = getNodes()
+  // Handle edge reconnection after nodes are deleted (same logic as noodles.tsx onNodesDelete)
+  // This is a callback invoked AFTER nodes have been deleted by ReactFlow
+  // Takes the deleted nodes directly (not IDs) since they're no longer in the nodes array
+  const handleNodesDeleted = useCallback(
+    (deletedNodes: ReactFlowNode[]): ModificationResult => {
+      // Get the current state BEFORE the nodes were deleted (for edge reconnection logic)
+      // We need to reconstruct the pre-deletion state by adding deleted nodes back
+      const currentNodes = getNodes()
+      const nodes = [...currentNodes, ...deletedNodes]
       const edges = getEdges()
-      const nodesToDelete = nodes.filter(n => nodeIds.includes(n.id))
+      const nodesToDelete = deletedNodes
 
       if (nodesToDelete.length === 0) {
-        return { success: false, error: `No nodes found with IDs: ${nodeIds.join(', ')}` }
+        return { success: false, error: `No nodes provided for deletion` }
       }
 
       const warnings: string[] = []
@@ -180,6 +185,27 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       return { success: true, warnings: warnings.length > 0 ? warnings : undefined }
     },
     [getNodes, getEdges, setNodes, setEdges]
+  )
+
+  // Delete nodes with intelligent edge handling
+  // This wrapper handles edge reconnection and then deletes the nodes
+  const deleteNodes = useCallback(
+    (nodeIds: string[]): ModificationResult => {
+      // Get the nodes before deletion
+      const nodes = getNodes()
+      const nodesToDelete = nodes.filter(n => nodeIds.includes(n.id))
+
+      if (nodesToDelete.length === 0) {
+        return { success: false, error: `No nodes found with IDs: ${nodeIds.join(', ')}` }
+      }
+
+      // First handle edge reconnection (needs nodes to still exist)
+      const result = handleNodesDeleted(nodesToDelete)
+      // Then delete the nodes
+      deleteElements({ nodes: nodeIds.map(id => ({ id })) })
+      return result
+    },
+    [getNodes, deleteElements, handleNodesDeleted]
   )
 
   // Add an edge with connection validation
@@ -353,13 +379,24 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
       // Apply node deletions first
       if (nodesToDelete.length > 0) {
-        const result = deleteNodes(nodesToDelete)
+        // Get the actual node objects before deletion
+        const nodes = getNodes()
+        const nodeObjectsToDelete = nodes.filter(n => nodesToDelete.includes(n.id))
+
+        if (nodeObjectsToDelete.length === 0) {
+          return { success: false, error: `No nodes found with IDs: ${nodesToDelete.join(', ')}` }
+        }
+
+        // Handle edge reconnection BEFORE deleting nodes
+        const result = handleNodesDeleted(nodeObjectsToDelete)
         if (!result.success) {
           return result
         }
         if (result.warnings) {
           allWarnings.push(...result.warnings)
         }
+        // Then delete the nodes
+        deleteElements({ nodes: nodesToDelete.map(id => ({ id })) })
       }
 
       // Get current nodes before modifications
@@ -583,7 +620,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         warnings: allWarnings.length > 0 ? allWarnings : undefined,
       }
     },
-    [getNodes, setNodes, setEdges, deleteNodes, deleteElements]
+    [getNodes, setNodes, setEdges, handleNodesDeleted, deleteElements]
   )
 
   // ReactFlow-compatible onConnect callback
@@ -687,13 +724,12 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
   )
 
   // ReactFlow-compatible onNodesDelete callback
-  // Handles node deletion with intelligent edge reconnection
+  // Handles edge reconnection after ReactFlow deletes nodes
   const onNodesDelete = useCallback(
     (deleted: ReactFlowNode[]) => {
-      const nodeIds = deleted.map(n => n.id)
-      deleteNodes(nodeIds)
+      handleNodesDeleted(deleted)
     },
-    [deleteNodes]
+    [handleNodesDeleted]
   )
 
   return {

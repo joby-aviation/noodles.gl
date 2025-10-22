@@ -48,7 +48,7 @@ In the project serialization format (noodles.json), edges connect operators thro
 ```typescript
 // Two nodes, in the `nodes` array:
 {
-  "id": "data-loader",
+  "id": "/data-loader",
   "type": "FileOp",
   "data": {
     "inputs": {
@@ -58,7 +58,7 @@ In the project serialization format (noodles.json), edges connect operators thro
   }
 },
 {
-  "id": "filter",
+  "id": "/filter",
   "type": "FilterOperator",
   "data": {
     "inputs": {
