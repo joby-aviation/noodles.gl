@@ -4,7 +4,7 @@ import * as Menubar from '@radix-ui/react-menubar'
 import { useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
 import { type Dispatch, type SetStateAction, useCallback, useEffect, useState } from 'react'
-import newProjectJSON from '../../../public/noodles/new.json?url'
+import newProjectJSON from '../../../public/noodles/new/noodles.json?url'
 import { useActiveStorageType, useFileSystemStore } from '../filesystem-store'
 import { load, save } from '../storage'
 import { useSlice } from '../store'
@@ -365,11 +365,15 @@ export function NoodlesMenubar({
   loadProjectFile,
   getTimelineJson,
   setProjectName,
+  showChatPanel,
+  setShowChatPanel,
 }: {
   projectName?: string
   loadProjectFile: (project: NoodlesProjectJSON, projectName?: string) => void
   getTimelineJson: () => Record<string, unknown>
   setProjectName: Dispatch<SetStateAction<string | null>>
+  showChatPanel?: boolean
+  setShowChatPanel?: (show: boolean) => void
 }) {
   const [recentlyOpened, setRecentlyOpened] = useState<RecentProject[]>([])
   const { toObject } = useReactFlow()
@@ -641,7 +645,7 @@ export function NoodlesMenubar({
               {/* TODO: implement Save As... */}
               {/* <Menubar.Item className={s.menubarItem}>Save As...</Menubar.Item> */}
               <Menubar.Item className={s.menubarItem} onSelect={onExport}>
-                Export
+                Download project
               </Menubar.Item>
             </Menubar.Content>
           </Menubar.Portal>
@@ -679,6 +683,19 @@ export function NoodlesMenubar({
             </Menubar.Content>
           </Menubar.Portal>
         </Menubar.Menu>
+
+        {/* Chat button on the right side */}
+        {setShowChatPanel && (
+          <div className={s.menubarRightSlot}>
+            <button
+              onClick={() => setShowChatPanel(!showChatPanel)}
+              className={s.chatButton}
+              title="Toggle Noodles AI Assistant"
+            >
+              💬 {showChatPanel ? 'Hide' : 'Assistant'}
+            </button>
+          </div>
+        )}
       </Menubar.Root>
       <SaveProjectDialog
         projectName={projectName ?? null}

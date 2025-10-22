@@ -297,12 +297,12 @@ describe('AccessorOp', () => {
     const { accessor: val1 } = operator.execute({
       expression: 'd + 1',
     })
-    expect(val1(1)).toEqual(2)
+    expect(val1(1, { index: 0 })).toEqual(2)
 
     const { accessor: val2 } = operator.execute({
-      expression: 'dInfo',
+      expression: 'data.c + i',
     })
-    expect(val2(undefined, { c: 3 })).toEqual({ c: 3 })
+    expect(val2(undefined, { index: 1, data: { c: 3 } })).toEqual(4)
   })
 
   it('returns a function', () => {
@@ -446,6 +446,20 @@ describe('DuckDbOp', () => {
     const val = await ddb.execute({ query: 'SELECT {{bbox.out.viewState.latitude}} as lat' })
 
     expect(val).toEqual({ data: [expect.objectContaining({ lat: 0 })] })
+  })
+
+  it('throws an error for unresolved references', async () => {
+    const ddb = new DuckDbOp('/ddb', {}, false)
+    await expect(ddb.execute({ query: 'SELECT {{missing.par.val}}' })).rejects.toThrowError('Field val not found on ./missing')
+  })
+
+  it('errors on a select including a semicolon', async () => {
+    const ddb = new DuckDbOp('/ddb', {}, false)
+    await expect(ddb.execute({ query: 'SELECT \'1;10\'' })).rejects.toThrowError(
+      expect.objectContaining({
+        message: expect.stringContaining('Parser Error: unterminated quoted string')
+      })
+    )
   })
 })
 

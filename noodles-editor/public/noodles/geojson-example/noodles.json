@@ -46,7 +46,7 @@
           "pointType": "circle+text",
           "getPointRadius": 4,
           "stroked": false,
-          "getLineWidth": 20,
+          "getLineWidth": 100,
           "lineWidthMinPixels": 4,
           "extruded": true,
           "getElevation": 30
@@ -59,11 +59,11 @@
       }
     },
     {
-      "id": "/fill-color-accessor",
-      "type": "AccessorOp",
+      "id": "/fill-color",
+      "type": "ColorOp",
       "data": {
         "inputs": {
-          "expression": "utils.colorToHex([160, 160, 180, 200])"
+          "color": "#01017e"
         },
         "locked": false
       },
@@ -112,9 +112,9 @@
           "mapStyle": "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
           "viewState": {
             "latitude": 37.74,
-            "longitude": -122.4,
-            "zoom": 13,
-            "pitch": 30,
+            "longitude": -122.169,
+            "zoom": 11,
+            "pitch": 34,
             "bearing": 0
           }
         },
@@ -138,10 +138,10 @@
       "targetHandle": "par.data"
     },
     {
-      "id": "/fill-color-accessor.out.accessor->/geojson-layer.par.getFillColor",
-      "source": "/fill-color-accessor",
+      "id": "/fill-color.out.color->/geojson-layer.par.getFillColor",
+      "source": "/fill-color",
       "target": "/geojson-layer",
-      "sourceHandle": "out.accessor",
+      "sourceHandle": "out.color",
       "targetHandle": "par.getFillColor"
     },
     {
@@ -174,11 +174,10 @@
     }
   ],
   "viewport": {
-    "x": 530.7255546425637,
-    "y": 484.1814235438211,
-    "zoom": 0.7543138866064092
+    "x": 545.8912906768109,
+    "y": 46.884631018890104,
+    "zoom": 0.5895523675768745
   },
-  "version": 6,
   "timeline": {
     "sheetsById": {
       "Noodles": {
@@ -189,11 +188,13 @@
     },
     "definitionVersion": "0.4.0",
     "revisionHistory": [
+      "9BkDRYWmSFG43ctt",
       "2fowPmUFZuTc-Tpb",
       "gu9E8g8-RbexkhTI",
       "EeNr7wIUZGeY0pqE",
       "-AcuXX9WdPaXNlc4",
       "hPcEOr80dLTuA80M"
     ]
-  }
+  },
+  "version": 6
 }
