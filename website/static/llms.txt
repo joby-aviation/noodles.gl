@@ -1,0 +1,121 @@
+# Noodles.gl
+
+> A React-based visualization platform for creating animated timeline presentations and geospatial data visualizations
+
+## Overview
+
+Noodles.gl is a node-based editor for creating geospatial visualizations and animations. It combines visual programming with reactive data flow to build interactive presentations and high-quality renders.
+
+Key Features:
+- Node-based visual programming editor
+- Real-time reactive data flow
+- Geospatial visualization built on Deck.gl and MapLibre
+- Timeline-based animation with Theatre.js integration
+- Support for JSON, CSV, GeoJSON, and other data formats
+- Export to video, images, or interactive web presentations
+
+## Primary Documentation
+
+### Getting Started
+- User Guide: https://noodles.gl/users/getting-started
+- Developer Guide: https://noodles.gl/developers/overview
+
+### Core Documentation
+- Introduction: https://noodles.gl/intro
+- Comparison with Other Tools: https://noodles.gl/users/comparison
+- Data Guide: https://noodles.gl/users/data-guide
+- Operators Guide: https://noodles.gl/users/operators-guide
+- Animation and Rendering: https://noodles.gl/users/animation-and-rendering
+
+### Developer Documentation
+- Developer Overview: https://noodles.gl/developers/overview
+- Node-Based Tools: https://noodles.gl/developers/node-based-tools
+- Paths and Containers: https://noodles.gl/developers/paths-containers
+- Data Flow: https://noodles.gl/developers/data-flow
+- Framework Extension: https://noodles.gl/developers/framework-extension
+- Creating Operators: https://noodles.gl/developers/creating-operators
+- Field System: https://noodles.gl/developers/field-system
+
+## Repository Structure
+
+```
+/noodles-editor/          # Main editor application (React + TypeScript)
+  /src/
+    /noodles/
+      /components/        # UI components for the editor
+      /operators/         # Built-in operator implementations
+      /fields/            # Field type system
+    /visualizations/      # Deck.gl visualization layers
+    /utils/               # Utility functions
+/website/                 # Documentation site (Docusaurus)
+  /docs/                  # Documentation markdown files
+    /users/               # User-facing documentation
+    /developers/          # Developer documentation
+  /static/                # Static assets
+/docs/                    # Additional documentation (symlinked to website/docs)
+/dev-docs/                # Development and architecture documentation
+```
+
+## Technology Stack
+
+### Core Technologies
+- **React** - UI framework
+- **TypeScript** - Type-safe JavaScript
+- **Theatre.js** - Timeline and animation control
+- **Deck.gl** - WebGL-powered geospatial visualization
+- **MapLibre GL JS** - Map rendering
+- **Vite** - Build tool and development server
+
+### Key Libraries
+- **Zustand** - State management
+- **React Flow** - Node-based editor UI
+- **DuckDB-WASM** - In-browser SQL queries
+- **Immer** - Immutable state updates
+
+## Contributing
+
+- Repository: https://github.com/joby-aviation/noodles.gl
+- Contributing Guide: https://github.com/joby-aviation/noodles.gl/blob/main/CONTRIBUTING.md
+- License: Apache 2.0
+
+### Development Setup
+
+```bash
+# Install dependencies
+yarn install:all
+
+# Start development server
+yarn start:app
+
+# Build for production
+yarn build:all
+```
+
+### Testing
+- Unit tests with Vitest
+- Integration tests with Playwright
+- Tests co-located with source files (*.test.ts)
+
+## Use Cases
+
+- **Visualization Experts**: Create high-quality, presentation-ready graphics
+- **Developers**: Rapid visualization prototyping
+- **Data Scientists**: Data exploration and analysis
+- **Research Teams**: Publishing polished geospatial analysis and insights
+
+## Architecture
+
+Noodles.gl uses a node-based system where:
+1. **Operators** are nodes that process data
+2. **Fields** define inputs/outputs with type safety
+3. **Paths** enable deep data access and manipulation
+4. **Containers** manage collections of operators
+5. **Timeline** integration allows keyframing any parameter
+
+The system uses a reactive data flow where changes automatically propagate through the node graph.
+
+## Additional Resources
+
+- Website: https://noodles.gl
+- GitHub: https://github.com/joby-aviation/noodles.gl
+- Issues: https://github.com/joby-aviation/noodles.gl/issues
