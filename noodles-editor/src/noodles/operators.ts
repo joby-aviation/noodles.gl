@@ -999,7 +999,7 @@ export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
       colorRamp.setValue(interpolate)
     })
 
-    const value = new StringField('')
+    const value = new StringField('', { accessor: true })
 
     return {
       colorRamp,
@@ -1016,11 +1016,16 @@ export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
     colorRamp,
     value,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    let color = colorRamp(value)
+    const scale = (val: string) => {
+      const color = colorRamp(val)
 
-    // Some return values are in rgb, some are in hex. Convert them all to be safe
-    // TODO: VIS-813: Make all colors d3 Colors?
-    color = d3Color(color)?.formatHex()
+      // Some return values are in rgb, some are in hex. Convert them all to be safe
+      // TODO: VIS-813: Make all colors d3 Colors?
+      return d3Color(color)?.formatHex()
+    }
+
+    // Use composeAccessor helper to handle both static values and accessor functions
+    const color = composeAccessor(value, scale)
 
     return { color }
   }
