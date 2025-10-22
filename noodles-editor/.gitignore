@@ -10,6 +10,9 @@
 # vibe coding
 .claude
 
+# AI Chat context (generated)
+/public/app
+
 # testing
 /coverage
 

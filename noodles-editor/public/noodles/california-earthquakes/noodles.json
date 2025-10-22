@@ -44,8 +44,10 @@
       "type": "ScatterplotLayerOp",
       "data": {
         "inputs": {
-          "opacity": 0.4,
-          "getLineColor": "#ffffffff"
+          "stroked": false,
+          "billboard": true,
+          "getLineColor": "#ffffffff",
+          "radiusUnits": "meters"
         },
         "locked": false
       },
@@ -66,20 +68,6 @@
       "position": {
         "x": -58.11664384808154,
         "y": 231.6605308265006
-      }
-    },
-    {
-      "id": "/radius-accessor",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "Math.sqrt(d.Magnitude) * 15"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 120.94167807595923,
-        "y": 513.3520633670713
       }
     },
     {
@@ -104,7 +92,7 @@
         "locked": false
       },
       "position": {
-        "x": -424.7814479314794,
+        "x": -471.58272967234626,
         "y": 390.13392481159116
       }
     },
@@ -121,7 +109,7 @@
           "viewState": {
             "latitude": 37.059,
             "longitude": -112.383,
-            "zoom": 5.74,
+            "zoom": 6.04,
             "pitch": 0,
             "bearing": 0
           }
@@ -138,9 +126,38 @@
       },
       "data": {
         "inputs": {
-          "inMax": 5
+          "inMax": 7
         },
         "locked": false
+      }
+    },
+    {
+      "type": "MathOp",
+      "id": "/sqrt",
+      "position": {
+        "x": -74.586918742845,
+        "y": 555.6638521710034
+      },
+      "data": {
+        "inputs": {
+          "operator": "sqrt"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/multiply",
+      "type": "MathOp",
+      "data": {
+        "inputs": {
+          "operator": "multiply",
+          "b": 100
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 235.19973882458825,
+        "y": 548.5423198131313
       }
     }
   ],
@@ -167,11 +184,11 @@
       "targetHandle": "par.getPosition"
     },
     {
-      "id": "/radius-accessor.out.accessor->/scatterplot-layer.par.getRadius",
-      "source": "/radius-accessor",
+      "source": "/multiply",
+      "sourceHandle": "out.result",
       "target": "/scatterplot-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getRadius"
+      "targetHandle": "par.getRadius",
+      "id": "/multiply.out.result->/scatterplot-layer.par.getRadius"
     },
     {
       "source": "/magnitude-color",
@@ -207,6 +224,20 @@
       "target": "/map-range",
       "targetHandle": "par.val",
       "id": "/magnitude-accessor.out.accessor->/map-range.par.val"
+    },
+    {
+      "source": "/magnitude-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/sqrt",
+      "targetHandle": "par.a",
+      "id": "/magnitude-accessor.out.accessor->/sqrt.par.a"
+    },
+    {
+      "source": "/magnitude-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/multiply",
+      "targetHandle": "par.a",
+      "id": "/magnitude-accessor.out.accessor->/multiply.par.a"
     }
   ],
   "viewport": {

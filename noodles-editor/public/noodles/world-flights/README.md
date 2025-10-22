@@ -1,26 +1,36 @@
 # World Flights
 
-## Overview
-This example visualizes global flight routes between major airports worldwide using arc layers to show connections between cities.
+_Adapted from [Kepler.gl examples](https://kepler.gl/)_
 
-## What It Demonstrates
-- **Global-scale visualization**: Worldwide airport connections
-- **Arc layer usage**: Great circle routes between airports
-- **Source-target relationships**: Origin-destination pairs for flights
-- **High-density data**: Efficiently rendering thousands of flight routes
+## Overview
+This example displays actual recorded flight trajectories as colored line paths across a global map. Each line represents an aircraft's journey, colored by the aircraft's country of origin. The trajectories show the complete path with altitude and timestamp data for each point along the route, creating a snapshot of global air traffic.
 
 ## Key Techniques
-- **Data source**: Flight route data with origin and destination airports
-- **Position accessors**: Extract source and target coordinates for each route
-- **Arc layer**: `ArcLayerOp` draws curved lines (great circles) between airports
-- **Global basemap**: Shows entire world for context
-- **Opacity control**: Manages visual complexity with many overlapping routes
+- **Data source**: `FileOp` loads GeoJSON with LineString flight paths
+- **Path layer**: `GeoJsonLayerOp` renders flight trajectories
+- **Animated layer**: `TripsLayerOp` shows animated flight paths with trail effects
+- **Country accessor**: `AccessorOp` with expression `d.properties.origin_country` extracts country string
+- **Color mapping**: `CategoricalColorRampOp` assigns distinct colors to each country category
+- **Basemap**: `MaplibreBasemapOp` showing global view
 
 ## Data Structure
-Expected to contain flight route data with:
-- Origin airport coordinates (longitude, latitude)
-- Destination airport coordinates (longitude, latitude)
-- Optional: flight frequency, airline, route info
+The GeoJSON file contains flight trajectory features with:
+- `geometry`: LineString with coordinates [longitude, latitude, altitude, timestamp] for each point
+- `properties`:
+  - `icao24`: Aircraft identifier
+  - `origin_country`: Country of aircraft origin
+  - `callsign`: Flight callsign
+  - `airline`: Airline name
+  - `country`: Additional country information
+
+## Node Graph Flow
+```
+Data → GeoJSON Layer → Deck → Out
+     ↘ Trips Layer ↗
+     ↘ origin-country Accessor → CategoricalColorRamp → Layer Colors
+```
+
+The `origin-country` accessor extracts the country string from each flight feature. This string flows into a `CategoricalColorRampOp`, which automatically assigns a unique color from a predefined color scheme to each distinct country. The color output then flows to both the `GeoJsonLayerOp` (for static paths) and `TripsLayerOp` (for animated trails), ensuring consistent coloring across both visualization layers.
 
 ## Use Cases
 This pattern is useful for visualizing:

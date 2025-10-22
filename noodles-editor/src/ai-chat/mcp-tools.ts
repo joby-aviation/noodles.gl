@@ -8,6 +8,7 @@ import type {
   ConsoleError
 } from './types'
 import { opMap } from '../noodles/store'
+import { safeStringify } from '../noodles/utils/serialization'
 
 export class MCPTools {
   private consoleErrors: ConsoleError[] = []
@@ -904,47 +905,21 @@ export class MCPTools {
     )?.name
   }
 
-  private safeStringify(obj: any): string {
-    try {
-      // Handle null/undefined
-      if (obj === null || obj === undefined) {
-        return String(obj)
-      }
-
-      // Handle primitives
-      if (typeof obj !== 'object') {
-        return String(obj)
-      }
-
-      // Try JSON.stringify with circular reference handler
-      const seen = new WeakSet()
-      return JSON.stringify(obj, (_key, value) => {
-        if (typeof value === 'object' && value !== null) {
-          if (seen.has(value)) {
-            return '[Circular]'
-          }
-          seen.add(value)
-        }
-        return value
-      }, 2)
-    } catch {
-      // Fallback to toString if JSON.stringify fails
-      try {
-        return obj.toString()
-      } catch {
-        return '[Object]'
-      }
-    }
-  }
-
   private setupConsoleTracking() {
     const originalError = console.error
     console.error = (...args: any[]) => {
       this.consoleErrors.push({
         level: 'error',
-        message: args.map(arg =>
-          typeof arg === 'object' ? this.safeStringify(arg) : String(arg)
-        ).join(' '),
+        message: args.map(arg => {
+          if (typeof arg === 'object' && arg !== null) {
+            try {
+              return safeStringify(arg)
+            } catch {
+              return '[Object]'
+            }
+          }
+          return String(arg)
+        }).join(' '),
         stack: new Error().stack,
         timestamp: Date.now()
       })
@@ -960,9 +935,16 @@ export class MCPTools {
     console.warn = (...args: any[]) => {
       this.consoleErrors.push({
         level: 'warn',
-        message: args.map(arg =>
-          typeof arg === 'object' ? this.safeStringify(arg) : String(arg)
-        ).join(' '),
+        message: args.map(arg => {
+          if (typeof arg === 'object' && arg !== null) {
+            try {
+              return safeStringify(arg)
+            } catch {
+              return '[Object]'
+            }
+          }
+          return String(arg)
+        }).join(' '),
         stack: new Error().stack,
         timestamp: Date.now()
       })

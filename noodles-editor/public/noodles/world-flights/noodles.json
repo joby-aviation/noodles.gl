@@ -72,16 +72,30 @@
       }
     },
     {
-      "id": "/color-accessor",
+      "id": "/origin-country",
       "type": "AccessorOp",
       "data": {
         "inputs": {
-          "expression": "utils.stringToColor(d.properties.origin_country)"
+          "expression": "d.properties.origin_country"
         },
         "locked": false
       },
       "position": {
         "x": 104.43714285714285,
+        "y": 469.56857142857143
+      }
+    },
+    {
+      "id": "/color-ramp",
+      "type": "CategoricalColorRampOp",
+      "data": {
+        "inputs": {
+          "colorScheme": "category10"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 450,
         "y": 469.56857142857143
       }
     },
@@ -130,17 +144,24 @@
       "targetHandle": "par.data"
     },
     {
-      "id": "/color-accessor.out.accessor->/geojson-layer.par.getLineColor",
-      "source": "/color-accessor",
-      "target": "/geojson-layer",
+      "id": "/origin-country.out.accessor->/color-ramp.par.value",
+      "source": "/origin-country",
+      "target": "/color-ramp",
       "sourceHandle": "out.accessor",
+      "targetHandle": "par.value"
+    },
+    {
+      "id": "/color-ramp.out.color->/geojson-layer.par.getLineColor",
+      "source": "/color-ramp",
+      "target": "/geojson-layer",
+      "sourceHandle": "out.color",
       "targetHandle": "par.getLineColor"
     },
     {
-      "id": "/color-accessor.out.accessor->/trips-layer.par.getColor",
-      "source": "/color-accessor",
+      "id": "/color-ramp.out.color->/trips-layer.par.getColor",
+      "source": "/color-ramp",
       "target": "/trips-layer",
-      "sourceHandle": "out.accessor",
+      "sourceHandle": "out.color",
       "targetHandle": "par.getColor"
     },
     {

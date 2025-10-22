@@ -717,8 +717,8 @@ export class CombineXYOp extends Operator<CombineXYOp> {
   static description = 'Combine x and y into a 2D vector'
   createInputs() {
     return {
-      x: new NumberField(0, { step: 0.01 }),
-      y: new NumberField(0, { step: 0.01 }),
+      x: new NumberField(0, { step: 0.01, accessor: true }),
+      y: new NumberField(0, { step: 0.01, accessor: true }),
     }
   }
   createOutputs() {
@@ -727,7 +727,21 @@ export class CombineXYOp extends Operator<CombineXYOp> {
     }
   }
   execute({ x, y }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const xy = { x, y }
+    // Check if any inputs are accessor functions
+    const xIsAccessor = isAccessor(x)
+    const yIsAccessor = isAccessor(y)
+
+    if (!xIsAccessor && !yIsAccessor) {
+      // Both static values
+      return { xy: { x: x as number, y: y as number } }
+    }
+
+    // At least one is an accessor - return accessor function
+    const xy = (...args: unknown[]) => {
+      const xVal = xIsAccessor ? (x as (...args: unknown[]) => unknown)(...args) : (x as number)
+      const yVal = yIsAccessor ? (y as (...args: unknown[]) => unknown)(...args) : (y as number)
+      return { x: xVal, y: yVal }
+    }
     return { xy }
   }
 }
@@ -737,9 +751,9 @@ export class CombineXYZOp extends Operator<CombineXYZOp> {
   static description = 'Combine x, y, and z into a 3D vector'
   createInputs() {
     return {
-      x: new NumberField(0, { step: 0.01 }),
-      y: new NumberField(0, { step: 0.01 }),
-      z: new NumberField(0, { step: 0.01 }),
+      x: new NumberField(0, { step: 0.01, accessor: true }),
+      y: new NumberField(0, { step: 0.01, accessor: true }),
+      z: new NumberField(0, { step: 0.01, accessor: true }),
     }
   }
   createOutputs() {
@@ -748,7 +762,23 @@ export class CombineXYZOp extends Operator<CombineXYZOp> {
     }
   }
   execute({ x, y, z }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const xyz = { x, y, z }
+    // Check if any inputs are accessor functions
+    const xIsAccessor = isAccessor(x)
+    const yIsAccessor = isAccessor(y)
+    const zIsAccessor = isAccessor(z)
+
+    if (!xIsAccessor && !yIsAccessor && !zIsAccessor) {
+      // All static values
+      return { xyz: { x: x as number, y: y as number, z: z as number } }
+    }
+
+    // At least one is an accessor - return accessor function
+    const xyz = (...args: unknown[]) => {
+      const xVal = xIsAccessor ? (x as (...args: unknown[]) => unknown)(...args) : (x as number)
+      const yVal = yIsAccessor ? (y as (...args: unknown[]) => unknown)(...args) : (y as number)
+      const zVal = zIsAccessor ? (z as (...args: unknown[]) => unknown)(...args) : (z as number)
+      return { x: xVal, y: yVal, z: zVal }
+    }
     return { xyz }
   }
 }
@@ -758,7 +788,7 @@ export class SplitXYOp extends Operator<SplitXYOp> {
   static description = 'Split a 2D vector into its x and y components'
   createInputs() {
     return {
-      vec: new Vec2Field(),
+      vec: new Vec2Field({ x: 0, y: 0 }, { accessor: true }),
     }
   }
   createOutputs() {
@@ -768,7 +798,15 @@ export class SplitXYOp extends Operator<SplitXYOp> {
     }
   }
   execute({ vec }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const { x, y } = vec
+    if (isAccessor(vec)) {
+      // Return accessor functions for each component
+      const x = composeAccessor(vec, (v: { x: number; y: number }) => v.x)
+      const y = composeAccessor(vec, (v: { x: number; y: number }) => v.y)
+      return { x, y } as ExtractProps<typeof this.outputs>
+    }
+
+    // Static value
+    const { x, y } = vec as { x: number; y: number }
     return { x, y }
   }
 }
@@ -778,7 +816,7 @@ export class SplitXYZOp extends Operator<SplitXYZOp> {
   static description = 'Split a 3D vector into its x, y, and z components'
   createInputs() {
     return {
-      vec: new Vec3Field(),
+      vec: new Vec3Field({ x: 0, y: 0, z: 0 }, { accessor: true }),
     }
   }
   createOutputs() {
@@ -789,7 +827,16 @@ export class SplitXYZOp extends Operator<SplitXYZOp> {
     }
   }
   execute({ vec }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const { x, y, z } = vec
+    if (isAccessor(vec)) {
+      // Return accessor functions for each component
+      const x = composeAccessor(vec, (v: { x: number; y: number; z: number }) => v.x)
+      const y = composeAccessor(vec, (v: { x: number; y: number; z: number }) => v.y)
+      const z = composeAccessor(vec, (v: { x: number; y: number; z: number }) => v.z)
+      return { x, y, z } as ExtractProps<typeof this.outputs>
+    }
+
+    // Static value
+    const { x, y, z } = vec as { x: number; y: number; z: number }
     return { x, y, z }
   }
 }
@@ -799,10 +846,10 @@ export class CombineRGBAOp extends Operator<CombineRGBAOp> {
   static description = 'Combine r, g, b, and a into a color (range 0-255)'
   createInputs() {
     return {
-      r: new NumberField(0),
-      g: new NumberField(0),
-      b: new NumberField(0),
-      a: new NumberField(1),
+      r: new NumberField(0, { accessor: true }),
+      g: new NumberField(0, { accessor: true }),
+      b: new NumberField(0, { accessor: true }),
+      a: new NumberField(1, { accessor: true }),
     }
   }
   createOutputs() {
@@ -811,8 +858,26 @@ export class CombineRGBAOp extends Operator<CombineRGBAOp> {
     }
   }
   execute({ r, g, b, a }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const color = colorToHex([r, g, b, a])
-    return { color }
+    // Check if any inputs are accessor functions
+    const rIsAccessor = isAccessor(r)
+    const gIsAccessor = isAccessor(g)
+    const bIsAccessor = isAccessor(b)
+    const aIsAccessor = isAccessor(a)
+
+    if (!rIsAccessor && !gIsAccessor && !bIsAccessor && !aIsAccessor) {
+      // All static values
+      return { color: colorToHex([r as number, g as number, b as number, a as number]) }
+    }
+
+    // At least one is an accessor - return accessor function
+    const color = (...args: unknown[]) => {
+      const rVal = rIsAccessor ? (r as (...args: unknown[]) => unknown)(...args) : (r as number)
+      const gVal = gIsAccessor ? (g as (...args: unknown[]) => unknown)(...args) : (g as number)
+      const bVal = bIsAccessor ? (b as (...args: unknown[]) => unknown)(...args) : (b as number)
+      const aVal = aIsAccessor ? (a as (...args: unknown[]) => unknown)(...args) : (a as number)
+      return colorToHex([rVal as number, gVal as number, bVal as number, aVal as number])
+    }
+    return { color } as ExtractProps<typeof this.outputs>
   }
 }
 
@@ -821,7 +886,7 @@ export class SplitRGBAOp extends Operator<SplitRGBAOp> {
   static description = 'Split a color into its red, green, blue, and alpha components (range 0-255)'
   createInputs() {
     return {
-      color: new ColorField(),
+      color: new ColorField({ accessor: true }),
     }
   }
   createOutputs() {
@@ -833,10 +898,24 @@ export class SplitRGBAOp extends Operator<SplitRGBAOp> {
     }
   }
   execute({ color }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const [r, g, b, a] = hexToColor(color)
-      .split(',')
-      .map((v: string) => parseInt(v, 10))
-    return { r, g, b, a }
+    const parseColor = (c: string) => {
+      const [r, g, b, a] = hexToColor(c)
+        .split(',')
+        .map((v: string) => parseInt(v, 10))
+      return { r, g, b, a }
+    }
+
+    if (isAccessor(color)) {
+      // Return accessor functions for each component
+      const r = composeAccessor(color, (c: string) => parseColor(c).r)
+      const g = composeAccessor(color, (c: string) => parseColor(c).g)
+      const b = composeAccessor(color, (c: string) => parseColor(c).b)
+      const a = composeAccessor(color, (c: string) => parseColor(c).a)
+      return { r, g, b, a } as ExtractProps<typeof this.outputs>
+    }
+
+    // Static value
+    return parseColor(color as string)
   }
 }
 
@@ -863,9 +942,9 @@ export class HSLOp extends Operator<HSLOp> {
   static description = 'A color in HSL (hue, saturation, lightness) format'
   createInputs() {
     return {
-      h: new NumberField(0, { min: 0, max: 360, step: 1 }),
-      s: new NumberField(0.5, { min: 0, max: 1, step: 0.01 }),
-      l: new NumberField(0.8, { min: 0, max: 1, step: 0.01 }),
+      h: new NumberField(0, { min: 0, max: 360, step: 1, accessor: true }),
+      s: new NumberField(0.5, { min: 0, max: 1, step: 0.01, accessor: true }),
+      l: new NumberField(0.8, { min: 0, max: 1, step: 0.01, accessor: true }),
     }
   }
   createOutputs() {
@@ -874,8 +953,24 @@ export class HSLOp extends Operator<HSLOp> {
     }
   }
   execute({ h, s, l }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const color = hsl(h, s, l).formatHex()
-    return { color }
+    // Check if any inputs are accessor functions
+    const hIsAccessor = isAccessor(h)
+    const sIsAccessor = isAccessor(s)
+    const lIsAccessor = isAccessor(l)
+
+    if (!hIsAccessor && !sIsAccessor && !lIsAccessor) {
+      // All static values
+      return { color: hsl(h as number, s as number, l as number).formatHex() }
+    }
+
+    // At least one is an accessor - return accessor function
+    const color = (...args: unknown[]) => {
+      const hVal = hIsAccessor ? (h as (...args: unknown[]) => unknown)(...args) : (h as number)
+      const sVal = sIsAccessor ? (s as (...args: unknown[]) => unknown)(...args) : (s as number)
+      const lVal = lIsAccessor ? (l as (...args: unknown[]) => unknown)(...args) : (l as number)
+      return hsl(hVal as number, sVal as number, lVal as number).formatHex()
+    }
+    return { color } as ExtractProps<typeof this.outputs>
   }
 }
 
@@ -999,7 +1094,7 @@ export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
       colorRamp.setValue(interpolate)
     })
 
-    const value = new StringField('')
+    const value = new StringField('', { accessor: true })
 
     return {
       colorRamp,
@@ -1016,11 +1111,16 @@ export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
     colorRamp,
     value,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    let color = colorRamp(value)
+    const scale = (val: string) => {
+      const color = colorRamp(val)
 
-    // Some return values are in rgb, some are in hex. Convert them all to be safe
-    // TODO: VIS-813: Make all colors d3 Colors?
-    color = d3Color(color)?.formatHex()
+      // Some return values are in rgb, some are in hex. Convert them all to be safe
+      // TODO: VIS-813: Make all colors d3 Colors?
+      return d3Color(color)?.formatHex()
+    }
+
+    // Use composeAccessor helper to handle both static values and accessor functions
+    const color = composeAccessor(value, scale)
 
     return { color }
   }
@@ -1102,7 +1202,7 @@ export class BezierCurveOp extends Operator<BezierCurveOp> {
   static description = 'Bezier curve for mapping input values using an interactive graph editor'
   createInputs() {
     return {
-      factor: new NumberField(0.5, { min: 0, max: 1, step: 0.01 }),
+      factor: new NumberField(0.5, { min: 0, max: 1, step: 0.01, accessor: true }),
       curve: new BezierCurveField(),
     }
   }
@@ -1113,8 +1213,9 @@ export class BezierCurveOp extends Operator<BezierCurveOp> {
   }
   execute({ factor, curve }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const curveField = this.inputs.curve as BezierCurveField
-    const value = curveField.evaluate(factor)
-    return { value }
+    // Use composeAccessor helper to handle both static values and accessor functions
+    const value = composeAccessor(factor, (f: number) => curveField.evaluate(f))
+    return { value } as ExtractProps<typeof this.outputs>
   }
 }
 
@@ -1255,10 +1356,10 @@ export class DuckDbOp extends Operator<DuckDbOp> {
   }
 
   async execute({
-    query: queryString,
+    query: queryString = '',
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> | null {
-    const query = queryString?.trim()
-    if (!query) {
+    const queries = queryString.split(';').map(s => s.trim()).filter(Boolean).map(s => `${s};`)
+    if (!queries?.length) {
       return { data: [] }
     }
 
@@ -1266,32 +1367,51 @@ export class DuckDbOp extends Operator<DuckDbOp> {
     const conn = await db.connect()
 
     try {
-      // Parse the query and extract references
-      const references: FieldReference[] = []
-      const parameterizedQuery = query.replace(mustacheRe, (raw, opId, inOut, fieldPath) => {
-        // If the opId is a relative path (doesn't start with /), make it relative to current context
-        const resolvedOpId = opId.startsWith('/') ? opId : `./${opId}`
-        references.push({ opId: resolvedOpId, inOut, fieldPath, raw })
-        return `$${references.length}` // $1, $2, etc.
-      })
+      let data = []
+      for (const query of queries) {
+        if (!mustacheRe.test(query)) {
+          const result = await conn.query(query)
+          data = result.toArray()
+          continue
+        }
 
-      // Prepare the query with the current connection
-      const prepared = await conn.prepare(parameterizedQuery)
+        // Parse the query and extract references
+        const references: FieldReference[] = []
+        const parameterizedQuery = query.replace(mustacheRe, (raw, opId, inOut, fieldPath) => {
+          // If the opId is a relative path (doesn't start with /), make it relative to current context
+          const resolvedOpId = opId.startsWith('/') ? opId : `./${opId}`
+          references.push({ opId: resolvedOpId, inOut, fieldPath, raw })
+          return `$${references.length}` // $1, $2, etc.
+        })
 
-      // Resolve reference values
-      const positionalParams = references.map(({ opId, inOut, fieldPath }) => {
-        const op = getOp(opId, this.id)
-        const [firstKey, ...rest] = fieldPath.split('.')
-        return rest.reduce((d, prop) => d[prop], op?.[inOut][firstKey])
-      })
+        // Resolve reference values
+        const positionalParams = references.map(({ opId, inOut, fieldPath }) => {
+          const op = getOp(opId, this.id)
+          const [firstKey, ...rest] = fieldPath.split('.')
 
-      const result = await prepared.query(...positionalParams)
-      const data = await result.toArray()
+          const field = op?.[inOut === 'par' ? 'inputs' : 'outputs']?.[firstKey]
+          if (!field) {
+            throw new Error(`Field ${firstKey} not found on ${opId}`)
+          }
+
+          return rest.reduce((d, prop) => d[prop], field.value)
+        })
+
+        // Prepare the query with the current connection
+        const prepared = await conn.prepare(parameterizedQuery)
+
+        const result = await prepared.query(...positionalParams)
+        data = result.toArray()
+      }
       await conn.close()
       return { data }
     } catch (e) {
       console.error('Error executing query', e)
       await conn.close()
+      await db.reset()
+      if (e instanceof Error) {
+        throw e
+      }
       return null
     }
   }

@@ -1,28 +1,29 @@
 # US County Unemployment
 
-## Overview
-This example visualizes unemployment rates across US counties, creating a choropleth map to show economic patterns across the country.
+_Adapted from [Kepler.gl examples](https://kepler.gl/)_
 
-## What It Demonstrates
-- **Choropleth mapping**: Color-coded regions by unemployment rate
-- **National-scale statistics**: All US counties
-- **Economic data visualization**: Unemployment trends
-- **Multi-scale analysis**: State and county-level patterns
+## Overview
+This example creates a choropleth map of all US counties where each county's color represents its unemployment rate. Counties with higher unemployment appear in one color (typically darker or more intense) while lower unemployment counties appear in another, creating a visual map of economic health across the entire United States.
 
 ## Key Techniques
-- **Data source**: County boundary data with unemployment statistics
-- **Polygon layer**: `GeoJsonLayerOp` or `PolygonLayerOp` for county shapes
-- **Color ramp**: Sequential color scale from low to high unemployment
-- **Data classification**: Binning unemployment rates into categories
-- **US basemap**: Continental United States view
+- **Data source**: `FileOp` loads county boundaries with unemployment statistics
+- **Polygon layer**: `GeoJsonLayerOp` renders county shapes
+- **Color mapping**: `ColorRampOp` creates sequential scale from low to high unemployment
+- **Basemap**: `MaplibreBasemapOp` showing continental United States
 
 ## Data Structure
-County unemployment data includes:
-- County boundary geometry (polygons)
-- Unemployment rate (percentage)
-- County name and FIPS code
-- Possibly time series data for trends
-- Labor force statistics
+The GeoJSON file contains county features with:
+- `geometry`: MultiPolygon county boundaries
+- `properties`:
+  - `NAME`: County name
+  - `GEOID`: Geographic identifier (state + county FIPS code)
+  - `STATEFP`, `COUNTYFP`: State and county FIPS codes
+  - `unemployment_rate`: Unemployment rate (percentage)
+  - `labor_force`: Total labor force count
+  - `employed`: Number of employed persons
+  - `unemployment_level`: Number of unemployed persons
+  - `ALAND`, `AWATER`: Land and water area (square meters)
+  - `LSAD`, `COUNTYNS`, `AFFGEOID`: Additional identifiers
 
 ## Use Cases
 This pattern is useful for:

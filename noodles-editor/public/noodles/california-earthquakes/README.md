@@ -1,27 +1,28 @@
 # California Earthquakes
 
-## Overview
-This example visualizes earthquake data for California, where the size of each point represents earthquake magnitude and colors represent intensity using a color ramp.
+_Adapted from [Kepler.gl example](https://kepler.gl/demo/earthquakes)_
 
-## What It Demonstrates
-- **Data-driven sizing**: Circle radius scales with earthquake magnitude using square root for better visual perception
-- **Color ramps**: Using `ColorRampOp` to map magnitude values to a color gradient
-- **Value mapping**: `MapRangeOp` normalizes magnitude values for color mapping
-- **Accessor expressions**: JavaScript expressions to transform data values
+## Overview
+This example visualizes California earthquake data where both the size and color of each point are driven by magnitude values. Larger earthquakes appear as bigger circles with more intense colors, using a square root scale for perceptually accurate sizing and a normalized color ramp to map magnitude values to a gradient. This demonstrates data-driven styling where a single metric (magnitude) controls multiple visual properties.
 
 ## Key Techniques
 - **Data source**: `FileOp` loads earthquake data from CSV
-- **Position accessor**: Extracts `[Longitude, Latitude]` from data
-- **Magnitude accessor**: Extracts magnitude value for both radius and color calculations
-- **Radius calculation**: `Math.sqrt(d.Magnitude) * 15` creates perceptually better sizing
-- **Value normalization**: `MapRangeOp` scales magnitude from 0-5 range to 0-1 for color ramp
-- **Color ramp**: Maps normalized values to a gradient (likely blue to red for intensity)
+- **Position accessor**: `AccessorOp` with expression `[d.Longitude, d.Latitude]` extracts coordinates
+- **Magnitude accessor**: `AccessorOp` with expression `d.Magnitude` extracts magnitude value
+- **Radius calculation**: `AccessorOp` with expression `Math.sqrt(d.Magnitude) * 15` for perceptually better sizing
+- **Value normalization**: `MapRangeOp` scales magnitude from 0-5 range to 0-1
+- **Color mapping**: `ColorRampOp` maps normalized values to a color gradient
+- **Layer**: `ScatterplotLayerOp` displays the circles
 
 ## Data Structure
 The CSV file contains earthquake records with fields:
-- `Longitude`, `Latitude`: Geographic location
+- `DateTime`: Timestamp of earthquake
+- `Latitude`, `Longitude`: Geographic location
+- `Depth`: Depth in kilometers
 - `Magnitude`: Richter scale magnitude
-- Additional fields like depth, time, location description
+- `MagType`: Magnitude type (e.g., Mx)
+- `NbStations`, `Gap`, `Distance`, `RMS`: Seismic measurement metadata
+- `Source`, `EventID`: Data source and unique identifier
 
 ## Node Graph Flow
 ```
