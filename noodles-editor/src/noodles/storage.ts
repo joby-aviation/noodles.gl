@@ -256,11 +256,7 @@ export async function checkProjectExists(type: StorageType, projectName: string)
     try {
       const publicPath = `./noodles/${projectName}/noodles.json`
       const response = await fetch(publicPath, { method: 'HEAD' })
-      if (response.ok) return true
-      // Try alternative path
-      const altPath = `./noodles/${projectName}.json`
-      const altResponse = await fetch(altPath, { method: 'HEAD' })
-      return altResponse.ok
+      return response.ok
     } catch (_error) {
       return false
     }
