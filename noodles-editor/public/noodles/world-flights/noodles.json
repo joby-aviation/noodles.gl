@@ -89,7 +89,9 @@
       "id": "/color-ramp",
       "type": "CategoricalColorRampOp",
       "data": {
-        "inputs": {},
+        "inputs": {
+          "colorScheme": "category10"
+        },
         "locked": false
       },
       "position": {
