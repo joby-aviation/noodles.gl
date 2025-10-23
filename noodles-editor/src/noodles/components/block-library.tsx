@@ -2,8 +2,10 @@ import { useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
 import { matchSorter } from 'match-sorter'
 import {
+  forwardRef,
   useCallback,
   useEffect,
+  useImperativeHandle,
   useMemo,
   useRef,
   useState,
@@ -14,11 +16,16 @@ import { useSlice } from '../store'
 import { createNodesForType, getNodeTypeOptions, type NodeType } from '../utils/node-creation-utils'
 import { getNodeDescription, headerClass, typeCategory, typeDisplayName } from './op-components'
 
+export interface BlockLibraryRef {
+  openModal: (screenX?: number, screenY?: number) => void
+  closeModal: () => void
+}
+
 type BlockLibraryProps = {
   reactFlowRef: React.RefObject<HTMLDivElement>
 }
 
-export function BlockLibrary({ reactFlowRef }: BlockLibraryProps) {
+export const BlockLibrary = forwardRef<BlockLibraryRef, BlockLibraryProps>(({ reactFlowRef }, ref) => {
     const { addNodes, addEdges, screenToFlowPosition } = useReactFlow()
     const [isOpen, setIsOpen] = useState(false)
     const { currentContainerId } = useSlice(state => state.nesting)
@@ -44,6 +51,12 @@ export function BlockLibrary({ reactFlowRef }: BlockLibraryProps) {
       setIsOpen(true)
     }, [])
 
+    // Expose methods to parent component
+    useImperativeHandle(ref, () => ({
+      openModal: onOpenModal,
+      closeModal: onCloseModal,
+    }))
+
     // Track last mouse position to use when Tab is pressed
     const lastMousePosRef = useRef<{ x: number; y: number } | null>(null)
 
@@ -59,7 +72,7 @@ export function BlockLibrary({ reactFlowRef }: BlockLibraryProps) {
       return () => pane.removeEventListener('mousemove', handleMouseMove)
     }, [reactFlowRef])
 
-    const addNode = (_e: React.MouseEvent<HTMLDivElement>, type: NodeType) => {
+    const addNode = (type: NodeType) => {
       const pane = reactFlowRef.current?.getBoundingClientRect()
       if (!pane) return
 
@@ -137,26 +150,17 @@ export function BlockLibrary({ reactFlowRef }: BlockLibraryProps) {
       }
     }, [isOpen])
 
-    // Handle Tab key to open modal and Escape to close
+    // Handle Escape to close
     useEffect(() => {
       const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.key === 'Tab') {
-          e.preventDefault()
-          if (isOpen) {
-            onCloseModal()
-          } else {
-            // Pass the last known mouse position when opening via Tab
-            const lastPos = lastMousePosRef.current
-            onOpenModal(lastPos?.x, lastPos?.y)
-          }
-        } else if (e.key === 'Escape' && isOpen) {
+        if (e.key === 'Escape' && isOpen) {
           onCloseModal()
         }
       }
 
       document.addEventListener('keydown', handleKeyDown)
       return () => document.removeEventListener('keydown', handleKeyDown)
-    }, [isOpen, onCloseModal, onOpenModal])
+    }, [isOpen, onCloseModal])
 
     if (!isOpen) return null
 
@@ -210,8 +214,8 @@ export function BlockLibrary({ reactFlowRef }: BlockLibraryProps) {
                         className={s.blockLibraryCard}
                         role="button"
                         tabIndex={0}
-                        onClick={e => addNode(e, type)}
-                        onKeyDown={e => e.key === 'Enter' && addNode(e, type)}
+                        onClick={() => addNode(type)}
+                        onKeyDown={e => e.key === 'Enter' && addNode(type)}
                       >
                         <div className={s.blockLibraryCardHeader}>
                           <div className={s.blockLibraryCardTitle}>{displayName}</div>
@@ -233,4 +237,4 @@ export function BlockLibrary({ reactFlowRef }: BlockLibraryProps) {
       </div>,
       document.body
     )
-}
+})
