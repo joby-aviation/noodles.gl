@@ -1,9 +1,10 @@
 // ChatPanel - Main UI component for Claude AI integration
 
 import { useEffect, useRef, useState, type FC } from 'react'
+import { useReactFlow } from '@xyflow/react'
 
 import { ClaudeClient } from './claude-client'
-import { ContextLoader } from './context-loader'
+import { globalContextManager } from './global-context-manager'
 import { MCPTools } from './mcp-tools'
 import type { Message } from './types'
 import {
@@ -12,20 +13,29 @@ import {
 } from './conversation-history'
 import { ConversationHistoryPanel } from './conversation-history-panel'
 import styles from './chat-panel.module.css'
+import { useProjectModifications, type ProjectModification } from '../noodles/hooks/use-project-modifications'
 
 interface ChatPanelProps {
   project: any
-  onProjectUpdate: (project: any) => void
   onClose: () => void
   isVisible: boolean
 }
 
 export const ChatPanel: FC<ChatPanelProps> = ({
   project,
-  onProjectUpdate,
   onClose,
   isVisible
 }) => {
+  // Get ReactFlow state for the modification hook
+  const { getNodes, getEdges, setNodes, setEdges } = useReactFlow()
+
+  // Use project modifications hook with ReactFlow state
+  const { applyModifications } = useProjectModifications({
+    getNodes,
+    getEdges,
+    setNodes,
+    setEdges
+  })
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -36,8 +46,22 @@ export const ChatPanel: FC<ChatPanelProps> = ({
   const [autoCapture, setAutoCapture] = useState(true)
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
   const [showHistory, setShowHistory] = useState(false)
+  const [contextProgress, setContextProgress] = useState<string>('')
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Subscribe to context loading progress
+  useEffect(() => {
+    const unsubscribe = globalContextManager.subscribe((state) => {
+      if (state.status === 'loading') {
+        setContextProgress(`Loading ${state.progress.stage}...`)
+      } else {
+        setContextProgress('')
+      }
+    })
+
+    return unsubscribe
+  }, [])
 
   useEffect(() => {
     const init = async () => {
@@ -52,19 +76,15 @@ export const ChatPanel: FC<ChatPanelProps> = ({
       }
 
       try {
-        const loader = new ContextLoader()
+        // Wait for context to be ready (should be instant if already loaded)
+        const loader = await globalContextManager.waitForReady()
+
         const tools = new MCPTools(loader)
         const client = new ClaudeClient(apiKey.trim(), tools)
 
         setMcpTools(tools)
         setClaudeClient(client)
         setContextLoading(false)
-
-        loader.load((progress) => {
-          console.log('Loading context:', progress.stage, `${progress.loaded}/${progress.total}`)
-        }).catch(error => {
-          console.warn('Context loading failed:', error)
-        })
       } catch (error) {
         console.error('Failed to initialize Claude:', error)
         setContextLoading(false)
@@ -73,6 +93,13 @@ export const ChatPanel: FC<ChatPanelProps> = ({
 
     init()
   }, [])
+
+  // Update MCPTools with current project whenever it changes
+  useEffect(() => {
+    if (mcpTools && project) {
+      mcpTools.setProject(project)
+    }
+  }, [mcpTools, project])
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -108,7 +135,26 @@ export const ChatPanel: FC<ChatPanelProps> = ({
 
       // Apply project modifications if any
       if (response.projectModifications && response.projectModifications.length > 0) {
-        applyProjectModifications(response.projectModifications)
+        console.log('Applying project modifications:', response.projectModifications)
+        const result = applyModifications(response.projectModifications as ProjectModification[])
+
+        if (!result.success) {
+          // Surface validation errors back to the user and AI
+          const errorMessage = `Failed to apply modifications: ${result.error}`
+          console.error(errorMessage)
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: errorMessage
+          }])
+        } else if (result.warnings && result.warnings.length > 0) {
+          // Show warnings in console and chat
+          console.warn('Modification warnings:', result.warnings)
+          const warningMessage = `⚠️ Modifications applied with warnings:\n${result.warnings.map(w => `• ${w}`).join('\n')}`
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: warningMessage
+          }])
+        }
       }
     } catch (error) {
       console.error('Error sending message:', error)
@@ -139,37 +185,6 @@ export const ChatPanel: FC<ChatPanelProps> = ({
     }
   }
 
-  const applyProjectModifications = (modifications: any[]) => {
-    const updatedProject = { ...project }
-
-    modifications.forEach(mod => {
-      switch (mod.type) {
-        case 'add_node':
-          updatedProject.nodes = [...(updatedProject.nodes || []), mod.data]
-          break
-        case 'update_node':
-          updatedProject.nodes = (updatedProject.nodes || []).map((node: any) =>
-            node.id === mod.data.id ? { ...node, ...mod.data } : node
-          )
-          break
-        case 'delete_node':
-          updatedProject.nodes = (updatedProject.nodes || []).filter(
-            (node: any) => node.id !== mod.data.id
-          )
-          break
-        case 'add_edge':
-          updatedProject.edges = [...(updatedProject.edges || []), mod.data]
-          break
-        case 'delete_edge':
-          updatedProject.edges = (updatedProject.edges || []).filter(
-            (edge: any) => edge.id !== mod.data.id
-          )
-          break
-      }
-    })
-
-    onProjectUpdate(updatedProject)
-  }
 
   const handleApiKeySubmit = async (key: string, remember: boolean) => {
     if (remember) {
@@ -183,10 +198,8 @@ export const ChatPanel: FC<ChatPanelProps> = ({
     setShowApiKeyModal(false)
 
     try {
-      const loader = new ContextLoader()
-      await loader.load((progress) => {
-        console.log('Loading context:', progress.stage, `${progress.loaded}/${progress.total}`)
-      })
+      // Wait for context to be ready (should be instant if already loaded)
+      const loader = await globalContextManager.waitForReady()
 
       const tools = new MCPTools(loader)
       const client = new ClaudeClient(key, tools)
@@ -276,7 +289,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({
       <div className={styles.chatPanel}>
         <div className={styles.chatPanelLoading}>
           <div className={styles.spinner} />
-          <p>Loading context...</p>
+          <p>{contextProgress || 'Loading context...'}</p>
         </div>
       </div>
     )
@@ -353,7 +366,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({
               <li>Suggest operators and patterns</li>
               <li>Analyze data and create queries</li>
             </ul>
-            <p>Try asking: "Create a heatmap showing density"</p>
+            <p>Try asking: "Create a heatmap showing density of taxi pickups in NYC"</p>
           </div>
         )}
 

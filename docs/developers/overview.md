@@ -79,40 +79,51 @@ field.subscribe(value => {
 
 ### 1. Create an Operator
 ```typescript
-class CustomOperator extends Operator {
-  static path = "custom/my-operator"
+export class CustomOperator extends Operator<CustomOperator> {
+  static displayName = 'CustomOperator'
+  static description = 'Description of what this operator does'
 
-  execute(inputs: InputSchema): OutputSchema {
+  createInputs() {
+    return {
+      data: new ArrayField(new UnknownField()),
+      threshold: new NumberField(50, { min: 0, max: 100 })
+    }
+  }
+
+  createOutputs() {
+    return {
+      result: new DataField()
+    }
+  }
+
+  execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     // Pure function: inputs → outputs
-    return processedData
+    return { result: processedData }
   }
 }
 ```
 
-### 2. Define Fields
+### 2. Add to opTypes
+
 ```typescript
-const inputs = {
-  data: new ArrayField([], {
-    element: recordSchema
-  }),
-  threshold: new NumberField(50, {
-    min: 0,
-    max: 100
-  })
-}
+// In operators.ts, add your operator to the opTypes export
+export const opTypes = {
+  // ... existing operators
+  CustomOperator,
+} as const
 ```
 
-### 3. Register & Test
-```typescript
-// Register your operator
-registerOperator(CustomOperator)
+### 3. Add to categories
 
-// Write tests
-describe('CustomOperator', () => {
-  it('processes data correctly', () => {
-    // Test implementation
-  })
-})
+```typescript
+// In categories.ts, add your operator to the appropriate category
+export const categories = {
+  'data': [
+    'CustomOperator',
+    // ... other operators
+  ],
+  // ... other categories
+}
 ```
 
 ## Next Steps

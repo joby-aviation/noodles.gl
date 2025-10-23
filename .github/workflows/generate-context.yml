@@ -22,9 +22,18 @@ jobs:
         with:
           node-version: '20'
           cache: 'yarn'
+          cache-dependency-path: |
+            noodles-editor/yarn.lock
+            website/yarn.lock
 
       - name: Install dependencies
         run: yarn install:all
+
+      - name: Clean old context files
+        run: |
+          cd noodles-editor
+          rm -rf public/app/context/*
+          mkdir -p public/app/context
 
       - name: Generate context bundles
         run: |

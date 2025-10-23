@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { MCPTools } from './mcp-tools'
 import type { Message, ClaudeResponse, ProjectModification, ToolCall, ToolResult } from './types'
+import systemPromptTemplate from './system-prompt.md?raw'
 
 export class ClaudeClient {
   // Configuration constants
@@ -57,24 +58,25 @@ export class ClaudeClient {
     // Limit conversation history to prevent token overflow
     const limitedHistory = conversationHistory.slice(-ClaudeClient.MAX_CONVERSATION_HISTORY)
 
-    // Auto-capture screenshot if message suggests visual issue
-    let screenshot = params.screenshot
-    let screenshotFormat = params.screenshotFormat || 'jpeg'
-    const visualKeywords = ['see', 'look', 'show', 'appear', 'display', 'visual', 'render', 'color', 'layer']
-    const shouldAutoCapture = params.autoCapture !== false &&
-      visualKeywords.some(kw => message.toLowerCase().includes(kw))
+    // Auto-capture is disabled by default - too large for context
+    // AI should explicitly use capture_visualization tool when needed
+    const screenshot = params.screenshot
+    const screenshotFormat = params.screenshotFormat || 'jpeg'
 
-    if (shouldAutoCapture && !screenshot) {
-      // Use lower quality and JPEG for auto-capture to reduce token usage
-      const result = await this.tools.captureVisualization({ format: 'jpeg', quality: 0.5 })
-      if (result.success) {
-        screenshot = result.data.screenshot
-        screenshotFormat = result.data.format || 'jpeg'
-      }
-    }
+    // Disable auto-capture to reduce token usage
+    // const visualKeywords = ['see', 'look', 'show', 'appear', 'display', 'visual', 'render', 'color', 'layer']
+    // const shouldAutoCapture = params.autoCapture !== false &&
+    //   visualKeywords.some(kw => message.toLowerCase().includes(kw))
+    //
+    // if (shouldAutoCapture && !screenshot) {
+    //   const result = await this.tools.captureVisualization({ format: 'jpeg', quality: 0.5 })
+    //   if (result.success) {
+    //     screenshot = result.data.screenshot
+    //     screenshotFormat = result.data.format || 'jpeg'
+    //   }
+    // }
 
-    // Build system prompt
-    const systemPrompt = this.buildSystemPrompt(project)
+    const systemPrompt = systemPromptTemplate
 
     // Prepare message content (with optional screenshot)
     const userContent: any[] = [{ type: 'text', text: message }]
@@ -134,6 +136,7 @@ export class ClaudeClient {
     let finalText = ''
     let capturedScreenshot: string | null = null
     let capturedScreenshotFormat: 'png' | 'jpeg' = 'jpeg'
+    const collectedModifications: ProjectModification[] = []
 
     // Handle tool use loop
     while (response.stop_reason === 'tool_use') {
@@ -158,6 +161,12 @@ export class ClaudeClient {
             if (content.name === 'capture_visualization' && result.success && result.data?.screenshot) {
               capturedScreenshot = result.data.screenshot
               capturedScreenshotFormat = result.data.format || 'jpeg'
+            }
+
+            // If this was an apply_modifications call, collect the modifications
+            if (content.name === 'apply_modifications' && result.success && result.data?.modifications) {
+              console.log('[Claude] Collected modifications from tool call:', result.data.modifications)
+              collectedModifications.push(...result.data.modifications)
             }
           } catch (error) {
             console.error('Error executing tool:', content.name, error)
@@ -251,39 +260,24 @@ export class ClaudeClient {
       }
     }
 
-    // Parse project modifications from response
-    const projectModifications = this.extractProjectModifications(finalText)
+    // Parse project modifications from response text
+    const textModifications = this.extractProjectModifications(finalText)
+
+    // Combine modifications from tool calls and text
+    const allModifications = [...collectedModifications, ...textModifications]
+    console.log('[Claude] Total modifications to apply:', allModifications.length)
 
     return {
       message: finalText,
-      projectModifications,
+      projectModifications: allModifications,
       toolCalls
     }
   }
 
-  private buildSystemPrompt(project: any): string {
-    const nodeCount = (project.nodes || []).length
-    const edgeCount = (project.edges || []).length
-
-    return `You are an AI assistant for Noodles.gl, a node-based geospatial visualization editor.
-
-**Project**: ${nodeCount} nodes, ${edgeCount} connections
-
-**Key Rules**:
-- Always arrange nodes LEFT to RIGHT (data sources left, layers middle, output right)
-- Verify work with \`capture_visualization\` after changes
-- Don't output code unless asked - use the node graph
-- Output modifications as JSON: \`{"modifications": [{"type": "add_node", "data": {...}}]}\`
-
-**Common Operators**: FileOp, JSONOp, DuckDbOp, GeoJsonLayerOp, ScatterplotLayerOp, HexagonLayerOp, DeckRendererOp, OutOp
-
-Use tools to see visuals, check errors, and inspect layers.`
-  }
-
   private getTools(): Anthropic.Tool[] {
-    // Only include visual debugging tools by default (lightweight)
-    // Context tools are loaded lazily when needed
+    // Essential tools for visualization, debugging, and project state manipulation
     return [
+      // Visual debugging tools
       {
         name: 'capture_visualization',
         description: 'Capture a screenshot of the current visualization. The screenshot will be attached to your next message so you can see it.',
@@ -326,6 +320,74 @@ Use tools to see visuals, check errors, and inspect layers.`
           },
           required: ['layerId']
         }
+      },
+      // Project state tools
+      {
+        name: 'apply_modifications',
+        description: 'Apply modifications to the project (add/update/delete nodes or edges). Use this instead of returning JSON in text.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            modifications: {
+              type: 'array',
+              description: 'Array of modifications to apply',
+              items: {
+                type: 'object',
+                properties: {
+                  type: {
+                    type: 'string',
+                    enum: ['add_node', 'update_node', 'delete_node', 'add_edge', 'delete_edge']
+                  },
+                  data: {
+                    type: 'object',
+                    description: 'The node or edge data'
+                  }
+                },
+                required: ['type', 'data']
+              }
+            }
+          },
+          required: ['modifications']
+        }
+      },
+      {
+        name: 'get_current_project',
+        description: 'Get the current project state including all nodes and edges',
+        input_schema: {
+          type: 'object',
+          properties: {}
+        }
+      },
+      {
+        name: 'list_nodes',
+        description: 'List all nodes in the project with their current state and execution status',
+        input_schema: {
+          type: 'object',
+          properties: {}
+        }
+      },
+      {
+        name: 'get_node_info',
+        description: 'Get detailed information about a specific node including connections and schema',
+        input_schema: {
+          type: 'object',
+          properties: {
+            nodeId: { type: 'string', description: 'The ID of the node to inspect' }
+          },
+          required: ['nodeId']
+        }
+      },
+      {
+        name: 'get_node_output',
+        description: 'Read the output data from a specific operator/node. Useful for inspecting data at any point in the pipeline.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            nodeId: { type: 'string', description: 'The ID of the node to read output from' },
+            maxRows: { type: 'number', description: 'Maximum number of rows to return (default: 10)' }
+          },
+          required: ['nodeId']
+        }
       }
     ]
   }
@@ -344,7 +406,12 @@ Use tools to see visuals, check errors, and inspect layers.`
       capture_visualization: (p) => this.tools.captureVisualization(p),
       get_console_errors: (p) => this.tools.getConsoleErrors(p),
       get_render_stats: () => this.tools.getRenderStats(),
-      inspect_layer: (p) => this.tools.inspectLayer(p)
+      inspect_layer: (p) => this.tools.inspectLayer(p),
+      apply_modifications: (p) => this.tools.applyModifications(p),
+      get_current_project: () => this.tools.getCurrentProject(),
+      list_nodes: () => this.tools.listNodes(),
+      get_node_info: (p) => this.tools.getNodeInfo(p),
+      get_node_output: (p) => this.tools.getNodeOutput(p)
     }
 
     const method = methodMap[name]
@@ -359,17 +426,23 @@ Use tools to see visuals, check errors, and inspect layers.`
     const jsonBlockRegex = /```json\s*([\s\S]*?)\s*```/g
     const matches = [...text.matchAll(jsonBlockRegex)]
 
+    console.log('[Claude] Extracting modifications from response, found', matches.length, 'JSON blocks')
+
     for (const match of matches) {
       try {
         const json = JSON.parse(match[1])
+        console.log('[Claude] Parsed JSON block:', json)
         if (json.modifications && Array.isArray(json.modifications)) {
+          console.log('[Claude] Found modifications array with', json.modifications.length, 'modifications')
           return json.modifications
         }
       } catch (e) {
+        console.warn('[Claude] Failed to parse JSON block:', e)
         continue
       }
     }
 
+    console.log('[Claude] No modifications found in response')
     return []
   }
 }

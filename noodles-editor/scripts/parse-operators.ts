@@ -1,8 +1,6 @@
 #!/usr/bin/env tsx
-/**
- * Parse operator classes from operators.ts using TypeScript Compiler API
- * Extracts: displayName, description, inputs (with types), outputs (with types)
- */
+// Parse operator classes from operators.ts using TypeScript Compiler API
+// Extracts: displayName, description, inputs (with types), outputs (with types)
 
 import * as ts from 'typescript'
 import * as fs from 'fs'
@@ -64,7 +62,7 @@ export function parseOperatorsFile(filePath: string): Map<string, OperatorMetada
 
       for (const member of node.members) {
         if (ts.isPropertyDeclaration(member) &&
-            member.modifiers?.some(m => m.kind === ts.SyntaxKind.StaticKeyword)) {
+          member.modifiers?.some(m => m.kind === ts.SyntaxKind.StaticKeyword)) {
           const propName = member.name.getText(sourceFile)
           const initializer = member.initializer
 

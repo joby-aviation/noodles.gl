@@ -6,18 +6,12 @@ import type {
   Connection,
   DefaultEdgeOptions,
   FitViewOptions,
-  OnConnect,
   Edge as ReactFlowEdge,
   Node as ReactFlowNode,
 } from '@xyflow/react'
 import {
-  addEdge,
-  applyEdgeChanges,
   Background,
   Controls,
-  getConnectedEdges,
-  getIncomers,
-  getOutgoers,
   ReactFlow,
   reconnectEdge,
   useEdgesState,
@@ -39,8 +33,7 @@ import 'primeicons/primeicons.css'
 import { SheetProvider } from '../utils/sheet-context'
 import useSheetValue from '../utils/use-sheet-value'
 import type { Visualization } from '../visualizations'
-import { AddNodeMenu, type AddNodeMenuRef } from './components/add-node-menu'
-import { BlockLibrary } from './components/block-library'
+import { BlockLibrary, type BlockLibraryRef } from './components/block-library'
 import { Breadcrumbs } from './components/breadcrumbs'
 import { CopyControls } from './components/copy-controls'
 import { DropTarget } from './components/drop-target'
@@ -53,19 +46,19 @@ import { ProjectNameBar, UNSAVED_PROJECT_NAME } from './components/project-name-
 import { ProjectNotFoundDialog } from './components/project-not-found-dialog'
 import { StorageErrorHandler } from './components/storage-error-handler'
 import { ChatPanel } from '../ai-chat/chat-panel'
-import { ListField } from './fields'
+import { globalContextManager } from '../ai-chat/global-context-manager'
+import { useProjectModifications } from './hooks/use-project-modifications'
 import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
 import { IS_PROD, projectId } from './globals'
 import s from './noodles.module.css'
-import type { IOperator, Operator, OpType, OutOp } from './operators'
+import type { IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
 import { load } from './storage'
 import { opMap, useSlice, hoveredOutputHandle } from './store'
 import { transformGraph } from './transform-graph'
-import { canConnect } from './utils/can-connect'
 import { edgeId, nodeId } from './utils/id-utils'
 import { migrateProject } from './utils/migrate-schema'
-import { getParentPath, parseHandleId } from './utils/path-utils'
+import { getParentPath } from './utils/path-utils'
 import { pick } from './utils/pick'
 import { EMPTY_PROJECT, type NoodlesProjectJSON } from './utils/serialization'
 
@@ -174,191 +167,31 @@ export function getNoodles(): Visualization {
   const [nodes, setNodes, onNodesChange] = useNodesState<AnyNodeJSON>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<ReactFlowEdge<unknown>>([])
   const vPressed = useKeyPress('v')
+  const aPressed = useKeyPress('a')
   const [showChatPanel, setShowChatPanel] = useState(false)
+
+  // Eagerly start loading AI context bundles on app start
+  useEffect(() => {
+    globalContextManager.startLoading().catch(error => {
+      console.warn('Failed to preload AI context:', error)
+    })
+  }, [])
 
   // `transformGraph` needs all nodes to build the opMap and resolve connections
   const operators = useMemo(() => transformGraph({ nodes, edges }), [nodes, edges])
+
+  // Use shared hook for project modifications
+  const { onConnect, onNodesDelete } = useProjectModifications({
+    getNodes: useCallback(() => nodes, [nodes]),
+    getEdges: useCallback(() => edges, [edges]),
+    setNodes,
+    setEdges
+  })
 
   const onReconnect = useCallback(
     (oldEdge: ReactFlowEdge, newConnection: Connection) =>
       setEdges(els => reconnectEdge(oldEdge, newConnection, els)),
     [setEdges]
-  )
-
-  const onConnect: OnConnect = useCallback(
-    connection => {
-      const newEdge = {
-        ...connection,
-        id: edgeId(connection),
-      }
-
-      const source = nodes.find(n => n.id === connection.source) as
-        | ReactFlowNode<OpType>
-        | undefined
-      if (!source) {
-        console.warn('Invalid source', connection)
-        return
-      }
-      const targetIndex = nodes.findIndex(n => n.id === connection.target)
-      const target = nodes[targetIndex] as ReactFlowNode<OpType> | undefined
-      if (!target) {
-        console.warn('Invalid target', connection)
-        return
-      }
-
-      const sourceOp = ops.get(source.id)
-      const targetOp = ops.get(target.id)
-
-      if (!sourceOp || !targetOp) {
-        console.warn('Invalid source or target', connection)
-        return
-      }
-
-      // TODO: multiple connections: https://reactflow.dev/examples/edges/multi-connection-line
-      // Extract field names from qualified handle IDs
-      const sourceHandleInfo = parseHandleId(connection.sourceHandle!)
-      const targetHandleInfo = parseHandleId(connection.targetHandle!)
-
-      if (!sourceHandleInfo || !targetHandleInfo) {
-        console.warn('Invalid handle IDs', connection)
-        return
-      }
-
-      const sourceField = sourceOp.outputs[sourceHandleInfo.fieldName]
-      const targetField = targetOp.inputs[targetHandleInfo.fieldName]
-      if (!sourceField || !targetField) {
-        console.warn('Invalid connection', connection)
-        return
-      }
-
-      // TODO: Mark the edge as invalid visually
-      if (!canConnect(sourceField, targetField)) {
-        return
-      }
-
-      setEdges(eds => {
-        const existing = eds.find(
-          e => e.target === newEdge.target && e.targetHandle === newEdge.targetHandle
-        )
-        if (existing && !(targetField instanceof ListField)) {
-          return applyEdgeChanges([{ type: 'replace', id: existing.id, item: newEdge }], eds)
-        }
-        return addEdge(newEdge, eds)
-      })
-
-      setNodes(nds => {
-        const updated = [...nds]
-        const value =
-          targetField instanceof ListField
-            ? Array.from(targetField.fields.values()).map(f => f.value)
-            : sourceField.value
-
-        updated[targetIndex] = {
-          ...target,
-          data: {
-            ...target.data,
-            inputs: {
-              ...target.data?.inputs,
-              [sourceHandleInfo.fieldName]: value,
-            },
-          },
-        }
-
-        return updated
-      })
-
-      targetField.addConnection(newEdge.id, sourceField)
-    },
-    [nodes, setNodes, setEdges, ops]
-  )
-
-  const onNodesDelete = useCallback(
-    (deleted: ReactFlowNode<unknown>[]) => {
-      const extraDeleted = new Set()
-      for (const node of deleted) {
-        // Delete the parent node, and the BeginOp if the EndOp is deleted, or the EndOp if the BeginOp is deleted
-        if (node.type === 'ForLoopBeginOp' || node.type === 'ForLoopEndOp') {
-          const parent = node.parentId
-          extraDeleted.add(parent)
-          const siblingType = node.type === 'ForLoopBeginOp' ? 'ForLoopEndOp' : 'ForLoopBeginOp'
-          const sibling = nodes.find(n => n.parentId === parent && n.type === siblingType)
-          if (sibling) {
-            extraDeleted.add(sibling.id)
-          }
-        }
-      }
-      if (extraDeleted.size) {
-        setNodes(nds => {
-          return nds
-            .filter(n => !extraDeleted.has(n.id))
-            .map(n => {
-              if (extraDeleted.has(n.parentId)) {
-                return { ...n, parentId: undefined }
-              }
-              return n
-            })
-        })
-      }
-
-      setEdges(
-        deleted.reduce((acc, node) => {
-          const incomers = getIncomers(node, nodes, edges)
-          const outgoers = getOutgoers(node, nodes, edges)
-          const connectedEdges = getConnectedEdges([node], edges)
-
-          const remainingEdges = acc.filter(edge => !connectedEdges.includes(edge))
-
-          // Intelligently update the sourceHandle and targetHandle of the edges. This is simple for now
-          const sourceHandle = connectedEdges.find(edge => edge.target === node.id)?.sourceHandle
-          if (!sourceHandle) {
-            console.warn('Invalid source handle', node)
-            return remainingEdges
-          }
-          const targetHandle = connectedEdges.find(edge => edge.source === node.id)?.targetHandle
-          if (!targetHandle) {
-            console.warn('Invalid target handle', node)
-            return remainingEdges
-          }
-
-          // Parse handle IDs to get field names
-          const sourceHandleInfo = parseHandleId(sourceHandle)
-          const targetHandleInfo = parseHandleId(targetHandle)
-
-          if (!sourceHandleInfo || !targetHandleInfo) {
-            console.warn('Invalid handle IDs', sourceHandle, targetHandle)
-            return remainingEdges
-          }
-
-          const createdEdges = incomers.flatMap(({ id: source }) =>
-            outgoers
-              .filter(({ id: target }) => {
-                const sourceField = opMap.get(source)?.outputs[sourceHandleInfo.fieldName]
-                const targetField = opMap.get(target)?.inputs[targetHandleInfo.fieldName]
-                if (!sourceField || !targetField) {
-                  console.warn('Invalid source or target field', source, target)
-                  return false
-                }
-                return canConnect(sourceField, targetField)
-              })
-              .map(({ id: target }) => ({
-                id: edgeId({
-                  source,
-                  target,
-                  sourceHandle,
-                  targetHandle,
-                }),
-                source,
-                target,
-                sourceHandle,
-                targetHandle,
-              }))
-          )
-
-          return [...remainingEdges, ...createdEdges]
-        }, edges)
-      )
-    },
-    [nodes, edges, setNodes, setEdges]
   )
 
   const onNodeClick = useCallback(
@@ -370,7 +203,7 @@ export function getNoodles(): Visualization {
   )
 
   const reactFlowRef = useRef<HTMLDivElement>(null)
-  const menuRef = useRef<AddNodeMenuRef>(null)
+  const blockLibraryRef = useRef<BlockLibraryRef>(null)
 
   const onDeselectAll = useCallback(() => {
     setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
@@ -378,23 +211,14 @@ export function getNoodles(): Visualization {
   }, [setNodes, setEdges])
 
   const onPaneClick = useCallback(() => {
-    menuRef.current?.closeMenu()
+    blockLibraryRef.current?.closeModal()
     onDeselectAll()
   }, [onDeselectAll])
 
   const onPaneContextMenu = useCallback((event: React.MouseEvent<Element, MouseEvent>) => {
     event.preventDefault()
-    // Show Add Node menu
-    const pane = reactFlowRef.current?.getBoundingClientRect()
-    if (!pane) return
-    menuRef.current?.openMenu({
-      top: event.clientY < pane.height - 200 ? event.clientY : 0,
-      left: event.clientX < pane.width - 400 ? event.clientX - 200 : 0,
-      right: event.clientX >= pane.width - 200 ? pane.width - event.clientX : 0,
-      bottom: event.clientY >= pane.height - 200 ? pane.height - event.clientY : 0,
-      screenX: event.clientX,
-      screenY: event.clientY,
-    })
+    // Show Block Library at the right-click position
+    blockLibraryRef.current?.openModal(event.clientX, event.clientY)
   }, [])
 
   const vPressHandledRef = useRef(false)
@@ -515,6 +339,29 @@ export function getNoodles(): Visualization {
     })
   }, [vPressed, ops, setNodes, setEdges, currentContainerId])
 
+  const aPressHandledRef = useRef(false)
+
+  // Handle 'a' key press to open Block Library
+  useEffect(() => {
+    if (!aPressed) {
+      // Reset the flag when key is released
+      aPressHandledRef.current = false
+      return
+    }
+
+    // Only handle once per key press
+    if (aPressHandledRef.current) return
+    aPressHandledRef.current = true
+
+    // Open Block Library at center of screen
+    const pane = reactFlowRef.current?.getBoundingClientRect()
+    if (!pane) return
+
+    const centerX = pane.left + pane.width / 2
+    const centerY = pane.top + pane.height / 2
+    blockLibraryRef.current?.openModal(centerX, centerY)
+  }, [aPressed])
+
   const editorSheet = useMemo(() => {
     return theatreSheet.object('editor', {
       showOverlay: types.boolean(!IS_PROD),
@@ -561,10 +408,7 @@ export function getNoodles(): Visualization {
       if (projectId) {
         // First try to load from static files (for built-in examples)
         try {
-          let req = await fetch(`./noodles/${projectId}.json`)
-          if (!req.ok) {
-            req = await fetch(`./noodles/${projectId}/noodles.json`)
-          }
+          const req = await fetch(`./noodles/${projectId}/noodles.json`)
           const noodlesFile = (await req.json()) as Partial<NoodlesProjectJSON>
           const project = await migrateProject({
             ...EMPTY_PROJECT,
@@ -625,11 +469,6 @@ export function getNoodles(): Visualization {
     }))
   }, [edges])
 
-  const handleProjectUpdate = useCallback((updatedProject: { nodes: AnyNodeJSON[], edges: ReactFlowEdge<unknown>[] }) => {
-    setNodes(updatedProject.nodes)
-    setEdges(updatedProject.edges)
-  }, [setNodes, setEdges])
-
   const flowGraph = theatreReady && (
     <ErrorBoundary>
       <div className={cx('react-flow-wrapper', !showOverlay && 'react-flow-wrapper-hidden')}>
@@ -657,9 +496,13 @@ export function getNoodles(): Visualization {
             >
               <Background />
               <Controls position="bottom-right" />
-              <AddNodeMenu ref={menuRef} reactFlowRef={reactFlowRef} />
-              <BlockLibrary reactFlowRef={reactFlowRef} />
+              <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />
               <CopyControls />
+              <ChatPanel
+                project={{ nodes, edges }}
+                onClose={() => setShowChatPanel(false)}
+                isVisible={showChatPanel}
+              />
             </ReactFlow>
           </SheetProvider>
         </PrimeReactProvider>
@@ -673,13 +516,6 @@ export function getNoodles(): Visualization {
           onClose={() => setShowProjectNotFoundDialog(false)}
         />
         <StorageErrorHandler />
-
-        <ChatPanel
-          project={{ nodes, edges }}
-          onProjectUpdate={handleProjectUpdate}
-          onClose={() => setShowChatPanel(false)}
-          isVisible={showChatPanel}
-        />
       </div>
     </ErrorBoundary>
   )

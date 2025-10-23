@@ -2,10 +2,12 @@
 
 Basic workflows for using Noodles.gl to create geospatial visualizations and animations.
 
+> New to node-based workflows? Start with [Introduction to Workflows](./workflows-intro.md) to learn the fundamentals of how data flows through Noodles.gl.
+
 ## Interface Overview
 
 ### Node Editor
-- **Add Operators**: Right-click or press 'a' to open the operator menu
+- **Add Operators**: Right-click an empty area of the canvas or press 'a' to open the operator menu
 - **Connect Data**: Drag from output handles to input handles
 - **Navigate**: Use breadcrumbs to move between containers, or press 'u' to go up one container level
 
