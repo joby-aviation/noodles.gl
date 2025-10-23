@@ -86,7 +86,7 @@ Start by loading your data:
 [File] → (outputs: data)
 ```
 
-1. Right-click and search for  "JSON Fetch". You should see the `FileOp` operator. Click it and add it to the canvas.
+1. Right-click and search for "JSON Fetch". You should see the `FileOp` operator. Click it and add it to the canvas.
 2. Configure the format (JSON or CSV) and URL in the Properties Panel
 3. The output contains your loaded data
 
