@@ -38,7 +38,8 @@ jobs:
         id: playwright-version
         run: |
           cd noodles-editor
-          echo "version=$(node -p "require('./package.json').devDependencies['@playwright/test']")" >> $GITHUB_OUTPUT
+          version=$(yarn info @playwright/test version --json | jq -r .data)
+          echo "version=$version" >> $GITHUB_OUTPUT
 
       - name: Cache Playwright browsers
         uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
