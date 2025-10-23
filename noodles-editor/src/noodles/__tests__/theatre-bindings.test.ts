@@ -36,10 +36,11 @@ function createField<T extends Field>(
 describe('theatre-bindings', () => {
   let testProject: ReturnType<typeof getProject>
   let testSheet: ReturnType<ReturnType<typeof getProject>['sheet']>
+  let testCounter = 0
 
   beforeEach(() => {
-    // Create a unique test project
-    const projectName = `test-${Date.now()}`
+    // Create a unique test project (3-32 chars per Theatre requirement)
+    const projectName = `test-${testCounter++}`
     testProject = getProject(projectName, {})
     testSheet = testProject.sheet('test-sheet')
 
@@ -192,7 +193,7 @@ describe('theatre-bindings', () => {
       cleanup?.()
     })
 
-    it('should setup two-way bindings', async () => {
+    it('should setup two-way bindings', () => {
       const numberField = createField(NumberField, 42, { min: 0, max: 100, step: 1 }, '/test-op', 'value')
 
       const mockOp = {
@@ -205,9 +206,6 @@ describe('theatre-bindings', () => {
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
-
-      // Wait for theatre to be ready
-      await testProject.ready
 
       // Get the sheet object
       const sheetObj = sheetObjectMap.get('/test-op')
@@ -358,19 +356,19 @@ describe('theatre-bindings', () => {
       const mockOps = [
         {
           id: '/op1',
-          inputs: { value: new NumberField('/op1/par.value', 1) },
+          inputs: { value: createField(NumberField, 1, { min: 0, max: 100, step: 1 }, '/op1', 'value') },
           outputs: {},
           locked: { value: false },
         },
         {
           id: '/op2',
-          inputs: { value: new NumberField('/op2/par.value', 2) },
+          inputs: { value: createField(NumberField, 2, { min: 0, max: 100, step: 1 }, '/op2', 'value') },
           outputs: {},
           locked: { value: false },
         },
         {
           id: '/op3',
-          inputs: { value: new NumberField('/op3/par.value', 3) },
+          inputs: { value: createField(NumberField, 3, { min: 0, max: 100, step: 1 }, '/op3', 'value') },
           outputs: {},
           locked: { value: false },
         },
@@ -396,7 +394,7 @@ describe('theatre-bindings', () => {
       const mockOps = [
         {
           id: '/op1',
-          inputs: { value: new NumberField('/op1/par.value', 1) },
+          inputs: { value: createField(NumberField, 1, { min: 0, max: 100, step: 1 }, '/op1', 'value') },
           outputs: {},
           locked: { value: false },
         },
@@ -414,13 +412,13 @@ describe('theatre-bindings', () => {
       const mockOps = [
         {
           id: '/op1',
-          inputs: { value: new NumberField('/op1/par.value', 1) },
+          inputs: { value: createField(NumberField, 1, { min: 0, max: 100, step: 1 }, '/op1', 'value') },
           outputs: {},
           locked: { value: false },
         },
         {
           id: '/op2',
-          inputs: { value: new NumberField('/op2/par.value', 2) },
+          inputs: { value: createField(NumberField, 2, { min: 0, max: 100, step: 1 }, '/op2', 'value') },
           outputs: {},
           locked: { value: false },
         },
@@ -445,13 +443,13 @@ describe('theatre-bindings', () => {
       const ops1 = [
         {
           id: '/op1',
-          inputs: { value: new NumberField('/op1/par.value', 1) },
+          inputs: { value: createField(NumberField, 1, { min: 0, max: 100, step: 1 }, '/op1', 'value') },
           outputs: {},
           locked: { value: false },
         },
         {
           id: '/op2',
-          inputs: { value: new NumberField('/op2/par.value', 2) },
+          inputs: { value: createField(NumberField, 2, { min: 0, max: 100, step: 1 }, '/op2', 'value') },
           outputs: {},
           locked: { value: false },
         },
@@ -469,13 +467,13 @@ describe('theatre-bindings', () => {
       const ops2 = [
         {
           id: '/op1',
-          inputs: { value: new NumberField('/op1/par.value', 1) },
+          inputs: { value: createField(NumberField, 1, { min: 0, max: 100, step: 1 }, '/op1', 'value') },
           outputs: {},
           locked: { value: false },
         },
         {
           id: '/op3',
-          inputs: { value: new NumberField('/op3/par.value', 3) },
+          inputs: { value: createField(NumberField, 3, { min: 0, max: 100, step: 1 }, '/op3', 'value') },
           outputs: {},
           locked: { value: false },
         },
@@ -501,7 +499,7 @@ describe('theatre-bindings', () => {
       const containerOp = {
         id: '/container',
         inputs: {
-          in: new NumberField('/container/par.in', 10),
+          in: createField(NumberField, 10, { min: 0, max: 100, step: 1 }, '/container', 'in'),
         },
         outputs: {},
         locked: { value: false },
