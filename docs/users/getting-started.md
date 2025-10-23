@@ -2,6 +2,8 @@
 
 Basic workflows for using Noodles.gl to create geospatial visualizations and animations.
 
+> New to node-based workflows? Start with [Introduction to Workflows](./workflows-intro.md) to learn the fundamentals of how data flows through Noodles.gl.
+
 ## Interface Overview
 
 ### Node Editor

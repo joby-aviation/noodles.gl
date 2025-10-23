@@ -20,7 +20,9 @@ const sidebars: SidebarsConfig = {
       collapsed: false,
       items: [
         'users/getting-started',
+        'users/workflows-intro',
         'users/operators-guide',
+        'users/deckgl-maplibre-guide',
         'users/data-guide',
         'users/animation-and-rendering',
         'users/comparison',

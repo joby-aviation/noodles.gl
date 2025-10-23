@@ -12,14 +12,14 @@ Use a `FileOp` to read a file from a URL or text. Supports csv and json, such as
   "flights": [
     {
       "origin": "SFO",
-      "destination": "LAX", 
+      "destination": "LAX",
       "coordinates": [-122.4194, 37.7749]
     }
   ]
 }
 ```
 
-### CSV Data  
+### CSV Data
 ```javascript
 origin,destination,passengers,coordinates
 SFO,LAX,150,"[-122.4194, 37.7749]"
@@ -49,7 +49,7 @@ SFO,LAX,150,"[-122.4194, 37.7749]"
 
 ### Code Operators
 
-Run custom JavaScript code on the data. Use `data` to access the input data list, `d` for the first element of the list, and `op` to access other operators. Also passes a freeExports object with `turf` and `d3` utils. Use `this` to store state.
+Run custom JavaScript code on the data. Use `data` to access the input data list, `d` for the first element of the list, and `op` to access other operators. Also passes a freeExports object with utils like `turf` and `d3`, and all Noodles.gl operator classes. Use `this` to store state.
 
 ```javascript
 // CodeOp
@@ -92,11 +92,19 @@ return _.mapValues(
 )
 ```
 
+```javascript
+// CodeOp - use turf for geospatial calculations
+const buffered = d.map(feature =>
+  turf.buffer(feature, 5, { units: 'kilometers' })
+)
+return buffered
+```
+
 ## Common Data Tasks
 
 ### Coordinate Conversion
 ```javascript
-// Convert lat/lng to [lng, lat] for Deck.gl
+// Convert lat/lng to [lng, lat] for Deck.gl as a reactive reference
 const data = op('./raw-coordinates').out.data
 return data.map(point => ({
   ...point,
