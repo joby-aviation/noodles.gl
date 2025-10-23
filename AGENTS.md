@@ -304,7 +304,7 @@ yarn build:all
 ### Development URLs
 
 - **Local**: `http://localhost:5173/?project=example`
-- **Specific Project**: Replace `example` with project name from `noodles-editor/public/noodles/`
+- **Specific Project**: Replace `example` with project name from `noodles-editor/public/examples/`
 - **Safe Mode**: Add `&safeMode=true` to disable code execution
 
 ### Testing
@@ -608,7 +608,7 @@ it('should update state correctly', () => {
 ## Additional Resources
 
 - **Documentation**: [docs/](docs/) folder contains user and developer guides
-- **Examples**: [noodles-editor/public/noodles/](noodles-editor/public/noodles/) contains example projects
+- **Examples**: [noodles-editor/public/examples/](noodles-editor/public/examples/) contains example projects
 - **Architecture**: [dev-docs/architecture.md](dev-docs/architecture.md) for detailed architecture
 - **Tech Stack**: [dev-docs/tech-stack.md](dev-docs/tech-stack.md) for technology details
 - **Contributing**: [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines

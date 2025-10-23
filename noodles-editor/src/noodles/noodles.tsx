@@ -61,6 +61,7 @@ import { edgeId, nodeId } from './utils/id-utils'
 import { migrateProject } from './utils/migrate-schema'
 import { getParentPath } from './utils/path-utils'
 import { pick } from './utils/pick'
+import newProjectJSON from '../../public/new.json?url'
 import { EMPTY_PROJECT, type NoodlesProjectJSON } from './utils/serialization'
 
 export type Edge<N1 extends Operator<IOperator>, N2 extends Operator<IOperator>> = {
@@ -383,49 +384,59 @@ export function getNoodles(): Visualization {
   // biome-ignore lint/correctness/useExhaustiveDependencies: loadProjectFile would cause infinite loop
   useEffect(() => {
     ;(async () => {
-      if (projectId) {
-        // First try to load from static files (for built-in examples)
+      // If no projectId, load the default new project
+      if (!projectId) {
         try {
-          const req = await fetch(`./noodles/${projectId}/noodles.json`)
-          const noodlesFile = (await req.json()) as Partial<NoodlesProjectJSON>
-          const project = await migrateProject({
-            ...EMPTY_PROJECT,
-            ...noodlesFile,
-          } as NoodlesProjectJSON)
-          // Set project name and storage type for public projects so @/ asset paths work
-          setCurrentDirectory(null, projectId)
-          setActiveStorageType('publicFolder')
-          loadProjectFile(project, projectId)
+          const project = await fetch(newProjectJSON).then(res => res.json()) as NoodlesProjectJSON
+          loadProjectFile(project)
           return
         } catch (_error) {
-          console.log('Static project file not found, trying storage...')
+          console.error('Failed to load default new project:', _error)
         }
+        return
+      }
 
-        // Try to load from storage (OPFS or File System Access API)
-        try {
-          const result = await load(storageType, projectId)
-          if (result.success) {
-            const project = await migrateProject(result.data.projectData)
-            // Update store with directory handle, project name, and storage type
-            setCurrentDirectory(result.data.directoryHandle, projectId)
-            // storageType here is already correct (opfs or fileSystemAccess)
-            loadProjectFile(project, projectId)
+      // First try to load from static files (for built-in examples)
+      try {
+        const req = await fetch(`./examples/${projectId}/noodles.json`)
+        const noodlesFile = (await req.json()) as Partial<NoodlesProjectJSON>
+        const project = await migrateProject({
+          ...EMPTY_PROJECT,
+          ...noodlesFile,
+        } as NoodlesProjectJSON)
+        // Set project name and storage type for public projects so @/ asset paths work
+        setCurrentDirectory(null, projectId)
+        setActiveStorageType('publicFolder')
+        loadProjectFile(project, projectId)
+        return
+      } catch (_error) {
+        console.log('Static project file not found, trying storage...')
+      }
+
+      // Try to load from storage (OPFS or File System Access API)
+      try {
+        const result = await load(storageType, projectId)
+        if (result.success) {
+          const project = await migrateProject(result.data.projectData)
+          // Update store with directory handle, project name, and storage type
+          setCurrentDirectory(result.data.directoryHandle, projectId)
+          // storageType here is already correct (opfs or fileSystemAccess)
+          loadProjectFile(project, projectId)
+        } else {
+          // Project not found in storage - show dialog
+          if (result.error.type === 'not-found') {
+            setShowProjectNotFoundDialog(true)
           } else {
-            // Project not found in storage - show dialog
-            if (result.error.type === 'not-found') {
-              setShowProjectNotFoundDialog(true)
-            } else {
-              setError(result.error)
-            }
+            setError(result.error)
           }
-        } catch (error) {
-          setError({
-            type: 'unknown',
-            message: 'Error loading project',
-            details: error instanceof Error ? error.message : 'Unknown error',
-            originalError: error,
-          })
         }
+      } catch (error) {
+        setError({
+          type: 'unknown',
+          message: 'Error loading project',
+          details: error instanceof Error ? error.message : 'Unknown error',
+          originalError: error,
+        })
       }
     })()
   }, [])

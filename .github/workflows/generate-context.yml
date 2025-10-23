@@ -8,7 +8,7 @@ on:
     paths:
       - 'noodles-editor/src/**'
       - 'docs/**'
-      - 'noodles-editor/public/noodles/**'
+      - 'noodles-editor/public/examples/**'
   workflow_dispatch:
 
 jobs:

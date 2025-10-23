@@ -32,8 +32,8 @@ function contextGeneratorPlugin() {
     'src/noodles/fields.ts',
     'src/noodles/components/categories.ts',
     'src/ai-chat/**/*.md',
-    'public/noodles/**/noodles.json',
-    'public/noodles/**/README.md',
+    'public/examples/**/noodles.json',
+    'public/examples/**/README.md',
   ]
 
   async function generateContext() {

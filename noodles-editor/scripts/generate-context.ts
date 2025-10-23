@@ -22,7 +22,7 @@ const ROOT_DIR = path.join(process.cwd(), '..')
 const SRC_DIR = path.join(process.cwd(), 'src')
 const DOCS_DIR = path.join(ROOT_DIR, 'docs')
 const AI_CHAT_DIR = path.join(SRC_DIR, 'ai-chat')
-const EXAMPLES_DIR = path.join(process.cwd(), 'public', 'noodles')
+const EXAMPLES_DIR = path.join(process.cwd(), 'public', 'examples')
 const OUTPUT_DIR = path.join(process.cwd(), 'public', 'app', 'context')
 
 const packageJson = JSON.parse(
@@ -223,7 +223,7 @@ function generateDocsIndex(): DocsIndex {
     }
   }
 
-  // 3. Load example READMEs from public/noodles/*/README.md
+  // 3. Load example READMEs from public/examples/*/README.md
   if (fs.existsSync(EXAMPLES_DIR)) {
     const exampleDirs = fs.readdirSync(EXAMPLES_DIR, { withFileTypes: true })
       .filter(entry => entry.isDirectory())

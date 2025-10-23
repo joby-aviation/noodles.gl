@@ -56,7 +56,7 @@ on:
     paths:
       - 'noodles-editor/src/**'
       - 'docs/**'
-      - 'noodles-editor/public/noodles/**'
+      - 'noodles-editor/public/examples/**'
   workflow_dispatch:
 
 jobs:
@@ -105,7 +105,7 @@ This script should:
    - Extract headings, code examples, links
 
 3. **Process Examples**
-   - Load all `.json` files from `/noodles-editor/public/noodles`
+   - Load all `.json` files from `/noodles-editor/public/examples`
    - Analyze node types, connections, patterns
    - Generate natural language descriptions
 
