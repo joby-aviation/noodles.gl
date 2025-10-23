@@ -48,13 +48,14 @@ import { StorageErrorHandler } from './components/storage-error-handler'
 import { ChatPanel } from '../ai-chat/chat-panel'
 import { globalContextManager } from '../ai-chat/global-context-manager'
 import { useProjectModifications } from './hooks/use-project-modifications'
+import { bindOperatorToTheatre, cleanupRemovedOperators } from './theatre-bindings'
 import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
 import { IS_PROD, projectId } from './globals'
 import s from './noodles.module.css'
 import type { IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
 import { load } from './storage'
-import { opMap, useSlice, hoveredOutputHandle } from './store'
+import { opMap, sheetObjectMap, useSlice, hoveredOutputHandle } from './store'
 import { transformGraph } from './transform-graph'
 import { edgeId, nodeId } from './utils/id-utils'
 import { migrateProject } from './utils/migrate-schema'
@@ -179,6 +180,37 @@ export function getNoodles(): Visualization {
 
   // `transformGraph` needs all nodes to build the opMap and resolve connections
   const operators = useMemo(() => transformGraph({ nodes, edges }), [nodes, edges])
+
+  // Bind Theatre.js objects for all operators (outside ReactFlow rendering pipeline)
+  // This ensures containers and all other operators can be keyframed in the timeline
+  useEffect(() => {
+    if (!theatreReady || !theatreSheet) return
+
+    // Track cleanup functions for newly bound operators
+    const newCleanupFns = new Map<string, () => void>()
+
+    // Only bind operators that aren't already bound
+    for (const op of operators) {
+      if (!sheetObjectMap.has(op.id)) {
+        const cleanup = bindOperatorToTheatre(op, theatreSheet)
+        if (cleanup) {
+          newCleanupFns.set(op.id, cleanup)
+        }
+      }
+    }
+
+    // Cleanup operators that are no longer in the graph
+    const currentOperatorIds = new Set(operators.map(op => op.id))
+    cleanupRemovedOperators(currentOperatorIds, theatreSheet)
+
+    // Return cleanup function only for newly bound operators
+    return () => {
+      for (const cleanup of newCleanupFns.values()) {
+        cleanup()
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [theatreReady, theatreSheet, operators])
 
   // Use shared hook for project modifications
   const { onConnect, onNodesDelete } = useProjectModifications({
