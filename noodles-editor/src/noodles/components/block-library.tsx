@@ -104,7 +104,6 @@ export function BlockLibrary({ reactFlowRef }: BlockLibraryProps) {
             item => typeDisplayName(item),
             item => getNodeDescription(item),
           ],
-          threshold: matchSorter.rankings.CONTAINS,
         })
       }
 

@@ -100,7 +100,6 @@ export const AddNodeMenu = forwardRef<AddNodeMenuRef, AddNodeMenuProps>(({ react
         item => typeDisplayName(item),
         item => getNodeDescription(item),
       ],
-      threshold: matchSorter.rankings.CONTAINS,
     })
   }, [options, searchText])
 
