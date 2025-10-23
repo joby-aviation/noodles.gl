@@ -99,7 +99,13 @@ export function BlockLibrary({ reactFlowRef }: BlockLibraryProps) {
 
       // Filter by search text
       if (searchText) {
-        results = matchSorter(results, searchText)
+        results = matchSorter(results, searchText, {
+          keys: [
+            item => typeDisplayName(item),
+            item => getNodeDescription(item),
+          ],
+          threshold: matchSorter.rankings.CONTAINS,
+        })
       }
 
       // Filter by category

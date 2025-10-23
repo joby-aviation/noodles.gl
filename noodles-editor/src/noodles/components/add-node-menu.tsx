@@ -95,7 +95,13 @@ export const AddNodeMenu = forwardRef<AddNodeMenuRef, AddNodeMenuProps>(({ react
 
   // TODO: replace this and Geocoder with a typeahead / autocomplete component
   const searchResults = useMemo(() => {
-    return matchSorter(options, searchText)
+    return matchSorter(options, searchText, {
+      keys: [
+        item => typeDisplayName(item),
+        item => getNodeDescription(item),
+      ],
+      threshold: matchSorter.rankings.CONTAINS,
+    })
   }, [options, searchText])
 
   const inputRef = useRef<HTMLInputElement>(null)

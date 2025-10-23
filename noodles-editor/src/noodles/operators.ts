@@ -1221,7 +1221,7 @@ export class BezierCurveOp extends Operator<BezierCurveOp> {
 
 export class FileOp extends Operator<FileOp> {
   static displayName = 'File'
-  static description = 'Read a file from a URL or text. Supports csv and json'
+  static description = 'Fetch a file from a URL or text. Supports csv and json'
   asDownload = () => this.outputData
   createInputs() {
     return {
