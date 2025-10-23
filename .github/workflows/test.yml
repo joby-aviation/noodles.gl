@@ -36,9 +36,9 @@ jobs:
 
       - name: Get Playwright version
         id: playwright-version
+        working-directory: noodles-editor
         run: |
-          cd noodles-editor
-          version=$(yarn info @playwright/test version --json | jq -r .data)
+          version=$(node -e "console.log(require('./package.json').devDependencies['@playwright/test'])")
           echo "version=$version" >> $GITHUB_OUTPUT
 
       - name: Cache Playwright browsers
