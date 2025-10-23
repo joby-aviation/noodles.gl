@@ -1,5 +1,4 @@
 import { getProject } from '@theatre/core'
-import studio from '@theatre/studio'
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
 import {
@@ -11,7 +10,6 @@ import {
   Vec3Field,
   type Field,
 } from '../fields'
-import { Operator } from '../operators'
 import { opMap, sheetObjectMap } from '../store'
 import {
   bindOperatorToTheatre,
@@ -301,7 +299,7 @@ describe('theatre-bindings', () => {
         },
         {
           id: '/op2',
-          inputs: { fn: { value: () => {}, subscribe: vi.fn() } },
+          inputs: { fn: { value: () => { }, subscribe: vi.fn() } },
           outputs: {},
           locked: { value: false },
         },
@@ -495,7 +493,8 @@ describe('theatre-bindings', () => {
       }
     })
 
-    it('should handle container operators', () => {
+    it('should handle container operators and their children', () => {
+      // Create a container operator
       const containerOp = {
         id: '/container',
         inputs: {
@@ -505,13 +504,35 @@ describe('theatre-bindings', () => {
         locked: { value: false },
       } as any
 
-      const cleanup = bindOperatorToTheatre(containerOp, testSheet)
+      // Create a child operator inside the container
+      const childOp = {
+        id: '/container/child',
+        inputs: {
+          value: createField(NumberField as any, 42, { min: 0, max: 100, step: 1 }, '/container/child', 'value'),
+        },
+        outputs: {},
+        locked: { value: false },
+      } as any
 
-      // Container should be bound like any other operator
+      // Bind both container and child
+      const cleanupContainer = bindOperatorToTheatre(containerOp, testSheet)
+      const cleanupChild = bindOperatorToTheatre(childOp, testSheet)
+
+      // Both container and child should be bound
       expect(sheetObjectMap.has('/container')).toBe(true)
+      expect(sheetObjectMap.has('/container/child')).toBe(true)
 
-      cleanup?.()
+      // Verify they have different Theatre object names
+      const containerSheetObj = sheetObjectMap.get('/container')
+      const childSheetObj = sheetObjectMap.get('/container/child')
+      expect(containerSheetObj).toBeDefined()
+      expect(childSheetObj).toBeDefined()
+
+      // Clean up both
+      cleanupContainer?.()
+      cleanupChild?.()
       expect(sheetObjectMap.has('/container')).toBe(false)
+      expect(sheetObjectMap.has('/container/child')).toBe(false)
     })
   })
 })

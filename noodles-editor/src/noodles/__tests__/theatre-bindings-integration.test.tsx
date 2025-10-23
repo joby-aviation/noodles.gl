@@ -1,15 +1,10 @@
-// Integration tests for Theatre.js bindings refactor
-//
-// These tests verify that the refactor from per-component Theatre binding
-// to centralized binding maintains the same behavior.
-
 import { getProject } from '@theatre/core'
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 
-import { NumberField, BooleanField, StringField } from '../fields'
 import { opMap, sheetObjectMap } from '../store'
 import { transformGraph } from '../transform-graph'
 import { bindAllOperatorsToTheatre, cleanupRemovedOperators } from '../theatre-bindings'
+import type { Edge } from '../noodles'
 
 describe('Theatre bindings integration', () => {
   let testProject: ReturnType<typeof getProject>
@@ -49,9 +44,9 @@ describe('Theatre bindings integration', () => {
 
     const edges = [
       {
-        id: '/number/out.value->/add/par.a',
+        id: '/number.out.val->/add.par.a',
         source: '/number',
-        sourceHandle: 'out.value',
+        sourceHandle: 'out.val',
         target: '/add',
         targetHandle: 'par.a',
       },
@@ -66,8 +61,8 @@ describe('Theatre bindings integration', () => {
     // Bind all operators using the new centralized approach
     const cleanupFns = bindAllOperatorsToTheatre(operators, testSheet)
 
-    // Verify bindings were created (excluding /out)
-    const boundOps = operators.filter(op => op.id !== '/out' && sheetObjectMap.has(op.id))
+    // Verify bindings were created
+    const boundOps = operators.filter(op => sheetObjectMap.has(op.id))
     expect(boundOps.length).toBeGreaterThan(0)
 
     // Verify each bound operator has compatible fields
@@ -96,7 +91,7 @@ describe('Theatre bindings integration', () => {
       },
     ]
 
-    let edges: any[] = []
+    let edges: Edge<any, any>[] = []
 
     // Create initial operators
     let operators = transformGraph({ nodes, edges })
@@ -106,10 +101,8 @@ describe('Theatre bindings integration', () => {
     let currentIds = new Set(operators.map(op => op.id))
     cleanupRemovedOperators(currentIds, testSheet)
 
-    const initialBoundCount = Array.from(sheetObjectMap.keys()).filter(
-      id => id !== '/out'
-    ).length
-    expect(initialBoundCount).toBeGreaterThan(0)
+    const initialBoundCount = Array.from(sheetObjectMap.keys()).length
+    expect(initialBoundCount).toBe(1)
 
     // Add another operator
     nodes = [
@@ -165,24 +158,32 @@ describe('Theatre bindings integration', () => {
         position: { x: 0, y: 0 },
         data: {},
       },
+      {
+        id: '/container/number-in-container',
+        type: 'NumberOp',
+        position: { x: 200, y: 0 },
+        data: { inputs: { value: 7 } },
+      }
     ]
 
-    const edges: any[] = []
+    const edges: Edge<any, any>[] = []
 
     const operators = transformGraph({ nodes, edges })
 
     // Bind operators
     const cleanupFns = bindAllOperatorsToTheatre(operators, testSheet)
 
-    // Container should be bound
+    // Both container and child operator should be found
     const containerOp = operators.find(op => op.id === '/container')
+    const childOp = operators.find(op => op.id === '/container/number-in-container')
     expect(containerOp).toBeDefined()
+    expect(childOp).toBeDefined()
 
-    // If container has theatre-compatible fields, it should be in sheetObjectMap
-    // Note: Containers may not have any theatre-compatible fields
-    const isContainerBound = sheetObjectMap.has('/container')
+    // Child operator inside container should be bound to Theatre
+    // (Container itself may not have compatible fields)
+    expect(sheetObjectMap.has('/container/number-in-container')).toBe(true)
 
-    // Just verify no errors occurred
+    // Verify cleanup functions were created
     expect(cleanupFns).toBeDefined()
 
     // Cleanup
@@ -296,16 +297,16 @@ describe('Theatre bindings integration', () => {
 
     const edges = [
       {
-        id: '/number1/out.value->/add/par.a',
+        id: '/number1.out.val->/add.par.a',
         source: '/number1',
-        sourceHandle: 'out.value',
+        sourceHandle: 'out.val',
         target: '/add',
         targetHandle: 'par.a',
       },
       {
-        id: '/number2/out.value->/add/par.b',
+        id: '/number2.out.val->/add.par.b',
         source: '/number2',
-        sourceHandle: 'out.value',
+        sourceHandle: 'out.val',
         target: '/add',
         targetHandle: 'par.b',
       },
