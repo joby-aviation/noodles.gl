@@ -390,7 +390,7 @@ export class NumberOp extends Operator<NumberOp> {
 
 export class MapRangeOp extends Operator<MapRangeOp> {
   static displayName = 'MapRange'
-  static description = 'Map a value from one range to another'
+  static description = 'Remap a number from one range to another (e.g., map 0-100 to 0-1, or temperature to color intensity)'
   public createInputs() {
     return {
       val: new NumberField(0, { step: 0.01, accessor: true }),
@@ -422,7 +422,7 @@ export class MapRangeOp extends Operator<MapRangeOp> {
 export class ExtentOp extends Operator<ExtentOp> {
   static displayName = 'Extent'
   static description =
-    'Calculate the minimum and maximum values of a dataset using an optional accessor'
+    'Find the minimum and maximum values in your data (e.g., to set color scale ranges or determine data bounds)'
   createInputs() {
     return {
       data: new DataField(),
@@ -1568,7 +1568,7 @@ export class BoundsOp extends Operator<BoundsOp> {
 export class BoundingBoxOp extends Operator<BoundingBoxOp> {
   static displayName = 'BoundingBox'
   static description =
-    'Get the bounding box of a set of points. They must have lat/lng keys. Returns a center point and zoom level.'
+    'Calculate the geographic bounds of your points (with lat/lng keys) and get a camera position (center, zoom) that fits them all in view.'
   asDownload = () => this.outputData
   createInputs() {
     return {
@@ -1829,7 +1829,7 @@ export class NetworkOp extends Operator<NetworkOp> {
 export class SwitchOp extends Operator<SwitchOp> {
   static displayName = 'Switch'
   static description =
-    'Switch between multiple values based on an index. Blend enables interpolation between values.'
+    'Select one value from a list using an index (0, 1, 2...). With blend enabled, smoothly interpolate between values for animation effects.'
   createInputs() {
     return {
       // TODO: support arbitrary outputs, maybe a union type?
@@ -1863,7 +1863,7 @@ export class SwitchOp extends Operator<SwitchOp> {
 export class ForLoopBeginOp extends Operator<ForLoopBeginOp> {
   static displayName = 'ForLoopBegin'
   static description =
-    'Begin a for loop. The loop will iterate over the data array and pass each value to the downstream operators. Requires a ForLoopEnd operator to complete the loop.'
+    'Start a loop that processes each item in an array one by one. Connect operators between ForLoopBegin and ForLoopEnd to transform each item. The ForLoopEnd collects all results.'
   createInputs() {
     return {
       data: new DataField(new ArrayField(new UnknownField())),
@@ -1882,7 +1882,7 @@ export class ForLoopBeginOp extends Operator<ForLoopBeginOp> {
 export class ForLoopEndOp extends Operator<ForLoopEndOp> {
   static displayName = 'ForLoopEnd'
   static description =
-    'End a for loop. This operator is required to complete the loop. It will pass the data array to the downstream operators.'
+    'End a loop started by ForLoopBegin. Collects all the processed items into an array and passes them to downstream operators.'
   static defaultValue = []
 
   // This is a special case where we need to keep track of the loop
@@ -2146,7 +2146,7 @@ export class RandomizeAttributeOp extends Operator<RandomizeAttributeOp> {
 export class MergeOp extends Operator<MergeOp> {
   static displayName = 'Merge'
   static description =
-    'Concatenate multiple arrays into one. The arrays should have the same shape. The optional depth argument allows deeply nested arrays to be merged.'
+    'Combine multiple arrays into a single array. Use depth to flatten nested arrays (depth=1 flattens one level, depth=2 flattens two levels).'
   createInputs() {
     return {
       values: new ListField(new DataField()),
@@ -3958,7 +3958,7 @@ function fnWithSource(args: string[], body: string, id: string): FunctionWithSou
 // An Accessor is an ExpressionOp that returns a function instead of executing it
 export class AccessorOp extends Operator<AccessorOp> {
   static displayName = 'Accessor'
-  static description = 'Create an accessor function for use in deck.gl layers'
+  static description = 'A function called for each row of your data and passed to Deck.gl layer properties. The current row is passed as the `d` variable (e.g., `d.population`, `d.properties.color`). Returns a value that controls visual properties like position, color, or size.'
   createInputs() {
     return {
       expression: new ExpressionField(),
@@ -3988,7 +3988,7 @@ export class AccessorOp extends Operator<AccessorOp> {
 export class CodeOp extends Operator<CodeOp> {
   static displayName = 'Code'
   static description =
-    'Run custom JavaScript code on the data. Use "data" to access the input data list, "d" for the first element of the list, and "op" to access other operators. Also passes a freeExports object with turf and d3 utils. Use `this` to store state.'
+    'Run custom JavaScript code to transform your data. Available variables: `data` (all input data), `d` (first element), `op()` (access other operators). Includes d3, turf, and other utilities. Use `this` to store state between executions.'
   asDownload = () => this.outputs.data.value
   createInputs() {
     return {
@@ -4053,7 +4053,7 @@ export class ContainerOp extends Operator<ContainerOp> {
 export class ExpressionOp extends Operator<ExpressionOp> {
   static displayName = 'Expression'
   static description =
-    'Run a JavaScript expression on the data. Use "data" to access the input data list, "d" for the first element of the list, and "op" to access other operators. Also passes a freeExports object with turf and d3 utils.'
+    'Evaluate a JavaScript expression to compute a single value. Available variables: `data` (all input data), `d` (first element), `op()` (access other operators). Includes d3, turf, and other utilities.'
   createInputs() {
     return {
       data: new ListField(new DataField()),
