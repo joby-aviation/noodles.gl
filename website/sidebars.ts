@@ -21,6 +21,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'users/getting-started',
         'users/operators-guide',
+        'users/deckgl-maplibre-guide',
         'users/data-guide',
         'users/animation-and-rendering',
         'users/comparison',
