@@ -77,7 +77,7 @@
         "inputs": {
           "getFillColor": "#ff5900ff",
           "getLineColor": "#ffffffff",
-          "getRadius": 200
+          "getRadius": 10
         },
         "locked": false
       }

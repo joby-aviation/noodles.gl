@@ -50,7 +50,7 @@ import { ChatPanel } from '../ai-chat/chat-panel'
 import { globalContextManager } from '../ai-chat/global-context-manager'
 import { useProjectModifications } from './hooks/use-project-modifications'
 import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
-import { IS_PROD, projectId } from './globals'
+import { IS_PROD } from './globals'
 import s from './noodles.module.css'
 import type { IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
@@ -149,9 +149,20 @@ function useTheatreJs(projectName?: string) {
 
 // Not using the top-level sheet since a Noodles theatre sheet and project are dynamically created.
 // Also, the top-level sheet is used for theatre-managed project files, whereas a Noodles project file is managed within this visType.
+// Helper to extract projectId from current URL
+function getProjectIdFromUrl(): string | null {
+  const pathMatch = window.location.pathname.match(/^\/examples\/([^/]+)/)
+  if (pathMatch) {
+    return pathMatch[1]
+  }
+  const queryParams = new URLSearchParams(window.location.search)
+  return queryParams.get('project')
+}
+
 export function getNoodles(): Visualization {
   const [projectName, setProjectName] = useState<string>()
   const [showProjectNotFoundDialog, setShowProjectNotFoundDialog] = useState(false)
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(getProjectIdFromUrl())
   const storageType = useActiveStorageType()
   const { setCurrentDirectory, setActiveStorageType, setError } = useFileSystemStore()
   const { theatreReady, theatreProject, theatreSheet, setTheatreProject, getTimelineJson } =
@@ -162,6 +173,15 @@ export function getNoodles(): Visualization {
   const [edges, setEdges, onEdgesChange] = useEdgesState<ReactFlowEdge<unknown>>([])
   const vPressed = useKeyPress('v')
   const [showChatPanel, setShowChatPanel] = useState(false)
+
+  // Listen for route changes and update currentProjectId
+  useEffect(() => {
+    const handlePopState = () => {
+      setCurrentProjectId(getProjectIdFromUrl())
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
 
   // Eagerly start loading AI context bundles on app start
   useEffect(() => {
@@ -371,8 +391,9 @@ export function getNoodles(): Visualization {
       setProjectName(name)
       setTheatreProject(name ? { state: timeline } : {}, name)
 
-      // Update URL query parameter with project name
-      if (name) {
+      // Update URL with project name
+      // Skip if already in path (e.g., /examples/project-name)
+      if (name && !window.location.pathname.includes('/examples/')) {
         const url = new URL(window.location.href)
         url.searchParams.set('project', name)
         window.history.replaceState({}, '', url.toString())
@@ -384,8 +405,8 @@ export function getNoodles(): Visualization {
   // biome-ignore lint/correctness/useExhaustiveDependencies: loadProjectFile would cause infinite loop
   useEffect(() => {
     ;(async () => {
-      // If no projectId, load the default new project
-      if (!projectId) {
+      // If no currentProjectId, load the default new project
+      if (!currentProjectId) {
         try {
           const project = await fetch(newProjectJSON).then(res => res.json()) as NoodlesProjectJSON
           loadProjectFile(project)
@@ -398,16 +419,16 @@ export function getNoodles(): Visualization {
 
       // First try to load from static files (for built-in examples)
       try {
-        const req = await fetch(`./examples/${projectId}/noodles.json`)
+        const req = await fetch(`/examples/${currentProjectId}/noodles.json`)
         const noodlesFile = (await req.json()) as Partial<NoodlesProjectJSON>
         const project = await migrateProject({
           ...EMPTY_PROJECT,
           ...noodlesFile,
         } as NoodlesProjectJSON)
         // Set project name and storage type for public projects so @/ asset paths work
-        setCurrentDirectory(null, projectId)
+        setCurrentDirectory(null, currentProjectId)
         setActiveStorageType('publicFolder')
-        loadProjectFile(project, projectId)
+        loadProjectFile(project, currentProjectId)
         return
       } catch (_error) {
         console.log('Static project file not found, trying storage...')
@@ -415,13 +436,13 @@ export function getNoodles(): Visualization {
 
       // Try to load from storage (OPFS or File System Access API)
       try {
-        const result = await load(storageType, projectId)
+        const result = await load(storageType, currentProjectId)
         if (result.success) {
           const project = await migrateProject(result.data.projectData)
           // Update store with directory handle, project name, and storage type
-          setCurrentDirectory(result.data.directoryHandle, projectId)
+          setCurrentDirectory(result.data.directoryHandle, currentProjectId)
           // storageType here is already correct (opfs or fileSystemAccess)
-          loadProjectFile(project, projectId)
+          loadProjectFile(project, currentProjectId)
         } else {
           // Project not found in storage - show dialog
           if (result.error.type === 'not-found') {
@@ -439,7 +460,7 @@ export function getNoodles(): Visualization {
         })
       }
     })()
-  }, [])
+  }, [currentProjectId])
 
   const displayedNodes = useMemo(() => {
     // If no containerId, show all nodes
@@ -501,7 +522,7 @@ export function getNoodles(): Visualization {
           </SheetProvider>
         </PrimeReactProvider>
         <ProjectNotFoundDialog
-          projectName={projectId || ''}
+          projectName={currentProjectId || ''}
           open={showProjectNotFoundDialog}
           onProjectLoaded={(project, name) => {
             loadProjectFile(project, name)
