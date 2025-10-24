@@ -121,6 +121,7 @@ export default function TimelineEditor() {
 
   const { rendererSheet } = useMemo(() => {
     const rendererSheet = sheet?.object('render', INITIAL_RENDER_STATE, {
+      reconfigure: true,
       __actions__THIS_API_IS_UNSTABLE_AND_WILL_CHANGE_IN_THE_NEXT_VERSION: {
         startRender: async () => {
           await startRenderRef.current()

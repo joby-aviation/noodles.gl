@@ -362,7 +362,7 @@ export function getNoodles(): Visualization {
         'noodles-on-top': 'Noodles on Top',
         'output-on-top': 'Output on Top',
       }),
-    })
+    }, { reconfigure: true, })
   }, [theatreSheet])
 
   const { showOverlay, layoutMode } = useSheetValue(editorSheet)
