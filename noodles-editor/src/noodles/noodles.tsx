@@ -30,31 +30,31 @@ import '@xyflow/react/dist/style.css'
 import 'primereact/resources/themes/md-dark-indigo/theme.css'
 import 'primeicons/primeicons.css'
 
-import { ChatPanel } from '../ai-chat/chat-panel'
-import { globalContextManager } from '../ai-chat/global-context-manager'
 import { SheetProvider } from '../utils/sheet-context'
 import useSheetValue from '../utils/use-sheet-value'
 import type { Visualization } from '../visualizations'
 import { BlockLibrary, type BlockLibraryRef } from './components/block-library'
 import { Breadcrumbs } from './components/breadcrumbs'
-import { categories } from './components/categories'
 import { CopyControls } from './components/copy-controls'
 import { DropTarget } from './components/drop-target'
 import { ErrorBoundary } from './components/error-boundary'
 import { NoodlesMenubar } from './components/menu'
 import { PropertyPanel } from './components/node-properties'
+import { categories } from './components/categories'
 import { edgeComponents, nodeComponents } from './components/op-components'
 import { ProjectNameBar, UNSAVED_PROJECT_NAME } from './components/project-name-bar'
 import { ProjectNotFoundDialog } from './components/project-not-found-dialog'
 import { StorageErrorHandler } from './components/storage-error-handler'
+import { ChatPanel } from '../ai-chat/chat-panel'
+import { globalContextManager } from '../ai-chat/global-context-manager'
+import { useProjectModifications } from './hooks/use-project-modifications'
 import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
 import { IS_PROD, projectId } from './globals'
-import { useProjectModifications } from './hooks/use-project-modifications'
 import s from './noodles.module.css'
 import type { IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
 import { load } from './storage'
-import { hoveredOutputHandle, opMap, useSlice } from './store'
+import { opMap, useSlice, hoveredOutputHandle } from './store'
 import { transformGraph } from './transform-graph'
 import { edgeId, nodeId } from './utils/id-utils'
 import { migrateProject } from './utils/migrate-schema'
@@ -177,7 +177,7 @@ export function getNoodles(): Visualization {
     getNodes: useCallback(() => nodes, [nodes]),
     getEdges: useCallback(() => edges, [edges]),
     setNodes,
-    setEdges,
+    setEdges
   })
 
   const onReconnect = useCallback(
@@ -252,12 +252,7 @@ export function getNoodles(): Visualization {
             const sourceHandle = hoveredOutputHandle.handleId
             const targetHandle = 'par.data'
             const newEdge = {
-              id: edgeId({
-                source: hoveredOutputHandle.nodeId,
-                sourceHandle,
-                target: viewerId,
-                targetHandle,
-              }),
+              id: edgeId({ source: hoveredOutputHandle.nodeId, sourceHandle, target: viewerId, targetHandle }),
               source: hoveredOutputHandle.nodeId,
               sourceHandle,
               target: viewerId,

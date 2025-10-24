@@ -72,7 +72,7 @@ export const ProjectNotFoundDialog = ({
   const onCreateNew = useCallback(async () => {
     setError(null)
     // Load blank template with the project name
-    const project = (await fetch(newProjectJSON).then(r => r.json())) as NoodlesProjectJSON
+    const project = await fetch(newProjectJSON).then(r => r.json()) as NoodlesProjectJSON
     onProjectLoaded(project, projectName)
     onClose()
   }, [projectName, onProjectLoaded, onClose])

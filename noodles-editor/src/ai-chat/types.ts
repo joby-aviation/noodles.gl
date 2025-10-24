@@ -119,7 +119,7 @@ export interface Example {
   name: string
   description: string
   category: string
-  project: any // NoodlesProject
+  project: any; // NoodlesProject
   annotations: Record<string, NodeAnnotation>
   tags: string[]
   dataSourceTypes: string[]

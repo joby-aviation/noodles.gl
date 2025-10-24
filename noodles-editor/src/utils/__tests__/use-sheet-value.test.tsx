@@ -1,8 +1,7 @@
 // Tests for useSheetValue hook
 // Tests Theatre.js sheet value subscription
-
-import { renderHook } from '@testing-library/react'
 import { getProject, types } from '@theatre/core'
+import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import useSheetValue from '../use-sheet-value'
 

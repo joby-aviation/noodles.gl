@@ -108,7 +108,7 @@ describe('Error handling', () => {
 
     const onError = vi.spyOn(operator, 'onError')
     const execute = vi.spyOn(operator, 'execute')
-    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => { })
 
     expect(operator.inputs.num.value).toEqual(0)
     expect(onError).not.toHaveBeenCalled()
@@ -429,16 +429,14 @@ describe('DuckDbOp', () => {
 
   it('throws an error for unresolved references', async () => {
     const ddb = new DuckDbOp('/ddb', {}, false)
-    await expect(ddb.execute({ query: 'SELECT {{missing.par.val}}' })).rejects.toThrowError(
-      'Field val not found on ./missing'
-    )
+    await expect(ddb.execute({ query: 'SELECT {{missing.par.val}}' })).rejects.toThrowError('Field val not found on ./missing')
   })
 
   it('errors on a select including a semicolon', async () => {
     const ddb = new DuckDbOp('/ddb', {}, false)
-    await expect(ddb.execute({ query: "SELECT '1;10'" })).rejects.toThrowError(
+    await expect(ddb.execute({ query: 'SELECT \'1;10\'' })).rejects.toThrowError(
       expect.objectContaining({
-        message: expect.stringContaining('Parser Error: unterminated quoted string'),
+        message: expect.stringContaining('Parser Error: unterminated quoted string')
       })
     )
   })
