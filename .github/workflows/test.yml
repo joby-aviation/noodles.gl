@@ -49,16 +49,18 @@ jobs:
           key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}
 
       - name: Install Playwright browsers
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: |
           cd noodles-editor
           npx playwright install chromium --with-deps
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
 
-      - name: Install Playwright system dependencies
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
+      - name: Ensure Playwright browsers are available
         run: |
           cd noodles-editor
-          npx playwright install-deps chromium
+          npx playwright install chromium
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
 
       - name: Check lint
         run: |

@@ -1824,11 +1824,13 @@ export function FieldComponent({
   field,
   disabled,
   handle,
+  renderInput = true,
 }: {
   id: OpId
   field: Field<IField>
   disabled: boolean
   handle?: HandleOptions
+  renderInput?: boolean
 }) {
   const nid = useNodeId()
   const edges = useEdges()
@@ -1841,22 +1843,27 @@ export function FieldComponent({
   const ctor = field.constructor as unknown as Field<IField>
   const InputComp = inputComponents[ctor.type]
 
+  // When renderInput is false, position handle absolutely to avoid relying on container height
+  const handleStyle = renderInput
+    ? { transform: 'translate(-17px, -50%)' }
+    : { transform: 'translate(-17px, 15px)' }
+
   return (
     <div style={{ position: 'relative' }}>
       {handle && (
         <Handle
           id={qualifiedFieldId}
           className={handleClass(field)}
-          style={{ transform: 'translate(-17px, -50%)' }}
+          style={handleStyle}
           type={handle.type}
           position={Position.Left}
         />
       )}
-      {
+      {renderInput && (
         incomers.length > 0
           ? <EmptyFieldComponent id={fieldId} field={field} />
           : <InputComp id={fieldId} field={field} disabled={disabled} />
-      }
+      )}
     </div>
   )
 }
