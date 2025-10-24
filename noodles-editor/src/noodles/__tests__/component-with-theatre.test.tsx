@@ -1,6 +1,6 @@
 // Tests for complex Noodles-specific integration scenarios
 // Focuses on tricky edge cases involving Theatre.js, operators, and field connections
-import { screen } from '@testing-library/dom'
+import { screen } from '@testing-library/react'
 import type { Node as ReactFlowNode } from '@xyflow/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { type MathOp, NumberOp, type IOperator, type Operator } from '../operators'
