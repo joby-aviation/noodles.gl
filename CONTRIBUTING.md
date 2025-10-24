@@ -126,8 +126,9 @@ When reporting bugs or requesting features:
 
 ## 📚 Additional Resources
 
-- [Product Overview](https://github.com/joby-aviation/noodles.gl/blob/main/docs/product.md) - What Noodles.gl does and key features
-- [Development Guide](https://github.com/joby-aviation/noodles.gl/blob/main/docs/developing.md) - Additional development commands
+- [Architecture Guide](https://github.com/joby-aviation/noodles.gl/blob/main/dev-docs/architecture.md) - Complete project structure and patterns
+- [Technology Stack](https://github.com/joby-aviation/noodles.gl/blob/main/dev-docs/tech-stack.md) - Full tech stack details
+- [Development Guide](https://github.com/joby-aviation/noodles.gl/blob/main/dev-docs/developing.md) - Development commands and code style
 
 ## 🤝 Community
 

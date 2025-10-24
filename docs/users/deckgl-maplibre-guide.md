@@ -4,7 +4,7 @@ For developers familiar with [deck.gl](https://deck.gl) and [Maplibre GL JS](htt
 
 ## Overview
 
-Noodles.gl is built on deck.gl (WebGL visualization framework) and Maplibre GL JS (vector tile rendering). If you're already familiar with these libraries, you'll feel right at home—Noodles.gl adds a node-based workflow layer that makes building complex visualizations easier, with built-in timeline animation support.
+Noodles.gl is built on deck.gl (WebGL visualization framework) and Maplibre GL JS (vector tile rendering). If you're already familiar with these libraries, you'll feel right at home. Noodles.gl adds a node-based workflow layer that makes building complex visualizations easier, with built-in timeline animation support.
 
 ## Relationship to Kepler.gl
 
@@ -182,7 +182,7 @@ Beyond the standard `MapViewOp`, you can use `FirstPersonViewOp`, `OrbitViewOp`,
 
 ### vs Pure deck.gl Code
 
-If you're used to writing deck.gl code directly, Noodles.gl offers visual workflows, built-in timeline animation, and live parameter editing—all without code/rebuild cycles.
+If you're used to writing deck.gl code directly, Noodles.gl offers visual workflows, built-in timeline animation, and live parameter editing. All without code/rebuild cycles.
 
 ### vs Kepler.gl
 
