@@ -1824,11 +1824,13 @@ export function FieldComponent({
   field,
   disabled,
   handle,
+  renderInput = true,
 }: {
   id: OpId
   field: Field<IField>
   disabled: boolean
   handle?: HandleOptions
+  renderInput?: boolean
 }) {
   const nid = useNodeId()
   const edges = useEdges()
@@ -1852,11 +1854,11 @@ export function FieldComponent({
           position={Position.Left}
         />
       )}
-      {
+      {renderInput && (
         incomers.length > 0
           ? <EmptyFieldComponent id={fieldId} field={field} />
           : <InputComp id={fieldId} field={field} disabled={disabled} />
-      }
+      )}
     </div>
   )
 }
