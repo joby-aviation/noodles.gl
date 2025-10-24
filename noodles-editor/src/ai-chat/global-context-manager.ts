@@ -49,7 +49,7 @@ class GlobalContextManager {
     try {
       this.loader = new ContextLoader()
 
-      await this.loader.load((progress) => {
+      await this.loader.load(progress => {
         this.setState({ status: 'loading', progress })
       })
 

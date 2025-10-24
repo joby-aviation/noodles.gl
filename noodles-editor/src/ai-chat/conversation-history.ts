@@ -25,9 +25,7 @@ function generateTitle(messages: Message[]): string {
   const firstUserMessage = messages.find(m => m.role === 'user')
   if (!firstUserMessage) return 'New Conversation'
 
-  const content = typeof firstUserMessage.content === 'string'
-    ? firstUserMessage.content
-    : ''
+  const content = typeof firstUserMessage.content === 'string' ? firstUserMessage.content : ''
 
   // Take first 50 chars or up to first newline
   const title = content.split('\n')[0].slice(0, 50)
@@ -39,9 +37,7 @@ function generatePreview(messages: Message[]): string {
   if (messages.length === 0) return 'Empty conversation'
 
   const lastMessage = messages[messages.length - 1]
-  const content = typeof lastMessage.content === 'string'
-    ? lastMessage.content
-    : ''
+  const content = typeof lastMessage.content === 'string' ? lastMessage.content : ''
 
   return content.slice(0, 100)
 }
@@ -58,14 +54,11 @@ export function saveConversation(messages: Message[]): string {
   const conversation: Conversation = {
     id,
     timestamp,
-    messages
+    messages,
   }
 
   // Save conversation data
-  localStorage.setItem(
-    `${HISTORY_KEY_PREFIX}${id}`,
-    JSON.stringify(conversation)
-  )
+  localStorage.setItem(`${HISTORY_KEY_PREFIX}${id}`, JSON.stringify(conversation))
 
   // Update metadata
   const metadata = loadMetadata()
@@ -74,7 +67,7 @@ export function saveConversation(messages: Message[]): string {
     timestamp,
     title: generateTitle(messages),
     preview: generatePreview(messages),
-    messageCount: messages.length
+    messageCount: messages.length,
   }
 
   metadata.unshift(newMetadata)
