@@ -5,7 +5,7 @@ import systemPromptTemplate from './system-prompt.md?raw'
 
 export class ClaudeClient {
   // Configuration constants
-  private static readonly MODEL = 'claude-3-5-sonnet-20241022'
+  private static readonly MODEL = 'claude-sonnet-4-5-20250929'
   private static readonly MAX_TOKENS = 8192
   private static readonly MAX_CONVERSATION_HISTORY = 4 // Keep only last 2 exchanges (4 messages) to prevent token overflow
 
@@ -122,7 +122,15 @@ export class ClaudeClient {
       response = await this.client.messages.create({
         model: ClaudeClient.MODEL,
         max_tokens: ClaudeClient.MAX_TOKENS,
-        system: systemPrompt,
+        // Use prompt caching for system prompt (1-hour TTL) to reduce costs
+        // System prompt is large and rarely changes, making it ideal for caching
+        system: [
+          {
+            type: 'text',
+            text: systemPrompt,
+            cache_control: { type: 'ephemeral' }
+          }
+        ],
         messages,
         tools
       })
@@ -242,7 +250,14 @@ export class ClaudeClient {
         response = await this.client.messages.create({
           model: ClaudeClient.MODEL,
           max_tokens: ClaudeClient.MAX_TOKENS,
-          system: systemPrompt,
+          // Use prompt caching for system prompt (1-hour TTL) to reduce costs
+          system: [
+            {
+              type: 'text',
+              text: systemPrompt,
+              cache_control: { type: 'ephemeral' }
+            }
+          ],
           messages,
           tools
         })
