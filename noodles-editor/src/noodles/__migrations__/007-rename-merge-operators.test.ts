@@ -208,19 +208,24 @@ describe('migration 007 up', () => {
     })
   })
 
-  it('preserves timeline data', async () => {
+  it('preserves timeline data including sequences', async () => {
     const project: NoodlesProjectJSON = {
       ...createProjectWithMergeOp(),
       timeline: {
         definitionVersion: '0.4.0',
         sheetsById: {
           Noodles: {
-            staticOverrides: {
-              byObject: {
+            sequence: {
+              tracksByObject: {
                 '/merge-1': {
-                  depth: {
-                    type: 'number',
-                    value: 2,
+                  trackData: {
+                    depth: {
+                      type: 'BasicKeyframedTrack',
+                      keyframes: [
+                        { position: 0, value: 1 },
+                        { position: 5, value: 2 },
+                      ],
+                    },
                   },
                 },
               },
@@ -232,7 +237,11 @@ describe('migration 007 up', () => {
     const migrated = await up(project)
 
     expect(migrated.timeline.definitionVersion).toBe('0.4.0')
-    expect(migrated.timeline.sheetsById.Noodles.staticOverrides.byObject['/merge-1']).toBeDefined()
+    // Timeline should be preserved exactly as-is since it references operators by ID, not type
+    expect(migrated.timeline.sheetsById.Noodles.sequence.tracksByObject['/merge-1']).toBeDefined()
+    expect(migrated.timeline.sheetsById.Noodles.sequence.tracksByObject['/merge-1']).toEqual(
+      project.timeline.sheetsById.Noodles.sequence.tracksByObject['/merge-1']
+    )
   })
 
   it('handles projects without nodes', async () => {

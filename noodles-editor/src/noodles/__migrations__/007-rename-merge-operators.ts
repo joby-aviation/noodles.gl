@@ -5,10 +5,12 @@ import type { NoodlesProjectJSON } from '../utils/serialization'
 // This migration:
 // 1. Renames all nodes of type "MergeOp" to "ConcatOp"
 // 2. Renames all nodes of type "ObjectMergeOp" to "MergeOp"
-// 3. Updates any operator references in timeline state
+//
+// Note: Timeline keyframes reference operators by ID (e.g., "/merge-1"), not by type,
+// so no timeline updates are needed. The operator type change is transparent to the timeline.
 
 export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSON> {
-  const { nodes, timeline, ...rest } = project
+  const { nodes, ...rest } = project
 
   // Rename node types
   const newNodes = nodes.map(node => {
@@ -21,45 +23,14 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
     return node
   })
 
-  // Update timeline references if they exist
-  let newTimeline = timeline
-  if (timeline.sheetsById) {
-    const sheetsById = timeline.sheetsById as Record<string, any>
-    if (sheetsById.Noodles?.staticOverrides?.byObject) {
-      const byObject = sheetsById.Noodles.staticOverrides.byObject
-      const updatedByObject: Record<string, any> = {}
-
-      // Rename object keys that reference the old operator types
-      for (const [key, value] of Object.entries(byObject)) {
-        // Keep the same key, but we need to be aware of it for debugging
-        updatedByObject[key] = value
-      }
-
-      newTimeline = {
-        ...timeline,
-        sheetsById: {
-          ...sheetsById,
-          Noodles: {
-            ...sheetsById.Noodles,
-            staticOverrides: {
-              ...sheetsById.Noodles.staticOverrides,
-              byObject: updatedByObject,
-            },
-          },
-        },
-      }
-    }
-  }
-
   return {
     ...rest,
     nodes: newNodes,
-    timeline: newTimeline,
   }
 }
 
 export async function down(project: NoodlesProjectJSON): Promise<NoodlesProjectJSON> {
-  const { nodes, timeline, ...rest } = project
+  const { nodes, ...rest } = project
 
   // Revert node types
   const newNodes = nodes.map(node => {
@@ -72,38 +43,8 @@ export async function down(project: NoodlesProjectJSON): Promise<NoodlesProjectJ
     return node
   })
 
-  // Revert timeline references if they exist
-  let newTimeline = timeline
-  if (timeline.sheetsById) {
-    const sheetsById = timeline.sheetsById as Record<string, any>
-    if (sheetsById.Noodles?.staticOverrides?.byObject) {
-      const byObject = sheetsById.Noodles.staticOverrides.byObject
-      const updatedByObject: Record<string, any> = {}
-
-      // Revert object keys that reference the new operator types
-      for (const [key, value] of Object.entries(byObject)) {
-        updatedByObject[key] = value
-      }
-
-      newTimeline = {
-        ...timeline,
-        sheetsById: {
-          ...sheetsById,
-          Noodles: {
-            ...sheetsById.Noodles,
-            staticOverrides: {
-              ...sheetsById.Noodles.staticOverrides,
-              byObject: updatedByObject,
-            },
-          },
-        },
-      }
-    }
-  }
-
   return {
     ...rest,
     nodes: newNodes,
-    timeline: newTimeline,
   }
 }
