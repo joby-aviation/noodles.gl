@@ -2836,7 +2836,21 @@ export class OverpassOp extends Operator<OverpassOp> {
         bbox.length === 2 &&
         /\{\{bbox\}\}/.test(query)
       ) {
-        const [{ lng: west, lat: south }, { lng: east, lat: north }] = bbox
+        const [southwest, northeast] = bbox
+        let west, south, east, north
+        if (southwest.lng) {
+          west = southwest.lng
+          south = southwest.lat
+          east = northeast.lng
+          north = northeast.lat
+        } else if (Array.isArray(southwest)) {
+          west = southwest[0]
+          south = southwest[1]
+          east = northeast[0]
+          north = northeast[1]
+        } else {
+          throw new Error('Invalid bbox format - must be array of Point2D or [lng, lat] tuples')
+        }
         const bboxString = `${south},${west},${north},${east}`
         processedQuery = processedQuery.replace(/\{\{bbox\}\}/g, bboxString)
       }

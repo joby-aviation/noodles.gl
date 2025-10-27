@@ -105,21 +105,13 @@ Add a `ViewerOp` and connect the GeoJsonLayerOp's layer output to it.
 ### Complete Node Graph
 
 ```
-[BoundsOp]
-  point1: [-74.05, 40.68]
-  point2: [-73.90, 40.82]
-    ↓ bounds
-[DuckDbOp]
-  query: (SQL with JSON() constructing GeoJSON)
-    ↓ data
-[CodeOp]
-  code: return d[0].geojson
-    ↓ result
-[GeoJsonLayerOp]
-  data: (connected)
-  getFillColor: #22c55e
-    ↓ layer
-[ViewerOp]
+[BoundsOp] → [DuckDbOp] → [CodeOp] → [GeoJsonLayerOp] → [ViewerOp]
+  point1:      query:        code:      data: connected     layers: connected
+  [-74.05,     (JSON SQL)    return     getFillColor: #22c55e
+   40.68]                    d[0]       opacity: 0.6
+  point2:                    .geojson
+  [-73.90,
+   40.82]
 ```
 
 ## More Examples
