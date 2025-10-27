@@ -26,6 +26,8 @@ const sidebars: SidebarsConfig = {
         'users/operators-guide',
         'users/deckgl-maplibre-guide',
         'users/data-guide',
+        'users/overture-maps-guide',
+        'users/overpass-api-guide',
         'users/animation-and-rendering',
         'users/comparison',
       ],

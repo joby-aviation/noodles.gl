@@ -2798,6 +2798,157 @@ export class DirectionsOp extends Operator<DirectionsOp> {
   }
 }
 
+export class OverpassOp extends Operator<OverpassOp> {
+  static displayName = 'Overpass'
+  static description = 'Query OpenStreetMap data using Overpass API'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      query: new CodeField(
+        '[out:json][timeout:25];\n(\n  node["name"="Central Park"];\n  way["name"="Central Park"];\n);\nout geom;',
+        {
+          language: 'overpass-ql',
+        }
+      ),
+      // TODO: We should add a bbox type
+      bbox: new UnknownField([{ lng: -74.006, lat: 40.7128 }, { lng: -73.935, lat: 40.73061 }], { optional: true }),
+      endpoint: new StringField('https://overpass-api.de/api/interpreter'),
+      pulse: new NumberField(0, { min: 0, step: 1 }),
+    }
+  }
+  createOutputs() {
+    return {
+      data: new DataField(),
+    }
+  }
+  async execute({
+    query,
+    bbox,
+    endpoint,
+  }: ExtractProps<typeof this.inputs>): Promise<ExtractProps<typeof this.outputs>> {
+    try {
+      // Replace {{bbox}} template with actual coordinates if bbox is provided and valid
+      // Overpass format: (south,west,north,east)
+      let processedQuery = query
+      if (
+        bbox &&
+        Array.isArray(bbox) &&
+        bbox.length === 2 &&
+        /\{\{bbox\}\}/.test(query)
+      ) {
+        const [{ lng: west, lat: south }, { lng: east, lat: north }] = bbox
+        const bboxString = `${south},${west},${north},${east}`
+        processedQuery = processedQuery.replace(/\{\{bbox\}\}/g, bboxString)
+      }
+
+      // Query Overpass API
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        body: processedQuery,
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      })
+
+      if (!response.ok) {
+        throw new Error(`Overpass API error: ${response.status} ${response.statusText}`)
+      }
+
+      const osmData = await response.json()
+
+      // Check for timeout or other errors
+      if (osmData.remark && osmData.remark.includes('timeout')) {
+        throw new Error('Overpass query timeout - try a smaller area or simpler query')
+        // return { data: { type: 'FeatureCollection', features: [] } }
+      }
+
+      // Convert OSM JSON to GeoJSON
+      const geojson = this.osmToGeoJson(osmData)
+      return { data: geojson }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      throw new Error(`Overpass query failed: ${errorMessage}`)
+    }
+  }
+
+  private osmToGeoJson(osmData: any): any {
+    const features: any[] = []
+
+    // Build node map for way processing
+    const nodeMap: Record<number, any> = {}
+    for (const element of osmData.elements || []) {
+      if (element.type === 'node') {
+        nodeMap[element.id] = element
+
+        // Only create features for tagged nodes (POIs)
+        if (element.tags) {
+          features.push({
+            type: 'Feature',
+            geometry: {
+              type: 'Point',
+              coordinates: [element.lon, element.lat],
+            },
+            properties: { ...element.tags, osm_id: element.id, osm_type: 'node' },
+          })
+        }
+      }
+    }
+
+    // Process ways (lines and polygons)
+    for (const element of osmData.elements || []) {
+      if (element.type === 'way' && element.tags) {
+        // If geometry is included (from 'out geom'), use it directly
+        if (element.geometry) {
+          const coordinates = element.geometry.map((node: any) => [node.lon, node.lat])
+
+          if (coordinates.length < 2) continue
+
+          // Check if way is closed (polygon)
+          const isClosed =
+            coordinates.length > 2 &&
+            coordinates[0][0] === coordinates[coordinates.length - 1][0] &&
+            coordinates[0][1] === coordinates[coordinates.length - 1][1]
+
+          features.push({
+            type: 'Feature',
+            geometry: {
+              type: isClosed ? 'Polygon' : 'LineString',
+              coordinates: isClosed ? [coordinates] : coordinates,
+            },
+            properties: { ...element.tags, osm_id: element.id, osm_type: 'way' },
+          })
+        }
+        // Otherwise try to build from nodes
+        else if (element.nodes) {
+          const coordinates = element.nodes
+            .map((nodeId: number) => {
+              const node = nodeMap[nodeId] || osmData.elements.find((n: any) => n.id === nodeId)
+              return node ? [node.lon, node.lat] : null
+            })
+            .filter((coord: any) => coord !== null)
+
+          if (coordinates.length < 2) continue
+
+          // Check if way is closed (polygon)
+          const isClosed = element.nodes[0] === element.nodes[element.nodes.length - 1]
+
+          features.push({
+            type: 'Feature',
+            geometry: {
+              type: isClosed ? 'Polygon' : 'LineString',
+              coordinates: isClosed ? [coordinates] : coordinates,
+            },
+            properties: { ...element.tags, osm_id: element.id, osm_type: 'way' },
+          })
+        }
+      }
+    }
+
+    return {
+      type: 'FeatureCollection',
+      features,
+    }
+  }
+}
+
 export class ArcOp extends Operator<ArcOp> {
   static displayName = 'Arc'
   static description = 'Generate an arc path between two points at a given altitude'
@@ -9691,6 +9842,7 @@ export const opTypes = {
   OrbitViewOp,
   OrthographicViewOp,
   OutOp,
+  OverpassOp,
   PathLayerOp,
   PathStyleExtensionOp,
   PMTilesOp,

@@ -4,6 +4,8 @@ Learn how to load, process, and transform data in Noodles.gl for your visualizat
 
 ## Data Sources
 
+### Local and Remote Files
+
 Use a `FileOp` to read a file from a URL or text. Supported formats:
 
 | Format | Output Type | Use Case |
@@ -54,6 +56,7 @@ SFO,LAX,150,"[-122.4194, 37.7749]"
 }
 ```
 
+<<<<<<< HEAD
 ### Text Format
 
 Use `text` format to load raw file contents as a string, useful for custom parsing:
@@ -84,6 +87,15 @@ const buffer = data  // ArrayBuffer from FileOp
 const view = new DataView(buffer)
 const header = view.getUint32(0, true)  // Read 4-byte header
 ```
+
+### Geospatial Data Sources
+
+For large-scale geospatial datasets, see these specialized guides:
+
+- **[Overture Maps Guide](./overture-maps-guide.md)** - Query global map data (places, buildings, roads) using DuckDB. Best for large-scale analytics and consistent schemas.
+- **[Overpass API Guide](./overpass-api-guide.md)** - Query real-time OpenStreetMap data using Overpass QL. Best for current data and city-scale queries.
+
+Both guides include complete examples with bounding boxes, data conversion, and visualization.
 
 ## Data Processing
 

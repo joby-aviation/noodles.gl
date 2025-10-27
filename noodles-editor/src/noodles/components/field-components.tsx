@@ -1046,6 +1046,17 @@ export function CodeFieldComponent({
     [captureStart, commitChange]
   )
 
+  const handleBeforeMount = useCallback(
+    async (monaco: unknown) => {
+      // Ensure Overpass QL language is registered before editor mounts
+      if (field.language === 'overpass-ql') {
+        const { registerOverpassQL } = await import('../languages/register-monaco-languages')
+        await registerOverpassQL(monaco as any)
+      }
+    },
+    [field.language]
+  )
+
   // Force layout update on load and when node height changes
   useLayoutEffect(() => {
     if (editorRef.current) {
@@ -1097,6 +1108,7 @@ export function CodeFieldComponent({
             width="100%"
             height={nodeHeight - 80}
             defaultValue={field.value}
+            beforeMount={handleBeforeMount}
             onChange={handleEditorChange}
             onMount={handleEditorDidMount}
           />
