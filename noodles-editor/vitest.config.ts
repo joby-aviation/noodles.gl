@@ -1,11 +1,12 @@
-import { defineConfig } from 'vitest/config'
+import { playwright } from '@vitest/browser-playwright'
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
+import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   test: {
     setupFiles: ['src/setupTests.ts'],
     browser: {
-      provider: 'playwright',
+      provider: playwright(),
       enabled: true,
       headless: true,
       screenshotFailures: false,

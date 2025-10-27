@@ -33,8 +33,7 @@ import 'primeicons/primeicons.css'
 import { SheetProvider } from '../utils/sheet-context'
 import useSheetValue from '../utils/use-sheet-value'
 import type { Visualization } from '../visualizations'
-import { AddNodeMenu, type AddNodeMenuRef } from './components/add-node-menu'
-import { BlockLibrary } from './components/block-library'
+import { BlockLibrary, type BlockLibraryRef } from './components/block-library'
 import { Breadcrumbs } from './components/breadcrumbs'
 import { CopyControls } from './components/copy-controls'
 import { DropTarget } from './components/drop-target'
@@ -160,6 +159,7 @@ export function getNoodles(): Visualization {
   const [nodes, setNodes, onNodesChange] = useNodesState<AnyNodeJSON>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<ReactFlowEdge<unknown>>([])
   const vPressed = useKeyPress('v')
+  const aPressed = useKeyPress('a')
   const [showChatPanel, setShowChatPanel] = useState(false)
 
   // Eagerly start loading AI context bundles on app start
@@ -195,7 +195,7 @@ export function getNoodles(): Visualization {
   )
 
   const reactFlowRef = useRef<HTMLDivElement>(null)
-  const menuRef = useRef<AddNodeMenuRef>(null)
+  const blockLibraryRef = useRef<BlockLibraryRef>(null)
 
   const onDeselectAll = useCallback(() => {
     setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
@@ -203,23 +203,14 @@ export function getNoodles(): Visualization {
   }, [setNodes, setEdges])
 
   const onPaneClick = useCallback(() => {
-    menuRef.current?.closeMenu()
+    blockLibraryRef.current?.closeModal()
     onDeselectAll()
   }, [onDeselectAll])
 
   const onPaneContextMenu = useCallback((event: React.MouseEvent<Element, MouseEvent>) => {
     event.preventDefault()
-    // Show Add Node menu
-    const pane = reactFlowRef.current?.getBoundingClientRect()
-    if (!pane) return
-    menuRef.current?.openMenu({
-      top: event.clientY < pane.height - 200 ? event.clientY : 0,
-      left: event.clientX < pane.width - 400 ? event.clientX - 200 : 0,
-      right: event.clientX >= pane.width - 200 ? pane.width - event.clientX : 0,
-      bottom: event.clientY >= pane.height - 200 ? pane.height - event.clientY : 0,
-      screenX: event.clientX,
-      screenY: event.clientY,
-    })
+    // Show Block Library at the right-click position
+    blockLibraryRef.current?.openModal(event.clientX, event.clientY)
   }, [])
 
   const vPressHandledRef = useRef(false)
@@ -339,6 +330,29 @@ export function getNoodles(): Visualization {
       return [...currentNodes, viewerNode]
     })
   }, [vPressed, ops, setNodes, setEdges, currentContainerId])
+
+  const aPressHandledRef = useRef(false)
+
+  // Handle 'a' key press to open Block Library
+  useEffect(() => {
+    if (!aPressed) {
+      // Reset the flag when key is released
+      aPressHandledRef.current = false
+      return
+    }
+
+    // Only handle once per key press
+    if (aPressHandledRef.current) return
+    aPressHandledRef.current = true
+
+    // Open Block Library at center of screen
+    const pane = reactFlowRef.current?.getBoundingClientRect()
+    if (!pane) return
+
+    const centerX = pane.left + pane.width / 2
+    const centerY = pane.top + pane.height / 2
+    blockLibraryRef.current?.openModal(centerX, centerY)
+  }, [aPressed])
 
   const editorSheet = useMemo(() => {
     return theatreSheet.object('editor', {
@@ -478,8 +492,7 @@ export function getNoodles(): Visualization {
             >
               <Background />
               <Controls position="bottom-right" />
-              <AddNodeMenu ref={menuRef} reactFlowRef={reactFlowRef} />
-              <BlockLibrary reactFlowRef={reactFlowRef} />
+              <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />
               <CopyControls />
               <ChatPanel
                 project={{ nodes, edges }}
