@@ -5019,9 +5019,7 @@ type TimeSeriesDataPoint = {
   [key: string]: number
 }
 
-/**
- * Interpolate time series data at a given time using linear interpolation
- */
+// Interpolate time series data at a given time using linear interpolation
 function interpolateTimeSeries(
   timeSeries: TimeSeriesDataPoint[],
   currentTime: number
@@ -5090,7 +5088,6 @@ export class TimeSeriesOp extends Operator<TimeSeriesOp> {
         // TODO: Support data schema helpers *and* custom data schemas
         // new ArrayField(
         //   new CompoundPropsField({
-        //     id: new StringField(''),
         //     properties: new UnknownField({}, { optional: true }),
         //     timeSeries: new ArrayField(
         //       new CompoundPropsField(
@@ -5113,7 +5110,6 @@ export class TimeSeriesOp extends Operator<TimeSeriesOp> {
         // new ArrayField(
         //   new CompoundPropsField(
         //     {
-        //       id: new StringField(''),
         //       time: new NumberField(),
         //       properties: new UnknownField(),
         //     },
