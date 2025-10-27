@@ -55,7 +55,7 @@ SELECT JSON({
   )
 }) as geojson
 FROM read_parquet(
-  's3://overturemaps-us-west-2/release/2024-09-18.0/theme=places/type=*/*',
+  's3://overturemaps-us-west-2/release/2025-10-22.0/theme=places/type=place/part-00000-2286d3de-b89f-44be-91c6-3e57d0b74722-c000.zstd.parquet',
   filename=true,
   hive_partitioning=1
 )
@@ -105,13 +105,21 @@ Add a `ViewerOp` and connect the GeoJsonLayerOp's layer output to it.
 ### Complete Node Graph
 
 ```
-[BoundsOp] → [DuckDbOp] → [CodeOp] → [GeoJsonLayerOp] → [ViewerOp]
-  point1:      query:        code:      data: connected     layers: connected
-  [-74.05,     (JSON SQL)    return     getFillColor: #22c55e
-   40.68]                    d[0]       opacity: 0.6
-  point2:                    .geojson
-  [-73.90,
-   40.82]
+[BoundsOp]
+  point1: [-74.05, 40.68]
+  point2: [-73.90, 40.82]
+    ↓ bounds
+[DuckDbOp]
+  query: (SQL with JSON() constructing GeoJSON)
+    ↓ data
+[CodeOp]
+  code: return d[0].geojson
+    ↓ result
+[GeoJsonLayerOp]
+  data: (connected)
+  getFillColor: #22c55e
+    ↓ layer
+[ViewerOp]
 ```
 
 ## More Examples
@@ -136,7 +144,7 @@ SELECT JSON({
   )
 }) as geojson
 FROM read_parquet(
-  's3://overturemaps-us-west-2/release/2024-09-18.0/theme=buildings/type=*/*',
+  's3://overturemaps-us-west-2/release/2024-09-18.0/theme=buildings/type=building/....',
   filename=true,
   hive_partitioning=1
 )
@@ -177,7 +185,7 @@ SELECT JSON({
   )
 }) as geojson
 FROM read_parquet(
-  's3://overturemaps-us-west-2/release/2024-09-18.0/theme=transportation/type=segment/*',
+  's3://overturemaps-us-west-2/release/2024-09-18.0/theme=transportation/type=segment/....',
   filename=true,
   hive_partitioning=1
 )
@@ -213,7 +221,7 @@ SELECT JSON({
   )
 }) as geojson
 FROM read_parquet(
-  's3://overturemaps-us-west-2/release/2024-09-18.0/theme=places/type=*/*',
+  's3://overturemaps-us-west-2/release/2025-10-22.0/theme=places/type=place/part-00000-2286d3de-b89f-44be-91c6-3e57d0b74722-c000.zstd.parquet',
   filename=true,
   hive_partitioning=1
 )
