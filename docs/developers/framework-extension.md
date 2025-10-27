@@ -5,27 +5,31 @@
 ### Basic Operator Template
 
 ```typescript
-export class CustomOperator extends Operator<{
-  input: DataField
-  parameter: NumberField
-}> {
+export class CustomOperator extends Operator<CustomOperator> {
   static displayName = 'Custom Operator'
   static description = 'Description of what this operator does'
-  static category = 'Processing'  // For UI organization
 
   createInputs() {
     return {
       data: new ArrayField(new DataField()),
-      amount: new NumberField({ min: 0, max: 100, defaultValue: 50 })
+      amount: new NumberField(50, { min: 0, max: 100 })
     }
   }
 
-  execute({ data, amount }) {
+  createOutputs() {
+    return {
+      result: new DataField()
+    }
+  }
+
+  execute({ data, amount }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     // Pure function implementation
-    return data.map(item => ({
-      ...item,
-      processed: item.value * amount
-    }))
+    return {
+      result: data.map(item => ({
+        ...item,
+        processed: item.value * amount
+      }))
+    }
   }
 }
 ```
@@ -33,19 +37,23 @@ export class CustomOperator extends Operator<{
 ### Registration
 
 ```typescript
-// Add to operators registry
-export const operators = {
+// Add to opTypes in operators.ts
+export const opTypes = {
   // ... existing operators
-  CustomOperator
-}
+  CustomOperator,
+} as const
 ```
 
-### UI Integration
+### Category Organization
 
 ```typescript
-// Add to component registry if custom UI needed
-export const opComponents = {
-  CustomOperator: CustomOperatorComponent
+// Add to categories.ts
+export const categories = {
+  'Processing': [
+    'CustomOperator',
+    // ... other operators
+  ],
+  // ... other categories
 }
 ```
 

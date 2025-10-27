@@ -257,22 +257,27 @@ Operators can be organized into containers to create logical groupings and avoid
 Create new operators by extending the base class:
 
 ```typescript
-export class CustomOperator extends Operator<{
-  input: DataField
-  threshold: NumberField
-}> {
+export class CustomOperator extends Operator<CustomOperator> {
   static displayName = 'Custom Processor'
   static description = 'Processes data with custom logic'
 
-  constructor() {
-    super({
+  createInputs() {
+    return {
       input: new DataField(),
-      threshold: new NumberField({ min: 0, max: 100 })
-    })
+      threshold: new NumberField(50, { min: 0, max: 100 })
+    }
   }
 
-  execute({ input, threshold }) {
-    return input.filter(item => item.value > threshold)
+  createOutputs() {
+    return {
+      result: new DataField()
+    }
+  }
+
+  execute({ input, threshold }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    return {
+      result: input.filter(item => item.value > threshold)
+    }
   }
 }
 ```

@@ -18,6 +18,8 @@ Operators are the core processing units in the Noodles.gl system. They take inpu
 
 ## Visualization
 
+> For developers familiar with deck.gl and Maplibre, see the [deck.gl and Maplibre Guide](./deckgl-maplibre-guide.md) for details on how Noodles.gl builds on these libraries.
+
 ### Layers
 - **Deck.gl Layers**: Create any [deck.gl layer](https://deck.gl/docs/api-reference/layers), such as `ScatterPlotLayerOp`
 - **AccessorOp**: Create an accessor function for use in deck.gl layers

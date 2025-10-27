@@ -304,11 +304,6 @@ function stripLargeDataFields(project: any): any {
       return value
     }
 
-    // Skip cached data fields
-    if (key === 'cachedData' || key === '_cachedData') {
-      return '<cached data omitted>'
-    }
-
     return value
   }))
 

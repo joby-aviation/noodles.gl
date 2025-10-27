@@ -125,21 +125,26 @@ sourceNode.fields.output.addConnection(
 ### Operator Execution
 
 ```typescript
-class AddOperator extends Operator {
+class AddOperator extends Operator<AddOperator> {
+  static displayName = 'Add'
+  static description = 'Add two numbers'
+
   createInputs() {
     return {
-      a: new NumberField(this, 'a'),
-      b: new NumberField(this, 'b'),
+      a: new NumberField(0, { step: 1 }),
+      b: new NumberField(0, { step: 1 }),
     }
   }
+
   createOutputs() {
     return {
-      sum: new NumberField(this, 'sum'),
+      sum: new NumberField(),
     }
   }
-  execute(inputs: InputType): OutputType {
+
+  execute({ a, b }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     // Pure function transformation
-    return { sum: inputs.a + inputs.b }
+    return { sum: a + b }
   }
 }
 ```
@@ -256,8 +261,8 @@ op('local-name')                // Same container (shorthand)
 
 ```typescript
 // In a CodeField expression, reference other operators
-const upstream = op('/data-loader').outputs.table
-const filtered = op('./filter').outputs.filtered
+const upstream = op('/data-loader').out.data
+const filtered = op('./filter').out.data
 ```
 
 Note: This path-based syntax is only used within CodeField expressions for programmatic operator references. For regular node-to-node connections in the graph, use the edge format with `sourceHandle` and `targetHandle` as described in the Connection System section.
