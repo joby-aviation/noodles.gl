@@ -1245,159 +1245,190 @@ describe('TimeSeriesOp', () => {
     const result = operator.execute({
       data: [],
       currentTime: 0,
+      getTimestamps: (d: any) => d?.timestamps || [],
+      getValues: (d: any) => d?.values || [],
+      getProperties: (d: any) => d,
     })
-    expect(result.current).toEqual([])
+    expect(result.data).toEqual([])
   })
 
-  it('passes through id field without interpolation', () => {
+  it('interpolates time-varying values with accessor-based API', () => {
     const operator = new TimeSeriesOp('timeseries-0')
     const result = operator.execute({
       data: [
         {
-          id: 'test-id-1',
-          timeSeries: [
-            { time: 0, value: 10 },
-            { time: 10, value: 20 },
+          id: 'trip-1',
+          model: 'Boeing',
+          timestamps: [0, 10, 20],
+          values: [
+            { heading: 360, speed: 100 },
+            { heading: 45, speed: 120 },
+            { heading: 90, speed: 110 },
           ],
         },
         {
-          id: 'test-id-2',
-          timeSeries: [
-            { time: 0, value: 5 },
-            { time: 10, value: 15 },
+          id: 'trip-2',
+          model: 'Airbus',
+          timestamps: [0, 10],
+          values: [
+            { heading: 180, speed: 150 },
+            { heading: 270, speed: 170 },
           ],
         },
       ],
       currentTime: 5,
+      getTimestamps: (d: any) => d.timestamps,
+      getValues: (d: any) => d.values,
+      getProperties: (d: any) => d,
     })
 
-    expect(result.current).toHaveLength(2)
-    expect(result.current[0].id).toEqual('test-id-1')
-    expect(result.current[1].id).toEqual('test-id-2')
-  })
+    expect((result.data as any)).toHaveLength(2)
 
-  it('interpolates timeSeries data correctly', () => {
-    const operator = new TimeSeriesOp('timeseries-0')
-    const result = operator.execute({
-      data: [
-        {
-          id: 'object-1',
-          properties: { type: 'A' },
-          timeSeries: [
-            { time: 0, value: 10, altitude: 100 },
-            { time: 10, value: 20, altitude: 200 },
-          ],
-        },
-        {
-          id: 'object-2',
-          properties: { type: 'B' },
-          timeSeries: [
-            { time: 0, latitude: 37.0, longitude: -122.0, altitude: 1000, speed: 200 },
-            { time: 10, latitude: 37.1, longitude: -122.1, altitude: 2000, speed: 250 },
-          ],
-        },
-      ],
-      currentTime: 5,
-    })
+    // First trip at midpoint between 0 and 10
+    expect((result.data as any)[0].id).toEqual('trip-1')
+    expect((result.data as any)[0].model).toEqual('Boeing')
+    expect((result.data as any)[0].heading).toEqual(202.5) // (360 + 45) / 2
+    expect((result.data as any)[0].speed).toEqual(110) // (100 + 120) / 2
+    expect((result.data as any)[0].time).toEqual(5)
 
-    expect(result.current[0].id, 'Id field should passthrough without interpolation').toEqual(
-      'object-1'
-    )
-    expect(result.current[0].properties, 'Non-interpolated fields should be preserved').toEqual({
-      type: 'A',
-    })
-
-    expect(result.current[1].id, 'Id field should passthrough without interpolation').toEqual(
-      'object-2'
-    )
-    expect(result.current[1].properties, 'Non-interpolated fields should be preserved').toEqual({
-      type: 'B',
-    })
-
-    expect(
-      result.current[0].value,
-      'All numeric values should be interpolated at the midpoint'
-    ).toEqual(15)
-    expect(
-      result.current[0].altitude,
-      'All numeric values should be interpolated at the midpoint'
-    ).toEqual(150)
-    expect(result.current[0].time, 'Time comes from the keyframe, not currentTime').toEqual(5)
-
-    expect(
-      result.current[1].latitude,
-      'All numeric values should be interpolated at the midpoint'
-    ).toEqual(37.05)
-    expect(
-      result.current[1].longitude,
-      'All numeric values should be interpolated at the midpoint'
-    ).toEqual(-122.05)
-    expect(
-      result.current[1].altitude,
-      'All numeric values should be interpolated at the midpoint'
-    ).toEqual(1500)
-    expect(
-      result.current[1].speed,
-      'All numeric values should be interpolated at the midpoint'
-    ).toEqual(225)
-    expect(result.current[1].time, 'Time comes from the keyframe, not currentTime').toEqual(5)
+    // Second trip at midpoint
+    expect((result.data as any)[1].id).toEqual('trip-2')
+    expect((result.data as any)[1].model).toEqual('Airbus')
+    expect((result.data as any)[1].heading).toEqual(225) // (180 + 270) / 2
+    expect((result.data as any)[1].speed).toEqual(160) // (150 + 170) / 2
+    expect((result.data as any)[1].time).toEqual(5)
   })
 
   it('handles time values outside of data time domain', () => {
     const operator = new TimeSeriesOp('timeseries-0')
     const data = [
       {
-        id: 'test-id',
-        properties: {},
-        timeSeries: [
-          { time: 5, value: 15, altitude: 150 },
-          { time: 10, value: 20, altitude: 200 },
+        id: 'trip-1',
+        timestamps: [5, 10],
+        values: [
+          { heading: 100, altitude: 1000 },
+          { heading: 200, altitude: 2000 },
         ],
       },
     ]
 
+    // Before first timestamp - clamps to first point
     const resultBefore = operator.execute({
       data,
       currentTime: 0,
+      getTimestamps: (d: any) => d.timestamps,
+      getValues: (d: any) => d.values,
+      getProperties: (d: any) => d,
     })
 
-    expect(resultBefore.current[0].value, 'Should use first keyframe values').toEqual(15)
-    expect(resultBefore.current[0].altitude, 'Should use first keyframe values').toEqual(150)
-    expect(resultBefore.current[0].time, 'Should use first keyframe values').toEqual(5)
+    expect((resultBefore.data as any)[0].heading).toEqual(100)
+    expect((resultBefore.data as any)[0].altitude).toEqual(1000)
+    expect((resultBefore.data as any)[0].time).toEqual(0) // Uses currentTime from execute
 
+    // After last timestamp - clamps to last point
     const resultAfter = operator.execute({
       data,
       currentTime: 20,
+      getTimestamps: (d: any) => d.timestamps,
+      getValues: (d: any) => d.values,
+      getProperties: (d: any) => d,
     })
 
-    expect(resultAfter.current[0].value, 'Should use last keyframe values').toEqual(20)
-    expect(resultAfter.current[0].altitude, 'Should use last keyframe values').toEqual(200)
-    expect(resultAfter.current[0].time, 'Should use last keyframe values').toEqual(10)
+    expect((resultAfter.data as any)[0].heading).toEqual(200)
+    expect((resultAfter.data as any)[0].altitude).toEqual(2000)
+    expect((resultAfter.data as any)[0].time).toEqual(20) // Uses currentTime from execute
   })
 
-  it('preserves all non-timeSeries fields from input data', () => {
+  it('preserves all static properties via getProperties accessor', () => {
     const operator = new TimeSeriesOp('timeseries-0')
     const result = operator.execute({
       data: [
         {
-          id: 'test-id',
-          properties: { name: 'Test' },
-          customField: 'custom-value',
-          anotherField: { nested: 'data' },
-          timeSeries: [
-            { time: 0, value: 10 },
-            { time: 10, value: 20 },
+          id: 'trip-1',
+          model: 'Boeing 737',
+          route: 'SFO-LAX',
+          timestamps: [0, 10],
+          path: [[0, 0], [1, 1]],
+          values: [
+            { heading: 90, altitude: 1000 },
+            { heading: 120, altitude: 1500 },
           ],
         },
       ],
       currentTime: 5,
+      getTimestamps: (d: any) => d.timestamps,
+      getValues: (d: any) => d.values,
+      getProperties: (d: any) => d,
     })
 
-    expect(result.current[0].id).toEqual('test-id')
-    expect(result.current[0].properties).toEqual({ name: 'Test' })
-    expect(result.current[0].customField).toEqual('custom-value')
-    expect(result.current[0].anotherField).toEqual({ nested: 'data' })
-    expect(result.current[0].value).toEqual(15) // interpolated
-    expect(result.current[0].time).toEqual(5) // current time
+    // All static properties should be preserved
+    expect((result.data as any)[0].id).toEqual('trip-1')
+    expect((result.data as any)[0].model).toEqual('Boeing 737')
+    expect((result.data as any)[0].route).toEqual('SFO-LAX')
+    expect((result.data as any)[0].timestamps).toEqual([0, 10])
+    expect((result.data as any)[0].path).toEqual([[0, 0], [1, 1]])
+
+    // Interpolated values
+    expect((result.data as any)[0].heading).toEqual(105)
+    expect((result.data as any)[0].altitude).toEqual(1250)
+    expect((result.data as any)[0].time).toEqual(5)
+  })
+
+  it('works with default accessors when data has expected shape', () => {
+    const operator = new TimeSeriesOp('timeseries-0')
+    // Use default input values which expect d.timestamps and d.values
+    const result = operator.execute({
+      data: [
+        {
+          id: 'trip-1',
+          timestamps: [0, 10],
+          values: [{ speed: 100 }, { speed: 200 }],
+        },
+      ],
+      currentTime: 5,
+      getTimestamps: (d: any) => d?.timestamps || [],
+      getValues: (d: any) => d?.values || [],
+      getProperties: (d: any) => d,
+    })
+
+    expect((result.data as any)[0].id).toEqual('trip-1')
+    expect((result.data as any)[0].speed).toEqual(150)
+    expect((result.data as any)[0].time).toEqual(5)
+  })
+
+  it('aligns with TripsLayer API - reusable getTimestamps accessor', () => {
+    const operator = new TimeSeriesOp('timeseries-0')
+
+    // This is the same accessor you'd use for TripsLayer
+    const getTimestamps = (d: any) => d.timestamps
+    const getValues = (d: any) => d.orientations
+
+    const tripData = [
+      {
+        id: 'aircraft-1',
+        timestamps: [0, 10, 20],
+        path: [[0, 0], [1, 1], [2, 2]],
+        orientations: [
+          { heading: 0, pitch: 0, roll: 0 },
+          { heading: 45, pitch: 5, roll: 10 },
+          { heading: 90, pitch: 10, roll: 0 },
+        ],
+      },
+    ]
+
+    const result = operator.execute({
+      data: tripData,
+      currentTime: 5,
+      getTimestamps,
+      getValues,
+      getProperties: (d: any) => d,
+    })
+
+    expect((result.data as any)[0].id).toEqual('aircraft-1')
+    expect((result.data as any)[0].heading).toEqual(22.5) // interpolated
+    expect((result.data as any)[0].pitch).toEqual(2.5) // interpolated
+    expect((result.data as any)[0].roll).toEqual(5) // interpolated
+    expect((result.data as any)[0].timestamps).toEqual([0, 10, 20]) // preserved from getProperties
+    expect((result.data as any)[0].path).toEqual([[0, 0], [1, 1], [2, 2]]) // preserved from getProperties
   })
 })

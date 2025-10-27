@@ -5080,60 +5080,53 @@ function interpolateTimeSeries(
 
 export class TimeSeriesOp extends Operator<TimeSeriesOp> {
   static displayName = 'TimeSeries'
-  static description = 'Interpolate any time-based data series given a time value'
+  static description = 'Interpolate time-varying data at a given time. Aligns with TripsLayer API for easy reuse of accessors.'
   asDownload = () => this.outputData
   createInputs() {
     return {
-      data: new DataField(
-        // TODO: Support data schema helpers *and* custom data schemas
-        // new ArrayField(
-        //   new CompoundPropsField({
-        //     properties: new UnknownField({}, { optional: true }),
-        //     timeSeries: new ArrayField(
-        //       new CompoundPropsField(
-        //         {
-        //           time: new NumberField(0),
-        //         },
-        //         { passthrough: true }
-        //       )
-        //     ),
-        //   })
-        // )
-      ),
+      data: new DataField(),
       currentTime: new NumberField(0),
+      getTimestamps: new UnknownField((d: any) => d?.timestamps || [], { accessor: true }),
+      getValues: new UnknownField((d: any) => d?.values || [], { accessor: true }),
+      getProperties: new UnknownField((d: any) => d, { accessor: true, optional: true }),
     }
   }
   createOutputs() {
     return {
-      current: new DataField(
-        // TODO: Support data schema helpers *and* custom data schemas
-        // new ArrayField(
-        //   new CompoundPropsField(
-        //     {
-        //       time: new NumberField(),
-        //       properties: new UnknownField(),
-        //     },
-        //     { passthrough: true }
-        //   )
-        // )
-      ),
+      data: new DataField(),
     }
   }
 
   execute({
     data,
     currentTime,
+    getTimestamps,
+    getValues,
+    getProperties,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!Array.isArray(data) || !data.length) {
-      return { current: [] }
+      return { data: [] }
     }
 
     return {
-      current: data.map(({ timeSeries, ...other }: any) => {
+      data: data.map((d, i) => {
+        // Call accessors with proper deck.gl accessor signature
+        const timestamps = (getTimestamps as Function)(d, { index: i, data, target: [] }) as number[]
+        const values = (getValues as Function)(d, { index: i, data, target: [] }) as any[]
+        const properties = getProperties ? (getProperties as Function)(d, { index: i, data, target: [] }) : {}
+
+        // Convert values array to timeSeries format for interpolation
+        const timeSeries = timestamps.map((time: number, idx: number) => ({
+          time,
+          ...(values[idx] || {}),
+        }))
+
         const interpolated = interpolateTimeSeries(timeSeries, currentTime)
+
         return {
+          ...properties,
           ...interpolated,
-          ...other,
+          time: currentTime,
         }
       }),
     }
