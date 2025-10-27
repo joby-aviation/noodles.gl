@@ -28,25 +28,37 @@ studio.initialize({
   usePersistentStorage: false,
 })
 
-// Inject custom styles into TheatreJS shadow DOM to hide export button
+// Inject styles into TheatreJS shadow DOM to hide export button
+// Using the generated class name is brittle but more reliable than trying to
+// target dynamically rendered buttons. This may break if Theatre.js updates.
 const injectTheatreStyles = () => {
   const theatreRoot = document.querySelector('#theatrejs-studio-root')
-  if (theatreRoot?.shadowRoot) {
+  if (theatreRoot?.shadowRoot && !theatreRoot.shadowRoot.querySelector('#hide-export-style')) {
     const style = document.createElement('style')
+    style.id = 'hide-export-style'
     style.textContent = `
-      /* Hide export button */
+      /* Hide export button - using generated class name (brittle) */
       .dKXstw {
         display: none !important;
       }
     `
     theatreRoot.shadowRoot.appendChild(style)
+    return true
   }
+  return false
 }
 
-// Wait for TheatreJS to mount its shadow DOM
-setTimeout(() => {
-  injectTheatreStyles()
-}, 100)
+// Use a single MutationObserver to watch for both the theatre root being added
+// and its shadowRoot being attached
+const observer = new MutationObserver(() => {
+  if (injectTheatreStyles()) {
+    observer.disconnect()
+  }
+})
+observer.observe(document.body, { childList: true, subtree: true })
+
+// Also try injecting immediately in case everything is already loaded
+injectTheatreStyles()
 
 const INITIAL_RENDER_STATE = {
   display: types.stringLiteral('fixed', {
