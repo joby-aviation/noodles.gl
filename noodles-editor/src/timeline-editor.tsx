@@ -28,6 +28,26 @@ studio.initialize({
   usePersistentStorage: false,
 })
 
+// Inject custom styles into TheatreJS shadow DOM to hide export button
+const injectTheatreStyles = () => {
+  const theatreRoot = document.querySelector('#theatrejs-studio-root')
+  if (theatreRoot?.shadowRoot) {
+    const style = document.createElement('style')
+    style.textContent = `
+      /* Hide export button */
+      .dKXstw {
+        display: none !important;
+      }
+    `
+    theatreRoot.shadowRoot.appendChild(style)
+  }
+}
+
+// Wait for TheatreJS to mount its shadow DOM
+setTimeout(() => {
+  injectTheatreStyles()
+}, 100)
+
 const INITIAL_RENDER_STATE = {
   display: types.stringLiteral('fixed', {
     fixed: 'fixed',
