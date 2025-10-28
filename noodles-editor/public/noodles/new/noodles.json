@@ -23,6 +23,18 @@
         "x": 390,
         "y": 0
       }
+    },
+    {
+      "type": "MaplibreBasemapOp",
+      "id": "/maplibre-basemap",
+      "position": {
+        "x": -27.097062041233293,
+        "y": 282.8294486649364
+      },
+      "data": {
+        "inputs": {},
+        "locked": false
+      }
     }
   ],
   "edges": [
@@ -32,10 +44,20 @@
       "target": "/out",
       "sourceHandle": "out.vis",
       "targetHandle": "par.vis"
+    },
+    {
+      "source": "/maplibre-basemap",
+      "sourceHandle": "out.maplibre",
+      "target": "/deck",
+      "targetHandle": "par.basemap",
+      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap"
     }
   ],
-  "viewport": {},
-  "version": 6,
+  "viewport": {
+    "x": 487.61570812099455,
+    "y": 199.8206070154179,
+    "zoom": 0.7608097176595698
+  },
   "timeline": {
     "sheetsById": {
       "Noodles": {
@@ -48,5 +70,6 @@
     "revisionHistory": [
       "JFf3TQ8BG-ho9JXk"
     ]
-  }
+  },
+  "version": 7
 }

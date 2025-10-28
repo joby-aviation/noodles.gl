@@ -34,8 +34,8 @@
         "locked": false
       },
       "position": {
-        "x": 0,
-        "y": 50
+        "x": -756.432131690169,
+        "y": 37.4393188464732
       }
     },
     {
@@ -71,13 +71,13 @@
       "type": "AccessorOp",
       "data": {
         "inputs": {
-          "expression": "d.properties.unemployment_rate"
+          "expression": "d.properties.unemployment_rate ?? 0"
         },
         "locked": false
       },
       "position": {
-        "x": -21.530967491202063,
-        "y": 373.495568297861
+        "x": -600.2260484943222,
+        "y": 514.1452437371968
       }
     },
     {
@@ -92,11 +92,51 @@
           "mapStyle": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
           "viewState": {
             "latitude": 40.017,
-            "longitude": -102.647,
-            "zoom": 2.95,
+            "longitude": -94.347,
+            "zoom": 5.45,
             "pitch": 0,
             "bearing": 0
           }
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "MapRangeOp",
+      "id": "/map-range",
+      "position": {
+        "x": 83.47101216576985,
+        "y": 336.0787505954455
+      },
+      "data": {
+        "inputs": {
+          "inMin": 0.1
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "ExtentOp",
+      "id": "/extent",
+      "position": {
+        "x": -136.64819796918258,
+        "y": 286.1172519601011
+      },
+      "data": {
+        "inputs": {},
+        "locked": false
+      }
+    },
+    {
+      "type": "ExpressionOp",
+      "id": "/expression",
+      "position": {
+        "x": -471.74358724252534,
+        "y": 278.93357739586463
+      },
+      "data": {
+        "inputs": {
+          "expression": "d.features"
         },
         "locked": false
       }
@@ -125,11 +165,11 @@
       "targetHandle": "par.getFillColor"
     },
     {
-      "id": "/unemployment-accessor.out.accessor->/unemployment-color.par.value",
-      "source": "/unemployment-accessor",
+      "source": "/map-range",
+      "sourceHandle": "out.scaled",
       "target": "/unemployment-color",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.value"
+      "targetHandle": "par.value",
+      "id": "/map-range.out.scaled->/unemployment-color.par.value"
     },
     {
       "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
@@ -144,6 +184,41 @@
       "target": "/deck",
       "sourceHandle": "out.layer",
       "targetHandle": "par.layers"
+    },
+    {
+      "source": "/unemployment-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/map-range",
+      "targetHandle": "par.val",
+      "id": "/unemployment-accessor.out.accessor->/map-range.par.val"
+    },
+    {
+      "source": "/expression",
+      "sourceHandle": "out.data",
+      "target": "/extent",
+      "targetHandle": "par.data",
+      "id": "/expression.out.data->/extent.par.data"
+    },
+    {
+      "source": "/unemployment-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/extent",
+      "targetHandle": "par.accessor",
+      "id": "/unemployment-accessor.out.accessor->/extent.par.accessor"
+    },
+    {
+      "source": "/data-source",
+      "sourceHandle": "out.data",
+      "target": "/expression",
+      "targetHandle": "par.data",
+      "id": "/data-source.out.data->/expression.par.data"
+    },
+    {
+      "source": "/extent",
+      "sourceHandle": "out.max",
+      "target": "/map-range",
+      "targetHandle": "par.inMax",
+      "id": "/extent.out.max->/map-range.par.inMax"
     }
   ],
   "viewport": {
@@ -162,5 +237,5 @@
     "definitionVersion": "0.4.0",
     "revisionHistory": []
   },
-  "version": 6
+  "version": 7
 }
