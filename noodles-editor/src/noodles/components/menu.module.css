@@ -124,7 +124,7 @@
 }
 
 [data-radix-popper-content-wrapper] {
-  z-index: 1000 !important;
+  z-index: var(--z-index-menu) !important;
 }
 
 /* save project dialog */
@@ -348,7 +348,7 @@
   white-space: nowrap;
   position: sticky;
   top: 0;
-  z-index: 1;
+  isolation: isolate;
   background-color: white;
 }
 
@@ -366,4 +366,31 @@
 .projectRow:hover {
   background-color: var(--mauve-3);
   cursor: pointer;
+}
+
+/* Chat button in menubar */
+.menubarRightSlot {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  padding-right: 8px;
+}
+
+.chatButton {
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  color: white;
+  background: #4a9eff;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chatButton:hover {
+  background: #3a8eef;
 }

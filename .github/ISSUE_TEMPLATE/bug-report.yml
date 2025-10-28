@@ -7,8 +7,8 @@ body:
   attributes:
     value: |
       Thank you for taking the time to report a bug!
-      You may find answers faster by searching in the documentation and [existing issues](https://github.com/joby/noodles.gl/issues).
-      If you are unsure whether it is a bug in your own implementation or the library itself, consider starting a conversation in [Discussions](https://github.com/joby/noodles.gl/discussions) instead.
+      You may find answers faster by searching in the documentation and [existing issues](https://github.com/joby-aviation/noodles.gl/issues).
+      If you are unsure whether it is a bug in your own implementation or the library itself, consider starting a conversation in [Discussions](https://github.com/joby-aviation/noodles.gl/discussions) instead.
 - type: textarea
   attributes:
     label: Description

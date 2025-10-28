@@ -2,7 +2,7 @@
 
 Noodles.gl is a node-based editor for creating geospatial visualizations and animations. It combines visual programming with reactive data flow to build interactive presentations and high-quality renders.
 
-![Noodles.gl Interface](/noodles.png)
+![Noodles.gl Interface](/img/noodles.png)
 
 
 ## What is Noodles.gl?

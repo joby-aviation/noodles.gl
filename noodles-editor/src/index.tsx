@@ -1,6 +1,6 @@
 /// <reference types="./index.d.ts" />
 import ReactDOM from 'react-dom/client'
-import App from './App'
+import App from './app'
 import './index.css'
 import reportWebVitals from './reportWebVitals'
 

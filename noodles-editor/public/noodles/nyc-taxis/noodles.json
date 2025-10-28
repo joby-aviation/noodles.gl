@@ -1,0 +1,299 @@
+{
+  "nodes": [
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 1200,
+        "y": 200
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 1500,
+        "y": 200
+      }
+    },
+    {
+      "id": "/data-source",
+      "type": "FileOp",
+      "data": {
+        "inputs": {
+          "format": "csv",
+          "url": "@/data.csv"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 0,
+        "y": 200
+      }
+    },
+    {
+      "id": "/arc-layer",
+      "type": "ArcLayerOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 897.6842857142857,
+        "y": -143.5742857142857
+      }
+    },
+    {
+      "id": "/pickup-layer",
+      "type": "ScatterplotLayerOp",
+      "data": {
+        "inputs": {
+          "opacity": 0.8,
+          "getLineColor": "#ffffffff",
+          "getRadius": 10
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 837.4757142857144,
+        "y": 195.36857142857144
+      }
+    },
+    {
+      "id": "/dropoff-layer",
+      "type": "ScatterplotLayerOp",
+      "data": {
+        "inputs": {
+          "opacity": 0.8,
+          "getLineColor": "#ffffffff",
+          "getRadius": 10
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 851.3700000000001,
+        "y": 589.8885714285714
+      }
+    },
+    {
+      "id": "/pickup-position",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "[d.pickup_longitude, d.pickup_latitude]"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 352.2185714285714,
+        "y": 157.89285714285714
+      }
+    },
+    {
+      "id": "/dropoff-position",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "[d.dropoff_longitude, d.dropoff_latitude]"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 352.2185714285714,
+        "y": 274.52714285714285
+      }
+    },
+    {
+      "type": "MaplibreBasemapOp",
+      "id": "/maplibre-basemap",
+      "position": {
+        "x": 1184.8328571428572,
+        "y": 484.2142857142857
+      },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+          "viewState": {
+            "latitude": 40.74,
+            "longitude": -73.98,
+            "zoom": 12.09,
+            "pitch": 56,
+            "bearing": -15.25
+          }
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "ColorOp",
+      "id": "/pickup",
+      "position": {
+        "x": 471.3628571428572,
+        "y": 62.52428571428571
+      },
+      "data": {
+        "inputs": {
+          "color": "#8d12af"
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "ColorOp",
+      "id": "/dropoff",
+      "position": {
+        "x": 443.5742857142857,
+        "y": 420.8414285714286
+      },
+      "data": {
+        "inputs": {
+          "color": "#105b89"
+        },
+        "locked": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    },
+    {
+      "id": "/data-source.out.data->/arc-layer.par.data",
+      "source": "/data-source",
+      "target": "/arc-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/data-source.out.data->/pickup-layer.par.data",
+      "source": "/data-source",
+      "target": "/pickup-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/data-source.out.data->/dropoff-layer.par.data",
+      "source": "/data-source",
+      "target": "/dropoff-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/pickup-position.out.accessor->/arc-layer.par.getSourcePosition",
+      "source": "/pickup-position",
+      "target": "/arc-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getSourcePosition"
+    },
+    {
+      "id": "/dropoff-position.out.accessor->/arc-layer.par.getTargetPosition",
+      "source": "/dropoff-position",
+      "target": "/arc-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getTargetPosition"
+    },
+    {
+      "id": "/pickup-position.out.accessor->/pickup-layer.par.getPosition",
+      "source": "/pickup-position",
+      "target": "/pickup-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getPosition"
+    },
+    {
+      "id": "/dropoff-position.out.accessor->/dropoff-layer.par.getPosition",
+      "source": "/dropoff-position",
+      "target": "/dropoff-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getPosition"
+    },
+    {
+      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
+      "source": "/maplibre-basemap",
+      "target": "/deck",
+      "sourceHandle": "out.maplibre",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/arc-layer.out.layer->/deck.par.layers",
+      "source": "/arc-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/pickup-layer.out.layer->/deck.par.layers",
+      "source": "/pickup-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/dropoff-layer.out.layer->/deck.par.layers",
+      "source": "/dropoff-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "source": "/pickup",
+      "sourceHandle": "out.color",
+      "target": "/arc-layer",
+      "targetHandle": "par.getSourceColor",
+      "id": "/pickup.out.color->/arc-layer.par.getSourceColor"
+    },
+    {
+      "source": "/pickup",
+      "sourceHandle": "out.color",
+      "target": "/pickup-layer",
+      "targetHandle": "par.getFillColor",
+      "id": "/pickup.out.color->/pickup-layer.par.getFillColor"
+    },
+    {
+      "source": "/dropoff",
+      "sourceHandle": "out.color",
+      "target": "/arc-layer",
+      "targetHandle": "par.getTargetColor",
+      "id": "/dropoff.out.color->/arc-layer.par.getTargetColor"
+    },
+    {
+      "source": "/dropoff",
+      "sourceHandle": "out.color",
+      "target": "/dropoff-layer",
+      "targetHandle": "par.getFillColor",
+      "id": "/dropoff.out.color->/dropoff-layer.par.getFillColor"
+    }
+  ],
+  "viewport": {
+    "x": 172.53317127277438,
+    "y": 204.01752158305402,
+    "zoom": 0.467987771000214
+  },
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {
+            "editor": {
+              "layoutMode": "noodles-on-top"
+            }
+          }
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": []
+  },
+  "version": 6
+}

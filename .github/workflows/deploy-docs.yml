@@ -51,22 +51,22 @@ jobs:
         run: yarn build
         working-directory: ./website
 
-      - name: Setup deployment structure  
+      - name: Setup deployment structure
         run: |
           # Create deployment directory structure
           mkdir -p ./deployment
-          # Copy app to root
-          cp -r ./noodles-editor/dist/* ./deployment/
-          # Copy docs to /docs subdirectory
-          mkdir -p ./deployment/docs
-          cp -r ./website/build/* ./deployment/docs/
+          # Copy website (docs) to root
+          cp -r ./website/build/* ./deployment/
+          # Copy app to /app subdirectory
+          mkdir -p ./deployment/app
+          cp -r ./noodles-editor/dist/* ./deployment/app/
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Upload deployment structure: app at root, docs at /docs
+          # Upload deployment structure: website at root, app at /app
           path: './deployment'
       - name: Deploy to GitHub Pages
         id: deployment

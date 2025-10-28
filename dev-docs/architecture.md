@@ -9,6 +9,7 @@ Noodles is powered by a reactive dataflow engine using rxjs and a keyframe-based
 Changes from the node editor propagate automatically through the dataflow graph, and any parameters can be keyframed on the timeline to create smooth animations. This makes it easy to create complex, data-driven animations with minimal effort.
 
 ## Directory Structure
+
 ```
 noodles-editor/
 ├── src/                    # Source code

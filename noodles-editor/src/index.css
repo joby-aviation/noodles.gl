@@ -14,21 +14,9 @@ code {
 
 #root {
   height: 100vh;
+  overflow-y: hidden;
 }
 
 #deckgl-wrapper {
   height: 100vh;
-}
-
-.action-buttons {
-  position: absolute;
-  left: 50%;
-  z-index: 999;
-  display: flex;
-  flex-direction: row;
-}
-
-.not-found {
-  text-align: center;
-  margin: 0;
 }

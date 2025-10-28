@@ -1,0 +1,71 @@
+.widgetContainer {
+  display: grid;
+  height: 100vh;
+  grid-template-areas:
+    "left-widget top-widget right-widget"
+    "left-widget fill-widget right-widget"
+    "bottom-widget bottom-widget bottom-widget";
+  grid-template-rows: auto 1fr auto;
+  grid-template-columns: auto 1fr auto;
+  position: relative;
+}
+
+.fillWidget {
+  grid-area: fill-widget;
+  position: relative;
+  overflow: hidden;
+}
+
+.outputArea,
+.noodlesArea {
+  position: absolute;
+  left: 0;
+  right: 0;
+  overflow: hidden;
+}
+
+/* Split mode: divide space vertically */
+.fillWidget.layoutSplit .outputArea {
+  top: 0;
+  bottom: 50%;
+}
+
+.fillWidget.layoutSplit .noodlesArea {
+  top: 50%;
+  bottom: 0;
+}
+
+/* Noodles on top mode: noodles overlays output */
+.fillWidget.layoutNoodlesOnTop .outputArea {
+  top: 0;
+  bottom: 0;
+  isolation: isolate;
+}
+
+.fillWidget.layoutNoodlesOnTop .noodlesArea {
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+}
+
+/* Output on top mode: output overlays noodles */
+.fillWidget.layoutOutputOnTop .outputArea {
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+}
+
+.fillWidget.layoutOutputOnTop .noodlesArea {
+  top: 0;
+  bottom: 0;
+  isolation: isolate;
+}
+
+/* In output-on-top mode, disable pointer events on the container but enable them on children */
+.fillWidget.layoutOutputOnTop .outputArea {
+  pointer-events: none;
+}
+
+.fillWidget.layoutOutputOnTop .outputArea > * {
+  pointer-events: auto;
+}

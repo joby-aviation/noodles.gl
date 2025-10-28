@@ -1,7 +1,7 @@
 import { CodeiumEditor } from '@codeium/react-code-editor'
 import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
-import { useEdges, useNodeId, useReactFlow } from '@xyflow/react'
+import { Handle, Position, useEdges, useNodeId, useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
 import type { ScaleLinear, ScaleOrdinal } from 'd3'
 import { Button } from 'primereact/button'
@@ -36,6 +36,7 @@ import type { IOperator, Operator } from '../operators'
 import { checkAssetExists, writeAsset } from '../storage'
 import { projectScheme } from '../utils/filesystem'
 import { edgeId, type OpId } from '../utils/id-utils'
+import { handleClass } from './op-components'
 import menuStyles from './menu.module.css'
 
 type InputComponent = React.ComponentType<{
@@ -43,6 +44,27 @@ type InputComponent = React.ComponentType<{
   field: Field
   disabled: boolean
 }>
+
+export interface HandleOptions {
+  type: 'target' | 'source'
+  namespace: 'par' | 'out'
+}
+
+// Helper to format values for the handle preview
+function viewerFormatter(value: unknown): unknown {
+  if (typeof value === 'function') {
+    return { value: `Function(${value.name || 'anonymous'})` }
+  }
+  if (
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    value instanceof Date
+  ) {
+    return { value }
+  }
+  return value
+}
 
 export const inputComponents = {
   array: EmptyFieldComponent,
@@ -55,8 +77,8 @@ export const inputComponents = {
   compound: CompoundFieldComponent,
   data: EmptyFieldComponent,
   date: DateFieldComponent,
-  expression: TextFieldComponent,
   effect: EmptyFieldComponent,
+  expression: TextFieldComponent,
   file: FileFieldComponent,
   function: EmptyFieldComponent,
   'geopoint-2d': VectorFieldComponent,
@@ -73,6 +95,7 @@ export const inputComponents = {
   vec4: VectorFieldComponent,
   view: EmptyFieldComponent,
   visualization: EmptyFieldComponent,
+  widget: EmptyFieldComponent,
 } as const as Record<string, InputComponent>
 
 // Guard on accessor callbacks in `setValue`/`useState` for when fields are disconnected
@@ -100,6 +123,7 @@ export function TextFieldComponent({
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
+      if (typeof newVal === 'function') return
       setValue(formatText(newVal))
     })
     return () => sub.unsubscribe()
@@ -281,13 +305,11 @@ export function CodeFieldComponent({
   disabled: boolean
 }) {
   const [value, setValue] = useState(guardAccessorFallback(field.value))
-  const { setEdges, getEdges, getNode } = useReactFlow()
+  const { setEdges, getNode } = useReactFlow()
   const editorRef = useRef<unknown>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const edges = getEdges()
   const nodeId = useNodeId() as string
-
   const node = getNode(nodeId)
   const nodeHeight = node?.height || 300
 
@@ -324,75 +346,68 @@ export function CodeFieldComponent({
     return () => sub.unsubscribe()
   }, [field])
 
-  const subscribedFields = useMemo(
-    () => edges.filter(e => e.target === nodeId && e.targetHandle === thisFieldId),
-    [edges, nodeId, thisFieldId]
-  )
-
+  // Sync reference edges when field value changes
+  // This effect should NOT depend on edges to avoid infinite loops
   const fieldReferences = useMemo(() => getFieldReferences(value, thisOpId), [value, thisOpId])
 
-  const toAdd = useMemo(
-    () =>
-      fieldReferences.filter(ref => !subscribedFields.some(f => f.sourceHandle === ref.handleId)),
-    [fieldReferences, subscribedFields]
-  )
-  const toRemove = useMemo(
-    () =>
-      subscribedFields.filter(f => !fieldReferences.some(ref => ref.handleId === f.sourceHandle)),
-    [fieldReferences, subscribedFields]
-  )
-
   useEffect(() => {
-    if (toAdd.length === 0 && toRemove.length === 0) return
-
     setEdges(oldEdges => {
+      // Find existing ReferenceEdges targeting this field
+      const existingReferenceEdges = oldEdges.filter(
+        e => e.target === nodeId && e.targetHandle === thisFieldId && e.type === 'ReferenceEdge'
+      )
+
+      // Determine which edges to add and remove
+      const existingHandleIds = new Set(existingReferenceEdges.map(e => e.sourceHandle))
+      const referencedHandleIds = new Set(fieldReferences.map(ref => ref.handleId))
+
+      const toAdd = fieldReferences.filter(ref => !existingHandleIds.has(ref.handleId))
+      const idsToRemove = new Set(
+        existingReferenceEdges
+          .filter(e => !referencedHandleIds.has(e.sourceHandle || ''))
+          .map(e => e.id)
+      )
+
+      if (toAdd.length === 0 && idsToRemove.size === 0) {
+        return oldEdges // No changes needed
+      }
+
       let newEdges = oldEdges
 
-      // Remove edges first
-      if (toRemove.length > 0) {
-        const idsToRemove = new Set(toRemove.map(e => e.id))
+      // Remove edges that are no longer referenced
+      if (idsToRemove.size > 0) {
         newEdges = newEdges.filter(e => !idsToRemove.has(e.id))
       }
 
-      // Add new edges
+      // Add new reference edges
       if (toAdd.length > 0) {
-        const existingIds = new Set(newEdges.map(e => e.id))
-        const edgesToAdd = toAdd
-          .map(({ opId, handleId }) => {
-            const connection = {
-              source: opId,
-              sourceHandle: handleId,
-              target: thisOpId,
-              targetHandle: thisFieldId,
-            }
-            const edgeIdStr = edgeId(connection)
+        const newReferenceEdges = toAdd.map(({ opId, handleId }) => {
+          const connection = {
+            source: opId,
+            sourceHandle: handleId,
+            target: thisOpId,
+            targetHandle: thisFieldId,
+          }
+          return {
+            id: edgeId(connection),
+            type: 'ReferenceEdge',
+            selectable: false,
+            deletable: false,
+            focusable: false,
+            reconnectable: false,
+            source: opId,
+            target: thisOpId,
+            sourceHandle: handleId,
+            targetHandle: thisFieldId,
+          } as Edge<Operator<IOperator>, Operator<IOperator>>
+        })
 
-            // Skip if already exists
-            if (existingIds.has(edgeIdStr)) return null
-
-            return {
-              id: edgeIdStr,
-              type: 'ReferenceEdge',
-              selectable: false,
-              deletable: false,
-              focusable: false,
-              reconnectable: false,
-              source: opId,
-              target: thisOpId,
-              sourceHandle: handleId,
-              targetHandle: thisFieldId,
-            } as Edge<Operator<IOperator>, Operator<IOperator>>
-          })
-          .filter((e): e is Edge<Operator<IOperator>, Operator<IOperator>> => e !== null)
-
-        if (edgesToAdd.length > 0) {
-          newEdges = [...newEdges, ...edgesToAdd]
-        }
+        newEdges = [...newEdges, ...newReferenceEdges]
       }
 
-      return newEdges === oldEdges ? oldEdges : newEdges
+      return newEdges
     })
-  }, [thisOpId, thisFieldId, toAdd, toRemove, setEdges])
+  }, [fieldReferences, thisOpId, thisFieldId, nodeId, setEdges])
 
   return (
     <div className={cx(s.fieldWrapper, s.fieldWrapperCode)} ref={containerRef}>
@@ -435,6 +450,7 @@ export function FileFieldComponent({
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
+      if (typeof newVal === 'function') return
       setValue(newVal)
     })
     return () => sub.unsubscribe()
@@ -810,7 +826,7 @@ function DraggableNumberInput({
   className?: string
   title?: string
 }) {
-  const [displayValue, setDisplayValue] = useState<string>(value.toString())
+  const [displayValue, setDisplayValue] = useState<string>(value?.toString() ?? '0')
   const [isActive, setIsActive] = useState<boolean>(false)
   const [currentStepMultiplier, setCurrentStepMultiplier] = useState<number>(1)
   const [isDragStarted, setIsDragStarted] = useState<boolean>(false)
@@ -824,7 +840,7 @@ function DraggableNumberInput({
   const ladderTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
-    setDisplayValue(value.toString())
+    setDisplayValue(value?.toString() ?? '0')
   }, [value])
 
   useEffect(() => {
@@ -1047,6 +1063,7 @@ export function BooleanFieldComponent({
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
+      if (typeof newVal === 'function') return
       setValue(newVal)
     })
     return () => sub.unsubscribe()
@@ -1091,6 +1108,7 @@ export function DateFieldComponent({
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
+      if (typeof newVal === 'function') return
       setValue(newVal)
     })
     return () => sub.unsubscribe()
@@ -1231,16 +1249,34 @@ export function CompoundFieldComponent({
   field: CompoundPropsField
   disabled: boolean
 }) {
+  const [expanded, setExpanded] = useState(true)
   return (
     <div className={s.fieldWrapper}>
-      <label className={s.fieldLabel} htmlFor={id}>
+      <button
+        className={s.fieldLabel}
+        type="button"
+        onClick={() => setExpanded(e => !e)}
+        aria-expanded={expanded}
+      >
         {id}
-      </label>
-      <div id={id} className={s.fieldCompoundWrapper}>
-        {Object.entries(field.fields).map(([key, subField]) => (
-          <FieldComponent key={key} id={key} field={subField} disabled={disabled} />
-        ))}
-      </div>
+        <span className={cx(s.compoundPropsExpander, expanded && s.compoundPropsExpanderExpanded)}>►</span>
+      </button>
+      {expanded ? (
+        <div id={id} className={s.fieldCompoundWrapper}>
+          {Object.entries(field.fields).map(([key, subField]) => (
+            <FieldComponent key={key} id={key} field={subField} disabled={disabled} />
+          ))}
+        </div>
+      ) : (
+          <button
+            className={s.compoundPropsExpander}
+            type="button"
+            onClick={() => setExpanded(e => !e)}
+          >
+            ({Object.entries(field.fields).length} hidden props)
+          </button>
+        )
+      }
     </div>
   )
 }
@@ -1778,25 +1814,47 @@ export function FieldComponent({
   id: fieldId,
   field,
   disabled,
+  handle,
+  renderInput = true,
 }: {
   id: OpId
   field: Field<IField>
   disabled: boolean
+  handle?: HandleOptions
+  renderInput?: boolean
 }) {
   const nid = useNodeId()
   const edges = useEdges()
-  const qualifiedFieldId = `par.${fieldId}`
+  const qualifiedFieldId = handle ? `${handle.namespace}.${fieldId}` : `par.${fieldId}`
   const incomers = edges.filter(
     edge =>
       edge.target === nid && edge.targetHandle === qualifiedFieldId && edge.type !== 'ReferenceEdge'
   )
 
-  if (incomers.length > 0) {
-    return <EmptyFieldComponent id={fieldId} field={field} />
-  }
-
   const ctor = field.constructor as unknown as Field<IField>
-
   const InputComp = inputComponents[ctor.type]
-  return <InputComp id={fieldId} field={field} disabled={disabled} />
+
+  // When renderInput is false, position handle absolutely to avoid relying on container height
+  const handleStyle = renderInput
+    ? { transform: 'translate(-17px, -50%)' }
+    : { transform: 'translate(-17px, 15px)' }
+
+  return (
+    <div style={{ position: 'relative' }}>
+      {handle && (
+        <Handle
+          id={qualifiedFieldId}
+          className={handleClass(field)}
+          style={handleStyle}
+          type={handle.type}
+          position={Position.Left}
+        />
+      )}
+      {renderInput && (
+        incomers.length > 0
+          ? <EmptyFieldComponent id={fieldId} field={field} />
+          : <InputComp id={fieldId} field={field} disabled={disabled} />
+      )}
+    </div>
+  )
 }

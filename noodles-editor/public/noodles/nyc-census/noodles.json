@@ -1,0 +1,234 @@
+{
+  "nodes": [
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 1200,
+        "y": 150
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 1500,
+        "y": 150
+      }
+    },
+    {
+      "id": "/data-source",
+      "type": "FileOp",
+      "data": {
+        "inputs": {
+          "url": "@/data.json"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 108.52630719568747,
+        "y": -122.97570510099875
+      }
+    },
+    {
+      "id": "/geojson-layer",
+      "type": "GeoJsonLayerOp",
+      "data": {
+        "inputs": {
+          "opacity": 0.7,
+          "stroked": false,
+          "getLineColor": "#000000ff",
+          "extruded": true,
+          "elevationScale": 11
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 863.7581300813008,
+        "y": -94.96747967479675
+      }
+    },
+    {
+      "id": "/population-color",
+      "type": "ColorRampOp",
+      "data": {
+        "inputs": {
+          "colorScheme": "turbo"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 442.56042758935484,
+        "y": 253.73756330259326
+      }
+    },
+    {
+      "id": "/population-accessor",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "d.properties.Population"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -253.33131274420933,
+        "y": 249.151944688691
+      }
+    },
+    {
+      "id": "/elevation-accessor",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "d.properties.Population"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -199.29590867423792,
+        "y": 549.2119133097201
+      }
+    },
+    {
+      "type": "MaplibreBasemapOp",
+      "id": "/maplibre-basemap",
+      "position": {
+        "x": 847.2845528455284,
+        "y": 902.3536585365853
+      },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
+          "viewState": {
+            "latitude": 40.70103,
+            "longitude": -73.91554,
+            "zoom": 11.98,
+            "pitch": 59.11,
+            "bearing": -91.5
+          }
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "MapRangeOp",
+      "id": "/map-range",
+      "position": {
+        "x": 94.11925250078963,
+        "y": 260.9424297076135
+      },
+      "data": {
+        "inputs": {
+          "inMax": 10000
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "MapRangeOp",
+      "id": "/map-range-1",
+      "position": {
+        "x": 418.01764914528434,
+        "y": 519.3400164575731
+      },
+      "data": {
+        "inputs": {
+          "inMax": 10000,
+          "outMax": 200
+        },
+        "locked": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    },
+    {
+      "id": "/data-source.out.data->/geojson-layer.par.data",
+      "source": "/data-source",
+      "target": "/geojson-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "source": "/population-color",
+      "sourceHandle": "out.color",
+      "target": "/geojson-layer",
+      "targetHandle": "par.getFillColor",
+      "id": "/population-color.out.color->/geojson-layer.par.getFillColor"
+    },
+    {
+      "source": "/map-range-1",
+      "sourceHandle": "out.scaled",
+      "target": "/geojson-layer",
+      "targetHandle": "par.getElevation",
+      "id": "/map-range-1.out.scaled->/geojson-layer.par.getElevation"
+    },
+    {
+      "source": "/map-range",
+      "sourceHandle": "out.scaled",
+      "target": "/population-color",
+      "targetHandle": "par.value",
+      "id": "/map-range.out.scaled->/population-color.par.value"
+    },
+    {
+      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
+      "source": "/maplibre-basemap",
+      "target": "/deck",
+      "sourceHandle": "out.maplibre",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/geojson-layer.out.layer->/deck.par.layers",
+      "source": "/geojson-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "source": "/population-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/map-range",
+      "targetHandle": "par.val",
+      "id": "/population-accessor.out.accessor->/map-range.par.val"
+    },
+    {
+      "source": "/elevation-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/map-range-1",
+      "targetHandle": "par.val",
+      "id": "/elevation-accessor.out.accessor->/map-range-1.par.val"
+    }
+  ],
+  "viewport": {
+    "x": 47.242109497431784,
+    "y": 75.01093484232683,
+    "zoom": 0.4556733508888464
+  },
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": []
+  },
+  "version": 6
+}

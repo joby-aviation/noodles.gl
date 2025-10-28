@@ -11,7 +11,7 @@ import type { NoodlesContextValue } from '../store'
 import type { ExtractProps } from './extract-props'
 import { parseHandleId } from './path-utils'
 
-export { NODES_VERSION } from './migrate-schema'
+export { NOODLES_VERSION } from './migrate-schema'
 
 export type NoodlesProjectJSON = ReactFlowJsonObject & {
   version: number

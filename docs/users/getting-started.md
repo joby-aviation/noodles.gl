@@ -2,10 +2,12 @@
 
 Basic workflows for using Noodles.gl to create geospatial visualizations and animations.
 
+> New to node-based workflows? Start with [Introduction to Workflows](./workflows-intro.md) to learn the fundamentals of how data flows through Noodles.gl.
+
 ## Interface Overview
 
 ### Node Editor
-- **Add Operators**: Right-click or press 'a' to open the operator menu
+- **Add Operators**: Right-click an empty area of the canvas or press 'a' to open the operator menu
 - **Connect Data**: Drag from output handles to input handles
 - **Navigate**: Use breadcrumbs to move between containers, or press 'u' to go up one container level
 
@@ -23,8 +25,10 @@ Basic workflows for using Noodles.gl to create geospatial visualizations and ani
 
 **Data Source** → **Filter/Transform** → **Deck.gl Layer**
 
+<iframe src="https://drive.google.com/file/d/13e933pV8w_NfLUlmXa1vEw8JB4KfmL4z/preview" width="800" height="460" allow="autoplay"></iframe>
+
 1. **Load Data**: Start by adding a data source operator (JSON, CSV, or API)
 2. **Add Visualization**: Connect your data to a Deck.gl layer operator
 3. **Style & Configure**: Use the properties panel to customize appearance
-4. **Animate**: Add timeline keyframes to create smooth animations
+4. **Animate**: [Add timeline keyframes](./animation-and-rendering.md) to create smooth animations
 5. **Export**: Generate images, videos, or interactive applications

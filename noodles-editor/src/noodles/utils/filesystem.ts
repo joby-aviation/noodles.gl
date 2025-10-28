@@ -7,7 +7,7 @@ export type FileSystemSupport = {
   opfs: boolean
 }
 
-export type StorageType = keyof FileSystemSupport
+export type StorageType = keyof FileSystemSupport | 'publicFolder'
 
 // ============================================================================
 // OPFS (Origin Private File System) Functions

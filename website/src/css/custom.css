@@ -6,25 +6,48 @@
 
 /* You can override the default Infima variables here. */
 :root {
-  --ifm-color-primary: #2e8555;
-  --ifm-color-primary-dark: #29784c;
-  --ifm-color-primary-darker: #277148;
-  --ifm-color-primary-darkest: #205d3b;
-  --ifm-color-primary-light: #33925d;
-  --ifm-color-primary-lighter: #359962;
-  --ifm-color-primary-lightest: #3cad6e;
+  --ifm-color-primary: #667eea;
+  --ifm-color-primary-dark: #4c63e8;
+  --ifm-color-primary-darker: #3d55e6;
+  --ifm-color-primary-darkest: #2837d4;
+  --ifm-color-primary-light: #8099ec;
+  --ifm-color-primary-lighter: #99adee;
+  --ifm-color-primary-lightest: #c2cef4;
   --ifm-code-font-size: 95%;
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+
+  /* Custom gradient colors for light mode */
+  --gradient-start: #667eea;
+  --gradient-middle: #764ba2;
+  --gradient-end: #f093fb;
+  --feature-gradient-1: #667eea;
+  --feature-gradient-2: #764ba2;
+  --card-bg: rgba(255, 255, 255, 0.9);
+  --card-border: rgba(102, 126, 234, 0.2);
+  --text-primary: #1c1e21;
+  --text-secondary: #606770;
 }
 
 /* For readability concerns, you should choose a lighter palette in dark mode. */
 [data-theme='dark'] {
-  --ifm-color-primary: #25c2a0;
-  --ifm-color-primary-dark: #21af90;
-  --ifm-color-primary-darker: #1fa588;
-  --ifm-color-primary-darkest: #1a8870;
-  --ifm-color-primary-light: #29d5b0;
-  --ifm-color-primary-lighter: #32d8b4;
-  --ifm-color-primary-lightest: #4fddbf;
+  --ifm-color-primary: #8099ec;
+  --ifm-color-primary-dark: #667eea;
+  --ifm-color-primary-darker: #5570e8;
+  --ifm-color-primary-darkest: #3d55e6;
+  --ifm-color-primary-light: #99adee;
+  --ifm-color-primary-lighter: #b3c2f1;
+  --ifm-color-primary-lightest: #ccd6f4;
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+
+  /* Custom gradient colors for dark mode */
+  --gradient-start: #1a1a2e;
+  --gradient-middle: #16213e;
+  --gradient-end: #0f3460;
+  --feature-gradient-1: #667eea;
+  --feature-gradient-2: #764ba2;
+  --card-bg: rgba(26, 26, 46, 0.8);
+  --card-border: rgba(102, 126, 234, 0.3);
+  --text-primary: #e1e1e6;
+  --text-secondary: #a1a1aa;
+  --ifm-background-color: #0a0a0f;
 }

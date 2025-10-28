@@ -9,7 +9,7 @@ const migrations = import.meta.glob(['../__migrations__/*.ts', '!../__migrations
   eager: true,
 })
 
-export const NODES_VERSION = Math.max(...Object.keys(migrations).map(versionFromFilename))
+export const NOODLES_VERSION = Math.max(...Object.keys(migrations).map(versionFromFilename))
 
 interface IMigration {
   up: (project: NoodlesProjectJSON) => Promise<NoodlesProjectJSON>
@@ -26,7 +26,7 @@ function versionFromFilename(filename: string) {
 
 export async function migrateProject(
   project: NoodlesProjectJSON,
-  { to = NODES_VERSION }: { to?: number } = {}
+  { to = NOODLES_VERSION }: { to?: number } = {}
 ): Promise<NoodlesProjectJSON> {
   if (project.version === to) {
     return project

@@ -27,6 +27,7 @@ import {
   _TerrainExtension as TerrainExtension,
 } from '@deck.gl/extensions'
 import type {
+  A5LayerProps,
   GeohashLayerProps,
   GreatCircleLayerProps,
   H3ClusterLayerProps,
@@ -190,6 +191,7 @@ import { projectScheme } from './utils/filesystem'
 import type { OpId } from './utils/id-utils'
 import { isDirectChild } from './utils/path-utils'
 import { pick } from './utils/pick'
+import { validateViewState } from './utils/viewstate-helpers'
 
 // https://stackoverflow.com/questions/66044717/typescript-infer-type-of-abstract-methods-implementation
 export interface IOperator {
@@ -294,7 +296,7 @@ export abstract class Operator<OP extends IOperator> {
   }
 
   // Left open for sub-classes to override
-  onError(_err: unknown) {}
+  onError(_err: unknown) { }
 
   // Needs to be called after sub-classes have created their inputs and outputs
   createListeners() {
@@ -388,7 +390,7 @@ export class NumberOp extends Operator<NumberOp> {
 
 export class MapRangeOp extends Operator<MapRangeOp> {
   static displayName = 'MapRange'
-  static description = 'Map a value from one range to another'
+  static description = 'Remap a number from one range to another (e.g., map 0-100 to 0-1, or temperature to color intensity)'
   public createInputs() {
     return {
       val: new NumberField(0, { step: 0.01, accessor: true }),
@@ -420,7 +422,7 @@ export class MapRangeOp extends Operator<MapRangeOp> {
 export class ExtentOp extends Operator<ExtentOp> {
   static displayName = 'Extent'
   static description =
-    'Calculate the minimum and maximum values of a dataset using an optional accessor'
+    'Find the minimum and maximum values in your data (e.g., to set color scale ranges or determine data bounds)'
   createInputs() {
     return {
       data: new DataField(),
@@ -450,6 +452,41 @@ export class ExtentOp extends Operator<ExtentOp> {
   }
 }
 
+export class SelectOp extends Operator<SelectOp> {
+  static displayName = 'Select'
+  static description = 'Select an element from an array using an index (clamped to array bounds by default, or wrapped around array bounds)'
+  createInputs() {
+    return {
+      data: new DataField(),
+      index: new NumberField(0, { step: 1 }),
+      wrap: new BooleanField(false),
+    }
+  }
+  createOutputs() {
+    return {
+      value: new UnknownField(undefined),
+    }
+  }
+  execute({ data, index, wrap }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!Array.isArray(data) || data.length === 0) {
+      return { value: undefined }
+    }
+
+    let finalIndex: number
+    if (wrap) {
+      // Use modulo to wrap index around array bounds
+      finalIndex = ((Math.floor(index) % data.length) + data.length) % data.length
+    } else {
+      // Clamp index to array bounds
+      finalIndex = Math.max(0, Math.min(Math.floor(index), data.length - 1))
+    }
+
+    return {
+      value: data[finalIndex],
+    }
+  }
+}
+
 // Allow adding a "virtual" operator from the Add Node menu that wraps the Math operator with a specific operation
 export const mathOps = {
   DivideOp: 'divide',
@@ -466,6 +503,22 @@ export const mathOps = {
   CeilOp: 'ceil',
   AbsOp: 'abs',
 } as const
+
+export const mathOpDescriptions = {
+  DivideOp: 'Divide two numbers',
+  MultiplyOp: 'Multiply two numbers',
+  SubtractOp: 'Subtract two numbers',
+  AddOp: 'Add two numbers',
+  ModuloOp: 'Calculate the remainder of division',
+  SineOp: 'Calculate the sine of a number',
+  CosineOp: 'Calculate the cosine of a number',
+  MinOp: 'Get the minimum of two numbers',
+  MaxOp: 'Get the maximum of two numbers',
+  RoundOp: 'Round a number to the nearest integer',
+  FloorOp: 'Round down to the nearest integer',
+  CeilOp: 'Round up to the nearest integer',
+  AbsOp: 'Get the absolute value of a number',
+} as const as Record<keyof typeof mathOps, string>
 
 export type MathOpType = keyof typeof mathOps
 
@@ -664,8 +717,8 @@ export class CombineXYOp extends Operator<CombineXYOp> {
   static description = 'Combine x and y into a 2D vector'
   createInputs() {
     return {
-      x: new NumberField(0, { step: 0.01 }),
-      y: new NumberField(0, { step: 0.01 }),
+      x: new NumberField(0, { step: 0.01, accessor: true }),
+      y: new NumberField(0, { step: 0.01, accessor: true }),
     }
   }
   createOutputs() {
@@ -674,7 +727,21 @@ export class CombineXYOp extends Operator<CombineXYOp> {
     }
   }
   execute({ x, y }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const xy = { x, y }
+    // Check if any inputs are accessor functions
+    const xIsAccessor = isAccessor(x)
+    const yIsAccessor = isAccessor(y)
+
+    if (!xIsAccessor && !yIsAccessor) {
+      // Both static values
+      return { xy: { x: x as number, y: y as number } }
+    }
+
+    // At least one is an accessor - return accessor function
+    const xy = (...args: unknown[]) => {
+      const xVal = xIsAccessor ? (x as (...args: unknown[]) => unknown)(...args) : (x as number)
+      const yVal = yIsAccessor ? (y as (...args: unknown[]) => unknown)(...args) : (y as number)
+      return { x: xVal, y: yVal }
+    }
     return { xy }
   }
 }
@@ -684,9 +751,9 @@ export class CombineXYZOp extends Operator<CombineXYZOp> {
   static description = 'Combine x, y, and z into a 3D vector'
   createInputs() {
     return {
-      x: new NumberField(0, { step: 0.01 }),
-      y: new NumberField(0, { step: 0.01 }),
-      z: new NumberField(0, { step: 0.01 }),
+      x: new NumberField(0, { step: 0.01, accessor: true }),
+      y: new NumberField(0, { step: 0.01, accessor: true }),
+      z: new NumberField(0, { step: 0.01, accessor: true }),
     }
   }
   createOutputs() {
@@ -695,7 +762,23 @@ export class CombineXYZOp extends Operator<CombineXYZOp> {
     }
   }
   execute({ x, y, z }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const xyz = { x, y, z }
+    // Check if any inputs are accessor functions
+    const xIsAccessor = isAccessor(x)
+    const yIsAccessor = isAccessor(y)
+    const zIsAccessor = isAccessor(z)
+
+    if (!xIsAccessor && !yIsAccessor && !zIsAccessor) {
+      // All static values
+      return { xyz: { x: x as number, y: y as number, z: z as number } }
+    }
+
+    // At least one is an accessor - return accessor function
+    const xyz = (...args: unknown[]) => {
+      const xVal = xIsAccessor ? (x as (...args: unknown[]) => unknown)(...args) : (x as number)
+      const yVal = yIsAccessor ? (y as (...args: unknown[]) => unknown)(...args) : (y as number)
+      const zVal = zIsAccessor ? (z as (...args: unknown[]) => unknown)(...args) : (z as number)
+      return { x: xVal, y: yVal, z: zVal }
+    }
     return { xyz }
   }
 }
@@ -705,7 +788,7 @@ export class SplitXYOp extends Operator<SplitXYOp> {
   static description = 'Split a 2D vector into its x and y components'
   createInputs() {
     return {
-      vec: new Vec2Field(),
+      vec: new Vec2Field({ x: 0, y: 0 }, { accessor: true }),
     }
   }
   createOutputs() {
@@ -715,7 +798,15 @@ export class SplitXYOp extends Operator<SplitXYOp> {
     }
   }
   execute({ vec }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const { x, y } = vec
+    if (isAccessor(vec)) {
+      // Return accessor functions for each component
+      const x = composeAccessor(vec, (v: { x: number; y: number }) => v.x)
+      const y = composeAccessor(vec, (v: { x: number; y: number }) => v.y)
+      return { x, y } as ExtractProps<typeof this.outputs>
+    }
+
+    // Static value
+    const { x, y } = vec as { x: number; y: number }
     return { x, y }
   }
 }
@@ -725,7 +816,7 @@ export class SplitXYZOp extends Operator<SplitXYZOp> {
   static description = 'Split a 3D vector into its x, y, and z components'
   createInputs() {
     return {
-      vec: new Vec3Field(),
+      vec: new Vec3Field({ x: 0, y: 0, z: 0 }, { accessor: true }),
     }
   }
   createOutputs() {
@@ -736,7 +827,16 @@ export class SplitXYZOp extends Operator<SplitXYZOp> {
     }
   }
   execute({ vec }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const { x, y, z } = vec
+    if (isAccessor(vec)) {
+      // Return accessor functions for each component
+      const x = composeAccessor(vec, (v: { x: number; y: number; z: number }) => v.x)
+      const y = composeAccessor(vec, (v: { x: number; y: number; z: number }) => v.y)
+      const z = composeAccessor(vec, (v: { x: number; y: number; z: number }) => v.z)
+      return { x, y, z } as ExtractProps<typeof this.outputs>
+    }
+
+    // Static value
+    const { x, y, z } = vec as { x: number; y: number; z: number }
     return { x, y, z }
   }
 }
@@ -746,10 +846,10 @@ export class CombineRGBAOp extends Operator<CombineRGBAOp> {
   static description = 'Combine r, g, b, and a into a color (range 0-255)'
   createInputs() {
     return {
-      r: new NumberField(0),
-      g: new NumberField(0),
-      b: new NumberField(0),
-      a: new NumberField(1),
+      r: new NumberField(0, { accessor: true }),
+      g: new NumberField(0, { accessor: true }),
+      b: new NumberField(0, { accessor: true }),
+      a: new NumberField(1, { accessor: true }),
     }
   }
   createOutputs() {
@@ -758,8 +858,26 @@ export class CombineRGBAOp extends Operator<CombineRGBAOp> {
     }
   }
   execute({ r, g, b, a }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const color = colorToHex([r, g, b, a])
-    return { color }
+    // Check if any inputs are accessor functions
+    const rIsAccessor = isAccessor(r)
+    const gIsAccessor = isAccessor(g)
+    const bIsAccessor = isAccessor(b)
+    const aIsAccessor = isAccessor(a)
+
+    if (!rIsAccessor && !gIsAccessor && !bIsAccessor && !aIsAccessor) {
+      // All static values
+      return { color: colorToHex([r as number, g as number, b as number, a as number]) }
+    }
+
+    // At least one is an accessor - return accessor function
+    const color = (...args: unknown[]) => {
+      const rVal = rIsAccessor ? (r as (...args: unknown[]) => unknown)(...args) : (r as number)
+      const gVal = gIsAccessor ? (g as (...args: unknown[]) => unknown)(...args) : (g as number)
+      const bVal = bIsAccessor ? (b as (...args: unknown[]) => unknown)(...args) : (b as number)
+      const aVal = aIsAccessor ? (a as (...args: unknown[]) => unknown)(...args) : (a as number)
+      return colorToHex([rVal as number, gVal as number, bVal as number, aVal as number])
+    }
+    return { color } as ExtractProps<typeof this.outputs>
   }
 }
 
@@ -768,7 +886,7 @@ export class SplitRGBAOp extends Operator<SplitRGBAOp> {
   static description = 'Split a color into its red, green, blue, and alpha components (range 0-255)'
   createInputs() {
     return {
-      color: new ColorField(),
+      color: new ColorField({ accessor: true }),
     }
   }
   createOutputs() {
@@ -780,10 +898,24 @@ export class SplitRGBAOp extends Operator<SplitRGBAOp> {
     }
   }
   execute({ color }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const [r, g, b, a] = hexToColor(color)
-      .split(',')
-      .map((v: string) => parseInt(v, 10))
-    return { r, g, b, a }
+    const parseColor = (c: string) => {
+      const [r, g, b, a] = hexToColor(c)
+        .split(',')
+        .map((v: string) => parseInt(v, 10))
+      return { r, g, b, a }
+    }
+
+    if (isAccessor(color)) {
+      // Return accessor functions for each component
+      const r = composeAccessor(color, (c: string) => parseColor(c).r)
+      const g = composeAccessor(color, (c: string) => parseColor(c).g)
+      const b = composeAccessor(color, (c: string) => parseColor(c).b)
+      const a = composeAccessor(color, (c: string) => parseColor(c).a)
+      return { r, g, b, a } as ExtractProps<typeof this.outputs>
+    }
+
+    // Static value
+    return parseColor(color as string)
   }
 }
 
@@ -810,9 +942,9 @@ export class HSLOp extends Operator<HSLOp> {
   static description = 'A color in HSL (hue, saturation, lightness) format'
   createInputs() {
     return {
-      h: new NumberField(0, { min: 0, max: 360, step: 1 }),
-      s: new NumberField(0.5, { min: 0, max: 1, step: 0.01 }),
-      l: new NumberField(0.8, { min: 0, max: 1, step: 0.01 }),
+      h: new NumberField(0, { min: 0, max: 360, step: 1, accessor: true }),
+      s: new NumberField(0.5, { min: 0, max: 1, step: 0.01, accessor: true }),
+      l: new NumberField(0.8, { min: 0, max: 1, step: 0.01, accessor: true }),
     }
   }
   createOutputs() {
@@ -821,8 +953,24 @@ export class HSLOp extends Operator<HSLOp> {
     }
   }
   execute({ h, s, l }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const color = hsl(h, s, l).formatHex()
-    return { color }
+    // Check if any inputs are accessor functions
+    const hIsAccessor = isAccessor(h)
+    const sIsAccessor = isAccessor(s)
+    const lIsAccessor = isAccessor(l)
+
+    if (!hIsAccessor && !sIsAccessor && !lIsAccessor) {
+      // All static values
+      return { color: hsl(h as number, s as number, l as number).formatHex() }
+    }
+
+    // At least one is an accessor - return accessor function
+    const color = (...args: unknown[]) => {
+      const hVal = hIsAccessor ? (h as (...args: unknown[]) => unknown)(...args) : (h as number)
+      const sVal = sIsAccessor ? (s as (...args: unknown[]) => unknown)(...args) : (s as number)
+      const lVal = lIsAccessor ? (l as (...args: unknown[]) => unknown)(...args) : (l as number)
+      return hsl(hVal as number, sVal as number, lVal as number).formatHex()
+    }
+    return { color } as ExtractProps<typeof this.outputs>
   }
 }
 
@@ -946,7 +1094,7 @@ export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
       colorRamp.setValue(interpolate)
     })
 
-    const value = new StringField('')
+    const value = new StringField('', { accessor: true })
 
     return {
       colorRamp,
@@ -963,11 +1111,16 @@ export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
     colorRamp,
     value,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    let color = colorRamp(value)
+    const scale = (val: string) => {
+      const color = colorRamp(val)
 
-    // Some return values are in rgb, some are in hex. Convert them all to be safe
-    // TODO: VIS-813: Make all colors d3 Colors?
-    color = d3Color(color)?.formatHex()
+      // Some return values are in rgb, some are in hex. Convert them all to be safe
+      // TODO: VIS-813: Make all colors d3 Colors?
+      return d3Color(color)?.formatHex()
+    }
+
+    // Use composeAccessor helper to handle both static values and accessor functions
+    const color = composeAccessor(value, scale)
 
     return { color }
   }
@@ -1049,7 +1202,7 @@ export class BezierCurveOp extends Operator<BezierCurveOp> {
   static description = 'Bezier curve for mapping input values using an interactive graph editor'
   createInputs() {
     return {
-      factor: new NumberField(0.5, { min: 0, max: 1, step: 0.01 }),
+      factor: new NumberField(0.5, { min: 0, max: 1, step: 0.01, accessor: true }),
       curve: new BezierCurveField(),
     }
   }
@@ -1060,14 +1213,15 @@ export class BezierCurveOp extends Operator<BezierCurveOp> {
   }
   execute({ factor, curve }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const curveField = this.inputs.curve as BezierCurveField
-    const value = curveField.evaluate(factor)
-    return { value }
+    // Use composeAccessor helper to handle both static values and accessor functions
+    const value = composeAccessor(factor, (f: number) => curveField.evaluate(f))
+    return { value } as ExtractProps<typeof this.outputs>
   }
 }
 
 export class FileOp extends Operator<FileOp> {
   static displayName = 'File'
-  static description = 'Read a file from a URL or text. Supports csv and json'
+  static description = 'Fetch a file from a URL or text. Supports csv and json'
   asDownload = () => this.outputData
   createInputs() {
     return {
@@ -1202,10 +1356,10 @@ export class DuckDbOp extends Operator<DuckDbOp> {
   }
 
   async execute({
-    query: queryString,
+    query: queryString = '',
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> | null {
-    const query = queryString?.trim()
-    if (!query) {
+    const queries = queryString.split(';').map(s => s.trim()).filter(Boolean).map(s => `${s};`)
+    if (!queries?.length) {
       return { data: [] }
     }
 
@@ -1213,32 +1367,51 @@ export class DuckDbOp extends Operator<DuckDbOp> {
     const conn = await db.connect()
 
     try {
-      // Parse the query and extract references
-      const references: FieldReference[] = []
-      const parameterizedQuery = query.replace(mustacheRe, (raw, opId, inOut, fieldPath) => {
-        // If the opId is a relative path (doesn't start with /), make it relative to current context
-        const resolvedOpId = opId.startsWith('/') ? opId : `./${opId}`
-        references.push({ opId: resolvedOpId, inOut, fieldPath, raw })
-        return `$${references.length}` // $1, $2, etc.
-      })
+      let data = []
+      for (const query of queries) {
+        if (!mustacheRe.test(query)) {
+          const result = await conn.query(query)
+          data = result.toArray()
+          continue
+        }
 
-      // Prepare the query with the current connection
-      const prepared = await conn.prepare(parameterizedQuery)
+        // Parse the query and extract references
+        const references: FieldReference[] = []
+        const parameterizedQuery = query.replace(mustacheRe, (raw, opId, inOut, fieldPath) => {
+          // If the opId is a relative path (doesn't start with /), make it relative to current context
+          const resolvedOpId = opId.startsWith('/') ? opId : `./${opId}`
+          references.push({ opId: resolvedOpId, inOut, fieldPath, raw })
+          return `$${references.length}` // $1, $2, etc.
+        })
 
-      // Resolve reference values
-      const positionalParams = references.map(({ opId, inOut, fieldPath }) => {
-        const op = getOp(opId, this.id)
-        const [firstKey, ...rest] = fieldPath.split('.')
-        return rest.reduce((d, prop) => d[prop], op?.[inOut][firstKey])
-      })
+        // Resolve reference values
+        const positionalParams = references.map(({ opId, inOut, fieldPath }) => {
+          const op = getOp(opId, this.id)
+          const [firstKey, ...rest] = fieldPath.split('.')
 
-      const result = await prepared.query(...positionalParams)
-      const data = await result.toArray()
+          const field = op?.[inOut === 'par' ? 'inputs' : 'outputs']?.[firstKey]
+          if (!field) {
+            throw new Error(`Field ${firstKey} not found on ${opId}`)
+          }
+
+          return rest.reduce((d, prop) => d[prop], field.value)
+        })
+
+        // Prepare the query with the current connection
+        const prepared = await conn.prepare(parameterizedQuery)
+
+        const result = await prepared.query(...positionalParams)
+        data = result.toArray()
+      }
       await conn.close()
       return { data }
     } catch (e) {
       console.error('Error executing query', e)
       await conn.close()
+      await db.reset()
+      if (e instanceof Error) {
+        throw e
+      }
       return null
     }
   }
@@ -1395,7 +1568,7 @@ export class BoundsOp extends Operator<BoundsOp> {
 export class BoundingBoxOp extends Operator<BoundingBoxOp> {
   static displayName = 'BoundingBox'
   static description =
-    'Get the bounding box of a set of points. They must have lat/lng keys. Returns a center point and zoom level.'
+    'Calculate the geographic bounds of your points (with lat/lng keys) and get a camera position (center, zoom) that fits them all in view.'
   asDownload = () => this.outputData
   createInputs() {
     return {
@@ -1656,7 +1829,7 @@ export class NetworkOp extends Operator<NetworkOp> {
 export class SwitchOp extends Operator<SwitchOp> {
   static displayName = 'Switch'
   static description =
-    'Switch between multiple values based on an index. Blend enables interpolation between values.'
+    'Select one value from a list using an index (0, 1, 2...). With blend enabled, smoothly interpolate between values for animation effects.'
   createInputs() {
     return {
       // TODO: support arbitrary outputs, maybe a union type?
@@ -1675,12 +1848,33 @@ export class SwitchOp extends Operator<SwitchOp> {
     index,
     blend,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    if (blend) {
-      const value = interpolate(...values)(index)
+    if (!blend) {
+      const value = values[Math.min(index, values.length - 1)]
       return { value }
     }
 
-    const value = values[Math.min(index, values.length - 1)]
+    if (values.length === 0) {
+      return { value: undefined }
+    }
+
+    if (values.length === 1) {
+      return { value: values[0] }
+    }
+
+    // For multiple values, we need to find which two values to interpolate between
+    // and calculate the interpolation factor
+    const clampedIndex = Math.min(index, values.length - 1)
+    const lowerIndex = Math.floor(clampedIndex)
+    const upperIndex = Math.ceil(clampedIndex)
+
+    // If we're exactly on an index, return that value
+    if (lowerIndex === upperIndex) {
+      return { value: values[lowerIndex] }
+    }
+
+    // Calculate the interpolation factor between the two values
+    const t = clampedIndex - lowerIndex
+    const value = interpolate(values[lowerIndex], values[upperIndex])(t)
     return { value }
   }
 }
@@ -1690,7 +1884,7 @@ export class SwitchOp extends Operator<SwitchOp> {
 export class ForLoopBeginOp extends Operator<ForLoopBeginOp> {
   static displayName = 'ForLoopBegin'
   static description =
-    'Begin a for loop. The loop will iterate over the data array and pass each value to the downstream operators. Requires a ForLoopEnd operator to complete the loop.'
+    'Start a loop that processes each item in an array one by one. Connect operators between ForLoopBegin and ForLoopEnd to transform each item. The ForLoopEnd collects all results.'
   createInputs() {
     return {
       data: new DataField(new ArrayField(new UnknownField())),
@@ -1709,7 +1903,7 @@ export class ForLoopBeginOp extends Operator<ForLoopBeginOp> {
 export class ForLoopEndOp extends Operator<ForLoopEndOp> {
   static displayName = 'ForLoopEnd'
   static description =
-    'End a for loop. This operator is required to complete the loop. It will pass the data array to the downstream operators.'
+    'End a loop started by ForLoopBegin. Collects all the processed items into an array and passes them to downstream operators.'
   static defaultValue = []
 
   // This is a special case where we need to keep track of the loop
@@ -1970,10 +2164,10 @@ export class RandomizeAttributeOp extends Operator<RandomizeAttributeOp> {
   }
 }
 
-export class MergeOp extends Operator<MergeOp> {
-  static displayName = 'Merge'
+export class ConcatOp extends Operator<ConcatOp> {
+  static displayName = 'Concat'
   static description =
-    'Concatenate multiple arrays into one. The arrays should have the same shape. The optional depth argument allows deeply nested arrays to be merged.'
+    'Concatenate multiple arrays into a single array. Use depth to flatten nested arrays (depth=1 flattens one level, depth=2 flattens two levels).'
   createInputs() {
     return {
       values: new ListField(new DataField()),
@@ -2003,8 +2197,8 @@ export class MergeOp extends Operator<MergeOp> {
   }
 }
 
-export class ObjectMergeOp extends Operator<ObjectMergeOp> {
-  static displayName = 'ObjectMerge'
+export class MergeOp extends Operator<MergeOp> {
+  static displayName = 'Merge'
   static description = 'Merge multiple objects into one (think Object.assign)'
   createInputs() {
     return {
@@ -2149,6 +2343,7 @@ export class ProjectOp extends Operator<ProjectOp> {
     height,
     width,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    validateViewState(viewState)
     const viewport = new WebMercatorViewport({
       ...viewState,
       height,
@@ -2188,6 +2383,7 @@ export class UnprojectOp extends Operator<UnprojectOp> {
     height,
     width,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    validateViewState(viewState)
     const viewport = new WebMercatorViewport({
       ...viewState,
       height,
@@ -2228,7 +2424,40 @@ export class MapViewStateOp extends Operator<MapViewStateOp> {
     pitch,
     bearing,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    return { viewState: { longitude, latitude, zoom, pitch, bearing } }
+    const viewState = { longitude, latitude, zoom, pitch, bearing }
+    validateViewState(viewState)
+    return { viewState }
+  }
+}
+
+export class SplitMapViewStateOp extends Operator<SplitMapViewStateOp> {
+  static displayName = 'SplitMapViewState'
+  static description = 'Split a viewState object into its individual components.'
+  createInputs() {
+    return {
+      viewState: new CompoundPropsField({
+        longitude: new NumberField(DEFAULT_LONGITUDE, { min: -180, max: 180, step: 0.001 }),
+        latitude: new NumberField(DEFAULT_LATITUDE, { min: -90, max: 90, step: 0.001 }),
+        zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
+        pitch: new NumberField(0, { min: 0, max: 60, optional: true }),
+        bearing: new NumberField(0, { optional: true }),
+      }),
+    }
+  }
+  createOutputs() {
+    return {
+      longitude: new NumberField(),
+      latitude: new NumberField(),
+      zoom: new NumberField(),
+      pitch: new NumberField(),
+      bearing: new NumberField(),
+    }
+  }
+  execute({
+    viewState,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    validateViewState(viewState)
+    return { ...viewState }
   }
 }
 
@@ -2265,6 +2494,7 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
     mapStyle,
     viewState,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    validateViewState(viewState)
     return { maplibre: { mapStyle, ...viewState } }
   }
 }
@@ -2317,6 +2547,9 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
     views,
     layerFilter,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    // Validate the ViewState to ensure lat/lng are within valid bounds
+    validateViewState(viewState)
+
     const deckProps: DeckProps & { layers: (LayerProps & { type: string })[] } = {
       layers,
       effects,
@@ -2331,9 +2564,9 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
     const mapProps =
       basemap !== null
         ? {
-            ...basemap,
-            ...pick(viewState, ['longitude', 'latitude', 'zoom', 'pitch', 'bearing']),
-          }
+          ...basemap,
+          ...pick(viewState, ['longitude', 'latitude', 'zoom', 'pitch', 'bearing']),
+        }
         : undefined
 
     return {
@@ -2413,6 +2646,7 @@ export class MapViewOp extends Operator<MapViewOp> {
     viewState,
     ...props
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    validateViewState(viewState)
     return {
       view: new MapView({ id: this.id, ...props, viewState: { ...viewState, maxPitch: 90 } }),
     }
@@ -2475,6 +2709,7 @@ export class GlobeViewOp extends Operator<GlobeViewOp> {
   }
 
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    validateViewState(props.viewState)
     return { view: new GlobeView({ id: this.id, ...props }) }
   }
 }
@@ -2545,6 +2780,7 @@ export class FirstPersonViewOp extends Operator<FirstPersonViewOp> {
   }
 
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    validateViewState(props.viewState)
     return { view: new FirstPersonView({ id: this.id, ...props }) }
   }
 }
@@ -2576,6 +2812,7 @@ export class OrbitViewOp extends Operator<OrbitViewOp> {
   }
 
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    validateViewState(props.viewState)
     return { view: new OrbitView({ id: this.id, ...props }) }
   }
 }
@@ -2668,8 +2905,8 @@ type LayerExtensionFieldReturnValue = null | {
 export const extensionMap: Record<
   string,
   | (new (
-      ...args: unknown[]
-    ) => LayerExtension)
+    ...args: unknown[]
+  ) => LayerExtension)
   | { ExtensionClass: new (...args: unknown[]) => LayerExtension; args: unknown }
 > = {
   BrushingExtension,
@@ -2773,10 +3010,10 @@ export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
       getFillColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
       getLineColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
-      getRadius: new NumberField(600, { min: 0, max: 1_000_000, accessor: true }),
+      getRadius: new NumberField(20, { min: 0, max: 1_000_000, accessor: true }),
       getLineWidth: new NumberField(0, { accessor: true }),
       radiusScale: new NumberField(1, { min: 0, max: 100 }),
-      radiusUnits: new StringLiteralField('meters', ['pixels', 'meters']),
+      radiusUnits: new StringLiteralField('pixels', ['pixels', 'meters']),
       extensions: new ListField(new ExtensionField()),
     }
   }
@@ -2899,7 +3136,7 @@ export class TextLayerOp extends Operator<TextLayerOp> {
         values: ['start', 'middle', 'end'],
         accessor: true,
       }),
-      getPixelOffset: new Vec2Field({ x: 96, y: 124 }, { returnType: 'tuple', accessor: true }),
+      getPixelOffset: new Vec2Field({ x: 0, y: 0 }, { returnType: 'tuple', accessor: true }),
       getAlignmentBaseline: new StringLiteralField('center', {
         values: ['top', 'center', 'bottom'],
         accessor: true,
@@ -3081,6 +3318,40 @@ export class H3HexagonLayerOp extends Operator<H3HexagonLayerOp> {
     const layer = {
       ...parseLayerProps<H3HexagonLayerProps>(props),
       type: 'H3HexagonLayer' as const,
+      id: this.id,
+      updateTriggers: gatherTriggers(this.inputs, props),
+    }
+    return { layer }
+  }
+}
+
+export class A5LayerOp extends Operator<A5LayerOp> {
+  static displayName = 'A5Layer'
+  static description = 'Render filled and/or stroked polygons using the A5 geospatial indexing system'
+  static cacheable = false
+  createInputs() {
+    return {
+      data: new DataField(),
+      visible: new BooleanField(true),
+      opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
+      getPentagon: new UnknownField((d: unknown) => d?.pentagon || '', { accessor: true }),
+      getFillColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
+      getElevation: new NumberField(1000, { min: 0, max: 100000, accessor: true }),
+      elevationScale: new NumberField(1, { min: 0, max: 100 }),
+      extruded: new BooleanField(false),
+      pickable: new BooleanField(true),
+      extensions: new ListField(new ExtensionField()),
+    }
+  }
+  createOutputs() {
+    return {
+      layer: new LayerField<A5LayerProps>(),
+    }
+  }
+  execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const layer = {
+      ...parseLayerProps<A5LayerProps>(props),
+      type: 'A5Layer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
     }
@@ -3371,7 +3642,7 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
   createInputs() {
     return {
       visible: new BooleanField(true),
-      provider: new StringLiteralField('Cesium', ['Cesium', 'Google']),
+      provider: new StringLiteralField('Google', ['Cesium', 'Google']),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       operation: new StringLiteralField('terrain+draw', {
         values: ['terrain+draw', 'draw', 'terrain'],
@@ -3417,11 +3688,11 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
         ? { fetch: { headers: { 'X-GOOG-API-KEY': GOOGLE_MAPS_API_KEY } } }
         : provider === 'Cesium'
           ? {
-              tileset: {
-                throttleRequests,
-              },
-              'cesium-ion': { accessToken: CESIUM_ACCESS_TOKEN },
-            }
+            tileset: {
+              throttleRequests,
+            },
+            'cesium-ion': { accessToken: CESIUM_ACCESS_TOKEN },
+          }
           : null
 
     const onTilesetLoad = (tileset3d: Tileset3D) => {
@@ -3684,7 +3955,7 @@ class VibranceExtensionOp extends Operator<VibranceExtensionOp> {
 // TODO: Do we want to include the args as a property as well? Source is currently just the function body
 type FunctionWithSource = ((...args: unknown[]) => unknown | Promise<unknown>) & { source: string }
 // biome-ignore lint/complexity/useArrowFunction: This is a function declaration
-const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
+const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor
 
 // Create a function with a source property for debugging
 function fnWithSource(args: string[], body: string, id: string): FunctionWithSource {
@@ -3708,7 +3979,7 @@ function fnWithSource(args: string[], body: string, id: string): FunctionWithSou
 // An Accessor is an ExpressionOp that returns a function instead of executing it
 export class AccessorOp extends Operator<AccessorOp> {
   static displayName = 'Accessor'
-  static description = 'Create an accessor function for use in deck.gl layers'
+  static description = 'A function called for each row of your data and passed to Deck.gl layer properties. The current row is passed as the `d` variable (e.g., `d.population`, `d.properties.color`). Returns a value that controls visual properties like position, color, or size.'
   createInputs() {
     return {
       expression: new ExpressionField(),
@@ -3721,7 +3992,7 @@ export class AccessorOp extends Operator<AccessorOp> {
   }
   execute({ expression }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const fn = fnWithSource(
-      ['d', 'dInfo', 'op', ...Object.keys(freeExports)],
+      ['d', 'i', 'data', 'op', ...Object.keys(freeExports)],
       `return ${expression}`,
       this.id
     )
@@ -3729,7 +4000,7 @@ export class AccessorOp extends Operator<AccessorOp> {
     const accessor = (d: unknown, dInfo: { index: number; data: unknown; target: number[] }) => {
       // Create a context-aware getOp function for the accessor execution
       const contextualGetOp = (path: string) => getOp(path, this.id)
-      return fn(d, dInfo, contextualGetOp, ...Object.values(freeExports))
+      return fn(d, dInfo.index, dInfo.data, contextualGetOp, ...Object.values(freeExports))
     }
     return { accessor }
   }
@@ -3738,7 +4009,7 @@ export class AccessorOp extends Operator<AccessorOp> {
 export class CodeOp extends Operator<CodeOp> {
   static displayName = 'Code'
   static description =
-    'Run custom JavaScript code on the data. Use "data" to access the input data list, "d" for the first element of the list, and "op" to access other operators. Also passes a freeExports object with turf and d3 utils. Use `this` to store state.'
+    'Run custom JavaScript code to transform your data. Available variables: `data` (all input data), `d` (first element), `op()` (access other operators). Includes d3, turf, and other utilities. Use `this` to store state between executions.'
   asDownload = () => this.outputs.data.value
   createInputs() {
     return {
@@ -3803,7 +4074,7 @@ export class ContainerOp extends Operator<ContainerOp> {
 export class ExpressionOp extends Operator<ExpressionOp> {
   static displayName = 'Expression'
   static description =
-    'Run a JavaScript expression on the data. Use "data" to access the input data list, "d" for the first element of the list, and "op" to access other operators. Also passes a freeExports object with turf and d3 utils.'
+    'Evaluate a JavaScript expression to compute a single value. Available variables: `data` (all input data), `d` (first element), `op()` (access other operators). Includes d3, turf, and other utilities.'
   createInputs() {
     return {
       data: new ListField(new DataField()),
@@ -4766,6 +5037,7 @@ export class MaskExtensionOp extends Operator<MaskExtensionOp> {
 
 export const opTypes = {
   AccessorOp,
+  A5LayerOp,
   ArcOp,
   ArcLayerOp,
   BezierCurveOp,
@@ -4785,6 +5057,7 @@ export const opTypes = {
   CombineRGBAOp,
   CombineXYOp,
   CombineXYZOp,
+  ConcatOp,
   ConsoleOp,
   ContainerOp,
   ContourLayerOp,
@@ -4836,7 +5109,6 @@ export const opTypes = {
   MVTLayerOp,
   NetworkOp,
   NumberOp,
-  ObjectMergeOp,
   OrbitViewOp,
   OutOp,
   PathLayerOp,
@@ -4855,10 +5127,12 @@ export const opTypes = {
   ScenegraphLayerOp,
   ScreenGridLayerOp,
   SimpleMeshLayerOp,
+  SelectOp,
   SliceOp,
   SolidPolygonLayerOp,
   SortOp,
   SplitRGBAOp,
+  SplitMapViewStateOp,
   SplitXYOp,
   SplitXYZOp,
   StringOp,
@@ -4879,22 +5153,22 @@ export const opTypes = {
 // Execution state for visual debugging
 export type ExecutionState =
   | {
-      status: 'idle'
-    }
+    status: 'idle'
+  }
   | {
-      status: 'executing'
-    }
+    status: 'executing'
+  }
   | {
-      status: 'success'
-      lastExecuted: Date
-      executionTime: number
-    }
+    status: 'success'
+    lastExecuted: Date
+    executionTime: number
+  }
   | {
-      status: 'error'
-      lastExecuted?: Date
-      executionTime?: number
-      error?: string
-    }
+    status: 'error'
+    lastExecuted?: Date
+    executionTime?: number
+    error?: string
+  }
 
 export type OpType = keyof typeof opTypes
 

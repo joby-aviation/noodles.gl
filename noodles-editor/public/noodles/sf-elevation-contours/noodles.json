@@ -1,0 +1,173 @@
+{
+  "nodes": [
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 1200,
+        "y": 100
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 1500,
+        "y": 100
+      }
+    },
+    {
+      "id": "/data-source",
+      "type": "FileOp",
+      "data": {
+        "inputs": {
+          "url": "@/data.json"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 0,
+        "y": 50
+      }
+    },
+    {
+      "id": "/geojson-layer",
+      "type": "GeoJsonLayerOp",
+      "data": {
+        "inputs": {
+          "opacity": 0.38,
+          "lineWidthScale": 8,
+          "lineWidthMinPixels": 0.2
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 900,
+        "y": 0
+      }
+    },
+    {
+      "id": "/elevation-color",
+      "type": "ColorRampOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 418.8432510885341,
+        "y": 308.2017416545719
+      }
+    },
+    {
+      "id": "/elevation-accessor",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "d.properties.elevation"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 22.383164005805497,
+        "y": 357.60812772133534
+      }
+    },
+    {
+      "type": "MaplibreBasemapOp",
+      "id": "/maplibre-basemap",
+      "position": {
+        "x": 1224.6705370101597,
+        "y": 352.92452830188677
+      },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+          "viewState": {
+            "latitude": 37.75,
+            "longitude": -122.46,
+            "zoom": 14.1,
+            "pitch": 52.59,
+            "bearing": 25.07
+          }
+        },
+        "locked": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    },
+    {
+      "id": "/data-source.out.data->/geojson-layer.par.data",
+      "source": "/data-source",
+      "target": "/geojson-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/elevation-color.out.color->/geojson-layer.par.getFillColor",
+      "source": "/elevation-color",
+      "target": "/geojson-layer",
+      "sourceHandle": "out.color",
+      "targetHandle": "par.getFillColor"
+    },
+    {
+      "id": "/elevation-color.out.color->/geojson-layer.par.getLineColor",
+      "source": "/elevation-color",
+      "target": "/geojson-layer",
+      "sourceHandle": "out.color",
+      "targetHandle": "par.getLineColor"
+    },
+    {
+      "id": "/elevation-accessor.out.accessor->/elevation-color.par.value",
+      "source": "/elevation-accessor",
+      "target": "/elevation-color",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.value"
+    },
+    {
+      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
+      "source": "/maplibre-basemap",
+      "target": "/deck",
+      "sourceHandle": "out.maplibre",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/geojson-layer.out.layer->/deck.par.layers",
+      "source": "/geojson-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    }
+  ],
+  "viewport": {
+    "x": 149,
+    "y": 48.131400370141876,
+    "zoom": 0.42504626773596543
+  },
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": []
+  },
+  "version": 6
+}

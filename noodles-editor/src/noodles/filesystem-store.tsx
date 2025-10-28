@@ -28,6 +28,8 @@ interface FileSystemActions {
   // TODO: move menu.tsx state here?
   // Set the current directory handle
   setCurrentDirectory: (handle: FileSystemDirectoryHandle | null, projectName?: string) => void
+  // Set the active storage type
+  setActiveStorageType: (type: StorageType) => void
   // Set error state
   setError: (error: FileSystemError | null) => void
   // Clear error
@@ -65,6 +67,10 @@ export const useFileSystemStore = create<FileSystemStore>((set, _get) => ({
       currentProjectName: projectName || handle?.name || null,
       error: null, // Clear error when setting new directory
     })
+  },
+
+  setActiveStorageType: (type) => {
+    set({ activeStorageType: type })
   },
 
   setError: error => {

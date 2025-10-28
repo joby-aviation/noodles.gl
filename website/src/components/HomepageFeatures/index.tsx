@@ -40,6 +40,36 @@ const FeatureList: FeatureItem[] = [
       </>
     ),
   },
+  {
+    title: 'Node-Based Workflow',
+    icon: '🔗',
+    description: (
+      <>
+        Intuitive visual programming with a powerful node graph editor.
+        Connect operators to build complex data pipelines without code.
+      </>
+    ),
+  },
+  {
+    title: 'Real-Time Performance',
+    icon: '⚡',
+    description: (
+      <>
+        GPU-accelerated rendering powered by WebGL for smooth 60fps performance.
+        Handle massive datasets with optimized data structures and rendering.
+      </>
+    ),
+  },
+  {
+    title: 'Open Source & Extensible',
+    icon: '🚀',
+    description: (
+      <>
+        Fully open-source with a modular architecture.
+        Build custom operators, data sources, and visualizations to fit your needs.
+      </>
+    ),
+  },
 ];
 
 function Feature({title, icon, description}: FeatureItem) {
