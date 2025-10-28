@@ -607,31 +607,49 @@ describe('SwitchOp', () => {
   it('blends values', () => {
     const operator = new SwitchOp('/switch-0')
     const res = operator.execute({
-      values: [0, 100],
-      index: 0.5,
+      values: [0, 100, 200],
+      index: 1.5,
       blend: true,
     })
-    expect(res.value).toEqual(50)
+    expect(res.value).toEqual(150)
 
+    // Test blending at index 2.0 (exact index) with 4 values
     const res2 = operator.execute({
-      values: [
-        [0, 24],
-        [100, 2],
-      ],
-      index: 0.5,
+      values: [0, 100, 200, 300],
+      index: 2.0,
       blend: true,
     })
-    expect(res2.value).toEqual([50, 13])
+    expect(res2.value).toEqual(200)
 
     const res3 = operator.execute({
       values: [
-        { lng: 0, lat: 24 },
-        { lng: 100, lat: 2 },
+        [0, 20],
+        [100, 40],
+        [200, 60],
       ],
-      index: 0.5,
+      index: 1.5,
       blend: true,
     })
-    expect(res3.value).toEqual({ lng: 50, lat: 13 })
+    expect(res3.value).toEqual([150, 50])
+
+    const res4 = operator.execute({
+      values: [
+        { lng: 0, lat: 10 },
+        { lng: 100, lat: 20 },
+        { lng: 200, lat: 30 },
+      ],
+      index: 1.7,
+      blend: true,
+    })
+    expect(res4.value).toEqual({ lng: 170, lat: 27 })
+
+    // Test edge case: index beyond array length (should clamp)
+    const res5 = operator.execute({
+      values: [0, 100, 200],
+      index: 5.0,
+      blend: true,
+    })
+    expect(res5.value).toEqual(200)
   })
 })
 

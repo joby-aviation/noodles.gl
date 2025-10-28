@@ -132,7 +132,7 @@ export const categories = {
 - **[Field System](./field-system)** - Understand inputs, outputs, and validation
 - **[Data Flow](./data-flow)** - Master reactive programming patterns
 - **[Path System](./paths-containers)** - Organization and referencing
-- **[Contributing](https://github.com/joby-aviation/noodles.gl/blob/main/CONTRIBUTING.md)** - Contribute back to the framework
+- **[Contributing](./contributing.md)** - Contribute back to the framework
 
 ## Framework Philosophy
 
