@@ -270,7 +270,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@babel/runtime@npm:^7.23.8, @babel/runtime@npm:^7.5.5, @babel/runtime@npm:^7.8.7":
+"@babel/runtime@npm:^7.5.5, @babel/runtime@npm:^7.8.7":
   version: 7.25.0
   resolution: "@babel/runtime@npm:7.25.0"
   dependencies:
@@ -8982,16 +8982,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"match-sorter@npm:^8.1.0":
-  version: 8.1.0
-  resolution: "match-sorter@npm:8.1.0"
-  dependencies:
-    "@babel/runtime": ^7.23.8
-    remove-accents: 0.5.0
-  checksum: 068c4587be18ef8940aebb8f63f3f760db6c0a297384fc0e070c748a852d1bacbbfa52950138486334ce44b55dbda43c820adc69db36be0620853a4f14734a06
-  languageName: node
-  linkType: hard
-
 "math-intrinsics@npm:^1.1.0":
   version: 1.1.0
   resolution: "math-intrinsics@npm:1.1.0"
@@ -9455,7 +9445,6 @@ __metadata:
     haversine-distance: ^1.2.4
     lodash: ^4.17.21
     maplibre-gl: ^5.9.0
-    match-sorter: ^8.1.0
     mediabunny: ^1.24.2
     memoize-one: ^6.0.0
     nanoid: ^5.1.6
@@ -10352,13 +10341,6 @@ __metadata:
   version: 0.14.1
   resolution: "regenerator-runtime@npm:0.14.1"
   checksum: 9f57c93277b5585d3c83b0cf76be47b473ae8c6d9142a46ce8b0291a04bb2cf902059f0f8445dcabb3fb7378e5fe4bb4ea1e008876343d42e46d3b484534ce38
-  languageName: node
-  linkType: hard
-
-"remove-accents@npm:0.5.0":
-  version: 0.5.0
-  resolution: "remove-accents@npm:0.5.0"
-  checksum: 7045b37015acb03df406d21f9cbe93c3fcf2034189f5d2e33b1dace9c7d6bdcd839929905ced21a5d76c58553557e1a42651930728702312a5774179d5b9147b
   languageName: node
   linkType: hard
 
