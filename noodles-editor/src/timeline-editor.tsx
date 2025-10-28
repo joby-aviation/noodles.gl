@@ -37,8 +37,8 @@ const injectTheatreStyles = () => {
     const style = document.createElement('style')
     style.id = 'hide-export-style'
     style.textContent = `
-      /* Hide export button - using generated class name (brittle) */
-      .dKXstw {
+      /* Hide all panels except properties (export button, sheet name) - using generated class name (brittle) */
+      .sc-dPZUQH:not([data-testid="DetailPanel-Object"]) {
         display: none !important;
       }
     `
