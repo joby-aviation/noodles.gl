@@ -209,15 +209,13 @@ export const BlockLibrary = forwardRef<BlockLibraryRef, BlockLibraryProps>(({ re
       // 2D grid navigation with arrow keys
       if (e.key === 'ArrowDown') {
         e.preventDefault()
-        const newIndex = selectedIndex + COLS
-        setSelectedIndex(Math.min(newIndex, totalResults - 1))
+        setSelectedIndex(prev => Math.min(prev + COLS, totalResults - 1))
         return
       }
 
       if (e.key === 'ArrowUp') {
         e.preventDefault()
-        const newIndex = selectedIndex - COLS
-        setSelectedIndex(Math.max(newIndex, 0))
+        setSelectedIndex(prev => Math.max(prev - COLS, 0))
         return
       }
 
