@@ -774,6 +774,7 @@ function GeocoderOpComponent({
             field={field}
             disabled={locked}
             handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
+            renderInput={false}
           />
         ))}
         <div ref={containerRef} className={s.fieldWrapper} />

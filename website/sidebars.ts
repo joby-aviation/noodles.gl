@@ -39,7 +39,7 @@ const sidebars: SidebarsConfig = {
         'developers/data-flow',
         'developers/node-based-tools',
         'developers/paths-containers',
-        'developers/contributing',
+        'developers/framework-extension',
       ],
     },
   ],
