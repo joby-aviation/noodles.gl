@@ -27,6 +27,7 @@ import { InputNumber } from 'primereact/inputnumber'
 import { InputText } from 'primereact/inputtext'
 import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { Temporal } from 'temporal-polyfill'
 import { isHexColor } from 'validator'
 
 import { colorToRgba, hexToRgba, type Rgba, rgbaToHex } from '../../utils/color'
@@ -285,7 +286,9 @@ function fieldToTheatreProp(input: Field<IField>, fields: [string, Field<IField>
       return types.rgba(colorToTheatreColor(input.value))
     }
     if (input instanceof DateField) {
-      return types.number(+input.value)
+      // Convert Temporal.PlainDateTime to epoch milliseconds for Theatre.js
+      const instant = input.value.toZonedDateTime('UTC').toInstant()
+      return types.number(instant.epochMilliseconds)
     }
     if (input instanceof CompoundPropsField) {
       return types.compound(fieldsToTheatreProps({}, input.fields, fields))
@@ -569,7 +572,9 @@ function NodeComponent({
             input instanceof ColorField
               ? rgbaToHex(value_)
               : input instanceof DateField
-                ? new Date(value_)
+                ? Temporal.Instant.fromEpochMilliseconds(value_ as unknown as number)
+                    .toZonedDateTimeISO('UTC')
+                    .toPlainDateTime()
                 : value_
 
           if (input.value !== value && value !== undefined) {
@@ -1195,7 +1200,8 @@ const viewerFormatter = (value: unknown) => {
     typeof value === 'string' ||
     typeof value === 'number' ||
     typeof value === 'boolean' ||
-    value instanceof Date
+    value instanceof Date ||
+    value instanceof Temporal.PlainDateTime
   ) {
     return { value }
   }
