@@ -1,5 +1,7 @@
 # AGENTS.md - LLM Context for Noodles.gl
 
+> **Note**: This document is optimized for LLM consumption and provides comprehensive technical context for AI assistants working with the Noodles.gl codebase. For human-readable documentation, see [/docs](docs/) and [/dev-docs](dev-docs/).
+
 This document provides essential context for Large Language Models (LLMs) working with the Noodles.gl codebase.
 
 ## Project Overview

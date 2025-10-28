@@ -100,7 +100,7 @@ Process your data as needed:
 
 1. Add a "Filter" operator
 2. Connect the File output to the Filter input
-3. Configure your filter conditions using JavaScript expressions
+3. Configure your filter conditions, e.g., for data with a numeric `value` property you might set the `columnName` to `value`, `condition` to `greater than`, and `value` to `100`.
 
 ### Step 3: Visualize
 
@@ -113,14 +113,14 @@ Create a visualization layer:
 1. Add a "ScatterplotLayer" operator for point data
 2. Connect the filtered data to the layer's data input
 3. Connect the layer to the DeckRenderer's layers input
-4. Add an Accessor operator to define how to extract positions from each row of your data and connect it to the layer's `getPosition` field
+4. Add an Accessor operator to define how to extract positions from each row of your data and connect it to the layer's `getPosition` field. For example, use an expression like `[d.longitude, d.latitude]`. `d` is a special value representing the data row.
 
 ### Step 4: Style and Configure
 
 Use the Properties Panel to:
 - Adjust colors, sizes, and opacity
-- Set data accessors (which fields map to position, color, etc.)
-- Configure map settings (camera position, controls)
+- Reorder inputs to list fields, such as layers
+- Keyframe parameters for animation
 
 ## Workflow Organization
 
@@ -136,7 +136,7 @@ For complex workflows, use **Container** operators to organize related nodes:
 
 1. **Arrange nodes clearly**: Keep your workflow organized and easy to follow
 2. **Group related operations**: Use containers for logical sections
-3. **Name your nodes**: Give operators descriptive names for clarity
+3. **Name your nodes**: Give operators descriptive names for clarity (double-click the title)
 4. **Start simple**: Build incrementally, testing at each step
 5. **Use viewer nodes**: Add "Viewer" operators to inspect data at any stage
 
@@ -155,17 +155,29 @@ Process data in parallel paths, then combine:
 
 ```
               → [Transform A] →
-[Source] →                        → [Merge] → [Output]
+[Source] →                        → [Merge] → [Layer] → [DeckRenderer] → [Out]
               → [Transform B] →
 ```
 
 ### Multi-Output
+
 One source feeding multiple independent visualizations:
 
 ```
-              → [Layer A] → [View A]
-[Source] →
-              → [Layer B] → [View B]
+              → [Layer A] → [DeckRenderer A]
+[Source] →                                   → [Out]
+              → [Layer B] → [DeckRenderer B]
+```
+
+### Switch
+
+Use a SwitchOp to route data based on an index or condition. You can dynamically change which path the data takes and even reuse the same index across multiple switches to create complex reusable workflows.
+
+```
+[Source A] →
+              [SwitchOp] → [Layer] → [DeckRenderer] → [Out]
+[Source B] →    ↑
+        (index input)
 ```
 
 ## Common Operators
@@ -190,6 +202,8 @@ Here are operators you'll use frequently:
 
 ### Visualization Layers
 
+All [deck.gl layers](https://deck.gl/docs/api-reference/layers) are available, including:
+
 - **ScatterplotLayer**: Points on a map
 - **PathLayer**: Lines and routes
 - **GeoJsonLayer**: Polygon and complex geometries
@@ -209,6 +223,7 @@ Here are operators you'll use frequently:
 - **Viewer**: Inspect data at any stage
 - **TableEditor**: View and edit tabular data
 - **Container**: Organize related operators
+- **Switch**: Route data based on index
 - **Color**: Create and manipulate colors
 - **MapRange**: Scale values between ranges
 
@@ -217,7 +232,7 @@ Here are operators you'll use frequently:
 1. **Use the Properties Panel**: Most operator configuration happens here
 2. **Inspect data**: Use Viewer nodes or the TableEditor to see your data
 3. **Lock nodes**: Click the lock icon to prevent accidental changes
-4. **Check connections**: Hover over handles to see data types
+4. **Check connections**: Hover over handles to see data types or outputs
 5. **Experiment freely**: Changes are reactive and reversible
 
 ## Next Steps
@@ -225,7 +240,7 @@ Here are operators you'll use frequently:
 Now that you understand workflows, explore:
 
 - [Operators Guide](./operators-guide.md) - Deep dive into specific operators
-- [Data Guide](./data-guide.md) - Working with different data formats
+- [Data Guide](./data-guide.md) - Working with different data types and transformations
 - [Animation and Rendering](./animation-and-rendering.md) - Create animated visualizations
 - [Creating Operators](../developers/creating-operators.md) - Build custom operators
 

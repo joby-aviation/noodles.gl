@@ -4,6 +4,7 @@ import {
   AccessorOp,
   BoundingBoxOp,
   CodeOp,
+  ConcatOp,
   DeckRendererOp,
   DuckDbOp,
   ExpressionOp,
@@ -15,7 +16,6 @@ import {
   MathOp,
   MergeOp,
   NumberOp,
-  ObjectMergeOp,
   Operator,
   ProjectOp,
   RectangleOp,
@@ -607,31 +607,49 @@ describe('SwitchOp', () => {
   it('blends values', () => {
     const operator = new SwitchOp('/switch-0')
     const res = operator.execute({
-      values: [0, 100],
-      index: 0.5,
+      values: [0, 100, 200],
+      index: 1.5,
       blend: true,
     })
-    expect(res.value).toEqual(50)
+    expect(res.value).toEqual(150)
 
+    // Test blending at index 2.0 (exact index) with 4 values
     const res2 = operator.execute({
-      values: [
-        [0, 24],
-        [100, 2],
-      ],
-      index: 0.5,
+      values: [0, 100, 200, 300],
+      index: 2.0,
       blend: true,
     })
-    expect(res2.value).toEqual([50, 13])
+    expect(res2.value).toEqual(200)
 
     const res3 = operator.execute({
       values: [
-        { lng: 0, lat: 24 },
-        { lng: 100, lat: 2 },
+        [0, 20],
+        [100, 40],
+        [200, 60],
       ],
-      index: 0.5,
+      index: 1.5,
       blend: true,
     })
-    expect(res3.value).toEqual({ lng: 50, lat: 13 })
+    expect(res3.value).toEqual([150, 50])
+
+    const res4 = operator.execute({
+      values: [
+        { lng: 0, lat: 10 },
+        { lng: 100, lat: 20 },
+        { lng: 200, lat: 30 },
+      ],
+      index: 1.7,
+      blend: true,
+    })
+    expect(res4.value).toEqual({ lng: 170, lat: 27 })
+
+    // Test edge case: index beyond array length (should clamp)
+    const res5 = operator.execute({
+      values: [0, 100, 200],
+      index: 5.0,
+      blend: true,
+    })
+    expect(res5.value).toEqual(200)
   })
 })
 
@@ -1013,9 +1031,9 @@ describe('Viral Accessor Tests', () => {
     })
   })
 
-  describe('MergeOp', () => {
+  describe('ConcatOp', () => {
     it('should handle static arrays', () => {
-      const op = new MergeOp('test-merge-1')
+      const op = new ConcatOp('test-concat-1')
       op.createListeners()
 
       const result = op.execute({
@@ -1031,7 +1049,7 @@ describe('Viral Accessor Tests', () => {
     })
 
     it('should handle accessor function in values', () => {
-      const op = new MergeOp('test-merge-2')
+      const op = new ConcatOp('test-concat-2')
       op.createListeners()
 
       const accessor = (d: { items: number[] }) => d.items
@@ -1042,7 +1060,7 @@ describe('Viral Accessor Tests', () => {
     })
 
     it('should handle multiple accessor functions in values', () => {
-      const op = new MergeOp('test-merge-3')
+      const op = new ConcatOp('test-concat-3')
       op.createListeners()
 
       const accessor1 = (d: { first: number[] }) => d.first
@@ -1054,7 +1072,7 @@ describe('Viral Accessor Tests', () => {
     })
 
     it('should handle depth parameter with accessors', () => {
-      const op = new MergeOp('test-merge-4')
+      const op = new ConcatOp('test-concat-4')
       op.createListeners()
 
       const accessor = (d: { nested: number[][] }) => d.nested
@@ -1072,7 +1090,7 @@ describe('Viral Accessor Tests', () => {
     })
 
     it('should handle mixed static and accessor values', () => {
-      const op = new MergeOp('test-merge-5')
+      const op = new ConcatOp('test-concat-5')
       op.createListeners()
 
       const accessor = (d: { dynamic: number[] }) => d.dynamic
@@ -1103,26 +1121,26 @@ describe('Viral Accessor Tests', () => {
       expect((exprResult.data as Function)({ price: 100 })).toBe(110)
     })
 
-    it('should chain accessor functions through MergeOp', () => {
+    it('should chain accessor functions through ConcatOp', () => {
       const accessor1 = (d: { x: number }) => [d.x, d.x + 1]
       const accessor2 = (d: { y: number }) => [d.y * 2]
 
-      const mergeOp = new MergeOp('test-chain-5')
-      mergeOp.createListeners()
+      const concatOp = new ConcatOp('test-chain-5')
+      concatOp.createListeners()
 
-      const mergeResult = mergeOp.execute({
+      const concatResult = concatOp.execute({
         values: [accessor1, accessor2],
         depth: 1,
       })
 
-      expect(isAccessor(mergeResult.data)).toBe(true)
-      expect((mergeResult.data as Function)({ x: 5, y: 10 })).toEqual([5, 6, 20])
+      expect(isAccessor(concatResult.data)).toBe(true)
+      expect((concatResult.data as Function)({ x: 5, y: 10 })).toEqual([5, 6, 20])
     })
   })
 
-  describe('ObjectMergeOp', () => {
+  describe('MergeOp', () => {
     it('should handle static objects', () => {
-      const op = new ObjectMergeOp('test-objmerge-1')
+      const op = new MergeOp('test-merge-1')
       op.createListeners()
 
       const result = op.execute({ objects: [{ a: 1 }, { b: 2 }] })
@@ -1132,7 +1150,7 @@ describe('Viral Accessor Tests', () => {
     })
 
     it('should handle accessor function in objects', () => {
-      const op = new ObjectMergeOp('test-objmerge-2')
+      const op = new MergeOp('test-merge-2')
       op.createListeners()
 
       const accessor = (d: { x: number }) => ({ a: d.x })
@@ -1143,7 +1161,7 @@ describe('Viral Accessor Tests', () => {
     })
 
     it('should handle multiple accessor functions in objects', () => {
-      const op = new ObjectMergeOp('test-objmerge-3')
+      const op = new MergeOp('test-merge-3')
       op.createListeners()
 
       const accessor1 = (d: { x: number }) => ({ a: d.x })
@@ -1155,7 +1173,7 @@ describe('Viral Accessor Tests', () => {
     })
 
     it('should handle overlapping properties with accessors', () => {
-      const op = new ObjectMergeOp('test-objmerge-4')
+      const op = new MergeOp('test-merge-4')
       op.createListeners()
 
       const accessor = (d: { value: number }) => ({ a: d.value })
@@ -1167,7 +1185,7 @@ describe('Viral Accessor Tests', () => {
     })
 
     it('should handle mixed static and accessor values', () => {
-      const op = new ObjectMergeOp('test-objmerge-5')
+      const op = new MergeOp('test-merge-5')
       op.createListeners()
 
       const accessor1 = (d: { x: number }) => ({ x: d.x })

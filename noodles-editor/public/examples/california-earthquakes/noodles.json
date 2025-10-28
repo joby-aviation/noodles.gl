@@ -75,7 +75,7 @@
       "type": "ColorRampOp",
       "data": {
         "inputs": {
-          "colorScheme": "sinebow"
+          "colorScheme": "turbo"
         },
         "locked": false
       },
@@ -110,8 +110,8 @@
           "mapStyle": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
           "viewState": {
             "latitude": 37.059,
-            "longitude": -119.327,
-            "zoom": 6.74,
+            "longitude": -119.963,
+            "zoom": 7,
             "pitch": 0,
             "bearing": 0
           }
@@ -128,7 +128,8 @@
       },
       "data": {
         "inputs": {
-          "inMax": 6
+          "inMin": 2.5,
+          "inMax": 7
         },
         "locked": false
       }

@@ -49,16 +49,16 @@ SFO,LAX,150,"[-122.4194, 37.7749]"
 
 ### Code Operators
 
-Run custom JavaScript code on the data. Use `data` to access the input data list, `d` for the first element of the list, and `op` to access other operators. Also passes a freeExports object with utils like `turf` and `d3`, and all Noodles.gl operator classes. Use `this` to store state.
+Run custom JavaScript code on the data. Use `data` to access the input data list, `d` for the first element of the list, and `op` to access other operators. Also passes utils like `turf` and `d3`, and all Noodles.gl operator classes as variables. Use `this` to store state.
 
 ```javascript
 // CodeOp
 const csvData = d // input data list connected to FileOp
-const filtered = csvData.filter(row => row.passengers > 100)
-return filtered.map(row => ({
-  ...row,
-  coordinates: JSON.parse(row.coordinates)
-}))
+const parsed = d3.csvParse(csvData) // parse CSV string using available d3 utility
+const filtered = parsed.filter(row => row.passengers > 100)
+return turf.featureCollection(filtered.map(row => (
+  turf.point([row.lng, row.lat], { name: row.name, passengers: row.passengers })
+)))
 ```
 
 ### Referencing Operators
@@ -85,7 +85,7 @@ return d3.scaleLinear()
 
 ```javascript
 // CodeOp - import an ESM module
-const _ = await import('https://esm.sh/lodash');
+const _ = await import('https://esm.sh/lodash')
 return _.mapValues(
   _.groupBy(d, 'name'),
   group => _.sortBy(group, 'ts'),
