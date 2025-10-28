@@ -1,9 +1,7 @@
-const queryParams = new URLSearchParams(window.location.search)
-
 // Extract projectId from either:
 // 1. URL path: /examples/project-name -> "project-name"
 // 2. Query string: ?project=project-name -> "project-name" (legacy)
-function getProjectId(): string | null {
+export function getProjectId(): string | null {
   // Try path-based routing first (e.g., /examples/nyc-taxis)
   const pathMatch = window.location.pathname.match(/^\/examples\/([^/]+)/)
   if (pathMatch) {
@@ -11,6 +9,7 @@ function getProjectId(): string | null {
   }
 
   // Fall back to query string (legacy support for ?project=name)
+  const queryParams = new URLSearchParams(window.location.search)
   return queryParams.get('project')
 }
 
@@ -18,6 +17,7 @@ export const projectId = getProjectId()
 
 // Disables execution of operators, useful for debugging or when the
 // app has broken in an invalid state
+const queryParams = new URLSearchParams(window.location.search)
 export const safeMode = queryParams.get('safeMode') === 'true'
 
 export const IS_PROD = location.hostname === import.meta.env.VITE_PROD_HOSTNAME

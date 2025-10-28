@@ -49,7 +49,7 @@ import { ChatPanel } from '../ai-chat/chat-panel'
 import { globalContextManager } from '../ai-chat/global-context-manager'
 import { useProjectModifications } from './hooks/use-project-modifications'
 import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
-import { IS_PROD } from './globals'
+import { IS_PROD, getProjectId } from './globals'
 import s from './noodles.module.css'
 import type { IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
@@ -148,20 +148,11 @@ function useTheatreJs(projectName?: string) {
 
 // Not using the top-level sheet since a Noodles theatre sheet and project are dynamically created.
 // Also, the top-level sheet is used for theatre-managed project files, whereas a Noodles project file is managed within this visType.
-// Helper to extract projectId from current URL
-function getProjectIdFromUrl(): string | null {
-  const pathMatch = window.location.pathname.match(/^\/examples\/([^/]+)/)
-  if (pathMatch) {
-    return pathMatch[1]
-  }
-  const queryParams = new URLSearchParams(window.location.search)
-  return queryParams.get('project')
-}
 
 export function getNoodles(): Visualization {
   const [projectName, setProjectName] = useState<string>()
   const [showProjectNotFoundDialog, setShowProjectNotFoundDialog] = useState(false)
-  const [currentProjectId, setCurrentProjectId] = useState<string | null>(getProjectIdFromUrl())
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(getProjectId())
   const storageType = useActiveStorageType()
   const { setCurrentDirectory, setActiveStorageType, setError } = useFileSystemStore()
   const { theatreReady, theatreProject, theatreSheet, setTheatreProject, getTimelineJson } =
@@ -177,7 +168,7 @@ export function getNoodles(): Visualization {
   // Listen for route changes and update currentProjectId
   useEffect(() => {
     const handlePopState = () => {
-      setCurrentProjectId(getProjectIdFromUrl())
+      setCurrentProjectId(getProjectId())
     }
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
