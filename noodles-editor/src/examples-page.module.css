@@ -29,11 +29,14 @@
 }
 
 .exampleCard {
+  display: block;
   padding: 1.5rem;
   border: 1px solid var(--mauve-6);
   border-radius: 8px;
   background: var(--mauve-2);
   transition: all 0.2s ease;
+  text-decoration: none;
+  color: inherit;
 }
 
 .exampleCard:hover {
@@ -42,18 +45,14 @@
   transform: translateY(-2px);
 }
 
+.exampleCard:hover h3 a {
+  color: var(--violet-9);
+}
+
 .exampleCard h3 {
   margin-top: 0;
   margin-bottom: 0.75rem;
-}
-
-.exampleCard h3 a {
-  text-decoration: none;
   color: var(--violet-11);
-}
-
-.exampleCard h3 a:hover {
-  color: var(--violet-9);
 }
 
 .exampleCard p {

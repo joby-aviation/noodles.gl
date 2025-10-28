@@ -93,14 +93,12 @@ export default function ExamplesPage() {
         {examples.map(example => {
           const description = extractDescription(example.readme)
           return (
-            <div key={example.name} className={s.exampleCard}>
+            <Link key={example.name} href={example.path} className={s.exampleCard}>
               <h3>
-                <Link href={example.path}>
-                  {example.name.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                </Link>
+                {example.name.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
               </h3>
               {description && <p>{description}</p>}
-            </div>
+            </Link>
           )
         })}
       </div>
