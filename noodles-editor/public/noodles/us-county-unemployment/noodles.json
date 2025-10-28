@@ -71,7 +71,7 @@
       "type": "AccessorOp",
       "data": {
         "inputs": {
-          "expression": "d.properties.unemployment_rate || 0"
+          "expression": "d.properties.unemployment_rate ?? 0"
         },
         "locked": false
       },
