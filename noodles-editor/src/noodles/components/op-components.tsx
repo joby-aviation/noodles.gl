@@ -538,26 +538,34 @@ function NodeComponent({
         // Note: Transactions can only run after the theatre project is "ready"
         if (updating) return
         updating = true
-        studio.transaction(({ set }) => {
-          try {
-            // Try to detect an infinite loop for setting values to Theatre
-            const value = input instanceof ColorField ? colorToTheatreColor(value_) : value_
 
-            // TODO: This has a bug with StringLiterals where the value is not updated, but removing
-            // the value check causes another bug.
+        try {
+          // Try to detect an infinite loop for setting values to Theatre
+          const value = input instanceof ColorField ? colorToTheatreColor(value_) : value_
 
-            // Prevent infinite loop
-            if (input instanceof CompoundPropsField) return
+          // TODO: This has a bug with StringLiterals where the value is not updated, but removing
+          // the value check causes another bug.
 
-            if (val(pointer) !== value) {
-              set(pointer, value)
-            }
-          } catch (e) {
-            console.warn(e)
-            debugger
+          // Prevent infinite loop
+          if (input instanceof CompoundPropsField) {
+            updating = false
+            return
           }
-          updating = false
-        })
+
+          // Read the current value BEFORE entering the transaction
+          // Cannot use val() inside a transaction as it reads from a cold prism
+          const currentValue = val(pointer)
+
+          if (currentValue !== value) {
+            studio.transaction(({ set }) => {
+              set(pointer, value)
+            })
+          }
+        } catch (e) {
+          console.warn(e)
+          debugger
+        }
+        updating = false
       })
       untapFns.push(unsub.unsubscribe.bind(unsub))
 
