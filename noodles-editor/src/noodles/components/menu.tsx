@@ -290,9 +290,15 @@ async function saveProjectLocally(projectName: string, projectJson: NoodlesProje
   const JSZip = (await import('jszip')).default
   const zip = new JSZip()
 
-  // Add noodles.json to the root of the zip
+  // Create a folder with the project name
+  const projectFolder = zip.folder(projectName)
+  if (!projectFolder) {
+    throw new Error('Failed to create project folder in zip')
+  }
+
+  // Add noodles.json to the project folder
   const contents = safeStringify(projectJson)
-  zip.file('noodles.json', contents)
+  projectFolder.file('noodles.json', contents)
 
   // Try to get the project directory handle to read data files
   try {
@@ -311,7 +317,7 @@ async function saveProjectLocally(projectName: string, projectJson: NoodlesProje
             const fileHandle = entry as FileSystemFileHandle
             const file = await fileHandle.getFile()
             const arrayBuffer = await file.arrayBuffer()
-            zip.file(`data/${entry.name}`, arrayBuffer)
+            projectFolder.file(`data/${entry.name}`, arrayBuffer)
           }
         }
       }
