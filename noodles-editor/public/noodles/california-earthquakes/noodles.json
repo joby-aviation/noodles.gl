@@ -74,7 +74,9 @@
       "id": "/magnitude-color",
       "type": "ColorRampOp",
       "data": {
-        "inputs": {},
+        "inputs": {
+          "colorScheme": "turbo"
+        },
         "locked": false
       },
       "position": {
@@ -108,8 +110,8 @@
           "mapStyle": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
           "viewState": {
             "latitude": 37.059,
-            "longitude": -112.383,
-            "zoom": 6.04,
+            "longitude": -119.963,
+            "zoom": 7,
             "pitch": 0,
             "bearing": 0
           }
@@ -126,6 +128,7 @@
       },
       "data": {
         "inputs": {
+          "inMin": 2.5,
           "inMax": 7
         },
         "locked": false
@@ -151,7 +154,7 @@
       "data": {
         "inputs": {
           "operator": "multiply",
-          "b": 100
+          "b": 1000
         },
         "locked": false
       },
