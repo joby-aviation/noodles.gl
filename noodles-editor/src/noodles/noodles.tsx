@@ -30,7 +30,7 @@ import '@xyflow/react/dist/style.css'
 import 'primereact/resources/themes/md-dark-indigo/theme.css'
 import 'primeicons/primeicons.css'
 
-import newProject from '../../public/noodles/new.json'
+import newProject from '../../public/noodles/new/noodles.json'
 import { SheetProvider } from '../utils/sheet-context'
 import useSheetValue from '../utils/use-sheet-value'
 import type { Visualization } from '../visualizations'
@@ -405,9 +405,7 @@ export function getNoodles(): Visualization {
         setTimeout(() => {
           try {
             if (reactFlowRef.current && nodes.length > 0) {
-              // Access ReactFlow instance through the ref if available
-              // Note: This may need adjustment based on how ReactFlow exposes fitView
-              console.log('Fit view would be called here if ReactFlow instance was accessible')
+              // TODO: Call fitView on the ReactFlow instance here if accessible
             }
           } catch (error) {
             console.warn('Could not fit view:', error)

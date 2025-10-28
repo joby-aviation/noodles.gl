@@ -102,19 +102,20 @@ export function useUndoRedo(
   const undo = useCallback(() => {
     isRestoringRef.current = true
     managerRef.current?.undo()
-    // Reset flag after a short delay to allow state updates to complete
-    setTimeout(() => {
+    // Use queueMicrotask to reset flag after all synchronous state updates complete
+    // This is more reliable than setTimeout as it runs after the current call stack
+    queueMicrotask(() => {
       isRestoringRef.current = false
-    }, 100)
+    })
   }, [])
 
   const redo = useCallback(() => {
     isRestoringRef.current = true
     managerRef.current?.redo()
-    // Reset flag after a short delay to allow state updates to complete
-    setTimeout(() => {
+    // Use queueMicrotask to reset flag after all synchronous state updates complete
+    queueMicrotask(() => {
       isRestoringRef.current = false
-    }, 100)
+    })
   }, [])
 
   const clear = useCallback(() => {
