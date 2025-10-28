@@ -5251,6 +5251,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/jszip@npm:^3.4.1":
+  version: 3.4.1
+  resolution: "@types/jszip@npm:3.4.1"
+  dependencies:
+    jszip: "*"
+  checksum: e779a531fadfc2152233b71055cb67d21e8a8c6bbc6e94ffc5d186bc3fea6a66294c3efa87314339a9fd4b17fe9cb65cacd6c60d14db1d9487f8b9ae17d03255
+  languageName: node
+  linkType: hard
+
 "@types/keyv@npm:^3.1.4":
   version: 3.1.4
   resolution: "@types/keyv@npm:3.1.4"
@@ -8698,7 +8707,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"jszip@npm:^3.1.5":
+"jszip@npm:*, jszip@npm:^3.1.5, jszip@npm:^3.10.1":
   version: 3.10.1
   resolution: "jszip@npm:3.10.1"
   dependencies:
@@ -9434,6 +9443,7 @@ __metadata:
     "@types/flexsearch": ^0.7.6
     "@types/geojson": ^7946.0.16
     "@types/jest": ^27.0.1
+    "@types/jszip": ^3.4.1
     "@types/lodash": ^4.17.20
     "@types/mapbox__polyline": ^1.0.5
     "@types/node": ^16.18.126
@@ -9453,6 +9463,7 @@ __metadata:
     gl-matrix: ^3.4.4
     h3-js: ^4.3.0
     haversine-distance: ^1.2.4
+    jszip: ^3.10.1
     lodash: ^4.17.21
     maplibre-gl: ^5.9.0
     match-sorter: ^8.1.0
