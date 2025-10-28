@@ -1,19 +1,13 @@
-/**
- * Register custom Monaco Editor languages
- * This file is imported in the main entry point to ensure
- * languages are registered before Monaco Editor is used
- */
+// Register custom Monaco Editor languages
+// Called lazily by field-components when a CodeField with a custom language is mounted
 
-import { loader } from '@monaco-editor/react'
 import type * as Monaco from 'monaco-editor'
 import { overpassQL, overpassQLConfig } from './overpass-ql'
 
 let registrationComplete = false
 
-/**
- * Register Overpass QL language with Monaco Editor
- * Can be called multiple times safely - will only register once
- */
+// Register Overpass QL language with Monaco Editor
+// Can be called multiple times safely - will only register once
 export async function registerOverpassQL(monaco: typeof Monaco) {
   if (registrationComplete) return
 
@@ -38,8 +32,6 @@ export async function registerOverpassQL(monaco: typeof Monaco) {
     console.log('Registered Overpass QL language with Monaco Editor')
   } catch (error) {
     console.error('Failed to register Overpass QL language:', error)
+    registrationComplete = false
   }
 }
-
-// Configure Monaco loader - register on init
-loader.init().then(registerOverpassQL).catch(console.error)

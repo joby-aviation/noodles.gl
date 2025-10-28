@@ -4,7 +4,7 @@ Learn how to query real-time OpenStreetMap data using the Overpass API for dynam
 
 ## What is Overpass API?
 
-The Overpass API is a read-only API that serves OpenStreetMap (OSM) data. Unlike Overture Maps (which provides pre-processed datasets), Overpass queries the live OSM database, giving you:
+The Overpass API is a read-only API that serves OpenStreetMap (OSM) data. Unlike [Overture Maps](./overture-maps-guide.md) (which provides pre-processed datasets), Overpass queries the live OSM database, giving you:
 
 - **Real-time data**: Latest OSM edits and contributions
 - **Flexible queries**: Custom filtering with Overpass QL (query language)
@@ -69,6 +69,8 @@ out geom;
 - **`({{bbox}})`**: Bounding box placeholder - automatically replaced with coordinates
 - **`out geom;`**: Include full geometry in output
 
+> **New to Overpass QL?** Learn the query language syntax at the [Overpass QL Language Guide](https://wiki.openstreetmap.org/wiki/Overpass_API/Overpass_QL) or try the interactive [Overpass Turbo](https://overpass-turbo.eu/) query builder.
+
 ### Step 3: Visualize with GeoJsonLayer
 
 Add a `GeoJsonLayerOp` and configure:
@@ -117,9 +119,9 @@ Then visualize as points with `GeoJsonLayerOp`:
 - **pointType**: `circle`
 - **getPointRadius**: `8`
 - **pointRadiusUnits**: `pixels`
-- **getFillColor**: Use accessor to color by type:
+- **getFillColor**: Use an `AccessorOp` to color by type:
   ```javascript
-  d => d.properties.amenity === 'cafe' ? [139, 92, 246] : [234, 88, 12]
+  d.properties.amenity === 'cafe' ? [139, 92, 246] : [234, 88, 12]
   ```
 
 ### Bike Lanes
