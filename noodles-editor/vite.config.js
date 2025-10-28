@@ -1,25 +1,17 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import { nodePolyfills } from 'vite-plugin-node-polyfills'
+import { execSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
-import { execSync } from 'node:child_process'
+import react from '@vitejs/plugin-react'
+import { defineConfig, loadEnv } from 'vite'
+import { nodePolyfills } from 'vite-plugin-node-polyfills'
 
 const ENV_VARIABLES_WITH_INSTRUCTIONS = {
-  VITE_GOOGLE_MAPS_API_KEY: 'Get token at https://developers.google.com/maps/documentation/javascript/get-api-key',
+  VITE_GOOGLE_MAPS_API_KEY:
+    'Get token at https://developers.google.com/maps/documentation/javascript/get-api-key',
   VITE_CESIUM_ACCESS_TOKEN: 'Get token at https://cesium.com/ion/tokens',
   VITE_MAPBOX_ACCESS_TOKEN: 'Get token at https://account.mapbox.com/access-tokens/',
   VITE_MAPTILER_API_KEY: 'Get token at https://cloud.maptiler.com/account/keys/',
   VITE_CLAUDE_API_KEY: 'Get token at https://console.anthropic.com/ (Optional - can be set in UI)',
-}
-
-// Log helpful messages for missing optional environment variables in development
-if (process.env.NODE_ENV === 'development') {
-  Object.entries(ENV_VARIABLES_WITH_INSTRUCTIONS).forEach(([key, instruction]) => {
-    if (!process.env[key]) {
-      console.log(`ℹ️  ${key} not set. ${instruction}`)
-    }
-  })
 }
 
 // Vite plugin to auto-regenerate AI context bundles when relevant files change
@@ -49,7 +41,7 @@ function contextGeneratorPlugin() {
       console.log('\n🔄 Regenerating AI context bundles...')
       execSync('yarn generate:context', {
         stdio: 'inherit',
-        cwd: process.cwd()
+        cwd: process.cwd(),
       })
       console.log('✅ AI context bundles updated\n')
     } catch (error) {
@@ -72,15 +64,13 @@ function contextGeneratorPlugin() {
       generateContext()
 
       // Watch for file changes
-      server.watcher.on('change', (file) => {
+      server.watcher.on('change', file => {
         const relativePath = path.relative(server.config.root, file)
 
         // Check if the changed file matches any watched patterns
         const shouldRegenerate = watchedPaths.some(pattern => {
           if (pattern.includes('**')) {
-            const regex = new RegExp(
-              `^${pattern.replace(/\*\*/g, '.*').replace(/\*/g, '[^/]*')}$`
-            )
+            const regex = new RegExp(`^${pattern.replace(/\*\*/g, '.*').replace(/\*/g, '[^/]*')}$`)
             return regex.test(relativePath)
           }
           return relativePath === pattern
@@ -91,11 +81,24 @@ function contextGeneratorPlugin() {
           generateContext()
         }
       })
-    }
+    },
   }
 }
 
 export default defineConfig(({ mode }) => {
+  // Load env file based on `mode` in the current working directory.
+  // Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
+  const env = loadEnv(mode, process.cwd(), '')
+
+  // Log helpful messages for missing optional environment variables in development
+  if (mode === 'development') {
+    Object.entries(ENV_VARIABLES_WITH_INSTRUCTIONS).forEach(([key, instruction]) => {
+      if (!env[key]) {
+        console.log(`ℹ️  ${key} not set. ${instruction}`)
+      }
+    })
+  }
+
   return {
     base: mode === 'development' ? '/' : '/app/',
     server: {
@@ -124,7 +127,7 @@ export default defineConfig(({ mode }) => {
 
               const candidates = [
                 publicDir && path.join(publicDir, safe),
-                path.join(root, safe)
+                path.join(root, safe),
               ].filter(Boolean)
 
               const exists = candidates.some(p => fs.existsSync(p))
@@ -137,8 +140,8 @@ export default defineConfig(({ mode }) => {
 
             next()
           })
-        }
-      }
+        },
+      },
     ],
   }
 })

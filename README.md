@@ -17,7 +17,19 @@ yarn build:all
 
 ## Documentation
 
-Refer to the documentation at [noodles.gl](https://noodles.gl).
+### 📖 Published Documentation
+Visit [noodles.gl](https://noodles.gl) for complete documentation, or browse the source in [/docs](docs/):
+- **[User Guides](docs/users/)** - Using Noodles.gl to create visualizations
+- **[Developer Guides](docs/developers/)** - Extending Noodles.gl with custom operators and fields
+
+### 🛠️ Internal Development Docs
+For contributors working on the Noodles.gl codebase itself, see [/dev-docs](dev-docs/):
+- **[Architecture](dev-docs/architecture.md)** - System architecture and patterns
+- **[Tech Stack](dev-docs/tech-stack.md)** - Technologies and libraries
+- **[Development Guide](dev-docs/developing.md)** - Commands and code style
+
+### 🤖 AI Context
+**[AGENTS.md](AGENTS.md)** provides comprehensive context for LLM agents working with this codebase.
 
 ## Contributing
 

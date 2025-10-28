@@ -1848,12 +1848,33 @@ export class SwitchOp extends Operator<SwitchOp> {
     index,
     blend,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    if (blend) {
-      const value = interpolate(...values)(index)
+    if (!blend) {
+      const value = values[Math.min(index, values.length - 1)]
       return { value }
     }
 
-    const value = values[Math.min(index, values.length - 1)]
+    if (values.length === 0) {
+      return { value: undefined }
+    }
+
+    if (values.length === 1) {
+      return { value: values[0] }
+    }
+
+    // For multiple values, we need to find which two values to interpolate between
+    // and calculate the interpolation factor
+    const clampedIndex = Math.min(index, values.length - 1)
+    const lowerIndex = Math.floor(clampedIndex)
+    const upperIndex = Math.ceil(clampedIndex)
+
+    // If we're exactly on an index, return that value
+    if (lowerIndex === upperIndex) {
+      return { value: values[lowerIndex] }
+    }
+
+    // Calculate the interpolation factor between the two values
+    const t = clampedIndex - lowerIndex
+    const value = interpolate(values[lowerIndex], values[upperIndex])(t)
     return { value }
   }
 }
@@ -2143,10 +2164,10 @@ export class RandomizeAttributeOp extends Operator<RandomizeAttributeOp> {
   }
 }
 
-export class MergeOp extends Operator<MergeOp> {
-  static displayName = 'Merge'
+export class ConcatOp extends Operator<ConcatOp> {
+  static displayName = 'Concat'
   static description =
-    'Combine multiple arrays into a single array. Use depth to flatten nested arrays (depth=1 flattens one level, depth=2 flattens two levels).'
+    'Concatenate multiple arrays into a single array. Use depth to flatten nested arrays (depth=1 flattens one level, depth=2 flattens two levels).'
   createInputs() {
     return {
       values: new ListField(new DataField()),
@@ -2176,8 +2197,8 @@ export class MergeOp extends Operator<MergeOp> {
   }
 }
 
-export class ObjectMergeOp extends Operator<ObjectMergeOp> {
-  static displayName = 'ObjectMerge'
+export class MergeOp extends Operator<MergeOp> {
+  static displayName = 'Merge'
   static description = 'Merge multiple objects into one (think Object.assign)'
   createInputs() {
     return {
@@ -5036,6 +5057,7 @@ export const opTypes = {
   CombineRGBAOp,
   CombineXYOp,
   CombineXYZOp,
+  ConcatOp,
   ConsoleOp,
   ContainerOp,
   ContourLayerOp,
@@ -5087,7 +5109,6 @@ export const opTypes = {
   MVTLayerOp,
   NetworkOp,
   NumberOp,
-  ObjectMergeOp,
   OrbitViewOp,
   OutOp,
   PathLayerOp,
