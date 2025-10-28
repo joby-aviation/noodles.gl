@@ -45,11 +45,13 @@ export function useUndoRedo() {
   const onEdgesChangeIntercepted = useRef(false)
   const isRestoringRef = useRef(false)
 
+  // Store references to original handlers for use during undo/redo
+  const originalOnNodesChangeRef = useRef<OnNodesChange | null>(null)
+  const originalOnEdgesChangeRef = useRef<OnEdgesChange | null>(null)
+
   // These hooks must be used inside ReactFlow context
   const onNodesChange = useStore(s => s.onNodesChange)
   const onEdgesChange = useStore(s => s.onEdgesChange)
-  const nodes = useStore(s => s.nodes)
-  const edges = useStore(s => s.edges)
   const store = useStoreApi()
 
   const { history, currentIndex } = undoRedoState
@@ -62,6 +64,7 @@ export function useUndoRedo() {
 
     onNodesChangeIntercepted.current = true
     const userOnNodesChange = onNodesChange
+    originalOnNodesChangeRef.current = userOnNodesChange
 
     const onNodesChangeWithHistory: OnNodesChange = changes => {
       // Skip recording changes during undo/redo operations
@@ -70,9 +73,8 @@ export function useUndoRedo() {
         return
       }
 
-      // Record state before changes
-      const nodesBefore = [...nodes]
-      const edgesBefore = [...edges]
+      // Record state before changes - capture directly from store to avoid stale closure
+      const { nodes: nodesBefore, edges: edgesBefore } = store.getState()
 
       // Apply changes
       userOnNodesChange(changes)
@@ -90,11 +92,20 @@ export function useUndoRedo() {
         changes.map(c => c.type)
       )
       console.info('Significant changes:', significantChanges.length)
+      console.info('Captured state counts:', {
+        nodesBeforeCount: nodesBefore.length,
+        edgesBeforeCount: edgesBefore.length,
+      })
 
       if (significantChanges.length > 0) {
         // Capture state after changes (need to use setTimeout to get updated state from store)
         setTimeout(() => {
           const { nodes: nodesAfter, edges: edgesAfter } = store.getState()
+
+          console.info('Captured after state counts:', {
+            nodesAfterCount: nodesAfter.length,
+            edgesAfterCount: edgesAfter.length,
+          })
 
           const entry: HistoryEntry = {
             id: crypto.randomUUID(),
@@ -102,8 +113,8 @@ export function useUndoRedo() {
             description: getChangeDescription(significantChanges, 'node'),
             nodeChanges: significantChanges,
             edgeChanges: [],
-            nodesBefore,
-            edgesBefore,
+            nodesBefore: [...nodesBefore],
+            edgesBefore: [...edgesBefore],
             nodesAfter: [...nodesAfter],
             edgesAfter: [...edgesAfter],
           }
@@ -141,7 +152,7 @@ export function useUndoRedo() {
     }
 
     store.setState({ onNodesChange: onNodesChangeWithHistory })
-  }, [onNodesChange, nodes, edges, store])
+  }, [onNodesChange, store])
 
   // Intercept edges changes
   useEffect(() => {
@@ -151,6 +162,7 @@ export function useUndoRedo() {
 
     onEdgesChangeIntercepted.current = true
     const userOnEdgesChange = onEdgesChange
+    originalOnEdgesChangeRef.current = userOnEdgesChange
 
     const onEdgesChangeWithHistory: OnEdgesChange = changes => {
       // Skip recording changes during undo/redo operations
@@ -159,9 +171,8 @@ export function useUndoRedo() {
         return
       }
 
-      // Record state before changes
-      const nodesBefore = [...nodes]
-      const edgesBefore = [...edges]
+      // Record state before changes - capture directly from store to avoid stale closure
+      const { nodes: nodesBefore, edges: edgesBefore } = store.getState()
 
       // Apply changes
       userOnEdgesChange(changes)
@@ -222,7 +233,7 @@ export function useUndoRedo() {
     }
 
     store.setState({ onEdgesChange: onEdgesChangeWithHistory })
-  }, [onEdgesChange, nodes, edges, store])
+  }, [onEdgesChange, store])
 
   const undo = useCallback(() => {
     console.info(`Undo check: currentIndex=${currentIndex}, history.length=${history.length}`)
@@ -242,11 +253,76 @@ export function useUndoRedo() {
 
     console.info(`Undoing: ${entry.description}`)
 
-    // Restore the state before the changes
-    store.setState({
-      nodes: entry.nodesBefore,
-      edges: entry.edgesBefore,
+    // Calculate the changes needed to restore the state
+    const currentNodes = store.getState().nodes
+    const currentEdges = store.getState().edges
+
+    console.info('Undo state comparison:', {
+      currentNodeCount: currentNodes.length,
+      currentNodeIds: currentNodes.map(n => n.id),
+      targetNodeCount: entry.nodesBefore.length,
+      targetNodeIds: entry.nodesBefore.map(n => n.id),
+      afterNodeCount: entry.nodesAfter.length,
+      afterNodeIds: entry.nodesAfter.map(n => n.id),
     })
+
+    // Create remove changes for nodes that exist now but shouldn't
+    const nodeIdsToKeep = new Set(entry.nodesBefore.map(n => n.id))
+    const nodeRemoveChanges: NodeChange[] = currentNodes
+      .filter(n => !nodeIdsToKeep.has(n.id))
+      .map(n => ({ type: 'remove' as const, id: n.id }))
+
+    // Create add changes for nodes that should exist but don't
+    const currentNodeIds = new Set(currentNodes.map(n => n.id))
+    const nodeAddChanges: NodeChange[] = entry.nodesBefore
+      .filter(n => !currentNodeIds.has(n.id))
+      .map(n => ({ type: 'add' as const, item: n }))
+
+    // Create update changes for nodes that exist in both but may have changed
+    const nodeUpdateChanges: NodeChange[] = entry.nodesBefore
+      .filter(n => currentNodeIds.has(n.id))
+      .flatMap(n => {
+        const current = currentNodes.find(cn => cn.id === n.id)
+        // Check if position changed
+        if (current && (current.position.x !== n.position.x || current.position.y !== n.position.y)) {
+          return [{
+            type: 'position' as const,
+            id: n.id,
+            position: n.position,
+            dragging: false,
+          }]
+        }
+        return []
+      })
+
+    const allNodeChanges = [...nodeRemoveChanges, ...nodeAddChanges, ...nodeUpdateChanges]
+
+    // Similar for edges
+    const edgeIdsToKeep = new Set(entry.edgesBefore.map(e => e.id))
+    const edgeRemoveChanges: EdgeChange[] = currentEdges
+      .filter(e => !edgeIdsToKeep.has(e.id))
+      .map(e => ({ type: 'remove' as const, id: e.id }))
+
+    const currentEdgeIds = new Set(currentEdges.map(e => e.id))
+    const edgeAddChanges: EdgeChange[] = entry.edgesBefore
+      .filter(e => !currentEdgeIds.has(e.id))
+      .map(e => ({ type: 'add' as const, item: e }))
+
+    const allEdgeChanges = [...edgeRemoveChanges, ...edgeAddChanges]
+
+    console.info('Applying undo changes:', {
+      nodeChanges: allNodeChanges.map(c => c.type),
+      edgeChanges: allEdgeChanges.map(c => c.type),
+    })
+
+    // Apply changes through the original handlers (which will sync external state)
+    // We use the original handlers stored in refs to bypass our interception
+    if (allNodeChanges.length > 0 && originalOnNodesChangeRef.current) {
+      originalOnNodesChangeRef.current(allNodeChanges)
+    }
+    if (allEdgeChanges.length > 0 && originalOnEdgesChangeRef.current) {
+      originalOnEdgesChangeRef.current(allEdgeChanges)
+    }
 
     setUndoRedoState(prev => ({
       ...prev,
@@ -254,7 +330,6 @@ export function useUndoRedo() {
     }))
 
     // Use queueMicrotask to reset flag after all synchronous state updates complete
-    // This is more reliable than setTimeout as it runs after the current call stack
     queueMicrotask(() => {
       isRestoringRef.current = false
     })
@@ -268,11 +343,67 @@ export function useUndoRedo() {
 
     console.info(`Redoing: ${entry.description}`)
 
-    // Restore the state after the changes (now that we store it)
-    store.setState({
-      nodes: entry.nodesAfter,
-      edges: entry.edgesAfter,
+    // Calculate the changes needed to restore the "after" state
+    const currentNodes = store.getState().nodes
+    const currentEdges = store.getState().edges
+
+    // Create remove changes for nodes that exist now but shouldn't
+    const nodeIdsToKeep = new Set(entry.nodesAfter.map(n => n.id))
+    const nodeRemoveChanges: NodeChange[] = currentNodes
+      .filter(n => !nodeIdsToKeep.has(n.id))
+      .map(n => ({ type: 'remove' as const, id: n.id }))
+
+    // Create add changes for nodes that should exist but don't
+    const currentNodeIds = new Set(currentNodes.map(n => n.id))
+    const nodeAddChanges: NodeChange[] = entry.nodesAfter
+      .filter(n => !currentNodeIds.has(n.id))
+      .map(n => ({ type: 'add' as const, item: n }))
+
+    // Create update changes for nodes that exist in both but may have changed
+    const nodeUpdateChanges: NodeChange[] = entry.nodesAfter
+      .filter(n => currentNodeIds.has(n.id))
+      .flatMap(n => {
+        const current = currentNodes.find(cn => cn.id === n.id)
+        // Check if position changed
+        if (current && (current.position.x !== n.position.x || current.position.y !== n.position.y)) {
+          return [{
+            type: 'position' as const,
+            id: n.id,
+            position: n.position,
+            dragging: false,
+          }]
+        }
+        return []
+      })
+
+    const allNodeChanges = [...nodeRemoveChanges, ...nodeAddChanges, ...nodeUpdateChanges]
+
+    // Similar for edges
+    const edgeIdsToKeep = new Set(entry.edgesAfter.map(e => e.id))
+    const edgeRemoveChanges: EdgeChange[] = currentEdges
+      .filter(e => !edgeIdsToKeep.has(e.id))
+      .map(e => ({ type: 'remove' as const, id: e.id }))
+
+    const currentEdgeIds = new Set(currentEdges.map(e => e.id))
+    const edgeAddChanges: EdgeChange[] = entry.edgesAfter
+      .filter(e => !currentEdgeIds.has(e.id))
+      .map(e => ({ type: 'add' as const, item: e }))
+
+    const allEdgeChanges = [...edgeRemoveChanges, ...edgeAddChanges]
+
+    console.info('Applying redo changes:', {
+      nodeChanges: allNodeChanges.map(c => c.type),
+      edgeChanges: allEdgeChanges.map(c => c.type),
     })
+
+    // Apply changes through the original handlers (which will sync external state)
+    // We use the original handlers stored in refs to bypass our interception
+    if (allNodeChanges.length > 0 && originalOnNodesChangeRef.current) {
+      originalOnNodesChangeRef.current(allNodeChanges)
+    }
+    if (allEdgeChanges.length > 0 && originalOnEdgesChangeRef.current) {
+      originalOnEdgesChangeRef.current(allEdgeChanges)
+    }
 
     setUndoRedoState(prev => ({
       ...prev,
