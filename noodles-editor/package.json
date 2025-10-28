@@ -58,6 +58,7 @@
     "vega-embed": "^7.1.0",
     "vega-lite": "^6.4.1",
     "web-vitals": "^5.1.0",
+    "wouter": "^3.7.1",
     "zod": "^4.1.12"
   },
   "resolutions": {

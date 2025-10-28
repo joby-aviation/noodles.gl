@@ -1,5 +1,6 @@
 import { basename, dirname } from 'node:path'
 import { useEffect, useState } from 'react'
+import { Link } from 'wouter'
 import s from './examples-page.module.css'
 
 const projects = import.meta.glob('../public/examples/**/noodles.json')
@@ -94,16 +95,9 @@ export default function ExamplesPage() {
           return (
             <div key={example.name} className={s.exampleCard}>
               <h3>
-                <a
-                  href={example.path}
-                  onClick={(e) => {
-                    e.preventDefault()
-                    window.history.pushState({}, '', example.path)
-                    window.dispatchEvent(new PopStateEvent('popstate'))
-                  }}
-                >
+                <Link href={example.path}>
                   {example.name.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                </a>
+                </Link>
               </h3>
               {description && <p>{description}</p>}
             </div>

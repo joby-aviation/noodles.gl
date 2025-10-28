@@ -1,27 +1,26 @@
-import { useEffect, useState } from 'react'
+import { Route, Switch } from 'wouter'
 import TimelineEditor from './timeline-editor'
 import ExamplesPage from './examples-page'
 
 function App() {
-  const [route, setRoute] = useState(window.location.pathname)
+  return (
+    <Switch>
+      {/* Examples list page */}
+      <Route path="/examples">
+        <ExamplesPage />
+      </Route>
 
-  useEffect(() => {
-    const handlePopState = () => {
-      setRoute(window.location.pathname)
-    }
+      {/* Project route - /examples/:projectId */}
+      <Route path="/examples/:projectId">
+        {(params) => <TimelineEditor projectId={params.projectId} />}
+      </Route>
 
-    window.addEventListener('popstate', handlePopState)
-    return () => window.removeEventListener('popstate', handlePopState)
-  }, [])
-
-  // Route: /examples (examples list page)
-  if (route === '/examples' || route === '/examples/') {
-    return <ExamplesPage />
-  }
-
-  // All other routes render the timeline editor
-  // (including /, /examples/:projectId, and legacy ?project= query strings)
-  return <TimelineEditor />
+      {/* Root and all other routes - render timeline editor */}
+      <Route path="*">
+        <TimelineEditor />
+      </Route>
+    </Switch>
+  )
 }
 
 export default App
