@@ -185,9 +185,12 @@ export const BlockLibrary = forwardRef<BlockLibraryRef, BlockLibraryProps>(({ re
     }
   }, [selectedIndex])
 
-  // Handle keyboard navigation
+  // Handle keyboard navigation (2D grid with 3 columns)
   useEffect(() => {
     if (!isOpen) return
+
+    const COLS = 3
+    const totalResults = flatResults.length
 
     const handleKeyDown = (e: KeyboardEvent) => {
       // Close on Escape
@@ -196,21 +199,35 @@ export const BlockLibrary = forwardRef<BlockLibraryRef, BlockLibraryProps>(({ re
         return
       }
 
-      // Add top result on Enter
-      if (e.key === 'Enter' && sortedResults.length > 0) {
+      // Add selected result on Enter
+      if (e.key === 'Enter' && totalResults > 0) {
         e.preventDefault()
-        addNode(sortedResults[selectedIndex])
+        addNode(flatResults[selectedIndex])
         return
       }
 
-      // Navigate with arrow keys
+      // 2D grid navigation with arrow keys
       if (e.key === 'ArrowDown') {
         e.preventDefault()
-        setSelectedIndex(prev => Math.min(prev + 1, sortedResults.length - 1))
+        const newIndex = selectedIndex + COLS
+        setSelectedIndex(Math.min(newIndex, totalResults - 1))
         return
       }
 
       if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        const newIndex = selectedIndex - COLS
+        setSelectedIndex(Math.max(newIndex, 0))
+        return
+      }
+
+      if (e.key === 'ArrowRight') {
+        e.preventDefault()
+        setSelectedIndex(prev => Math.min(prev + 1, totalResults - 1))
+        return
+      }
+
+      if (e.key === 'ArrowLeft') {
         e.preventDefault()
         setSelectedIndex(prev => Math.max(prev - 1, 0))
         return
@@ -219,7 +236,7 @@ export const BlockLibrary = forwardRef<BlockLibraryRef, BlockLibraryProps>(({ re
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, onCloseModal, sortedResults, selectedIndex, addNode])
+  }, [isOpen, onCloseModal, flatResults, selectedIndex, addNode])
 
   if (!isOpen) return null
 
@@ -260,45 +277,102 @@ export const BlockLibrary = forwardRef<BlockLibraryRef, BlockLibraryProps>(({ re
           </div>
         </div>
         <div className={s.blockLibraryContent}>
-          <div className={s.blockLibraryGrid}>
-            {sortedResults.map((type, index) => {
-              const description = getNodeDescription(type)
-              const displayName = typeDisplayName(type)
-              const category = typeCategory(type)
-              const isSelected = index === selectedIndex
+          {displayMode.mode === 'ranked' ? (
+            // Ranked mode: flat list sorted by relevance
+            <div className={s.blockLibraryGrid}>
+              {displayMode.results.map((type, index) => {
+                const description = getNodeDescription(type)
+                const displayName = typeDisplayName(type)
+                const category = typeCategory(type)
+                const isSelected = index === selectedIndex
 
-              return (
-                <div
-                  key={type}
-                  ref={el => {
-                    if (el) {
-                      cardRefs.current.set(index, el)
-                    } else {
-                      cardRefs.current.delete(index)
-                    }
-                  }}
-                  className={cx(s.blockLibraryCard, {
-                    [s.blockLibraryCardSelected]: isSelected,
-                  })}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => addNode(type)}
-                  onKeyDown={e => e.key === 'Enter' && addNode(type)}
-                  onMouseEnter={() => setSelectedIndex(index)}
-                >
-                  <div className={s.blockLibraryCardHeader}>
-                    <div className={s.blockLibraryCardTitle}>{displayName}</div>
-                    <div className={cx(s.blockLibraryCardCategory, headerClass(type))}>
-                      {category}
+                return (
+                  <div
+                    key={type}
+                    ref={el => {
+                      if (el) {
+                        cardRefs.current.set(index, el)
+                      } else {
+                        cardRefs.current.delete(index)
+                      }
+                    }}
+                    className={cx(s.blockLibraryCard, {
+                      [s.blockLibraryCardSelected]: isSelected,
+                    })}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => addNode(type)}
+                    onKeyDown={e => e.key === 'Enter' && addNode(type)}
+                    onMouseEnter={() => setSelectedIndex(index)}
+                  >
+                    <div className={s.blockLibraryCardHeader}>
+                      <div className={s.blockLibraryCardTitle}>{displayName}</div>
+                      <div className={cx(s.blockLibraryCardCategory, headerClass(type))}>
+                        {category}
+                      </div>
+                    </div>
+                    {description && (
+                      <div className={s.blockLibraryCardDescription}>{description}</div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            // Grouped mode: organized by categories
+            <>
+              {displayMode.groups.map(group => {
+                // Find the starting index for this group in flatResults
+                const groupStartIndex = flatResults.findIndex(t => t === group.types[0])
+
+                return (
+                  <div key={group.category}>
+                    <div className={s.blockLibraryContentCategoryHeader}>{group.category}</div>
+                    <div className={s.blockLibraryGrid}>
+                      {group.types.map((type, indexInGroup) => {
+                        const globalIndex = groupStartIndex + indexInGroup
+                        const description = getNodeDescription(type)
+                        const displayName = typeDisplayName(type)
+                        const category = typeCategory(type)
+                        const isSelected = globalIndex === selectedIndex
+
+                        return (
+                          <div
+                            key={type}
+                            ref={el => {
+                              if (el) {
+                                cardRefs.current.set(globalIndex, el)
+                              } else {
+                                cardRefs.current.delete(globalIndex)
+                              }
+                            }}
+                            className={cx(s.blockLibraryCard, {
+                              [s.blockLibraryCardSelected]: isSelected,
+                            })}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => addNode(type)}
+                            onKeyDown={e => e.key === 'Enter' && addNode(type)}
+                            onMouseEnter={() => setSelectedIndex(globalIndex)}
+                          >
+                            <div className={s.blockLibraryCardHeader}>
+                              <div className={s.blockLibraryCardTitle}>{displayName}</div>
+                              <div className={cx(s.blockLibraryCardCategory, headerClass(type))}>
+                                {category}
+                              </div>
+                            </div>
+                            {description && (
+                              <div className={s.blockLibraryCardDescription}>{description}</div>
+                            )}
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
-                  {description && (
-                    <div className={s.blockLibraryCardDescription}>{description}</div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </>
+          )}
         </div>
       </div>
     </div>,
