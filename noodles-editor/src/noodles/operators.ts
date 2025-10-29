@@ -1297,11 +1297,47 @@ export class FileOp extends Operator<FileOp> {
 }
 
 const duckDbInstance = (async () => {
-  // Use jsdelivr CDN to host the large WASM files (they exceed Cloudflare Pages' 25 MiB limit)
-  const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles()
+  // Use CDN bundles for Cloudflare Pages (which has a 25 MiB file size limit)
+  // Use local bundles for development and GitHub Actions (which can access local files)
+  let bundles: duckdb.DuckDBBundles
+
+  // Use import.meta.env directly in the condition for proper tree-shaking
+  if (import.meta.env.VITE_USE_CDN_DUCKDB === 'true') {
+    // jsdelivr CDN hosts the large WASM files externally
+    bundles = duckdb.getJsDelivrBundles()
+  } else {
+    // Dynamically import the WASM files only when not using CDN
+    // Vite will tree-shake this entire branch when VITE_USE_CDN_DUCKDB is 'true'
+    const [duckdb_wasm, mvp_worker, duckdb_wasm_eh, eh_worker, duckdb_wasm_coi, coi_worker, duckdb_pthread_worker] = await Promise.all([
+      import('@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm?url').then(m => m.default),
+      import('@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js?url').then(m => m.default),
+      import('@duckdb/duckdb-wasm/dist/duckdb-eh.wasm?url').then(m => m.default),
+      import('@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js?url').then(m => m.default),
+      import('@duckdb/duckdb-wasm/dist/duckdb-coi.wasm?url').then(m => m.default),
+      import('@duckdb/duckdb-wasm/dist/duckdb-browser-coi.worker.js?url').then(m => m.default),
+      import('@duckdb/duckdb-wasm/dist/duckdb-browser-coi.pthread.worker.js?url').then(m => m.default),
+    ])
+
+    // Bundle the WASM files locally for environments that support it
+    bundles = {
+      mvp: {
+        mainModule: duckdb_wasm,
+        mainWorker: mvp_worker,
+      },
+      eh: {
+        mainModule: duckdb_wasm_eh,
+        mainWorker: eh_worker,
+      },
+      coi: {
+        mainModule: duckdb_wasm_coi,
+        mainWorker: coi_worker,
+        pthreadWorker: duckdb_pthread_worker,
+      },
+    }
+  }
 
   // Select a bundle based on browser checks
-  const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES)
+  const bundle = await duckdb.selectBundle(bundles)
   const worker = new Worker(bundle.mainWorker!)
   const logger = new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING)
   const db = new duckdb.AsyncDuckDB(logger, worker)
