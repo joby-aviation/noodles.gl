@@ -7,6 +7,7 @@ import type { ScaleLinear, ScaleOrdinal } from 'd3'
 import { Button } from 'primereact/button'
 import { InputText } from 'primereact/inputtext'
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Temporal } from 'temporal-polyfill'
 
 import { colorToHex } from '../../utils/color'
 import {
@@ -59,7 +60,8 @@ function viewerFormatter(value: unknown): unknown {
     typeof value === 'string' ||
     typeof value === 'number' ||
     typeof value === 'boolean' ||
-    value instanceof Date
+    value instanceof Date ||
+    value instanceof Temporal.PlainDateTime
   ) {
     return { value }
   }
@@ -1115,11 +1117,17 @@ export function DateFieldComponent({
   }, [field])
 
   const onChange = e => {
-    field.setValue(new Date(`${e.currentTarget.value}:00.000Z`))
+    // Parse the datetime-local input value and create a Temporal.PlainDateTime
+    // datetime-local format: YYYY-MM-DDTHH:mm (no timezone, local time)
+    const inputValue = e.currentTarget.value
+    if (inputValue) {
+      // Add seconds to match ISO format, then parse as PlainDateTime
+      field.setValue(Temporal.PlainDateTime.from(`${inputValue}:00`))
+    }
   }
 
-  const isoString = value.toISOString()
-  const formatted = isoString.substring(0, isoString.indexOf('T') + 6)
+  // Convert Temporal.PlainDateTime to datetime-local format (YYYY-MM-DDTHH:mm)
+  const formatted = value?.toString?.()?.substring(0, 16) || ''
 
   return (
     <div className={s.fieldWrapper}>
