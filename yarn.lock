@@ -3,48 +3,9 @@
 
 __metadata:
   version: 6
-  cacheKey: 8
-
-"mitt@npm:^3.0.1":
-  version: 3.0.1
-  resolution: "mitt@npm:3.0.1"
-  checksum: b55a489ac9c2949ab166b7f060601d3b6d893a852515ae9eca4e11df01c013876df777ea109317622b5c1c60e8aae252558e33c8c94e14124db38f64a39614b1
-  languageName: node
-  linkType: hard
 
 "noodles.gl@workspace:.":
   version: 0.0.0-use.local
   resolution: "noodles.gl@workspace:."
-  dependencies:
-    wouter: ^3.7.1
   languageName: unknown
   linkType: soft
-
-"regexparam@npm:^3.0.0":
-  version: 3.0.0
-  resolution: "regexparam@npm:3.0.0"
-  checksum: c8649af1538ccc12b5c5d250525f61bd370227dce41f4fb908433a9651e18b7be21dd8f8518c322dd9ebd75f7caaaea4921e374c39a469c11d4f9d0c738043e0
-  languageName: node
-  linkType: hard
-
-"use-sync-external-store@npm:^1.0.0":
-  version: 1.6.0
-  resolution: "use-sync-external-store@npm:1.6.0"
-  peerDependencies:
-    react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
-  checksum: 61a62e910713adfaf91bdb72ff2cd30e5ba83687accaf3b6e75a903b45bf635f5722e3694af30d83a03e92cb533c0a5c699298d2fef639a03ffc86b469f4eee2
-  languageName: node
-  linkType: hard
-
-"wouter@npm:^3.7.1":
-  version: 3.7.1
-  resolution: "wouter@npm:3.7.1"
-  dependencies:
-    mitt: ^3.0.1
-    regexparam: ^3.0.0
-    use-sync-external-store: ^1.0.0
-  peerDependencies:
-    react: ">=16.8.0"
-  checksum: 2dc64f24a34497af6a7f5ea6057756fa5cf90fe5fcbd8c724576a93b9ac1ac4efcb785c240832c55c1ef5ee92cf0a8ee5b5e7f918e8e740dbc95ea3b4fb66de5
-  languageName: node
-  linkType: hard
