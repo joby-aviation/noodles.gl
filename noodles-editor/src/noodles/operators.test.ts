@@ -22,6 +22,7 @@ import {
   RectangleOp,
   ScatterplotLayerOp,
   SelectOp,
+  SimplifyOp,
   SwitchOp,
 } from './operators'
 import { opMap } from './store'
@@ -1256,6 +1257,183 @@ describe('SelectOp', () => {
     // Negative wrap
     expect(operator.execute({ data: ['a', 'b', 'c'], index: -1, wrap: true }).value).toEqual('c')
     expect(operator.execute({ data: ['a', 'b', 'c'], index: -4, wrap: true }).value).toEqual('c')
+  })
+})
+
+describe('SimplifyOp', () => {
+  it('simplifies a polygon feature', () => {
+    const operator = new SimplifyOp('/simplify-0')
+
+    // Create a complex polygon with many points
+    const complexPolygon = {
+      type: 'Feature' as const,
+      geometry: {
+        type: 'Polygon' as const,
+        coordinates: [[
+          [0, 0], [0.01, 0.01], [0.02, 0.02], [0.03, 0.01],
+          [1, 0], [1.01, 0.01], [1, 1], [0.99, 0.99],
+          [0, 1], [0.01, 0.99], [0, 0]
+        ]]
+      },
+      properties: {}
+    }
+
+    const result = operator.execute({
+      feature: complexPolygon as any,
+      tolerance: 0.1,
+      highQuality: false
+    })
+
+    expect(result.simplified).toBeDefined()
+    expect(result.simplified.type).toBe('Feature')
+    expect(result.simplified.geometry.type).toBe('Polygon')
+    // The simplified polygon should have fewer points
+    expect((result.simplified.geometry as any).coordinates[0].length).toBeLessThan(complexPolygon.geometry.coordinates[0].length)
+  })
+
+  it('simplifies a LineString feature', () => {
+    const operator = new SimplifyOp('/simplify-1')
+
+    const complexLine = {
+      type: 'Feature' as const,
+      geometry: {
+        type: 'LineString' as const,
+        coordinates: [
+          [0, 0], [0.01, 0.01], [0.02, 0.02], [0.03, 0.01],
+          [1, 0], [1.01, 0.01], [2, 0], [2.01, 0.01],
+          [3, 0]
+        ]
+      },
+      properties: { name: 'test-line' }
+    }
+
+    const result = operator.execute({
+      feature: complexLine as any,
+      tolerance: 0.05,
+      highQuality: false
+    })
+
+    expect(result.simplified).toBeDefined()
+    expect(result.simplified.geometry.type).toBe('LineString')
+    expect((result.simplified.geometry as any).coordinates.length).toBeLessThan(complexLine.geometry.coordinates.length)
+    expect(result.simplified.properties?.name).toBe('test-line')
+  })
+
+  it('applies high quality simplification', () => {
+    const operator = new SimplifyOp('/simplify-2')
+
+    const polygon = {
+      type: 'Feature' as const,
+      geometry: {
+        type: 'Polygon' as const,
+        coordinates: [[
+          [0, 0], [0.1, 0.1], [0.2, 0], [0.3, 0.1],
+          [1, 0], [1, 1], [0, 1], [0, 0]
+        ]]
+      },
+      properties: {}
+    }
+
+    const lowQualityResult = operator.execute({
+      feature: polygon as any,
+      tolerance: 0.15,
+      highQuality: false
+    })
+
+    const highQualityResult = operator.execute({
+      feature: polygon as any,
+      tolerance: 0.15,
+      highQuality: true
+    })
+
+    expect(lowQualityResult.simplified).toBeDefined()
+    expect(highQualityResult.simplified).toBeDefined()
+    // Both should simplify, but high quality may produce different results
+    expect((lowQualityResult.simplified.geometry as any).coordinates[0].length).toBeGreaterThanOrEqual(4)
+    expect((highQualityResult.simplified.geometry as any).coordinates[0].length).toBeGreaterThanOrEqual(4)
+  })
+
+  it('handles different tolerance values', () => {
+    const operator = new SimplifyOp('/simplify-3')
+
+    const feature = {
+      type: 'Feature' as const,
+      geometry: {
+        type: 'LineString' as const,
+        coordinates: [
+          [0, 0], [0.01, 0], [0.02, 0], [0.03, 0],
+          [0.04, 0], [0.05, 0], [1, 0]
+        ]
+      },
+      properties: {}
+    }
+
+    // Low tolerance - more points retained
+    const lowToleranceResult = operator.execute({
+      feature: feature as any,
+      tolerance: 0.001,
+      highQuality: false
+    })
+
+    // High tolerance - fewer points retained
+    const highToleranceResult = operator.execute({
+      feature: feature as any,
+      tolerance: 0.1,
+      highQuality: false
+    })
+
+    expect((lowToleranceResult.simplified.geometry as any).coordinates.length)
+      .toBeGreaterThan((highToleranceResult.simplified.geometry as any).coordinates.length)
+  })
+
+  it('preserves feature properties', () => {
+    const operator = new SimplifyOp('/simplify-4')
+
+    const feature = {
+      type: 'Feature' as const,
+      geometry: {
+        type: 'LineString' as const,
+        coordinates: [[0, 0], [0.01, 0.01], [1, 1]]
+      },
+      properties: {
+        name: 'test',
+        id: 123,
+        metadata: { foo: 'bar' }
+      }
+    }
+
+    const result = operator.execute({
+      feature: feature as any,
+      tolerance: 0.05,
+      highQuality: false
+    })
+
+    expect(result.simplified.properties).toEqual(feature.properties)
+  })
+
+  it('handles MultiLineString features', () => {
+    const operator = new SimplifyOp('/simplify-5')
+
+    const multiLine = {
+      type: 'Feature' as const,
+      geometry: {
+        type: 'MultiLineString' as const,
+        coordinates: [
+          [[0, 0], [0.01, 0.01], [1, 1]],
+          [[2, 2], [2.01, 2.01], [3, 3]]
+        ]
+      },
+      properties: {}
+    }
+
+    const result = operator.execute({
+      feature: multiLine as any,
+      tolerance: 0.05,
+      highQuality: false
+    })
+
+    expect(result.simplified).toBeDefined()
+    expect(result.simplified.geometry.type).toBe('MultiLineString')
   })
 })
 
