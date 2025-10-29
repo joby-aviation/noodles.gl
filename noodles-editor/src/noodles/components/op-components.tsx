@@ -26,12 +26,13 @@ import { InputNumber } from 'primereact/inputnumber'
 import { InputText } from 'primereact/inputtext'
 import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { Temporal } from 'temporal-polyfill'
 
-import { colorToRgba, hexToRgba, type Rgba } from '../../utils/color'
 import { SheetContext } from '../../utils/sheet-context'
 import {
   ArrayField,
   type Field,
+  type IField,
   ListField,
 } from '../fields'
 import s from '../noodles.module.css'
@@ -385,9 +386,7 @@ function NodeComponent({
   selected,
 }: ReactFlowNodeProps<NodeDataJSON<Operator<IOperator>>> & { type: OpType }) {
   const op = useOp(id)
-
   const locked = useLocked(op)
-
   const executionState = useExecutionState(op)
 
   return (
@@ -991,7 +990,8 @@ const viewerFormatter = (value: unknown) => {
     typeof value === 'string' ||
     typeof value === 'number' ||
     typeof value === 'boolean' ||
-    value instanceof Date
+    value instanceof Date ||
+    value instanceof Temporal.PlainDateTime
   ) {
     return { value }
   }

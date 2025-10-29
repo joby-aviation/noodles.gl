@@ -4,6 +4,7 @@
 import type { ISheet, ISheetObject } from '@theatre/core'
 import { onChange, types, val } from '@theatre/core'
 import studio from '@theatre/studio'
+import { Temporal } from 'temporal-polyfill'
 import { isHexColor } from 'validator'
 
 import { colorToRgba, hexToRgba, type Rgba, rgbaToHex } from '../utils/color'
@@ -59,7 +60,10 @@ function fieldToTheatreProp(field: Field<IField>): types.PropTypeConfig | undefi
       return types.rgba(colorValue as Rgba)
     }
     if (field instanceof DateField) {
-      return types.number(+field.value)
+      // Convert Temporal.PlainDateTime to epoch milliseconds for Theatre.js
+      // DateField's schema transforms all inputs to PlainDateTime
+      const instant = (field.value as unknown as Temporal.PlainDateTime).toZonedDateTime('UTC').toInstant()
+      return types.number(instant.epochMilliseconds)
     }
     if (field instanceof Vec2Field) {
       const v = field.value
@@ -207,7 +211,9 @@ export function bindOperatorToTheatre(
         if (field instanceof ColorField) {
           value = rgbaToHex(value_)
         } else if (field instanceof DateField) {
-          value = new Date(value_)
+          value = Temporal.Instant.fromEpochMilliseconds(value_ as unknown as number)
+            .toZonedDateTimeISO('UTC')
+            .toPlainDateTime()
         }
 
         if (field.value !== value && value !== undefined) {

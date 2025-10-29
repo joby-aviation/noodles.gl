@@ -6,8 +6,9 @@ import cx from 'classnames'
 import { type Dispatch, type SetStateAction, useCallback, useEffect, useState } from 'react'
 import newProjectJSON from '../../../public/noodles/new/noodles.json?url'
 import { useActiveStorageType, useFileSystemStore } from '../filesystem-store'
-import { load, save } from '../storage'
+import { load, save, getProjectDirectoryHandle } from '../storage'
 import { useSlice } from '../store'
+import { directoryExists, type StorageType } from '../utils/filesystem'
 import { migrateProject } from '../utils/migrate-schema'
 import {
   EMPTY_PROJECT,
@@ -285,12 +286,52 @@ async function deleteProject(projectName: string) {
   }
 }
 
-function saveProjectLocally(projectName: string, projectJson: NoodlesProjectJSON) {
+async function saveProjectLocally(projectName: string, projectJson: NoodlesProjectJSON, storageType: StorageType) {
+  const JSZip = (await import('jszip')).default
+  const zip = new JSZip()
+
+  // Create a folder with the project name
+  const projectFolder = zip.folder(projectName)
+  if (!projectFolder) {
+    throw new Error('Failed to create project folder in zip')
+  }
+
+  // Add noodles.json to the project folder
   const contents = safeStringify(projectJson)
-  const blob = new Blob([contents], { type: 'application/json' })
+  projectFolder.file('noodles.json', contents)
+
+  // Try to get the project directory handle to read data files
+  try {
+    const projectDirectoryResult = await getProjectDirectoryHandle(storageType, projectName, false)
+
+    if (projectDirectoryResult.success) {
+      const projectDirectory = projectDirectoryResult.data
+      const hasDataDir = await directoryExists(projectDirectory, 'data')
+
+      if (hasDataDir) {
+        const dataDirectory = await projectDirectory.getDirectoryHandle('data')
+
+        // Read all files from the data directory
+        for await (const entry of dataDirectory.values()) {
+          if (entry.kind === 'file') {
+            const fileHandle = entry as FileSystemFileHandle
+            const file = await fileHandle.getFile()
+            const arrayBuffer = await file.arrayBuffer()
+            projectFolder.file(`data/${entry.name}`, arrayBuffer)
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.warn('Could not read data files for export:', error)
+    // Continue with export even if data files can't be read
+  }
+
+  // Generate the zip file and trigger download
+  const blob = await zip.generateAsync({ type: 'blob' })
 
   const a = document.createElement('a')
-  a.download = `${projectName}.json`
+  a.download = `${projectName}.zip`
   const url = URL.createObjectURL(blob)
   a.href = url
   document.body.appendChild(a)
@@ -495,8 +536,8 @@ export function NoodlesMenubar({
 
   const onExport = useCallback(async () => {
     const noodlesProjectJson = getNoodlesProjectJson()
-    saveProjectLocally(projectName || 'untitled', noodlesProjectJson)
-  }, [projectName, getNoodlesProjectJson])
+    saveProjectLocally(projectName || 'untitled', noodlesProjectJson, storageType)
+  }, [projectName, getNoodlesProjectJson, storageType])
 
   // "Open" Menu Options
   const [openProjectDialogOpen, setOpenProjectDialogOpen] = useState(false)
