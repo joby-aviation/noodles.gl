@@ -30,7 +30,7 @@
       "data": {
         "inputs": {
           "format": "csv",
-          "url": "@/data.csv"
+          "url": "https://raw.githubusercontent.com/keplergl/kepler.gl-data/master/ukcommute/data.csv"
         },
         "locked": false
       },
