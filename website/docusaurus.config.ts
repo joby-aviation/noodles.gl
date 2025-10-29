@@ -25,7 +25,12 @@ const config: Config = {
   projectName: 'noodles.gl',
 
   onBrokenLinks: 'throw',
-  onBrokenMarkdownLinks: 'warn',
+
+  markdown: {
+    hooks: {
+      onBrokenMarkdownLinks: 'warn',
+    },
+  },
 
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you
@@ -70,6 +75,14 @@ const config: Config = {
       defaultMode: 'dark',
       disableSwitch: false,
       respectPrefersColorScheme: false,
+    },
+    algolia: {
+      appId: '51PYD2IBGO',
+      apiKey: '14545660beb6f71aa7e1a59704dfd030',
+      indexName: 'noodles-gl',
+      contextualSearch: true,
+      searchParameters: {},
+      searchPagePath: 'search',
     },
     navbar: {
       title: 'Noodles.gl',
