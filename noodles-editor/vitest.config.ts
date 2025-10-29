@@ -13,6 +13,10 @@ export default defineConfig({
       instances: [
         { browser: 'chromium' },
       ],
+      api: {
+        host: '127.0.0.1', // Use IPv4 instead of IPv6 to avoid EPERM issues
+        strictPort: false, // Allow using alternative ports if the default is taken
+      },
     }
   },
   optimizeDeps: {
