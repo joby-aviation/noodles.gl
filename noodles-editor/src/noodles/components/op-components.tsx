@@ -27,6 +27,7 @@ import { InputNumber } from 'primereact/inputnumber'
 import { InputText } from 'primereact/inputtext'
 import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { Temporal } from 'temporal-polyfill'
 import { isHexColor } from 'validator'
 
 import { colorToRgba, hexToRgba, type Rgba, rgbaToHex } from '../../utils/color'
@@ -289,7 +290,9 @@ function fieldToTheatreProp(input: Field<IField>, fields: [string, Field<IField>
       return types.rgba(colorToTheatreColor(input.value))
     }
     if (input instanceof DateField) {
-      return types.number(+input.value)
+      // Convert Temporal.PlainDateTime to epoch milliseconds for Theatre.js
+      const instant = input.value.toZonedDateTime('UTC').toInstant()
+      return types.number(instant.epochMilliseconds)
     }
     if (input instanceof CompoundPropsField) {
       return types.compound(fieldsToTheatreProps({}, input.fields, fields))
@@ -539,26 +542,34 @@ function NodeComponent({
         // Note: Transactions can only run after the theatre project is "ready"
         if (updating) return
         updating = true
-        studio.transaction(({ set }) => {
-          try {
-            // Try to detect an infinite loop for setting values to Theatre
-            const value = input instanceof ColorField ? colorToTheatreColor(value_) : value_
 
-            // TODO: This has a bug with StringLiterals where the value is not updated, but removing
-            // the value check causes another bug.
+        try {
+          // Try to detect an infinite loop for setting values to Theatre
+          const value = input instanceof ColorField ? colorToTheatreColor(value_) : value_
 
-            // Prevent infinite loop
-            if (input instanceof CompoundPropsField) return
+          // TODO: This has a bug with StringLiterals where the value is not updated, but removing
+          // the value check causes another bug.
 
-            if (val(pointer) !== value) {
-              set(pointer, value)
-            }
-          } catch (e) {
-            console.warn(e)
-            debugger
+          // Prevent infinite loop
+          if (input instanceof CompoundPropsField) {
+            updating = false
+            return
           }
-          updating = false
-        })
+
+          // Read the current value BEFORE entering the transaction
+          // Cannot use val() inside a transaction as it reads from a cold prism
+          const currentValue = val(pointer)
+
+          if (currentValue !== value) {
+            studio.transaction(({ set }) => {
+              set(pointer, value)
+            })
+          }
+        } catch (e) {
+          console.warn(e)
+          debugger
+        }
+        updating = false
       })
       untapFns.push(unsub.unsubscribe.bind(unsub))
 
@@ -573,7 +584,9 @@ function NodeComponent({
             input instanceof ColorField
               ? rgbaToHex(value_)
               : input instanceof DateField
-                ? new Date(value_)
+                ? Temporal.Instant.fromEpochMilliseconds(value_ as unknown as number)
+                    .toZonedDateTimeISO('UTC')
+                    .toPlainDateTime()
                 : value_
 
           if (input.value !== value && value !== undefined) {
@@ -982,6 +995,7 @@ function GeocoderOpComponent({
             field={field}
             disabled={locked}
             handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
+            renderInput={false}
           />
         ))}
         <div ref={containerRef} className={s.fieldWrapper} />
@@ -1198,7 +1212,8 @@ const viewerFormatter = (value: unknown) => {
     typeof value === 'string' ||
     typeof value === 'number' ||
     typeof value === 'boolean' ||
-    value instanceof Date
+    value instanceof Date ||
+    value instanceof Temporal.PlainDateTime
   ) {
     return { value }
   }

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { Temporal } from 'temporal-polyfill'
 import z from 'zod/v4'
 import { hexToColor } from '../utils/color'
 import {
@@ -6,6 +7,7 @@ import {
   ColorField,
   CompoundPropsField,
   DataField,
+  DateField,
   FeatureCollectionField,
   FeatureField,
   Field,
@@ -831,6 +833,7 @@ describe('Point3DField', () => {
   })
 })
 
+<<<<<<< HEAD
 describe('GeometryField coordinate detection', () => {
   it('recognizes standard lng/lat fields', () => {
     const field = new GeometryField()
@@ -1124,5 +1127,91 @@ describe('FeatureCollectionField creates individual Point features', () => {
       expect(feature.geometry.type).not.toEqual('MultiPoint')
       expect(feature.geometry.type).toEqual('Point')
     }
+||||||| a33cea6
+=======
+describe('DateField', () => {
+  it('creates a field with default PlainDateTime value', () => {
+    const field = new DateField()
+    expect(field.value).toBeInstanceOf(Temporal.PlainDateTime)
+  })
+
+  it('allows setting a PlainDateTime value', () => {
+    const field = new DateField()
+    const testDate = Temporal.PlainDateTime.from('2024-03-15T10:30:00')
+    field.setValue(testDate)
+    expect(field.value).toEqual(testDate)
+  })
+
+  it('parses ISO datetime strings to PlainDateTime', () => {
+    const field = new DateField()
+    const isoString = '2024-03-15T10:30:00'
+    field.setValue(isoString)
+    expect(field.value).toBeInstanceOf(Temporal.PlainDateTime)
+    expect(field.value.toString()).toBe(isoString)
+  })
+
+  it('converts Date objects to PlainDateTime in UTC', () => {
+    const field = new DateField()
+    const jsDate = new Date('2024-03-15T10:30:00Z')
+    field.setValue(jsDate)
+    expect(field.value).toBeInstanceOf(Temporal.PlainDateTime)
+    // Should be timezone-independent
+    expect(field.value.year).toBe(2024)
+    expect(field.value.month).toBe(3)
+    expect(field.value.day).toBe(15)
+  })
+
+  it('serializes PlainDateTime to ISO string', () => {
+    const field = new DateField()
+    const testDate = Temporal.PlainDateTime.from('2024-03-15T10:30:00')
+    field.setValue(testDate)
+    const serialized = field.serialize()
+    expect(typeof serialized).toBe('string')
+    expect(serialized).toBe('2024-03-15T10:30:00')
+  })
+
+  it('deserializes ISO string to PlainDateTime', () => {
+    const isoString = '2024-03-15T10:30:00'
+    const deserialized = DateField.deserialize(isoString)
+    expect(deserialized).toBeInstanceOf(Temporal.PlainDateTime)
+    expect(deserialized.toString()).toBe(isoString)
+  })
+
+  it('handles timezone-independent date comparisons', () => {
+    const field1 = new DateField()
+    const field2 = new DateField()
+
+    // Set the same date using different methods
+    field1.setValue('2024-03-15T10:30:00')
+    field2.setValue(Temporal.PlainDateTime.from('2024-03-15T10:30:00'))
+
+    expect(Temporal.PlainDateTime.compare(field1.value, field2.value)).toBe(0)
+  })
+
+  it('maintains precision without timezone conversion issues', () => {
+    const field = new DateField()
+    const testDate = Temporal.PlainDateTime.from('2024-03-15T23:59:59')
+    field.setValue(testDate)
+
+    // Verify exact time components are preserved
+    expect(field.value.year).toBe(2024)
+    expect(field.value.month).toBe(3)
+    expect(field.value.day).toBe(15)
+    expect(field.value.hour).toBe(23)
+    expect(field.value.minute).toBe(59)
+    expect(field.value.second).toBe(59)
+  })
+
+  it('handles roundtrip serialization correctly', () => {
+    const field = new DateField()
+    const originalDate = Temporal.PlainDateTime.from('2024-03-15T10:30:45')
+    field.setValue(originalDate)
+
+    // Serialize and deserialize
+    const serialized = field.serialize()
+    const deserialized = DateField.deserialize(serialized)
+
+    expect(Temporal.PlainDateTime.compare(originalDate, deserialized)).toBe(0)
+>>>>>>> main
   })
 })

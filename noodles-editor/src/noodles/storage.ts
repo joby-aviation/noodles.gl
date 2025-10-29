@@ -107,7 +107,7 @@ function handleError(error: unknown, operation: string): FileSystemError {
   }
 }
 
-async function getProjectDirectoryHandle(
+export async function getProjectDirectoryHandle(
   type: StorageType,
   projectName: string,
   promptIfMissing = false

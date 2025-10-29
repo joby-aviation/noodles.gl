@@ -7,6 +7,7 @@ import type { ScaleLinear, ScaleOrdinal } from 'd3'
 import { Button } from 'primereact/button'
 import { InputText } from 'primereact/inputtext'
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Temporal } from 'temporal-polyfill'
 
 import { colorToHex } from '../../utils/color'
 import {
@@ -59,7 +60,8 @@ function viewerFormatter(value: unknown): unknown {
     typeof value === 'string' ||
     typeof value === 'number' ||
     typeof value === 'boolean' ||
-    value instanceof Date
+    value instanceof Date ||
+    value instanceof Temporal.PlainDateTime
   ) {
     return { value }
   }
@@ -309,13 +311,11 @@ export function CodeFieldComponent({
   disabled: boolean
 }) {
   const [value, setValue] = useState(guardAccessorFallback(field.value))
-  const { setEdges, getEdges, getNode } = useReactFlow()
+  const { setEdges, getNode } = useReactFlow()
   const editorRef = useRef<unknown>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const edges = getEdges()
   const nodeId = useNodeId() as string
-
   const node = getNode(nodeId)
   const nodeHeight = node?.height || 300
 
@@ -352,75 +352,68 @@ export function CodeFieldComponent({
     return () => sub.unsubscribe()
   }, [field])
 
-  const subscribedFields = useMemo(
-    () => edges.filter(e => e.target === nodeId && e.targetHandle === thisFieldId),
-    [edges, nodeId, thisFieldId]
-  )
-
+  // Sync reference edges when field value changes
+  // This effect should NOT depend on edges to avoid infinite loops
   const fieldReferences = useMemo(() => getFieldReferences(value, thisOpId), [value, thisOpId])
 
-  const toAdd = useMemo(
-    () =>
-      fieldReferences.filter(ref => !subscribedFields.some(f => f.sourceHandle === ref.handleId)),
-    [fieldReferences, subscribedFields]
-  )
-  const toRemove = useMemo(
-    () =>
-      subscribedFields.filter(f => !fieldReferences.some(ref => ref.handleId === f.sourceHandle)),
-    [fieldReferences, subscribedFields]
-  )
-
   useEffect(() => {
-    if (toAdd.length === 0 && toRemove.length === 0) return
-
     setEdges(oldEdges => {
+      // Find existing ReferenceEdges targeting this field
+      const existingReferenceEdges = oldEdges.filter(
+        e => e.target === nodeId && e.targetHandle === thisFieldId && e.type === 'ReferenceEdge'
+      )
+
+      // Determine which edges to add and remove
+      const existingHandleIds = new Set(existingReferenceEdges.map(e => e.sourceHandle))
+      const referencedHandleIds = new Set(fieldReferences.map(ref => ref.handleId))
+
+      const toAdd = fieldReferences.filter(ref => !existingHandleIds.has(ref.handleId))
+      const idsToRemove = new Set(
+        existingReferenceEdges
+          .filter(e => !referencedHandleIds.has(e.sourceHandle || ''))
+          .map(e => e.id)
+      )
+
+      if (toAdd.length === 0 && idsToRemove.size === 0) {
+        return oldEdges // No changes needed
+      }
+
       let newEdges = oldEdges
 
-      // Remove edges first
-      if (toRemove.length > 0) {
-        const idsToRemove = new Set(toRemove.map(e => e.id))
+      // Remove edges that are no longer referenced
+      if (idsToRemove.size > 0) {
         newEdges = newEdges.filter(e => !idsToRemove.has(e.id))
       }
 
-      // Add new edges
+      // Add new reference edges
       if (toAdd.length > 0) {
-        const existingIds = new Set(newEdges.map(e => e.id))
-        const edgesToAdd = toAdd
-          .map(({ opId, handleId }) => {
-            const connection = {
-              source: opId,
-              sourceHandle: handleId,
-              target: thisOpId,
-              targetHandle: thisFieldId,
-            }
-            const edgeIdStr = edgeId(connection)
+        const newReferenceEdges = toAdd.map(({ opId, handleId }) => {
+          const connection = {
+            source: opId,
+            sourceHandle: handleId,
+            target: thisOpId,
+            targetHandle: thisFieldId,
+          }
+          return {
+            id: edgeId(connection),
+            type: 'ReferenceEdge',
+            selectable: false,
+            deletable: false,
+            focusable: false,
+            reconnectable: false,
+            source: opId,
+            target: thisOpId,
+            sourceHandle: handleId,
+            targetHandle: thisFieldId,
+          } as Edge<Operator<IOperator>, Operator<IOperator>>
+        })
 
-            // Skip if already exists
-            if (existingIds.has(edgeIdStr)) return null
-
-            return {
-              id: edgeIdStr,
-              type: 'ReferenceEdge',
-              selectable: false,
-              deletable: false,
-              focusable: false,
-              reconnectable: false,
-              source: opId,
-              target: thisOpId,
-              sourceHandle: handleId,
-              targetHandle: thisFieldId,
-            } as Edge<Operator<IOperator>, Operator<IOperator>>
-          })
-          .filter((e): e is Edge<Operator<IOperator>, Operator<IOperator>> => e !== null)
-
-        if (edgesToAdd.length > 0) {
-          newEdges = [...newEdges, ...edgesToAdd]
-        }
+        newEdges = [...newEdges, ...newReferenceEdges]
       }
 
-      return newEdges === oldEdges ? oldEdges : newEdges
+      return newEdges
     })
-  }, [thisOpId, thisFieldId, toAdd, toRemove, setEdges])
+  }, [fieldReferences, thisOpId, thisFieldId, nodeId, setEdges])
 
   return (
     <div className={cx(s.fieldWrapper, s.fieldWrapperCode)} ref={containerRef}>
@@ -1128,11 +1121,17 @@ export function DateFieldComponent({
   }, [field])
 
   const onChange = e => {
-    field.setValue(new Date(`${e.currentTarget.value}:00.000Z`))
+    // Parse the datetime-local input value and create a Temporal.PlainDateTime
+    // datetime-local format: YYYY-MM-DDTHH:mm (no timezone, local time)
+    const inputValue = e.currentTarget.value
+    if (inputValue) {
+      // Add seconds to match ISO format, then parse as PlainDateTime
+      field.setValue(Temporal.PlainDateTime.from(`${inputValue}:00`))
+    }
   }
 
-  const isoString = value.toISOString()
-  const formatted = isoString.substring(0, isoString.indexOf('T') + 6)
+  // Convert Temporal.PlainDateTime to datetime-local format (YYYY-MM-DDTHH:mm)
+  const formatted = value?.toString?.()?.substring(0, 16) || ''
 
   return (
     <div className={s.fieldWrapper}>
@@ -1828,11 +1827,13 @@ export function FieldComponent({
   field,
   disabled,
   handle,
+  renderInput = true,
 }: {
   id: OpId
   field: Field<IField>
   disabled: boolean
   handle?: HandleOptions
+  renderInput?: boolean
 }) {
   const nid = useNodeId()
   const edges = useEdges()
@@ -1845,22 +1846,27 @@ export function FieldComponent({
   const ctor = field.constructor as unknown as Field<IField>
   const InputComp = inputComponents[ctor.type]
 
+  // When renderInput is false, position handle absolutely to avoid relying on container height
+  const handleStyle = renderInput
+    ? { transform: 'translate(-17px, -50%)' }
+    : { transform: 'translate(-17px, 15px)' }
+
   return (
     <div style={{ position: 'relative' }}>
       {handle && (
         <Handle
           id={qualifiedFieldId}
           className={handleClass(field)}
-          style={{ transform: 'translate(-17px, -50%)' }}
+          style={handleStyle}
           type={handle.type}
           position={Position.Left}
         />
       )}
-      {
+      {renderInput && (
         incomers.length > 0
           ? <EmptyFieldComponent id={fieldId} field={field} />
           : <InputComp id={fieldId} field={field} disabled={disabled} />
-      }
+      )}
     </div>
   )
 }

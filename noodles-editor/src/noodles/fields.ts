@@ -3,6 +3,7 @@ import { interpolateLab, scaleOrdinal, schemeAccent } from 'd3'
 import type { Feature, FeatureCollection, Geometry } from 'geojson'
 import { BehaviorSubject, combineLatest, type Subscription } from 'rxjs'
 import * as turf from '@turf/turf'
+import { Temporal } from 'temporal-polyfill'
 import { isHexColor } from 'validator'
 import z from 'zod/v4'
 import { colorToHex } from '../utils/color'
@@ -524,16 +525,33 @@ export class BooleanField extends Field<z.ZodBoolean> {
 
 export class DateField extends Field<z.ZodUnion<[z.ZodDate, z.ZodISODateTime]>> {
   static type = 'date'
-  static defaultValue = new Date()
+  static defaultValue = Temporal.Now.plainDateTimeISO()
   createSchema() {
     return z.union([
-      z.date(),
-      // Parse string date from project files
-      z.iso.datetime({ offset: true, local: true }),
+      // Accept Temporal.PlainDateTime directly
+      z.custom<Temporal.PlainDateTime>(
+        val => val instanceof Temporal.PlainDateTime,
+        'Expected Temporal.PlainDateTime'
+      ),
+      // Convert Date to Temporal.PlainDateTime in UTC
+      z.date().transform(date => {
+        return Temporal.Instant.fromEpochMilliseconds(date.getTime())
+          .toZonedDateTimeISO('UTC')
+          .toPlainDateTime()
+      }),
+      // Parse ISO datetime string from project files to Temporal
+      z.iso.datetime({ offset: true, local: true }).transform(str => {
+        return Temporal.PlainDateTime.from(str)
+      }),
     ])
   }
   static deserialize(value: string) {
-    return new Date(value)
+    // Deserialize ISO string to Temporal.PlainDateTime
+    return Temporal.PlainDateTime.from(value)
+  }
+  serialize(): string {
+    // Serialize Temporal.PlainDateTime to ISO string
+    return this.value.toString()
   }
 }
 
