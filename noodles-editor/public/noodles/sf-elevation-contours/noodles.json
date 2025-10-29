@@ -29,7 +29,7 @@
       "type": "FileOp",
       "data": {
         "inputs": {
-          "url": "@/data.json"
+          "url": "https://raw.githubusercontent.com/keplergl/kepler.gl-data/master/sfcontour/data.json"
         },
         "locked": false
       },
