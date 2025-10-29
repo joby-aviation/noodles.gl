@@ -130,13 +130,6 @@ import type z from 'zod/v4'
 
 import './utils/bigint-fix' // BigInt JSON polyfill for DuckDB
 import * as duckdb from '@duckdb/duckdb-wasm'
-import duckdb_pthread_worker from '@duckdb/duckdb-wasm/dist/duckdb-browser-coi.pthread.worker.js?url'
-import coi_worker from '@duckdb/duckdb-wasm/dist/duckdb-browser-coi.worker.js?url'
-import eh_worker from '@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js?url'
-import mvp_worker from '@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js?url'
-import duckdb_wasm_coi from '@duckdb/duckdb-wasm/dist/duckdb-coi.wasm?url'
-import duckdb_wasm_eh from '@duckdb/duckdb-wasm/dist/duckdb-eh.wasm?url'
-import duckdb_wasm from '@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm?url'
 import { getTransformScaleFactor } from '../render/transform-scale'
 import * as utils from '../utils'
 import { getArc } from '../utils/arc-geometry'
@@ -1304,23 +1297,11 @@ export class FileOp extends Operator<FileOp> {
 }
 
 const duckDbInstance = (async () => {
-  const MANUAL_BUNDLES: duckdb.DuckDBBundles = {
-    mvp: {
-      mainModule: duckdb_wasm,
-      mainWorker: mvp_worker,
-    },
-    eh: {
-      mainModule: duckdb_wasm_eh,
-      mainWorker: eh_worker,
-    },
-    coi: {
-      mainModule: duckdb_wasm_coi,
-      mainWorker: coi_worker,
-      pthreadWorker: duckdb_pthread_worker,
-    },
-  }
+  // Use jsdelivr CDN to host the large WASM files (they exceed Cloudflare Pages' 25 MiB limit)
+  const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles()
+
   // Select a bundle based on browser checks
-  const bundle = await duckdb.selectBundle(MANUAL_BUNDLES)
+  const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES)
   const worker = new Worker(bundle.mainWorker!)
   const logger = new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING)
   const db = new duckdb.AsyncDuckDB(logger, worker)
