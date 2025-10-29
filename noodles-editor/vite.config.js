@@ -101,10 +101,6 @@ export default defineConfig(({ mode }) => {
 
   return {
     base: mode === 'development' ? '/' : '/app/',
-    define: {
-      // Expose VITE_USE_CDN_DUCKDB at build time
-      'import.meta.env.VITE_USE_CDN_DUCKDB': JSON.stringify(process.env.VITE_USE_CDN_DUCKDB || 'false'),
-    },
     server: {
       open: true,
     },
