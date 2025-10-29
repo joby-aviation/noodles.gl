@@ -52,14 +52,7 @@ jobs:
         working-directory: ./website
 
       - name: Setup deployment structure
-        run: |
-          # Create deployment directory structure
-          mkdir -p ./deployment
-          # Copy website (docs) to root
-          cp -r ./website/build/* ./deployment/
-          # Copy app to /app subdirectory
-          mkdir -p ./deployment/app
-          cp -r ./noodles-editor/dist/* ./deployment/app/
+        run: ./scripts/setup-deployment.sh github-pages
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
