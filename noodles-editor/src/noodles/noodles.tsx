@@ -49,7 +49,7 @@ import { ChatPanel } from '../ai-chat/chat-panel'
 import { globalContextManager } from '../ai-chat/global-context-manager'
 import { useProjectModifications } from './hooks/use-project-modifications'
 import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
-import { IS_PROD, getProjectId } from './globals'
+import { IS_PROD } from './globals'
 import { useLocation } from 'wouter'
 import s from './noodles.module.css'
 import type { IOperator, Operator, OutOp } from './operators'
@@ -150,10 +150,22 @@ function useTheatreJs(projectName?: string) {
 // Not using the top-level sheet since a Noodles theatre sheet and project are dynamically created.
 // Also, the top-level sheet is used for theatre-managed project files, whereas a Noodles project file is managed within this visType.
 
-export function getNoodles(initialProjectId?: string): Visualization {
-  // Single source of truth for project name - derived from URL parameter or query string
-  const [projectName, setProjectNameState] = useState<string | undefined>(initialProjectId || getProjectId() || undefined)
-  const [, navigate] = useLocation()
+export function getNoodles(): Visualization {
+  // Extract projectId directly from wouter location
+  const [location, navigate] = useLocation()
+
+  // Parse projectId from URL: /examples/project-name or ?project=project-name (legacy)
+  const getProjectIdFromLocation = useCallback(() => {
+    const pathMatch = location.match(/^\/examples\/([^/]+)/)
+    if (pathMatch) {
+      return pathMatch[1]
+    }
+    // Fallback to query string for legacy support
+    const queryParams = new URLSearchParams(window.location.search)
+    return queryParams.get('project') || undefined
+  }, [location])
+
+  const [projectName, setProjectNameState] = useState<string | undefined>(getProjectIdFromLocation)
   const [showProjectNotFoundDialog, setShowProjectNotFoundDialog] = useState(false)
   const storageType = useActiveStorageType()
   const { setCurrentDirectory, setActiveStorageType, setError } = useFileSystemStore()
@@ -182,12 +194,13 @@ export function getNoodles(initialProjectId?: string): Visualization {
     })
   }, [navigate])
 
-  // Update projectName when initialProjectId prop changes (route changes)
+  // Update projectName when location changes (route changes)
   useEffect(() => {
-    if (initialProjectId) {
-      setProjectNameState(initialProjectId)
+    const newProjectId = getProjectIdFromLocation()
+    if (newProjectId !== projectName) {
+      setProjectNameState(newProjectId)
     }
-  }, [initialProjectId])
+  }, [getProjectIdFromLocation, projectName])
 
   // Eagerly start loading AI context bundles on app start
   useEffect(() => {

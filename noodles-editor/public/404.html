@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Redirecting...</title>
+    <script>
+      // GitHub Pages SPA redirect
+      // This script takes the current url and converts the path and query
+      // string into a query string, and then redirects to the new url
+      // with the/#/redirect
+      const path = window.location.pathname.slice(1)
+      const query = window.location.search
+
+      if (path) {
+        // Redirect to index.html with the path as a query parameter
+        window.location.replace(
+          window.location.origin +
+          '/?redirect=' + encodeURIComponent(path + query)
+        )
+      } else {
+        // Already at root, just redirect to index
+        window.location.replace(window.location.origin)
+      }
+    </script>
+  </head>
+  <body>
+    <p>Redirecting...</p>
+  </body>
+</html>

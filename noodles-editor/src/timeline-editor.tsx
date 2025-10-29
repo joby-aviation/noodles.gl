@@ -123,11 +123,7 @@ const DeckGLOverlay = forwardRef<
 
 const isMapReady = (map: MapLibre | null) => !map || (map.isStyleLoaded() && map.areTilesLoaded())
 
-interface TimelineEditorProps {
-  projectId?: string
-}
-
-export default function TimelineEditor({ projectId }: TimelineEditorProps) {
+export default function TimelineEditor() {
   const [ready, setReady] = useState(false)
   const startRenderRef = useRef(async () => {})
   const takeScreenshotRef = useRef(async () => {})
@@ -146,7 +142,7 @@ export default function TimelineEditor({ projectId }: TimelineEditorProps) {
     setRand(Math.random())
   }, [])
 
-  const { project, sheet, widgets, layoutMode, ...visualization } = getNoodles(projectId)
+  const { project, sheet, widgets, layoutMode, ...visualization } = getNoodles()
   const sequence = sheet.sequence
 
   useEffect(() => {
