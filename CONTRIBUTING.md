@@ -27,8 +27,8 @@ yarn start
 
 ### Development URLs
 
-- **Local Development**: `http://localhost:5173/?project=example`
-- **Specific Project**: Replace `example` with project name from `/public/examples/`
+- **Local Development**: `http://localhost:5173/examples/nyc-taxis`
+- **Specific Project**: Replace `nyc-taxis` with project name from `/public/examples/`
 - **Safe Mode**: Add `&safeMode=true` to disable code execution
 
 ## 📁 Project Structure

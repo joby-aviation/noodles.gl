@@ -13,8 +13,8 @@ function HomepageHeader() {
   // In development, the app runs on a different port (Vite)
   // In production, it's served from /app/
   const appUrl = process.env.NODE_ENV === 'development'
-    ? 'http://localhost:5173/?project=nyc-taxis'
-    : '/app/?project=nyc-taxis';
+    ? 'http://localhost:5173/examples/nyc-taxis'
+    : '/app/examples/nyc-taxis';
 
   return (
     <header className={clsx('hero', styles.heroBanner)}>
