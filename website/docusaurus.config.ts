@@ -15,16 +15,6 @@ const config: Config = {
     v4: true, // Improve compatibility with the upcoming Docusaurus v4
   },
 
-  headTags: [
-    {
-      tagName: 'meta',
-      attributes: {
-        name: 'algolia-site-verification',
-        content: 'F8F1F0EBB71F58C0',
-      },
-    },
-  ],
-
   url: 'https://noodles.gl',
   // Set the /<baseUrl>/ pathname under which your site is served
   // For custom domain deployment
