@@ -157,6 +157,7 @@ import {
   type FieldReference,
   FileField,
   FunctionField,
+  GeoJsonField,
   IN_NS,
   type InOut,
   JSONUrlField,
@@ -3416,7 +3417,7 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
   static cacheable = false
   createInputs() {
     return {
-      data: new DataField(),
+      data: new GeoJsonField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
 
@@ -4149,7 +4150,7 @@ export class RectangleOp extends Operator<RectangleOp> {
   }
   createOutputs() {
     return {
-      feature: new DataField(),
+      feature: new GeoJsonField(),
     }
   }
   execute({
@@ -4208,7 +4209,7 @@ export class PointOp extends Operator<PointOp> {
   }
   createOutputs() {
     return {
-      feature: new DataField(),
+      feature: new GeoJsonField(),
     }
   }
   execute({
@@ -4231,12 +4232,12 @@ export class GeoJsonOp extends Operator<GeoJsonOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      features: new ListField(new DataField()),
+      features: new ListField(new GeoJsonField()),
     }
   }
   createOutputs() {
     return {
-      featureCollection: new DataField(),
+      featureCollection: new GeoJsonField(),
     }
   }
   execute({ features }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -4254,7 +4255,7 @@ export class GeoJsonTransformOp extends Operator<GeoJsonTransformOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      feature: new DataField(),
+      feature: new GeoJsonField(),
       scale: new NumberField(1, { min: 0.001, max: 100, step: 0.1 }),
       translateX: new NumberField(0, { min: -10000, max: 10000, step: 0.1 }),
       translateY: new NumberField(0, { min: -10000, max: 10000, step: 0.1 }),
@@ -4263,7 +4264,7 @@ export class GeoJsonTransformOp extends Operator<GeoJsonTransformOp> {
   }
   createOutputs() {
     return {
-      feature: new DataField(),
+      feature: new GeoJsonField(),
     }
   }
   execute({
