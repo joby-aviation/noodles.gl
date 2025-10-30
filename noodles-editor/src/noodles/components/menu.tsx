@@ -6,7 +6,7 @@ import cx from 'classnames'
 import { type Dispatch, type SetStateAction, useCallback, useEffect, useState } from 'react'
 import newProjectJSON from '../../../public/noodles/new/noodles.json?url'
 import { useActiveStorageType, useFileSystemStore } from '../filesystem-store'
-import { load, save, getProjectDirectoryHandle } from '../storage'
+import { getProjectDirectoryHandle, load, save } from '../storage'
 import { useSlice } from '../store'
 import { directoryExists, type StorageType } from '../utils/filesystem'
 import { migrateProject } from '../utils/migrate-schema'
@@ -286,7 +286,11 @@ async function deleteProject(projectName: string) {
   }
 }
 
-async function saveProjectLocally(projectName: string, projectJson: NoodlesProjectJSON, storageType: StorageType) {
+async function saveProjectLocally(
+  projectName: string,
+  projectJson: NoodlesProjectJSON,
+  storageType: StorageType
+) {
   const JSZip = (await import('jszip')).default
   const zip = new JSZip()
 

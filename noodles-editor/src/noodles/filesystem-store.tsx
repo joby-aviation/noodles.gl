@@ -69,7 +69,7 @@ export const useFileSystemStore = create<FileSystemStore>((set, _get) => ({
     })
   },
 
-  setActiveStorageType: (type) => {
+  setActiveStorageType: type => {
     set({ activeStorageType: type })
   },
 

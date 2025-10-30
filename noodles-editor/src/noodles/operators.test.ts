@@ -108,7 +108,7 @@ describe('Error handling', () => {
 
     const onError = vi.spyOn(operator, 'onError')
     const execute = vi.spyOn(operator, 'execute')
-    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => { })
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
     expect(operator.inputs.num.value).toEqual(0)
     expect(onError).not.toHaveBeenCalled()
@@ -429,14 +429,16 @@ describe('DuckDbOp', () => {
 
   it('throws an error for unresolved references', async () => {
     const ddb = new DuckDbOp('/ddb', {}, false)
-    await expect(ddb.execute({ query: 'SELECT {{missing.par.val}}' })).rejects.toThrowError('Field val not found on ./missing')
+    await expect(ddb.execute({ query: 'SELECT {{missing.par.val}}' })).rejects.toThrowError(
+      'Field val not found on ./missing'
+    )
   })
 
   it('errors on a select including a semicolon', async () => {
     const ddb = new DuckDbOp('/ddb', {}, false)
-    await expect(ddb.execute({ query: 'SELECT \'1;10\'' })).rejects.toThrowError(
+    await expect(ddb.execute({ query: "SELECT '1;10'" })).rejects.toThrowError(
       expect.objectContaining({
-        message: expect.stringContaining('Parser Error: unterminated quoted string')
+        message: expect.stringContaining('Parser Error: unterminated quoted string'),
       })
     )
   })
@@ -1253,5 +1255,31 @@ describe('SelectOp', () => {
     // Negative wrap
     expect(operator.execute({ data: ['a', 'b', 'c'], index: -1, wrap: true }).value).toEqual('c')
     expect(operator.execute({ data: ['a', 'b', 'c'], index: -4, wrap: true }).value).toEqual('c')
+  })
+})
+
+describe('KmlToGeoJsonOp', () => {
+  it('should convert KML to GeoJSON', () => {
+    const { KmlToGeoJsonOp } = require('./operators')
+    const operator = new KmlToGeoJsonOp('/kml-to-geojson-0')
+
+    const kml = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <Placemark>
+      <name>Test Point</name>
+      <Point>
+        <coordinates>-122.0822,37.4222,0</coordinates>
+      </Point>
+    </Placemark>
+  </Document>
+</kml>`
+
+    const result = operator.execute({ kml })
+
+    expect(result.geojson.type).toBe('FeatureCollection')
+    expect(result.geojson.features).toHaveLength(1)
+    expect(result.geojson.features[0].geometry.type).toBe('Point')
+    expect(result.geojson.features[0].properties?.name).toBe('Test Point')
   })
 })

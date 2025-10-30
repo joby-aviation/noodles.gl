@@ -1,7 +1,7 @@
 // Theatre.js binding utilities for operator fields
 // Handles two-way synchronization between operator inputs and Theatre timeline
 
-import type { ISheet, ISheetObject } from '@theatre/core'
+import type { ISheet } from '@theatre/core'
 import { onChange, types, val } from '@theatre/core'
 import studio from '@theatre/studio'
 import { Temporal } from 'temporal-polyfill'
@@ -9,7 +9,6 @@ import { isHexColor } from 'validator'
 
 import { colorToRgba, hexToRgba, type Rgba, rgbaToHex } from '../utils/color'
 import {
-  ArrayField,
   BooleanField,
   ColorField,
   CompoundPropsField,
@@ -62,7 +61,9 @@ function fieldToTheatreProp(field: Field<IField>): types.PropTypeConfig | undefi
     if (field instanceof DateField) {
       // Convert Temporal.PlainDateTime to epoch milliseconds for Theatre.js
       // DateField's schema transforms all inputs to PlainDateTime
-      const instant = (field.value as unknown as Temporal.PlainDateTime).toZonedDateTime('UTC').toInstant()
+      const instant = (field.value as unknown as Temporal.PlainDateTime)
+        .toZonedDateTime('UTC')
+        .toInstant()
       return types.number(instant.epochMilliseconds)
     }
     if (field instanceof Vec2Field) {
@@ -101,7 +102,7 @@ function fieldToTheatreProp(field: Field<IField>): types.PropTypeConfig | undefi
       return types.compound({})
     }
   } catch (e) {
-    console.error(`Error creating Theatre prop for field:`, e)
+    console.error('Error creating Theatre prop for field:', e)
   }
   return undefined
 }
@@ -265,10 +266,7 @@ export function bindAllOperatorsToTheatre(
 }
 
 // Cleanup removed operators from Theatre
-export function cleanupRemovedOperators(
-  currentOperatorIds: Set<string>,
-  sheet: ISheet
-): void {
+export function cleanupRemovedOperators(currentOperatorIds: Set<string>, sheet: ISheet): void {
   for (const opId of sheetObjectMap.keys()) {
     if (!currentOperatorIds.has(opId)) {
       unbindOperatorFromTheatre(opId, sheet)

@@ -89,7 +89,11 @@ describe('CodeFieldComponent edge management', () => {
       <ReactFlowProvider>
         <NoodlesProvider>
           <div data-node-id={field.op.id}>
-            <CodeFieldComponent id={field.pathToProps.join('.')} field={field} disabled={disabled} />
+            <CodeFieldComponent
+              id={field.pathToProps.join('.')}
+              field={field}
+              disabled={disabled}
+            />
           </div>
         </NoodlesProvider>
       </ReactFlowProvider>
@@ -278,7 +282,11 @@ WHERE id = {{./source1.out.val}}
       <ReactFlowProvider>
         <NoodlesProvider>
           <div data-node-id={queryField.op.id}>
-            <CodeFieldComponent id={queryField.pathToProps.join('.')} field={queryField} disabled={false} />
+            <CodeFieldComponent
+              id={queryField.pathToProps.join('.')}
+              field={queryField}
+              disabled={false}
+            />
           </div>
         </NoodlesProvider>
       </ReactFlowProvider>
@@ -321,7 +329,11 @@ WHERE id = {{./source1.out.val}}
         <ReactFlowProvider>
           <NoodlesProvider>
             <div data-node-id={queryField.op.id}>
-              <CodeFieldComponent id={queryField.pathToProps.join('.')} field={queryField} disabled={false} />
+              <CodeFieldComponent
+                id={queryField.pathToProps.join('.')}
+                field={queryField}
+                disabled={false}
+              />
             </div>
           </NoodlesProvider>
         </ReactFlowProvider>

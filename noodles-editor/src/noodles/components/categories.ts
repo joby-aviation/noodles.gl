@@ -42,7 +42,7 @@ export const categories = {
     'ViewerOp',
     'ViewStateOp',
   ],
-  geojson: ['GeoJsonOp', 'GeoJsonTransformOp', 'PointOp', 'RectangleOp'],
+  geojson: ['GeoJsonOp', 'GeoJsonTransformOp', 'KmlToGeoJsonOp', 'PointOp', 'RectangleOp'],
   layer: [
     'A5LayerOp',
     'ArcLayerOp',
@@ -92,14 +92,7 @@ export const categories = {
     'TerrainExtensionOp',
     'VibranceExtensionOp',
   ],
-  number: [
-    'NumberOp',
-    'MapRangeOp',
-    'ExtentOp',
-    'MathOp',
-    'BezierCurveOp',
-    'TimeOp',
-  ],
+  number: ['NumberOp', 'MapRangeOp', 'ExtentOp', 'MathOp', 'BezierCurveOp', 'TimeOp'],
   string: ['StringOp'],
   utility: [
     'BooleanOp',
