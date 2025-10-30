@@ -114,6 +114,7 @@ import {
 } from './utils/serialization'
 import { EdgeSpatialIndex } from './utils/spatial-index'
 import { calculateViewerPosition } from './utils/viewer-position'
+import { ListField } from './fields'
 
 const ChatPanel = lazy(() => import('../ai-chat/chat-panel').then(m => ({ default: m.ChatPanel })))
 
@@ -373,33 +374,32 @@ export function getNoodles(): Visualization {
     const needsMigration = edges.some(edge => {
       const targetOp = opMap.get(edge.target)
       if (!targetOp) return false
-      const { parseHandleId } = require('./utils/path-utils')
       const handleInfo = parseHandleId(edge.targetHandle || '')
       if (!handleInfo) return false
       const targetField = targetOp.inputs[handleInfo.fieldName]
-      const { ListField } = require('./fields')
       return targetField instanceof ListField && edge.type !== 'MultiInputEdge'
     })
 
     if (needsMigration) {
       setEdges(eds => {
         // Group edges by handle to assign order indices
-        const groupedByHandle = new Map<string, typeof eds>()
+        const groupedByHandle = new Map<string, ReactFlowEdge[]>()
         eds.forEach(edge => {
           const targetOp = opMap.get(edge.target)
           if (!targetOp) return
-          const { parseHandleId } = require('./utils/path-utils')
           const handleInfo = parseHandleId(edge.targetHandle || '')
           if (!handleInfo) return
           const targetField = targetOp.inputs[handleInfo.fieldName]
-          const { ListField } = require('./fields')
 
           if (targetField instanceof ListField) {
             const key = `${edge.target}-${edge.targetHandle}`
             if (!groupedByHandle.has(key)) {
               groupedByHandle.set(key, [])
             }
-            groupedByHandle.get(key)!.push(edge)
+            const group = groupedByHandle.get(key)
+            if (group) {
+              group.push(edge as ReactFlowEdge)
+            }
           }
         })
 
@@ -412,7 +412,7 @@ export function getNoodles(): Visualization {
               ...edge,
               type: 'MultiInputEdge',
               data: { ...edge.data, orderIndex },
-            }
+            } as ReactFlowEdge
           }
           return edge
         })
