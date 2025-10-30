@@ -30,41 +30,52 @@ import '@xyflow/react/dist/style.css'
 import 'primereact/resources/themes/md-dark-indigo/theme.css'
 import 'primeicons/primeicons.css'
 
+import { useLocation } from 'wouter'
+import newProjectJSON from '../../public/new.json?url'
+import newProject from '../../public/noodles/new/noodles.json'
+import { ChatPanel } from '../ai-chat/chat-panel'
+import { globalContextManager } from '../ai-chat/global-context-manager'
 import { SheetProvider } from '../utils/sheet-context'
 import useSheetValue from '../utils/use-sheet-value'
 import type { Visualization } from '../visualizations'
 import { BlockLibrary, type BlockLibraryRef } from './components/block-library'
 import { Breadcrumbs } from './components/breadcrumbs'
+import { categories } from './components/categories'
 import { CopyControls } from './components/copy-controls'
 import { DropTarget } from './components/drop-target'
 import { ErrorBoundary } from './components/error-boundary'
 import { NoodlesMenubar } from './components/menu'
 import { PropertyPanel } from './components/node-properties'
-import { categories } from './components/categories'
 import { edgeComponents, nodeComponents } from './components/op-components'
-import { ProjectNameBar, UNSAVED_PROJECT_NAME } from './components/project-name-bar'
+import {
+  ProjectNameBar,
+  UNSAVED_PROJECT_NAME,
+} from './components/project-name-bar'
 import { ProjectNotFoundDialog } from './components/project-not-found-dialog'
 import { StorageErrorHandler } from './components/storage-error-handler'
-import { ChatPanel } from '../ai-chat/chat-panel'
-import { globalContextManager } from '../ai-chat/global-context-manager'
-import { useProjectModifications } from './hooks/use-project-modifications'
+import {
+  UndoRedoHandler,
+  type UndoRedoHandlerRef,
+} from './components/UndoRedoHandler'
 import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
 import { IS_PROD } from './globals'
-import { useLocation } from 'wouter'
+import { useProjectModifications } from './hooks/use-project-modifications'
 import s from './noodles.module.css'
 import type { IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
 import { load } from './storage'
-import { opMap, useSlice, hoveredOutputHandle } from './store'
+import { hoveredOutputHandle, opMap, useSlice } from './store'
 import { transformGraph } from './transform-graph'
 import { edgeId, nodeId } from './utils/id-utils'
 import { migrateProject } from './utils/migrate-schema'
 import { getParentPath } from './utils/path-utils'
 import { pick } from './utils/pick'
-import newProjectJSON from '../../public/new.json?url'
 import { EMPTY_PROJECT, type NoodlesProjectJSON } from './utils/serialization'
 
-export type Edge<N1 extends Operator<IOperator>, N2 extends Operator<IOperator>> = {
+export type Edge<
+  N1 extends Operator<IOperator>,
+  N2 extends Operator<IOperator>,
+> = {
   id: `${N1['id']}/${keyof N1['outputs']}->${N2['id']}/${keyof N2['inputs']}`
   source: N1['id']
   target: N2['id']
@@ -103,7 +114,10 @@ function useTheatreJs(projectName?: string) {
     setTheatreReady(false)
     return getProject(name, config)
   }, [theatreState])
-  const theatreSheet = useMemo(() => theatreProject.sheet(THEATRE_SHEET_ID), [theatreProject])
+  const theatreSheet = useMemo(
+    () => theatreProject.sheet(THEATRE_SHEET_ID),
+    [theatreProject],
+  )
   useEffect(() => {
     theatreProject?.ready.then(() => setTheatreReady(true))
   }, [theatreProject])
@@ -111,7 +125,7 @@ function useTheatreJs(projectName?: string) {
   const setTheatreProject = useCallback(
     (theatreConfig: IProjectConfig, incomingProjectName?: string) => {
       // Theatre stores too much state if you don't reset it
-      studio.transaction(api => {
+      studio.transaction((api) => {
         api.__experimental_forgetSheet(theatreSheet)
       })
       // Increment the project counter to keep the project name unique
@@ -119,7 +133,7 @@ function useTheatreJs(projectName?: string) {
       const newProjectName = `${incomingProjectName || UNSAVED_PROJECT_NAME}-${_projectCounterRef.current}`
       setTheatreState({ name: newProjectName, config: theatreConfig })
     },
-    [theatreSheet]
+    [theatreSheet],
   )
 
   const getTimelineJson = useCallback(() => {
@@ -129,22 +143,34 @@ function useTheatreJs(projectName?: string) {
     // objects since we're storing that state in Theatre
     const sheetsById = Object.fromEntries(
       Object.entries(
-        timeline.sheetsById as Record<string, { staticOverrides?: { byObject?: unknown } }>
+        timeline.sheetsById as Record<
+          string,
+          { staticOverrides?: { byObject?: unknown } }
+        >,
       ).map(([sheetId, sheet]) => [
         sheetId,
         {
           ...sheet,
           staticOverrides: {
-            byObject: pick(sheet.staticOverrides?.byObject || {}, ['editor', 'render']),
+            byObject: pick(sheet.staticOverrides?.byObject || {}, [
+              'editor',
+              'render',
+            ]),
           },
         },
-      ])
+      ]),
     )
 
     return { ...timeline, sheetsById }
   }, [theatreState.name])
 
-  return { theatreReady, theatreProject, theatreSheet, setTheatreProject, getTimelineJson }
+  return {
+    theatreReady,
+    theatreProject,
+    theatreSheet,
+    setTheatreProject,
+    getTimelineJson,
+  }
 }
 
 // Not using the top-level sheet since a Noodles theatre sheet and project are dynamically created.
@@ -165,34 +191,51 @@ export function getNoodles(): Visualization {
     return queryParams.get('project') || undefined
   }, [location])
 
-  const [projectName, setProjectNameState] = useState<string | undefined>(getProjectIdFromLocation)
-  const [showProjectNotFoundDialog, setShowProjectNotFoundDialog] = useState(false)
+  const [projectName, setProjectNameState] = useState<string | undefined>(
+    getProjectIdFromLocation,
+  )
+  const [showProjectNotFoundDialog, setShowProjectNotFoundDialog] =
+    useState(false)
   const storageType = useActiveStorageType()
-  const { setCurrentDirectory, setActiveStorageType, setError } = useFileSystemStore()
-  const { theatreReady, theatreProject, theatreSheet, setTheatreProject, getTimelineJson } =
-    useTheatreJs(projectName)
-  const ops = useSlice(state => state.ops)
-  const sheetObjects = useSlice(state => state.sheetObjects)
+  const { setCurrentDirectory, setActiveStorageType, setError } =
+    useFileSystemStore()
+  const {
+    theatreReady,
+    theatreProject,
+    theatreSheet,
+    setTheatreProject,
+    getTimelineJson,
+  } = useTheatreJs(projectName)
+  const ops = useSlice((state) => state.ops)
+  const sheetObjects = useSlice((state) => state.sheetObjects)
   const [nodes, setNodes, onNodesChange] = useNodesState<AnyNodeJSON>([])
-  const [edges, setEdges, onEdgesChange] = useEdgesState<ReactFlowEdge<unknown>>([])
+  const [edges, setEdges, onEdgesChange] = useEdgesState<
+    ReactFlowEdge<unknown>
+  >([])
   const vPressed = useKeyPress('v')
   const aPressed = useKeyPress('a')
   const [showChatPanel, setShowChatPanel] = useState(false)
 
   // Wrapper for setProjectName that also updates the URL
-  const setProjectName = useCallback((nameOrUpdater: React.SetStateAction<string | null>) => {
-    setProjectNameState(prev => {
-      const prevValue = prev ?? null
-      const newName = typeof nameOrUpdater === 'function' ? nameOrUpdater(prevValue) : nameOrUpdater
-      // Update URL when project name changes
-      if (newName) {
-        navigate(`/examples/${newName}`, { replace: true })
-      } else {
-        navigate('/', { replace: true })
-      }
-      return newName ?? undefined
-    })
-  }, [navigate])
+  const setProjectName = useCallback(
+    (nameOrUpdater: React.SetStateAction<string | null>) => {
+      setProjectNameState((prev) => {
+        const prevValue = prev ?? null
+        const newName =
+          typeof nameOrUpdater === 'function'
+            ? nameOrUpdater(prevValue)
+            : nameOrUpdater
+        // Update URL when project name changes
+        if (newName) {
+          navigate(`/examples/${newName}`, { replace: true })
+        } else {
+          navigate('/', { replace: true })
+        }
+        return newName ?? undefined
+      })
+    },
+    [navigate],
+  )
 
   // Update projectName when location changes (route changes)
   useEffect(() => {
@@ -204,26 +247,29 @@ export function getNoodles(): Visualization {
 
   // Eagerly start loading AI context bundles on app start
   useEffect(() => {
-    globalContextManager.startLoading().catch(error => {
+    globalContextManager.startLoading().catch((error) => {
       console.warn('Failed to preload AI context:', error)
     })
   }, [])
 
   // `transformGraph` needs all nodes to build the opMap and resolve connections
-  const operators = useMemo(() => transformGraph({ nodes, edges }), [nodes, edges])
+  const operators = useMemo(
+    () => transformGraph({ nodes, edges }),
+    [nodes, edges],
+  )
 
   // Use shared hook for project modifications
   const { onConnect, onNodesDelete } = useProjectModifications({
     getNodes: useCallback(() => nodes, [nodes]),
     getEdges: useCallback(() => edges, [edges]),
     setNodes,
-    setEdges
+    setEdges,
   })
 
   const onReconnect = useCallback(
     (oldEdge: ReactFlowEdge, newConnection: Connection) =>
-      setEdges(els => reconnectEdge(oldEdge, newConnection, els)),
-    [setEdges]
+      setEdges((els) => reconnectEdge(oldEdge, newConnection, els)),
+    [setEdges],
   )
 
   const onNodeClick = useCallback(
@@ -231,15 +277,24 @@ export function getNoodles(): Visualization {
       const obj = sheetObjects.get(node.id)
       if (obj) studio.setSelection([obj])
     },
-    [sheetObjects]
+    [sheetObjects],
   )
 
   const reactFlowRef = useRef<HTMLDivElement>(null)
   const blockLibraryRef = useRef<BlockLibraryRef>(null)
 
+  // Avoid circular dependency
+  const loadProjectFileRef =
+    useRef<(project: NoodlesProjectJSON, name?: string) => void>()
+
+  const currentProjectRef = useRef<NoodlesProjectJSON>(newProject)
+
+  // Ref to access undo/redo functionality from inside ReactFlow context
+  const undoRedoRef = useRef<UndoRedoHandlerRef>(null)
+
   const onDeselectAll = useCallback(() => {
-    setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
-    setEdges(edges => edges.map(edge => ({ ...edge, selected: false })))
+    setNodes((nodes) => nodes.map((node) => ({ ...node, selected: false })))
+    setEdges((edges) => edges.map((edge) => ({ ...edge, selected: false })))
   }, [setNodes, setEdges])
 
   const onPaneClick = useCallback(() => {
@@ -247,15 +302,18 @@ export function getNoodles(): Visualization {
     onDeselectAll()
   }, [onDeselectAll])
 
-  const onPaneContextMenu = useCallback((event: React.MouseEvent<Element, MouseEvent>) => {
-    event.preventDefault()
-    // Show Block Library at the right-click position
-    blockLibraryRef.current?.openModal(event.clientX, event.clientY)
-  }, [])
+  const onPaneContextMenu = useCallback(
+    (event: React.MouseEvent<Element, MouseEvent>) => {
+      event.preventDefault()
+      // Show Block Library at the right-click position
+      blockLibraryRef.current?.openModal(event.clientX, event.clientY)
+    },
+    [],
+  )
 
   const vPressHandledRef = useRef(false)
 
-  const { currentContainerId } = useSlice(state => state.nesting)
+  const { currentContainerId } = useSlice((state) => state.nesting)
 
   // Handle 'v' key press to create ViewerOp
   useEffect(() => {
@@ -269,11 +327,13 @@ export function getNoodles(): Visualization {
     if (vPressHandledRef.current) return
     vPressHandledRef.current = true
 
-    setNodes(currentNodes => {
-      const selectedNodes = currentNodes.filter(n => n.selected)
+    setNodes((currentNodes) => {
+      const selectedNodes = currentNodes.filter((n) => n.selected)
       if (selectedNodes.length === 0) {
         if (hoveredOutputHandle) {
-          const hoveredNode = currentNodes.find(n => n.id === hoveredOutputHandle.nodeId)
+          const hoveredNode = currentNodes.find(
+            (n) => n.id === hoveredOutputHandle.nodeId,
+          )
           if (hoveredNode) {
             const newViewerPosition = {
               x: hoveredNode.position.x + VIEWER_OFFSET_X,
@@ -292,14 +352,19 @@ export function getNoodles(): Visualization {
             const sourceHandle = hoveredOutputHandle.handleId
             const targetHandle = 'par.data'
             const newEdge = {
-              id: edgeId({ source: hoveredOutputHandle.nodeId, sourceHandle, target: viewerId, targetHandle }),
+              id: edgeId({
+                source: hoveredOutputHandle.nodeId,
+                sourceHandle,
+                target: viewerId,
+                targetHandle,
+              }),
               source: hoveredOutputHandle.nodeId,
               sourceHandle,
               target: viewerId,
               targetHandle,
             }
 
-            setEdges(currentEdges => [...currentEdges, newEdge])
+            setEdges((currentEdges) => [...currentEdges, newEdge])
             return [...currentNodes, viewerNode]
           }
         }
@@ -332,7 +397,10 @@ export function getNoodles(): Visualization {
       let sourceHandle: string | null = null
 
       // Check if a handle is hovered (from shared store)
-      if (hoveredOutputHandle && selectedNodes.some(n => n.id === hoveredOutputHandle.nodeId)) {
+      if (
+        hoveredOutputHandle &&
+        selectedNodes.some((n) => n.id === hoveredOutputHandle.nodeId)
+      ) {
         // Use hovered handle if it's on a selected node
         // Handle ID is already in the format "out.fieldName"
         if (hoveredOutputHandle.handleId.startsWith('out.')) {
@@ -356,7 +424,12 @@ export function getNoodles(): Visualization {
       if (sourceHandle) {
         const targetHandle = 'par.data'
         const newEdge = {
-          id: edgeId({ source: sourceNodeId, sourceHandle, target: viewerId, targetHandle }),
+          id: edgeId({
+            source: sourceNodeId,
+            sourceHandle,
+            target: viewerId,
+            targetHandle,
+          }),
           source: sourceNodeId,
           sourceHandle,
           target: viewerId,
@@ -364,7 +437,7 @@ export function getNoodles(): Visualization {
         }
 
         // Add edge
-        setEdges(currentEdges => [...currentEdges, newEdge])
+        setEdges((currentEdges) => [...currentEdges, newEdge])
       }
 
       return [...currentNodes, viewerNode]
@@ -412,9 +485,13 @@ export function getNoodles(): Visualization {
       const {
         nodes,
         edges,
-        // viewport, // TODO: Set viewport in React Flow (needs to be done in a ReactFlowContext)
+        // viewport, // Skip viewport to preserve current view
         timeline,
       } = project
+
+      // Update current project ref for undo/redo
+      currentProjectRef.current = project
+
       for (const op of opMap.values()) {
         op.unsubscribeListeners()
       }
@@ -423,17 +500,45 @@ export function getNoodles(): Visualization {
       setEdges(edges)
       setProjectName(name ?? null)
       setTheatreProject(name ? { state: timeline } : {}, name)
+
+      // Only fit view when loading a new project (not during undo/redo)
+      if (name && !undoRedoRef.current?.isRestoring()) {
+        // Fit view after a short delay to ensure nodes are rendered
+        setTimeout(() => {
+          try {
+            if (reactFlowRef.current && nodes.length > 0) {
+              // TODO: Call fitView on the ReactFlow instance here if accessible
+            }
+          } catch (error) {
+            console.warn('Could not fit view:', error)
+          }
+        }, 100)
+      }
+
+      // Update URL query parameter with project name
+      if (name) {
+        const url = new URL(window.location.href)
+        url.searchParams.set('project', name)
+        window.history.replaceState({}, '', url.toString())
+      }
     },
-    [setNodes, setEdges, setProjectName, setTheatreProject]
+    [setNodes, setEdges, setProjectName, setTheatreProject],
   )
+
+  // Assign to ref for undo/redo system
+  loadProjectFileRef.current = loadProjectFile
+
+  // Keyboard shortcuts are now handled by UndoRedoHandler component
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: loadProjectFile would cause infinite loop
   useEffect(() => {
-    ;(async () => {
+    (async () => {
       // If no projectName, load the default new project
       if (!projectName) {
         try {
-          const project = await fetch(newProjectJSON).then(res => res.json()) as NoodlesProjectJSON
+          const project = (await fetch(newProjectJSON).then((res) =>
+            res.json(),
+          )) as NoodlesProjectJSON
           loadProjectFile(project)
           return
         } catch (_error) {
@@ -494,7 +599,7 @@ export function getNoodles(): Visualization {
     //   'containerId' in node ? node.containerId === currentContainerId : currentContainerId === null
     // )
 
-    return nodes.map(node => ({
+    return nodes.map((node) => ({
       ...node,
       hidden: getParentPath(node.id) !== currentContainerId,
       dragHandle: `.${s.header}`,
@@ -502,7 +607,7 @@ export function getNoodles(): Visualization {
   }, [currentContainerId, nodes])
 
   const activeEdges = useMemo(() => {
-    return edges.map(edge => ({
+    return edges.map((edge) => ({
       ...edge,
       sourceHandle: edge.type === 'ReferenceEdge' ? null : edge.sourceHandle,
     }))
@@ -510,7 +615,12 @@ export function getNoodles(): Visualization {
 
   const flowGraph = theatreReady && (
     <ErrorBoundary>
-      <div className={cx('react-flow-wrapper', !showOverlay && 'react-flow-wrapper-hidden')}>
+      <div
+        className={cx(
+          'react-flow-wrapper',
+          !showOverlay && 'react-flow-wrapper-hidden',
+        )}
+      >
         <PrimeReactProvider>
           <SheetProvider value={theatreSheet}>
             <Breadcrumbs />
@@ -527,7 +637,6 @@ export function getNoodles(): Visualization {
               onPaneContextMenu={onPaneContextMenu}
               onPaneClick={onPaneClick}
               minZoom={0.2}
-              fitView
               fitViewOptions={fitViewOptions}
               defaultEdgeOptions={defaultEdgeOptions}
               nodeTypes={nodeComponents}
@@ -537,6 +646,7 @@ export function getNoodles(): Visualization {
               <Controls position="bottom-right" />
               <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />
               <CopyControls />
+              <UndoRedoHandler ref={undoRedoRef} />
               <ChatPanel
                 project={{ nodes, edges }}
                 onClose={() => setShowChatPanel(false)}
@@ -561,14 +671,14 @@ export function getNoodles(): Visualization {
 
   // Assume there's always one 'out' op.
   const OUT_OP_ID = '/out'
-  const outOp = operators.find(n => n.id === OUT_OP_ID)! as unknown as OutOp
+  const outOp = operators.find((n) => n.id === OUT_OP_ID)! as unknown as OutOp
 
   const [visProps, setVisProps] = useState(outOp?.inputs.vis.value || {})
 
   // Create overlay layer for selected GeoJSON-producing operators
   const selectedGeoJsonFeatures = useMemo(() => {
     const features: unknown[] = []
-    const selectedNodes = nodes.filter(n => n.selected)
+    const selectedNodes = nodes.filter((n) => n.selected)
 
     for (const node of selectedNodes) {
       const op = ops.get(node.id)
@@ -604,7 +714,10 @@ export function getNoodles(): Visualization {
                     }
 
                     // Check if it's a wrapped extension (with ExtensionClass and args)
-                    if (typeof extensionDef === 'object' && 'ExtensionClass' in extensionDef) {
+                    if (
+                      typeof extensionDef === 'object' &&
+                      'ExtensionClass' in extensionDef
+                    ) {
                       return new extensionDef.ExtensionClass(extensionDef.args)
                     }
 
@@ -621,7 +734,9 @@ export function getNoodles(): Visualization {
 
               return new deck[type]({
                 ...layer,
-                ...(instantiatedExtensions ? { extensions: instantiatedExtensions } : {}),
+                ...(instantiatedExtensions
+                  ? { extensions: instantiatedExtensions }
+                  : {}),
               })
             }) || []
 
@@ -647,11 +762,13 @@ export function getNoodles(): Visualization {
               ...deckProps,
               // biome-ignore lint/performance/noDynamicNamespaceImportAccess: We intentionally support all deck.gl layer types dynamically
               layers: instantiatedLayers,
-              widgets: widgets?.map(({ type, ...widget }) => new deckWidgets[type](widget)),
+              widgets: widgets?.map(
+                ({ type, ...widget }) => new deckWidgets[type](widget),
+              ),
             },
             mapProps,
           })
-        }
+        },
       )
       return () => {
         visSub.unsubscribe()
@@ -665,6 +782,7 @@ export function getNoodles(): Visualization {
       setProjectName={setProjectName}
       getTimelineJson={getTimelineJson}
       loadProjectFile={loadProjectFile}
+      undoRedo={undoRedoRef.current}
       showChatPanel={showChatPanel}
       setShowChatPanel={setShowChatPanel}
     />

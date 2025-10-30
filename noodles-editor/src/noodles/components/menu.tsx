@@ -406,6 +406,7 @@ export function NoodlesMenubar({
   loadProjectFile,
   getTimelineJson,
   setProjectName,
+  undoRedo,
   showChatPanel,
   setShowChatPanel,
 }: {
@@ -413,6 +414,13 @@ export function NoodlesMenubar({
   loadProjectFile: (project: NoodlesProjectJSON, projectName?: string) => void
   getTimelineJson: () => Record<string, unknown>
   setProjectName: Dispatch<SetStateAction<string | null>>
+  undoRedo?: {
+    undo: () => void
+    redo: () => void
+    canUndo: () => boolean
+    canRedo: () => boolean
+    getState: () => { undoDescription?: string; redoDescription?: string }
+  }
   showChatPanel?: boolean
   setShowChatPanel?: (show: boolean) => void
 }) {
@@ -701,6 +709,29 @@ export function NoodlesMenubar({
               sideOffset={5}
               alignOffset={-3}
             >
+              <Menubar.Item
+                className={s.menubarItem}
+                onSelect={undoRedo?.undo}
+                disabled={!undoRedo?.canUndo()}
+              >
+                Undo{' '}
+                {undoRedo?.getState().undoDescription
+                  ? `"${undoRedo.getState().undoDescription}"`
+                  : ''}
+                <div className={s.menubarItemRightSlot}>⌘ Z</div>
+              </Menubar.Item>
+              <Menubar.Item
+                className={s.menubarItem}
+                onSelect={undoRedo?.redo}
+                disabled={!undoRedo?.canRedo()}
+              >
+                Redo{' '}
+                {undoRedo?.getState().redoDescription
+                  ? `"${undoRedo.getState().redoDescription}"`
+                  : ''}
+                <div className={s.menubarItemRightSlot}>⌘ ⇧ Z</div>
+              </Menubar.Item>
+              <Menubar.Separator className={s.menubarSeparator} />
               <Menubar.Item className={s.menubarItem}>Cut</Menubar.Item>
               <Menubar.Item className={s.menubarItem}>Copy</Menubar.Item>
               <Menubar.Item className={s.menubarItem}>Paste</Menubar.Item>
