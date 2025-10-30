@@ -253,11 +253,14 @@ return distances
 ```
 
 **Available globals:**
-- `d3` - D3.js library
-- `turf` - Turf.js geospatial functions
-- `deck` - Deck.gl utilities
-- `Plot` - Observable Plot
-- All Operator classes for instantiation
+- `d3` - D3.js library for data manipulation and visualization
+- `turf` - Turf.js geospatial analysis functions
+- `deck` - Deck.gl utilities and components
+- `Plot` - Observable Plot for creating charts
+- `vega` - Vega visualization grammar
+- `Temporal` - TC39 Temporal API for dates and times
+- `utils` - Collection of utility functions (see below)
+- All Operator classes for instantiation (see opTypes list below)
 
 ### AccessorOp
 Per-item accessor functions for Deck.gl layers:
@@ -279,6 +282,198 @@ Single-line calculations:
 
 ```javascript
 Math.PI * Math.pow(d.radius, 2)
+```
+
+## Available Utility Functions (`utils` object)
+
+The `utils` object is available globally in CodeOp, AccessorOp, and ExpressionOp. It provides a collection of utility functions for common operations:
+
+### Arc Geometry Utilities
+**From `utils.arc-geometry`:**
+
+- **`getArc(options)`** - Generate 3D arc paths between two points
+  - `source` - Starting point `{ lat, lng, alt }`
+  - `target` - Ending point `{ lat, lng, alt }`
+  - `arcHeight` - Height of the arc in meters
+  - `smoothHeight` - Smooth altitude transitions (default: `true`)
+  - `smoothPosition` - Smooth position transitions (default: `false`)
+  - `segmentCount` - Number of segments in the arc (default: `250`)
+  - `wrapLongitude` - Handle anti-meridian crossing (default: `true`)
+  - `tilt` - Tilt angle in degrees, -90 to 90 (default: `0`)
+  - Returns array of `[lng, lat, alt]` coordinates
+
+- **`mix(from, to, t)`** - Linear interpolation between two numbers
+- **`mixspace(start, end, mixAmount[])`** - Linear interpolation across multiple ratios
+- **`clamp(x, lower, upper)`** - Constrain a value within a range
+- **`range(stop)`** - Generate array of integers from 0 to stop-1
+- **`smoothstep(edge0, edge1, x)`** - Smooth interpolation with Hermite polynomial
+- **`segmentRatios(segmentCount, smooth)`** - Generate interpolation ratios for arcs
+- **`paraboloid(distance, sourceZ, targetZ, ratio, scaleHeight)`** - Calculate parabolic arc height
+- **`tiltPoint(point, start, end, tilt)`** - Apply tilt transformation to a point
+
+```javascript
+// Example: Create a 3D arc between two cities
+const arc = utils.getArc({
+  source: { lat: 40.7128, lng: -74.0060, alt: 0 },    // NYC
+  target: { lat: 51.5074, lng: -0.1278, alt: 0 },     // London
+  arcHeight: 500000,  // 500km peak height
+  tilt: 15,           // 15-degree tilt
+  segmentCount: 100
+})
+```
+
+### Search and Data Utilities
+
+- **`binarySearchClosest(arr, val, i?)`** - Find the closest value in a sorted array
+  - Returns the index of the closest element
+  - Optional `i` parameter to start search from a specific index
+
+```javascript
+// Example: Find closest timestamp
+const times = [0, 100, 200, 300, 400]
+const idx = utils.binarySearchClosest(times, 250)  // Returns 2
+```
+
+### Color Utilities
+**From `utils.color`:**
+
+- **`colorToRgba([r, g, b, a])`** - Convert Deck.gl color array to RGBA object (0-1 range)
+- **`rgbaToColor({ r, g, b, a })`** - Convert RGBA object (0-1) to Deck.gl color array (0-255)
+- **`rgbaToClearColor({ r, g, b, a })`** - Convert to WebGL clear color format
+- **`hexToColor(hex, alpha?)`** - Parse hex color string to Deck.gl color array
+- **`colorToHex(color, alpha?)`** - Convert Deck.gl color to hex string
+- **`hexToRgba(hex)`** - Parse hex to RGBA object
+- **`rgbaToHex(rgba)`** - Convert RGBA object to hex string
+
+```javascript
+// Example: Convert colors
+const deckColor = utils.hexToColor('#ff5733')
+const hex = utils.colorToHex([255, 87, 51, 255])
+```
+
+### Array Utilities
+
+- **`cross(arr)`** - Generate all unique pairs from an array
+  - Returns array of tuples `[item1, item2]`
+
+```javascript
+// Example: Create all route pairs
+const cities = ['NYC', 'LA', 'CHI']
+const routes = utils.cross(cities)
+// Returns: [['NYC', 'LA'], ['NYC', 'CHI'], ['LA', 'CHI']]
+```
+
+### Geospatial Utilities
+
+- **`getDirections({ origin, destination, mode? })`** - Async function to get routing directions
+  - `origin` - `{ lat, lng }` starting point
+  - `destination` - `{ lat, lng }` ending point
+  - `mode` - Either `utils.DRIVING` or `utils.TRANSIT` (default: `DRIVING`)
+  - Returns `{ distance, duration, durationFormatted, path, timestamps }`
+  - Requires Mapbox or Google Maps API keys configured
+
+```javascript
+// Example: Get driving directions
+const route = await utils.getDirections({
+  origin: { lat: 40.7128, lng: -74.0060 },
+  destination: { lat: 34.0522, lng: -118.2437 },
+  mode: utils.DRIVING
+})
+console.log(route.durationFormatted)  // "45 hours, 30 mins"
+```
+
+### Distance Constants
+**From `utils.distance`:**
+
+- **`FEET_TO_METERS`** - Conversion factor: 0.3048
+- **`METER_TO_MILES`** - Conversion factor: 0.000621371
+- **`MILES_TO_METERS`** - Conversion factor: 1609.34
+
+```javascript
+// Example: Convert units
+const heightInFeet = 1000
+const heightInMeters = heightInFeet * utils.FEET_TO_METERS
+```
+
+### Interpolation
+
+- **`interpolate(input, output, ease?)`** - Create a mapping function between two ranges
+  - `input` - Input range `[min, max]`
+  - `output` - Output range `[min, max]`
+  - `ease` - Optional easing function
+  - Returns a function that maps input values to output values
+
+```javascript
+// Example: Map altitude to color intensity
+const altToIntensity = utils.interpolate([0, 10000], [0, 255])
+const intensity = altToIntensity(5000)  // Returns 127.5
+```
+
+### Map Styles
+**From `utils.map-styles`:**
+
+- **`CARTO_DARK`** - URL for Carto dark basemap without labels
+- **`MAP_STYLES`** - Object mapping basemap URLs to readable names
+  - Includes: Streets, Light, Dark, Dark-NoLabels, Voyager, Voyager-NoLabels
+
+```javascript
+// Example: Use predefined basemap
+const basemapUrl = utils.CARTO_DARK
+```
+
+### Random Number Generation
+
+- **`mulberry32(seed)`** - Create a deterministic pseudo-random number generator
+  - Takes a numeric seed
+  - Returns a function that generates numbers between 0 and 1
+
+```javascript
+// Example: Generate deterministic random positions
+const rng = utils.mulberry32(12345)
+const positions = data.map(d => [
+  d.lng + (rng() - 0.5) * 0.01,  // Add random jitter
+  d.lat + (rng() - 0.5) * 0.01
+])
+```
+
+## Available Operator Classes (`opTypes`)
+
+All operator classes are available as globals in CodeOp for programmatic instantiation. This allows you to create operators dynamically or use their static methods. The complete list includes:
+
+**Data Sources & Processing:**
+`FileOp`, `DuckDbOp`, `NetworkOp`, `GeocoderOp`, `DirectionsOp`, `FilterOp`, `MapRangeOp`, `MergeOp`, `ConcatOp`, `SliceOp`, `SortOp`, `SelectOp`, `SwitchOp`, `TableEditorOp`
+
+**Math & Logic:**
+`NumberOp`, `BooleanOp`, `StringOp`, `DateOp`, `TimeOp`, `MathOp`, `ExpressionOp`, `CodeOp`, `AccessorOp`, `JSONOp`, `HSLOp`, `ColorOp`
+
+**Geometry & Transforms:**
+`PointOp`, `BoundsOp`, `RectangleOp`, `ArcOp`, `BezierCurveOp`, `BoundingBoxOp`, `ExtentOp`, `ProjectOp`, `UnprojectOp`, `GeoJsonOp`, `GeoJsonTransformOp`, `ScatterOp`
+
+**Combinators:**
+`CombineRGBAOp`, `CombineXYOp`, `CombineXYZOp`, `SplitRGBAOp`, `SplitXYOp`, `SplitXYZOp`, `SplitMapViewStateOp`
+
+**Deck.gl Layers:**
+`ScatterplotLayerOp`, `PathLayerOp`, `ArcLayerOp`, `LineLayerOp`, `IconLayerOp`, `TextLayerOp`, `PolygonLayerOp`, `SolidPolygonLayerOp`, `GeoJsonLayerOp`, `ColumnLayerOp`, `GridLayerOp`, `GridCellLayerOp`, `HexagonLayerOp`, `ContourLayerOp`, `ScreenGridLayerOp`, `HeatmapLayerOp`, `H3HexagonLayerOp`, `H3ClusterLayerOp`, `GreatCircleLayerOp`, `TripsLayerOp`, `BitmapLayerOp`, `TileLayerOp`, `MVTLayerOp`, `TerrainLayerOp`, `Tile3DLayerOp`, `PointCloudLayerOp`, `ScenegraphLayerOp`, `SimpleMeshLayerOp`, `GeohashLayerOp`, `S2LayerOp`, `QuadkeyLayerOp`, `A5LayerOp`, `RasterTileLayerOp`
+
+**Deck.gl Extensions:**
+`BrushingExtensionOp`, `DataFilterExtensionOp`, `ClipExtensionOp`, `MaskExtensionOp`, `Mask3DExtensionOp`, `PathStyleExtensionOp`, `FillStyleExtensionOp`, `CollisionFilterExtensionOp`, `TerrainExtensionOp`, `BrightnessContrastExtensionOp`, `HueSaturationExtensionOp`, `VibranceExtensionOp`
+
+**Views & Rendering:**
+`MapViewOp`, `GlobeViewOp`, `OrbitViewOp`, `FirstPersonViewOp`, `MapViewStateOp`, `DeckRendererOp`, `MaplibreBasemapOp`, `MapStyleOp`, `ViewerOp`
+
+**Color & Styling:**
+`ColorRampOp`, `CategoricalColorRampOp`, `LayerPropsOp`, `RandomizeAttributeOp`
+
+**Control Flow & Organization:**
+`ContainerOp`, `ForLoopBeginOp`, `ForLoopEndOp`, `GraphInputOp`, `GraphOutputOp`, `OutOp`, `ConsoleOp`, `FpsWidgetOp`, `MouseOp`
+
+```javascript
+// Example: Instantiate operators programmatically
+const numberOps = data.map((value, i) => {
+  const op = new NumberOp(`/dynamic-${i}`)
+  op.inputs.value.setValue(value)
+  return op
+})
 ```
 
 ## Development Workflow
