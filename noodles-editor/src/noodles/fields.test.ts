@@ -10,6 +10,7 @@ import {
   DateField,
   Field,
   FunctionField,
+  GeoJsonField,
   getFieldReferences,
   JSONUrlField,
   LayerField,
@@ -913,5 +914,50 @@ describe('DateField', () => {
     const deserialized = DateField.deserialize(serialized)
 
     expect(Temporal.PlainDateTime.compare(originalDate, deserialized)).toBe(0)
+  })
+})
+
+describe('GeoJsonField', () => {
+  it('should have correct type', () => {
+    const field = new GeoJsonField()
+    expect((field.constructor as typeof Field).type).toBe('geojson')
+  })
+
+  it('should have default value as FeatureCollection', () => {
+    const field = new GeoJsonField()
+    expect(field.value).toEqual({ type: 'FeatureCollection', features: [] })
+  })
+
+  it('should accept GeoJSON feature', () => {
+    const field = new GeoJsonField()
+    const feature = {
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: [0, 0],
+      },
+      properties: {},
+    }
+    field.setValue(feature)
+    expect(field.value).toEqual(feature)
+  })
+
+  it('should accept GeoJSON FeatureCollection', () => {
+    const field = new GeoJsonField()
+    const featureCollection = {
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          geometry: {
+            type: 'Point',
+            coordinates: [0, 0],
+          },
+          properties: {},
+        },
+      ],
+    }
+    field.setValue(featureCollection)
+    expect(field.value).toEqual(featureCollection)
   })
 })
