@@ -392,7 +392,7 @@ function CompoundSubFields({
 
 // Exported for testing
 export function NodeProperties({ nodeId }: { nodeId: string }) {
-  const { setEdges } = useReactFlow()
+  const { setEdges, getNode } = useReactFlow()
   const onEdgesChange = useStore(s => s.onEdgesChange)
   // Only re-renders when this node's incoming edges change (not on position updates)
   const edges = useStore(

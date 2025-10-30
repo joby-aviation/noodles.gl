@@ -1,0 +1,48 @@
+.handleContainer {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.multiInputHandle {
+  position: relative;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.multiInputHandle::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 1px;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent,
+    transparent 4px,
+    rgba(255, 255, 255, 0.2) 4px,
+    rgba(255, 255, 255, 0.2) 5px
+  );
+  pointer-events: none;
+}
+
+.connectionCount {
+  position: absolute;
+  left: 10px;
+  background: var(--node-background-color);
+  color: var(--node-field-hint-color);
+  font-size: 9px;
+  font-weight: bold;
+  padding: 1px 4px;
+  border-radius: 3px;
+  border: 1px solid var(--node-handle-outline-color);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+  z-index: 10;
+}
+
+.handleContainer:hover .connectionCount {
+  opacity: 1;
+}
