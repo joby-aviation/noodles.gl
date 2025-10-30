@@ -1,8 +1,7 @@
 import MapboxGeocoder from '@mapbox/mapbox-gl-geocoder'
 import ReactJson from '@microlink/react-json-view'
 import * as Tooltip from '@radix-ui/react-tooltip'
-import { type ISheet, onChange, types, val } from '@theatre/core'
-import studio from '@theatre/studio'
+import type { ISheet } from '@theatre/core'
 import {
   BaseEdge,
   type EdgeProps,
@@ -28,25 +27,13 @@ import { InputText } from 'primereact/inputtext'
 import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Temporal } from 'temporal-polyfill'
-import { isHexColor } from 'validator'
 
-import { colorToRgba, hexToRgba, type Rgba, rgbaToHex } from '../../utils/color'
 import { SheetContext } from '../../utils/sheet-context'
 import {
   ArrayField,
-  BooleanField,
-  ColorField,
-  CompoundPropsField,
-  DateField,
   type Field,
+  type IField,
   ListField,
-  NumberField,
-  Point2DField,
-  Point3DField,
-  StringField,
-  StringLiteralField,
-  Vec2Field,
-  Vec3Field,
 } from '../fields'
 import s from '../noodles.module.css'
 import type { ExecutionState, IOperator, OperatorInstance, OpType } from '../operators'
@@ -252,116 +239,6 @@ export const TARGET_HANDLE = 'target'
 export const PAR_NAMESPACE = 'par'
 export const OUT_NAMESPACE = 'out'
 
-function colorToTheatreColor(color: [number, number, number, number] | string): Rgba {
-  const val =
-    typeof color === 'string' && isHexColor(color)
-      ? hexToRgba(color)
-      : Array.isArray(color)
-        ? colorToRgba(color)
-        : color
-  return val as Rgba
-}
-
-function fieldToTheatreProp(input: Field<IField>, fields: [string, Field<IField>][]) {
-  try {
-    if (input instanceof NumberField) {
-      return types.number(input.value, {
-        range: [input.min, input.max],
-        nudgeMultiplier: input.step,
-      })
-    }
-    if (input instanceof BooleanField) {
-      return types.boolean(input.value)
-    }
-    if (input instanceof StringField) {
-      return types.string(input.value)
-    }
-    if (input instanceof StringLiteralField) {
-      return types.stringLiteral(
-        input.value,
-        Object.fromEntries(input.choices.map(({ label, value }) => [label, value]))
-      )
-    }
-    if (input instanceof ColorField) {
-      return types.rgba(colorToTheatreColor(input.value))
-    }
-    if (input instanceof DateField) {
-      // Convert Temporal.PlainDateTime to epoch milliseconds for Theatre.js
-      const instant = input.value.toZonedDateTime('UTC').toInstant()
-      return types.number(instant.epochMilliseconds)
-    }
-    if (input instanceof CompoundPropsField) {
-      return types.compound(fieldsToTheatreProps({}, input.fields, fields))
-    }
-    if (input instanceof Vec2Field) {
-      return types.compound({
-        x: types.number('x' in input.value ? input.value.x : input.value[0]),
-        y: types.number('y' in input.value ? input.value.y : input.value[1]),
-      })
-    }
-    if (input instanceof Vec3Field) {
-      return types.compound({
-        x: types.number('x' in input.value ? input.value.x : input.value[0]),
-        y: types.number('y' in input.value ? input.value.y : input.value[1]),
-        z: types.number('z' in input.value ? input.value.z : input.value[2]),
-      })
-    }
-    if (input instanceof Point2DField) {
-      return types.compound({
-        lng: types.number('lng' in input.value ? input.value.lng : input.value[0]),
-        lat: types.number('lat' in input.value ? input.value.lat : input.value[1]),
-      })
-    }
-    if (input instanceof Point3DField) {
-      return types.compound({
-        lng: types.number('lng' in input.value ? input.value.lng : input.value[0]),
-        lat: types.number('lat' in input.value ? input.value.lat : input.value[1]),
-        alt: types.number('alt' in input.value ? input.value.alt : input.value[2]),
-      })
-    }
-  } catch (e) {
-    // When thrown, theatre will create a Sheet Object for this field, and this should subsequently be addressed.
-    const link = input.subscriptions.keys().next().value
-    console.error(`Caught TheatreJS prop error (${link})`, e)
-  }
-}
-function fieldsToTheatreProps(
-  propConfig: Record<string, types.PropTypeConfig>,
-  inputs: Record<string, Field<IField>>,
-  fields: Field<IField>[]
-) {
-  const theatreFields = Object.entries(inputs)
-    .map(([k, f]) => (f instanceof ListField ? [k, f.field] : [k, f]))
-    .filter(
-      ([_, f]) =>
-        // Accessor functions should not be passed to Theatre
-        typeof f.value !== 'function'
-    )
-    .filter(
-      ([_, f]) =>
-        f instanceof NumberField ||
-        f instanceof ColorField ||
-        f instanceof DateField ||
-        f instanceof BooleanField ||
-        f instanceof StringField ||
-        f instanceof StringLiteralField ||
-        f instanceof CompoundPropsField ||
-        f instanceof Vec2Field ||
-        f instanceof Vec3Field ||
-        f instanceof Point2DField ||
-        f instanceof Point3DField
-    )
-
-  for (const [key, field] of theatreFields) {
-    const theatreProp = fieldToTheatreProp(field, fields)
-    if (theatreProp) {
-      propConfig[key] = theatreProp
-      fields.push([key, field])
-    }
-  }
-  return propConfig
-}
-
 function useLocked(op: Operator<IOperator>) {
   const [locked, setLocked] = useState(op.locked.value)
   useEffect(() => {
@@ -509,102 +386,7 @@ function NodeComponent({
   selected,
 }: ReactFlowNodeProps<NodeDataJSON<Operator<IOperator>>> & { type: OpType }) {
   const op = useOp(id)
-
-  const sheet = useContext(SheetContext) as ISheet
-  const sheetObjects = useSlice(state => state.sheetObjects)
-
   const locked = useLocked(op)
-
-  useEffect(() => {
-    const untapFns = [] as (() => void)[]
-    const fields = [] as [string, Field<IField>][]
-    const propConfig = fieldsToTheatreProps({}, op.inputs, fields)
-
-    if (!Object.keys(propConfig).length) return
-
-    const basename = getBaseName(id)
-    const obj = sheet.object(basename, propConfig)
-    sheetObjects.set(id, obj)
-
-    for (const [_key, input] of fields) {
-      const pathToProps = input.pathToProps.slice(2) // Skip the object id and par/out keys
-      let updating = false
-      let pointer = obj.props
-      for (const p of pathToProps) {
-        pointer = pointer[p]
-      }
-      const unsub = input.subscribe(value_ => {
-        if (op.locked.value) return
-        // Note: Transactions can only run after the theatre project is "ready"
-        if (updating) return
-        updating = true
-
-        try {
-          // Try to detect an infinite loop for setting values to Theatre
-          const value = input instanceof ColorField ? colorToTheatreColor(value_) : value_
-
-          // TODO: This has a bug with StringLiterals where the value is not updated, but removing
-          // the value check causes another bug.
-
-          // Prevent infinite loop
-          if (input instanceof CompoundPropsField) {
-            updating = false
-            return
-          }
-
-          // Read the current value BEFORE entering the transaction
-          // Cannot use val() inside a transaction as it reads from a cold prism
-          const currentValue = val(pointer)
-
-          if (currentValue !== value) {
-            studio.transaction(({ set }) => {
-              set(pointer, value)
-            })
-          }
-        } catch (e) {
-          console.warn(e)
-          debugger
-        }
-        updating = false
-      })
-      untapFns.push(unsub.unsubscribe.bind(unsub))
-
-      // Parse Theatre values to Op input field types
-      const untapFn = onChange(pointer, value_ => {
-        if (op.locked.value) return
-        try {
-          if (updating) return
-          updating = true
-
-          const value =
-            input instanceof ColorField
-              ? rgbaToHex(value_)
-              : input instanceof DateField
-                ? Temporal.Instant.fromEpochMilliseconds(value_ as unknown as number)
-                    .toZonedDateTimeISO('UTC')
-                    .toPlainDateTime()
-                : value_
-
-          if (input.value !== value && value !== undefined) {
-            input.setValue(value)
-          }
-        } catch (_e) {
-          debugger
-        }
-        updating = false
-      })
-      untapFns.push(untapFn)
-    }
-
-    return () => {
-      for (const untapFn of untapFns) {
-        untapFn()
-      }
-      sheet?.detachObject(basename)
-      sheetObjects.delete(id)
-    }
-  }, [sheet, op.locked.value, id, op.inputs, sheetObjects])
-
   const executionState = useExecutionState(op)
 
   return (

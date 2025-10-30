@@ -1,6 +1,7 @@
 import { useReactFlow } from '@xyflow/react'
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 
+import { useProjectModifications } from '../hooks/use-project-modifications'
 import { useSlice } from '../store'
 import { edgeId, nodeId } from '../utils/id-utils'
 import { getBaseName } from '../utils/path-utils'
@@ -17,9 +18,17 @@ function copy(text: string) {
 
 export function CopyControls() {
   const ops = useSlice(state => state.ops)
-  const { toObject, addNodes, addEdges, screenToFlowPosition } = useReactFlow()
+  const { toObject, getNodes, getEdges, setNodes, setEdges, screenToFlowPosition } = useReactFlow()
   const { currentContainerId } = useSlice(state => state.nesting)
   const mousePositionRef = useRef({ x: 0, y: 0 })
+
+  // Use shared hook for project modifications to properly handle nodes + edges atomically
+  const { applyModifications } = useProjectModifications({
+    getNodes: useCallback(() => getNodes(), [getNodes]),
+    getEdges: useCallback(() => getEdges(), [getEdges]),
+    setNodes,
+    setEdges,
+  })
 
   useEffect(() => {
     const mouseMoveListener = (e: MouseEvent) => {
@@ -126,8 +135,20 @@ export function CopyControls() {
         node.position.y = flowPosition.y + (node.position.y - minY)
       }
 
-      addNodes(nodes)
-      addEdges(deconflictedEdges)
+      // Use applyModifications to add nodes and edges atomically
+      // This ensures nodes are in the array before edges are validated
+      const modifications = [
+        ...nodes.map(node => ({ type: 'add_node' as const, data: node })),
+        ...deconflictedEdges.map(edge => ({ type: 'add_edge' as const, data: edge })),
+      ]
+
+      const result = applyModifications(modifications)
+      if (!result.success) {
+        console.error('Failed to paste nodes:', result.error)
+      }
+      if (result.warnings) {
+        console.warn('Paste warnings:', result.warnings)
+      }
     }
     // TODO: use React Flow root element?
     window.addEventListener('copy', copyListener, false)
@@ -136,7 +157,7 @@ export function CopyControls() {
       window.removeEventListener('copy', copyListener, false)
       window.removeEventListener('paste', pasteListener, false)
     }
-  }, [toObject, addNodes, addEdges, ops, currentContainerId, screenToFlowPosition])
+  }, [toObject, applyModifications, ops, currentContainerId, screenToFlowPosition])
 
   return null
 }

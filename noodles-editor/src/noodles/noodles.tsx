@@ -64,7 +64,8 @@ import s from './noodles.module.css'
 import type { IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
 import { load } from './storage'
-import { hoveredOutputHandle, opMap, useSlice } from './store'
+import { hoveredOutputHandle, opMap, sheetObjectMap, useSlice } from './store'
+import { bindOperatorToTheatre, cleanupRemovedOperators } from './theatre-bindings'
 import { transformGraph } from './transform-graph'
 import { edgeId, nodeId } from './utils/id-utils'
 import { migrateProject } from './utils/migrate-schema'
@@ -124,10 +125,18 @@ function useTheatreJs(projectName?: string) {
 
   const setTheatreProject = useCallback(
     (theatreConfig: IProjectConfig, incomingProjectName?: string) => {
-      // Theatre stores too much state if you don't reset it
+      // Theatre stores too much state if you don't reset it properly.
+      // We need to detach special objects (editor, render) before forgetting the sheet.
+
+      // Detach the special Theatre objects that persist across the app
+      theatreSheet.detachObject('editor')
+      theatreSheet.detachObject('render')
+
+      // Then forget the sheet to clean up the Theatre.js UI
       studio.transaction((api) => {
         api.__experimental_forgetSheet(theatreSheet)
       })
+
       // Increment the project counter to keep the project name unique
       _projectCounterRef.current += 1
       const newProjectName = `${incomingProjectName || UNSAVED_PROJECT_NAME}-${_projectCounterRef.current}`
@@ -257,6 +266,37 @@ export function getNoodles(): Visualization {
     () => transformGraph({ nodes, edges }),
     [nodes, edges],
   )
+
+  // Bind Theatre.js objects for all operators (outside ReactFlow rendering pipeline)
+  // This ensures containers and all other operators can be keyframed in the timeline
+  useEffect(() => {
+    if (!theatreReady || !theatreSheet) return
+
+    // Track cleanup functions for newly bound operators
+    const newCleanupFns = new Map<string, () => void>()
+
+    // Only bind operators that aren't already bound
+    for (const op of operators) {
+      if (!sheetObjectMap.has(op.id)) {
+        const cleanup = bindOperatorToTheatre(op, theatreSheet)
+        if (cleanup) {
+          newCleanupFns.set(op.id, cleanup)
+        }
+      }
+    }
+
+    // Cleanup operators that are no longer in the graph
+    const currentOperatorIds = new Set(operators.map(op => op.id))
+    cleanupRemovedOperators(currentOperatorIds, theatreSheet)
+
+    // Return cleanup function only for newly bound operators
+    return () => {
+      for (const cleanup of newCleanupFns.values()) {
+        cleanup()
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [theatreReady, theatreSheet, operators])
 
   // Use shared hook for project modifications
   const { onConnect, onNodesDelete } = useProjectModifications({
@@ -593,11 +633,7 @@ export function getNoodles(): Visualization {
   }, [projectName])
 
   const displayedNodes = useMemo(() => {
-    // If no containerId, show all nodes
     // TODO: add support for for-loop begin/end nodes
-    // return nodes.filter(node =>
-    //   'containerId' in node ? node.containerId === currentContainerId : currentContainerId === null
-    // )
 
     return nodes.map((node) => ({
       ...node,
