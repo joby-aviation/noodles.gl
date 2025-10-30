@@ -3,6 +3,7 @@ import { useMemo } from 'react'
 import cx from 'classnames'
 import type { Field } from '../fields'
 import { ListField } from '../fields'
+import { getBaseName } from '../utils/path-utils'
 import s from './multi-input-handle.module.css'
 
 interface MultiInputHandleProps {
@@ -25,21 +26,19 @@ export function MultiInputHandle({ id, field, className, style }: MultiInputHand
   const isListField = field instanceof ListField
   const connectionCount = incomingEdges.length
 
-  // Generate tooltip showing connection order
-  const tooltip = useMemo(() => {
+  // Generate title showing connection order (just base names)
+  const title = useMemo(() => {
     if (!isListField || connectionCount === 0) return undefined
 
-    const header = `Input order (${connectionCount} connection${connectionCount > 1 ? 's' : ''}):\n`
     const connections = incomingEdges
       .map((edge, index) => {
-        const sourceNode = getNode(edge.source)
-        const sourceNodeName = (sourceNode?.data as any)?.label || edge.source
-        return `${index + 1}. ${sourceNodeName}`
+        const baseName = getBaseName(edge.source)
+        return `${index + 1}. ${baseName}`
       })
       .join('\n')
 
-    return header + connections
-  }, [isListField, connectionCount, incomingEdges, getNode])
+    return connections
+  }, [isListField, connectionCount, incomingEdges])
 
   // Calculate dynamic handle height based on connection count
   const handleHeight = useMemo(() => {
@@ -68,11 +67,11 @@ export function MultiInputHandle({ id, field, className, style }: MultiInputHand
 
   return (
     <div className={s.handleContainer}>
-      <Handle id={id} className={handleClassName} style={dynamicStyle} type="target" position={Position.Left} title={tooltip} />
+      <Handle id={id} className={handleClassName} style={dynamicStyle} type="target" position={Position.Left} title={title} />
 
       {/* Visual indicator for multiple connections */}
       {isListField && connectionCount > 1 && (
-        <div className={s.connectionCount} title={tooltip}>
+        <div className={s.connectionCount}>
           {connectionCount}
         </div>
       )}
