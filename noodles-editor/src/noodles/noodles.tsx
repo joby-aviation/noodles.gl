@@ -519,21 +519,30 @@ export function getNoodles(): Visualization {
   }, [])
 
   const displayedNodes = useMemo(() => {
-    // TODO: add support for for-loop begin/end nodes
+    const dragHandle = `.${s.header}`
+    const targetContainerId = currentContainerId || '/'
 
-    return nodes.map(node => ({
-      ...node,
-      hidden: getParentPath(node.id) !== currentContainerId,
-      dragHandle: `.${s.header}`,
-    }))
+    return nodes
+      .filter(node => (getParentPath(node.id) ?? '/') === targetContainerId)
+      .map(node => ({
+        ...node,
+        hidden: false,
+        dragHandle,
+      }))
   }, [currentContainerId, nodes])
 
+  const visibleNodeIds = useMemo(() => {
+    return new Set(displayedNodes.map(node => node.id))
+  }, [displayedNodes])
+
   const activeEdges = useMemo(() => {
-    return edges.map(edge => ({
-      ...edge,
-      sourceHandle: edge.type === 'ReferenceEdge' ? null : edge.sourceHandle,
-    }))
-  }, [edges])
+    return edges
+      .filter(edge => visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target))
+      .map(edge => ({
+        ...edge,
+        sourceHandle: edge.type === 'ReferenceEdge' ? null : edge.sourceHandle,
+      }))
+  }, [edges, visibleNodeIds])
 
   const flowGraph = theatreReady && (
     <ErrorBoundary>
