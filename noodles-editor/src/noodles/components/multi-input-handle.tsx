@@ -65,9 +65,36 @@ export function MultiInputHandle({ id, field, className, style }: MultiInputHand
     [s.multiInputHandle]: isListField && connectionCount > 1,
   })
 
+  // Calculate slot positions for distributing edges vertically
+  const slots = useMemo(() => {
+    if (!isListField || connectionCount === 0) return []
+
+    const slotHeight = 6
+    const slotGap = 1.5
+    const totalHeight = connectionCount * slotHeight + (connectionCount - 1) * slotGap
+
+    return incomingEdges.map((edge, index) => {
+      const yOffset = index * (slotHeight + slotGap) - totalHeight / 2
+      return {
+        edge,
+        index,
+        yOffset,
+      }
+    })
+  }, [isListField, connectionCount, incomingEdges])
+
   return (
     <div className={s.handleContainer}>
-      <Handle id={id} className={handleClassName} style={dynamicStyle} type="target" position={Position.Left} title={title} />
+      {/* Main handle for all connections */}
+      <Handle
+        id={id}
+        className={handleClassName}
+        style={dynamicStyle}
+        type="target"
+        position={Position.Left}
+        title={title}
+        isConnectable={true}
+      />
 
       {/* Visual indicator for multiple connections */}
       {isListField && connectionCount > 1 && (

@@ -135,25 +135,43 @@ export function generateQualifiedPath(baseName: string, containerId: string): st
 
 // Parse a handle ID into its components
 // Handle format: namespace.fieldName (e.g., "par.data", "out.result")
+// Or with slot index: namespace.fieldName[index] (e.g., "par.objects[0]")
 export function parseHandleId(handleId: string):
   | {
       namespace: 'par' | 'out'
       fieldName: string
+      slotIndex?: number
     }
   | undefined {
   if (!handleId) {
     return undefined
   }
 
-  // Parse namespace.fieldName format
+  // Parse namespace.fieldName[index] or namespace.fieldName format
   if (handleId.startsWith('par.') || handleId.startsWith('out.')) {
     const [namespace, ...fieldParts] = handleId.split('.')
-    const fieldName = fieldParts.join('.')
+    const fullFieldName = fieldParts.join('.')
 
-    if ((namespace === 'par' || namespace === 'out') && fieldName) {
+    // Check for slot index syntax: fieldName[index]
+    const slotMatch = fullFieldName.match(/^(.+?)\[(\d+)\]$/)
+    if (slotMatch) {
+      const fieldName = slotMatch[1]
+      const slotIndex = parseInt(slotMatch[2], 10)
+
+      if ((namespace === 'par' || namespace === 'out') && fieldName) {
+        return {
+          namespace,
+          fieldName,
+          slotIndex,
+        }
+      }
+    }
+
+    // Standard format without slot index
+    if ((namespace === 'par' || namespace === 'out') && fullFieldName) {
       return {
         namespace,
-        fieldName,
+        fieldName: fullFieldName,
       }
     }
   }
