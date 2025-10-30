@@ -1,9 +1,14 @@
 // MCPTools - Client-side tool implementations for Claude AI
 
+import { ContextLoader } from './context-loader'
+import type {
+  ToolResult,
+  SearchCodeParams,
+  SearchCodeResult,
+  ConsoleError
+} from './types'
 import { opMap } from '../noodles/store'
 import { safeStringify } from '../noodles/utils/serialization'
-import type { ContextLoader } from './context-loader'
-import type { ConsoleError, SearchCodeParams, SearchCodeResult, ToolResult } from './types'
 
 export class MCPTools {
   private consoleErrors: ConsoleError[] = []
@@ -19,45 +24,32 @@ export class MCPTools {
   }
 
   // Extract common operator properties to avoid duplication
-  private mapOperatorProperties(op: {
-    type: string
-    name: string
-    category: string
-    description: string
-  }) {
+  private mapOperatorProperties(op: { type: string; name: string; category: string; description: string }) {
     return {
       type: op.type,
       name: op.name,
       category: op.category,
-      description: op.description,
+      description: op.description
     }
   }
 
   // Extract common example properties to avoid duplication
-  private mapExampleProperties(ex: {
-    id: string
-    name: string
-    description: string
-    category: string
-    tags: string[]
-  }) {
+  private mapExampleProperties(ex: { id: string; name: string; description: string; category: string; tags: string[] }) {
     return {
       id: ex.id,
       name: ex.name,
       description: ex.description,
       category: ex.category,
-      tags: ex.tags,
+      tags: ex.tags
     }
   }
 
   // Check if context has been loaded successfully
   hasContext(): boolean {
-    return (
-      this.contextLoader.getCodeIndex() !== null ||
+    return this.contextLoader.getCodeIndex() !== null ||
       this.contextLoader.getOperatorRegistry() !== null ||
       this.contextLoader.getDocsIndex() !== null ||
       this.contextLoader.getExamples() !== null
-    )
   }
 
   // Get deck.gl canvas from global reference
@@ -91,7 +83,7 @@ export class MCPTools {
               file: filePath,
               line: idx + 1, // 1-indexed
               context: file.lines.slice(startLine, endLine + 1),
-              symbol: this.findSymbolAtLine(file, idx + 1),
+              symbol: this.findSymbolAtLine(file, idx + 1)
             })
           }
         })
@@ -99,12 +91,12 @@ export class MCPTools {
 
       return {
         success: true,
-        data: results,
+        data: results
       }
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: error instanceof Error ? error.message : 'Unknown error'
       }
     }
   }
@@ -136,13 +128,13 @@ export class MCPTools {
           startLine,
           endLine,
           lines: fileIndex.lines.slice(startLine - 1, endLine),
-          fullText: fileIndex.lines.slice(startLine - 1, endLine).join('\n'),
-        },
+          fullText: fileIndex.lines.slice(startLine - 1, endLine).join('\n')
+        }
       }
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: error instanceof Error ? error.message : 'Unknown error'
       }
     }
   }
@@ -159,7 +151,7 @@ export class MCPTools {
       if (!schema) {
         return {
           success: false,
-          error: `Operator type not found: ${params.type}`,
+          error: `Operator type not found: ${params.type}`
         }
       }
 
@@ -167,7 +159,7 @@ export class MCPTools {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: error instanceof Error ? error.message : 'Unknown error'
       }
     }
   }
@@ -188,12 +180,12 @@ export class MCPTools {
 
       return {
         success: true,
-        data: operators.map(op => this.mapOperatorProperties(op)),
+        data: operators.map(op => this.mapOperatorProperties(op))
       }
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: error instanceof Error ? error.message : 'Unknown error'
       }
     }
   }
@@ -215,17 +207,16 @@ export class MCPTools {
       const results = Object.values(docsIndex.topics)
         .filter(topic => {
           if (params.section && topic.section !== params.section) return false
-          return (
-            topic.title.toLowerCase().includes(query) || topic.content.toLowerCase().includes(query)
-          )
+          return topic.title.toLowerCase().includes(query) ||
+            topic.content.toLowerCase().includes(query)
         })
-        .slice(0, 5) // Limit results
+        .slice(0, 5); // Limit results
 
       return { success: true, data: results }
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: error instanceof Error ? error.message : 'Unknown error'
       }
     }
   }
@@ -247,7 +238,7 @@ export class MCPTools {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: error instanceof Error ? error.message : 'Unknown error'
       }
     }
   }
@@ -272,12 +263,12 @@ export class MCPTools {
 
       return {
         success: true,
-        data: results.map(ex => this.mapExampleProperties(ex)),
+        data: results.map(ex => this.mapExampleProperties(ex))
       }
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: error instanceof Error ? error.message : 'Unknown error'
       }
     }
   }
@@ -299,7 +290,7 @@ export class MCPTools {
           references.push({
             file: filePath,
             line: symbol.line,
-            context: file.lines.slice(symbol.line - 1, symbol.endLine).join('\n'),
+            context: file.lines.slice(symbol.line - 1, symbol.endLine).join('\n')
           })
         }
       }
@@ -312,13 +303,13 @@ export class MCPTools {
         success: true,
         data: {
           symbol: references[0],
-          references,
-        },
+          references
+        }
       }
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: error instanceof Error ? error.message : 'Unknown error'
       }
     }
   }
@@ -342,7 +333,7 @@ export class MCPTools {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: error instanceof Error ? error.message : 'Unknown error'
       }
     }
   }
@@ -350,7 +341,7 @@ export class MCPTools {
   // Visual debugging tools
 
   // Resize canvas to reduce token usage while maintaining aspect ratio
-  private resizeCanvas(sourceCanvas: HTMLCanvasElement, maxDimension = 1024): HTMLCanvasElement {
+  private resizeCanvas(sourceCanvas: HTMLCanvasElement, maxDimension: number = 1024): HTMLCanvasElement {
     const { width, height } = sourceCanvas
 
     // If already small enough, return original
@@ -401,7 +392,7 @@ export class MCPTools {
       if (!canvas) {
         return {
           success: false,
-          error: 'Canvas not available. Make sure deck.gl is initialized.',
+          error: 'Canvas not available. Make sure deck.gl is initialized.'
         }
       }
 
@@ -426,13 +417,13 @@ export class MCPTools {
           originalWidth: canvas.width,
           originalHeight: canvas.height,
           timestamp: Date.now(),
-          pixelRatio: window.devicePixelRatio,
-        },
+          pixelRatio: window.devicePixelRatio
+        }
       }
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Screenshot capture failed',
+        error: error instanceof Error ? error.message : 'Screenshot capture failed'
       }
     }
   }
@@ -444,7 +435,7 @@ export class MCPTools {
     maxResults?: number
   }): Promise<ToolResult> {
     try {
-      const since = params.since || Date.now() - 5 * 60 * 1000
+      const since = params.since || Date.now() - (5 * 60 * 1000)
       const level = params.level || 'all'
       const maxResults = params.maxResults || 50
 
@@ -462,13 +453,13 @@ export class MCPTools {
           errors: filtered.slice(0, maxResults),
           totalCount: filtered.length,
           since,
-          level,
-        },
+          level
+        }
       }
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to retrieve console errors',
+        error: error instanceof Error ? error.message : 'Failed to retrieve console errors'
       }
     }
   }
@@ -481,7 +472,7 @@ export class MCPTools {
       if (!stats) {
         return {
           success: false,
-          error: 'Deck.gl stats not available. Ensure onAfterRender is configured.',
+          error: 'Deck.gl stats not available. Ensure onAfterRender is configured.'
         }
       }
 
@@ -495,22 +486,20 @@ export class MCPTools {
             lastFrameTime: stats.lastFrameTime,
             layerCount: stats.layerCount,
             drawCalls: stats.drawCalls || 0,
-            timestamp: stats.timestamp,
+            timestamp: stats.timestamp
           },
-          memory: memory
-            ? {
-                usedJSHeapSize: memory.usedJSHeapSize,
-                totalJSHeapSize: memory.totalJSHeapSize,
-                jsHeapSizeLimit: memory.jsHeapSizeLimit,
-                usedPercent: Math.round((memory.usedJSHeapSize / memory.jsHeapSizeLimit) * 100),
-              }
-            : null,
-        },
+          memory: memory ? {
+            usedJSHeapSize: memory.usedJSHeapSize,
+            totalJSHeapSize: memory.totalJSHeapSize,
+            jsHeapSizeLimit: memory.jsHeapSizeLimit,
+            usedPercent: Math.round((memory.usedJSHeapSize / memory.jsHeapSizeLimit) * 100)
+          } : null
+        }
       }
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to retrieve render stats',
+        error: error instanceof Error ? error.message : 'Failed to retrieve render stats'
       }
     }
   }
@@ -523,7 +512,7 @@ export class MCPTools {
       if (!deckInstance) {
         return {
           success: false,
-          error: 'Deck.gl instance not available',
+          error: 'Deck.gl instance not available'
         }
       }
 
@@ -533,7 +522,7 @@ export class MCPTools {
       if (!layer) {
         return {
           success: false,
-          error: `Layer not found: ${params.layerId}`,
+          error: `Layer not found: ${params.layerId}`
         }
       }
 
@@ -543,17 +532,17 @@ export class MCPTools {
         visible: layer.props.visible,
         opacity: layer.props.opacity,
         pickable: layer.props.pickable,
-        dataLength: Array.isArray(layer.props.data) ? layer.props.data.length : 'unknown',
+        dataLength: Array.isArray(layer.props.data) ? layer.props.data.length : 'unknown'
       }
 
       return {
         success: true,
-        data: layerInfo,
+        data: layerInfo
       }
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to inspect layer',
+        error: error instanceof Error ? error.message : 'Failed to inspect layer'
       }
     }
   }
@@ -567,7 +556,7 @@ export class MCPTools {
       if (!Array.isArray(modifications) || modifications.length === 0) {
         return {
           success: false,
-          error: 'modifications must be a non-empty array',
+          error: 'modifications must be a non-empty array'
         }
       }
 
@@ -576,14 +565,14 @@ export class MCPTools {
         if (!mod.type || !mod.data) {
           return {
             success: false,
-            error: 'Each modification must have "type" and "data" fields',
+            error: 'Each modification must have "type" and "data" fields'
           }
         }
         const validTypes = ['add_node', 'update_node', 'delete_node', 'add_edge', 'delete_edge']
         if (!validTypes.includes(mod.type)) {
           return {
             success: false,
-            error: `Invalid modification type: ${mod.type}. Must be one of: ${validTypes.join(', ')}`,
+            error: `Invalid modification type: ${mod.type}. Must be one of: ${validTypes.join(', ')}`
           }
         }
       }
@@ -594,13 +583,13 @@ export class MCPTools {
         data: {
           modificationsCount: modifications.length,
           modifications,
-          message: `${modifications.length} modification(s) will be applied to the project`,
-        },
+          message: `${modifications.length} modification(s) will be applied to the project`
+        }
       }
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to validate modifications',
+        error: error instanceof Error ? error.message : 'Failed to validate modifications'
       }
     }
   }
@@ -611,7 +600,7 @@ export class MCPTools {
       if (!this.project) {
         return {
           success: false,
-          error: 'No project loaded',
+          error: 'No project loaded'
         }
       }
 
@@ -624,21 +613,21 @@ export class MCPTools {
             id: n.id,
             type: n.type,
             position: n.position,
-            inputs: n.data?.inputs || {},
+            inputs: n.data?.inputs || {}
           })),
           edges: (this.project.edges || []).map((e: any) => ({
             id: e.id,
             source: e.source,
             target: e.target,
             sourceHandle: e.sourceHandle,
-            targetHandle: e.targetHandle,
-          })),
-        },
+            targetHandle: e.targetHandle
+          }))
+        }
       }
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to get project state',
+        error: error instanceof Error ? error.message : 'Failed to get project state'
       }
     }
   }
@@ -651,7 +640,7 @@ export class MCPTools {
       if (!operator) {
         return {
           success: false,
-          error: `Operator not found: ${params.nodeId}. Make sure the node exists and has been executed.`,
+          error: `Operator not found: ${params.nodeId}. Make sure the node exists and has been executed.`
         }
       }
 
@@ -681,7 +670,7 @@ export class MCPTools {
           totalRows = data.features.length
           sample = {
             ...data,
-            features: data.features.slice(0, maxRows),
+            features: data.features.slice(0, maxRows)
           }
         }
 
@@ -689,14 +678,13 @@ export class MCPTools {
           success: true,
           data: {
             nodeId: params.nodeId,
-            operatorType:
-              (operator as any).constructor.displayName || (operator as any).constructor.name,
+            operatorType: (operator as any).constructor.displayName || (operator as any).constructor.name,
             outputs: Object.keys(outputs),
             dataSample: sample,
             totalRows,
             sampleRows: Math.min(maxRows, totalRows),
-            executionState: (operator as any).executionState?.value || null,
-          },
+            executionState: (operator as any).executionState?.value || null
+          }
         }
       }
 
@@ -705,17 +693,16 @@ export class MCPTools {
         success: true,
         data: {
           nodeId: params.nodeId,
-          operatorType:
-            (operator as any).constructor.displayName || (operator as any).constructor.name,
+          operatorType: (operator as any).constructor.displayName || (operator as any).constructor.name,
           outputs: Object.keys(outputs),
           outputData,
-          executionState: (operator as any).executionState?.value || null,
-        },
+          executionState: (operator as any).executionState?.value || null
+        }
       }
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to read operator output',
+        error: error instanceof Error ? error.message : 'Failed to read operator output'
       }
     }
   }
@@ -726,7 +713,7 @@ export class MCPTools {
       if (!this.project) {
         return {
           success: false,
-          error: 'No project loaded',
+          error: 'No project loaded'
         }
       }
 
@@ -740,14 +727,12 @@ export class MCPTools {
           position: node.position,
           inputs: node.data?.inputs || {},
           locked: node.data?.locked || false,
-          executionState: executionState
-            ? {
-                status: executionState.status,
-                lastExecuted: executionState.lastExecuted,
-                executionTime: executionState.executionTime,
-                error: executionState.error,
-              }
-            : null,
+          executionState: executionState ? {
+            status: executionState.status,
+            lastExecuted: executionState.lastExecuted,
+            executionTime: executionState.executionTime,
+            error: executionState.error
+          } : null
         }
       })
 
@@ -766,14 +751,18 @@ export class MCPTools {
           dataNodes: nodes.filter((n: any) =>
             ['FileOp', 'JSONOp', 'DuckDbOp', 'CSVOp'].includes(n.type)
           ),
-          layerNodes: nodes.filter((n: any) => n.type.includes('Layer')),
-          rendererNodes: nodes.filter((n: any) => ['DeckRendererOp', 'OutOp'].includes(n.type)),
-        },
+          layerNodes: nodes.filter((n: any) =>
+            n.type.includes('Layer')
+          ),
+          rendererNodes: nodes.filter((n: any) =>
+            ['DeckRendererOp', 'OutOp'].includes(n.type)
+          )
+        }
       }
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to list nodes',
+        error: error instanceof Error ? error.message : 'Failed to list nodes'
       }
     }
   }
@@ -784,7 +773,7 @@ export class MCPTools {
       if (!this.project) {
         return {
           success: false,
-          error: 'No project loaded',
+          error: 'No project loaded'
         }
       }
 
@@ -792,12 +781,12 @@ export class MCPTools {
       if (!node) {
         return {
           success: false,
-          error: `Node not found: ${params.nodeId}`,
+          error: `Node not found: ${params.nodeId}`
         }
       }
 
       const operator = opMap.get(params.nodeId)
-      const edges = this.project.edges || []
+      const edges = (this.project.edges || [])
 
       // Find incoming and outgoing edges
       const incomingEdges = edges.filter((e: any) => e.target === params.nodeId)
@@ -818,40 +807,36 @@ export class MCPTools {
           position: node.position,
           inputs: node.data?.inputs || {},
           locked: node.data?.locked || false,
-          executionState: executionState
-            ? {
-                status: executionState.status,
-                lastExecuted: executionState.lastExecuted,
-                executionTime: executionState.executionTime,
-                error: executionState.error,
-              }
-            : null,
+          executionState: executionState ? {
+            status: executionState.status,
+            lastExecuted: executionState.lastExecuted,
+            executionTime: executionState.executionTime,
+            error: executionState.error
+          } : null,
           connections: {
             incoming: incomingEdges.map((e: any) => ({
               from: e.source,
               sourceHandle: e.sourceHandle,
-              targetHandle: e.targetHandle,
+              targetHandle: e.targetHandle
             })),
             outgoing: outgoingEdges.map((e: any) => ({
               to: e.target,
               sourceHandle: e.sourceHandle,
-              targetHandle: e.targetHandle,
-            })),
+              targetHandle: e.targetHandle
+            }))
           },
-          schema: schema
-            ? {
-                description: schema.description,
-                category: schema.category,
-                inputs: schema.inputs,
-                outputs: schema.outputs,
-              }
-            : null,
-        },
+          schema: schema ? {
+            description: schema.description,
+            category: schema.category,
+            inputs: schema.inputs,
+            outputs: schema.outputs
+          } : null
+        }
       }
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to get node info',
+        error: error instanceof Error ? error.message : 'Failed to get node info'
       }
     }
   }
@@ -866,18 +851,19 @@ export class MCPTools {
       return { success: false, error: 'Registry not loaded' }
     }
 
-    const connectedNodes = new Set<string>()(project.edges || [])
-      .forEach((edge: any) => {
+    const connectedNodes = new Set<string>()
+      (project.edges || []).forEach((edge: any) => {
         connectedNodes.add(edge.source)
         connectedNodes.add(edge.target)
-      })(project.nodes || [])
-      .forEach((node: any) => {
+      })
+
+      (project.nodes || []).forEach((node: any) => {
         if (!connectedNodes.has(node.id) && node.type !== 'OutOp') {
           issues.push({
             type: 'disconnected',
             severity: 'warning',
             nodeId: node.id,
-            message: `Node ${node.id} is not connected to the graph`,
+            message: `Node ${node.id} is not connected to the graph`
           })
         }
 
@@ -887,7 +873,7 @@ export class MCPTools {
             type: 'unknown-operator',
             severity: 'error',
             nodeId: node.id,
-            message: `Unknown operator type: ${node.type}`,
+            message: `Unknown operator type: ${node.type}`
           })
         }
       })
@@ -906,7 +892,7 @@ export class MCPTools {
       suggestions.push({
         type: 'performance',
         severity: 'info',
-        message: `Found ${dataOps.length} data operations. Consider consolidating with DuckDbOp.`,
+        message: `Found ${dataOps.length} data operations. Consider consolidating with DuckDbOp.`
       })
     }
 
@@ -914,7 +900,9 @@ export class MCPTools {
   }
 
   private findSymbolAtLine(file: any, line: number): string | undefined {
-    return file.symbols.find((s: any) => s.line <= line && s.endLine >= line)?.name
+    return file.symbols.find(
+      (s: any) => s.line <= line && s.endLine >= line
+    )?.name
   }
 
   private setupConsoleTracking() {
@@ -922,20 +910,18 @@ export class MCPTools {
     console.error = (...args: any[]) => {
       this.consoleErrors.push({
         level: 'error',
-        message: args
-          .map(arg => {
-            if (typeof arg === 'object' && arg !== null) {
-              try {
-                return safeStringify(arg)
-              } catch {
-                return '[Object]'
-              }
+        message: args.map(arg => {
+          if (typeof arg === 'object' && arg !== null) {
+            try {
+              return safeStringify(arg)
+            } catch {
+              return '[Object]'
             }
-            return String(arg)
-          })
-          .join(' '),
+          }
+          return String(arg)
+        }).join(' '),
         stack: new Error().stack,
-        timestamp: Date.now(),
+        timestamp: Date.now()
       })
 
       if (this.consoleErrors.length > 100) {
@@ -949,20 +935,18 @@ export class MCPTools {
     console.warn = (...args: any[]) => {
       this.consoleErrors.push({
         level: 'warn',
-        message: args
-          .map(arg => {
-            if (typeof arg === 'object' && arg !== null) {
-              try {
-                return safeStringify(arg)
-              } catch {
-                return '[Object]'
-              }
+        message: args.map(arg => {
+          if (typeof arg === 'object' && arg !== null) {
+            try {
+              return safeStringify(arg)
+            } catch {
+              return '[Object]'
             }
-            return String(arg)
-          })
-          .join(' '),
+          }
+          return String(arg)
+        }).join(' '),
         stack: new Error().stack,
-        timestamp: Date.now(),
+        timestamp: Date.now()
       })
 
       if (this.consoleErrors.length > 100) {
@@ -972,7 +956,7 @@ export class MCPTools {
       originalWarn.apply(console, args)
     }
 
-    window.addEventListener('error', event => {
+    window.addEventListener('error', (event) => {
       this.consoleErrors.push({
         level: 'error',
         message: event.message,
@@ -980,16 +964,16 @@ export class MCPTools {
         lineno: event.lineno,
         colno: event.colno,
         stack: event.error?.stack,
-        timestamp: Date.now(),
+        timestamp: Date.now()
       })
     })
 
-    window.addEventListener('unhandledrejection', event => {
+    window.addEventListener('unhandledrejection', (event) => {
       this.consoleErrors.push({
         level: 'error',
         message: `Unhandled Promise Rejection: ${event.reason}`,
         stack: event.reason?.stack,
-        timestamp: Date.now(),
+        timestamp: Date.now()
       })
     })
   }

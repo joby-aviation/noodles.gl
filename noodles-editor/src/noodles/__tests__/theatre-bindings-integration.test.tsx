@@ -1,9 +1,10 @@
 import { getProject } from '@theatre/core'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import type { Edge } from '../noodles'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+
 import { opMap, sheetObjectMap } from '../store'
-import { bindAllOperatorsToTheatre, cleanupRemovedOperators } from '../theatre-bindings'
 import { transformGraph } from '../transform-graph'
+import { bindAllOperatorsToTheatre, cleanupRemovedOperators } from '../theatre-bindings'
+import type { Edge } from '../noodles'
 
 describe('Theatre bindings integration', () => {
   let testProject: ReturnType<typeof getProject>
@@ -138,7 +139,9 @@ describe('Theatre bindings integration', () => {
     cleanupRemovedOperators(currentIds, testSheet)
 
     // Should have more bound operators now
-    const newBoundCount = Array.from(sheetObjectMap.keys()).filter(id => id !== '/out').length
+    const newBoundCount = Array.from(sheetObjectMap.keys()).filter(
+      id => id !== '/out'
+    ).length
     expect(newBoundCount).toBeGreaterThanOrEqual(initialBoundCount)
 
     // Final cleanup
@@ -160,7 +163,7 @@ describe('Theatre bindings integration', () => {
         type: 'NumberOp',
         position: { x: 200, y: 0 },
         data: { inputs: { value: 7 } },
-      },
+      }
     ]
 
     const edges: Edge<any, any>[] = []
