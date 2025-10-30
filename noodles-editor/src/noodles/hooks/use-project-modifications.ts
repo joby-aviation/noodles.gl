@@ -18,7 +18,7 @@ import { analytics } from '../../utils/analytics'
 import { debugUI } from '../../utils/debug'
 import { type Field, ListField } from '../fields'
 import type { IOperator, Operator } from '../operators'
-import { deleteOp, getAllOps, getOp, setOp } from '../store'
+import { deleteOp, getAllOps, getOp, pendingInsertionIndex, setOp } from '../store'
 import { canConnect, validateConnection } from '../utils/can-connect'
 import { edgeId } from '../utils/id-utils'
 import { generateQualifiedPath, parseHandleId } from '../utils/path-utils'
@@ -91,7 +91,46 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       }
       if (edgesToDelete && edgesToDelete.length > 0) {
         const edgeIds = new Set(edgesToDelete.map(e => e.id))
-        setEdges(currentEdges => currentEdges.filter(e => !edgeIds.has(e.id)))
+        setEdges(currentEdges => {
+          const remaining = currentEdges.filter(e => !edgeIds.has(e.id))
+
+          // Reindex MultiInputEdge connections
+          const groupedByHandle = new Map<string, ReactFlowEdge[]>()
+          remaining.forEach(edge => {
+            if (edge.type === 'MultiInputEdge') {
+              const key = `${edge.target}-${edge.targetHandle}`
+              if (!groupedByHandle.has(key)) {
+                groupedByHandle.set(key, [])
+              }
+              groupedByHandle.get(key)!.push(edge)
+            }
+          })
+
+          // Sort each group by old order index (do this once before mapping)
+          const sortedGroups = new Map<string, ReactFlowEdge[]>()
+          for (const [key, group] of groupedByHandle.entries()) {
+            const sorted = [...group].sort((a, b) => {
+              const aIndex = (a.data as { orderIndex?: number })?.orderIndex ?? 0
+              const bIndex = (b.data as { orderIndex?: number })?.orderIndex ?? 0
+              return aIndex - bIndex
+            })
+            sortedGroups.set(key, sorted)
+          }
+
+          // Reindex each group
+          return remaining.map(edge => {
+            if (edge.type === 'MultiInputEdge') {
+              const key = `${edge.target}-${edge.targetHandle}`
+              const group = sortedGroups.get(key)!
+              const newIndex = group.findIndex(e => e.id === edge.id)
+              return {
+                ...edge,
+                data: { ...edge.data, orderIndex: newIndex },
+              }
+            }
+            return edge
+          })
+        })
         analytics.track('edge_deleted', { count: edgesToDelete.length })
       }
     },
@@ -701,7 +740,25 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       if (connection.source === connection.target) return
 
       const nodes = getNodes()
+      const edges = getEdges()
 
+      // Calculate order index for ListField inputs
+      const existingEdgesForHandle = edges.filter(
+        e => e.target === connection.target && e.targetHandle === connection.targetHandle
+      )
+
+      // Check if we have a pending insertion index from MultiInputHandle
+      let orderIndex = existingEdgesForHandle.length
+      const hasPendingInsertion =
+        pendingInsertionIndex &&
+        pendingInsertionIndex.nodeId === connection.target &&
+        pendingInsertionIndex.handleId === connection.targetHandle
+
+      if (hasPendingInsertion) {
+        orderIndex = pendingInsertionIndex.index
+      }
+
+      // Will set edge type after we know if target is ListField
       const newEdge: ReactFlowEdge = {
         ...connection,
         id: edgeId(connection),
@@ -709,6 +766,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         target: connection.target!,
         sourceHandle: connection.sourceHandle || null,
         targetHandle: connection.targetHandle || null,
+        data: { orderIndex },
       }
 
       const source = nodes.find(n => n.id === connection.source)
@@ -755,21 +813,65 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       // but track the error on the target operator
       const validation = validateConnection(sourceField, targetField)
 
-      // Update edges - replace existing if target is not a ListField
+      // Set edge type for ListField multi-input edges
       let finalEdgeId = newEdge.id
-      setEdges(eds => {
-        const existing = eds.find(
-          e => e.target === newEdge.target && e.targetHandle === newEdge.targetHandle
-        )
-        if (existing && !(targetField instanceof ListField)) {
-          // Clear any previous error for the replaced edge
-          targetOp.removeConnectionError(existing.id)
-          // reconnectEdge preserves the old edge ID
-          finalEdgeId = existing.id
-          return reconnectEdge(existing, newEdge, eds as ReactFlowEdge[])
+      if (targetField instanceof ListField) {
+        newEdge.type = 'MultiInputEdge'
+
+        // If inserting in the middle, update order indices of existing edges
+        if (hasPendingInsertion && orderIndex < existingEdgesForHandle.length) {
+          setEdges(eds => {
+            // Update existing edges to make room for the new edge
+            // Also ensure all edges to this handle have MultiInputEdge type
+            const updatedEdges = eds.map(e => {
+              if (e.target === newEdge.target && e.targetHandle === newEdge.targetHandle) {
+                const currentOrderIndex = (e.data as { orderIndex?: number })?.orderIndex ?? 0
+                return {
+                  ...e,
+                  type: 'MultiInputEdge',
+                  data: {
+                    ...e.data,
+                    orderIndex: currentOrderIndex >= orderIndex ? currentOrderIndex + 1 : currentOrderIndex,
+                  },
+                }
+              }
+              return e
+            })
+            // Add the new edge
+            return reactFlowAddEdge(newEdge, updatedEdges as ReactFlowEdge[])
+          })
+        } else {
+          // Append to end - also ensure all edges to this handle have MultiInputEdge type
+          setEdges(eds => {
+            const updatedEdges = eds.map(e => {
+              if (e.target === newEdge.target && e.targetHandle === newEdge.targetHandle && e.type !== 'MultiInputEdge') {
+                return {
+                  ...e,
+                  type: 'MultiInputEdge',
+                  data: { ...e.data, orderIndex: (e.data as { orderIndex?: number })?.orderIndex ?? 0 },
+                }
+              }
+              return e
+            })
+            return reactFlowAddEdge(newEdge, updatedEdges as ReactFlowEdge[])
+          })
         }
-        return reactFlowAddEdge(newEdge, eds as ReactFlowEdge[])
-      })
+      } else {
+        // Update edges - replace existing if target is not a ListField
+        setEdges(eds => {
+          const existing = eds.find(
+            e => e.target === newEdge.target && e.targetHandle === newEdge.targetHandle
+          )
+          if (existing) {
+            // Clear any previous error for the replaced edge
+            targetOp.removeConnectionError(existing.id)
+            // reconnectEdge preserves the old edge ID
+            finalEdgeId = existing.id
+            return reconnectEdge(existing, newEdge, eds as ReactFlowEdge[])
+          }
+          return reactFlowAddEdge(newEdge, eds as ReactFlowEdge[])
+        })
+      }
 
       // Track connection error if validation failed, or clear error if valid
       // Use finalEdgeId which matches the actual edge ID in the store
@@ -783,10 +885,18 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       // Update target node with new input value
       setNodes(nds => {
         const updated = [...nds]
-        const value =
-          targetField instanceof ListField
-            ? Array.from(targetField.fields.values()).map(f => f.value)
-            : sourceField.value
+        let value
+        if (targetField instanceof ListField) {
+          // Safely get values from ListField
+          try {
+            value = Array.from(targetField.fields.values()).map(f => f?.value ?? null)
+          } catch (error) {
+            console.warn('Error reading ListField values:', error)
+            value = []
+          }
+        } else {
+          value = sourceField.value
+        }
 
         const targetData = target.data as Record<string, unknown> | undefined
         updated[targetIndex] = {

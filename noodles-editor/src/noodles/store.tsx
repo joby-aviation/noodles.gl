@@ -37,6 +37,12 @@ interface OperatorStoreState {
   batch: (fn: () => void) => void
 }
 
+// Track insertion index for multi-input handle reordering
+export let pendingInsertionIndex: { nodeId: string; handleId: string; index: number } | null = null
+export const setPendingInsertionIndex = (info: { nodeId: string; handleId: string; index: number } | null) => {
+  pendingInsertionIndex = info
+}
+
 export const useOperatorStore = create<OperatorStoreState>((set, get) => ({
   operators: new Map(),
   sheetObjects: new Map(),

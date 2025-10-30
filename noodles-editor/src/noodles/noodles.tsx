@@ -368,6 +368,58 @@ export function getNoodles(): Visualization {
     }
   }, [operators])
 
+  // Migrate existing edges to MultiInputEdge type for ListField inputs
+  useEffect(() => {
+    const needsMigration = edges.some(edge => {
+      const targetOp = opMap.get(edge.target)
+      if (!targetOp) return false
+      const { parseHandleId } = require('./utils/path-utils')
+      const handleInfo = parseHandleId(edge.targetHandle || '')
+      if (!handleInfo) return false
+      const targetField = targetOp.inputs[handleInfo.fieldName]
+      const { ListField } = require('./fields')
+      return targetField instanceof ListField && edge.type !== 'MultiInputEdge'
+    })
+
+    if (needsMigration) {
+      setEdges(eds => {
+        // Group edges by handle to assign order indices
+        const groupedByHandle = new Map<string, typeof eds>()
+        eds.forEach(edge => {
+          const targetOp = opMap.get(edge.target)
+          if (!targetOp) return
+          const { parseHandleId } = require('./utils/path-utils')
+          const handleInfo = parseHandleId(edge.targetHandle || '')
+          if (!handleInfo) return
+          const targetField = targetOp.inputs[handleInfo.fieldName]
+          const { ListField } = require('./fields')
+
+          if (targetField instanceof ListField) {
+            const key = `${edge.target}-${edge.targetHandle}`
+            if (!groupedByHandle.has(key)) {
+              groupedByHandle.set(key, [])
+            }
+            groupedByHandle.get(key)!.push(edge)
+          }
+        })
+
+        return eds.map(edge => {
+          const key = `${edge.target}-${edge.targetHandle}`
+          const group = groupedByHandle.get(key)
+          if (group) {
+            const orderIndex = group.findIndex(e => e.id === edge.id)
+            return {
+              ...edge,
+              type: 'MultiInputEdge',
+              data: { ...edge.data, orderIndex },
+            }
+          }
+          return edge
+        })
+      })
+    }
+  }, [edges, setEdges])
+
   // Use shared hook for project modifications
   const {
     onConnect: onConnectBase,

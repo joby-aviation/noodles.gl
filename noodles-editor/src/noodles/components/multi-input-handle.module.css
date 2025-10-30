@@ -46,3 +46,16 @@
 .handleContainer:hover .connectionCount {
   opacity: 1;
 }
+
+.insertionIndicator {
+  position: absolute;
+  left: -4px;
+  right: -4px;
+  height: 2px;
+  background: var(--accent-color, #3b82f6);
+  border-radius: 1px;
+  box-shadow: 0 0 4px rgba(59, 130, 246, 0.5);
+  pointer-events: none;
+  z-index: 100;
+  transform: translateY(-1px);
+}

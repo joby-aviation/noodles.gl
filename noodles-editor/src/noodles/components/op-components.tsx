@@ -213,6 +213,7 @@ export const nodeComponents = {
 export const edgeComponents = {
   default: DefaultEdgeComponent,
   ReferenceEdge: ReferenceEdgeComponent,
+  MultiInputEdge: MultiInputEdgeComponent,
 } as const as ReactFlowEdgeTypes
 
 function DefaultEdgeComponent({
@@ -272,6 +273,37 @@ function ReferenceEdgeComponent({
   return (
     <BaseEdge path={edgePath} markerEnd={markerEnd} className={s.referenceEdge} style={style} />
   )
+}
+
+function MultiInputEdgeComponent({
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  style = {},
+  markerEnd,
+  data,
+}: EdgeProps) {
+  // Calculate y-offset based on order index
+  const SLOT_HEIGHT = 6
+  const SLOT_GAP = 1.5
+  const SLOT_SPACING = SLOT_HEIGHT + SLOT_GAP
+
+  const orderIndex = (data as { orderIndex?: number })?.orderIndex ?? 0
+  const yOffset = orderIndex * SLOT_SPACING
+
+  const [edgePath] = getBezierPath({
+    sourceX,
+    sourceY,
+    targetX,
+    targetY: targetY + yOffset,
+    sourcePosition: sourcePosition || Position.Right,
+    targetPosition: targetPosition || Position.Left,
+  })
+
+  return <BaseEdge path={edgePath} markerEnd={markerEnd} style={style} />
 }
 
 export const resizeableNodes = [
