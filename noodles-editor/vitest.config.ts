@@ -9,7 +9,8 @@ export default defineConfig({
       provider: playwright(),
       enabled: true,
       headless: true,
-      screenshotFailures: false,
+      screenshotFailures: true,
+      trace: 'on-first-retry', // Enable traces for failed tests
       instances: [
         { browser: 'chromium' },
       ],

@@ -4,21 +4,21 @@ import { afterAll, afterEach, expect, vi } from 'vitest'
 
 expect.extend(matchers)
 
-vi.useFakeTimers({
-  now: new Date('2025-02-01T00:00:00Z'),
-})
+// Check if we're in browser mode - browser tests don't support vi.mock well
+const isBrowserTest = import.meta.env.VITEST_BROWSER !== undefined
 
-// Fields depends on a global Date object, so we need to mock
-// it, but imports are tricky so we need to use vi.mock to ensure
-// the import runs after the fake timers are set up.
-vi.mock(import('./noodles/fields'), async importOriginal => {
-  return await importOriginal()
-})
+// Only set up mocks and fake timers for non-browser tests
+// Note: vi.mock is hoisted and causes issues in browser mode, so we skip it entirely
+if (!isBrowserTest) {
+  vi.useFakeTimers({
+    now: new Date('2025-02-01T00:00:00Z'),
+  })
 
-afterEach(() => {
-  vi.restoreAllMocks()
-})
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
 
-afterAll(async () => {
-  vi.useRealTimers()
-})
+  afterAll(async () => {
+    vi.useRealTimers()
+  })
+}
