@@ -44,6 +44,6 @@ jobs:
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./noodles-editor/dist/context
+          publish_dir: ./noodles-editor/public/app/context
           destination_dir: app/context
           keep_files: true
