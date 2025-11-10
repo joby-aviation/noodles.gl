@@ -11,7 +11,7 @@
 .claude
 
 # AI Chat context (generated)
-/public/app
+/public/context
 
 # testing
 /coverage
@@ -19,7 +19,6 @@
 # production
 /build
 /dist
-/public/app/context
 
 # misc
 .DS_Store
