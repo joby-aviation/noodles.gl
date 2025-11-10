@@ -63,9 +63,7 @@ jobs:
         working-directory: ./noodles-editor
 
       - name: Generate AI context bundles
-        run: |
-          mkdir -p public/app/context
-          yarn generate:context
+        run: yarn generate:context
         working-directory: ./noodles-editor
 
       - name: Build app
