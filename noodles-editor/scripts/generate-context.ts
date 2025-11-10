@@ -24,7 +24,7 @@ const SRC_DIR = path.join(process.cwd(), 'src')
 const DOCS_DIR = path.join(ROOT_DIR, 'docs')
 const AI_CHAT_DIR = path.join(SRC_DIR, 'ai-chat')
 const EXAMPLES_DIR = path.join(process.cwd(), 'public', 'noodles')
-const OUTPUT_DIR = path.join(process.cwd(), 'public', 'app', 'context')
+const OUTPUT_DIR = path.join(process.cwd(), 'public', 'context')
 
 const packageJson = JSON.parse(
   fs.readFileSync(path.join(ROOT_DIR, 'package.json'), 'utf-8')
