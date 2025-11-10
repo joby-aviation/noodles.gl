@@ -1313,6 +1313,254 @@ const response = await fetch('/api/ai/chat', {
 5. **OpenAI provider**: Validate API key with test API call
 6. **All providers**: If historyLength > 20, show warning about memory usage
 
+### Model Download from Settings
+
+**Purpose:** Allow users to download the local LLM model directly from the settings window, with the ability to continue the download in the background if they close the settings.
+
+**UI Implementation:**
+
+When the user selects the Local provider in settings:
+
+1. **Check model status** - Is the model already downloaded?
+2. **Show download button** - If not downloaded, show "Download Model" button
+3. **Display model info** - Show model size (~2.3 GB) and estimated download time
+
+**Settings UI with Download Option:**
+
+```text
+┌─────────────────────────────────────────────┐
+│  AI Assistant Settings                   ✕  │
+├─────────────────────────────────────────────┤
+│                                             │
+│  Model Provider                             │
+│  ● Local                                    │
+│  ○ Remote                                   │
+│                                             │
+│  Local Model                                │
+│  [Phi-3 Mini (Recommended)    ▼]            │
+│                                             │
+│  Model Status: Not Downloaded               │
+│  Size: 2.3 GB                               │
+│                                             │
+│  [Download Model]                           │
+│                                             │
+│  ─────────────────────────────────────────  │
+│                                             │
+│  [Cancel]                    [Save Changes] │
+└─────────────────────────────────────────────┘
+```
+
+**During Download:**
+
+```text
+┌─────────────────────────────────────────────┐
+│  AI Assistant Settings                   ✕  │
+├─────────────────────────────────────────────┤
+│                                             │
+│  Model Provider                             │
+│  ● Local                                    │
+│  ○ Remote                                   │
+│                                             │
+│  Local Model                                │
+│  [Phi-3 Mini (Recommended)    ▼]            │
+│                                             │
+│  Downloading model...                       │
+│  ███████████░░░░░░░░░░  45% (1.04 / 2.3 GB) │
+│  Estimated 2 minutes remaining              │
+│                                             │
+│  [Cancel Download]                          │
+│                                             │
+│  ─────────────────────────────────────────  │
+│                                             │
+│  Download will continue in background       │
+│  if you close this window                   │
+│                                             │
+│  [Cancel]                    [Save Changes] │
+└─────────────────────────────────────────────┘
+```
+
+**After Download Complete:**
+
+```text
+┌─────────────────────────────────────────────┐
+│  AI Assistant Settings                   ✕  │
+├─────────────────────────────────────────────┤
+│                                             │
+│  Model Provider                             │
+│  ● Local                                    │
+│  ○ Remote                                   │
+│                                             │
+│  Local Model                                │
+│  [Phi-3 Mini (Recommended)    ▼]            │
+│                                             │
+│  Model Status: ✓ Downloaded                 │
+│  Size: 2.3 GB                               │
+│                                             │
+│  [Delete Model]  [Re-download]              │
+│                                             │
+│  ──────────────────────────────────────────  │
+│                                             │
+│  [Cancel]                    [Save Changes] │
+└─────────────────────────────────────────────┘
+```
+
+**Background Download Behavior:**
+
+1. **User closes settings** - Download continues in background
+2. **Progress notification** - Small notification badge appears on settings icon showing download progress
+3. **Download complete** - Notification updates to show completion
+4. **Re-open settings** - Shows completed status
+
+**Implementation Details:**
+
+```typescript
+// model-download-manager.ts
+export class ModelDownloadManager {
+  private downloadProgress = new Subject<DownloadProgress>()
+  private activeDownload: AbortController | null = null
+
+  async startDownload(modelUrl: string): Promise<void> {
+    this.activeDownload = new AbortController()
+
+    const response = await fetch(modelUrl, {
+      signal: this.activeDownload.signal
+    })
+
+    const contentLength = response.headers.get('content-length')
+    const total = contentLength ? parseInt(contentLength, 10) : 0
+
+    let loaded = 0
+    const reader = response.body!.getReader()
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      loaded += value.length
+
+      // Emit progress
+      this.downloadProgress.next({
+        loaded,
+        total,
+        percentage: (loaded / total) * 100,
+        estimatedTimeRemaining: this.calculateETA(loaded, total)
+      })
+
+      // Store chunk in IndexedDB
+      await this.storeChunk(value)
+    }
+
+    // Finalize model
+    await this.finalizeModel()
+  }
+
+  cancelDownload(): void {
+    this.activeDownload?.abort()
+    this.activeDownload = null
+  }
+
+  getProgress(): Observable<DownloadProgress> {
+    return this.downloadProgress.asObservable()
+  }
+
+  private calculateETA(loaded: number, total: number): number {
+    // Calculate based on download speed
+    // Returns seconds remaining
+  }
+}
+```
+
+**Settings Component Integration:**
+
+```typescript
+// settings-modal.tsx
+export function SettingsModal() {
+  const [downloadStatus, setDownloadStatus] = useState<'idle' | 'downloading' | 'complete'>('idle')
+  const [downloadProgress, setDownloadProgress] = useState(0)
+  const downloadManager = useRef(new ModelDownloadManager())
+
+  useEffect(() => {
+    // Subscribe to download progress even if modal is closed
+    const subscription = downloadManager.current.getProgress().subscribe(progress => {
+      setDownloadProgress(progress.percentage)
+      if (progress.percentage === 100) {
+        setDownloadStatus('complete')
+      }
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+  const handleStartDownload = async () => {
+    setDownloadStatus('downloading')
+    try {
+      await downloadManager.current.startDownload(modelUrl)
+    } catch (err) {
+      console.error('Download failed:', err)
+      setDownloadStatus('idle')
+    }
+  }
+
+  const handleCancelDownload = () => {
+    downloadManager.current.cancelDownload()
+    setDownloadStatus('idle')
+  }
+
+  return (
+    <Modal onClose={() => {
+      // Download continues in background when modal closes
+    }}>
+      {/* Settings UI with download progress */}
+    </Modal>
+  )
+}
+```
+
+**Progress Notification Badge:**
+
+When settings modal is closed but download is active:
+
+```typescript
+// chat-panel.tsx
+export function ChatPanel() {
+  const downloadProgress = useDownloadProgress()
+
+  return (
+    <div>
+      <button onClick={openSettings} aria-label="Settings">
+        <GearIcon />
+        {downloadProgress && downloadProgress < 100 && (
+          <Badge>
+            <CircularProgress value={downloadProgress} size="small" />
+            {Math.round(downloadProgress)}%
+          </Badge>
+        )}
+        {downloadProgress === 100 && (
+          <Badge>
+            <CheckIcon />
+          </Badge>
+        )}
+      </button>
+    </div>
+  )
+}
+```
+
+**Key Features:**
+
+1. **Non-blocking** - Settings can be closed while download continues
+2. **Resumable** - Download state persisted to IndexedDB, can resume if interrupted
+3. **Progress visibility** - Badge on settings icon shows download status
+4. **User control** - Can cancel or re-download at any time
+5. **Storage management** - Option to delete model to free up disk space
+
+**Error Handling:**
+
+- **Network failure** - Show retry button, optionally resume from last chunk
+- **Insufficient space** - Check available storage before starting, warn user
+- **Corrupted download** - Validate model integrity, offer re-download
+- **Browser closed** - Download state saved, resume on next app open
+
 ---
 
 ## First-Time User Experience
