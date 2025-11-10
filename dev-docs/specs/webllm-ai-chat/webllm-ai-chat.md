@@ -181,6 +181,13 @@ The new system will use **WebLLM** for model inference, **LangChain.js** for age
 - Preserve existing implementation
 - Minor refactor to match provider interface
 
+**Cloud AI Providers** (new: via LangChain.js)
+
+- AWS Bedrock - Support Claude, Llama, Titan models
+- Google Vertex AI - Support Gemini, PaLM models
+- OpenAI - Support GPT-4, GPT-3.5 models
+- Unified interface through LangChain abstractions
+
 **LangChain Agent Executor** (new: `langchain-agent.ts`)
 - Multi-turn tool calling loop
 - Parse tool requests from model
@@ -944,10 +951,16 @@ async function searchWebWithLimits(query: string) {
 ├─────────────────────────────────────────────┤
 │                                             │
 │  Model Provider                             │
-│  ○ Local (WebLLM)                           │
-│  ○ Remote (Anthropic)                       │
+│  ○ Local                                    │
+│  ○ Remote                                   │
 │                                             │
-│  ──────────────────────────────────────────  │
+└─────────────────────────────────────────────┘
+```
+
+Based on the selected provider, show relevant configuration sections. Selecting "Local" shows local model options; selecting "Remote" reveals remote API configurations, including API keys and region settings for remote providers (Vertex, Bedrock, etc).
+
+```text
+┌─────────────────────────────────────────────┐
 │                                             │
 │  Local Model                                │
 │  [Phi-3 Mini (Recommended)    ▼]            │
@@ -956,9 +969,38 @@ async function searchWebWithLimits(query: string) {
 │                                             │
 │  ──────────────────────────────────────────  │
 │                                             │
-│  Remote API                                 │
+│  Remote API (Anthropic)                     │
 │  API Key: [********************]            │
 │  [ ] Remember key across sessions           │
+│  [Get API key →]                            │
+│                                             │
+│  ──────────────────────────────────────────  │
+│                                             │
+│  AWS Bedrock Configuration                  │
+│  Region: [us-east-1            ▼]           │
+│  Model: [anthropic.claude-3-sonnet ▼]       │
+│  Access Key ID: [********************]      │
+│  Secret Access Key: [********************]  │
+│  [ ] Use IAM role (if running on EC2/ECS)   │
+│  [ ] Remember credentials                   │
+│                                             │
+│  ──────────────────────────────────────────  │
+│                                             │
+│  Google Vertex AI Configuration             │
+│  Project ID: [my-project-id]                │
+│  Location: [us-central1        ▼]           │
+│  Model: [gemini-1.5-pro        ▼]           │
+│  Service Account Key (JSON):                │
+│  [Upload file or paste JSON...]             │
+│  [ ] Remember credentials                   │
+│                                             │
+│  ──────────────────────────────────────────  │
+│                                             │
+│  OpenAI Configuration                       │
+│  Model: [gpt-4-turbo          ▼]            │
+│  API Key: [********************]            │
+│  Organization ID (optional): [org-xxxxx]    │
+│  [ ] Remember credentials                   │
 │  [Get API key →]                            │
 │                                             │
 │  ──────────────────────────────────────────  │
@@ -969,7 +1011,7 @@ async function searchWebWithLimits(query: string) {
 │                                             │
 │  ──────────────────────────────────────────  │
 │                                             │
-│  [Learn more about local vs remote]         │
+│  [Learn more about providers]               │
 │                                             │
 │  [Cancel]                    [Save Changes] │
 │                                             │
@@ -978,38 +1020,298 @@ async function searchWebWithLimits(query: string) {
 
 ### Configuration Options
 
+**Core Settings:**
+
 | Setting | Type | Default | Options | Storage |
 |---------|------|---------|---------|---------|
-| `provider` | enum | `local` | `local`, `remote` | localStorage |
-| `localModel` | string | `phi-3-mini` | `phi-3-mini`, `llama-3-8b`, `custom` | localStorage |
-| `customModelUrl` | string | `null` | Any WebLLM-compatible URL | localStorage |
-| `apiKey` | string | `null` | User-provided | localStorage or sessionStorage |
-| `rememberApiKey` | boolean | `false` | - | localStorage |
+| `provider` | enum | `local` | `local`, `anthropic`, `bedrock`, `vertex`, `openai` | localStorage |
 | `historyLength` | number | `7` | 3, 5, 7, 10, 15, 20 | localStorage |
 | `autoCapture` | boolean | `false` | - | localStorage |
 
+**Local Provider (WebLLM):**
+
+| Setting | Type | Default | Options | Storage |
+|---------|------|---------|---------|---------|
+| `localModel` | string | `phi-3-mini` | `phi-3-mini`, `llama-3-8b`, `custom` | localStorage |
+| `customModelUrl` | string | `null` | Any WebLLM-compatible URL | localStorage |
+
+**Anthropic Provider:**
+
+| Setting | Type | Default | Options | Storage |
+|---------|------|---------|---------|---------|
+| `anthropicApiKey` | string | `null` | User-provided | localStorage or sessionStorage |
+| `rememberAnthropicKey` | boolean | `false` | - | localStorage |
+
+**AWS Bedrock Provider:**
+
+| Setting | Type | Default | Options | Storage |
+|---------|------|---------|---------|---------|
+| `bedrockRegion` | string | `us-east-1` | AWS regions | localStorage |
+| `bedrockModel` | string | `anthropic.claude-3-sonnet-20240229-v1:0` | Available Bedrock models | localStorage |
+| `bedrockAccessKeyId` | string | `null` | User-provided | localStorage or sessionStorage |
+| `bedrockSecretAccessKey` | string | `null` | User-provided | localStorage or sessionStorage |
+| `bedrockUseIAMRole` | boolean | `false` | - | localStorage |
+| `rememberBedrockCredentials` | boolean | `false` | - | localStorage |
+
+**Google Vertex AI Provider:**
+
+| Setting | Type | Default | Options | Storage |
+|---------|------|---------|---------|---------|
+| `vertexProjectId` | string | `null` | User-provided | localStorage |
+| `vertexLocation` | string | `us-central1` | Available regions | localStorage |
+| `vertexModel` | string | `gemini-1.5-pro` | Available Vertex models | localStorage |
+| `vertexServiceAccountKey` | string | `null` | JSON key file content | localStorage or sessionStorage |
+| `rememberVertexCredentials` | boolean | `false` | - | localStorage |
+
+**OpenAI Provider:**
+
+| Setting | Type | Default | Options | Storage |
+|---------|------|---------|---------|---------|
+| `openaiApiKey` | string | `null` | User-provided | localStorage or sessionStorage |
+| `openaiModel` | string | `gpt-4-turbo` | `gpt-4-turbo`, `gpt-4`, `gpt-3.5-turbo` | localStorage |
+| `openaiOrganization` | string | `null` | User-provided (optional) | localStorage |
+| `rememberOpenAICredentials` | boolean | `false` | - | localStorage |
+
 ### Settings Persistence
 
-**localStorage keys:**
+#### localStorage Keys
 
 ```typescript
 {
-  "noodles-ai-provider": "local" | "remote",
+  // Core settings
+  "noodles-ai-provider": "local" | "anthropic" | "bedrock" | "vertex" | "openai",
+  "noodles-ai-history-length": number,
+  "noodles-ai-auto-capture": boolean,
+
+  // Local (WebLLM)
   "noodles-ai-local-model": "phi-3-mini" | "llama-3-8b" | "custom",
   "noodles-ai-custom-model-url": string | null,
-  "noodles-ai-api-key": string | null,  // Only if rememberApiKey = true
-  "noodles-ai-history-length": number,
-  "noodles-ai-auto-capture": boolean
+
+  // Anthropic
+  "noodles-ai-anthropic-api-key": string | null,
+  "noodles-ai-remember-anthropic-key": boolean,
+
+  // AWS Bedrock
+  "noodles-ai-bedrock-region": string,
+  "noodles-ai-bedrock-model": string,
+  "noodles-ai-bedrock-access-key-id": string | null,
+  "noodles-ai-bedrock-secret-access-key": string | null,
+  "noodles-ai-bedrock-use-iam-role": boolean,
+  "noodles-ai-remember-bedrock-credentials": boolean,
+
+  // Google Vertex AI
+  "noodles-ai-vertex-project-id": string | null,
+  "noodles-ai-vertex-location": string,
+  "noodles-ai-vertex-model": string,
+  "noodles-ai-vertex-service-account-key": string | null,
+  "noodles-ai-remember-vertex-credentials": boolean,
+
+  // OpenAI
+  "noodles-ai-openai-api-key": string | null,
+  "noodles-ai-openai-model": string,
+  "noodles-ai-openai-organization": string | null,
+  "noodles-ai-remember-openai-credentials": boolean
 }
+```
+
+#### Environment Variable Support
+
+For deployed environments, CI/CD, or advanced users who prefer managing credentials outside the browser, the system supports reading configuration from environment variables.
+
+**Precedence order:**
+
+1. localStorage/sessionStorage (UI-configured values)
+2. Environment variables (fallback)
+3. Default values
+
+**Supported environment variables:**
+
+```typescript
+// Core settings
+NOODLES_AI_PROVIDER: "local" | "anthropic" | "bedrock" | "vertex" | "openai"
+NOODLES_AI_HISTORY_LENGTH: number
+
+// Anthropic
+ANTHROPIC_API_KEY: string
+
+// AWS Bedrock
+AWS_REGION: string
+AWS_BEDROCK_MODEL: string
+AWS_ACCESS_KEY_ID: string
+AWS_SECRET_ACCESS_KEY: string
+
+// Google Vertex AI
+GOOGLE_CLOUD_PROJECT: string
+GOOGLE_CLOUD_LOCATION: string
+VERTEX_AI_MODEL: string
+GOOGLE_APPLICATION_CREDENTIALS: string  // Path to JSON key file
+
+// OpenAI
+OPENAI_API_KEY: string
+OPENAI_ORGANIZATION: string
+OPENAI_MODEL: string
+```
+
+**Implementation:**
+
+```typescript
+// config-loader.ts
+export function getConfig(): AIConfig {
+  return {
+    provider: localStorage.getItem('noodles-ai-provider') ||
+              import.meta.env.NOODLES_AI_PROVIDER ||
+              'local',
+
+    // Anthropic
+    anthropic: {
+      apiKey: localStorage.getItem('noodles-ai-anthropic-api-key') ||
+              import.meta.env.ANTHROPIC_API_KEY ||
+              null
+    },
+
+    // AWS Bedrock
+    bedrock: {
+      region: localStorage.getItem('noodles-ai-bedrock-region') ||
+              import.meta.env.AWS_REGION ||
+              'us-east-1',
+      model: localStorage.getItem('noodles-ai-bedrock-model') ||
+             import.meta.env.AWS_BEDROCK_MODEL ||
+             'anthropic.claude-3-sonnet-20240229-v1:0',
+      accessKeyId: localStorage.getItem('noodles-ai-bedrock-access-key-id') ||
+                   import.meta.env.AWS_ACCESS_KEY_ID ||
+                   null,
+      secretAccessKey: localStorage.getItem('noodles-ai-bedrock-secret-access-key') ||
+                       import.meta.env.AWS_SECRET_ACCESS_KEY ||
+                       null
+    },
+
+    // Google Vertex AI
+    vertex: {
+      projectId: localStorage.getItem('noodles-ai-vertex-project-id') ||
+                 import.meta.env.GOOGLE_CLOUD_PROJECT ||
+                 null,
+      location: localStorage.getItem('noodles-ai-vertex-location') ||
+                import.meta.env.GOOGLE_CLOUD_LOCATION ||
+                'us-central1',
+      model: localStorage.getItem('noodles-ai-vertex-model') ||
+             import.meta.env.VERTEX_AI_MODEL ||
+             'gemini-1.5-pro',
+      serviceAccountKey: localStorage.getItem('noodles-ai-vertex-service-account-key') ||
+                         loadServiceAccountFromPath(import.meta.env.GOOGLE_APPLICATION_CREDENTIALS) ||
+                         null
+    },
+
+    // OpenAI
+    openai: {
+      apiKey: localStorage.getItem('noodles-ai-openai-api-key') ||
+              import.meta.env.OPENAI_API_KEY ||
+              null,
+      organization: localStorage.getItem('noodles-ai-openai-organization') ||
+                    import.meta.env.OPENAI_ORGANIZATION ||
+                    null,
+      model: localStorage.getItem('noodles-ai-openai-model') ||
+             import.meta.env.OPENAI_MODEL ||
+             'gpt-4-turbo'
+    }
+  }
+}
+
+function loadServiceAccountFromPath(path: string | undefined): string | null {
+  if (!path) return null
+  try {
+    // In browser, this would be handled differently (e.g., fetch)
+    // For Node.js environments (e.g., Electron), use fs
+    const fs = require('fs')
+    return fs.readFileSync(path, 'utf-8')
+  } catch (err) {
+    console.warn('Failed to load service account key from path:', path, err)
+    return null
+  }
+}
+```
+
+**Setting environment variables:**
+
+#### For local development (Vite)
+
+Create `.env.local` file (gitignored):
+
+```bash
+# .env.local
+NOODLES_AI_PROVIDER=bedrock
+AWS_REGION=us-west-2
+AWS_BEDROCK_MODEL=anthropic.claude-3-haiku-20240307-v1:0
+AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
+AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+```
+
+#### For production deployment
+
+Set environment variables in your hosting platform:
+
+**Vercel:**
+
+```bash
+vercel env add ANTHROPIC_API_KEY
+vercel env add AWS_ACCESS_KEY_ID
+vercel env add AWS_SECRET_ACCESS_KEY
+```
+
+**Netlify:**
+
+```bash
+netlify env:set ANTHROPIC_API_KEY "sk-ant-..."
+netlify env:set AWS_REGION "us-east-1"
+```
+
+**Docker:**
+
+```dockerfile
+ENV ANTHROPIC_API_KEY=sk-ant-...
+ENV AWS_REGION=us-east-1
+ENV OPENAI_API_KEY=sk-proj-...
+```
+
+**Benefits:**
+
+- **Security**: Keep credentials out of localStorage in production
+- **Flexibility**: Easy to rotate keys without UI changes
+- **CI/CD**: Automated testing with test credentials
+- **Multi-environment**: Different keys for dev/staging/prod
+- **Team workflows**: Centralized credential management
+
+**Limitations:**
+
+- Browser-based apps can't access true environment variables (use build-time injection via Vite)
+- Secrets exposed in browser bundle if not careful (use server-side proxies for sensitive production deployments)
+
+**Security Note:**
+
+For production web apps, consider using a backend proxy to avoid exposing API keys in the browser:
+
+```typescript
+// Instead of direct API calls
+const response = await fetch('https://api.anthropic.com/v1/messages', {
+  headers: { 'x-api-key': apiKey }  // ❌ Key exposed in browser
+})
+
+// Use backend proxy
+const response = await fetch('/api/ai/chat', {
+  method: 'POST',
+  body: JSON.stringify({ message })  // ✅ Backend handles credentials
+})
 ```
 
 ### Settings Validation
 
 **On save:**
 
-1. If provider = `remote`, validate API key (test API call)
-2. If localModel = `custom`, validate custom URL format
-3. If historyLength > 20, show warning about memory usage
+1. **Local provider**: If localModel = `custom`, validate custom URL format
+2. **Anthropic provider**: Validate API key with test API call
+3. **Bedrock provider**: Validate AWS credentials and region/model availability
+4. **Vertex AI provider**: Validate service account key JSON format and permissions
+5. **OpenAI provider**: Validate API key with test API call
+6. **All providers**: If historyLength > 20, show warning about memory usage
 
 ---
 
@@ -1236,27 +1538,472 @@ provides faster, higher-quality responses.
 
 **Edge case:** If conversation has cached Claude responses with tool use, preserve them as-is. WebLLM will continue the conversation with its own format.
 
+---
+
+## Cloud Provider Support
+
+### Overview
+
+In addition to local (WebLLM) and Anthropic providers, the system supports three additional cloud AI providers via LangChain.js:
+
+- **AWS Bedrock** - Access Claude, Llama, Mistral, and Amazon Titan models
+- **Google Vertex AI** - Access Gemini, PaLM, and Claude models
+- **OpenAI** - Access GPT-4, GPT-4 Turbo, and GPT-3.5 models
+
+All providers use the same unified interface and tool system, allowing seamless switching between providers.
+
+### Why Cloud Providers?
+
+**Use cases:**
+
+- **Cost optimization**: Different providers have different pricing models
+- **Model variety**: Access to different model families and capabilities
+- **Compliance**: Some organizations require specific cloud providers
+- **Experimentation**: Test different models for specific use cases
+- **Redundancy**: Fallback options if one provider has issues
+
+### LangChain.js Integration
+
+**Architecture:**
+
+```typescript
+AIController
+    ↓
+Provider Interface
+    ↓
+┌────────────────────────────────────────────────┐
+│  Local (WebLLM) │ Anthropic │ Bedrock │ Vertex │ OpenAI
+└────────────────────────────────────────────────┘
+    ↓
+LangChain Agent Executor
+    ↓
+Tool Registry (MCP format)
+```
+
+**Benefits:**
+
+- Unified API across all providers
+- Consistent streaming implementation
+- Shared tool calling protocol
+- Easy to add new providers
+- Built-in retry and error handling
+
+### AWS Bedrock Provider
+
+#### Bedrock Implementation
+
+**File:** `noodles-editor/src/ai-chat/bedrock-provider.ts`
+
+```typescript
+import { BedrockChat } from '@langchain/community/chat_models/bedrock'
+import { AIProvider } from './provider-interface'
+
+export class BedrockProvider implements AIProvider {
+  private model: BedrockChat
+
+  constructor(config: BedrockConfig) {
+    this.model = new BedrockChat({
+      model: config.model || 'anthropic.claude-3-sonnet-20240229-v1:0',
+      region: config.region || 'us-east-1',
+      credentials: config.useIAMRole ? undefined : {
+        accessKeyId: config.accessKeyId,
+        secretAccessKey: config.secretAccessKey
+      }
+    })
+  }
+
+  async initialize() {
+    // Test connection with simple prompt
+    await this.model.call([{ role: 'user', content: 'Hello' }])
+  }
+
+  async *generateCompletion(messages, tools) {
+    const stream = await this.model.stream(messages, { tools })
+    for await (const chunk of stream) {
+      yield chunk.content
+    }
+  }
+
+  isAvailable() {
+    return true  // Always available with valid credentials
+  }
+
+  getStats() {
+    return {
+      tokensPerSecond: 100,  // Estimate based on network latency
+      memoryUsage: 0,  // Cloud inference
+      responseTime: 1000
+    }
+  }
+
+  async dispose() {
+    // No cleanup needed
+  }
+}
+```
+
+#### Bedrock Available Models
+
+| Model ID | Description | Context | Cost (per 1M tokens)* |
+|----------|-------------|---------|---------------------|
+| `anthropic.claude-3-sonnet-20240229-v1:0` | Claude 3 Sonnet | 200K | ~$3-15 |
+| `anthropic.claude-3-haiku-20240307-v1:0` | Claude 3 Haiku (fast) | 200K | ~$0.25-1.25 |
+| `anthropic.claude-3-opus-20240229-v1:0` | Claude 3 Opus (best) | 200K | ~$15-75 |
+| `meta.llama3-70b-instruct-v1:0` | Llama 3 70B | 8K | ~$2.50-3.50 |
+| `mistral.mistral-large-2402-v1:0` | Mistral Large | 32K | ~$8-24 |
+
+*Pricing is approximate and varies by region. Check [AWS Bedrock pricing](https://aws.amazon.com/bedrock/pricing/) for current rates.
+
+#### Bedrock Authentication
+
+#### Option 1: Access Keys (localStorage)
+
+```typescript
+{
+  accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
+  secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+  region: 'us-east-1'
+}
+```
+
+#### Option 2: IAM Role (for EC2/ECS deployments)
+
+```typescript
+{
+  useIAMRole: true,
+  region: 'us-east-1'
+}
+```
+
+#### Permissions Required
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream"
+      ],
+      "Resource": "arn:aws:bedrock:*::foundation-model/*"
+    }
+  ]
+}
+```
+
+#### Bedrock Setup Guide
+
+1. **Get AWS Account**: Sign up at [aws.amazon.com](https://aws.amazon.com/)
+2. **Request Model Access**: Go to Bedrock console → Model access → Request access for desired models
+3. **Create Access Keys**: IAM → Users → Security credentials → Create access key
+4. **Configure in Settings**:
+   - Select "AWS Bedrock" provider
+   - Choose region (e.g., us-east-1, us-west-2)
+   - Select model
+   - Enter access key ID and secret
+   - Test connection
+
+### Google Vertex AI Provider
+
+#### Vertex Implementation
+
+**File:** `noodles-editor/src/ai-chat/vertex-provider.ts`
+
+```typescript
+import { ChatVertexAI } from '@langchain/google-vertexai'
+import { AIProvider } from './provider-interface'
+
+export class VertexProvider implements AIProvider {
+  private model: ChatVertexAI
+
+  constructor(config: VertexConfig) {
+    this.model = new ChatVertexAI({
+      model: config.model || 'gemini-1.5-pro',
+      location: config.location || 'us-central1',
+      authOptions: {
+        credentials: JSON.parse(config.serviceAccountKey)
+      }
+    })
+  }
+
+  async initialize() {
+    // Test with simple prompt
+    await this.model.call([{ role: 'user', content: 'Hello' }])
+  }
+
+  async *generateCompletion(messages, tools) {
+    const stream = await this.model.stream(messages, { tools })
+    for await (const chunk of stream) {
+      yield chunk.content
+    }
+  }
+
+  isAvailable() {
+    return true
+  }
+
+  getStats() {
+    return {
+      tokensPerSecond: 80,
+      memoryUsage: 0,
+      responseTime: 1500
+    }
+  }
+
+  async dispose() {
+    // No cleanup needed
+  }
+}
+```
+
+#### Vertex Available Models
+
+| Model ID | Description | Context | Cost (per 1M tokens)* |
+|----------|-------------|---------|---------------------|
+| `gemini-1.5-pro` | Gemini 1.5 Pro | 2M | ~$3.50-10.50 |
+| `gemini-1.5-flash` | Gemini 1.5 Flash (fast) | 1M | ~$0.35-1.05 |
+| `gemini-1.0-pro` | Gemini 1.0 Pro | 32K | ~$0.50-1.50 |
+| `claude-3-opus@20240229` | Claude 3 Opus via Vertex | 200K | ~$15-75 |
+| `claude-3-sonnet@20240229` | Claude 3 Sonnet via Vertex | 200K | ~$3-15 |
+
+*Pricing is approximate and varies by region. Check [Google Cloud Vertex AI pricing](https://cloud.google.com/vertex-ai/pricing) for current rates.
+
+#### Vertex Authentication
+
+#### Service Account Key (JSON)
+
+```json
+{
+  "type": "service_account",
+  "project_id": "my-project-123456",
+  "private_key_id": "abc123...",
+  "private_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n",
+  "client_email": "noodles-ai@my-project.iam.gserviceaccount.com",
+  "client_id": "123456789",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token"
+}
+```
+
+#### Vertex Permissions Required
+
+- `aiplatform.endpoints.predict`
+- `aiplatform.endpoints.streamingPredict`
+
+#### Vertex Setup Guide
+
+1. **Get Google Cloud Account**: Sign up at [cloud.google.com](https://cloud.google.com/)
+2. **Enable Vertex AI API**: Console → APIs & Services → Enable Vertex AI API
+3. **Create Service Account**:
+   - IAM & Admin → Service Accounts → Create
+   - Grant "Vertex AI User" role
+   - Create JSON key
+4. **Configure in Settings**:
+   - Select "Google Vertex AI" provider
+   - Enter project ID
+   - Choose location (us-central1, europe-west1, etc.)
+   - Select model
+   - Upload or paste service account key JSON
+   - Test connection
+
+### OpenAI Provider
+
+#### OpenAI Implementation
+
+**File:** `noodles-editor/src/ai-chat/openai-provider.ts`
+
+```typescript
+import { ChatOpenAI } from '@langchain/openai'
+import { AIProvider } from './provider-interface'
+
+export class OpenAIProvider implements AIProvider {
+  private model: ChatOpenAI
+
+  constructor(config: OpenAIConfig) {
+    this.model = new ChatOpenAI({
+      modelName: config.model || 'gpt-4-turbo',
+      openAIApiKey: config.apiKey,
+      organization: config.organization
+    })
+  }
+
+  async initialize() {
+    // Test with simple prompt
+    await this.model.call([{ role: 'user', content: 'Hello' }])
+  }
+
+  async *generateCompletion(messages, tools) {
+    const stream = await this.model.stream(messages, { tools })
+    for await (const chunk of stream) {
+      yield chunk.content
+    }
+  }
+
+  isAvailable() {
+    return true
+  }
+
+  getStats() {
+    return {
+      tokensPerSecond: 120,
+      memoryUsage: 0,
+      responseTime: 800
+    }
+  }
+
+  async dispose() {
+    // No cleanup needed
+  }
+}
+```
+
+#### OpenAI Available Models
+
+| Model ID | Description | Context | Cost (per 1M tokens)* |
+|----------|-------------|---------|---------------------|
+| `gpt-4-turbo` | GPT-4 Turbo (latest) | 128K | ~$10-30 |
+| `gpt-4` | GPT-4 | 8K | ~$30-60 |
+| `gpt-4-32k` | GPT-4 32K | 32K | ~$60-120 |
+| `gpt-3.5-turbo` | GPT-3.5 Turbo (fast, cheap) | 16K | ~$0.50-1.50 |
+
+*Pricing is approximate and varies by region. Check [OpenAI pricing](https://openai.com/pricing) for current rates.
+
+#### OpenAI Authentication
+
+#### API Key
+
+```typescript
+{
+  apiKey: 'sk-proj-...',
+  organization: 'org-...' // Optional
+}
+```
+
+#### OpenAI Setup Guide
+
+1. **Get OpenAI Account**: Sign up at [platform.openai.com](https://platform.openai.com/)
+2. **Create API Key**: API Keys → Create new secret key
+3. **Add Credits**: Billing → Add payment method
+4. **Configure in Settings**:
+   - Select "OpenAI" provider
+   - Enter API key
+   - (Optional) Enter organization ID
+   - Select model
+   - Test connection
+
+### Provider Comparison
+
+| Provider | Best For | Pros | Cons |
+|----------|----------|------|------|
+| **Local (WebLLM)** | Privacy, offline work | Free, private, offline | Slower, requires GPU |
+| **Anthropic** | High-quality responses | Best quality, fast | Costs money, cloud-only |
+| **AWS Bedrock** | AWS infrastructure | Multiple models, IAM auth | AWS account required |
+| **Vertex AI** | Google Cloud users | Gemini models, GCP integration | GCP account required |
+| **OpenAI** | Fastest responses | Very fast, well-documented | Most expensive |
+
+### Cost Estimation
+
+#### Example: 100 conversations per month
+
+Assumptions:
+
+- Average 10 messages per conversation
+- Average 200 tokens per message
+- Total: 100 conversations × 10 messages × 200 tokens = 200K tokens/month
+
+| Provider | Model | Monthly Cost |
+|----------|-------|--------------|
+| Local | Phi-3 Mini | $0 |
+| Anthropic | Claude 3 Sonnet | ~$0.60 input + $3.00 output = **$3.60** |
+| Bedrock | Claude 3 Haiku | ~$0.05 input + $0.25 output = **$0.30** |
+| Vertex AI | Gemini 1.5 Flash | ~$0.07 input + $0.21 output = **$0.28** |
+| OpenAI | GPT-3.5 Turbo | ~$0.10 input + $0.30 output = **$0.40** |
+
+### Cloud Provider Implementation Phases
+
+#### Phase 1: Core Providers
+
+- Local (WebLLM)
+- Anthropic
+
+#### Phase 2: Cloud Providers
+
+- AWS Bedrock
+- Google Vertex AI
+- OpenAI
+
+#### Phase 3: Optimization
+
+- Model-specific prompt tuning
+- Cost tracking UI
+- Usage analytics
+
+### Dependencies
+
+```json
+{
+  "dependencies": {
+    "@langchain/community": "^0.3.11",
+    "@langchain/openai": "^0.3.2",
+    "@langchain/google-vertexai": "^0.1.2",
+    "@aws-sdk/client-bedrock-runtime": "^3.621.0"
+  }
+}
+```
+
+### Cloud Provider Security Considerations
+
+#### Credential Storage
+
+- All credentials stored in localStorage (user's browser only)
+- Never sent to Noodles.gl servers
+- Option to use sessionStorage for temporary credentials
+- Clear warning about storing credentials
+
+#### Best Practices
+
+- Use IAM roles when possible (Bedrock)
+- Rotate API keys regularly
+- Monitor usage for unexpected charges
+- Set billing alerts on cloud providers
+- Use separate keys for development/production
+
+#### User Education
+
+- Explain cloud vs local privacy trade-offs
+- Link to each provider's privacy policy
+- Warn about costs before enabling
+- Show estimated monthly costs based on usage
+
+---
+
 ### Rollout Plan
 
-**Phase 1: Core WebLLM integration (Week 1-2)**
+**Phase 1: Core WebLLM integration**
+
 - Implement WebLLM provider
 - Basic tool calling with LangChain
 - Settings UI for provider selection
 - First-time UX with model download
 
-**Phase 2: RAG & Web Search (Week 3)**
+**Phase 2: RAG & Web Search**
+
 - Generate documentation embeddings
 - Implement RAG service with voy
 - Implement web search with DuckDuckGo
 - Add new tools to registry
 
-**Phase 3: Polish & Testing (Week 4)**
+**Phase 3: Polish & Testing**
+
 - Error handling and fallback flows
 - Performance optimization
 - User documentation
 - Developer documentation
 
-**Phase 4: Release (Week 5)**
+**Phase 4: Release**
+
 - Deploy to production
 - Monitor usage and errors
 - Gather user feedback
@@ -1374,15 +2121,17 @@ provides faster, higher-quality responses.
 
 ## Implementation Phases
 
-### Phase 1: Core WebLLM Integration (Week 1-2)
+### Phase 1: Core WebLLM Integration
 
 **Goals:**
+
 - Basic WebLLM inference working
 - Provider abstraction layer
 - LangChain tool calling
 - Settings UI
 
 **Tasks:**
+
 1. Install dependencies (`@mlc-ai/web-llm`, `langchain`, `@langchain/community`)
 2. Create provider interface (`provider-interface.ts`)
 3. Implement WebLLM provider (`webllm-provider.ts`)
@@ -1411,14 +2160,16 @@ provides faster, higher-quality responses.
 
 **Deliverable:** Users can chat with WebLLM, existing tools work, can switch to Anthropic
 
-### Phase 2: RAG & Web Search (Week 3)
+### Phase 2: RAG & Web Search
 
 **Goals:**
+
 - Documentation search working
 - Web search with caching
 - Pre-generated embeddings
 
 **Tasks:**
+
 1. Install dependencies (`@xenova/transformers`, `voy-search`)
 2. Create RAG service (`rag-service.ts`)
    - Load embedding model
@@ -1446,14 +2197,16 @@ provides faster, higher-quality responses.
 
 **Deliverable:** AI can search docs and web, answer questions beyond system prompt
 
-### Phase 3: Polish & Testing (Week 4)
+### Phase 3: Polish & Testing
 
 **Goals:**
+
 - Robust error handling
 - Performance optimization
 - Comprehensive testing
 
 **Tasks:**
+
 1. Error handling improvements
    - WebGPU detection
    - Model loading failures
@@ -1484,14 +2237,16 @@ provides faster, higher-quality responses.
 
 **Deliverable:** Production-ready, well-tested implementation
 
-### Phase 4: Documentation & Release (Week 5)
+### Phase 4: Documentation & Release
 
 **Goals:**
+
 - Complete documentation
 - Deploy to production
 - Monitor and iterate
 
 **Tasks:**
+
 1. Write user documentation (`docs/users/ai-assistant.md`)
 2. Write developer documentation (`dev-docs/webllm-ai-integration.md`)
 3. Update AGENTS.md with WebLLM details
@@ -1825,9 +2580,9 @@ You can help users:
 
 **Iteration Process:**
 
-1. **Week 1-2:** Deploy unified prompt, gather baseline metrics
-2. **Week 3-4:** Identify pain points in local model responses
-3. **Week 5+:** If quality issues, create separate WebLLM prompt
+1. **Initial deployment:** Deploy unified prompt, gather baseline metrics
+2. **Early phase:** Identify pain points in local model responses
+3. **If needed:** Create separate WebLLM prompt based on quality issues
 4. **Ongoing:** Continuously refine based on usage data
 
 ### Specific Prompt Adjustments for Common Issues
