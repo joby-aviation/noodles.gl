@@ -1,4 +1,5 @@
 #!/usr/bin/env tsx
+
 // Generate context bundles for Claude AI integration
 //
 // This script generates:
@@ -8,10 +9,10 @@
 // - code-index.json: Simplified source code index
 // - manifest.json: Bundle metadata
 
+import { execSync } from 'child_process'
+import { createHash } from 'crypto'
 import * as fs from 'fs'
 import * as path from 'path'
-import { createHash } from 'crypto'
-import { execSync } from 'child_process'
 
 // Import categories directly from source
 import { categories as baseCategories } from '../src/noodles/components/categories.ts'
