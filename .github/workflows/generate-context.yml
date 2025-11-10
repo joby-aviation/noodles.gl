@@ -1,14 +1,8 @@
-name: Generate AI Assistant Context
+name: Generate AI Assistant Context (Manual)
 permissions:
   contents: write
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'noodles-editor/src/**'
-      - 'docs/**'
-      - 'noodles-editor/public/noodles/**'
   workflow_dispatch:
 
 jobs:
