@@ -371,14 +371,14 @@ Conversations are automatically saved as you chat.
 
 ## Need More Help?
 
-- **Documentation:** Browse the [user guides](/docs/users/)
-- **Examples:** Check the [example projects](/docs/users/examples/)
+- **Documentation:** Browse the [user guides](/users/getting-started)
+- **Examples:** Check the example projects in the public/noodles folder
 - **GitHub Issues:** Report bugs or request features at [github.com/joby-aviation/noodles.gl/issues](https://github.com/joby-aviation/noodles.gl/issues)
 - **Discussions:** Ask questions in [GitHub Discussions](https://github.com/joby-aviation/noodles.gl/discussions)
 
 ---
 
 **Next Steps:**
-- [Learn about operators →](/docs/users/operators/)
-- [View example projects →](/docs/users/examples/)
-- [Read developer documentation →](/dev-docs/)
+- [Learn about operators →](/users/operators-guide)
+- [Explore workflows →](/users/workflows-intro)
+- [Read developer documentation →](/developers/overview)
