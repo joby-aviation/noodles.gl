@@ -47,7 +47,6 @@ import { ProjectNameBar, UNSAVED_PROJECT_NAME } from './components/project-name-
 import { ProjectNotFoundDialog } from './components/project-not-found-dialog'
 import { StorageErrorHandler } from './components/storage-error-handler'
 import { UndoRedoHandler, type UndoRedoHandlerRef } from './components/UndoRedoHandler'
-import { ListField } from './fields'
 import { ChatPanel } from '../ai-chat/chat-panel'
 import { globalContextManager } from '../ai-chat/global-context-manager'
 import { useProjectModifications } from './hooks/use-project-modifications'
