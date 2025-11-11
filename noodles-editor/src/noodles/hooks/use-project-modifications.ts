@@ -18,6 +18,7 @@ import { canConnect } from '../utils/can-connect'
 import { parseHandleId } from '../utils/path-utils'
 import { edgeId } from '../utils/id-utils'
 import { ListField } from '../fields'
+import { analytics } from '../../utils/analytics'
 
 // Using ReactFlowNode instead of AnyNodeJSON for compatibility
 export type ProjectModification =
@@ -47,6 +48,10 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
   const addNodes = useCallback(
     (newNodes: ReactFlowNode[]) => {
       setNodes(currentNodes => [...currentNodes, ...newNodes])
+      // Track node addition
+      newNodes.forEach(node => {
+        analytics.track('node_added', { nodeType: node.type || 'unknown' })
+      })
     },
     [setNodes]
   )
@@ -54,6 +59,10 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
   const addEdges = useCallback(
     (newEdges: ReactFlowEdge[]) => {
       setEdges(currentEdges => [...currentEdges, ...newEdges])
+      // Track edge addition
+      if (newEdges.length > 0) {
+        analytics.track('edge_added', { count: newEdges.length })
+      }
     },
     [setEdges]
   )
@@ -63,10 +72,12 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       if (nodesToDelete && nodesToDelete.length > 0) {
         const nodeIds = new Set(nodesToDelete.map(n => n.id))
         setNodes(currentNodes => currentNodes.filter(n => !nodeIds.has(n.id)))
+        analytics.track('node_deleted', { count: nodesToDelete.length })
       }
       if (edgesToDelete && edgesToDelete.length > 0) {
         const edgeIds = new Set(edgesToDelete.map(e => e.id))
         setEdges(currentEdges => currentEdges.filter(e => !edgeIds.has(e.id)))
+        analytics.track('edge_deleted', { count: edgesToDelete.length })
       }
     },
     [setNodes, setEdges]

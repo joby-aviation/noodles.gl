@@ -19,6 +19,8 @@ import {
   serializeNodes,
 } from '../utils/serialization'
 import s from './menu.module.css'
+import { SettingsDialog } from '../../components/settings-dialog'
+import { analytics } from '../../utils/analytics'
 
 const SaveProjectDialog = ({
   projectName,
@@ -434,6 +436,7 @@ export function NoodlesMenubar({
   const onNewProject = useCallback(async () => {
     const newProjectFile = await fetch(newProjectJSON).then(res => res.json())
     loadProjectFile(newProjectFile)
+    analytics.track('project_created', { method: 'new' })
   }, [loadProjectFile])
 
   const onImport = useCallback(async () => {
@@ -459,6 +462,7 @@ export function NoodlesMenubar({
     // "New project from local copy" means import a file into a blank project.
     // Resets the name to avoid conflict with an existing stored projects.
     loadProjectFile(project)
+    analytics.track('project_imported')
   }, [loadProjectFile])
 
   // "Save" Menu Options
@@ -494,8 +498,10 @@ export function NoodlesMenubar({
       addToRecentProjects(projectName)
       // Update store with directory handle returned from save
       setCurrentDirectory(result.data.directoryHandle, projectName)
+      analytics.track('project_saved', { storageType, isFirstSave: false })
     } else {
       setError(result.error)
+      analytics.track('project_save_failed', { storageType, error: 'save_error' })
     }
   }, [projectName, storageType, getNoodlesProjectJson, setCurrentDirectory, setError])
 
@@ -545,10 +551,14 @@ export function NoodlesMenubar({
   const onExport = useCallback(async () => {
     const noodlesProjectJson = getNoodlesProjectJson()
     saveProjectLocally(projectName || 'untitled', noodlesProjectJson, storageType)
+    analytics.track('project_exported', { storageType })
   }, [projectName, getNoodlesProjectJson, storageType])
 
   // "Open" Menu Options
   const [openProjectDialogOpen, setOpenProjectDialogOpen] = useState(false)
+
+  // Settings Dialog
+  const [settingsDialogOpen, setSettingsDialogOpen] = useState(false)
 
   // Load project by name (for OPFS projects from list)
   const onOpenProject = useCallback(
@@ -563,6 +573,7 @@ export function NoodlesMenubar({
             addToRecentProjects(name)
             // Update store with directory handle returned from load
             setCurrentDirectory(result.data.directoryHandle, name)
+            analytics.track('project_opened', { storageType })
           } catch (error) {
             setError({
               type: 'unknown',
@@ -570,9 +581,11 @@ export function NoodlesMenubar({
               details: error instanceof Error ? error.message : 'Unknown error',
               originalError: error,
             })
+            analytics.track('project_open_failed', { storageType, error: 'migration_error' })
           }
         } else {
           setError(result.error)
+          analytics.track('project_open_failed', { storageType, error: 'load_error' })
         }
       })()
     },
@@ -756,9 +769,9 @@ export function NoodlesMenubar({
           </Menubar.Portal>
         </Menubar.Menu>
 
-        {/* Chat button on the right side */}
-        {setShowChatPanel && (
-          <div className={s.menubarRightSlot}>
+        {/* Chat and Settings buttons on the right side */}
+        <div className={s.menubarRightSlot}>
+          {setShowChatPanel && (
             <button
               onClick={() => setShowChatPanel(!showChatPanel)}
               className={s.chatButton}
@@ -766,8 +779,16 @@ export function NoodlesMenubar({
             >
               💬 {showChatPanel ? 'Hide' : 'Assistant'}
             </button>
-          </div>
-        )}
+          )}
+          <button
+            onClick={() => setSettingsDialogOpen(true)}
+            className={s.chatButton}
+            title="Settings"
+            style={{ marginLeft: setShowChatPanel ? '0.5rem' : '0' }}
+          >
+            ⚙️ Settings
+          </button>
+        </div>
       </Menubar.Root>
       <SaveProjectDialog
         projectName={projectName ?? null}
@@ -785,6 +806,10 @@ export function NoodlesMenubar({
         openDialog={openProjectDialogOpen}
         setOpenDialog={setOpenProjectDialogOpen}
         onSelectProject={onOpenProject}
+      />
+      <SettingsDialog
+        open={settingsDialogOpen}
+        setOpen={setSettingsDialogOpen}
       />
     </>
   )
