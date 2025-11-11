@@ -11,6 +11,7 @@ import {
   FilterOp,
   GeoJsonTransformOp,
   JSONOp,
+  KmlToGeoJsonOp,
   LayerPropsOp,
   MapViewOp,
   MathOp,
@@ -1258,7 +1259,6 @@ describe('SelectOp', () => {
 
 describe('KmlToGeoJsonOp', () => {
   it('should convert KML to GeoJSON', () => {
-    const { KmlToGeoJsonOp } = require('./operators')
     const operator = new KmlToGeoJsonOp('/kml-to-geojson-0')
     
     const kml = `<?xml version="1.0" encoding="UTF-8"?>
