@@ -376,7 +376,7 @@
   padding-right: 8px;
 }
 
-.chatButton {
+.toolbarButton {
   padding: 6px 12px;
   border-radius: 4px;
   font-size: 13px;
@@ -391,6 +391,6 @@
   gap: 6px;
 }
 
-.chatButton:hover {
+.toolbarButton:hover {
   background: #3a8eef;
 }

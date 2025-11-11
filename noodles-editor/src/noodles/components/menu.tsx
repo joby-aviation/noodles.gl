@@ -774,7 +774,7 @@ export function NoodlesMenubar({
           {setShowChatPanel && (
             <button
               onClick={() => setShowChatPanel(!showChatPanel)}
-              className={s.chatButton}
+              className={s.toolbarButton}
               title="Toggle Noodles AI Assistant"
             >
               💬 {showChatPanel ? 'Hide' : 'Assistant'}
@@ -782,7 +782,7 @@ export function NoodlesMenubar({
           )}
           <button
             onClick={() => setSettingsDialogOpen(true)}
-            className={s.chatButton}
+            className={s.toolbarButton}
             title="Settings"
             style={{ marginLeft: setShowChatPanel ? '0.5rem' : '0' }}
           >
