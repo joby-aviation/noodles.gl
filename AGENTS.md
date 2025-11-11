@@ -662,6 +662,84 @@ When changing files listed in "Critical Components Requiring Extra Scrutiny":
 4. Add custom UI component in `field-components.tsx` if needed
 5. Register in field registry
 
+## Analytics Tracking
+
+### When to Add Analytics Events
+
+Noodles.gl uses PostHog for privacy-preserving product analytics to understand feature usage. When implementing new features or user-facing functionality, consider adding analytics tracking to help understand how users interact with the app.
+
+**Add analytics tracking for:**
+
+- New user actions (button clicks, menu selections, keyboard shortcuts)
+- Feature usage (rendering, AI chat, timeline operations)
+- User workflows (project creation, save, export, import)
+- Error states and failures (save failed, render cancelled)
+- Performance milestones (render completion, load times)
+
+**Never track:**
+
+- Project names, file names, or file paths
+- Node data, configuration values, or user content
+- Code, queries, prompts, or AI responses
+- API keys, tokens, or credentials
+- Personal information or IP addresses
+
+All sensitive properties are automatically filtered by the analytics utility, but avoid passing them in the first place.
+
+### How to Add Tracking
+
+```typescript
+import { analytics } from '../utils/analytics'
+
+// Simple event
+analytics.track('feature_used')
+
+// Event with properties
+analytics.track('render_started', {
+  codec: 'h264',          // ✅ Safe: configuration type
+  resolution: '1920x1080' // ✅ Safe: dimensions
+})
+
+// What NOT to track
+analytics.track('project_saved', {
+  projectName: 'my-viz',  // ❌ Never: user content
+  apiKey: 'sk-123'        // ❌ Never: credentials
+})
+```
+
+### Event Naming Conventions
+
+- **Format**: `object_action` (e.g., `node_added`, `project_saved`)
+- **Tense**: Past tense (`created`, `opened`, `failed`)
+- **Case**: snake_case (`ai_panel_opened`, `render_completed`)
+
+### Common Tracking Examples
+
+```typescript
+// User interactions
+analytics.track('keyboard_shortcut_used', { action: 'create_viewer' })
+analytics.track('menu_opened', { menu: 'block_library' })
+
+// Feature usage
+analytics.track('node_added', { nodeType: 'ScatterplotLayerOp' })
+analytics.track('render_started', { codec: 'h264' })
+analytics.track('render_completed', { duration: 120, frameCount: 3600 })
+
+// Error states
+analytics.track('save_failed', { storageType: 'local', error: 'permission_denied' })
+analytics.track('render_cancelled')
+```
+
+### Testing Analytics
+
+Analytics events respect user consent and gracefully handle ad-blocker scenarios:
+
+- Events only fire if user has opted in
+- All PostHog calls are wrapped in try-catch blocks
+- App continues working even if PostHog is blocked
+
+For more details, see [dev-docs/analytics.md](dev-docs/analytics.md).
+
 ## Pull Request Guidelines
 
 ### Creating Focused PRs
