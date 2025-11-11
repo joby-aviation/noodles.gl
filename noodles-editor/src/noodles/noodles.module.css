@@ -283,6 +283,10 @@
   background: var(--node-data-color);
 }
 
+.handleGeojson {
+  background: var(--node-geojson-color);
+}
+
 .handleVector {
   background: var(--node-vector-color);
 }

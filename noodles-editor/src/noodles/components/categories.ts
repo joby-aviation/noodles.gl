@@ -39,10 +39,11 @@ export const categories = {
     'SortOp',
     'SwitchOp',
     'TableEditorOp',
+    'TimeSeriesOp',
     'ViewerOp',
     'ViewStateOp',
   ],
-  geojson: ['GeoJsonOp', 'GeoJsonTransformOp', 'PointOp', 'RectangleOp'],
+  geojson: ['GeoJsonOp', 'GeoJsonTransformOp', 'KmlToGeoJsonOp', 'PointOp', 'RectangleOp'],
   layer: [
     'A5LayerOp',
     'ArcLayerOp',

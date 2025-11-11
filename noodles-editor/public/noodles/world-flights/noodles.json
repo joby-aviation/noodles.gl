@@ -8,8 +8,8 @@
         "locked": false
       },
       "position": {
-        "x": 1200,
-        "y": 150
+        "x": 1875.0367256829527,
+        "y": 204.36993456417756
       }
     },
     {
@@ -20,8 +20,8 @@
         "locked": false
       },
       "position": {
-        "x": 1500,
-        "y": 150
+        "x": 2175.0367256829527,
+        "y": 204.36993456417756
       }
     },
     {
@@ -34,8 +34,8 @@
         "locked": false
       },
       "position": {
-        "x": 0,
-        "y": 150
+        "x": -560.4947637988143,
+        "y": -110.32865936206672
       }
     },
     {
@@ -51,8 +51,8 @@
         "locked": false
       },
       "position": {
-        "x": 814.3185714285714,
-        "y": 614.0885714285715
+        "x": 1217.1431067420315,
+        "y": 504.07875432600656
       }
     },
     {
@@ -61,14 +61,14 @@
       "data": {
         "inputs": {
           "opacity": 0.8,
-          "trailLength": 336,
-          "widthMinPixels": 1.5
+          "getWidth": 10,
+          "trailLength": 336
         },
         "locked": false
       },
       "position": {
-        "x": 816.6342857142857,
-        "y": 105.05571428571426
+        "x": 1222.826553627182,
+        "y": -23.609280302190164
       }
     },
     {
@@ -81,8 +81,8 @@
         "locked": false
       },
       "position": {
-        "x": 104.43714285714285,
-        "y": 469.56857142857143
+        "x": 489.9664462342033,
+        "y": 160.86223283819214
       }
     },
     {
@@ -95,16 +95,16 @@
         "locked": false
       },
       "position": {
-        "x": 450,
-        "y": 469.56857142857143
+        "x": 809.9893060523932,
+        "y": 161.1204730229971
       }
     },
     {
       "type": "MaplibreBasemapOp",
       "id": "/maplibre-basemap",
       "position": {
-        "x": 793.4771428571428,
-        "y": -144.61714285714282
+        "x": 1220.2681476223681,
+        "y": 1332.2961846354
       },
       "data": {
         "inputs": {
@@ -119,6 +119,133 @@
         },
         "locked": false
       }
+    },
+    {
+      "type": "TimeSeriesOp",
+      "id": "/time-series",
+      "position": {
+        "x": 1217.8136672854778,
+        "y": -438.4265655666825
+      },
+      "data": {
+        "inputs": {},
+        "locked": false
+      }
+    },
+    {
+      "type": "NumberOp",
+      "id": "/time",
+      "position": {
+        "x": 922.1081442949591,
+        "y": -434.661759509487
+      },
+      "data": {
+        "inputs": {
+          "val": 1567555200.276152
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "AccessorOp",
+      "id": "/timestamps",
+      "position": {
+        "x": 835.6063685997577,
+        "y": -91.54667285592765
+      },
+      "data": {
+        "inputs": {
+          "expression": "d.timestamps"
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "AccessorOp",
+      "id": "/path",
+      "position": {
+        "x": 835.4828782442315,
+        "y": -197.29219062248657
+      },
+      "data": {
+        "inputs": {
+          "expression": "d.path"
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "AccessorOp",
+      "id": "/properties",
+      "position": {
+        "x": 830.3792954707551,
+        "y": -322.12727915609275
+      },
+      "data": {
+        "inputs": {
+          "expression": "{properties: d.properties}"
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "CodeOp",
+      "id": "/code",
+      "position": {
+        "x": -25.623289069461407,
+        "y": -460.52226064152904
+      },
+      "resizing": false,
+      "data": {
+        "inputs": {
+          "code": [
+            "return d.features.map(({",
+            "  geometry: {coordinates}, properties",
+            "}) => ({",
+            "  path: coordinates.map(([lng, lat, alt]) => [lng, lat, alt]),",
+            "  timestamps: coordinates.map(([_0, _1, _2, t]) => t),",
+            "  properties",
+            "}))"
+          ]
+        },
+        "locked": false
+      },
+      "width": 643,
+      "height": 253,
+      "measured": {
+        "width": 643,
+        "height": 253
+      }
+    },
+    {
+      "type": "AccessorOp",
+      "id": "/position",
+      "position": {
+        "x": 1213.9921321433353,
+        "y": -225.85871138238025
+      },
+      "data": {
+        "inputs": {
+          "expression": "[d[0], d[1], d[2]]"
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "ScatterplotLayerOp",
+      "id": "/scatterplot-layer",
+      "position": {
+        "x": 1552.7704108312605,
+        "y": -438.7214118271477
+      },
+      "data": {
+        "inputs": {
+          "opacity": 0.6,
+          "getLineColor": "#ffffffff",
+          "getRadius": 6
+        },
+        "locked": false
+      }
     }
   ],
   "edges": [
@@ -128,20 +255,6 @@
       "target": "/out",
       "sourceHandle": "out.vis",
       "targetHandle": "par.vis"
-    },
-    {
-      "id": "/data-source.out.data->/geojson-layer.par.data",
-      "source": "/data-source",
-      "target": "/geojson-layer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/data-source.out.data->/trips-layer.par.data",
-      "source": "/data-source",
-      "target": "/trips-layer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
     },
     {
       "id": "/origin-country.out.accessor->/color-ramp.par.value",
@@ -172,35 +285,190 @@
       "targetHandle": "par.basemap"
     },
     {
-      "id": "/geojson-layer.out.layer->/deck.par.layers",
-      "source": "/geojson-layer",
-      "target": "/deck",
-      "sourceHandle": "out.layer",
-      "targetHandle": "par.layers"
+      "source": "/time",
+      "sourceHandle": "out.val",
+      "target": "/time-series",
+      "targetHandle": "par.currentTime",
+      "id": "/time.out.val->/time-series.par.currentTime"
     },
     {
-      "id": "/trips-layer.out.layer->/deck.par.layers",
-      "source": "/trips-layer",
-      "target": "/deck",
+      "source": "/properties",
+      "sourceHandle": "out.accessor",
+      "target": "/time-series",
+      "targetHandle": "par.getProperties",
+      "id": "/properties.out.accessor->/time-series.par.getProperties"
+    },
+    {
+      "source": "/path",
+      "sourceHandle": "out.accessor",
+      "target": "/time-series",
+      "targetHandle": "par.getValues",
+      "id": "/path.out.accessor->/time-series.par.getValues"
+    },
+    {
+      "source": "/data-source",
+      "sourceHandle": "out.data",
+      "target": "/code",
+      "targetHandle": "par.data",
+      "id": "/data-source.out.data->/code.par.data"
+    },
+    {
+      "source": "/code",
+      "sourceHandle": "out.data",
+      "target": "/time-series",
+      "targetHandle": "par.data",
+      "id": "/code.out.data->/time-series.par.data"
+    },
+    {
+      "source": "/position",
+      "sourceHandle": "out.accessor",
+      "target": "/scatterplot-layer",
+      "targetHandle": "par.getPosition",
+      "id": "/position.out.accessor->/scatterplot-layer.par.getPosition"
+    },
+    {
+      "source": "/time-series",
+      "sourceHandle": "out.data",
+      "target": "/scatterplot-layer",
+      "targetHandle": "par.data",
+      "id": "/time-series.out.data->/scatterplot-layer.par.data"
+    },
+    {
+      "source": "/scatterplot-layer",
       "sourceHandle": "out.layer",
-      "targetHandle": "par.layers"
+      "target": "/deck",
+      "targetHandle": "par.layers",
+      "id": "/scatterplot-layer.out.layer->/deck.par.layers"
+    },
+    {
+      "source": "/code",
+      "sourceHandle": "out.data",
+      "target": "/trips-layer",
+      "targetHandle": "par.data",
+      "id": "/code.out.data->/trips-layer.par.data"
+    },
+    {
+      "source": "/path",
+      "sourceHandle": "out.accessor",
+      "target": "/trips-layer",
+      "targetHandle": "par.getPath",
+      "id": "/path.out.accessor->/trips-layer.par.getPath"
+    },
+    {
+      "source": "/timestamps",
+      "sourceHandle": "out.accessor",
+      "target": "/trips-layer",
+      "targetHandle": "par.getTimestamps",
+      "id": "/timestamps.out.accessor->/trips-layer.par.getTimestamps"
+    },
+    {
+      "source": "/timestamps",
+      "sourceHandle": "out.accessor",
+      "target": "/time-series",
+      "targetHandle": "par.getTimestamps",
+      "id": "/timestamps.out.accessor->/time-series.par.getTimestamps"
+    },
+    {
+      "source": "/trips-layer",
+      "sourceHandle": "out.layer",
+      "target": "/deck",
+      "targetHandle": "par.layers",
+      "id": "/trips-layer.out.layer->/deck.par.layers"
+    },
+    {
+      "source": "/time",
+      "sourceHandle": "out.val",
+      "target": "/trips-layer",
+      "targetHandle": "par.currentTime",
+      "id": "/time.out.val->/trips-layer.par.currentTime"
+    },
+    {
+      "source": "/geojson-layer",
+      "sourceHandle": "out.layer",
+      "target": "/deck",
+      "targetHandle": "par.layers",
+      "id": "/geojson-layer.out.layer->/deck.par.layers"
+    },
+    {
+      "source": "/data-source",
+      "sourceHandle": "out.data",
+      "target": "/geojson-layer",
+      "targetHandle": "par.data",
+      "id": "/data-source.out.data->/geojson-layer.par.data"
+    },
+    {
+      "source": "/color-ramp",
+      "sourceHandle": "out.color",
+      "target": "/scatterplot-layer",
+      "targetHandle": "par.getFillColor",
+      "id": "/color-ramp.out.color->/scatterplot-layer.par.getFillColor"
     }
   ],
   "viewport": {
-    "x": 175,
-    "y": 130.22023442319554,
-    "zoom": 0.431832202344232
+    "x": 371.10759039675463,
+    "y": 461.29570352289136,
+    "zoom": 0.5265126624852493
   },
   "timeline": {
     "sheetsById": {
       "Noodles": {
         "staticOverrides": {
-          "byObject": {}
+          "byObject": {
+            "render": {
+              "framerate": 60
+            }
+          }
+        },
+        "sequence": {
+          "subUnitsPerUnit": 30,
+          "length": 3.04,
+          "type": "PositionalSequence",
+          "tracksByObject": {
+            "time": {
+              "trackData": {
+                "g0xHT4Xo4p": {
+                  "type": "BasicKeyframedTrack",
+                  "__debugName": "time:[\"val\"]",
+                  "keyframes": [
+                    {
+                      "id": "xHJJWLB41a",
+                      "position": 0,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 1567555200
+                    },
+                    {
+                      "id": "0XrkIwvDZr",
+                      "position": 2.967,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 1567561720
+                    }
+                  ]
+                }
+              },
+              "trackIdByPropPath": {
+                "[\"val\"]": "g0xHT4Xo4p"
+              }
+            }
+          }
         }
       }
     },
     "definitionVersion": "0.4.0",
     "revisionHistory": []
   },
-  "version": 6
+  "version": 7
 }

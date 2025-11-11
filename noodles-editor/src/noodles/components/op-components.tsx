@@ -210,6 +210,7 @@ const handleClasses = {
   extension: s.handleExtension,
   file: s.handleString,
   function: s.handleCode,
+  geojson: s.handleGeojson,
   'geopoint-2d': s.handleVector,
   'geopoint-3d': s.handleVector,
   'json-url': s.handleString,
