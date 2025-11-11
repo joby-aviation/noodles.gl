@@ -30,7 +30,7 @@ import '@xyflow/react/dist/style.css'
 import 'primereact/resources/themes/md-dark-indigo/theme.css'
 import 'primeicons/primeicons.css'
 
-import { useLocation } from 'wouter'
+import { useLocation, useParams } from 'wouter'
 import newProjectJSON from '../../public/new.json?url'
 import newProject from '../../public/noodles/new/noodles.json'
 import { ChatPanel } from '../ai-chat/chat-panel'
@@ -186,25 +186,21 @@ function useTheatreJs(projectName?: string) {
 // Also, the top-level sheet is used for theatre-managed project files, whereas a Noodles project file is managed within this visType.
 
 export function getNoodles(): Visualization {
-  // Extract projectId directly from wouter location
-  const [location, navigate] = useLocation()
+  const [, navigate] = useLocation()
+  const params = useParams()
 
-  // Parse projectId from URL: /examples/project-name or ?project=project-name (legacy)
-  const getProjectIdFromLocation = useCallback(() => {
-    const pathMatch = location.match(/^\/examples\/([^/]+)/)
-    if (pathMatch) {
-      return pathMatch[1]
+  // Get projectId from route params (/examples/:projectId) - router is single source of truth
+  const projectName = useMemo(() => {
+    // First try route params
+    if (params.projectId) {
+      return params.projectId
     }
-    // Fallback to query string for legacy support
+    // Fallback to query string for legacy support (?project=project-name)
     const queryParams = new URLSearchParams(window.location.search)
     return queryParams.get('project') || undefined
-  }, [location])
+  }, [params.projectId])
 
-  const [projectName, setProjectNameState] = useState<string | undefined>(
-    getProjectIdFromLocation,
-  )
-  const [showProjectNotFoundDialog, setShowProjectNotFoundDialog] =
-    useState(false)
+  const [showProjectNotFoundDialog, setShowProjectNotFoundDialog] = useState(false)
   const storageType = useActiveStorageType()
   const { setCurrentDirectory, setActiveStorageType, setError } =
     useFileSystemStore()
@@ -225,34 +221,24 @@ export function getNoodles(): Visualization {
   const aPressed = useKeyPress('a')
   const [showChatPanel, setShowChatPanel] = useState(false)
 
-  // Wrapper for setProjectName that also updates the URL
+  // Update URL when project name changes (for when loading a project from file/storage)
+  // This updates the router, which will trigger projectName to update via useMemo
   const setProjectName = useCallback(
     (nameOrUpdater: React.SetStateAction<string | null>) => {
-      setProjectNameState((prev) => {
-        const prevValue = prev ?? null
-        const newName =
-          typeof nameOrUpdater === 'function'
-            ? nameOrUpdater(prevValue)
-            : nameOrUpdater
-        // Update URL when project name changes
-        if (newName) {
-          navigate(`/examples/${newName}`, { replace: true })
-        } else {
-          navigate('/', { replace: true })
-        }
-        return newName ?? undefined
-      })
-    },
-    [navigate],
-  )
+      // Handle both direct values and updater functions
+      const name =
+        typeof nameOrUpdater === 'function'
+          ? nameOrUpdater(projectName ?? null)
+          : nameOrUpdater
 
-  // Update projectName when location changes (route changes)
-  useEffect(() => {
-    const newProjectId = getProjectIdFromLocation()
-    if (newProjectId !== projectName) {
-      setProjectNameState(newProjectId)
-    }
-  }, [getProjectIdFromLocation, projectName])
+      if (name) {
+        navigate(`/examples/${name}`, { replace: true })
+      } else {
+        navigate('/', { replace: true })
+      }
+    },
+    [navigate, projectName],
+  )
 
   // Eagerly start loading AI context bundles on app start
   useEffect(() => {

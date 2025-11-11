@@ -29,6 +29,12 @@
         const redirect = params.get('redirect');
 
         if (redirect) {
+          // Validate that redirect is a safe path (must start with /)
+          if (!redirect.startsWith('/')) {
+            console.warn('Invalid redirect parameter - must start with /');
+            return;
+          }
+
           // Remove the redirect parameter and update the URL using history API
           params.delete('redirect');
           const newSearch = params.toString() ? '?' + params.toString() : '';
