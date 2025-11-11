@@ -39,6 +39,7 @@ export const categories = {
     'SortOp',
     'SwitchOp',
     'TableEditorOp',
+    'TimeSeriesOp',
     'ViewerOp',
     'ViewStateOp',
   ],
