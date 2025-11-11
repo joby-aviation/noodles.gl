@@ -5092,33 +5092,31 @@ function interpolateTimeSeries(
     return { ...timeSeries[0] }
   }
 
-  // Sort by time to ensure proper interpolation
-  const sortedData = [...timeSeries].sort((a, b) => a.time - b.time)
-
   // If currentTime is before first point, return first point
-  if (currentTime <= sortedData[0].time) {
-    return { ...sortedData[0] }
+  if (currentTime <= timeSeries[0].time) {
+    return { ...timeSeries[0] }
   }
 
   // If currentTime is after last point, return last point
-  if (currentTime >= sortedData[sortedData.length - 1].time) {
-    return { ...sortedData[sortedData.length - 1] }
+  if (currentTime >= timeSeries[timeSeries.length - 1].time) {
+    return { ...timeSeries[timeSeries.length - 1] }
   }
 
-  // Find the two points to interpolate between
-  let beforeIndex = 0
-  let afterIndex = 1
+  // Binary search to find the two points to interpolate between
+  let left = 0
+  let right = timeSeries.length - 1
 
-  for (let i = 0; i < sortedData.length - 1; i++) {
-    if (currentTime >= sortedData[i].time && currentTime <= sortedData[i + 1].time) {
-      beforeIndex = i
-      afterIndex = i + 1
-      break
+  while (left < right - 1) {
+    const mid = Math.floor((left + right) / 2)
+    if (timeSeries[mid].time <= currentTime) {
+      left = mid
+    } else {
+      right = mid
     }
   }
 
-  const before = sortedData[beforeIndex]
-  const after = sortedData[afterIndex]
+  const before = timeSeries[left]
+  const after = timeSeries[right]
 
   // Calculate interpolation factor (0 to 1)
   const timeDelta = after.time - before.time
