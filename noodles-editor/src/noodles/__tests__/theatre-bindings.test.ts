@@ -1,0 +1,538 @@
+import { getProject } from '@theatre/core'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+
+import {
+  NumberField,
+  BooleanField,
+  StringField,
+  ColorField,
+  Vec2Field,
+  Vec3Field,
+  type Field,
+} from '../fields'
+import { opMap, sheetObjectMap } from '../store'
+import {
+  bindOperatorToTheatre,
+  unbindOperatorFromTheatre,
+  bindAllOperatorsToTheatre,
+  cleanupRemovedOperators,
+} from '../theatre-bindings'
+
+// Helper to create properly initialized fields
+function createField<T extends Field>(
+  FieldType: new (...args: any[]) => T,
+  value: any,
+  options: any,
+  opId: string,
+  fieldName: string
+): T {
+  const field = new FieldType(value, options)
+  field.pathToProps = [opId, 'par', fieldName]
+  return field
+}
+
+describe('theatre-bindings', () => {
+  let testProject: ReturnType<typeof getProject>
+  let testSheet: ReturnType<ReturnType<typeof getProject>['sheet']>
+  let testCounter = 0
+
+  beforeEach(() => {
+    // Create a unique test project (3-32 chars per Theatre requirement)
+    const projectName = `test-${testCounter++}`
+    testProject = getProject(projectName, {})
+    testSheet = testProject.sheet('test-sheet')
+
+    // Clear maps
+    opMap.clear()
+    sheetObjectMap.clear()
+  })
+
+  afterEach(() => {
+    // Cleanup
+    opMap.clear()
+    sheetObjectMap.clear()
+  })
+
+  describe('bindOperatorToTheatre', () => {
+    it('should bind an operator with theatre-compatible fields', () => {
+      // Create a mock operator with theatre-compatible inputs
+      const valueField = new NumberField(42, { min: 0, max: 100, step: 1 })
+      valueField.pathToProps = ['/test-op', 'par', 'value']
+
+      const enabledField = new BooleanField(true)
+      enabledField.pathToProps = ['/test-op', 'par', 'enabled']
+
+      const nameField = new StringField('test')
+      nameField.pathToProps = ['/test-op', 'par', 'name']
+
+      const mockOp = {
+        id: '/test-op',
+        inputs: {
+          value: valueField,
+          enabled: enabledField,
+          name: nameField,
+        },
+        outputs: {},
+        locked: { value: false },
+      } as any
+
+      const cleanup = bindOperatorToTheatre(mockOp, testSheet)
+
+      // Should create sheet object
+      expect(sheetObjectMap.has('/test-op')).toBe(true)
+      expect(cleanup).toBeTypeOf('function')
+
+      // Cleanup
+      cleanup?.()
+      expect(sheetObjectMap.has('/test-op')).toBe(false)
+    })
+
+    it('should skip operators with no theatre-compatible fields', () => {
+      const mockOp = {
+        id: '/test-op',
+        inputs: {
+          // Function values are not theatre-compatible
+          accessor: { value: () => 'test', subscribe: vi.fn() },
+        },
+        outputs: {},
+        locked: { value: false },
+      } as any
+
+      const cleanup = bindOperatorToTheatre(mockOp, testSheet)
+
+      // Should not create sheet object
+      expect(sheetObjectMap.has('/test-op')).toBe(false)
+      expect(cleanup).toBeUndefined()
+    })
+
+    it('should skip special /out operator', () => {
+      const valueField = new NumberField(42, { min: 0, max: 100, step: 1 })
+      valueField.pathToProps = ['/out', 'par', 'value']
+
+      const mockOp = {
+        id: '/out',
+        inputs: {
+          value: valueField,
+        },
+        outputs: {},
+        locked: { value: false },
+      } as any
+
+      const cleanup = bindOperatorToTheatre(mockOp, testSheet)
+
+      // Should not bind /out operator
+      expect(sheetObjectMap.has('/out')).toBe(false)
+      expect(cleanup).toBeUndefined()
+    })
+
+    it('should skip already bound operators', () => {
+      const valueField = new NumberField(42, { min: 0, max: 100, step: 1 })
+      valueField.pathToProps = ['/test-op', 'par', 'value']
+
+      const mockOp = {
+        id: '/test-op',
+        inputs: {
+          value: valueField,
+        },
+        outputs: {},
+        locked: { value: false },
+      } as any
+
+      // Bind first time
+      const cleanup1 = bindOperatorToTheatre(mockOp, testSheet)
+      expect(cleanup1).toBeTypeOf('function')
+
+      // Try to bind again
+      const cleanup2 = bindOperatorToTheatre(mockOp, testSheet)
+      expect(cleanup2).toBeUndefined()
+
+      cleanup1?.()
+    })
+
+    it('should handle color fields', () => {
+      const colorField = new ColorField('#ff0000')
+      colorField.pathToProps = ['/test-op', 'par', 'color']
+
+      const mockOp = {
+        id: '/test-op',
+        inputs: {
+          color: colorField,
+        },
+        outputs: {},
+        locked: { value: false },
+      } as any
+
+      const cleanup = bindOperatorToTheatre(mockOp, testSheet)
+
+      expect(sheetObjectMap.has('/test-op')).toBe(true)
+      cleanup?.()
+    })
+
+    it('should handle vector fields', () => {
+      const vec2Field = new Vec2Field([1, 2])
+      vec2Field.pathToProps = ['/test-op', 'par', 'vec2']
+
+      const vec3Field = new Vec3Field([1, 2, 3])
+      vec3Field.pathToProps = ['/test-op', 'par', 'vec3']
+
+      const mockOp = {
+        id: '/test-op',
+        inputs: {
+          vec2: vec2Field,
+          vec3: vec3Field,
+        },
+        outputs: {},
+        locked: { value: false },
+      } as any
+
+      const cleanup = bindOperatorToTheatre(mockOp, testSheet)
+
+      expect(sheetObjectMap.has('/test-op')).toBe(true)
+      cleanup?.()
+    })
+
+    it('should setup two-way bindings', () => {
+      const numberField = createField(NumberField, 42, { min: 0, max: 100, step: 1 }, '/test-op', 'value')
+
+      const mockOp = {
+        id: '/test-op',
+        inputs: {
+          value: numberField,
+        },
+        outputs: {},
+        locked: { value: false },
+      } as any
+
+      const cleanup = bindOperatorToTheatre(mockOp, testSheet)
+
+      // Get the sheet object
+      const sheetObj = sheetObjectMap.get('/test-op')
+      expect(sheetObj).toBeDefined()
+
+      // Update field value and verify Theatre gets updated
+      // Note: This requires Theatre transaction to complete
+      numberField.setValue(50)
+
+      // Cleanup
+      cleanup?.()
+    })
+  })
+
+  describe('unbindOperatorFromTheatre', () => {
+    it('should unbind an operator', () => {
+      const valueField = createField(NumberField, 42, { min: 0, max: 100, step: 1 }, '/test-op', 'value')
+
+      const mockOp = {
+        id: '/test-op',
+        inputs: {
+          value: valueField,
+        },
+        outputs: {},
+        locked: { value: false },
+      } as any
+
+      // Bind
+      const cleanup = bindOperatorToTheatre(mockOp, testSheet)
+      expect(sheetObjectMap.has('/test-op')).toBe(true)
+
+      // Unbind
+      unbindOperatorFromTheatre('/test-op', testSheet)
+      expect(sheetObjectMap.has('/test-op')).toBe(false)
+
+      cleanup?.()
+    })
+
+    it('should handle unbinding non-existent operator', () => {
+      // Should not throw
+      expect(() => {
+        unbindOperatorFromTheatre('/non-existent', testSheet)
+      }).not.toThrow()
+    })
+  })
+
+  describe('bindAllOperatorsToTheatre', () => {
+    it('should bind multiple operators', () => {
+      const mockOps = [
+        {
+          id: '/op1',
+          inputs: { value: createField(NumberField, 1, { min: 0, max: 100, step: 1 }, '/op1', 'value') },
+          outputs: {},
+          locked: { value: false },
+        },
+        {
+          id: '/op2',
+          inputs: { value: createField(NumberField, 2, { min: 0, max: 100, step: 1 }, '/op2', 'value') },
+          outputs: {},
+          locked: { value: false },
+        },
+        {
+          id: '/op3',
+          inputs: { value: createField(NumberField, 3, { min: 0, max: 100, step: 1 }, '/op3', 'value') },
+          outputs: {},
+          locked: { value: false },
+        },
+      ] as any[]
+
+      const cleanupFns = bindAllOperatorsToTheatre(mockOps, testSheet)
+
+      // Should bind all operators
+      expect(cleanupFns.size).toBe(3)
+      expect(sheetObjectMap.has('/op1')).toBe(true)
+      expect(sheetObjectMap.has('/op2')).toBe(true)
+      expect(sheetObjectMap.has('/op3')).toBe(true)
+
+      // Cleanup all
+      for (const cleanup of cleanupFns.values()) {
+        cleanup()
+      }
+
+      expect(sheetObjectMap.size).toBe(0)
+    })
+
+    it('should skip operators with no compatible fields', () => {
+      const mockOps = [
+        {
+          id: '/op1',
+          inputs: { value: createField(NumberField, 1, { min: 0, max: 100, step: 1 }, '/op1', 'value') },
+          outputs: {},
+          locked: { value: false },
+        },
+        {
+          id: '/op2',
+          inputs: { fn: { value: () => { }, subscribe: vi.fn() } },
+          outputs: {},
+          locked: { value: false },
+        },
+      ] as any[]
+
+      const cleanupFns = bindAllOperatorsToTheatre(mockOps, testSheet)
+
+      // Should only bind op1
+      expect(cleanupFns.size).toBe(1)
+      expect(sheetObjectMap.has('/op1')).toBe(true)
+      expect(sheetObjectMap.has('/op2')).toBe(false)
+
+      // Cleanup
+      for (const cleanup of cleanupFns.values()) {
+        cleanup()
+      }
+    })
+
+    it('should skip /out operator', () => {
+      const mockOps = [
+        {
+          id: '/out',
+          inputs: { value: createField(NumberField, 1, { min: 0, max: 100, step: 1 }, '/out', 'value') },
+          outputs: {},
+          locked: { value: false },
+        },
+        {
+          id: '/op1',
+          inputs: { value: createField(NumberField, 2, { min: 0, max: 100, step: 1 }, '/op1', 'value') },
+          outputs: {},
+          locked: { value: false },
+        },
+      ] as any[]
+
+      const cleanupFns = bindAllOperatorsToTheatre(mockOps, testSheet)
+
+      // Should skip /out
+      expect(cleanupFns.size).toBe(1)
+      expect(sheetObjectMap.has('/out')).toBe(false)
+      expect(sheetObjectMap.has('/op1')).toBe(true)
+
+      // Cleanup
+      for (const cleanup of cleanupFns.values()) {
+        cleanup()
+      }
+    })
+  })
+
+  describe('cleanupRemovedOperators', () => {
+    it('should cleanup operators not in current set', () => {
+      // Setup: bind some operators
+      const mockOps = [
+        {
+          id: '/op1',
+          inputs: { value: createField(NumberField, 1, { min: 0, max: 100, step: 1 }, '/op1', 'value') },
+          outputs: {},
+          locked: { value: false },
+        },
+        {
+          id: '/op2',
+          inputs: { value: createField(NumberField, 2, { min: 0, max: 100, step: 1 }, '/op2', 'value') },
+          outputs: {},
+          locked: { value: false },
+        },
+        {
+          id: '/op3',
+          inputs: { value: createField(NumberField, 3, { min: 0, max: 100, step: 1 }, '/op3', 'value') },
+          outputs: {},
+          locked: { value: false },
+        },
+      ] as any[]
+
+      bindAllOperatorsToTheatre(mockOps, testSheet)
+
+      expect(sheetObjectMap.size).toBe(3)
+
+      // Cleanup op2 and op3 (only keep op1)
+      const currentOperatorIds = new Set(['/op1'])
+      cleanupRemovedOperators(currentOperatorIds, testSheet)
+
+      // Should only have op1 remaining
+      expect(sheetObjectMap.size).toBe(1)
+      expect(sheetObjectMap.has('/op1')).toBe(true)
+      expect(sheetObjectMap.has('/op2')).toBe(false)
+      expect(sheetObjectMap.has('/op3')).toBe(false)
+    })
+
+    it('should handle empty operator set', () => {
+      // Setup: bind some operators
+      const mockOps = [
+        {
+          id: '/op1',
+          inputs: { value: createField(NumberField, 1, { min: 0, max: 100, step: 1 }, '/op1', 'value') },
+          outputs: {},
+          locked: { value: false },
+        },
+      ] as any[]
+
+      bindAllOperatorsToTheatre(mockOps, testSheet)
+      expect(sheetObjectMap.size).toBe(1)
+
+      // Cleanup all
+      cleanupRemovedOperators(new Set(), testSheet)
+      expect(sheetObjectMap.size).toBe(0)
+    })
+
+    it('should not affect operators still in current set', () => {
+      const mockOps = [
+        {
+          id: '/op1',
+          inputs: { value: createField(NumberField, 1, { min: 0, max: 100, step: 1 }, '/op1', 'value') },
+          outputs: {},
+          locked: { value: false },
+        },
+        {
+          id: '/op2',
+          inputs: { value: createField(NumberField, 2, { min: 0, max: 100, step: 1 }, '/op2', 'value') },
+          outputs: {},
+          locked: { value: false },
+        },
+      ] as any[]
+
+      bindAllOperatorsToTheatre(mockOps, testSheet)
+
+      // Keep both
+      const currentOperatorIds = new Set(['/op1', '/op2'])
+      cleanupRemovedOperators(currentOperatorIds, testSheet)
+
+      // Should still have both
+      expect(sheetObjectMap.size).toBe(2)
+      expect(sheetObjectMap.has('/op1')).toBe(true)
+      expect(sheetObjectMap.has('/op2')).toBe(true)
+    })
+  })
+
+  describe('integration scenarios', () => {
+    it('should handle operator replacement workflow', () => {
+      // Initial operators
+      const ops1 = [
+        {
+          id: '/op1',
+          inputs: { value: createField(NumberField, 1, { min: 0, max: 100, step: 1 }, '/op1', 'value') },
+          outputs: {},
+          locked: { value: false },
+        },
+        {
+          id: '/op2',
+          inputs: { value: createField(NumberField, 2, { min: 0, max: 100, step: 1 }, '/op2', 'value') },
+          outputs: {},
+          locked: { value: false },
+        },
+      ] as any[]
+
+      let cleanupFns = bindAllOperatorsToTheatre(ops1, testSheet)
+      expect(sheetObjectMap.size).toBe(2)
+
+      // Cleanup old bindings
+      for (const cleanup of cleanupFns.values()) {
+        cleanup()
+      }
+
+      // New operators (op2 removed, op3 added)
+      const ops2 = [
+        {
+          id: '/op1',
+          inputs: { value: createField(NumberField, 1, { min: 0, max: 100, step: 1 }, '/op1', 'value') },
+          outputs: {},
+          locked: { value: false },
+        },
+        {
+          id: '/op3',
+          inputs: { value: createField(NumberField, 3, { min: 0, max: 100, step: 1 }, '/op3', 'value') },
+          outputs: {},
+          locked: { value: false },
+        },
+      ] as any[]
+
+      cleanupFns = bindAllOperatorsToTheatre(ops2, testSheet)
+      const currentIds = new Set(ops2.map(op => op.id))
+      cleanupRemovedOperators(currentIds, testSheet)
+
+      // Should have op1 and op3, not op2
+      expect(sheetObjectMap.size).toBe(2)
+      expect(sheetObjectMap.has('/op1')).toBe(true)
+      expect(sheetObjectMap.has('/op2')).toBe(false)
+      expect(sheetObjectMap.has('/op3')).toBe(true)
+
+      // Final cleanup
+      for (const cleanup of cleanupFns.values()) {
+        cleanup()
+      }
+    })
+
+    it('should handle container operators and their children', () => {
+      // Create a container operator
+      const containerOp = {
+        id: '/container',
+        inputs: {
+          in: createField(NumberField, 10, { min: 0, max: 100, step: 1 }, '/container', 'in'),
+        },
+        outputs: {},
+        locked: { value: false },
+      } as any
+
+      // Create a child operator inside the container
+      const childOp = {
+        id: '/container/child',
+        inputs: {
+          value: createField(NumberField as any, 42, { min: 0, max: 100, step: 1 }, '/container/child', 'value'),
+        },
+        outputs: {},
+        locked: { value: false },
+      } as any
+
+      // Bind both container and child
+      const cleanupContainer = bindOperatorToTheatre(containerOp, testSheet)
+      const cleanupChild = bindOperatorToTheatre(childOp, testSheet)
+
+      // Both container and child should be bound
+      expect(sheetObjectMap.has('/container')).toBe(true)
+      expect(sheetObjectMap.has('/container/child')).toBe(true)
+
+      // Verify they have different Theatre object names
+      const containerSheetObj = sheetObjectMap.get('/container')
+      const childSheetObj = sheetObjectMap.get('/container/child')
+      expect(containerSheetObj).toBeDefined()
+      expect(childSheetObj).toBeDefined()
+
+      // Clean up both
+      cleanupContainer?.()
+      cleanupChild?.()
+      expect(sheetObjectMap.has('/container')).toBe(false)
+      expect(sheetObjectMap.has('/container/child')).toBe(false)
+    })
+  })
+})

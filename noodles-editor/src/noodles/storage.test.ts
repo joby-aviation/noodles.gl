@@ -1,0 +1,395 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import createFetchMock from 'vitest-fetch-mock'
+
+const fetchMock = createFetchMock(vi)
+fetchMock.enableMocks()
+
+// Mock the filesystem module before importing anything else
+vi.mock('./utils/filesystem', () => ({
+  projectScheme: '@/',
+  checkFileSystemSupport: vi.fn(() => ({
+    fileSystemAccess: true,
+    opfs: true,
+  })),
+  getOPFSRoot: vi.fn(),
+  selectDirectory: vi.fn(),
+  readFileFromDirectory: vi.fn(),
+  writeFileToDirectory: vi.fn(),
+  fileExists: vi.fn(),
+  directoryExists: vi.fn(),
+  requestPermission: vi.fn(),
+}))
+
+// Mock directory handle cache
+vi.mock('./utils/directory-handle-cache', () => ({
+  directoryHandleCache: {
+    getCachedHandle: vi.fn(),
+    validateHandle: vi.fn(),
+    cacheHandle: vi.fn(),
+    removeHandle: vi.fn(),
+    init: vi.fn(),
+    clearCache: vi.fn(),
+    getAllProjectNames: vi.fn(),
+  },
+}))
+
+// Import after mocks are set up
+import { checkAssetExists, readAsset } from './storage'
+import * as filesystem from './utils/filesystem'
+import { directoryHandleCache } from './utils/directory-handle-cache'
+
+// Create a mock directory handle factory
+const createMockDirectoryHandle = (name: string): FileSystemDirectoryHandle => {
+  const mockGetDirectoryHandle = vi.fn().mockResolvedValue({
+    kind: 'directory',
+    name: 'data',
+  } as FileSystemDirectoryHandle)
+
+  const mockGetFileHandle = vi.fn().mockResolvedValue({
+    kind: 'file',
+    name: 'test.csv',
+    getFile: vi.fn().mockResolvedValue({
+      text: vi.fn().mockResolvedValue('file contents'),
+    }),
+  } as unknown as FileSystemFileHandle)
+
+  return {
+    kind: 'directory',
+    name,
+    getDirectoryHandle: mockGetDirectoryHandle,
+    getFileHandle: mockGetFileHandle,
+  } as unknown as FileSystemDirectoryHandle
+}
+
+describe('storage.ts', () => {
+  beforeEach(() => {
+    fetchMock.resetMocks()
+    vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+  })
+
+  describe('readAsset', () => {
+    describe('publicFolder storage type', () => {
+      it('fetches asset from public directory', async () => {
+        fetchMock.mockResponseOnce('file contents')
+
+        const result = await readAsset('publicFolder', 'my-project', 'data.csv')
+
+        expect(result.success).toBe(true)
+        if (result.success) {
+          expect(result.data).toBe('file contents')
+        }
+        expect(fetchMock).toHaveBeenCalledWith('./noodles/my-project/data.csv')
+      })
+
+      it('returns error when asset not found', async () => {
+        fetchMock.mockResponseOnce('Not Found', { status: 404 })
+
+        const result = await readAsset('publicFolder', 'my-project', 'missing.csv')
+
+        expect(result.success).toBe(false)
+        if (!result.success) {
+          expect(result.error.type).toBe('not-found')
+          expect(result.error.message).toContain('Asset not found')
+          expect(result.error.details).toContain('./noodles/my-project/missing.csv')
+        }
+      })
+
+      it('handles network errors gracefully', async () => {
+        fetchMock.mockRejectOnce(new Error('Network error'))
+
+        const result = await readAsset('publicFolder', 'my-project', 'data.csv')
+
+        expect(result.success).toBe(false)
+        if (!result.success) {
+          expect(result.error.type).toBe('unknown')
+          expect(result.error.message).toContain('read asset file from public folder')
+        }
+      })
+    })
+
+    describe('fileSystemAccess storage type', () => {
+      it('prompts user to select directory when handle not found in cache', async () => {
+        const mockHandle = createMockDirectoryHandle('test-project')
+
+        // Mock: no cached handle found
+        vi.mocked(directoryHandleCache.getCachedHandle).mockResolvedValue(null)
+
+        // Mock: user selects directory
+        vi.mocked(filesystem.selectDirectory).mockResolvedValue(mockHandle)
+
+        // Mock: permission granted
+        vi.mocked(filesystem.requestPermission).mockResolvedValue(true)
+
+        // Mock: data directory exists
+        vi.mocked(filesystem.directoryExists).mockResolvedValue(true)
+
+        // Mock: file read succeeds
+        vi.mocked(filesystem.readFileFromDirectory).mockResolvedValue('asset content')
+
+        const result = await readAsset('fileSystemAccess', 'test-project', 'test.csv')
+
+        expect(result.success).toBe(true)
+        if (result.success) {
+          expect(result.data).toBe('asset content')
+        }
+
+        // Verify that selectDirectory was called (prompting user)
+        expect(filesystem.selectDirectory).toHaveBeenCalled()
+
+        // Verify that the handle was cached after selection
+        expect(directoryHandleCache.cacheHandle).toHaveBeenCalledWith(
+          'test-project',
+          mockHandle,
+          'test-project'
+        )
+      })
+
+      it('uses cached handle when available and valid', async () => {
+        const mockHandle = createMockDirectoryHandle('test-project')
+
+        // Mock: cached handle found
+        vi.mocked(directoryHandleCache.getCachedHandle).mockResolvedValue({
+          projectName: 'test-project',
+          handle: mockHandle,
+          path: '/test-project',
+          cachedAt: Date.now(),
+        })
+
+        // Mock: cached handle is valid
+        vi.mocked(directoryHandleCache.validateHandle).mockResolvedValue(true)
+
+        vi.mocked(filesystem.requestPermission).mockResolvedValue(true)
+        vi.mocked(filesystem.directoryExists).mockResolvedValue(true)
+        vi.mocked(filesystem.readFileFromDirectory).mockResolvedValue('cached asset content')
+
+        const result = await readAsset('fileSystemAccess', 'test-project', 'test.csv')
+
+        expect(result.success).toBe(true)
+        if (result.success) {
+          expect(result.data).toBe('cached asset content')
+        }
+
+        // Verify that selectDirectory was NOT called (used cached handle)
+        expect(filesystem.selectDirectory).not.toHaveBeenCalled()
+      })
+
+      it('re-prompts when cached handle is invalid', async () => {
+        const oldMockHandle = createMockDirectoryHandle('test-project')
+        const newMockHandle = createMockDirectoryHandle('test-project')
+
+        // Mock: cached handle found but invalid
+        vi.mocked(directoryHandleCache.getCachedHandle).mockResolvedValue({
+          projectName: 'test-project',
+          handle: oldMockHandle,
+          path: '/test-project',
+          cachedAt: Date.now(),
+        })
+
+        // Mock: cached handle is invalid
+        vi.mocked(directoryHandleCache.validateHandle).mockResolvedValue(false)
+
+        // Mock: user selects directory again
+        vi.mocked(filesystem.selectDirectory).mockResolvedValue(newMockHandle)
+        vi.mocked(filesystem.requestPermission).mockResolvedValue(true)
+        vi.mocked(filesystem.directoryExists).mockResolvedValue(true)
+        vi.mocked(filesystem.readFileFromDirectory).mockResolvedValue('new asset content')
+
+        const result = await readAsset('fileSystemAccess', 'test-project', 'test.csv')
+
+        expect(result.success).toBe(true)
+        if (result.success) {
+          expect(result.data).toBe('new asset content')
+        }
+
+        // Verify that selectDirectory was called to re-prompt
+        expect(filesystem.selectDirectory).toHaveBeenCalled()
+      })
+
+      it('returns error when data directory not found', async () => {
+        const mockHandle = createMockDirectoryHandle('test-project')
+
+        vi.mocked(directoryHandleCache.getCachedHandle).mockResolvedValue({
+          projectName: 'test-project',
+          handle: mockHandle,
+          path: '/test-project',
+          cachedAt: Date.now(),
+        })
+
+        vi.mocked(directoryHandleCache.validateHandle).mockResolvedValue(true)
+        vi.mocked(filesystem.requestPermission).mockResolvedValue(true)
+
+        // Mock: data directory does not exist
+        vi.mocked(filesystem.directoryExists).mockResolvedValue(false)
+
+        const result = await readAsset('fileSystemAccess', 'test-project', 'test.csv')
+
+        expect(result.success).toBe(false)
+        if (!result.success) {
+          expect(result.error.type).toBe('not-found')
+          expect(result.error.message).toBe('Data directory not found')
+        }
+      })
+
+      it('returns error when user cancels directory selection', async () => {
+        // Mock: no cached handle found
+        vi.mocked(directoryHandleCache.getCachedHandle).mockResolvedValue(null)
+
+        // Mock: user cancels selection (returns null)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        vi.mocked(filesystem.selectDirectory).mockResolvedValue(null as any)
+
+        const result = await readAsset('fileSystemAccess', 'test-project', 'test.csv')
+
+        expect(result.success).toBe(false)
+        if (!result.success) {
+          expect(result.error.type).toBe('not-found')
+          expect(result.error.message).toContain('No cached directory handle found')
+        }
+      })
+    })
+
+    describe('opfs storage type', () => {
+      it('reads asset from OPFS', async () => {
+        const mockRoot = createMockDirectoryHandle('root')
+        const mockProjectDir = createMockDirectoryHandle('test-project')
+
+        // Mock OPFS root
+        vi.mocked(filesystem.getOPFSRoot).mockResolvedValue(mockRoot)
+
+        // Mock getting project directory from OPFS
+        vi.mocked(mockRoot.getDirectoryHandle).mockResolvedValue(mockProjectDir)
+
+        // Mock: data directory exists
+        vi.mocked(filesystem.directoryExists).mockResolvedValue(true)
+
+        // Mock: file read succeeds
+        vi.mocked(filesystem.readFileFromDirectory).mockResolvedValue('opfs asset content')
+
+        const result = await readAsset('opfs', 'test-project', 'test.csv')
+
+        expect(result.success).toBe(true)
+        if (result.success) {
+          expect(result.data).toBe('opfs asset content')
+        }
+
+        // OPFS doesn't use cache or prompt for File System Access API
+        expect(filesystem.selectDirectory).not.toHaveBeenCalled()
+      })
+
+      it('returns error when project not found in OPFS', async () => {
+        const mockRoot = createMockDirectoryHandle('root')
+
+        vi.mocked(filesystem.getOPFSRoot).mockResolvedValue(mockRoot)
+
+        // Mock: project directory doesn't exist in OPFS
+        vi.mocked(mockRoot.getDirectoryHandle).mockRejectedValue(
+          new DOMException('Directory not found', 'NotFoundError')
+        )
+
+        const result = await readAsset('opfs', 'nonexistent-project', 'test.csv')
+
+        expect(result.success).toBe(false)
+        if (!result.success) {
+          expect(result.error.type).toBe('not-found')
+        }
+      })
+    })
+  })
+
+  describe('checkAssetExists', () => {
+    describe('publicFolder storage type', () => {
+      it('returns true when asset exists', async () => {
+        fetchMock.mockResponseOnce('', { status: 200 })
+
+        const exists = await checkAssetExists('publicFolder', 'my-project', 'data.csv')
+
+        expect(exists).toBe(true)
+        expect(fetchMock).toHaveBeenCalledWith('./noodles/my-project/data.csv', {
+          method: 'HEAD',
+        })
+      })
+
+      it('returns false when asset does not exist', async () => {
+        fetchMock.mockResponseOnce('', { status: 404 })
+
+        const exists = await checkAssetExists('publicFolder', 'my-project', 'missing.csv')
+
+        expect(exists).toBe(false)
+      })
+
+      it('returns false on network error', async () => {
+        fetchMock.mockRejectOnce(new Error('Network error'))
+
+        const exists = await checkAssetExists('publicFolder', 'my-project', 'data.csv')
+
+        expect(exists).toBe(false)
+      })
+    })
+
+    describe('fileSystemAccess storage type', () => {
+      it('returns true when asset exists', async () => {
+        const mockHandle = createMockDirectoryHandle('test-project')
+
+        vi.mocked(directoryHandleCache.getCachedHandle).mockResolvedValue({
+          projectName: 'test-project',
+          handle: mockHandle,
+          path: '/test-project',
+          cachedAt: Date.now(),
+        })
+
+        vi.mocked(directoryHandleCache.validateHandle).mockResolvedValue(true)
+        vi.mocked(filesystem.requestPermission).mockResolvedValue(true)
+        vi.mocked(filesystem.directoryExists).mockResolvedValue(true)
+        vi.mocked(filesystem.fileExists).mockResolvedValue(true)
+
+        const exists = await checkAssetExists('fileSystemAccess', 'test-project', 'test.csv')
+
+        expect(exists).toBe(true)
+        expect(filesystem.fileExists).toHaveBeenCalled()
+      })
+
+      it('returns false when data directory does not exist', async () => {
+        const mockHandle = createMockDirectoryHandle('test-project')
+
+        vi.mocked(directoryHandleCache.getCachedHandle).mockResolvedValue({
+          projectName: 'test-project',
+          handle: mockHandle,
+          path: '/test-project',
+          cachedAt: Date.now(),
+        })
+
+        vi.mocked(directoryHandleCache.validateHandle).mockResolvedValue(true)
+        vi.mocked(filesystem.requestPermission).mockResolvedValue(true)
+        vi.mocked(filesystem.directoryExists).mockResolvedValue(false)
+
+        const exists = await checkAssetExists('fileSystemAccess', 'test-project', 'test.csv')
+
+        expect(exists).toBe(false)
+      })
+
+      it('returns false when file does not exist', async () => {
+        const mockHandle = createMockDirectoryHandle('test-project')
+
+        vi.mocked(directoryHandleCache.getCachedHandle).mockResolvedValue({
+          projectName: 'test-project',
+          handle: mockHandle,
+          path: '/test-project',
+          cachedAt: Date.now(),
+        })
+
+        vi.mocked(directoryHandleCache.validateHandle).mockResolvedValue(true)
+        vi.mocked(filesystem.requestPermission).mockResolvedValue(true)
+        vi.mocked(filesystem.directoryExists).mockResolvedValue(true)
+        vi.mocked(filesystem.fileExists).mockResolvedValue(false)
+
+        const exists = await checkAssetExists('fileSystemAccess', 'test-project', 'missing.csv')
+
+        expect(exists).toBe(false)
+      })
+    })
+  })
+})

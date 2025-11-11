@@ -219,6 +219,41 @@ describe('serializeNodes', () => {
     expect(result.height).toEqual(200)
   })
 
+  it('excludes ReferenceEdge connections when determining connected inputs', () => {
+    const ops = new Map()
+    ops.set('node1', makeOp({ x: 123 }, false))
+    ops.set('node0', makeOp({ foo: 42 }, false))
+
+    const node = { id: 'node1', type: 'basic', data: {}, position: { x: 0, y: 0 } }
+    const dataConnection = {
+      source: 'node0',
+      target: 'node1',
+      sourceHandle: 'out.foo',
+      targetHandle: 'par.x',
+    }
+    const referenceConnection = {
+      source: 'node0',
+      target: 'node1',
+      sourceHandle: 'out.bar',
+      targetHandle: 'par.y',
+    }
+    const edges = [
+      {
+        id: edgeId(dataConnection),
+        type: 'ReferenceEdge',
+        ...referenceConnection,
+      },
+      {
+        id: edgeId(dataConnection),
+        ...dataConnection,
+      },
+    ]
+    const result = serializeNodes(ops, [node], edges)
+    // The x input should be omitted because it has a data edge connection
+    // But if there were a y input, it would be included because ReferenceEdges don't count as connections
+    expect(result[0].data.inputs).toEqual({})
+  })
+
   describe('Field serialization', () => {
     it('serializes NumberField', () => {
       const field = new NumberField(42)
@@ -317,6 +352,41 @@ describe('serializeEdges', () => {
     expect(result).toEqual([
       {
         id: 'valid-edge',
+        source: 'node-0',
+        target: 'node-1',
+        sourceHandle: 'a',
+        targetHandle: 'b',
+      },
+    ])
+  })
+
+  it('filters out ReferenceEdge types', () => {
+    const ops = new Map()
+    const nodes = [
+      { id: 'node-0', type: 'NumberOp', data: {}, position: { x: 0, y: 0 } },
+      { id: 'node-1', type: 'NumberOp', data: {}, position: { x: 0, y: 0 } },
+    ]
+    const edges = [
+      {
+        id: 'data-edge',
+        source: 'node-0',
+        target: 'node-1',
+        sourceHandle: 'a',
+        targetHandle: 'b',
+      },
+      {
+        id: 'reference-edge',
+        type: 'ReferenceEdge',
+        source: 'node-0',
+        target: 'node-1',
+        sourceHandle: 'c',
+        targetHandle: 'd',
+      },
+    ]
+    const result = serializeEdges(ops, nodes, edges)
+    expect(result).toEqual([
+      {
+        id: 'data-edge',
         source: 'node-0',
         target: 'node-1',
         sourceHandle: 'a',

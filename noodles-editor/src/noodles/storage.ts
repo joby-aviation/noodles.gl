@@ -107,7 +107,7 @@ function handleError(error: unknown, operation: string): FileSystemError {
   }
 }
 
-async function getProjectDirectoryHandle(
+export async function getProjectDirectoryHandle(
   type: StorageType,
   projectName: string,
   promptIfMissing = false
@@ -367,7 +367,8 @@ export async function readAsset(
   }
 
   // For filesystem-based storage types (fileSystemAccess or opfs)
-  const projectDirectory = await getProjectDirectoryHandle(type, projectName, false)
+  // Try to get directory handle, prompting user if not found in cache
+  const projectDirectory = await getProjectDirectoryHandle(type, projectName, true)
   if (!projectDirectory.success) {
     return projectDirectory
   }

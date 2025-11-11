@@ -83,6 +83,7 @@ export const inputComponents = {
   expression: TextFieldComponent,
   file: FileFieldComponent,
   function: EmptyFieldComponent,
+  geojson: EmptyFieldComponent,
   'geopoint-2d': VectorFieldComponent,
   'geopoint-3d': VectorFieldComponent,
   'json-url': TextFieldComponent,

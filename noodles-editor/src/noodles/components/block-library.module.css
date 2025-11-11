@@ -159,6 +159,13 @@
   outline-offset: 2px;
 }
 
+.blockLibraryCardSelected {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.25);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
 .blockLibraryCardHeader {
   display: flex;
   justify-content: space-between;

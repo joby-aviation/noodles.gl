@@ -130,13 +130,6 @@ import type z from 'zod/v4'
 
 import './utils/bigint-fix' // BigInt JSON polyfill for DuckDB
 import * as duckdb from '@duckdb/duckdb-wasm'
-import duckdb_pthread_worker from '@duckdb/duckdb-wasm/dist/duckdb-browser-coi.pthread.worker.js?url'
-import coi_worker from '@duckdb/duckdb-wasm/dist/duckdb-browser-coi.worker.js?url'
-import eh_worker from '@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js?url'
-import mvp_worker from '@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js?url'
-import duckdb_wasm_coi from '@duckdb/duckdb-wasm/dist/duckdb-coi.wasm?url'
-import duckdb_wasm_eh from '@duckdb/duckdb-wasm/dist/duckdb-eh.wasm?url'
-import duckdb_wasm from '@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm?url'
 import { getTransformScaleFactor } from '../render/transform-scale'
 import * as utils from '../utils'
 import { getArc } from '../utils/arc-geometry'
@@ -164,6 +157,7 @@ import {
   type FieldReference,
   FileField,
   FunctionField,
+  GeoJsonField,
   IN_NS,
   type InOut,
   JSONUrlField,
@@ -1304,23 +1298,47 @@ export class FileOp extends Operator<FileOp> {
 }
 
 const duckDbInstance = (async () => {
-  const MANUAL_BUNDLES: duckdb.DuckDBBundles = {
-    mvp: {
-      mainModule: duckdb_wasm,
-      mainWorker: mvp_worker,
-    },
-    eh: {
-      mainModule: duckdb_wasm_eh,
-      mainWorker: eh_worker,
-    },
-    coi: {
-      mainModule: duckdb_wasm_coi,
-      mainWorker: coi_worker,
-      pthreadWorker: duckdb_pthread_worker,
-    },
+  // Use CDN bundles for Cloudflare Pages (which has a 25 MiB file size limit)
+  // Use local bundles for development and GitHub Actions (which can access local files)
+  let bundles: duckdb.DuckDBBundles
+
+  // Use import.meta.env directly in the condition for proper tree-shaking
+  if (import.meta.env.VITE_USE_CDN_DUCKDB === 'true') {
+    // jsdelivr CDN hosts the large WASM files externally
+    bundles = duckdb.getJsDelivrBundles()
+  } else {
+    // Dynamically import the WASM files only when not using CDN
+    // Vite will tree-shake this entire branch when VITE_USE_CDN_DUCKDB is 'true'
+    const [duckdb_wasm, mvp_worker, duckdb_wasm_eh, eh_worker, duckdb_wasm_coi, coi_worker, duckdb_pthread_worker] = await Promise.all([
+      import('@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm?url').then(m => m.default),
+      import('@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js?url').then(m => m.default),
+      import('@duckdb/duckdb-wasm/dist/duckdb-eh.wasm?url').then(m => m.default),
+      import('@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js?url').then(m => m.default),
+      import('@duckdb/duckdb-wasm/dist/duckdb-coi.wasm?url').then(m => m.default),
+      import('@duckdb/duckdb-wasm/dist/duckdb-browser-coi.worker.js?url').then(m => m.default),
+      import('@duckdb/duckdb-wasm/dist/duckdb-browser-coi.pthread.worker.js?url').then(m => m.default),
+    ])
+
+    // Bundle the WASM files locally for environments that support it
+    bundles = {
+      mvp: {
+        mainModule: duckdb_wasm,
+        mainWorker: mvp_worker,
+      },
+      eh: {
+        mainModule: duckdb_wasm_eh,
+        mainWorker: eh_worker,
+      },
+      coi: {
+        mainModule: duckdb_wasm_coi,
+        mainWorker: coi_worker,
+        pthreadWorker: duckdb_pthread_worker,
+      },
+    }
   }
+
   // Select a bundle based on browser checks
-  const bundle = await duckdb.selectBundle(MANUAL_BUNDLES)
+  const bundle = await duckdb.selectBundle(bundles)
   const worker = new Worker(bundle.mainWorker!)
   const logger = new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING)
   const db = new duckdb.AsyncDuckDB(logger, worker)
@@ -3399,7 +3417,7 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
   static cacheable = false
   createInputs() {
     return {
-      data: new DataField(),
+      data: new GeoJsonField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
 
@@ -4132,7 +4150,7 @@ export class RectangleOp extends Operator<RectangleOp> {
   }
   createOutputs() {
     return {
-      feature: new DataField(),
+      feature: new GeoJsonField(),
     }
   }
   execute({
@@ -4191,7 +4209,7 @@ export class PointOp extends Operator<PointOp> {
   }
   createOutputs() {
     return {
-      feature: new DataField(),
+      feature: new GeoJsonField(),
     }
   }
   execute({
@@ -4214,12 +4232,12 @@ export class GeoJsonOp extends Operator<GeoJsonOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      features: new ListField(new DataField()),
+      features: new ListField(new GeoJsonField()),
     }
   }
   createOutputs() {
     return {
-      featureCollection: new DataField(),
+      featureCollection: new GeoJsonField(),
     }
   }
   execute({ features }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -4231,13 +4249,33 @@ export class GeoJsonOp extends Operator<GeoJsonOp> {
   }
 }
 
+export class KmlToGeoJsonOp extends Operator<KmlToGeoJsonOp> {
+  static displayName = 'KmlToGeoJson'
+  static description = 'Convert KML string to GeoJSON FeatureCollection'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      kml: new CodeField('', { language: 'xml' }),
+    }
+  }
+  createOutputs() {
+    return {
+      geojson: new DataField(),
+    }
+  }
+  execute({ kml }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const geojson = utils.kmlToGeoJson(kml)
+    return { geojson }
+  }
+}
+
 export class GeoJsonTransformOp extends Operator<GeoJsonTransformOp> {
   static displayName = 'GeoJsonTransform'
   static description = 'Transform a GeoJSON feature with scale, translate, and rotate operations'
   asDownload = () => this.outputData
   createInputs() {
     return {
-      feature: new DataField(),
+      feature: new GeoJsonField(),
       scale: new NumberField(1, { min: 0.001, max: 100, step: 0.1 }),
       translateX: new NumberField(0, { min: -10000, max: 10000, step: 0.1 }),
       translateY: new NumberField(0, { min: -10000, max: 10000, step: 0.1 }),
@@ -4246,7 +4284,7 @@ export class GeoJsonTransformOp extends Operator<GeoJsonTransformOp> {
   }
   createOutputs() {
     return {
-      feature: new DataField(),
+      feature: new GeoJsonField(),
     }
   }
   execute({
@@ -5213,6 +5251,7 @@ export const opTypes = {
   HueSaturationExtensionOp,
   IconLayerOp,
   JSONOp,
+  KmlToGeoJsonOp,
   LayerPropsOp,
   LineLayerOp,
   MaplibreBasemapOp,

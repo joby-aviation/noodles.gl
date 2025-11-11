@@ -1450,3 +1450,29 @@ describe('TimeSeriesOp', () => {
     expect((result.data as any)[0].path).toEqual([[0, 0], [1, 1], [2, 2]]) // preserved from getProperties
   })
 })
+
+describe('KmlToGeoJsonOp', () => {
+  it('should convert KML to GeoJSON', () => {
+    const { KmlToGeoJsonOp } = require('./operators')
+    const operator = new KmlToGeoJsonOp('/kml-to-geojson-0')
+    
+    const kml = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <Placemark>
+      <name>Test Point</name>
+      <Point>
+        <coordinates>-122.0822,37.4222,0</coordinates>
+      </Point>
+    </Placemark>
+  </Document>
+</kml>`
+
+    const result = operator.execute({ kml })
+
+    expect(result.geojson.type).toBe('FeatureCollection')
+    expect(result.geojson.features).toHaveLength(1)
+    expect(result.geojson.features[0].geometry.type).toBe('Point')
+    expect(result.geojson.features[0].properties?.name).toBe('Test Point')
+  })
+})

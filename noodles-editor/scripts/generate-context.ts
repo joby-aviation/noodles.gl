@@ -1,4 +1,5 @@
 #!/usr/bin/env tsx
+
 // Generate context bundles for Claude AI integration
 //
 // This script generates:
@@ -8,10 +9,10 @@
 // - code-index.json: Simplified source code index
 // - manifest.json: Bundle metadata
 
+import { execSync } from 'child_process'
+import { createHash } from 'crypto'
 import * as fs from 'fs'
 import * as path from 'path'
-import { createHash } from 'crypto'
-import { execSync } from 'child_process'
 
 // Import categories directly from source
 import { categories as baseCategories } from '../src/noodles/components/categories.ts'
@@ -23,7 +24,7 @@ const SRC_DIR = path.join(process.cwd(), 'src')
 const DOCS_DIR = path.join(ROOT_DIR, 'docs')
 const AI_CHAT_DIR = path.join(SRC_DIR, 'ai-chat')
 const EXAMPLES_DIR = path.join(process.cwd(), 'public', 'noodles')
-const OUTPUT_DIR = path.join(process.cwd(), 'public', 'app', 'context')
+const OUTPUT_DIR = path.join(process.cwd(), 'public', 'context')
 
 const packageJson = JSON.parse(
   fs.readFileSync(path.join(ROOT_DIR, 'package.json'), 'utf-8')

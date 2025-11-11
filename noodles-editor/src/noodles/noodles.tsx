@@ -30,6 +30,7 @@ import '@xyflow/react/dist/style.css'
 import 'primereact/resources/themes/md-dark-indigo/theme.css'
 import 'primeicons/primeicons.css'
 
+import newProject from '../../public/noodles/new/noodles.json'
 import { SheetProvider } from '../utils/sheet-context'
 import useSheetValue from '../utils/use-sheet-value'
 import type { Visualization } from '../visualizations'
@@ -45,16 +46,19 @@ import { edgeComponents, nodeComponents } from './components/op-components'
 import { ProjectNameBar, UNSAVED_PROJECT_NAME } from './components/project-name-bar'
 import { ProjectNotFoundDialog } from './components/project-not-found-dialog'
 import { StorageErrorHandler } from './components/storage-error-handler'
+import { UndoRedoHandler, type UndoRedoHandlerRef } from './components/UndoRedoHandler'
+import { ListField } from './fields'
 import { ChatPanel } from '../ai-chat/chat-panel'
 import { globalContextManager } from '../ai-chat/global-context-manager'
 import { useProjectModifications } from './hooks/use-project-modifications'
+import { bindOperatorToTheatre, cleanupRemovedOperators } from './theatre-bindings'
 import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
 import { IS_PROD, projectId } from './globals'
 import s from './noodles.module.css'
 import type { IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
 import { load } from './storage'
-import { opMap, useSlice, hoveredOutputHandle } from './store'
+import { opMap, sheetObjectMap, useSlice, hoveredOutputHandle } from './store'
 import { transformGraph } from './transform-graph'
 import { edgeId, nodeId } from './utils/id-utils'
 import { migrateProject } from './utils/migrate-schema'
@@ -108,10 +112,18 @@ function useTheatreJs(projectName?: string) {
 
   const setTheatreProject = useCallback(
     (theatreConfig: IProjectConfig, incomingProjectName?: string) => {
-      // Theatre stores too much state if you don't reset it
+      // Theatre stores too much state if you don't reset it properly.
+      // We need to detach special objects (editor, render) before forgetting the sheet.
+
+      // Detach the special Theatre objects that persist across the app
+      theatreSheet.detachObject('editor')
+      theatreSheet.detachObject('render')
+
+      // Then forget the sheet to clean up the Theatre.js UI
       studio.transaction(api => {
         api.__experimental_forgetSheet(theatreSheet)
       })
+
       // Increment the project counter to keep the project name unique
       _projectCounterRef.current += 1
       const newProjectName = `${incomingProjectName || UNSAVED_PROJECT_NAME}-${_projectCounterRef.current}`
@@ -172,6 +184,37 @@ export function getNoodles(): Visualization {
   // `transformGraph` needs all nodes to build the opMap and resolve connections
   const operators = useMemo(() => transformGraph({ nodes, edges }), [nodes, edges])
 
+  // Bind Theatre.js objects for all operators (outside ReactFlow rendering pipeline)
+  // This ensures containers and all other operators can be keyframed in the timeline
+  useEffect(() => {
+    if (!theatreReady || !theatreSheet) return
+
+    // Track cleanup functions for newly bound operators
+    const newCleanupFns = new Map<string, () => void>()
+
+    // Only bind operators that aren't already bound
+    for (const op of operators) {
+      if (!sheetObjectMap.has(op.id)) {
+        const cleanup = bindOperatorToTheatre(op, theatreSheet)
+        if (cleanup) {
+          newCleanupFns.set(op.id, cleanup)
+        }
+      }
+    }
+
+    // Cleanup operators that are no longer in the graph
+    const currentOperatorIds = new Set(operators.map(op => op.id))
+    cleanupRemovedOperators(currentOperatorIds, theatreSheet)
+
+    // Return cleanup function only for newly bound operators
+    return () => {
+      for (const cleanup of newCleanupFns.values()) {
+        cleanup()
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [theatreReady, theatreSheet, operators])
+
   // Use shared hook for project modifications
   const { onConnect, onNodesDelete } = useProjectModifications({
     getNodes: useCallback(() => nodes, [nodes]),
@@ -196,6 +239,14 @@ export function getNoodles(): Visualization {
 
   const reactFlowRef = useRef<HTMLDivElement>(null)
   const blockLibraryRef = useRef<BlockLibraryRef>(null)
+
+  // Avoid circular dependency
+  const loadProjectFileRef = useRef<(project: NoodlesProjectJSON, name?: string) => void>()
+
+  const currentProjectRef = useRef<NoodlesProjectJSON>(newProject)
+
+  // Ref to access undo/redo functionality from inside ReactFlow context
+  const undoRedoRef = useRef<UndoRedoHandlerRef>(null)
 
   const onDeselectAll = useCallback(() => {
     setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
@@ -372,9 +423,13 @@ export function getNoodles(): Visualization {
       const {
         nodes,
         edges,
-        // viewport, // TODO: Set viewport in React Flow (needs to be done in a ReactFlowContext)
+        // viewport, // Skip viewport to preserve current view
         timeline,
       } = project
+
+      // Update current project ref for undo/redo
+      currentProjectRef.current = project
+
       for (const op of opMap.values()) {
         op.unsubscribeListeners()
       }
@@ -383,6 +438,20 @@ export function getNoodles(): Visualization {
       setEdges(edges)
       setProjectName(name)
       setTheatreProject(name ? { state: timeline } : {}, name)
+
+      // Only fit view when loading a new project (not during undo/redo)
+      if (name && !undoRedoRef.current?.isRestoring()) {
+        // Fit view after a short delay to ensure nodes are rendered
+        setTimeout(() => {
+          try {
+            if (reactFlowRef.current && nodes.length > 0) {
+              // TODO: Call fitView on the ReactFlow instance here if accessible
+            }
+          } catch (error) {
+            console.warn('Could not fit view:', error)
+          }
+        }, 100)
+      }
 
       // Update URL query parameter with project name
       if (name) {
@@ -393,6 +462,11 @@ export function getNoodles(): Visualization {
     },
     [setNodes, setEdges, setTheatreProject]
   )
+
+  // Assign to ref for undo/redo system
+  loadProjectFileRef.current = loadProjectFile
+
+  // Keyboard shortcuts are now handled by UndoRedoHandler component
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: loadProjectFile would cause infinite loop
   useEffect(() => {
@@ -445,11 +519,7 @@ export function getNoodles(): Visualization {
   }, [])
 
   const displayedNodes = useMemo(() => {
-    // If no containerId, show all nodes
     // TODO: add support for for-loop begin/end nodes
-    // return nodes.filter(node =>
-    //   'containerId' in node ? node.containerId === currentContainerId : currentContainerId === null
-    // )
 
     return nodes.map(node => ({
       ...node,
@@ -484,7 +554,6 @@ export function getNoodles(): Visualization {
               onPaneContextMenu={onPaneContextMenu}
               onPaneClick={onPaneClick}
               minZoom={0.2}
-              fitView
               fitViewOptions={fitViewOptions}
               defaultEdgeOptions={defaultEdgeOptions}
               nodeTypes={nodeComponents}
@@ -494,6 +563,7 @@ export function getNoodles(): Visualization {
               <Controls position="bottom-right" />
               <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />
               <CopyControls />
+              <UndoRedoHandler ref={undoRedoRef} />
               <ChatPanel
                 project={{ nodes, edges }}
                 onClose={() => setShowChatPanel(false)}
@@ -622,6 +692,7 @@ export function getNoodles(): Visualization {
       setProjectName={setProjectName}
       getTimelineJson={getTimelineJson}
       loadProjectFile={loadProjectFile}
+      undoRedo={undoRedoRef.current}
       showChatPanel={showChatPanel}
       setShowChatPanel={setShowChatPanel}
     />

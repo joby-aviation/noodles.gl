@@ -124,6 +124,10 @@ export function serializeEdges(
         )
         return false
       }
+      // Skip ReferenceEdge types - they should not be persisted in save files
+      if (edge.type === 'ReferenceEdge') {
+        return false
+      }
       return true
     })
     .map(edge =>
