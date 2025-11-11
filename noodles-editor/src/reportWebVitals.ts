@@ -2,18 +2,18 @@ import type { ReportHandler } from 'web-vitals'
 import { analytics } from './utils/analytics'
 
 const reportWebVitals = (onPerfEntry?: ReportHandler) => {
-  if (onPerfEntry && onPerfEntry instanceof Function) {
-    import('web-vitals').then(({ onCLS, onINP, onFCP, onLCP, onTTFB }) => {
+  // Consolidate web-vitals import to avoid duplicate module loading
+  import('web-vitals').then(({ onCLS, onINP, onFCP, onLCP, onTTFB }) => {
+    // Register optional performance entry handler
+    if (onPerfEntry && onPerfEntry instanceof Function) {
       onCLS(onPerfEntry)
       onINP(onPerfEntry)
       onFCP(onPerfEntry)
       onLCP(onPerfEntry)
       onTTFB(onPerfEntry)
-    })
-  }
+    }
 
-  // Send web vitals to PostHog
-  import('web-vitals').then(({ onCLS, onINP, onFCP, onLCP, onTTFB }) => {
+    // Send web vitals to PostHog analytics
     onCLS((metric) => {
       analytics.track('web_vital_measured', {
         name: metric.name,
