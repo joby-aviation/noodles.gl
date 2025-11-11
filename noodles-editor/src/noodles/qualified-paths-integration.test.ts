@@ -681,16 +681,9 @@ describe('Qualified Paths Integration Tests', () => {
         },
       ]
 
-      // Transform the graph - should not throw errors
-      const operators = transformGraph({ nodes, edges })
-
-      // Verify operators were still created
-      expect(operators).toHaveLength(2)
-
-      // Verify only the valid connection was established
-      const target = opMap.get('/valid-target') as MathOp
-      expect(target.inputs.a.subscriptions.size).toBe(1) // Valid connection
-      expect(target.inputs.b.subscriptions.size).toBe(0) // Invalid connections ignored
+      expect(() => transformGraph({ nodes, edges })).toThrow(
+        'Invalid handle ID format - migration should have converted all handles to qualified format',
+      )
     })
 
     it('supports complex ReactFlow scenarios with containers and qualified paths', async () => {
