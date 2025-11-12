@@ -644,6 +644,22 @@ export function NoodlesMenubar({
     setRecentlyOpened(getRecentProjects())
   }, [])
 
+  // Prevent space bar from opening menu (conflicts with Theatre.js playback)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === ' ' && e.target instanceof HTMLElement) {
+        // Check if the target is part of the menubar
+        if (e.target.closest('[role="menubar"]')) {
+          e.preventDefault()
+          e.stopPropagation()
+        }
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown, { capture: true })
+    return () => document.removeEventListener('keydown', handleKeyDown, { capture: true })
+  }, [])
+
   return (
     <>
       <Menubar.Root className={s.menubarRoot}>
