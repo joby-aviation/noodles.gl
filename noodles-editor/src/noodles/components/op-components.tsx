@@ -13,7 +13,6 @@ import {
   type NodeProps as ReactFlowNodeProps,
   type NodeTypes as ReactFlowNodeTypes,
   useNodeId,
-  useNodes,
   useReactFlow,
 } from '@xyflow/react'
 import cx from 'classnames'
@@ -49,7 +48,7 @@ import {
   type TimeOp,
   type ViewerOp,
 } from '../operators'
-import { getOp, useNestingStore, setHoveredOutputHandle, hasOp, setOp, getAllOps, deleteOp } from '../store'
+import { getOp, useNestingStore, setHoveredOutputHandle, hasOp, setOp, getAllOps, deleteOp, useOperatorStore } from '../store'
 import type { NodeDataJSON } from '../transform-graph'
 import { edgeId } from '../utils/id-utils'
 import { generateQualifiedPath, getBaseName, getParentPath } from '../utils/path-utils'
@@ -1120,8 +1119,13 @@ function ContainerOpComponent({
   }
 
   const setCurrentContainerId = useNestingStore(state => state.setCurrentContainerId)
-  const nodes = useNodes()
-  const children = nodes.filter(node => getParentPath(node.id) === id)
+
+  // Subscribe to operator store to get reactive children count
+  const childrenCount = useOperatorStore(state => {
+    return Array.from(state.operators.keys()).filter(opId =>
+      getParentPath(opId) === id
+    ).length
+  })
 
   const locked = useLocked(op)
 
@@ -1145,7 +1149,7 @@ function ContainerOpComponent({
             handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
           />
         ))}
-        <div>Children: {children.length}</div>
+        <div>Children: {childrenCount}</div>
         {/* Children nodes are rendered by React Flow normally */}
         <div className={s.outputHandleContainer}>
           {Object.entries(op.outputs).map(([key, field]) => (
