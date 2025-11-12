@@ -115,15 +115,6 @@ export const getOpStore = () => useOperatorStore.getState()
 // Get the UI store instance for use outside React components
 export const getUIStore = () => useUIStore.getState()
 
-// Helpful hook to get an op, just be careful not to break rule of hooks with it.
-export const useOp = (id: OpId) => {
-  const op = useOperatorStore.getState().getOp(id)
-  if (!op) {
-    throw new Error(`Operator with id ${id} not found`)
-  }
-  return op
-}
-
 // `path` can be absolute or relative to `contextOperatorId`
 export const getOp = (
   path: string,

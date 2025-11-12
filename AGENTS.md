@@ -817,11 +817,8 @@ When implementing features or fixes:
 8. **Testing is expected** - Add tests for new features and changes to critical components
 9. **Document edge cases** - Users may not expect implementation-specific behavior
 10. **Keep PRs focused** - Split large changes into reviewable chunks when possible
-11. **Use store helpers** - Always use `getOp()`, `getAllOps()`, etc. instead of direct `opMap` access
-12. **Batch store updates** - Use `getOpStore().batch()` when making multiple related changes
-13. **Non-reactive store access** - Store helpers don't trigger React re-renders; use hooks for reactive access
 
 ---
 
-**Last Updated**: 2025-01-12
-**Version**: Based on project version 6 schema with Zustand state management
+**Last Updated**: 2025-11-12
+**Version**: Based on project version 6 schema

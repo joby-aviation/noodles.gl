@@ -49,7 +49,7 @@ import {
   type TimeOp,
   type ViewerOp,
 } from '../operators'
-import { useOp, useNestingStore, setHoveredOutputHandle, hasOp, setOp, getAllOps, deleteOp } from '../store'
+import { getOp, useNestingStore, setHoveredOutputHandle, hasOp, setOp, getAllOps, deleteOp } from '../store'
 import type { NodeDataJSON } from '../transform-graph'
 import { edgeId } from '../utils/id-utils'
 import { generateQualifiedPath, getBaseName, getParentPath } from '../utils/path-utils'
@@ -386,7 +386,10 @@ function NodeComponent({
   type,
   selected,
 }: ReactFlowNodeProps<NodeDataJSON<Operator<IOperator>>> & { type: OpType }) {
-  const op = useOp(id)
+  const op = getOp(id as string)
+  if (!op) {
+    throw new Error(`Operator with id ${id} not found`)
+  }
   const locked = useLocked(op)
   const executionState = useExecutionState(op)
 
@@ -711,7 +714,10 @@ function GeocoderOpComponent({
   id,
   type,
 }: ReactFlowNodeProps<NodeDataJSON<GeocoderOp>> & { type: 'GeocoderOp' }) {
-  const op = useOp(id)
+  const op = getOp(id as string)
+  if (!op) {
+    throw new Error(`Operator with id ${id} not found`)
+  }
 
   const containerRef = useRef<HTMLDivElement>(null)
   const geocoderRef = useRef<MapboxGeocoder>()
@@ -792,7 +798,10 @@ function MouseOpComponent({
   id,
   type,
 }: ReactFlowNodeProps<NodeDataJSON<MouseOp>> & { type: 'MouseOp' }) {
-  const op = useOp(id)
+  const op = getOp(id as string)
+  if (!op) {
+    throw new Error(`Operator with id ${id} not found`)
+  }
 
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
 
@@ -839,7 +848,10 @@ function TableEditorOpComponent({
   type,
   selected,
 }: ReactFlowNodeProps<NodeDataJSON<TableEditorOp>> & { type: 'TableEditorOp' }) {
-  const op = useOp(id)
+  const op = getOp(id as string)
+  if (!op) {
+    throw new Error(`Operator with id ${id} not found`)
+  }
 
   const [dataArray, setDataArray] = useState(op.inputs.data.value as unknown[])
   useEffect(() => {
@@ -1014,7 +1026,10 @@ function ViewerOpComponent({
   type,
   selected,
 }: ReactFlowNodeProps<NodeDataJSON<ViewerOp>> & { type: 'ViewerOp' }) {
-  const op = useOp(id)
+  const op = getOp(id as string)
+  if (!op) {
+    throw new Error(`Operator with id ${id} not found`)
+  }
 
   // TODO: use react-flow helpers
   const [viewerData, setViewerData] = useState(viewerFormatter(op.inputs.data.value))
@@ -1099,7 +1114,10 @@ function ContainerOpComponent({
   type,
   selected,
 }: ReactFlowNodeProps<NodeDataJSON<ContainerOp>>) {
-  const op = useOp(id)
+  const op = getOp(id as string)
+  if (!op) {
+    throw new Error(`Operator with id ${id} not found`)
+  }
 
   const setCurrentContainerId = useNestingStore(state => state.setCurrentContainerId)
   const nodes = useNodes()
@@ -1143,7 +1161,10 @@ function TimeOpComponent({
   id,
   type,
 }: ReactFlowNodeProps<NodeDataJSON<TimeOp>> & { type: 'TimeOp' }) {
-  const op = useOp(id)
+  const op = getOp(id as string)
+  if (!op) {
+    throw new Error(`Operator with id ${id} not found`)
+  }
   const sheet = useContext(SheetContext) as ISheet
 
   const [now, setNow] = useState(0)
