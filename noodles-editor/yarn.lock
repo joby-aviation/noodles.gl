@@ -2938,6 +2938,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@tmcw/togeojson@npm:^7.1.2":
+  version: 7.1.2
+  resolution: "@tmcw/togeojson@npm:7.1.2"
+  checksum: daf76fe6847f003b6570e74f2d8aec20824f44b30ced6d893cec928f5783c8f4927c8ed5bcadb3df5138dc9cb7a06c68f593820855852218a73ed68ca35399ea
+  languageName: node
+  linkType: hard
+
 "@tootallnate/once@npm:2":
   version: 2.0.0
   resolution: "@tootallnate/once@npm:2.0.0"
@@ -9427,6 +9434,7 @@ __metadata:
     "@theatre/core": 0.7.2
     "@theatre/react": 0.7.2
     "@theatre/studio": 0.7.2
+    "@tmcw/togeojson": ^7.1.2
     "@turf/turf": ^7.2.0
     "@types/d3": ^7.4.3
     "@types/dom-mediacapture-transform": ^0.1.11

@@ -1,7 +1,7 @@
 // Theatre.js binding utilities for operator fields
 // Handles two-way synchronization between operator inputs and Theatre timeline
 
-import type { ISheet, ISheetObject } from '@theatre/core'
+import type { ISheet } from '@theatre/core'
 import { onChange, types, val } from '@theatre/core'
 import studio from '@theatre/studio'
 import { Temporal } from 'temporal-polyfill'
@@ -9,7 +9,6 @@ import { isHexColor } from 'validator'
 
 import { colorToRgba, hexToRgba, type Rgba, rgbaToHex } from '../utils/color'
 import {
-  ArrayField,
   BooleanField,
   ColorField,
   CompoundPropsField,
@@ -28,6 +27,18 @@ import {
 import type { IOperator, Operator } from './operators'
 import { sheetObjectMap } from './store'
 import { getBaseName } from './utils/path-utils'
+
+// Helper to recursively convert fields to Theatre props
+function fieldsToTheatreProps(fields: Record<string, Field<any>>): Record<string, types.PropTypeConfig> {
+  const props: Record<string, types.PropTypeConfig> = {}
+  for (const [key, field] of Object.entries(fields)) {
+    const prop = fieldToTheatreProp(field)
+    if (prop) {
+      props[key] = prop
+    }
+  }
+  return props
+}
 
 // Convert a field to a Theatre prop config
 function fieldToTheatreProp(field: Field<IField>): types.PropTypeConfig | undefined {
@@ -96,9 +107,8 @@ function fieldToTheatreProp(field: Field<IField>): types.PropTypeConfig | undefi
       })
     }
     if (field instanceof CompoundPropsField) {
-      // For compound props, we'd need to recursively handle nested fields
-      // For now, return an empty compound
-      return types.compound({})
+      // Recursively handle nested fields using helper
+      return types.compound(fieldsToTheatreProps(field.fields))
     }
   } catch (e) {
     console.error(`Error creating Theatre prop for field:`, e)

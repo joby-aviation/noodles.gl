@@ -67,11 +67,11 @@ import { pick } from './utils/pick'
 import { EMPTY_PROJECT, type NoodlesProjectJSON } from './utils/serialization'
 
 export type Edge<N1 extends Operator<IOperator>, N2 extends Operator<IOperator>> = {
-  id: `${N1['id']}/${keyof N1['outputs']}->${N2['id']}/${keyof N2['inputs']}`
+  id: `${N1['id']}.${'par'|'out'}.${keyof N1['outputs']}->${N2['id']}.${'par'|'out'}.${keyof N2['inputs']}`
   source: N1['id']
   target: N2['id']
-  sourceHandle: `${N1['id']}/${keyof N1['outputs']}`
-  targetHandle: `${N2['id']}/${keyof N2['inputs']}`
+  sourceHandle: `${'par'|'out'}.${keyof N1['outputs']}`
+  targetHandle: `${'par'|'out'}.${keyof N2['inputs']}`
 }
 
 const fitViewOptions: FitViewOptions = {

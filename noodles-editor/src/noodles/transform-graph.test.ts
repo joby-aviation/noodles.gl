@@ -41,7 +41,7 @@ describe('transform-graph', () => {
     expect(add.id).toBe('/add')
   })
 
-  it('skips connections with invalid handle ID format', () => {
+  it('throws on connections with invalid handle ID format', () => {
     const graph: {
       nodes: ReactFlowNode<Record<string, unknown>>[]
       edges: Record<string, unknown>[] // Using Record type to test invalid handle IDs
@@ -66,17 +66,9 @@ describe('transform-graph', () => {
       ],
     }
 
-    const instances = transformGraph(graph)
-    expect(instances).toHaveLength(2)
-
-    const [num, add] = instances
-    expect(num).toBeInstanceOf(NumberOp)
-    expect(add).toBeInstanceOf(MathOp)
-    expect(num.id).toBe('/num')
-    expect(add.id).toBe('/add')
-
-    // Verify that the invalid connection was not established
-    expect(add.inputs.a.subscriptions.size).toBe(0)
+    expect(() => transformGraph(graph)).toThrow(
+      'Invalid handle ID format - migration should have converted all handles to qualified format'
+    )
   })
 
   it('generates correct edge IDs with qualified paths', () => {

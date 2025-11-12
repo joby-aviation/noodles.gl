@@ -163,29 +163,29 @@ describe('Qualified Paths Integration Tests', () => {
           id: '/data-source.out.val->/analysis.par.in',
           source: '/data-source',
           target: '/analysis',
-          sourceHandle: '/data-source.out.val',
-          targetHandle: '/analysis.par.in',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.in',
         },
         {
           id: '/analysis/input.out.propagatedValue->/analysis/processor.par.a',
           source: '/analysis/input',
           target: '/analysis/processor',
-          sourceHandle: '/analysis/input.out.propagatedValue',
-          targetHandle: '/analysis/processor.par.a',
+          sourceHandle: 'out.propagatedValue',
+          targetHandle: 'par.a',
         },
         {
           id: '/analysis/processor.out.result->/analysis/output.par.propagatedValue',
           source: '/analysis/processor',
           target: '/analysis/output',
-          sourceHandle: '/analysis/processor.out.result',
-          targetHandle: '/analysis/output.par.propagatedValue',
+          sourceHandle: 'out.result',
+          targetHandle: 'par.propagatedValue',
         },
         {
           id: '/analysis.out.out->/final-processor.par.data',
           source: '/analysis',
           target: '/final-processor',
-          sourceHandle: '/analysis.out.out',
-          targetHandle: '/final-processor.par.data',
+          sourceHandle: 'out.out',
+          targetHandle: 'par.data',
         },
       ]
 
@@ -391,22 +391,22 @@ describe('Qualified Paths Integration Tests', () => {
           id: '/root-data.out.val->/level1.par.in',
           source: '/root-data',
           target: '/level1',
-          sourceHandle: '/root-data.out.val',
-          targetHandle: '/level1.par.in',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.in',
         },
         {
           id: '/level1/level2/level3/input.out.propagatedValue->/level1/level2/level3/processor.par.a',
           source: '/level1/level2/level3/input',
           target: '/level1/level2/level3/processor',
-          sourceHandle: '/level1/level2/level3/input.out.propagatedValue',
-          targetHandle: '/level1/level2/level3/processor.par.a',
+          sourceHandle: 'out.propagatedValue',
+          targetHandle: 'par.a',
         },
         {
           id: '/level1/level2/level3/processor.out.result->/level1/level2/level3/output.par.propagatedValue',
           source: '/level1/level2/level3/processor',
           target: '/level1/level2/level3/output',
-          sourceHandle: '/level1/level2/level3/processor.out.result',
-          targetHandle: '/level1/level2/level3/output.par.propagatedValue',
+          sourceHandle: 'out.result',
+          targetHandle: 'par.propagatedValue',
         },
       ]
 
@@ -681,16 +681,9 @@ describe('Qualified Paths Integration Tests', () => {
         },
       ]
 
-      // Transform the graph - should not throw errors
-      const operators = transformGraph({ nodes, edges })
-
-      // Verify operators were still created
-      expect(operators).toHaveLength(2)
-
-      // Verify only the valid connection was established
-      const target = opMap.get('/valid-target') as MathOp
-      expect(target.inputs.a.subscriptions.size).toBe(1) // Valid connection
-      expect(target.inputs.b.subscriptions.size).toBe(0) // Invalid connections ignored
+      expect(() => transformGraph({ nodes, edges })).toThrow(
+        'Invalid handle ID format - migration should have converted all handles to qualified format',
+      )
     })
 
     it('supports complex ReactFlow scenarios with containers and qualified paths', async () => {
@@ -751,29 +744,29 @@ describe('Qualified Paths Integration Tests', () => {
           id: '/input-data.out.val->/processing-module.par.in',
           source: '/input-data',
           target: '/processing-module',
-          sourceHandle: '/input-data.out.val',
-          targetHandle: '/processing-module.par.in',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.in',
         },
         {
           id: '/processing-module/input.out.propagatedValue->/processing-module/sub-container.par.in',
           source: '/processing-module/input',
           target: '/processing-module/sub-container',
-          sourceHandle: '/processing-module/input.out.propagatedValue',
-          targetHandle: '/processing-module/sub-container.par.in',
+          sourceHandle: 'out.propagatedValue',
+          targetHandle: 'par.in',
         },
         {
           id: '/processing-module/sub-container.out.out->/processing-module/output.par.propagatedValue',
           source: '/processing-module/sub-container',
           target: '/processing-module/output',
-          sourceHandle: '/processing-module/sub-container.out.out',
-          targetHandle: '/processing-module/output.par.propagatedValue',
+          sourceHandle: 'out.out',
+          targetHandle: 'par.propagatedValue',
         },
         {
           id: '/processing-module.out.out->/final-output.par.data',
           source: '/processing-module',
           target: '/final-output',
-          sourceHandle: '/processing-module.out.out',
-          targetHandle: '/final-output.par.data',
+          sourceHandle: 'out.out',
+          targetHandle: 'par.data',
         },
       ]
 
