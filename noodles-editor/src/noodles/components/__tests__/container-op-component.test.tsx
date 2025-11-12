@@ -4,61 +4,9 @@ import type { Node as ReactFlowNode } from '@xyflow/react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ContainerOp } from '../../operators'
-import { clearOps, getOp, setOp, deleteOp } from '../../store'
+import { clearOps, getOp, deleteOp } from '../../store'
 import { transformGraph } from '../../transform-graph'
 import { nodeComponents } from '../op-components'
-
-// Mock useReactFlow
-vi.mock('@xyflow/react', async () => {
-  const actual = await vi.importActual('@xyflow/react')
-  return {
-    ...actual,
-    useReactFlow: () => ({
-      setEdges: vi.fn(),
-      getNode: vi.fn(),
-      getEdges: vi.fn(() => []),
-      setNodes: vi.fn(),
-      getNodes: vi.fn(() => []),
-      addNodes: vi.fn(),
-      addEdges: vi.fn(),
-      deleteElements: vi.fn(),
-      fitView: vi.fn(),
-      zoomIn: vi.fn(),
-      zoomOut: vi.fn(),
-      setCenter: vi.fn(),
-      toObject: vi.fn(),
-      getZoom: vi.fn(() => 1),
-      setViewport: vi.fn(),
-      getViewport: vi.fn(() => ({ x: 0, y: 0, zoom: 1 })),
-      project: vi.fn(),
-      screenToFlowPosition: vi.fn(),
-      flowToScreenPosition: vi.fn(),
-      updateNode: vi.fn(),
-      updateNodeData: vi.fn(),
-      getIntersectingNodes: vi.fn(() => []),
-    }),
-  }
-})
-
-// Mock CodeiumEditor to avoid loading Monaco in tests
-vi.mock('@codeium/react-code-editor', () => ({
-  CodeiumEditor: ({ defaultValue }: { defaultValue: string }) => {
-    return <textarea data-testid="mock-code-editor" defaultValue={defaultValue} readOnly />
-  },
-}))
-
-// Mock Theatre.js to avoid side effects
-vi.mock('@theatre/studio', () => ({
-  default: {
-    transaction: vi.fn(fn =>
-      fn({
-        __experimental_forgetSheet: vi.fn(),
-      })
-    ),
-    setSelection: vi.fn(),
-    createContentOfSaveFile: vi.fn(() => ({ sheetsById: {} })),
-  },
-}))
 
 describe('ContainerOpComponent children count reactivity', () => {
   beforeEach(() => {
