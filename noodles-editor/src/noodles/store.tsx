@@ -6,21 +6,16 @@ import type { OpId } from './utils/id-utils'
 import { isAbsolutePath, resolvePath } from './utils/path-utils'
 
 // ============================================================================
-// Operator Store (Zustand)
+// Operator Store (Zustand) - Separate slice for operators and sheet objects
 // ============================================================================
 
-interface OperatorStore {
+interface OperatorStoreState {
   // The actual maps
   operators: Map<OpId, Operator<IOperator>>
   sheetObjects: Map<OpId, ISheetObject>
-  hoveredOutputHandle: { nodeId: string; handleId: string } | null
-
-  // Version counter for change tracking
-  version: number
 
   // Batching state
   _batching: boolean
-  _pendingVersion: number
 
   // Operator actions
   getOp: (id: OpId) => Operator<IOperator> | undefined
@@ -37,57 +32,34 @@ interface OperatorStore {
   deleteSheetObject: (id: OpId) => void
   hasSheetObject: (id: OpId) => boolean
 
-  // Hovered output handle actions
-  setHoveredOutputHandle: (handle: { nodeId: string; handleId: string } | null) => void
-
   // Batching
   batch: (fn: () => void) => void
 }
 
-export const useOperatorStore = create<OperatorStore>((set, get) => ({
+export const useOperatorStore = create<OperatorStoreState>((set, get) => ({
   operators: new Map(),
   sheetObjects: new Map(),
-  hoveredOutputHandle: null,
-  version: 0,
   _batching: false,
-  _pendingVersion: 0,
 
   // Operator actions
   getOp: (id) => get().operators.get(id),
 
   setOp: (id, op) => {
-    const state = get()
-    const operators = new Map(state.operators)
+    const operators = new Map(get().operators)
     operators.set(id, op)
-
-    if (state._batching) {
-      set({ operators, _pendingVersion: state._pendingVersion + 1 })
-    } else {
-      set({ operators, version: state.version + 1 })
-    }
+    set({ operators })
   },
 
   deleteOp: (id) => {
-    const state = get()
-    const operators = new Map(state.operators)
+    const operators = new Map(get().operators)
     operators.delete(id)
-
-    if (state._batching) {
-      set({ operators, _pendingVersion: state._pendingVersion + 1 })
-    } else {
-      set({ operators, version: state.version + 1 })
-    }
+    set({ operators })
   },
 
   hasOp: (id) => get().operators.has(id),
 
   clearOps: () => {
-    const state = get()
-    if (state._batching) {
-      set({ operators: new Map(), sheetObjects: new Map(), _pendingVersion: state._pendingVersion + 1 })
-    } else {
-      set({ operators: new Map(), sheetObjects: new Map(), version: state.version + 1 })
-    }
+    set({ operators: new Map(), sheetObjects: new Map() })
   },
 
   getAllOps: () => Array.from(get().operators.values()),
@@ -111,28 +83,37 @@ export const useOperatorStore = create<OperatorStore>((set, get) => ({
 
   hasSheetObject: (id) => get().sheetObjects.has(id),
 
-  // Hovered output handle actions
-  setHoveredOutputHandle: (handle) => set({ hoveredOutputHandle: handle }),
-
-  // Batching
+  // Batching - prevents multiple Zustand updates during batch operations
   batch: (fn) => {
-    const state = get()
-    set({ _batching: true, _pendingVersion: state.version })
+    set({ _batching: true })
     fn()
-    const newState = get()
-    set({
-      _batching: false,
-      version: newState._pendingVersion
-    })
+    set({ _batching: false })
   },
+}))
+
+// ============================================================================
+// UI Store (Zustand) - Separate slice for UI state
+// ============================================================================
+
+interface UIStoreState {
+  hoveredOutputHandle: { nodeId: string; handleId: string } | null
+  setHoveredOutputHandle: (handle: { nodeId: string; handleId: string } | null) => void
+}
+
+export const useUIStore = create<UIStoreState>((set) => ({
+  hoveredOutputHandle: null,
+  setHoveredOutputHandle: (handle) => set({ hoveredOutputHandle: handle }),
 }))
 
 // ============================================================================
 // Helper functions for non-React contexts
 // ============================================================================
 
-// Get the store instance for use outside React components
+// Get the operator store instance for use outside React components
 export const getOpStore = () => useOperatorStore.getState()
+
+// Get the UI store instance for use outside React components
+export const getUIStore = () => useUIStore.getState()
 
 // Helpful hook to get an op, just be careful not to break rule of hooks with it.
 export const useOp = (id: OpId) => {
@@ -184,7 +165,7 @@ export const hasSheetObject = (id: OpId) => getOpStore().hasSheetObject(id)
 export const getAllSheetObjectIds = () => Array.from(getOpStore().sheetObjects.keys())
 
 // Hovered output handle helpers
-export const setHoveredOutputHandle = (handle: { nodeId: string; handleId: string } | null) => getOpStore().setHoveredOutputHandle(handle)
+export const setHoveredOutputHandle = (handle: { nodeId: string; handleId: string } | null) => getUIStore().setHoveredOutputHandle(handle)
 
 // ============================================================================
 // Nesting State (Zustand)
