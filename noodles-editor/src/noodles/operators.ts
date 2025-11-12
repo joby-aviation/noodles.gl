@@ -178,7 +178,7 @@ import {
   WidgetField,
 } from './fields'
 import { DEFAULT_LATITUDE, DEFAULT_LONGITUDE, safeMode } from './globals'
-import { getAllOps, getOp, hasOp } from './store'
+import { getOp, hasOp, getAllOps } from './store'
 import { composeAccessor, isAccessor } from './utils/accessor-helpers'
 import type { ExtractProps } from './utils/extract-props'
 import { projectScheme } from './utils/filesystem'
@@ -290,7 +290,7 @@ export abstract class Operator<OP extends IOperator> {
   }
 
   // Left open for sub-classes to override
-  onError(_err: unknown) {}
+  onError(_err: unknown) { }
 
   // Needs to be called after sub-classes have created their inputs and outputs
   createListeners() {
@@ -384,8 +384,7 @@ export class NumberOp extends Operator<NumberOp> {
 
 export class MapRangeOp extends Operator<MapRangeOp> {
   static displayName = 'MapRange'
-  static description =
-    'Remap a number from one range to another (e.g., map 0-100 to 0-1, or temperature to color intensity)'
+  static description = 'Remap a number from one range to another (e.g., map 0-100 to 0-1, or temperature to color intensity)'
   public createInputs() {
     return {
       val: new NumberField(0, { step: 0.01, accessor: true }),
@@ -449,8 +448,7 @@ export class ExtentOp extends Operator<ExtentOp> {
 
 export class SelectOp extends Operator<SelectOp> {
   static displayName = 'Select'
-  static description =
-    'Select an element from an array using an index (clamped to array bounds by default, or wrapped around array bounds)'
+  static description = 'Select an element from an array using an index (clamped to array bounds by default, or wrapped around array bounds)'
   createInputs() {
     return {
       data: new DataField(),
@@ -463,11 +461,7 @@ export class SelectOp extends Operator<SelectOp> {
       value: new UnknownField(undefined),
     }
   }
-  execute({
-    data,
-    index,
-    wrap,
-  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  execute({ data, index, wrap }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!Array.isArray(data) || data.length === 0) {
       return { value: undefined }
     }
@@ -1315,24 +1309,14 @@ const duckDbInstance = (async () => {
   } else {
     // Dynamically import the WASM files only when not using CDN
     // Vite will tree-shake this entire branch when VITE_USE_CDN_DUCKDB is 'true'
-    const [
-      duckdb_wasm,
-      mvp_worker,
-      duckdb_wasm_eh,
-      eh_worker,
-      duckdb_wasm_coi,
-      coi_worker,
-      duckdb_pthread_worker,
-    ] = await Promise.all([
+    const [duckdb_wasm, mvp_worker, duckdb_wasm_eh, eh_worker, duckdb_wasm_coi, coi_worker, duckdb_pthread_worker] = await Promise.all([
       import('@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm?url').then(m => m.default),
       import('@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js?url').then(m => m.default),
       import('@duckdb/duckdb-wasm/dist/duckdb-eh.wasm?url').then(m => m.default),
       import('@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js?url').then(m => m.default),
       import('@duckdb/duckdb-wasm/dist/duckdb-coi.wasm?url').then(m => m.default),
       import('@duckdb/duckdb-wasm/dist/duckdb-browser-coi.worker.js?url').then(m => m.default),
-      import('@duckdb/duckdb-wasm/dist/duckdb-browser-coi.pthread.worker.js?url').then(
-        m => m.default
-      ),
+      import('@duckdb/duckdb-wasm/dist/duckdb-browser-coi.pthread.worker.js?url').then(m => m.default),
     ])
 
     // Bundle the WASM files locally for environments that support it
@@ -1392,11 +1376,7 @@ export class DuckDbOp extends Operator<DuckDbOp> {
   async execute({
     query: queryString = '',
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> | null {
-    const queries = queryString
-      .split(';')
-      .map(s => s.trim())
-      .filter(Boolean)
-      .map(s => `${s};`)
+    const queries = queryString.split(';').map(s => s.trim()).filter(Boolean).map(s => `${s};`)
     if (!queries?.length) {
       return { data: [] }
     }
@@ -2194,7 +2174,7 @@ export class RandomizeAttributeOp extends Operator<RandomizeAttributeOp> {
     min,
     max,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const randomized = data.map(item => ({
+    const randomized = data.map((item) => ({
       ...item,
       [key]: Math.random() * (max - min) + min,
     }))
@@ -2491,7 +2471,9 @@ export class SplitMapViewStateOp extends Operator<SplitMapViewStateOp> {
       bearing: new NumberField(),
     }
   }
-  execute({ viewState }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  execute({
+    viewState,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     validateViewState(viewState)
     return { ...viewState }
   }
@@ -2600,9 +2582,9 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
     const mapProps =
       basemap !== null
         ? {
-            ...basemap,
-            ...pick(viewState, ['longitude', 'latitude', 'zoom', 'pitch', 'bearing']),
-          }
+          ...basemap,
+          ...pick(viewState, ['longitude', 'latitude', 'zoom', 'pitch', 'bearing']),
+        }
         : undefined
 
     return {
@@ -2941,8 +2923,8 @@ type LayerExtensionFieldReturnValue = null | {
 export const extensionMap: Record<
   string,
   | (new (
-      ...args: unknown[]
-    ) => LayerExtension)
+    ...args: unknown[]
+  ) => LayerExtension)
   | { ExtensionClass: new (...args: unknown[]) => LayerExtension; args: unknown }
 > = {
   BrushingExtension,
@@ -3363,8 +3345,7 @@ export class H3HexagonLayerOp extends Operator<H3HexagonLayerOp> {
 
 export class A5LayerOp extends Operator<A5LayerOp> {
   static displayName = 'A5Layer'
-  static description =
-    'Render filled and/or stroked polygons using the A5 geospatial indexing system'
+  static description = 'Render filled and/or stroked polygons using the A5 geospatial indexing system'
   static cacheable = false
   createInputs() {
     return {
@@ -3725,11 +3706,11 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
         ? { fetch: { headers: { 'X-GOOG-API-KEY': GOOGLE_MAPS_API_KEY } } }
         : provider === 'Cesium'
           ? {
-              tileset: {
-                throttleRequests,
-              },
-              'cesium-ion': { accessToken: CESIUM_ACCESS_TOKEN },
-            }
+            tileset: {
+              throttleRequests,
+            },
+            'cesium-ion': { accessToken: CESIUM_ACCESS_TOKEN },
+          }
           : null
 
     const onTilesetLoad = (tileset3d: Tileset3D) => {
@@ -3992,7 +3973,7 @@ class VibranceExtensionOp extends Operator<VibranceExtensionOp> {
 // TODO: Do we want to include the args as a property as well? Source is currently just the function body
 type FunctionWithSource = ((...args: unknown[]) => unknown | Promise<unknown>) & { source: string }
 // biome-ignore lint/complexity/useArrowFunction: This is a function declaration
-const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
+const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor
 
 // Create a function with a source property for debugging
 function fnWithSource(args: string[], body: string, id: string): FunctionWithSource {
@@ -4016,8 +3997,7 @@ function fnWithSource(args: string[], body: string, id: string): FunctionWithSou
 // An Accessor is an ExpressionOp that returns a function instead of executing it
 export class AccessorOp extends Operator<AccessorOp> {
   static displayName = 'Accessor'
-  static description =
-    'A function called for each row of your data and passed to Deck.gl layer properties. The current row is passed as the `d` variable (e.g., `d.population`, `d.properties.color`). Returns a value that controls visual properties like position, color, or size.'
+  static description = 'A function called for each row of your data and passed to Deck.gl layer properties. The current row is passed as the `d` variable (e.g., `d.population`, `d.properties.color`). Returns a value that controls visual properties like position, color, or size.'
   createInputs() {
     return {
       expression: new ExpressionField(),
@@ -5157,8 +5137,7 @@ function interpolateTimeSeries(
 
 export class TimeSeriesOp extends Operator<TimeSeriesOp> {
   static displayName = 'TimeSeries'
-  static description =
-    'Interpolate time-varying data at a given time. Aligns with TripsLayer API for easy reuse of accessors.'
+  static description = 'Interpolate time-varying data at a given time. Aligns with TripsLayer API for easy reuse of accessors.'
   asDownload = () => this.outputData
   createInputs() {
     return {
@@ -5189,15 +5168,9 @@ export class TimeSeriesOp extends Operator<TimeSeriesOp> {
     return {
       data: data.map((d, i) => {
         // Call accessors with proper deck.gl accessor signature
-        const timestamps = (getTimestamps as Function)(d, {
-          index: i,
-          data,
-          target: [],
-        }) as number[]
+        const timestamps = (getTimestamps as Function)(d, { index: i, data, target: [] }) as number[]
         const values = (getValues as Function)(d, { index: i, data, target: [] }) as any[]
-        const properties = getProperties
-          ? (getProperties as Function)(d, { index: i, data, target: [] })
-          : {}
+        const properties = getProperties ? (getProperties as Function)(d, { index: i, data, target: [] }) : {}
 
         // Convert values array to timeSeries format for interpolation
         const timeSeries = timestamps.map((time: number, idx: number) => ({
@@ -5337,22 +5310,22 @@ export const opTypes = {
 // Execution state for visual debugging
 export type ExecutionState =
   | {
-      status: 'idle'
-    }
+    status: 'idle'
+  }
   | {
-      status: 'executing'
-    }
+    status: 'executing'
+  }
   | {
-      status: 'success'
-      lastExecuted: Date
-      executionTime: number
-    }
+    status: 'success'
+    lastExecuted: Date
+    executionTime: number
+  }
   | {
-      status: 'error'
-      lastExecuted?: Date
-      executionTime?: number
-      error?: string
-    }
+    status: 'error'
+    lastExecuted?: Date
+    executionTime?: number
+    error?: string
+  }
 
 export type OpType = keyof typeof opTypes
 

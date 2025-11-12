@@ -275,11 +275,7 @@ WHERE id = {{./source1.out.val}}
     rerender(
       <ReactFlowProvider>
         <div data-node-id={queryField.op.id}>
-          <CodeFieldComponent
-            id={queryField.pathToProps.join('.')}
-            field={queryField}
-            disabled={false}
-          />
+          <CodeFieldComponent id={queryField.pathToProps.join('.')} field={queryField} disabled={false} />
         </div>
       </ReactFlowProvider>
     )
@@ -320,11 +316,7 @@ WHERE id = {{./source1.out.val}}
       rerender(
         <ReactFlowProvider>
           <div data-node-id={queryField.op.id}>
-            <CodeFieldComponent
-              id={queryField.pathToProps.join('.')}
-              field={queryField}
-              disabled={false}
-            />
+            <CodeFieldComponent id={queryField.pathToProps.join('.')} field={queryField} disabled={false} />
           </div>
         </ReactFlowProvider>
       )

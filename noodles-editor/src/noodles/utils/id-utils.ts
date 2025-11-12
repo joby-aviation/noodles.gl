@@ -1,6 +1,6 @@
 import type { Edge as ReactFlowEdge } from '@xyflow/react'
 
-import { getOpStore, hasOp } from '../store'
+import { hasOp, getOpStore } from '../store'
 import { generateQualifiedPath, getBaseName } from './path-utils'
 
 export type OpId = string

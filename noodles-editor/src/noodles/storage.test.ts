@@ -35,8 +35,8 @@ vi.mock('./utils/directory-handle-cache', () => ({
 
 // Import after mocks are set up
 import { checkAssetExists, readAsset } from './storage'
-import { directoryHandleCache } from './utils/directory-handle-cache'
 import * as filesystem from './utils/filesystem'
+import { directoryHandleCache } from './utils/directory-handle-cache'
 
 // Create a mock directory handle factory
 const createMockDirectoryHandle = (name: string): FileSystemDirectoryHandle => {

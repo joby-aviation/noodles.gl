@@ -26,11 +26,10 @@ import {
 } from './fields'
 import type { IOperator, Operator } from './operators'
 import { getOpStore } from './store'
+import { getBaseName } from './utils/path-utils'
 
 // Helper to recursively convert fields to Theatre props
-function fieldsToTheatreProps(
-  fields: Record<string, Field<any>>
-): Record<string, types.PropTypeConfig> {
+function fieldsToTheatreProps(fields: Record<string, Field<any>>): Record<string, types.PropTypeConfig> {
   const props: Record<string, types.PropTypeConfig> = {}
   for (const [key, field] of Object.entries(fields)) {
     const prop = fieldToTheatreProp(field)
@@ -74,9 +73,7 @@ function fieldToTheatreProp(field: Field<IField>): types.PropTypeConfig | undefi
     if (field instanceof DateField) {
       // Convert Temporal.PlainDateTime to epoch milliseconds for Theatre.js
       // DateField's schema transforms all inputs to PlainDateTime
-      const instant = (field.value as unknown as Temporal.PlainDateTime)
-        .toZonedDateTime('UTC')
-        .toInstant()
+      const instant = (field.value as unknown as Temporal.PlainDateTime).toZonedDateTime('UTC').toInstant()
       return types.number(instant.epochMilliseconds)
     }
     if (field instanceof Vec2Field) {
@@ -114,7 +111,7 @@ function fieldToTheatreProp(field: Field<IField>): types.PropTypeConfig | undefi
       return types.compound(fieldsToTheatreProps(field.fields))
     }
   } catch (e) {
-    console.error('Error creating Theatre prop for field:', e)
+    console.error(`Error creating Theatre prop for field:`, e)
   }
   return undefined
 }
@@ -285,7 +282,10 @@ export function bindAllOperatorsToTheatre(
 }
 
 // Cleanup removed operators from Theatre
-export function cleanupRemovedOperators(currentOperatorIds: Set<string>, sheet: ISheet): void {
+export function cleanupRemovedOperators(
+  currentOperatorIds: Set<string>,
+  sheet: ISheet
+): void {
   const store = getOpStore()
 
   // Find operators that have sheet objects

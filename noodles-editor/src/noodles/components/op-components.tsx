@@ -29,37 +29,34 @@ import { createPortal } from 'react-dom'
 import { Temporal } from 'temporal-polyfill'
 
 import { SheetContext } from '../../utils/sheet-context'
-import { ArrayField, type Field, type IField, ListField } from '../fields'
+import {
+  ArrayField,
+  type Field,
+  type IField,
+  ListField,
+} from '../fields'
 import s from '../noodles.module.css'
 import type { ExecutionState, IOperator, OperatorInstance, OpType } from '../operators'
 import {
   type ContainerOp,
   type GeocoderOp,
   type MouseOp,
-  mathOpDescriptions,
   mathOps,
+  mathOpDescriptions,
   Operator,
   opTypes,
   type TableEditorOp,
   type TimeOp,
   type ViewerOp,
 } from '../operators'
-import {
-  deleteOp,
-  getAllOps,
-  hasOp,
-  setHoveredOutputHandle,
-  setOp,
-  useNestingStore,
-  useOp,
-} from '../store'
+import { useOp, useNestingStore, setHoveredOutputHandle, hasOp, setOp, getAllOps, deleteOp } from '../store'
 import type { NodeDataJSON } from '../transform-graph'
 import { edgeId } from '../utils/id-utils'
 import { generateQualifiedPath, getBaseName, getParentPath } from '../utils/path-utils'
 import type { NodeType } from './add-node-menu'
-import { categories as baseCategories } from './categories'
 import { FieldComponent, type inputComponents } from './field-components'
 import previewStyles from './handle-preview.module.css'
+import { categories as baseCategories } from './categories'
 
 const MAPBOX_ACCESS_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
 
@@ -465,7 +462,7 @@ const ExecutionIndicator = ({ status, error, executionTime }: ExecutionState) =>
   }
 }
 
-const _headerHeight = 49
+const headerHeight = 49
 function NodeHeader({ id, type, op }: { id: string; type: OpType; op: OperatorInstance }) {
   const [locked, setLocked] = useState(op.locked.value)
   const executionState = useExecutionState(op)

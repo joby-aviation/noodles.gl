@@ -7,16 +7,16 @@ import { ReactFlowProvider } from '@xyflow/react'
 import type { Map as MapLibre } from 'maplibre-gl'
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ReactMapGL, { type MapProps, useControl } from 'react-map-gl/maplibre'
-import { projectId } from './noodles/globals'
-import { getNoodles } from './noodles/noodles'
 import NotFound from './not-found'
 import { useDeckDrawLoop } from './render/draw-loop'
 import { captureScreenshot, rafDriver, useRenderer } from './render/renderer'
 import { TransformScale } from './render/transform-scale'
-import s from './timeline-editor.module.css'
 import setRef from './utils/set-ref'
 import useSheetValue, { type PropsValue } from './utils/use-sheet-value'
+import { projectId } from './noodles/globals'
+import { getNoodles } from './noodles/noodles'
 import { WidgetContainer } from './widget-container'
+import s from './timeline-editor.module.css'
 
 import 'maplibre-gl/dist/maplibre-gl.css'
 
@@ -266,7 +266,7 @@ export default function TimelineEditor() {
       // Store deck instance globally for layer inspection
       ;(window as any).__deckInstance = deckRef.current
     }
-  }, [])
+  }, [deckRef.current])
 
   // onIdle resolves when all data is loaded and drawing has settled.
   mapProps.onIdle = ({ target: map }) => {

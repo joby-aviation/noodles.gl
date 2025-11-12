@@ -111,7 +111,7 @@ export const ProjectNotFoundDialog = ({
   const onCreateNew = useCallback(async () => {
     setError(null)
     // Load blank template with the project name
-    const project = (await fetch(newProjectJSON).then(r => r.json())) as NoodlesProjectJSON
+    const project = await fetch(newProjectJSON).then(r => r.json()) as NoodlesProjectJSON
     onProjectLoaded(project, projectName)
     onClose()
   }, [projectName, onProjectLoaded, onClose])
@@ -125,8 +125,7 @@ export const ProjectNotFoundDialog = ({
           <Dialog.Description className={s.dialogDescription}>
             Project "{projectName}" was not found in storage.
             <br />
-            Would you like to locate the project folder, import a project file, or create a new
-            project with this name?
+            Would you like to locate the project folder, import a project file, or create a new project with this name?
           </Dialog.Description>
           {error && <p className={s.dialogError}>{error}</p>}
           <div className={s.dialogRightSlot}>

@@ -3,11 +3,10 @@
 // Note: These utilities are provided for future component testing needs.
 // The current integration tests focus on graph transformation logic
 // and don't require React component rendering.
-
-import { type RenderOptions, render } from '@testing-library/react'
 import { getProject } from '@theatre/core'
 import studio from '@theatre/studio'
 import { ReactFlowProvider } from '@xyflow/react'
+import { render, type RenderOptions } from '@testing-library/react'
 import { type ReactElement, useEffect, useMemo } from 'react'
 import { SheetProvider } from '../../utils/sheet-context'
 
@@ -15,13 +14,7 @@ import { SheetProvider } from '../../utils/sheet-context'
 let projectCounter = 0
 
 // Track created projects to avoid recreating during cleanup
-const createdProjects = new Map<
-  string,
-  {
-    project: ReturnType<typeof getProject>
-    sheet: ReturnType<ReturnType<typeof getProject>['sheet']>
-  }
->()
+const createdProjects = new Map<string, { project: ReturnType<typeof getProject>; sheet: ReturnType<ReturnType<typeof getProject>['sheet']> }>()
 
 // Create a unique Theatre.js project for testing
 // Prevents conflicts when multiple tests run in parallel
@@ -34,7 +27,7 @@ export function createTestTheatreProject(name?: string) {
 }
 
 // Clean up a Theatre.js project after testing
-export function cleanupTheatreProject(projectName: string, _sheetId: string) {
+export function cleanupTheatreProject(projectName: string, sheetId: string) {
   try {
     const cached = createdProjects.get(projectName)
     if (cached) {
@@ -43,7 +36,7 @@ export function cleanupTheatreProject(projectName: string, _sheetId: string) {
       })
       createdProjects.delete(projectName)
     }
-  } catch (_e) {
+  } catch (e) {
     // Project may not exist or cleanup already happened, that's fine
   }
 }
@@ -68,10 +61,7 @@ export function NoodlesTestWrapper({
   projectName?: string
   sheetId?: string
 }) {
-  const uniqueProjectName = useMemo(
-    () => projectName || `test-project-${projectCounter++}`,
-    [projectName]
-  )
+  const uniqueProjectName = useMemo(() => projectName || `test-project-${projectCounter++}`, [projectName])
 
   const { sheet } = useMemo(() => {
     const project = getProject(uniqueProjectName, {})
@@ -95,7 +85,10 @@ export function NoodlesTestWrapper({
 }
 
 // Render with React Flow provider
-export function renderWithProviders(ui: ReactElement, options?: Omit<RenderOptions, 'wrapper'>) {
+export function renderWithProviders(
+  ui: ReactElement,
+  options?: Omit<RenderOptions, 'wrapper'>
+) {
   return render(ui, {
     wrapper: ReactFlowTestWrapper,
     ...options,

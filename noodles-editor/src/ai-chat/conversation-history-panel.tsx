@@ -1,12 +1,11 @@
 // ConversationHistoryPanel - UI for browsing and managing conversation history
 
-import type React from 'react'
-import { useEffect, useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
-  type ConversationMetadata,
-  clearAllHistory,
-  deleteConversation,
   loadMetadata,
+  deleteConversation,
+  clearAllHistory,
+  type ConversationMetadata
 } from './conversation-history'
 import styles from './conversation-history-panel.module.css'
 
@@ -19,13 +18,13 @@ interface ConversationHistoryPanelProps {
 export const ConversationHistoryPanel: React.FC<ConversationHistoryPanelProps> = ({
   onLoadConversation,
   onClose,
-  currentConversationId,
+  currentConversationId
 }) => {
   const [conversations, setConversations] = useState<ConversationMetadata[]>([])
 
   useEffect(() => {
     loadConversations()
-  }, [loadConversations])
+  }, [])
 
   const loadConversations = () => {
     const metadata = loadMetadata()
@@ -68,7 +67,11 @@ export const ConversationHistoryPanel: React.FC<ConversationHistoryPanelProps> =
     <div className={styles.historyPanel}>
       <div className={styles.historyHeader}>
         <h3>Conversation History</h3>
-        <button className={styles.closeBtn} onClick={onClose} title="Close">
+        <button
+          className={styles.closeBtn}
+          onClick={onClose}
+          title="Close"
+        >
           ✕
         </button>
       </div>
@@ -95,7 +98,7 @@ export const ConversationHistoryPanel: React.FC<ConversationHistoryPanelProps> =
                   <div className={styles.conversationTitle}>{conv.title}</div>
                   <button
                     className={styles.deleteBtn}
-                    onClick={e => handleDelete(conv.id, e)}
+                    onClick={(e) => handleDelete(conv.id, e)}
                     title="Delete conversation"
                   >
                     🗑
@@ -110,7 +113,10 @@ export const ConversationHistoryPanel: React.FC<ConversationHistoryPanelProps> =
           </div>
 
           <div className={styles.historyFooter}>
-            <button className={styles.clearAllBtn} onClick={handleClearAll}>
+            <button
+              className={styles.clearAllBtn}
+              onClick={handleClearAll}
+            >
               Clear All History
             </button>
           </div>

@@ -45,7 +45,10 @@ export interface RankedNodeType {
 // 4. Description match (100 points)
 // 5. Category match (50 points)
 // Plus: Common operator boost (0-100 points)
-export function calculateRelevanceScore(type: NodeType, searchTerm: string): number {
+export function calculateRelevanceScore(
+  type: NodeType,
+  searchTerm: string
+): number {
   const normalizedSearch = searchTerm.toLowerCase().trim()
   if (!normalizedSearch) return 0
 
@@ -90,7 +93,10 @@ export function calculateRelevanceScore(type: NodeType, searchTerm: string): num
 
 // Rank node types by relevance to search term.
 // Returns sorted array with highest scores first.
-export function rankNodeTypes(types: NodeType[], searchTerm: string): RankedNodeType[] {
+export function rankNodeTypes(
+  types: NodeType[],
+  searchTerm: string
+): RankedNodeType[] {
   const ranked = types
     .map(type => ({
       type,

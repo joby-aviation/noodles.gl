@@ -3,7 +3,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { NumberOp } from '../operators'
-import { clearOps, getOp, getSheetObject, setOp, useNestingStore, useOp } from '../store'
+import { clearOps, getOp, getSheetObject, setOp, useOp, useNestingStore } from '../store'
 
 describe('Noodles Hooks', () => {
   afterEach(() => {
