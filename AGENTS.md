@@ -70,6 +70,13 @@ This document provides essential context for Large Language Models (LLMs) workin
 - Radix UI - Accessible component primitives
 - PrimeReact - Rich UI component library
 
+**State Management**
+
+- Zustand for global state management
+- Operator and sheet object storage
+- Batching support for atomic updates
+- Non-reactive access patterns via `getOpStore()`
+
 **Reactive Programming**
 - RxJS for reactive data flow
 
@@ -448,12 +455,103 @@ export const migration = {
 }
 ```
 
+## State Management with Zustand
+
+The application uses Zustand for global state management, storing operators and Theatre.js sheet objects.
+
+### Store Architecture
+
+```typescript
+// The store contains:
+// - operators: Map<OpId, Operator<IOperator>>
+// - sheetObjects: Map<OpId, ISheetObject>
+// - hoveredOutputHandle: { nodeId: string; handleId: string } | null
+// - Batching support for atomic updates
+```
+
+### Accessing the Store
+
+**Direct Store Access (non-reactive):**
+
+```typescript
+import { getOpStore } from './store'
+
+// Get the store instance
+const store = getOpStore()
+
+// Access operators
+const op = store.getOp('/data-loader')
+const allOps = store.getAllOps()
+const entries = store.getOpEntries()
+```
+
+**Convenience Helpers (recommended):**
+
+```typescript
+import { getOp, getAllOps, getOpEntries, setOp, deleteOp, hasOp } from './store'
+
+// Get a single operator by absolute or relative path
+const op = getOp('/data-loader')  // Absolute path
+const relative = getOp('./sibling', contextOpId)  // Relative path
+
+// Check existence
+if (hasOp('/data-loader')) { /* ... */ }
+
+// Get all operators
+const allOps = getAllOps()
+
+// Iterate over operators
+for (const [id, op] of getOpEntries()) {
+  // ...
+}
+
+// Add/update operators
+setOp('/new-op', operatorInstance)
+
+// Remove operators
+deleteOp('/old-op')
+```
+
+**Batching for Performance:**
+
+```typescript
+import { getOpStore } from './store'
+
+// Batch multiple store operations to trigger single update
+getOpStore().batch(() => {
+  setOp('/op1', op1)
+  setOp('/op2', op2)
+  deleteOp('/op3')
+  // Only one state update after batch completes
+})
+```
+
+### Sheet Object Management
+
+```typescript
+import { getSheetObject, setSheetObject, deleteSheetObject, hasSheetObject } from './store'
+
+// Manage Theatre.js sheet objects
+const sheetObj = getSheetObject('/data-loader')
+setSheetObject('/data-loader', sheetObject)
+deleteSheetObject('/data-loader')
+if (hasSheetObject('/data-loader')) { /* ... */ }
+```
+
+### Important Notes
+
+- **Non-reactive by design**: Store access via `getOpStore()` does NOT trigger React re-renders
+- **Use in tests**: Test files should use the convenience helpers (`getOp`, `getAllOps`, etc.)
+- **Path resolution**: `getOp()` supports both absolute (`/foo/bar`) and relative (`./sibling`, `../parent`) paths
+- **Batching**: Always use `store.batch()` when making multiple related changes
+- **No `opMap` access**: The old `opMap` global is deprecated - use store helpers instead
+
 ## Common Patterns
 
 ### Accessing Operator Outputs
 
 ```javascript
-// In CodeField or AccessorOp
+// In CodeField or AccessorOp - uses the getOp helper internally
 const data = op('/data-loader').out.data
 const threshold = op('./threshold').par.value
 ```
@@ -719,8 +817,11 @@ When implementing features or fixes:
 8. **Testing is expected** - Add tests for new features and changes to critical components
 9. **Document edge cases** - Users may not expect implementation-specific behavior
 10. **Keep PRs focused** - Split large changes into reviewable chunks when possible
+11. **Use store helpers** - Always use `getOp()`, `getAllOps()`, etc. instead of direct `opMap` access
+12. **Batch store updates** - Use `getOpStore().batch()` when making multiple related changes
+13. **Non-reactive store access** - Store helpers don't trigger React re-renders; use hooks for reactive access
 
 ---
 
-**Last Updated**: 2025-10-22
-**Version**: Based on project version 6 schema
+**Last Updated**: 2025-01-12
+**Version**: Based on project version 6 schema with Zustand state management

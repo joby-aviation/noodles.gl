@@ -283,14 +283,11 @@ export function cleanupRemovedOperators(
   sheet: ISheet
 ): void {
   const store = getOpStore()
-  // Get all sheet object IDs to iterate over
-  const sheetObjectIds = store.getAllOps()
-    .map(op => op.id)
-    .filter(id => store.hasSheetObject(id))
 
-  for (const opId of sheetObjectIds) {
-    if (!currentOperatorIds.has(opId)) {
-      unbindOperatorFromTheatre(opId, sheet)
+  // Find operators that have sheet objects
+  for (const op of store.getAllOps()) {
+    if (store.hasSheetObject(op.id) && !currentOperatorIds.has(op.id)) {
+      unbindOperatorFromTheatre(op.id, sheet)
     }
   }
 }

@@ -49,7 +49,7 @@ import {
   type TimeOp,
   type ViewerOp,
 } from '../operators'
-import { getOpStore, useOp, useNestingStore } from '../store'
+import { useOp, useNestingStore, setHoveredOutputHandle, hasOp, setOp, getAllOps, deleteOp } from '../store'
 import type { NodeDataJSON } from '../transform-graph'
 import { edgeId } from '../utils/id-utils'
 import { generateQualifiedPath, getBaseName, getParentPath } from '../utils/path-utils'
@@ -318,7 +318,7 @@ function OutputHandle({ id, field }: { id: string; field: Field<IField> }) {
     (e: React.MouseEvent<HTMLDivElement>) => {
       // Track hovered output handle for viewer creation
       if (nid) {
-        getOpStore().setHoveredOutputHandle({ nodeId: nid, handleId: qualifiedFieldId })
+        setHoveredOutputHandle({ nodeId: nid, handleId: qualifiedFieldId })
       }
 
       // Store the current target immediately
@@ -335,7 +335,7 @@ function OutputHandle({ id, field }: { id: string; field: Field<IField> }) {
 
   const handleMouseLeave = useCallback(() => {
     // Clear hovered output handle
-    getOpStore().setHoveredOutputHandle(null)
+    setHoveredOutputHandle(null)
 
     if (hoverTimerRef.current) {
       clearTimeout(hoverTimerRef.current)
@@ -476,9 +476,8 @@ function NodeHeader({ id, type, op }: { id: string; type: OpType; op: OperatorIn
   const checkForConflict = useCallback(
     (newBaseName: string): boolean => {
       if (!newBaseName.trim()) return false
-      const store = getOpStore()
       const newQualifiedId = generateQualifiedPath(newBaseName.trim(), op.containerId)
-      return newQualifiedId !== id && store.hasOp(newQualifiedId)
+      return newQualifiedId !== id && hasOp(newQualifiedId)
     },
     [id, op.containerId]
   )
@@ -513,15 +512,14 @@ function NodeHeader({ id, type, op }: { id: string; type: OpType; op: OperatorIn
 
       const newQualifiedId = generateQualifiedPath(trimmedName, op.containerId)
       const isContainer = type === 'ContainerOp'
-      const store = getOpStore()
 
       // Update the operator itself
-      store.setOp(newQualifiedId, op)
+      setOp(newQualifiedId, op)
       op.id = newQualifiedId
 
       // If this is a container, update all children nodes and their operators
       if (isContainer) {
-        const childOps = store.getAllOps().filter(childOp =>
+        const childOps = getAllOps().filter((childOp: Operator<IOperator>) =>
           childOp.id.startsWith(`${id}/`)
         )
 
@@ -529,17 +527,17 @@ function NodeHeader({ id, type, op }: { id: string; type: OpType; op: OperatorIn
           const oldChildId = childOp.id
           // Replace only the exact container path at the start
           const newChildId = newQualifiedId + oldChildId.slice(id.length)
-          store.setOp(newChildId, childOp)
+          setOp(newChildId, childOp)
           childOp.id = newChildId
           // TODO: this is a hack. We should hook into some sort of "after update" event
-          queueMicrotask(() => store.deleteOp(oldChildId))
+          queueMicrotask(() => deleteOp(oldChildId))
         }
       }
 
       // Give React time to update the component tree before deleting the old id
       // TODO: this is a hack. We should hook into some sort of "after update" event
       queueMicrotask(() => {
-        store.deleteOp(id)
+        deleteOp(id)
       })
 
       // Update React Flow nodes and edges

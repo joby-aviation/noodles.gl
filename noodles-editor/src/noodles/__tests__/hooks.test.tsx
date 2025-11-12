@@ -3,24 +3,20 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { NumberOp } from '../operators'
-import { NoodlesProvider, opMap, useOp, useSlice, useNestingStore } from '../store'
+import { clearOps, getOp, getSheetObject, setOp, useOp, useNestingStore } from '../store'
 
 describe('Noodles Hooks', () => {
   afterEach(() => {
-    opMap.clear()
+    clearOps()
   })
 
-  describe('useSlice', () => {
-    it('reads values from the Noodles context', () => {
+  describe('Zustand store', () => {
+    it('reads operators from the store', () => {
       // Add an operator to the map
       const op = new NumberOp('/test-num', {})
-      opMap.set('/test-num', op)
+      setOp('/test-num', op)
 
-      const { result } = renderHook(() => useSlice(state => state.ops), {
-        wrapper: NoodlesProvider,
-      })
-
-      expect(result.current.get('/test-num')).toBe(op)
+      expect(getOp('/test-num')).toBe(op)
     })
 
     it('can read nesting context', () => {
@@ -39,22 +35,16 @@ describe('Noodles Hooks', () => {
     })
 
     it('can read sheet objects', () => {
-      const { result } = renderHook(() => useSlice(state => state.sheetObjects), {
-        wrapper: NoodlesProvider,
-      })
-
-      expect(result.current.get('/nonexistent')).toBeUndefined()
+      expect(getSheetObject('/nonexistent')).toBeUndefined()
     })
   })
 
   describe('useOp', () => {
     it('returns an operator when it exists', () => {
       const op = new NumberOp('/test-num', {})
-      opMap.set('/test-num', op)
+      setOp('/test-num', op)
 
-      const { result } = renderHook(() => useOp('/test-num'), {
-        wrapper: NoodlesProvider,
-      })
+      const { result } = renderHook(() => useOp('/test-num'))
 
       expect(result.current).toBe(op)
       expect(result.current).toBeInstanceOf(NumberOp)
@@ -70,9 +60,7 @@ describe('Noodles Hooks', () => {
         }
       }
 
-      const { result } = renderHook(() => TestHook(), {
-        wrapper: NoodlesProvider,
-      })
+      const { result } = renderHook(() => TestHook())
 
       expect(result.current).toHaveProperty('error')
       expect((result.current as { error: Error }).error.message).toBe(
@@ -83,15 +71,11 @@ describe('Noodles Hooks', () => {
     it('returns the correct operator when multiple exist', () => {
       const op1 = new NumberOp('/num1', {})
       const op2 = new NumberOp('/num2', {})
-      opMap.set('/num1', op1)
-      opMap.set('/num2', op2)
+      setOp('/num1', op1)
+      setOp('/num2', op2)
 
-      const { result: result1 } = renderHook(() => useOp('/num1'), {
-        wrapper: NoodlesProvider,
-      })
-      const { result: result2 } = renderHook(() => useOp('/num2'), {
-        wrapper: NoodlesProvider,
-      })
+      const { result: result1 } = renderHook(() => useOp('/num1'))
+      const { result: result2 } = renderHook(() => useOp('/num2'))
 
       expect(result1.current).toBe(op1)
       expect(result2.current).toBe(op2)
@@ -102,22 +86,18 @@ describe('Noodles Hooks', () => {
   describe('Hook integration with operators', () => {
     it('can access operator properties through hooks', () => {
       const op = new NumberOp('/test-num', { val: 42 })
-      opMap.set('/test-num', op)
+      setOp('/test-num', op)
 
-      const { result } = renderHook(() => useOp('/test-num'), {
-        wrapper: NoodlesProvider,
-      })
+      const { result } = renderHook(() => useOp('/test-num'))
 
       expect(result.current.inputs.val.value).toBe(42)
     })
 
     it('reflects operator updates', () => {
       const op = new NumberOp('/test-num', { val: 10 })
-      opMap.set('/test-num', op)
+      setOp('/test-num', op)
 
-      const { result } = renderHook(() => useOp('/test-num'), {
-        wrapper: NoodlesProvider,
-      })
+      const { result } = renderHook(() => useOp('/test-num'))
 
       expect(result.current.inputs.val.value).toBe(10)
 

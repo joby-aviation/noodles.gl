@@ -25,7 +25,7 @@ import {
   SwitchOp,
   TimeSeriesOp,
 } from './operators'
-import { opMap } from './store'
+import { setOp } from './store'
 import { isAccessor } from './utils/accessor-helpers'
 
 describe('basic Operators', () => {
@@ -198,7 +198,7 @@ describe('CodeOp', () => {
 
   it('parses mustache references to other operators', async () => {
     const numOp = new NumberOp('/num-0', { val: 1 }, false)
-    opMap.set('/num-0', numOp)
+    setOp('/num-0', numOp)
 
     expect(numOp.inputs.val.value).toEqual(1)
 
@@ -226,7 +226,7 @@ describe('JSONOp', () => {
   it('supports references to other operators', () => {
     const numOp = new NumberOp('/num-0')
     numOp.outputs.val.setValue(1)
-    opMap.set('/num-0', numOp)
+    setOp('/num-0', numOp)
 
     const text = '{ "a": {{num-0.out.val}} }'
 
@@ -409,7 +409,7 @@ describe('DuckDbOp', () => {
 
   it('allows references to other operators', async () => {
     const numOp = new NumberOp('/num-0', { val: 1 }, false)
-    opMap.set('/num-0', numOp)
+    setOp('/num-0', numOp)
 
     const ddb = new DuckDbOp('/duckdb-0', {}, false)
     const val = await ddb.execute({ query: 'SELECT {{num-0.par.val}}' })
@@ -421,7 +421,7 @@ describe('DuckDbOp', () => {
 
   it('supports nested references', async () => {
     const bbox = new BoundingBoxOp('/bbox', {}, false)
-    opMap.set('/bbox', bbox)
+    setOp('/bbox', bbox)
 
     const ddb = new DuckDbOp('/ddb', {}, false)
     const val = await ddb.execute({ query: 'SELECT {{bbox.out.viewState.latitude}} as lat' })

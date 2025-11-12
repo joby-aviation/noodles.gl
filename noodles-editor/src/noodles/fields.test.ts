@@ -23,7 +23,7 @@ import {
   StringLiteralField,
 } from './fields'
 import { NumberOp } from './operators'
-import { opMap } from './store'
+import { clearOps, setOp } from './store'
 import { canConnect } from './utils/can-connect'
 
 describe('basic Fields', () => {
@@ -634,10 +634,10 @@ describe('Field references', () => {
   beforeEach(() => {
     // Note that this is a global map, so we need to clear it before each test
     // to avoid cross-contamination. References currently rely on the opMap
-    opMap.clear()
+    clearOps()
 
     numOp.inputs.val.setValue(10)
-    opMap.set('/num', numOp)
+    setOp('/num', numOp)
   })
 
   it('allows references to other operators using {{mustache-syntax}}', () => {

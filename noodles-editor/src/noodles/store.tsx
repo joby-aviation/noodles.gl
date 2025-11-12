@@ -84,9 +84,9 @@ export const useOperatorStore = create<OperatorStore>((set, get) => ({
   clearOps: () => {
     const state = get()
     if (state._batching) {
-      set({ operators: new Map(), _pendingVersion: state._pendingVersion + 1 })
+      set({ operators: new Map(), sheetObjects: new Map(), _pendingVersion: state._pendingVersion + 1 })
     } else {
-      set({ operators: new Map(), version: state.version + 1 })
+      set({ operators: new Map(), sheetObjects: new Map(), version: state.version + 1 })
     }
   },
 
@@ -168,6 +168,24 @@ export const getOp = (
   return store.getOp(resolvedPath)
 }
 
+// Convenience helpers for common store operations
+export const setOp = (id: OpId, op: Operator<IOperator>) => getOpStore().setOp(id, op)
+export const deleteOp = (id: OpId) => getOpStore().deleteOp(id)
+export const hasOp = (id: OpId) => getOpStore().hasOp(id)
+export const clearOps = () => getOpStore().clearOps()
+export const getAllOps = () => getOpStore().getAllOps()
+export const getOpEntries = () => getOpStore().getOpEntries()
+
+// Sheet object helpers
+export const getSheetObject = (id: OpId) => getOpStore().getSheetObject(id)
+export const setSheetObject = (id: OpId, sheetObj: ISheetObject) => getOpStore().setSheetObject(id, sheetObj)
+export const deleteSheetObject = (id: OpId) => getOpStore().deleteSheetObject(id)
+export const hasSheetObject = (id: OpId) => getOpStore().hasSheetObject(id)
+export const getAllSheetObjectIds = () => Array.from(getOpStore().sheetObjects.keys())
+
+// Hovered output handle helpers
+export const setHoveredOutputHandle = (handle: { nodeId: string; handleId: string } | null) => getOpStore().setHoveredOutputHandle(handle)
+
 // ============================================================================
 // Nesting State (Zustand)
 // ============================================================================
@@ -181,11 +199,3 @@ export const useNestingStore = create<NestingState>((set) => ({
   currentContainerId: '/',
   setCurrentContainerId: (id: string) => set({ currentContainerId: id }),
 }))
-
-// ============================================================================
-// Deprecated exports for backward compatibility with tests
-// ============================================================================
-// TODO: Remove these once all tests are updated
-
-export const opMap = useOperatorStore.getState().operators
-export const sheetObjectMap = useOperatorStore.getState().sheetObjects

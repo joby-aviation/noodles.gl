@@ -3,16 +3,16 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { Edge } from './noodles'
 import type { OpType } from './operators'
 import { CodeOp, ContainerOp, GraphInputOp, GraphOutputOp, MathOp, NumberOp } from './operators'
-import { opMap } from './store'
+import { clearOps, getOp } from './store'
 import { transformGraph } from './transform-graph'
 
 describe('Qualified Paths Integration Tests', () => {
   beforeEach(() => {
-    opMap.clear()
+    clearOps()
   })
 
   afterEach(() => {
-    opMap.clear()
+    clearOps()
   })
 
   describe('End-to-End Operator Creation and Connection', () => {
@@ -82,10 +82,10 @@ describe('Qualified Paths Integration Tests', () => {
       ])
 
       // Verify operators are in opMap with qualified paths
-      const inputData = opMap.get('/input-data') as NumberOp
-      const multiplier = opMap.get('/multiplier') as NumberOp
-      const calculator = opMap.get('/calculator') as MathOp
-      const processor = opMap.get('/processor') as CodeOp
+      const inputData = getOp('/input-data') as NumberOp
+      const multiplier = getOp('/multiplier') as NumberOp
+      const calculator = getOp('/calculator') as MathOp
+      const processor = getOp('/processor') as CodeOp
 
       expect(inputData).toBeInstanceOf(NumberOp)
       expect(multiplier).toBeInstanceOf(NumberOp)
@@ -196,12 +196,12 @@ describe('Qualified Paths Integration Tests', () => {
       expect(operators).toHaveLength(6)
 
       // Verify container hierarchy is correct
-      const dataSource = opMap.get('/data-source') as NumberOp
-      const analysis = opMap.get('/analysis') as ContainerOp
-      const analysisInput = opMap.get('/analysis/input') as GraphInputOp
-      const analysisProcessor = opMap.get('/analysis/processor') as MathOp
-      const analysisOutput = opMap.get('/analysis/output') as GraphOutputOp
-      const finalProcessor = opMap.get('/final-processor') as CodeOp
+      const dataSource = getOp('/data-source') as NumberOp
+      const analysis = getOp('/analysis') as ContainerOp
+      const analysisInput = getOp('/analysis/input') as GraphInputOp
+      const analysisProcessor = getOp('/analysis/processor') as MathOp
+      const analysisOutput = getOp('/analysis/output') as GraphOutputOp
+      const finalProcessor = getOp('/final-processor') as CodeOp
 
       expect(dataSource).toBeInstanceOf(NumberOp)
       expect(analysis).toBeInstanceOf(ContainerOp)
@@ -283,10 +283,10 @@ describe('Qualified Paths Integration Tests', () => {
       expect(operators).toHaveLength(6)
 
       // Get the operators
-      const sharedData = opMap.get('/shared-data') as NumberOp
-      const containerAProcessor = opMap.get('/container-a/processor') as CodeOp
-      const containerBProcessor = opMap.get('/container-b/processor') as CodeOp
-      const combiner = opMap.get('/combiner') as CodeOp
+      const sharedData = getOp('/shared-data') as NumberOp
+      const containerAProcessor = getOp('/container-a/processor') as CodeOp
+      const containerBProcessor = getOp('/container-b/processor') as CodeOp
+      const combiner = getOp('/combiner') as CodeOp
 
       // Test cross-container references
       expect(sharedData.inputs.val.value).toBe(42)
@@ -417,12 +417,12 @@ describe('Qualified Paths Integration Tests', () => {
       expect(operators).toHaveLength(11)
 
       // Verify container hierarchy
-      const level1 = opMap.get('/level1') as ContainerOp
-      const level2 = opMap.get('/level1/level2') as ContainerOp
-      const level3 = opMap.get('/level1/level2/level3') as ContainerOp
-      const deepProcessor = opMap.get('/level1/level2/level3/processor') as MathOp
-      const midProcessor = opMap.get('/level1/level2/processor') as CodeOp
-      const result = opMap.get('/result') as CodeOp
+      const level1 = getOp('/level1') as ContainerOp
+      const level2 = getOp('/level1/level2') as ContainerOp
+      const level3 = getOp('/level1/level2/level3') as ContainerOp
+      const deepProcessor = getOp('/level1/level2/level3/processor') as MathOp
+      const midProcessor = getOp('/level1/level2/processor') as CodeOp
+      const result = getOp('/result') as CodeOp
 
       expect(level1).toBeInstanceOf(ContainerOp)
       expect(level2).toBeInstanceOf(ContainerOp)
@@ -432,12 +432,12 @@ describe('Qualified Paths Integration Tests', () => {
       expect(result).toBeInstanceOf(CodeOp)
 
       // Test deep nesting data flow
-      const rootData = opMap.get('/root-data') as NumberOp
+      const rootData = getOp('/root-data') as NumberOp
       expect(rootData.inputs.val.value).toBe(100)
 
       // Set up the deep processor result manually
       deepProcessor.outputs.result.setValue(300) // 100 * 3
-      const level3Output = opMap.get('/level1/level2/level3/output') as GraphOutputOp
+      const level3Output = getOp('/level1/level2/level3/output') as GraphOutputOp
       level3Output.outputs.propagatedValue.setValue(300)
 
       // Test that deep container references work
@@ -446,7 +446,7 @@ describe('Qualified Paths Integration Tests', () => {
 
       // Set up level2 processor result
       midProcessor.outputs.data.setValue(350) // 300 + 50
-      const level2Output = opMap.get('/level1/level2/output') as GraphOutputOp
+      const level2Output = getOp('/level1/level2/output') as GraphOutputOp
       if (level2Output) {
         level2Output.outputs.propagatedValue.setValue(350)
       }
@@ -455,7 +455,7 @@ describe('Qualified Paths Integration Tests', () => {
       expect(level2Result.out).toBe(350) // 300 + 50
 
       // Set up level1 output manually since it needs a direct GraphOutputOp child
-      const level1Output = opMap.get('/level1/output') as GraphOutputOp
+      const level1Output = getOp('/level1/output') as GraphOutputOp
       level1Output.outputs.propagatedValue.setValue(350)
 
       const level1Result = level1.execute({ in: rootData.inputs.val.value })
@@ -532,10 +532,10 @@ describe('Qualified Paths Integration Tests', () => {
       expect(operators).toHaveLength(7)
 
       // Get operators
-      const sharedConfig = opMap.get('/shared-config') as NumberOp
-      const moduleASubProcessor = opMap.get('/module-a/sub-module/processor') as CodeOp
-      const moduleBProcessor = opMap.get('/module-b/processor') as CodeOp
-      const aggregator = opMap.get('/aggregator') as CodeOp
+      const sharedConfig = getOp('/shared-config') as NumberOp
+      const moduleASubProcessor = getOp('/module-a/sub-module/processor') as CodeOp
+      const moduleBProcessor = getOp('/module-b/processor') as CodeOp
+      const aggregator = getOp('/aggregator') as CodeOp
 
       // Test complex cross-container references
       expect(sharedConfig.inputs.val.value).toBe(10)
@@ -611,9 +611,9 @@ describe('Qualified Paths Integration Tests', () => {
       expect(operators).toHaveLength(3)
 
       // Verify handle IDs were parsed correctly and connections established
-      const source = opMap.get('/source') as NumberOp
-      const processor = opMap.get('/container/processor') as MathOp
-      const target = opMap.get('/deep/nested/target') as CodeOp
+      const source = getOp('/source') as NumberOp
+      const processor = getOp('/container/processor') as MathOp
+      const target = getOp('/deep/nested/target') as CodeOp
 
       expect(source).toBeInstanceOf(NumberOp)
       expect(processor).toBeInstanceOf(MathOp)
@@ -777,22 +777,22 @@ describe('Qualified Paths Integration Tests', () => {
       expect(operators).toHaveLength(8)
 
       // Verify complex handle ID connections work
-      const inputData = opMap.get('/input-data') as NumberOp
-      const processingModule = opMap.get('/processing-module') as ContainerOp
-      const subContainer = opMap.get('/processing-module/sub-container') as ContainerOp
-      const processor = opMap.get('/processing-module/sub-container/processor') as MathOp
-      const finalOutput = opMap.get('/final-output') as CodeOp
+      const inputData = getOp('/input-data') as NumberOp
+      const processingModule = getOp('/processing-module') as ContainerOp
+      const subContainer = getOp('/processing-module/sub-container') as ContainerOp
+      const processor = getOp('/processing-module/sub-container/processor') as MathOp
+      const finalOutput = getOp('/final-output') as CodeOp
 
       // Test the complex data flow
       expect(inputData.inputs.val.value).toBe(100)
 
       // Set up the nested processor result manually
       processor.outputs.result.setValue(300) // 100 * 3
-      const subOutput = opMap.get('/processing-module/sub-container/output') as GraphOutputOp
+      const subOutput = getOp('/processing-module/sub-container/output') as GraphOutputOp
       if (subOutput) {
         subOutput.outputs.propagatedValue.setValue(300)
       }
-      const moduleOutput = opMap.get('/processing-module/output') as GraphOutputOp
+      const moduleOutput = getOp('/processing-module/output') as GraphOutputOp
       moduleOutput.outputs.propagatedValue.setValue(300)
 
       // Test nested container execution

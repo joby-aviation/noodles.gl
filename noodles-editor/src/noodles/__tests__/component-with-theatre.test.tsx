@@ -4,7 +4,7 @@ import { screen } from '@testing-library/react'
 import type { Node as ReactFlowNode } from '@xyflow/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { type MathOp, NumberOp, type IOperator, type Operator } from '../operators'
-import { opMap } from '../store'
+import { clearOps, getOp, setOp } from '../store'
 import { transformGraph } from '../transform-graph'
 import { renderWithNoodlesProviders } from './test-utils'
 
@@ -23,7 +23,7 @@ vi.mock('@theatre/studio', () => ({
 
 describe('Complex Noodles Integration Tests', () => {
   afterEach(() => {
-    opMap.clear()
+    clearOps()
   })
 
   it('propagates field updates through multiple operator connections', () => {
@@ -68,9 +68,9 @@ describe('Complex Noodles Integration Tests', () => {
 
     transformGraph({ nodes, edges })
 
-    const sourceOp = opMap.get('/source') as NumberOp
-    const multiplyOp = opMap.get('/multiply') as MathOp
-    const addOp = opMap.get('/add') as MathOp
+    const sourceOp = getOp('/source') as NumberOp
+    const multiplyOp = getOp('/multiply') as MathOp
+    const addOp = getOp('/add') as MathOp
 
     // Verify the 3-operator chain is established
     expect(multiplyOp.inputs.a.subscriptions.size).toBe(1)
@@ -151,8 +151,8 @@ describe('Complex Noodles Integration Tests', () => {
 
     transformGraph({ nodes, edges })
 
-    const addOp = opMap.get('/add') as MathOp
-    const multiplyOp = opMap.get('/multiply') as MathOp
+    const addOp = getOp('/add') as MathOp
+    const multiplyOp = getOp('/multiply') as MathOp
 
     // Verify connected inputs have subscriptions
     expect(addOp.inputs.a.subscriptions.size).toBe(1)
@@ -192,8 +192,8 @@ describe('Complex Noodles Integration Tests', () => {
 
     transformGraph({ nodes, edges })
 
-    const sourceOp = opMap.get('/source') as NumberOp
-    const targetOp = opMap.get('/target') as MathOp
+    const sourceOp = getOp('/source') as NumberOp
+    const targetOp = getOp('/target') as MathOp
 
     // Verify connection established
     expect(targetOp.inputs.a.subscriptions.size).toBe(1)
@@ -232,14 +232,14 @@ describe('Complex Noodles Integration Tests', () => {
 
     transformGraph({ nodes, edges: [] })
 
-    const firstOp = opMap.get('/persistent') as NumberOp
+    const firstOp = getOp('/persistent') as NumberOp
     expect(firstOp).toBeDefined()
     expect(firstOp.inputs.val.value).toBe(123)
 
     // Re-transform with same node
     transformGraph({ nodes, edges: [] })
 
-    const secondOp = opMap.get('/persistent') as NumberOp
+    const secondOp = getOp('/persistent') as NumberOp
 
     // Should be the same operator instance
     expect(secondOp).toBe(firstOp)
@@ -249,7 +249,7 @@ describe('Complex Noodles Integration Tests', () => {
   it('uses NoodlesTestWrapper for Theatre.js integration', () => {
     // Simple test to verify the test-utils wrapper works
     const op = new NumberOp('/test-op', { val: 99 })
-    opMap.set('/test-op', op as Operator<IOperator>)
+    setOp('/test-op', op as Operator<IOperator>)
 
     function SimpleComponent() {
       return <div data-testid="simple">Works</div>

@@ -13,7 +13,7 @@ import {
   applyEdgeChanges,
 } from '@xyflow/react'
 
-import { getOpStore } from '../store'
+import { getOp } from '../store'
 import { canConnect } from '../utils/can-connect'
 import { parseHandleId } from '../utils/path-utils'
 import { edgeId } from '../utils/id-utils'
@@ -148,12 +148,11 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
           }
 
           // Create edges between compatible incomers and outgoers
-          const store = getOpStore()
           const createdEdges = incomers.flatMap(({ id: source }) =>
             outgoers
               .filter(({ id: target }) => {
-                const sourceField = store.getOp(source)?.outputs[sourceHandleInfo.fieldName]
-                const targetField = store.getOp(target)?.inputs[targetHandleInfo.fieldName]
+                const sourceField = getOp(source)?.outputs[sourceHandleInfo.fieldName]
+                const targetField = getOp(target)?.inputs[targetHandleInfo.fieldName]
                 if (!sourceField || !targetField) {
                   return false
                 }
@@ -226,9 +225,8 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       }
 
       // Get operators
-      const store = getOpStore()
-      const sourceOp = store.getOp(edge.source)
-      const targetOp = store.getOp(edge.target)
+      const sourceOp = getOp(edge.source)
+      const targetOp = getOp(edge.target)
 
       if (!sourceOp || !targetOp) {
         return {
@@ -289,8 +287,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       }
 
       // Get the operator instance from store
-      const store = getOpStore()
-      const operator = store.getOp(nodeId)
+      const operator = getOp(nodeId)
 
       if (operator && updates.data?.inputs) {
         // Update operator inputs using setValue
@@ -475,7 +472,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
       // Update operator inputs for node updates
       for (const { id, updates } of nodesToUpdate) {
-        const operator = getOpStore().getOp(id)
+        const operator = getOp(id)
         if (operator && updates.data?.inputs) {
           const inputs = updates.data.inputs as Record<string, unknown>
           for (const [key, value] of Object.entries(inputs)) {
@@ -542,8 +539,8 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
               continue
             }
 
-            const sourceOp = getOpStore().getOp(edge.source)
-            const targetOp = getOpStore().getOp(edge.target)
+            const sourceOp = getOp(edge.source)
+            const targetOp = getOp(edge.target)
 
             if (!sourceOp || !targetOp) {
               const error = `Edge ${edge.id}: source or target operator not found`
@@ -653,8 +650,8 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         return
       }
 
-      const sourceOp = getOpStore().getOp(source.id)
-      const targetOp = getOpStore().getOp(target.id)
+      const sourceOp = getOp(source.id)
+      const targetOp = getOp(target.id)
 
       if (!sourceOp || !targetOp) {
         console.warn('Invalid source or target', connection)
