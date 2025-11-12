@@ -3,7 +3,7 @@ import { useKeyPress, useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
 import { type FC, Fragment, useCallback, useEffect } from 'react'
 import { ContainerOp } from '../operators'
-import { opMap, useNestingStore } from '../store' // To access opMap for node names
+import { getOpStore, useNestingStore } from '../store'
 import { getBaseName, getParentPath, joinPath, splitPath } from '../utils/path-utils'
 import s from './breadcrumbs.module.css'
 
@@ -25,7 +25,8 @@ export const Breadcrumbs: FC = () => {
   )
 
   const getMenuItems = (containerId: string) => {
-    return Array.from(opMap)
+    const store = getOpStore()
+    return store.getOpEntries()
       .filter(
         ([key, op]) =>
           key !== containerId && getParentPath(key) === containerId && op instanceof ContainerOp

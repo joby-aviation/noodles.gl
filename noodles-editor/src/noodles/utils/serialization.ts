@@ -7,7 +7,7 @@ import type {
 import { isEqual } from 'lodash'
 
 import { resizeableNodes } from '../components/op-components'
-import type { NoodlesContextValue } from '../store'
+import type { useOperatorStore } from '../store'
 import type { ExtractProps } from './extract-props'
 import { parseHandleId } from './path-utils'
 
@@ -48,7 +48,7 @@ export function safeStringify(obj: Record<string, unknown>) {
 }
 
 export function serializeNodes(
-  ops: NoodlesContextValue['ops'],
+  store: ReturnType<typeof useOperatorStore.getState>,
   nodes: ReactFlowNode<Record<string, unknown>>[],
   edges: ReactFlowEdge[]
 ) {
@@ -60,13 +60,13 @@ export function serializeNodes(
       preparedNodes.push(node)
       continue
     }
-    const op = ops.get(node.id)
+    const op = store.getOp(node.id)
     if (!op) continue
 
     // Don't set node data for connected inputs (saves space) except if upstream op is locked
     const incomers = edges
       .filter(edge => edge.target === node.id && edge.type !== 'ReferenceEdge')
-      .filter(edge => ops.get(edge.source)?.locked?.value === false)
+      .filter(edge => store.getOp(edge.source)?.locked?.value === false)
       .map(edge => parseHandleId(edge.targetHandle)?.fieldName)
       .reduce((acc, fieldName) => acc.add(fieldName), new Set())
 
@@ -108,7 +108,7 @@ export function serializeNodes(
 }
 
 export function serializeEdges(
-  _ops: NoodlesContextValue['ops'],
+  _store: ReturnType<typeof useOperatorStore.getState>,
   nodes: ReactFlowNode<Record<string, unknown>>[],
   edges: ReactFlowEdge[]
 ) {

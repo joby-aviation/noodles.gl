@@ -5,7 +5,7 @@ import cx from 'classnames'
 import { useEffect, useRef, useState } from 'react'
 
 import { IN_NS, ListField, OUT_NS } from '../fields'
-import { useSlice } from '../store'
+import { getOpStore } from '../store'
 import s from './node-properties.module.css'
 import { handleClass, headerClass, typeCategory } from './op-components'
 
@@ -96,12 +96,12 @@ function Tooltip({
 }
 
 function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
-  const ops = useSlice(state => state.ops)
   const { setEdges } = useReactFlow()
   const edges = useEdges()
   const dragDataRef = useRef<{ inputName: string; index: number } | null>(null)
   const draggingRef = useRef<HTMLElement | null>(null)
-  const op = ops.get(node.id)
+  const store = getOpStore()
+  const op = store.getOp(node.id)
   if (!op) return null
   const { name, displayName, description } = op.constructor
 

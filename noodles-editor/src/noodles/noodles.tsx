@@ -58,7 +58,7 @@ import s from './noodles.module.css'
 import type { IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
 import { load } from './storage'
-import { opMap, sheetObjectMap, useSlice, hoveredOutputHandle, useNestingStore } from './store'
+import { getOpStore, useNestingStore } from './store'
 import { transformGraph } from './transform-graph'
 import { edgeId, nodeId } from './utils/id-utils'
 import { migrateProject } from './utils/migrate-schema'
@@ -166,8 +166,6 @@ export function getNoodles(): Visualization {
   const { setCurrentDirectory, setActiveStorageType, setError } = useFileSystemStore()
   const { theatreReady, theatreProject, theatreSheet, setTheatreProject, getTimelineJson } =
     useTheatreJs(projectName)
-  const ops = useSlice(state => state.ops)
-  const sheetObjects = useSlice(state => state.sheetObjects)
   const [nodes, setNodes, onNodesChange] = useNodesState<AnyNodeJSON>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<ReactFlowEdge<unknown>>([])
   const vPressed = useKeyPress('v')
@@ -193,8 +191,9 @@ export function getNoodles(): Visualization {
     const newCleanupFns = new Map<string, () => void>()
 
     // Only bind operators that aren't already bound
+    const store = getOpStore()
     for (const op of operators) {
-      if (!sheetObjectMap.has(op.id)) {
+      if (!store.hasSheetObject(op.id)) {
         const cleanup = bindOperatorToTheatre(op, theatreSheet)
         if (cleanup) {
           newCleanupFns.set(op.id, cleanup)
@@ -229,13 +228,11 @@ export function getNoodles(): Visualization {
     [setEdges]
   )
 
-  const onNodeClick = useCallback(
-    (_e: React.MouseEvent, node: ReactFlowNode<unknown>) => {
-      const obj = sheetObjects.get(node.id)
-      if (obj) studio.setSelection([obj])
-    },
-    [sheetObjects]
-  )
+  const onNodeClick = useCallback((_e: React.MouseEvent, node: ReactFlowNode<unknown>) => {
+    const store = getOpStore()
+    const obj = store.getSheetObject(node.id)
+    if (obj) studio.setSelection([obj])
+  }, [])
 
   const reactFlowRef = useRef<HTMLDivElement>(null)
   const blockLibraryRef = useRef<BlockLibraryRef>(null)
@@ -282,9 +279,11 @@ export function getNoodles(): Visualization {
 
     setNodes(currentNodes => {
       const selectedNodes = currentNodes.filter(n => n.selected)
+      const store = getOpStore()
+      const hoveredHandle = store.hoveredOutputHandle
       if (selectedNodes.length === 0) {
-        if (hoveredOutputHandle) {
-          const hoveredNode = currentNodes.find(n => n.id === hoveredOutputHandle.nodeId)
+        if (hoveredHandle) {
+          const hoveredNode = currentNodes.find(n => n.id === hoveredHandle.nodeId)
           if (hoveredNode) {
             const newViewerPosition = {
               x: hoveredNode.position.x + VIEWER_OFFSET_X,
@@ -300,11 +299,11 @@ export function getNoodles(): Visualization {
               data: undefined,
             }
 
-            const sourceHandle = hoveredOutputHandle.handleId
+            const sourceHandle = hoveredHandle.handleId
             const targetHandle = 'par.data'
             const newEdge = {
-              id: edgeId({ source: hoveredOutputHandle.nodeId, sourceHandle, target: viewerId, targetHandle }),
-              source: hoveredOutputHandle.nodeId,
+              id: edgeId({ source: hoveredHandle.nodeId, sourceHandle, target: viewerId, targetHandle }),
+              source: hoveredHandle.nodeId,
               sourceHandle,
               target: viewerId,
               targetHandle,
@@ -343,18 +342,18 @@ export function getNoodles(): Visualization {
       let sourceHandle: string | null = null
 
       // Check if a handle is hovered (from shared store)
-      if (hoveredOutputHandle && selectedNodes.some(n => n.id === hoveredOutputHandle.nodeId)) {
+      if (hoveredHandle && selectedNodes.some(n => n.id === hoveredHandle.nodeId)) {
         // Use hovered handle if it's on a selected node
         // Handle ID is already in the format "out.fieldName"
-        if (hoveredOutputHandle.handleId.startsWith('out.')) {
-          sourceNodeId = hoveredOutputHandle.nodeId
-          sourceHandle = hoveredOutputHandle.handleId
+        if (hoveredHandle.handleId.startsWith('out.')) {
+          sourceNodeId = hoveredHandle.nodeId
+          sourceHandle = hoveredHandle.handleId
         }
       }
 
       // If no hovered handle, use the first output handle of the rightmost node
       if (!sourceHandle) {
-        const sourceOp = ops.get(sourceNodeId)
+        const sourceOp = store.getOp(sourceNodeId)
         if (sourceOp) {
           const firstOutputKey = Object.keys(sourceOp.outputs)[0]
           if (firstOutputKey) {
@@ -380,7 +379,7 @@ export function getNoodles(): Visualization {
 
       return [...currentNodes, viewerNode]
     })
-  }, [vPressed, ops, setNodes, setEdges, currentContainerId])
+  }, [vPressed, setNodes, setEdges, currentContainerId])
 
   const aPressHandledRef = useRef(false)
 
@@ -430,10 +429,11 @@ export function getNoodles(): Visualization {
       // Update current project ref for undo/redo
       currentProjectRef.current = project
 
-      for (const op of opMap.values()) {
+      const store = getOpStore()
+      for (const op of store.getAllOps()) {
         op.unsubscribeListeners()
       }
-      opMap.clear()
+      store.clearOps()
       setNodes(nodes)
       setEdges(edges)
       setProjectName(name)
@@ -605,9 +605,10 @@ export function getNoodles(): Visualization {
   const selectedGeoJsonFeatures = useMemo(() => {
     const features: unknown[] = []
     const selectedNodes = nodes.filter(n => n.selected)
+    const store = getOpStore()
 
     for (const node of selectedNodes) {
-      const op = ops.get(node.id)
+      const op = store.getOp(node.id)
       if (!op) continue
 
       // Check if this is a GeoJSON-producing operator
@@ -618,7 +619,7 @@ export function getNoodles(): Visualization {
     }
 
     return features
-  }, [nodes, ops])
+  }, [nodes])
 
   useEffect(() => {
     if (outOp) {
