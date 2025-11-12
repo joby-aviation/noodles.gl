@@ -8,6 +8,7 @@ import {
   ColorField,
   Vec2Field,
   Vec3Field,
+  CompoundPropsField,
   type Field,
 } from '../fields'
 import { opMap, sheetObjectMap } from '../store'
@@ -533,6 +534,178 @@ describe('theatre-bindings', () => {
       cleanupChild?.()
       expect(sheetObjectMap.has('/container')).toBe(false)
       expect(sheetObjectMap.has('/container/child')).toBe(false)
+    })
+  })
+
+  describe('CompoundPropsField binding', () => {
+    it('should bind CompoundPropsField with nested fields', () => {
+      // Create a CompoundPropsField similar to viewState in DeckView operators
+      const viewStateField = new CompoundPropsField({
+        latitude: new NumberField(37.7749, { min: -90, max: 90, step: 0.1 }),
+        longitude: new NumberField(-122.4194, { min: -180, max: 180, step: 0.1 }),
+        zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
+      })
+      viewStateField.pathToProps = ['/test-op', 'par', 'viewState']
+
+      const mockOp = {
+        id: '/test-op',
+        inputs: {
+          viewState: viewStateField,
+        },
+        outputs: {},
+        locked: { value: false },
+      } as any
+
+      const cleanup = bindOperatorToTheatre(mockOp, testSheet)
+
+      // Should create sheet object
+      expect(sheetObjectMap.has('/test-op')).toBe(true)
+      expect(cleanup).toBeTypeOf('function')
+
+      // Verify the sheet object has the compound props structure
+      const sheetObj = sheetObjectMap.get('/test-op')
+      expect(sheetObj).toBeDefined()
+      expect(sheetObj?.props.viewState).toBeDefined()
+
+      // Cleanup
+      cleanup?.()
+      expect(sheetObjectMap.has('/test-op')).toBe(false)
+    })
+
+    it('should handle CompoundPropsField with mixed field types', () => {
+      // Create a CompoundPropsField with different field types
+      const mixedField = new CompoundPropsField({
+        enabled: new BooleanField(true),
+        threshold: new NumberField(50, { min: 0, max: 100, step: 1 }),
+        label: new StringField('test'),
+        color: new ColorField('#ff0000'),
+      })
+      mixedField.pathToProps = ['/test-op', 'par', 'config']
+
+      const mockOp = {
+        id: '/test-op',
+        inputs: {
+          config: mixedField,
+        },
+        outputs: {},
+        locked: { value: false },
+      } as any
+
+      const cleanup = bindOperatorToTheatre(mockOp, testSheet)
+
+      expect(sheetObjectMap.has('/test-op')).toBe(true)
+      expect(cleanup).toBeTypeOf('function')
+
+      const sheetObj = sheetObjectMap.get('/test-op')
+      expect(sheetObj).toBeDefined()
+      expect(sheetObj?.props.config).toBeDefined()
+
+      cleanup?.()
+    })
+
+    it('should handle nested CompoundPropsField', () => {
+      // Create nested compound fields
+      const innerCompound = new CompoundPropsField({
+        x: new NumberField(10, { min: 0, max: 100, step: 1 }),
+        y: new NumberField(20, { min: 0, max: 100, step: 1 }),
+      })
+
+      const outerCompound = new CompoundPropsField({
+        position: innerCompound,
+        scale: new NumberField(1.5, { min: 0, max: 10, step: 0.1 }),
+      })
+      outerCompound.pathToProps = ['/test-op', 'par', 'transform']
+
+      const mockOp = {
+        id: '/test-op',
+        inputs: {
+          transform: outerCompound,
+        },
+        outputs: {},
+        locked: { value: false },
+      } as any
+
+      const cleanup = bindOperatorToTheatre(mockOp, testSheet)
+
+      expect(sheetObjectMap.has('/test-op')).toBe(true)
+      expect(cleanup).toBeTypeOf('function')
+
+      const sheetObj = sheetObjectMap.get('/test-op')
+      expect(sheetObj).toBeDefined()
+      expect(sheetObj?.props.transform).toBeDefined()
+
+      cleanup?.()
+    })
+
+    it('should handle real-world viewState example from DeckView', () => {
+      // Simulate a real DeckView operator with viewState
+      const viewStateField = new CompoundPropsField({
+        latitude: new NumberField(37.7749, { min: -90, max: 90, step: 0.1 }),
+        longitude: new NumberField(-122.4194, { min: -180, max: 180, step: 0.1 }),
+        zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
+        pitch: new NumberField(0),
+        bearing: new NumberField(0),
+      })
+      viewStateField.pathToProps = ['/deck-view', 'par', 'viewState']
+
+      const mockOp = {
+        id: '/deck-view',
+        inputs: {
+          viewState: viewStateField,
+        },
+        outputs: {},
+        locked: { value: false },
+      } as any
+
+      const cleanup = bindOperatorToTheatre(mockOp, testSheet)
+
+      expect(sheetObjectMap.has('/deck-view')).toBe(true)
+
+      const sheetObj = sheetObjectMap.get('/deck-view')
+      expect(sheetObj).toBeDefined()
+
+      // Verify all nested fields are accessible
+      expect(sheetObj?.props.viewState).toBeDefined()
+      expect(sheetObj?.props.viewState.latitude).toBeDefined()
+      expect(sheetObj?.props.viewState.longitude).toBeDefined()
+      expect(sheetObj?.props.viewState.zoom).toBeDefined()
+      expect(sheetObj?.props.viewState.pitch).toBeDefined()
+      expect(sheetObj?.props.viewState.bearing).toBeDefined()
+
+      cleanup?.()
+    })
+
+    it('should handle padding CompoundPropsField from DeckView', () => {
+      // Simulate padding field from DeckView
+      const paddingField = new CompoundPropsField({
+        top: new NumberField(0, { min: 0 }),
+        right: new NumberField(0, { min: 0 }),
+        bottom: new NumberField(0, { min: 0 }),
+        left: new NumberField(0, { min: 0 }),
+      })
+      paddingField.pathToProps = ['/deck-view', 'par', 'padding']
+
+      const mockOp = {
+        id: '/deck-view',
+        inputs: {
+          padding: paddingField,
+        },
+        outputs: {},
+        locked: { value: false },
+      } as any
+
+      const cleanup = bindOperatorToTheatre(mockOp, testSheet)
+
+      expect(sheetObjectMap.has('/deck-view')).toBe(true)
+
+      const sheetObj = sheetObjectMap.get('/deck-view')
+      expect(sheetObj?.props.padding).toBeDefined()
+      expect(sheetObj?.props.padding.top).toBeDefined()
+      expect(sheetObj?.props.padding.right).toBeDefined()
+      expect(sheetObj?.props.padding.bottom).toBeDefined()
+      expect(sheetObj?.props.padding.left).toBeDefined()
+
+      cleanup?.()
     })
   })
 })
