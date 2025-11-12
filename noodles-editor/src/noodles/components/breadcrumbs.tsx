@@ -2,8 +2,9 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { useKeyPress, useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
 import { type FC, Fragment, useCallback, useEffect } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { ContainerOp } from '../operators'
-import { getOpStore, useNestingStore } from '../store'
+import { useNestingStore, useOperatorStore } from '../store'
 import { getBaseName, getParentPath, joinPath, splitPath } from '../utils/path-utils'
 import s from './breadcrumbs.module.css'
 
@@ -24,15 +25,23 @@ export const Breadcrumbs: FC = () => {
     []
   )
 
-  const getMenuItems = (containerId: string) => {
-    const store = getOpStore()
-    return store.getOpEntries()
-      .filter(
-        ([key, op]) =>
-          key !== containerId && getParentPath(key) === containerId && op instanceof ContainerOp
-      )
-      .map(([key]) => key)
-  }
+  // Reactively subscribe to operator changes to keep breadcrumb dropdowns in sync
+  // This ensures dropdowns update when containers are added/removed
+  const allContainerOps = useOperatorStore(
+    useShallow((state) =>
+      Array.from(state.operators.entries())
+        .filter(([_key, op]) => op instanceof ContainerOp)
+        .map(([key]) => key)
+    )
+  )
+
+  // Filter containers by parent path for each dropdown
+  const getMenuItems = useCallback(
+    (containerId: string) => {
+      return allContainerOps.filter((key) => key !== containerId && getParentPath(key) === containerId)
+    },
+    [allContainerOps]
+  )
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: We fit the view when the current container changes
   useEffect(() => {
