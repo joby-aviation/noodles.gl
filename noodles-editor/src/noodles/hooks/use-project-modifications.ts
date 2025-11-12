@@ -13,7 +13,7 @@ import {
   applyEdgeChanges,
 } from '@xyflow/react'
 
-import { opMap } from '../store'
+import { getOp } from '../store'
 import { canConnect } from '../utils/can-connect'
 import { parseHandleId } from '../utils/path-utils'
 import { edgeId } from '../utils/id-utils'
@@ -151,8 +151,8 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
           const createdEdges = incomers.flatMap(({ id: source }) =>
             outgoers
               .filter(({ id: target }) => {
-                const sourceField = opMap.get(source)?.outputs[sourceHandleInfo.fieldName]
-                const targetField = opMap.get(target)?.inputs[targetHandleInfo.fieldName]
+                const sourceField = getOp(source)?.outputs[sourceHandleInfo.fieldName]
+                const targetField = getOp(target)?.inputs[targetHandleInfo.fieldName]
                 if (!sourceField || !targetField) {
                   return false
                 }
@@ -225,13 +225,13 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       }
 
       // Get operators
-      const sourceOp = opMap.get(edge.source)
-      const targetOp = opMap.get(edge.target)
+      const sourceOp = getOp(edge.source)
+      const targetOp = getOp(edge.target)
 
       if (!sourceOp || !targetOp) {
         return {
           success: false,
-          error: `Invalid edge: source or target operator not found in opMap`,
+          error: `Invalid edge: source or target operator not found in store`,
         }
       }
 
@@ -286,8 +286,8 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         return { success: false, error: `Node not found: ${nodeId}` }
       }
 
-      // Get the operator instance from opMap
-      const operator = opMap.get(nodeId)
+      // Get the operator instance from store
+      const operator = getOp(nodeId)
 
       if (operator && updates.data?.inputs) {
         // Update operator inputs using setValue
@@ -472,7 +472,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
       // Update operator inputs for node updates
       for (const { id, updates } of nodesToUpdate) {
-        const operator = opMap.get(id)
+        const operator = getOp(id)
         if (operator && updates.data?.inputs) {
           const inputs = updates.data.inputs as Record<string, unknown>
           for (const [key, value] of Object.entries(inputs)) {
@@ -487,7 +487,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
       // Add edges - with optional validation depending on whether new nodes were added
       if (edgesToAdd.length > 0) {
-        // If we just added nodes, we can't validate edges yet because opMap hasn't been updated
+        // If we just added nodes, we can't validate edges yet because the store hasn't been updated
         // In this case, add edges optimistically and let the system handle them on next render
         const hasNewNodes = nodesToAdd.length > 0
 
@@ -539,8 +539,8 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
               continue
             }
 
-            const sourceOp = opMap.get(edge.source)
-            const targetOp = opMap.get(edge.target)
+            const sourceOp = getOp(edge.source)
+            const targetOp = getOp(edge.target)
 
             if (!sourceOp || !targetOp) {
               const error = `Edge ${edge.id}: source or target operator not found`
@@ -650,8 +650,8 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         return
       }
 
-      const sourceOp = opMap.get(source.id)
-      const targetOp = opMap.get(target.id)
+      const sourceOp = getOp(source.id)
+      const targetOp = getOp(target.id)
 
       if (!sourceOp || !targetOp) {
         console.warn('Invalid source or target', connection)

@@ -13,7 +13,6 @@ import {
   type NodeProps as ReactFlowNodeProps,
   type NodeTypes as ReactFlowNodeTypes,
   useNodeId,
-  useNodes,
   useReactFlow,
 } from '@xyflow/react'
 import cx from 'classnames'
@@ -49,7 +48,7 @@ import {
   type TimeOp,
   type ViewerOp,
 } from '../operators'
-import { opMap, setHoveredOutputHandle, useOp, useSlice } from '../store'
+import { getOp, useNestingStore, setHoveredOutputHandle, hasOp, setOp, getAllOps, deleteOp, useOperatorStore } from '../store'
 import type { NodeDataJSON } from '../transform-graph'
 import { edgeId } from '../utils/id-utils'
 import { generateQualifiedPath, getBaseName, getParentPath } from '../utils/path-utils'
@@ -210,6 +209,7 @@ const handleClasses = {
   extension: s.handleExtension,
   file: s.handleString,
   function: s.handleCode,
+  geojson: s.handleGeojson,
   'geopoint-2d': s.handleVector,
   'geopoint-3d': s.handleVector,
   'json-url': s.handleString,
@@ -385,7 +385,10 @@ function NodeComponent({
   type,
   selected,
 }: ReactFlowNodeProps<NodeDataJSON<Operator<IOperator>>> & { type: OpType }) {
-  const op = useOp(id)
+  const op = getOp(id as string)
+  if (!op) {
+    throw new Error(`Operator with id ${id} not found`)
+  }
   const locked = useLocked(op)
   const executionState = useExecutionState(op)
 
@@ -476,7 +479,7 @@ function NodeHeader({ id, type, op }: { id: string; type: OpType; op: OperatorIn
     (newBaseName: string): boolean => {
       if (!newBaseName.trim()) return false
       const newQualifiedId = generateQualifiedPath(newBaseName.trim(), op.containerId)
-      return newQualifiedId !== id && opMap.has(newQualifiedId)
+      return newQualifiedId !== id && hasOp(newQualifiedId)
     },
     [id, op.containerId]
   )
@@ -513,12 +516,12 @@ function NodeHeader({ id, type, op }: { id: string; type: OpType; op: OperatorIn
       const isContainer = type === 'ContainerOp'
 
       // Update the operator itself
-      opMap.set(newQualifiedId, op)
+      setOp(newQualifiedId, op)
       op.id = newQualifiedId
 
       // If this is a container, update all children nodes and their operators
       if (isContainer) {
-        const childOps = Array.from(opMap.values()).filter(childOp =>
+        const childOps = getAllOps().filter((childOp: Operator<IOperator>) =>
           childOp.id.startsWith(`${id}/`)
         )
 
@@ -526,17 +529,17 @@ function NodeHeader({ id, type, op }: { id: string; type: OpType; op: OperatorIn
           const oldChildId = childOp.id
           // Replace only the exact container path at the start
           const newChildId = newQualifiedId + oldChildId.slice(id.length)
-          opMap.set(newChildId, childOp)
+          setOp(newChildId, childOp)
           childOp.id = newChildId
           // TODO: this is a hack. We should hook into some sort of "after update" event
-          queueMicrotask(() => opMap.delete(oldChildId))
+          queueMicrotask(() => deleteOp(oldChildId))
         }
       }
 
       // Give React time to update the component tree before deleting the old id
       // TODO: this is a hack. We should hook into some sort of "after update" event
       queueMicrotask(() => {
-        opMap.delete(id)
+        deleteOp(id)
       })
 
       // Update React Flow nodes and edges
@@ -710,7 +713,10 @@ function GeocoderOpComponent({
   id,
   type,
 }: ReactFlowNodeProps<NodeDataJSON<GeocoderOp>> & { type: 'GeocoderOp' }) {
-  const op = useOp(id)
+  const op = getOp(id as string)
+  if (!op) {
+    throw new Error(`Operator with id ${id} not found`)
+  }
 
   const containerRef = useRef<HTMLDivElement>(null)
   const geocoderRef = useRef<MapboxGeocoder>()
@@ -791,7 +797,10 @@ function MouseOpComponent({
   id,
   type,
 }: ReactFlowNodeProps<NodeDataJSON<MouseOp>> & { type: 'MouseOp' }) {
-  const op = useOp(id)
+  const op = getOp(id as string)
+  if (!op) {
+    throw new Error(`Operator with id ${id} not found`)
+  }
 
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
 
@@ -838,7 +847,10 @@ function TableEditorOpComponent({
   type,
   selected,
 }: ReactFlowNodeProps<NodeDataJSON<TableEditorOp>> & { type: 'TableEditorOp' }) {
-  const op = useOp(id)
+  const op = getOp(id as string)
+  if (!op) {
+    throw new Error(`Operator with id ${id} not found`)
+  }
 
   const [dataArray, setDataArray] = useState(op.inputs.data.value as unknown[])
   useEffect(() => {
@@ -1013,7 +1025,10 @@ function ViewerOpComponent({
   type,
   selected,
 }: ReactFlowNodeProps<NodeDataJSON<ViewerOp>> & { type: 'ViewerOp' }) {
-  const op = useOp(id)
+  const op = getOp(id as string)
+  if (!op) {
+    throw new Error(`Operator with id ${id} not found`)
+  }
 
   // TODO: use react-flow helpers
   const [viewerData, setViewerData] = useState(viewerFormatter(op.inputs.data.value))
@@ -1098,11 +1113,19 @@ function ContainerOpComponent({
   type,
   selected,
 }: ReactFlowNodeProps<NodeDataJSON<ContainerOp>>) {
-  const op = useOp(id)
+  const op = getOp(id as string)
+  if (!op) {
+    throw new Error(`Operator with id ${id} not found`)
+  }
 
-  const { setCurrentContainerId } = useSlice(state => state.nesting)
-  const nodes = useNodes()
-  const children = nodes.filter(node => getParentPath(node.id) === id)
+  const setCurrentContainerId = useNestingStore(state => state.setCurrentContainerId)
+
+  // Subscribe to operator store to get reactive children count
+  const childrenCount = useOperatorStore(state => {
+    return Array.from(state.operators.keys()).filter(opId =>
+      getParentPath(opId) === id
+    ).length
+  })
 
   const locked = useLocked(op)
 
@@ -1126,7 +1149,7 @@ function ContainerOpComponent({
             handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
           />
         ))}
-        <div>Children: {children.length}</div>
+        <div>Children: {childrenCount}</div>
         {/* Children nodes are rendered by React Flow normally */}
         <div className={s.outputHandleContainer}>
           {Object.entries(op.outputs).map(([key, field]) => (
@@ -1142,7 +1165,10 @@ function TimeOpComponent({
   id,
   type,
 }: ReactFlowNodeProps<NodeDataJSON<TimeOp>> & { type: 'TimeOp' }) {
-  const op = useOp(id)
+  const op = getOp(id as string)
+  if (!op) {
+    throw new Error(`Operator with id ${id} not found`)
+  }
   const sheet = useContext(SheetContext) as ISheet
 
   const [now, setNow] = useState(0)

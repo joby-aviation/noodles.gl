@@ -11,6 +11,7 @@ import {
   FilterOp,
   GeoJsonTransformOp,
   JSONOp,
+  KmlToGeoJsonOp,
   LayerPropsOp,
   MapViewOp,
   MathOp,
@@ -22,8 +23,9 @@ import {
   ScatterplotLayerOp,
   SelectOp,
   SwitchOp,
+  TimeSeriesOp,
 } from './operators'
-import { opMap } from './store'
+import { setOp } from './store'
 import { isAccessor } from './utils/accessor-helpers'
 
 describe('basic Operators', () => {
@@ -196,7 +198,7 @@ describe('CodeOp', () => {
 
   it('parses mustache references to other operators', async () => {
     const numOp = new NumberOp('/num-0', { val: 1 }, false)
-    opMap.set('/num-0', numOp)
+    setOp('/num-0', numOp)
 
     expect(numOp.inputs.val.value).toEqual(1)
 
@@ -224,7 +226,7 @@ describe('JSONOp', () => {
   it('supports references to other operators', () => {
     const numOp = new NumberOp('/num-0')
     numOp.outputs.val.setValue(1)
-    opMap.set('/num-0', numOp)
+    setOp('/num-0', numOp)
 
     const text = '{ "a": {{num-0.out.val}} }'
 
@@ -407,7 +409,7 @@ describe('DuckDbOp', () => {
 
   it('allows references to other operators', async () => {
     const numOp = new NumberOp('/num-0', { val: 1 }, false)
-    opMap.set('/num-0', numOp)
+    setOp('/num-0', numOp)
 
     const ddb = new DuckDbOp('/duckdb-0', {}, false)
     const val = await ddb.execute({ query: 'SELECT {{num-0.par.val}}' })
@@ -419,7 +421,7 @@ describe('DuckDbOp', () => {
 
   it('supports nested references', async () => {
     const bbox = new BoundingBoxOp('/bbox', {}, false)
-    opMap.set('/bbox', bbox)
+    setOp('/bbox', bbox)
 
     const ddb = new DuckDbOp('/ddb', {}, false)
     const val = await ddb.execute({ query: 'SELECT {{bbox.out.viewState.latitude}} as lat' })
@@ -1253,5 +1255,224 @@ describe('SelectOp', () => {
     // Negative wrap
     expect(operator.execute({ data: ['a', 'b', 'c'], index: -1, wrap: true }).value).toEqual('c')
     expect(operator.execute({ data: ['a', 'b', 'c'], index: -4, wrap: true }).value).toEqual('c')
+  })
+})
+
+describe('TimeSeriesOp', () => {
+  it('returns empty array when no data is provided', () => {
+    const operator = new TimeSeriesOp('timeseries-0')
+    const result = operator.execute({
+      data: [],
+      currentTime: 0,
+      getTimestamps: (d: any) => d?.timestamps || [],
+      getValues: (d: any) => d?.values || [],
+      getProperties: (d: any) => d,
+    })
+    expect(result.data).toEqual([])
+  })
+
+  it('interpolates time-varying values with accessor-based API', () => {
+    const operator = new TimeSeriesOp('timeseries-0')
+    const result = operator.execute({
+      data: [
+        {
+          id: 'trip-1',
+          model: 'Boeing',
+          timestamps: [0, 10, 20],
+          values: [
+            { heading: 360, speed: 100 },
+            { heading: 45, speed: 120 },
+            { heading: 90, speed: 110 },
+          ],
+        },
+        {
+          id: 'trip-2',
+          model: 'Airbus',
+          timestamps: [0, 10],
+          values: [
+            { heading: 180, speed: 150 },
+            { heading: 270, speed: 170 },
+          ],
+        },
+      ],
+      currentTime: 5,
+      getTimestamps: (d: any) => d.timestamps,
+      getValues: (d: any) => d.values,
+      getProperties: (d: any) => d,
+    })
+
+    expect((result.data as any)).toHaveLength(2)
+
+    // First trip at midpoint between 0 and 10
+    expect((result.data as any)[0].id).toEqual('trip-1')
+    expect((result.data as any)[0].model).toEqual('Boeing')
+    expect((result.data as any)[0].heading).toEqual(202.5) // (360 + 45) / 2
+    expect((result.data as any)[0].speed).toEqual(110) // (100 + 120) / 2
+    expect((result.data as any)[0].time).toEqual(5)
+
+    // Second trip at midpoint
+    expect((result.data as any)[1].id).toEqual('trip-2')
+    expect((result.data as any)[1].model).toEqual('Airbus')
+    expect((result.data as any)[1].heading).toEqual(225) // (180 + 270) / 2
+    expect((result.data as any)[1].speed).toEqual(160) // (150 + 170) / 2
+    expect((result.data as any)[1].time).toEqual(5)
+  })
+
+  it('handles time values outside of data time domain', () => {
+    const operator = new TimeSeriesOp('timeseries-0')
+    const data = [
+      {
+        id: 'trip-1',
+        timestamps: [5, 10],
+        values: [
+          { heading: 100, altitude: 1000 },
+          { heading: 200, altitude: 2000 },
+        ],
+      },
+    ]
+
+    // Before first timestamp - clamps to first point
+    const resultBefore = operator.execute({
+      data,
+      currentTime: 0,
+      getTimestamps: (d: any) => d.timestamps,
+      getValues: (d: any) => d.values,
+      getProperties: (d: any) => d,
+    })
+
+    expect((resultBefore.data as any)[0].heading).toEqual(100)
+    expect((resultBefore.data as any)[0].altitude).toEqual(1000)
+    expect((resultBefore.data as any)[0].time).toEqual(0) // Uses currentTime from execute
+
+    // After last timestamp - clamps to last point
+    const resultAfter = operator.execute({
+      data,
+      currentTime: 20,
+      getTimestamps: (d: any) => d.timestamps,
+      getValues: (d: any) => d.values,
+      getProperties: (d: any) => d,
+    })
+
+    expect((resultAfter.data as any)[0].heading).toEqual(200)
+    expect((resultAfter.data as any)[0].altitude).toEqual(2000)
+    expect((resultAfter.data as any)[0].time).toEqual(20) // Uses currentTime from execute
+  })
+
+  it('preserves all static properties via getProperties accessor', () => {
+    const operator = new TimeSeriesOp('timeseries-0')
+    const result = operator.execute({
+      data: [
+        {
+          id: 'trip-1',
+          model: 'Boeing 737',
+          route: 'SFO-LAX',
+          timestamps: [0, 10],
+          path: [[0, 0], [1, 1]],
+          values: [
+            { heading: 90, altitude: 1000 },
+            { heading: 120, altitude: 1500 },
+          ],
+        },
+      ],
+      currentTime: 5,
+      getTimestamps: (d: any) => d.timestamps,
+      getValues: (d: any) => d.values,
+      getProperties: (d: any) => d,
+    })
+
+    // All static properties should be preserved
+    expect((result.data as any)[0].id).toEqual('trip-1')
+    expect((result.data as any)[0].model).toEqual('Boeing 737')
+    expect((result.data as any)[0].route).toEqual('SFO-LAX')
+    expect((result.data as any)[0].timestamps).toEqual([0, 10])
+    expect((result.data as any)[0].path).toEqual([[0, 0], [1, 1]])
+
+    // Interpolated values
+    expect((result.data as any)[0].heading).toEqual(105)
+    expect((result.data as any)[0].altitude).toEqual(1250)
+    expect((result.data as any)[0].time).toEqual(5)
+  })
+
+  it('works with default accessors when data has expected shape', () => {
+    const operator = new TimeSeriesOp('timeseries-0')
+    // Use default input values which expect d.timestamps and d.values
+    const result = operator.execute({
+      data: [
+        {
+          id: 'trip-1',
+          timestamps: [0, 10],
+          values: [{ speed: 100 }, { speed: 200 }],
+        },
+      ],
+      currentTime: 5,
+      getTimestamps: (d: any) => d?.timestamps || [],
+      getValues: (d: any) => d?.values || [],
+      getProperties: (d: any) => d,
+    })
+
+    expect((result.data as any)[0].id).toEqual('trip-1')
+    expect((result.data as any)[0].speed).toEqual(150)
+    expect((result.data as any)[0].time).toEqual(5)
+  })
+
+  it('aligns with TripsLayer API - reusable getTimestamps accessor', () => {
+    const operator = new TimeSeriesOp('timeseries-0')
+
+    // This is the same accessor you'd use for TripsLayer
+    const getTimestamps = (d: any) => d.timestamps
+    const getValues = (d: any) => d.orientations
+
+    const tripData = [
+      {
+        id: 'aircraft-1',
+        timestamps: [0, 10, 20],
+        path: [[0, 0], [1, 1], [2, 2]],
+        orientations: [
+          { heading: 0, pitch: 0, roll: 0 },
+          { heading: 45, pitch: 5, roll: 10 },
+          { heading: 90, pitch: 10, roll: 0 },
+        ],
+      },
+    ]
+
+    const result = operator.execute({
+      data: tripData,
+      currentTime: 5,
+      getTimestamps,
+      getValues,
+      getProperties: (d: any) => d,
+    })
+
+    expect((result.data as any)[0].id).toEqual('aircraft-1')
+    expect((result.data as any)[0].heading).toEqual(22.5) // interpolated
+    expect((result.data as any)[0].pitch).toEqual(2.5) // interpolated
+    expect((result.data as any)[0].roll).toEqual(5) // interpolated
+    expect((result.data as any)[0].timestamps).toEqual([0, 10, 20]) // preserved from getProperties
+    expect((result.data as any)[0].path).toEqual([[0, 0], [1, 1], [2, 2]]) // preserved from getProperties
+  })
+})
+
+describe('KmlToGeoJsonOp', () => {
+  it('should convert KML to GeoJSON', () => {
+    const operator = new KmlToGeoJsonOp('/kml-to-geojson-0')
+    
+    const kml = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <Placemark>
+      <name>Test Point</name>
+      <Point>
+        <coordinates>-122.0822,37.4222,0</coordinates>
+      </Point>
+    </Placemark>
+  </Document>
+</kml>`
+
+    const result = operator.execute({ kml })
+
+    expect(result.geojson.type).toBe('FeatureCollection')
+    expect(result.geojson.features).toHaveLength(1)
+    expect(result.geojson.features[0].geometry.type).toBe('Point')
+    expect(result.geojson.features[0].properties?.name).toBe('Test Point')
   })
 })

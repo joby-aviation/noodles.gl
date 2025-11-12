@@ -5,7 +5,7 @@ import { ReactFlowProvider } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CodeField } from '../../fields'
 import type { DuckDbOp } from '../../operators'
-import { NoodlesProvider, opMap } from '../../store'
+import { clearOps, getOp } from '../../store'
 import { transformGraph } from '../../transform-graph'
 import { CodeFieldComponent } from '../field-components'
 
@@ -68,14 +68,14 @@ vi.mock('@theatre/studio', () => ({
 
 describe('CodeFieldComponent edge management', () => {
   beforeEach(() => {
-    opMap.clear()
+    clearOps()
     // Clear the spy before each test
     setEdgesSpy.mockClear()
     getEdgesSpy.mockClear()
   })
 
   afterEach(() => {
-    opMap.clear()
+    clearOps()
   })
 
   // Helper to setup a graph with operators
@@ -87,11 +87,9 @@ describe('CodeFieldComponent edge management', () => {
   const renderCodeFieldComponent = (field: CodeField, disabled = false) => {
     return render(
       <ReactFlowProvider>
-        <NoodlesProvider>
-          <div data-node-id={field.op.id}>
-            <CodeFieldComponent id={field.pathToProps.join('.')} field={field} disabled={disabled} />
-          </div>
-        </NoodlesProvider>
+        <div data-node-id={field.op.id}>
+          <CodeFieldComponent id={field.pathToProps.join('.')} field={field} disabled={disabled} />
+        </div>
       </ReactFlowProvider>
     )
   }
@@ -118,7 +116,7 @@ describe('CodeFieldComponent edge management', () => {
 
     setupGraph(nodes)
 
-    const queryOp = opMap.get('/duckdb-query') as DuckDbOp
+    const queryOp = getOp('/duckdb-query') as DuckDbOp
     expect(queryOp).toBeDefined()
 
     const queryField = queryOp.inputs.query as CodeField
@@ -169,7 +167,7 @@ WHERE
 
     setupGraph(nodes)
 
-    const queryOp = opMap.get('/duckdb-query') as DuckDbOp
+    const queryOp = getOp('/duckdb-query') as DuckDbOp
     const queryField = queryOp.inputs.query as CodeField
 
     renderCodeFieldComponent(queryField)
@@ -215,7 +213,7 @@ WHERE id = {{./source1.out.val}}
 
     setupGraph(nodes)
 
-    const queryOp = opMap.get('/duckdb-query') as DuckDbOp
+    const queryOp = getOp('/duckdb-query') as DuckDbOp
     const queryField = queryOp.inputs.query as CodeField
 
     renderCodeFieldComponent(queryField)
@@ -263,7 +261,7 @@ WHERE id = {{./source1.out.val}}
 
     setupGraph(nodes)
 
-    const queryOp = opMap.get('/duckdb-query') as DuckDbOp
+    const queryOp = getOp('/duckdb-query') as DuckDbOp
     const queryField = queryOp.inputs.query as CodeField
 
     const { rerender } = renderCodeFieldComponent(queryField)
@@ -276,11 +274,9 @@ WHERE id = {{./source1.out.val}}
     // Re-render to trigger the effect
     rerender(
       <ReactFlowProvider>
-        <NoodlesProvider>
-          <div data-node-id={queryField.op.id}>
-            <CodeFieldComponent id={queryField.pathToProps.join('.')} field={queryField} disabled={false} />
-          </div>
-        </NoodlesProvider>
+        <div data-node-id={queryField.op.id}>
+          <CodeFieldComponent id={queryField.pathToProps.join('.')} field={queryField} disabled={false} />
+        </div>
       </ReactFlowProvider>
     )
 
@@ -308,7 +304,7 @@ WHERE id = {{./source1.out.val}}
 
     setupGraph(nodes)
 
-    const queryOp = opMap.get('/duckdb-query') as DuckDbOp
+    const queryOp = getOp('/duckdb-query') as DuckDbOp
     const queryField = queryOp.inputs.query as CodeField
 
     const { rerender } = renderCodeFieldComponent(queryField)
@@ -319,11 +315,9 @@ WHERE id = {{./source1.out.val}}
     for (let i = 0; i < 3; i++) {
       rerender(
         <ReactFlowProvider>
-          <NoodlesProvider>
-            <div data-node-id={queryField.op.id}>
-              <CodeFieldComponent id={queryField.pathToProps.join('.')} field={queryField} disabled={false} />
-            </div>
-          </NoodlesProvider>
+          <div data-node-id={queryField.op.id}>
+            <CodeFieldComponent id={queryField.pathToProps.join('.')} field={queryField} disabled={false} />
+          </div>
         </ReactFlowProvider>
       )
     }

@@ -1,7 +1,7 @@
 // Theatre.js binding utilities for operator fields
 // Handles two-way synchronization between operator inputs and Theatre timeline
 
-import type { ISheet, ISheetObject } from '@theatre/core'
+import type { ISheet } from '@theatre/core'
 import { onChange, types, val } from '@theatre/core'
 import studio from '@theatre/studio'
 import { Temporal } from 'temporal-polyfill'
@@ -9,7 +9,6 @@ import { isHexColor } from 'validator'
 
 import { colorToRgba, hexToRgba, type Rgba, rgbaToHex } from '../utils/color'
 import {
-  ArrayField,
   BooleanField,
   ColorField,
   CompoundPropsField,
@@ -26,8 +25,20 @@ import {
   Vec3Field,
 } from './fields'
 import type { IOperator, Operator } from './operators'
-import { sheetObjectMap } from './store'
+import { getOpStore } from './store'
 import { getBaseName } from './utils/path-utils'
+
+// Helper to recursively convert fields to Theatre props
+function fieldsToTheatreProps(fields: Record<string, Field<any>>): Record<string, types.PropTypeConfig> {
+  const props: Record<string, types.PropTypeConfig> = {}
+  for (const [key, field] of Object.entries(fields)) {
+    const prop = fieldToTheatreProp(field)
+    if (prop) {
+      props[key] = prop
+    }
+  }
+  return props
+}
 
 // Convert a field to a Theatre prop config
 function fieldToTheatreProp(field: Field<IField>): types.PropTypeConfig | undefined {
@@ -96,9 +107,8 @@ function fieldToTheatreProp(field: Field<IField>): types.PropTypeConfig | undefi
       })
     }
     if (field instanceof CompoundPropsField) {
-      // For compound props, we'd need to recursively handle nested fields
-      // For now, return an empty compound
-      return types.compound({})
+      // Recursively handle nested fields using helper
+      return types.compound(fieldsToTheatreProps(field.fields))
     }
   } catch (e) {
     console.error(`Error creating Theatre prop for field:`, e)
@@ -106,16 +116,22 @@ function fieldToTheatreProp(field: Field<IField>): types.PropTypeConfig | undefi
   return undefined
 }
 
+function opIdToTheatreObjectName(opId: string): string {
+  return opId.slice(1).split('/').join(' / ')
+}
+
 // Create Theatre bindings for an operator
 export function bindOperatorToTheatre(
   op: Operator<IOperator>,
   sheet: ISheet
 ): (() => void) | undefined {
+  const store = getOpStore()
+
   // Skip special operators
   if (op.id === '/out') return undefined
 
   // Skip if already bound
-  if (sheetObjectMap.has(op.id)) return undefined
+  if (store.hasSheetObject(op.id)) return undefined
 
   const untapFns: Array<() => void> = []
   const fields: Array<[string, Field<IField>]> = []
@@ -155,10 +171,10 @@ export function bindOperatorToTheatre(
   // If no theatre-compatible fields, skip
   if (Object.keys(propConfig).length === 0) return undefined
 
-  // Create Theatre sheet object
-  const basename = getBaseName(op.id)
-  const sheetObj = sheet.object(basename, propConfig)
-  sheetObjectMap.set(op.id, sheetObj)
+  // Create Theatre sheet object using full path to avoid naming collisions, and use theatre hierarchy
+  const theatreObjectName = opIdToTheatreObjectName(op.id)
+  const sheetObj = sheet.object(theatreObjectName, propConfig)
+  store.setSheetObject(op.id, sheetObj)
 
   // Set up two-way bindings
   for (const [key, field] of fields) {
@@ -232,18 +248,19 @@ export function bindOperatorToTheatre(
     for (const untap of untapFns) {
       untap()
     }
-    sheet.detachObject(basename)
-    sheetObjectMap.delete(op.id)
+    sheet.detachObject(theatreObjectName)
+    store.deleteSheetObject(op.id)
   }
 }
 
 // Unbind an operator from Theatre
 export function unbindOperatorFromTheatre(opId: string, sheet: ISheet): void {
-  const sheetObj = sheetObjectMap.get(opId)
+  const store = getOpStore()
+  const sheetObj = store.getSheetObject(opId)
   if (sheetObj) {
-    const basename = getBaseName(opId)
-    sheet.detachObject(basename)
-    sheetObjectMap.delete(opId)
+    const theatreObjectName = opIdToTheatreObjectName(opId)
+    sheet.detachObject(theatreObjectName)
+    store.deleteSheetObject(opId)
   }
 }
 
@@ -269,9 +286,12 @@ export function cleanupRemovedOperators(
   currentOperatorIds: Set<string>,
   sheet: ISheet
 ): void {
-  for (const opId of sheetObjectMap.keys()) {
-    if (!currentOperatorIds.has(opId)) {
-      unbindOperatorFromTheatre(opId, sheet)
+  const store = getOpStore()
+
+  // Find operators that have sheet objects
+  for (const op of store.getAllOps()) {
+    if (store.hasSheetObject(op.id) && !currentOperatorIds.has(op.id)) {
+      unbindOperatorFromTheatre(op.id, sheet)
     }
   }
 }

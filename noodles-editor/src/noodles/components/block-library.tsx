@@ -11,7 +11,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import s from './block-library.module.css'
-import { useSlice } from '../store'
+import { useNestingStore } from '../store'
 import { createNodesForType, getNodeTypeOptions, type NodeType } from '../utils/node-creation-utils'
 import { getNodeDescription, headerClass, typeCategory, typeDisplayName } from './op-components'
 import { getPopularOperators, rankNodeTypes } from './block-library-ranking'
@@ -28,7 +28,7 @@ type BlockLibraryProps = {
 export const BlockLibrary = forwardRef<BlockLibraryRef, BlockLibraryProps>(({ reactFlowRef }, ref) => {
   const { addNodes, addEdges, screenToFlowPosition } = useReactFlow()
   const [isOpen, setIsOpen] = useState(false)
-  const { currentContainerId } = useSlice(state => state.nesting)
+  const currentContainerId = useNestingStore(state => state.currentContainerId)
   const [searchText, setSearchText] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   // Store the screen coordinates where the modal was opened

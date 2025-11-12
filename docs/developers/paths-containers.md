@@ -112,13 +112,13 @@ Examples:
 ### Connection Examples
 
 ```javascript
-// Connect using fully qualified handle IDs in the edges array
+// Connect using fully qualified node IDs and handle names in the edges array
 edges: [{
   id: '/data-loader.out.data->/processing/filter.par.input',
   source: '/data-loader',
   target: '/processing/filter',
-  sourceHandle: '/data-loader.out.data',
-  targetHandle: '/processing/filter.par.input',
+  sourceHandle: 'out.data',
+  targetHandle: 'par.input',
 }]
 ```
 

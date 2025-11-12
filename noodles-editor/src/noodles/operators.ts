@@ -157,6 +157,7 @@ import {
   type FieldReference,
   FileField,
   FunctionField,
+  GeoJsonField,
   IN_NS,
   type InOut,
   JSONUrlField,
@@ -177,7 +178,7 @@ import {
   WidgetField,
 } from './fields'
 import { DEFAULT_LATITUDE, DEFAULT_LONGITUDE, safeMode } from './globals'
-import { getOp, opMap } from './store'
+import { getOp, hasOp, getAllOps } from './store'
 import { composeAccessor, isAccessor } from './utils/accessor-helpers'
 import type { ExtractProps } from './utils/extract-props'
 import { projectScheme } from './utils/filesystem'
@@ -2000,7 +2001,7 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
         .pipe(debounceTime(200))
         .subscribe(() => {
           // Only run if the operator is still mounted
-          if (opMap.has(beginOp.id)) {
+          if (hasOp(beginOp.id)) {
             runForLoop()
           }
         })
@@ -3416,7 +3417,7 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
   static cacheable = false
   createInputs() {
     return {
-      data: new DataField(),
+      data: new GeoJsonField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
 
@@ -4078,7 +4079,7 @@ export class ContainerOp extends Operator<ContainerOp> {
     let outputValue = null
     // The 'in' port of ContainerOp drives its execution.
     // The 'out' port should reflect the value from a GraphOutputOp inside it.
-    for (const op of opMap.values()) {
+    for (const op of getAllOps()) {
       if (op instanceof GraphOutputOp && isDirectChild(op.id, this.id)) {
         outputValue = op.outputs.propagatedValue.value
         break // Take the first one found
@@ -4149,7 +4150,7 @@ export class RectangleOp extends Operator<RectangleOp> {
   }
   createOutputs() {
     return {
-      feature: new DataField(),
+      feature: new GeoJsonField(),
     }
   }
   execute({
@@ -4208,7 +4209,7 @@ export class PointOp extends Operator<PointOp> {
   }
   createOutputs() {
     return {
-      feature: new DataField(),
+      feature: new GeoJsonField(),
     }
   }
   execute({
@@ -4231,12 +4232,12 @@ export class GeoJsonOp extends Operator<GeoJsonOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      features: new ListField(new DataField()),
+      features: new ListField(new GeoJsonField()),
     }
   }
   createOutputs() {
     return {
-      featureCollection: new DataField(),
+      featureCollection: new GeoJsonField(),
     }
   }
   execute({ features }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -4248,13 +4249,33 @@ export class GeoJsonOp extends Operator<GeoJsonOp> {
   }
 }
 
+export class KmlToGeoJsonOp extends Operator<KmlToGeoJsonOp> {
+  static displayName = 'KmlToGeoJson'
+  static description = 'Convert KML string to GeoJSON FeatureCollection'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      kml: new CodeField('', { language: 'xml' }),
+    }
+  }
+  createOutputs() {
+    return {
+      geojson: new DataField(),
+    }
+  }
+  execute({ kml }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const geojson = utils.kmlToGeoJson(kml)
+    return { geojson }
+  }
+}
+
 export class GeoJsonTransformOp extends Operator<GeoJsonTransformOp> {
   static displayName = 'GeoJsonTransform'
   static description = 'Transform a GeoJSON feature with scale, translate, and rotate operations'
   asDownload = () => this.outputData
   createInputs() {
     return {
-      feature: new DataField(),
+      feature: new GeoJsonField(),
       scale: new NumberField(1, { min: 0.001, max: 100, step: 0.1 }),
       translateX: new NumberField(0, { min: -10000, max: 10000, step: 0.1 }),
       translateY: new NumberField(0, { min: -10000, max: 10000, step: 0.1 }),
@@ -4263,7 +4284,7 @@ export class GeoJsonTransformOp extends Operator<GeoJsonTransformOp> {
   }
   createOutputs() {
     return {
-      feature: new DataField(),
+      feature: new GeoJsonField(),
     }
   }
   execute({
@@ -5052,6 +5073,123 @@ export class MaskExtensionOp extends Operator<MaskExtensionOp> {
   }
 }
 
+type TimeSeriesDataPoint = {
+  time: number
+  [key: string]: number
+}
+
+// Interpolate time series data at a given time using linear interpolation
+function interpolateTimeSeries(
+  timeSeries: TimeSeriesDataPoint[],
+  currentTime: number
+): Record<string, number> {
+  if (!timeSeries || timeSeries.length === 0) {
+    return { time: currentTime }
+  }
+
+  // If only one data point, return it
+  if (timeSeries.length === 1) {
+    return { ...timeSeries[0] }
+  }
+
+  // If currentTime is before first point, return first point
+  if (currentTime <= timeSeries[0].time) {
+    return { ...timeSeries[0] }
+  }
+
+  // If currentTime is after last point, return last point
+  if (currentTime >= timeSeries[timeSeries.length - 1].time) {
+    return { ...timeSeries[timeSeries.length - 1] }
+  }
+
+  // Binary search to find the two points to interpolate between
+  let left = 0
+  let right = timeSeries.length - 1
+
+  while (left < right - 1) {
+    const mid = Math.floor((left + right) / 2)
+    if (timeSeries[mid].time <= currentTime) {
+      left = mid
+    } else {
+      right = mid
+    }
+  }
+
+  const before = timeSeries[left]
+  const after = timeSeries[right]
+
+  // Calculate interpolation factor (0 to 1)
+  const timeDelta = after.time - before.time
+  const factor = timeDelta === 0 ? 0 : (currentTime - before.time) / timeDelta
+
+  // Interpolate all numeric fields
+  const result: Record<string, number> = {}
+  const allKeys = new Set([...Object.keys(before), ...Object.keys(after)])
+
+  for (const key of allKeys) {
+    const beforeVal = before[key] ?? 0
+    const afterVal = after[key] ?? 0
+    result[key] = beforeVal + (afterVal - beforeVal) * factor
+  }
+
+  return result
+}
+
+export class TimeSeriesOp extends Operator<TimeSeriesOp> {
+  static displayName = 'TimeSeries'
+  static description = 'Interpolate time-varying data at a given time. Aligns with TripsLayer API for easy reuse of accessors.'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      data: new DataField(),
+      currentTime: new NumberField(0),
+      getTimestamps: new UnknownField((d: any) => d?.timestamps || [], { accessor: true }),
+      getValues: new UnknownField((d: any) => d?.values || [], { accessor: true }),
+      getProperties: new UnknownField((d: any) => d, { accessor: true, optional: true }),
+    }
+  }
+  createOutputs() {
+    return {
+      data: new DataField(),
+    }
+  }
+
+  execute({
+    data,
+    currentTime,
+    getTimestamps,
+    getValues,
+    getProperties,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!Array.isArray(data) || !data.length) {
+      return { data: [] }
+    }
+
+    return {
+      data: data.map((d, i) => {
+        // Call accessors with proper deck.gl accessor signature
+        const timestamps = (getTimestamps as Function)(d, { index: i, data, target: [] }) as number[]
+        const values = (getValues as Function)(d, { index: i, data, target: [] }) as any[]
+        const properties = getProperties ? (getProperties as Function)(d, { index: i, data, target: [] }) : {}
+
+        // Convert values array to timeSeries format for interpolation
+        const timeSeries = timestamps.map((time: number, idx: number) => ({
+          time,
+          ...(values[idx] || {}),
+        }))
+
+        const interpolated = interpolateTimeSeries(timeSeries, currentTime)
+
+        return {
+          ...properties,
+          ...interpolated,
+          time: currentTime,
+        }
+      }),
+    }
+  }
+}
+
 export const opTypes = {
   AccessorOp,
   A5LayerOp,
@@ -5111,6 +5249,7 @@ export const opTypes = {
   HueSaturationExtensionOp,
   IconLayerOp,
   JSONOp,
+  KmlToGeoJsonOp,
   LayerPropsOp,
   LineLayerOp,
   MaplibreBasemapOp,
@@ -5161,6 +5300,7 @@ export const opTypes = {
   Tile3DLayerOp,
   TileLayerOp,
   TimeOp,
+  TimeSeriesOp,
   TripsLayerOp,
   UnprojectOp,
   VibranceExtensionOp,

@@ -2,7 +2,7 @@ import { useReactFlow } from '@xyflow/react'
 import { useCallback, useEffect, useRef } from 'react'
 
 import { useProjectModifications } from '../hooks/use-project-modifications'
-import { useSlice } from '../store'
+import { getOpStore, useNestingStore } from '../store'
 import { edgeId, nodeId } from '../utils/id-utils'
 import { getBaseName } from '../utils/path-utils'
 import { type CopiedNodesJSON, safeStringify, serializeNodes } from '../utils/serialization'
@@ -17,9 +17,8 @@ function copy(text: string) {
 }
 
 export function CopyControls() {
-  const ops = useSlice(state => state.ops)
   const { toObject, getNodes, getEdges, setNodes, setEdges, screenToFlowPosition } = useReactFlow()
-  const { currentContainerId } = useSlice(state => state.nesting)
+  const currentContainerId = useNestingStore(state => state.currentContainerId)
   const mousePositionRef = useRef({ x: 0, y: 0 })
 
   // Use shared hook for project modifications to properly handle nodes + edges atomically
@@ -81,7 +80,8 @@ export function CopyControls() {
       const edgesToCopy = Array.from(edgesToCopySet)
 
       // sync op and node data
-      const serializedNodes = serializeNodes(ops, nodesToCopy, edgesToCopy)
+      const store = getOpStore()
+      const serializedNodes = serializeNodes(store, nodesToCopy, edgesToCopy)
 
       copy(safeStringify({ nodes: serializedNodes, edges: edgesToCopy }))
     }
@@ -157,7 +157,7 @@ export function CopyControls() {
       window.removeEventListener('copy', copyListener, false)
       window.removeEventListener('paste', pasteListener, false)
     }
-  }, [toObject, applyModifications, ops, currentContainerId, screenToFlowPosition])
+  }, [toObject, applyModifications, currentContainerId, screenToFlowPosition])
 
   return null
 }

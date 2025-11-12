@@ -5,7 +5,7 @@ import { act, renderHook } from '@testing-library/react'
 import { type Edge as ReactFlowEdge, type Node as ReactFlowNode } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { NumberOp } from '../../operators'
-import { opMap } from '../../store'
+import { clearOps, setOp } from '../../store'
 import { useProjectModifications, type ProjectModification } from '../use-project-modifications'
 
 describe('useProjectModifications', () => {
@@ -25,11 +25,11 @@ describe('useProjectModifications', () => {
   beforeEach(() => {
     nodes = []
     edges = []
-    opMap.clear()
+    clearOps()
   })
 
   afterEach(() => {
-    opMap.clear()
+    clearOps()
   })
 
   describe('addNode', () => {
@@ -108,7 +108,7 @@ describe('useProjectModifications', () => {
 
     it('should update node inputs and sync with operator', () => {
       const op = new NumberOp('/test-node', { val: 10 })
-      opMap.set('/test-node', op)
+      setOp('/test-node', op)
 
       const { result } = renderHook(() =>
         useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
@@ -194,9 +194,9 @@ describe('useProjectModifications', () => {
       const op1 = new NumberOp('/node-1', { val: 1 })
       const op2 = new NumberOp('/node-2', { val: 2 })
       const op3 = new NumberOp('/node-3', { val: 3 })
-      opMap.set('/node-1', op1)
-      opMap.set('/node-2', op2)
-      opMap.set('/node-3', op3)
+      setOp('/node-1', op1)
+      setOp('/node-2', op2)
+      setOp('/node-3', op3)
 
       const { result } = renderHook(() =>
         useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
@@ -269,8 +269,8 @@ describe('useProjectModifications', () => {
       // Set up two connected operators
       const op1 = new NumberOp('/source', { val: 42 })
       const op2 = new NumberOp('/target', { val: 0 })
-      opMap.set('/source', op1)
-      opMap.set('/target', op2)
+      setOp('/source', op1)
+      setOp('/target', op2)
 
       nodes = [
         {
@@ -422,8 +422,8 @@ describe('useProjectModifications', () => {
       // Set up operators
       const op1 = new NumberOp('/node-1', { val: 1 })
       const op2 = new NumberOp('/node-2', { val: 2 })
-      opMap.set('/node-1', op1)
-      opMap.set('/node-2', op2)
+      setOp('/node-1', op1)
+      setOp('/node-2', op2)
 
       const { result } = renderHook(() =>
         useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
@@ -474,8 +474,8 @@ describe('useProjectModifications', () => {
     it('should handle mixed operations (add, update, delete)', () => {
       const op1 = new NumberOp('/node-1', { val: 1 })
       const op2 = new NumberOp('/node-2', { val: 2 })
-      opMap.set('/node-1', op1)
-      opMap.set('/node-2', op2)
+      setOp('/node-1', op1)
+      setOp('/node-2', op2)
 
       const { result } = renderHook(() =>
         useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
@@ -535,7 +535,7 @@ describe('useProjectModifications', () => {
 
     it('should skip edges with missing nodes but continue with valid edges', () => {
       const op1 = new NumberOp('/node-1', { val: 1 })
-      opMap.set('/node-1', op1)
+      setOp('/node-1', op1)
 
       const { result } = renderHook(() =>
         useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
@@ -582,9 +582,9 @@ describe('useProjectModifications', () => {
       const op1 = new NumberOp('/node-1', { val: 1 })
       const op2 = new NumberOp('/node-2', { val: 2 })
       const op3 = new NumberOp('/node-3', { val: 3 })
-      opMap.set('/node-1', op1)
-      opMap.set('/node-2', op2)
-      opMap.set('/node-3', op3)
+      setOp('/node-1', op1)
+      setOp('/node-2', op2)
+      setOp('/node-3', op3)
 
       const { result } = renderHook(() =>
         useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
@@ -662,8 +662,8 @@ describe('useProjectModifications', () => {
     it('onConnect should add edge with validation', () => {
       const op1 = new NumberOp('/source', { val: 42 })
       const op2 = new NumberOp('/target', { val: 0 })
-      opMap.set('/source', op1)
-      opMap.set('/target', op2)
+      setOp('/source', op1)
+      setOp('/target', op2)
 
       const { result } = renderHook(() =>
         useProjectModifications({ getNodes, getEdges, setNodes, setEdges })

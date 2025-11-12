@@ -7,7 +7,7 @@ import type {
   SearchCodeResult,
   ConsoleError
 } from './types'
-import { opMap } from '../noodles/store'
+import { getOpStore } from '../noodles/store'
 import { safeStringify } from '../noodles/utils/serialization'
 
 export class MCPTools {
@@ -635,7 +635,7 @@ export class MCPTools {
   // Read operator output data
   async getNodeOutput(params: { nodeId: string; maxRows?: number }): Promise<ToolResult> {
     try {
-      const operator = opMap.get(params.nodeId)
+      const operator = getOpStore().getOp(params.nodeId)
 
       if (!operator) {
         return {
@@ -718,7 +718,7 @@ export class MCPTools {
       }
 
       const nodes = (this.project.nodes || []).map((node: any) => {
-        const operator = opMap.get(node.id)
+        const operator = getOpStore().getOp(node.id)
         const executionState = operator ? (operator as any).executionState?.value : null
 
         return {
@@ -785,7 +785,7 @@ export class MCPTools {
         }
       }
 
-      const operator = opMap.get(params.nodeId)
+      const operator = getOpStore().getOp(params.nodeId)
       const edges = (this.project.edges || [])
 
       // Find incoming and outgoing edges

@@ -26,6 +26,7 @@
     "@theatre/core": "0.7.2",
     "@theatre/react": "0.7.2",
     "@theatre/studio": "0.7.2",
+    "@tmcw/togeojson": "^7.1.2",
     "@turf/turf": "^7.2.0",
     "@types/suncalc": "^1.9.2",
     "@vitejs/plugin-react": "^5.1.0",

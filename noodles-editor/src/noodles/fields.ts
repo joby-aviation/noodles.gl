@@ -571,6 +571,26 @@ export class DataField<D extends Field> extends Field<
   }
 }
 
+// GeoJSON field type with lime color to distinguish from regular data fields
+export class GeoJsonField<D extends Field> extends Field<
+  z.ZodType<unknown, unknown, z.core.$ZodTypeInternals<unknown, unknown>> | z.ZodUnknown,
+  SubSchemaOptions<D['schema']>
+> {
+  static type = 'geojson'
+  static defaultValue = { type: 'FeatureCollection', features: [] }
+  createSchema({ subschema }: { subschema: z.Schema<D['schema']> }) {
+    return subschema.readonly()
+  }
+  constructor(public field?: D) {
+    const subschema = field?.schema || z.unknown()
+    const defaultValue =
+      typeof field?.defaultValue !== 'undefined'
+        ? field.defaultValue
+        : { type: 'FeatureCollection', features: [] }
+    super(defaultValue, { subschema })
+  }
+}
+
 export class JSONUrlField extends Field<z.ZodUnion<readonly [z.ZodURL, z.ZodJSONSchema]>> {
   static type = 'json-url'
   static defaultValue = ''

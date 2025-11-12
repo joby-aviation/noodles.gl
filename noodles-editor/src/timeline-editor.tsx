@@ -13,7 +13,6 @@ import { TransformScale } from './render/transform-scale'
 import setRef from './utils/set-ref'
 import useSheetValue, { type PropsValue } from './utils/use-sheet-value'
 import { getNoodles } from './noodles/noodles'
-import { NoodlesProvider } from './noodles/store'
 import { WidgetContainer } from './widget-container'
 import s from './timeline-editor.module.css'
 
@@ -400,17 +399,15 @@ export default function TimelineEditor() {
           />
         </div>
       )}
-      <NoodlesProvider>
-        <ReactFlowProvider>
-          <WidgetContainer widgets={widgets} layoutMode={layoutMode}>
-            {isFixedMode ? (
-              <TransformScale scale={renderer.scaleControl}>{renderContent()}</TransformScale>
-            ) : (
-              renderContent()
-            )}
-          </WidgetContainer>
-        </ReactFlowProvider>
-      </NoodlesProvider>
+      <ReactFlowProvider>
+        <WidgetContainer widgets={widgets} layoutMode={layoutMode}>
+          {isFixedMode ? (
+            <TransformScale scale={renderer.scaleControl}>{renderContent()}</TransformScale>
+          ) : (
+            renderContent()
+          )}
+        </WidgetContainer>
+      </ReactFlowProvider>
     </>
   )
 }

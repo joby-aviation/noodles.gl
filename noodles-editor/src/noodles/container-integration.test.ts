@@ -3,16 +3,16 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { Edge } from './noodles'
 import type { OpType } from './operators'
 import { ContainerOp, GraphInputOp, GraphOutputOp } from './operators'
-import { opMap } from './store'
+import { getOp, clearOps } from './store'
 import { transformGraph } from './transform-graph'
 
 describe('Container Integration with Transform Graph', () => {
   beforeEach(() => {
-    opMap.clear()
+    clearOps()
   })
 
   afterEach(() => {
-    opMap.clear()
+    clearOps()
   })
 
   it('creates proper connections between containers and child GraphInputOps', () => {
@@ -57,10 +57,10 @@ describe('Container Integration with Transform Graph', () => {
     expect(operators.map(op => op.id)).toContain('/other/input')
 
     // Verify the container and its child are in opMap
-    const container = opMap.get('/analysis') as ContainerOp
-    const childInput = opMap.get('/analysis/input') as GraphInputOp
-    const childOutput = opMap.get('/analysis/output') as GraphOutputOp
-    const otherInput = opMap.get('/other/input') as GraphInputOp
+    const container = getOp('/analysis') as ContainerOp
+    const childInput = getOp('/analysis/input') as GraphInputOp
+    const childOutput = getOp('/analysis/output') as GraphOutputOp
+    const otherInput = getOp('/other/input') as GraphInputOp
 
     expect(container).toBeInstanceOf(ContainerOp)
     expect(childInput).toBeInstanceOf(GraphInputOp)
@@ -118,10 +118,10 @@ describe('Container Integration with Transform Graph', () => {
     expect(operators).toHaveLength(4)
 
     // Get the operators
-    const rootContainer = opMap.get('/analysis')
-    const nestedContainer = opMap.get('/analysis/preprocessing')
-    const rootInput = opMap.get('/analysis/input') as GraphInputOp
-    const nestedInput = opMap.get('/analysis/preprocessing/filter-input') as GraphInputOp
+    const rootContainer = getOp('/analysis')
+    const nestedContainer = getOp('/analysis/preprocessing')
+    const rootInput = getOp('/analysis/input') as GraphInputOp
+    const nestedInput = getOp('/analysis/preprocessing/filter-input') as GraphInputOp
 
     expect(rootContainer).toBeInstanceOf(ContainerOp)
     expect(nestedContainer).toBeInstanceOf(ContainerOp)
@@ -166,8 +166,8 @@ describe('Container Integration with Transform Graph', () => {
     transformGraph({ nodes, edges })
 
     // Get the operators
-    const container = opMap.get('/analysis') as ContainerOp
-    const output = opMap.get('/analysis/output') as GraphOutputOp
+    const container = getOp('/analysis') as ContainerOp
+    const output = getOp('/analysis/output') as GraphOutputOp
 
     // Set a value in the GraphOutputOp
     output.outputs.propagatedValue.setValue('container-output-value')

@@ -63,7 +63,7 @@ export function NoodlesTestWrapper({
 }) {
   const uniqueProjectName = useMemo(() => projectName || `test-project-${projectCounter++}`, [projectName])
 
-  const { project, sheet } = useMemo(() => {
+  const { sheet } = useMemo(() => {
     const project = getProject(uniqueProjectName, {})
     const sheet = project.sheet(sheetId)
     return { project, sheet }
