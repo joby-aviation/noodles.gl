@@ -2,7 +2,7 @@ import { useReactFlow } from '@xyflow/react'
 import { useCallback, useEffect, useRef } from 'react'
 
 import { useProjectModifications } from '../hooks/use-project-modifications'
-import { useSlice } from '../store'
+import { useSlice, useNestingStore } from '../store'
 import { edgeId, nodeId } from '../utils/id-utils'
 import { getBaseName } from '../utils/path-utils'
 import { type CopiedNodesJSON, safeStringify, serializeNodes } from '../utils/serialization'
@@ -19,7 +19,7 @@ function copy(text: string) {
 export function CopyControls() {
   const ops = useSlice(state => state.ops)
   const { toObject, getNodes, getEdges, setNodes, setEdges, screenToFlowPosition } = useReactFlow()
-  const { currentContainerId } = useSlice(state => state.nesting)
+  const currentContainerId = useNestingStore(state => state.currentContainerId)
   const mousePositionRef = useRef({ x: 0, y: 0 })
 
   // Use shared hook for project modifications to properly handle nodes + edges atomically

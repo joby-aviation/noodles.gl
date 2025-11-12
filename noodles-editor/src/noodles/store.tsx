@@ -1,5 +1,6 @@
 import type { ISheetObject } from '@theatre/core'
-import { createContext, type PropsWithChildren, useCallback, useContext, useMemo, useState } from 'react'
+import { createContext, type PropsWithChildren, useContext, useMemo } from 'react'
+import { create } from 'zustand'
 import type { IOperator, Operator } from './operators'
 // only import types from noodles to avoid circular dependencies
 import type { OpId } from './utils/id-utils'
@@ -8,10 +9,19 @@ import { isAbsolutePath, resolvePath } from './utils/path-utils'
 export const opMap = new Map<OpId, Operator<IOperator>>()
 export const sheetObjectMap = new Map<OpId, ISheetObject>()
 
-export type NestingContextValue = {
+// ============================================================================
+// Nesting State (Zustand)
+// ============================================================================
+
+interface NestingState {
   currentContainerId: string
   setCurrentContainerId: (id: string) => void
 }
+
+export const useNestingStore = create<NestingState>((set) => ({
+  currentContainerId: '/',
+  setCurrentContainerId: (id: string) => set({ currentContainerId: id }),
+}))
 
 export type OpsContextValue = {
   get: (id: OpId) => Operator<IOperator> | undefined
@@ -27,10 +37,7 @@ export type SheetObjectsContextValue = {
 export type NoodlesContextValue = {
   ops: OpsContextValue
   sheetObjects: SheetObjectsContextValue
-  nesting: NestingContextValue
 }
-
-let currentContainerIdValue = '/'
 
 const opsContext: OpsContextValue = {
   get: (id: OpId) => opMap.get(id),
@@ -58,37 +65,17 @@ export const setHoveredOutputHandle = (handle: { nodeId: string; handleId: strin
 const defaultContextValue: NoodlesContextValue = {
   ops: opsContext,
   sheetObjects: sheetObjectsContext,
-  nesting: {
-    currentContainerId: currentContainerIdValue,
-    setCurrentContainerId: (id: string) => {
-      currentContainerIdValue = id
-    },
-  },
 }
 
 export const NoodlesContext = createContext<NoodlesContextValue>(defaultContextValue)
 
 export const NoodlesProvider = ({ children }: PropsWithChildren) => {
-  const [currentContainerId, setCurrentContainerIdState] = useState(currentContainerIdValue)
-
-  const setCurrentContainerId = useCallback(
-    (id: string) => {
-      currentContainerIdValue = id
-      setCurrentContainerIdState(id)
-    },
-    [setCurrentContainerIdState]
-  )
-
   const contextValue = useMemo<NoodlesContextValue>(() => {
     return {
       ops: opsContext,
       sheetObjects: sheetObjectsContext,
-      nesting: {
-        currentContainerId,
-        setCurrentContainerId,
-      },
     }
-  }, [currentContainerId, setCurrentContainerId])
+  }, [])
 
   return <NoodlesContext.Provider value={contextValue}>{children}</NoodlesContext.Provider>
 }

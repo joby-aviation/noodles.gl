@@ -58,7 +58,7 @@ import s from './noodles.module.css'
 import type { IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
 import { load } from './storage'
-import { opMap, sheetObjectMap, useSlice, hoveredOutputHandle } from './store'
+import { opMap, sheetObjectMap, useSlice, hoveredOutputHandle, useNestingStore } from './store'
 import { transformGraph } from './transform-graph'
 import { edgeId, nodeId } from './utils/id-utils'
 import { migrateProject } from './utils/migrate-schema'
@@ -266,7 +266,7 @@ export function getNoodles(): Visualization {
 
   const vPressHandledRef = useRef(false)
 
-  const { currentContainerId } = useSlice(state => state.nesting)
+  const currentContainerId = useNestingStore(state => state.currentContainerId)
 
   // Handle 'v' key press to create ViewerOp
   useEffect(() => {

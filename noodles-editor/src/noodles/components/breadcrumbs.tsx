@@ -3,12 +3,13 @@ import { useKeyPress, useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
 import { type FC, Fragment, useCallback, useEffect } from 'react'
 import { ContainerOp } from '../operators'
-import { opMap, useSlice } from '../store' // To access opMap for node names
+import { opMap, useNestingStore } from '../store' // To access opMap for node names
 import { getBaseName, getParentPath, joinPath, splitPath } from '../utils/path-utils'
 import s from './breadcrumbs.module.css'
 
 export const Breadcrumbs: FC = () => {
-  const { currentContainerId, setCurrentContainerId } = useSlice(state => state.nesting)
+  const currentContainerId = useNestingStore(state => state.currentContainerId)
+  const setCurrentContainerId = useNestingStore(state => state.setCurrentContainerId)
   const reactFlow = useReactFlow()
   const uPressed = useKeyPress('u', { target: document.body })
 
