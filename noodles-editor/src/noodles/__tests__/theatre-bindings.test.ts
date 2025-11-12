@@ -11,7 +11,7 @@ import {
   CompoundPropsField,
   type Field,
 } from '../fields'
-import { opMap, sheetObjectMap } from '../store'
+import { clearOps, setOp, hasSheetObject, getSheetObject, getOpStore } from '../store'
 import {
   bindOperatorToTheatre,
   unbindOperatorFromTheatre,
@@ -43,15 +43,13 @@ describe('theatre-bindings', () => {
     testProject = getProject(projectName, {})
     testSheet = testProject.sheet('test-sheet')
 
-    // Clear maps
-    opMap.clear()
-    sheetObjectMap.clear()
+    // Clear store
+    clearOps()
   })
 
   afterEach(() => {
     // Cleanup
-    opMap.clear()
-    sheetObjectMap.clear()
+    clearOps()
   })
 
   describe('bindOperatorToTheatre', () => {
@@ -80,12 +78,12 @@ describe('theatre-bindings', () => {
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
 
       // Should create sheet object
-      expect(sheetObjectMap.has('/test-op')).toBe(true)
+      expect(hasSheetObject('/test-op')).toBe(true)
       expect(cleanup).toBeTypeOf('function')
 
       // Cleanup
       cleanup?.()
-      expect(sheetObjectMap.has('/test-op')).toBe(false)
+      expect(hasSheetObject('/test-op')).toBe(false)
     })
 
     it('should skip operators with no theatre-compatible fields', () => {
@@ -102,7 +100,7 @@ describe('theatre-bindings', () => {
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
 
       // Should not create sheet object
-      expect(sheetObjectMap.has('/test-op')).toBe(false)
+      expect(hasSheetObject('/test-op')).toBe(false)
       expect(cleanup).toBeUndefined()
     })
 
@@ -122,7 +120,7 @@ describe('theatre-bindings', () => {
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
 
       // Should not bind /out operator
-      expect(sheetObjectMap.has('/out')).toBe(false)
+      expect(hasSheetObject('/out')).toBe(false)
       expect(cleanup).toBeUndefined()
     })
 
@@ -165,7 +163,7 @@ describe('theatre-bindings', () => {
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
 
-      expect(sheetObjectMap.has('/test-op')).toBe(true)
+      expect(hasSheetObject('/test-op')).toBe(true)
       cleanup?.()
     })
 
@@ -188,7 +186,7 @@ describe('theatre-bindings', () => {
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
 
-      expect(sheetObjectMap.has('/test-op')).toBe(true)
+      expect(hasSheetObject('/test-op')).toBe(true)
       cleanup?.()
     })
 
@@ -207,7 +205,7 @@ describe('theatre-bindings', () => {
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
 
       // Get the sheet object
-      const sheetObj = sheetObjectMap.get('/test-op')
+      const sheetObj = getSheetObject('/test-op')
       expect(sheetObj).toBeDefined()
 
       // Update field value and verify Theatre gets updated
@@ -234,11 +232,11 @@ describe('theatre-bindings', () => {
 
       // Bind
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
-      expect(sheetObjectMap.has('/test-op')).toBe(true)
+      expect(hasSheetObject('/test-op')).toBe(true)
 
       // Unbind
       unbindOperatorFromTheatre('/test-op', testSheet)
-      expect(sheetObjectMap.has('/test-op')).toBe(false)
+      expect(hasSheetObject('/test-op')).toBe(false)
 
       cleanup?.()
     })
@@ -278,16 +276,16 @@ describe('theatre-bindings', () => {
 
       // Should bind all operators
       expect(cleanupFns.size).toBe(3)
-      expect(sheetObjectMap.has('/op1')).toBe(true)
-      expect(sheetObjectMap.has('/op2')).toBe(true)
-      expect(sheetObjectMap.has('/op3')).toBe(true)
+      expect(hasSheetObject('/op1')).toBe(true)
+      expect(hasSheetObject('/op2')).toBe(true)
+      expect(hasSheetObject('/op3')).toBe(true)
 
       // Cleanup all
       for (const cleanup of cleanupFns.values()) {
         cleanup()
       }
 
-      expect(sheetObjectMap.size).toBe(0)
+      expect(getOpStore().sheetObjects.size).toBe(0)
     })
 
     it('should skip operators with no compatible fields', () => {
@@ -310,8 +308,8 @@ describe('theatre-bindings', () => {
 
       // Should only bind op1
       expect(cleanupFns.size).toBe(1)
-      expect(sheetObjectMap.has('/op1')).toBe(true)
-      expect(sheetObjectMap.has('/op2')).toBe(false)
+      expect(hasSheetObject('/op1')).toBe(true)
+      expect(hasSheetObject('/op2')).toBe(false)
 
       // Cleanup
       for (const cleanup of cleanupFns.values()) {
@@ -339,8 +337,8 @@ describe('theatre-bindings', () => {
 
       // Should skip /out
       expect(cleanupFns.size).toBe(1)
-      expect(sheetObjectMap.has('/out')).toBe(false)
-      expect(sheetObjectMap.has('/op1')).toBe(true)
+      expect(hasSheetObject('/out')).toBe(false)
+      expect(hasSheetObject('/op1')).toBe(true)
 
       // Cleanup
       for (const cleanup of cleanupFns.values()) {
@@ -373,19 +371,24 @@ describe('theatre-bindings', () => {
         },
       ] as any[]
 
+      // Add operators to store
+      for (const op of mockOps) {
+        setOp(op.id, op)
+      }
+
       bindAllOperatorsToTheatre(mockOps, testSheet)
 
-      expect(sheetObjectMap.size).toBe(3)
+      expect(getOpStore().sheetObjects.size).toBe(3)
 
       // Cleanup op2 and op3 (only keep op1)
       const currentOperatorIds = new Set(['/op1'])
       cleanupRemovedOperators(currentOperatorIds, testSheet)
 
       // Should only have op1 remaining
-      expect(sheetObjectMap.size).toBe(1)
-      expect(sheetObjectMap.has('/op1')).toBe(true)
-      expect(sheetObjectMap.has('/op2')).toBe(false)
-      expect(sheetObjectMap.has('/op3')).toBe(false)
+      expect(getOpStore().sheetObjects.size).toBe(1)
+      expect(hasSheetObject('/op1')).toBe(true)
+      expect(hasSheetObject('/op2')).toBe(false)
+      expect(hasSheetObject('/op3')).toBe(false)
     })
 
     it('should handle empty operator set', () => {
@@ -399,12 +402,17 @@ describe('theatre-bindings', () => {
         },
       ] as any[]
 
+      // Add operators to store
+      for (const op of mockOps) {
+        setOp(op.id, op)
+      }
+
       bindAllOperatorsToTheatre(mockOps, testSheet)
-      expect(sheetObjectMap.size).toBe(1)
+      expect(getOpStore().sheetObjects.size).toBe(1)
 
       // Cleanup all
       cleanupRemovedOperators(new Set(), testSheet)
-      expect(sheetObjectMap.size).toBe(0)
+      expect(getOpStore().sheetObjects.size).toBe(0)
     })
 
     it('should not affect operators still in current set', () => {
@@ -423,6 +431,11 @@ describe('theatre-bindings', () => {
         },
       ] as any[]
 
+      // Add operators to store
+      for (const op of mockOps) {
+        setOp(op.id, op)
+      }
+
       bindAllOperatorsToTheatre(mockOps, testSheet)
 
       // Keep both
@@ -430,9 +443,9 @@ describe('theatre-bindings', () => {
       cleanupRemovedOperators(currentOperatorIds, testSheet)
 
       // Should still have both
-      expect(sheetObjectMap.size).toBe(2)
-      expect(sheetObjectMap.has('/op1')).toBe(true)
-      expect(sheetObjectMap.has('/op2')).toBe(true)
+      expect(getOpStore().sheetObjects.size).toBe(2)
+      expect(hasSheetObject('/op1')).toBe(true)
+      expect(hasSheetObject('/op2')).toBe(true)
     })
   })
 
@@ -455,7 +468,7 @@ describe('theatre-bindings', () => {
       ] as any[]
 
       let cleanupFns = bindAllOperatorsToTheatre(ops1, testSheet)
-      expect(sheetObjectMap.size).toBe(2)
+      expect(getOpStore().sheetObjects.size).toBe(2)
 
       // Cleanup old bindings
       for (const cleanup of cleanupFns.values()) {
@@ -483,10 +496,10 @@ describe('theatre-bindings', () => {
       cleanupRemovedOperators(currentIds, testSheet)
 
       // Should have op1 and op3, not op2
-      expect(sheetObjectMap.size).toBe(2)
-      expect(sheetObjectMap.has('/op1')).toBe(true)
-      expect(sheetObjectMap.has('/op2')).toBe(false)
-      expect(sheetObjectMap.has('/op3')).toBe(true)
+      expect(getOpStore().sheetObjects.size).toBe(2)
+      expect(hasSheetObject('/op1')).toBe(true)
+      expect(hasSheetObject('/op2')).toBe(false)
+      expect(hasSheetObject('/op3')).toBe(true)
 
       // Final cleanup
       for (const cleanup of cleanupFns.values()) {
@@ -520,20 +533,20 @@ describe('theatre-bindings', () => {
       const cleanupChild = bindOperatorToTheatre(childOp, testSheet)
 
       // Both container and child should be bound
-      expect(sheetObjectMap.has('/container')).toBe(true)
-      expect(sheetObjectMap.has('/container/child')).toBe(true)
+      expect(hasSheetObject('/container')).toBe(true)
+      expect(hasSheetObject('/container/child')).toBe(true)
 
       // Verify they have different Theatre object names
-      const containerSheetObj = sheetObjectMap.get('/container')
-      const childSheetObj = sheetObjectMap.get('/container/child')
+      const containerSheetObj = getSheetObject('/container')
+      const childSheetObj = getSheetObject('/container/child')
       expect(containerSheetObj).toBeDefined()
       expect(childSheetObj).toBeDefined()
 
       // Clean up both
       cleanupContainer?.()
       cleanupChild?.()
-      expect(sheetObjectMap.has('/container')).toBe(false)
-      expect(sheetObjectMap.has('/container/child')).toBe(false)
+      expect(hasSheetObject('/container')).toBe(false)
+      expect(hasSheetObject('/container/child')).toBe(false)
     })
   })
 
@@ -559,17 +572,17 @@ describe('theatre-bindings', () => {
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
 
       // Should create sheet object
-      expect(sheetObjectMap.has('/test-op')).toBe(true)
+      expect(hasSheetObject('/test-op')).toBe(true)
       expect(cleanup).toBeTypeOf('function')
 
       // Verify the sheet object has the compound props structure
-      const sheetObj = sheetObjectMap.get('/test-op')
+      const sheetObj = getSheetObject('/test-op')
       expect(sheetObj).toBeDefined()
       expect(sheetObj?.props.viewState).toBeDefined()
 
       // Cleanup
       cleanup?.()
-      expect(sheetObjectMap.has('/test-op')).toBe(false)
+      expect(hasSheetObject('/test-op')).toBe(false)
     })
 
     it('should handle CompoundPropsField with mixed field types', () => {
@@ -593,10 +606,10 @@ describe('theatre-bindings', () => {
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
 
-      expect(sheetObjectMap.has('/test-op')).toBe(true)
+      expect(hasSheetObject('/test-op')).toBe(true)
       expect(cleanup).toBeTypeOf('function')
 
-      const sheetObj = sheetObjectMap.get('/test-op')
+      const sheetObj = getSheetObject('/test-op')
       expect(sheetObj).toBeDefined()
       expect(sheetObj?.props.config).toBeDefined()
 
@@ -627,10 +640,10 @@ describe('theatre-bindings', () => {
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
 
-      expect(sheetObjectMap.has('/test-op')).toBe(true)
+      expect(hasSheetObject('/test-op')).toBe(true)
       expect(cleanup).toBeTypeOf('function')
 
-      const sheetObj = sheetObjectMap.get('/test-op')
+      const sheetObj = getSheetObject('/test-op')
       expect(sheetObj).toBeDefined()
       expect(sheetObj?.props.transform).toBeDefined()
 
@@ -659,9 +672,9 @@ describe('theatre-bindings', () => {
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
 
-      expect(sheetObjectMap.has('/deck-view')).toBe(true)
+      expect(hasSheetObject('/deck-view')).toBe(true)
 
-      const sheetObj = sheetObjectMap.get('/deck-view')
+      const sheetObj = getSheetObject('/deck-view')
       expect(sheetObj).toBeDefined()
 
       // Verify all nested fields are accessible
@@ -696,9 +709,9 @@ describe('theatre-bindings', () => {
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
 
-      expect(sheetObjectMap.has('/deck-view')).toBe(true)
+      expect(hasSheetObject('/deck-view')).toBe(true)
 
-      const sheetObj = sheetObjectMap.get('/deck-view')
+      const sheetObj = getSheetObject('/deck-view')
       expect(sheetObj?.props.padding).toBeDefined()
       expect(sheetObj?.props.padding.top).toBeDefined()
       expect(sheetObj?.props.padding.right).toBeDefined()

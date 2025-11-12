@@ -1,6 +1,6 @@
 import type { Edge as ReactFlowEdge } from '@xyflow/react'
 
-import { opMap } from '../store'
+import { hasOp, getOpStore } from '../store'
 import { generateQualifiedPath, getBaseName } from './path-utils'
 
 export type OpId = string
@@ -9,7 +9,7 @@ export type OpId = string
 export function nodeId(baseName: string, containerId = '/'): OpId {
   const baseQualifiedPath = generateQualifiedPath(baseName, containerId)
 
-  if (!opMap.has(baseQualifiedPath)) {
+  if (!hasOp(baseQualifiedPath)) {
     return baseQualifiedPath
   }
 
@@ -17,8 +17,10 @@ export function nodeId(baseName: string, containerId = '/'): OpId {
   const containerPrefix = containerId.startsWith('/') ? containerId : `/${containerId}`
   const pathPrefix = containerPrefix === '/' ? '/' : `${containerPrefix}/`
 
+  const { operators } = getOpStore()
+
   // Find existing operators in the same container with the same base name
-  const existing = Array.from(opMap.keys()).filter(key => {
+  const existing = Array.from(operators.keys()).filter(key => {
     if (!key.startsWith(pathPrefix)) return false
     const keyBaseName = getBaseName(key)
     return keyBaseName === baseName || keyBaseName.startsWith(`${baseName}-`)

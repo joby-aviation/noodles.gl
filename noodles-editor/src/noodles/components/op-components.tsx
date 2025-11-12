@@ -49,7 +49,7 @@ import {
   type TimeOp,
   type ViewerOp,
 } from '../operators'
-import { opMap, setHoveredOutputHandle, useOp, useSlice, useNestingStore } from '../store'
+import { useOp, useNestingStore, setHoveredOutputHandle, hasOp, setOp, getAllOps, deleteOp } from '../store'
 import type { NodeDataJSON } from '../transform-graph'
 import { edgeId } from '../utils/id-utils'
 import { generateQualifiedPath, getBaseName, getParentPath } from '../utils/path-utils'
@@ -477,7 +477,7 @@ function NodeHeader({ id, type, op }: { id: string; type: OpType; op: OperatorIn
     (newBaseName: string): boolean => {
       if (!newBaseName.trim()) return false
       const newQualifiedId = generateQualifiedPath(newBaseName.trim(), op.containerId)
-      return newQualifiedId !== id && opMap.has(newQualifiedId)
+      return newQualifiedId !== id && hasOp(newQualifiedId)
     },
     [id, op.containerId]
   )
@@ -514,12 +514,12 @@ function NodeHeader({ id, type, op }: { id: string; type: OpType; op: OperatorIn
       const isContainer = type === 'ContainerOp'
 
       // Update the operator itself
-      opMap.set(newQualifiedId, op)
+      setOp(newQualifiedId, op)
       op.id = newQualifiedId
 
       // If this is a container, update all children nodes and their operators
       if (isContainer) {
-        const childOps = Array.from(opMap.values()).filter(childOp =>
+        const childOps = getAllOps().filter((childOp: Operator<IOperator>) =>
           childOp.id.startsWith(`${id}/`)
         )
 
@@ -527,17 +527,17 @@ function NodeHeader({ id, type, op }: { id: string; type: OpType; op: OperatorIn
           const oldChildId = childOp.id
           // Replace only the exact container path at the start
           const newChildId = newQualifiedId + oldChildId.slice(id.length)
-          opMap.set(newChildId, childOp)
+          setOp(newChildId, childOp)
           childOp.id = newChildId
           // TODO: this is a hack. We should hook into some sort of "after update" event
-          queueMicrotask(() => opMap.delete(oldChildId))
+          queueMicrotask(() => deleteOp(oldChildId))
         }
       }
 
       // Give React time to update the component tree before deleting the old id
       // TODO: this is a hack. We should hook into some sort of "after update" event
       queueMicrotask(() => {
-        opMap.delete(id)
+        deleteOp(id)
       })
 
       // Update React Flow nodes and edges

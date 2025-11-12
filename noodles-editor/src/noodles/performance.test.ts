@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { CodeOp, JSONOp, NumberOp } from './operators'
-import { getOp, opMap } from './store'
+import { clearOps, deleteOp, getAllOps, getOp, setOp, getOpStore } from './store'
 import {
   getBaseName,
   getDirectChildren,
@@ -13,11 +13,11 @@ import {
 
 describe('Performance Tests for Qualified Paths', () => {
   beforeEach(() => {
-    opMap.clear()
+    clearOps()
   })
 
   afterEach(() => {
-    opMap.clear()
+    clearOps()
   })
 
   describe('Path Resolution Performance', () => {
@@ -36,7 +36,7 @@ describe('Performance Tests for Qualified Paths', () => {
           const fullPath = `/${pathSegments.join('/')}`
 
           const operator = new NumberOp(fullPath, { val: 42 })
-          opMap.set(fullPath, operator)
+          setOp(fullPath, operator)
         }
       }
 
@@ -87,7 +87,7 @@ describe('Performance Tests for Qualified Paths', () => {
       for (let i = 1; i <= operatorCount; i++) {
         const path = `/operator${i}`
         const operator = new NumberOp(path, { val: i })
-        opMap.set(path, operator)
+        setOp(path, operator)
       }
 
       const setupTime = performance.now() - startTime
@@ -122,7 +122,7 @@ describe('Performance Tests for Qualified Paths', () => {
         operators.forEach(op => {
           const path = `/${container}/${op}`
           const operator = new CodeOp(path, { code: `// ${op} in ${container}` })
-          opMap.set(path, operator)
+          setOp(path, operator)
         })
       })
 
@@ -168,7 +168,7 @@ describe('Performance Tests for Qualified Paths', () => {
         for (let i = 1; i <= 100; i++) {
           const path = `/temp${cycle}/operator${i}`
           const operator = new NumberOp(path, { val: i })
-          opMap.set(path, operator)
+          setOp(path, operator)
         }
 
         // Perform path operations
@@ -183,7 +183,7 @@ describe('Performance Tests for Qualified Paths', () => {
         // Clean up
         for (let i = 1; i <= 100; i++) {
           const path = `/temp${cycle}/operator${i}`
-          opMap.delete(path)
+          deleteOp(path)
         }
       }
 
@@ -223,7 +223,7 @@ describe('Performance Tests for Qualified Paths', () => {
           const operator = new JSONOp(path, {
             text: JSON.stringify({ level: currentDepth, index: i }),
           })
-          opMap.set(path, operator)
+          setOp(path, operator)
           totalOperators++
 
           createLevel(path, currentDepth + 1)
@@ -254,7 +254,7 @@ describe('Performance Tests for Qualified Paths', () => {
             level === 0
               ? `/container${i}`
               : `/container1/${'container1/'.repeat(level - 1)}container${i}`
-          const children = getDirectChildren(parentPath, opMap)
+          const children = getDirectChildren(parentPath)
           expect(children.length).toBe(breadth)
         }
       }
@@ -277,7 +277,7 @@ describe('Performance Tests for Qualified Paths', () => {
         for (let o = 1; o <= operatorsPerContainer; o++) {
           const path = `/container${c}/operator${o}`
           const operator = new NumberOp(path, { val: o })
-          opMap.set(path, operator)
+          setOp(path, operator)
         }
       }
 
@@ -288,7 +288,7 @@ describe('Performance Tests for Qualified Paths', () => {
         const containerPath = `/container${c}`
         let withinCount = 0
 
-        for (const [operatorId] of opMap) {
+        for (const [operatorId] of getOpStore().operators) {
           if (isWithinContainer(operatorId, containerPath)) {
             withinCount++
           }
@@ -299,11 +299,11 @@ describe('Performance Tests for Qualified Paths', () => {
 
       const queryTime = performance.now() - startTime
       console.log(
-        `Container query time for ${containers * opMap.size} checks: ${queryTime.toFixed(2)}ms`
+        `Container query time for ${containers * getAllOps().length} checks: ${queryTime.toFixed(2)}ms`
       )
 
       // Container queries should be efficient
-      expect(queryTime / (containers * opMap.size)).toBeLessThan(0.001)
+      expect(queryTime / (containers * getAllOps().length)).toBeLessThan(0.001)
     })
   })
 })

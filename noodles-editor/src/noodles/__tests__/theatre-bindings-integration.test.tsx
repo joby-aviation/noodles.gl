@@ -1,7 +1,7 @@
 import { getProject } from '@theatre/core'
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 
-import { opMap, sheetObjectMap } from '../store'
+import { clearOps, getAllOps, hasSheetObject, getSheetObject, getOpStore, getAllSheetObjectIds } from '../store'
 import { transformGraph } from '../transform-graph'
 import { bindAllOperatorsToTheatre, cleanupRemovedOperators } from '../theatre-bindings'
 import type { Edge } from '../noodles'
@@ -16,13 +16,11 @@ describe('Theatre bindings integration', () => {
     const projectName = `integration-${testCounter++}`
     testProject = getProject(projectName, {})
     testSheet = testProject.sheet('test-sheet')
-    opMap.clear()
-    sheetObjectMap.clear()
+    clearOps()
   })
 
   afterEach(() => {
-    opMap.clear()
-    sheetObjectMap.clear()
+    clearOps()
   })
 
   it('should bind operators created by transformGraph', () => {
@@ -56,18 +54,18 @@ describe('Theatre bindings integration', () => {
     const operators = transformGraph({ nodes, edges })
 
     expect(operators.length).toBeGreaterThan(0)
-    expect(opMap.size).toBeGreaterThan(0)
+    expect(getAllOps().length).toBeGreaterThan(0)
 
     // Bind all operators using the new centralized approach
     const cleanupFns = bindAllOperatorsToTheatre(operators, testSheet)
 
     // Verify bindings were created
-    const boundOps = operators.filter(op => sheetObjectMap.has(op.id))
+    const boundOps = operators.filter(op => hasSheetObject(op.id))
     expect(boundOps.length).toBeGreaterThan(0)
 
     // Verify each bound operator has compatible fields
     for (const op of boundOps) {
-      const sheetObj = sheetObjectMap.get(op.id)
+      const sheetObj = getSheetObject(op.id)
       expect(sheetObj).toBeDefined()
     }
 
@@ -77,7 +75,7 @@ describe('Theatre bindings integration', () => {
     }
 
     // Verify cleanup worked
-    expect(sheetObjectMap.size).toBe(0)
+    expect(getOpStore().sheetObjects.size).toBe(0)
   })
 
   it('should handle dynamic operator addition and removal', () => {
@@ -101,7 +99,7 @@ describe('Theatre bindings integration', () => {
     let currentIds = new Set(operators.map(op => op.id))
     cleanupRemovedOperators(currentIds, testSheet)
 
-    const initialBoundCount = Array.from(sheetObjectMap.keys()).length
+    const initialBoundCount = getAllSheetObjectIds().length
     expect(initialBoundCount).toBe(1)
 
     // Add another operator
@@ -139,7 +137,7 @@ describe('Theatre bindings integration', () => {
     cleanupRemovedOperators(currentIds, testSheet)
 
     // Should have more bound operators now
-    const newBoundCount = Array.from(sheetObjectMap.keys()).filter(
+    const newBoundCount = getAllSheetObjectIds().filter(
       id => id !== '/out'
     ).length
     expect(newBoundCount).toBeGreaterThanOrEqual(initialBoundCount)
@@ -181,7 +179,7 @@ describe('Theatre bindings integration', () => {
 
     // Child operator inside container should be bound to Theatre
     // (Container itself may not have compatible fields)
-    expect(sheetObjectMap.has('/container/number-in-container')).toBe(true)
+    expect(hasSheetObject('/container/number-in-container')).toBe(true)
 
     // Verify cleanup functions were created
     expect(cleanupFns).toBeDefined()
@@ -253,7 +251,7 @@ describe('Theatre bindings integration', () => {
       const operators = transformGraph({ nodes, edges: [] })
       const cleanupFns = bindAllOperatorsToTheatre(operators, testSheet)
 
-      expect(sheetObjectMap.size).toBeGreaterThan(0)
+      expect(getOpStore().sheetObjects.size).toBeGreaterThan(0)
 
       for (const cleanup of cleanupFns.values()) {
         cleanup()

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { CodeOp, JSONOp, NumberOp } from './operators'
-import { getOp, opMap } from './store'
+import { clearOps, getOp, getOpEntries, hasOp, setOp } from './store'
 import {
   generateQualifiedPath,
   getBaseName,
@@ -15,11 +15,11 @@ import {
 
 describe('Path Format Validation', () => {
   beforeEach(() => {
-    opMap.clear()
+    clearOps()
   })
 
   afterEach(() => {
-    opMap.clear()
+    clearOps()
   })
 
   describe('Path Format Consistency', () => {
@@ -225,11 +225,11 @@ describe('Path Format Validation', () => {
       ]
 
       operators.forEach(op => {
-        opMap.set(op.id, op)
+        setOp(op.id, op)
       })
 
       // Validate all operators have valid path IDs
-      for (const [id, op] of opMap) {
+      for (const [id, op] of getOpEntries()) {
         expect(isValidPath(id), `OpMap key should be valid path: ${id}`).toBe(true)
         expect(op.id, `Operator ID should match map key: ${id}`).toBe(id)
         expect(isValidPath(op.id), `Operator ID should be valid path: ${op.id}`).toBe(true)
@@ -245,7 +245,7 @@ describe('Path Format Validation', () => {
       ]
 
       testOps.forEach(op => {
-        opMap.set(op.id, op)
+        setOp(op.id, op)
       })
 
       // Test direct lookup
@@ -267,7 +267,7 @@ describe('Path Format Validation', () => {
         const resolved = resolvePath(path, contextOp)
         expect(resolved, `Resolution of ${path} from ${contextOp}`).toBe(expected)
 
-        if (opMap.has(expected)) {
+        if (hasOp(expected)) {
           const foundOp = getOp(path, contextOp)
           expect(foundOp, `Should find operator via relative path: ${path}`).toBeDefined()
           expect(foundOp?.id, 'Found operator should have correct ID').toBe(expected)

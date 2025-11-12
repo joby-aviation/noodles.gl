@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { CodeOp, DuckDbOp, JSONOp, NumberOp } from './operators'
-import { getOp, opMap } from './store'
+import { clearOps, getOp, getOpStore, setOp } from './store'
 import {
   generateQualifiedPath,
   getBaseName,
@@ -18,11 +18,11 @@ import {
 
 describe('Fully Qualified Operator Paths - Comprehensive Tests', () => {
   beforeEach(() => {
-    opMap.clear()
+    clearOps()
   })
 
   afterEach(() => {
-    opMap.clear()
+    clearOps()
   })
 
   describe('Path Resolution Functions', () => {
@@ -135,10 +135,10 @@ describe('Fully Qualified Operator Paths - Comprehensive Tests', () => {
       const nestedOp = new NumberOp('/container/sub/op2', { val: 3 })
       const deepOp = new NumberOp('/deep/nested/container/op3', { val: 4 })
 
-      opMap.set('/root-op', rootOp)
-      opMap.set('/container/op1', containerOp)
-      opMap.set('/container/sub/op2', nestedOp)
-      opMap.set('/deep/nested/container/op3', deepOp)
+      setOp('/root-op', rootOp)
+      setOp('/container/op1', containerOp)
+      setOp('/container/sub/op2', nestedOp)
+      setOp('/deep/nested/container/op3', deepOp)
     })
 
     describe('Absolute Path Lookup', () => {
@@ -172,8 +172,8 @@ describe('Fully Qualified Operator Paths - Comprehensive Tests', () => {
         // Set up additional test operators
         const sameContainerOp2 = new NumberOp('/container/op2', { val: 5 })
         const sameContainerOp3 = new NumberOp('/container/op3', { val: 6 })
-        opMap.set('/container/op2', sameContainerOp2)
-        opMap.set('/container/op3', sameContainerOp3)
+        setOp('/container/op2', sameContainerOp2)
+        setOp('/container/op3', sameContainerOp3)
 
         // Same-container with ./
         const op1 = getOp('./op2', '/container/op1')
@@ -363,29 +363,29 @@ describe('Container Integration Tests', () => {
       const otherChild = new NumberOp('/other/child', { val: 4 })
       const rootOp = new NumberOp('/root-op', { val: 5 })
 
-      opMap.set('/container', containerOp)
-      opMap.set('/container/child1', child1)
-      opMap.set('/container/child2', child2)
-      opMap.set('/container/child1/grandchild', grandchild)
-      opMap.set('/other/child', otherChild)
-      opMap.set('/root-op', rootOp)
+      setOp('/container', containerOp)
+      setOp('/container/child1', child1)
+      setOp('/container/child2', child2)
+      setOp('/container/child1/grandchild', grandchild)
+      setOp('/other/child', otherChild)
+      setOp('/root-op', rootOp)
     })
 
     it('returns direct children only and handles within container detection', () => {
       // Direct children
-      const children = getDirectChildren('/container', opMap)
+      const children = getDirectChildren('/container', getOpStore().operators)
       expect(children).toHaveLength(2)
       expect(children.map(c => c.id).sort()).toEqual(['/container/child1', '/container/child2'])
 
       // Empty array for containers with no children
-      const noChildren = getDirectChildren('/container/child2', opMap)
+      const noChildren = getDirectChildren('/container/child2', getOpStore().operators)
       expect(noChildren).toHaveLength(0)
 
       // Does not include grandchildren
       expect(children.find(c => c.id === '/container/child1/grandchild')).toBeUndefined()
 
       // Non-existent containers
-      const nonExistent = getDirectChildren('/non-existent', opMap)
+      const nonExistent = getDirectChildren('/non-existent', getOpStore().operators)
       expect(nonExistent).toHaveLength(0)
 
       // Within container detection
@@ -407,14 +407,14 @@ describe('Integration with Operator Mustache References', () => {
     const containerOp = new NumberOp('/container/source', { val: 100 })
     const nestedOp = new NumberOp('/container/nested/source', { val: 200 })
 
-    opMap.set('/source', sourceOp)
-    opMap.set('/container/source', containerOp)
-    opMap.set('/container/nested/source', nestedOp)
+    setOp('/source', sourceOp)
+    setOp('/container/source', containerOp)
+    setOp('/container/nested/source', nestedOp)
   })
 
   it('resolves qualified paths in CodeOp mustache references', async () => {
     const codeOp = new CodeOp('/container/code', { code: 'return {{/source.par.val}} + d' })
-    opMap.set('/container/code', codeOp)
+    setOp('/container/code', codeOp)
 
     const result = await codeOp.execute({ data: [10], code: 'return {{/source.par.val}} + d' })
     expect(result.data).toBe(52) // 42 + 10
@@ -422,7 +422,7 @@ describe('Integration with Operator Mustache References', () => {
 
   it('resolves qualified paths in JSONOp mustache references', () => {
     const jsonOp = new JSONOp('/container/json', { text: '{"value": {{./source.par.val}}}' })
-    opMap.set('/container/json', jsonOp)
+    setOp('/container/json', jsonOp)
 
     const result = jsonOp.execute({ text: '{"value": {{./source.par.val}}}' })
     expect(result.data).toEqual({ value: 100 })
@@ -432,7 +432,7 @@ describe('Integration with Operator Mustache References', () => {
     const duckDbOp = new DuckDbOp('/container/nested/duckdb', {
       query: 'SELECT {{../source.par.val}} as value',
     })
-    opMap.set('/container/nested/duckdb', duckDbOp)
+    setOp('/container/nested/duckdb', duckDbOp)
 
     const result = await duckDbOp.execute({ query: 'SELECT {{../source.par.val}} as value' })
     expect(result?.data).toEqual([expect.objectContaining({ value: 100 })])
@@ -442,7 +442,7 @@ describe('Integration with Operator Mustache References', () => {
     const jsonOp = new JSONOp('/container/json', {
       text: '{"value": {{./non-existent.par.val}}}',
     })
-    opMap.set('/container/json', jsonOp)
+    setOp('/container/json', jsonOp)
 
     expect(() => {
       jsonOp.execute({ text: '{"value": {{./non-existent.par.val}}}' })

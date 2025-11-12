@@ -25,7 +25,7 @@ import {
   Vec3Field,
 } from './fields'
 import type { IOperator, Operator } from './operators'
-import { sheetObjectMap } from './store'
+import { getOpStore } from './store'
 import { getBaseName } from './utils/path-utils'
 
 // Helper to recursively convert fields to Theatre props
@@ -121,11 +121,13 @@ export function bindOperatorToTheatre(
   op: Operator<IOperator>,
   sheet: ISheet
 ): (() => void) | undefined {
+  const store = getOpStore()
+
   // Skip special operators
   if (op.id === '/out') return undefined
 
   // Skip if already bound
-  if (sheetObjectMap.has(op.id)) return undefined
+  if (store.hasSheetObject(op.id)) return undefined
 
   const untapFns: Array<() => void> = []
   const fields: Array<[string, Field<IField>]> = []
@@ -168,7 +170,7 @@ export function bindOperatorToTheatre(
   // Create Theatre sheet object
   const basename = getBaseName(op.id)
   const sheetObj = sheet.object(basename, propConfig)
-  sheetObjectMap.set(op.id, sheetObj)
+  store.setSheetObject(op.id, sheetObj)
 
   // Set up two-way bindings
   for (const [key, field] of fields) {
@@ -243,17 +245,18 @@ export function bindOperatorToTheatre(
       untap()
     }
     sheet.detachObject(basename)
-    sheetObjectMap.delete(op.id)
+    store.deleteSheetObject(op.id)
   }
 }
 
 // Unbind an operator from Theatre
 export function unbindOperatorFromTheatre(opId: string, sheet: ISheet): void {
-  const sheetObj = sheetObjectMap.get(opId)
+  const store = getOpStore()
+  const sheetObj = store.getSheetObject(opId)
   if (sheetObj) {
     const basename = getBaseName(opId)
     sheet.detachObject(basename)
-    sheetObjectMap.delete(opId)
+    store.deleteSheetObject(opId)
   }
 }
 
@@ -279,9 +282,12 @@ export function cleanupRemovedOperators(
   currentOperatorIds: Set<string>,
   sheet: ISheet
 ): void {
-  for (const opId of sheetObjectMap.keys()) {
-    if (!currentOperatorIds.has(opId)) {
-      unbindOperatorFromTheatre(opId, sheet)
+  const store = getOpStore()
+
+  // Find operators that have sheet objects
+  for (const op of store.getAllOps()) {
+    if (store.hasSheetObject(op.id) && !currentOperatorIds.has(op.id)) {
+      unbindOperatorFromTheatre(op.id, sheet)
     }
   }
 }

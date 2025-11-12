@@ -1,6 +1,6 @@
 import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react'
 import { useCallback, useRef } from 'react'
-import { useSlice } from '../store'
+import { getOpStore } from '../store'
 import type { NodesProjectJSON } from './serialization'
 import { serializeEdges, serializeNodes } from './serialization'
 import { UndoRedoManager } from './undo-redo-manager'
@@ -12,13 +12,10 @@ export function useUndoRedo(
   loadProjectFile: (project: NodesProjectJSON, name?: string) => void,
   currentProject: NodesProjectJSON
 ) {
-  const ops = useSlice(state => state.ops)
-
   // Create manager only once using useRef
   const managerRef = useRef<UndoRedoManager | null>(null)
 
   // Store current values in refs so the functions can access latest values
-  const currentOps = useRef(ops)
   const currentNodes = useRef(nodes)
   const currentEdges = useRef(edges)
   const currentGetTimelineJson = useRef(getTimelineJson)
@@ -26,7 +23,6 @@ export function useUndoRedo(
   const currentProjectRef = useRef(currentProject)
 
   // Update refs on every render
-  currentOps.current = ops
   currentNodes.current = nodes
   currentEdges.current = edges
   currentGetTimelineJson.current = getTimelineJson
@@ -36,12 +32,12 @@ export function useUndoRedo(
   if (!managerRef.current) {
     const getCurrentState = (): NodesProjectJSON => {
       const serializedNodes = serializeNodes(
-        currentOps.current,
+        getOpStore(),
         currentNodes.current,
         currentEdges.current
       )
       const serializedEdges = serializeEdges(
-        currentOps.current,
+        getOpStore(),
         currentNodes.current,
         currentEdges.current
       ) as ReactFlowEdge[]

@@ -178,7 +178,7 @@ import {
   WidgetField,
 } from './fields'
 import { DEFAULT_LATITUDE, DEFAULT_LONGITUDE, safeMode } from './globals'
-import { getOp, opMap } from './store'
+import { getOp, hasOp, getAllOps } from './store'
 import { composeAccessor, isAccessor } from './utils/accessor-helpers'
 import type { ExtractProps } from './utils/extract-props'
 import { projectScheme } from './utils/filesystem'
@@ -2001,7 +2001,7 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
         .pipe(debounceTime(200))
         .subscribe(() => {
           // Only run if the operator is still mounted
-          if (opMap.has(beginOp.id)) {
+          if (hasOp(beginOp.id)) {
             runForLoop()
           }
         })
@@ -4079,7 +4079,7 @@ export class ContainerOp extends Operator<ContainerOp> {
     let outputValue = null
     // The 'in' port of ContainerOp drives its execution.
     // The 'out' port should reflect the value from a GraphOutputOp inside it.
-    for (const op of opMap.values()) {
+    for (const op of getAllOps()) {
       if (op instanceof GraphOutputOp && isDirectChild(op.id, this.id)) {
         outputValue = op.outputs.propagatedValue.value
         break // Take the first one found

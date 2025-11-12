@@ -7,7 +7,7 @@ import { type Dispatch, type SetStateAction, useCallback, useEffect, useState } 
 import newProjectJSON from '../../../public/noodles/new/noodles.json?url'
 import { useActiveStorageType, useFileSystemStore } from '../filesystem-store'
 import { load, save, getProjectDirectoryHandle } from '../storage'
-import { useSlice } from '../store'
+import { getOpStore } from '../store'
 import { directoryExists, type StorageType } from '../utils/filesystem'
 import { migrateProject } from '../utils/migrate-schema'
 import {
@@ -428,7 +428,6 @@ export function NoodlesMenubar({
 }) {
   const [recentlyOpened, setRecentlyOpened] = useState<RecentProject[]>([])
   const { toObject } = useReactFlow()
-  const ops = useSlice(state => state.ops)
   const storageType = useActiveStorageType()
   const { setCurrentDirectory, setError } = useFileSystemStore()
 
@@ -471,9 +470,10 @@ export function NoodlesMenubar({
 
   const getNoodlesProjectJson = useCallback((): NoodlesProjectJSON => {
     const { nodes, edges, viewport } = toObject()
+    const store = getOpStore()
     // sync op and node data
-    const serializedNodes = serializeNodes(ops, nodes, edges)
-    const serializedEdges = serializeEdges(ops, nodes, edges)
+    const serializedNodes = serializeNodes(store, nodes, edges)
+    const serializedEdges = serializeEdges(store, nodes, edges)
     const timeline = getTimelineJson()
 
     return {
@@ -483,7 +483,7 @@ export function NoodlesMenubar({
       timeline,
       version: NOODLES_VERSION,
     }
-  }, [toObject, ops, getTimelineJson])
+  }, [toObject, getTimelineJson])
 
   // Basic save case. If the project is already named, save it.
   // Cache-aware: save will prompt user if project directory not cached for fileSystemAccess

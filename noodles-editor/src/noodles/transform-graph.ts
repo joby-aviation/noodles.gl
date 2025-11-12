@@ -3,7 +3,7 @@ import { getIncomers, type Node as ReactFlowNode } from '@xyflow/react'
 import type { Edge } from './noodles'
 import type { IOperator, Operator, OpType } from './operators'
 import { ContainerOp, ForLoopEndOp, GraphInputOp, opTypes } from './operators'
-import { opMap } from './store'
+import { getOpStore } from './store'
 import { memoize } from './utils/memoize'
 import { getParentPath, isDirectChild, parseHandleId } from './utils/path-utils'
 
@@ -63,35 +63,42 @@ export function transformGraph<
   T extends OpType,
 >({ nodes: _nodes, edges }: { nodes: NodeJSON<unknown>[]; edges: E[] }): OP[] {
   const nodes = _nodes.filter(n => opTypes[n.type as T] !== undefined) as NodeJSON<OpType>[]
-
-  for (const [id] of opMap) {
-    if (!nodes.find(n => n.id === id)) {
-      const op = opMap.get(id)
-      op?.dispose()
-      opMap.delete(id)
-    }
-  }
+  const store = getOpStore()
 
   const sortedNodes = topologicalSort(nodes, edges)
-
   const created: Operator<IOperator>[] = []
-  const instances = sortedNodes.map(({ id, data, type }) => {
-    let op = opMap.get(id)
+  let instances: OP[] = []
 
-    if (!op) {
-      const ctor = opTypes[type]
-      const containerId = getParentPath(id)
-      // Create operator with fully qualified path as id and store containerId
-      op = new ctor(id, data?.inputs, data?.locked, containerId) as unknown as OP
-      if (ctor.cacheable) {
-        op.execute = memoize(op.execute)
+  // Batch all store operations for performance
+  store.batch(() => {
+    // Delete operators that are no longer in the graph
+    for (const [id] of store.getOpEntries()) {
+      if (!nodes.find(n => n.id === id)) {
+        const op = store.getOp(id)
+        op?.dispose()
+        store.deleteOp(id)
       }
-      created.push(op)
-      // Store operator in opMap using fully qualified path
-      opMap.set(id, op)
     }
 
-    return op
+    // Create or retrieve operators
+    instances = sortedNodes.map(({ id, data, type }) => {
+      let op = store.getOp(id)
+
+      if (!op) {
+        const ctor = opTypes[type]
+        const containerId = getParentPath(id)
+        // Create operator with fully qualified path as id and store containerId
+        op = new ctor(id, data?.inputs, data?.locked, containerId) as unknown as OP
+        if (ctor.cacheable) {
+          op.execute = memoize(op.execute)
+        }
+        created.push(op)
+        // Store operator in store using fully qualified path
+        store.setOp(id, op)
+      }
+
+      return op
+    }) as OP[]
   })
 
   for (const op of created) {
@@ -151,7 +158,7 @@ export function transformGraph<
 
   for (const node of sortedNodes) {
     const chain: Operator<IOperator>[] = []
-    const op = opMap.get(node.id)
+    const op = store.getOp(node.id)
     if (!op) continue
 
     if (op instanceof ForLoopEndOp) {
@@ -163,7 +170,7 @@ export function transformGraph<
           edges
         ) as NodeJSON<OpType>[]
         for (const incomer of incomers) {
-          const chainOp = opMap.get(incomer.id)!
+          const chainOp = store.getOp(incomer.id)!
           chain.push(chainOp)
 
           if (incomer.type !== 'ForLoopBeginOp') {
@@ -182,10 +189,10 @@ export function transformGraph<
   }
 
   // Container to GraphInput propagation
-  for (const op of opMap.values()) {
+  for (const op of store.getAllOps()) {
     if (op instanceof ContainerOp) {
       const containerOp = op
-      for (const childOp of opMap.values()) {
+      for (const childOp of store.getAllOps()) {
         if (childOp instanceof GraphInputOp && isDirectChild(childOp.id, containerOp.id)) {
           const parentValueField = childOp.inputs.parentValue
           const containerInField = containerOp.inputs.in

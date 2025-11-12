@@ -3,7 +3,7 @@
 import type { Node as ReactFlowNode } from '@xyflow/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MathOp, NumberOp } from '../operators'
-import { opMap } from '../store'
+import { clearOps, getAllOps, getOp, hasOp } from '../store'
 import { transformGraph } from '../transform-graph'
 
 // Mock Theatre.js studio to avoid side effects
@@ -19,7 +19,7 @@ vi.mock('@theatre/studio', () => ({
 
 describe('Noodles Graph Integration', () => {
   afterEach(() => {
-    opMap.clear()
+    clearOps()
   })
 
   it('creates operators when transforming a graph with nodes and edges', () => {
@@ -67,13 +67,13 @@ describe('Noodles Graph Integration', () => {
     expect(operators).toHaveLength(3)
 
     // All operators should be in the opMap
-    expect(opMap.size).toBeGreaterThanOrEqual(3)
-    expect(opMap.has('/num1')).toBe(true)
-    expect(opMap.has('/num2')).toBe(true)
-    expect(opMap.has('/add')).toBe(true)
+    expect(getAllOps().length).toBeGreaterThanOrEqual(3)
+    expect(hasOp('/num1')).toBe(true)
+    expect(hasOp('/num2')).toBe(true)
+    expect(hasOp('/add')).toBe(true)
 
     // Verify the connections were established
-    const addOp = opMap.get('/add')
+    const addOp = getOp('/add')
     expect(addOp).toBeDefined()
     expect(addOp!.inputs.a.subscriptions.size).toBe(1)
     expect(addOp!.inputs.b.subscriptions.size).toBe(1)
@@ -121,8 +121,8 @@ describe('Noodles Graph Integration', () => {
     // Create the initial graph
     transformGraph({ nodes, edges })
 
-    expect(opMap.size).toBeGreaterThanOrEqual(3)
-    const middleOp = opMap.get('/middle')
+    expect(getAllOps().length).toBeGreaterThanOrEqual(3)
+    const middleOp = getOp('/middle')
     expect(middleOp).toBeDefined()
 
     // Now remove the middle node and create a direct connection
@@ -150,10 +150,10 @@ describe('Noodles Graph Integration', () => {
     expect(newOperators).toHaveLength(2)
     // The middle operator should be removed from opMap by transformGraph
     // (it calls dispose() and deletes operators not in the nodes list)
-    expect(opMap.has('/middle')).toBe(false)
+    expect(hasOp('/middle')).toBe(false)
 
     // Verify the new connection
-    const finalOp = opMap.get('/final')
+    const finalOp = getOp('/final')
     expect(finalOp).toBeDefined()
     expect(finalOp!.inputs.a.subscriptions.size).toBe(1)
   })
@@ -170,9 +170,9 @@ describe('Noodles Graph Integration', () => {
     ]
 
     transformGraph({ nodes: initialNodes, edges: [] })
-    const initialSize = opMap.size
-    expect(opMap.size).toBeGreaterThanOrEqual(1)
-    const num1Op = opMap.get('/num1')
+    const initialSize = getAllOps().length
+    expect(getAllOps().length).toBeGreaterThanOrEqual(1)
+    const num1Op = getOp('/num1')
 
     // Add a new node - in the app, transformGraph is called again
     // with updated nodes/edges, reusing existing operators
@@ -190,11 +190,11 @@ describe('Noodles Graph Integration', () => {
     const operators = transformGraph({ nodes: updatedNodes, edges: [] })
 
     expect(operators).toHaveLength(2)
-    expect(opMap.has('/num2')).toBe(true)
+    expect(hasOp('/num2')).toBe(true)
     // Verify the original operator was reused
-    expect(opMap.get('/num1')).toBe(num1Op)
+    expect(getOp('/num1')).toBe(num1Op)
     // opMap should have grown by 1
-    expect(opMap.size).toBe(initialSize + 1)
+    expect(getAllOps().length).toBe(initialSize + 1)
   })
 
   it('connects two existing nodes', () => {
@@ -216,7 +216,7 @@ describe('Noodles Graph Integration', () => {
     // Start with no connections
     transformGraph({ nodes, edges: [] })
 
-    const addOp = opMap.get('/add')
+    const addOp = getOp('/add')
     expect(addOp).toBeDefined()
     expect(addOp!.inputs.a.subscriptions.size).toBe(0)
 
@@ -234,7 +234,7 @@ describe('Noodles Graph Integration', () => {
     // Transform again without clearing - operators are reused and connection is established
     transformGraph({ nodes, edges })
 
-    const connectedAddOp = opMap.get('/add')
+    const connectedAddOp = getOp('/add')
     expect(connectedAddOp).toBeDefined()
     // Should be the same operator instance
     expect(connectedAddOp).toBe(addOp)
@@ -307,7 +307,7 @@ describe('Noodles Graph Integration', () => {
     expect(operators).toHaveLength(4)
 
     // Verify all connections
-    const multiplyOp = opMap.get('/multiply')
+    const multiplyOp = getOp('/multiply')
     expect(multiplyOp).toBeDefined()
     expect(multiplyOp!.inputs.a.subscriptions.size).toBe(1)
     expect(multiplyOp!.inputs.b.subscriptions.size).toBe(1)
@@ -348,7 +348,7 @@ describe('Noodles Graph Integration', () => {
 
     transformGraph({ nodes, edges: edges1 })
 
-    const addOp1 = opMap.get('/add')
+    const addOp1 = getOp('/add')
     expect(addOp1!.inputs.a.subscriptions.size).toBe(1)
 
     // Replace connection: num1 with num2
@@ -365,7 +365,7 @@ describe('Noodles Graph Integration', () => {
 
     transformGraph({ nodes, edges: edges2 })
 
-    const addOp2 = opMap.get('/add')
+    const addOp2 = getOp('/add')
     // Should be the same operator instance
     expect(addOp2).toBe(addOp1)
     // Should still have exactly 1 subscription (the new one replaces the old)
