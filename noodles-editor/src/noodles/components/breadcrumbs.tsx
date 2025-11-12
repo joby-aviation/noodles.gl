@@ -26,7 +26,8 @@ export const Breadcrumbs: FC = () => {
 
   const getMenuItems = (containerId: string) => {
     const store = getOpStore()
-    return store.getOpEntries()
+    return store
+      .getOpEntries()
       .filter(
         ([key, op]) =>
           key !== containerId && getParentPath(key) === containerId && op instanceof ContainerOp

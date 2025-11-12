@@ -284,13 +284,18 @@ export function useUndoRedo() {
       .flatMap(n => {
         const current = currentNodes.find(cn => cn.id === n.id)
         // Check if position changed
-        if (current && (current.position.x !== n.position.x || current.position.y !== n.position.y)) {
-          return [{
-            type: 'position' as const,
-            id: n.id,
-            position: n.position,
-            dragging: false,
-          }]
+        if (
+          current &&
+          (current.position.x !== n.position.x || current.position.y !== n.position.y)
+        ) {
+          return [
+            {
+              type: 'position' as const,
+              id: n.id,
+              position: n.position,
+              dragging: false,
+            },
+          ]
         }
         return []
       })
@@ -365,13 +370,18 @@ export function useUndoRedo() {
       .flatMap(n => {
         const current = currentNodes.find(cn => cn.id === n.id)
         // Check if position changed
-        if (current && (current.position.x !== n.position.x || current.position.y !== n.position.y)) {
-          return [{
-            type: 'position' as const,
-            id: n.id,
-            position: n.position,
-            dragging: false,
-          }]
+        if (
+          current &&
+          (current.position.x !== n.position.x || current.position.y !== n.position.y)
+        ) {
+          return [
+            {
+              type: 'position' as const,
+              id: n.id,
+              position: n.position,
+              dragging: false,
+            },
+          ]
         }
         return []
       })

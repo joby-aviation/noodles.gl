@@ -2,12 +2,7 @@
 // Tests renaming nodes with connections, copying containers, and deletion edge cases
 import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  clearOps,
-  getOp,
-  getOpStore,
-  hasOp,
-} from '../store'
+import { clearOps, getOp, getOpStore, hasOp } from '../store'
 import { transformGraph } from '../transform-graph'
 import { edgeId, nodeId } from '../utils/id-utils'
 import { getBaseName } from '../utils/path-utils'
@@ -18,9 +13,11 @@ import '../operators'
 // Mock Theatre.js studio to avoid side effects
 vi.mock('@theatre/studio', () => ({
   default: {
-    transaction: vi.fn((fn) => fn({
-      __experimental_forgetSheet: vi.fn(),
-    })),
+    transaction: vi.fn(fn =>
+      fn({
+        __experimental_forgetSheet: vi.fn(),
+      })
+    ),
     setSelection: vi.fn(),
     createContentOfSaveFile: vi.fn(() => ({ sheetsById: {} })),
   },
@@ -86,10 +83,7 @@ function createTestGraph(options: TestGraphOptions = {}) {
         sourceHandle: 'out.result',
         targetHandle: 'par.a',
       }
-      edges.push(
-        { ...edge1, id: edgeId(edge1) },
-        { ...edge2, id: edgeId(edge2) }
-      )
+      edges.push({ ...edge1, id: edgeId(edge1) }, { ...edge2, id: edgeId(edge2) })
     }
   } else {
     // Container with children
@@ -158,10 +152,7 @@ function createTestGraph(options: TestGraphOptions = {}) {
         sourceHandle: 'out.result',
         targetHandle: 'par.a',
       }
-      edges.push(
-        { ...edge1, id: edgeId(edge1) },
-        { ...edge2, id: edgeId(edge2) }
-      )
+      edges.push({ ...edge1, id: edgeId(edge1) }, { ...edge2, id: edgeId(edge2) })
 
       if (nestedContainers) {
         const edge3 = {
@@ -199,7 +190,7 @@ function verifyGraphConsistency(nodes: ReactFlowNode[], edges: ReactFlowEdge[]) 
   // Every child node should have a valid parent
   for (const node of nodes) {
     if (node.parentId) {
-      const parent = nodes.find((n) => n.id === node.parentId)
+      const parent = nodes.find(n => n.id === node.parentId)
       expect(parent).toBeDefined()
       expect(parent?.type).toBe('ContainerOp')
     }
@@ -215,7 +206,7 @@ function renameNode(
   edges: ReactFlowEdge[]
 ): { nodes: ReactFlowNode[]; edges: ReactFlowEdge[] } {
   // Find the node to rename
-  const node = nodes.find((n) => n.id === oldId)
+  const node = nodes.find(n => n.id === oldId)
   if (!node) {
     throw new Error(`Node not found: ${oldId}`)
   }
@@ -230,27 +221,30 @@ function renameNode(
 
   // Update React Flow nodes ONLY (no store operations)
   // transformGraph will handle creating/deleting operators
-  const updatedNodes = nodes.map((n) => {
+  const updatedNodes = nodes.map(n => {
     if (n.id === oldId) {
       return { ...n, id: newQualifiedId }
     }
     if (isContainer && n.id.startsWith(`${oldId}/`)) {
       // Update child IDs and their parentId if they reference the renamed container
       const newChildId = newQualifiedId + n.id.slice(oldId.length)
-      const newParentId = n.parentId === oldId
-        ? newQualifiedId
-        : n.parentId?.startsWith(`${oldId}/`)
-          ? newQualifiedId + n.parentId.slice(oldId.length)
-          : n.parentId
+      const newParentId =
+        n.parentId === oldId
+          ? newQualifiedId
+          : n.parentId?.startsWith(`${oldId}/`)
+            ? newQualifiedId + n.parentId.slice(oldId.length)
+            : n.parentId
       return { ...n, id: newChildId, parentId: newParentId }
     }
     return n
   })
 
   // Update React Flow edges ONLY (no store operations)
-  const updatedEdges = edges.map((edge) => {
-    const sourceNeedsUpdate = edge.source === oldId || (isContainer && edge.source.startsWith(`${oldId}/`))
-    const targetNeedsUpdate = edge.target === oldId || (isContainer && edge.target.startsWith(`${oldId}/`))
+  const updatedEdges = edges.map(edge => {
+    const sourceNeedsUpdate =
+      edge.source === oldId || (isContainer && edge.source.startsWith(`${oldId}/`))
+    const targetNeedsUpdate =
+      edge.target === oldId || (isContainer && edge.target.startsWith(`${oldId}/`))
 
     if (!sourceNeedsUpdate && !targetNeedsUpdate) return edge
 
@@ -284,12 +278,16 @@ function renameNode(
 function copyPasteNodes(
   nodesToCopy: ReactFlowNode[],
   edgesToCopy: ReactFlowEdge[],
-  allNodes: ReactFlowNode[],
+  _allNodes: ReactFlowNode[],
   currentContainerId?: string
 ): { nodes: ReactFlowNode[]; edges: ReactFlowEdge[] } {
   // Serialize nodes (simulating clipboard)
   const store = getOpStore()
-  const serialized = serializeNodes(store, nodesToCopy as ReactFlowNode<Record<string, unknown>>[], edgesToCopy)
+  const serialized = serializeNodes(
+    store,
+    nodesToCopy as ReactFlowNode<Record<string, unknown>>[],
+    edgesToCopy
+  )
 
   // Deserialize and deconflict IDs
   const idMap = new Map<string, string>()
@@ -311,13 +309,13 @@ function copyPasteNodes(
   }
 
   // Second pass: create nodes with remapped parentIds
-  const pastedNodes = serialized.map((node) => {
+  const pastedNodes = serialized.map(node => {
     const newId = idMap.get(node.id)!
     const newParentId = node.parentId ? idMap.get(node.parentId) : undefined
     return { ...node, id: newId, parentId: newParentId }
   })
 
-  const pastedEdges = edgesToCopy.map((edge) => {
+  const pastedEdges = edgesToCopy.map(edge => {
     const source = idMap.get(edge.source) || edge.source
     const target = idMap.get(edge.target) || edge.target
     return {
@@ -351,7 +349,12 @@ describe('Node Operations Integration Tests', () => {
       expect(addOp?.inputs.a.subscriptions.size).toBe(1)
 
       // Rename the middle node
-      const { nodes: updatedNodes, edges: updatedEdges } = renameNode('/add', 'addition', nodes, edges)
+      const { nodes: updatedNodes, edges: updatedEdges } = renameNode(
+        '/add',
+        'addition',
+        nodes,
+        edges
+      )
 
       // transformGraph will delete old operators and create new ones with renamed IDs
       transformGraph({ nodes: updatedNodes, edges: updatedEdges })
@@ -366,11 +369,11 @@ describe('Node Operations Integration Tests', () => {
       expect(renamedOp?.inputs.a.subscriptions.size).toBe(1)
 
       // Edge IDs should be updated
-      const incomingEdge = updatedEdges.find((e) => e.target === '/addition')
+      const incomingEdge = updatedEdges.find(e => e.target === '/addition')
       expect(incomingEdge).toBeDefined()
       expect(incomingEdge?.id).toBe('/num1.out.val->/addition.par.a')
 
-      const outgoingEdge = updatedEdges.find((e) => e.source === '/addition')
+      const outgoingEdge = updatedEdges.find(e => e.source === '/addition')
       expect(outgoingEdge).toBeDefined()
       expect(outgoingEdge?.id).toBe('/addition.out.result->/multiply.par.a')
 
@@ -408,7 +411,7 @@ describe('Node Operations Integration Tests', () => {
       expect(hasOp('/renamed-container/child2')).toBe(true)
 
       // Edges should be updated
-      const childEdge = updatedEdges.find((e) => e.source === '/renamed-container/child1')
+      const childEdge = updatedEdges.find(e => e.source === '/renamed-container/child1')
       expect(childEdge).toBeDefined()
       expect(childEdge?.id).toContain('/renamed-container/child1')
 
@@ -502,8 +505,8 @@ describe('Node Operations Integration Tests', () => {
       transformGraph({ nodes, edges })
 
       // Copy num1 and add nodes
-      const nodesToCopy = nodes.filter((n) => n.id === '/num1' || n.id === '/add')
-      const edgesToCopy = edges.filter((e) => e.source === '/num1' && e.target === '/add')
+      const nodesToCopy = nodes.filter(n => n.id === '/num1' || n.id === '/add')
+      const edgesToCopy = edges.filter(e => e.source === '/num1' && e.target === '/add')
 
       const { nodes: pastedNodes, edges: pastedEdges } = copyPasteNodes(
         nodesToCopy,
@@ -536,12 +539,12 @@ describe('Node Operations Integration Tests', () => {
       transformGraph({ nodes, edges })
 
       // Copy container (should auto-include children in real implementation)
-      const container = nodes.find((n) => n.id === '/container')!
-      const children = nodes.filter((n) => n.parentId === '/container')
+      const container = nodes.find(n => n.id === '/container')!
+      const children = nodes.filter(n => n.parentId === '/container')
 
       const nodesToCopy = [container, ...children]
       const edgesToCopy = edges.filter(
-        (e) =>
+        e =>
           (e.source === container.id || e.source.startsWith(`${container.id}/`)) &&
           (e.target === container.id || e.target.startsWith(`${container.id}/`))
       )
@@ -558,12 +561,12 @@ describe('Node Operations Integration Tests', () => {
       transformGraph({ nodes: allNodes, edges: allEdges })
 
       // Verify container was copied
-      const newContainer = pastedNodes.find((n) => n.type === 'ContainerOp')
+      const newContainer = pastedNodes.find(n => n.type === 'ContainerOp')
       expect(newContainer).toBeDefined()
       expect(newContainer?.id).not.toBe('/container')
 
       // Verify children were copied
-      const newChildren = pastedNodes.filter((n) => n.parentId === newContainer?.id)
+      const newChildren = pastedNodes.filter(n => n.parentId === newContainer?.id)
       expect(newChildren.length).toBe(2)
 
       // Verify children have correct parent ID
@@ -580,25 +583,24 @@ describe('Node Operations Integration Tests', () => {
       transformGraph({ nodes, edges })
 
       // Copy parent container with all descendants
-      const container = nodes.find((n) => n.id === '/container')!
-      const allDescendants = nodes.filter((n) => n.id.startsWith(`${container.id}/`))
+      const container = nodes.find(n => n.id === '/container')!
+      const allDescendants = nodes.filter(n => n.id.startsWith(`${container.id}/`))
 
       const nodesToCopy = [container, ...allDescendants]
       const edgesToCopy = edges.filter(
-        (e) =>
-          nodesToCopy.some((n) => n.id === e.source) && nodesToCopy.some((n) => n.id === e.target)
+        e => nodesToCopy.some(n => n.id === e.source) && nodesToCopy.some(n => n.id === e.target)
       )
 
       const { nodes: pastedNodes } = copyPasteNodes(nodesToCopy, edgesToCopy, nodes)
 
-      const allNodes = [...nodes, ...pastedNodes]
+      const _allNodes = [...nodes, ...pastedNodes]
 
       // Find the new nested structure
-      const newContainer = pastedNodes.find((n) => n.type === 'ContainerOp' && !n.parentId)
+      const newContainer = pastedNodes.find(n => n.type === 'ContainerOp' && !n.parentId)
       const newNested = pastedNodes.find(
-        (n) => n.type === 'ContainerOp' && n.parentId === newContainer?.id
+        n => n.type === 'ContainerOp' && n.parentId === newContainer?.id
       )
-      const newDeepChild = pastedNodes.find((n) => n.parentId === newNested?.id)
+      const newDeepChild = pastedNodes.find(n => n.parentId === newNested?.id)
 
       expect(newContainer).toBeDefined()
       expect(newNested).toBeDefined()
@@ -614,7 +616,7 @@ describe('Node Operations Integration Tests', () => {
       const { nodes, edges } = createTestGraph()
       transformGraph({ nodes, edges })
 
-      const nodeToCopy = nodes.find((n) => n.id === '/num1')!
+      const nodeToCopy = nodes.find(n => n.id === '/num1')!
 
       // Paste once
       const { nodes: pastedNodes1 } = copyPasteNodes([nodeToCopy], [], nodes)
@@ -649,8 +651,8 @@ describe('Node Operations Integration Tests', () => {
 
       for (const edge of pastedEdges) {
         // Source and target should be in pasted nodes
-        expect(pastedNodes.some((n) => n.id === edge.source)).toBe(true)
-        expect(pastedNodes.some((n) => n.id === edge.target)).toBe(true)
+        expect(pastedNodes.some(n => n.id === edge.source)).toBe(true)
+        expect(pastedNodes.some(n => n.id === edge.target)).toBe(true)
 
         // Edge ID should match the pattern
         expect(edge.id).toBe(edgeId(edge))
@@ -668,8 +670,8 @@ describe('Node Operations Integration Tests', () => {
       expect(hasOp('/add')).toBe(true)
 
       // Delete the node
-      const updatedNodes = nodes.filter((n) => n.id !== '/add')
-      const updatedEdges = edges.filter((e) => e.source !== '/add' && e.target !== '/add')
+      const updatedNodes = nodes.filter(n => n.id !== '/add')
+      const updatedEdges = edges.filter(e => e.source !== '/add' && e.target !== '/add')
 
       transformGraph({ nodes: updatedNodes, edges: updatedEdges })
 
@@ -690,12 +692,10 @@ describe('Node Operations Integration Tests', () => {
 
       // Delete container
       const updatedNodes = nodes.filter(
-        (n) => n.id !== '/container' && !n.id.startsWith('/container/')
+        n => n.id !== '/container' && !n.id.startsWith('/container/')
       )
       const updatedEdges = edges.filter(
-        (e) =>
-          !e.source.startsWith('/container') &&
-          !e.target.startsWith('/container')
+        e => !e.source.startsWith('/container') && !e.target.startsWith('/container')
       )
 
       transformGraph({ nodes: updatedNodes, edges: updatedEdges })
@@ -717,12 +717,12 @@ describe('Node Operations Integration Tests', () => {
       let currentEdges = edges
 
       // Delete add
-      currentNodes = currentNodes.filter((n) => n.id !== '/add')
-      currentEdges = currentEdges.filter((e) => e.source !== '/add' && e.target !== '/add')
+      currentNodes = currentNodes.filter(n => n.id !== '/add')
+      currentEdges = currentEdges.filter(e => e.source !== '/add' && e.target !== '/add')
 
       // Delete multiply immediately after
-      currentNodes = currentNodes.filter((n) => n.id !== '/multiply')
-      currentEdges = currentEdges.filter((e) => e.source !== '/multiply' && e.target !== '/multiply')
+      currentNodes = currentNodes.filter(n => n.id !== '/multiply')
+      currentEdges = currentEdges.filter(e => e.source !== '/multiply' && e.target !== '/multiply')
 
       // Transform once with all deletions
       transformGraph({ nodes: currentNodes, edges: currentEdges })
@@ -770,7 +770,7 @@ describe('Node Operations Integration Tests', () => {
 
       // Delete begin node (should trigger special handling in real code)
       // For now, we'll just verify basic cleanup
-      const updatedNodes = nodes.filter((n) => n.id !== '/loop/begin')
+      const updatedNodes = nodes.filter(n => n.id !== '/loop/begin')
 
       transformGraph({ nodes: updatedNodes, edges: [] })
 
@@ -784,12 +784,17 @@ describe('Node Operations Integration Tests', () => {
       transformGraph({ nodes, edges })
 
       // Rename add -> addition
-      const { nodes: renamedNodes, edges: renamedEdges } = renameNode('/add', 'addition', nodes, edges)
+      const { nodes: renamedNodes, edges: renamedEdges } = renameNode(
+        '/add',
+        'addition',
+        nodes,
+        edges
+      )
 
       transformGraph({ nodes: renamedNodes, edges: renamedEdges })
 
       // Copy the renamed node
-      const nodeToCopy = renamedNodes.find((n) => n.id === '/addition')!
+      const nodeToCopy = renamedNodes.find(n => n.id === '/addition')!
       const { nodes: pastedNodes } = copyPasteNodes([nodeToCopy], [], renamedNodes)
 
       // Verify new copy has different ID
@@ -802,7 +807,7 @@ describe('Node Operations Integration Tests', () => {
       transformGraph({ nodes, edges })
 
       // Copy num1
-      const nodeToCopy = nodes.find((n) => n.id === '/num1')!
+      const nodeToCopy = nodes.find(n => n.id === '/num1')!
       const { nodes: pastedNodes } = copyPasteNodes([nodeToCopy], [], nodes)
 
       const allNodes = [...nodes, ...pastedNodes]
@@ -823,20 +828,25 @@ describe('Node Operations Integration Tests', () => {
       transformGraph({ nodes, edges })
 
       // Copy container with children
-      const container = nodes.find((n) => n.id === '/container')!
-      const children = nodes.filter((n) => n.parentId === '/container')
+      const container = nodes.find(n => n.id === '/container')!
+      const children = nodes.filter(n => n.parentId === '/container')
       const nodesToCopy = [container, ...children]
 
       const { nodes: pastedNodes } = copyPasteNodes(nodesToCopy, [], nodes)
 
-      let allNodes = [...nodes, ...pastedNodes]
+      const allNodes = [...nodes, ...pastedNodes]
       transformGraph({ nodes: allNodes, edges })
 
       // Find pasted container
-      const pastedContainer = pastedNodes.find((n) => n.type === 'ContainerOp')!
+      const pastedContainer = pastedNodes.find(n => n.type === 'ContainerOp')!
 
       // Rename pasted container
-      const { nodes: renamedNodes } = renameNode(pastedContainer.id, 'new-container', allNodes, edges)
+      const { nodes: renamedNodes } = renameNode(
+        pastedContainer.id,
+        'new-container',
+        allNodes,
+        edges
+      )
 
       transformGraph({ nodes: renamedNodes, edges })
 
@@ -882,7 +892,12 @@ describe('Node Operations Integration Tests', () => {
       expect(viewerOp?.inputs.a.subscriptions.size).toBe(1)
 
       // Rename viewer -> view
-      const { nodes: updatedNodes, edges: updatedEdges } = renameNode('/viewer', 'view', nodes, edges)
+      const { nodes: updatedNodes, edges: updatedEdges } = renameNode(
+        '/viewer',
+        'view',
+        nodes,
+        edges
+      )
 
       transformGraph({ nodes: updatedNodes, edges: updatedEdges })
 
@@ -896,7 +911,7 @@ describe('Node Operations Integration Tests', () => {
       expect(viewOp?.inputs.a.subscriptions.size).toBe(1)
 
       // Edge should be updated
-      const updatedEdge = updatedEdges.find((e) => e.target === '/view')
+      const updatedEdge = updatedEdges.find(e => e.target === '/view')
       expect(updatedEdge).toBeDefined()
       expect(updatedEdge?.source).toBe('/data')
       expect(updatedEdge?.id).toBe(edgeId(updatedEdge!))

@@ -2,11 +2,11 @@
 // Tests node and edge manipulation operations
 
 import { act, renderHook } from '@testing-library/react'
-import { type Edge as ReactFlowEdge, type Node as ReactFlowNode } from '@xyflow/react'
+import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { NumberOp } from '../../operators'
 import { clearOps, setOp } from '../../store'
-import { useProjectModifications, type ProjectModification } from '../use-project-modifications'
+import { type ProjectModification, useProjectModifications } from '../use-project-modifications'
 
 describe('useProjectModifications', () => {
   // State management for React Flow
@@ -520,7 +520,9 @@ describe('useProjectModifications', () => {
         },
       ]
 
-      let applyResult: { success: boolean; error?: string; warnings?: string[] } = { success: false }
+      let applyResult: { success: boolean; error?: string; warnings?: string[] } = {
+        success: false,
+      }
       act(() => {
         applyResult = result.current.applyModifications(modifications)
       })

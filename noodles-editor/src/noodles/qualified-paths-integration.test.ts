@@ -682,7 +682,7 @@ describe('Qualified Paths Integration Tests', () => {
       ]
 
       expect(() => transformGraph({ nodes, edges })).toThrow(
-        'Invalid handle ID format - migration should have converted all handles to qualified format',
+        'Invalid handle ID format - migration should have converted all handles to qualified format'
       )
     })
 

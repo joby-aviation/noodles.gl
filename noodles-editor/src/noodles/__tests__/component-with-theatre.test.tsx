@@ -3,7 +3,7 @@
 import { screen } from '@testing-library/react'
 import type { Node as ReactFlowNode } from '@xyflow/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { type MathOp, NumberOp, type IOperator, type Operator } from '../operators'
+import { type IOperator, type MathOp, NumberOp, type Operator } from '../operators'
 import { clearOps, getOp, setOp } from '../store'
 import { transformGraph } from '../transform-graph'
 import { renderWithNoodlesProviders } from './test-utils'

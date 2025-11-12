@@ -3,7 +3,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { NumberOp } from '../operators'
-import { clearOps, getOp, getSheetObject, setOp, useOp, useNestingStore } from '../store'
+import { clearOps, getOp, getSheetObject, setOp, useNestingStore, useOp } from '../store'
 
 describe('Noodles Hooks', () => {
   afterEach(() => {
@@ -50,22 +50,10 @@ describe('Noodles Hooks', () => {
       expect(result.current).toBeInstanceOf(NumberOp)
     })
 
-    it('throws an error when operator does not exist', () => {
-      // Use a try-catch in the hook to capture the error
-      const TestHook = () => {
-        try {
-          return useOp('/nonexistent')
-        } catch (error) {
-          return { error }
-        }
-      }
+    it('returns undefined when operator does not exist', () => {
+      const { result } = renderHook(() => useOp('/nonexistent'))
 
-      const { result } = renderHook(() => TestHook())
-
-      expect(result.current).toHaveProperty('error')
-      expect((result.current as { error: Error }).error.message).toBe(
-        'Operator with id /nonexistent not found'
-      )
+      expect(result.current).toBeUndefined()
     })
 
     it('returns the correct operator when multiple exist', () => {

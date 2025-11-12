@@ -93,14 +93,7 @@ export const categories = {
     'TerrainExtensionOp',
     'VibranceExtensionOp',
   ],
-  number: [
-    'NumberOp',
-    'MapRangeOp',
-    'ExtentOp',
-    'MathOp',
-    'BezierCurveOp',
-    'TimeOp',
-  ],
+  number: ['NumberOp', 'MapRangeOp', 'ExtentOp', 'MathOp', 'BezierCurveOp', 'TimeOp'],
   string: ['StringOp'],
   utility: [
     'BooleanOp',

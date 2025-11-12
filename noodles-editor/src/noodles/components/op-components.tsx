@@ -29,34 +29,37 @@ import { createPortal } from 'react-dom'
 import { Temporal } from 'temporal-polyfill'
 
 import { SheetContext } from '../../utils/sheet-context'
-import {
-  ArrayField,
-  type Field,
-  type IField,
-  ListField,
-} from '../fields'
+import { ArrayField, type Field, type IField, ListField } from '../fields'
 import s from '../noodles.module.css'
 import type { ExecutionState, IOperator, OperatorInstance, OpType } from '../operators'
 import {
   type ContainerOp,
   type GeocoderOp,
   type MouseOp,
-  mathOps,
   mathOpDescriptions,
+  mathOps,
   Operator,
   opTypes,
   type TableEditorOp,
   type TimeOp,
   type ViewerOp,
 } from '../operators'
-import { useOp, useNestingStore, setHoveredOutputHandle, hasOp, setOp, getAllOps, deleteOp } from '../store'
+import {
+  deleteOp,
+  getAllOps,
+  hasOp,
+  setHoveredOutputHandle,
+  setOp,
+  useNestingStore,
+  useOp,
+} from '../store'
 import type { NodeDataJSON } from '../transform-graph'
 import { edgeId } from '../utils/id-utils'
 import { generateQualifiedPath, getBaseName, getParentPath } from '../utils/path-utils'
 import type { NodeType } from './add-node-menu'
+import { categories as baseCategories } from './categories'
 import { FieldComponent, type inputComponents } from './field-components'
 import previewStyles from './handle-preview.module.css'
-import { categories as baseCategories } from './categories'
 
 const MAPBOX_ACCESS_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
 
@@ -387,6 +390,13 @@ function NodeComponent({
   selected,
 }: ReactFlowNodeProps<NodeDataJSON<Operator<IOperator>>> & { type: OpType }) {
   const op = useOp(id)
+
+  // Handle race condition during node renaming - operator may be temporarily undefined
+  // while ReactFlow updates its nodes array
+  if (!op) {
+    return null
+  }
+
   const locked = useLocked(op)
   const executionState = useExecutionState(op)
 
@@ -455,7 +465,7 @@ const ExecutionIndicator = ({ status, error, executionTime }: ExecutionState) =>
   }
 }
 
-const headerHeight = 49
+const _headerHeight = 49
 function NodeHeader({ id, type, op }: { id: string; type: OpType; op: OperatorInstance }) {
   const [locked, setLocked] = useState(op.locked.value)
   const executionState = useExecutionState(op)
@@ -713,6 +723,11 @@ function GeocoderOpComponent({
 }: ReactFlowNodeProps<NodeDataJSON<GeocoderOp>> & { type: 'GeocoderOp' }) {
   const op = useOp(id)
 
+  // Handle race condition during node renaming
+  if (!op) {
+    return null
+  }
+
   const containerRef = useRef<HTMLDivElement>(null)
   const geocoderRef = useRef<MapboxGeocoder>()
 
@@ -794,6 +809,11 @@ function MouseOpComponent({
 }: ReactFlowNodeProps<NodeDataJSON<MouseOp>> & { type: 'MouseOp' }) {
   const op = useOp(id)
 
+  // Handle race condition during node renaming
+  if (!op) {
+    return null
+  }
+
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
 
   // Inject the container element into the operator
@@ -840,6 +860,11 @@ function TableEditorOpComponent({
   selected,
 }: ReactFlowNodeProps<NodeDataJSON<TableEditorOp>> & { type: 'TableEditorOp' }) {
   const op = useOp(id)
+
+  // Handle race condition during node renaming
+  if (!op) {
+    return null
+  }
 
   const [dataArray, setDataArray] = useState(op.inputs.data.value as unknown[])
   useEffect(() => {
@@ -1016,6 +1041,11 @@ function ViewerOpComponent({
 }: ReactFlowNodeProps<NodeDataJSON<ViewerOp>> & { type: 'ViewerOp' }) {
   const op = useOp(id)
 
+  // Handle race condition during node renaming
+  if (!op) {
+    return null
+  }
+
   // TODO: use react-flow helpers
   const [viewerData, setViewerData] = useState(viewerFormatter(op.inputs.data.value))
 
@@ -1101,6 +1131,11 @@ function ContainerOpComponent({
 }: ReactFlowNodeProps<NodeDataJSON<ContainerOp>>) {
   const op = useOp(id)
 
+  // Handle race condition during node renaming
+  if (!op) {
+    return null
+  }
+
   const setCurrentContainerId = useNestingStore(state => state.setCurrentContainerId)
   const nodes = useNodes()
   const children = nodes.filter(node => getParentPath(node.id) === id)
@@ -1144,6 +1179,12 @@ function TimeOpComponent({
   type,
 }: ReactFlowNodeProps<NodeDataJSON<TimeOp>> & { type: 'TimeOp' }) {
   const op = useOp(id)
+
+  // Handle race condition during node renaming
+  if (!op) {
+    return null
+  }
+
   const sheet = useContext(SheetContext) as ISheet
 
   const [now, setNow] = useState(0)

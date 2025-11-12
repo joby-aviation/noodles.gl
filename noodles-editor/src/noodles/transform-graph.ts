@@ -129,7 +129,9 @@ export function transformGraph<
       const targetHandleInfo = parseHandleId(targetHandleStr)
 
       if (!sourceHandleInfo || !targetHandleInfo) {
-        throw new Error('Invalid handle ID format - migration should have converted all handles to qualified format')
+        throw new Error(
+          'Invalid handle ID format - migration should have converted all handles to qualified format'
+        )
       }
 
       const sourceFieldName = sourceHandleInfo.fieldName
