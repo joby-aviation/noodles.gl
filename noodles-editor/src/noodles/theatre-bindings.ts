@@ -116,6 +116,10 @@ function fieldToTheatreProp(field: Field<IField>): types.PropTypeConfig | undefi
   return undefined
 }
 
+function opIdToTheatreObjectName(opId: string): string {
+  return opId.slice(1).split('/').join(' / ')
+}
+
 // Create Theatre bindings for an operator
 export function bindOperatorToTheatre(
   op: Operator<IOperator>,
@@ -167,9 +171,9 @@ export function bindOperatorToTheatre(
   // If no theatre-compatible fields, skip
   if (Object.keys(propConfig).length === 0) return undefined
 
-  // Create Theatre sheet object
-  const basename = getBaseName(op.id)
-  const sheetObj = sheet.object(basename, propConfig)
+  // Create Theatre sheet object using full path to avoid naming collisions, and use theatre hierarchy
+  const theatreObjectName = opIdToTheatreObjectName(op.id)
+  const sheetObj = sheet.object(theatreObjectName, propConfig)
   store.setSheetObject(op.id, sheetObj)
 
   // Set up two-way bindings
@@ -244,7 +248,7 @@ export function bindOperatorToTheatre(
     for (const untap of untapFns) {
       untap()
     }
-    sheet.detachObject(basename)
+    sheet.detachObject(theatreObjectName)
     store.deleteSheetObject(op.id)
   }
 }
@@ -254,8 +258,8 @@ export function unbindOperatorFromTheatre(opId: string, sheet: ISheet): void {
   const store = getOpStore()
   const sheetObj = store.getSheetObject(opId)
   if (sheetObj) {
-    const basename = getBaseName(opId)
-    sheet.detachObject(basename)
+    const theatreObjectName = opIdToTheatreObjectName(opId)
+    sheet.detachObject(theatreObjectName)
     store.deleteSheetObject(opId)
   }
 }

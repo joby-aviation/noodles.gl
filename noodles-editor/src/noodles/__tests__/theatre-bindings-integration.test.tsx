@@ -334,4 +334,84 @@ describe('Theatre bindings integration', () => {
       cleanup()
     }
   })
+
+  it('should handle naming collisions for operators with same base name at different hierarchy levels', () => {
+    // This test verifies the fix for issue #131
+    // Operators with the same base name at different levels should not collide
+    const nodes = [
+      {
+        id: '/number',
+        type: 'NumberOp',
+        position: { x: 0, y: 0 },
+        data: { inputs: { value: 2 } },
+      },
+      {
+        id: '/container',
+        type: 'ContainerOp',
+        position: { x: 200, y: 0 },
+        data: {},
+      },
+      {
+        id: '/container/number',
+        type: 'NumberOp',
+        position: { x: 200, y: 100 },
+        data: { inputs: { value: 4 } },
+      },
+      {
+        id: '/container/subcontainer',
+        type: 'ContainerOp',
+        position: { x: 400, y: 0 },
+        data: {},
+      },
+      {
+        id: '/container/subcontainer/number',
+        type: 'NumberOp',
+        position: { x: 400, y: 100 },
+        data: { inputs: { value: 6 } },
+      },
+    ]
+
+    const edges: Edge<any, any>[] = []
+
+    const operators = transformGraph({ nodes, edges })
+
+    // Verify all operators were created
+    expect(operators.length).toBeGreaterThanOrEqual(5)
+
+    // Bind all operators - this should not throw any errors or cause collisions
+    const cleanupFns = bindAllOperatorsToTheatre(operators, testSheet)
+
+    // Verify that all three number operators have unique sheet objects
+    expect(hasSheetObject('/number')).toBe(true)
+    expect(hasSheetObject('/container/number')).toBe(true)
+    expect(hasSheetObject('/container/subcontainer/number')).toBe(true)
+
+    // Verify each has a distinct sheet object
+    const rootNumberObj = getSheetObject('/number')
+    const containerNumberObj = getSheetObject('/container/number')
+    const nestedNumberObj = getSheetObject('/container/subcontainer/number')
+
+    expect(rootNumberObj).toBeDefined()
+    expect(containerNumberObj).toBeDefined()
+    expect(nestedNumberObj).toBeDefined()
+
+    // Verify they are different objects (not the same reference)
+    expect(rootNumberObj).not.toBe(containerNumberObj)
+    expect(rootNumberObj).not.toBe(nestedNumberObj)
+    expect(containerNumberObj).not.toBe(nestedNumberObj)
+
+    // Verify that binding all three operators with the same base name doesn't cause errors
+    // This is the key test - previously this would have caused a collision
+    // Now each operator gets a unique Theatre.js object name based on its full path
+
+    // Cleanup
+    for (const cleanup of cleanupFns.values()) {
+      cleanup()
+    }
+
+    // Verify cleanup worked
+    expect(hasSheetObject('/number')).toBe(false)
+    expect(hasSheetObject('/container/number')).toBe(false)
+    expect(hasSheetObject('/container/subcontainer/number')).toBe(false)
+  })
 })
