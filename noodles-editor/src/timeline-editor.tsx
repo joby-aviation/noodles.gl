@@ -15,7 +15,6 @@ import setRef from './utils/set-ref'
 import useSheetValue, { type PropsValue } from './utils/use-sheet-value'
 import { projectId } from './noodles/globals'
 import { getNoodles } from './noodles/noodles'
-// NoodlesProvider no longer needed - store is globally accessible via Zustand
 import { WidgetContainer } from './widget-container'
 import s from './timeline-editor.module.css'
 

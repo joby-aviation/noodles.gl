@@ -426,7 +426,6 @@ export function NoodlesMenubar({
 }) {
   const [recentlyOpened, setRecentlyOpened] = useState<RecentProject[]>([])
   const { toObject } = useReactFlow()
-  // No longer need ops context - store is globally accessible
   const storageType = useActiveStorageType()
   const { setCurrentDirectory, setError } = useFileSystemStore()
 
