@@ -178,9 +178,6 @@ analytics.track('block_library_opened', { method: 'keyboard' })
 
 // Node selection
 analytics.track('node_selected')
-
-// Route changes
-analytics.track('route_changed', { path: location.pathname })
 ```
 
 #### Undo/Redo (`src/noodles/components/UndoRedoHandler.tsx`)

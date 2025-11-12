@@ -31,6 +31,7 @@ import 'primereact/resources/themes/md-dark-indigo/theme.css'
 import 'primeicons/primeicons.css'
 
 import newProject from '../../public/noodles/new/noodles.json'
+import { analytics } from '../utils/analytics'
 import { SheetProvider } from '../utils/sheet-context'
 import useSheetValue from '../utils/use-sheet-value'
 import type { Visualization } from '../visualizations'
@@ -167,11 +168,24 @@ export function getNoodles(): Visualization {
     useTheatreJs(projectName)
   const ops = useSlice(state => state.ops)
   const sheetObjects = useSlice(state => state.sheetObjects)
-  const [nodes, setNodes, onNodesChange] = useNodesState<AnyNodeJSON>([])
+  const [nodes, setNodes, onNodesChangeBase] = useNodesState<AnyNodeJSON>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<ReactFlowEdge<unknown>>([])
   const vPressed = useKeyPress('v')
   const aPressed = useKeyPress('a')
   const [showChatPanel, setShowChatPanel] = useState(false)
+
+  // Wrap onNodesChange to track node selection
+  const onNodesChange = useCallback(
+    (changes: Parameters<typeof onNodesChangeBase>[0]) => {
+      // Track selection changes
+      const hasSelectionChange = changes.some(change => change.type === 'select' && change.selected)
+      if (hasSelectionChange) {
+        analytics.track('node_selected')
+      }
+      onNodesChangeBase(changes)
+    },
+    [onNodesChangeBase]
+  )
 
   // Eagerly start loading AI context bundles on app start
   useEffect(() => {
@@ -260,6 +274,7 @@ export function getNoodles(): Visualization {
   const onPaneContextMenu = useCallback((event: React.MouseEvent<Element, MouseEvent>) => {
     event.preventDefault()
     // Show Block Library at the right-click position
+    analytics.track('block_library_opened', { method: 'context_menu' })
     blockLibraryRef.current?.openModal(event.clientX, event.clientY)
   }, [])
 
@@ -278,6 +293,8 @@ export function getNoodles(): Visualization {
     // Only handle once per key press
     if (vPressHandledRef.current) return
     vPressHandledRef.current = true
+
+    analytics.track('viewer_created', { method: 'keyboard' })
 
     setNodes(currentNodes => {
       const selectedNodes = currentNodes.filter(n => n.selected)
@@ -394,6 +411,8 @@ export function getNoodles(): Visualization {
     // Only handle once per key press
     if (aPressHandledRef.current) return
     aPressHandledRef.current = true
+
+    analytics.track('block_library_opened', { method: 'keyboard' })
 
     // Open Block Library at center of screen
     const pane = reactFlowRef.current?.getBoundingClientRect()

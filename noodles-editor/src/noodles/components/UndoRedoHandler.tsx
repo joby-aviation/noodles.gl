@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle } from 'react'
 import { useUndoRedo } from '../utils/use-reactflow-undo-redo'
+import { analytics } from '../../utils/analytics'
 
 export interface UndoRedoHandlerRef {
   undo: () => void
@@ -23,8 +24,14 @@ export const UndoRedoHandler = forwardRef<UndoRedoHandlerRef>((_, ref) => {
   useImperativeHandle(
     ref,
     () => ({
-      undo: undoRedo.undo,
-      redo: undoRedo.redo,
+      undo: () => {
+        analytics.track('undo_performed')
+        undoRedo.undo()
+      },
+      redo: () => {
+        analytics.track('redo_performed')
+        undoRedo.redo()
+      },
       canUndo: undoRedo.canUndo,
       canRedo: undoRedo.canRedo,
       getState: undoRedo.getState,
@@ -39,6 +46,7 @@ export const UndoRedoHandler = forwardRef<UndoRedoHandlerRef>((_, ref) => {
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'z') {
         e.preventDefault()
         console.info('Undo triggered via keyboard')
+        analytics.track('undo_performed')
         undoRedo.undo()
       } else if (
         ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'z') ||
@@ -46,6 +54,7 @@ export const UndoRedoHandler = forwardRef<UndoRedoHandlerRef>((_, ref) => {
       ) {
         e.preventDefault()
         console.info('Redo triggered via keyboard')
+        analytics.track('redo_performed')
         undoRedo.redo()
       }
     }
