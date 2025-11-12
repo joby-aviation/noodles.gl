@@ -3,7 +3,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { NumberOp } from '../operators'
-import { NoodlesProvider, opMap, useOp, useSlice } from '../store'
+import { NoodlesProvider, opMap, useOp, useSlice, useNestingStore } from '../store'
 
 describe('Noodles Hooks', () => {
   afterEach(() => {
@@ -24,17 +24,13 @@ describe('Noodles Hooks', () => {
     })
 
     it('can read nesting context', () => {
-      const { result } = renderHook(() => useSlice(state => state.nesting), {
-        wrapper: NoodlesProvider,
-      })
+      const { result } = renderHook(() => useNestingStore(state => state.currentContainerId))
 
-      expect(result.current.currentContainerId).toBe('/')
+      expect(result.current).toBe('/')
     })
 
     it('can update nesting context', () => {
-      const { result } = renderHook(() => useSlice(state => state.nesting), {
-        wrapper: NoodlesProvider,
-      })
+      const { result } = renderHook(() => useNestingStore())
 
       act(() => {
         result.current.setCurrentContainerId('/container1')

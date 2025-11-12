@@ -1,5 +1,6 @@
 import type { ISheetObject } from '@theatre/core'
-import { createContext, type PropsWithChildren, useContext } from 'react'
+import { createContext, type PropsWithChildren, useContext, useMemo } from 'react'
+import { create } from 'zustand'
 import type { IOperator, Operator } from './operators'
 // only import types from noodles to avoid circular dependencies
 import type { OpId } from './utils/id-utils'
@@ -8,12 +9,52 @@ import { isAbsolutePath, resolvePath } from './utils/path-utils'
 export const opMap = new Map<OpId, Operator<IOperator>>()
 export const sheetObjectMap = new Map<OpId, ISheetObject>()
 
-export type NestingContextValue = {
+// ============================================================================
+// Nesting State (Zustand)
+// ============================================================================
+
+interface NestingState {
   currentContainerId: string
   setCurrentContainerId: (id: string) => void
 }
 
-let currentContainerId = '/'
+export const useNestingStore = create<NestingState>((set) => ({
+  currentContainerId: '/',
+  setCurrentContainerId: (id: string) => set({ currentContainerId: id }),
+}))
+
+export type OpsContextValue = {
+  get: (id: OpId) => Operator<IOperator> | undefined
+  set: (id: OpId, op: Operator<IOperator>) => void
+}
+
+export type SheetObjectsContextValue = {
+  get: (id: OpId) => ISheetObject | undefined
+  set: (id: OpId, sheetObj: ISheetObject) => void
+  delete: (id: OpId) => void
+}
+
+export type NoodlesContextValue = {
+  ops: OpsContextValue
+  sheetObjects: SheetObjectsContextValue
+}
+
+const opsContext: OpsContextValue = {
+  get: (id: OpId) => opMap.get(id),
+  set: (id: OpId, op: Operator<IOperator>) => {
+    opMap.set(id, op)
+  },
+}
+
+const sheetObjectsContext: SheetObjectsContextValue = {
+  get: (id: OpId) => sheetObjectMap.get(id),
+  set: (id: OpId, sheetObj: ISheetObject) => {
+    sheetObjectMap.set(id, sheetObj)
+  },
+  delete: (id: OpId) => {
+    sheetObjectMap.delete(id)
+  },
+}
 
 // Track currently hovered output handle for viewer creation
 export let hoveredOutputHandle: { nodeId: string; handleId: string } | null = null
@@ -21,33 +62,23 @@ export const setHoveredOutputHandle = (handle: { nodeId: string; handleId: strin
   hoveredOutputHandle = handle
 }
 
-const noodlesContextValue = {
-  ops: {
-    get: (id: OpId) => opMap.get(id),
-    set: (id: OpId, op: Operator<IOperator>) => opMap.set(id, op),
-  },
-  sheetObjects: {
-    get: (id: OpId) => sheetObjectMap.get(id),
-    set: (id: OpId, sheetObj: ISheetObject) => sheetObjectMap.set(id, sheetObj),
-    delete: (id: OpId) => sheetObjectMap.delete(id),
-  },
-  nesting: {
-    get currentContainerId() {
-      return currentContainerId
-    },
-    setCurrentContainerId: (id: string) => {
-      currentContainerId = id
-    },
-  },
+const defaultContextValue: NoodlesContextValue = {
+  ops: opsContext,
+  sheetObjects: sheetObjectsContext,
 }
 
-export type NoodlesContextValue = typeof noodlesContextValue
+export const NoodlesContext = createContext<NoodlesContextValue>(defaultContextValue)
 
-export const NoodlesContext = createContext<NoodlesContextValue>(noodlesContextValue)
+export const NoodlesProvider = ({ children }: PropsWithChildren) => {
+  const contextValue = useMemo<NoodlesContextValue>(() => {
+    return {
+      ops: opsContext,
+      sheetObjects: sheetObjectsContext,
+    }
+  }, [])
 
-export const NoodlesProvider = ({ children }: PropsWithChildren) => (
-  <NoodlesContext.Provider value={noodlesContextValue}>{children}</NoodlesContext.Provider>
-)
+  return <NoodlesContext.Provider value={contextValue}>{children}</NoodlesContext.Provider>
+}
 
 export const useSlice: <T>(resolver: (state: NoodlesContextValue) => T) => T = resolver =>
   resolver(useContext(NoodlesContext))

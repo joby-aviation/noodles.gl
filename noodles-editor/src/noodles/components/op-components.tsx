@@ -49,7 +49,7 @@ import {
   type TimeOp,
   type ViewerOp,
 } from '../operators'
-import { opMap, setHoveredOutputHandle, useOp, useSlice } from '../store'
+import { opMap, setHoveredOutputHandle, useOp, useSlice, useNestingStore } from '../store'
 import type { NodeDataJSON } from '../transform-graph'
 import { edgeId } from '../utils/id-utils'
 import { generateQualifiedPath, getBaseName, getParentPath } from '../utils/path-utils'
@@ -1101,7 +1101,7 @@ function ContainerOpComponent({
 }: ReactFlowNodeProps<NodeDataJSON<ContainerOp>>) {
   const op = useOp(id)
 
-  const { setCurrentContainerId } = useSlice(state => state.nesting)
+  const setCurrentContainerId = useNestingStore(state => state.setCurrentContainerId)
   const nodes = useNodes()
   const children = nodes.filter(node => getParentPath(node.id) === id)
 

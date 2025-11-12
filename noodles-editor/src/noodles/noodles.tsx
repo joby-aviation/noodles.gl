@@ -58,7 +58,7 @@ import s from './noodles.module.css'
 import type { IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
 import { load } from './storage'
-import { opMap, sheetObjectMap, useSlice, hoveredOutputHandle } from './store'
+import { opMap, sheetObjectMap, useSlice, hoveredOutputHandle, useNestingStore } from './store'
 import { transformGraph } from './transform-graph'
 import { edgeId, nodeId } from './utils/id-utils'
 import { migrateProject } from './utils/migrate-schema'
@@ -280,7 +280,7 @@ export function getNoodles(): Visualization {
 
   const vPressHandledRef = useRef(false)
 
-  const { currentContainerId } = useSlice(state => state.nesting)
+  const currentContainerId = useNestingStore(state => state.currentContainerId)
 
   // Handle 'v' key press to create ViewerOp
   useEffect(() => {
@@ -537,21 +537,30 @@ export function getNoodles(): Visualization {
   }, [])
 
   const displayedNodes = useMemo(() => {
-    // TODO: add support for for-loop begin/end nodes
+    const dragHandle = `.${s.header}`
+    const targetContainerId = currentContainerId || '/'
 
-    return nodes.map(node => ({
-      ...node,
-      hidden: getParentPath(node.id) !== currentContainerId,
-      dragHandle: `.${s.header}`,
-    }))
+    return nodes
+      .filter(node => (getParentPath(node.id) ?? '/') === targetContainerId)
+      .map(node => ({
+        ...node,
+        hidden: false,
+        dragHandle,
+      }))
   }, [currentContainerId, nodes])
 
+  const visibleNodeIds = useMemo(() => {
+    return new Set(displayedNodes.map(node => node.id))
+  }, [displayedNodes])
+
   const activeEdges = useMemo(() => {
-    return edges.map(edge => ({
-      ...edge,
-      sourceHandle: edge.type === 'ReferenceEdge' ? null : edge.sourceHandle,
-    }))
-  }, [edges])
+    return edges
+      .filter(edge => visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target))
+      .map(edge => ({
+        ...edge,
+        sourceHandle: edge.type === 'ReferenceEdge' ? null : edge.sourceHandle,
+      }))
+  }, [edges, visibleNodeIds])
 
   const flowGraph = theatreReady && (
     <ErrorBoundary>
