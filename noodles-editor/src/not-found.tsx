@@ -1,4 +1,5 @@
 import { basename, dirname } from 'node:path'
+import { Link } from 'wouter'
 import s from './not-found.module.css'
 
 const projects = import.meta.glob('../public/examples/**/noodles.json')
@@ -14,7 +15,7 @@ export default function NotFound() {
             const projectName = basename(dirname(path))
             return (
               <li key={`${projectName}`}>
-                <a href={`?project=${projectName.toLowerCase()}`}>project: {projectName}</a>
+                <Link href={`/project/${projectName.toLowerCase()}`}>project: {projectName}</Link>
               </li>
             )
           })}

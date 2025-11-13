@@ -1,21 +1,23 @@
 import { useEffect } from 'react'
-import { Route, Switch, useLocation } from 'wouter'
+import { Route, Switch, useLocation, useRoute, useSearchParams } from 'wouter'
 import TimelineEditor from './timeline-editor'
 import ExamplesPage from './examples-page'
 
 function App() {
   const [location, navigate] = useLocation()
+  const [searchParams] = useSearchParams()
+
+  const [match] = useRoute('/project/:projectId')
 
   // Handle legacy ?project=name query string by redirecting to /examples/name
   useEffect(() => {
-    const queryParams = new URLSearchParams(window.location.search)
-    const projectParam = queryParams.get('project')
+    const projectParam = searchParams.get('project')
 
-    if (projectParam && !location.startsWith('/examples/')) {
+    if (projectParam && !match) {
       // Redirect from ?project=name to /examples/name
       navigate(`/examples/${projectParam}`, { replace: true })
     }
-  }, [location, navigate])
+  }, [location, searchParams, match, navigate])
 
   return (
     <Switch>
@@ -26,6 +28,11 @@ function App() {
 
       {/* Project route - /examples/:projectId */}
       <Route path="/examples/:projectId">
+        <TimelineEditor />
+      </Route>
+
+      {/* Project route - /project/:projectId */}
+      <Route path="/project/:projectId">
         <TimelineEditor />
       </Route>
 

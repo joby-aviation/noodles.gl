@@ -56,7 +56,6 @@ import {
   UndoRedoHandler,
   type UndoRedoHandlerRef,
 } from './components/UndoRedoHandler'
-import { ListField } from './fields'
 import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
 import { IS_PROD } from './globals'
 import { useProjectModifications } from './hooks/use-project-modifications'
@@ -540,7 +539,7 @@ export function getNoodles(): Visualization {
   useEffect(() => {
     (async () => {
       // If no projectName, load the default new project
-      if (!projectName) {
+      if (!projectName || projectName === 'new') {
         try {
           loadProjectFile(newProjectJSON as NoodlesProjectJSON)
           return
