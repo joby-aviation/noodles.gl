@@ -82,7 +82,7 @@ describe('storage.ts', () => {
         if (result.success) {
           expect(result.data).toBe('file contents')
         }
-        expect(fetchMock).toHaveBeenCalledWith('./noodles/my-project/data.csv')
+        expect(fetchMock).toHaveBeenCalledWith('/examples/my-project/data.csv')
       })
 
       it('returns error when asset not found', async () => {
@@ -94,7 +94,7 @@ describe('storage.ts', () => {
         if (!result.success) {
           expect(result.error.type).toBe('not-found')
           expect(result.error.message).toContain('Asset not found')
-          expect(result.error.details).toContain('./noodles/my-project/missing.csv')
+          expect(result.error.details).toContain('/examples/my-project/missing.csv')
         }
       })
 
@@ -308,7 +308,7 @@ describe('storage.ts', () => {
         const exists = await checkAssetExists('publicFolder', 'my-project', 'data.csv')
 
         expect(exists).toBe(true)
-        expect(fetchMock).toHaveBeenCalledWith('./noodles/my-project/data.csv', {
+        expect(fetchMock).toHaveBeenCalledWith('/examples/my-project/data.csv', {
           method: 'HEAD',
         })
       })
