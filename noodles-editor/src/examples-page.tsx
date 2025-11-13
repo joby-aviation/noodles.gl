@@ -20,8 +20,10 @@ export default function ExamplesPage() {
       const examplesList: ExampleProject[] = []
 
       for (const path of Object.keys(projects)) {
-        let projectName = basename(dirname(path))
+        const projectId = basename(dirname(path))
         const readmePath = path.replace('noodles.json', 'README.md')
+
+        let projectName = projectId
 
         let readme: string | undefined
         if (readmes[readmePath]) {
@@ -42,7 +44,7 @@ export default function ExamplesPage() {
 
         examplesList.push({
           name: projectName,
-          path: `/examples/${projectName}`,
+          path: `/examples/${projectId}`,
           readme
         })
       }
