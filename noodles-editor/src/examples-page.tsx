@@ -20,13 +20,21 @@ export default function ExamplesPage() {
       const examplesList: ExampleProject[] = []
 
       for (const path of Object.keys(projects)) {
-        const projectName = basename(dirname(path))
+        let projectName = basename(dirname(path))
         const readmePath = path.replace('noodles.json', 'README.md')
 
         let readme: string | undefined
         if (readmes[readmePath]) {
           try {
             readme = await readmes[readmePath]() as string
+            if (readme) {
+              // parse first line for project name as "# Project Name"
+              const firstLine = readme.split('\n')[0]
+              const match = firstLine.match(/^#\s+(.*)/)
+              if (match && match[1]) {
+                projectName = match[1].trim()
+              }
+            }
           } catch (e) {
             console.warn(`Failed to load README for ${projectName}`, e)
           }
