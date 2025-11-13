@@ -186,15 +186,7 @@ export function getNoodles(): Visualization {
   const params = useParams()
 
   // Get projectId from route params (/examples/:projectId) - router is single source of truth
-  const projectName = useMemo(() => {
-    // First try route params
-    if (params.projectId) {
-      return params.projectId
-    }
-    // Fallback to query string for legacy support (?project=project-name)
-    const queryParams = new URLSearchParams(window.location.search)
-    return queryParams.get('project') || undefined
-  }, [params.projectId])
+  const projectName = params.projectId
 
   const [showProjectNotFoundDialog, setShowProjectNotFoundDialog] = useState(false)
   const storageType = useActiveStorageType()
@@ -522,12 +514,10 @@ export function getNoodles(): Visualization {
 
       // Update URL query parameter with project name
       if (name) {
-        const url = new URL(window.location.href)
-        url.searchParams.set('project', name)
-        window.history.replaceState({}, '', url.toString())
+        navigate(`/examples/${name ?? ''}`, { replace: true })
       }
     },
-    [setNodes, setEdges, setProjectName, setTheatreProject],
+    [setNodes, setEdges, setProjectName, setTheatreProject, navigate],
   )
 
   // Assign to ref for undo/redo system

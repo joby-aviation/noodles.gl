@@ -7,7 +7,7 @@ function App() {
   const [location, navigate] = useLocation()
   const [searchParams] = useSearchParams()
 
-  const [match] = useRoute('/project/:projectId')
+  const [match] = useRoute('/examples/:projectId')
 
   // Handle legacy ?project=name query string by redirecting to /examples/name
   useEffect(() => {
@@ -28,11 +28,6 @@ function App() {
 
       {/* Project route - /examples/:projectId */}
       <Route path="/examples/:projectId">
-        <TimelineEditor />
-      </Route>
-
-      {/* Project route - /project/:projectId */}
-      <Route path="/project/:projectId">
         <TimelineEditor />
       </Route>
 
