@@ -23,6 +23,7 @@ import type { LayerExtension } from 'deck.gl'
 import * as deck from 'deck.gl'
 import { PrimeReactProvider } from 'primereact/api'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useParams } from 'wouter'
 
 import '@deck.gl/widgets/stylesheet.css'
 import '@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css'
@@ -30,9 +31,7 @@ import '@xyflow/react/dist/style.css'
 import 'primereact/resources/themes/md-dark-indigo/theme.css'
 import 'primeicons/primeicons.css'
 
-import { useLocation, useParams } from 'wouter'
-import newProjectJSON from '../../public/new.json?url'
-import newProject from '../../public/examples/new/noodles.json'
+import newProjectJSON from './new.json'
 import { ChatPanel } from '../ai-chat/chat-panel'
 import { globalContextManager } from '../ai-chat/global-context-manager'
 import { SheetProvider } from '../utils/sheet-context'
@@ -301,7 +300,7 @@ export function getNoodles(): Visualization {
   // Avoid circular dependency
   const loadProjectFileRef = useRef<(project: NoodlesProjectJSON, name?: string) => void>()
 
-  const currentProjectRef = useRef<NoodlesProjectJSON>(newProject)
+  const currentProjectRef = useRef<NoodlesProjectJSON>(newProjectJSON)
 
   // Ref to access undo/redo functionality from inside ReactFlow context
   const undoRedoRef = useRef<UndoRedoHandlerRef>(null)
@@ -543,10 +542,7 @@ export function getNoodles(): Visualization {
       // If no projectName, load the default new project
       if (!projectName) {
         try {
-          const project = (await fetch(newProjectJSON).then((res) =>
-            res.json(),
-          )) as NoodlesProjectJSON
-          loadProjectFile(project)
+          loadProjectFile(newProjectJSON as NoodlesProjectJSON)
           return
         } catch (_error) {
           console.error('Failed to load default new project:', _error)

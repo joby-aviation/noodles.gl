@@ -2,7 +2,7 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
 import cx from 'classnames'
 import { useCallback, useState } from 'react'
-import newProjectJSON from '../../../public/new.json?url'
+import newProjectJSON from '../new.json'
 import { useFileSystemStore } from '../filesystem-store'
 import { load } from '../storage'
 import { selectDirectory } from '../utils/filesystem'
@@ -111,8 +111,7 @@ export const ProjectNotFoundDialog = ({
   const onCreateNew = useCallback(async () => {
     setError(null)
     // Load blank template with the project name
-    const project = await fetch(newProjectJSON).then(r => r.json()) as NoodlesProjectJSON
-    onProjectLoaded(project, projectName)
+    onProjectLoaded(newProjectJSON as NoodlesProjectJSON, projectName)
     onClose()
   }, [projectName, onProjectLoaded, onClose])
 
