@@ -21,7 +21,7 @@ const COMMON_OPERATORS_BOOST: Record<string, number> = {
 export const POPULAR_OPERATORS: NodeType[] = [
   'FileOp',
   'GeoJsonOp',
-  'MaplibreBaseMapOp',
+  'MaplibreBasemapOp',
   'ScatterplotLayerOp',
   'GeoJsonLayerOp',
   'NumberOp',
