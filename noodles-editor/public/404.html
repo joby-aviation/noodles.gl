@@ -4,10 +4,14 @@
     <meta charset="utf-8" />
     <title>Redirecting...</title>
     <script>
-      // GitHub Pages SPA redirect
-      // This script takes the current url and converts the path and query
-      // string into a query string, and then redirects to the new url
-      // with the/#/redirect
+      // SPA redirect for GitHub Pages and Cloudflare Pages
+      //
+      // For Cloudflare: _redirects file should handle /app/* routing,
+      // but this serves as a fallback for other paths
+      //
+      // For GitHub Pages: This converts the path to a query parameter
+      // which is then handled by index.html
+
       const path = window.location.pathname.slice(1)
       const query = window.location.search
 
@@ -18,8 +22,9 @@
           '/?redirect=' + encodeURIComponent(path + query)
         )
       } else {
-        // Already at root, just redirect to index
-        window.location.replace(`${window.location.origin}/app/`)
+        // Already at root, redirect
+        const appRoot = window.location.hostname === 'localhost' ? '/' : '/app/'
+        window.location.replace(window.location.origin + appRoot)
       }
     </script>
   </head>
