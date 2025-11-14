@@ -778,6 +778,50 @@ When implementing features or fixes:
 - **Documentation**: Update relevant docs when behavior changes or new features are added
 - **Operator Documentation**: For complex operators, document input/output behavior and limitations
 - **Edge Cases**: Document known limitations or edge cases in code comments or docs
+- **Test Runbook**: Provide clear instructions for manually testing the changes in the UI
+
+### Testing and Runbooks
+
+**When to Provide a Test Runbook:**
+
+- Feature additions or modifications to operators
+- Bug fixes that affect user-visible behavior
+- Changes to visualization or interaction behavior
+- New integrations or data processing capabilities
+
+**Runbook Best Practices:**
+
+1. **Keep it simple**: Assume the app is already running - don't include setup steps
+2. **Use real nodes**: Create a minimal graph with actual operators that demonstrates the feature
+3. **Provide noodles.json**: Include a complete project file that reviewers can load directly
+4. **Clear expected results**: State exactly what should happen at each step
+5. **Test both cases**: Cover both success and edge cases (e.g., enabled/disabled, valid/invalid)
+
+**Example Test Runbook Structure:**
+
+```markdown
+## Manual Testing in UI
+
+1. **Create test graph:**
+   - Add [Operator1] with value X
+   - Add [Operator2] with value Y
+   - Connect outputs to inputs
+
+2. **Test primary behavior:**
+   - Set parameter to A → should see result B
+   - Set parameter to C → should see result D
+
+3. **Test edge case:**
+   - Disable feature → should see fallback behavior
+
+4. **Verify in timeline:**
+   - Keyframe parameter from X to Y
+   - Should see [describe animation/interpolation]
+```
+
+**Include Project File:**
+
+Provide a complete `noodles.json` file that can be saved in `noodles-editor/public/noodles/` and opened with `?project=test-name`. This makes it trivial for reviewers to verify the changes.
 
 ### Documentation Best Practices
 
@@ -820,5 +864,5 @@ When implementing features or fixes:
 
 ---
 
-**Last Updated**: 2025-11-12
+**Last Updated**: 2025-11-14
 **Version**: Based on project version 6 schema
