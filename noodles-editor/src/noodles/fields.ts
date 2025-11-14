@@ -522,7 +522,11 @@ export class BooleanField extends Field<z.ZodBoolean> {
   }
 }
 
-export class DateField extends Field<z.ZodUnion<[z.ZodDate, z.ZodISODateTime]>> {
+export class DateField extends Field<z.ZodUnion<readonly [
+  z.ZodCustom<Temporal.PlainDateTime, Temporal.PlainDateTime>,
+  z.ZodPipe<z.ZodDate, z.ZodTransform<Temporal.PlainDateTime, Date>>, 
+  z.ZodPipe<z.ZodISODateTime, z.ZodTransform<Temporal.PlainDateTime, string>>
+]>> {
   static type = 'date'
   static defaultValue = Temporal.Now.plainDateTimeISO()
   createSchema() {
