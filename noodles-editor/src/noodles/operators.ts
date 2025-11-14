@@ -1844,6 +1844,64 @@ export class NetworkOp extends Operator<NetworkOp> {
   }
 }
 
+// Helper function to detect Temporal objects
+function isTemporal(value: unknown): value is Temporal.PlainDate | Temporal.PlainDateTime | Temporal.Instant | Temporal.ZonedDateTime {
+  return (
+    value instanceof Temporal.PlainDate ||
+    value instanceof Temporal.PlainDateTime ||
+    value instanceof Temporal.Instant ||
+    value instanceof Temporal.ZonedDateTime
+  )
+}
+
+// Helper function to interpolate between two Temporal objects
+function interpolateTemporal(a: any, b: any, t: number): any {
+  // Convert both to epoch milliseconds for interpolation
+  let aMs: number
+  let bMs: number
+  let type: 'Instant' | 'ZonedDateTime' | 'PlainDateTime' | 'PlainDate'
+
+  if (a instanceof Temporal.Instant) {
+    aMs = a.epochMilliseconds
+    bMs = b.epochMilliseconds
+    type = 'Instant'
+  } else if (a instanceof Temporal.ZonedDateTime) {
+    aMs = a.epochMilliseconds
+    bMs = b.epochMilliseconds
+    type = 'ZonedDateTime'
+  } else if (a instanceof Temporal.PlainDateTime) {
+    // Convert to a reference Instant (using UTC as reference)
+    aMs = a.toZonedDateTime('UTC').epochMilliseconds
+    bMs = b.toZonedDateTime('UTC').epochMilliseconds
+    type = 'PlainDateTime'
+  } else if (a instanceof Temporal.PlainDate) {
+    // Convert to a reference Instant (start of day in UTC)
+    aMs = a.toZonedDateTime({ timeZone: 'UTC', plainTime: Temporal.PlainTime.from('00:00') }).epochMilliseconds
+    bMs = b.toZonedDateTime({ timeZone: 'UTC', plainTime: Temporal.PlainTime.from('00:00') }).epochMilliseconds
+    type = 'PlainDate'
+  } else {
+    throw new Error('Unsupported Temporal type for interpolation')
+  }
+
+  // Interpolate the milliseconds
+  const interpolatedMs = Math.round(aMs + (bMs - aMs) * t)
+
+  // Convert back to the appropriate Temporal type
+  if (type === 'Instant') {
+    return Temporal.Instant.fromEpochMilliseconds(interpolatedMs)
+  } else if (type === 'ZonedDateTime') {
+    const instant = Temporal.Instant.fromEpochMilliseconds(interpolatedMs)
+    return instant.toZonedDateTimeISO((a as Temporal.ZonedDateTime).timeZoneId)
+  } else if (type === 'PlainDateTime') {
+    const instant = Temporal.Instant.fromEpochMilliseconds(interpolatedMs)
+    return instant.toZonedDateTimeISO('UTC').toPlainDateTime()
+  } else {
+    // PlainDate
+    const instant = Temporal.Instant.fromEpochMilliseconds(interpolatedMs)
+    return instant.toZonedDateTimeISO('UTC').toPlainDate()
+  }
+}
+
 export class SwitchOp extends Operator<SwitchOp> {
   static displayName = 'Switch'
   static description =
@@ -1867,7 +1925,7 @@ export class SwitchOp extends Operator<SwitchOp> {
     blend,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!blend) {
-      const value = values[Math.min(index, values.length - 1)]
+      const value = values[Math.floor(Math.min(index, values.length - 1))]
       return { value }
     }
 
@@ -1892,7 +1950,18 @@ export class SwitchOp extends Operator<SwitchOp> {
 
     // Calculate the interpolation factor between the two values
     const t = clampedIndex - lowerIndex
-    const value = interpolate(values[lowerIndex], values[upperIndex])(t)
+
+    // Check if we're dealing with Temporal objects
+    const lowerValue = values[lowerIndex]
+    const upperValue = values[upperIndex]
+
+    if (isTemporal(lowerValue) && isTemporal(upperValue)) {
+      const value = interpolateTemporal(lowerValue, upperValue, t)
+      return { value }
+    }
+
+    // Fall back to d3's interpolate for other types
+    const value = interpolate(lowerValue, upperValue)(t)
     return { value }
   }
 }
