@@ -3,11 +3,6 @@ import { Route, Router, Switch, useLocation, useRoute, useSearchParams } from 'w
 import TimelineEditor from './timeline-editor'
 import ExamplesPage from './examples-page'
 
-// Base path differs between development and production
-// - Development (localhost): '/'
-// - Production: '/app/'
-const base = import.meta.env.DEV ? '/' : '/app/'
-
 function App() {
   const [location, navigate] = useLocation()
   const [searchParams] = useSearchParams()
@@ -25,7 +20,7 @@ function App() {
   }, [location, searchParams, match, navigate])
 
   return (
-    <Router base={base}>
+    <Router base={import.meta.env.BASE_URL}>
       <Switch>
         {/* Examples list page */}
         <Route path="/examples">
