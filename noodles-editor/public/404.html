@@ -12,12 +12,12 @@
       // For GitHub Pages: This converts the path to a query parameter
       // which is then handled by index.html
 
-      const path = window.location.pathname.slice(1)
+      const path = window.location.pathname
       const query = window.location.search
 
       const appRoot = window.location.hostname === 'localhost' ? '/' : '/app/'
 
-      if (path) {
+      if (path && path !== '/') {
         // Redirect to index.html with the path as a query parameter
         window.location.replace(
           window.location.origin +
