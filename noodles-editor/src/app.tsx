@@ -1,7 +1,12 @@
 import { useEffect } from 'react'
-import { Route, Switch, useLocation, useRoute, useSearchParams } from 'wouter'
+import { Route, Router, Switch, useLocation, useRoute, useSearchParams } from 'wouter'
 import TimelineEditor from './timeline-editor'
 import ExamplesPage from './examples-page'
+
+// Base path differs between development and production
+// - Development (localhost): '/'
+// - Production: '/app/'
+const base = import.meta.env.DEV ? '/' : '/app/'
 
 function App() {
   const [location, navigate] = useLocation()
@@ -20,22 +25,24 @@ function App() {
   }, [location, searchParams, match, navigate])
 
   return (
-    <Switch>
-      {/* Examples list page */}
-      <Route path="/examples">
-        <ExamplesPage />
-      </Route>
+    <Router base={base}>
+      <Switch>
+        {/* Examples list page */}
+        <Route path="/examples">
+          <ExamplesPage />
+        </Route>
 
-      {/* Project route - /examples/:projectId */}
-      <Route path="/examples/:projectId">
-        <TimelineEditor />
-      </Route>
+        {/* Project route - /examples/:projectId */}
+        <Route path="/examples/:projectId">
+          <TimelineEditor />
+        </Route>
 
-      {/* Root and all other routes - render timeline editor */}
-      <Route path="*">
-        <TimelineEditor />
-      </Route>
-    </Switch>
+        {/* Root and all other routes - render timeline editor */}
+        <Route path="*">
+          <TimelineEditor />
+        </Route>
+      </Switch>
+    </Router>
   )
 }
 
