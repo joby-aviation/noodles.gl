@@ -12,9 +12,7 @@ function HomepageHeader() {
   const {siteConfig} = useDocusaurusContext();
   // In development, the app runs on a different port (Vite)
   // In production, it's served from /app/
-  const appUrl = process.env.NODE_ENV === 'development'
-    ? 'http://localhost:5173/examples/nyc-taxis'
-    : '/app/examples/nyc-taxis';
+  const baseurl = process.env.NODE_ENV === 'development' ? '/' : '/app/';
 
   return (
     <header className={clsx('hero', styles.heroBanner)}>
@@ -31,7 +29,7 @@ function HomepageHeader() {
         <div className={styles.buttons}>
           <a
             className={clsx('button button--primary button--lg', styles.ctaButton)}
-            href={appUrl}>
+            href={`${baseurl}examples/nyc-taxis`}>
             Launch Editor
           </a>
           <Link
