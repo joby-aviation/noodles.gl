@@ -15,15 +15,16 @@
       const path = window.location.pathname.slice(1)
       const query = window.location.search
 
+      const appRoot = window.location.hostname === 'localhost' ? '/' : '/app/'
+
       if (path) {
         // Redirect to index.html with the path as a query parameter
         window.location.replace(
           window.location.origin +
-          '/?redirect=' + encodeURIComponent(path + query)
+          appRoot + '?redirect=' + encodeURIComponent(path + query)
         )
       } else {
         // Already at root, redirect
-        const appRoot = window.location.hostname === 'localhost' ? '/' : '/app/'
         window.location.replace(window.location.origin + appRoot)
       }
     </script>
