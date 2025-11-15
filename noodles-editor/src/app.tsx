@@ -4,21 +4,6 @@ import TimelineEditor from './timeline-editor'
 import ExamplesPage from './examples-page'
 
 function App() {
-  const [location, navigate] = useLocation()
-  const [searchParams] = useSearchParams()
-
-  const [match] = useRoute('/examples/:projectId')
-
-  // Handle legacy ?project=name query string by redirecting to /examples/name
-  useEffect(() => {
-    const projectParam = searchParams.get('project')
-
-    if (projectParam && !match) {
-      // Redirect from ?project=name to /examples/name
-      navigate(`/examples/${projectParam}`, { replace: true })
-    }
-  }, [location, searchParams, match, navigate])
-
   return (
     <Router base={import.meta.env.BASE_URL}>
       <Switch>
@@ -32,12 +17,33 @@ function App() {
           <TimelineEditor />
         </Route>
 
-        {/* Root and all other routes - render timeline editor */}
         <Route path="*">
-          <TimelineEditor />
+          <FallbackRoute />
         </Route>
       </Switch>
     </Router>
+  )
+}
+
+function FallbackRoute() {
+  const [location, navigate] = useLocation()
+  const [searchParams] = useSearchParams()
+  const [match] = useRoute('/examples/:projectId')
+
+  // Handle legacy ?project=name query string by redirecting to /examples/name
+  useEffect(() => {
+    const projectParam = searchParams.get('project')
+
+    if (projectParam && !match) {
+      // Redirect from ?project=name to /examples/name
+      navigate(`/examples/${projectParam}`, { replace: true })
+    }
+  }, [location, searchParams, match, navigate])
+  return (
+    <>
+      <h1>404 - Not Found</h1>
+      <ExamplesPage />
+    </>
   )
 }
 
