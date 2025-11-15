@@ -688,9 +688,9 @@ export class BooleanOp extends Operator<BooleanOp> {
   }
 }
 
-export class DateOp extends Operator<DateOp> {
-  static displayName = 'Date'
-  static description = 'A date'
+export class DateTimeOp extends Operator<DateTimeOp> {
+  static displayName = 'DateTime'
+  static description = 'A date and time'
   createInputs() {
     return {
       date: new DateField(),
@@ -5286,7 +5286,7 @@ export const opTypes = {
   ContainerOp,
   ContourLayerOp,
   DataFilterExtensionOp,
-  DateOp,
+  DateTimeOp,
   DeckRendererOp,
   DirectionsOp,
   DuckDbOp,
