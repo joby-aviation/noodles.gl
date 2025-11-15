@@ -37,8 +37,8 @@
 
           // Remove the redirect parameter and update the URL using history API
           params.delete('redirect');
-          const newSearch = params.toString() ? '?' + params.toString() : '';
-          const newUrl = window.location.pathname + redirect + newSearch + window.location.hash;
+          const newSearch = params.size ? '?' + params.toString() : '';
+          const newUrl = redirect + newSearch + window.location.hash;
 
           // Replace the current history entry to avoid a back-button loop
           window.history.replaceState(null, '', newUrl);
