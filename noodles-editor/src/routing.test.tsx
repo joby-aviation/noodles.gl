@@ -18,10 +18,10 @@ describe('Routing Tests', () => {
     cleanup()
   })
 
-  test('root path renders timeline editor', () => {
+  test('root path renders examples page', () => {
     window.history.replaceState({}, '', '/')
     render(<App />)
-    expect(screen.getByTestId('timeline-editor')).toBeTruthy()
+    expect(screen.getByTestId('examples-page')).toBeTruthy()
   })
 
   test('/examples renders examples page', () => {

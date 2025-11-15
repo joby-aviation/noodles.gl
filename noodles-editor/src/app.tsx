@@ -7,6 +7,11 @@ function App() {
   return (
     <Router base={import.meta.env.BASE_URL}>
       <Switch>
+        {/* Root path - show examples page */}
+        <Route path="/">
+          <ExamplesPage />
+        </Route>
+
         {/* Examples list page */}
         <Route path="/examples">
           <ExamplesPage />
