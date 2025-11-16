@@ -8,9 +8,8 @@
  */
 
 import { create } from 'zustand'
-import type { Workspace } from '../storage/workspace-types'
 import type { DialogState } from '../components/dialog-api'
-import type { NoodlesProjectJSON } from '../utils/serialization'
+import type { Workspace } from '../storage/workspace-types'
 
 // ============================================================================
 // Types
@@ -22,76 +21,72 @@ import type { NoodlesProjectJSON } from '../utils/serialization'
 export type OperationState = 'idle' | 'running' | 'error'
 
 interface MenuOperationsState {
-	/**
-	 * Current workspace (null if none selected)
-	 */
-	currentWorkspace: Workspace | null
+  /**
+   * Current workspace (null if none selected)
+   */
+  currentWorkspace: Workspace | null
 
-	/**
-	 * Active project name (null if none open)
-	 */
-	activeProject: string | null
+  /**
+   * Active project name (null if none open)
+   */
+  activeProject: string | null
 
-	/**
-	 * Current operation name (null if idle)
-	 */
-	currentOperation: string | null
+  /**
+   * Current operation name (null if idle)
+   */
+  currentOperation: string | null
 
-	/**
-	 * Operation execution state
-	 */
-	operationState: OperationState
+  /**
+   * Operation execution state
+   */
+  operationState: OperationState
 
-	/**
-	 * Error from last operation (null if no error)
-	 */
-	operationError: Error | null
+  /**
+   * Error from last operation (null if no error)
+   */
+  operationError: Error | null
 
-	/**
-	 * Active dialog state (managed by DialogAPI)
-	 */
-	activeDialog: DialogState
+  /**
+   * Active dialog state (managed by DialogAPI)
+   */
+  activeDialog: DialogState
 
-	/**
-	 * Recent workspaces (computed from cache at runtime)
-	 */
-	recentWorkspaces: Workspace[]
+  /**
+   * Recent workspaces (computed from cache at runtime)
+   */
+  recentWorkspaces: Workspace[]
 }
 
 interface MenuOperationsActions {
-	/**
-	 * Set current workspace
-	 */
-	setWorkspace: (workspace: Workspace | null) => void
+  /**
+   * Set current workspace
+   */
+  setWorkspace: (workspace: Workspace | null) => void
 
-	/**
-	 * Set active project
-	 */
-	setActiveProject: (name: string | null) => void
+  /**
+   * Set active project
+   */
+  setActiveProject: (name: string | null) => void
 
-	/**
-	 * Set operation state
-	 */
-	setOperationState: (
-		operation: string | null,
-		state: OperationState,
-		error?: Error | null
-	) => void
+  /**
+   * Set operation state
+   */
+  setOperationState: (operation: string | null, state: OperationState, error?: Error | null) => void
 
-	/**
-	 * Set active dialog (called by DialogAPI)
-	 */
-	setActiveDialog: (dialog: DialogState) => void
+  /**
+   * Set active dialog (called by DialogAPI)
+   */
+  setActiveDialog: (dialog: DialogState) => void
 
-	/**
-	 * Update recent workspaces list
-	 */
-	setRecentWorkspaces: (workspaces: Workspace[]) => void
+  /**
+   * Update recent workspaces list
+   */
+  setRecentWorkspaces: (workspaces: Workspace[]) => void
 
-	/**
-	 * Reset to initial state
-	 */
-	reset: () => void
+  /**
+   * Reset to initial state
+   */
+  reset: () => void
 }
 
 export type MenuOperationsStore = MenuOperationsState & MenuOperationsActions
@@ -101,45 +96,45 @@ export type MenuOperationsStore = MenuOperationsState & MenuOperationsActions
 // ============================================================================
 
 const initialState: MenuOperationsState = {
-	currentWorkspace: null,
-	activeProject: null,
-	currentOperation: null,
-	operationState: 'idle',
-	operationError: null,
-	activeDialog: null,
-	recentWorkspaces: [],
+  currentWorkspace: null,
+  activeProject: null,
+  currentOperation: null,
+  operationState: 'idle',
+  operationError: null,
+  activeDialog: null,
+  recentWorkspaces: [],
 }
 
-export const useMenuOperationsStore = create<MenuOperationsStore>((set) => ({
-	...initialState,
+export const useMenuOperationsStore = create<MenuOperationsStore>(set => ({
+  ...initialState,
 
-	setWorkspace: (workspace) => {
-		set({ currentWorkspace: workspace })
-	},
+  setWorkspace: workspace => {
+    set({ currentWorkspace: workspace })
+  },
 
-	setActiveProject: (name) => {
-		set({ activeProject: name })
-	},
+  setActiveProject: name => {
+    set({ activeProject: name })
+  },
 
-	setOperationState: (operation, state, error = null) => {
-		set({
-			currentOperation: operation,
-			operationState: state,
-			operationError: error,
-		})
-	},
+  setOperationState: (operation, state, error = null) => {
+    set({
+      currentOperation: operation,
+      operationState: state,
+      operationError: error,
+    })
+  },
 
-	setActiveDialog: (dialog) => {
-		set({ activeDialog: dialog })
-	},
+  setActiveDialog: dialog => {
+    set({ activeDialog: dialog })
+  },
 
-	setRecentWorkspaces: (workspaces) => {
-		set({ recentWorkspaces: workspaces })
-	},
+  setRecentWorkspaces: workspaces => {
+    set({ recentWorkspaces: workspaces })
+  },
 
-	reset: () => {
-		set(initialState)
-	},
+  reset: () => {
+    set(initialState)
+  },
 }))
 
 // ============================================================================
@@ -149,47 +144,40 @@ export const useMenuOperationsStore = create<MenuOperationsStore>((set) => ({
 /**
  * Get current workspace
  */
-export const useCurrentWorkspace = () =>
-	useMenuOperationsStore((state) => state.currentWorkspace)
+export const useCurrentWorkspace = () => useMenuOperationsStore(state => state.currentWorkspace)
 
 /**
  * Get active project name
  */
-export const useActiveProject = () =>
-	useMenuOperationsStore((state) => state.activeProject)
+export const useActiveProject = () => useMenuOperationsStore(state => state.activeProject)
 
 /**
  * Get current operation name
  */
-export const useCurrentOperation = () =>
-	useMenuOperationsStore((state) => state.currentOperation)
+export const useCurrentOperation = () => useMenuOperationsStore(state => state.currentOperation)
 
 /**
  * Get operation state
  */
-export const useOperationState = () =>
-	useMenuOperationsStore((state) => state.operationState)
+export const useOperationState = () => useMenuOperationsStore(state => state.operationState)
 
 /**
  * Get operation error
  */
-export const useOperationError = () =>
-	useMenuOperationsStore((state) => state.operationError)
+export const useOperationError = () => useMenuOperationsStore(state => state.operationError)
 
 /**
  * Get active dialog state
  */
-export const useActiveDialog = () =>
-	useMenuOperationsStore((state) => state.activeDialog)
+export const useActiveDialog = () => useMenuOperationsStore(state => state.activeDialog)
 
 /**
  * Get recent workspaces
  */
-export const useRecentWorkspaces = () =>
-	useMenuOperationsStore((state) => state.recentWorkspaces)
+export const useRecentWorkspaces = () => useMenuOperationsStore(state => state.recentWorkspaces)
 
 /**
  * Check if an operation is currently running
  */
 export const useIsOperationRunning = () =>
-	useMenuOperationsStore((state) => state.operationState === 'running')
+  useMenuOperationsStore(state => state.operationState === 'running')

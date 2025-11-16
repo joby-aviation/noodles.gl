@@ -1,11 +1,11 @@
 import { create } from 'zustand'
 import type { FileSystemError } from './storage'
+import type { Workspace } from './storage/workspace-types'
 import {
   checkFileSystemSupport,
   type FileSystemSupport,
   type StorageType,
 } from './utils/filesystem'
-import type { Workspace } from './storage/workspace-types'
 
 // ============================================================================
 // Types
@@ -81,14 +81,14 @@ export const useFileSystemStore = create<FileSystemStore>((set, _get) => ({
     })
   },
 
-  setWorkspace: (workspace) => {
+  setWorkspace: workspace => {
     set({
       currentWorkspace: workspace,
       error: null,
     })
   },
 
-  setProjectName: (projectName) => {
+  setProjectName: projectName => {
     set({
       currentProjectName: projectName,
     })
@@ -104,7 +104,7 @@ export const useFileSystemStore = create<FileSystemStore>((set, _get) => ({
   },
 
   // Backwards compatibility
-  setActiveStorageType: (type) => {
+  setActiveStorageType: type => {
     set({ activeStorageType: type })
   },
 
@@ -138,10 +138,11 @@ export const useCurrentProjectName = () => useFileSystemStore(state => state.cur
 /**
  * Get current workspace and project together
  */
-export const useWorkspaceAndProject = () => useFileSystemStore(state => ({
-  workspace: state.currentWorkspace,
-  projectName: state.currentProjectName,
-}))
+export const useWorkspaceAndProject = () =>
+  useFileSystemStore(state => ({
+    workspace: state.currentWorkspace,
+    projectName: state.currentProjectName,
+  }))
 
 /**
  * Backwards compatibility: Get current directory

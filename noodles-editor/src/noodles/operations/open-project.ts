@@ -17,44 +17,42 @@ import type { Operation, OperationContext } from './types'
  * 5. Load project data
  * 6. Update state to open project
  */
-export async function* openProjectOperation(
-	context: OperationContext
-): Operation<void> {
-	// Select workspace (with recent workspaces list)
-	const workspace = yield {
-		type: 'select-workspace',
-		showRecent: true,
-	}
-	if (!workspace) return
+export async function* openProjectOperation(context: OperationContext): Operation<void> {
+  // Select workspace (with recent workspaces list)
+  const workspace = yield {
+    type: 'select-workspace',
+    showRecent: true,
+  }
+  if (!workspace) return
 
-	// If folder workspace, prompt for name (if not already named)
-	if (workspace.type === 'folder' && !workspace.name) {
-		const name = yield {
-			type: 'name-workspace',
-			defaultName: workspace.handle.name,
-		}
-		if (!name) return
-		workspace.name = name
-		await context.cacheWorkspace(workspace)
-	}
+  // If folder workspace, prompt for name (if not already named)
+  if (workspace.type === 'folder' && !workspace.name) {
+    const name = yield {
+      type: 'name-workspace',
+      defaultName: workspace.handle.name,
+    }
+    if (!name) return
+    workspace.name = name
+    await context.cacheWorkspace(workspace)
+  }
 
-	// List projects in workspace
-	const projects = await context.listProjects(workspace)
+  // List projects in workspace
+  const projects = await context.listProjects(workspace)
 
-	// Select project
-	const projectName = yield {
-		type: 'select-project',
-		workspace,
-		projects,
-	}
-	if (!projectName) return
+  // Select project
+  const projectName = yield {
+    type: 'select-project',
+    workspace,
+    projects,
+  }
+  if (!projectName) return
 
-	// Load project
-	await context.loadProject(workspace, projectName)
+  // Load project
+  await context.loadProject(workspace, projectName)
 
-	// Update state
-	context.setWorkspace(workspace)
-	context.setActiveProject(projectName)
-	context.updateURL(workspace.name, projectName)
-	context.updateRecent(workspace, projectName)
+  // Update state
+  context.setWorkspace(workspace)
+  context.setActiveProject(projectName)
+  context.updateURL(workspace.name, projectName)
+  context.updateRecent(workspace, projectName)
 }

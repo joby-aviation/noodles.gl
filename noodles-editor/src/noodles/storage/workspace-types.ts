@@ -21,19 +21,19 @@ export type WorkspaceType = 'folder' | 'browserStorage' | 'examples'
  * - examples: Read-only examples (no handle needed)
  */
 export type Workspace =
-	| {
-			type: 'folder'
-			name: string
-			handle: FileSystemDirectoryHandle
-	  }
-	| {
-			type: 'browserStorage'
-			name: string
-	  }
-	| {
-			type: 'examples'
-			name: string
-	  }
+  | {
+      type: 'folder'
+      name: string
+      handle: FileSystemDirectoryHandle
+    }
+  | {
+      type: 'browserStorage'
+      name: string
+    }
+  | {
+      type: 'examples'
+      name: string
+    }
 
 /**
  * Cached workspace entry stored in IndexedDB
@@ -46,81 +46,81 @@ export type Workspace =
  * No manual tracking needed - file system is the database.
  */
 export interface CachedWorkspaceEntry {
-	/**
-	 * Workspace name (unique identifier)
-	 */
-	name: string
+  /**
+   * Workspace name (unique identifier)
+   */
+  name: string
 
-	/**
-	 * Directory handle (for folder workspaces)
-	 */
-	handle: FileSystemDirectoryHandle
+  /**
+   * Directory handle (for folder workspaces)
+   */
+  handle: FileSystemDirectoryHandle
 
-	/**
-	 * When the workspace was last accessed
-	 * Updated when opening/saving projects in this workspace
-	 */
-	lastAccessed: Date
+  /**
+   * When the workspace was last accessed
+   * Updated when opening/saving projects in this workspace
+   */
+  lastAccessed: Date
 
-	/**
-	 * When the workspace was first cached
-	 */
-	cached: Date
+  /**
+   * When the workspace was first cached
+   */
+  cached: Date
 }
 
 /**
  * Workspace-related error types
  */
 export type WorkspaceErrorType =
-	| 'permission-denied'
-	| 'not-found'
-	| 'invalid-handle'
-	| 'name-collision'
-	| 'read-only'
-	| 'unsupported'
+  | 'permission-denied'
+  | 'not-found'
+  | 'invalid-handle'
+  | 'name-collision'
+  | 'read-only'
+  | 'unsupported'
 
 /**
  * Workspace error with type and details
  */
 export interface WorkspaceError extends Error {
-	type: WorkspaceErrorType
-	workspace?: Workspace
-	projectName?: string
+  type: WorkspaceErrorType
+  workspace?: Workspace
+  projectName?: string
 }
 
 /**
  * Helper to check if workspace is read-only
  */
 export function isReadOnly(workspace: Workspace): boolean {
-	return workspace.type === 'examples'
+  return workspace.type === 'examples'
 }
 
 /**
  * Helper to get workspace display icon
  */
 export function getWorkspaceIcon(workspace: Workspace): string {
-	switch (workspace.type) {
-		case 'browserStorage':
-			return '📦'
-		case 'examples':
-			return '📚'
-		case 'folder':
-			return '📁'
-	}
+  switch (workspace.type) {
+    case 'browserStorage':
+      return '📦'
+    case 'examples':
+      return '📚'
+    case 'folder':
+      return '📁'
+  }
 }
 
 /**
  * Helper to create a workspace error
  */
 export function createWorkspaceError(
-	type: WorkspaceErrorType,
-	message: string,
-	workspace?: Workspace,
-	projectName?: string
+  type: WorkspaceErrorType,
+  message: string,
+  workspace?: Workspace,
+  projectName?: string
 ): WorkspaceError {
-	const error = new Error(message) as WorkspaceError
-	error.type = type
-	error.workspace = workspace
-	error.projectName = projectName
-	return error
+  const error = new Error(message) as WorkspaceError
+  error.type = type
+  error.workspace = workspace
+  error.projectName = projectName
+  return error
 }

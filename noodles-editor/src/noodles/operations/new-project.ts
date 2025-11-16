@@ -17,39 +17,37 @@ import type { Operation, OperationContext } from './types'
  * 5. Create empty project and save
  * 6. Update state to open new project
  */
-export async function* newProjectOperation(
-	context: OperationContext
-): Operation<void> {
-	// Ensure workspace selected
-	if (!context.workspace) {
-		const workspace = yield { type: 'select-workspace' }
-		if (!workspace) return
-		context.setWorkspace(workspace)
-	}
+export async function* newProjectOperation(context: OperationContext): Operation<void> {
+  // Ensure workspace selected
+  if (!context.workspace) {
+    const workspace = yield { type: 'select-workspace' }
+    if (!workspace) return
+    context.setWorkspace(workspace)
+  }
 
-	// Check read-only
-	if (context.workspace.type === 'examples') {
-		yield { type: 'error', message: 'Cannot create in read-only workspace' }
-		return
-	}
+  // Check read-only
+  if (context.workspace.type === 'examples') {
+    yield { type: 'error', message: 'Cannot create in read-only workspace' }
+    return
+  }
 
-	// Get project name
-	const name = yield { type: 'prompt-name' }
-	if (!name) return
+  // Get project name
+  const name = yield { type: 'prompt-name' }
+  if (!name) return
 
-	// Check conflict
-	const exists = await context.checkProjectExists(context.workspace, name)
-	if (exists) {
-		const replace = yield { type: 'confirm-replace', projectName: name }
-		if (!replace) return
-	}
+  // Check conflict
+  const exists = await context.checkProjectExists(context.workspace, name)
+  if (exists) {
+    const replace = yield { type: 'confirm-replace', projectName: name }
+    if (!replace) return
+  }
 
-	// Create and save
-	const newProject = context.getNewProjectTemplate()
-	await context.saveProject(context.workspace, name, newProject)
+  // Create and save
+  const newProject = context.getNewProjectTemplate()
+  await context.saveProject(context.workspace, name, newProject)
 
-	// Update state
-	context.setActiveProject(name)
-	context.updateURL(context.workspace.name, name)
-	context.updateRecent(context.workspace, name)
+  // Update state
+  context.setActiveProject(name)
+  context.updateURL(context.workspace.name, name)
+  context.updateRecent(context.workspace, name)
 }
