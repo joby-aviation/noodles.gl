@@ -19,26 +19,25 @@ Refactor the storage system to use a unified workspace model where all storage i
 **File**: `noodles-editor/src/noodles/storage/workspace-types.ts` (new)
 **Changes**:
 - Define `WorkspaceType = 'folder' | 'browserStorage' | 'examples'`
-- Define `Workspace` interface:
+- Define simplified `Workspace` interface:
   ```typescript
-  {
+  interface Workspace {
     type: WorkspaceType
-    name: string  // User-visible name (identifier for folder type)
-    path?: string  // Filesystem path (folder type only)
-    handle?: FileSystemDirectoryHandle  // Folder type only
-    isReadOnly: boolean
+    name: string  // User-visible name (identifier for folder workspaces)
+    handle?: FileSystemDirectoryHandle  // Only for 'folder' type
   }
   ```
-- Define workspace metadata interfaces
+- Read-only check: `workspace.type === 'examples'`
+- Define workspace metadata interfaces for caching
 - Define workspace-related error types
 
 ### Task 1.2: Create workspace registry and cache
 **File**: `noodles-editor/src/noodles/utils/workspace-cache.ts` (new)
 **Changes**:
 - Extend DirectoryHandleCache for workspaces
-- Store workspace entries: `{ name, path, handle, lastProject, lastAccessed }`
+- Store workspace entries: `{ name, handle, lastProject, lastAccessed }`
 - Functions:
-  - `cacheWorkspace(name, path, handle, lastProject)`
+  - `cacheWorkspace(name, handle, lastProject)`
   - `getCachedWorkspace(name)`
   - `listCachedWorkspaces()` - Returns all cached workspaces sorted by lastAccessed
   - `updateLastProject(name, projectName)`
@@ -50,13 +49,13 @@ Refactor the storage system to use a unified workspace model where all storage i
 **File**: `noodles-editor/src/noodles/storage/builtin-workspaces.ts` (new)
 **Changes**:
 - `getBrowserStorageWorkspace()`: Returns OPFS workspace object
-  - Name: "Browser Storage"
-  - Type: `browserStorage`
-  - Always available
+  ```typescript
+  { type: 'browserStorage', name: 'Browser Storage' }
+  ```
 - `getExamplesWorkspace()`: Returns publicFolder workspace object
-  - Name: "Examples"
-  - Type: `examples`
-  - Read-only
+  ```typescript
+  { type: 'examples', name: 'Examples' }
+  ```
 - `getBuiltinWorkspaces()`: Returns array of both
 
 ---
@@ -76,6 +75,7 @@ Refactor the storage system to use a unified workspace model where all storage i
   - `readAsset(workspace, projectName, fileName)`
   - `writeAsset(workspace, projectName, fileName, contents)`
 - Remove old `type` parameter from all functions
+- Check `workspace.type === 'examples'` for read-only enforcement
 
 ### Task 2.2: Implement workspace project listing
 **File**: `noodles-editor/src/noodles/storage.ts`
@@ -94,6 +94,7 @@ Refactor the storage system to use a unified workspace model where all storage i
 **Changes**:
 - **Replace** `activeStorageType` → `currentWorkspace: Workspace | null`
 - **Replace** `currentProjectName` → `activeProject: string | null`
+- **Replace** `currentDirectory` → remove (handle is in workspace object)
 - **Add** `projectsInWorkspace: string[]`
 - **Add** `recentWorkspaces: Workspace[]` (loaded from cache)
 - Update actions:
@@ -106,7 +107,7 @@ Refactor the storage system to use a unified workspace model where all storage i
   - `useActiveProject()`
   - `useProjectsInWorkspace()`
   - `useRecentWorkspaces()`
-- Remove `activeStorageType` and related code
+- Remove `activeStorageType`, `currentDirectory` and related code
 
 ### Task 3.2: Update URL parameter handling
 **File**: `noodles-editor/src/noodles/globals.ts`
@@ -123,7 +124,7 @@ Refactor the storage system to use a unified workspace model where all storage i
 **File**: `noodles-editor/src/noodles/components/workspace-name-dialog.tsx` (new)
 **Changes**:
 - Dialog prompting for workspace name when opening folder
-- Input field prefilled with folder name (basename)
+- Input field prefilled with folder name (from `handle.name`)
 - Validation: 3-32 chars, no special characters
 - Check for name collisions, show error if exists
 - Buttons: "Cancel", "Open Workspace"
@@ -138,7 +139,7 @@ Refactor the storage system to use a unified workspace model where all storage i
 - Each workspace shows:
   - Icon (📦 Browser, 📚 Examples, 📁 Folder)
   - Name
-  - Path (for folder type, shown in smaller text)
+  - Folder name (for folder type, from `handle.name`, shown in smaller text)
   - Last accessed time
 - Buttons at bottom:
   - "Browse for Folder..." (shows native folder picker + naming dialog)
@@ -152,10 +153,10 @@ Refactor the storage system to use a unified workspace model where all storage i
 - Table with columns: Name, Last Modified
 - Actions per project:
   - Click row to select/open
-  - Delete button (trash icon) - disabled for read-only workspaces
+  - Delete button (trash icon) - disabled for Examples workspace
 - Header shows current workspace name
 - Buttons:
-  - "New Project..." (disabled for read-only workspaces)
+  - "New Project..." (disabled for Examples workspace)
   - "Cancel"
   - "Open" (opens selected project)
 - Returns project name or special action ('new', 'cancel')
@@ -165,7 +166,8 @@ Refactor the storage system to use a unified workspace model where all storage i
 **Changes**:
 - Add `defaultName` prop to SaveProjectDialog
 - When importing, extract basename from file path
-- Prefill project name input with basename (e.g., "my-project" from "my-project.noodles.json")
+- Strip `.noodles.json` or `.json` extension
+- Prefill project name input with basename
 - Keep existing validation and replace confirmation flow
 
 ### Task 4.5: Create workspace/project breadcrumb UI
@@ -180,7 +182,7 @@ Refactor the storage system to use a unified workspace model where all storage i
 - Make project name clickable → opens project list dialog (current workspace)
 - Show "Untitled" for project if no name
 - Show "No workspace" if no workspace (shouldn't happen after refactor)
-- Replace existing ProjectNameBar usage
+- Replace existing ProjectNameBar usage in main layout
 
 ---
 
@@ -191,7 +193,7 @@ Refactor the storage system to use a unified workspace model where all storage i
 **Changes**:
 - Check if workspace is active
 - If no workspace: Show workspace picker first
-- If workspace is read-only: Show error
+- If workspace.type === 'examples': Show error
 - Show SaveProjectDialog (no default name)
 - Create blank project from template
 - Call `save(workspace, projectName, newProjectData)`
@@ -203,7 +205,7 @@ Refactor the storage system to use a unified workspace model where all storage i
 **Changes**:
 - Check if workspace is active
 - If no workspace: Show workspace picker first
-- If workspace is read-only: Show error
+- If workspace.type === 'examples': Show error
 - Show file picker for `.json` files
 - Extract basename from file path (remove `.noodles.json` or `.json` extension)
 - Show SaveProjectDialog with defaultName = basename
@@ -252,7 +254,7 @@ Refactor the storage system to use a unified workspace model where all storage i
 - Check if workspace and project name exist
 - If no workspace: Prompt for workspace (workspace picker)
 - If no project name: Show SaveProjectDialog
-- If workspace is read-only: Show error
+- If workspace.type === 'examples': Show error
 - Call `save(workspace, projectName, projectData)`
 - Update URL and recent workspaces
 - Keep existing replace confirmation flow
@@ -263,7 +265,7 @@ Refactor the storage system to use a unified workspace model where all storage i
 - New menu item: "Save As..." (⌘⇧S)
 - Check if workspace exists
 - If no workspace: Prompt for workspace
-- If workspace is read-only: Show error
+- If workspace.type === 'examples': Show error
 - Show SaveProjectDialog with empty/new name
 - Call `saveAs(workspace, newProjectName, projectData)`
 - Update URL and recent workspaces
@@ -333,7 +335,7 @@ Refactor the storage system to use a unified workspace model where all storage i
 **Changes**:
 - Get current workspace and project from store
 - Call `writeAsset(workspace, projectName, fileName, contents)`
-- Show error for read-only workspaces
+- Show error for Examples workspace (read-only)
 - Handle case where no workspace is active
 
 ---
@@ -348,6 +350,7 @@ Refactor the storage system to use a unified workspace model where all storage i
 - Test project listing in workspaces
 - Test save/load/saveAs with workspace context
 - Test asset read/write with workspaces
+- Test read-only enforcement for Examples
 
 ### Task 7.2: Add workspace-specific tests
 **File**: `noodles-editor/src/noodles/storage/workspace.test.ts` (new)
@@ -387,7 +390,7 @@ Refactor the storage system to use a unified workspace model where all storage i
 
 ### Backward Compatibility
 - **URL**: `?project=name` still works (tries Examples → Browser Storage)
-- **Cached Handles**: Existing fileSystemAccess project handles remain valid but won't have workspace context initially
+- **Cached Handles**: Existing fileSystemAccess project handles can be migrated to workspace structure
 - **OPFS Projects**: Existing OPFS projects automatically appear in Browser Storage workspace
 - **Public Folder**: Existing examples work unchanged in Examples workspace
 
@@ -404,7 +407,7 @@ Refactor the storage system to use a unified workspace model where all storage i
 ### Test Scenarios
 1. **Open folder workspace** → Name it → See projects → Open project
 2. **Create new project** → Select workspace → Name project → Save
-3. **Import JSON** → Select workspace → See prefilled name → Save
+3. **Import JSON** → Select workspace → See prefilled name (basename) → Save
 4. **Switch project** → See list → Select different project
 5. **Switch workspace** → See recent + browse → Select workspace → See projects
 6. **Save As** → Enter new name → Verify new project in workspace
@@ -422,4 +425,4 @@ Refactor the storage system to use a unified workspace model where all storage i
 
 ## Summary
 
-This refactoring transforms the storage system into a workspace-centric architecture while maintaining complete backward compatibility. The implementation is broken into manageable phases with clear dependencies. The UI becomes more intuitive with breadcrumb navigation, better import flow, and unified workspace management.
+This refactoring transforms the storage system into a workspace-centric architecture with a simplified `Workspace` interface (no `isReadOnly` or `path` fields). Read-only checks use `workspace.type === 'examples'` and path info comes from `handle.name`. The implementation maintains complete backward compatibility while providing an intuitive breadcrumb UI, improved import flow, and unified workspace management.
