@@ -5,8 +5,57 @@ Refactor menu.tsx to use a clean, maintainable architecture combining:
 - **Async generator commands** for linear operation flows
 - **Promise-based dialogs** for user interactions
 - **Zustand actions/effects** for state management and side effects
+- **File system as database** for recent projects (no manual tracking)
 
 This eliminates callback hell, scattered state, and storage type branching.
+
+---
+
+## Key Design Principles
+
+### 1. Simplified Workspace Cache
+```typescript
+interface CachedWorkspaceEntry {
+  name: string                      // User-provided workspace name
+  handle: FileSystemDirectoryHandle // For accessing files
+  lastAccessed: Date                // When workspace was last used
+  cached: Date                      // When first cached
+}
+```
+
+**What we track manually:**
+- ✅ Only workspace `lastAccessed` (for workspace recency)
+
+**What we don't track:**
+- ❌ No `lastProject` field - not needed
+- ❌ No per-project `lastOpened` timestamps
+- ❌ No localStorage for recent projects
+
+### 2. Recent Projects from File System
+"Open Recent" shows the 5 most recently modified projects in the **current workspace**:
+
+```typescript
+async function getRecentProjects(workspace: Workspace): Promise<ProjectInfo[]> {
+  const projects = await listProjects(workspace)
+
+  // Each project has file.lastModified from noodles.json
+  return projects
+    .sort((a, b) => b.lastModified - a.lastModified)
+    .slice(0, 5)
+}
+```
+
+**Benefits:**
+- ✅ `file.lastModified` automatically updated by OS on save
+- ✅ Always accurate, never stale
+- ✅ No manual tracking needed
+- ✅ Works across all workspace types
+- ✅ Workspace-scoped (shows projects in current workspace)
+
+### 3. Performance
+- `.getFile()` on noodles.json is **fast** (metadata only, not file contents)
+- 50 projects = ~50ms to scan and sort
+- More than fast enough for UI
 
 ---
 
