@@ -10,6 +10,7 @@ Refactor the storage system to use a unified workspace model where all storage i
 - **Workspace Naming**: Always prompt when opening a folder workspace; name becomes the identifier
 - **New Project**: Always prompts for workspace selection first if none is active
 - **URL Format**: `?workspace=name&project=name`
+- **No Legacy Fallback**: Missing workspace param always prompts for workspace selection
 
 ---
 
@@ -43,6 +44,7 @@ Refactor the storage system to use a unified workspace model where all storage i
   - `updateLastProject(name, projectName)`
   - `removeWorkspace(name)`
   - `renameWorkspace(oldName, newName)` - For name collision resolution
+  - `clearLegacyCache()` - Clear old project-level cached handles
 - Store workspace list in localStorage for quick access
 
 ### Task 1.3: Create built-in workspace providers
@@ -74,14 +76,14 @@ Refactor the storage system to use a unified workspace model where all storage i
 - Update asset functions:
   - `readAsset(workspace, projectName, fileName)`
   - `writeAsset(workspace, projectName, fileName, contents)`
-- Remove old `type` parameter from all functions
+- Remove old `type` parameter-based functions
 - Check `workspace.type === 'examples'` for read-only enforcement
 
 ### Task 2.2: Implement workspace project listing
 **File**: `noodles-editor/src/noodles/storage.ts`
 **Changes**:
 - For `folder` type: Scan directory for subdirectories containing `noodles.json`
-- For `browserStorage`: List OPFS project directories
+- For `browserStorage`: List OPFS project directories with `noodles.json`
 - For `examples`: Scan `/public/noodles/` directories (or use manifest)
 - Return sorted array of project names
 
@@ -94,7 +96,7 @@ Refactor the storage system to use a unified workspace model where all storage i
 **Changes**:
 - **Replace** `activeStorageType` → `currentWorkspace: Workspace | null`
 - **Replace** `currentProjectName` → `activeProject: string | null`
-- **Replace** `currentDirectory` → remove (handle is in workspace object)
+- **Remove** `currentDirectory` (handle is in workspace object)
 - **Add** `projectsInWorkspace: string[]`
 - **Add** `recentWorkspaces: Workspace[]` (loaded from cache)
 - Update actions:
@@ -107,14 +109,13 @@ Refactor the storage system to use a unified workspace model where all storage i
   - `useActiveProject()`
   - `useProjectsInWorkspace()`
   - `useRecentWorkspaces()`
-- Remove `activeStorageType`, `currentDirectory` and related code
+- Remove `activeStorageType`, `currentDirectory`, `setCurrentDirectory` and related code
 
 ### Task 3.2: Update URL parameter handling
 **File**: `noodles-editor/src/noodles/globals.ts`
 **Changes**:
 - Add `workspaceName` parsing: `queryParams.get('workspace')`
 - Export both `workspaceName` and `projectId`
-- Keep backward compatibility: if only `?project=` exists, workspace is undefined
 
 ---
 
@@ -144,6 +145,7 @@ Refactor the storage system to use a unified workspace model where all storage i
 - Buttons at bottom:
   - "Browse for Folder..." (shows native folder picker + naming dialog)
   - "Cancel"
+- Optional prop: `prompt` - Custom message like "Select workspace for 'my-project'"
 - Returns selected Workspace or null
 
 ### Task 4.3: Create project list dialog
@@ -305,9 +307,10 @@ Refactor the storage system to use a unified workspace model where all storage i
 **File**: `noodles-editor/src/noodles/noodles.tsx`
 **Changes**:
 - Parse `workspaceName` and `projectId` from URL
+- Clear legacy cached handles on mount (`clearLegacyCache()`)
 - **Loading flow**:
   1. If both workspace and project in URL: Load from that workspace
-  2. If only project in URL (legacy): Try Examples → Browser Storage (backward compat)
+  2. If only project in URL (no workspace): **Immediately prompt for workspace selection** with message "Select workspace for '{projectId}'"
   3. If neither: Check for cached last workspace/project
   4. If nothing: Show workspace picker automatically
 - Load builtin workspaces into store on mount
@@ -360,6 +363,7 @@ Refactor the storage system to use a unified workspace model where all storage i
 - Test project listing across workspace types
 - Test builtin workspace providers
 - Test recent workspaces tracking
+- Test legacy cache clearing
 
 ### Task 7.3: Add UI component tests
 **Files**: 
@@ -376,6 +380,7 @@ Refactor the storage system to use a unified workspace model where all storage i
 **Files**: 
 - `AGENTS.md`
 - `dev-docs/architecture.md`
+- `dev-docs/specs/project-workspaces.md`
 - User documentation
 **Changes**:
 - Document workspace architecture and concepts
@@ -383,46 +388,54 @@ Refactor the storage system to use a unified workspace model where all storage i
 - Add workspace workflow examples
 - Document URL parameter format
 - Update file operations documentation
+- Document migration strategy (clean break, no legacy support)
 
 ---
 
 ## Migration Strategy
 
-### Backward Compatibility
-- **URL**: `?project=name` still works (tries Examples → Browser Storage)
-- **Cached Handles**: Existing fileSystemAccess project handles can be migrated to workspace structure
-- **OPFS Projects**: Existing OPFS projects automatically appear in Browser Storage workspace
-- **Public Folder**: Existing examples work unchanged in Examples workspace
+### Clean Break Approach
+- **No cached handle migration** - Existing fileSystemAccess project-level cached handles are cleared on first load
+- **No legacy fallback** - `?project=name` without `?workspace=` always prompts for workspace selection
+- **Clean slate** - All users adopt workspace model immediately after update
+- **Prompt-driven recovery** - Users with old URLs are guided to select workspace via dialog
 
-### Migration Path
-1. Users continue using single projects as before
-2. Users can adopt workspace model by using "Open Workspace..."
-3. Import flow guides users to workspace model
-4. No data migration required - everything remains accessible
+### User Experience
+1. First load after update: Legacy cache cleared, user sees workspace picker
+2. URL with only `?project=`: User prompted "Select workspace for 'project-name'"
+3. URL with `?workspace=&project=`: Loads directly if cached, otherwise prompts
+4. No URL params: Shows workspace picker automatically
+
+### Data Safety
+- No project data is lost or moved
+- Users simply need to re-select their workspace folders
+- Built-in workspaces (Browser Storage, Examples) work immediately
 
 ---
 
 ## Manual Testing Plan
 
 ### Test Scenarios
-1. **Open folder workspace** → Name it → See projects → Open project
-2. **Create new project** → Select workspace → Name project → Save
-3. **Import JSON** → Select workspace → See prefilled name (basename) → Save
-4. **Switch project** → See list → Select different project
-5. **Switch workspace** → See recent + browse → Select workspace → See projects
-6. **Save As** → Enter new name → Verify new project in workspace
-7. **Breadcrumb clicks** → Click workspace name → See picker
-8. **Breadcrumb clicks** → Click project name → See project list
-9. **URL with workspace** → `?workspace=foo&project=bar` → Loads correctly
-10. **Legacy URL** → `?project=example` → Loads from Examples
-11. **Built-in workspaces** → Browser Storage and Examples always available
-12. **Read-only workspace** → Examples blocks save/new/import operations
-13. **Recent workspaces** → Shows last 6 with last project
-14. **Asset loading** → FileOp reads from workspace/project/data/
-15. **Asset upload** → FileFieldComponent writes to workspace/project/data/
+1. **Fresh start** → No URL params → See workspace picker
+2. **Open folder workspace** → Name it → See projects → Open project
+3. **Create new project** → Select workspace → Name project → Save
+4. **Import JSON** → Select workspace → See prefilled name (basename) → Save
+5. **Switch project** → See list → Select different project
+6. **Switch workspace** → See recent + browse → Select workspace → See projects
+7. **Save As** → Enter new name → Verify new project in workspace
+8. **Breadcrumb clicks** → Click workspace name → See picker
+9. **Breadcrumb clicks** → Click project name → See project list
+10. **URL with workspace** → `?workspace=foo&project=bar` → Loads correctly
+11. **URL without workspace** → `?project=bar` → Prompts for workspace selection
+12. **Built-in workspaces** → Browser Storage and Examples always available
+13. **Read-only workspace** → Examples blocks save/new/import operations
+14. **Recent workspaces** → Shows last 6 with last project
+15. **Asset loading** → FileOp reads from workspace/project/data/
+16. **Asset upload** → FileFieldComponent writes to workspace/project/data/
+17. **Legacy cache cleared** → Old cached handles removed on first load
 
 ---
 
 ## Summary
 
-This refactoring transforms the storage system into a workspace-centric architecture with a simplified `Workspace` interface (no `isReadOnly` or `path` fields). Read-only checks use `workspace.type === 'examples'` and path info comes from `handle.name`. The implementation maintains complete backward compatibility while providing an intuitive breadcrumb UI, improved import flow, and unified workspace management.
+This refactoring transforms the storage system into a workspace-centric architecture with a simplified `Workspace` interface. The migration takes a clean break approach: no legacy fallback, existing caches are cleared, and all users immediately adopt the workspace model via intuitive prompts. The implementation provides breadcrumb UI, improved import flow with basename prefill, and unified workspace management across all storage types.
