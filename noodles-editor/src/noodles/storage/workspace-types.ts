@@ -38,6 +38,10 @@ export interface Workspace {
 
 /**
  * Cached workspace entry stored in IndexedDB
+ *
+ * Recent workspaces are computed at runtime by querying all entries
+ * sorted by lastAccessed. No need for separate localStorage tracking.
+ * Folder name can be retrieved from handle.name when needed.
  */
 export interface CachedWorkspaceEntry {
 	/**
@@ -64,36 +68,6 @@ export interface CachedWorkspaceEntry {
 	 * When the workspace was first cached
 	 */
 	cached: Date
-}
-
-/**
- * Workspace metadata for recent workspaces list (stored in localStorage)
- */
-export interface WorkspaceMetadata {
-	/**
-	 * Workspace name
-	 */
-	name: string
-
-	/**
-	 * Workspace type
-	 */
-	type: WorkspaceType
-
-	/**
-	 * Last opened project
-	 */
-	lastProject: string | null
-
-	/**
-	 * Last accessed timestamp (ISO string)
-	 */
-	lastAccessed: string
-
-	/**
-	 * Folder name (for folder workspaces, from handle.name)
-	 */
-	folderName?: string
 }
 
 /**
