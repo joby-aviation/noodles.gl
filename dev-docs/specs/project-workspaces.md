@@ -1,441 +1,658 @@
-# Workspace Architecture Implementation Plan
+# Workspace Architecture with Command Pattern & Zustand
 
 ## Overview
-Refactor the storage system to use a unified workspace model where all storage is organized as workspaces containing projects. Add breadcrumb UI showing "workspace / project", improve import flow with project naming, and add workspace naming on open.
+Refactor menu.tsx to use a clean, maintainable architecture combining:
+- **Async generator commands** for linear operation flows
+- **Promise-based dialogs** for user interactions
+- **Zustand actions/effects** for state management and side effects
 
-## Key Design Decisions
-- **Workspace Structure**: Flat - `workspace-folder/project-name/noodles.json + data/`
-- **Built-in Workspaces**: Browser Storage (OPFS) and Examples (publicFolder) act as special workspaces
-- **Import Flow**: Import saves to current workspace, prompting for project name (prefilled with basename)
-- **Workspace Naming**: Always prompt when opening a folder workspace; name becomes the identifier
-- **New Project**: Always prompts for workspace selection first if none is active
-- **URL Format**: `?workspace=name&project=name`
-- **No Legacy Fallback**: Missing workspace param always prompts for workspace selection
+This eliminates callback hell, scattered state, and storage type branching.
 
 ---
 
-## Phase 1: Core Workspace Data Model
+## Architecture Design
 
-### Task 1.1: Define workspace types and interfaces
-**File**: `noodles-editor/src/noodles/storage/workspace-types.ts` (new)
+### Command Pattern with Async Generators
+Operations are async generators that yield dialog requests:
+
+```typescript
+async function* saveProjectOperation() {
+  // Linear flow, yields pauses for user input
+  const workspace = yield ensureWorkspace()
+  const name = yield ensureProjectName()
+  const confirmed = yield checkAndConfirmOverwrite(workspace, name)
+  if (!confirmed) return
+  
+  await executeProjectSave(workspace, name)
+}
+```
+
+### Promise-based Dialog API
+Dialogs resolve with user choices:
+
+```typescript
+// Dialog opens and returns Promise
+const workspace = await dialogAPI.selectWorkspace({ prompt: 'Select workspace' })
+const name = await dialogAPI.promptProjectName({ defaultName: 'my-project' })
+```
+
+### Zustand Store with Actions/Effects
+Centralized state management:
+
+```typescript
+// Store actions dispatch effects
+const store = useMenuStore()
+store.runOperation('save')  // Dispatches save operation
+
+// Store manages:
+// - Current workspace/project
+// - Operation state (idle, running, error)
+// - Dialog state (which dialog to show)
+// - Recent workspaces
+```
+
+---
+
+## Implementation Plan
+
+### Phase 1: Core Architecture
+
+#### Task 1.1: Create dialog API with Promise-based interface
+**File**: `noodles-editor/src/noodles/components/dialog-api.tsx` (new)
 **Changes**:
-- Define `WorkspaceType = 'folder' | 'browserStorage' | 'examples'`
-- Define simplified `Workspace` interface:
+- Create `DialogAPI` class with Promise-returning methods:
+  - `selectWorkspace(options?): Promise<Workspace | null>`
+  - `promptProjectName(options?): Promise<string | null>`
+  - `confirmReplace(projectName): Promise<boolean>`
+  - `showError(error): Promise<void>`
+- Create `DialogProvider` component that renders active dialog
+- Use React context to provide DialogAPI instance
+- Single `DialogContainer` component that shows one dialog at a time
+- Each dialog method:
+  - Sets dialog state (which dialog to show, with props)
+  - Returns Promise that resolves when user completes dialog
+  - Resolves with result or null if cancelled
+
+**Example API**:
+```typescript
+class DialogAPI {
+  private setState: (state: DialogState) => void
+  
+  selectWorkspace(options?: { prompt?: string }): Promise<Workspace | null> {
+    return new Promise((resolve) => {
+      this.setState({
+        type: 'workspace-picker',
+        props: { prompt: options?.prompt, onComplete: resolve }
+      })
+    })
+  }
+  
+  promptProjectName(options?: { 
+    defaultName?: string,
+    validateExists?: boolean 
+  }): Promise<string | null> {
+    return new Promise((resolve) => {
+      this.setState({
+        type: 'project-name',
+        props: { ...options, onComplete: resolve }
+      })
+    })
+  }
+}
+```
+
+#### Task 1.2: Create operation runner for async generators
+**File**: `noodles-editor/src/noodles/utils/operation-runner.ts` (new)
+**Changes**:
+- Create `runOperation()` function that executes async generators
+- Handles yielded dialog requests by calling DialogAPI
+- Passes dialog results back to generator
+- Error handling and cancellation support
+- Integration with Zustand store for state updates
+
+**Example**:
+```typescript
+async function runOperation<T>(
+  generator: AsyncGenerator<DialogRequest, T>,
+  dialogAPI: DialogAPI,
+  onProgress?: (state: string) => void
+): Promise<T> {
+  let lastResult: any = undefined
+  
+  while (true) {
+    const { value, done } = await generator.next(lastResult)
+    
+    if (done) return value
+    
+    // value is a dialog request
+    const dialogResult = await executeDialogRequest(value, dialogAPI)
+    
+    if (dialogResult === null) {
+      // User cancelled
+      await generator.return(undefined)
+      throw new CancellationError()
+    }
+    
+    lastResult = dialogResult
+  }
+}
+```
+
+#### Task 1.3: Define operation types and dialog requests
+**File**: `noodles-editor/src/noodles/operations/types.ts` (new)
+**Changes**:
+- Define `DialogRequest` union type for all dialog types
+- Define operation result types
+- Define operation error types
+
+```typescript
+type DialogRequest = 
+  | { type: 'select-workspace', prompt?: string }
+  | { type: 'prompt-name', defaultName?: string, validateExists?: boolean }
+  | { type: 'confirm-replace', projectName: string }
+  | { type: 'confirm-action', title: string, message: string }
+
+type OperationResult<T> = 
+  | { success: true, value: T }
+  | { success: false, error: OperationError, cancelled: boolean }
+```
+
+---
+
+### Phase 2: Zustand Menu Store
+
+#### Task 2.1: Create menu operations store
+**File**: `noodles-editor/src/noodles/stores/menu-store.tsx` (new)
+**Changes**:
+- Create Zustand store for menu operations
+- State:
   ```typescript
-  interface Workspace {
-    type: WorkspaceType
-    name: string  // User-visible name (identifier for folder workspaces)
-    handle?: FileSystemDirectoryHandle  // Only for 'folder' type
+  {
+    // Operation state
+    currentOperation: string | null
+    operationState: 'idle' | 'running' | 'error'
+    operationError: Error | null
+    
+    // Dialog state (managed by dialog API)
+    activeDialog: DialogState | null
+    
+    // Data (from filesystem-store, imported)
+    currentWorkspace: Workspace | null
+    activeProject: string | null
+    recentWorkspaces: Workspace[]
   }
   ```
-- Read-only check: `workspace.type === 'examples'`
-- Define workspace metadata interfaces for caching
-- Define workspace-related error types
-
-### Task 1.2: Create workspace registry and cache
-**File**: `noodles-editor/src/noodles/utils/workspace-cache.ts` (new)
-**Changes**:
-- Extend DirectoryHandleCache for workspaces
-- Store workspace entries: `{ name, handle, lastProject, lastAccessed }`
-- Functions:
-  - `cacheWorkspace(name, handle, lastProject)`
-  - `getCachedWorkspace(name)`
-  - `listCachedWorkspaces()` - Returns all cached workspaces sorted by lastAccessed
-  - `updateLastProject(name, projectName)`
-  - `removeWorkspace(name)`
-  - `renameWorkspace(oldName, newName)` - For name collision resolution
-  - `clearLegacyCache()` - Clear old project-level cached handles
-- Store workspace list in localStorage for quick access
-
-### Task 1.3: Create built-in workspace providers
-**File**: `noodles-editor/src/noodles/storage/builtin-workspaces.ts` (new)
-**Changes**:
-- `getBrowserStorageWorkspace()`: Returns OPFS workspace object
+- Actions:
   ```typescript
-  { type: 'browserStorage', name: 'Browser Storage' }
+  {
+    // Operation execution
+    runOperation: (name: string, ...args: any[]) => Promise<void>
+    cancelOperation: () => void
+    
+    // Dialog management (called by DialogAPI)
+    setActiveDialog: (dialog: DialogState | null) => void
+    
+    // Side effects (save, load, etc.)
+    saveProject: (workspace, name, data) => Promise<void>
+    loadProject: (workspace, name) => Promise<void>
+    
+    // Cache/recent updates
+    updateRecent: (workspace, project) => void
+  }
   ```
-- `getExamplesWorkspace()`: Returns publicFolder workspace object
-  ```typescript
-  { type: 'examples', name: 'Examples' }
-  ```
-- `getBuiltinWorkspaces()`: Returns array of both
 
----
-
-## Phase 2: Refactor Storage Abstraction
-
-### Task 2.1: Add workspace-aware storage functions
-**File**: `noodles-editor/src/noodles/storage.ts`
-**Changes**:
-- Refactor `save()` signature: `save(workspace: Workspace, projectName: string, projectData: NoodlesProjectJSON)`
-- Refactor `load()` signature: `load(workspace: Workspace, projectName: string)`
-- Add `saveAs(workspace: Workspace, newProjectName: string, projectData: NoodlesProjectJSON)`
-- Add `listProjects(workspace: Workspace): Promise<string[]>` - Lists all projects in workspace
-- Add `createProject(workspace: Workspace, projectName: string)` - Creates empty project folder
-- Add `deleteProject(workspace: Workspace, projectName: string)` - Deletes project from workspace
-- Update asset functions:
-  - `readAsset(workspace, projectName, fileName)`
-  - `writeAsset(workspace, projectName, fileName, contents)`
-- Remove old `type` parameter-based functions
-- Check `workspace.type === 'examples'` for read-only enforcement
-
-### Task 2.2: Implement workspace project listing
-**File**: `noodles-editor/src/noodles/storage.ts`
-**Changes**:
-- For `folder` type: Scan directory for subdirectories containing `noodles.json`
-- For `browserStorage`: List OPFS project directories with `noodles.json`
-- For `examples`: Scan `/public/noodles/` directories (or use manifest)
-- Return sorted array of project names
-
----
-
-## Phase 3: State Management
-
-### Task 3.1: Update filesystem store for workspaces
+#### Task 2.2: Integrate with filesystem-store
 **File**: `noodles-editor/src/noodles/filesystem-store.tsx`
 **Changes**:
-- **Replace** `activeStorageType` → `currentWorkspace: Workspace | null`
-- **Replace** `currentProjectName` → `activeProject: string | null`
-- **Remove** `currentDirectory` (handle is in workspace object)
-- **Add** `projectsInWorkspace: string[]`
-- **Add** `recentWorkspaces: Workspace[]` (loaded from cache)
-- Update actions:
-  - `setCurrentWorkspace(workspace, projects)`
-  - `setActiveProject(projectName)`
-  - `setProjectsInWorkspace(projects)`
-  - `loadRecentWorkspaces()` - Load from cache
-- Update selectors:
-  - `useCurrentWorkspace()`
-  - `useActiveProject()`
-  - `useProjectsInWorkspace()`
-  - `useRecentWorkspaces()`
-- Remove `activeStorageType`, `currentDirectory`, `setCurrentDirectory` and related code
-
-### Task 3.2: Update URL parameter handling
-**File**: `noodles-editor/src/noodles/globals.ts`
-**Changes**:
-- Add `workspaceName` parsing: `queryParams.get('workspace')`
-- Export both `workspaceName` and `projectId`
+- Keep workspace/project state here
+- Export selectors for menu-store to use
+- Menu-store calls filesystem-store actions for workspace/project updates
+- Clear separation: filesystem-store = data, menu-store = operations
 
 ---
 
-## Phase 4: UI Components
+### Phase 3: Operation Implementations
 
-### Task 4.1: Create workspace naming dialog
-**File**: `noodles-editor/src/noodles/components/workspace-name-dialog.tsx` (new)
+#### Task 3.1: Implement New Project operation
+**File**: `noodles-editor/src/noodles/operations/new-project.ts` (new)
 **Changes**:
-- Dialog prompting for workspace name when opening folder
-- Input field prefilled with folder name (from `handle.name`)
-- Validation: 3-32 chars, no special characters
-- Check for name collisions, show error if exists
-- Buttons: "Cancel", "Open Workspace"
-- Returns workspace name or null if cancelled
+```typescript
+export async function* newProjectOperation(
+  context: OperationContext
+): AsyncGenerator<DialogRequest, void> {
+  // Ensure workspace selected
+  if (!context.workspace) {
+    const workspace = yield { type: 'select-workspace' }
+    if (!workspace) return
+    context.setWorkspace(workspace)
+  }
+  
+  // Check read-only
+  if (context.workspace.type === 'examples') {
+    yield { type: 'error', message: 'Cannot create in read-only workspace' }
+    return
+  }
+  
+  // Get project name
+  const name = yield { type: 'prompt-name' }
+  if (!name) return
+  
+  // Check conflict
+  const exists = await context.checkProjectExists(context.workspace, name)
+  if (exists) {
+    const replace = yield { type: 'confirm-replace', projectName: name }
+    if (!replace) return
+  }
+  
+  // Create and save
+  const newProject = context.getNewProjectTemplate()
+  await context.saveProject(context.workspace, name, newProject)
+  
+  // Update state
+  context.setActiveProject(name)
+  context.updateURL(context.workspace.name, name)
+  context.updateRecent(context.workspace, name)
+}
+```
 
-### Task 4.2: Create workspace picker dialog
-**File**: `noodles-editor/src/noodles/components/workspace-picker-dialog.tsx` (new)
+#### Task 3.2: Implement Import Project operation
+**File**: `noodles-editor/src/noodles/operations/import-project.ts` (new)
 **Changes**:
-- Shows all available workspaces:
-  - Built-in: Browser Storage, Examples (always at top)
-  - Recent folder workspaces (sorted by last accessed)
-- Each workspace shows:
-  - Icon (📦 Browser, 📚 Examples, 📁 Folder)
-  - Name
-  - Folder name (for folder type, from `handle.name`, shown in smaller text)
-  - Last accessed time
-- Buttons at bottom:
-  - "Browse for Folder..." (shows native folder picker + naming dialog)
-  - "Cancel"
-- Optional prop: `prompt` - Custom message like "Select workspace for 'my-project'"
-- Returns selected Workspace or null
+```typescript
+export async function* importProjectOperation(
+  context: OperationContext
+): AsyncGenerator<DialogRequest, void> {
+  // Select file
+  const fileHandle = yield { type: 'select-file', accept: '.json' }
+  if (!fileHandle) return
+  
+  // Read and parse
+  const file = await fileHandle.getFile()
+  const json = JSON.parse(await file.text())
+  const migrated = await migrateProject(json)
+  
+  // Extract basename for default name
+  const defaultName = extractBasename(file.name)
+  
+  // Rest follows new-project pattern
+  if (!context.workspace) {
+    const workspace = yield { type: 'select-workspace' }
+    if (!workspace) return
+    context.setWorkspace(workspace)
+  }
+  
+  if (context.workspace.type === 'examples') {
+    yield { type: 'error', message: 'Cannot import to read-only workspace' }
+    return
+  }
+  
+  const name = yield { type: 'prompt-name', defaultName }
+  if (!name) return
+  
+  // ... conflict check and save
+}
+```
 
-### Task 4.3: Create project list dialog
-**File**: `noodles-editor/src/noodles/components/project-list-dialog.tsx` (new)
+#### Task 3.3: Implement Open Project operation
+**File**: `noodles-editor/src/noodles/operations/open-project.ts` (new)
 **Changes**:
-- Shows all projects in current workspace
-- Table with columns: Name, Last Modified
-- Actions per project:
-  - Click row to select/open
-  - Delete button (trash icon) - disabled for Examples workspace
-- Header shows current workspace name
-- Buttons:
-  - "New Project..." (disabled for Examples workspace)
-  - "Cancel"
-  - "Open" (opens selected project)
-- Returns project name or special action ('new', 'cancel')
+```typescript
+export async function* openProjectOperation(
+  context: OperationContext
+): AsyncGenerator<DialogRequest, void> {
+  // Select workspace (with recent workspaces list)
+  const workspace = yield { 
+    type: 'select-workspace',
+    showRecent: true 
+  }
+  if (!workspace) return
+  
+  // If folder workspace, prompt for name (if not already named)
+  if (workspace.type === 'folder' && !workspace.name) {
+    const name = yield { 
+      type: 'name-workspace',
+      defaultName: workspace.handle.name 
+    }
+    if (!name) return
+    workspace.name = name
+    await context.cacheWorkspace(workspace)
+  }
+  
+  // List projects in workspace
+  const projects = await context.listProjects(workspace)
+  
+  // Select project
+  const projectName = yield { 
+    type: 'select-project',
+    workspace,
+    projects 
+  }
+  if (!projectName) return
+  
+  // Load project
+  await context.loadProject(workspace, projectName)
+  
+  // Update state
+  context.setWorkspace(workspace)
+  context.setActiveProject(projectName)
+  context.updateURL(workspace.name, projectName)
+  context.updateRecent(workspace, projectName)
+}
+```
 
-### Task 4.4: Update SaveProjectDialog for import flow
-**File**: `noodles-editor/src/noodles/components/menu.tsx`
-**Changes**:
-- Add `defaultName` prop to SaveProjectDialog
-- When importing, extract basename from file path
-- Strip `.noodles.json` or `.json` extension
-- Prefill project name input with basename
-- Keep existing validation and replace confirmation flow
-
-### Task 4.5: Create workspace/project breadcrumb UI
-**File**: `noodles-editor/src/noodles/components/workspace-project-bar.tsx` (new, replaces ProjectNameBar)
-**Changes**:
-- Display format: `[workspace-icon] workspace-name / project-name`
-- Examples:
-  - `📦 Browser Storage / my-project`
-  - `📁 My Work / demo-viz`
-  - `📚 Examples / airports`
-- Make workspace name clickable → opens workspace picker
-- Make project name clickable → opens project list dialog (current workspace)
-- Show "Untitled" for project if no name
-- Show "No workspace" if no workspace (shouldn't happen after refactor)
-- Replace existing ProjectNameBar usage in main layout
+#### Task 3.4: Implement Save, Save As, Switch Project, Switch Workspace operations
+**Files**: 
+- `noodles-editor/src/noodles/operations/save-project.ts`
+- `noodles-editor/src/noodles/operations/save-as-project.ts`
+- `noodles-editor/src/noodles/operations/switch-project.ts`
+- `noodles-editor/src/noodles/operations/switch-workspace.ts`
+**Changes**: Similar patterns using async generators that yield dialog requests
 
 ---
 
-## Phase 5: Menu Integration
+### Phase 4: Dialog Components (Refactored)
 
-### Task 5.1: Update "New Project" operation
-**File**: `noodles-editor/src/noodles/components/menu.tsx`
-**Changes**:
-- Check if workspace is active
-- If no workspace: Show workspace picker first
-- If workspace.type === 'examples': Show error
-- Show SaveProjectDialog (no default name)
-- Create blank project from template
-- Call `save(workspace, projectName, newProjectData)`
-- Update URL with workspace and project
-- Update recent workspaces
+#### Task 4.1: Refactor dialogs to use Promise-based API
+**Files**:
+- `noodles-editor/src/noodles/components/workspace-picker-dialog.tsx` (new)
+- `noodles-editor/src/noodles/components/workspace-name-dialog.tsx` (new)
+- `noodles-editor/src/noodles/components/project-name-dialog.tsx` (refactor SaveProjectDialog)
+- `noodles-editor/src/noodles/components/project-list-dialog.tsx` (new)
+- `noodles-editor/src/noodles/components/confirm-dialog.tsx` (refactor ReplaceProjectDialog)
 
-### Task 5.2: Update "Import" operation
-**File**: `noodles-editor/src/noodles/components/menu.tsx`
-**Changes**:
-- Check if workspace is active
-- If no workspace: Show workspace picker first
-- If workspace.type === 'examples': Show error
-- Show file picker for `.json` files
-- Extract basename from file path (remove `.noodles.json` or `.json` extension)
-- Show SaveProjectDialog with defaultName = basename
-- Migrate and validate imported project
-- Call `save(workspace, projectName, importedData)`
-- Update URL and recent workspaces
+**Changes for each dialog**:
+- Accept `onComplete: (result: T | null) => void` prop
+- Call `onComplete(result)` when user confirms
+- Call `onComplete(null)` when user cancels
+- Remove internal state management (now in dialog API)
+- Simplified component just renders UI and calls callback
 
-### Task 5.3: Update "Open..." operation
-**File**: `noodles-editor/src/noodles/components/menu.tsx`
-**Changes**:
-- Show workspace picker dialog
-- If user selects folder workspace:
-  - Show workspace naming dialog
-  - Cache workspace with name
-  - Load projects list
-  - Show project list dialog
-  - Load selected project
-- If user selects built-in workspace:
-  - Load projects list
-  - Show project list dialog
-  - Load selected project
-- Update URL with workspace and project
-- Update recent workspaces
-
-### Task 5.4: Add "Switch Project..." operation
-**File**: `noodles-editor/src/noodles/components/menu.tsx`
-**Changes**:
-- New menu item: "Switch Project..." (⌘⇧O)
-- Only enabled if workspace is active
-- Shows project list dialog for current workspace
-- Loads selected project
-- Updates URL project parameter
-- Updates recent workspaces with new last project
-
-### Task 5.5: Add "Switch Workspace..." operation
-**File**: `noodles-editor/src/noodles/components/menu.tsx`
-**Changes**:
-- New menu item: "Switch Workspace..." (⌘⇧W)
-- Shows workspace picker dialog
-- Follows same flow as "Open..." but for workspace switching
-- Prompts to save current project if unsaved changes exist
-
-### Task 5.6: Update "Save" operation
-**File**: `noodles-editor/src/noodles/components/menu.tsx`
-**Changes**:
-- Check if workspace and project name exist
-- If no workspace: Prompt for workspace (workspace picker)
-- If no project name: Show SaveProjectDialog
-- If workspace.type === 'examples': Show error
-- Call `save(workspace, projectName, projectData)`
-- Update URL and recent workspaces
-- Keep existing replace confirmation flow
-
-### Task 5.7: Add "Save As..." operation
-**File**: `noodles-editor/src/noodles/components/menu.tsx`
-**Changes**:
-- New menu item: "Save As..." (⌘⇧S)
-- Check if workspace exists
-- If no workspace: Prompt for workspace
-- If workspace.type === 'examples': Show error
-- Show SaveProjectDialog with empty/new name
-- Call `saveAs(workspace, newProjectName, projectData)`
-- Update URL and recent workspaces
-
-### Task 5.8: Update "Download Project" operation
-**File**: `noodles-editor/src/noodles/components/menu.tsx`
-**Changes**:
-- Keep existing ZIP export logic
-- Update to work with workspace context
-- Use workspace + project to get directory handle
-- Export as `{projectName}.zip` (unchanged)
-
-### Task 5.9: Update "Open Recent" submenu
-**File**: `noodles-editor/src/noodles/components/menu.tsx`
-**Changes**:
-- Change from recent projects to recent workspaces
-- Show: `workspace-name / last-project-name`
-- Clicking loads that workspace and project
-- Store in localStorage: `{workspaceName, lastProject, lastAccessed}`
-- Max 6 recent workspaces
-
-### Task 5.10: Remove deprecated storage-type-specific code
-**File**: `noodles-editor/src/noodles/components/menu.tsx`
-**Changes**:
-- Remove `checkProjectExists()` function (lines ~254-260)
-- Remove `deleteProject()` function (lines ~262-274)
-- Remove `getProjectHandle()` function (lines ~276-288)
-- Remove `listProjects()` function (lines ~343-365)
-- Remove storage type conditionals throughout menu operations
-- All these operations now use workspace abstraction
+**Example**:
+```typescript
+function ProjectNameDialog({ 
+  defaultName, 
+  validateExists,
+  onComplete 
+}: {
+  defaultName?: string
+  validateExists?: boolean
+  onComplete: (name: string | null) => void
+}) {
+  const [name, setName] = useState(defaultName ?? '')
+  const [error, setError] = useState<string | null>(null)
+  
+  const handleSave = async () => {
+    // Validation
+    if (!isValidName(name)) {
+      setError('Invalid name')
+      return
+    }
+    
+    onComplete(name)
+  }
+  
+  return (
+    <Dialog.Root open onOpenChange={() => onComplete(null)}>
+      {/* ... UI ... */}
+      <button onClick={handleSave}>Save</button>
+      <button onClick={() => onComplete(null)}>Cancel</button>
+    </Dialog.Root>
+  )
+}
+```
 
 ---
 
-## Phase 6: Application Integration
+### Phase 5: Refactor Menu Component
 
-### Task 6.1: Update initial project loading
+#### Task 5.1: Simplify menu.tsx to use operation runner
+**File**: `noodles-editor/src/noodles/components/menu.tsx`
+**Changes**:
+- Remove all useState hooks for dialog management
+- Remove all callback functions (maybeSetProjectName, onReplaceProject, etc.)
+- Remove storage type branching logic
+- Replace with simple operation calls:
+
+```typescript
+export function Menu({ ... }) {
+  const { runOperation } = useMenuStore()
+  const dialogAPI = useDialogAPI()
+  
+  return (
+    <Menubar.Root>
+      <Menubar.Menu>
+        <Menubar.Item onSelect={() => runOperation('new-project')}>
+          New Project
+        </Menubar.Item>
+        <Menubar.Item onSelect={() => runOperation('import-project')}>
+          Import
+        </Menubar.Item>
+        <Menubar.Item onSelect={() => runOperation('open-project')}>
+          Open...
+        </Menubar.Item>
+        <Menubar.Item onSelect={() => runOperation('save-project')}>
+          Save
+        </Menubar.Item>
+        <Menubar.Item onSelect={() => runOperation('save-as-project')}>
+          Save As...
+        </Menubar.Item>
+        {/* ... */}
+      </Menubar.Menu>
+      
+      {/* Single dialog container */}
+      <DialogProvider api={dialogAPI} />
+    </Menubar.Root>
+  )
+}
+```
+
+- **Lines to remove**: 
+  - Lines 23-103 (SaveProjectDialog - moved to separate file)
+  - Lines 105-144 (ReplaceProjectDialog - moved to separate file)
+  - Lines 190-252 (OpenProjectDialog - moved to separate file)
+  - Lines 427-543 (All useState hooks and callback functions)
+  - Lines 583-630 (onOpenFileSystemFolder - now in operation)
+  - All storage type conditionals
+
+- **Net result**: menu.tsx shrinks from ~700 lines to ~150 lines
+
+#### Task 5.2: Create DialogProvider component
+**File**: `noodles-editor/src/noodles/components/dialog-provider.tsx` (new)
+**Changes**:
+- Single component that renders active dialog from menu-store
+- Switch statement based on dialog type
+- Passes onComplete callback to each dialog
+
+```typescript
+function DialogProvider() {
+  const activeDialog = useMenuStore(state => state.activeDialog)
+  
+  if (!activeDialog) return null
+  
+  switch (activeDialog.type) {
+    case 'workspace-picker':
+      return <WorkspacePickerDialog {...activeDialog.props} />
+    case 'project-name':
+      return <ProjectNameDialog {...activeDialog.props} />
+    case 'confirm-replace':
+      return <ConfirmDialog {...activeDialog.props} />
+    // ...
+  }
+}
+```
+
+---
+
+### Phase 6: Update Storage Layer (from previous workspace plan)
+
+#### Task 6.1: Implement workspace-aware storage functions
+**File**: `noodles-editor/src/noodles/storage.ts`
+**Changes**: (Same as previous plan Phase 2)
+- Refactor to workspace-based API
+- `save(workspace, projectName, data)`
+- `load(workspace, projectName)`
+- `listProjects(workspace)`
+- etc.
+
+#### Task 6.2: Create workspace types and cache
+**Files**:
+- `noodles-editor/src/noodles/storage/workspace-types.ts`
+- `noodles-editor/src/noodles/utils/workspace-cache.ts`
+- `noodles-editor/src/noodles/storage/builtin-workspaces.ts`
+**Changes**: (Same as previous plan Phase 1)
+
+---
+
+### Phase 7: Integration & Testing
+
+#### Task 7.1: Update noodles.tsx for initial loading
 **File**: `noodles-editor/src/noodles/noodles.tsx`
 **Changes**:
-- Parse `workspaceName` and `projectId` from URL
-- Clear legacy cached handles on mount (`clearLegacyCache()`)
-- **Loading flow**:
-  1. If both workspace and project in URL: Load from that workspace
-  2. If only project in URL (no workspace): **Immediately prompt for workspace selection** with message "Select workspace for '{projectId}'"
-  3. If neither: Check for cached last workspace/project
-  4. If nothing: Show workspace picker automatically
-- Load builtin workspaces into store on mount
-- Update URL when workspace/project loads
-- Handle ProjectNotFoundDialog in workspace context
+- On mount, check URL params
+- If missing workspace, run `initial-load` operation
+- Operation handles workspace selection automatically
 
-### Task 6.2: Update ProjectNotFoundDialog for workspaces
-**File**: `noodles-editor/src/noodles/components/project-not-found-dialog.tsx`
-**Changes**:
-- Update "Locate Project Folder" → "Locate Workspace Folder"
-- Show workspace naming dialog after folder selection
-- Search for project in selected workspace
-- Update error messages to be workspace-aware
+```typescript
+useEffect(() => {
+  const { workspaceName, projectId } = parseURL()
+  
+  if (!workspaceName && projectId) {
+    // Missing workspace, prompt user
+    runOperation('initial-load', { projectId })
+  } else if (workspaceName && projectId) {
+    // Load directly
+    runOperation('load-from-url', { workspaceName, projectId })
+  } else {
+    // Nothing in URL, show workspace picker
+    runOperation('initial-load')
+  }
+}, [])
+```
 
-### Task 6.3: Update FileOp for workspace-aware asset loading
-**File**: `noodles-editor/src/noodles/operators.ts` (FileOp)
-**Changes**:
-- Get current workspace from store (useCurrentWorkspace)
-- Get current project from store (useActiveProject)
-- Call `readAsset(workspace, projectName, fileName)`
-- Handle case where no workspace is active (show error)
+#### Task 7.2: Create operation tests
+**Files**: 
+- `noodles-editor/src/noodles/operations/new-project.test.ts`
+- `noodles-editor/src/noodles/operations/import-project.test.ts`
+- etc.
 
-### Task 6.4: Update FileFieldComponent for workspace-aware uploads
-**File**: `noodles-editor/src/noodles/components/field-components.tsx`
 **Changes**:
-- Get current workspace and project from store
-- Call `writeAsset(workspace, projectName, fileName, contents)`
-- Show error for Examples workspace (read-only)
-- Handle case where no workspace is active
+- Test operations with mocked DialogAPI
+- Assert dialog requests yielded in correct order
+- Assert state updates after completion
+- Test cancellation paths
+- Much easier to test than callback chains!
+
+**Example test**:
+```typescript
+test('new-project prompts for workspace if none selected', async () => {
+  const mockDialogs = {
+    'select-workspace': mockWorkspace,
+    'prompt-name': 'my-project'
+  }
+  
+  const generator = newProjectOperation(context)
+  
+  // Expect workspace dialog
+  const { value: dialog1 } = await generator.next()
+  expect(dialog1.type).toBe('select-workspace')
+  
+  // Provide workspace
+  const { value: dialog2 } = await generator.next(mockWorkspace)
+  expect(dialog2.type).toBe('prompt-name')
+  
+  // Provide name
+  await generator.next('my-project')
+  
+  // Assert save was called
+  expect(context.saveProject).toHaveBeenCalledWith(
+    mockWorkspace, 
+    'my-project', 
+    expect.any(Object)
+  )
+})
+```
 
 ---
 
-## Phase 7: Testing & Cleanup
+## Benefits of This Architecture
 
-### Task 7.1: Update storage tests
-**File**: `noodles-editor/src/noodles/storage.test.ts`
-**Changes**:
-- Refactor all tests to use Workspace objects instead of storage types
-- Test folder, browserStorage, and examples workspaces
-- Test project listing in workspaces
-- Test save/load/saveAs with workspace context
-- Test asset read/write with workspaces
-- Test read-only enforcement for Examples
+### 1. **Dramatically Simplified menu.tsx**
+- From ~700 lines to ~150 lines
+- No nested callbacks
+- No scattered state management
+- No storage type branching
 
-### Task 7.2: Add workspace-specific tests
-**File**: `noodles-editor/src/noodles/storage/workspace.test.ts` (new)
-**Changes**:
-- Test workspace caching and retrieval
-- Test workspace naming and collision detection
-- Test project listing across workspace types
-- Test builtin workspace providers
-- Test recent workspaces tracking
-- Test legacy cache clearing
+### 2. **Linear, Readable Operation Code**
+```typescript
+// Before (callback hell):
+onMenuSave → maybeSetProjectName → checkProjectExists → 
+  setReplaceDialogOpen → onReplaceProject → save → updateCache
 
-### Task 7.3: Add UI component tests
-**Files**: 
-- `workspace-name-dialog.test.tsx`
-- `workspace-picker-dialog.test.tsx`
-- `project-list-dialog.test.tsx`
-- `workspace-project-bar.test.tsx`
-**Changes**:
-- Test dialog interactions and validation
-- Test workspace/project selection flows
-- Test breadcrumb clickability and navigation
+// After (linear generator):
+async function* saveProject() {
+  const workspace = yield ensureWorkspace()
+  const name = yield ensureProjectName()
+  const confirmed = yield confirmOverwrite()
+  await save()
+}
+```
 
-### Task 7.4: Update documentation
-**Files**: 
-- `AGENTS.md`
-- `dev-docs/architecture.md`
-- `dev-docs/specs/project-workspaces.md`
-- User documentation
-**Changes**:
-- Document workspace architecture and concepts
-- Update storage system documentation
-- Add workspace workflow examples
-- Document URL parameter format
-- Update file operations documentation
-- Document migration strategy (clean break, no legacy support)
+### 3. **Easy to Test**
+- Operations are pure generators
+- Mock DialogAPI responses
+- Assert dialog sequence
+- No complex component mocking
+
+### 4. **Easy to Extend**
+Adding workspace support:
+- Just add workspace selection to operation flows
+- No need to refactor existing callback chains
+- Operations automatically get workspace support
+
+### 5. **Type-Safe Dialog Flows**
+- TypeScript knows what each dialog yields
+- Can't forget to handle dialog result
+- Compiler catches missing dialog types
+
+### 6. **Centralized Error Handling**
+- Operation runner catches errors
+- Single error display logic
+- No error handling scattered in callbacks
 
 ---
 
 ## Migration Strategy
 
-### Clean Break Approach
-- **No cached handle migration** - Existing fileSystemAccess project-level cached handles are cleared on first load
-- **No legacy fallback** - `?project=name` without `?workspace=` always prompts for workspace selection
-- **Clean slate** - All users adopt workspace model immediately after update
-- **Prompt-driven recovery** - Users with old URLs are guided to select workspace via dialog
+### Phase 1: Parallel Implementation
+- Implement new architecture alongside existing code
+- New operations in `/operations` folder
+- Old menu.tsx unchanged initially
 
-### User Experience
-1. First load after update: Legacy cache cleared, user sees workspace picker
-2. URL with only `?project=`: User prompted "Select workspace for 'project-name'"
-3. URL with `?workspace=&project=`: Loads directly if cached, otherwise prompts
-4. No URL params: Shows workspace picker automatically
+### Phase 2: Gradual Migration
+- Migrate one menu item at a time
+- Start with "New Project" (simplest)
+- Prove architecture works before full migration
 
-### Data Safety
-- No project data is lost or moved
-- Users simply need to re-select their workspace folders
-- Built-in workspaces (Browser Storage, Examples) work immediately
+### Phase 3: Complete Cutover
+- Remove old dialog components from menu.tsx
+- Remove callback functions
+- Remove state flags
+- Clean up
 
----
-
-## Manual Testing Plan
-
-### Test Scenarios
-1. **Fresh start** → No URL params → See workspace picker
-2. **Open folder workspace** → Name it → See projects → Open project
-3. **Create new project** → Select workspace → Name project → Save
-4. **Import JSON** → Select workspace → See prefilled name (basename) → Save
-5. **Switch project** → See list → Select different project
-6. **Switch workspace** → See recent + browse → Select workspace → See projects
-7. **Save As** → Enter new name → Verify new project in workspace
-8. **Breadcrumb clicks** → Click workspace name → See picker
-9. **Breadcrumb clicks** → Click project name → See project list
-10. **URL with workspace** → `?workspace=foo&project=bar` → Loads correctly
-11. **URL without workspace** → `?project=bar` → Prompts for workspace selection
-12. **Built-in workspaces** → Browser Storage and Examples always available
-13. **Read-only workspace** → Examples blocks save/new/import operations
-14. **Recent workspaces** → Shows last 6 with last project
-15. **Asset loading** → FileOp reads from workspace/project/data/
-16. **Asset upload** → FileFieldComponent writes to workspace/project/data/
-17. **Legacy cache cleared** → Old cached handles removed on first load
+### Phase 4: Add Workspace Support
+- Now trivial to add workspace selection to operations
+- Just yield workspace dialog at start of each operation
 
 ---
 
 ## Summary
 
-This refactoring transforms the storage system into a workspace-centric architecture with a simplified `Workspace` interface. The migration takes a clean break approach: no legacy fallback, existing caches are cleared, and all users immediately adopt the workspace model via intuitive prompts. The implementation provides breadcrumb UI, improved import flow with basename prefill, and unified workspace management across all storage types.
+This architecture solves all identified problems:
+- ❌ **Callback hell** → ✅ Linear async generators
+- ❌ **Scattered state** → ✅ Centralized Zustand store  
+- ❌ **Manual dialog coordination** → ✅ Promise-based dialog API
+- ❌ **Storage type branching** → ✅ Workspace abstraction
+- ❌ **Hard to test** → ✅ Pure generators, easy mocking
+- ❌ **Hard to extend** → ✅ Just add new operations
+
+The refactored menu.tsx will be maintainable, testable, and ready for workspace support.
