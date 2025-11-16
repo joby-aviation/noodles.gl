@@ -1,251 +1,425 @@
-# Unified Workspace Architecture Refactoring
+# Workspace Architecture Implementation Plan
 
-## Vision
-Refactor storage to use a **unified workspace model** where all storage types are workspaces:
-- **File System Workspaces**: User-selected folders (many possible)
-- **Browser Storage**: Single OPFS workspace (appears as "📦 Browser Storage")
-- **Examples**: Read-only public folder workspace (appears as "📚 Examples")
+## Overview
+Refactor the storage system to use a unified workspace model where all storage is organized as workspaces containing projects. Add breadcrumb UI showing "workspace / project", improve import flow with project naming, and add workspace naming on open.
 
-All workspaces contain projects with identical structure: `project-name/noodles.json + data/`
-
----
-
-## Core Concepts
-
-### Workspace Types
-```typescript
-type WorkspaceType = 'fileSystem' | 'browserStorage' | 'examples'
-
-interface Workspace {
-  type: WorkspaceType
-  id: string  // path for fileSystem, 'browser-storage' or 'examples'
-  displayName: string
-  handle?: FileSystemDirectoryHandle
-  isReadOnly: boolean
-}
-```
-
-### Workspace Structure
-```
-workspace-root/
-├── project-1/
-│   ├── noodles.json
-│   └── data/
-├── project-2/
-│   ├── noodles.json
-│   └── data/
-```
+## Key Design Decisions
+- **Workspace Structure**: Flat - `workspace-folder/project-name/noodles.json + data/`
+- **Built-in Workspaces**: Browser Storage (OPFS) and Examples (publicFolder) act as special workspaces
+- **Import Flow**: Import saves to current workspace, prompting for project name (prefilled with basename)
+- **Workspace Naming**: Always prompt when opening a folder workspace; name becomes the identifier
+- **New Project**: Always prompts for workspace selection first if none is active
+- **URL Format**: `?workspace=name&project=name`
 
 ---
 
-## Implementation Tasks
+## Phase 1: Core Workspace Data Model
 
-### Phase 1: Core Architecture Changes
+### Task 1.1: Define workspace types and interfaces
+**File**: `noodles-editor/src/noodles/storage/workspace-types.ts` (new)
+**Changes**:
+- Define `WorkspaceType = 'folder' | 'browserStorage' | 'examples'`
+- Define `Workspace` interface:
+  ```typescript
+  {
+    type: WorkspaceType
+    name: string  // User-visible name (identifier for folder type)
+    path?: string  // Filesystem path (folder type only)
+    handle?: FileSystemDirectoryHandle  // Folder type only
+    isReadOnly: boolean
+  }
+  ```
+- Define workspace metadata interfaces
+- Define workspace-related error types
 
-**Task 1: Introduce Workspace abstraction**
-- File: `noodles-editor/src/noodles/storage/workspace.ts` (new)
-- Define `Workspace`, `WorkspaceType`, `WorkspaceInfo` interfaces
-- Create `WorkspaceRegistry` to track active workspace
+### Task 1.2: Create workspace registry and cache
+**File**: `noodles-editor/src/noodles/utils/workspace-cache.ts` (new)
+**Changes**:
+- Extend DirectoryHandleCache for workspaces
+- Store workspace entries: `{ name, path, handle, lastProject, lastAccessed }`
 - Functions:
-  - `createWorkspace(type, id, handle?): Workspace`
-  - `getWorkspaceDisplayName(workspace): string`
-  - `listProjectsInWorkspace(workspace): Promise<string[]>`
-  - `getProjectDirectory(workspace, projectName): Promise<FileSystemDirectoryHandle>`
+  - `cacheWorkspace(name, path, handle, lastProject)`
+  - `getCachedWorkspace(name)`
+  - `listCachedWorkspaces()` - Returns all cached workspaces sorted by lastAccessed
+  - `updateLastProject(name, projectName)`
+  - `removeWorkspace(name)`
+  - `renameWorkspace(oldName, newName)` - For name collision resolution
+- Store workspace list in localStorage for quick access
 
-**Task 2: Refactor storage abstraction to be workspace-centric**
-- File: `noodles-editor/src/noodles/storage.ts`
-- **Replace**: `save(type, projectName, data)` → `save(workspace, projectName, data)`
-- **Replace**: `load(type, projectName)` → `load(workspace, projectName)`
-- Add: `saveAs(workspace, newProjectName, data)` for "Save As"
-- Add: `createProject(workspace, projectName)` for new projects
-- Remove storage type switching - workspace determines implementation
+### Task 1.3: Create built-in workspace providers
+**File**: `noodles-editor/src/noodles/storage/builtin-workspaces.ts` (new)
+**Changes**:
+- `getBrowserStorageWorkspace()`: Returns OPFS workspace object
+  - Name: "Browser Storage"
+  - Type: `browserStorage`
+  - Always available
+- `getExamplesWorkspace()`: Returns publicFolder workspace object
+  - Name: "Examples"
+  - Type: `examples`
+  - Read-only
+- `getBuiltinWorkspaces()`: Returns array of both
 
-**Task 3: Update filesystem utilities for workspace operations**
-- File: `noodles-editor/src/noodles/utils/filesystem.ts`
-- Add `listProjectFolders(workspaceHandle): Promise<string[]>`
-- Add `isValidProjectFolder(dirHandle): Promise<boolean>` (checks for noodles.json)
-- Update OPFS functions to use workspace structure: `getOPFSWorkspaceRoot()`
+---
 
-### Phase 2: State Management
+## Phase 2: Refactor Storage Abstraction
 
-**Task 4: Refactor filesystem store to workspace model**
-- File: `noodles-editor/src/noodles/filesystem-store.tsx`
-- **Replace**: `activeStorageType` → `currentWorkspace: Workspace | null`
-- **Replace**: `currentProjectName` → `activeProject: string | null`
-- Add: `availableWorkspaces: Workspace[]` (cached/favorite workspaces)
-- Add: `projectsInWorkspace: string[]`
-- Actions:
-  - `setCurrentWorkspace(workspace)`
+### Task 2.1: Add workspace-aware storage functions
+**File**: `noodles-editor/src/noodles/storage.ts`
+**Changes**:
+- Refactor `save()` signature: `save(workspace: Workspace, projectName: string, projectData: NoodlesProjectJSON)`
+- Refactor `load()` signature: `load(workspace: Workspace, projectName: string)`
+- Add `saveAs(workspace: Workspace, newProjectName: string, projectData: NoodlesProjectJSON)`
+- Add `listProjects(workspace: Workspace): Promise<string[]>` - Lists all projects in workspace
+- Add `createProject(workspace: Workspace, projectName: string)` - Creates empty project folder
+- Add `deleteProject(workspace: Workspace, projectName: string)` - Deletes project from workspace
+- Update asset functions:
+  - `readAsset(workspace, projectName, fileName)`
+  - `writeAsset(workspace, projectName, fileName, contents)`
+- Remove old `type` parameter from all functions
+
+### Task 2.2: Implement workspace project listing
+**File**: `noodles-editor/src/noodles/storage.ts`
+**Changes**:
+- For `folder` type: Scan directory for subdirectories containing `noodles.json`
+- For `browserStorage`: List OPFS project directories
+- For `examples`: Scan `/public/noodles/` directories (or use manifest)
+- Return sorted array of project names
+
+---
+
+## Phase 3: State Management
+
+### Task 3.1: Update filesystem store for workspaces
+**File**: `noodles-editor/src/noodles/filesystem-store.tsx`
+**Changes**:
+- **Replace** `activeStorageType` → `currentWorkspace: Workspace | null`
+- **Replace** `currentProjectName` → `activeProject: string | null`
+- **Add** `projectsInWorkspace: string[]`
+- **Add** `recentWorkspaces: Workspace[]` (loaded from cache)
+- Update actions:
+  - `setCurrentWorkspace(workspace, projects)`
   - `setActiveProject(projectName)`
   - `setProjectsInWorkspace(projects)`
-  - `addWorkspaceToRecent(workspace)`
-- Selectors:
+  - `loadRecentWorkspaces()` - Load from cache
+- Update selectors:
   - `useCurrentWorkspace()`
   - `useActiveProject()`
   - `useProjectsInWorkspace()`
+  - `useRecentWorkspaces()`
+- Remove `activeStorageType` and related code
 
-**Task 5: Create workspace cache service**
-- File: `noodles-editor/src/noodles/utils/workspace-cache.ts` (new)
-- Extend DirectoryHandleCache for workspaces:
-  - `cacheWorkspace(workspaceId, handle, metadata)`
-  - `getCachedWorkspace(workspaceId)`
-  - `updateWorkspaceMetadata(workspaceId, { lastProject, lastAccessed })`
-  - `listCachedWorkspaces()`
-- Store recent workspaces in localStorage (for display order)
+### Task 3.2: Update URL parameter handling
+**File**: `noodles-editor/src/noodles/globals.ts`
+**Changes**:
+- Add `workspaceName` parsing: `queryParams.get('workspace')`
+- Export both `workspaceName` and `projectId`
+- Keep backward compatibility: if only `?project=` exists, workspace is undefined
 
-### Phase 3: Built-in Workspaces
+---
 
-**Task 6: Implement Browser Storage workspace (OPFS)**
-- File: `noodles-editor/src/noodles/storage/browser-storage-workspace.ts` (new)
-- Structure: OPFS root with project folders directly
-- Functions:
-  - `getBrowserStorageWorkspace(): Workspace`
-  - `listBrowserStorageProjects(): Promise<string[]>`
-  - `getBrowserStorageProjectDir(projectName): Promise<FileSystemDirectoryHandle>`
-- Always available (no caching/permissions needed)
+## Phase 4: UI Components
 
-**Task 7: Implement Examples workspace (publicFolder)**
-- File: `noodles-editor/src/noodles/storage/examples-workspace.ts` (new)
-- Structure: `/public/noodles/` as workspace root
-- Functions:
-  - `getExamplesWorkspace(): Workspace`
-  - `listExampleProjects(): Promise<string[]>`
-  - `loadExampleProject(projectName): Promise<NoodlesProjectJSON>`
-- Read-only, uses fetch API
-- Scan directory or use manifest file
+### Task 4.1: Create workspace naming dialog
+**File**: `noodles-editor/src/noodles/components/workspace-name-dialog.tsx` (new)
+**Changes**:
+- Dialog prompting for workspace name when opening folder
+- Input field prefilled with folder name (basename)
+- Validation: 3-32 chars, no special characters
+- Check for name collisions, show error if exists
+- Buttons: "Cancel", "Open Workspace"
+- Returns workspace name or null if cancelled
 
-### Phase 4: UI Components
+### Task 4.2: Create workspace picker dialog
+**File**: `noodles-editor/src/noodles/components/workspace-picker-dialog.tsx` (new)
+**Changes**:
+- Shows all available workspaces:
+  - Built-in: Browser Storage, Examples (always at top)
+  - Recent folder workspaces (sorted by last accessed)
+- Each workspace shows:
+  - Icon (📦 Browser, 📚 Examples, 📁 Folder)
+  - Name
+  - Path (for folder type, shown in smaller text)
+  - Last accessed time
+- Buttons at bottom:
+  - "Browse for Folder..." (shows native folder picker + naming dialog)
+  - "Cancel"
+- Returns selected Workspace or null
 
-**Task 8: Create unified workspace picker**
-- File: `noodles-editor/src/noodles/components/workspace-picker.tsx` (new)
-- Shows all available workspaces in one list:
-  - 📦 Browser Storage (always present)
-  - 📚 Examples (always present)
-  - Recent file system workspaces with paths
-  - ➕ "Browse for Workspace Folder" button
-- Returns selected `Workspace` object
+### Task 4.3: Create project list dialog
+**File**: `noodles-editor/src/noodles/components/project-list-dialog.tsx` (new)
+**Changes**:
+- Shows all projects in current workspace
+- Table with columns: Name, Last Modified
+- Actions per project:
+  - Click row to select/open
+  - Delete button (trash icon) - disabled for read-only workspaces
+- Header shows current workspace name
+- Buttons:
+  - "New Project..." (disabled for read-only workspaces)
+  - "Cancel"
+  - "Open" (opens selected project)
+- Returns project name or special action ('new', 'cancel')
 
-**Task 9: Create project switcher component**
-- File: `noodles-editor/src/noodles/components/project-switcher.tsx` (new)
-- Lists projects in current workspace
-- Shows "➕ New Project" button (disabled for read-only)
-- Displays current project with checkmark
-- Allows switching to different project
+### Task 4.4: Update SaveProjectDialog for import flow
+**File**: `noodles-editor/src/noodles/components/menu.tsx`
+**Changes**:
+- Add `defaultName` prop to SaveProjectDialog
+- When importing, extract basename from file path
+- Prefill project name input with basename (e.g., "my-project" from "my-project.noodles.json")
+- Keep existing validation and replace confirmation flow
 
-**Task 10: Create workspace toolbar indicator**
-- File: `noodles-editor/src/noodles/components/workspace-toolbar.tsx` (new)
-- Shows: `[workspace-icon] workspace-name / project-name`
-- Clickable workspace name → opens workspace picker
-- Clickable project name → opens project switcher
-- Example: `📦 Browser Storage / my-project` or `📁 /Users/me/work / demo`
+### Task 4.5: Create workspace/project breadcrumb UI
+**File**: `noodles-editor/src/noodles/components/workspace-project-bar.tsx` (new, replaces ProjectNameBar)
+**Changes**:
+- Display format: `[workspace-icon] workspace-name / project-name`
+- Examples:
+  - `📦 Browser Storage / my-project`
+  - `📁 My Work / demo-viz`
+  - `📚 Examples / airports`
+- Make workspace name clickable → opens workspace picker
+- Make project name clickable → opens project list dialog (current workspace)
+- Show "Untitled" for project if no name
+- Show "No workspace" if no workspace (shouldn't happen after refactor)
+- Replace existing ProjectNameBar usage
 
-**Task 11: Create "Save As" dialog**
-- File: `noodles-editor/src/noodles/components/save-as-dialog.tsx` (new)
-- Prompts for new project name
-- Validates name (no existing project, valid characters)
-- Saves to current workspace with new name
+---
 
-### Phase 5: Menu Integration
+## Phase 5: Menu Integration
 
-**Task 12: Refactor menu for workspace model**
-- File: `noodles-editor/src/noodles/components/menu.tsx`
-- **Update File menu structure**:
-  - New Project (creates in current workspace, prompts for workspace if none)
-  - Open Workspace... (shows workspace picker)
-  - Open Project... (shows project switcher for current workspace)
-  - Save (saves to current workspace/project)
-  - Save As... (new - saves with different name in current workspace)
-  - Export as ZIP (unchanged)
-  - Import from JSON (unchanged)
-- **Remove**: Legacy OPFS-specific functions
-- **Remove**: Storage type switching (workspace handles this)
-- **Update**: Recent items show workspace + project
+### Task 5.1: Update "New Project" operation
+**File**: `noodles-editor/src/noodles/components/menu.tsx`
+**Changes**:
+- Check if workspace is active
+- If no workspace: Show workspace picker first
+- If workspace is read-only: Show error
+- Show SaveProjectDialog (no default name)
+- Create blank project from template
+- Call `save(workspace, projectName, newProjectData)`
+- Update URL with workspace and project
+- Update recent workspaces
 
-**Task 13: Update menu state management**
-- File: `noodles-editor/src/noodles/components/menu.tsx`
-- Replace storage type checks with workspace type checks
-- Use workspace from store instead of activeStorageType
-- Handle read-only workspaces (disable Save, Save As, New)
-- Update dialogs to be workspace-aware
+### Task 5.2: Update "Import" operation
+**File**: `noodles-editor/src/noodles/components/menu.tsx`
+**Changes**:
+- Check if workspace is active
+- If no workspace: Show workspace picker first
+- If workspace is read-only: Show error
+- Show file picker for `.json` files
+- Extract basename from file path (remove `.noodles.json` or `.json` extension)
+- Show SaveProjectDialog with defaultName = basename
+- Migrate and validate imported project
+- Call `save(workspace, projectName, importedData)`
+- Update URL and recent workspaces
 
-### Phase 6: Application Integration
+### Task 5.3: Update "Open..." operation
+**File**: `noodles-editor/src/noodles/components/menu.tsx`
+**Changes**:
+- Show workspace picker dialog
+- If user selects folder workspace:
+  - Show workspace naming dialog
+  - Cache workspace with name
+  - Load projects list
+  - Show project list dialog
+  - Load selected project
+- If user selects built-in workspace:
+  - Load projects list
+  - Show project list dialog
+  - Load selected project
+- Update URL with workspace and project
+- Update recent workspaces
 
-**Task 14: Update main Noodles component for workspace loading**
-- File: `noodles-editor/src/noodles/noodles.tsx`
-- **Update URL params**: Support `?workspace=id&project=name`
-- **Initial load logic**:
-  1. Check URL for workspace ID and project name
-  2. If no URL params: Try loading last workspace/project from cache
-  3. If workspace cached: Restore workspace and project
-  4. If no workspace: Prompt user to select workspace
-- **Fallback compatibility**: `?project=name` tries Examples → Browser Storage
+### Task 5.4: Add "Switch Project..." operation
+**File**: `noodles-editor/src/noodles/components/menu.tsx`
+**Changes**:
+- New menu item: "Switch Project..." (⌘⇧O)
+- Only enabled if workspace is active
+- Shows project list dialog for current workspace
+- Loads selected project
+- Updates URL project parameter
+- Updates recent workspaces with new last project
 
-**Task 15: Update asset loading (FileOp)**
-- File: `noodles-editor/src/noodles/operators.ts` (FileOp)
-- Access current workspace from store
-- Use `readAsset(workspace, projectName, fileName)` from storage
-- Remove `@/` prefix handling (already in storage abstraction)
+### Task 5.5: Add "Switch Workspace..." operation
+**File**: `noodles-editor/src/noodles/components/menu.tsx`
+**Changes**:
+- New menu item: "Switch Workspace..." (⌘⇧W)
+- Shows workspace picker dialog
+- Follows same flow as "Open..." but for workspace switching
+- Prompts to save current project if unsaved changes exist
 
-**Task 16: Update asset uploading (FileFieldComponent)**
-- File: `noodles-editor/src/noodles/components/field-components.tsx`
-- Access current workspace from store
-- Use `writeAsset(workspace, projectName, fileName, contents)` from storage
+### Task 5.6: Update "Save" operation
+**File**: `noodles-editor/src/noodles/components/menu.tsx`
+**Changes**:
+- Check if workspace and project name exist
+- If no workspace: Prompt for workspace (workspace picker)
+- If no project name: Show SaveProjectDialog
+- If workspace is read-only: Show error
+- Call `save(workspace, projectName, projectData)`
+- Update URL and recent workspaces
+- Keep existing replace confirmation flow
+
+### Task 5.7: Add "Save As..." operation
+**File**: `noodles-editor/src/noodles/components/menu.tsx`
+**Changes**:
+- New menu item: "Save As..." (⌘⇧S)
+- Check if workspace exists
+- If no workspace: Prompt for workspace
+- If workspace is read-only: Show error
+- Show SaveProjectDialog with empty/new name
+- Call `saveAs(workspace, newProjectName, projectData)`
+- Update URL and recent workspaces
+
+### Task 5.8: Update "Download Project" operation
+**File**: `noodles-editor/src/noodles/components/menu.tsx`
+**Changes**:
+- Keep existing ZIP export logic
+- Update to work with workspace context
+- Use workspace + project to get directory handle
+- Export as `{projectName}.zip` (unchanged)
+
+### Task 5.9: Update "Open Recent" submenu
+**File**: `noodles-editor/src/noodles/components/menu.tsx`
+**Changes**:
+- Change from recent projects to recent workspaces
+- Show: `workspace-name / last-project-name`
+- Clicking loads that workspace and project
+- Store in localStorage: `{workspaceName, lastProject, lastAccessed}`
+- Max 6 recent workspaces
+
+### Task 5.10: Remove deprecated storage-type-specific code
+**File**: `noodles-editor/src/noodles/components/menu.tsx`
+**Changes**:
+- Remove `checkProjectExists()` function (lines ~254-260)
+- Remove `deleteProject()` function (lines ~262-274)
+- Remove `getProjectHandle()` function (lines ~276-288)
+- Remove `listProjects()` function (lines ~343-365)
+- Remove storage type conditionals throughout menu operations
+- All these operations now use workspace abstraction
+
+---
+
+## Phase 6: Application Integration
+
+### Task 6.1: Update initial project loading
+**File**: `noodles-editor/src/noodles/noodles.tsx`
+**Changes**:
+- Parse `workspaceName` and `projectId` from URL
+- **Loading flow**:
+  1. If both workspace and project in URL: Load from that workspace
+  2. If only project in URL (legacy): Try Examples → Browser Storage (backward compat)
+  3. If neither: Check for cached last workspace/project
+  4. If nothing: Show workspace picker automatically
+- Load builtin workspaces into store on mount
+- Update URL when workspace/project loads
+- Handle ProjectNotFoundDialog in workspace context
+
+### Task 6.2: Update ProjectNotFoundDialog for workspaces
+**File**: `noodles-editor/src/noodles/components/project-not-found-dialog.tsx`
+**Changes**:
+- Update "Locate Project Folder" → "Locate Workspace Folder"
+- Show workspace naming dialog after folder selection
+- Search for project in selected workspace
+- Update error messages to be workspace-aware
+
+### Task 6.3: Update FileOp for workspace-aware asset loading
+**File**: `noodles-editor/src/noodles/operators.ts` (FileOp)
+**Changes**:
+- Get current workspace from store (useCurrentWorkspace)
+- Get current project from store (useActiveProject)
+- Call `readAsset(workspace, projectName, fileName)`
+- Handle case where no workspace is active (show error)
+
+### Task 6.4: Update FileFieldComponent for workspace-aware uploads
+**File**: `noodles-editor/src/noodles/components/field-components.tsx`
+**Changes**:
+- Get current workspace and project from store
+- Call `writeAsset(workspace, projectName, fileName, contents)`
 - Show error for read-only workspaces
+- Handle case where no workspace is active
 
-### Phase 7: Testing & Cleanup
+---
 
-**Task 17: Update storage tests**
-- File: `noodles-editor/src/noodles/storage.test.ts`
-- Refactor tests to use workspace objects instead of storage types
-- Test all three workspace types
-- Test project switching within workspace
-- Test "Save As" functionality
+## Phase 7: Testing & Cleanup
 
-**Task 18: Add workspace-specific tests**
-- File: `noodles-editor/src/noodles/storage/workspace.test.ts` (new)
-- Test workspace creation and metadata
+### Task 7.1: Update storage tests
+**File**: `noodles-editor/src/noodles/storage.test.ts`
+**Changes**:
+- Refactor all tests to use Workspace objects instead of storage types
+- Test folder, browserStorage, and examples workspaces
+- Test project listing in workspaces
+- Test save/load/saveAs with workspace context
+- Test asset read/write with workspaces
+
+### Task 7.2: Add workspace-specific tests
+**File**: `noodles-editor/src/noodles/storage/workspace.test.ts` (new)
+**Changes**:
+- Test workspace caching and retrieval
+- Test workspace naming and collision detection
 - Test project listing across workspace types
-- Test workspace caching and restoration
+- Test builtin workspace providers
+- Test recent workspaces tracking
 
-**Task 19: Remove deprecated code**
-- Remove old OPFS functions from menu.tsx (lines 254-365)
-- Remove `activeStorageType` concept throughout codebase
-- Remove `StorageType` type (replaced by `WorkspaceType`)
-- Clean up any storage-type-specific conditionals
+### Task 7.3: Add UI component tests
+**Files**: 
+- `workspace-name-dialog.test.tsx`
+- `workspace-picker-dialog.test.tsx`
+- `project-list-dialog.test.tsx`
+- `workspace-project-bar.test.tsx`
+**Changes**:
+- Test dialog interactions and validation
+- Test workspace/project selection flows
+- Test breadcrumb clickability and navigation
 
-**Task 20: Update documentation**
-- Update AGENTS.md with workspace concepts
-- Document workspace structure and types
-- Update user documentation for workspace workflow
-- Add workspace examples to dev-docs
+### Task 7.4: Update documentation
+**Files**: 
+- `AGENTS.md`
+- `dev-docs/architecture.md`
+- User documentation
+**Changes**:
+- Document workspace architecture and concepts
+- Update storage system documentation
+- Add workspace workflow examples
+- Document URL parameter format
+- Update file operations documentation
 
 ---
 
 ## Migration Strategy
 
-- **Zero migration needed**: OPFS isn't used by users yet
-- **Backward compatibility**: URL `?project=name` tries Examples, then Browser Storage
-- **Smooth transition**: Existing fileSystemAccess cached handles become cached workspaces
-- **No breaking changes**: Existing project files work as-is
+### Backward Compatibility
+- **URL**: `?project=name` still works (tries Examples → Browser Storage)
+- **Cached Handles**: Existing fileSystemAccess project handles remain valid but won't have workspace context initially
+- **OPFS Projects**: Existing OPFS projects automatically appear in Browser Storage workspace
+- **Public Folder**: Existing examples work unchanged in Examples workspace
+
+### Migration Path
+1. Users continue using single projects as before
+2. Users can adopt workspace model by using "Open Workspace..."
+3. Import flow guides users to workspace model
+4. No data migration required - everything remains accessible
 
 ---
 
-## Key Benefits
+## Manual Testing Plan
 
-1. **Unified mental model**: Everything is a workspace
-2. **Consistent UI**: Same workflow for all storage types
-3. **Simpler code**: No storage type switching logic
-4. **Better UX**: Clear workspace/project hierarchy
-5. **Extensible**: Easy to add cloud workspaces later
+### Test Scenarios
+1. **Open folder workspace** → Name it → See projects → Open project
+2. **Create new project** → Select workspace → Name project → Save
+3. **Import JSON** → Select workspace → See prefilled name → Save
+4. **Switch project** → See list → Select different project
+5. **Switch workspace** → See recent + browse → Select workspace → See projects
+6. **Save As** → Enter new name → Verify new project in workspace
+7. **Breadcrumb clicks** → Click workspace name → See picker
+8. **Breadcrumb clicks** → Click project name → See project list
+9. **URL with workspace** → `?workspace=foo&project=bar` → Loads correctly
+10. **Legacy URL** → `?project=example` → Loads from Examples
+11. **Built-in workspaces** → Browser Storage and Examples always available
+12. **Read-only workspace** → Examples blocks save/new/import operations
+13. **Recent workspaces** → Shows last 6 with last project
+14. **Asset loading** → FileOp reads from workspace/project/data/
+15. **Asset upload** → FileFieldComponent writes to workspace/project/data/
 
 ---
 
-## Testing Plan
+## Summary
 
-- **Unit tests**: Workspace abstraction, project listing, save/load
-- **Integration tests**: Workspace switching, project creation, Save As
-- **Manual testing**: 
-  - Open Browser Storage → Create project → Save → Switch project
-  - Open file system workspace → Switch project → Save As
-  - Load Examples workspace → View projects (read-only)
-  - URL with workspace/project params
+This refactoring transforms the storage system into a workspace-centric architecture while maintaining complete backward compatibility. The implementation is broken into manageable phases with clear dependencies. The UI becomes more intuitive with breadcrumb navigation, better import flow, and unified workspace management.
