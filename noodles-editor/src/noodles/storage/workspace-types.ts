@@ -40,8 +40,11 @@ export interface Workspace {
  * Cached workspace entry stored in IndexedDB
  *
  * Recent workspaces are computed at runtime by querying all entries
- * sorted by lastAccessed. No need for separate localStorage tracking.
- * Folder name can be retrieved from handle.name when needed.
+ * sorted by lastAccessed.
+ *
+ * Recent projects within a workspace are computed by scanning project
+ * folders and sorting by file.lastModified from noodles.json handles.
+ * No manual tracking needed - file system is the database.
  */
 export interface CachedWorkspaceEntry {
 	/**
@@ -55,12 +58,8 @@ export interface CachedWorkspaceEntry {
 	handle: FileSystemDirectoryHandle
 
 	/**
-	 * Last opened project in this workspace
-	 */
-	lastProject: string | null
-
-	/**
 	 * When the workspace was last accessed
+	 * Updated when opening/saving projects in this workspace
 	 */
 	lastAccessed: Date
 
