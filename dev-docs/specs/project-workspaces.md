@@ -13,7 +13,21 @@ This eliminates callback hell, scattered state, and storage type branching.
 
 ## Key Design Principles
 
-### 1. Simplified Workspace Cache
+### 1. Workspace Type (Discriminated Union)
+```typescript
+type Workspace =
+  | { type: 'folder'; name: string; handle: FileSystemDirectoryHandle }
+  | { type: 'browserStorage'; name: string }
+  | { type: 'examples'; name: string }
+```
+
+**Type Safety:**
+- ✅ Folder workspaces **always** have `handle` (enforced by TypeScript)
+- ✅ browserStorage/examples **never** have `handle` (enforced by TypeScript)
+- ✅ Discriminated union enables automatic type narrowing
+- ✅ Eliminates 11+ defensive runtime checks
+
+### 2. Simplified Workspace Cache
 ```typescript
 interface CachedWorkspaceEntry {
   name: string                      // User-provided workspace name
@@ -31,7 +45,7 @@ interface CachedWorkspaceEntry {
 - ❌ No per-project `lastOpened` timestamps
 - ❌ No localStorage for recent projects
 
-### 2. Recent Projects from File System
+### 3. Recent Projects from File System
 "Open Recent" shows the 5 most recently modified projects in the **current workspace**:
 
 ```typescript
@@ -52,7 +66,7 @@ async function getRecentProjects(workspace: Workspace): Promise<ProjectInfo[]> {
 - ✅ Works across all workspace types
 - ✅ Workspace-scoped (shows projects in current workspace)
 
-### 3. Performance
+### 4. Performance
 - `.getFile()` on noodles.json is **fast** (metadata only, not file contents)
 - 50 projects = ~50ms to scan and sort
 - More than fast enough for UI

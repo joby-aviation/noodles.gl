@@ -45,7 +45,7 @@ async function openDatabase(): Promise<IDBDatabase> {
 export async function cacheWorkspace(
 	workspace: Workspace
 ): Promise<void> {
-	if (workspace.type !== 'folder' || !workspace.handle) {
+	if (workspace.type !== 'folder') {
 		throw new Error('Only folder workspaces can be cached')
 	}
 
@@ -63,7 +63,7 @@ export async function cacheWorkspace(
 
 			const entry: CachedWorkspaceEntry = {
 				name: workspace.name,
-				handle: workspace.handle!,
+				handle: workspace.handle,
 				lastAccessed: new Date(),
 				cached: existing?.cached || new Date(),
 			}

@@ -26,10 +26,6 @@ const DATA_DIRECTORY_NAME = 'data'
 export async function listProjects(workspace: Workspace): Promise<string[]> {
 	switch (workspace.type) {
 		case 'folder': {
-			if (!workspace.handle) {
-				throw new Error('Folder workspace missing handle')
-			}
-
 			const projects: string[] = []
 			for await (const [name, handle] of workspace.handle.entries()) {
 				if (handle.kind === 'directory') {
@@ -89,10 +85,6 @@ export async function loadProject(
 ): Promise<NoodlesProjectJSON> {
 	switch (workspace.type) {
 		case 'folder': {
-			if (!workspace.handle) {
-				throw new Error('Folder workspace missing handle')
-			}
-
 			const projectDir = await workspace.handle.getDirectoryHandle(projectName)
 			const content = await readFileFromDirectory(projectDir, PROJECT_FILE_NAME)
 			return safeParse(content)
@@ -133,10 +125,6 @@ export async function saveProject(
 
 	switch (workspace.type) {
 		case 'folder': {
-			if (!workspace.handle) {
-				throw new Error('Folder workspace missing handle')
-			}
-
 			// Get or create project directory
 			const projectDir = await workspace.handle.getDirectoryHandle(projectName, {
 				create: true,
@@ -182,10 +170,6 @@ export async function deleteProject(
 
 	switch (workspace.type) {
 		case 'folder': {
-			if (!workspace.handle) {
-				throw new Error('Folder workspace missing handle')
-			}
-
 			await workspace.handle.removeEntry(projectName, { recursive: true })
 			break
 		}
@@ -226,9 +210,6 @@ export async function getRecentProjects(
 
 				switch (workspace.type) {
 					case 'folder': {
-						if (!workspace.handle) {
-							return { name, lastModified: 0 }
-						}
 						const projectDir = await workspace.handle.getDirectoryHandle(name)
 						fileHandle = await projectDir.getFileHandle(PROJECT_FILE_NAME)
 						break
@@ -275,9 +256,6 @@ export async function getDataDirectoryHandle(
 
 	switch (workspace.type) {
 		case 'folder': {
-			if (!workspace.handle) {
-				return null
-			}
 			const projectDir = await workspace.handle.getDirectoryHandle(projectName)
 			return projectDir.getDirectoryHandle(DATA_DIRECTORY_NAME, { create: true })
 		}

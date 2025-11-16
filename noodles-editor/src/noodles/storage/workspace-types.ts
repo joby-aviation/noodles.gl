@@ -13,28 +13,27 @@
 export type WorkspaceType = 'folder' | 'browserStorage' | 'examples'
 
 /**
- * Workspace object representing a project container
+ * Workspace object representing a project container (discriminated union)
+ *
+ * Each workspace type has specific properties:
+ * - folder: User-selected directory with FileSystemDirectoryHandle
+ * - browserStorage: OPFS workspace (no handle needed)
+ * - examples: Read-only examples (no handle needed)
  */
-export interface Workspace {
-	/**
-	 * Type of workspace
-	 */
-	type: WorkspaceType
-
-	/**
-	 * User-visible name (identifier for folder workspaces)
-	 * - For folder: User-provided name (can differ from folder name)
-	 * - For browserStorage: "Browser Storage"
-	 * - For examples: "Examples"
-	 */
-	name: string
-
-	/**
-	 * Directory handle for folder workspaces
-	 * Only present for 'folder' type
-	 */
-	handle?: FileSystemDirectoryHandle
-}
+export type Workspace =
+	| {
+			type: 'folder'
+			name: string
+			handle: FileSystemDirectoryHandle
+	  }
+	| {
+			type: 'browserStorage'
+			name: string
+	  }
+	| {
+			type: 'examples'
+			name: string
+	  }
 
 /**
  * Cached workspace entry stored in IndexedDB
