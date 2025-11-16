@@ -64,6 +64,7 @@ store.runOperation('save')  // Dispatches save operation
   - `selectWorkspace(options?): Promise<Workspace | null>`
   - `promptProjectName(options?): Promise<string | null>`
   - `confirmReplace(projectName): Promise<boolean>`
+  - `confirmDelete(projectName): Promise<boolean>`
   - `showError(error): Promise<void>`
 - Create `DialogProvider` component that renders active dialog
 - Use React context to provide DialogAPI instance
@@ -95,6 +96,15 @@ class DialogAPI {
       this.setState({
         type: 'project-name',
         props: { ...options, onComplete: resolve }
+      })
+    })
+  }
+  
+  confirmDelete(projectName: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      this.setState({
+        type: 'confirm-delete',
+        props: { projectName, onComplete: resolve }
       })
     })
   }
@@ -150,6 +160,7 @@ type DialogRequest =
   | { type: 'select-workspace', prompt?: string }
   | { type: 'prompt-name', defaultName?: string, validateExists?: boolean }
   | { type: 'confirm-replace', projectName: string }
+  | { type: 'confirm-delete', projectName: string }
   | { type: 'confirm-action', title: string, message: string }
 
 type OperationResult<T> = 
@@ -192,9 +203,10 @@ type OperationResult<T> =
     // Dialog management (called by DialogAPI)
     setActiveDialog: (dialog: DialogState | null) => void
     
-    // Side effects (save, load, etc.)
+    // Side effects (save, load, delete, etc.)
     saveProject: (workspace, name, data) => Promise<void>
     loadProject: (workspace, name) => Promise<void>
+    deleteProject: (workspace, name) => Promise<void>
     
     // Cache/recent updates
     updateRecent: (workspace, project) => void
@@ -289,7 +301,19 @@ export async function* importProjectOperation(
   const name = yield { type: 'prompt-name', defaultName }
   if (!name) return
   
-  // ... conflict check and save
+  // Check conflict and save
+  const exists = await context.checkProjectExists(context.workspace, name)
+  if (exists) {
+    const replace = yield { type: 'confirm-replace', projectName: name }
+    if (!replace) return
+  }
+  
+  await context.saveProject(context.workspace, name, migrated)
+  
+  // Update state
+  context.setActiveProject(name)
+  context.updateURL(context.workspace.name, name)
+  context.updateRecent(context.workspace, name)
 }
 ```
 
@@ -340,11 +364,53 @@ export async function* openProjectOperation(
 }
 ```
 
-#### Task 3.4: Implement Save, Save As, Switch Project, Switch Workspace operations
+#### Task 3.4: Implement Delete Project operation
+**File**: `noodles-editor/src/noodles/operations/delete-project.ts` (new)
+**Changes**:
+```typescript
+export async function* deleteProjectOperation(
+  context: OperationContext,
+  projectName: string
+): AsyncGenerator<DialogRequest, void> {
+  // Ensure workspace exists
+  if (!context.workspace) {
+    yield { type: 'error', message: 'No workspace selected' }
+    return
+  }
+  
+  // Check read-only
+  if (context.workspace.type === 'examples') {
+    yield { type: 'error', message: 'Cannot delete from read-only workspace' }
+    return
+  }
+  
+  // Confirm deletion with "Are you sure?" guard
+  const confirmed = yield { 
+    type: 'confirm-delete', 
+    projectName 
+  }
+  if (!confirmed) return
+  
+  // Delete project
+  await context.deleteProject(context.workspace, projectName)
+  
+  // If deleted project was active, clear it
+  if (context.activeProject === projectName) {
+    context.setActiveProject(null)
+    context.updateURL(context.workspace.name, null)
+  }
+  
+  // Update recent projects
+  context.removeFromRecent(context.workspace, projectName)
+}
+```
+
+**Note**: This operation is called from the project list dialog's delete button, or from a menu item with the current project as target.
+
+#### Task 3.5: Implement Save, Save As, Switch Workspace operations
 **Files**: 
 - `noodles-editor/src/noodles/operations/save-project.ts`
 - `noodles-editor/src/noodles/operations/save-as-project.ts`
-- `noodles-editor/src/noodles/operations/switch-project.ts`
 - `noodles-editor/src/noodles/operations/switch-workspace.ts`
 **Changes**: Similar patterns using async generators that yield dialog requests
 
@@ -359,6 +425,7 @@ export async function* openProjectOperation(
 - `noodles-editor/src/noodles/components/project-name-dialog.tsx` (refactor SaveProjectDialog)
 - `noodles-editor/src/noodles/components/project-list-dialog.tsx` (new)
 - `noodles-editor/src/noodles/components/confirm-dialog.tsx` (refactor ReplaceProjectDialog)
+- `noodles-editor/src/noodles/components/confirm-delete-dialog.tsx` (new)
 
 **Changes for each dialog**:
 - Accept `onComplete: (result: T | null) => void` prop
@@ -367,39 +434,45 @@ export async function* openProjectOperation(
 - Remove internal state management (now in dialog API)
 - Simplified component just renders UI and calls callback
 
-**Example**:
+**Example - ConfirmDeleteDialog**:
 ```typescript
-function ProjectNameDialog({ 
-  defaultName, 
-  validateExists,
+function ConfirmDeleteDialog({ 
+  projectName,
   onComplete 
 }: {
-  defaultName?: string
-  validateExists?: boolean
-  onComplete: (name: string | null) => void
+  projectName: string
+  onComplete: (confirmed: boolean) => void
 }) {
-  const [name, setName] = useState(defaultName ?? '')
-  const [error, setError] = useState<string | null>(null)
-  
-  const handleSave = async () => {
-    // Validation
-    if (!isValidName(name)) {
-      setError('Invalid name')
-      return
-    }
-    
-    onComplete(name)
-  }
-  
   return (
-    <Dialog.Root open onOpenChange={() => onComplete(null)}>
-      {/* ... UI ... */}
-      <button onClick={handleSave}>Save</button>
-      <button onClick={() => onComplete(null)}>Cancel</button>
+    <Dialog.Root open onOpenChange={() => onComplete(false)}>
+      <Dialog.Portal>
+        <Dialog.Overlay className={s.dialogOverlay} />
+        <Dialog.Content className={s.dialogContent}>
+          <Dialog.Title>Delete project?</Dialog.Title>
+          <Dialog.Description>
+            Are you sure you want to delete "{projectName}"? This action cannot be undone.
+          </Dialog.Description>
+          <div className={s.dialogRightSlot}>
+            <button onClick={() => onComplete(false)}>Cancel</button>
+            <button className={s.red} onClick={() => onComplete(true)}>
+              Delete
+            </button>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
     </Dialog.Root>
   )
 }
 ```
+
+#### Task 4.2: Update ProjectListDialog to support delete
+**File**: `noodles-editor/src/noodles/components/project-list-dialog.tsx`
+**Changes**:
+- Show delete button (trash icon) for each project
+- When delete clicked: Call `runOperation('delete-project', projectName)`
+- Delete operation handles confirmation dialog
+- After delete completes, refresh project list
+- Disable delete button for Examples workspace
 
 ---
 
@@ -411,12 +484,14 @@ function ProjectNameDialog({
 - Remove all useState hooks for dialog management
 - Remove all callback functions (maybeSetProjectName, onReplaceProject, etc.)
 - Remove storage type branching logic
+- Remove delete function (lines 262-274) - now an operation
 - Replace with simple operation calls:
 
 ```typescript
 export function Menu({ ... }) {
   const { runOperation } = useMenuStore()
   const dialogAPI = useDialogAPI()
+  const currentProject = useActiveProject()
   
   return (
     <Menubar.Root>
@@ -436,6 +511,14 @@ export function Menu({ ... }) {
         <Menubar.Item onSelect={() => runOperation('save-as-project')}>
           Save As...
         </Menubar.Item>
+        <Menubar.Item onSelect={() => runOperation('switch-workspace')}>
+          Switch Workspace...
+        </Menubar.Item>
+        {currentProject && (
+          <Menubar.Item onSelect={() => runOperation('delete-project', currentProject)}>
+            Delete Project...
+          </Menubar.Item>
+        )}
         {/* ... */}
       </Menubar.Menu>
       
@@ -450,6 +533,7 @@ export function Menu({ ... }) {
   - Lines 23-103 (SaveProjectDialog - moved to separate file)
   - Lines 105-144 (ReplaceProjectDialog - moved to separate file)
   - Lines 190-252 (OpenProjectDialog - moved to separate file)
+  - Lines 262-274 (deleteProject function - now an operation)
   - Lines 427-543 (All useState hooks and callback functions)
   - Lines 583-630 (onOpenFileSystemFolder - now in operation)
   - All storage type conditionals
@@ -476,6 +560,8 @@ function DialogProvider() {
       return <ProjectNameDialog {...activeDialog.props} />
     case 'confirm-replace':
       return <ConfirmDialog {...activeDialog.props} />
+    case 'confirm-delete':
+      return <ConfirmDeleteDialog {...activeDialog.props} />
     // ...
   }
 }
@@ -492,6 +578,7 @@ function DialogProvider() {
 - `save(workspace, projectName, data)`
 - `load(workspace, projectName)`
 - `listProjects(workspace)`
+- `deleteProject(workspace, projectName)` - Add this function
 - etc.
 
 #### Task 6.2: Create workspace types and cache
@@ -533,6 +620,7 @@ useEffect(() => {
 **Files**: 
 - `noodles-editor/src/noodles/operations/new-project.test.ts`
 - `noodles-editor/src/noodles/operations/import-project.test.ts`
+- `noodles-editor/src/noodles/operations/delete-project.test.ts`
 - etc.
 
 **Changes**:
@@ -542,33 +630,47 @@ useEffect(() => {
 - Test cancellation paths
 - Much easier to test than callback chains!
 
-**Example test**:
+**Example test for delete-project**:
 ```typescript
-test('new-project prompts for workspace if none selected', async () => {
-  const mockDialogs = {
-    'select-workspace': mockWorkspace,
-    'prompt-name': 'my-project'
-  }
+test('delete-project shows confirmation before deleting', async () => {
+  const context = createMockContext({
+    workspace: mockWorkspace,
+    activeProject: 'my-project'
+  })
   
-  const generator = newProjectOperation(context)
+  const generator = deleteProjectOperation(context, 'my-project')
   
-  // Expect workspace dialog
-  const { value: dialog1 } = await generator.next()
-  expect(dialog1.type).toBe('select-workspace')
+  // Expect confirmation dialog
+  const { value: dialog } = await generator.next()
+  expect(dialog.type).toBe('confirm-delete')
+  expect(dialog.projectName).toBe('my-project')
   
-  // Provide workspace
-  const { value: dialog2 } = await generator.next(mockWorkspace)
-  expect(dialog2.type).toBe('prompt-name')
+  // User confirms
+  await generator.next(true)
   
-  // Provide name
-  await generator.next('my-project')
-  
-  // Assert save was called
-  expect(context.saveProject).toHaveBeenCalledWith(
+  // Assert delete was called
+  expect(context.deleteProject).toHaveBeenCalledWith(
     mockWorkspace, 
-    'my-project', 
-    expect.any(Object)
+    'my-project'
   )
+  
+  // Assert project cleared from state
+  expect(context.setActiveProject).toHaveBeenCalledWith(null)
+})
+
+test('delete-project cancels if user says no', async () => {
+  const context = createMockContext()
+  const generator = deleteProjectOperation(context, 'my-project')
+  
+  // Show confirmation
+  await generator.next()
+  
+  // User cancels
+  const result = await generator.next(false)
+  
+  // Assert delete NOT called
+  expect(context.deleteProject).not.toHaveBeenCalled()
+  expect(result.done).toBe(true)
 })
 ```
 
@@ -619,6 +721,11 @@ Adding workspace support:
 - Single error display logic
 - No error handling scattered in callbacks
 
+### 7. **Delete with Safety Guard**
+- Delete operation has built-in confirmation
+- Can be called from project list dialog or menu
+- Consistent "are you sure?" UX everywhere
+
 ---
 
 ## Migration Strategy
@@ -630,7 +737,8 @@ Adding workspace support:
 
 ### Phase 2: Gradual Migration
 - Migrate one menu item at a time
-- Start with "New Project" (simplest)
+- Start with "Delete Project" (simple, clear contract)
+- Then "New Project"
 - Prove architecture works before full migration
 
 ### Phase 3: Complete Cutover
@@ -655,4 +763,4 @@ This architecture solves all identified problems:
 - ❌ **Hard to test** → ✅ Pure generators, easy mocking
 - ❌ **Hard to extend** → ✅ Just add new operations
 
-The refactored menu.tsx will be maintainable, testable, and ready for workspace support.
+The refactored menu.tsx will be maintainable, testable, and ready for workspace support. Delete operation provides a good example of the safety guards pattern.
