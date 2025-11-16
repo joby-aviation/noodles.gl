@@ -9,12 +9,11 @@
 
 import type { Workspace } from './workspace-types'
 import type { NoodlesProjectJSON } from '../utils/serialization'
-import { safeStringify, safeParse } from '../utils/serialization'
+import { safeStringify } from '../utils/serialization'
 import {
 	getOPFSRoot,
 	writeFileToDirectory,
 	readFileFromDirectory,
-	directoryExists,
 } from '../utils/filesystem'
 
 const PROJECT_FILE_NAME = 'noodles.json'
@@ -27,6 +26,7 @@ export async function listProjects(workspace: Workspace): Promise<string[]> {
 	switch (workspace.type) {
 		case 'folder': {
 			const projects: string[] = []
+			// @ts-ignore - entries() exists but TypeScript lib definitions may be outdated
 			for await (const [name, handle] of workspace.handle.entries()) {
 				if (handle.kind === 'directory') {
 					// Check if directory contains noodles.json
@@ -45,6 +45,7 @@ export async function listProjects(workspace: Workspace): Promise<string[]> {
 			const root = await getOPFSRoot()
 			const projects: string[] = []
 
+			// @ts-ignore - entries() exists but TypeScript lib definitions may be outdated
 			for await (const [name, handle] of root.entries()) {
 				if (handle.kind === 'directory') {
 					// Check if directory contains noodles.json
@@ -87,14 +88,14 @@ export async function loadProject(
 		case 'folder': {
 			const projectDir = await workspace.handle.getDirectoryHandle(projectName)
 			const content = await readFileFromDirectory(projectDir, PROJECT_FILE_NAME)
-			return safeParse(content)
+			return JSON.parse(content) as NoodlesProjectJSON
 		}
 
 		case 'browserStorage': {
 			const root = await getOPFSRoot()
 			const projectDir = await root.getDirectoryHandle(projectName)
 			const content = await readFileFromDirectory(projectDir, PROJECT_FILE_NAME)
-			return safeParse(content)
+			return JSON.parse(content) as NoodlesProjectJSON
 		}
 
 		case 'examples': {
@@ -103,7 +104,7 @@ export async function loadProject(
 				throw new Error(`Failed to load example project: ${projectName}`)
 			}
 			const content = await response.text()
-			return safeParse(content)
+			return JSON.parse(content) as NoodlesProjectJSON
 		}
 	}
 }
