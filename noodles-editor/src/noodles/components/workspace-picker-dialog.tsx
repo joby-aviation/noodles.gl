@@ -1,7 +1,9 @@
-import { Button, Dialog, Flex, Heading, RadioGroup, Separator, Text } from '@radix-ui/themes'
+import * as Dialog from '@radix-ui/react-dialog'
+import { Cross2Icon } from '@radix-ui/react-icons'
 import { useCallback, useEffect, useState } from 'react'
 import type { Workspace } from '../storage/workspace-types'
 import { getCachedWorkspaces, removeFromCache } from '../utils/workspace-cache'
+import s from './menu.module.css'
 
 interface WorkspacePickerDialogProps {
   prompt?: string
@@ -90,81 +92,113 @@ export function WorkspacePickerDialog({
 
   return (
     <Dialog.Root open onOpenChange={open => !open && onComplete(null)}>
-      <Dialog.Content style={{ maxWidth: 500 }}>
-        <Dialog.Title>{prompt || 'Select Workspace'}</Dialog.Title>
+      <Dialog.Portal>
+        <Dialog.Overlay className={s.dialogOverlay} />
+        <Dialog.Content className={s.dialogContent} style={{ maxWidth: 500 }}>
+          <Dialog.Title className={s.dialogTitle}>{prompt || 'Select Workspace'}</Dialog.Title>
 
-        <Flex direction="column" gap="4" mt="4">
-          {/* Quick actions */}
-          <Flex direction="column" gap="2">
-            <Heading size="2">New Workspace</Heading>
-            <Flex gap="2">
-              <Button onClick={handleOpenFolder} variant="soft">
-                Open Folder
-              </Button>
-              <Button onClick={handleBrowserStorage} variant="soft">
-                Use Browser Storage
-              </Button>
-              <Button onClick={handleExamples} variant="soft">
-                Open Examples
-              </Button>
-            </Flex>
-          </Flex>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
+            {/* Quick actions */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <h3 style={{ fontSize: '0.9rem', fontWeight: 600, margin: 0 }}>New Workspace</h3>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button type="button" className={s.dialogButton} onClick={handleOpenFolder}>
+                  Open Folder
+                </button>
+                <button type="button" className={s.dialogButton} onClick={handleBrowserStorage}>
+                  Use Browser Storage
+                </button>
+                <button type="button" className={s.dialogButton} onClick={handleExamples}>
+                  Open Examples
+                </button>
+              </div>
+            </div>
 
-          {/* Recent workspaces */}
-          {showRecent && recentWorkspaces.length > 0 && (
-            <>
-              <Separator size="4" />
-              <Flex direction="column" gap="2">
-                <Heading size="2">Recent Workspaces</Heading>
-                {isLoading ? (
-                  <Text color="gray">Loading...</Text>
-                ) : (
-                  <RadioGroup.Root
-                    value={selectedWorkspace?.name || ''}
-                    onValueChange={name => {
-                      const workspace = recentWorkspaces.find(w => w.name === name)
-                      setSelectedWorkspace(workspace || null)
-                    }}
-                  >
-                    <Flex direction="column" gap="2">
+            {/* Recent workspaces */}
+            {showRecent && recentWorkspaces.length > 0 && (
+              <>
+                <hr
+                  style={{
+                    border: 'none',
+                    borderTop: '1px solid var(--mauve-6)',
+                    margin: '0.5rem 0',
+                  }}
+                />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <h3 style={{ fontSize: '0.9rem', fontWeight: 600, margin: 0 }}>
+                    Recent Workspaces
+                  </h3>
+                  {isLoading ? (
+                    <p style={{ color: 'var(--mauve-11)', margin: 0 }}>Loading...</p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                       {recentWorkspaces.map(workspace => (
-                        <Flex key={workspace.name} align="center" gap="2">
-                          <RadioGroup.Item value={workspace.name} />
-                          <Text style={{ flex: 1 }}>{workspace.name}</Text>
-                          <Text color="gray" size="1">
+                        <div
+                          key={workspace.name}
+                          role="button"
+                          tabIndex={0}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            padding: '0.5rem',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            backgroundColor:
+                              selectedWorkspace?.name === workspace.name
+                                ? 'var(--mauve-4)'
+                                : 'transparent',
+                          }}
+                          onClick={() => setSelectedWorkspace(workspace)}
+                          onKeyDown={e => e.key === 'Enter' && setSelectedWorkspace(workspace)}
+                        >
+                          <input
+                            type="radio"
+                            checked={selectedWorkspace?.name === workspace.name}
+                            onChange={() => setSelectedWorkspace(workspace)}
+                            style={{ cursor: 'pointer' }}
+                          />
+                          <span style={{ flex: 1 }}>{workspace.name}</span>
+                          <span style={{ color: 'var(--mauve-11)', fontSize: '0.85rem' }}>
                             {workspace.type === 'folder' ? 'Folder' : 'Browser'}
-                          </Text>
+                          </span>
                           {workspace.type === 'folder' && (
-                            <Button
-                              size="1"
-                              variant="ghost"
-                              color="red"
+                            <button
+                              type="button"
+                              className={s.dialogButton}
+                              style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
                               onClick={e => handleRemoveRecent(workspace, e)}
                             >
                               Remove
-                            </Button>
+                            </button>
                           )}
-                        </Flex>
+                        </div>
                       ))}
-                    </Flex>
-                  </RadioGroup.Root>
-                )}
-              </Flex>
-            </>
-          )}
-        </Flex>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
 
-        <Flex gap="3" mt="4" justify="end">
-          <Dialog.Close>
-            <Button variant="soft" color="gray">
+          <div className={s.dialogRightSlot} style={{ marginTop: '1rem' }}>
+            <button type="button" className={s.dialogButton} onClick={() => onComplete(null)}>
               Cancel
-            </Button>
+            </button>
+            {selectedWorkspace && (
+              <button type="button" className={s.dialogButton} onClick={handleSelectRecent}>
+                Open {selectedWorkspace.name}
+              </button>
+            )}
+          </div>
+
+          <Dialog.Close asChild>
+            <button type="button" className={s.dialogIconButton} aria-label="Close">
+              <Cross2Icon />
+            </button>
           </Dialog.Close>
-          {selectedWorkspace && (
-            <Button onClick={handleSelectRecent}>Open {selectedWorkspace.name}</Button>
-          )}
-        </Flex>
-      </Dialog.Content>
+        </Dialog.Content>
+      </Dialog.Portal>
     </Dialog.Root>
   )
 }

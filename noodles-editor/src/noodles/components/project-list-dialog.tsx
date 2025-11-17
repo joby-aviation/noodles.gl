@@ -1,7 +1,9 @@
-import { Button, Dialog, Flex, RadioGroup, Text } from '@radix-ui/themes'
+import * as Dialog from '@radix-ui/react-dialog'
+import { Cross2Icon } from '@radix-ui/react-icons'
 import { useCallback, useEffect, useState } from 'react'
 import { listProjects } from '../storage/workspace-storage'
 import type { Workspace } from '../storage/workspace-types'
+import s from './menu.module.css'
 
 interface ProjectListDialogProps {
   workspace: Workspace
@@ -38,44 +40,76 @@ export function ProjectListDialog({ workspace, prompt, onComplete }: ProjectList
 
   return (
     <Dialog.Root open onOpenChange={open => !open && onComplete(null)}>
-      <Dialog.Content style={{ maxWidth: 500 }}>
-        <Dialog.Title>{prompt || `Select Project from ${workspace.name}`}</Dialog.Title>
+      <Dialog.Portal>
+        <Dialog.Overlay className={s.dialogOverlay} />
+        <Dialog.Content className={s.dialogContent} style={{ maxWidth: 500 }}>
+          <Dialog.Title className={s.dialogTitle}>
+            {prompt || `Select Project from ${workspace.name}`}
+          </Dialog.Title>
 
-        <Flex direction="column" gap="4" mt="4">
-          {isLoading && <Text color="gray">Loading projects...</Text>}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
+            {isLoading && (
+              <p style={{ color: 'var(--mauve-11)', margin: 0 }}>Loading projects...</p>
+            )}
 
-          {error && <Text color="red">{error}</Text>}
+            {error && <p className={s.dialogError}>{error}</p>}
 
-          {!isLoading && !error && projects.length === 0 && (
-            <Text color="gray">No projects found in this workspace.</Text>
-          )}
+            {!isLoading && !error && projects.length === 0 && (
+              <p style={{ color: 'var(--mauve-11)', margin: 0 }}>
+                No projects found in this workspace.
+              </p>
+            )}
 
-          {!isLoading && !error && projects.length > 0 && (
-            <RadioGroup.Root
-              value={selectedProject || ''}
-              onValueChange={name => setSelectedProject(name)}
-            >
-              <Flex direction="column" gap="2">
+            {!isLoading && !error && projects.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                 {projects.map(name => (
-                  <Flex key={name} align="center" gap="2">
-                    <RadioGroup.Item value={name} />
-                    <Text>{name}</Text>
-                  </Flex>
+                  <div
+                    key={name}
+                    role="button"
+                    tabIndex={0}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      padding: '0.5rem',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      backgroundColor: selectedProject === name ? 'var(--mauve-4)' : 'transparent',
+                    }}
+                    onClick={() => setSelectedProject(name)}
+                    onKeyDown={e => e.key === 'Enter' && setSelectedProject(name)}
+                  >
+                    <input
+                      type="radio"
+                      checked={selectedProject === name}
+                      onChange={() => setSelectedProject(name)}
+                      style={{ cursor: 'pointer' }}
+                    />
+                    <span>{name}</span>
+                  </div>
                 ))}
-              </Flex>
-            </RadioGroup.Root>
-          )}
-        </Flex>
+              </div>
+            )}
+          </div>
 
-        <Flex gap="3" mt="4" justify="end">
-          <Dialog.Close>
-            <Button variant="soft" color="gray">
+          <div className={s.dialogRightSlot} style={{ marginTop: '1rem' }}>
+            <button type="button" className={s.dialogButton} onClick={() => onComplete(null)}>
               Cancel
-            </Button>
+            </button>
+            {selectedProject && (
+              <button type="button" className={s.dialogButton} onClick={handleSelect}>
+                Open {selectedProject}
+              </button>
+            )}
+          </div>
+
+          <Dialog.Close asChild>
+            <button type="button" className={s.dialogIconButton} aria-label="Close">
+              <Cross2Icon />
+            </button>
           </Dialog.Close>
-          {selectedProject && <Button onClick={handleSelect}>Open {selectedProject}</Button>}
-        </Flex>
-      </Dialog.Content>
+        </Dialog.Content>
+      </Dialog.Portal>
     </Dialog.Root>
   )
 }

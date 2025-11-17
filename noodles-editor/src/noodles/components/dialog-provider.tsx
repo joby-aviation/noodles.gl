@@ -1,8 +1,11 @@
-import { Button, Dialog, Flex, Text } from '@radix-ui/themes'
+import * as Dialog from '@radix-ui/react-dialog'
+import { Cross2Icon } from '@radix-ui/react-icons'
+import cx from 'classnames'
 import type { ReactNode } from 'react'
 import { ConfirmDeleteDialog } from './confirm-delete-dialog'
 import { ConfirmReplaceDialog } from './confirm-replace-dialog'
 import { type DialogState, useDialogState } from './dialog-api'
+import s from './menu.module.css'
 import { ProjectListDialog } from './project-list-dialog'
 import { ProjectNameDialog } from './project-name-dialog'
 import { WorkspacePickerDialog } from './workspace-picker-dialog'
@@ -30,15 +33,29 @@ function renderDialog(state: DialogState): ReactNode {
       // TODO: Create workspace naming dialog
       return (
         <Dialog.Root open onOpenChange={open => !open && state.props.onComplete(null)}>
-          <Dialog.Content>
-            <Dialog.Title>Name Workspace</Dialog.Title>
-            <Text>Workspace naming dialog not yet implemented</Text>
-            <Flex gap="3" mt="4" justify="end">
-              <Dialog.Close>
-                <Button onClick={() => state.props.onComplete(null)}>Cancel</Button>
+          <Dialog.Portal>
+            <Dialog.Overlay className={s.dialogOverlay} />
+            <Dialog.Content className={s.dialogContent}>
+              <Dialog.Title className={s.dialogTitle}>Name Workspace</Dialog.Title>
+              <Dialog.Description className={s.dialogDescription}>
+                Workspace naming dialog not yet implemented
+              </Dialog.Description>
+              <div className={s.dialogRightSlot}>
+                <button
+                  type="button"
+                  className={s.dialogButton}
+                  onClick={() => state.props.onComplete(null)}
+                >
+                  Cancel
+                </button>
+              </div>
+              <Dialog.Close asChild>
+                <button type="button" className={s.dialogIconButton} aria-label="Close">
+                  <Cross2Icon />
+                </button>
               </Dialog.Close>
-            </Flex>
-          </Dialog.Content>
+            </Dialog.Content>
+          </Dialog.Portal>
         </Dialog.Root>
       )
 
@@ -62,15 +79,29 @@ function renderDialog(state: DialogState): ReactNode {
     case 'error':
       return (
         <Dialog.Root open onOpenChange={open => !open && state.props.onComplete()}>
-          <Dialog.Content>
-            <Dialog.Title>Error</Dialog.Title>
-            <Text color="red">{state.props.message}</Text>
-            <Flex gap="3" mt="4" justify="end">
-              <Dialog.Close>
-                <Button onClick={() => state.props.onComplete()}>OK</Button>
+          <Dialog.Portal>
+            <Dialog.Overlay className={s.dialogOverlay} />
+            <Dialog.Content className={s.dialogContent}>
+              <Dialog.Title className={s.dialogTitle}>Error</Dialog.Title>
+              <Dialog.Description className={cx(s.dialogDescription, s.dialogError)}>
+                {state.props.message}
+              </Dialog.Description>
+              <div className={s.dialogRightSlot}>
+                <button
+                  type="button"
+                  className={s.dialogButton}
+                  onClick={() => state.props.onComplete()}
+                >
+                  OK
+                </button>
+              </div>
+              <Dialog.Close asChild>
+                <button type="button" className={s.dialogIconButton} aria-label="Close">
+                  <Cross2Icon />
+                </button>
               </Dialog.Close>
-            </Flex>
-          </Dialog.Content>
+            </Dialog.Content>
+          </Dialog.Portal>
         </Dialog.Root>
       )
 
