@@ -27,7 +27,7 @@ import {
   serializeEdges,
   serializeNodes,
 } from '../utils/serialization'
-import { cacheWorkspace, getCachedWorkspace, getCachedWorkspaces } from '../utils/workspace-cache'
+import { cacheWorkspace, getCachedWorkspace, getRecentWorkspaces } from '../utils/workspace-cache'
 import { useDialogAPI } from './dialog-api'
 import s from './menu.module.css'
 
@@ -141,7 +141,7 @@ export function NoodlesMenubar({
         return await getCachedWorkspace(name)
       },
       listCachedWorkspaces: async (): Promise<Workspace[]> => {
-        return await getCachedWorkspaces()
+        return await getRecentWorkspaces()
       },
 
       // Utility functions

@@ -2,7 +2,7 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
 import { useCallback, useEffect, useState } from 'react'
 import type { Workspace } from '../storage/workspace-types'
-import { getCachedWorkspaces, removeFromCache } from '../utils/workspace-cache'
+import { getRecentWorkspaces, removeCachedWorkspace } from '../utils/workspace-cache'
 import s from './menu.module.css'
 
 interface WorkspacePickerDialogProps {
@@ -24,7 +24,7 @@ export function WorkspacePickerDialog({
   useEffect(() => {
     const loadRecent = async () => {
       if (showRecent) {
-        const cached = await getCachedWorkspaces()
+        const cached = await getRecentWorkspaces()
         setRecentWorkspaces(cached)
       }
       setIsLoading(false)
@@ -79,8 +79,8 @@ export function WorkspacePickerDialog({
     async (workspace: Workspace, e: React.MouseEvent) => {
       e.stopPropagation()
       if (workspace.type === 'folder') {
-        await removeFromCache(workspace.name)
-        const updated = await getCachedWorkspaces()
+        await removeCachedWorkspace(workspace.name)
+        const updated = await getRecentWorkspaces()
         setRecentWorkspaces(updated)
         if (selectedWorkspace?.name === workspace.name) {
           setSelectedWorkspace(null)
