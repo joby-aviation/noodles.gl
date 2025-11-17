@@ -185,6 +185,14 @@
   line-height: 1;
   font-weight: 500;
   height: 35px;
+  background-color: var(--mauve-3);
+  color: var(--mauve-12);
+  border: 1px solid var(--mauve-7);
+  cursor: pointer;
+}
+
+.dialogButton:hover {
+  background-color: var(--mauve-4);
 }
 
 .dialogButton.violet {
