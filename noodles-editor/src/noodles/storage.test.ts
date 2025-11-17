@@ -82,7 +82,42 @@ describe('storage.ts', () => {
         if (result.success) {
           expect(result.data).toBe('file contents')
         }
+        // Verify the path uses the /examples directory structure
         expect(fetchMock).toHaveBeenCalledWith('/examples/my-project/data.csv')
+      })
+
+      // Note: BASE_URL environment variable integration is tested in E2E tests
+      // since import.meta.env.BASE_URL is a compile-time constant that can't be mocked at runtime
+
+      it('handles deeply nested file paths', async () => {
+        fetchMock.mockResponseOnce('nested file contents')
+
+        const result = await readAsset('publicFolder', 'my-project', 'data/subfolder/nested.csv')
+
+        expect(result.success).toBe(true)
+        if (result.success) {
+          expect(result.data).toBe('nested file contents')
+        }
+        expect(fetchMock).toHaveBeenCalledWith('/examples/my-project/data/subfolder/nested.csv')
+      })
+
+      it('handles project names with special characters', async () => {
+        fetchMock.mockResponseOnce('file contents')
+
+        const result = await readAsset('publicFolder', 'my-project-123', 'data.csv')
+
+        expect(result.success).toBe(true)
+        expect(fetchMock).toHaveBeenCalledWith('/examples/my-project-123/data.csv')
+      })
+
+      it('handles file names with spaces', async () => {
+        fetchMock.mockResponseOnce('file contents')
+
+        const result = await readAsset('publicFolder', 'my-project', 'my data file.csv')
+
+        expect(result.success).toBe(true)
+        // The fetch should use the path as-is; browser will handle URL encoding
+        expect(fetchMock).toHaveBeenCalledWith('/examples/my-project/my data file.csv')
       })
 
       it('returns error when asset not found', async () => {
@@ -308,7 +343,19 @@ describe('storage.ts', () => {
         const exists = await checkAssetExists('publicFolder', 'my-project', 'data.csv')
 
         expect(exists).toBe(true)
+        // Verify the path uses the /examples directory structure
         expect(fetchMock).toHaveBeenCalledWith('/examples/my-project/data.csv', {
+          method: 'HEAD',
+        })
+      })
+
+      it('handles deeply nested paths correctly', async () => {
+        fetchMock.mockResponseOnce('', { status: 200 })
+
+        const exists = await checkAssetExists('publicFolder', 'my-project', 'data/subfolder/nested.csv')
+
+        expect(exists).toBe(true)
+        expect(fetchMock).toHaveBeenCalledWith('/examples/my-project/data/subfolder/nested.csv', {
           method: 'HEAD',
         })
       })
