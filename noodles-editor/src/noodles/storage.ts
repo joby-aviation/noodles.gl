@@ -1,3 +1,4 @@
+import { resolve } from 'node:path'
 import { directoryHandleCache } from './utils/directory-handle-cache'
 import type { StorageType } from './utils/filesystem'
 import {
@@ -28,14 +29,14 @@ export type FileSystemResult<T> =
 // Error types for file system operations
 export interface FileSystemError {
   type:
-    | 'permission-denied'
-    | 'not-found'
-    | 'unsupported'
-    | 'invalid-state'
-    | 'security-error'
-    | 'abort-error'
-    | 'already-exists'
-    | 'unknown'
+  | 'permission-denied'
+  | 'not-found'
+  | 'unsupported'
+  | 'invalid-state'
+  | 'security-error'
+  | 'abort-error'
+  | 'already-exists'
+  | 'unknown'
   message: string // Human-readable error message
   details?: string // Optional error details or recovery suggestions
   originalError?: unknown // Original error object if available
@@ -254,7 +255,7 @@ export async function checkProjectExists(type: StorageType, projectName: string)
   // For public folder projects, check if the project file exists in public
   if (type === 'publicFolder') {
     try {
-      const publicPath = `/examples/${projectName}/noodles.json`
+      const publicPath = resolve(import.meta.env.BASE_URL, 'examples', projectName, 'noodles.json')
       const response = await fetch(publicPath, { method: 'HEAD' })
       return response.ok
     } catch (_error) {
@@ -341,7 +342,7 @@ export async function readAsset(
   // For public folder projects, fetch from public directory
   if (type === 'publicFolder') {
     try {
-      const publicPath = `/examples/${projectName}/${fileName}`
+      const publicPath = resolve(import.meta.env.BASE_URL, 'examples', projectName, fileName)
       const response = await fetch(publicPath)
       if (!response.ok) {
         return {
@@ -409,7 +410,7 @@ export async function checkAssetExists(
   // For public folder projects, try to fetch
   if (type === 'publicFolder') {
     try {
-      const publicPath = `/examples/${projectName}/${fileName}`
+      const publicPath = resolve(import.meta.env.BASE_URL, 'examples', projectName, fileName)
       const response = await fetch(publicPath, { method: 'HEAD' })
       return response.ok
     } catch (_error) {
