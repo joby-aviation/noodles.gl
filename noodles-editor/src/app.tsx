@@ -41,7 +41,8 @@ function FallbackRoute() {
         console.warn('Ignoring invalid redirect URL:', redirect)
         return
       }
-      navigate(redirect, { replace: true })
+      const path = redirect.replace(/^\/app\//, '/') // Remove /app/ base if present
+      navigate(path, { replace: true })
       return
     }
 
