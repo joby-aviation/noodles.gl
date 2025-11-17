@@ -176,9 +176,9 @@ export function getNoodles(): Visualization {
   const onNodesChange = useCallback(
     (changes: Parameters<typeof onNodesChangeBase>[0]) => {
       // Track selection changes
-      const hasSelectionChange = changes.some(change => change.type === 'select' && change.selected)
-      if (hasSelectionChange) {
-        analytics.track('node_selected')
+      const selectedChanges = changes.filter(change => change.type === 'select' && change.selected)
+      if (selectedChanges.length > 0) {
+        analytics.track('node_selected', { count: selectedChanges.length })
       }
       onNodesChangeBase(changes)
     },
