@@ -1,403 +1,68 @@
-import * as Dialog from '@radix-ui/react-dialog'
-import { ChevronDownIcon, ChevronRightIcon, Cross2Icon, TrashIcon } from '@radix-ui/react-icons'
+import { ChevronRightIcon } from '@radix-ui/react-icons'
 import * as Menubar from '@radix-ui/react-menubar'
 import { useReactFlow } from '@xyflow/react'
-import cx from 'classnames'
-import { type Dispatch, type SetStateAction, useCallback, useEffect, useState } from 'react'
-import newProjectJSON from '../../../public/noodles/new/noodles.json?url'
-import { useActiveStorageType, useFileSystemStore } from '../filesystem-store'
-import { getProjectDirectoryHandle, load, save } from '../storage'
+import { type Dispatch, type SetStateAction, useCallback, useMemo, useState } from 'react'
+import { importProjectOperation } from '../operations/import-project'
+import { newProjectOperation } from '../operations/new-project'
+import { openProjectOperation } from '../operations/open-project'
+import { saveAsProjectOperation } from '../operations/save-as-project'
+import { saveProjectOperation } from '../operations/save-project'
+import { switchWorkspaceOperation } from '../operations/switch-workspace'
+import type { OperationContext } from '../operations/types'
+import {
+  deleteProject as deleteStorage,
+  listProjects as listStorageProjects,
+  load as loadStorage,
+  projectExists,
+  save as saveStorage,
+} from '../storage/workspace-storage'
+import type { Workspace } from '../storage/workspace-types'
 import { getOpStore } from '../store'
-import { directoryExists, type StorageType } from '../utils/filesystem'
 import { migrateProject } from '../utils/migrate-schema'
+import { createOperationRunner } from '../utils/operation-runner'
 import {
   EMPTY_PROJECT,
   NOODLES_VERSION,
   type NoodlesProjectJSON,
-  safeStringify,
   serializeEdges,
   serializeNodes,
 } from '../utils/serialization'
+import { cacheWorkspace, getCachedWorkspace, getCachedWorkspaces } from '../utils/workspace-cache'
+import { useDialogAPI } from './dialog-api'
 import s from './menu.module.css'
 
-const SaveProjectDialog = ({
-  projectName,
-  onAssignProjectName,
-  open,
-  setOpen,
-}: {
-  projectName: string | null
-  onAssignProjectName: (name: string) => void
-  open: boolean
-  setOpen: (open: boolean) => void
-}) => {
-  const [tempProjectName, setTempProjectName] = useState(projectName)
-  const [error, setError] = useState<string | null>(null)
-
-  const onSave = useCallback(() => {
-    if (!tempProjectName) {
-      setError('Project name is required')
-      return
-    }
-    // Theatre.js requirement
-    if (tempProjectName.length < 3 || tempProjectName.length > 32) {
-      setError('Project name must be between 3 and 32 characters')
-      return
-    }
-    // For OPFS, needs to match filesystem restrictions
-    // biome-ignore lint/suspicious/noControlCharactersInRegex: From https://github.com/sindresorhus/filename-reserved-regex
-    if (/[<>:"/\\|?*\u0000-\u001F]/g.test(tempProjectName)) {
-      const [matches] = tempProjectName.match(/([<>:"/\\|?*\u0000-\u001F])/g)
-
-      setError(
-        `Project name cannot contain special characters (e.g. <, >, :, ", /, \\, |, ?, *, \u0000-\u001F). Found: ${matches}`
-      )
-      return
-    }
-    setError(null)
-    onAssignProjectName(tempProjectName)
-    setOpen(false)
-  }, [onAssignProjectName, tempProjectName, setOpen])
-
-  return (
-    <Dialog.Root open={open} onOpenChange={setOpen}>
-      <Dialog.Portal>
-        <Dialog.Overlay className={s.dialogOverlay} />
-        <Dialog.Content className={s.dialogContent}>
-          <Dialog.Title className={s.dialogTitle}>Save project</Dialog.Title>
-          <Dialog.Description className={s.dialogDescription}>
-            Name your new project. Click save when you're done.
-          </Dialog.Description>
-          {error && <p className={s.dialogError}>{error}</p>}
-          <fieldset className={s.dialogFieldset}>
-            <label className={s.dialogLabel} htmlFor="project-name">
-              Name
-            </label>
-            <input
-              className={s.dialogInput}
-              id="project-name"
-              required
-              value={tempProjectName || ''}
-              onChange={e => setTempProjectName(e.target.value)}
-            />
-          </fieldset>
-          <div className={s.dialogRightSlot}>
-            <Dialog.Close asChild>
-              <button type="button" className={s.dialogButton}>
-                Cancel
-              </button>
-            </Dialog.Close>
-            <button type="button" className={cx(s.dialogButton, s.green)} onClick={onSave}>
-              Save changes
-            </button>
-          </div>
-          <Dialog.Close asChild>
-            <button type="button" className={s.dialogIconButton} aria-label="Close">
-              <Cross2Icon />
-            </button>
-          </Dialog.Close>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
-  )
-}
-
-const ReplaceProjectDialog = ({
-  projectName,
-  open,
-  onReplace,
-  onCancel,
-}: {
-  projectName: string | null
-  onReplace: () => void
-  open: boolean
-  onCancel: () => void
-}) => {
-  return (
-    <Dialog.Root open={open} onOpenChange={open => !open && onCancel()}>
-      <Dialog.Portal>
-        <Dialog.Overlay className={s.dialogOverlay} />
-        <Dialog.Content className={s.dialogContent}>
-          <Dialog.Title className={s.dialogTitle}>Replace project</Dialog.Title>
-          <Dialog.Description className={s.dialogDescription}>
-            "{projectName}" already exists. Do you want to replace it?
-          </Dialog.Description>
-          <div className={s.dialogRightSlot}>
-            <Dialog.Close asChild>
-              <button type="button" className={s.dialogButton}>
-                Cancel
-              </button>
-            </Dialog.Close>
-            <button type="button" className={cx(s.dialogButton, s.red)} onClick={onReplace}>
-              Replace
-            </button>
-          </div>
-          <Dialog.Close asChild>
-            <button type="button" className={s.dialogIconButton} aria-label="Close">
-              <Cross2Icon />
-            </button>
-          </Dialog.Close>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
-  )
-}
-
-const ProjectList = ({
-  selectedProject,
-  setSelectedProject,
-}: {
-  selectedProject?: string
-  setSelectedProject: (project: string) => void
-}) => {
-  const [projects, setProjects] = useState<ProjectList>([])
-
-  useEffect(() => {
-    listProjects().then(projects => {
-      // Sort most recently modified first. TODO: Reverse order option.
-      const sorted = projects.sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime())
-      setProjects(sorted)
-    })
-  }, [])
-
-  const onDeleteProject = (projectName: string) => {
-    deleteProject(projectName)
-    setProjects(projects.filter(project => project.name !== projectName))
-  }
-
-  return (
-    <>
-      {projects.map(project => (
-        <tr
-          className={s.projectRow}
-          key={project.name}
-          onClick={() => setSelectedProject(project.name)}
-          style={{
-            backgroundColor: selectedProject === project.name && 'var(--mauve-6)',
-          }}
-        >
-          <td className={s.projectRowCell}>{project.name}</td>
-          <td className={s.projectRowCell}>
-            {project.lastModified.toLocaleString()}
-            <TrashIcon onClick={() => onDeleteProject(project.name)} />
-          </td>
-        </tr>
-      ))}
-    </>
-  )
-}
-
-const OpenProjectDialog = ({
-  openDialog,
-  setOpenDialog,
-  onSelectProject,
-}: {
-  openDialog: boolean
-  setOpenDialog: (open: boolean) => void
-  onSelectProject: (name: string) => void
-}) => {
-  const [selectedProject, setSelectedProject] = useState<string>()
-
-  return (
-    <Dialog.Root open={openDialog} onOpenChange={setOpenDialog}>
-      <Dialog.Portal>
-        <Dialog.Overlay className={s.dialogOverlay} />
-        <Dialog.Content className={s.dialogContent}>
-          <Dialog.Title className={s.dialogTitle}>Open project</Dialog.Title>
-          <div className={s.projectListWrapper}>
-            <div className={s.projectList}>
-              <table className={s.projectTable}>
-                <thead>
-                  <tr>
-                    <th className={s.projectHeaderCell}>Project</th>
-                    <th className={s.projectHeaderCell}>
-                      Last Modified <ChevronDownIcon />
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <ProjectList
-                    selectedProject={selectedProject}
-                    setSelectedProject={setSelectedProject}
-                  />
-                </tbody>
-              </table>
-            </div>
-          </div>
-          <div className={s.dialogRightSlot}>
-            <Dialog.Close asChild>
-              <button type="button" className={s.dialogButton}>
-                Cancel
-              </button>
-            </Dialog.Close>
-            <Dialog.Close asChild onClick={() => onSelectProject(selectedProject!)}>
-              <button
-                type="button"
-                className={cx(s.dialogButton, s.green)}
-                disabled={!selectedProject}
-              >
-                Open
-              </button>
-            </Dialog.Close>
-          </div>
-          <Dialog.Close asChild>
-            <button type="button" className={s.dialogIconButton} aria-label="Close">
-              <Cross2Icon />
-            </button>
-          </Dialog.Close>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
-  )
-}
-
-// OPFS Project File System
-const PROJECTS = 'projects'
-async function getProjectHandle(projectName: string, create = false) {
-  const root = await navigator.storage.getDirectory()
-  const projectDirectory = await root.getDirectoryHandle(PROJECTS, { create })
-  return await projectDirectory.getFileHandle(projectName, { create })
-}
-
-// test if a project exists
-async function checkProjectExists(projectName: string) {
-  try {
-    await getProjectHandle(projectName, false)
-    return true
-  } catch {
-    return false
-  }
-}
-
-async function deleteProject(projectName: string) {
-  try {
-    const fileHandle = await getProjectHandle(projectName, false)
-    await fileHandle.remove()
-    const recents = localStorage.getItem(RECENT_PROJECTS_KEY)
-    if (recents) {
-      const updated = JSON.parse(recents).filter(
-        (project: RecentProject) => project.name !== projectName
-      )
-      localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(updated))
-    }
-    console.log('Project deleted successfully:', `${PROJECTS}/${projectName}`)
-  } catch (error) {
-    console.error('Error deleting project:', error)
-  }
-}
-
-async function saveProjectLocally(
-  projectName: string,
-  projectJson: NoodlesProjectJSON,
-  storageType: StorageType
-) {
-  const JSZip = (await import('jszip')).default
-  const zip = new JSZip()
-
-  // Create a folder with the project name
-  const projectFolder = zip.folder(projectName)
-  if (!projectFolder) {
-    throw new Error('Failed to create project folder in zip')
-  }
-
-  // Add noodles.json to the project folder
-  const contents = safeStringify(projectJson)
-  projectFolder.file('noodles.json', contents)
-
-  // Try to get the project directory handle to read data files
-  try {
-    const projectDirectoryResult = await getProjectDirectoryHandle(storageType, projectName, false)
-
-    if (projectDirectoryResult.success) {
-      const projectDirectory = projectDirectoryResult.data
-      const hasDataDir = await directoryExists(projectDirectory, 'data')
-
-      if (hasDataDir) {
-        const dataDirectory = await projectDirectory.getDirectoryHandle('data')
-
-        // Read all files from the data directory
-        for await (const entry of dataDirectory.values()) {
-          if (entry.kind === 'file') {
-            const fileHandle = entry as FileSystemFileHandle
-            const file = await fileHandle.getFile()
-            const arrayBuffer = await file.arrayBuffer()
-            projectFolder.file(`data/${entry.name}`, arrayBuffer)
-          }
-        }
-      }
-    }
-  } catch (error) {
-    console.warn('Could not read data files for export:', error)
-    // Continue with export even if data files can't be read
-  }
-
-  // Generate the zip file and trigger download
-  const blob = await zip.generateAsync({ type: 'blob' })
-
-  const a = document.createElement('a')
-  a.download = `${projectName}.zip`
-  const url = URL.createObjectURL(blob)
-  a.href = url
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
-}
-
-type ProjectList = {
-  name: string
-  lastModified: Date
-}[]
-
-async function listProjects(): Promise<ProjectList> {
-  const root = await navigator.storage.getDirectory()
-  const projectDirectory = await root.getDirectoryHandle(PROJECTS, {
-    create: true,
-  })
-  const files = []
-  for await (const entry of projectDirectory.values()) {
-    if (entry.kind === 'file') {
-      const file = await entry.getFile()
-      files.push({
-        name: entry.name,
-        lastModified: new Date(file.lastModified),
-      })
-    }
-  }
-
-  return files
-}
-
-// Open Recent...
+// Recent projects tracking (kept for now, may migrate to workspace cache later)
 type RecentProject = {
-  name: string
+  workspace: string
+  project: string
   lastOpened: string
 }
 
 const RECENT_PROJECTS_KEY = 'recentProjects'
 function getRecentProjects(): RecentProject[] {
-  return JSON.parse(localStorage.getItem(RECENT_PROJECTS_KEY)) || []
+  return JSON.parse(localStorage.getItem(RECENT_PROJECTS_KEY) || '[]')
 }
 
 const MAX_RECENT_PROJECTS = 6
-function addToRecentProjects(projectName: string) {
+function addToRecentProjects(workspace: string, projectName: string) {
   const recentProjects = getRecentProjects()
 
-  // Remove the project if it's already in the list
+  // Remove if already exists
   const existingIndex = recentProjects.findIndex(
-    (project: RecentProject) => project.name === projectName
+    (p: RecentProject) => p.workspace === workspace && p.project === projectName
   )
   if (existingIndex !== -1) {
     recentProjects.splice(existingIndex, 1)
   }
 
-  // Add the new project with a timestamp
+  // Add to front
   recentProjects.unshift({
-    name: projectName,
+    workspace,
+    project: projectName,
     lastOpened: new Date().toISOString(),
   })
 
-  // Limit the list to the most recent projects
+  // Limit list size
   if (recentProjects.length > MAX_RECENT_PROJECTS) {
     recentProjects.pop()
   }
@@ -429,367 +94,299 @@ export function NoodlesMenubar({
   setShowChatPanel?: (show: boolean) => void
 }) {
   const [recentlyOpened, setRecentlyOpened] = useState<RecentProject[]>([])
+  const [workspace, setWorkspace] = useState<Workspace | null>(null)
   const { toObject } = useReactFlow()
-  const storageType = useActiveStorageType()
-  const { setCurrentDirectory, setError } = useFileSystemStore()
+  const dialogAPI = useDialogAPI()
+  const runOperation = useMemo(() => createOperationRunner(dialogAPI), [dialogAPI])
 
-  // "New" Menu Options
-  const onNewProject = useCallback(async () => {
-    const newProjectFile = await fetch(newProjectJSON).then(res => res.json())
-    loadProjectFile(newProjectFile)
-  }, [loadProjectFile])
+  // Create operation context
+  const operationContext: OperationContext = useMemo(
+    () => ({
+      // Current state
+      workspace,
+      activeProject: projectName || null,
 
-  const onImport = useCallback(async () => {
-    const [fileHandle] = await window.showOpenFilePicker({
-      types: [
-        {
-          description: 'JSON Files',
-          accept: {
-            'application/json': ['.json'],
-          },
-        },
-      ],
-      excludeAcceptAllOption: true,
-      multiple: false,
-    })
-    const file = await fileHandle.getFile()
-    const contents = await file.text()
-    const parsed = JSON.parse(contents) as Partial<NoodlesProjectJSON>
-    const project = await migrateProject({
-      ...EMPTY_PROJECT,
-      ...parsed,
-    } as NoodlesProjectJSON)
-    // "New project from local copy" means import a file into a blank project.
-    // Resets the name to avoid conflict with an existing stored projects.
-    loadProjectFile(project)
-  }, [loadProjectFile])
+      // State setters
+      setWorkspace: (ws: Workspace) => {
+        setWorkspace(ws)
+        cacheWorkspace(ws)
+      },
+      setActiveProject: (name: string | null) => {
+        setProjectName(name || undefined)
+      },
 
-  // "Save" Menu Options
-  const [saveProjectDialogOpen, setSaveProjectDialogOpen] = useState(false)
-  const [replaceProjectDialogOpen, setReplaceProjectDialogOpen] = useState(false)
+      // Storage operations
+      saveProject: async (ws: Workspace, name: string, data: NoodlesProjectJSON) => {
+        await saveStorage(ws, name, data)
+      },
+      loadProject: async (ws: Workspace, name: string): Promise<NoodlesProjectJSON> => {
+        const data = await loadStorage(ws, name)
+        return await migrateProject(data)
+      },
+      deleteProject: async (ws: Workspace, name: string) => {
+        await deleteStorage(ws, name)
+      },
+      listProjects: async (ws: Workspace): Promise<string[]> => {
+        return await listStorageProjects(ws)
+      },
+      checkProjectExists: async (ws: Workspace, name: string): Promise<boolean> => {
+        return await projectExists(ws, name)
+      },
 
-  const getNoodlesProjectJson = useCallback((): NoodlesProjectJSON => {
-    const { nodes, edges, viewport } = toObject()
-    const store = getOpStore()
-    // sync op and node data
-    const serializedNodes = serializeNodes(store, nodes, edges)
-    const serializedEdges = serializeEdges(store, nodes, edges)
-    const timeline = getTimelineJson()
+      // Workspace operations
+      cacheWorkspace: async (ws: Workspace) => {
+        await cacheWorkspace(ws)
+      },
+      getCachedWorkspace: async (name: string): Promise<Workspace | null> => {
+        return await getCachedWorkspace(name)
+      },
+      listCachedWorkspaces: async (): Promise<Workspace[]> => {
+        return await getCachedWorkspaces()
+      },
 
-    return {
-      nodes: serializedNodes,
-      edges: serializedEdges,
-      viewport,
-      timeline,
-      version: NOODLES_VERSION,
-    }
-  }, [toObject, getTimelineJson])
-
-  // Basic save case. If the project is already named, save it.
-  // Cache-aware: save will prompt user if project directory not cached for fileSystemAccess
-  const onMenuSave = useCallback(async () => {
-    if (!projectName) {
-      setSaveProjectDialogOpen(true)
-      return // return early if the project has no name
-    }
-    const noodlesProjectJson = getNoodlesProjectJson()
-    const result = await save(storageType, projectName, noodlesProjectJson)
-    if (result.success) {
-      addToRecentProjects(projectName)
-      // Update store with directory handle returned from save
-      setCurrentDirectory(result.data.directoryHandle, projectName)
-    } else {
-      setError(result.error)
-    }
-  }, [projectName, storageType, getNoodlesProjectJson, setCurrentDirectory, setError])
-
-  // This is a new project, so they need to name it before saving.
-  const maybeSetProjectName = useCallback(
-    async (name: string) => {
-      setProjectName(name) // optimistically set project name
-      // TODO: Check if project exists before saving (need projectExists in storage abstraction)
-      if (await checkProjectExists(name)) {
-        setReplaceProjectDialogOpen(true)
-        return // return early if project is going to be replaced
-      }
-      const noodlesProjectJson = getNoodlesProjectJson()
-      const result = await save(storageType, name, noodlesProjectJson)
-      if (result.success) {
-        addToRecentProjects(name)
-        // Update store with directory handle returned from save
-        setCurrentDirectory(result.data.directoryHandle, name)
-      } else {
-        setError(result.error)
-      }
-    },
-    [storageType, getNoodlesProjectJson, setProjectName, setCurrentDirectory, setError]
-  )
-
-  // When the project name is taken and the user choose to replace that existing project
-  const onReplaceProject = useCallback(async () => {
-    setReplaceProjectDialogOpen(false)
-    const noodlesProjectJson = getNoodlesProjectJson()
-    const result = await save(storageType, projectName!, noodlesProjectJson)
-    if (result.success) {
-      addToRecentProjects(projectName!)
-      // Update store with directory handle returned from save
-      setCurrentDirectory(result.data.directoryHandle, projectName!)
-    } else {
-      setError(result.error)
-    }
-  }, [projectName, storageType, getNoodlesProjectJson, setCurrentDirectory, setError])
-
-  // User decided not to replace, revert back to an undecided name
-  const onCancelReplaceProject = useCallback(() => {
-    setReplaceProjectDialogOpen(false)
-    setProjectName(null)
-    setSaveProjectDialogOpen(true)
-  }, [setProjectName])
-
-  const onExport = useCallback(async () => {
-    const noodlesProjectJson = getNoodlesProjectJson()
-    saveProjectLocally(projectName || 'untitled', noodlesProjectJson, storageType)
-  }, [projectName, getNoodlesProjectJson, storageType])
-
-  // "Open" Menu Options
-  const [openProjectDialogOpen, setOpenProjectDialogOpen] = useState(false)
-
-  // Load project by name (for OPFS projects from list)
-  const onOpenProject = useCallback(
-    (name: string) => {
-      ;(async () => {
-        // Cache-aware: load will prompt user if project directory not cached for fileSystemAccess
-        const result = await load(storageType, name)
-        if (result.success) {
-          try {
-            const project = await migrateProject(result.data.projectData)
-            loadProjectFile(project, name)
-            addToRecentProjects(name)
-            // Update store with directory handle returned from load
-            setCurrentDirectory(result.data.directoryHandle, name)
-          } catch (error) {
-            setError({
-              type: 'unknown',
-              message: 'Error migrating project',
-              details: error instanceof Error ? error.message : 'Unknown error',
-              originalError: error,
-            })
-          }
+      // Utility functions
+      updateURL: (workspaceName: string, projectName: string | null) => {
+        const url = new URL(window.location.href)
+        if (projectName) {
+          url.searchParams.set('workspace', workspaceName)
+          url.searchParams.set('project', projectName)
         } else {
-          setError(result.error)
+          url.searchParams.delete('project')
         }
-      })()
-    },
-    [storageType, loadProjectFile, setCurrentDirectory, setError]
+        window.history.replaceState({}, '', url.toString())
+      },
+      updateRecent: (ws: Workspace, project: string) => {
+        addToRecentProjects(ws.name, project)
+      },
+      removeFromRecent: (ws: Workspace, project: string) => {
+        const recents = getRecentProjects()
+        const updated = recents.filter(p => !(p.workspace === ws.name && p.project === project))
+        localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(updated))
+      },
+      getNewProjectTemplate: (): NoodlesProjectJSON => {
+        return EMPTY_PROJECT
+      },
+
+      // Current project data
+      getCurrentProjectData: (): NoodlesProjectJSON => {
+        const { nodes, edges, viewport } = toObject()
+        const store = getOpStore()
+        const serializedNodes = serializeNodes(store, nodes, edges)
+        const serializedEdges = serializeEdges(store, nodes, edges)
+        const timeline = getTimelineJson()
+
+        return {
+          nodes: serializedNodes,
+          edges: serializedEdges,
+          viewport,
+          timeline,
+          version: NOODLES_VERSION,
+        }
+      },
+    }),
+    [workspace, projectName, setProjectName, toObject, getTimelineJson]
   )
 
-  // Open File System Access API folder picker
-  const onOpenFileSystemFolder = useCallback(async () => {
+  // Menu handlers using operations
+  const onNewProject = useCallback(async () => {
     try {
-      // Dynamically import filesystem utilities to avoid circular dependencies
-      const { directoryHandleCache } = await import('../utils/directory-handle-cache')
-      const { selectDirectory } = await import('../utils/filesystem')
-      const { load } = await import('../storage')
+      await runOperation(newProjectOperation(operationContext))
+      // Operation updates state through context
+    } catch (error) {
+      console.error('New project failed:', error)
+    }
+  }, [runOperation, operationContext])
 
-      // Show the native folder picker
-      const projectDirectory = await selectDirectory()
-
-      // Use the directory name as the project name
-      const projectName = projectDirectory.name
-
-      await directoryHandleCache.cacheHandle(projectName, projectDirectory, projectDirectory.name)
-
-      const result = await load('fileSystemAccess', projectDirectory)
-
-      if (result.success) {
-        try {
-          const project = await migrateProject(result.data.projectData)
-          loadProjectFile(project, projectName)
-          addToRecentProjects(projectName)
-          // Update store with directory handle returned from load
-          setCurrentDirectory(result.data.directoryHandle, projectName)
-        } catch (error) {
-          setError({
-            type: 'unknown',
-            message: 'Error migrating project',
-            details: error instanceof Error ? error.message : 'Unknown error',
-            originalError: error,
-          })
-        }
-      } else {
-        setError(result.error)
+  const onOpenProject = useCallback(async () => {
+    try {
+      const project = await runOperation(openProjectOperation(operationContext))
+      if (project) {
+        loadProjectFile(project, operationContext.activeProject || undefined)
       }
     } catch (error) {
-      // Handle abort error silently (user cancelled folder picker)
-      if (error instanceof Error && error.name === 'AbortError') {
-        return
-      }
-      setError({
-        type: 'unknown',
-        message: 'Error opening folder',
-        details: error instanceof Error ? error.message : 'Unknown error',
-        originalError: error,
-      })
+      console.error('Open project failed:', error)
     }
-  }, [loadProjectFile, setCurrentDirectory, setError])
+  }, [runOperation, operationContext, loadProjectFile])
 
-  // Handle "Open..." button click based on storage type
-  const onOpenMenuClick = useCallback(() => {
-    if (storageType === 'fileSystemAccess') {
-      // For File System Access API, directly show folder picker
-      onOpenFileSystemFolder()
-    } else {
-      // For OPFS, show project list dialog
-      setOpenProjectDialogOpen(true)
+  const onSaveProject = useCallback(async () => {
+    try {
+      await runOperation(saveProjectOperation(operationContext))
+    } catch (error) {
+      console.error('Save project failed:', error)
     }
-  }, [storageType, onOpenFileSystemFolder])
+  }, [runOperation, operationContext])
+
+  const onSaveAsProject = useCallback(async () => {
+    try {
+      await runOperation(saveAsProjectOperation(operationContext))
+    } catch (error) {
+      console.error('Save As project failed:', error)
+    }
+  }, [runOperation, operationContext])
+
+  const onImportProject = useCallback(async () => {
+    try {
+      const project = await runOperation(importProjectOperation(operationContext))
+      if (project) {
+        loadProjectFile(project, operationContext.activeProject || undefined)
+      }
+    } catch (error) {
+      console.error('Import project failed:', error)
+    }
+  }, [runOperation, operationContext, loadProjectFile])
+
+  const onSwitchWorkspace = useCallback(async () => {
+    try {
+      await runOperation(switchWorkspaceOperation(operationContext))
+    } catch (error) {
+      console.error('Switch workspace failed:', error)
+    }
+  }, [runOperation, operationContext])
 
   const updateRecentlyOpened = useCallback(() => {
     setRecentlyOpened(getRecentProjects())
   }, [])
 
   return (
-    <>
-      <Menubar.Root className={s.menubarRoot}>
-        <Menubar.Menu>
-          <Menubar.Trigger className={s.menubarTrigger}>File</Menubar.Trigger>
-          <Menubar.Portal>
-            <Menubar.Content
-              className={s.menubarContent}
-              align="start"
-              sideOffset={5}
-              alignOffset={-3}
-            >
-              <Menubar.Item className={s.menubarItem} onSelect={onNewProject}>
-                New Project <div className={s.menubarItemRightSlot}>⌘ N</div>
-              </Menubar.Item>
-              <Menubar.Item className={s.menubarItem} onSelect={onImport}>
-                Import
-              </Menubar.Item>
-              <Menubar.Separator className={s.menubarSeparator} />
-              <Menubar.Item className={s.menubarItem} onSelect={onOpenMenuClick}>
-                Open... <div className={s.menubarItemRightSlot}>⌘ O</div>
-              </Menubar.Item>
-              <Menubar.Sub onOpenChange={updateRecentlyOpened}>
-                <Menubar.SubTrigger className={s.menubarSubTrigger}>
-                  Open Recent
-                  <div className={s.menubarItemRightSlot}>
-                    <ChevronRightIcon />
-                  </div>
-                </Menubar.SubTrigger>
-                <Menubar.Portal>
-                  <Menubar.SubContent className={s.menubarSubContent} alignOffset={-5}>
-                    {recentlyOpened.map(recent => (
-                      <Menubar.Item
-                        key={recent.name}
-                        className={s.menubarItem}
-                        onSelect={() => onOpenProject(recent.name)}
-                      >
-                        {recent.name}
-                      </Menubar.Item>
-                    ))}
-                  </Menubar.SubContent>
-                </Menubar.Portal>
-              </Menubar.Sub>
-              <Menubar.Separator className={s.menubarSeparator} />
-              <Menubar.Item className={s.menubarItem} onSelect={onMenuSave}>
-                Save
-              </Menubar.Item>
-              {/* TODO: implement Save As... */}
-              {/* <Menubar.Item className={s.menubarItem}>Save As...</Menubar.Item> */}
-              <Menubar.Item className={s.menubarItem} onSelect={onExport}>
-                Download project
-              </Menubar.Item>
-            </Menubar.Content>
-          </Menubar.Portal>
-        </Menubar.Menu>
+    <Menubar.Root className={s.menubarRoot}>
+      <Menubar.Menu>
+        <Menubar.Trigger className={s.menubarTrigger}>File</Menubar.Trigger>
+        <Menubar.Portal>
+          <Menubar.Content
+            className={s.menubarContent}
+            align="start"
+            sideOffset={5}
+            alignOffset={-3}
+          >
+            <Menubar.Item className={s.menubarItem} onSelect={onNewProject}>
+              New Project <div className={s.menubarItemRightSlot}>⌘ N</div>
+            </Menubar.Item>
+            <Menubar.Item className={s.menubarItem} onSelect={onImportProject}>
+              Import
+            </Menubar.Item>
+            <Menubar.Separator className={s.menubarSeparator} />
+            <Menubar.Item className={s.menubarItem} onSelect={onOpenProject}>
+              Open... <div className={s.menubarItemRightSlot}>⌘ O</div>
+            </Menubar.Item>
+            <Menubar.Sub onOpenChange={updateRecentlyOpened}>
+              <Menubar.SubTrigger className={s.menubarSubTrigger}>
+                Open Recent
+                <div className={s.menubarItemRightSlot}>
+                  <ChevronRightIcon />
+                </div>
+              </Menubar.SubTrigger>
+              <Menubar.Portal>
+                <Menubar.SubContent className={s.menubarSubContent} alignOffset={-5}>
+                  {recentlyOpened.map(recent => (
+                    <Menubar.Item
+                      key={`${recent.workspace}-${recent.project}`}
+                      className={s.menubarItem}
+                      onSelect={async () => {
+                        try {
+                          // Load workspace and project
+                          const ws = await getCachedWorkspace(recent.workspace)
+                          if (!ws) {
+                            console.error('Workspace not found in cache:', recent.workspace)
+                            return
+                          }
+                          const project = await loadStorage(ws, recent.project)
+                          const migrated = await migrateProject(project)
+                          setWorkspace(ws)
+                          loadProjectFile(migrated, recent.project)
+                        } catch (error) {
+                          console.error('Failed to load recent project:', error)
+                        }
+                      }}
+                    >
+                      {recent.project} ({recent.workspace})
+                    </Menubar.Item>
+                  ))}
+                </Menubar.SubContent>
+              </Menubar.Portal>
+            </Menubar.Sub>
+            <Menubar.Separator className={s.menubarSeparator} />
+            <Menubar.Item className={s.menubarItem} onSelect={onSaveProject}>
+              Save
+            </Menubar.Item>
+            <Menubar.Item className={s.menubarItem} onSelect={onSaveAsProject}>
+              Save As...
+            </Menubar.Item>
+            <Menubar.Item className={s.menubarItem} onSelect={onSwitchWorkspace}>
+              Switch Workspace...
+            </Menubar.Item>
+          </Menubar.Content>
+        </Menubar.Portal>
+      </Menubar.Menu>
 
-        <Menubar.Menu>
-          <Menubar.Trigger className={s.menubarTrigger}>Edit</Menubar.Trigger>
-          <Menubar.Portal>
-            <Menubar.Content
-              className={s.menubarContent}
-              align="start"
-              sideOffset={5}
-              alignOffset={-3}
+      <Menubar.Menu>
+        <Menubar.Trigger className={s.menubarTrigger}>Edit</Menubar.Trigger>
+        <Menubar.Portal>
+          <Menubar.Content
+            className={s.menubarContent}
+            align="start"
+            sideOffset={5}
+            alignOffset={-3}
+          >
+            <Menubar.Item
+              className={s.menubarItem}
+              onSelect={undoRedo?.undo}
+              disabled={!undoRedo?.canUndo()}
             >
-              <Menubar.Item
-                className={s.menubarItem}
-                onSelect={undoRedo?.undo}
-                disabled={!undoRedo?.canUndo()}
-              >
-                Undo{' '}
-                {undoRedo?.getState().undoDescription
-                  ? `"${undoRedo.getState().undoDescription}"`
-                  : ''}
-                <div className={s.menubarItemRightSlot}>⌘ Z</div>
-              </Menubar.Item>
-              <Menubar.Item
-                className={s.menubarItem}
-                onSelect={undoRedo?.redo}
-                disabled={!undoRedo?.canRedo()}
-              >
-                Redo{' '}
-                {undoRedo?.getState().redoDescription
-                  ? `"${undoRedo.getState().redoDescription}"`
-                  : ''}
-                <div className={s.menubarItemRightSlot}>⌘ ⇧ Z</div>
-              </Menubar.Item>
-              <Menubar.Separator className={s.menubarSeparator} />
-              <Menubar.Item className={s.menubarItem}>Cut</Menubar.Item>
-              <Menubar.Item className={s.menubarItem}>Copy</Menubar.Item>
-              <Menubar.Item className={s.menubarItem}>Paste</Menubar.Item>
-              <Menubar.Item className={s.menubarItem}>Delete</Menubar.Item>
-              <Menubar.Separator className={s.menubarSeparator} />
-              <Menubar.Sub>
-                <Menubar.SubTrigger className={s.menubarSubTrigger}>
-                  Find
-                  <div className={s.menubarItemRightSlot}>
-                    <ChevronRightIcon />
-                  </div>
-                </Menubar.SubTrigger>
-                <Menubar.Portal>
-                  <Menubar.SubContent className={s.menubarSubContent} alignOffset={-5}>
-                    <Menubar.Item className={s.menubarItem}>Find…</Menubar.Item>
-                    <Menubar.Item className={s.menubarItem}>Find Next</Menubar.Item>
-                    <Menubar.Item className={s.menubarItem}>Find Previous</Menubar.Item>
-                  </Menubar.SubContent>
-                </Menubar.Portal>
-              </Menubar.Sub>
-            </Menubar.Content>
-          </Menubar.Portal>
-        </Menubar.Menu>
+              Undo{' '}
+              {undoRedo?.getState().undoDescription
+                ? `"${undoRedo.getState().undoDescription}"`
+                : ''}
+              <div className={s.menubarItemRightSlot}>⌘ Z</div>
+            </Menubar.Item>
+            <Menubar.Item
+              className={s.menubarItem}
+              onSelect={undoRedo?.redo}
+              disabled={!undoRedo?.canRedo()}
+            >
+              Redo{' '}
+              {undoRedo?.getState().redoDescription
+                ? `"${undoRedo.getState().redoDescription}"`
+                : ''}
+              <div className={s.menubarItemRightSlot}>⌘ ⇧ Z</div>
+            </Menubar.Item>
+            <Menubar.Separator className={s.menubarSeparator} />
+            <Menubar.Item className={s.menubarItem}>Cut</Menubar.Item>
+            <Menubar.Item className={s.menubarItem}>Copy</Menubar.Item>
+            <Menubar.Item className={s.menubarItem}>Paste</Menubar.Item>
+            <Menubar.Item className={s.menubarItem}>Delete</Menubar.Item>
+            <Menubar.Separator className={s.menubarSeparator} />
+            <Menubar.Sub>
+              <Menubar.SubTrigger className={s.menubarSubTrigger}>
+                Find
+                <div className={s.menubarItemRightSlot}>
+                  <ChevronRightIcon />
+                </div>
+              </Menubar.SubTrigger>
+              <Menubar.Portal>
+                <Menubar.SubContent className={s.menubarSubContent} alignOffset={-5}>
+                  <Menubar.Item className={s.menubarItem}>Find…</Menubar.Item>
+                  <Menubar.Item className={s.menubarItem}>Find Next</Menubar.Item>
+                  <Menubar.Item className={s.menubarItem}>Find Previous</Menubar.Item>
+                </Menubar.SubContent>
+              </Menubar.Portal>
+            </Menubar.Sub>
+          </Menubar.Content>
+        </Menubar.Portal>
+      </Menubar.Menu>
 
-        {/* Chat button on the right side */}
-        {setShowChatPanel && (
-          <div className={s.menubarRightSlot}>
-            <button
-              onClick={() => setShowChatPanel(!showChatPanel)}
-              className={s.chatButton}
-              title="Toggle Noodles AI Assistant"
-            >
-              💬 {showChatPanel ? 'Hide' : 'Assistant'}
-            </button>
-          </div>
-        )}
-      </Menubar.Root>
-      <SaveProjectDialog
-        projectName={projectName ?? null}
-        onAssignProjectName={maybeSetProjectName}
-        open={saveProjectDialogOpen}
-        setOpen={setSaveProjectDialogOpen}
-      />
-      <ReplaceProjectDialog
-        projectName={projectName ?? null}
-        open={replaceProjectDialogOpen}
-        onReplace={onReplaceProject}
-        onCancel={onCancelReplaceProject}
-      />
-      <OpenProjectDialog
-        openDialog={openProjectDialogOpen}
-        setOpenDialog={setOpenProjectDialogOpen}
-        onSelectProject={onOpenProject}
-      />
-    </>
+      {/* Chat button on the right side */}
+      {setShowChatPanel && (
+        <div className={s.menubarRightSlot}>
+          <button
+            type="button"
+            onClick={() => setShowChatPanel(!showChatPanel)}
+            className={s.chatButton}
+            title="Toggle Noodles AI Assistant"
+          >
+            💬 {showChatPanel ? 'Hide' : 'Assistant'}
+          </button>
+        </div>
+      )}
+    </Menubar.Root>
   )
 }
