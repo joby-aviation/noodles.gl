@@ -6,17 +6,7 @@
  */
 
 import { createContext, useContext, useState } from 'react'
-import type {
-	DialogRequest,
-	SelectWorkspaceRequest,
-	NameWorkspaceRequest,
-	SelectProjectRequest,
-	PromptNameRequest,
-	ConfirmReplaceRequest,
-	ConfirmDeleteRequest,
-	SelectFileRequest,
-	ErrorRequest,
-} from '../operations/types'
+import type { DialogRequest } from '../operations/types'
 import type { Workspace } from '../storage/workspace-types'
 
 /**
@@ -322,3 +312,5 @@ export function DialogAPIProvider({ children }: { children: React.ReactNode }) {
     </DialogAPIContext.Provider>
   )
 }
+
+export { DialogAPIContext, DialogStateContext }
