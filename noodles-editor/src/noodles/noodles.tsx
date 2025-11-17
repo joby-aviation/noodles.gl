@@ -31,34 +31,35 @@ import 'primereact/resources/themes/md-dark-indigo/theme.css'
 import 'primeicons/primeicons.css'
 
 import newProject from '../../public/noodles/new/noodles.json'
+import { ChatPanel } from '../ai-chat/chat-panel'
+import { globalContextManager } from '../ai-chat/global-context-manager'
 import { SheetProvider } from '../utils/sheet-context'
 import useSheetValue from '../utils/use-sheet-value'
 import type { Visualization } from '../visualizations'
 import { BlockLibrary, type BlockLibraryRef } from './components/block-library'
 import { Breadcrumbs } from './components/breadcrumbs'
+import { categories } from './components/categories'
 import { CopyControls } from './components/copy-controls'
+import { DialogAPIProvider } from './components/dialog-api'
+import { DialogRenderer } from './components/dialog-provider'
 import { DropTarget } from './components/drop-target'
 import { ErrorBoundary } from './components/error-boundary'
 import { NoodlesMenubar } from './components/menu'
 import { PropertyPanel } from './components/node-properties'
-import { categories } from './components/categories'
 import { edgeComponents, nodeComponents } from './components/op-components'
 import { ProjectNameBar, UNSAVED_PROJECT_NAME } from './components/project-name-bar'
 import { ProjectNotFoundDialog } from './components/project-not-found-dialog'
 import { StorageErrorHandler } from './components/storage-error-handler'
 import { UndoRedoHandler, type UndoRedoHandlerRef } from './components/UndoRedoHandler'
-import { ListField } from './fields'
-import { ChatPanel } from '../ai-chat/chat-panel'
-import { globalContextManager } from '../ai-chat/global-context-manager'
-import { useProjectModifications } from './hooks/use-project-modifications'
-import { bindOperatorToTheatre, cleanupRemovedOperators } from './theatre-bindings'
 import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
 import { IS_PROD, projectId } from './globals'
+import { useProjectModifications } from './hooks/use-project-modifications'
 import s from './noodles.module.css'
 import type { IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
 import { load } from './storage'
 import { getOpStore, useNestingStore } from './store'
+import { bindOperatorToTheatre, cleanupRemovedOperators } from './theatre-bindings'
 import { transformGraph } from './transform-graph'
 import { edgeId, nodeId } from './utils/id-utils'
 import { migrateProject } from './utils/migrate-schema'
@@ -67,11 +68,11 @@ import { pick } from './utils/pick'
 import { EMPTY_PROJECT, type NoodlesProjectJSON } from './utils/serialization'
 
 export type Edge<N1 extends Operator<IOperator>, N2 extends Operator<IOperator>> = {
-  id: `${N1['id']}.${'par'|'out'}.${keyof N1['outputs']}->${N2['id']}.${'par'|'out'}.${keyof N2['inputs']}`
+  id: `${N1['id']}.${'par' | 'out'}.${keyof N1['outputs']}->${N2['id']}.${'par' | 'out'}.${keyof N2['inputs']}`
   source: N1['id']
   target: N2['id']
-  sourceHandle: `${'par'|'out'}.${keyof N1['outputs']}`
-  targetHandle: `${'par'|'out'}.${keyof N2['inputs']}`
+  sourceHandle: `${'par' | 'out'}.${keyof N1['outputs']}`
+  targetHandle: `${'par' | 'out'}.${keyof N2['inputs']}`
 }
 
 const fitViewOptions: FitViewOptions = {
@@ -219,7 +220,7 @@ export function getNoodles(): Visualization {
     getNodes: useCallback(() => nodes, [nodes]),
     getEdges: useCallback(() => edges, [edges]),
     setNodes,
-    setEdges
+    setEdges,
   })
 
   const onReconnect = useCallback(
@@ -302,7 +303,12 @@ export function getNoodles(): Visualization {
             const sourceHandle = hoveredHandle.handleId
             const targetHandle = 'par.data'
             const newEdge = {
-              id: edgeId({ source: hoveredHandle.nodeId, sourceHandle, target: viewerId, targetHandle }),
+              id: edgeId({
+                source: hoveredHandle.nodeId,
+                sourceHandle,
+                target: viewerId,
+                targetHandle,
+              }),
               source: hoveredHandle.nodeId,
               sourceHandle,
               target: viewerId,
@@ -697,15 +703,18 @@ export function getNoodles(): Visualization {
   }, [outOp, selectedGeoJsonFeatures])
 
   const menuBar = (
-    <NoodlesMenubar
-      projectName={projectName}
-      setProjectName={setProjectName}
-      getTimelineJson={getTimelineJson}
-      loadProjectFile={loadProjectFile}
-      undoRedo={undoRedoRef.current}
-      showChatPanel={showChatPanel}
-      setShowChatPanel={setShowChatPanel}
-    />
+    <DialogAPIProvider>
+      <NoodlesMenubar
+        projectName={projectName}
+        setProjectName={setProjectName}
+        getTimelineJson={getTimelineJson}
+        loadProjectFile={loadProjectFile}
+        undoRedo={undoRedoRef.current}
+        showChatPanel={showChatPanel}
+        setShowChatPanel={setShowChatPanel}
+      />
+      <DialogRenderer />
+    </DialogAPIProvider>
   )
 
   const right = (

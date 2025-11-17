@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { FileSystemError } from './storage'
+import type { Workspace } from './storage/workspace-types'
 import {
   checkFileSystemSupport,
   type FileSystemSupport,
@@ -11,24 +12,34 @@ import {
 // ============================================================================
 
 interface FileSystemState {
-  // Current directory handle being worked with
+  // Current workspace (replaces activeStorageType)
+  currentWorkspace: Workspace | null
+  // Current project name within workspace
+  currentProjectName: string | null
+  // Current directory handle (for backwards compatibility during migration)
+  // TODO: Remove after migration complete
   currentDirectory: FileSystemDirectoryHandle | null
   // Current error if any
   error: FileSystemError | null
   // Supported storage types for this browser/context
   support: FileSystemSupport
-  // Currently active storage type
+  // Currently active storage type (for backwards compatibility)
+  // TODO: Remove after migration complete
   activeStorageType: StorageType
-  // Project name for the current directory
-  currentProjectName: string | null
 }
 
 interface FileSystemActions {
-  // TODO: add setProjectName for URL-loaded projects?
-  // TODO: move menu.tsx state here?
-  // Set the current directory handle
+  // Set the current workspace and project
+  setWorkspaceAndProject: (workspace: Workspace | null, projectName: string | null) => void
+  // Set just the workspace
+  setWorkspace: (workspace: Workspace | null) => void
+  // Set just the project name
+  setProjectName: (projectName: string | null) => void
+  // Backwards compatibility: Set the current directory handle
+  // TODO: Remove after migration complete
   setCurrentDirectory: (handle: FileSystemDirectoryHandle | null, projectName?: string) => void
-  // Set the active storage type
+  // Backwards compatibility: Set the active storage type
+  // TODO: Remove after migration complete
   setActiveStorageType: (type: StorageType) => void
   // Set error state
   setError: (error: FileSystemError | null) => void
@@ -51,16 +62,39 @@ const support = checkFileSystemSupport()
 const recommendedType: StorageType = support.fileSystemAccess ? 'fileSystemAccess' : 'opfs'
 
 const initialState: FileSystemState = {
+  currentWorkspace: null,
+  currentProjectName: null,
   currentDirectory: null,
   error: null,
   support,
   activeStorageType: recommendedType,
-  currentProjectName: null,
 }
 
 export const useFileSystemStore = create<FileSystemStore>((set, _get) => ({
   ...initialState,
 
+  setWorkspaceAndProject: (workspace, projectName) => {
+    set({
+      currentWorkspace: workspace,
+      currentProjectName: projectName,
+      error: null, // Clear error when setting workspace
+    })
+  },
+
+  setWorkspace: workspace => {
+    set({
+      currentWorkspace: workspace,
+      error: null,
+    })
+  },
+
+  setProjectName: projectName => {
+    set({
+      currentProjectName: projectName,
+    })
+  },
+
+  // Backwards compatibility
   setCurrentDirectory: (handle, projectName) => {
     set({
       currentDirectory: handle,
@@ -69,7 +103,8 @@ export const useFileSystemStore = create<FileSystemStore>((set, _get) => ({
     })
   },
 
-  setActiveStorageType: (type) => {
+  // Backwards compatibility
+  setActiveStorageType: type => {
     set({ activeStorageType: type })
   },
 
@@ -90,13 +125,43 @@ export const useFileSystemStore = create<FileSystemStore>((set, _get) => ({
 // Selectors
 // ============================================================================
 
+/**
+ * Get current workspace
+ */
+export const useCurrentWorkspace = () => useFileSystemStore(state => state.currentWorkspace)
+
+/**
+ * Get current project name
+ */
+export const useCurrentProjectName = () => useFileSystemStore(state => state.currentProjectName)
+
+/**
+ * Get current workspace and project together
+ */
+export const useWorkspaceAndProject = () =>
+  useFileSystemStore(state => ({
+    workspace: state.currentWorkspace,
+    projectName: state.currentProjectName,
+  }))
+
+/**
+ * Backwards compatibility: Get current directory
+ * TODO: Remove after migration complete
+ */
 export const useCurrentDirectory = () => useFileSystemStore(state => state.currentDirectory)
 
+/**
+ * Get file system error
+ */
 export const useFileSystemError = () => useFileSystemStore(state => state.error)
 
+/**
+ * Backwards compatibility: Get active storage type
+ * TODO: Remove after migration complete
+ */
 export const useActiveStorageType = () => useFileSystemStore(state => state.activeStorageType)
 
+/**
+ * Get file system support info
+ */
 export const useFileSystemSupport = () => useFileSystemStore(state => state.support)
-
-// TODO: integrate with toolbar title
-export const useCurrentProjectName = () => useFileSystemStore(state => state.currentProjectName)
