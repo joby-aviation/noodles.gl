@@ -21,30 +21,6 @@
 
       gtag('config', 'G-LPZN8DJSRT');
     </script>
-    <!-- GitHub Pages SPA redirect handler -->
-    <script>
-      // Check if this is a redirect from 404.html
-      (function() {
-        const params = new URLSearchParams(window.location.search);
-        const redirect = params.get('redirect');
-
-        if (redirect) {
-          // Validate that redirect is a safe path (must start with /)
-          if (!redirect.startsWith('/')) {
-            console.warn('Invalid redirect parameter - must start with /');
-            return;
-          }
-
-          // Remove the redirect parameter and update the URL using history API
-          params.delete('redirect');
-          const newSearch = params.size ? '?' + params.toString() : '';
-          const newUrl = redirect + newSearch + window.location.hash;
-
-          // Replace the current history entry to avoid a back-button loop
-          window.history.replaceState(null, '', newUrl);
-        }
-      })();
-    </script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
