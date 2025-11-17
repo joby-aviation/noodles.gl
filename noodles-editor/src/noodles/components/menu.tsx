@@ -12,9 +12,9 @@ import type { OperationContext } from '../operations/types'
 import {
   deleteProject as deleteStorage,
   listProjects as listStorageProjects,
-  load as loadStorage,
+  loadProject as loadStorage,
   projectExists,
-  save as saveStorage,
+  saveProject as saveStorage,
 } from '../storage/workspace-storage'
 import type { Workspace } from '../storage/workspace-types'
 import { getOpStore } from '../store'
