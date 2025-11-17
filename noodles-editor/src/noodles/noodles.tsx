@@ -552,55 +552,52 @@ export function getNoodles(): Visualization {
 
   const flowGraph = theatreReady && (
     <ErrorBoundary>
-      <DialogAPIProvider>
-        <div className={cx('react-flow-wrapper', !showOverlay && 'react-flow-wrapper-hidden')}>
-          <PrimeReactProvider>
-            <SheetProvider value={theatreSheet}>
-              <Breadcrumbs />
-              <ReactFlow
-                ref={reactFlowRef}
-                nodes={displayedNodes}
-                edges={activeEdges}
-                onNodesChange={onNodesChange}
-                onEdgesChange={onEdgesChange}
-                onConnect={onConnect}
-                onReconnect={onReconnect}
-                onNodeClick={onNodeClick}
-                onNodesDelete={onNodesDelete}
-                onPaneContextMenu={onPaneContextMenu}
-                onPaneClick={onPaneClick}
-                minZoom={0.2}
-                fitViewOptions={fitViewOptions}
-                defaultEdgeOptions={defaultEdgeOptions}
-                nodeTypes={nodeComponents}
-                edgeTypes={edgeComponents}
-              >
-                <Background />
-                <Controls position="bottom-right" />
-                <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />
-                <CopyControls />
-                <UndoRedoHandler ref={undoRedoRef} />
-                <ChatPanel
-                  project={{ nodes, edges }}
-                  onClose={() => setShowChatPanel(false)}
-                  isVisible={showChatPanel}
-                />
-              </ReactFlow>
-            </SheetProvider>
-          </PrimeReactProvider>
-          <ProjectNotFoundDialog
-            projectName={projectId || ''}
-            open={showProjectNotFoundDialog}
-            onProjectLoaded={(project, name) => {
-              loadProjectFile(project, name)
-              setShowProjectNotFoundDialog(false)
-            }}
-            onClose={() => setShowProjectNotFoundDialog(false)}
-          />
-          <StorageErrorHandler />
-          <DialogRenderer />
-        </div>
-      </DialogAPIProvider>
+      <div className={cx('react-flow-wrapper', !showOverlay && 'react-flow-wrapper-hidden')}>
+        <PrimeReactProvider>
+          <SheetProvider value={theatreSheet}>
+            <Breadcrumbs />
+            <ReactFlow
+              ref={reactFlowRef}
+              nodes={displayedNodes}
+              edges={activeEdges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onConnect={onConnect}
+              onReconnect={onReconnect}
+              onNodeClick={onNodeClick}
+              onNodesDelete={onNodesDelete}
+              onPaneContextMenu={onPaneContextMenu}
+              onPaneClick={onPaneClick}
+              minZoom={0.2}
+              fitViewOptions={fitViewOptions}
+              defaultEdgeOptions={defaultEdgeOptions}
+              nodeTypes={nodeComponents}
+              edgeTypes={edgeComponents}
+            >
+              <Background />
+              <Controls position="bottom-right" />
+              <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />
+              <CopyControls />
+              <UndoRedoHandler ref={undoRedoRef} />
+              <ChatPanel
+                project={{ nodes, edges }}
+                onClose={() => setShowChatPanel(false)}
+                isVisible={showChatPanel}
+              />
+            </ReactFlow>
+          </SheetProvider>
+        </PrimeReactProvider>
+        <ProjectNotFoundDialog
+          projectName={projectId || ''}
+          open={showProjectNotFoundDialog}
+          onProjectLoaded={(project, name) => {
+            loadProjectFile(project, name)
+            setShowProjectNotFoundDialog(false)
+          }}
+          onClose={() => setShowProjectNotFoundDialog(false)}
+        />
+        <StorageErrorHandler />
+      </div>
     </ErrorBoundary>
   )
 
@@ -706,15 +703,18 @@ export function getNoodles(): Visualization {
   }, [outOp, selectedGeoJsonFeatures])
 
   const menuBar = (
-    <NoodlesMenubar
-      projectName={projectName}
-      setProjectName={setProjectName}
-      getTimelineJson={getTimelineJson}
-      loadProjectFile={loadProjectFile}
-      undoRedo={undoRedoRef.current}
-      showChatPanel={showChatPanel}
-      setShowChatPanel={setShowChatPanel}
-    />
+    <DialogAPIProvider>
+      <NoodlesMenubar
+        projectName={projectName}
+        setProjectName={setProjectName}
+        getTimelineJson={getTimelineJson}
+        loadProjectFile={loadProjectFile}
+        undoRedo={undoRedoRef.current}
+        showChatPanel={showChatPanel}
+        setShowChatPanel={setShowChatPanel}
+      />
+      <DialogRenderer />
+    </DialogAPIProvider>
   )
 
   const right = (
