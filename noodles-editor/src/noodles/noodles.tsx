@@ -21,6 +21,7 @@ import {
 import cx from 'classnames'
 import type { LayerExtension } from 'deck.gl'
 import * as deck from 'deck.gl'
+import { resolve } from 'node:path'
 import { PrimeReactProvider } from 'primereact/api'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useParams } from 'wouter'
@@ -541,7 +542,7 @@ export function getNoodles(): Visualization {
 
       // First try to load from static files (for built-in examples)
       try {
-        const req = await fetch(`/examples/${projectName}/noodles.json`)
+        const req = await fetch(resolve(import.meta.env.BASE_URL, 'examples', projectName, 'noodles.json'))
         const noodlesFile = (await req.json()) as Partial<NoodlesProjectJSON>
         const project = await migrateProject({
           ...EMPTY_PROJECT,

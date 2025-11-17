@@ -1,5 +1,7 @@
 // ContextLoader - Loads and caches Claude AI context bundles
 
+import { resolve } from 'node:path'
+
 import type {
   Manifest,
   CodeIndex,
@@ -10,7 +12,7 @@ import type {
 } from './types'
 
 export class ContextLoader {
-  private baseUrl = `${import.meta.env.BASE_URL}context`
+  private baseUrl = resolve(import.meta.env.BASE_URL, 'context')
   private manifest: Manifest | null = null
   private codeIndex: CodeIndex | null = null
   private operatorRegistry: OperatorRegistry | null = null

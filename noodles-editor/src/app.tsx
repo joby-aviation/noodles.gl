@@ -3,9 +3,11 @@ import { Route, Router, Switch, useLocation, useRoute, useSearchParams } from 'w
 import TimelineEditor from './timeline-editor'
 import ExamplesPage from './examples-page'
 
+const baseUrl = import.meta.env.BASE_URL.replace(/\/+$/, '')
+
 function App() {
   return (
-    <Router base={import.meta.env.BASE_URL}>
+    <Router base={baseUrl}>
       <Switch>
         {/* Examples list page */}
         <Route path="/examples">
