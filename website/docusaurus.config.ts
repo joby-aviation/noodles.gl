@@ -136,10 +136,14 @@ const config: Config = {
               label: 'GitHub',
               href: 'https://github.com/joby-aviation/noodles.gl',
             },
+            {
+              label: 'Privacy',
+              to: '/privacy',
+            },
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} <a href="https://jobyaviation.com" target="_blank" rel="noopener noreferrer">Joby Aero, Inc.</a>`,
+      copyright: `Copyright © ${new Date().getFullYear()} <a href="https://jobyaviation.com" target="_blank" rel="noopener noreferrer">Joby Aero, Inc.</a><br />Noodles.gl is an open-source project sponsored by Joby Aviation. It is not a Joby product.`,
     },
     prism: {
       theme: prismThemes.github,

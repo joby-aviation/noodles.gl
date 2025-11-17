@@ -51,6 +51,18 @@ export function AnalyticsConsentBanner() {
           We use privacy-preserving analytics to understand which features are most useful.
           We never collect your project data, node content, or personal information.
           You can change this anytime in settings.
+          {' '}
+          <a
+            href="https://noodles.gl/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              color: '#a5b4fc',
+              textDecoration: 'underline',
+            }}
+          >
+            Learn more
+          </a>
         </p>
       </div>
       <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
