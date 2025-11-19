@@ -2,7 +2,7 @@
 // Tests that renaming nodes with upstream connections doesn't crash
 import type { Node as ReactFlowNode } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { clearOps, deleteOp, getOp, hasOp, setOp } from '../store'
+import { clearOps, deleteOp, getOp, getOpStore, hasOp, setOp } from '../store'
 import { transformGraph } from '../transform-graph'
 import { edgeId } from '../utils/id-utils'
 import { generateQualifiedPath } from '../utils/path-utils'
@@ -291,5 +291,171 @@ describe('Node Rename Race Condition', () => {
 
     deleteOp('/temp')
     expect(getOp('/temp')).toBeUndefined()
+  })
+
+  it('store batching ensures atomic rename operations', () => {
+    // This test verifies that using getOpStore().batch() ensures atomic updates
+    // and prevents the race condition window where both old and new IDs coexist
+
+    const nodes: ReactFlowNode<{ inputs: Record<string, unknown> }>[] = [
+      {
+        id: '/data',
+        type: 'NumberOp',
+        position: { x: 0, y: 0 },
+        data: { inputs: { val: 42 } },
+      },
+      {
+        id: '/viewer',
+        type: 'MathOp',
+        position: { x: 200, y: 0 },
+        data: { inputs: { operator: 'add', b: 10 } },
+      },
+    ]
+
+    const edge = {
+      source: '/data',
+      target: '/viewer',
+      sourceHandle: 'out.val',
+      targetHandle: 'par.a',
+    }
+    const edges = [{ ...edge, id: edgeId(edge) }]
+
+    transformGraph({ nodes, edges })
+
+    // Track store update notifications
+    let updateCount = 0
+    const unsubscribe = getOpStore().subscribe(() => {
+      updateCount++
+    })
+
+    // Simulate batched rename (as implemented in the fix)
+    const oldId = '/viewer'
+    const newQualifiedId = '/view'
+    const op = getOp(oldId)!
+
+    // Using batch() should cause only ONE store update
+    getOpStore().batch(() => {
+      setOp(newQualifiedId, op)
+      op.id = newQualifiedId
+      deleteOp(oldId)
+    })
+
+    // Verify only one update notification was sent
+    expect(updateCount).toBe(1)
+
+    // Verify final state is clean
+    expect(hasOp(oldId)).toBe(false)
+    expect(hasOp(newQualifiedId)).toBe(true)
+
+    // Cleanup
+    unsubscribe()
+  })
+
+  it('batched rename with container children triggers single update', () => {
+    // Test that renaming a container with children in a batch
+    // results in a single atomic store update
+
+    const nodes: ReactFlowNode<{ inputs: Record<string, unknown> }>[] = [
+      {
+        id: '/container',
+        type: 'ContainerOp',
+        position: { x: 0, y: 0 },
+        data: { inputs: {} },
+      },
+      {
+        id: '/container/child1',
+        type: 'NumberOp',
+        position: { x: 50, y: 50 },
+        data: { inputs: { val: 1 } },
+      },
+      {
+        id: '/container/child2',
+        type: 'NumberOp',
+        position: { x: 50, y: 150 },
+        data: { inputs: { val: 2 } },
+      },
+    ]
+
+    transformGraph({ nodes, edges: [] })
+
+    // Track updates
+    let updateCount = 0
+    const unsubscribe = getOpStore().subscribe(() => {
+      updateCount++
+    })
+
+    // Simulate batched container rename with children
+    const oldId = '/container'
+    const newQualifiedId = '/renamed-container'
+
+    getOpStore().batch(() => {
+      // Rename container
+      const containerOp = getOp(oldId)!
+      setOp(newQualifiedId, containerOp)
+      containerOp.id = newQualifiedId
+
+      // Rename all children
+      const childOps = [getOp('/container/child1')!, getOp('/container/child2')!]
+      for (const childOp of childOps) {
+        const oldChildId = childOp.id
+        const newChildId = newQualifiedId + oldChildId.slice(oldId.length)
+        setOp(newChildId, childOp)
+        childOp.id = newChildId
+        deleteOp(oldChildId)
+      }
+
+      // Delete old container
+      deleteOp(oldId)
+    })
+
+    // Should be exactly one update despite multiple operations
+    expect(updateCount).toBe(1)
+
+    // Verify all operations succeeded
+    expect(hasOp(oldId)).toBe(false)
+    expect(hasOp(newQualifiedId)).toBe(true)
+    expect(hasOp('/container/child1')).toBe(false)
+    expect(hasOp('/container/child2')).toBe(false)
+    expect(hasOp('/renamed-container/child1')).toBe(true)
+    expect(hasOp('/renamed-container/child2')).toBe(true)
+
+    unsubscribe()
+  })
+
+  it('non-batched operations trigger multiple updates (demonstrates old behavior)', () => {
+    // This test shows what happens WITHOUT batching - multiple updates
+    // which creates the race condition window
+
+    const nodes: ReactFlowNode<{ inputs: Record<string, unknown> }>[] = [
+      {
+        id: '/node',
+        type: 'NumberOp',
+        position: { x: 0, y: 0 },
+        data: { inputs: { val: 5 } },
+      },
+    ]
+
+    transformGraph({ nodes, edges: [] })
+
+    // Track updates
+    let updateCount = 0
+    const unsubscribe = getOpStore().subscribe(() => {
+      updateCount++
+    })
+
+    // Simulate non-batched rename (old buggy behavior)
+    const oldId = '/node'
+    const newQualifiedId = '/renamed-node'
+    const op = getOp(oldId)!
+
+    // Without batch(), each operation triggers an update
+    setOp(newQualifiedId, op) // Update 1
+    op.id = newQualifiedId
+    deleteOp(oldId) // Update 2
+
+    // Should have triggered 2 updates (the race condition window)
+    expect(updateCount).toBe(2)
+
+    unsubscribe()
   })
 })

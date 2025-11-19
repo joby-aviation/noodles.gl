@@ -24,7 +24,15 @@ import { Column } from 'primereact/column'
 import { DataTable } from 'primereact/datatable'
 import { InputNumber } from 'primereact/inputnumber'
 import { InputText } from 'primereact/inputtext'
-import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import {
+  startTransition,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 import { createPortal } from 'react-dom'
 import { Temporal } from 'temporal-polyfill'
 
@@ -49,7 +57,16 @@ import {
   type TimeOp,
   type ViewerOp,
 } from '../operators'
-import { useOp, useNestingStore, setHoveredOutputHandle, hasOp, setOp, getAllOps, deleteOp } from '../store'
+import {
+  deleteOp,
+  getAllOps,
+  getOpStore,
+  hasOp,
+  setHoveredOutputHandle,
+  setOp,
+  useNestingStore,
+  useOp,
+} from '../store'
 import type { NodeDataJSON } from '../transform-graph'
 import { edgeId } from '../utils/id-utils'
 import { generateQualifiedPath, getBaseName, getParentPath } from '../utils/path-utils'
@@ -520,74 +537,77 @@ function NodeHeader({ id, type, op }: { id: string; type: OpType; op: OperatorIn
       const newQualifiedId = generateQualifiedPath(trimmedName, op.containerId)
       const isContainer = type === 'ContainerOp'
 
-      // Update the operator itself
-      setOp(newQualifiedId, op)
-      op.id = newQualifiedId
+      // Batch all store operations to ensure atomic update
+      getOpStore().batch(() => {
+        // Update the operator itself
+        setOp(newQualifiedId, op)
+        op.id = newQualifiedId
 
-      // If this is a container, update all children nodes and their operators
-      if (isContainer) {
-        const childOps = getAllOps().filter((childOp: Operator<IOperator>) =>
-          childOp.id.startsWith(`${id}/`)
-        )
+        // If this is a container, update all children nodes and their operators
+        if (isContainer) {
+          const childOps = getAllOps().filter((childOp: Operator<IOperator>) =>
+            childOp.id.startsWith(`${id}/`)
+          )
 
-        for (const childOp of childOps) {
-          const oldChildId = childOp.id
-          // Replace only the exact container path at the start
-          const newChildId = newQualifiedId + oldChildId.slice(id.length)
-          setOp(newChildId, childOp)
-          childOp.id = newChildId
-          // TODO: this is a hack. We should hook into some sort of "after update" event
-          queueMicrotask(() => deleteOp(oldChildId))
+          for (const childOp of childOps) {
+            const oldChildId = childOp.id
+            // Replace only the exact container path at the start
+            const newChildId = newQualifiedId + oldChildId.slice(id.length)
+            setOp(newChildId, childOp)
+            childOp.id = newChildId
+            deleteOp(oldChildId)
+          }
         }
-      }
 
-      // Give React time to update the component tree before deleting the old id
-      // TODO: this is a hack. We should hook into some sort of "after update" event
-      queueMicrotask(() => {
+        // Delete old ID at end of batch to ensure atomic transition
         deleteOp(id)
       })
 
-      // Update React Flow nodes and edges
-      setNodes(nodes =>
-        nodes.map(n => {
-          // Update the node itself if it matches
-          if (n.id === id) {
-            return { ...n, id: newQualifiedId }
-          }
-          // Update children if this is a container
-          if (isContainer && n.id.startsWith(`${id}/`)) {
-            return { ...n, id: newQualifiedId + n.id.slice(id.length) }
-          }
-          return n
-        })
-      )
+      // Update React Flow nodes and edges with startTransition to mark as low-priority
+      // and coordinate with React's concurrent rendering
+      startTransition(() => {
+        setNodes(nodes =>
+          nodes.map(n => {
+            // Update the node itself if it matches
+            if (n.id === id) {
+              return { ...n, id: newQualifiedId }
+            }
+            // Update children if this is a container
+            if (isContainer && n.id.startsWith(`${id}/`)) {
+              return { ...n, id: newQualifiedId + n.id.slice(id.length) }
+            }
+            return n
+          })
+        )
 
-      setEdges(edges =>
-        edges.map(edge => {
-          const sourceNeedsUpdate =
-            edge.source === id || (isContainer && edge.source.startsWith(`${id}/`))
-          const targetNeedsUpdate =
-            edge.target === id || (isContainer && edge.target.startsWith(`${id}/`))
+        setEdges(edges =>
+          edges.map(edge => {
+            const sourceNeedsUpdate =
+              edge.source === id || (isContainer && edge.source.startsWith(`${id}/`))
+            const targetNeedsUpdate =
+              edge.target === id || (isContainer && edge.target.startsWith(`${id}/`))
 
-          if (!sourceNeedsUpdate && !targetNeedsUpdate) return edge
+            if (!sourceNeedsUpdate && !targetNeedsUpdate) return edge
 
-          const updatedEdge = {
-            ...edge,
-            source: sourceNeedsUpdate
-              ? edge.source === id
-                ? newQualifiedId
-                : newQualifiedId + edge.source.slice(id.length)
-              : edge.source,
-            target: targetNeedsUpdate
-              ? edge.target === id
-                ? newQualifiedId
-                : newQualifiedId + edge.target.slice(id.length)
-              : edge.target,
-          }
+            const updatedEdge = {
+              ...edge,
+              source: sourceNeedsUpdate
+                ? edge.source === id
+                  ? newQualifiedId
+                  : newQualifiedId + edge.source.slice(id.length)
+                : edge.source,
+              target: targetNeedsUpdate
+                ? edge.target === id
+                  ? newQualifiedId
+                  : newQualifiedId + edge.target.slice(id.length)
+                : edge.target,
+            }
 
-          return { ...updatedEdge, id: edgeId(updatedEdge) }
-        })
-      )
+            return { ...updatedEdge, id: edgeId(updatedEdge) }
+          })
+        )
+      })
+
       setEditing(false)
       setHasConflict(false)
       setInputValue('')
