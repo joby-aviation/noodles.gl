@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { Route, Router, Switch, useLocation, useRoute, useSearchParams } from 'wouter'
-import TimelineEditor from './timeline-editor'
 import ExamplesPage from './examples-page'
+import TimelineEditor from './timeline-editor'
 
 const baseUrl = import.meta.env.BASE_URL.replace(/\/+$/, '')
 
@@ -28,7 +28,7 @@ function App() {
 }
 
 function FallbackRoute() {
-  const [location, navigate] = useLocation()
+  const [, navigate] = useLocation()
   const [searchParams] = useSearchParams()
   const [match] = useRoute('/examples/:projectId')
 
@@ -39,7 +39,7 @@ function FallbackRoute() {
 
     // From Github / Cloudflare pages redirects (404.html)
     if (redirect) {
-      if (!redirect.startsWith('/')) {
+      if (!redirect.startsWith('/') || redirect.startsWith('//')) {
         console.warn('Ignoring invalid redirect URL:', redirect)
         return
       }
@@ -55,12 +55,8 @@ function FallbackRoute() {
     }
 
     navigate('/examples', { replace: true })
-  }, [location, searchParams, match, navigate])
-  return (
-    <>
-      <h1>404 - Not Found</h1>
-    </>
-  )
+  }, [searchParams, match, navigate])
+  return <h1>404 - Not Found</h1>
 }
 
 export default App

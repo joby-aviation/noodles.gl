@@ -28,6 +28,12 @@
   padding-right: 0.5rem;
 }
 
+@media (max-width: 400px) {
+  .examplesGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .exampleCard {
   display: block;
   padding: 1.5rem;

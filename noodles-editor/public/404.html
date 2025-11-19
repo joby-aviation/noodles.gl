@@ -20,7 +20,6 @@
       if (path && path !== '/') {
         // Redirect to index.html with the path as a query parameter
         window.location.replace(
-          window.location.origin +
           appRoot + '?redirect=' + encodeURIComponent(path + query)
         )
       } else {
