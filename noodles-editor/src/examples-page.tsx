@@ -3,8 +3,8 @@ import { useEffect, useState } from 'react'
 import { Link } from 'wouter'
 import s from './examples-page.module.css'
 
-const projects = import.meta.glob('../public/examples/**/noodles.json')
-const readmes = import.meta.glob('../public/examples/**/README.md', {
+const projects = import.meta.glob('./examples/**/noodles.json')
+const readmes = import.meta.glob('./examples/**/README.md', {
   query: '?raw',
   import: 'default',
 })
@@ -108,7 +108,7 @@ export default function ExamplesPage() {
   }, [])
 
   return (
-    <div className={s.examplesPage}>
+    <div className={s.examplesPage} data-testid="examples-page">
       <h1>Examples</h1>
       <p>
         Explore example projects showcasing different visualizations and data processing techniques.

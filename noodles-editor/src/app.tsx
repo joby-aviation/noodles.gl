@@ -1,24 +1,25 @@
-import { useEffect } from 'react'
-import { Route, Router, Switch, useLocation, useRoute, useSearchParams } from 'wouter'
+import { Redirect, Route, Router, Switch, useRoute, useSearchParams } from 'wouter'
 import ExamplesPage from './examples-page'
 import TimelineEditor from './timeline-editor'
 
 const baseUrl = import.meta.env.BASE_URL.replace(/\/+$/, '')
 
 function App() {
+  console.log('App rendering, baseUrl:', baseUrl, 'location:', window.location.pathname)
   return (
     <Router base={baseUrl}>
       <Switch>
+        {/* Project route - /examples/:projectId (most specific first) */}
+        <Route path="/examples/:projectId">
+          <TimelineEditor />
+        </Route>
+
         {/* Examples list page */}
         <Route path="/examples">
           <ExamplesPage />
         </Route>
 
-        {/* Project route - /examples/:projectId */}
-        <Route path="/examples/:projectId">
-          <TimelineEditor />
-        </Route>
-
+        {/* Catch-all for root path, 404s, and redirects */}
         <Route path="*">
           <FallbackRoute />
         </Route>
@@ -28,35 +29,39 @@ function App() {
 }
 
 function FallbackRoute() {
-  const [, navigate] = useLocation()
   const [searchParams] = useSearchParams()
   const [match] = useRoute('/examples/:projectId')
 
-  // Handle legacy ?project=name query string by redirecting to /examples/name
-  useEffect(() => {
-    const redirect = searchParams.get('redirect')
-    const projectParam = searchParams.get('project')
+  const redirect = searchParams.get('redirect')
+  const projectParam = searchParams.get('project')
 
-    // From Github / Cloudflare pages redirects (404.html)
-    if (redirect) {
-      if (!redirect.startsWith('/') || redirect.startsWith('//')) {
-        console.warn('Ignoring invalid redirect URL:', redirect)
-        return
-      }
+  console.log('FallbackRoute:', {
+    path: window.location.pathname,
+    search: window.location.search,
+    redirect,
+    projectParam,
+    match,
+  })
+
+  // From Github / Cloudflare pages redirects (404.html)
+  if (redirect) {
+    if (redirect.startsWith('/') && !redirect.startsWith('//')) {
+      // Valid redirect - process it
       const path = redirect.replace(/^\/app\//, '/') // Remove /app/ base if present
-      navigate(path, { replace: true })
-      return
+      console.log('Redirecting to:', path)
+      return <Redirect to={path} />
     }
+    // Invalid redirect - log warning and fall through to default navigation
+    console.warn('Ignoring invalid redirect URL:', redirect)
+  } else if (projectParam && !match) {
+    // Redirect from ?project=name to /examples/name
+    console.log('Redirecting to project:', projectParam)
+    return <Redirect to={`/examples/${projectParam}`} />
+  }
 
-    if (projectParam && !match) {
-      // Redirect from ?project=name to /examples/name
-      navigate(`/examples/${projectParam}`, { replace: true })
-      return
-    }
-
-    navigate('/examples', { replace: true })
-  }, [searchParams, match, navigate])
-  return <h1>404 - Not Found</h1>
+  // Default: navigate to /examples
+  console.log('Default redirect to /examples')
+  return <Redirect to="/examples" />
 }
 
 export default App

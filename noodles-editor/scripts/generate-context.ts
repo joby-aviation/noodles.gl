@@ -9,10 +9,10 @@
 // - code-index.json: Simplified source code index
 // - manifest.json: Bundle metadata
 
-import { execSync } from 'child_process'
-import { createHash } from 'crypto'
-import * as fs from 'fs'
-import * as path from 'path'
+import { execSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
+import * as fs from 'node:fs'
+import * as path from 'node:path'
 
 // Import categories directly from source
 import { categories as baseCategories } from '../src/noodles/components/categories.ts'
@@ -23,7 +23,7 @@ const ROOT_DIR = path.join(process.cwd(), '..')
 const SRC_DIR = path.join(process.cwd(), 'src')
 const DOCS_DIR = path.join(ROOT_DIR, 'docs')
 const AI_CHAT_DIR = path.join(SRC_DIR, 'ai-chat')
-const EXAMPLES_DIR = path.join(process.cwd(), 'public', 'examples')
+const EXAMPLES_DIR = path.join(SRC_DIR, 'examples')
 const OUTPUT_DIR = path.join(process.cwd(), 'public', 'context')
 
 const packageJson = JSON.parse(
@@ -69,7 +69,7 @@ function ensureDir(dir: string) {
   }
 }
 
-function readFilesSafe(dir: string, extension: string, required: boolean = false): string[] {
+function readFilesSafe(dir: string, extension: string, required = false): string[] {
   if (!fs.existsSync(dir)) {
     if (required) {
       throw new Error(`Required directory not found: ${dir}`)
@@ -499,7 +499,7 @@ async function main() {
 
   const manifestPath = path.join(OUTPUT_DIR, 'manifest.json')
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8')
-  console.log(`\nWrote manifest.json`)
+  console.log('\nWrote manifest.json')
 
   console.log('\n✅ Context generation complete!')
   console.log(`Output directory: ${OUTPUT_DIR}`)

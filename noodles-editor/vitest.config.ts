@@ -17,7 +17,7 @@ export default defineConfig({
         { browser: 'chromium' },
       ],
       api: {
-        host: '127.0.0.1', // Use IPv4 instead of IPv6 to avoid EPERM issues
+        host: '127.0.0.1', // Explicitly use IPv4 to avoid IPv6 permission issues
         strictPort: false, // Allow using alternative ports if the default is taken
       },
     }

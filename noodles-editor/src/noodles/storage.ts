@@ -12,6 +12,14 @@ import {
 } from './utils/filesystem'
 import { EMPTY_PROJECT, type NoodlesProjectJSON, safeStringify } from './utils/serialization'
 
+// Pre-load all example asset URLs at build time using import.meta.glob
+// This creates a lookup map: '../examples/project-name/file.ext' -> URL string
+const exampleAssetUrls: Record<string, string> = import.meta.glob('../examples/**/*', {
+  eager: true,
+  import: 'default',
+  query: '?url',
+})
+
 // Represents a Noodles project stored in the file system
 export interface FileSystemProject {
   directoryHandle: FileSystemDirectoryHandle
@@ -251,27 +259,6 @@ export async function save(
   }
 }
 
-export async function checkProjectExists(type: StorageType, projectName: string) {
-  // For public folder projects, check if the project file exists in public
-  if (type === 'publicFolder') {
-    try {
-      const publicPath = resolve(import.meta.env.BASE_URL, 'examples', projectName, 'noodles.json')
-      const response = await fetch(publicPath, { method: 'HEAD' })
-      return response.ok
-    } catch (_error) {
-      return false
-    }
-  }
-
-  // For filesystem-based storage types
-  const result = await getProjectDirectoryHandle(type, projectName, false)
-  if (result.success) {
-    const projectDirectory = result.data
-    return await fileExists(projectDirectory, PROJECT_FILE_NAME)
-  }
-  return false
-}
-
 // Loading with fileSystemAccess never prompts without a user gesture
 // OPFS always has access to its directories
 // If prompt needed, do it externally and use fromProjectDirectory param
@@ -339,21 +326,37 @@ export async function readAsset(
   projectName: string,
   fileName: string
 ): Promise<FileSystemResult<string>> {
-  // For public folder projects, fetch from public directory
+  // For public folder projects, fetch from asset URLs
   if (type === 'publicFolder') {
     try {
-      const publicPath = resolve(import.meta.env.BASE_URL, 'examples', projectName, fileName)
-      const response = await fetch(publicPath)
+      // Build the key that import.meta.glob uses: '../examples/project-name/file.ext'
+      const assetKey = `../examples/${projectName}/${fileName}`
+      const url = exampleAssetUrls[assetKey]
+
+      if (!url) {
+        return {
+          success: false,
+          error: {
+            type: 'not-found',
+            message: `Asset not found: ${fileName}`,
+            details: `Path: examples/${projectName}/${fileName}`,
+          },
+        }
+      }
+
+      // Fetch the file contents from the URL
+      const response = await fetch(url)
       if (!response.ok) {
         return {
           success: false,
           error: {
             type: 'not-found',
             message: `Asset not found: ${fileName}`,
-            details: `Public path: ${publicPath}`,
+            details: `Path: ${url}`,
           },
         }
       }
+
       const contents = await response.text()
       return {
         success: true,
@@ -407,15 +410,10 @@ export async function checkAssetExists(
   projectName: string,
   fileName: string
 ): Promise<boolean> {
-  // For public folder projects, try to fetch
+  // For public folder projects, check if asset exists in URL map
   if (type === 'publicFolder') {
-    try {
-      const publicPath = resolve(import.meta.env.BASE_URL, 'examples', projectName, fileName)
-      const response = await fetch(publicPath, { method: 'HEAD' })
-      return response.ok
-    } catch (_error) {
-      return false
-    }
+    const assetKey = `../examples/${projectName}/${fileName}`
+    return assetKey in exampleAssetUrls
   }
 
   // For filesystem-based storage types

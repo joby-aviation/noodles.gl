@@ -21,7 +21,6 @@ import {
 import cx from 'classnames'
 import type { LayerExtension } from 'deck.gl'
 import * as deck from 'deck.gl'
-import { resolve } from 'node:path'
 import { PrimeReactProvider } from 'primereact/api'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useParams } from 'wouter'
@@ -35,6 +34,12 @@ import 'primeicons/primeicons.css'
 import newProjectJSON from './new.json'
 import { ChatPanel } from '../ai-chat/chat-panel'
 import { globalContextManager } from '../ai-chat/global-context-manager'
+
+// Pre-load all example noodles.json files at build time
+const exampleProjects = import.meta.glob('../examples/**/noodles.json', {
+  eager: true,
+  import: 'default',
+})
 import { SheetProvider } from '../utils/sheet-context'
 import useSheetValue from '../utils/use-sheet-value'
 import type { Visualization } from '../visualizations'
@@ -131,7 +136,11 @@ function useTheatreJs(projectName?: string) {
 
       // Then forget the sheet to clean up the Theatre.js UI
       studio.transaction(api => {
-        api.__experimental_forgetSheet(theatreSheet)
+        try {
+          api.__experimental_forgetSheet(theatreSheet)
+        } catch (error) {
+          console.warn('Error forgetting Theatre sheet:', error)
+        }
       })
 
       // Increment the project counter to keep the project name unique
@@ -541,9 +550,10 @@ export function getNoodles(): Visualization {
       }
 
       // First try to load from static files (for built-in examples)
-      try {
-        const req = await fetch(resolve(import.meta.env.BASE_URL, 'examples', projectName, 'noodles.json'))
-        const noodlesFile = (await req.json()) as Partial<NoodlesProjectJSON>
+      const projectKey = `../examples/${projectName}/noodles.json`
+      const noodlesFile = exampleProjects[projectKey] as Partial<NoodlesProjectJSON> | undefined
+
+      if (noodlesFile) {
         const project = await migrateProject({
           ...EMPTY_PROJECT,
           ...noodlesFile,
@@ -553,9 +563,9 @@ export function getNoodles(): Visualization {
         setActiveStorageType('publicFolder')
         loadProjectFile(project, projectName)
         return
-      } catch (_error) {
-        console.log('Static project file not found, trying storage...')
       }
+
+      console.log('Static project file not found, trying storage...')
 
       // Try to load from storage (OPFS or File System Access API)
       try {
