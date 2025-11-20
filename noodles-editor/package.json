@@ -66,7 +66,7 @@
   },
   "scripts": {
     "start": "vite",
-    "start:dev": "yarn link:dev && vite",
+    "start:local": "vite --config vite.config.local.js",
     "build": "NODE_ENV=development vite build",
     "serve": "vite preview",
     "test": "vitest",
@@ -74,9 +74,7 @@
     "fix-lint": "biome check --write --unsafe ./src/**/*.{ts,tsx}",
     "build:migrate-script": "vite build --config vite.config.migrate.ts",
     "migrate-projects": "yarn build:migrate-script && node dist/migrate-project-files.js",
-    "generate:context": "tsx scripts/generate-context.ts",
-    "link:dev": "yarn link ../../deck.gl/modules/core && yarn link ../../deck.gl/modules/layers && yarn link ../../deck.gl/modules/geo-layers && yarn link ../../deck.gl/modules/aggregation-layers && yarn link ../../deck.gl/modules/mesh-layers && yarn link ../../luma.gl/modules/core && yarn link ../../luma.gl/modules/engine && yarn link ../../luma.gl/modules/webgl && yarn link ../../luma.gl/modules/shadertools",
-    "unlink:dev": "yarn unlink deck.gl @deck.gl/core @deck.gl/layers @deck.gl/geo-layers @deck.gl/aggregation-layers @deck.gl/mesh-layers @luma.gl/core @luma.gl/engine @luma.gl/webgl @luma.gl/shadertools && yarn install --force"
+    "generate:context": "tsx scripts/generate-context.ts"
   },
   "browserslist": {
     "production": [
