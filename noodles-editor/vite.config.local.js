@@ -1,3 +1,15 @@
+// Vite configuration for local deck.gl and luma.gl development
+//
+// Aliases deck.gl and luma.gl imports to local source directories (../deck.gl, ../luma.gl)
+// for rapid development iteration without needing to publish/link packages.
+//
+// Usage: yarn start:local
+//
+// Limitations:
+// - @deck.gl/widgets uses npm package (CSS loading blocked by Vite 7 fs restrictions)
+//   Vite 7 has stricter file serving rules that prevent loading CSS from outside
+//   the project root, even with fs.allow configured. deck.gl examples use Vite 4
+//   which was more permissive. All JS modules work, just not the CSS file.
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -31,7 +43,8 @@ export default defineConfig(({ mode }) => {
     localAliases['@deck.gl/extensions'] = path.resolve(deckglDir, 'modules/extensions/src')
     localAliases['@deck.gl/mapbox'] = path.resolve(deckglDir, 'modules/mapbox/src')
     localAliases['@deck.gl/react'] = path.resolve(deckglDir, 'modules/react/src')
-    localAliases['@deck.gl/widgets'] = path.resolve(deckglDir, 'modules/widgets/src')
+    // Note: @deck.gl/widgets uses npm package (CSS loading issues with local source)
+    // localAliases['@deck.gl/widgets'] = path.resolve(deckglDir, 'modules/widgets/src')
   }
 
   // luma.gl aliases
