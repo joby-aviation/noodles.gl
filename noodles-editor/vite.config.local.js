@@ -33,11 +33,6 @@ export default defineConfig(({ mode }) => {
     localAliases['@deck.gl/extensions'] = path.resolve(deckglDir, 'modules/extensions/src')
     localAliases['@deck.gl/mapbox'] = path.resolve(deckglDir, 'modules/mapbox/src')
     localAliases['@deck.gl/react'] = path.resolve(deckglDir, 'modules/react/src')
-
-    // Widgets - point to module root (not src) so stylesheet.css resolves correctly
-    // The package.json exports "./stylesheet.css" as "./dist/stylesheet.css"
-    // But in local dev, stylesheet.css is in src/
-    localAliases['@deck.gl/widgets/stylesheet.css'] = path.resolve(deckglDir, 'modules/widgets/src/stylesheet.css')
     localAliases['@deck.gl/widgets'] = path.resolve(deckglDir, 'modules/widgets/src')
   }
 
@@ -63,11 +58,7 @@ export default defineConfig(({ mode }) => {
 
   return mergeConfig(base, {
     resolve: {
-      alias: [
-        // CSS must come first to match before the general @deck.gl/widgets alias
-        { find: '@deck.gl/widgets/stylesheet.css', replacement: path.resolve(deckglDir, 'modules/widgets/src/stylesheet.css') },
-        ...Object.entries(localAliases).map(([find, replacement]) => ({ find, replacement }))
-      ]
+      alias: Object.entries(localAliases).map(([find, replacement]) => ({ find, replacement }))
     },
     server: {
       ...base.server,
