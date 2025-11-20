@@ -12,17 +12,11 @@ export default defineConfig(({ mode }) => {
   const deckglDir = path.resolve(rootDir, 'deck.gl')
   const lumaglDir = path.resolve(rootDir, 'luma.gl')
 
-  console.log('Root directory:', rootDir)
-  console.log('Deck.gl directory:', deckglDir)
-  console.log('Luma.gl directory:', lumaglDir)
-
-  // Aliases for local development packages
   const localAliases = {}
 
-  // Force React to use the noodles-editor version to avoid multiple React instances
-  const noodlesEditorDir = path.resolve(__dirname)
-  localAliases['react'] = path.resolve(noodlesEditorDir, 'node_modules/react')
-  localAliases['react-dom'] = path.resolve(noodlesEditorDir, 'node_modules/react-dom')
+  // Force React to use a single instance to avoid hook errors
+  localAliases['react'] = path.resolve(__dirname, 'node_modules/react')
+  localAliases['react-dom'] = path.resolve(__dirname, 'node_modules/react-dom')
 
   // Check if local deck.gl exists and add aliases
   if (fs.existsSync(deckglDir)) {
@@ -45,10 +39,6 @@ export default defineConfig(({ mode }) => {
     // But in local dev, stylesheet.css is in src/
     localAliases['@deck.gl/widgets/stylesheet.css'] = path.resolve(deckglDir, 'modules/widgets/src/stylesheet.css')
     localAliases['@deck.gl/widgets'] = path.resolve(deckglDir, 'modules/widgets/src')
-
-    console.log('  Example alias: @deck.gl/mapbox ->', localAliases['@deck.gl/mapbox'])
-    console.log('  Widgets alias: @deck.gl/widgets ->', localAliases['@deck.gl/widgets'])
-    console.log('  CSS alias: @deck.gl/widgets/stylesheet.css ->', localAliases['@deck.gl/widgets/stylesheet.css'])
   }
 
   // Check if local luma.gl exists and add aliases
@@ -70,8 +60,6 @@ export default defineConfig(({ mode }) => {
     deckglDir,
     lumaglDir
   ]
-
-  console.log('Vite fs.allow paths:', fsAllowPaths)
 
   return mergeConfig(base, {
     resolve: {
