@@ -7,7 +7,6 @@ import baseConfig from './vite.config.js'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig(({ mode }) => {
-  // Path to local deck.gl and luma.gl development directories
   const rootDir = path.resolve(__dirname, '../..')
   const deckglDir = path.resolve(rootDir, 'deck.gl')
   const lumaglDir = path.resolve(rootDir, 'luma.gl')
@@ -18,10 +17,9 @@ export default defineConfig(({ mode }) => {
   localAliases['react'] = path.resolve(__dirname, 'node_modules/react')
   localAliases['react-dom'] = path.resolve(__dirname, 'node_modules/react-dom')
 
-  // Check if local deck.gl exists and add aliases
+  // deck.gl aliases
   if (fs.existsSync(deckglDir)) {
     console.log('🔗 Using local deck.gl from', deckglDir)
-    // Use path.resolve to ensure absolute paths
     // Point to src directory for JS/TS imports
     // deck.gl main package re-exports everything from all modules
     localAliases['deck.gl'] = path.resolve(deckglDir, 'modules/main/src')
@@ -36,7 +34,7 @@ export default defineConfig(({ mode }) => {
     localAliases['@deck.gl/widgets'] = path.resolve(deckglDir, 'modules/widgets/src')
   }
 
-  // Check if local luma.gl exists and add aliases
+  // luma.gl aliases
   if (fs.existsSync(lumaglDir)) {
     console.log('🔗 Using local luma.gl from', lumaglDir)
     localAliases['@luma.gl/core'] = path.resolve(lumaglDir, 'modules/core/src')
@@ -46,15 +44,7 @@ export default defineConfig(({ mode }) => {
     localAliases['@luma.gl/effects'] = path.resolve(lumaglDir, 'modules/effects/src')
   }
 
-  // Get the base config and merge with local overrides
   const base = baseConfig({ mode })
-
-  const fsAllowPaths = [
-    path.resolve(__dirname, '../..'),
-    rootDir,
-    deckglDir,
-    lumaglDir
-  ]
 
   return mergeConfig(base, {
     resolve: {
@@ -63,11 +53,8 @@ export default defineConfig(({ mode }) => {
     server: {
       ...base.server,
       fs: {
-        // Allow serving files from outside the project root
-        strict: false,
-        allow: fsAllowPaths
-      },
-      middlewares: []
+        allow: [rootDir]
+      }
     },
     optimizeDeps: {
       // Force include local packages in optimization
