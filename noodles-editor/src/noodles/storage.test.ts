@@ -333,13 +333,13 @@ describe('storage.ts', () => {
   describe('checkAssetExists', () => {
     describe('publicFolder storage type', () => {
       it('returns true when asset exists', async () => {
-        const exists = await checkAssetExists('publicFolder', 'nyc-taxis', 'taxi_zones.geojson')
+        const exists = await checkAssetExists('publicFolder', 'nyc-taxis', 'data.csv')
 
         expect(exists).toBe(true)
       })
 
       it('handles deeply nested paths correctly', async () => {
-        const exists = await checkAssetExists('publicFolder', 'sf-elevation', 'sf.geojson')
+        const exists = await checkAssetExists('publicFolder', 'nyc-taxis', 'noodles.json')
 
         expect(exists).toBe(true)
       })
