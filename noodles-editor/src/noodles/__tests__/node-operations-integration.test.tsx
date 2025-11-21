@@ -12,6 +12,7 @@ import { transformGraph } from '../transform-graph'
 import { edgeId, nodeId } from '../utils/id-utils'
 import { getBaseName } from '../utils/path-utils'
 import { serializeNodes } from '../utils/serialization'
+import { createNodesForType } from '../utils/node-creation-utils'
 // Import operators to ensure they're registered before tests run
 import '../operators'
 
@@ -735,46 +736,39 @@ describe('Node Operations Integration Tests', () => {
       verifyGraphConsistency(currentNodes, currentEdges)
     })
 
-    // Skip: ForLoop operators require special initialization (begin/end children created automatically)
-    // that is not replicated in this test setup. Testing ForLoop deletion requires full UI integration.
-    it.skip('handles ForLoop special case deletion', () => {
-      // Create ForLoop nodes (begin, end, container)
-      const nodes: ReactFlowNode[] = [
-        {
-          id: '/loop',
-          type: 'ForLoopOp',
-          position: { x: 0, y: 0 },
-          data: { inputs: {} },
-        },
-        {
-          id: '/loop/begin',
-          type: 'ForLoopBeginOp',
-          position: { x: 50, y: 50 },
-          parentId: '/loop',
-          data: { inputs: {} },
-        },
-        {
-          id: '/loop/end',
-          type: 'ForLoopEndOp',
-          position: { x: 50, y: 150 },
-          parentId: '/loop',
-          data: { inputs: {} },
-        },
-      ]
+    it('handles ForLoop special case deletion', () => {
+      // Create ForLoop nodes using the proper utility function
+      // This creates: group node + ForLoopBeginOp + ForLoopEndOp with proper structure
+      const { nodes: forLoopNodes, edges: forLoopEdges } = createNodesForType(
+        'ForLoop',
+        { x: 0, y: 0 },
+        '/' // root container
+      )
 
-      transformGraph({ nodes, edges: [] })
+      // Transform to create operators in store
+      transformGraph({ nodes: forLoopNodes as any, edges: forLoopEdges as any })
 
-      expect(hasOp('/loop')).toBe(true)
-      expect(hasOp('/loop/begin')).toBe(true)
-      expect(hasOp('/loop/end')).toBe(true)
+      // Find the IDs created (they have auto-generated numbers)
+      const beginNode = forLoopNodes.find((n) => n.type === 'ForLoopBeginOp')!
+      const endNode = forLoopNodes.find((n) => n.type === 'ForLoopEndOp')!
 
-      // Delete begin node (should trigger special handling in real code)
-      // For now, we'll just verify basic cleanup
-      const updatedNodes = nodes.filter((n) => n.id !== '/loop/begin')
+      // Verify all operators were created
+      expect(hasOp(beginNode.id)).toBe(true)
+      expect(hasOp(endNode.id)).toBe(true)
 
-      transformGraph({ nodes: updatedNodes, edges: [] })
+      // Delete begin node
+      const updatedNodes = forLoopNodes.filter((n) => n.id !== beginNode.id)
+      const updatedEdges = forLoopEdges.filter(
+        (e) => e.source !== beginNode.id && e.target !== beginNode.id
+      )
 
-      expect(hasOp('/loop/begin')).toBe(false)
+      transformGraph({ nodes: updatedNodes as any, edges: updatedEdges as any })
+
+      // Verify begin node was deleted
+      expect(hasOp(beginNode.id)).toBe(false)
+
+      // End node should still exist
+      expect(hasOp(endNode.id)).toBe(true)
     })
   })
 

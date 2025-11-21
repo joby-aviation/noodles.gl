@@ -81,14 +81,14 @@ export function createNodesForType(
     edges.push({
       id: edgeId({
         source: beginNode.id,
-        sourceHandle: 'd',
+        sourceHandle: 'out.d',
         target: endNode.id,
-        targetHandle: 'd',
+        targetHandle: 'par.d',
       }),
       source: beginNode.id,
       target: endNode.id,
-      sourceHandle: 'd',
-      targetHandle: 'd',
+      sourceHandle: 'out.d',
+      targetHandle: 'par.d',
     })
   } else if (type === 'ContainerOp') {
     const id = nodeId('container', currentContainerId)
