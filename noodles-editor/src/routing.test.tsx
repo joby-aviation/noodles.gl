@@ -19,20 +19,16 @@ describe('Routing Tests', () => {
   })
 
   describe('Basic routing', () => {
-    // TODO: This test is flaky in browser mode - wouter's <Redirect> doesn't complete navigation
-    // The redirect logic works in production, but the test times out waiting for navigation
-    test.skip('root path redirects to examples page', async () => {
+    test('root path redirects to examples page', async () => {
       window.history.replaceState({}, '', '/')
       render(<App />)
 
       // Wait for the redirect to complete and the examples page to render
-      await waitFor(
-        () => {
-          expect(window.location.pathname).toBe('/examples')
-          expect(screen.getByTestId('examples-page')).toBeTruthy()
-        },
-        { timeout: 2000 }
-      )
+      const examplesPage = await screen.findByTestId('examples-page', {}, { timeout: 5000 })
+      expect(examplesPage).toBeTruthy()
+
+      // Verify the URL was updated
+      expect(window.location.pathname).toBe('/examples')
     })
 
     test('/examples renders examples page', () => {
@@ -58,34 +54,26 @@ describe('Routing Tests', () => {
   })
 
   describe('Legacy redirects', () => {
-    // TODO: These tests are flaky in browser mode - wouter's <Redirect> doesn't always complete navigation
-    // The redirect logic works in production, but tests may timeout waiting for navigation
-    test.skip('redirects from ?project=name to /examples/name', async () => {
+    test('redirects from ?project=name to /examples/name', async () => {
       window.history.replaceState({}, '', '/?project=nyc-taxis')
       render(<App />)
 
-      // Should redirect to /examples/nyc-taxis
-      await waitFor(() => {
-        expect(window.location.pathname).toBe('/examples/nyc-taxis')
-      }, { timeout: 2000 })
-
       // Should render timeline editor after redirect
-      await waitFor(() => {
-        expect(screen.getByTestId('timeline-editor')).toBeTruthy()
-      }, { timeout: 2000 })
+      const timelineEditor = await screen.findByTestId('timeline-editor', {}, { timeout: 5000 })
+      expect(timelineEditor).toBeTruthy()
+
+      // Should redirect to /examples/nyc-taxis
+      expect(window.location.pathname).toBe('/examples/nyc-taxis')
     })
 
-    test.skip('redirects from /some-path?project=name to /examples/name', async () => {
+    test('redirects from /some-path?project=name to /examples/name', async () => {
       window.history.replaceState({}, '', '/some-path?project=my-viz')
       render(<App />)
 
-      await waitFor(() => {
-        expect(window.location.pathname).toBe('/examples/my-viz')
-      }, { timeout: 2000 })
+      const timelineEditor = await screen.findByTestId('timeline-editor', {}, { timeout: 5000 })
+      expect(timelineEditor).toBeTruthy()
 
-      await waitFor(() => {
-        expect(screen.getByTestId('timeline-editor')).toBeTruthy()
-      }, { timeout: 2000 })
+      expect(window.location.pathname).toBe('/examples/my-viz')
     })
 
     test('does not redirect if already on /examples/:projectId with ?project param', async () => {
