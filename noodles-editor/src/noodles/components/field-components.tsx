@@ -1117,18 +1117,18 @@ export function DateFieldComponent({
     return () => sub.unsubscribe()
   }, [field])
 
-  const onChange = e => {
+  const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     // Parse the datetime-local input value and create a Temporal.PlainDateTime
-    // datetime-local format: YYYY-MM-DDTHH:mm (no timezone, local time)
     const inputValue = e.currentTarget.value
     if (inputValue) {
-      // Add seconds to match ISO format, then parse as PlainDateTime
-      field.setValue(Temporal.PlainDateTime.from(`${inputValue}:00`))
+      // Parse the full ISO datetime string from the input
+      field.setValue(Temporal.PlainDateTime.from(inputValue))
     }
   }
 
-  // Convert Temporal.PlainDateTime to datetime-local format (YYYY-MM-DDTHH:mm)
-  const formatted = value?.toString?.()?.substring(0, 16) || ''
+  // Convert Temporal.PlainDateTime to datetime-local format
+  // Always show full precision with milliseconds: YYYY-MM-DDTHH:mm:ss.SSS
+  const formatted = value?.toString?.()?.substring(0, 23) || ''
 
   return (
     <div className={s.fieldWrapper}>
@@ -1143,6 +1143,7 @@ export function DateFieldComponent({
           value={formatted}
           onChange={onChange}
           disabled={disabled}
+          step={0.001}
         />
       </div>
     </div>

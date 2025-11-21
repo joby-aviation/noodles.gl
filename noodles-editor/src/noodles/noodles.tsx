@@ -34,6 +34,7 @@ import 'primeicons/primeicons.css'
 import newProjectJSON from './new.json'
 import { ChatPanel } from '../ai-chat/chat-panel'
 import { globalContextManager } from '../ai-chat/global-context-manager'
+import { analytics } from '../utils/analytics'
 
 // Pre-load all example noodles.json files at build time
 const exampleProjects = import.meta.glob('../examples/**/noodles.json', {
@@ -203,13 +204,24 @@ export function getNoodles(): Visualization {
   const { setCurrentDirectory, setActiveStorageType, setError } = useFileSystemStore()
   const { theatreReady, theatreProject, theatreSheet, setTheatreProject, getTimelineJson } =
     useTheatreJs(projectName)
-  const [nodes, setNodes, onNodesChange] = useNodesState<AnyNodeJSON>([])
-  const [edges, setEdges, onEdgesChange] = useEdgesState<
-    ReactFlowEdge<unknown>
-  >([])
+  const [nodes, setNodes, onNodesChangeBase] = useNodesState<AnyNodeJSON>([])
+  const [edges, setEdges, onEdgesChange] = useEdgesState<ReactFlowEdge<unknown>>([])
   const vPressed = useKeyPress('v')
   const aPressed = useKeyPress('a')
   const [showChatPanel, setShowChatPanel] = useState(false)
+
+  // Wrap onNodesChange to track node selection
+  const onNodesChange = useCallback(
+    (changes: Parameters<typeof onNodesChangeBase>[0]) => {
+      // Track selection changes
+      const selectedChanges = changes.filter(change => change.type === 'select' && change.selected)
+      if (selectedChanges.length > 0) {
+        analytics.track('node_selected', { count: selectedChanges.length })
+      }
+      onNodesChangeBase(changes)
+    },
+    [onNodesChangeBase]
+  )
 
   // Update URL when project name changes (for when loading a project from file/storage)
   // This updates the router, which will trigger projectName to update via useMemo
@@ -316,14 +328,12 @@ export function getNoodles(): Visualization {
     onDeselectAll()
   }, [onDeselectAll])
 
-  const onPaneContextMenu = useCallback(
-    (event: React.MouseEvent<Element, MouseEvent>) => {
-      event.preventDefault()
-      // Show Block Library at the right-click position
-      blockLibraryRef.current?.openModal(event.clientX, event.clientY)
-    },
-    [],
-  )
+  const onPaneContextMenu = useCallback((event: React.MouseEvent<Element, MouseEvent>) => {
+    event.preventDefault()
+    // Show Block Library at the right-click position
+    analytics.track('block_library_opened', { method: 'context_menu' })
+    blockLibraryRef.current?.openModal(event.clientX, event.clientY)
+  }, [])
 
   const vPressHandledRef = useRef(false)
 
@@ -340,6 +350,8 @@ export function getNoodles(): Visualization {
     // Only handle once per key press
     if (vPressHandledRef.current) return
     vPressHandledRef.current = true
+
+    analytics.track('viewer_created', { method: 'keyboard' })
 
     setNodes(currentNodes => {
       const selectedNodes = currentNodes.filter(n => n.selected)
@@ -463,6 +475,8 @@ export function getNoodles(): Visualization {
     // Only handle once per key press
     if (aPressHandledRef.current) return
     aPressHandledRef.current = true
+
+    analytics.track('block_library_opened', { method: 'keyboard' })
 
     // Open Block Library at center of screen
     const pane = reactFlowRef.current?.getBoundingClientRect()

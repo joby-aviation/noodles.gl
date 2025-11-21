@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { Temporal } from 'temporal-polyfill'
 import { NumberField } from './fields'
 import {
   AccessorOp,
@@ -652,6 +653,135 @@ describe('SwitchOp', () => {
       blend: true,
     })
     expect(res5.value).toEqual(200)
+  })
+
+  describe('Temporal blending', () => {
+    it('blends Temporal.Instant values', () => {
+      const operator = new SwitchOp('/switch-temporal-1')
+      const instant1 = Temporal.Instant.fromEpochMilliseconds(0)
+      const instant2 = Temporal.Instant.fromEpochMilliseconds(1000)
+      const instant3 = Temporal.Instant.fromEpochMilliseconds(2000)
+
+      // Test blending between instant1 and instant2 at 50%
+      const result1 = operator.execute({
+        values: [instant1, instant2, instant3],
+        index: 0.5,
+        blend: true,
+      })
+      expect(result1.value).toBeInstanceOf(Temporal.Instant)
+      expect(result1.value.epochMilliseconds).toBe(500)
+
+      // Test blending between instant2 and instant3 at 75%
+      const result2 = operator.execute({
+        values: [instant1, instant2, instant3],
+        index: 1.75,
+        blend: true,
+      })
+      expect(result2.value).toBeInstanceOf(Temporal.Instant)
+      expect(result2.value.epochMilliseconds).toBe(1750)
+    })
+
+    it('blends Temporal.PlainDate values', () => {
+      const operator = new SwitchOp('/switch-temporal-2')
+      const date1 = Temporal.PlainDate.from('2024-01-01')
+      const date2 = Temporal.PlainDate.from('2024-01-11')
+      const date3 = Temporal.PlainDate.from('2024-01-21')
+
+      // Test blending between date1 and date2 at 50%
+      const result1 = operator.execute({
+        values: [date1, date2, date3],
+        index: 0.5,
+        blend: true,
+      })
+      expect(result1.value).toBeInstanceOf(Temporal.PlainDate)
+      // Should be approximately 5 days between Jan 1 and Jan 11
+      expect(result1.value.toString()).toBe('2024-01-06')
+
+      // Test blending at exact index
+      const result2 = operator.execute({
+        values: [date1, date2, date3],
+        index: 1.0,
+        blend: true,
+      })
+      expect(result2.value).toBeInstanceOf(Temporal.PlainDate)
+      expect(result2.value.toString()).toBe('2024-01-11')
+    })
+
+    it('blends Temporal.PlainDateTime values', () => {
+      const operator = new SwitchOp('/switch-temporal-3')
+      const dt1 = Temporal.PlainDateTime.from('2024-01-01T00:00:00')
+      const dt2 = Temporal.PlainDateTime.from('2024-01-01T12:00:00')
+
+      // Test blending at 50% (6 hours between)
+      const result = operator.execute({
+        values: [dt1, dt2],
+        index: 0.5,
+        blend: true,
+      })
+      expect(result.value).toBeInstanceOf(Temporal.PlainDateTime)
+      expect(result.value.toString()).toBe('2024-01-01T06:00:00')
+    })
+
+    it('blends Temporal.ZonedDateTime values and preserves timezone', () => {
+      const operator = new SwitchOp('/switch-temporal-4')
+      const zdt1 = Temporal.ZonedDateTime.from({
+        year: 2024,
+        month: 1,
+        day: 1,
+        hour: 0,
+        minute: 0,
+        second: 0,
+        timeZone: 'America/New_York',
+      })
+      const zdt2 = Temporal.ZonedDateTime.from({
+        year: 2024,
+        month: 1,
+        day: 1,
+        hour: 12,
+        minute: 0,
+        second: 0,
+        timeZone: 'America/New_York',
+      })
+
+      // Test blending at 50%
+      const result = operator.execute({
+        values: [zdt1, zdt2],
+        index: 0.5,
+        blend: true,
+      })
+      expect(result.value).toBeInstanceOf(Temporal.ZonedDateTime)
+      expect(result.value.timeZoneId).toBe('America/New_York')
+      expect(result.value.hour).toBe(6)
+    })
+
+    it('handles Temporal values beyond array bounds', () => {
+      const operator = new SwitchOp('/switch-temporal-6')
+      const instant1 = Temporal.Instant.fromEpochMilliseconds(0)
+      const instant2 = Temporal.Instant.fromEpochMilliseconds(1000)
+
+      // Index beyond array should clamp to last value
+      const result = operator.execute({
+        values: [instant1, instant2],
+        index: 5.0,
+        blend: true,
+      })
+      expect(result.value).toBe(instant2)
+      expect(result.value.epochMilliseconds).toBe(1000)
+    })
+
+    it('does not blend when blend is false', () => {
+      const operator = new SwitchOp('/switch-temporal-8')
+      const instant1 = Temporal.Instant.fromEpochMilliseconds(0)
+      const instant2 = Temporal.Instant.fromEpochMilliseconds(1000)
+
+      // Should just return the value at floor(index)
+      const result = operator.execute({
+        values: [instant1, instant2],
+        index: 0.7,
+        blend: false,
+      })
+      expect(result.value).toBe(instant1)
+    })
   })
 })
 

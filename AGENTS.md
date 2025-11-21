@@ -955,6 +955,84 @@ When changing files listed in "Critical Components Requiring Extra Scrutiny":
 4. Add custom UI component in `field-components.tsx` if needed
 5. Register in field registry
 
+## Analytics Tracking
+
+### When to Add Analytics Events
+
+Noodles.gl uses PostHog for privacy-preserving product analytics to understand feature usage. When implementing new features or user-facing functionality, consider adding analytics tracking to help understand how users interact with the app.
+
+**Add analytics tracking for:**
+
+- New user actions (button clicks, menu selections, keyboard shortcuts)
+- Feature usage (rendering, AI chat, timeline operations)
+- User workflows (project creation, save, export, import)
+- Error states and failures (save failed, render cancelled)
+- Performance milestones (render completion, load times)
+
+**Never track:**
+
+- Project names, file names, or file paths
+- Node data, configuration values, or user content
+- Code, queries, prompts, or AI responses
+- API keys, tokens, or credentials
+- Personal information or IP addresses
+
+All sensitive properties are automatically filtered by the analytics utility, but avoid passing them in the first place.
+
+### How to Add Tracking
+
+```typescript
+import { analytics } from '../utils/analytics'
+
+// Simple event
+analytics.track('feature_used')
+
+// Event with properties
+analytics.track('render_started', {
+  codec: 'h264',          // ✅ Safe: configuration type
+  resolution: '1920x1080' // ✅ Safe: dimensions
+})
+
+// What NOT to track
+analytics.track('project_saved', {
+  projectName: 'my-viz',  // ❌ Never: user content
+  apiKey: 'sk-123'        // ❌ Never: credentials
+})
+```
+
+### Event Naming Conventions
+
+- **Format**: `object_action` (e.g., `node_added`, `project_saved`)
+- **Tense**: Past tense (`created`, `opened`, `failed`)
+- **Case**: snake_case (`ai_panel_opened`, `render_completed`)
+
+### Common Tracking Examples
+
+```typescript
+// User interactions
+analytics.track('keyboard_shortcut_used', { action: 'create_viewer' })
+analytics.track('menu_opened', { menu: 'block_library' })
+
+// Feature usage
+analytics.track('node_added', { nodeType: 'ScatterplotLayerOp' })
+analytics.track('render_started', { codec: 'h264' })
+analytics.track('render_completed', { duration: 120, frameCount: 3600 })
+
+// Error states
+analytics.track('save_failed', { storageType: 'local', error: 'permission_denied' })
+analytics.track('render_cancelled')
+```
+
+### Testing Analytics
+
+Analytics events respect user consent and gracefully handle ad-blocker scenarios:
+
+- Events only fire if user has opted in
+- All PostHog calls are wrapped in try-catch blocks
+- App continues working even if PostHog is blocked
+
+For more details, see [dev-docs/analytics.md](dev-docs/analytics.md).
+
 ## Pull Request Guidelines
 
 ### Creating Focused PRs
@@ -972,6 +1050,50 @@ When implementing features or fixes:
 - **Documentation**: Update relevant docs when behavior changes or new features are added
 - **Operator Documentation**: For complex operators, document input/output behavior and limitations
 - **Edge Cases**: Document known limitations or edge cases in code comments or docs
+- **Test Runbook**: Provide clear instructions for manually testing the changes in the UI
+
+### Testing and Runbooks
+
+**When to Provide a Test Runbook:**
+
+- Feature additions or modifications to operators
+- Bug fixes that affect user-visible behavior
+- Changes to visualization or interaction behavior
+- New integrations or data processing capabilities
+
+**Runbook Best Practices:**
+
+1. **Keep it simple**: Assume the app is already running - don't include setup steps
+2. **Use real nodes**: Create a minimal graph with actual operators that demonstrates the feature
+3. **Provide noodles.json**: Include a complete project file that reviewers can load directly
+4. **Clear expected results**: State exactly what should happen at each step
+5. **Test both cases**: Cover both success and edge cases (e.g., enabled/disabled, valid/invalid)
+
+**Example Test Runbook Structure:**
+
+```markdown
+## Manual Testing in UI
+
+1. **Create test graph:**
+   - Add [Operator1] with value X
+   - Add [Operator2] with value Y
+   - Connect outputs to inputs
+
+2. **Test primary behavior:**
+   - Set parameter to A → should see result B
+   - Set parameter to C → should see result D
+
+3. **Test edge case:**
+   - Disable feature → should see fallback behavior
+
+4. **Verify in timeline:**
+   - Keyframe parameter from X to Y
+   - Should see [describe animation/interpolation]
+```
+
+**Include Project File:**
+
+Provide a complete `noodles.json` file that can be saved in `noodles-editor/public/noodles/` and opened with `?project=test-name`. This makes it trivial for reviewers to verify the changes.
 
 ### Documentation Best Practices
 
@@ -1014,5 +1136,5 @@ When implementing features or fixes:
 
 ---
 
-**Last Updated**: 2025-11-12
+**Last Updated**: 2025-11-14
 **Version**: Based on project version 6 schema

@@ -23,7 +23,7 @@ export const categories = {
     'BoundingBoxOp',
     'BoundsOp',
     'ConcatOp',
-    'DateOp',
+    'DateTimeOp',
     'DeckRendererOp',
     'DirectionsOp',
     'FileOp',

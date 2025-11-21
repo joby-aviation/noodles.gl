@@ -45,6 +45,7 @@
     "mediabunny": "^1.24.2",
     "memoize-one": "^6.0.0",
     "nanoid": "^5.1.6",
+    "posthog-js": "^1.290.0",
     "primeicons": "^7.0.0",
     "primereact": "^10.9.7",
     "react": "^19.2.0",
@@ -66,6 +67,7 @@
   },
   "scripts": {
     "start": "vite",
+    "start:local": "vite --config vite.config.local.js",
     "build": "NODE_ENV=development vite build",
     "serve": "vite preview",
     "test": "vitest",
