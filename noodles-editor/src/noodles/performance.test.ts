@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { CodeOp, JSONOp, NumberOp } from './operators'
-import { clearOps, deleteOp, getAllOps, getOp, setOp, getOpStore } from './store'
+import { clearOps, deleteOp, getAllOps, getOp, getOpStore, setOp } from './store'
 import {
   getBaseName,
   getDirectChildren,

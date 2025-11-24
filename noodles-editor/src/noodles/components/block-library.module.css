@@ -136,6 +136,14 @@
 
 /* Operator Cards */
 .blockLibraryCard {
+  /* Reset button styles */
+  appearance: none;
+  font-family: inherit;
+  font-size: inherit;
+  text-align: left;
+  width: 100%;
+
+  /* Card styles */
   background-color: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;

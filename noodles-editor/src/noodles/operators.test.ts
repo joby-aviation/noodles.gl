@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest'
 import { Temporal } from 'temporal-polyfill'
+import { describe, expect, it, vi } from 'vitest'
 import { NumberField } from './fields'
 import {
   AccessorOp,
@@ -111,7 +111,7 @@ describe('Error handling', () => {
 
     const onError = vi.spyOn(operator, 'onError')
     const execute = vi.spyOn(operator, 'execute')
-    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => { })
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
     expect(operator.inputs.num.value).toEqual(0)
     expect(onError).not.toHaveBeenCalled()
@@ -432,14 +432,16 @@ describe('DuckDbOp', () => {
 
   it('throws an error for unresolved references', async () => {
     const ddb = new DuckDbOp('/ddb', {}, false)
-    await expect(ddb.execute({ query: 'SELECT {{missing.par.val}}' })).rejects.toThrowError('Field val not found on ./missing')
+    await expect(ddb.execute({ query: 'SELECT {{missing.par.val}}' })).rejects.toThrowError(
+      'Field val not found on ./missing'
+    )
   })
 
   it('errors on a select including a semicolon', async () => {
     const ddb = new DuckDbOp('/ddb', {}, false)
-    await expect(ddb.execute({ query: 'SELECT \'1;10\'' })).rejects.toThrowError(
+    await expect(ddb.execute({ query: "SELECT '1;10'" })).rejects.toThrowError(
       expect.objectContaining({
-        message: expect.stringContaining('Parser Error: unterminated quoted string')
+        message: expect.stringContaining('Parser Error: unterminated quoted string'),
       })
     )
   })
@@ -1431,7 +1433,7 @@ describe('TimeSeriesOp', () => {
       getProperties: (d: any) => d,
     })
 
-    expect((result.data as any)).toHaveLength(2)
+    expect(result.data as any).toHaveLength(2)
 
     // First trip at midpoint between 0 and 10
     expect((result.data as any)[0].id).toEqual('trip-1')
@@ -1497,7 +1499,10 @@ describe('TimeSeriesOp', () => {
           model: 'Boeing 737',
           route: 'SFO-LAX',
           timestamps: [0, 10],
-          path: [[0, 0], [1, 1]],
+          path: [
+            [0, 0],
+            [1, 1],
+          ],
           values: [
             { heading: 90, altitude: 1000 },
             { heading: 120, altitude: 1500 },
@@ -1515,7 +1520,10 @@ describe('TimeSeriesOp', () => {
     expect((result.data as any)[0].model).toEqual('Boeing 737')
     expect((result.data as any)[0].route).toEqual('SFO-LAX')
     expect((result.data as any)[0].timestamps).toEqual([0, 10])
-    expect((result.data as any)[0].path).toEqual([[0, 0], [1, 1]])
+    expect((result.data as any)[0].path).toEqual([
+      [0, 0],
+      [1, 1],
+    ])
 
     // Interpolated values
     expect((result.data as any)[0].heading).toEqual(105)
@@ -1556,7 +1564,11 @@ describe('TimeSeriesOp', () => {
       {
         id: 'aircraft-1',
         timestamps: [0, 10, 20],
-        path: [[0, 0], [1, 1], [2, 2]],
+        path: [
+          [0, 0],
+          [1, 1],
+          [2, 2],
+        ],
         orientations: [
           { heading: 0, pitch: 0, roll: 0 },
           { heading: 45, pitch: 5, roll: 10 },
@@ -1578,14 +1590,18 @@ describe('TimeSeriesOp', () => {
     expect((result.data as any)[0].pitch).toEqual(2.5) // interpolated
     expect((result.data as any)[0].roll).toEqual(5) // interpolated
     expect((result.data as any)[0].timestamps).toEqual([0, 10, 20]) // preserved from getProperties
-    expect((result.data as any)[0].path).toEqual([[0, 0], [1, 1], [2, 2]]) // preserved from getProperties
+    expect((result.data as any)[0].path).toEqual([
+      [0, 0],
+      [1, 1],
+      [2, 2],
+    ]) // preserved from getProperties
   })
 })
 
 describe('KmlToGeoJsonOp', () => {
   it('should convert KML to GeoJSON', () => {
     const operator = new KmlToGeoJsonOp('/kml-to-geojson-0')
-    
+
     const kml = `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
   <Document>

@@ -3,12 +3,12 @@
 import { resolve } from 'node:path'
 
 import type {
-  Manifest,
   CodeIndex,
-  OperatorRegistry,
   DocsIndex,
   ExamplesIndex,
-  LoadProgress
+  LoadProgress,
+  Manifest,
+  OperatorRegistry,
 } from './types'
 
 export class ContextLoader {
@@ -27,13 +27,15 @@ export class ContextLoader {
       loaded: 0,
       total: 5,
       bytesLoaded: 0,
-      bytesTotal: 0
+      bytesTotal: 0,
     })
 
     try {
       this.manifest = await this.fetchJSON<Manifest>(`${this.baseUrl}/manifest.json`)
-    } catch (error) {
-      console.warn('Context bundles not available. Advanced features (code search, operator schemas) will be disabled.')
+    } catch (_error) {
+      console.warn(
+        'Context bundles not available. Advanced features (code search, operator schemas) will be disabled.'
+      )
       console.warn('To enable these features, run: yarn generate:context')
       // Continue without context - basic chat will still work
       onProgress?.({
@@ -41,7 +43,7 @@ export class ContextLoader {
         loaded: 5,
         total: 5,
         bytesLoaded: 0,
-        bytesTotal: 0
+        bytesTotal: 0,
       })
       return
     }
@@ -57,7 +59,7 @@ export class ContextLoader {
       loaded: 1,
       total: 5,
       bytesLoaded,
-      bytesTotal: totalBytes
+      bytesTotal: totalBytes,
     })
 
     this.codeIndex = await this.fetchCachedBundle<CodeIndex>(
@@ -72,7 +74,7 @@ export class ContextLoader {
       loaded: 2,
       total: 5,
       bytesLoaded,
-      bytesTotal: totalBytes
+      bytesTotal: totalBytes,
     })
 
     this.operatorRegistry = await this.fetchCachedBundle<OperatorRegistry>(
@@ -87,7 +89,7 @@ export class ContextLoader {
       loaded: 3,
       total: 5,
       bytesLoaded,
-      bytesTotal: totalBytes
+      bytesTotal: totalBytes,
     })
 
     this.docsIndex = await this.fetchCachedBundle<DocsIndex>(
@@ -102,7 +104,7 @@ export class ContextLoader {
       loaded: 4,
       total: 5,
       bytesLoaded,
-      bytesTotal: totalBytes
+      bytesTotal: totalBytes,
     })
 
     this.examples = await this.fetchCachedBundle<ExamplesIndex>(
@@ -116,7 +118,7 @@ export class ContextLoader {
       loaded: 5,
       total: 5,
       bytesLoaded: totalBytes,
-      bytesTotal: totalBytes
+      bytesTotal: totalBytes,
     })
   }
 
@@ -190,7 +192,7 @@ export class ContextLoader {
       request.onerror = () => reject(request.error)
       request.onsuccess = () => resolve(request.result)
 
-      request.onupgradeneeded = (event) => {
+      request.onupgradeneeded = event => {
         const db = (event.target as IDBOpenDBRequest).result
         if (!db.objectStoreNames.contains('bundles')) {
           db.createObjectStore('bundles', { keyPath: 'hash' })

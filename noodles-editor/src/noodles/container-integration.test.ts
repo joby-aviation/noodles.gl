@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { Edge } from './noodles'
 import type { OpType } from './operators'
 import { ContainerOp, GraphInputOp, GraphOutputOp } from './operators'
-import { getOp, clearOps } from './store'
+import { clearOps, getOp } from './store'
 import { transformGraph } from './transform-graph'
 
 describe('Container Integration with Transform Graph', () => {

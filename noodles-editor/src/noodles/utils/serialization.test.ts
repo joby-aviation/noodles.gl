@@ -83,7 +83,6 @@ describe('serializeNodes', () => {
   })
 
   it('omits inputs for unlocked incomers', () => {
-    
     setOp('node1', makeOp({ x: 1 }, false))
     setOp('node0', makeOp({ foo: 42 }, false))
 
@@ -103,7 +102,6 @@ describe('serializeNodes', () => {
   })
 
   it('does not overwrite input if incoming edge is from locked op', () => {
-    
     setOp('node1', makeOp({ x: 123 }, false))
     setOp('node0', makeOp({ foo: 'ignored' }, true)) // locked = true
 
@@ -123,7 +121,6 @@ describe('serializeNodes', () => {
   })
 
   it('does not serialize default values', () => {
-    
     setOp('num1', new NumberOp('num1', { val: 123 }, false))
     setOp('num2', new NumberOp('num2', { val: 0 }, false))
     const nodes = [
@@ -136,7 +133,6 @@ describe('serializeNodes', () => {
   })
 
   it('does not serialize object default values', () => {
-    
     setOp('model', new ScenegraphLayerOp('model', {}, false))
     const nodes = [{ id: 'model', type: 'ScenegraphLayerOp', data: {}, position: { x: 0, y: 0 } }]
     const result = serializeNodes(getOpStore(), nodes, [])
@@ -144,7 +140,6 @@ describe('serializeNodes', () => {
   })
 
   it('serializes multiple nodes with edges correctly', () => {
-    
     setOp('nodeA', makeOp({ val: 10 }, false))
     setOp('nodeB', makeOp({ input: 5 }, false))
 
@@ -171,7 +166,6 @@ describe('serializeNodes', () => {
   })
 
   it('does not serialize selected property', () => {
-    
     setOp('node1', makeOp({ a: 1 }, false))
 
     const node = {
@@ -188,7 +182,6 @@ describe('serializeNodes', () => {
   })
 
   it('does not serialize width and height for non-resizeable nodes', () => {
-    
     setOp('node1', makeOp({ a: 1 }, false))
 
     const node = {
@@ -205,7 +198,6 @@ describe('serializeNodes', () => {
     expect(result.height).toBeUndefined()
   })
   it('serializes width and height for resizeable nodes', () => {
-    
     setOp('node1', new TableEditorOp('node1', {}, false))
 
     const node = {
@@ -222,7 +214,6 @@ describe('serializeNodes', () => {
   })
 
   it('excludes ReferenceEdge connections when determining connected inputs', () => {
-
     setOp('node1', makeOp({ x: 123 }, false))
     setOp('node0', makeOp({ foo: 42 }, false))
 
@@ -299,7 +290,6 @@ describe('serializeNodes', () => {
 
 describe('serializeEdges', () => {
   it('serializes edges', () => {
-    
     const nodes = [
       { id: 'node-0', type: 'NumberOp', data: {}, position: { x: 0, y: 0 } },
       { id: 'node-1', type: 'NumberOp', data: {}, position: { x: 0, y: 0 } },
@@ -322,7 +312,6 @@ describe('serializeEdges', () => {
   })
 
   it('filters out orphaned edges', () => {
-    
     const nodes = [
       { id: 'node-0', type: 'NumberOp', data: {}, position: { x: 0, y: 0 } },
       { id: 'node-1', type: 'NumberOp', data: {}, position: { x: 0, y: 0 } },
@@ -363,7 +352,6 @@ describe('serializeEdges', () => {
   })
 
   it('filters out ReferenceEdge types', () => {
-
     const nodes = [
       { id: 'node-0', type: 'NumberOp', data: {}, position: { x: 0, y: 0 } },
       { id: 'node-1', type: 'NumberOp', data: {}, position: { x: 0, y: 0 } },

@@ -1,28 +1,28 @@
-import { useState, useEffect } from 'react';
-import { analytics } from '../utils/analytics';
+import { useEffect, useState } from 'react'
+import { analytics } from '../utils/analytics'
 
 export function AnalyticsConsentBanner() {
-  const [showBanner, setShowBanner] = useState(false);
+  const [showBanner, setShowBanner] = useState(false)
 
   useEffect(() => {
     // Only show banner if user hasn't made a choice yet
-    const hasSeenPrompt = analytics.hasSeenConsentPrompt();
-    setShowBanner(!hasSeenPrompt);
-  }, []);
+    const hasSeenPrompt = analytics.hasSeenConsentPrompt()
+    setShowBanner(!hasSeenPrompt)
+  }, [])
 
   const handleAccept = () => {
-    analytics.setConsent(true);
-    analytics.track('analytics_consent_accepted');
-    setShowBanner(false);
-  };
+    analytics.setConsent(true)
+    analytics.track('analytics_consent_accepted')
+    setShowBanner(false)
+  }
 
   const handleDecline = () => {
-    analytics.setConsent(false);
-    setShowBanner(false);
-  };
+    analytics.setConsent(false)
+    setShowBanner(false)
+  }
 
   if (!showBanner) {
-    return null;
+    return null
   }
 
   return (
@@ -48,10 +48,9 @@ export function AnalyticsConsentBanner() {
         <p style={{ margin: 0, fontSize: '0.9rem', lineHeight: '1.5' }}>
           <strong>Help improve Noodles.gl</strong>
           <br />
-          We use privacy-preserving analytics to understand which features are most useful.
-          We never collect your project data, node content, or personal information.
-          You can change this anytime in settings.
-          {' '}
+          We use privacy-preserving analytics to understand which features are most useful. We never
+          collect your project data, node content, or personal information. You can change this
+          anytime in settings.{' '}
           <a
             href="https://noodles.gl/privacy"
             target="_blank"
@@ -67,6 +66,7 @@ export function AnalyticsConsentBanner() {
       </div>
       <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
         <button
+          type="button"
           onClick={handleDecline}
           style={{
             padding: '0.5rem 1rem',
@@ -78,16 +78,17 @@ export function AnalyticsConsentBanner() {
             fontSize: '0.9rem',
             transition: 'all 0.2s',
           }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+          onMouseEnter={e => {
+            e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'
           }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = 'transparent';
+          onMouseLeave={e => {
+            e.currentTarget.style.backgroundColor = 'transparent'
           }}
         >
           Decline
         </button>
         <button
+          type="button"
           onClick={handleAccept}
           style={{
             padding: '0.5rem 1rem',
@@ -99,16 +100,16 @@ export function AnalyticsConsentBanner() {
             fontSize: '0.9rem',
             transition: 'all 0.2s',
           }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = '#4338ca';
+          onMouseEnter={e => {
+            e.currentTarget.style.backgroundColor = '#4338ca'
           }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = '#4f46e5';
+          onMouseLeave={e => {
+            e.currentTarget.style.backgroundColor = '#4f46e5'
           }}
         >
           Accept
         </button>
       </div>
     </div>
-  );
+  )
 }

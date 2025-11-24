@@ -1,28 +1,32 @@
 import { getProject } from '@theatre/core'
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
-  NumberField,
   BooleanField,
-  StringField,
   ColorField,
-  Vec2Field,
-  Vec3Field,
   CompoundPropsField,
   type Field,
+  NumberField,
+  StringField,
+  Vec2Field,
+  Vec3Field,
 } from '../fields'
-import { clearOps, setOp, hasSheetObject, getSheetObject, getOpStore } from '../store'
+import { clearOps, getOpStore, getSheetObject, hasSheetObject, setOp } from '../store'
 import {
-  bindOperatorToTheatre,
-  unbindOperatorFromTheatre,
   bindAllOperatorsToTheatre,
+  bindOperatorToTheatre,
   cleanupRemovedOperators,
+  unbindOperatorFromTheatre,
 } from '../theatre-bindings'
 
 // Helper to create properly initialized fields
+// biome-ignore lint/suspicious/noExplicitAny: generic test helper for any field constructor
 function createField<T extends Field>(
+  // biome-ignore lint/suspicious/noExplicitAny: accepts any field constructor signature
   FieldType: new (...args: any[]) => T,
+  // biome-ignore lint/suspicious/noExplicitAny: accepts any field value for testing
   value: any,
+  // biome-ignore lint/suspicious/noExplicitAny: accepts any field options for testing
   options: any,
   opId: string,
   fieldName: string
@@ -73,6 +77,7 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
+        // biome-ignore lint/suspicious/noExplicitAny: mock operator for test
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
@@ -95,6 +100,7 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
+        // biome-ignore lint/suspicious/noExplicitAny: mock operator for test
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
@@ -115,6 +121,7 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
+        // biome-ignore lint/suspicious/noExplicitAny: mock operator for test
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
@@ -159,6 +166,7 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
+        // biome-ignore lint/suspicious/noExplicitAny: mock operator for test
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
@@ -182,6 +190,7 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
+        // biome-ignore lint/suspicious/noExplicitAny: mock operator for test
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
@@ -191,7 +200,13 @@ describe('theatre-bindings', () => {
     })
 
     it('should setup two-way bindings', () => {
-      const numberField = createField(NumberField, 42, { min: 0, max: 100, step: 1 }, '/test-op', 'value')
+      const numberField = createField(
+        NumberField,
+        42,
+        { min: 0, max: 100, step: 1 },
+        '/test-op',
+        'value'
+      )
 
       const mockOp = {
         id: '/test-op',
@@ -200,6 +215,7 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
+        // biome-ignore lint/suspicious/noExplicitAny: mock operator for test
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
@@ -219,7 +235,13 @@ describe('theatre-bindings', () => {
 
   describe('unbindOperatorFromTheatre', () => {
     it('should unbind an operator', () => {
-      const valueField = createField(NumberField, 42, { min: 0, max: 100, step: 1 }, '/test-op', 'value')
+      const valueField = createField(
+        NumberField,
+        42,
+        { min: 0, max: 100, step: 1 },
+        '/test-op',
+        'value'
+      )
 
       const mockOp = {
         id: '/test-op',
@@ -254,19 +276,25 @@ describe('theatre-bindings', () => {
       const mockOps = [
         {
           id: '/op1',
-          inputs: { value: createField(NumberField, 1, { min: 0, max: 100, step: 1 }, '/op1', 'value') },
+          inputs: {
+            value: createField(NumberField, 1, { min: 0, max: 100, step: 1 }, '/op1', 'value'),
+          },
           outputs: {},
           locked: { value: false },
         },
         {
           id: '/op2',
-          inputs: { value: createField(NumberField, 2, { min: 0, max: 100, step: 1 }, '/op2', 'value') },
+          inputs: {
+            value: createField(NumberField, 2, { min: 0, max: 100, step: 1 }, '/op2', 'value'),
+          },
           outputs: {},
           locked: { value: false },
         },
         {
           id: '/op3',
-          inputs: { value: createField(NumberField, 3, { min: 0, max: 100, step: 1 }, '/op3', 'value') },
+          inputs: {
+            value: createField(NumberField, 3, { min: 0, max: 100, step: 1 }, '/op3', 'value'),
+          },
           outputs: {},
           locked: { value: false },
         },
@@ -292,13 +320,15 @@ describe('theatre-bindings', () => {
       const mockOps = [
         {
           id: '/op1',
-          inputs: { value: createField(NumberField, 1, { min: 0, max: 100, step: 1 }, '/op1', 'value') },
+          inputs: {
+            value: createField(NumberField, 1, { min: 0, max: 100, step: 1 }, '/op1', 'value'),
+          },
           outputs: {},
           locked: { value: false },
         },
         {
           id: '/op2',
-          inputs: { fn: { value: () => { }, subscribe: vi.fn() } },
+          inputs: { fn: { value: () => {}, subscribe: vi.fn() } },
           outputs: {},
           locked: { value: false },
         },
@@ -321,13 +351,17 @@ describe('theatre-bindings', () => {
       const mockOps = [
         {
           id: '/out',
-          inputs: { value: createField(NumberField, 1, { min: 0, max: 100, step: 1 }, '/out', 'value') },
+          inputs: {
+            value: createField(NumberField, 1, { min: 0, max: 100, step: 1 }, '/out', 'value'),
+          },
           outputs: {},
           locked: { value: false },
         },
         {
           id: '/op1',
-          inputs: { value: createField(NumberField, 2, { min: 0, max: 100, step: 1 }, '/op1', 'value') },
+          inputs: {
+            value: createField(NumberField, 2, { min: 0, max: 100, step: 1 }, '/op1', 'value'),
+          },
           outputs: {},
           locked: { value: false },
         },
@@ -353,19 +387,25 @@ describe('theatre-bindings', () => {
       const mockOps = [
         {
           id: '/op1',
-          inputs: { value: createField(NumberField, 1, { min: 0, max: 100, step: 1 }, '/op1', 'value') },
+          inputs: {
+            value: createField(NumberField, 1, { min: 0, max: 100, step: 1 }, '/op1', 'value'),
+          },
           outputs: {},
           locked: { value: false },
         },
         {
           id: '/op2',
-          inputs: { value: createField(NumberField, 2, { min: 0, max: 100, step: 1 }, '/op2', 'value') },
+          inputs: {
+            value: createField(NumberField, 2, { min: 0, max: 100, step: 1 }, '/op2', 'value'),
+          },
           outputs: {},
           locked: { value: false },
         },
         {
           id: '/op3',
-          inputs: { value: createField(NumberField, 3, { min: 0, max: 100, step: 1 }, '/op3', 'value') },
+          inputs: {
+            value: createField(NumberField, 3, { min: 0, max: 100, step: 1 }, '/op3', 'value'),
+          },
           outputs: {},
           locked: { value: false },
         },
@@ -396,7 +436,9 @@ describe('theatre-bindings', () => {
       const mockOps = [
         {
           id: '/op1',
-          inputs: { value: createField(NumberField, 1, { min: 0, max: 100, step: 1 }, '/op1', 'value') },
+          inputs: {
+            value: createField(NumberField, 1, { min: 0, max: 100, step: 1 }, '/op1', 'value'),
+          },
           outputs: {},
           locked: { value: false },
         },
@@ -419,13 +461,17 @@ describe('theatre-bindings', () => {
       const mockOps = [
         {
           id: '/op1',
-          inputs: { value: createField(NumberField, 1, { min: 0, max: 100, step: 1 }, '/op1', 'value') },
+          inputs: {
+            value: createField(NumberField, 1, { min: 0, max: 100, step: 1 }, '/op1', 'value'),
+          },
           outputs: {},
           locked: { value: false },
         },
         {
           id: '/op2',
-          inputs: { value: createField(NumberField, 2, { min: 0, max: 100, step: 1 }, '/op2', 'value') },
+          inputs: {
+            value: createField(NumberField, 2, { min: 0, max: 100, step: 1 }, '/op2', 'value'),
+          },
           outputs: {},
           locked: { value: false },
         },
@@ -455,13 +501,17 @@ describe('theatre-bindings', () => {
       const ops1 = [
         {
           id: '/op1',
-          inputs: { value: createField(NumberField, 1, { min: 0, max: 100, step: 1 }, '/op1', 'value') },
+          inputs: {
+            value: createField(NumberField, 1, { min: 0, max: 100, step: 1 }, '/op1', 'value'),
+          },
           outputs: {},
           locked: { value: false },
         },
         {
           id: '/op2',
-          inputs: { value: createField(NumberField, 2, { min: 0, max: 100, step: 1 }, '/op2', 'value') },
+          inputs: {
+            value: createField(NumberField, 2, { min: 0, max: 100, step: 1 }, '/op2', 'value'),
+          },
           outputs: {},
           locked: { value: false },
         },
@@ -479,13 +529,17 @@ describe('theatre-bindings', () => {
       const ops2 = [
         {
           id: '/op1',
-          inputs: { value: createField(NumberField, 1, { min: 0, max: 100, step: 1 }, '/op1', 'value') },
+          inputs: {
+            value: createField(NumberField, 1, { min: 0, max: 100, step: 1 }, '/op1', 'value'),
+          },
           outputs: {},
           locked: { value: false },
         },
         {
           id: '/op3',
-          inputs: { value: createField(NumberField, 3, { min: 0, max: 100, step: 1 }, '/op3', 'value') },
+          inputs: {
+            value: createField(NumberField, 3, { min: 0, max: 100, step: 1 }, '/op3', 'value'),
+          },
           outputs: {},
           locked: { value: false },
         },
@@ -522,7 +576,13 @@ describe('theatre-bindings', () => {
       const childOp = {
         id: '/container/child',
         inputs: {
-          value: createField(NumberField as any, 42, { min: 0, max: 100, step: 1 }, '/container/child', 'value'),
+          value: createField(
+            NumberField as any,
+            42,
+            { min: 0, max: 100, step: 1 },
+            '/container/child',
+            'value'
+          ),
         },
         outputs: {},
         locked: { value: false },
@@ -567,6 +627,7 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
+        // biome-ignore lint/suspicious/noExplicitAny: mock operator for test
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
@@ -602,6 +663,7 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
+        // biome-ignore lint/suspicious/noExplicitAny: mock operator for test
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
@@ -636,6 +698,7 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
+        // biome-ignore lint/suspicious/noExplicitAny: mock operator for test
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
@@ -668,6 +731,7 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
+        // biome-ignore lint/suspicious/noExplicitAny: mock operator for test
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
@@ -705,6 +769,7 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
+        // biome-ignore lint/suspicious/noExplicitAny: mock operator for test
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)

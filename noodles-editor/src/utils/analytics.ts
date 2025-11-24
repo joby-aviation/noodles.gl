@@ -1,33 +1,33 @@
-import posthog from 'posthog-js';
+import posthog from 'posthog-js'
 
-const ANALYTICS_CONSENT_KEY = 'noodles-analytics-consent';
-const POSTHOG_API_KEY = import.meta.env.VITE_POSTHOG_API_KEY;
-const POSTHOG_HOST = import.meta.env.VITE_POSTHOG_HOST || 'https://app.posthog.com';
+const ANALYTICS_CONSENT_KEY = 'noodles-analytics-consent'
+const POSTHOG_API_KEY = import.meta.env.VITE_POSTHOG_API_KEY
+const POSTHOG_HOST = import.meta.env.VITE_POSTHOG_HOST || 'https://app.posthog.com'
 
 export interface AnalyticsConsent {
-  enabled: boolean;
-  timestamp: string;
-  version: number;
+  enabled: boolean
+  timestamp: string
+  version: number
 }
 
 export class AnalyticsManager {
-  private static instance: AnalyticsManager;
-  private initialized = false;
+  private static instance: AnalyticsManager
+  private initialized = false
 
   static getInstance(): AnalyticsManager {
     if (!AnalyticsManager.instance) {
-      AnalyticsManager.instance = new AnalyticsManager();
+      AnalyticsManager.instance = new AnalyticsManager()
     }
-    return AnalyticsManager.instance;
+    return AnalyticsManager.instance
   }
 
   initialize() {
     if (this.initialized || !POSTHOG_API_KEY) {
-      return;
+      return
     }
 
     try {
-      const consent = this.getConsent();
+      const consent = this.getConsent()
 
       posthog.init(POSTHOG_API_KEY, {
         api_host: POSTHOG_HOST,
@@ -36,28 +36,28 @@ export class AnalyticsManager {
         disable_session_recording: true, // Privacy: no session recording
         capture_pageview: false, // Manual tracking
         capture_pageleave: true,
-        loaded: (posthog) => {
+        loaded: posthog => {
           if (import.meta.env.DEV) {
-            posthog.debug(false); // Set to true for verbose logging in dev
+            posthog.debug(false) // Set to true for verbose logging in dev
           }
         },
-      });
+      })
 
-      this.initialized = true;
+      this.initialized = true
     } catch (error) {
       // Silently fail if PostHog is blocked by ad blockers
-      console.warn('Analytics initialization failed (likely blocked by ad blocker):', error);
-      this.initialized = false;
+      console.warn('Analytics initialization failed (likely blocked by ad blocker):', error)
+      this.initialized = false
     }
   }
 
   getConsent(): AnalyticsConsent | null {
     try {
-      const stored = localStorage.getItem(ANALYTICS_CONSENT_KEY);
-      return stored ? JSON.parse(stored) : null;
+      const stored = localStorage.getItem(ANALYTICS_CONSENT_KEY)
+      return stored ? JSON.parse(stored) : null
     } catch (error) {
-      console.error('Failed to read analytics consent:', error);
-      return null;
+      console.error('Failed to read analytics consent:', error)
+      return null
     }
   }
 
@@ -66,77 +66,77 @@ export class AnalyticsManager {
       enabled,
       timestamp: new Date().toISOString(),
       version: 1,
-    };
+    }
 
     try {
-      localStorage.setItem(ANALYTICS_CONSENT_KEY, JSON.stringify(consent));
+      localStorage.setItem(ANALYTICS_CONSENT_KEY, JSON.stringify(consent))
 
       if (this.initialized) {
         if (enabled) {
-          posthog.opt_in_capturing();
+          posthog.opt_in_capturing()
         } else {
-          posthog.opt_out_capturing();
+          posthog.opt_out_capturing()
         }
       }
     } catch (error) {
-      console.warn('Failed to save analytics consent:', error);
+      console.warn('Failed to save analytics consent:', error)
     }
   }
 
   hasSeenConsentPrompt(): boolean {
-    return this.getConsent() !== null;
+    return this.getConsent() !== null
   }
 
   track(event: string, properties?: Record<string, any>) {
     if (!this.initialized || !this.getConsent()?.enabled) {
-      return;
+      return
     }
 
     try {
       // Filter out sensitive properties
-      const safeProperties = this.filterSensitiveData(properties || {});
-      posthog.capture(event, safeProperties);
+      const safeProperties = this.filterSensitiveData(properties || {})
+      posthog.capture(event, safeProperties)
     } catch (error) {
       // Silently fail if PostHog is blocked
       if (import.meta.env.DEV) {
-        console.warn('Analytics tracking failed:', event, error);
+        console.warn('Analytics tracking failed:', event, error)
       }
     }
   }
 
   identify(userId: string, properties?: Record<string, any>) {
     if (!this.initialized || !this.getConsent()?.enabled) {
-      return;
+      return
     }
 
     try {
-      const safeProperties = this.filterSensitiveData(properties || {});
-      posthog.identify(userId, safeProperties);
+      const safeProperties = this.filterSensitiveData(properties || {})
+      posthog.identify(userId, safeProperties)
     } catch (error) {
       // Silently fail if PostHog is blocked
       if (import.meta.env.DEV) {
-        console.warn('Analytics identify failed:', error);
+        console.warn('Analytics identify failed:', error)
       }
     }
   }
 
   reset() {
     if (!this.initialized) {
-      return;
+      return
     }
 
     try {
-      posthog.reset();
+      posthog.reset()
     } catch (error) {
       // Silently fail if PostHog is blocked
       if (import.meta.env.DEV) {
-        console.warn('Analytics reset failed:', error);
+        console.warn('Analytics reset failed:', error)
       }
     }
   }
 
   private filterSensitiveData(properties: Record<string, any>): Record<string, any> {
-    const filtered = { ...properties };
+    const filtered = { ...properties }
 
     // Remove sensitive keys that might contain user data
     const sensitiveKeys = [
@@ -162,29 +162,29 @@ export class AnalyticsManager {
       'url',
       'path',
       'filePath',
-    ];
+    ]
 
-    sensitiveKeys.forEach((key) => {
+    sensitiveKeys.forEach(key => {
       if (key in filtered) {
-        delete filtered[key];
+        delete filtered[key]
       }
-    });
+    })
 
     // Recursively filter nested objects
-    Object.keys(filtered).forEach((key) => {
+    Object.keys(filtered).forEach(key => {
       if (filtered[key] && typeof filtered[key] === 'object' && !Array.isArray(filtered[key])) {
-        filtered[key] = this.filterSensitiveData(filtered[key]);
+        filtered[key] = this.filterSensitiveData(filtered[key])
       }
-    });
+    })
 
-    return filtered;
+    return filtered
   }
 
   // Helper method to check if analytics is available and enabled
   isEnabled(): boolean {
-    return this.initialized && !!this.getConsent()?.enabled;
+    return this.initialized && !!this.getConsent()?.enabled
   }
 }
 
 // Export a singleton instance
-export const analytics = AnalyticsManager.getInstance();
+export const analytics = AnalyticsManager.getInstance()

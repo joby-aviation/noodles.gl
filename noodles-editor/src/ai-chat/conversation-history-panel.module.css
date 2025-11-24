@@ -60,6 +60,8 @@
 }
 
 .conversationItem {
+  display: block;
+  width: 100%;
   padding: 12px;
   margin-bottom: 8px;
   background: #222;
@@ -67,6 +69,8 @@
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s;
+  text-align: left;
+  font-family: inherit;
 }
 
 .conversationItem:hover {

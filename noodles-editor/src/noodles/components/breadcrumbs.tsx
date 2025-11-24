@@ -28,7 +28,7 @@ export const Breadcrumbs: FC = () => {
   // Reactively subscribe to operator changes to keep breadcrumb dropdowns in sync
   // This ensures dropdowns update when containers are added/removed
   const allContainerOps = useOperatorStore(
-    useShallow((state) =>
+    useShallow(state =>
       Array.from(state.operators.entries())
         .filter(([_key, op]) => op instanceof ContainerOp)
         .map(([key]) => key)
@@ -38,7 +38,9 @@ export const Breadcrumbs: FC = () => {
   // Filter containers by parent path for each dropdown
   const getMenuItems = useCallback(
     (containerId: string) => {
-      return allContainerOps.filter((key) => key !== containerId && getParentPath(key) === containerId)
+      return allContainerOps.filter(
+        key => key !== containerId && getParentPath(key) === containerId
+      )
     },
     [allContainerOps]
   )

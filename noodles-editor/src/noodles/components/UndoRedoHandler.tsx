@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle } from 'react'
-import { useUndoRedo } from '../utils/use-reactflow-undo-redo'
 import { analytics } from '../../utils/analytics'
+import { useUndoRedo } from '../utils/use-reactflow-undo-redo'
 
 export interface UndoRedoHandlerRef {
   undo: () => void

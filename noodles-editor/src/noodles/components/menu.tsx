@@ -4,9 +4,11 @@ import * as Menubar from '@radix-ui/react-menubar'
 import { useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
 import { type Dispatch, type SetStateAction, useCallback, useEffect, useState } from 'react'
-import newProjectJSON from '../new.json'
+import { SettingsDialog } from '../../components/settings-dialog'
+import { analytics } from '../../utils/analytics'
 import { useActiveStorageType, useFileSystemStore } from '../filesystem-store'
-import { load, save, getProjectDirectoryHandle } from '../storage'
+import newProjectJSON from '../new.json'
+import { getProjectDirectoryHandle, load, save } from '../storage'
 import { getOpStore } from '../store'
 import { directoryExists, type StorageType } from '../utils/filesystem'
 import { migrateProject } from '../utils/migrate-schema'
@@ -19,8 +21,6 @@ import {
   serializeNodes,
 } from '../utils/serialization'
 import s from './menu.module.css'
-import { SettingsDialog } from '../../components/settings-dialog'
-import { analytics } from '../../utils/analytics'
 
 const SaveProjectDialog = ({
   projectName,
@@ -288,7 +288,11 @@ async function deleteProject(projectName: string) {
   }
 }
 
-async function saveProjectLocally(projectName: string, projectJson: NoodlesProjectJSON, storageType: StorageType) {
+async function saveProjectLocally(
+  projectName: string,
+  projectJson: NoodlesProjectJSON,
+  storageType: StorageType
+) {
   const JSZip = (await import('jszip')).default
   const zip = new JSZip()
 
@@ -806,10 +810,7 @@ export function NoodlesMenubar({
         setOpenDialog={setOpenProjectDialogOpen}
         onSelectProject={onOpenProject}
       />
-      <SettingsDialog
-        open={settingsDialogOpen}
-        setOpen={setSettingsDialogOpen}
-      />
+      <SettingsDialog open={settingsDialogOpen} setOpen={setSettingsDialogOpen} />
     </>
   )
 }

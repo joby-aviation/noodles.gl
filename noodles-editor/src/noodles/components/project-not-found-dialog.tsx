@@ -2,8 +2,8 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
 import cx from 'classnames'
 import { useCallback, useState } from 'react'
-import newProjectJSON from '../new.json'
 import { useFileSystemStore } from '../filesystem-store'
+import newProjectJSON from '../new.json'
 import { load } from '../storage'
 import { selectDirectory } from '../utils/filesystem'
 import { migrateProject } from '../utils/migrate-schema'
@@ -124,7 +124,8 @@ export const ProjectNotFoundDialog = ({
           <Dialog.Description className={s.dialogDescription}>
             Project "{projectName}" was not found in storage.
             <br />
-            Would you like to locate the project folder, import a project file, or create a new project with this name?
+            Would you like to locate the project folder, import a project file, or create a new
+            project with this name?
           </Dialog.Description>
           {error && <p className={s.dialogError}>{error}</p>}
           <div className={s.dialogRightSlot}>

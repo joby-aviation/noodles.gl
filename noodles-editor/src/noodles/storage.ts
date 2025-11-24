@@ -1,4 +1,3 @@
-import { resolve } from 'node:path'
 import { directoryHandleCache } from './utils/directory-handle-cache'
 import type { StorageType } from './utils/filesystem'
 import {
@@ -37,14 +36,14 @@ export type FileSystemResult<T> =
 // Error types for file system operations
 export interface FileSystemError {
   type:
-  | 'permission-denied'
-  | 'not-found'
-  | 'unsupported'
-  | 'invalid-state'
-  | 'security-error'
-  | 'abort-error'
-  | 'already-exists'
-  | 'unknown'
+    | 'permission-denied'
+    | 'not-found'
+    | 'unsupported'
+    | 'invalid-state'
+    | 'security-error'
+    | 'abort-error'
+    | 'already-exists'
+    | 'unknown'
   message: string // Human-readable error message
   details?: string // Optional error details or recovery suggestions
   originalError?: unknown // Original error object if available

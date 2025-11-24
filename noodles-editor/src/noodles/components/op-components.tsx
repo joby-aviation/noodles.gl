@@ -28,34 +28,38 @@ import { createPortal } from 'react-dom'
 import { Temporal } from 'temporal-polyfill'
 
 import { SheetContext } from '../../utils/sheet-context'
-import {
-  ArrayField,
-  type Field,
-  type IField,
-  ListField,
-} from '../fields'
+import { ArrayField, type Field, type IField, ListField } from '../fields'
 import s from '../noodles.module.css'
 import type { ExecutionState, IOperator, OperatorInstance, OpType } from '../operators'
 import {
   type ContainerOp,
   type GeocoderOp,
   type MouseOp,
-  mathOps,
   mathOpDescriptions,
+  mathOps,
   Operator,
   opTypes,
   type TableEditorOp,
   type TimeOp,
   type ViewerOp,
 } from '../operators'
-import { getOp, useNestingStore, setHoveredOutputHandle, hasOp, setOp, getAllOps, deleteOp, useOperatorStore } from '../store'
+import {
+  deleteOp,
+  getAllOps,
+  getOp,
+  hasOp,
+  setHoveredOutputHandle,
+  setOp,
+  useNestingStore,
+  useOperatorStore,
+} from '../store'
 import type { NodeDataJSON } from '../transform-graph'
 import { edgeId } from '../utils/id-utils'
 import { generateQualifiedPath, getBaseName, getParentPath } from '../utils/path-utils'
 import type { NodeType } from './add-node-menu'
+import { categories as baseCategories } from './categories'
 import { FieldComponent, type inputComponents } from './field-components'
 import previewStyles from './handle-preview.module.css'
-import { categories as baseCategories } from './categories'
 
 const MAPBOX_ACCESS_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
 
@@ -457,7 +461,7 @@ const ExecutionIndicator = ({ status, error, executionTime }: ExecutionState) =>
   }
 }
 
-const headerHeight = 49
+const _headerHeight = 49
 function NodeHeader({ id, type, op }: { id: string; type: OpType; op: OperatorInstance }) {
   const [locked, setLocked] = useState(op.locked.value)
   const executionState = useExecutionState(op)
@@ -1122,9 +1126,7 @@ function ContainerOpComponent({
 
   // Subscribe to operator store to get reactive children count
   const childrenCount = useOperatorStore(state => {
-    return Array.from(state.operators.keys()).filter(opId =>
-      getParentPath(opId) === id
-    ).length
+    return Array.from(state.operators.keys()).filter(opId => getParentPath(opId) === id).length
   })
 
   const locked = useLocked(op)

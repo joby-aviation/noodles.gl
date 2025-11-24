@@ -2,9 +2,9 @@
 import { render } from '@testing-library/react'
 import type { Node as ReactFlowNode } from '@xyflow/react'
 import { ReactFlowProvider } from '@xyflow/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { ContainerOp } from '../../operators'
-import { clearOps, getOp, deleteOp } from '../../store'
+import { clearOps, deleteOp, getOp } from '../../store'
 import { transformGraph } from '../../transform-graph'
 import { nodeComponents } from '../op-components'
 
@@ -273,7 +273,9 @@ describe('ContainerOpComponent children count reactivity', () => {
     expect(outerContainer.textContent).toContain('Children: 1')
 
     // Inner container should have 1 child (the deep child)
-    const { container: innerContainer } = renderContainerOpComponent('/outer-container/inner-container')
+    const { container: innerContainer } = renderContainerOpComponent(
+      '/outer-container/inner-container'
+    )
     expect(innerContainer.textContent).toContain('Children: 1')
   })
 })

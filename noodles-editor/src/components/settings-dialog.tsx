@@ -1,30 +1,30 @@
-import { useState, useEffect } from 'react';
-import * as Dialog from '@radix-ui/react-dialog';
-import { Cross2Icon } from '@radix-ui/react-icons';
-import { analytics } from '../utils/analytics';
-import s from './settings-dialog.module.css';
+import * as Dialog from '@radix-ui/react-dialog'
+import { Cross2Icon } from '@radix-ui/react-icons'
+import { useEffect, useState } from 'react'
+import { analytics } from '../utils/analytics'
+import s from './settings-dialog.module.css'
 
 interface SettingsDialogProps {
-  open: boolean;
-  setOpen: (open: boolean) => void;
+  open: boolean
+  setOpen: (open: boolean) => void
 }
 
 export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
-  const [analyticsEnabled, setAnalyticsEnabled] = useState(false);
+  const [analyticsEnabled, setAnalyticsEnabled] = useState(false)
 
   useEffect(() => {
-    const consent = analytics.getConsent();
-    setAnalyticsEnabled(consent?.enabled ?? false);
-  }, [open]);
+    const consent = analytics.getConsent()
+    setAnalyticsEnabled(consent?.enabled ?? false)
+  }, [])
 
   const handleAnalyticsToggle = (enabled: boolean) => {
-    setAnalyticsEnabled(enabled);
-    analytics.setConsent(enabled);
+    setAnalyticsEnabled(enabled)
+    analytics.setConsent(enabled)
 
     if (enabled) {
-      analytics.track('analytics_enabled_in_settings');
+      analytics.track('analytics_enabled_in_settings')
     }
-  };
+  }
 
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
@@ -41,7 +41,7 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                 <input
                   type="checkbox"
                   checked={analyticsEnabled}
-                  onChange={(e) => handleAnalyticsToggle(e.target.checked)}
+                  onChange={e => handleAnalyticsToggle(e.target.checked)}
                   className={s.checkbox}
                 />
                 <div className={s.settingContent}>
@@ -71,5 +71,5 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
-  );
+  )
 }

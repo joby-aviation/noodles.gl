@@ -1,5 +1,5 @@
 import { assert } from '@deck.gl/core'
-import { createRafDriver, onChange, type IProject, type ISequence, val } from '@theatre/core'
+import { createRafDriver, type IProject, type ISequence, onChange, val } from '@theatre/core'
 import {
   EncodedPacket,
   EncodedVideoPacketSource,
@@ -35,7 +35,7 @@ export const useRenderer = ({
     return unsubscribe
   }, [sequence])
 
-  const canvasRenderDone = useRef<(result?: { error?: Error }) => void>(() => { })
+  const canvasRenderDone = useRef<(result?: { error?: Error }) => void>(() => {})
   const canvasFrameReady = useCallback(
     () =>
       new Promise<{ error?: Error } | undefined>(resolve => {
@@ -256,16 +256,7 @@ export const useRenderer = ({
       finishEncoding()
       setIsRendering(false)
     },
-    [
-      project,
-      sequence,
-      sequenceLength,
-      fps,
-      bitrate,
-      bitrateMode,
-      canvasFrameReady,
-      redraw,
-    ]
+    [project, sequence, sequenceLength, fps, bitrate, bitrateMode, canvasFrameReady, redraw]
   )
 
   const [isRendering, setIsRendering] = useState(false)

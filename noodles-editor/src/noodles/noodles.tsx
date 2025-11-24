@@ -23,18 +23,18 @@ import type { LayerExtension } from 'deck.gl'
 import * as deck from 'deck.gl'
 import { PrimeReactProvider } from 'primereact/api'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation, useParams} from 'wouter'
-
-import newProjectJSON from './new.json'
+import { useLocation, useParams } from 'wouter'
 import { ChatPanel } from '../ai-chat/chat-panel'
 import { globalContextManager } from '../ai-chat/global-context-manager'
 import { analytics } from '../utils/analytics'
+import newProjectJSON from './new.json'
 
 // Pre-load all example noodles.json files at build time
 const exampleProjects = import.meta.glob('../examples/**/noodles.json', {
   eager: true,
   import: 'default',
 })
+
 import { SheetProvider } from '../utils/sheet-context'
 import useSheetValue from '../utils/use-sheet-value'
 import type { Visualization } from '../visualizations'
@@ -47,16 +47,10 @@ import { ErrorBoundary } from './components/error-boundary'
 import { NoodlesMenubar } from './components/menu'
 import { PropertyPanel } from './components/node-properties'
 import { edgeComponents, nodeComponents } from './components/op-components'
-import {
-  ProjectNameBar,
-  UNSAVED_PROJECT_NAME,
-} from './components/project-name-bar'
+import { ProjectNameBar, UNSAVED_PROJECT_NAME } from './components/project-name-bar'
 import { ProjectNotFoundDialog } from './components/project-not-found-dialog'
 import { StorageErrorHandler } from './components/storage-error-handler'
-import {
-  UndoRedoHandler,
-  type UndoRedoHandlerRef,
-} from './components/UndoRedoHandler'
+import { UndoRedoHandler, type UndoRedoHandlerRef } from './components/UndoRedoHandler'
 import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
 import { IS_PROD } from './globals'
 import { useProjectModifications } from './hooks/use-project-modifications'
@@ -81,11 +75,11 @@ import 'primeicons/primeicons.css'
 import s from './noodles.module.css'
 
 export type Edge<N1 extends Operator<IOperator>, N2 extends Operator<IOperator>> = {
-  id: `${N1['id']}.${'par'|'out'}.${keyof N1['outputs']}->${N2['id']}.${'par'|'out'}.${keyof N2['inputs']}`
+  id: `${N1['id']}.${'par' | 'out'}.${keyof N1['outputs']}->${N2['id']}.${'par' | 'out'}.${keyof N2['inputs']}`
   source: N1['id']
   target: N2['id']
-  sourceHandle: `${'par'|'out'}.${keyof N1['outputs']}`
-  targetHandle: `${'par'|'out'}.${keyof N2['inputs']}`
+  sourceHandle: `${'par' | 'out'}.${keyof N1['outputs']}`
+  targetHandle: `${'par' | 'out'}.${keyof N2['inputs']}`
 }
 
 const fitViewOptions: FitViewOptions = {
@@ -119,10 +113,7 @@ function useTheatreJs(projectName?: string) {
     setTheatreReady(false)
     return getProject(name, config)
   }, [theatreState])
-  const theatreSheet = useMemo(
-    () => theatreProject.sheet(THEATRE_SHEET_ID),
-    [theatreProject],
-  )
+  const theatreSheet = useMemo(() => theatreProject.sheet(THEATRE_SHEET_ID), [theatreProject])
   useEffect(() => {
     theatreProject?.ready.then(() => setTheatreReady(true))
   }, [theatreProject])
@@ -150,7 +141,7 @@ function useTheatreJs(projectName?: string) {
       const newProjectName = `${incomingProjectName || UNSAVED_PROJECT_NAME}-${_projectCounterRef.current}`
       setTheatreState({ name: newProjectName, config: theatreConfig })
     },
-    [theatreSheet],
+    [theatreSheet]
   )
 
   const getTimelineJson = useCallback(() => {
@@ -160,22 +151,16 @@ function useTheatreJs(projectName?: string) {
     // objects since we're storing that state in Theatre
     const sheetsById = Object.fromEntries(
       Object.entries(
-        timeline.sheetsById as Record<
-          string,
-          { staticOverrides?: { byObject?: unknown } }
-        >,
+        timeline.sheetsById as Record<string, { staticOverrides?: { byObject?: unknown } }>
       ).map(([sheetId, sheet]) => [
         sheetId,
         {
           ...sheet,
           staticOverrides: {
-            byObject: pick(sheet.staticOverrides?.byObject || {}, [
-              'editor',
-              'render',
-            ]),
+            byObject: pick(sheet.staticOverrides?.byObject || {}, ['editor', 'render']),
           },
         },
-      ]),
+      ])
     )
 
     return { ...timeline, sheetsById }
@@ -230,9 +215,7 @@ export function getNoodles(): Visualization {
     (nameOrUpdater: React.SetStateAction<string | null>) => {
       // Handle both direct values and updater functions
       const name =
-        typeof nameOrUpdater === 'function'
-          ? nameOrUpdater(projectName ?? null)
-          : nameOrUpdater
+        typeof nameOrUpdater === 'function' ? nameOrUpdater(projectName ?? null) : nameOrUpdater
 
       if (name) {
         navigate(`/examples/${name}`, { replace: true })
@@ -240,21 +223,18 @@ export function getNoodles(): Visualization {
         navigate('/', { replace: true })
       }
     },
-    [navigate, projectName],
+    [navigate, projectName]
   )
 
   // Eagerly start loading AI context bundles on app start
   useEffect(() => {
-    globalContextManager.startLoading().catch((error) => {
+    globalContextManager.startLoading().catch(error => {
       console.warn('Failed to preload AI context:', error)
     })
   }, [])
 
   // `transformGraph` needs all nodes to build the opMap and resolve connections
-  const operators = useMemo(
-    () => transformGraph({ nodes, edges }),
-    [nodes, edges],
-  )
+  const operators = useMemo(() => transformGraph({ nodes, edges }), [nodes, edges])
 
   // Bind Theatre.js objects for all operators (outside ReactFlow rendering pipeline)
   // This ensures containers and all other operators can be keyframed in the timeline
@@ -298,8 +278,8 @@ export function getNoodles(): Visualization {
 
   const onReconnect = useCallback(
     (oldEdge: ReactFlowEdge, newConnection: Connection) =>
-      setEdges((els) => reconnectEdge(oldEdge, newConnection, els)),
-    [setEdges],
+      setEdges(els => reconnectEdge(oldEdge, newConnection, els)),
+    [setEdges]
   )
 
   const onNodeClick = useCallback((_e: React.MouseEvent, node: ReactFlowNode<unknown>) => {
@@ -320,8 +300,8 @@ export function getNoodles(): Visualization {
   const undoRedoRef = useRef<UndoRedoHandlerRef>(null)
 
   const onDeselectAll = useCallback(() => {
-    setNodes((nodes) => nodes.map((node) => ({ ...node, selected: false })))
-    setEdges((edges) => edges.map((edge) => ({ ...edge, selected: false })))
+    setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
+    setEdges(edges => edges.map(edge => ({ ...edge, selected: false })))
   }, [setNodes, setEdges])
 
   const onPaneClick = useCallback(() => {
@@ -379,14 +359,19 @@ export function getNoodles(): Visualization {
             const sourceHandle = hoveredHandle.handleId
             const targetHandle = 'par.data'
             const newEdge = {
-              id: edgeId({ source: hoveredHandle.nodeId, sourceHandle, target: viewerId, targetHandle }),
+              id: edgeId({
+                source: hoveredHandle.nodeId,
+                sourceHandle,
+                target: viewerId,
+                targetHandle,
+              }),
               source: hoveredHandle.nodeId,
               sourceHandle,
               target: viewerId,
               targetHandle,
             }
 
-            setEdges((currentEdges) => [...currentEdges, newEdge])
+            setEdges(currentEdges => [...currentEdges, newEdge])
             return [...currentNodes, viewerNode]
           }
         }
@@ -456,7 +441,7 @@ export function getNoodles(): Visualization {
         }
 
         // Add edge
-        setEdges((currentEdges) => [...currentEdges, newEdge])
+        setEdges(currentEdges => [...currentEdges, newEdge])
       }
 
       return [...currentNodes, viewerNode]
@@ -542,7 +527,7 @@ export function getNoodles(): Visualization {
         navigate(`/examples/${name ?? ''}`, { replace: true })
       }
     },
-    [setNodes, setEdges, setProjectName, setTheatreProject, navigate],
+    [setNodes, setEdges, setProjectName, setTheatreProject, navigate]
   )
 
   // Assign to ref for undo/redo system
@@ -552,7 +537,7 @@ export function getNoodles(): Visualization {
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: loadProjectFile would cause infinite loop
   useEffect(() => {
-    (async () => {
+    ;(async () => {
       // If no projectName, load the default new project
       if (!projectName || projectName === 'new') {
         try {
@@ -638,12 +623,7 @@ export function getNoodles(): Visualization {
 
   const flowGraph = theatreReady && (
     <ErrorBoundary>
-      <div
-        className={cx(
-          'react-flow-wrapper',
-          !showOverlay && 'react-flow-wrapper-hidden',
-        )}
-      >
+      <div className={cx('react-flow-wrapper', !showOverlay && 'react-flow-wrapper-hidden')}>
         <PrimeReactProvider>
           <SheetProvider value={theatreSheet}>
             <Breadcrumbs />
@@ -694,7 +674,7 @@ export function getNoodles(): Visualization {
 
   // Assume there's always one 'out' op.
   const OUT_OP_ID = '/out'
-  const outOp = operators.find((n) => n.id === OUT_OP_ID)! as unknown as OutOp
+  const outOp = operators.find(n => n.id === OUT_OP_ID)! as unknown as OutOp
 
   const [visProps, setVisProps] = useState(outOp?.inputs.vis.value || {})
 
@@ -738,10 +718,7 @@ export function getNoodles(): Visualization {
                     }
 
                     // Check if it's a wrapped extension (with ExtensionClass and args)
-                    if (
-                      typeof extensionDef === 'object' &&
-                      'ExtensionClass' in extensionDef
-                    ) {
+                    if (typeof extensionDef === 'object' && 'ExtensionClass' in extensionDef) {
                       return new extensionDef.ExtensionClass(extensionDef.args)
                     }
 
@@ -758,9 +735,7 @@ export function getNoodles(): Visualization {
 
               return new deck[type]({
                 ...layer,
-                ...(instantiatedExtensions
-                  ? { extensions: instantiatedExtensions }
-                  : {}),
+                ...(instantiatedExtensions ? { extensions: instantiatedExtensions } : {}),
               })
             }) || []
 
@@ -786,13 +761,11 @@ export function getNoodles(): Visualization {
               ...deckProps,
               // biome-ignore lint/performance/noDynamicNamespaceImportAccess: We intentionally support all deck.gl layer types dynamically
               layers: instantiatedLayers,
-              widgets: widgets?.map(
-                ({ type, ...widget }) => new deckWidgets[type](widget),
-              ),
+              widgets: widgets?.map(({ type, ...widget }) => new deckWidgets[type](widget)),
             },
             mapProps,
           })
-        },
+        }
       )
       return () => {
         visSub.unsubscribe()

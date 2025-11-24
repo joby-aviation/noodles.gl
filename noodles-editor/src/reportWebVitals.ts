@@ -14,35 +14,35 @@ const reportWebVitals = (onPerfEntry?: ReportHandler) => {
     }
 
     // Send web vitals to PostHog analytics
-    onCLS((metric) => {
+    onCLS(metric => {
       analytics.track('web_vital_measured', {
         name: metric.name,
         value: metric.value,
         rating: metric.rating,
       })
     })
-    onINP((metric) => {
+    onINP(metric => {
       analytics.track('web_vital_measured', {
         name: metric.name,
         value: metric.value,
         rating: metric.rating,
       })
     })
-    onFCP((metric) => {
+    onFCP(metric => {
       analytics.track('web_vital_measured', {
         name: metric.name,
         value: metric.value,
         rating: metric.rating,
       })
     })
-    onLCP((metric) => {
+    onLCP(metric => {
       analytics.track('web_vital_measured', {
         name: metric.name,
         value: metric.value,
         rating: metric.rating,
       })
     })
-    onTTFB((metric) => {
+    onTTFB(metric => {
       analytics.track('web_vital_measured', {
         name: metric.name,
         value: metric.value,

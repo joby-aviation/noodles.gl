@@ -1,7 +1,14 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { MCPTools } from './mcp-tools'
-import type { Message, ClaudeResponse, ProjectModification, ToolCall, ToolResult } from './types'
+import type { MCPTools } from './mcp-tools'
 import systemPromptTemplate from './system-prompt.md?raw'
+import type {
+  ClaudeResponse,
+  Message,
+  NoodlesProject,
+  ProjectModification,
+  ToolCall,
+  ToolResult,
+} from './types'
 
 export class ClaudeClient {
   // Configuration constants
@@ -11,7 +18,6 @@ export class ClaudeClient {
 
   private client: Anthropic
   private tools: MCPTools
-  private conversationHistory: Message[] = []
 
   constructor(apiKey: string, tools: MCPTools) {
     this.client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true })
@@ -19,7 +25,9 @@ export class ClaudeClient {
   }
 
   // Strip images from message content to reduce token usage in conversation history
-  private stripImages(content: string | any[]): string {
+  private stripImages(
+    content: string | Array<{ type: string; text?: string; [key: string]: unknown }>
+  ): string {
     try {
       // If content is already a string, return as-is
       if (typeof content === 'string') {
@@ -47,13 +55,13 @@ export class ClaudeClient {
   // Send a message to Claude with current project context
   async sendMessage(params: {
     message: string
-    project: any
+    project: NoodlesProject
     screenshot?: string
     screenshotFormat?: 'png' | 'jpeg'
     autoCapture?: boolean
     conversationHistory?: Message[]
   }): Promise<ClaudeResponse> {
-    const { message, project, conversationHistory = [] } = params
+    const { message, conversationHistory = [] } = params
 
     // Limit conversation history to prevent token overflow
     const limitedHistory = conversationHistory.slice(-ClaudeClient.MAX_CONVERSATION_HISTORY)
@@ -79,7 +87,7 @@ export class ClaudeClient {
     const systemPrompt = systemPromptTemplate
 
     // Prepare message content (with optional screenshot)
-    const userContent: any[] = [{ type: 'text', text: message }]
+    const userContent: Anthropic.MessageParam['content'] = [{ type: 'text', text: message }]
 
     if (screenshot) {
       userContent.push({
@@ -87,8 +95,8 @@ export class ClaudeClient {
         source: {
           type: 'base64',
           media_type: `image/${screenshotFormat}`,
-          data: screenshot
-        }
+          data: screenshot,
+        },
       })
     }
 
@@ -97,12 +105,12 @@ export class ClaudeClient {
     const messages: Anthropic.MessageParam[] = [
       ...limitedHistory.map(m => ({
         role: m.role,
-        content: this.stripImages(m.content)
+        content: this.stripImages(m.content),
       })),
       {
         role: 'user' as const,
-        content: userContent
-      }
+        content: userContent,
+      },
     ]
 
     // Define tools for Claude
@@ -113,11 +121,11 @@ export class ClaudeClient {
       messageCount: messages.length,
       systemPromptLength: systemPrompt.length,
       hasScreenshot: !!screenshot,
-      conversationHistoryLength: limitedHistory.length
+      conversationHistoryLength: limitedHistory.length,
     })
 
     // Send to Claude with error handling
-    let response
+    let response: Anthropic.Message
     try {
       response = await this.client.messages.create({
         model: ClaudeClient.MODEL,
@@ -128,11 +136,11 @@ export class ClaudeClient {
           {
             type: 'text',
             text: systemPrompt,
-            cache_control: { type: 'ephemeral' }
-          }
+            cache_control: { type: 'ephemeral' },
+          },
         ],
         messages,
-        tools
+        tools,
       })
     } catch (error) {
       console.error('Claude API error:', error)
@@ -150,7 +158,7 @@ export class ClaudeClient {
     while (response.stop_reason === 'tool_use') {
       const toolResults: Anthropic.MessageParam = {
         role: 'user',
-        content: []
+        content: [],
       }
 
       for (const content of response.content) {
@@ -161,31 +169,42 @@ export class ClaudeClient {
             toolCalls.push({
               name: content.name,
               params: content.input,
-              result
+              result,
             })
 
             // If this was a capture_visualization call, save the screenshot
             // to attach to the next message instead of in the tool result
-            if (content.name === 'capture_visualization' && result.success && result.data?.screenshot) {
+            if (
+              content.name === 'capture_visualization' &&
+              result.success &&
+              result.data?.screenshot
+            ) {
               capturedScreenshot = result.data.screenshot
               capturedScreenshotFormat = result.data.format || 'jpeg'
             }
 
             // If this was an apply_modifications call, collect the modifications
-            if (content.name === 'apply_modifications' && result.success && result.data?.modifications) {
-              console.log('[Claude] Collected modifications from tool call:', result.data.modifications)
+            if (
+              content.name === 'apply_modifications' &&
+              result.success &&
+              result.data?.modifications
+            ) {
+              console.log(
+                '[Claude] Collected modifications from tool call:',
+                result.data.modifications
+              )
               collectedModifications.push(...result.data.modifications)
             }
           } catch (error) {
             console.error('Error executing tool:', content.name, error)
             result = {
               success: false,
-              error: error instanceof Error ? error.message : 'Unknown error executing tool'
+              error: error instanceof Error ? error.message : 'Unknown error executing tool',
             }
             toolCalls.push({
               name: content.name,
               params: content.input,
-              result
+              result,
             })
           }
 
@@ -199,16 +218,19 @@ export class ClaudeClient {
               success: true,
               data: {
                 ...data,
-                message: 'Screenshot captured successfully and attached to this message for your analysis'
-              }
+                message:
+                  'Screenshot captured successfully and attached to this message for your analysis',
+              },
             }
           }
 
-          (toolResults.content as any[]).push({
-            type: 'tool_result',
-            tool_use_id: content.id,
-            content: JSON.stringify(sanitizedResult)
-          })
+          if (Array.isArray(toolResults.content)) {
+            toolResults.content.push({
+              type: 'tool_result',
+              tool_use_id: content.id,
+              content: JSON.stringify(sanitizedResult),
+            })
+          }
         } else if (content.type === 'text') {
           finalText += content.text
         }
@@ -217,12 +239,14 @@ export class ClaudeClient {
       // Continue conversation with tool results
       messages.push({
         role: 'assistant',
-        content: response.content
+        content: response.content,
       })
 
       // If we captured a screenshot, attach it as an image to the tool result message
       if (capturedScreenshot) {
-        const toolResultsWithImage: any[] = Array.isArray(toolResults.content)
+        const toolResultsWithImage: Anthropic.MessageParam['content'] = Array.isArray(
+          toolResults.content
+        )
           ? [...toolResults.content]
           : []
 
@@ -231,13 +255,13 @@ export class ClaudeClient {
           source: {
             type: 'base64',
             media_type: `image/${capturedScreenshotFormat}`,
-            data: capturedScreenshot
-          }
+            data: capturedScreenshot,
+          },
         })
 
         messages.push({
           role: 'user',
-          content: toolResultsWithImage
+          content: toolResultsWithImage,
         })
 
         capturedScreenshot = null // Reset for next iteration
@@ -255,11 +279,11 @@ export class ClaudeClient {
             {
               type: 'text',
               text: systemPrompt,
-              cache_control: { type: 'ephemeral' }
-            }
+              cache_control: { type: 'ephemeral' },
+            },
           ],
           messages,
-          tools
+          tools,
         })
       } catch (error) {
         console.error('Claude API error in tool use loop:', error)
@@ -285,7 +309,7 @@ export class ClaudeClient {
     return {
       message: finalText,
       projectModifications: allModifications,
-      toolCalls
+      toolCalls,
     }
   }
 
@@ -295,15 +319,16 @@ export class ClaudeClient {
       // Visual debugging tools
       {
         name: 'capture_visualization',
-        description: 'Capture a screenshot of the current visualization. The screenshot will be attached to your next message so you can see it.',
+        description:
+          'Capture a screenshot of the current visualization. The screenshot will be attached to your next message so you can see it.',
         input_schema: {
           type: 'object',
           properties: {
             includeUI: { type: 'boolean' },
             format: { type: 'string', enum: ['png', 'jpeg'] },
-            quality: { type: 'number', description: 'JPEG quality 0-1, default 0.7' }
-          }
-        }
+            quality: { type: 'number', description: 'JPEG quality 0-1, default 0.7' },
+          },
+        },
       },
       {
         name: 'get_console_errors',
@@ -313,17 +338,17 @@ export class ClaudeClient {
           properties: {
             since: { type: 'number' },
             level: { type: 'string', enum: ['error', 'warn', 'all'] },
-            maxResults: { type: 'number' }
-          }
-        }
+            maxResults: { type: 'number' },
+          },
+        },
       },
       {
         name: 'get_render_stats',
         description: 'Get deck.gl rendering statistics',
         input_schema: {
           type: 'object',
-          properties: {}
-        }
+          properties: {},
+        },
       },
       {
         name: 'inspect_layer',
@@ -331,15 +356,16 @@ export class ClaudeClient {
         input_schema: {
           type: 'object',
           properties: {
-            layerId: { type: 'string' }
+            layerId: { type: 'string' },
           },
-          required: ['layerId']
-        }
+          required: ['layerId'],
+        },
       },
       // Project state tools
       {
         name: 'apply_modifications',
-        description: 'Apply modifications to the project (add/update/delete nodes or edges). Use this instead of returning JSON in text.',
+        description:
+          'Apply modifications to the project (add/update/delete nodes or edges). Use this instead of returning JSON in text.',
         input_schema: {
           type: 'object',
           properties: {
@@ -351,82 +377,90 @@ export class ClaudeClient {
                 properties: {
                   type: {
                     type: 'string',
-                    enum: ['add_node', 'update_node', 'delete_node', 'add_edge', 'delete_edge']
+                    enum: ['add_node', 'update_node', 'delete_node', 'add_edge', 'delete_edge'],
                   },
                   data: {
                     type: 'object',
-                    description: 'The node or edge data'
-                  }
+                    description: 'The node or edge data',
+                  },
                 },
-                required: ['type', 'data']
-              }
-            }
+                required: ['type', 'data'],
+              },
+            },
           },
-          required: ['modifications']
-        }
+          required: ['modifications'],
+        },
       },
       {
         name: 'get_current_project',
         description: 'Get the current project state including all nodes and edges',
         input_schema: {
           type: 'object',
-          properties: {}
-        }
+          properties: {},
+        },
       },
       {
         name: 'list_nodes',
         description: 'List all nodes in the project with their current state and execution status',
         input_schema: {
           type: 'object',
-          properties: {}
-        }
+          properties: {},
+        },
       },
       {
         name: 'get_node_info',
-        description: 'Get detailed information about a specific node including connections and schema',
+        description:
+          'Get detailed information about a specific node including connections and schema',
         input_schema: {
           type: 'object',
           properties: {
-            nodeId: { type: 'string', description: 'The ID of the node to inspect' }
+            nodeId: { type: 'string', description: 'The ID of the node to inspect' },
           },
-          required: ['nodeId']
-        }
+          required: ['nodeId'],
+        },
       },
       {
         name: 'get_node_output',
-        description: 'Read the output data from a specific operator/node. Useful for inspecting data at any point in the pipeline.',
+        description:
+          'Read the output data from a specific operator/node. Useful for inspecting data at any point in the pipeline.',
         input_schema: {
           type: 'object',
           properties: {
             nodeId: { type: 'string', description: 'The ID of the node to read output from' },
-            maxRows: { type: 'number', description: 'Maximum number of rows to return (default: 10)' }
+            maxRows: {
+              type: 'number',
+              description: 'Maximum number of rows to return (default: 10)',
+            },
           },
-          required: ['nodeId']
-        }
-      }
+          required: ['nodeId'],
+        },
+      },
     ]
   }
 
-  private async executeTool(name: string, params: any): Promise<ToolResult> {
+  private async executeTool(name: string, params: unknown): Promise<ToolResult> {
+    // params comes from Claude's tool_use with validated schema
+    // Using any here since we're dispatching to properly typed methods
+    // biome-ignore lint/suspicious/noExplicitAny: params validated by Anthropic SDK schema
     const methodMap: Record<string, (params: any) => Promise<ToolResult>> = {
-      search_code: (p) => this.tools.searchCode(p),
-      get_source_code: (p) => this.tools.getSourceCode(p),
-      get_operator_schema: (p) => this.tools.getOperatorSchema(p),
-      list_operators: (p) => this.tools.listOperators(p),
-      get_documentation: (p) => this.tools.getDocumentation(p),
-      get_example: (p) => this.tools.getExample(p),
-      list_examples: (p) => this.tools.listExamples(p),
-      find_symbol: (p) => this.tools.findSymbol(p),
-      analyze_project: (p) => this.tools.analyzeProject(p),
-      capture_visualization: (p) => this.tools.captureVisualization(p),
-      get_console_errors: (p) => this.tools.getConsoleErrors(p),
+      search_code: p => this.tools.searchCode(p),
+      get_source_code: p => this.tools.getSourceCode(p),
+      get_operator_schema: p => this.tools.getOperatorSchema(p),
+      list_operators: p => this.tools.listOperators(p),
+      get_documentation: p => this.tools.getDocumentation(p),
+      get_example: p => this.tools.getExample(p),
+      list_examples: p => this.tools.listExamples(p),
+      find_symbol: p => this.tools.findSymbol(p),
+      analyze_project: p => this.tools.analyzeProject(p),
+      capture_visualization: p => this.tools.captureVisualization(p),
+      get_console_errors: p => this.tools.getConsoleErrors(p),
       get_render_stats: () => this.tools.getRenderStats(),
-      inspect_layer: (p) => this.tools.inspectLayer(p),
-      apply_modifications: (p) => this.tools.applyModifications(p),
+      inspect_layer: p => this.tools.inspectLayer(p),
+      apply_modifications: p => this.tools.applyModifications(p),
       get_current_project: () => this.tools.getCurrentProject(),
       list_nodes: () => this.tools.listNodes(),
-      get_node_info: (p) => this.tools.getNodeInfo(p),
-      get_node_output: (p) => this.tools.getNodeOutput(p)
+      get_node_info: p => this.tools.getNodeInfo(p),
+      get_node_output: p => this.tools.getNodeOutput(p),
     }
 
     const method = methodMap[name]
@@ -441,19 +475,26 @@ export class ClaudeClient {
     const jsonBlockRegex = /```json\s*([\s\S]*?)\s*```/g
     const matches = [...text.matchAll(jsonBlockRegex)]
 
-    console.log('[Claude] Extracting modifications from response, found', matches.length, 'JSON blocks')
+    console.log(
+      '[Claude] Extracting modifications from response, found',
+      matches.length,
+      'JSON blocks'
+    )
 
     for (const match of matches) {
       try {
         const json = JSON.parse(match[1])
         console.log('[Claude] Parsed JSON block:', json)
         if (json.modifications && Array.isArray(json.modifications)) {
-          console.log('[Claude] Found modifications array with', json.modifications.length, 'modifications')
+          console.log(
+            '[Claude] Found modifications array with',
+            json.modifications.length,
+            'modifications'
+          )
           return json.modifications
         }
       } catch (e) {
         console.warn('[Claude] Failed to parse JSON block:', e)
-        continue
       }
     }
 

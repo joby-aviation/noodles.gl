@@ -42,7 +42,7 @@ export const useOperatorStore = create<OperatorStoreState>((set, get) => ({
   _batching: false,
 
   // Operator actions
-  getOp: (id) => get().operators.get(id),
+  getOp: id => get().operators.get(id),
 
   setOp: (id, op) => {
     const operators = new Map(get().operators)
@@ -50,13 +50,13 @@ export const useOperatorStore = create<OperatorStoreState>((set, get) => ({
     set({ operators })
   },
 
-  deleteOp: (id) => {
+  deleteOp: id => {
     const operators = new Map(get().operators)
     operators.delete(id)
     set({ operators })
   },
 
-  hasOp: (id) => get().operators.has(id),
+  hasOp: id => get().operators.has(id),
 
   clearOps: () => {
     set({ operators: new Map(), sheetObjects: new Map() })
@@ -67,7 +67,7 @@ export const useOperatorStore = create<OperatorStoreState>((set, get) => ({
   getOpEntries: () => Array.from(get().operators.entries()),
 
   // Sheet object actions
-  getSheetObject: (id) => get().sheetObjects.get(id),
+  getSheetObject: id => get().sheetObjects.get(id),
 
   setSheetObject: (id, sheetObj) => {
     const sheetObjects = new Map(get().sheetObjects)
@@ -75,16 +75,16 @@ export const useOperatorStore = create<OperatorStoreState>((set, get) => ({
     set({ sheetObjects })
   },
 
-  deleteSheetObject: (id) => {
+  deleteSheetObject: id => {
     const sheetObjects = new Map(get().sheetObjects)
     sheetObjects.delete(id)
     set({ sheetObjects })
   },
 
-  hasSheetObject: (id) => get().sheetObjects.has(id),
+  hasSheetObject: id => get().sheetObjects.has(id),
 
   // Batching - prevents multiple Zustand updates during batch operations
-  batch: (fn) => {
+  batch: fn => {
     set({ _batching: true })
     fn()
     set({ _batching: false })
@@ -100,9 +100,9 @@ interface UIStoreState {
   setHoveredOutputHandle: (handle: { nodeId: string; handleId: string } | null) => void
 }
 
-export const useUIStore = create<UIStoreState>((set) => ({
+export const useUIStore = create<UIStoreState>(set => ({
   hoveredOutputHandle: null,
-  setHoveredOutputHandle: (handle) => set({ hoveredOutputHandle: handle }),
+  setHoveredOutputHandle: handle => set({ hoveredOutputHandle: handle }),
 }))
 
 // ============================================================================
@@ -150,13 +150,15 @@ export const getOpEntries = () => getOpStore().getOpEntries()
 
 // Sheet object helpers
 export const getSheetObject = (id: OpId) => getOpStore().getSheetObject(id)
-export const setSheetObject = (id: OpId, sheetObj: ISheetObject) => getOpStore().setSheetObject(id, sheetObj)
+export const setSheetObject = (id: OpId, sheetObj: ISheetObject) =>
+  getOpStore().setSheetObject(id, sheetObj)
 export const deleteSheetObject = (id: OpId) => getOpStore().deleteSheetObject(id)
 export const hasSheetObject = (id: OpId) => getOpStore().hasSheetObject(id)
 export const getAllSheetObjectIds = () => Array.from(getOpStore().sheetObjects.keys())
 
 // Hovered output handle helpers
-export const setHoveredOutputHandle = (handle: { nodeId: string; handleId: string } | null) => getUIStore().setHoveredOutputHandle(handle)
+export const setHoveredOutputHandle = (handle: { nodeId: string; handleId: string } | null) =>
+  getUIStore().setHoveredOutputHandle(handle)
 
 // ============================================================================
 // Nesting State (Zustand)
@@ -167,7 +169,7 @@ interface NestingState {
   setCurrentContainerId: (id: string) => void
 }
 
-export const useNestingStore = create<NestingState>((set) => ({
+export const useNestingStore = create<NestingState>(set => ({
   currentContainerId: '/',
   setCurrentContainerId: (id: string) => set({ currentContainerId: id }),
 }))

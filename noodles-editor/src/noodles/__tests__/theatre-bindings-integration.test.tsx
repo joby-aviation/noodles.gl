@@ -1,10 +1,16 @@
 import { getProject } from '@theatre/core'
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-
-import { clearOps, getAllOps, hasSheetObject, getSheetObject, getOpStore, getAllSheetObjectIds } from '../store'
-import { transformGraph } from '../transform-graph'
-import { bindAllOperatorsToTheatre, cleanupRemovedOperators } from '../theatre-bindings'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { Edge } from '../noodles'
+import {
+  clearOps,
+  getAllOps,
+  getAllSheetObjectIds,
+  getOpStore,
+  getSheetObject,
+  hasSheetObject,
+} from '../store'
+import { bindAllOperatorsToTheatre, cleanupRemovedOperators } from '../theatre-bindings'
+import { transformGraph } from '../transform-graph'
 
 describe('Theatre bindings integration', () => {
   let testProject: ReturnType<typeof getProject>
@@ -89,6 +95,7 @@ describe('Theatre bindings integration', () => {
       },
     ]
 
+    // biome-ignore lint/suspicious/noExplicitAny: Edge generic types for mixed operator test fixtures
     let edges: Edge<any, any>[] = []
 
     // Create initial operators
@@ -137,9 +144,7 @@ describe('Theatre bindings integration', () => {
     cleanupRemovedOperators(currentIds, testSheet)
 
     // Should have more bound operators now
-    const newBoundCount = getAllSheetObjectIds().filter(
-      id => id !== '/out'
-    ).length
+    const newBoundCount = getAllSheetObjectIds().filter(id => id !== '/out').length
     expect(newBoundCount).toBeGreaterThanOrEqual(initialBoundCount)
 
     // Final cleanup
@@ -161,9 +166,10 @@ describe('Theatre bindings integration', () => {
         type: 'NumberOp',
         position: { x: 200, y: 0 },
         data: { inputs: { value: 7 } },
-      }
+      },
     ]
 
+    // biome-ignore lint/suspicious/noExplicitAny: Edge generic types for mixed operator test fixtures
     const edges: Edge<any, any>[] = []
 
     const operators = transformGraph({ nodes, edges })
@@ -208,11 +214,14 @@ describe('Theatre bindings integration', () => {
     expect(numberOp).toBeDefined()
 
     // Find any number field in the operator's inputs
+    // biome-ignore lint/suspicious/noExplicitAny: dynamic operator introspection in test
     const numberFields = Object.values((numberOp as any).inputs || {}).filter(
+      // biome-ignore lint/suspicious/noExplicitAny: filtering fields by dynamic value property
       (field: any) => field && typeof field.value === 'number'
     )
 
     if (numberFields.length > 0) {
+      // biome-ignore lint/suspicious/noExplicitAny: accessing dynamic field properties in test
       const valueField = numberFields[0] as any
       const initialValue = valueField.value
 
@@ -321,7 +330,9 @@ describe('Theatre bindings integration', () => {
 
     // Verify that operators can still access their inputs after binding
     for (const op of operators) {
+      // biome-ignore lint/suspicious/noExplicitAny: dynamic operator introspection in test
       if ((op as any).inputs) {
+        // biome-ignore lint/suspicious/noExplicitAny: accessing dynamic inputs property in test
         const inputs = (op as any).inputs
         // Just verify inputs are still accessible
         expect(inputs).toBeDefined()
@@ -371,6 +382,7 @@ describe('Theatre bindings integration', () => {
       },
     ]
 
+    // biome-ignore lint/suspicious/noExplicitAny: Edge generic types for mixed operator test fixtures
     const edges: Edge<any, any>[] = []
 
     const operators = transformGraph({ nodes, edges })

@@ -1,24 +1,23 @@
 // Shared hook for applying project modifications using ReactFlow hooks
 // Used by both the UI and the AI chat system
 
-import { useCallback } from 'react'
 import {
-  type Edge as ReactFlowEdge,
-  type Node as ReactFlowNode,
-  type OnConnect,
+  applyEdgeChanges,
   getConnectedEdges,
   getIncomers,
   getOutgoers,
+  type OnConnect,
+  type Edge as ReactFlowEdge,
+  type Node as ReactFlowNode,
   addEdge as reactFlowAddEdge,
-  applyEdgeChanges,
 } from '@xyflow/react'
-
+import { useCallback } from 'react'
+import { analytics } from '../../utils/analytics'
+import { ListField } from '../fields'
 import { getOp } from '../store'
 import { canConnect } from '../utils/can-connect'
-import { parseHandleId } from '../utils/path-utils'
 import { edgeId } from '../utils/id-utils'
-import { ListField } from '../fields'
-import { analytics } from '../../utils/analytics'
+import { parseHandleId } from '../utils/path-utils'
 
 // Using ReactFlowNode instead of AnyNodeJSON for compatibility
 export type ProjectModification =
@@ -37,8 +36,12 @@ export interface ModificationResult {
 interface UseProjectModificationsOptions {
   getNodes: () => ReactFlowNode<any>[]
   getEdges: () => ReactFlowEdge<any>[]
-  setNodes: (nodes: ReactFlowNode<any>[] | ((nodes: ReactFlowNode<any>[]) => ReactFlowNode<any>[])) => void
-  setEdges: (edges: ReactFlowEdge<any>[] | ((edges: ReactFlowEdge<any>[]) => ReactFlowEdge<any>[])) => void
+  setNodes: (
+    nodes: ReactFlowNode<any>[] | ((nodes: ReactFlowNode<any>[]) => ReactFlowNode<any>[])
+  ) => void
+  setEdges: (
+    edges: ReactFlowEdge<any>[] | ((edges: ReactFlowEdge<any>[]) => ReactFlowEdge<any>[])
+  ) => void
 }
 
 export function useProjectModifications(options: UseProjectModificationsOptions) {
@@ -68,7 +71,13 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
   )
 
   const deleteElements = useCallback(
-    ({ nodes: nodesToDelete, edges: edgesToDelete }: { nodes?: { id: string }[]; edges?: { id: string }[] }) => {
+    ({
+      nodes: nodesToDelete,
+      edges: edgesToDelete,
+    }: {
+      nodes?: { id: string }[]
+      edges?: { id: string }[]
+    }) => {
       if (nodesToDelete && nodesToDelete.length > 0) {
         const nodeIds = new Set(nodesToDelete.map(n => n.id))
         setNodes(currentNodes => currentNodes.filter(n => !nodeIds.has(n.id)))
@@ -96,7 +105,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       const nodesToDelete = deletedNodes
 
       if (nodesToDelete.length === 0) {
-        return { success: false, error: `No nodes provided for deletion` }
+        return { success: false, error: 'No nodes provided for deletion' }
       }
 
       const warnings: string[] = []
@@ -242,7 +251,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       if (!sourceOp || !targetOp) {
         return {
           success: false,
-          error: `Invalid edge: source or target operator not found in store`,
+          error: 'Invalid edge: source or target operator not found in store',
         }
       }
 
@@ -609,7 +618,9 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
             }
 
             if (edgeErrors.length > 0) {
-              console.log(`Added ${validEdges.length}/${edgesToAdd.length} edges (${edgeErrors.length} skipped)`)
+              console.log(
+                `Added ${validEdges.length}/${edgesToAdd.length} edges (${edgeErrors.length} skipped)`
+              )
             }
           }
 
@@ -700,7 +711,10 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
           e => e.target === newEdge.target && e.targetHandle === newEdge.targetHandle
         )
         if (existing && !(targetField instanceof ListField)) {
-          return applyEdgeChanges([{ type: 'replace', id: existing.id, item: newEdge }], eds as ReactFlowEdge[])
+          return applyEdgeChanges(
+            [{ type: 'replace', id: existing.id, item: newEdge }],
+            eds as ReactFlowEdge[]
+          )
         }
         return reactFlowAddEdge(newEdge, eds as ReactFlowEdge[])
       })

@@ -1,14 +1,11 @@
 import { Component, type ReactNode } from 'react'
 import { Redirect, Route, Router, Switch, useRoute, useSearchParams } from 'wouter'
+import { AnalyticsConsentBanner } from './components/analytics-consent-banner'
 import ExamplesPage from './examples-page'
 import TimelineEditor from './timeline-editor'
-import { AnalyticsConsentBanner } from './components/analytics-consent-banner'
 
 // Error boundary to catch analytics failures
-class AnalyticsErrorBoundary extends Component<
-  { children: ReactNode },
-  { hasError: boolean }
-> {
+class AnalyticsErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
   constructor(props: { children: ReactNode }) {
     super(props)
     this.state = { hasError: false }

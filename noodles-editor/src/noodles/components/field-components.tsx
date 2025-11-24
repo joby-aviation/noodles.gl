@@ -37,8 +37,8 @@ import type { IOperator, Operator } from '../operators'
 import { checkAssetExists, writeAsset } from '../storage'
 import { projectScheme } from '../utils/filesystem'
 import { edgeId, type OpId } from '../utils/id-utils'
-import { handleClass } from './op-components'
 import menuStyles from './menu.module.css'
+import { handleClass } from './op-components'
 
 type InputComponent = React.ComponentType<{
   id: OpId
@@ -52,7 +52,7 @@ export interface HandleOptions {
 }
 
 // Helper to format values for the handle preview
-function viewerFormatter(value: unknown): unknown {
+function _viewerFormatter(value: unknown): unknown {
   if (typeof value === 'function') {
     return { value: `Function(${value.name || 'anonymous'})` }
   }
@@ -340,7 +340,7 @@ export function CodeFieldComponent({
     if (editorRef.current) {
       editorRef.current.layout()
     }
-  }, [nodeHeight])
+  }, [])
 
   useEffect(() => {
     const sub = field.subscribe(_ => {
@@ -1269,7 +1269,9 @@ export function CompoundFieldComponent({
         aria-expanded={expanded}
       >
         {id}
-        <span className={cx(s.compoundPropsExpander, expanded && s.compoundPropsExpanderExpanded)}>►</span>
+        <span className={cx(s.compoundPropsExpander, expanded && s.compoundPropsExpanderExpanded)}>
+          ►
+        </span>
       </button>
       {expanded ? (
         <div id={id} className={s.fieldCompoundWrapper}>
@@ -1278,15 +1280,14 @@ export function CompoundFieldComponent({
           ))}
         </div>
       ) : (
-          <button
-            className={s.compoundPropsExpander}
-            type="button"
-            onClick={() => setExpanded(e => !e)}
-          >
-            ({Object.entries(field.fields).length} hidden props)
-          </button>
-        )
-      }
+        <button
+          className={s.compoundPropsExpander}
+          type="button"
+          onClick={() => setExpanded(e => !e)}
+        >
+          ({Object.entries(field.fields).length} hidden props)
+        </button>
+      )}
     </div>
   )
 }
@@ -1860,11 +1861,12 @@ export function FieldComponent({
           position={Position.Left}
         />
       )}
-      {renderInput && (
-        incomers.length > 0
-          ? <EmptyFieldComponent id={fieldId} field={field} />
-          : <InputComp id={fieldId} field={field} disabled={disabled} />
-      )}
+      {renderInput &&
+        (incomers.length > 0 ? (
+          <EmptyFieldComponent id={fieldId} field={field} />
+        ) : (
+          <InputComp id={fieldId} field={field} disabled={disabled} />
+        ))}
     </div>
   )
 }
