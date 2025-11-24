@@ -75,7 +75,8 @@
     "fix-lint": "biome check --write --unsafe ./src/**/*.{ts,tsx}",
     "build:migrate-script": "vite build --config vite.config.migrate.ts",
     "migrate-projects": "yarn build:migrate-script && node dist/migrate-project-files.js",
-    "generate:context": "tsx scripts/generate-context.ts"
+    "generate:context": "tsx scripts/generate-context.ts",
+    "generate:migration": "tsx scripts/generate-migration.ts"
   },
   "browserslist": {
     "production": [
