@@ -2,7 +2,7 @@ import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { migrateProject } from '../src/visualizations/noodles/utils/migrate-schema.js'
 
-const PUBLIC_NOODLES_DIR = './public/examples'
+const EXAMPLES_DIR = './src/examples'
 
 async function getAllFiles(dir: string, extension = '.json'): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true })
@@ -21,7 +21,7 @@ async function getAllFiles(dir: string, extension = '.json'): Promise<string[]> 
 
 async function migrateFiles() {
   try {
-    const files = await getAllFiles(PUBLIC_NOODLES_DIR)
+    const files = await getAllFiles(EXAMPLES_DIR)
     let migratedCount = 0
 
     for (const filePath of files) {
