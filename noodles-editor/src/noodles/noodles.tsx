@@ -23,13 +23,7 @@ import type { LayerExtension } from 'deck.gl'
 import * as deck from 'deck.gl'
 import { PrimeReactProvider } from 'primereact/api'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation, useParams } from 'wouter'
-
-import '@deck.gl/widgets/stylesheet.css'
-import '@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css'
-import '@xyflow/react/dist/style.css'
-import 'primereact/resources/themes/md-dark-indigo/theme.css'
-import 'primeicons/primeicons.css'
+import { useLocation, useParams} from 'wouter'
 
 import newProjectJSON from './new.json'
 import { ChatPanel } from '../ai-chat/chat-panel'
@@ -66,7 +60,6 @@ import {
 import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
 import { IS_PROD } from './globals'
 import { useProjectModifications } from './hooks/use-project-modifications'
-import s from './noodles.module.css'
 import type { IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
 import { load } from './storage'
@@ -78,6 +71,14 @@ import { migrateProject } from './utils/migrate-schema'
 import { getParentPath } from './utils/path-utils'
 import { pick } from './utils/pick'
 import { EMPTY_PROJECT, type NoodlesProjectJSON } from './utils/serialization'
+
+import '@deck.gl/widgets/stylesheet.css'
+import '@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css'
+import '@xyflow/react/dist/style.css'
+import 'primereact/resources/themes/md-dark-indigo/theme.css'
+import 'primeicons/primeicons.css'
+
+import s from './noodles.module.css'
 
 export type Edge<N1 extends Operator<IOperator>, N2 extends Operator<IOperator>> = {
   id: `${N1['id']}.${'par'|'out'}.${keyof N1['outputs']}->${N2['id']}.${'par'|'out'}.${keyof N2['inputs']}`
