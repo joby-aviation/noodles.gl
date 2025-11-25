@@ -1014,13 +1014,13 @@ export class ExtensionField extends Field<z.ZodTypeAny> {
   static type = 'extension'
   static defaultValue = undefined
   createSchema() {
-    return z.union([
-      z.strictObject({
-        extension: z.looseObject({ type: z.string() }),
-        props: z.looseObject({}),
-      }),
-      z.instanceof(LayerExtension)
-    ])
+    return z.strictObject({
+      extension: z.union([
+        z.looseObject({ type: z.string() }),
+        z.instanceof(LayerExtension),
+      ]),
+      props: z.looseObject({}),
+    })
   }
 }
 

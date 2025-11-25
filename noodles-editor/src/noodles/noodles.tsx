@@ -724,14 +724,15 @@ export function getNoodles(): Visualization {
               if (extensions && Array.isArray(extensions)) {
                 instantiatedExtensions = extensions
                   .map((ext: { type: string; [key: string]: unknown } | LayerExtension) => {
+
                     // If it's already a LayerExtension instance, return as is
                     if (ext instanceof LayerExtension) {
                       return ext
                     }
 
                     // Otherwise, instantiate from POJO
-
                     const { type: extType, ...constructorArgs } = ext
+
                     const extensionDef = extensionMap[extType]
                     if (!extensionDef) {
                       console.warn(`Unknown extension type: ${extType}`)
