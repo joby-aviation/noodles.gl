@@ -19,7 +19,7 @@ import {
   useNodesState,
 } from '@xyflow/react'
 import cx from 'classnames'
-import type { LayerExtension } from 'deck.gl'
+import { LayerExtension } from 'deck.gl'
 import * as deck from 'deck.gl'
 import { PrimeReactProvider } from 'primereact/api'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -723,7 +723,14 @@ export function getNoodles(): Visualization {
               let instantiatedExtensions
               if (extensions && Array.isArray(extensions)) {
                 instantiatedExtensions = extensions
-                  .map((ext: { type: string; [key: string]: unknown }) => {
+                  .map((ext: { type: string; [key: string]: unknown } | LayerExtension) => {
+                    // If it's already a LayerExtension instance, return as is
+                    if (ext instanceof LayerExtension) {
+                      return ext
+                    }
+
+                    // Otherwise, instantiate from POJO
+
                     const { type: extType, ...constructorArgs } = ext
                     const extensionDef = extensionMap[extType]
                     if (!extensionDef) {

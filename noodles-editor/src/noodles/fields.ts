@@ -1,4 +1,4 @@
-import { assert, type LayerProps, View } from '@deck.gl/core'
+import { assert, LayerExtension, type LayerProps, View } from '@deck.gl/core'
 import { interpolateLab, scaleOrdinal, schemeAccent } from 'd3'
 import { BehaviorSubject, combineLatest, type Subscription } from 'rxjs'
 import { Temporal } from 'temporal-polyfill'
@@ -1014,10 +1014,13 @@ export class ExtensionField extends Field<z.ZodTypeAny> {
   static type = 'extension'
   static defaultValue = undefined
   createSchema() {
-    return z.strictObject({
-      extension: z.looseObject({ type: z.string() }),
-      props: z.looseObject({}),
-    })
+    return z.union([
+      z.strictObject({
+        extension: z.looseObject({ type: z.string() }),
+        props: z.looseObject({}),
+      }),
+      z.instanceof(LayerExtension)
+    ])
   }
 }
 

@@ -10,7 +10,7 @@ import {
   type DeckProps,
   FirstPersonView,
   _GlobeView as GlobeView,
-  type LayerExtension,
+  LayerExtension,
   type LayerProps,
   MapView,
   OrbitView,
@@ -3055,19 +3055,19 @@ function parseLayerProps<P extends LayerProps>({
     (e): e is Exclude<LayerExtensionFieldReturnValue, null> => e !== null
   )
 
-  const result = { ...props }
+  // Keep extensions as POJOs for now - they'll be instantiated later
+  // in noodles.tsx unless they are already instantiated (i.e. custom extensions)
+  return {
+    ...props,
+    extensions: [
+      ...validExtensions.filter(e => e instanceof LayerExtension),
 
-  if (validExtensions.length > 0) {
-    // Keep extensions as POJOs for now - they'll be instantiated later in noodles.tsx
-    result.extensions = validExtensions.map(e => e.extension)
-
-    // Merge extension props into the layer props
-    for (const ext of validExtensions) {
-      Object.assign(result, ext.props)
-    }
+      // Merge extension props into the layer props
+      ...validExtensions.filter(e => e.extension)
+        .map(e => ({ ...e.extension, ...e.props })),
+    ]
   }
 
-  return result
 }
 
 export class PathLayerOp extends Operator<PathLayerOp> {
