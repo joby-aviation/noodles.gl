@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Redirecting...</title>
+  <script>
+    var path = window.location.pathname;
+    if (path.startsWith('/app/')) {
+      // Redirect to SPA
+      window.location.replace('/app/?redirect=' + encodeURIComponent(path + window.location.search));
+    } else {
+      // Optional: Redirect back to the main docs site 404 or show a custom error
+      // Since you overwrote the Docusaurus 404, you are responsible for the UI here.
+      document.write("<h1>Page Not Found</h1><p>The requested page could not be found.</p>");
+    }
+  </script>
+</head>
+<body>
+</body>
+</html>
