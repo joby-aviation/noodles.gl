@@ -1,8 +1,10 @@
-import { Component, type ReactNode } from 'react'
+import { Component, lazy, Suspense, type ReactNode } from 'react'
 import { Redirect, Route, Router, Switch, useRoute, useSearchParams } from 'wouter'
 import { AnalyticsConsentBanner } from './components/analytics-consent-banner'
-import ExamplesPage from './examples-page'
 import TimelineEditor from './timeline-editor'
+
+// Lazy-load ExamplesPage to reduce main bundle size
+const ExamplesPage = lazy(() => import('./examples-page'))
 
 // Error boundary to catch analytics failures
 class AnalyticsErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
@@ -35,14 +37,19 @@ function App() {
   return (
     <Router base={baseUrl}>
       <Switch>
-        {/* Project route - /examples/:projectId (most specific first) */}
+        {/* Project routes - /examples/:projectId and /projects/:projectId (most specific first) */}
         <Route path="/examples/:projectId">
+          <TimelineEditor />
+        </Route>
+        <Route path="/projects/:projectId">
           <TimelineEditor />
         </Route>
 
         {/* Examples list page */}
         <Route path="/examples">
-          <ExamplesPage />
+          <Suspense fallback={<div>Loading...</div>}>
+            <ExamplesPage />
+          </Suspense>
         </Route>
 
         {/* Catch-all for root path, 404s, and redirects */}

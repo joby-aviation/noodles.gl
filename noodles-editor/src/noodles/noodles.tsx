@@ -29,9 +29,10 @@ import { globalContextManager } from '../ai-chat/global-context-manager'
 import { analytics } from '../utils/analytics'
 import newProjectJSON from './new.json'
 
-// Pre-load all example noodles.json files at build time
-const exampleProjects = import.meta.glob('../examples/**/noodles.json', {
+// Get URLs for all example noodles.json files (lazy-loaded)
+const exampleProjectUrls = import.meta.glob('../examples/**/noodles.json', {
   eager: true,
+  query: '?url',
   import: 'default',
 })
 
@@ -179,11 +180,14 @@ function useTheatreJs(projectName?: string) {
 // Also, the top-level sheet is used for theatre-managed project files, whereas a Noodles project file is managed within this visType.
 
 export function getNoodles(): Visualization {
-  const [, navigate] = useLocation()
+  const [location, navigate] = useLocation()
   const params = useParams()
 
-  // Get projectId from route params (/examples/:projectId) - router is single source of truth
+  // Get projectId from route params (/examples/:projectId or /projects/:projectId) - router is single source of truth
   const projectName = params.projectId
+
+  // Detect if we're on /projects or /examples route to preserve it when navigating
+  const routePrefix = location.startsWith('/projects/') ? '/projects' : '/examples'
 
   const [showProjectNotFoundDialog, setShowProjectNotFoundDialog] = useState(false)
   const storageType = useActiveStorageType()
@@ -218,12 +222,12 @@ export function getNoodles(): Visualization {
         typeof nameOrUpdater === 'function' ? nameOrUpdater(projectName ?? null) : nameOrUpdater
 
       if (name) {
-        navigate(`/examples/${name}`, { replace: true })
+        navigate(`${routePrefix}/${name}`, { replace: true })
       } else {
         navigate('/', { replace: true })
       }
     },
-    [navigate, projectName]
+    [navigate, projectName, routePrefix]
   )
 
   // Eagerly start loading AI context bundles on app start
@@ -524,10 +528,10 @@ export function getNoodles(): Visualization {
 
       // Update URL query parameter with project name
       if (name) {
-        navigate(`/examples/${name ?? ''}`, { replace: true })
+        navigate(`${routePrefix}/${name ?? ''}`, { replace: true })
       }
     },
-    [setNodes, setEdges, setProjectName, setTheatreProject, navigate]
+    [setNodes, setEdges, setProjectName, setTheatreProject, navigate, routePrefix]
   )
 
   // Assign to ref for undo/redo system
@@ -551,18 +555,28 @@ export function getNoodles(): Visualization {
 
       // First try to load from static files (for built-in examples)
       const projectKey = `../examples/${projectName}/noodles.json`
-      const noodlesFile = exampleProjects[projectKey] as Partial<NoodlesProjectJSON> | undefined
+      const projectUrl = exampleProjectUrls[projectKey] as string | undefined
 
-      if (noodlesFile) {
-        const project = await migrateProject({
-          ...EMPTY_PROJECT,
-          ...noodlesFile,
-        } as NoodlesProjectJSON)
-        // Set project name and storage type for public projects so @/ asset paths work
-        setCurrentDirectory(null, projectName)
-        setActiveStorageType('publicFolder')
-        loadProjectFile(project, projectName)
-        return
+      if (projectUrl) {
+        try {
+          const response = await fetch(projectUrl)
+          if (!response.ok) {
+            throw new Error(`Failed to fetch example project: ${response.statusText}`)
+          }
+          const noodlesFile = await response.json() as Partial<NoodlesProjectJSON>
+          const project = await migrateProject({
+            ...EMPTY_PROJECT,
+            ...noodlesFile,
+          } as NoodlesProjectJSON)
+          // Set project name and storage type for public projects so @/ asset paths work
+          setCurrentDirectory(null, projectName)
+          setActiveStorageType('publicFolder')
+          loadProjectFile(project, projectName)
+          return
+        } catch (error) {
+          console.error('Failed to load example project:', error)
+          // Fall through to try storage
+        }
       }
 
       console.log('Static project file not found, trying storage...')

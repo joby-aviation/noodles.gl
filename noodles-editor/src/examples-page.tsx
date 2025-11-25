@@ -3,8 +3,12 @@ import { useEffect, useState } from 'react'
 import { Link } from 'wouter'
 import s from './examples-page.module.css'
 
-const projects = import.meta.glob('./examples/**/noodles.json')
+const projects = import.meta.glob('./examples/**/noodles.json', {
+  eager: true,
+  import: 'default',
+})
 const readmes = import.meta.glob('./examples/**/README.md', {
+  eager: true,
   query: '?raw',
   import: 'default',
 })
@@ -66,45 +70,41 @@ export default function ExamplesPage() {
   const [examples, setExamples] = useState<ExampleProject[]>([])
 
   useEffect(() => {
-    const loadExamples = async () => {
-      const examplesList: ExampleProject[] = []
+    const examplesList: ExampleProject[] = []
 
-      for (const path of Object.keys(projects)) {
-        const projectId = basename(dirname(path))
-        const readmePath = path.replace('noodles.json', 'README.md')
+    for (const path of Object.keys(projects)) {
+      const projectId = basename(dirname(path))
+      const readmePath = path.replace('noodles.json', 'README.md')
 
-        let projectName = projectId
+      let projectName = projectId
 
-        let readme: string | undefined
-        if (readmes[readmePath]) {
-          try {
-            readme = (await readmes[readmePath]()) as string
-            if (readme) {
-              // parse first line for project name as "# Project Name"
-              const firstLine = readme.split('\n')[0]
-              const match = firstLine.match(/^#\s+(.*)/)
-              if (match?.[1]) {
-                projectName = match[1].trim()
-              }
+      let readme: string | undefined
+      if (readmes[readmePath]) {
+        try {
+          readme = readmes[readmePath] as string
+          if (readme) {
+            // parse first line for project name as "# Project Name"
+            const firstLine = readme.split('\n')[0]
+            const match = firstLine.match(/^#\s+(.*)/)
+            if (match?.[1]) {
+              projectName = match[1].trim()
             }
-          } catch (e) {
-            console.warn(`Failed to load README for ${projectName}`, e)
           }
+        } catch (e) {
+          console.warn(`Failed to load README for ${projectName}`, e)
         }
-
-        examplesList.push({
-          name: projectName,
-          path: `/examples/${projectId}`,
-          readme,
-        })
       }
 
-      // Sort alphabetically
-      examplesList.sort((a, b) => a.name.localeCompare(b.name))
-      setExamples(examplesList)
+      examplesList.push({
+        name: projectName,
+        path: `/examples/${projectId}`,
+        readme,
+      })
     }
 
-    loadExamples()
+    // Sort alphabetically
+    examplesList.sort((a, b) => a.name.localeCompare(b.name))
+    setExamples(examplesList)
   }, [])
 
   return (
