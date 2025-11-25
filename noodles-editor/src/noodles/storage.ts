@@ -389,7 +389,8 @@ export async function readAsset(
     }
 
     const dataDirectory = await projectDirectory.data.getDirectoryHandle(DATA_DIRECTORY_NAME)
-    const contents = await readFileFromDirectory(dataDirectory, fileName)
+    const filenameWithoutDir = fileName.replace(/^data\//, '') // Remove data/ prefix if present
+    const contents = await readFileFromDirectory(dataDirectory, filenameWithoutDir)
 
     return {
       success: true,

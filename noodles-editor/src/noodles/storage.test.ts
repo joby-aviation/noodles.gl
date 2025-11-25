@@ -280,6 +280,39 @@ describe('storage.ts', () => {
           expect(result.error.message).toContain('No cached directory handle found')
         }
       })
+
+      it('should strip data/ prefix from fileName when calling readFileFromDirectory', async () => {
+        const mockHandle = createMockDirectoryHandle('test-project')
+
+        vi.mocked(directoryHandleCache.getCachedHandle).mockResolvedValue({
+          projectName: 'test-project',
+          handle: mockHandle,
+          path: '/test-project',
+          cachedAt: Date.now(),
+        })
+
+        vi.mocked(directoryHandleCache.validateHandle).mockResolvedValue(true)
+        vi.mocked(filesystem.requestPermission).mockResolvedValue(true)
+
+        // Mock: data directory exists
+        vi.mocked(filesystem.directoryExists).mockResolvedValue(true)
+
+        // Mock: file read succeeds
+        vi.mocked(filesystem.readFileFromDirectory).mockResolvedValue('trips data content')
+
+        const result = await readAsset('fileSystemAccess', 'test-project', 'data/trips.json')
+
+        expect(result.success).toBe(true)
+        if (result.success) {
+          expect(result.data).toBe('trips data content')
+        }
+
+        // Verify that readFileFromDirectory was called with the stripped filename (no 'data/' prefix)
+        expect(filesystem.readFileFromDirectory).toHaveBeenCalledWith(
+          expect.anything(), // data directory handle
+          'trips.json' // stripped filename without 'data/' prefix
+        )
+      })
     })
 
     describe('opfs storage type', () => {
