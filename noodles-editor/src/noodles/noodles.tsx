@@ -67,12 +67,15 @@ import { getParentPath } from './utils/path-utils'
 import { pick } from './utils/pick'
 import { EMPTY_PROJECT, type NoodlesProjectJSON } from './utils/serialization'
 
-import '@deck.gl/widgets/stylesheet.css'
-import '@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css'
-import '@xyflow/react/dist/style.css'
-import 'primereact/resources/themes/md-dark-indigo/theme.css'
-import 'primeicons/primeicons.css'
-
+/*
+ * CSS Architecture:
+ * - layers.css: Establishes CSS layers and imports vendor CSS into 'vendors' layer
+ * - noodles.module.css: Component styles and critical unlayered overrides
+ *
+ * CSS layers ensure vendor styles have lowest priority, making our overrides
+ * work reliably regardless of import order (prevents linting from breaking styles).
+ */
+import './layers.css'
 import s from './noodles.module.css'
 
 export type Edge<N1 extends Operator<IOperator>, N2 extends Operator<IOperator>> = {

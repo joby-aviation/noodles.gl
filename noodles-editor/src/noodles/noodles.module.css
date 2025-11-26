@@ -1,3 +1,18 @@
+/*
+ * Noodles.gl Component Styles
+ *
+ * This file contains component-specific styles for the node-based editor.
+ *
+ * CSS Architecture:
+ * - Vendor CSS is imported via layers.css and placed in the 'vendors' layer
+ * - Critical overrides below are UNLAYERED (not in any @layer)
+ * - Unlayered styles have highest priority and will override layered styles
+ * - This approach makes styling robust against import order changes
+ *
+ * Note: The !important declarations ensure these overrides work reliably
+ * even when vendor libraries update their styles or specificity.
+ */
+
 :root {
   color-scheme: dark !important;
 

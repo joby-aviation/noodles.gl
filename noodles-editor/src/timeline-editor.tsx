@@ -15,8 +15,6 @@ import setRef from './utils/set-ref'
 import useSheetValue, { type PropsValue } from './utils/use-sheet-value'
 import { WidgetContainer } from './widget-container'
 
-// biome-ignore format: preserve CSS import order
-import 'maplibre-gl/dist/maplibre-gl.css'
 import s from './timeline-editor.module.css'
 
 // https://www.theatrejs.com/docs/latest/manual/advanced#rafdrivers

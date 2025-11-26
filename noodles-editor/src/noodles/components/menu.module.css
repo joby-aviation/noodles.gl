@@ -7,16 +7,6 @@
 /* Order such that reset CSS does not get in the way of PrimeReact components. */
 @layer reset, primereact;
 
-/* Reset CSS */
-@layer reset {
-
-  fieldset,
-  button,
-  input {
-    all: unset;
-  }
-}
-
 .menubarRoot {
   display: flex;
   background-color: white;
