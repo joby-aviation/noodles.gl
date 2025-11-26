@@ -48,7 +48,7 @@
  * Should be added first for proper cascade order
  */
 :global(.revert) {
-  all: revert;
+  all: revert !important;
 }
 
 :global(.react-flow) {
@@ -77,29 +77,29 @@
 }
 
 :global(.react-flow-wrapper) {
-  z-index: var(--z-index-react-flow);
-  width: 100%;
-  height: 100%;
+  z-index: var(--z-index-react-flow) !important;
+  width: 100% !important;
+  height: 100% !important;
 }
 
 :global(.react-flow-wrapper-hidden) {
-  display: none;
+  display: none !important;
 }
 
 :global(.react-flow__node) {
-  color: var(--node-text-color);
-  background: var(--node-background-color);
-  border-radius: 10px;
+  color: var(--node-text-color) !important;
+  background: var(--node-background-color) !important;
+  border-radius: 10px !important;
 }
 
 :global(.react-flow__handle) {
-  border-color: var(--node-handle-outline-color);
-  height: 8px;
-  width: 8px;
+  border-color: var(--node-handle-outline-color) !important;
+  height: 8px !important;
+  width: 8px !important;
 }
 
 :global(.react-flow__handle-left) {
-  left: -3px;
+  left: -3px !important;
 }
 
 :global(.react-flow__resize-control.line) {
@@ -108,18 +108,18 @@
 }
 
 :global(.react-flow__node.selectable:focus) {
-  outline: 1px solid var(--node-selected-color);
+  outline: 1px solid var(--node-selected-color) !important;
 }
 
 :global(.react-flow__node-group) {
-  background: var(--node-group-background-color);
+  background-color: var(--node-group-background-color) !important;
   /* Allow nodes to be selected over the ForLoopBody. Needs to override the style prop */
   z-index: var(--z-index-for-loop) !important;
   pointer-events: none !important;
 }
 
 :global(.deck-widget-icon-button) {
-  all: revert;
+  all: revert !important;
 }
 
 .header {
@@ -260,64 +260,65 @@
   background-color: var(--node-widget-color);
 }
 
+/* Handle sizes */
+.handleList {
+  height: .75em !important;
+  border-radius: 5px !important
+}
+
 /* Handle colors */
 
 .handleNumber {
-  background: var(--node-number-color);
+  --xy-handle-background-color: var(--node-number-color);
 }
 
 .handleString {
-  background: var(--node-string-color);
+  --xy-handle-background-color: var(--node-string-color);
 }
 
 .handleBoolean {
-  background: var(--node-boolean-color);
   color: var(--node-header-text-color-dark);
+  --xy-handle-background-color: var(--node-boolean-color);
 }
 
 .handleColor {
-  background: var(--node-color-color);
+  --xy-handle-background-color: var(--node-color-color);
 }
 
 .handleData {
-  background: var(--node-data-color);
+  --xy-handle-background-color: var(--node-data-color);
 }
 
 .handleGeojson {
-  background: var(--node-geojson-color);
+  --xy-handle-background-color: var(--node-geojson-color);
 }
 
 .handleVector {
-  background: var(--node-vector-color);
+  --xy-handle-background-color: var(--node-vector-color);
 }
 
 .handleCompound {
-  background: var(--node-compound-color);
-}
-
-.handleList {
-  height: .75em;
-  border-radius: 5px;
+  --xy-handle-background-color: var(--node-compound-color);
 }
 
 .handleView {
-  background: var(--node-view-color);
+  --xy-handle-background-color: var(--node-view-color);
 }
 
 .handleLayer {
-  background: var(--node-layer-color);
+  --xy-handle-background-color: var(--node-layer-color);
 }
 
 .handleEffect {
-  background: var(--node-effect-color);
+  --xy-handle-background-color: var(--node-effect-color);
 }
 
 .handleExtension {
-  background: var(--node-extension-color);
+  --xy-handle-background-color: var(--node-extension-color);
 }
 
 .handleWidget {
-  background: var(--node-widget-color);
+  --xy-handle-background-color: var(--node-widget-color);
 }
 
 .content {
@@ -396,6 +397,11 @@
 
 .fieldInputGroup:focus-within {
   background: var(--node-input-focus-color);
+}
+
+.fieldInputUploadButton {
+  cursor: pointer;
+  height: 1em;
 }
 
 .fieldCompoundWrapper {
@@ -500,6 +506,18 @@
   background: transparent;
   color: var(--node-text-color);
   text-align: right;
+}
+
+.nodeFieldWrapper {
+  display: flex;
+}
+
+.fieldFileInputGroup {
+  width: unset;
+}
+
+.fieldInputFileUrl {
+  padding: 0 1em;
 }
 
 .fieldInputButton {

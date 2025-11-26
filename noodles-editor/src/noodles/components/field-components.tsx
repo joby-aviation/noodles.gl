@@ -32,13 +32,14 @@ import {
 } from '../fields'
 import { useFileSystemStore } from '../filesystem-store'
 import type { Edge } from '../noodles'
-import s from '../noodles.module.css'
 import type { IOperator, Operator } from '../operators'
 import { checkAssetExists, writeAsset } from '../storage'
 import { projectScheme } from '../utils/filesystem'
 import { edgeId, type OpId } from '../utils/id-utils'
-import menuStyles from './menu.module.css'
 import { handleClass } from './op-components'
+
+import s from '../noodles.module.css'
+import menuStyles from './menu.module.css'
 
 type InputComponent = React.ComponentType<{
   id: OpId
@@ -49,23 +50,6 @@ type InputComponent = React.ComponentType<{
 export interface HandleOptions {
   type: 'target' | 'source'
   namespace: 'par' | 'out'
-}
-
-// Helper to format values for the handle preview
-function _viewerFormatter(value: unknown): unknown {
-  if (typeof value === 'function') {
-    return { value: `Function(${value.name || 'anonymous'})` }
-  }
-  if (
-    typeof value === 'string' ||
-    typeof value === 'number' ||
-    typeof value === 'boolean' ||
-    value instanceof Date ||
-    value instanceof Temporal.PlainDateTime
-  ) {
-    return { value }
-  }
-  return value
 }
 
 export const inputComponents = {
@@ -549,15 +533,15 @@ export function FileFieldComponent({
 
   return (
     <>
-      <div className="node-field-wrapper">
-        <label className="node-field-label" htmlFor={id}>
+      <div className={s.nodeFieldWrapper}>
+        <label className={s.nodeFieldLabel} htmlFor={id}>
           {id}
         </label>
-        <div className="p-inputgroup node-field-input-group">
+        <div className={cx('p-inputgroup', s.fieldFileInputGroup)}>
           <InputText
             id={id}
             placeholder="https://"
-            className="node-field-input"
+            className={cx(s.fieldInput, s.fieldInputFileUrl)}
             value={value}
             onBlur={onBlur}
             onChange={onChange}
@@ -565,7 +549,7 @@ export function FileFieldComponent({
           />
           <Button
             icon="pi pi-upload"
-            className="node-field-input--upload"
+            className={s.fieldInputUploadButton}
             onClick={onReupload}
             title="Upload Data"
             size="small"

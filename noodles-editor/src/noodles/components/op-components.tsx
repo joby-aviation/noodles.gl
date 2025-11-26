@@ -461,7 +461,6 @@ const ExecutionIndicator = ({ status, error, executionTime }: ExecutionState) =>
   }
 }
 
-const _headerHeight = 49
 function NodeHeader({ id, type, op }: { id: string; type: OpType; op: OperatorInstance }) {
   const [locked, setLocked] = useState(op.locked.value)
   const executionState = useExecutionState(op)
