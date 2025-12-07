@@ -33,7 +33,7 @@
     "@xyflow/react": "^12.9.0",
     "classnames": "^2.5.1",
     "d3": "^7.9.0",
-    "deck.gl": "^9.2.2",
+    "deck.gl": "^9.2.3",
     "flexsearch": "^0.7.43",
     "geojson2h3": "^1.2.0",
     "gl-matrix": "^3.4.4",
