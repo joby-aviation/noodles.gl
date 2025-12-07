@@ -14,6 +14,7 @@ import { TransformScale } from './render/transform-scale'
 import setRef from './utils/set-ref'
 import useSheetValue, { type PropsValue } from './utils/use-sheet-value'
 import { WidgetContainer } from './widget-container'
+import { RenderActionsProvider } from './hooks/use-render-actions'
 
 import s from './timeline-editor.module.css'
 
@@ -35,6 +36,17 @@ const injectTheatreStyles = () => {
     style.textContent = `
       /* Hide all panels except properties (export button, sheet name) - using generated class name (brittle) */
       .sc-dPZUQH:not([data-testid="DetailPanel-Object"]) {
+        display: none !important;
+      }
+
+      /* Hide the left sidebar (sheet tree panel) - using class names */
+      [data-testid="SequenceEditorPanel-tree"],
+      .sc-djVXDX.fXnbPU {
+        display: none !important;
+      }
+
+      /* Hide the sidebar top bar */
+      .sc-cHMHOW.dGwDVq {
         display: none !important;
       }
     `
@@ -148,19 +160,7 @@ export default function TimelineEditor() {
   }, [project])
 
   const { rendererSheet } = useMemo(() => {
-    const rendererSheet = sheet?.object('render', INITIAL_RENDER_STATE, {
-      __actions__THIS_API_IS_UNSTABLE_AND_WILL_CHANGE_IN_THE_NEXT_VERSION: {
-        startRender: async () => {
-          await startRenderRef.current()
-        },
-        advanceFrame: () => {
-          advanceFrameRef.current()
-        },
-        takeScreenshot: async () => {
-          await takeScreenshotRef.current()
-        },
-      },
-    })
+    const rendererSheet = sheet?.object('render', INITIAL_RENDER_STATE)
 
     return {
       rendererSheet,
@@ -358,6 +358,16 @@ export default function TimelineEditor() {
   const isFixedMode = renderer.display === 'fixed'
   const displayResolution = isFixedMode ? lodResolution : undefined
 
+  // Create render actions for context (must be before early return)
+  const renderActions = useMemo(
+    () => ({
+      startRender: startRenderRef.current,
+      takeScreenshot: takeScreenshotRef.current,
+      isRendering,
+    }),
+    [isRendering]
+  )
+
   if (!ready) {
     // don't call project.getAssetUrl until Theatre project is ready
     return <div>loading project...</div>
@@ -386,7 +396,7 @@ export default function TimelineEditor() {
   }
 
   return (
-    <>
+    <RenderActionsProvider actions={renderActions}>
       {isRendering && (
         <div className={s.actionButtons}>
           <progress
@@ -407,6 +417,6 @@ export default function TimelineEditor() {
           )}
         </WidgetContainer>
       </ReactFlowProvider>
-    </>
+    </RenderActionsProvider>
   )
 }

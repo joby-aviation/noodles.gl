@@ -47,6 +47,7 @@ import { DropTarget } from './components/drop-target'
 import { ErrorBoundary } from './components/error-boundary'
 import { NoodlesMenubar } from './components/menu'
 import { PropertyPanel } from './components/node-properties'
+import { NodeTreeSidebar } from './components/node-tree-sidebar'
 import { edgeComponents, nodeComponents } from './components/op-components'
 import { ProjectNameBar, UNSAVED_PROJECT_NAME } from './components/project-name-bar'
 import { ProjectNotFoundDialog } from './components/project-not-found-dialog'
@@ -814,6 +815,7 @@ export function getNoodles(): Visualization {
       flowGraph,
       bottom: menuBar,
       top: <ProjectNameBar projectName={projectName} />,
+      left: <NodeTreeSidebar />,
       right,
     },
     layoutMode,

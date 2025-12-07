@@ -5,6 +5,7 @@ import { useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
 import { type Dispatch, type SetStateAction, useCallback, useEffect, useState } from 'react'
 import { SettingsDialog } from '../../components/settings-dialog'
+import { useRenderActions } from '../../hooks/use-render-actions'
 import { analytics } from '../../utils/analytics'
 import { useActiveStorageType, useFileSystemStore } from '../filesystem-store'
 import newProjectJSON from '../new.json'
@@ -434,6 +435,7 @@ export function NoodlesMenubar({
   const { toObject } = useReactFlow()
   const storageType = useActiveStorageType()
   const { setCurrentDirectory, setError } = useFileSystemStore()
+  const renderActions = useRenderActions()
 
   // "New" Menu Options
   const onNewProject = useCallback(async () => {
@@ -772,13 +774,34 @@ export function NoodlesMenubar({
           </Menubar.Portal>
         </Menubar.Menu>
 
-        {/* Chat and Settings buttons on the right side */}
+        {/* Chat, Render Actions, and Settings buttons on the right side */}
         <div className={s.menubarRightSlot}>
+          {renderActions && (
+            <>
+              <button
+                onClick={() => renderActions.startRender()}
+                className={s.toolbarButton}
+                title="Start video rendering"
+                disabled={renderActions.isRendering}
+              >
+                🎬 {renderActions.isRendering ? 'Rendering...' : 'Render'}
+              </button>
+              <button
+                onClick={() => renderActions.takeScreenshot()}
+                className={s.toolbarButton}
+                title="Take screenshot"
+                style={{ marginLeft: '0.5rem' }}
+              >
+                📸 Screenshot
+              </button>
+            </>
+          )}
           {setShowChatPanel && (
             <button
               onClick={() => setShowChatPanel(!showChatPanel)}
               className={s.toolbarButton}
               title="Toggle Noodles AI Assistant"
+              style={{ marginLeft: renderActions ? '0.5rem' : '0' }}
             >
               💬 {showChatPanel ? 'Hide' : 'Assistant'}
             </button>
@@ -787,7 +810,7 @@ export function NoodlesMenubar({
             onClick={() => setSettingsDialogOpen(true)}
             className={s.toolbarButton}
             title="Settings"
-            style={{ marginLeft: setShowChatPanel ? '0.5rem' : '0' }}
+            style={{ marginLeft: setShowChatPanel || renderActions ? '0.5rem' : '0' }}
           >
             ⚙️ Settings
           </button>
