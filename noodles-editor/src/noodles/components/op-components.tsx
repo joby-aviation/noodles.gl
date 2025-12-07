@@ -1122,6 +1122,7 @@ function ContainerOpComponent({
   }
 
   const setCurrentContainerId = useNestingStore(state => state.setCurrentContainerId)
+  const reactFlow = useReactFlow()
 
   // Subscribe to operator store to get reactive children count
   const childrenCount = useOperatorStore(state => {
@@ -1135,7 +1136,13 @@ function ContainerOpComponent({
     <div
       role="tree"
       onDoubleClick={() => {
+        // Clear selection when changing levels
+        reactFlow.setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
         setCurrentContainerId(op.id)
+        // Fit all nodes at the new level (no animation)
+        setTimeout(() => {
+          reactFlow.fitView({ duration: 0 })
+        }, 50)
       }}
     >
       <NodeHeader id={id} type={type} op={op} />

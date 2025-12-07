@@ -1,10 +1,11 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { useKeyPress, useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
-import { type FC, Fragment, useCallback, useEffect } from 'react'
+import { type FC, Fragment, useCallback, useEffect, useRef } from 'react'
 import { useShallow } from 'zustand/react/shallow'
+import { analytics } from '../../utils/analytics'
 import { ContainerOp } from '../operators'
-import { useNestingStore, useOperatorStore } from '../store'
+import { getOpStore, useNestingStore, useOperatorStore } from '../store'
 import { getBaseName, getParentPath, joinPath, splitPath } from '../utils/path-utils'
 import s from './breadcrumbs.module.css'
 
@@ -13,6 +14,7 @@ export const Breadcrumbs: FC = () => {
   const setCurrentContainerId = useNestingStore(state => state.setCurrentContainerId)
   const reactFlow = useReactFlow()
   const uPressed = useKeyPress('u', { target: document.body })
+  const dPressed = useKeyPress('d', { target: document.body })
 
   const pathSegments = splitPath(currentContainerId).reduce<{ name: string; id: string }[]>(
     (acc, segment) => {
@@ -53,15 +55,72 @@ export const Breadcrumbs: FC = () => {
   const goUp = useCallback(() => {
     const lastSegment = pathSegments[pathSegments.length - 2]
     if (lastSegment) {
+      // Clear selection and fitView when navigating up
+      reactFlow.setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
       setCurrentContainerId(lastSegment.id)
+      setTimeout(() => {
+        reactFlow.fitView({ duration: 0 })
+      }, 50)
     }
-  }, [pathSegments, setCurrentContainerId])
+  }, [pathSegments, setCurrentContainerId, reactFlow])
 
   useEffect(() => {
     if (uPressed && pathSegments.length > 1) {
       goUp()
     }
   }, [uPressed, goUp, pathSegments.length])
+
+  const dPressHandledRef = useRef(false)
+
+  // Handle 'd' key press to navigate down into selected container
+  useEffect(() => {
+    if (!dPressed) {
+      dPressHandledRef.current = false
+      return
+    }
+    if (dPressHandledRef.current) return
+    dPressHandledRef.current = true
+
+    const nodes = reactFlow.getNodes()
+    const selectedNode = nodes.find(n => n.selected)
+    if (!selectedNode) return
+
+    const store = getOpStore()
+    const op = store.getOp(selectedNode.id)
+    if (op instanceof ContainerOp) {
+      const nodeParent = getParentPath(selectedNode.id)
+      if (nodeParent === currentContainerId) {
+        reactFlow.setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
+        setCurrentContainerId(selectedNode.id)
+        analytics.track('container_navigated', { method: 'keyboard', direction: 'down' })
+        setTimeout(() => {
+          reactFlow.fitView({ duration: 0 })
+        }, 50)
+      }
+    }
+  }, [dPressed, currentContainerId, reactFlow, setCurrentContainerId])
+
+  const handleBreadcrumbClick = useCallback(
+    (segmentId: string) => {
+      reactFlow.setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
+      setCurrentContainerId(segmentId)
+      setTimeout(() => {
+        reactFlow.fitView({ duration: 0 })
+      }, 50)
+    },
+    [reactFlow, setCurrentContainerId]
+  )
+
+  const handleMenuItemClick = useCallback(
+    (itemId: string) => {
+      reactFlow.setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
+      setCurrentContainerId(itemId)
+      setTimeout(() => {
+        reactFlow.fitView({ duration: 0 })
+      }, 50)
+    },
+    [reactFlow, setCurrentContainerId]
+  )
 
   return (
     <div className={s.bar}>
@@ -70,7 +129,7 @@ export const Breadcrumbs: FC = () => {
           <button
             type="button"
             className={cx(s.segment, segment.id === currentContainerId && s.active)}
-            onClick={() => setCurrentContainerId(segment.id)}
+            onClick={() => handleBreadcrumbClick(segment.id)}
           >
             {segment.name}
           </button>
@@ -83,7 +142,7 @@ export const Breadcrumbs: FC = () => {
                 <DropdownMenu.Item
                   key={item}
                   className={s.menuItem}
-                  onClick={() => setCurrentContainerId(item)}
+                  onClick={() => handleMenuItemClick(item)}
                 >
                   {getBaseName(item)}
                 </DropdownMenu.Item>
