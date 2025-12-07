@@ -1142,9 +1142,10 @@ function ContainerOpComponent({
         setCurrentContainerId(op.id)
         analytics.track('container_navigated', { method: 'double_click' })
         // Fit all nodes at the new level (no animation)
-        setTimeout(() => {
+        // Use RAF to ensure React state updates have flushed
+        requestAnimationFrame(() => {
           reactFlow.fitView({ duration: 0 })
-        }, 50)
+        })
       }}
     >
       <NodeHeader id={id} type={type} op={op} />
