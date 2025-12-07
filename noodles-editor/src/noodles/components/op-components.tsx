@@ -27,6 +27,7 @@ import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState }
 import { createPortal } from 'react-dom'
 import { Temporal } from 'temporal-polyfill'
 
+import { analytics } from '../../utils/analytics'
 import { SheetContext } from '../../utils/sheet-context'
 import { ArrayField, type Field, type IField, ListField } from '../fields'
 import s from '../noodles.module.css'
@@ -1139,6 +1140,7 @@ function ContainerOpComponent({
         // Clear selection when changing levels
         reactFlow.setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
         setCurrentContainerId(op.id)
+        analytics.track('container_navigated', { method: 'double_click' })
         // Fit all nodes at the new level (no animation)
         setTimeout(() => {
           reactFlow.fitView({ duration: 0 })

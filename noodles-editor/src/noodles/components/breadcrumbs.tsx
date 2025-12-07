@@ -56,6 +56,7 @@ export const Breadcrumbs: FC = () => {
       // Clear selection when changing levels
       reactFlow.setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
       setCurrentContainerId(parentPath)
+      analytics.track('container_navigated', { method: 'keyboard', direction: 'up' })
 
       // Fit all nodes at the new level (no animation)
       setTimeout(() => {
@@ -104,6 +105,7 @@ export const Breadcrumbs: FC = () => {
     (segmentId: string) => {
       reactFlow.setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
       setCurrentContainerId(segmentId)
+      analytics.track('container_navigated', { method: 'breadcrumb' })
       setTimeout(() => {
         reactFlow.fitView({ duration: 0 })
       }, 50)
@@ -115,6 +117,7 @@ export const Breadcrumbs: FC = () => {
     (itemId: string) => {
       reactFlow.setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
       setCurrentContainerId(itemId)
+      analytics.track('container_navigated', { method: 'menu' })
       setTimeout(() => {
         reactFlow.fitView({ duration: 0 })
       }, 50)
