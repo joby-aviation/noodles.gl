@@ -1,15 +1,48 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
-import { ReactFlow, ReactFlowProvider } from '@xyflow/react'
+import { ReactFlowProvider } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mockReactFlow } from '../../../test-utils/react-flow-test-utils'
 import * as analyticsModule from '../../../utils/analytics'
 import { ContainerOp } from '../../operators'
 import { clearOps, setOp, useNestingStore } from '../../store'
 import { Breadcrumbs } from '../breadcrumbs'
 
-// Initialize React Flow test environment
-mockReactFlow()
+// Create spies for React Flow methods
+const fitViewSpy = vi.fn()
+const setNodesSpy = vi.fn()
+const getNodesSpy = vi.fn(() => [])
+
+// Mock useReactFlow to return our spies
+vi.mock('@xyflow/react', async () => {
+  const actual = await vi.importActual('@xyflow/react')
+  return {
+    ...actual,
+    useReactFlow: () => ({
+      fitView: fitViewSpy,
+      setNodes: setNodesSpy,
+      getNodes: getNodesSpy,
+      setEdges: vi.fn(),
+      getEdges: vi.fn(() => []),
+      addNodes: vi.fn(),
+      addEdges: vi.fn(),
+      deleteElements: vi.fn(),
+      zoomIn: vi.fn(),
+      zoomOut: vi.fn(),
+      setCenter: vi.fn(),
+      toObject: vi.fn(),
+      getZoom: vi.fn(() => 1),
+      setViewport: vi.fn(),
+      getViewport: vi.fn(() => ({ x: 0, y: 0, zoom: 1 })),
+      project: vi.fn(),
+      screenToFlowPosition: vi.fn(),
+      flowToScreenPosition: vi.fn(),
+      updateNode: vi.fn(),
+      updateNodeData: vi.fn(),
+      getNode: vi.fn(),
+      getIntersectingNodes: vi.fn(() => []),
+    }),
+  }
+})
 
 // Mock analytics
 vi.mock('../../../utils/analytics', () => ({
@@ -21,6 +54,10 @@ vi.mock('../../../utils/analytics', () => ({
 describe('Breadcrumbs', () => {
   beforeEach(() => {
     clearOps()
+    // Clear spies before each test
+    fitViewSpy.mockClear()
+    setNodesSpy.mockClear()
+    getNodesSpy.mockClear()
     vi.clearAllMocks()
     useNestingStore.setState({ currentContainerId: '/' })
 
@@ -38,9 +75,7 @@ describe('Breadcrumbs', () => {
   const renderBreadcrumbs = () => {
     return render(
       <ReactFlowProvider>
-        <ReactFlow>
-          <Breadcrumbs />
-        </ReactFlow>
+        <Breadcrumbs />
       </ReactFlowProvider>
     )
   }
