@@ -53,19 +53,33 @@ export const Breadcrumbs: FC = () => {
   }, [reactFlow.fitView, currentContainerId])
 
   const goUp = useCallback(() => {
-    const lastSegment = pathSegments[pathSegments.length - 2]
-    if (lastSegment) {
-      // Clear selection and fitView when navigating up
+    const parentPath = getParentPath(currentContainerId)
+    if (parentPath && parentPath !== currentContainerId) {
+      // Clear selection when changing levels
       reactFlow.setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
-      setCurrentContainerId(lastSegment.id)
+      setCurrentContainerId(parentPath)
+
+      // Fit all nodes at the new level (no animation)
       setTimeout(() => {
         reactFlow.fitView({ duration: 0 })
       }, 50)
     }
-  }, [pathSegments, setCurrentContainerId, reactFlow])
+  }, [currentContainerId, setCurrentContainerId, reactFlow])
+
+  const uPressHandledRef = useRef(false)
 
   useEffect(() => {
-    if (uPressed && pathSegments.length > 1) {
+    if (!uPressed) {
+      // Reset the flag when key is released
+      uPressHandledRef.current = false
+      return
+    }
+
+    // Only handle once per key press
+    if (uPressHandledRef.current) return
+    uPressHandledRef.current = true
+
+    if (pathSegments.length > 1) {
       goUp()
     }
   }, [uPressed, goUp, pathSegments.length])
