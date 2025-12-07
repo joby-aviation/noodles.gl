@@ -1,7 +1,7 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { useKeyPress, useReactFlow } from '@xyflow/react'
+import { useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
-import { type FC, Fragment, useCallback, useEffect, useRef } from 'react'
+import { type FC, Fragment, useCallback, useEffect } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { analytics } from '../../utils/analytics'
 import { ContainerOp } from '../operators'
@@ -13,8 +13,6 @@ export const Breadcrumbs: FC = () => {
   const currentContainerId = useNestingStore(state => state.currentContainerId)
   const setCurrentContainerId = useNestingStore(state => state.setCurrentContainerId)
   const reactFlow = useReactFlow()
-  const uPressed = useKeyPress('u', { target: document.body })
-  const dPressed = useKeyPress('d', { target: document.body })
 
   const pathSegments = splitPath(currentContainerId).reduce<{ name: string; id: string }[]>(
     (acc, segment) => {
@@ -66,35 +64,7 @@ export const Breadcrumbs: FC = () => {
     }
   }, [currentContainerId, setCurrentContainerId, reactFlow])
 
-  const uPressHandledRef = useRef(false)
-
-  useEffect(() => {
-    if (!uPressed) {
-      // Reset the flag when key is released
-      uPressHandledRef.current = false
-      return
-    }
-
-    // Only handle once per key press
-    if (uPressHandledRef.current) return
-    uPressHandledRef.current = true
-
-    if (pathSegments.length > 1) {
-      goUp()
-    }
-  }, [uPressed, goUp, pathSegments.length])
-
-  const dPressHandledRef = useRef(false)
-
-  // Handle 'd' key press to navigate down into selected container
-  useEffect(() => {
-    if (!dPressed) {
-      dPressHandledRef.current = false
-      return
-    }
-    if (dPressHandledRef.current) return
-    dPressHandledRef.current = true
-
+  const goDown = useCallback(() => {
     const nodes = reactFlow.getNodes()
     const selectedNode = nodes.find(n => n.selected)
     if (!selectedNode) return
@@ -112,7 +82,23 @@ export const Breadcrumbs: FC = () => {
         }, 50)
       }
     }
-  }, [dPressed, currentContainerId, reactFlow, setCurrentContainerId])
+  }, [currentContainerId, reactFlow, setCurrentContainerId])
+
+  // Keyboard navigation handlers
+  useEffect(() => {
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'u' && pathSegments.length > 1) {
+        goUp()
+      } else if (e.key === 'd') {
+        goDown()
+      }
+    }
+
+    document.body.addEventListener('keyup', handleKeyUp)
+    return () => {
+      document.body.removeEventListener('keyup', handleKeyUp)
+    }
+  }, [goUp, goDown, pathSegments.length])
 
   const handleBreadcrumbClick = useCallback(
     (segmentId: string) => {
