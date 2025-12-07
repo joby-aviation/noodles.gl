@@ -169,15 +169,14 @@ export default function TimelineEditor() {
   const { framerate, bitrateMbps, bitrateMode, codec, resolution, lod, waitForData, captureDelay } =
     renderer
 
-  const { startCapture, captureFrame, currentFrame, advanceFrame, _animate, isRendering } =
-    useRenderer({
-      project,
-      sequence: sequence,
-      fps: framerate,
-      bitrate: bitrateMbps * 1_000_000,
-      bitrateMode,
-      redraw,
-    })
+  const { startCapture, captureFrame, currentFrame, isRendering } = useRenderer({
+    project,
+    sequence: sequence,
+    fps: framerate,
+    bitrate: bitrateMbps * 1_000_000,
+    bitrateMode,
+    redraw,
+  })
 
   // If the visualization doesn't supply mapProps, disable basemap.
   // TODO: Detect if deck is in othorgraphic mode, and disable?
@@ -189,7 +188,6 @@ export default function TimelineEditor() {
   const fpsRef = useRef(0)
 
   const deckProps: DeckProps = {
-    _animate,
     deviceProps: {
       type: 'webgl',
       powerPreference: 'high-performance',
@@ -241,12 +239,6 @@ export default function TimelineEditor() {
       ? { maxPitch: Math.min(visualization.mapProps?.maxPitch, 85) }
       : {}),
   }
-
-  useEffect(() => {
-    if (_animate) {
-      mapRef.current?.redraw()
-    }
-  }, [_animate])
 
   // Expose deck.gl canvas and instance for Claude AI visual debugging
   useEffect(() => {
