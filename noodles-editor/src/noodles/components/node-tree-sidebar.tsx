@@ -204,14 +204,17 @@ export function NodeTreeSidebar() {
       // Clear selection when changing levels
       if (!isOnSameLevel) {
         reactFlow.setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
-      }
 
-      // Fit view to the node (with animation if on same level)
-      reactFlow.fitView({
-        nodes: [{ id }],
-        duration: isOnSameLevel ? 300 : 0,
-        padding: 0.5,
-      })
+        // When changing levels, show all nodes at that level for context
+        reactFlow.fitView({ duration: 0 })
+      } else {
+        // Same level: zoom directly to the specific node
+        reactFlow.fitView({
+          nodes: [{ id }],
+          duration: 300,
+          padding: 0.5,
+        })
+      }
     },
     [reactFlow]
   )
