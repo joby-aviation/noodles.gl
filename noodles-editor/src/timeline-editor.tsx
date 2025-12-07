@@ -11,10 +11,10 @@ import { getNoodles } from './noodles/noodles'
 import { useDeckDrawLoop } from './render/draw-loop'
 import { captureScreenshot, rafDriver, useRenderer } from './render/renderer'
 import { TransformScale } from './render/transform-scale'
+import { useRenderStore } from './render/render-store'
 import setRef from './utils/set-ref'
 import useSheetValue, { type PropsValue } from './utils/use-sheet-value'
 import { WidgetContainer } from './widget-container'
-import { RenderActionsProvider } from './hooks/use-render-actions'
 
 import s from './timeline-editor.module.css'
 
@@ -135,9 +135,6 @@ const isMapReady = (map: MapLibre | null) => !map || (map.isStyleLoaded() && map
 
 export default function TimelineEditor() {
   const [ready, setReady] = useState(false)
-  const startRenderRef = useRef(async () => {})
-  const takeScreenshotRef = useRef(async () => {})
-  const advanceFrameRef = useRef(() => {})
 
   const mapRef = useRef<MapLibre | null>(null)
   const deckRef = useRef<Deck>(null)
@@ -295,7 +292,7 @@ export default function TimelineEditor() {
     props: deckProps,
   })
 
-  startRenderRef.current = useCallback(async () => {
+  const startRender = useCallback(async () => {
     let canvas: HTMLCanvasElement | null = null
 
     if (basemapEnabled) {
@@ -327,7 +324,7 @@ export default function TimelineEditor() {
     })
   }, [startCapture, codec, resolution, basemapEnabled])
 
-  takeScreenshotRef.current = useCallback(async () => {
+  const takeScreenshot = useCallback(async () => {
     if (!deckRef.current) {
       console.error('Take Screenshot: deck is not defined')
       return
@@ -345,8 +342,6 @@ export default function TimelineEditor() {
     })
   }, [project.address.projectId, redraw, basemapEnabled])
 
-  advanceFrameRef.current = advanceFrame
-
   // Increase the render target resolution to increase map tile detail.
   // To convert viewport bounds back to their original size, add about 1 to the zoom value.
   const lodResolution = {
@@ -358,15 +353,14 @@ export default function TimelineEditor() {
   const isFixedMode = renderer.display === 'fixed'
   const displayResolution = isFixedMode ? lodResolution : undefined
 
-  // Create render actions for context (must be before early return)
-  const renderActions = useMemo(
-    () => ({
-      startRender: startRenderRef.current,
-      takeScreenshot: takeScreenshotRef.current,
+  // Push render actions to Zustand store
+  useEffect(() => {
+    useRenderStore.getState().setActions({
+      startRender,
+      takeScreenshot,
       isRendering,
-    }),
-    [isRendering]
-  )
+    })
+  }, [startRender, takeScreenshot, isRendering])
 
   if (!ready) {
     // don't call project.getAssetUrl until Theatre project is ready
@@ -396,7 +390,7 @@ export default function TimelineEditor() {
   }
 
   return (
-    <RenderActionsProvider actions={renderActions}>
+    <>
       {isRendering && (
         <div className={s.actionButtons}>
           <progress
@@ -417,6 +411,6 @@ export default function TimelineEditor() {
           )}
         </WidgetContainer>
       </ReactFlowProvider>
-    </RenderActionsProvider>
+    </>
   )
 }
