@@ -5,8 +5,8 @@
   width: 240px;
   min-width: 240px;
   max-width: 240px;
-  background: var(--color-bg-base, #1a1a1a);
-  border-right: 1px solid var(--color-border, #333);
+  background: var(--color-bg-base);
+  border-right: 1px solid var(--color-border);
   overflow: hidden;
 }
 
@@ -32,12 +32,12 @@
 }
 
 .treeItemContent:hover {
-  background: var(--color-bg-hover, rgba(255, 255, 255, 0.1));
+  background: var(--color-bg-hover);
 }
 
 .treeItemContent.selected {
-  background: var(--color-bg-accent, rgba(255, 255, 255, 0.15));
-  color: var(--color-text-accent, #ffffff);
+  background: var(--color-bg-accent);
+  color: var(--color-text-accent);
 }
 
 .collapseButton {
@@ -50,7 +50,7 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: var(--color-text-secondary, #888);
+  color: var(--color-text-secondary);
   flex-shrink: 0;
   margin-left: -24px;
   margin-right: 0;
@@ -83,13 +83,13 @@
   white-space: nowrap;
   font-size: 13px;
   font-weight: 500;
-  color: var(--color-text-primary, #e0e0e0);
+  color: var(--color-text-primary);
   min-width: 0;
 }
 
 .nodeType {
   font-size: 10px;
-  color: var(--color-text-secondary, #888);
+  color: var(--color-text-secondary);
   flex-shrink: 0;
 }
 
@@ -101,7 +101,7 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: var(--color-text-secondary, #888);
+  color: var(--color-text-secondary);
   opacity: 0;
   transition: opacity 0.15s;
   flex-shrink: 0;
@@ -112,7 +112,7 @@
 }
 
 .navigateButton:hover {
-  color: var(--color-text-accent, #4a9eff);
+  color: var(--color-text-accent);
 }
 
 .children {
