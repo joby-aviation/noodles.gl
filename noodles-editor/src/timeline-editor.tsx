@@ -34,12 +34,12 @@ const injectTheatreStyles = () => {
     const style = document.createElement('style')
     style.id = 'hide-export-style'
     style.textContent = `
-      /* Hide all panels except properties (export button, sheet name) - using generated class name (brittle) */
+      /* Hide all panels except properties (export button, sheet name) */
       .sc-dPZUQH:not([data-testid="DetailPanel-Object"]) {
         display: none !important;
       }
 
-      /* Hide the left sidebar (sheet tree panel) - using class names */
+      /* Hide the left sidebar (sheet tree panel) */
       [data-testid="SequenceEditorPanel-tree"],
       .sc-djVXDX.fXnbPU {
         display: none !important;
