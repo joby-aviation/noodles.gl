@@ -239,11 +239,14 @@ export function NodeTreeSidebar() {
 
       const isChangingLevels = currentContainerId !== targetContainerId
 
-      // Zoom to the specific node (instant if changing levels, animated if same level)
-      reactFlow.fitView({
-        nodes: [{ id }],
-        duration: isChangingLevels ? 0 : 300,
-        padding: 0.5,
+      // Use RAF to ensure React state updates have flushed
+      requestAnimationFrame(() => {
+        // Zoom to the specific node (instant if changing levels, animated if same level)
+        reactFlow.fitView({
+          nodes: [{ id }],
+          duration: isChangingLevels ? 0 : 300,
+          padding: 0.5,
+        })
       })
     },
     [reactFlow]
@@ -256,7 +259,10 @@ export function NodeTreeSidebar() {
       reactFlow.setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
       nestingStore.setCurrentContainerId(id)
       analytics.track('container_navigated', { method: 'sidebar', direction: 'into' })
-      reactFlow.fitView({ duration: 0 })
+      // Use RAF to ensure React state updates have flushed
+      requestAnimationFrame(() => {
+        reactFlow.fitView({ duration: 0 })
+      })
     },
     [reactFlow]
   )
