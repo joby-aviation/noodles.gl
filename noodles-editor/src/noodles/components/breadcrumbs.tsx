@@ -57,12 +57,7 @@ export const Breadcrumbs: FC = () => {
       reactFlow.setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
       setCurrentContainerId(parentPath)
       analytics.track('container_navigated', { method: 'keyboard', direction: 'up' })
-
-      // Fit all nodes at the new level (no animation)
-      // Use RAF to ensure React state updates have flushed
-      requestAnimationFrame(() => {
-        reactFlow.fitView({ duration: 0 })
-      })
+      reactFlow.fitView({ duration: 0 })
     }
   }, [currentContainerId, setCurrentContainerId, reactFlow])
 
@@ -79,10 +74,7 @@ export const Breadcrumbs: FC = () => {
         reactFlow.setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
         setCurrentContainerId(selectedNode.id)
         analytics.track('container_navigated', { method: 'keyboard', direction: 'down' })
-        // Use RAF to ensure React state updates have flushed
-        requestAnimationFrame(() => {
-          reactFlow.fitView({ duration: 0 })
-        })
+        reactFlow.fitView({ duration: 0 })
       }
     }
   }, [currentContainerId, reactFlow, setCurrentContainerId])
