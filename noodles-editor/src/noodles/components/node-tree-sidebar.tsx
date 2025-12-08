@@ -1,4 +1,4 @@
-import { studio } from '@theatre/studio'
+import studio from '@theatre/studio'
 import { useReactFlow } from '@xyflow/react'
 import { useCallback, useMemo, useState } from 'react'
 import type { IOperator, Operator } from '../operators'
