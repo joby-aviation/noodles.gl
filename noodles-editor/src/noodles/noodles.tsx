@@ -840,6 +840,118 @@ export function getNoodles(): Visualization {
     blockLibraryRef.current?.openModal(centerX, centerY)
   }, [])
 
+  const onNewProject = useCallback(async () => {
+    try {
+      // Import the utilities we need
+      const { selectDirectory, requestPermission, writeFileToDirectory } = await import(
+        './utils/filesystem'
+      )
+      const { directoryHandleCache } = await import('./utils/directory-handle-cache')
+      const { safeStringify } = await import('./utils/serialization')
+
+      // Prompt user to select/create a directory for the new project
+      const directoryHandle = await selectDirectory()
+      const directoryName = directoryHandle.name
+
+      // Ensure we have write permission
+      const hasPermission = await requestPermission(directoryHandle, 'readwrite')
+      if (!hasPermission) {
+        console.error('Permission denied to write to directory')
+        return
+      }
+
+      // Write empty project to noodles.json
+      const emptyProject = {
+        ...EMPTY_PROJECT,
+        version: NOODLES_VERSION,
+        nodes: [],
+        edges: [],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      } as NoodlesProjectJSON
+      await writeFileToDirectory(directoryHandle, 'noodles.json', safeStringify(emptyProject))
+
+      // Cache the directory handle
+      await directoryHandleCache.cacheHandle(directoryName, directoryHandle, directoryHandle.name)
+
+      // Update store with directory handle
+      setCurrentDirectory(directoryHandle, directoryName)
+
+      // Navigate to the new project (triggers load)
+      setProjectName(directoryName)
+
+      analytics.track('project_created', { method: 'new' })
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        // User cancelled the picker
+        return
+      }
+      console.error('Failed to create new project:', error)
+    }
+  }, [setProjectName, setCurrentDirectory])
+
+  const onImport = useCallback(async () => {
+    try {
+      // Import the utilities we need
+      const { selectDirectory, requestPermission, writeFileToDirectory } = await import(
+        './utils/filesystem'
+      )
+      const { directoryHandleCache } = await import('./utils/directory-handle-cache')
+      const { safeStringify } = await import('./utils/serialization')
+
+      // First, prompt for the project file to import
+      const [fileHandle] = await window.showOpenFilePicker({
+        types: [
+          {
+            description: 'Noodles Project',
+            accept: {
+              'application/json': ['.json'],
+            },
+          },
+        ],
+      })
+      const file = await fileHandle.getFile()
+      const text = await file.text()
+      const parsed = JSON.parse(text) as Partial<NoodlesProjectJSON>
+
+      // Migrate the imported project to latest version
+      const projectData = await migrateProject({
+        ...EMPTY_PROJECT,
+        ...parsed,
+      } as NoodlesProjectJSON)
+
+      // Now prompt for directory to save the imported project
+      const directoryHandle = await selectDirectory()
+      const directoryName = directoryHandle.name
+
+      // Ensure we have write permission
+      const hasPermission = await requestPermission(directoryHandle, 'readwrite')
+      if (!hasPermission) {
+        console.error('Permission denied to write to directory')
+        return
+      }
+
+      // Write imported project to noodles.json
+      await writeFileToDirectory(directoryHandle, 'noodles.json', safeStringify(projectData))
+
+      // Cache the directory handle
+      await directoryHandleCache.cacheHandle(directoryName, directoryHandle, directoryHandle.name)
+
+      // Update store with directory handle
+      setCurrentDirectory(directoryHandle, directoryName)
+
+      // Navigate to the imported project (triggers load)
+      setProjectName(directoryName)
+
+      analytics.track('project_imported')
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        // User cancelled the picker
+        return
+      }
+      console.error('Failed to import project:', error)
+    }
+  }, [setProjectName, setCurrentDirectory])
+
   const propertiesPanel = (
     <div className={s.rightPanel}>
       <PropertyPanel />
@@ -859,6 +971,8 @@ export function getNoodles(): Visualization {
     loadProjectFile,
     getNoodlesProjectJson,
     onSaveProject: onMenuSave,
+    onNewProject,
+    onImport,
     onOpenAddNode: handleOpenAddNode,
     undoRedo: undoRedoRef.current,
     undoRedoRef,

@@ -27,6 +27,8 @@ export type Visualization = {
   loadProjectFile?: (project: any, name?: string) => void
   getNoodlesProjectJson?: () => any
   onSaveProject?: () => Promise<void>
+  onNewProject?: () => Promise<void>
+  onImport?: () => Promise<void>
   onOpenAddNode?: () => void
   undoRedo?: UndoRedoHandlerRef | null
   undoRedoRef?: RefObject<UndoRedoHandlerRef | null>
