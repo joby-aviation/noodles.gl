@@ -68,16 +68,6 @@ function ReferenceIcon({
   )
 }
 
-function InfoIcon({ description }: { description: string }) {
-  return (
-    <Tooltip text={description}>
-      <svg role="img" viewBox="0 -960 960 960" className={s.tooltipIcon}>
-        <path d="M444-288h72v-240h-72v240Zm35.79-312q15.21 0 25.71-10.29t10.5-25.5q0-15.21-10.29-25.71t-25.5-10.5q-15.21 0-25.71 10.29t-10.5 25.5q0 15.21 10.29 25.71t25.5 10.5Zm.49 504Q401-96 331-126t-122.5-82.5Q156-261 126-330.96t-30-149.5Q96-560 126-629.5q30-69.5 82.5-122T330.96-834q69.96-30 149.5-30t149.04 30q69.5 30 122 82.5T834-629.28q30 69.73 30 149Q864-401 834-331t-82.5 122.5Q699-156 629.28-126q-69.73 30-149 30Zm-.28-72q130 0 221-91t91-221q0-130-91-221t-221-91q-130 0-221 91t-91 221q0 130 91 221t221 91Zm0-312Z" />
-      </svg>
-    </Tooltip>
-  )
-}
-
 function Tooltip({
   text,
   position = 'top',
@@ -99,6 +89,9 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
   const { setEdges } = useReactFlow()
   const edges = useEdges()
   const dragDataRef = useRef<{ inputName: string; index: number } | null>(null)
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
+  const [isTruncated, setIsTruncated] = useState(false)
+  const descriptionRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef<HTMLElement | null>(null)
   const store = getOpStore()
   const op = store.getOp(node.id)
@@ -122,6 +115,14 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
     handleClass: handleClass(output),
     field: output,
   }))
+
+  // Check if description is truncated
+  useEffect(() => {
+    if (descriptionRef.current && description) {
+      const isTruncated = descriptionRef.current.scrollHeight > descriptionRef.current.clientHeight
+      setIsTruncated(isTruncated)
+    }
+  }, [description])
 
   const handleMoveConnection = (inputName: string, fromIndex: number, toIndex: number) => {
     const input = op.inputs[inputName]
@@ -201,10 +202,28 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
       <div className={s.header}>
         <div className={s.title}>
           {displayName}
-          {description && <InfoIcon description={description} />}
           <div className={cx(s.capsule, headerClass(name))}>{typeCategory(name)}</div>
         </div>
       </div>
+      {description && (
+        <div className={cx(s.descriptionSection, { [s.descriptionSectionWithButton]: isTruncated || isDescriptionExpanded })}>
+          <div
+            ref={descriptionRef}
+            className={cx(s.description, { [s.descriptionExpanded]: isDescriptionExpanded })}
+          >
+            {description}
+          </div>
+          {(isTruncated || isDescriptionExpanded) && (
+            <button
+              type="button"
+              className={s.readMoreButton}
+              onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+            >
+              {isDescriptionExpanded ? 'Read less' : 'Read more'}
+            </button>
+          )}
+        </div>
+      )}
       <div className={s.section}>
         <label className={s.input}>
           <span>ID</span>

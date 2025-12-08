@@ -8,7 +8,7 @@
   font-size: 11px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 0;
   flex: 0;
   border-radius: 12px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
@@ -31,6 +31,7 @@
   font-size: 14px;
   font-weight: 600;
   color: var(--color-text-primary);
+  flex: 1;
 }
 
 /* Node properties capsule */
@@ -48,9 +49,55 @@
   margin-left: auto;
 }
 
+/* Description section */
+.descriptionSection {
+  padding: 0;
+  margin: 0;
+}
+
+.descriptionSectionWithButton {
+  margin-bottom: 4px;
+}
+
+.description {
+  font-size: 11px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.4);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-bottom: 2px;
+}
+
+.descriptionExpanded {
+  display: block;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+  overflow: visible;
+}
+
+.readMoreButton {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 10px;
+  font-weight: 400;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  transition: color 0.2s;
+}
+
+.readMoreButton:hover {
+  color: rgba(255, 255, 255, 0.6);
+}
+
 /* Section */
 .section {
-  margin-bottom: 16px;
+  margin-top: 12px;
+  margin-bottom: 12px;
 }
 
 .sectionTitle {
@@ -223,18 +270,6 @@
   align-items: center;
   /* above theatrejs */
   z-index: var(--z-index-tooltip-container);
-}
-
-.tooltipIcon {
-  fill: rgba(255, 255, 255, 0.4);
-  height: 14px;
-  cursor: help;
-  transition: all 0.2s;
-}
-
-.tooltipIcon:hover {
-  fill: var(--color-text-primary);
-  transform: scale(1.1);
 }
 
 .tooltipText {
