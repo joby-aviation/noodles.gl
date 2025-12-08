@@ -41,6 +41,12 @@
   --node-input-hover-color: #383838;
   --node-input-focus-color: #2d2d2d;
 
+  /* Shared variables used by components outside React Flow (e.g., Block Library portal) */
+  --node-background-color: #282b2fde;
+  --node-text-color: #e2dede;
+  --node-selected-color: #3367d9;
+  --node-add-menu-header-text-color: #fff;
+
   --property-panel-width: 280px;
   --property-panel-background-color: #282b2fcc;
   --tooltip-icon-color: #919191;
@@ -69,11 +75,9 @@
 :global(.react-flow) {
   --node-group-background-color: rgba(244, 79, 9, 0.1);
 
-  --node-background-color: #282b2fde;
-  --node-text-color: #e2dede;
-  --node-selected-color: #3367d9;
+  /* Note: --node-background-color, --node-text-color, --node-selected-color, --node-add-menu-header-text-color
+     are now defined in :root since they're used in portaled components like Block Library */
   --node-add-menu-background-color: #404040;
-  --node-add-menu-header-text-color: #fff;
   --node-add-menu-header-background-color: black;
   --node-add-menu-hover-color: #313131;
 
