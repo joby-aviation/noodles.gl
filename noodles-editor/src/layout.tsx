@@ -1,6 +1,6 @@
 import cx from 'classnames'
 import { type PropsWithChildren, useEffect, useRef, useState } from 'react'
-import s from './widget-container.module.css'
+import s from './layout.module.css'
 
 const TheatrePropPanel = ({ width, height }: { width: number; height: number }) => (
   <div style={{ width: `${width + 16}px`, height: `${height + 60}px` }} />
@@ -12,18 +12,20 @@ const LAYOUT_CLASSES = {
   'output-on-top': s.layoutOutputOnTop,
 } as const
 
-export function WidgetContainer({
-  widgets,
+export function Layout({
+  top,
+  bottom,
+  left,
+  right,
+  flowGraph,
   children,
   layoutMode = 'split',
 }: PropsWithChildren<{
-  widgets?: {
-    flowGraph?: React.ReactNode
-    right?: React.ReactNode // primary vertical panel for widgets
-    top?: React.ReactNode
-    left?: React.ReactNode
-    bottom?: React.ReactNode
-  }
+  top?: React.ReactNode
+  bottom?: React.ReactNode
+  left?: React.ReactNode
+  right?: React.ReactNode
+  flowGraph?: React.ReactNode
   layoutMode?: 'split' | 'noodles-on-top' | 'output-on-top'
 }>) {
   const [propPanelHeight, setPropPanelHeight] = useState(150)
@@ -68,18 +70,18 @@ export function WidgetContainer({
   }, [])
 
   return (
-    <div className={cx(s.widgetContainer, layoutClass)}>
-      <div style={{ gridArea: 'top-bar' }}>{widgets?.top}</div>
-      <div style={{ gridArea: 'left-widget' }}>{widgets?.left}</div>
+    <div className={cx(s.layout, layoutClass)}>
+      <div style={{ gridArea: 'top-widget' }}>{top}</div>
+      <div style={{ gridArea: 'left-widget' }}>{left}</div>
       <div style={{ gridArea: 'right-widget', display: 'flex', flexDirection: 'column' }}>
         <TheatrePropPanel width={propPanelWidth} height={propPanelHeight} />
-        <div style={{ flex: 1 }}>{widgets?.right}</div>
+        <div style={{ flex: 1 }}>{right}</div>
       </div>
+      <div style={{ gridArea: 'bottom-widget' }}>{bottom}</div>
       <div className={cx(s.fillWidget, layoutClass)}>
         <div className={s.outputArea}>{children}</div>
-        <div className={s.noodlesArea}>{widgets?.flowGraph}</div>
+        <div className={s.noodlesArea}>{flowGraph}</div>
       </div>
-      <div style={{ gridArea: 'bottom-widget' }}>{widgets?.bottom}</div>
     </div>
   )
 }

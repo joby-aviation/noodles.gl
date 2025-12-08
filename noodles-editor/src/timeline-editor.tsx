@@ -8,13 +8,13 @@ import type { Map as MapLibre } from 'maplibre-gl'
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ReactMapGL, { type MapProps, useControl } from 'react-map-gl/maplibre'
 import { getNoodles } from './noodles/noodles'
+import { NoodlesMenubar } from './noodles/components/menu'
 import { useDeckDrawLoop } from './render/draw-loop'
 import { captureScreenshot, rafDriver, useRenderer } from './render/renderer'
 import { TransformScale } from './render/transform-scale'
-import { useRenderStore } from './render/render-store'
 import setRef from './utils/set-ref'
 import useSheetValue, { type PropsValue } from './utils/use-sheet-value'
-import { WidgetContainer } from './widget-container'
+import { Layout } from './layout'
 
 import s from './timeline-editor.module.css'
 
@@ -149,7 +149,8 @@ export default function TimelineEditor() {
     setRand(Math.random())
   }, [])
 
-  const { project, sheet, widgets, layoutMode, ...visualization } = getNoodles()
+  const noodles = getNoodles()
+  const { project, sheet, flowGraph, projectNameBar, nodeSidebar, propertiesPanel, layoutMode, ...visualization } = noodles
   const sequence = sheet.sequence
 
   useEffect(() => {
@@ -169,14 +170,15 @@ export default function TimelineEditor() {
   const { framerate, bitrateMbps, bitrateMode, codec, resolution, lod, waitForData, captureDelay } =
     renderer
 
-  const { startCapture, captureFrame, currentFrame, isRendering } = useRenderer({
-    project,
-    sequence: sequence,
-    fps: framerate,
-    bitrate: bitrateMbps * 1_000_000,
-    bitrateMode,
-    redraw,
-  })
+  const { startCapture, captureFrame, currentFrame, isRendering } =
+    useRenderer({
+      project,
+      sequence: sequence,
+      fps: framerate,
+      bitrate: bitrateMbps * 1_000_000,
+      bitrateMode,
+      redraw,
+    })
 
   // If the visualization doesn't supply mapProps, disable basemap.
   // TODO: Detect if deck is in othorgraphic mode, and disable?
@@ -345,15 +347,6 @@ export default function TimelineEditor() {
   const isFixedMode = renderer.display === 'fixed'
   const displayResolution = isFixedMode ? lodResolution : undefined
 
-  // Push render actions to Zustand store
-  useEffect(() => {
-    useRenderStore.getState().setActions({
-      startRender,
-      takeScreenshot,
-      isRendering,
-    })
-  }, [startRender, takeScreenshot, isRendering])
-
   if (!ready) {
     // don't call project.getAssetUrl until Theatre project is ready
     return <div>loading project...</div>
@@ -395,13 +388,33 @@ export default function TimelineEditor() {
         </div>
       )}
       <ReactFlowProvider>
-        <WidgetContainer widgets={widgets} layoutMode={layoutMode}>
+        <Layout
+          top={projectNameBar}
+          bottom={
+            <NoodlesMenubar
+              projectName={noodles.projectName}
+              setProjectName={noodles.setProjectName!}
+              getTimelineJson={noodles.getTimelineJson!}
+              loadProjectFile={noodles.loadProjectFile!}
+              undoRedo={noodles.undoRedo ?? undefined}
+              showChatPanel={noodles.showChatPanel}
+              setShowChatPanel={noodles.setShowChatPanel}
+              startRender={startRender}
+              takeScreenshot={takeScreenshot}
+              isRendering={isRendering}
+            />
+          }
+          left={nodeSidebar}
+          right={propertiesPanel}
+          flowGraph={flowGraph}
+          layoutMode={layoutMode}
+        >
           {isFixedMode ? (
             <TransformScale scale={renderer.scaleControl}>{renderContent()}</TransformScale>
           ) : (
             renderContent()
           )}
-        </WidgetContainer>
+        </Layout>
       </ReactFlowProvider>
     </>
   )

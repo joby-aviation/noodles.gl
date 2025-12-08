@@ -791,19 +791,9 @@ export function getNoodles(): Visualization {
     }
   }, [outOp, selectedGeoJsonFeatures])
 
-  const menuBar = (
-    <NoodlesMenubar
-      projectName={projectName}
-      setProjectName={setProjectName}
-      getTimelineJson={getTimelineJson}
-      loadProjectFile={loadProjectFile}
-      undoRedo={undoRedoRef.current}
-      showChatPanel={showChatPanel}
-      setShowChatPanel={setShowChatPanel}
-    />
-  )
+  const projectNameBar = <ProjectNameBar projectName={projectName} />
 
-  const right = (
+  const propertiesPanel = (
     <div className={s.rightPanel}>
       <PropertyPanel />
       <DropTarget />
@@ -811,14 +801,19 @@ export function getNoodles(): Visualization {
   )
 
   return {
-    widgets: {
-      flowGraph,
-      bottom: menuBar,
-      top: <ProjectNameBar projectName={projectName} />,
-      left: <NodeTreeSidebar />,
-      right,
-    },
+    flowGraph,
+    projectNameBar,
+    nodeSidebar: <NodeTreeSidebar />,
+    propertiesPanel,
     layoutMode,
+    // Export these so timeline-editor can create the menu with render actions
+    projectName,
+    setProjectName,
+    getTimelineJson,
+    loadProjectFile,
+    undoRedo: undoRedoRef.current,
+    showChatPanel,
+    setShowChatPanel,
     ...visProps,
     project: theatreProject,
     sheet: theatreSheet,
