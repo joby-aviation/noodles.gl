@@ -9,7 +9,11 @@ import { getOpStore, useNestingStore, useOperatorStore } from '../store'
 import { getBaseName, getParentPath, joinPath, splitPath } from '../utils/path-utils'
 import s from './breadcrumbs.module.css'
 
-export const Breadcrumbs: FC = () => {
+interface BreadcrumbsProps {
+  projectName?: string
+}
+
+export const Breadcrumbs: FC<BreadcrumbsProps> = ({ projectName }) => {
   const currentContainerId = useNestingStore(state => state.currentContainerId)
   const setCurrentContainerId = useNestingStore(state => state.setCurrentContainerId)
   const reactFlow = useReactFlow()
@@ -17,7 +21,7 @@ export const Breadcrumbs: FC = () => {
   const pathSegments = splitPath(currentContainerId).reduce<{ name: string; id: string }[]>(
     (acc, segment) => {
       acc.push({
-        name: segment === '/' || segment === '' ? 'root' : segment,
+        name: segment === '/' || segment === '' ? projectName || 'Untitled' : segment,
         id: joinPath(...acc.map(s => s.id), segment),
       })
       return acc
