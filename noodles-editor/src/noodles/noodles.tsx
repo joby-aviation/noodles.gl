@@ -875,8 +875,8 @@ export function getNoodles(): Visualization {
       // Update store with directory handle
       setCurrentDirectory(directoryHandle, directoryName)
 
-      // Navigate to the new project (triggers load)
-      setProjectName(directoryName)
+      // Load the project directly (already in memory, no need to reload from disk)
+      loadProjectFile(starterProject, directoryName)
 
       analytics.track('project_created', { method: 'new' })
     } catch (error) {
@@ -938,8 +938,8 @@ export function getNoodles(): Visualization {
       // Update store with directory handle
       setCurrentDirectory(directoryHandle, directoryName)
 
-      // Navigate to the imported project (triggers load)
-      setProjectName(directoryName)
+      // Load the project directly (already in memory, no need to reload from disk)
+      loadProjectFile(projectData, directoryName)
 
       analytics.track('project_imported')
     } catch (error) {
