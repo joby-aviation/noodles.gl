@@ -2,13 +2,13 @@
 .panel {
   width: var(--property-panel-width);
   margin: 8px;
-  padding: 20px;
+  padding: 16px;
   background-color: var(--color-bg-primary);
   border: 1px solid rgba(255, 255, 255, 0.08);
   font-size: 11px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   flex: 0;
   border-radius: 12px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
@@ -19,38 +19,37 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-bottom: 16px;
+  padding-bottom: 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .title {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--color-text-primary);
 }
 
 /* Node properties capsule */
 .capsule {
-  height: 16px;
-  padding: 0 8px;
-  border-radius: 16px;
+  height: auto;
+  padding: 4px 8px;
+  border-radius: 4px;
   display: flex;
   gap: 4px;
   align-items: center;
   font-weight: 600;
   font-size: 10px;
   line-height: normal;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
+  white-space: nowrap;
 }
 
 /* Section */
 .section {
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .sectionTitle {
@@ -58,7 +57,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
   color: rgba(255, 255, 255, 0.5);
 }
 
@@ -67,7 +66,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 12px;
+  padding: 8px 10px;
   border-radius: 6px;
   background-color: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -101,13 +100,13 @@
 /* Property list */
 .propertyList {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   flex-direction: column;
   margin-left: 0;
 }
 
 .property {
-  margin-bottom: 4px;
+  margin-bottom: 2px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -119,7 +118,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 6px 0;
+  padding: 4px 0;
 }
 
 .propertyDetails {
@@ -131,35 +130,29 @@
 
 /* Port */
 .port {
-  width: 10px;
-  height: 10px;
-  border-radius: 10px;
-  border: 2px solid rgba(255, 255, 255, 0.2);
+  width: 8px;
+  height: 8px;
+  border-radius: 8px;
+  border: 2px solid;
   flex-shrink: 0;
-  transition: all 0.2s;
-}
-
-.port:hover {
-  border-color: rgba(255, 255, 255, 0.4);
-  transform: scale(1.1);
 }
 
 /* Connection */
 .connections {
-  margin: 8px 0 8px 20px;
+  margin: 4px 0 4px 16px;
   border-left: 2px solid rgba(255, 255, 255, 0.1);
-  padding-left: 12px;
+  padding-left: 10px;
 }
 
 .connection {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  font-size: 12px;
+  gap: 6px;
+  padding: 4px 6px;
+  font-size: 11px;
   color: var(--color-text-secondary);
   cursor: grab;
-  border-radius: 6px;
+  border-radius: 4px;
   transition: all 0.2s ease;
 }
 
