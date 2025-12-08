@@ -415,6 +415,7 @@ export function NoodlesMenubar({
   undoRedo,
   showChatPanel,
   setShowChatPanel,
+  renderActions,
 }: {
   projectName?: string
   loadProjectFile: (project: NoodlesProjectJSON, projectName?: string) => void
@@ -429,6 +430,11 @@ export function NoodlesMenubar({
   }
   showChatPanel?: boolean
   setShowChatPanel?: (show: boolean) => void
+  renderActions?: {
+    startRender: () => Promise<void>
+    takeScreenshot: () => Promise<void>
+    isRendering: boolean
+  } | null
 }) {
   const [recentlyOpened, setRecentlyOpened] = useState<RecentProject[]>([])
   const { toObject } = useReactFlow()

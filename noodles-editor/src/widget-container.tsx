@@ -15,18 +15,20 @@ const LAYOUT_CLASSES = {
   'output-on-top': s.layoutOutputOnTop,
 } as const
 
-export function WidgetContainer({
-  widgets,
+export function Layout({
+  top,
+  bottom,
+  left,
+  right,
+  flowGraph,
   children,
   layoutMode = 'split',
 }: PropsWithChildren<{
-  widgets?: {
-    flowGraph?: React.ReactNode
-    right?: React.ReactNode // primary vertical panel for widgets
-    bottom?: React.ReactNode // primary horizontal panel for widgets
-    top?: React.ReactNode
-    left?: React.ReactNode
-  }
+  top?: React.ReactNode
+  bottom?: React.ReactNode
+  left?: React.ReactNode
+  right?: React.ReactNode
+  flowGraph?: React.ReactNode
   layoutMode?: 'split' | 'noodles-on-top' | 'output-on-top'
 }>) {
   const [sheetTreeWidth, setSheetTreeWidth] = useState(150)
@@ -86,21 +88,21 @@ export function WidgetContainer({
 
   return (
     <div className={cx(s.widgetContainer, layoutClass)}>
-      <div style={{ gridArea: 'top-widget' }}>{widgets?.top}</div>
+      <div style={{ gridArea: 'top-widget' }}>{top}</div>
       <div style={{ gridArea: 'left-widget' }}>
         <TheatreSheetTree width={sheetTreeWidth} />
-        {widgets?.left}
+        {left}
       </div>
       <div style={{ gridArea: 'right-widget', display: 'flex', flexDirection: 'column' }}>
         <TheatrePropPanel width={propPanelWidth} height={propPanelHeight} />
-        <div style={{ flex: 1 }}>{widgets?.right}</div>
+        <div style={{ flex: 1 }}>{right}</div>
       </div>
       <div ref={bottomRef} style={{ gridArea: 'bottom-widget' }}>
-        {widgets?.bottom}
+        {bottom}
       </div>
       <div className={cx(s.fillWidget, layoutClass)}>
         <div className={s.outputArea}>{children}</div>
-        <div className={s.noodlesArea}>{widgets?.flowGraph}</div>
+        <div className={s.noodlesArea}>{flowGraph}</div>
       </div>
     </div>
   )
