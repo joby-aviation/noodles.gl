@@ -63,10 +63,10 @@ describe('Breadcrumbs', () => {
     clearOps()
   })
 
-  const renderBreadcrumbs = () => {
+  const renderBreadcrumbs = (projectName?: string) => {
     return render(
       <ReactFlowProvider>
-        <Breadcrumbs />
+        <Breadcrumbs projectName={projectName} />
       </ReactFlowProvider>
     )
   }
@@ -74,13 +74,13 @@ describe('Breadcrumbs', () => {
   describe('Breadcrumb rendering', () => {
     it('renders root breadcrumb at root level', () => {
       useNestingStore.setState({ currentContainerId: '/' })
-      renderBreadcrumbs()
+      renderBreadcrumbs('root')
       expect(screen.getByRole('button', { name: /root/i })).toBeInTheDocument()
     })
 
     it('renders breadcrumb trail for nested container', () => {
       useNestingStore.setState({ currentContainerId: '/container1/container2' })
-      renderBreadcrumbs()
+      renderBreadcrumbs('root')
 
       expect(screen.getAllByRole('button', { name: /root/i })[0]).toBeInTheDocument()
       expect(screen.getAllByRole('button', { name: /container1/i })[0]).toBeInTheDocument()
