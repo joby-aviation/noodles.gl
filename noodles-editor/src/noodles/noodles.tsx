@@ -293,7 +293,11 @@ export function getNoodles(): Visualization {
   const onNodeClick = useCallback((_e: React.MouseEvent, node: ReactFlowNode<unknown>) => {
     const store = getOpStore()
     const obj = store.getSheetObject(node.id)
-    if (obj) studio.setSelection([obj])
+    if (obj) {
+      studio.setSelection([obj])
+    } else {
+      studio.setSelection([])
+    }
   }, [])
 
   const reactFlowRef = useRef<HTMLDivElement>(null)

@@ -175,6 +175,8 @@ export function NodeTreeSidebar() {
       const obj = store.getSheetObject(id)
       if (obj) {
         studio.setSelection([obj])
+      } else {
+        studio.setSelection([])
       }
     },
     [reactFlow]
