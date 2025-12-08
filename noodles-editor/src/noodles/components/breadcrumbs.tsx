@@ -61,7 +61,7 @@ export const Breadcrumbs: FC = () => {
     }
   }, [currentContainerId, setCurrentContainerId, reactFlow])
 
-  const goDown = useCallback(() => {
+  const goInto = useCallback(() => {
     const nodes = reactFlow.getNodes()
     const selectedNode = nodes.find(n => n.selected)
     if (!selectedNode) return
@@ -73,7 +73,7 @@ export const Breadcrumbs: FC = () => {
       if (nodeParent === currentContainerId) {
         reactFlow.setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
         setCurrentContainerId(selectedNode.id)
-        analytics.track('container_navigated', { method: 'keyboard', direction: 'down' })
+        analytics.track('container_navigated', { method: 'keyboard', direction: 'into' })
         reactFlow.fitView({ duration: 0 })
       }
     }
@@ -85,7 +85,7 @@ export const Breadcrumbs: FC = () => {
       if (e.key === 'u' && pathSegments.length > 1) {
         goUp()
       } else if (e.key === 'i') {
-        goDown()
+        goInto()
       }
     }
 
@@ -93,7 +93,7 @@ export const Breadcrumbs: FC = () => {
     return () => {
       document.body.removeEventListener('keyup', handleKeyUp)
     }
-  }, [goUp, goDown, pathSegments.length])
+  }, [goUp, goInto, pathSegments.length])
 
   const handleBreadcrumbClick = useCallback(
     (segmentId: string) => {
