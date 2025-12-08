@@ -57,7 +57,7 @@ import { useProjectModifications } from './hooks/use-project-modifications'
 import type { IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
 import { load, save } from './storage'
-import { getOpStore, useNestingStore } from './store'
+import { getOpStore, useNestingStore, setSheetObject, deleteSheetObject } from './store'
 import { bindOperatorToTheatre, cleanupRemovedOperators } from './theatre-bindings'
 import { transformGraph } from './transform-graph'
 import { edgeId, nodeId } from './utils/id-utils'
@@ -500,6 +500,14 @@ export function getNoodles(): Visualization {
       }),
     })
   }, [theatreSheet])
+
+  // Register editor sheet object in store for menu access
+  useEffect(() => {
+    setSheetObject('editor', editorSheet as any)
+    return () => {
+      deleteSheetObject('editor')
+    }
+  }, [editorSheet])
 
   const { showOverlay, layoutMode } = useSheetValue(editorSheet)
 

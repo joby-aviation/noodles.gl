@@ -10,6 +10,7 @@ import ReactMapGL, { type MapProps, useControl } from 'react-map-gl/maplibre'
 import { Layout } from './layout'
 import { getNoodles } from './noodles/noodles'
 import { TopMenuBar } from './noodles/components/top-menu-bar'
+import { setSheetObject, deleteSheetObject } from './noodles/store'
 import { useDeckDrawLoop } from './render/draw-loop'
 import { captureScreenshot, rafDriver, useRenderer } from './render/renderer'
 import { TransformScale } from './render/transform-scale'
@@ -171,6 +172,16 @@ export default function TimelineEditor() {
       rendererSheet,
     }
   }, [sheet])
+
+  // Register render sheet object in store for menu access
+  useEffect(() => {
+    if (rendererSheet) {
+      setSheetObject('render', rendererSheet as any)
+    }
+    return () => {
+      deleteSheetObject('render')
+    }
+  }, [rendererSheet])
 
   const renderer = useSheetValue(rendererSheet)
 
