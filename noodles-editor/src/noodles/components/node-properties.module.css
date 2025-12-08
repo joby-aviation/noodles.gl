@@ -61,7 +61,7 @@
   gap: 8px;
   padding: 8px;
   border-radius: 4px;
-  background-color: var(--node-input-hover-color);
+  background-color: var(--color-input-hover);
 }
 
 .input > span {
@@ -137,12 +137,12 @@
 }
 
 .connection:hover {
-  background: var(--node-input-hover-color);
+  background: var(--color-input-hover);
 }
 
 .connection.dragging {
   opacity: 0.5;
-  background: var(--node-input-hover-color);
+  background: var(--color-input-hover);
   cursor: grabbing;
 }
 
@@ -311,7 +311,7 @@
   width: 20px;
   height: 20px;
   border-radius: 4px;
-  background: var(--node-input-hover-color);
+  background: var(--color-input-hover);
   color: var(--tooltip-icon-color);
   cursor: pointer;
   font-size: 14px;
@@ -319,7 +319,7 @@
 }
 
 .reorderBtn:hover {
-  background: var(--node-input-focus-color);
+  background: var(--color-input-focus);
   color: white;
 }
 
@@ -327,5 +327,5 @@
   padding: 8px;
   border-radius: 4px;
   font-family: monospace;
-  background-color: var(--node-input-hover-color);
+  background-color: var(--color-input-hover);
 }

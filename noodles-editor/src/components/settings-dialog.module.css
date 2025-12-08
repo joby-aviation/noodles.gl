@@ -10,8 +10,8 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  background-color: var(--color-bg-primary, #1a1a1a);
-  color: var(--color-text-primary, white);
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
   border-radius: 6px;
   padding: 1.5rem;
   max-width: 500px;
@@ -43,7 +43,7 @@
   align-items: flex-start;
   gap: 0.75rem;
   padding: 1rem;
-  background-color: var(--color-bg-secondary, #2a2a2a);
+  background-color: var(--color-bg-secondary);
   border-radius: 4px;
 }
 
@@ -75,7 +75,7 @@
 
 .settingDescription {
   font-size: 0.875rem;
-  color: var(--color-text-secondary, #999);
+  color: var(--color-text-secondary);
   line-height: 1.4;
 }
 
@@ -109,7 +109,7 @@
   border-radius: 4px;
   border: none;
   background-color: transparent;
-  color: var(--color-text-secondary, #999);
+  color: var(--color-text-secondary);
   cursor: pointer;
   display: flex;
   align-items: center;
