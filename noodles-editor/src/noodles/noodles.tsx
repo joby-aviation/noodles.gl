@@ -47,6 +47,7 @@ import { DropTarget } from './components/drop-target'
 import { ErrorBoundary } from './components/error-boundary'
 import { NoodlesMenubar } from './components/menu'
 import { PropertyPanel } from './components/node-properties'
+import { NodeTreeSidebar } from './components/node-tree-sidebar'
 import { edgeComponents, nodeComponents } from './components/op-components'
 import { ProjectNameBar, UNSAVED_PROJECT_NAME } from './components/project-name-bar'
 import { ProjectNotFoundDialog } from './components/project-not-found-dialog'
@@ -292,7 +293,11 @@ export function getNoodles(): Visualization {
   const onNodeClick = useCallback((_e: React.MouseEvent, node: ReactFlowNode<unknown>) => {
     const store = getOpStore()
     const obj = store.getSheetObject(node.id)
-    if (obj) studio.setSelection([obj])
+    if (obj) {
+      studio.setSelection([obj])
+    } else {
+      studio.setSelection([])
+    }
   }, [])
 
   const reactFlowRef = useRef<HTMLDivElement>(null)
@@ -790,19 +795,9 @@ export function getNoodles(): Visualization {
     }
   }, [outOp, selectedGeoJsonFeatures])
 
-  const menuBar = (
-    <NoodlesMenubar
-      projectName={projectName}
-      setProjectName={setProjectName}
-      getTimelineJson={getTimelineJson}
-      loadProjectFile={loadProjectFile}
-      undoRedo={undoRedoRef.current}
-      showChatPanel={showChatPanel}
-      setShowChatPanel={setShowChatPanel}
-    />
-  )
+  const projectNameBar = <ProjectNameBar projectName={projectName} />
 
-  const right = (
+  const propertiesPanel = (
     <div className={s.rightPanel}>
       <PropertyPanel />
       <DropTarget />
@@ -810,13 +805,19 @@ export function getNoodles(): Visualization {
   )
 
   return {
-    widgets: {
-      flowGraph,
-      bottom: menuBar,
-      top: <ProjectNameBar projectName={projectName} />,
-      right,
-    },
+    flowGraph,
+    projectNameBar,
+    nodeSidebar: <NodeTreeSidebar />,
+    propertiesPanel,
     layoutMode,
+    // Export these so timeline-editor can create the menu with render actions
+    projectName,
+    setProjectName,
+    getTimelineJson,
+    loadProjectFile,
+    undoRedo: undoRedoRef.current,
+    showChatPanel,
+    setShowChatPanel,
     ...visProps,
     project: theatreProject,
     sheet: theatreSheet,

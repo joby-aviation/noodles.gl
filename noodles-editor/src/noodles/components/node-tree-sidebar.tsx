@@ -1,0 +1,271 @@
+import studio from '@theatre/studio'
+import { useReactFlow } from '@xyflow/react'
+import { useCallback, useMemo, useState } from 'react'
+import type { IOperator, Operator } from '../operators'
+import { getOpStore, useNestingStore, useOperatorStore } from '../store'
+import { getBaseName } from '../utils/path-utils'
+import { categories } from './categories'
+import s from './node-tree-sidebar.module.css'
+
+// Map operator type to category for color coding
+function getOperatorCategory(type: string): string | null {
+  for (const [category, operators] of Object.entries(categories)) {
+    if ((operators as readonly string[]).includes(type)) {
+      return category
+    }
+  }
+  return null
+}
+
+interface TreeNode {
+  id: string
+  name: string
+  type: string
+  children: TreeNode[]
+  depth: number
+}
+
+// Build hierarchical tree from flat operator list
+function buildTree(operators: Map<string, Operator<IOperator>>): TreeNode[] {
+  const tree: TreeNode[] = []
+  const nodeMap = new Map<string, TreeNode>()
+
+  // Sort operators by path to ensure parents come before children
+  const sortedOps = Array.from(operators.entries()).sort((a, b) => a[0].localeCompare(b[0]))
+
+  for (const [id, op] of sortedOps) {
+    const pathParts = id.split('/').filter(Boolean)
+    const name = getBaseName(id) || 'root'
+    const depth = pathParts.length
+
+    const node: TreeNode = {
+      id,
+      name,
+      type: op.constructor.name,
+      children: [],
+      depth,
+    }
+
+    nodeMap.set(id, node)
+
+    // Find parent
+    if (pathParts.length > 1) {
+      const parentPath = `/${pathParts.slice(0, -1).join('/')}`
+      const parent = nodeMap.get(parentPath)
+      if (parent) {
+        parent.children.push(node)
+      } else {
+        // Parent doesn't exist yet, add to root
+        tree.push(node)
+      }
+    } else {
+      tree.push(node)
+    }
+  }
+
+  return tree
+}
+
+interface TreeItemProps {
+  node: TreeNode
+  selectedNodeIds: Set<string>
+  onSelect: (id: string) => void
+  onNavigate: (id: string) => void
+  collapsedNodes: Set<string>
+  onToggleCollapse: (id: string) => void
+}
+
+function TreeItem({
+  node,
+  selectedNodeIds,
+  onSelect,
+  onNavigate,
+  collapsedNodes,
+  onToggleCollapse,
+}: TreeItemProps) {
+  const [hovering, setHovering] = useState(false)
+  const hasChildren = node.children.length > 0
+  const isContainer = node.type === 'ContainerOp'
+  const isCollapsed = collapsedNodes.has(node.id)
+  const isSelected = selectedNodeIds.has(node.id)
+
+  // Get the category color for this operator type
+  const category = getOperatorCategory(node.type)
+  const borderColor = category ? `var(--node-${category}-color)` : 'transparent'
+
+  return (
+    <div className={s.treeItem}>
+      {/* biome-ignore lint/a11y/useSemanticElements: Using div for flexible tree item styling */}
+      <div
+        role="button"
+        tabIndex={0}
+        className={`${s.treeItemContent} ${isSelected ? s.selected : ''}`}
+        style={{
+          paddingLeft: `${24 + (node.depth - 1) * 20}px`,
+          borderLeft: `3px solid ${borderColor}`,
+        }}
+        onClick={() => onSelect(node.id)}
+        onKeyDown={e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onSelect(node.id)
+          }
+        }}
+        onMouseEnter={() => setHovering(true)}
+        onMouseLeave={() => setHovering(false)}
+      >
+        {isContainer && hasChildren && (
+          <button
+            type="button"
+            className={s.collapseButton}
+            onClick={e => {
+              e.stopPropagation()
+              onToggleCollapse(node.id)
+            }}
+          >
+            <i className={isCollapsed ? 'pi pi-chevron-right' : 'pi pi-chevron-down'} />
+          </button>
+        )}
+        {!isContainer && hasChildren && <span className={s.spacer} />}
+        <div className={s.nodeInfo}>
+          <span className={s.nodeName}>{node.name}</span>
+          <span className={s.nodeType}>{node.type.replace(/Op$/, '')}</span>
+        </div>
+        {hovering && (
+          <button
+            type="button"
+            className={s.navigateButton}
+            onClick={e => {
+              e.stopPropagation()
+              onNavigate(node.id)
+            }}
+            title="Navigate to node"
+          >
+            <i className="pi pi-compass" />
+          </button>
+        )}
+      </div>
+      {isContainer && !isCollapsed && (
+        <div className={s.children}>
+          {node.children.map(child => (
+            <TreeItem
+              key={child.id}
+              node={child}
+              selectedNodeIds={selectedNodeIds}
+              onSelect={onSelect}
+              onNavigate={onNavigate}
+              collapsedNodes={collapsedNodes}
+              onToggleCollapse={onToggleCollapse}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function NodeTreeSidebar() {
+  const operators = useOperatorStore(state => state.operators)
+  const reactFlow = useReactFlow()
+  const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set())
+
+  // Build tree from operators
+  const tree = useMemo(() => buildTree(operators), [operators])
+
+  // Get selected node IDs from React Flow (reactive)
+  const nodes = reactFlow.getNodes()
+  const selectedNodeIds = useMemo(() => {
+    return new Set(nodes.filter(n => n.selected).map(n => n.id))
+  }, [nodes])
+
+  const handleSelect = useCallback(
+    (id: string) => {
+      // Select in React Flow
+      reactFlow.setNodes(nodes =>
+        nodes.map(node => ({
+          ...node,
+          selected: node.id === id,
+        }))
+      )
+
+      // Select in Theatre.js using the same method as onNodeClick
+      const store = getOpStore()
+      const obj = store.getSheetObject(id)
+      if (obj) {
+        studio.setSelection([obj])
+      } else {
+        studio.setSelection([])
+      }
+    },
+    [reactFlow]
+  )
+
+  const handleNavigate = useCallback(
+    (id: string) => {
+      const nestingStore = useNestingStore.getState()
+      const currentContainerId = nestingStore.currentContainerId
+
+      // Navigate to the appropriate container level
+      const pathParts = id.split('/').filter(Boolean)
+      let targetContainerId: string
+      if (pathParts.length > 1) {
+        // Nested node: navigate to parent container
+        targetContainerId = `/${pathParts.slice(0, -1).join('/')}`
+        nestingStore.setCurrentContainerId(targetContainerId)
+      } else {
+        // Root level node: navigate to root
+        targetContainerId = '/'
+        nestingStore.setCurrentContainerId('/')
+      }
+
+      // Check if already on the same level
+      const isOnSameLevel = currentContainerId === targetContainerId
+
+      // Clear selection when changing levels
+      if (!isOnSameLevel) {
+        reactFlow.setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
+
+        // When changing levels, show all nodes at that level for context
+        reactFlow.fitView({ duration: 0 })
+      } else {
+        // Same level: zoom directly to the specific node
+        reactFlow.fitView({
+          nodes: [{ id }],
+          duration: 300,
+          padding: 0.5,
+        })
+      }
+    },
+    [reactFlow]
+  )
+
+  const handleToggleCollapse = useCallback((id: string) => {
+    setCollapsedNodes(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }, [])
+
+  return (
+    <div className={s.sidebar}>
+      <div className={s.treeContainer}>
+        {tree.map(node => (
+          <TreeItem
+            key={node.id}
+            node={node}
+            selectedNodeIds={selectedNodeIds}
+            onSelect={handleSelect}
+            onNavigate={handleNavigate}
+            collapsedNodes={collapsedNodes}
+            onToggleCollapse={handleToggleCollapse}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}

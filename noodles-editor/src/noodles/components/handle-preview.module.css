@@ -26,11 +26,11 @@
 
 .handlePreviewName {
   font-weight: bold;
-  color: var(--node-header-text-color);
+  color: var(--color-text-primary);
 }
 
 .handlePreviewType {
-  color: var(--node-field-hint-color);
+  color: var(--color-text-secondary);
   font-size: 10px;
 }
 
@@ -41,7 +41,7 @@
 }
 
 .handlePreviewEmpty {
-  color: var(--node-field-hint-color);
+  color: var(--color-text-secondary);
   padding: 4px;
 }
 
@@ -60,10 +60,10 @@
 
 .handlePreviewTable th {
   font-weight: bold;
-  color: var(--node-header-text-color);
+  color: var(--color-text-primary);
   background: rgba(0, 0, 0, 0.2);
 }
 
 .handlePreviewTable td {
-  color: var(--node-text-color);
+  color: var(--color-text-primary);
 }

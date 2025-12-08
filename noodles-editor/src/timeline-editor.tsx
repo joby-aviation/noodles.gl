@@ -8,12 +8,13 @@ import type { Map as MapLibre } from 'maplibre-gl'
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ReactMapGL, { type MapProps, useControl } from 'react-map-gl/maplibre'
 import { getNoodles } from './noodles/noodles'
+import { NoodlesMenubar } from './noodles/components/menu'
 import { useDeckDrawLoop } from './render/draw-loop'
 import { captureScreenshot, rafDriver, useRenderer } from './render/renderer'
 import { TransformScale } from './render/transform-scale'
 import setRef from './utils/set-ref'
 import useSheetValue, { type PropsValue } from './utils/use-sheet-value'
-import { WidgetContainer } from './widget-container'
+import { Layout } from './layout'
 
 import s from './timeline-editor.module.css'
 
@@ -33,8 +34,19 @@ const injectTheatreStyles = () => {
     const style = document.createElement('style')
     style.id = 'hide-export-style'
     style.textContent = `
-      /* Hide all panels except properties (export button, sheet name) - using generated class name (brittle) */
+      /* Hide all panels except properties (export button, sheet name) */
       .sc-dPZUQH:not([data-testid="DetailPanel-Object"]) {
+        display: none !important;
+      }
+
+      /* Hide the left sidebar (sheet tree panel) */
+      [data-testid="SequenceEditorPanel-tree"],
+      .sc-djVXDX.fXnbPU {
+        display: none !important;
+      }
+
+      /* Hide the sidebar top bar */
+      .sc-cHMHOW.dGwDVq {
         display: none !important;
       }
     `
@@ -123,9 +135,6 @@ const isMapReady = (map: MapLibre | null) => !map || (map.isStyleLoaded() && map
 
 export default function TimelineEditor() {
   const [ready, setReady] = useState(false)
-  const startRenderRef = useRef(async () => {})
-  const takeScreenshotRef = useRef(async () => {})
-  const advanceFrameRef = useRef(() => {})
 
   const mapRef = useRef<MapLibre | null>(null)
   const deckRef = useRef<Deck>(null)
@@ -140,7 +149,8 @@ export default function TimelineEditor() {
     setRand(Math.random())
   }, [])
 
-  const { project, sheet, widgets, layoutMode, ...visualization } = getNoodles()
+  const noodles = getNoodles()
+  const { project, sheet, flowGraph, projectNameBar, nodeSidebar, propertiesPanel, layoutMode, ...visualization } = noodles
   const sequence = sheet.sequence
 
   useEffect(() => {
@@ -148,19 +158,7 @@ export default function TimelineEditor() {
   }, [project])
 
   const { rendererSheet } = useMemo(() => {
-    const rendererSheet = sheet?.object('render', INITIAL_RENDER_STATE, {
-      __actions__THIS_API_IS_UNSTABLE_AND_WILL_CHANGE_IN_THE_NEXT_VERSION: {
-        startRender: async () => {
-          await startRenderRef.current()
-        },
-        advanceFrame: () => {
-          advanceFrameRef.current()
-        },
-        takeScreenshot: async () => {
-          await takeScreenshotRef.current()
-        },
-      },
-    })
+    const rendererSheet = sheet?.object('render', INITIAL_RENDER_STATE)
 
     return {
       rendererSheet,
@@ -172,7 +170,7 @@ export default function TimelineEditor() {
   const { framerate, bitrateMbps, bitrateMode, codec, resolution, lod, waitForData, captureDelay } =
     renderer
 
-  const { startCapture, captureFrame, currentFrame, advanceFrame, _animate, isRendering } =
+  const { startCapture, captureFrame, currentFrame, isRendering } =
     useRenderer({
       project,
       sequence: sequence,
@@ -192,7 +190,6 @@ export default function TimelineEditor() {
   const fpsRef = useRef(0)
 
   const deckProps: DeckProps = {
-    _animate,
     deviceProps: {
       type: 'webgl',
       powerPreference: 'high-performance',
@@ -245,12 +242,6 @@ export default function TimelineEditor() {
       : {}),
   }
 
-  useEffect(() => {
-    if (_animate) {
-      mapRef.current?.redraw()
-    }
-  }, [_animate])
-
   // Expose deck.gl canvas and instance for Claude AI visual debugging
   useEffect(() => {
     if (deckRef.current) {
@@ -295,7 +286,7 @@ export default function TimelineEditor() {
     props: deckProps,
   })
 
-  startRenderRef.current = useCallback(async () => {
+  const startRender = useCallback(async () => {
     let canvas: HTMLCanvasElement | null = null
 
     if (basemapEnabled) {
@@ -327,7 +318,7 @@ export default function TimelineEditor() {
     })
   }, [startCapture, codec, resolution, basemapEnabled])
 
-  takeScreenshotRef.current = useCallback(async () => {
+  const takeScreenshot = useCallback(async () => {
     if (!deckRef.current) {
       console.error('Take Screenshot: deck is not defined')
       return
@@ -344,8 +335,6 @@ export default function TimelineEditor() {
       return deckRef.current.canvas!
     })
   }, [project.address.projectId, redraw, basemapEnabled])
-
-  advanceFrameRef.current = advanceFrame
 
   // Increase the render target resolution to increase map tile detail.
   // To convert viewport bounds back to their original size, add about 1 to the zoom value.
@@ -399,13 +388,33 @@ export default function TimelineEditor() {
         </div>
       )}
       <ReactFlowProvider>
-        <WidgetContainer widgets={widgets} layoutMode={layoutMode}>
+        <Layout
+          top={projectNameBar}
+          bottom={
+            <NoodlesMenubar
+              projectName={noodles.projectName}
+              setProjectName={noodles.setProjectName!}
+              getTimelineJson={noodles.getTimelineJson!}
+              loadProjectFile={noodles.loadProjectFile!}
+              undoRedo={noodles.undoRedo ?? undefined}
+              showChatPanel={noodles.showChatPanel}
+              setShowChatPanel={noodles.setShowChatPanel}
+              startRender={startRender}
+              takeScreenshot={takeScreenshot}
+              isRendering={isRendering}
+            />
+          }
+          left={nodeSidebar}
+          right={propertiesPanel}
+          flowGraph={flowGraph}
+          layoutMode={layoutMode}
+        >
           {isFixedMode ? (
             <TransformScale scale={renderer.scaleControl}>{renderContent()}</TransformScale>
           ) : (
             renderContent()
           )}
-        </WidgetContainer>
+        </Layout>
       </ReactFlowProvider>
     </>
   )

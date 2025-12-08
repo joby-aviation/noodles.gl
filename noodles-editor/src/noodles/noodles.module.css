@@ -16,6 +16,27 @@
 :root {
   color-scheme: dark !important;
 
+  /* Generic UI colors - used throughout the interface */
+  --color-bg-base: #1a1a1a;
+  --color-bg-primary: #282b2fde;
+  --color-bg-secondary: #2a2a2a;
+  --color-bg-hover: rgba(255, 255, 255, 0.1);
+  --color-bg-accent: rgba(255, 255, 255, 0.15);
+
+  --color-text-primary: #e2dede;
+  --color-text-secondary: #888;
+  --color-text-accent: #4a9eff;
+
+  --color-border: #333;
+  --color-border-focus: rgba(255, 255, 255, 0.2);
+
+  --color-input-hover: #383838;
+  --color-input-focus: #2d2d2d;
+  --color-input-disabled: #1c1c1c;
+
+  --color-selected: #3367d9;
+
+  /* Node type colors */
   --node-string-color: #1299be;
   --node-number-color: #bc1212;
   --node-boolean-color: #c69a16;
@@ -33,13 +54,6 @@
   --node-vector-color: #610d4e;
   --node-view-color: #0e8fc9;
   --node-widget-color: #7a61d5;
-
-  --node-header-text-color: #dadada;
-  --node-header-text-color-dark: #292929;
-  --node-header-border-color: #e0e0e0;
-
-  --node-input-hover-color: #383838;
-  --node-input-focus-color: #2d2d2d;
 
   --property-panel-width: 280px;
   --property-panel-background-color: #282b2fcc;
@@ -69,19 +83,25 @@
 :global(.react-flow) {
   --node-group-background-color: rgba(244, 79, 9, 0.1);
 
-  --node-background-color: #282b2fde;
-  --node-text-color: #e2dede;
-  --node-selected-color: #3367d9;
+  /* Node-specific aliases (use generic colors) */
+  --node-background-color: var(--color-bg-primary);
+  --node-text-color: var(--color-text-primary);
+  --node-selected-color: var(--color-selected);
+  --node-add-menu-header-text-color: var(--color-text-primary);
+  --node-header-text-color: #dadada;
+  --node-header-text-color-dark: #292929;
+  --node-header-border-color: #e0e0e0;
+  --node-input-hover-color: var(--color-input-hover);
+  --node-input-focus-color: var(--color-input-focus);
+  --node-input-disaabled-color: var(--color-input-disabled);
+
   --node-add-menu-background-color: #404040;
-  --node-add-menu-header-text-color: #fff;
   --node-add-menu-header-background-color: black;
   --node-add-menu-hover-color: #313131;
 
   --node-handle-outline-color: #808080;
 
   --node-field-hint-color: #808080;
-
-  --node-input-disaabled-color: #1c1c1c;
 
   /* Execution state indicators */
   --node-execution-executing-color: #3b82f6;
@@ -285,55 +305,68 @@
 
 .handleNumber {
   --xy-handle-background-color: var(--node-number-color);
+  background-color: var(--node-number-color);
 }
 
 .handleString {
   --xy-handle-background-color: var(--node-string-color);
+  background-color: var(--node-string-color);
 }
 
 .handleBoolean {
   color: var(--node-header-text-color-dark);
   --xy-handle-background-color: var(--node-boolean-color);
+  background-color: var(--node-boolean-color);
 }
 
 .handleColor {
   --xy-handle-background-color: var(--node-color-color);
+  background-color: var(--node-color-color);
 }
 
 .handleData {
   --xy-handle-background-color: var(--node-data-color);
+  background-color: var(--node-data-color);
 }
 
 .handleGeojson {
   --xy-handle-background-color: var(--node-geojson-color);
+  background-color: var(--node-geojson-color);
 }
 
 .handleVector {
   --xy-handle-background-color: var(--node-vector-color);
+  background-color: var(--node-vector-color);
 }
 
 .handleCompound {
   --xy-handle-background-color: var(--node-compound-color);
+  background-color: var(--node-compound-color);
 }
 
 .handleView {
   --xy-handle-background-color: var(--node-view-color);
+  background-color: var(--node-view-color);
 }
 
 .handleLayer {
   --xy-handle-background-color: var(--node-layer-color);
+  background-color: var(--node-layer-color);
 }
 
 .handleEffect {
   --xy-handle-background-color: var(--node-effect-color);
+  background-color: var(--node-effect-color);
 }
 
 .handleExtension {
   --xy-handle-background-color: var(--node-extension-color);
+  background-color: var(--node-extension-color);
 }
 
 .handleWidget {
   --xy-handle-background-color: var(--node-widget-color);
+  background-color: var(--node-widget-color);
 }
 
 .content {
