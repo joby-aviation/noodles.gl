@@ -305,55 +305,68 @@
 
 .handleNumber {
   --xy-handle-background-color: var(--node-number-color);
+  background-color: var(--node-number-color);
 }
 
 .handleString {
   --xy-handle-background-color: var(--node-string-color);
+  background-color: var(--node-string-color);
 }
 
 .handleBoolean {
   color: var(--node-header-text-color-dark);
   --xy-handle-background-color: var(--node-boolean-color);
+  background-color: var(--node-boolean-color);
 }
 
 .handleColor {
   --xy-handle-background-color: var(--node-color-color);
+  background-color: var(--node-color-color);
 }
 
 .handleData {
   --xy-handle-background-color: var(--node-data-color);
+  background-color: var(--node-data-color);
 }
 
 .handleGeojson {
   --xy-handle-background-color: var(--node-geojson-color);
+  background-color: var(--node-geojson-color);
 }
 
 .handleVector {
   --xy-handle-background-color: var(--node-vector-color);
+  background-color: var(--node-vector-color);
 }
 
 .handleCompound {
   --xy-handle-background-color: var(--node-compound-color);
+  background-color: var(--node-compound-color);
 }
 
 .handleView {
   --xy-handle-background-color: var(--node-view-color);
+  background-color: var(--node-view-color);
 }
 
 .handleLayer {
   --xy-handle-background-color: var(--node-layer-color);
+  background-color: var(--node-layer-color);
 }
 
 .handleEffect {
   --xy-handle-background-color: var(--node-effect-color);
+  background-color: var(--node-effect-color);
 }
 
 .handleExtension {
   --xy-handle-background-color: var(--node-extension-color);
+  background-color: var(--node-extension-color);
 }
 
 .handleWidget {
   --xy-handle-background-color: var(--node-widget-color);
+  background-color: var(--node-widget-color);
 }
 
 .content {
