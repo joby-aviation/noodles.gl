@@ -239,6 +239,15 @@ export function NodeTreeSidebar() {
 
       const isChangingLevels = currentContainerId !== targetContainerId
 
+      // Track analytics if we're changing levels
+      if (isChangingLevels) {
+        // Determine direction: up if target is shallower than current
+        const currentDepth = currentContainerId.split('/').filter(Boolean).length
+        const targetDepth = targetContainerId.split('/').filter(Boolean).length
+        const direction = targetDepth < currentDepth ? 'up' : 'into'
+        analytics.track('container_navigated', { method: 'sidebar_target', direction })
+      }
+
       // Use RAF to ensure React state updates have flushed
       requestAnimationFrame(() => {
         // Zoom to the specific node (instant if changing levels, animated if same level)
