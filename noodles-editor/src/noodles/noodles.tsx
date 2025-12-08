@@ -814,7 +814,7 @@ export function getNoodles(): Visualization {
     return {
       version: NOODLES_VERSION,
       nodes: serializeNodes(store, nodes, edges),
-      edges: serializeEdges(edges),
+      edges: serializeEdges(store, nodes, edges),
       viewport: { x: 0, y: 0, zoom: 1 },
       timeline,
     }
