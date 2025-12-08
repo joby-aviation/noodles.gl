@@ -222,22 +222,27 @@ export function NodeTreeSidebar() {
   const handleNavigate = useCallback(
     (id: string) => {
       const nestingStore = useNestingStore.getState()
+      const currentContainerId = nestingStore.currentContainerId
 
       // Navigate to the appropriate container level
       const pathParts = id.split('/').filter(Boolean)
+      let targetContainerId: string
       if (pathParts.length > 1) {
         // Nested node: navigate to parent container
-        const targetContainerId = `/${pathParts.slice(0, -1).join('/')}`
+        targetContainerId = `/${pathParts.slice(0, -1).join('/')}`
         nestingStore.setCurrentContainerId(targetContainerId)
       } else {
         // Root level node: navigate to root
+        targetContainerId = '/'
         nestingStore.setCurrentContainerId('/')
       }
 
-      // Always zoom to the specific node
+      const isChangingLevels = currentContainerId !== targetContainerId
+
+      // Zoom to the specific node (instant if changing levels, animated if same level)
       reactFlow.fitView({
         nodes: [{ id }],
-        duration: 300,
+        duration: isChangingLevels ? 0 : 300,
         padding: 0.5,
       })
     },
