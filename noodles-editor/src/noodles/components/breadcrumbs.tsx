@@ -99,11 +99,8 @@ export const Breadcrumbs: FC = () => {
     (segmentId: string) => {
       reactFlow.setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
       setCurrentContainerId(segmentId)
-      analytics.track('container_navigated', { method: 'breadcrumb' })
-      // Use RAF to ensure React state updates have flushed
-      requestAnimationFrame(() => {
-        reactFlow.fitView({ duration: 0 })
-      })
+      analytics.track('container_navigated', { method: 'breadcrumb', direction: 'up' })
+      reactFlow.fitView({ duration: 0 })
     },
     [reactFlow, setCurrentContainerId]
   )
@@ -112,11 +109,8 @@ export const Breadcrumbs: FC = () => {
     (itemId: string) => {
       reactFlow.setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
       setCurrentContainerId(itemId)
-      analytics.track('container_navigated', { method: 'menu' })
-      // Use RAF to ensure React state updates have flushed
-      requestAnimationFrame(() => {
-        reactFlow.fitView({ duration: 0 })
-      })
+      analytics.track('container_navigated', { method: 'menu', direction: 'into' })
+      reactFlow.fitView({ duration: 0 })
     },
     [reactFlow, setCurrentContainerId]
   )

@@ -96,13 +96,6 @@ function TreeItem({
   const category = getOperatorCategory(node.type)
   const borderColor = category ? `var(--node-${category}-color)` : 'transparent'
 
-  // Handle double-click to navigate into containers
-  const handleDoubleClick = useCallback(() => {
-    if (isContainer) {
-      onNavigateInto(node.id)
-    }
-  }, [isContainer, node.id, onNavigateInto])
-
   return (
     <div className={s.treeItem}>
       {/* biome-ignore lint/a11y/useSemanticElements: Using div for flexible tree item styling */}
@@ -115,7 +108,6 @@ function TreeItem({
           borderLeft: `3px solid ${borderColor}`,
         }}
         onClick={() => onSelect(node.id)}
-        onDoubleClick={handleDoubleClick}
         onKeyDown={e => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
@@ -143,17 +135,32 @@ function TreeItem({
           <span className={s.nodeType}>{node.type.replace(/Op$/, '')}</span>
         </div>
         {hovering && (
-          <button
-            type="button"
-            className={s.navigateButton}
-            onClick={e => {
-              e.stopPropagation()
-              onNavigate(node.id)
-            }}
-            title="Navigate to node"
-          >
-            <i className="pi pi-compass" />
-          </button>
+          <>
+            {isContainer && (
+              <button
+                type="button"
+                className={s.navigateButton}
+                onClick={e => {
+                  e.stopPropagation()
+                  onNavigateInto(node.id)
+                }}
+                title="Navigate into container"
+              >
+                <i className="pi pi-arrow-right" />
+              </button>
+            )}
+            <button
+              type="button"
+              className={s.navigateButton}
+              onClick={e => {
+                e.stopPropagation()
+                onNavigate(node.id)
+              }}
+              title="Navigate to node"
+            >
+              <i className="pi pi-compass" />
+            </button>
+          </>
         )}
       </div>
       {isContainer && !isCollapsed && (
@@ -215,38 +222,24 @@ export function NodeTreeSidebar() {
   const handleNavigate = useCallback(
     (id: string) => {
       const nestingStore = useNestingStore.getState()
-      const currentContainerId = nestingStore.currentContainerId
 
       // Navigate to the appropriate container level
       const pathParts = id.split('/').filter(Boolean)
-      let targetContainerId: string
       if (pathParts.length > 1) {
         // Nested node: navigate to parent container
-        targetContainerId = `/${pathParts.slice(0, -1).join('/')}`
+        const targetContainerId = `/${pathParts.slice(0, -1).join('/')}`
         nestingStore.setCurrentContainerId(targetContainerId)
       } else {
         // Root level node: navigate to root
-        targetContainerId = '/'
         nestingStore.setCurrentContainerId('/')
       }
 
-      // Check if already on the same level
-      const isOnSameLevel = currentContainerId === targetContainerId
-
-      // Clear selection when changing levels
-      if (!isOnSameLevel) {
-        reactFlow.setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
-
-        // When changing levels, show all nodes at that level for context
-        reactFlow.fitView({ duration: 0 })
-      } else {
-        // Same level: zoom directly to the specific node
-        reactFlow.fitView({
-          nodes: [{ id }],
-          duration: 300,
-          padding: 0.5,
-        })
-      }
+      // Always zoom to the specific node
+      reactFlow.fitView({
+        nodes: [{ id }],
+        duration: 300,
+        padding: 0.5,
+      })
     },
     [reactFlow]
   )
@@ -257,11 +250,8 @@ export function NodeTreeSidebar() {
       // Clear selection when changing levels
       reactFlow.setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
       nestingStore.setCurrentContainerId(id)
-      analytics.track('container_navigated', { method: 'sidebar_double_click' })
-      // Fit all nodes at the new level (no animation)
-      requestAnimationFrame(() => {
-        reactFlow.fitView({ duration: 0 })
-      })
+      analytics.track('container_navigated', { method: 'sidebar', direction: 'into' })
+      reactFlow.fitView({ duration: 0 })
     },
     [reactFlow]
   )

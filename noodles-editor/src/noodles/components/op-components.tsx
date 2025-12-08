@@ -1140,12 +1140,8 @@ function ContainerOpComponent({
         // Clear selection when changing levels
         reactFlow.setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
         setCurrentContainerId(op.id)
-        analytics.track('container_navigated', { method: 'double_click' })
-        // Fit all nodes at the new level (no animation)
-        // Use RAF to ensure React state updates have flushed
-        requestAnimationFrame(() => {
-          reactFlow.fitView({ duration: 0 })
-        })
+        analytics.track('container_navigated', { method: 'double_click', direction: 'into' })
+        reactFlow.fitView({ duration: 0 })
       }}
     >
       <NodeHeader id={id} type={type} op={op} />
