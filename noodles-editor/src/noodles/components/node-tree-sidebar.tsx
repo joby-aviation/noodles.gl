@@ -4,7 +4,18 @@ import { useCallback, useMemo, useState } from 'react'
 import type { IOperator, Operator } from '../operators'
 import { getOpStore, useNestingStore, useOperatorStore } from '../store'
 import { getBaseName } from '../utils/path-utils'
+import { categories } from './categories'
 import s from './node-tree-sidebar.module.css'
+
+// Map operator type to category for color coding
+function getOperatorCategory(type: string): string | null {
+  for (const [category, operators] of Object.entries(categories)) {
+    if ((operators as readonly string[]).includes(type)) {
+      return category
+    }
+  }
+  return null
+}
 
 interface TreeNode {
   id: string
@@ -78,6 +89,10 @@ function TreeItem({
   const isCollapsed = collapsedNodes.has(node.id)
   const isSelected = selectedNodeIds.has(node.id)
 
+  // Get the category color for this operator type
+  const category = getOperatorCategory(node.type)
+  const borderColor = category ? `var(--node-${category}-color)` : 'transparent'
+
   return (
     <div className={s.treeItem}>
       {/* biome-ignore lint/a11y/useSemanticElements: Using div for flexible tree item styling */}
@@ -85,7 +100,10 @@ function TreeItem({
         role="button"
         tabIndex={0}
         className={`${s.treeItemContent} ${isSelected ? s.selected : ''}`}
-        style={{ paddingLeft: `${24 + (node.depth - 1) * 20}px` }}
+        style={{
+          paddingLeft: `${24 + (node.depth - 1) * 20}px`,
+          borderLeft: `3px solid ${borderColor}`,
+        }}
         onClick={() => onSelect(node.id)}
         onKeyDown={e => {
           if (e.key === 'Enter' || e.key === ' ') {
