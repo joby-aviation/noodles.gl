@@ -1,10 +1,9 @@
 .bar {
   padding: 8px 10px;
-  background-color: #2a2a2a;
+  background-color: transparent;
   display: flex;
   align-items: center;
   font-size: 14px;
-  border-bottom: 1px solid #1c1c1c;
   position: absolute;
   z-index: var(--z-index-breadcrumbs);
 }
@@ -12,43 +11,46 @@
 .segment {
   background: none;
   border: none;
-  color: #ccc;
+  color: var(--color-text-primary, #e0e0e0);
   cursor: pointer;
   padding: 4px 6px;
   border-radius: 4px;
+  font-size: 13px;
 }
 
 .segment:hover {
-  background-color: #383838;
+  background-color: var(--color-bg-hover, rgba(255, 255, 255, 0.1));
 }
 
 .active {
-  color: #fff;
-  font-weight: bold;
-  background-color: #4a4a4a;
+  color: var(--color-text-primary, #ffffff);
+  font-weight: 600;
 }
 
 .separator {
   margin: 0 4px;
-  color: #777;
+  color: var(--color-text-secondary, #888);
   cursor: pointer;
 }
 
 .menu {
-  background-color: #2a2a2a;
-  border: 1px solid #1c1c1c;
-  border-radius: 4px;
+  background-color: var(--color-bg-base, #1a1a1a);
+  border: 1px solid var(--color-border, #333);
+  border-radius: 6px;
   padding: 4px;
-  box-shadow: 0 2px 10px var(--black-a7);
+  box-shadow: 0 10px 38px -10px rgba(0, 0, 0, 0.35), 0 10px 20px -15px rgba(0, 0, 0, 0.2);
 }
 
 .menuItem {
-  padding: 4px 6px;
-  border-radius: 4px;
+  padding: 8px 12px;
+  border-radius: 3px;
   cursor: pointer;
   background-color: transparent;
+  color: var(--color-text-primary, #e0e0e0);
+  font-size: 13px;
+  transition: background-color 0.15s;
 }
 
 .menuItem:hover {
-  background-color: #383838;
+  background-color: var(--color-bg-hover, rgba(255, 255, 255, 0.1));
 }
