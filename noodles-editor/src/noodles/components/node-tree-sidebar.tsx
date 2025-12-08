@@ -114,7 +114,7 @@ function TreeItem({
         onMouseEnter={() => setHovering(true)}
         onMouseLeave={() => setHovering(false)}
       >
-        {isContainer && (
+        {isContainer && hasChildren && (
           <button
             type="button"
             className={s.collapseButton}
