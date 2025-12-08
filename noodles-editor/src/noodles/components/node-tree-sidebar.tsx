@@ -1,6 +1,7 @@
 import studio from '@theatre/studio'
 import { useReactFlow } from '@xyflow/react'
 import { useCallback, useMemo, useState } from 'react'
+import { analytics } from '../../utils/analytics'
 import type { IOperator, Operator } from '../operators'
 import { getOpStore, useNestingStore, useOperatorStore } from '../store'
 import { getBaseName } from '../utils/path-utils'
@@ -71,6 +72,7 @@ interface TreeItemProps {
   selectedNodeIds: Set<string>
   onSelect: (id: string) => void
   onNavigate: (id: string) => void
+  onNavigateInto: (id: string) => void
   collapsedNodes: Set<string>
   onToggleCollapse: (id: string) => void
 }
@@ -80,6 +82,7 @@ function TreeItem({
   selectedNodeIds,
   onSelect,
   onNavigate,
+  onNavigateInto,
   collapsedNodes,
   onToggleCollapse,
 }: TreeItemProps) {
@@ -93,6 +96,13 @@ function TreeItem({
   const category = getOperatorCategory(node.type)
   const borderColor = category ? `var(--node-${category}-color)` : 'transparent'
 
+  // Handle double-click to navigate into containers
+  const handleDoubleClick = useCallback(() => {
+    if (isContainer) {
+      onNavigateInto(node.id)
+    }
+  }, [isContainer, node.id, onNavigateInto])
+
   return (
     <div className={s.treeItem}>
       {/* biome-ignore lint/a11y/useSemanticElements: Using div for flexible tree item styling */}
@@ -105,6 +115,7 @@ function TreeItem({
           borderLeft: `3px solid ${borderColor}`,
         }}
         onClick={() => onSelect(node.id)}
+        onDoubleClick={handleDoubleClick}
         onKeyDown={e => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
@@ -154,6 +165,7 @@ function TreeItem({
               selectedNodeIds={selectedNodeIds}
               onSelect={onSelect}
               onNavigate={onNavigate}
+              onNavigateInto={onNavigateInto}
               collapsedNodes={collapsedNodes}
               onToggleCollapse={onToggleCollapse}
             />
@@ -239,6 +251,21 @@ export function NodeTreeSidebar() {
     [reactFlow]
   )
 
+  const handleNavigateInto = useCallback(
+    (id: string) => {
+      const nestingStore = useNestingStore.getState()
+      // Clear selection when changing levels
+      reactFlow.setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
+      nestingStore.setCurrentContainerId(id)
+      analytics.track('container_navigated', { method: 'sidebar_double_click' })
+      // Fit all nodes at the new level (no animation)
+      requestAnimationFrame(() => {
+        reactFlow.fitView({ duration: 0 })
+      })
+    },
+    [reactFlow]
+  )
+
   const handleToggleCollapse = useCallback((id: string) => {
     setCollapsedNodes(prev => {
       const next = new Set(prev)
@@ -261,6 +288,7 @@ export function NodeTreeSidebar() {
             selectedNodeIds={selectedNodeIds}
             onSelect={handleSelect}
             onNavigate={handleNavigate}
+            onNavigateInto={handleNavigateInto}
             collapsedNodes={collapsedNodes}
             onToggleCollapse={handleToggleCollapse}
           />
