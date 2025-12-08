@@ -862,15 +862,12 @@ export function getNoodles(): Visualization {
         return
       }
 
-      // Write empty project to noodles.json
-      const emptyProject = {
-        ...EMPTY_PROJECT,
+      // Write starter project to noodles.json
+      const starterProject = {
+        ...newProjectJSON,
         version: NOODLES_VERSION,
-        nodes: [],
-        edges: [],
-        viewport: { x: 0, y: 0, zoom: 1 },
       } as NoodlesProjectJSON
-      await writeFileToDirectory(directoryHandle, 'noodles.json', safeStringify(emptyProject))
+      await writeFileToDirectory(directoryHandle, 'noodles.json', safeStringify(starterProject))
 
       // Cache the directory handle
       await directoryHandleCache.cacheHandle(directoryName, directoryHandle, directoryHandle.name)
