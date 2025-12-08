@@ -1,6 +1,6 @@
 import cx from 'classnames'
 import { type PropsWithChildren, useEffect, useRef, useState } from 'react'
-import s from './widget-container.module.css'
+import s from './layout.module.css'
 
 const TheatreSheetTree = ({ width }: { width: number }) => (
   <div style={{ width: `${width + 16}px` }} />
@@ -87,7 +87,7 @@ export function Layout({
   }, [])
 
   return (
-    <div className={cx(s.widgetContainer, layoutClass)}>
+    <div className={cx(s.layout, layoutClass)}>
       <div style={{ gridArea: 'top-widget' }}>{top}</div>
       <div style={{ gridArea: 'left-widget' }}>
         <TheatreSheetTree width={sheetTreeWidth} />

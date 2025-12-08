@@ -14,7 +14,7 @@ import { captureScreenshot, rafDriver, useRenderer } from './render/renderer'
 import { TransformScale } from './render/transform-scale'
 import setRef from './utils/set-ref'
 import useSheetValue, { type PropsValue } from './utils/use-sheet-value'
-import { Layout } from './widget-container'
+import { Layout } from './layout'
 
 import s from './timeline-editor.module.css'
 
