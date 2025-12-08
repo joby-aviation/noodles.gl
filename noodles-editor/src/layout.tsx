@@ -3,7 +3,7 @@ import { type PropsWithChildren, useEffect, useRef, useState } from 'react'
 import s from './layout.module.css'
 
 const TheatrePropPanel = ({ width, height }: { width: number; height: number }) => (
-  <div style={{ width: `${width + 16}px`, height: `${height + 60}px` }} />
+  <div style={{ width: `${width + 16}px`, height: `${height}px` }} />
 )
 
 const LAYOUT_CLASSES = {
