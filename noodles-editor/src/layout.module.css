@@ -2,7 +2,7 @@
   display: grid;
   height: 100vh;
   grid-template-areas:
-    "left-widget top-bar right-widget"
+    "top-bar top-bar top-bar"
     "left-widget fill-widget right-widget"
     "bottom-widget bottom-widget bottom-widget";
   grid-template-rows: auto 1fr auto;
