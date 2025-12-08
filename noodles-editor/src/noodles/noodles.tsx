@@ -790,19 +790,19 @@ export function getNoodles(): Visualization {
     }
   }, [outOp, selectedGeoJsonFeatures])
 
-  const rightPanel = (
+  const projectNameBar = <ProjectNameBar projectName={projectName} />
+
+  const propertiesPanel = (
     <div className={s.rightPanel}>
       <PropertyPanel />
       <DropTarget />
     </div>
   )
 
-  const topBar = <ProjectNameBar projectName={projectName} />
-
   return {
     flowGraph,
-    top: topBar,
-    right: rightPanel,
+    projectNameBar,
+    propertiesPanel,
     layoutMode,
     // Export these so timeline-editor can create the menu with render actions
     projectName,

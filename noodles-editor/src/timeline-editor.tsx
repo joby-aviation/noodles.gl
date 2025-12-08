@@ -139,7 +139,7 @@ export default function TimelineEditor() {
   }, [])
 
   const noodles = getNoodles()
-  const { project, sheet, flowGraph, top, right, layoutMode, ...visualization } = noodles
+  const { project, sheet, flowGraph, projectNameBar, propertiesPanel, layoutMode, ...visualization } = noodles
   const sequence = sheet.sequence
 
   useEffect(() => {
@@ -379,7 +379,7 @@ export default function TimelineEditor() {
       )}
       <ReactFlowProvider>
         <Layout
-          top={top}
+          top={projectNameBar}
           bottom={
             <NoodlesMenubar
               projectName={noodles.projectName}
@@ -389,14 +389,12 @@ export default function TimelineEditor() {
               undoRedo={noodles.undoRedo ?? undefined}
               showChatPanel={noodles.showChatPanel}
               setShowChatPanel={noodles.setShowChatPanel}
-              renderActions={{
-                startRender,
-                takeScreenshot,
-                isRendering,
-              }}
+              startRender={startRender}
+              takeScreenshot={takeScreenshot}
+              isRendering={isRendering}
             />
           }
-          right={right}
+          right={propertiesPanel}
           flowGraph={flowGraph}
           layoutMode={layoutMode}
         >

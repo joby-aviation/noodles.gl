@@ -415,7 +415,9 @@ export function NoodlesMenubar({
   undoRedo,
   showChatPanel,
   setShowChatPanel,
-  renderActions,
+  startRender,
+  takeScreenshot,
+  isRendering,
 }: {
   projectName?: string
   loadProjectFile: (project: NoodlesProjectJSON, projectName?: string) => void
@@ -430,11 +432,9 @@ export function NoodlesMenubar({
   }
   showChatPanel?: boolean
   setShowChatPanel?: (show: boolean) => void
-  renderActions?: {
-    startRender: () => Promise<void>
-    takeScreenshot: () => Promise<void>
-    isRendering: boolean
-  } | null
+  startRender: () => Promise<void>
+  takeScreenshot: () => Promise<void>
+  isRendering: boolean
 }) {
   const [recentlyOpened, setRecentlyOpened] = useState<RecentProject[]>([])
   const { toObject } = useReactFlow()
@@ -774,6 +774,39 @@ export function NoodlesMenubar({
                   </Menubar.SubContent>
                 </Menubar.Portal>
               </Menubar.Sub>
+            </Menubar.Content>
+          </Menubar.Portal>
+        </Menubar.Menu>
+
+        {/* Render Menu */}
+        <Menubar.Menu>
+          <Menubar.Trigger className={s.menubarTrigger}>Render</Menubar.Trigger>
+          <Menubar.Portal>
+            <Menubar.Content
+              className={s.menubarContent}
+              align="start"
+              sideOffset={5}
+              alignOffset={-3}
+            >
+              <Menubar.Item
+                className={s.menubarItem}
+                onSelect={() => {
+                  startRender()
+                  analytics.track('render_started', { source: 'menu' })
+                }}
+                disabled={isRendering}
+              >
+                {isRendering ? 'Rendering...' : 'Start Render'}
+              </Menubar.Item>
+              <Menubar.Item
+                className={s.menubarItem}
+                onSelect={() => {
+                  takeScreenshot()
+                  analytics.track('screenshot_taken', { source: 'menu' })
+                }}
+              >
+                Take Screenshot
+              </Menubar.Item>
             </Menubar.Content>
           </Menubar.Portal>
         </Menubar.Menu>

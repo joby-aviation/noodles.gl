@@ -14,8 +14,8 @@ export type BetterDeckProps = Partial<DeckProps & { viewState: ViewState }>
 export type Visualization = {
   // Direct component props (no widgets wrapper)
   flowGraph?: React.ReactNode
-  top?: React.ReactNode
-  right?: React.ReactNode
+  projectNameBar?: React.ReactNode
+  propertiesPanel?: React.ReactNode
   layoutMode?: 'split' | 'noodles-on-top' | 'output-on-top'
   // Noodles props for creating menu in timeline-editor
   projectName?: string
