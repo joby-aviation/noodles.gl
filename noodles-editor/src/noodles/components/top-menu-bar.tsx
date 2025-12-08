@@ -5,11 +5,14 @@ import { useReactFlow } from '@xyflow/react'
 import { type RefObject, useCallback, useMemo, useState } from 'react'
 import { SettingsDialog } from '../../components/settings-dialog'
 import { analytics } from '../../utils/analytics'
-import { useActiveStorageType, useFileSystemStore } from '../filesystem-store'
-import type { NoodlesProjectJSON } from '../noodles'
+import { useFileSystemStore } from '../filesystem-store'
 import { ContainerOp } from '../operators'
 import { getOpStore, useNestingStore } from '../store'
+import { directoryHandleCache } from '../utils/directory-handle-cache'
+import { requestPermission, selectDirectory, writeFileToDirectory } from '../utils/filesystem'
+import { migrateProject } from '../utils/migrate-schema'
 import { getParentPath, splitPath } from '../utils/path-utils'
+import { EMPTY_PROJECT, type NoodlesProjectJSON, safeStringify } from '../utils/serialization'
 import { Breadcrumbs } from './breadcrumbs'
 import type { CopyControlsRef } from './copy-controls'
 import s from './top-menu-bar.module.css'
@@ -25,8 +28,6 @@ const newProjectJSON = {
 interface TopMenuBarProps {
   projectName?: string
   setProjectName: (name: string | null) => void
-  getNoodlesProjectJson: () => NoodlesProjectJSON
-  loadProjectFile: (project: NoodlesProjectJSON) => void
   onSaveProject: () => void
   onOpenAddNode?: () => void
   showChatPanel?: boolean
@@ -41,8 +42,6 @@ interface TopMenuBarProps {
 export function TopMenuBar({
   projectName,
   setProjectName,
-  getNoodlesProjectJson,
-  loadProjectFile,
   onSaveProject,
   onOpenAddNode,
   showChatPanel,
@@ -54,7 +53,6 @@ export function TopMenuBar({
   isRendering,
 }: TopMenuBarProps) {
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false)
-  const storageType = useActiveStorageType()
   const { setCurrentDirectory } = useFileSystemStore()
   const currentContainerId = useNestingStore(state => state.currentContainerId)
   const setCurrentContainerId = useNestingStore(state => state.setCurrentContainerId)
@@ -112,29 +110,96 @@ export function TopMenuBar({
   }, [selectedContainer, setCurrentContainerId, reactFlow])
 
   const onNewProject = useCallback(async () => {
-    loadProjectFile(newProjectJSON as NoodlesProjectJSON)
-    analytics.track('project_created', { method: 'new' })
-  }, [loadProjectFile])
+    try {
+      // Prompt user to select/create a directory for the new project
+      const directoryHandle = await selectDirectory()
+      const directoryName = directoryHandle.name
+
+      // Ensure we have write permission
+      const hasPermission = await requestPermission(directoryHandle, 'readwrite')
+      if (!hasPermission) {
+        console.error('Permission denied to write to directory')
+        return
+      }
+
+      // Write empty project to noodles.json
+      const projectData = { ...EMPTY_PROJECT, ...newProjectJSON } as NoodlesProjectJSON
+      await writeFileToDirectory(directoryHandle, 'noodles.json', safeStringify(projectData))
+
+      // Cache the directory handle
+      await directoryHandleCache.cacheHandle(directoryName, directoryHandle, directoryHandle.name)
+
+      // Update store with directory handle
+      setCurrentDirectory(directoryHandle, directoryName)
+
+      // Navigate to the new project (triggers load)
+      setProjectName(directoryName)
+
+      analytics.track('project_created', { method: 'new' })
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        // User cancelled the picker
+        return
+      }
+      console.error('Failed to create new project:', error)
+    }
+  }, [setProjectName, setCurrentDirectory])
 
   const onImport = useCallback(async () => {
-    const [fileHandle] = await window.showOpenFilePicker({
-      types: [
-        {
-          description: 'Noodles Project',
-          accept: {
-            'application/json': ['.json'],
+    try {
+      // First, prompt for the project file to import
+      const [fileHandle] = await window.showOpenFilePicker({
+        types: [
+          {
+            description: 'Noodles Project',
+            accept: {
+              'application/json': ['.json'],
+            },
           },
-        },
-      ],
-    })
-    const file = await fileHandle.getFile()
-    const text = await file.text()
-    const projectJson = JSON.parse(text)
-    loadProjectFile(projectJson)
-    setProjectName(null)
-    setCurrentDirectory(null)
-    analytics.track('project_imported')
-  }, [loadProjectFile, setProjectName, setCurrentDirectory])
+        ],
+      })
+      const file = await fileHandle.getFile()
+      const text = await file.text()
+      const parsed = JSON.parse(text) as Partial<NoodlesProjectJSON>
+
+      // Migrate the imported project to latest version
+      const projectData = await migrateProject({
+        ...EMPTY_PROJECT,
+        ...parsed,
+      } as NoodlesProjectJSON)
+
+      // Now prompt for directory to save the imported project
+      const directoryHandle = await selectDirectory()
+      const directoryName = directoryHandle.name
+
+      // Ensure we have write permission
+      const hasPermission = await requestPermission(directoryHandle, 'readwrite')
+      if (!hasPermission) {
+        console.error('Permission denied to write to directory')
+        return
+      }
+
+      // Write imported project to noodles.json
+      await writeFileToDirectory(directoryHandle, 'noodles.json', safeStringify(projectData))
+
+      // Cache the directory handle
+      await directoryHandleCache.cacheHandle(directoryName, directoryHandle, directoryHandle.name)
+
+      // Update store with directory handle
+      setCurrentDirectory(directoryHandle, directoryName)
+
+      // Navigate to the imported project (triggers load)
+      setProjectName(directoryName)
+
+      analytics.track('project_imported')
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        // User cancelled the picker
+        return
+      }
+      console.error('Failed to import project:', error)
+    }
+  }, [setProjectName, setCurrentDirectory])
 
   const onSelectRenderSettings = useCallback(() => {
     const store = getOpStore()

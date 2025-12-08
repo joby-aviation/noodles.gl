@@ -395,8 +395,6 @@ export default function TimelineEditor() {
     <TopMenuBar
       projectName={noodles.projectName}
       setProjectName={noodles.setProjectName!}
-      getNoodlesProjectJson={noodles.getNoodlesProjectJson!}
-      loadProjectFile={noodles.loadProjectFile!}
       onSaveProject={noodles.onSaveProject!}
       onOpenAddNode={noodles.onOpenAddNode}
       showChatPanel={noodles.showChatPanel}

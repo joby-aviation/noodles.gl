@@ -547,11 +547,9 @@ export function getNoodles(): Visualization {
         }, 100)
       }
 
-      // Update URL with project name, or navigate to / if no name (new project)
+      // Update URL query parameter with project name
       if (name) {
         navigate(`${routePrefix}/${name}`, { replace: true })
-      } else {
-        navigate('/', { replace: true })
       }
     },
     [setNodes, setEdges, setProjectName, setTheatreProject, navigate, routePrefix]
