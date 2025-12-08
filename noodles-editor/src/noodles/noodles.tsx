@@ -51,7 +51,6 @@ import { edgeComponents, nodeComponents } from './components/op-components'
 import { UNSAVED_PROJECT_NAME } from './components/project-name-bar'
 import { ProjectNotFoundDialog } from './components/project-not-found-dialog'
 import { StorageErrorHandler } from './components/storage-error-handler'
-import { TopMenuBar } from './components/top-menu-bar'
 import { UndoRedoHandler, type UndoRedoHandlerRef } from './components/UndoRedoHandler'
 import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
 import { IS_PROD } from './globals'
@@ -835,21 +834,6 @@ export function getNoodles(): Visualization {
     blockLibraryRef.current?.openModal(centerX, centerY)
   }, [])
 
-  const topBar = (
-    <TopMenuBar
-      projectName={projectName}
-      setProjectName={setProjectName}
-      getNoodlesProjectJson={getNoodlesProjectJson}
-      loadProjectFile={loadProjectFile}
-      onSaveProject={onMenuSave}
-      onOpenAddNode={handleOpenAddNode}
-      showChatPanel={showChatPanel}
-      setShowChatPanel={setShowChatPanel}
-      undoRedoRef={undoRedoRef}
-      copyControlsRef={copyControlsRef}
-    />
-  )
-
   const propertiesPanel = (
     <div className={s.rightPanel}>
       <PropertyPanel />
@@ -859,7 +843,6 @@ export function getNoodles(): Visualization {
 
   return {
     flowGraph,
-    topBar,
     nodeSidebar: <NodeTreeSidebar />,
     propertiesPanel,
     layoutMode,
@@ -868,7 +851,12 @@ export function getNoodles(): Visualization {
     setProjectName,
     getTimelineJson,
     loadProjectFile,
+    getNoodlesProjectJson,
+    onSaveProject: onMenuSave,
+    onOpenAddNode: handleOpenAddNode,
     undoRedo: undoRedoRef.current,
+    undoRedoRef,
+    copyControlsRef,
     showChatPanel,
     setShowChatPanel,
     ...visProps,

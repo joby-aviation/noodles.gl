@@ -487,15 +487,17 @@ const numberOps = data.map((value, i) => {
 
 ### Quick Start Commands
 
+**IMPORTANT**: This project uses [Volta](https://volta.sh/) for Node.js version management. Always use `volta run` to ensure you're using the correct Node version.
+
 ```bash
 # Install dependencies
 yarn install:all
 
-# Start development server
-yarn start:app            # or cd noodles-editor && yarn start
+# Start development server (use volta!)
+cd noodles-editor && volta run yarn start
 
 # Run tests
-cd noodles-editor && yarn test
+cd noodles-editor && volta run yarn test
 
 # Lint and format
 cd noodles-editor && yarn lint
@@ -504,6 +506,11 @@ cd noodles-editor && yarn fix-lint
 # Build for production
 yarn build:all
 ```
+
+**Why Volta?**
+- Vite requires Node.js 20.19+ or 22.12+
+- Volta automatically uses the correct Node version specified in package.json
+- Without Volta, you may encounter `crypto.hash is not a function` errors
 
 ### Development URLs
 

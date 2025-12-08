@@ -9,6 +9,7 @@ import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'r
 import ReactMapGL, { type MapProps, useControl } from 'react-map-gl/maplibre'
 import { Layout } from './layout'
 import { getNoodles } from './noodles/noodles'
+import { TopMenuBar } from './noodles/components/top-menu-bar'
 import { useDeckDrawLoop } from './render/draw-loop'
 import { captureScreenshot, rafDriver, useRenderer } from './render/renderer'
 import { TransformScale } from './render/transform-scale'
@@ -152,7 +153,6 @@ export default function TimelineEditor() {
     project,
     sheet,
     flowGraph,
-    topBar,
     nodeSidebar,
     propertiesPanel,
     layoutMode,
@@ -292,7 +292,7 @@ export default function TimelineEditor() {
     props: deckProps,
   })
 
-  const _startRender = useCallback(async () => {
+  const startRender = useCallback(async () => {
     let canvas: HTMLCanvasElement | null = null
 
     if (basemapEnabled) {
@@ -324,7 +324,7 @@ export default function TimelineEditor() {
     })
   }, [startCapture, codec, resolution, basemapEnabled])
 
-  const _takeScreenshot = useCallback(async () => {
+  const takeScreenshot = useCallback(async () => {
     if (!deckRef.current) {
       console.error('Take Screenshot: deck is not defined')
       return
@@ -379,6 +379,24 @@ export default function TimelineEditor() {
       />
     )
   }
+
+  const topBar = (
+    <TopMenuBar
+      projectName={noodles.projectName}
+      setProjectName={noodles.setProjectName!}
+      getNoodlesProjectJson={noodles.getNoodlesProjectJson!}
+      loadProjectFile={noodles.loadProjectFile!}
+      onSaveProject={noodles.onSaveProject!}
+      onOpenAddNode={noodles.onOpenAddNode}
+      showChatPanel={noodles.showChatPanel}
+      setShowChatPanel={noodles.setShowChatPanel}
+      undoRedoRef={noodles.undoRedoRef!}
+      copyControlsRef={noodles.copyControlsRef!}
+      startRender={startRender}
+      takeScreenshot={takeScreenshot}
+      isRendering={isRendering}
+    />
+  )
 
   return (
     <>

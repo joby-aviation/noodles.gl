@@ -4,14 +4,12 @@ import studio from '@theatre/studio'
 import { useReactFlow } from '@xyflow/react'
 import { type RefObject, useCallback, useMemo, useState } from 'react'
 import { SettingsDialog } from '../../components/settings-dialog'
-import { useRenderActions } from '../../hooks/use-render-actions'
 import { analytics } from '../../utils/analytics'
 import { useActiveStorageType, useFileSystemStore } from '../filesystem-store'
 import type { NoodlesProjectJSON } from '../noodles'
 import { ContainerOp } from '../operators'
 import { getOpStore, useNestingStore } from '../store'
 import { getParentPath, splitPath } from '../utils/path-utils'
-import { saveProjectLocally } from '../utils/serialization'
 import { Breadcrumbs } from './breadcrumbs'
 import type { CopyControlsRef } from './copy-controls'
 import s from './top-menu-bar.module.css'
@@ -35,6 +33,9 @@ interface TopMenuBarProps {
   setShowChatPanel?: (show: boolean) => void
   undoRedoRef: RefObject<UndoRedoHandlerRef | null>
   copyControlsRef: RefObject<CopyControlsRef | null>
+  startRender?: () => Promise<void>
+  takeScreenshot?: () => Promise<void>
+  isRendering?: boolean
 }
 
 export function TopMenuBar({
@@ -48,9 +49,11 @@ export function TopMenuBar({
   setShowChatPanel,
   undoRedoRef,
   copyControlsRef,
+  startRender,
+  takeScreenshot,
+  isRendering,
 }: TopMenuBarProps) {
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false)
-  const renderActions = useRenderActions()
   const storageType = useActiveStorageType()
   const { setCurrentDirectory } = useFileSystemStore()
   const currentContainerId = useNestingStore(state => state.currentContainerId)
@@ -133,12 +136,6 @@ export function TopMenuBar({
     analytics.track('project_imported')
   }, [loadProjectFile, setProjectName, setCurrentDirectory])
 
-  const onDownloadProject = useCallback(async () => {
-    const noodlesProjectJson = getNoodlesProjectJson()
-    saveProjectLocally(projectName || 'untitled', noodlesProjectJson, storageType)
-    analytics.track('project_exported', { storageType })
-  }, [projectName, getNoodlesProjectJson, storageType])
-
   const onSelectRenderSettings = useCallback(() => {
     const store = getOpStore()
     const obj = store.getSheetObject('render')
@@ -156,18 +153,18 @@ export function TopMenuBar({
   }, [])
 
   const handleStartRender = useCallback(async () => {
-    if (renderActions) {
-      await renderActions.startRender()
+    if (startRender) {
+      await startRender()
       analytics.track('render_started', { source: 'menu' })
     }
-  }, [renderActions])
+  }, [startRender])
 
   const handleTakeScreenshot = useCallback(async () => {
-    if (renderActions) {
-      await renderActions.takeScreenshot()
+    if (takeScreenshot) {
+      await takeScreenshot()
       analytics.track('screenshot_taken', { source: 'menu' })
     }
-  }, [renderActions])
+  }, [takeScreenshot])
 
   return (
     <>
@@ -209,9 +206,6 @@ export function TopMenuBar({
                       </DropdownMenu.Item>
                       <DropdownMenu.Item className={s.dropdownItem} onSelect={onSaveProject}>
                         Save
-                      </DropdownMenu.Item>
-                      <DropdownMenu.Item className={s.dropdownItem} onSelect={onDownloadProject}>
-                        Download Project
                       </DropdownMenu.Item>
                     </DropdownMenu.SubContent>
                   </DropdownMenu.Portal>
@@ -301,14 +295,14 @@ export function TopMenuBar({
                 <DropdownMenu.Item
                   className={s.dropdownItem}
                   onSelect={handleStartRender}
-                  disabled={!renderActions}
+                  disabled={!startRender || isRendering}
                 >
                   Start Render
                 </DropdownMenu.Item>
                 <DropdownMenu.Item
                   className={s.dropdownItem}
                   onSelect={handleTakeScreenshot}
-                  disabled={!renderActions}
+                  disabled={!takeScreenshot || isRendering}
                 >
                   Take Screenshot
                 </DropdownMenu.Item>
