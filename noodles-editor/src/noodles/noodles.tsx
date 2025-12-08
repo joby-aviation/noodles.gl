@@ -42,23 +42,23 @@ import type { Visualization } from '../visualizations'
 import { BlockLibrary, type BlockLibraryRef } from './components/block-library'
 import { Breadcrumbs } from './components/breadcrumbs'
 import { categories } from './components/categories'
-import { CopyControls } from './components/copy-controls'
+import { CopyControls, type CopyControlsRef } from './components/copy-controls'
 import { DropTarget } from './components/drop-target'
 import { ErrorBoundary } from './components/error-boundary'
-import { NoodlesMenubar } from './components/menu'
 import { PropertyPanel } from './components/node-properties'
 import { NodeTreeSidebar } from './components/node-tree-sidebar'
 import { edgeComponents, nodeComponents } from './components/op-components'
-import { ProjectNameBar, UNSAVED_PROJECT_NAME } from './components/project-name-bar'
+import { UNSAVED_PROJECT_NAME } from './components/project-name-bar'
 import { ProjectNotFoundDialog } from './components/project-not-found-dialog'
 import { StorageErrorHandler } from './components/storage-error-handler'
+import { TopMenuBar } from './components/top-menu-bar'
 import { UndoRedoHandler, type UndoRedoHandlerRef } from './components/UndoRedoHandler'
 import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
 import { IS_PROD } from './globals'
 import { useProjectModifications } from './hooks/use-project-modifications'
 import type { IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
-import { load } from './storage'
+import { load, save } from './storage'
 import { getOpStore, useNestingStore } from './store'
 import { bindOperatorToTheatre, cleanupRemovedOperators } from './theatre-bindings'
 import { transformGraph } from './transform-graph'
@@ -66,7 +66,13 @@ import { edgeId, nodeId } from './utils/id-utils'
 import { migrateProject } from './utils/migrate-schema'
 import { getParentPath } from './utils/path-utils'
 import { pick } from './utils/pick'
-import { EMPTY_PROJECT, type NoodlesProjectJSON } from './utils/serialization'
+import {
+  EMPTY_PROJECT,
+  NOODLES_VERSION,
+  type NoodlesProjectJSON,
+  serializeEdges,
+  serializeNodes,
+} from './utils/serialization'
 
 /*
  * CSS Architecture:
@@ -310,6 +316,7 @@ export function getNoodles(): Visualization {
 
   // Ref to access undo/redo functionality from inside ReactFlow context
   const undoRedoRef = useRef<UndoRedoHandlerRef>(null)
+  const copyControlsRef = useRef<CopyControlsRef>(null)
 
   const onDeselectAll = useCallback(() => {
     setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
@@ -571,7 +578,7 @@ export function getNoodles(): Visualization {
           if (!response.ok) {
             throw new Error(`Failed to fetch example project: ${response.statusText}`)
           }
-          const noodlesFile = await response.json() as Partial<NoodlesProjectJSON>
+          const noodlesFile = (await response.json()) as Partial<NoodlesProjectJSON>
           const project = await migrateProject({
             ...EMPTY_PROJECT,
             ...noodlesFile,
@@ -670,7 +677,7 @@ export function getNoodles(): Visualization {
               <Background />
               <Controls position="bottom-right" />
               <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />
-              <CopyControls />
+              <CopyControls ref={copyControlsRef} />
               <UndoRedoHandler ref={undoRedoRef} />
               <ChatPanel
                 project={{ nodes, edges }}
@@ -795,7 +802,53 @@ export function getNoodles(): Visualization {
     }
   }, [outOp, selectedGeoJsonFeatures])
 
-  const projectNameBar = <ProjectNameBar projectName={projectName} />
+  const getNoodlesProjectJson = useCallback((): NoodlesProjectJSON => {
+    const store = getOpStore()
+    const timeline = getTimelineJson()
+
+    return {
+      version: NOODLES_VERSION,
+      nodes: serializeNodes(store, nodes, edges),
+      edges: serializeEdges(edges),
+      viewport: { x: 0, y: 0, zoom: 1 },
+      timeline,
+    }
+  }, [nodes, edges, getTimelineJson])
+
+  const onMenuSave = useCallback(async () => {
+    if (!projectName) return
+    const noodlesProjectJson = getNoodlesProjectJson()
+    const result = await save(storageType, projectName, noodlesProjectJson)
+    if (result.success) {
+      setCurrentDirectory(result.data.directoryHandle, projectName)
+      analytics.track('project_saved', { storageType })
+    } else {
+      setError(result.error)
+    }
+  }, [projectName, getNoodlesProjectJson, storageType, setCurrentDirectory, setError])
+
+  const handleOpenAddNode = useCallback(() => {
+    const pane = reactFlowRef.current?.getBoundingClientRect()
+    if (!pane) return
+    const centerX = pane.left + pane.width / 2
+    const centerY = pane.top + pane.height / 2
+    blockLibraryRef.current?.openModal(centerX, centerY)
+  }, [])
+
+  const topBar = (
+    <TopMenuBar
+      projectName={projectName}
+      setProjectName={setProjectName}
+      getNoodlesProjectJson={getNoodlesProjectJson}
+      loadProjectFile={loadProjectFile}
+      onSaveProject={onMenuSave}
+      onOpenAddNode={handleOpenAddNode}
+      showChatPanel={showChatPanel}
+      setShowChatPanel={setShowChatPanel}
+      undoRedoRef={undoRedoRef}
+      copyControlsRef={copyControlsRef}
+    />
+  )
 
   const propertiesPanel = (
     <div className={s.rightPanel}>
@@ -806,7 +859,7 @@ export function getNoodles(): Visualization {
 
   return {
     flowGraph,
-    projectNameBar,
+    topBar,
     nodeSidebar: <NodeTreeSidebar />,
     propertiesPanel,
     layoutMode,

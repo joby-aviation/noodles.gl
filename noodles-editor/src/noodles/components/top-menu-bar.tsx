@@ -1,6 +1,6 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { HamburgerMenuIcon } from '@radix-ui/react-icons'
-import { studio } from '@theatre/studio'
+import studio from '@theatre/studio'
 import { useReactFlow } from '@xyflow/react'
 import { type RefObject, useCallback, useMemo, useState } from 'react'
 import { SettingsDialog } from '../../components/settings-dialog'
