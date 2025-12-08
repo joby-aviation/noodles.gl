@@ -55,18 +55,6 @@
   --node-view-color: #0e8fc9;
   --node-widget-color: #7a61d5;
 
-  /* Node-specific aliases (use generic colors) */
-  --node-background-color: var(--color-bg-primary);
-  --node-text-color: var(--color-text-primary);
-  --node-selected-color: var(--color-selected);
-  --node-add-menu-header-text-color: var(--color-text-primary);
-  --node-header-text-color: #dadada;
-  --node-header-text-color-dark: #292929;
-  --node-header-border-color: #e0e0e0;
-  --node-input-hover-color: var(--color-input-hover);
-  --node-input-focus-color: var(--color-input-focus);
-  --node-input-disaabled-color: var(--color-input-disabled);
-
   --property-panel-width: 280px;
   --property-panel-background-color: #282b2fcc;
   --tooltip-icon-color: #919191;
@@ -95,8 +83,18 @@
 :global(.react-flow) {
   --node-group-background-color: rgba(244, 79, 9, 0.1);
 
-  /* Note: --node-background-color, --node-text-color, --node-selected-color, --node-add-menu-header-text-color
-     are now defined in :root since they're used in portaled components like Block Library */
+  /* Node-specific aliases (use generic colors) */
+  --node-background-color: var(--color-bg-primary);
+  --node-text-color: var(--color-text-primary);
+  --node-selected-color: var(--color-selected);
+  --node-add-menu-header-text-color: var(--color-text-primary);
+  --node-header-text-color: #dadada;
+  --node-header-text-color-dark: #292929;
+  --node-header-border-color: #e0e0e0;
+  --node-input-hover-color: var(--color-input-hover);
+  --node-input-focus-color: var(--color-input-focus);
+  --node-input-disaabled-color: var(--color-input-disabled);
+
   --node-add-menu-background-color: #404040;
   --node-add-menu-header-background-color: black;
   --node-add-menu-hover-color: #313131;
@@ -104,8 +102,6 @@
   --node-handle-outline-color: #808080;
 
   --node-field-hint-color: #808080;
-
-  --node-input-disaabled-color: #1c1c1c;
 
   /* Execution state indicators */
   --node-execution-executing-color: #3b82f6;
