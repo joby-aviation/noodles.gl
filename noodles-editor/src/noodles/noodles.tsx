@@ -531,7 +531,9 @@ export function getNoodles(): Visualization {
       setNodes(nodes)
       setEdges(edges)
       setProjectName(name ?? null)
-      setTheatreProject(name ? { state: timeline } : {}, name)
+      // Only include timeline state if it exists and has content, otherwise use empty config
+      const hasTimeline = timeline && Object.keys(timeline).length > 0
+      setTheatreProject(name && hasTimeline ? { state: timeline } : {}, name)
 
       // Only fit view when loading a new project (not during undo/redo)
       if (name && !undoRedoRef.current?.isRestoring()) {
