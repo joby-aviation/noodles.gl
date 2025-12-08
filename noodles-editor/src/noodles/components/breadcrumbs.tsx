@@ -92,7 +92,7 @@ export const Breadcrumbs: FC = () => {
     const handleKeyUp = (e: KeyboardEvent) => {
       if (e.key === 'u' && pathSegments.length > 1) {
         goUp()
-      } else if (e.key === 'd') {
+      } else if (e.key === 'i') {
         goDown()
       }
     }
