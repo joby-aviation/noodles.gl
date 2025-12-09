@@ -8,6 +8,13 @@
   z-index: var(--z-index-breadcrumbs);
 }
 
+.brandingSegment {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 4px 6px;
+}
+
 .segment {
   background: none;
   border: none;
