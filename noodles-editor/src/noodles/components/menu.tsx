@@ -314,36 +314,7 @@ type RecentProject = {
   lastOpened: string
 }
 
-const RECENT_PROJECTS_KEY = 'recentProjects'
-function getRecentProjects(): RecentProject[] {
-  return JSON.parse(localStorage.getItem(RECENT_PROJECTS_KEY)) || []
-}
-
-const MAX_RECENT_PROJECTS = 6
-function addToRecentProjects(projectName: string) {
-  const recentProjects = getRecentProjects()
-
-  // Remove the project if it's already in the list
-  const existingIndex = recentProjects.findIndex(
-    (project: RecentProject) => project.name === projectName
-  )
-  if (existingIndex !== -1) {
-    recentProjects.splice(existingIndex, 1)
-  }
-
-  // Add the new project with a timestamp
-  recentProjects.unshift({
-    name: projectName,
-    lastOpened: new Date().toISOString(),
-  })
-
-  // Limit the list to the most recent projects
-  if (recentProjects.length > MAX_RECENT_PROJECTS) {
-    recentProjects.pop()
-  }
-
-  localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(recentProjects))
-}
+const MAX_RECENT_PROJECTS = 10
 
 export function NoodlesMenubar({
   projectName,
@@ -427,7 +398,6 @@ export function NoodlesMenubar({
       const noodlesProjectJson = getNoodlesProjectJson()
       const result = await save(storageType, name, noodlesProjectJson)
       if (result.success) {
-        addToRecentProjects(name)
         // Update store with directory handle returned from save
         setCurrentDirectory(result.data.directoryHandle, name)
       } else {
@@ -443,7 +413,6 @@ export function NoodlesMenubar({
     const noodlesProjectJson = getNoodlesProjectJson()
     const result = await save(storageType, projectName!, noodlesProjectJson)
     if (result.success) {
-      addToRecentProjects(projectName!)
       // Update store with directory handle returned from save
       setCurrentDirectory(result.data.directoryHandle, projectName!)
     } else {
@@ -477,7 +446,6 @@ export function NoodlesMenubar({
           try {
             const project = await migrateProject(result.data.projectData)
             loadProjectFile(project, name)
-            addToRecentProjects(name)
             // Update store with directory handle returned from load
             setCurrentDirectory(result.data.directoryHandle, name)
             analytics.track('project_opened', { storageType })
@@ -521,7 +489,6 @@ export function NoodlesMenubar({
         try {
           const project = await migrateProject(result.data.projectData)
           loadProjectFile(project, projectName)
-          addToRecentProjects(projectName)
           // Update store with directory handle returned from load
           setCurrentDirectory(result.data.directoryHandle, projectName)
         } catch (error) {
@@ -561,7 +528,20 @@ export function NoodlesMenubar({
   }, [storageType, onOpenFileSystemFolder])
 
   const updateRecentlyOpened = useCallback(() => {
-    setRecentlyOpened(getRecentProjects())
+    ;(async () => {
+      const { directoryHandleCache } = await import('../utils/directory-handle-cache')
+      const cachedHandles = await directoryHandleCache.getAllCachedHandles()
+
+      // Convert to RecentProject format and limit to MAX_RECENT_PROJECTS
+      const recentProjects: RecentProject[] = cachedHandles
+        .slice(0, MAX_RECENT_PROJECTS)
+        .map(entry => ({
+          name: entry.projectName,
+          lastOpened: new Date(entry.cachedAt).toISOString(),
+        }))
+
+      setRecentlyOpened(recentProjects)
+    })()
   }, [])
 
   return (
