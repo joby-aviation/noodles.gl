@@ -7,16 +7,15 @@ import { ReactFlowProvider } from '@xyflow/react'
 import type { Map as MapLibre } from 'maplibre-gl'
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ReactMapGL, { type MapProps, useControl } from 'react-map-gl/maplibre'
-import { getNoodles } from './noodles/noodles'
+import { Layout } from './layout'
 import { NoodlesMenubar } from './noodles/components/menu'
+import { getNoodles } from './noodles/noodles'
 import { useDeckDrawLoop } from './render/draw-loop'
 import { captureScreenshot, rafDriver, useRenderer } from './render/renderer'
 import { TransformScale } from './render/transform-scale'
+import s from './timeline-editor.module.css'
 import setRef from './utils/set-ref'
 import useSheetValue, { type PropsValue } from './utils/use-sheet-value'
-import { Layout } from './layout'
-
-import s from './timeline-editor.module.css'
 
 // https://www.theatrejs.com/docs/latest/manual/advanced#rafdrivers
 // the rafDriver breaks things like spacebar playback
@@ -150,7 +149,16 @@ export default function TimelineEditor() {
   }, [])
 
   const noodles = getNoodles()
-  const { project, sheet, flowGraph, projectNameBar, nodeSidebar, propertiesPanel, layoutMode, ...visualization } = noodles
+  const {
+    project,
+    sheet,
+    flowGraph,
+    projectNameBar,
+    nodeSidebar,
+    propertiesPanel,
+    layoutMode,
+    ...visualization
+  } = noodles
   const sequence = sheet.sequence
 
   useEffect(() => {
@@ -170,15 +178,14 @@ export default function TimelineEditor() {
   const { framerate, bitrateMbps, bitrateMode, codec, resolution, lod, waitForData, captureDelay } =
     renderer
 
-  const { startCapture, captureFrame, currentFrame, isRendering } =
-    useRenderer({
-      project,
-      sequence: sequence,
-      fps: framerate,
-      bitrate: bitrateMbps * 1_000_000,
-      bitrateMode,
-      redraw,
-    })
+  const { startCapture, captureFrame, currentFrame, isRendering } = useRenderer({
+    project,
+    sequence: sequence,
+    fps: framerate,
+    bitrate: bitrateMbps * 1_000_000,
+    bitrateMode,
+    redraw,
+  })
 
   // If the visualization doesn't supply mapProps, disable basemap.
   // TODO: Detect if deck is in othorgraphic mode, and disable?
@@ -396,6 +403,10 @@ export default function TimelineEditor() {
               setProjectName={noodles.setProjectName!}
               getTimelineJson={noodles.getTimelineJson!}
               loadProjectFile={noodles.loadProjectFile!}
+              onSaveProject={noodles.onSaveProject!}
+              onDownload={noodles.onDownload!}
+              onNewProject={noodles.onNewProject!}
+              onImport={noodles.onImport!}
               undoRedo={noodles.undoRedo ?? undefined}
               showChatPanel={noodles.showChatPanel}
               setShowChatPanel={noodles.setShowChatPanel}

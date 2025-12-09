@@ -302,6 +302,12 @@ export async function load(
 
     const projectFileHandle = await projectDirectory.getFileHandle(PROJECT_FILE_NAME)
 
+    // Cache the directory handle if loaded via File System Access API
+    // This ensures the handle is available on refresh and save operations
+    if (type === 'fileSystemAccess' && typeof fromProject !== 'string') {
+      await directoryHandleCache.cacheHandle(projectName, projectDirectory, projectDirectory.name)
+    }
+
     return {
       success: true,
       data: {
