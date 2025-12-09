@@ -22,10 +22,8 @@ export type Visualization = {
   layoutMode?: 'split' | 'noodles-on-top' | 'output-on-top'
   // Noodles props for creating menu in timeline-editor
   projectName?: string
-  setProjectName?: (name: React.SetStateAction<string | null>) => void
   getTimelineJson?: () => Record<string, unknown>
   loadProjectFile?: (project: any, name?: string) => void
-  getNoodlesProjectJson?: () => any
   onSaveProject?: () => Promise<void>
   onDownload?: () => Promise<void>
   onNewProject?: () => Promise<void>

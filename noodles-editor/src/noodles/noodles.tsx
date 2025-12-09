@@ -972,10 +972,8 @@ export function getNoodles(): Visualization {
     layoutMode,
     // Export these so timeline-editor can create the menu with render actions
     projectName,
-    setProjectName,
     getTimelineJson,
     loadProjectFile,
-    getNoodlesProjectJson,
     onSaveProject: onMenuSave,
     onDownload,
     onNewProject,

@@ -15,7 +15,6 @@ import type { UndoRedoHandlerRef } from './UndoRedoHandler'
 
 interface TopMenuBarProps {
   projectName?: string
-  setProjectName: (name: string | null) => void
   onSaveProject: () => void
   onDownload?: () => Promise<void>
   onNewProject: () => void
@@ -32,7 +31,6 @@ interface TopMenuBarProps {
 
 export function TopMenuBar({
   projectName,
-  setProjectName,
   onSaveProject,
   onDownload,
   onNewProject,
