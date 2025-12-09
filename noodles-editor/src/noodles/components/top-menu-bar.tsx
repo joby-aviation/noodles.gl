@@ -386,9 +386,10 @@ export function TopMenuBar({
                     href="https://noodles.gl/users/getting-started"
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{ textDecoration: 'none', color: 'inherit' }}
+                    className={s.externalLink}
                   >
                     Documentation
+                    <ExternalLinkIcon className={s.menuExternalIcon} />
                   </a>
                 </DropdownMenu.Item>
 
@@ -400,7 +401,6 @@ export function TopMenuBar({
                     className={s.footerLink}
                   >
                     noodles.gl
-                    <ExternalLinkIcon className={s.externalIcon} />
                   </a>
                   <span className={s.footerSeparator}>•</span>
                   <a
@@ -410,7 +410,6 @@ export function TopMenuBar({
                     className={s.footerLink}
                   >
                     GitHub
-                    <ExternalLinkIcon className={s.externalIcon} />
                   </a>
                 </div>
               </DropdownMenu.Content>

@@ -6,13 +6,11 @@
   padding: 0 12px;
   background: var(--color-bg-base);
   border-bottom: 1px solid var(--color-border);
-  gap: 16px;
 }
 
 .leftSection {
   display: flex;
   align-items: center;
-  gap: 12px;
   flex: 1;
   min-width: 0;
 }
@@ -162,6 +160,7 @@
   justify-content: flex-start;
   gap: 8px;
   padding: 8px 12px 4px;
+  margin-top: 4px;
   border-top: 1px solid var(--color-border);
 }
 
@@ -171,8 +170,8 @@
   text-decoration: none;
   transition: color 0.15s;
   display: inline-flex;
-  align-items: baseline;
-  gap: 2px;
+  align-items: center;
+  gap: 3px;
 }
 
 .footerLink:hover {
@@ -184,11 +183,10 @@
 }
 
 .externalIcon {
-  width: 9px;
-  height: 9px;
+  width: 10px;
+  height: 10px;
   color: var(--color-text-secondary);
   transition: color 0.15s;
-  vertical-align: super;
   opacity: 0.6;
 }
 
@@ -196,4 +194,20 @@
   font-size: 11px;
   color: var(--color-text-secondary);
   opacity: 0.5;
+}
+
+.externalLink {
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.menuExternalIcon {
+  width: 12px;
+  height: 12px;
+  color: var(--color-text-primary);
+  opacity: 0.6;
+  flex-shrink: 0;
 }
