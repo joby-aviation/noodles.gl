@@ -1,5 +1,5 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { ChevronDownIcon } from '@radix-ui/react-icons'
+import { ChevronDownIcon, ExternalLinkIcon } from '@radix-ui/react-icons'
 import studio from '@theatre/studio'
 import { useReactFlow } from '@xyflow/react'
 import { type RefObject, useCallback, useEffect, useMemo, useState } from 'react'
@@ -400,6 +400,7 @@ export function TopMenuBar({
                     className={s.footerLink}
                   >
                     noodles.gl
+                    <ExternalLinkIcon className={s.externalIcon} />
                   </a>
                   <span className={s.footerSeparator}>•</span>
                   <a
@@ -409,6 +410,7 @@ export function TopMenuBar({
                     className={s.footerLink}
                   >
                     GitHub
+                    <ExternalLinkIcon className={s.externalIcon} />
                   </a>
                 </div>
               </DropdownMenu.Content>

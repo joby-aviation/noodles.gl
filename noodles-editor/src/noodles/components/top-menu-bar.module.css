@@ -159,10 +159,9 @@
 .dropdownFooter {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 8px;
   padding: 8px 12px 4px;
-  margin-top: 4px;
   border-top: 1px solid var(--color-border);
 }
 
@@ -171,10 +170,26 @@
   color: var(--color-text-secondary);
   text-decoration: none;
   transition: color 0.15s;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
 }
 
 .footerLink:hover {
   color: var(--color-text-accent);
+}
+
+.footerLink:hover .externalIcon {
+  color: var(--color-text-accent);
+}
+
+.externalIcon {
+  width: 9px;
+  height: 9px;
+  color: var(--color-text-secondary);
+  transition: color 0.15s;
+  vertical-align: super;
+  opacity: 0.6;
 }
 
 .footerSeparator {
