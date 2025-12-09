@@ -381,7 +381,11 @@ export function TopMenuBar({
 
           <div className={s.breadcrumbContainer}>
             <Breadcrumbs projectName={projectName} />
-            {hasUnsavedChanges && <span className={s.unsavedIndicator} title="Unsaved changes">●</span>}
+            {hasUnsavedChanges && (
+              <div className={s.unsavedIndicator} title="Unsaved changes">
+                <div className={s.unsavedDot} />
+              </div>
+            )}
           </div>
         </div>
 
