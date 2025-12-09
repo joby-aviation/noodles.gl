@@ -510,7 +510,6 @@ yarn build:all
 **Why Volta?**
 - Vite requires Node.js 20.19+ or 22.12+
 - Volta automatically uses the correct Node version specified in package.json
-- Without Volta, you may encounter `crypto.hash is not a function` errors
 
 ### Development URLs
 
