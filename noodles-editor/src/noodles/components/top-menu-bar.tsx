@@ -3,6 +3,7 @@ import { ChevronDownIcon, ExternalLinkIcon } from '@radix-ui/react-icons'
 import studio from '@theatre/studio'
 import { useReactFlow } from '@xyflow/react'
 import { type RefObject, useCallback, useEffect, useMemo, useState } from 'react'
+import logoSvg from '/noodles-favicon.svg'
 import { SettingsDialog } from '../../components/settings-dialog'
 import { analytics } from '../../utils/analytics'
 import { ContainerOp } from '../operators'
@@ -180,7 +181,7 @@ export function TopMenuBar({
             <DropdownMenu.Trigger asChild>
               <button type="button" className={s.logoButton} title="Menu">
                 <div className={s.logoContainer}>
-                  <img src="/noodles-favicon.svg" alt="Noodles.gl" className={s.logo} />
+                  <img src={logoSvg} alt="Noodles.gl" className={s.logo} />
                 </div>
                 <ChevronDownIcon className={s.chevron} />
               </button>
