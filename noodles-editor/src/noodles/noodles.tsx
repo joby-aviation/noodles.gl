@@ -553,9 +553,8 @@ export function getNoodles(): Visualization {
       setEdges(edges)
       setProjectName(name ?? null)
 
-      // Set viewport state before ReactFlow renders
-      if (viewport) {
-        console.log('Setting defaultViewport to:', viewport)
+      // Set viewport state before ReactFlow renders (but not during undo/redo)
+      if (viewport && name && !undoRedoRef.current?.isRestoring()) {
         setDefaultViewport(viewport)
       }
 
@@ -677,7 +676,6 @@ export function getNoodles(): Visualization {
     const store = getOpStore()
     const timeline = getTimelineJson()
     const viewport = reactFlowInstanceRef.current?.getViewport() || { x: 0, y: 0, zoom: 1 }
-    console.log('Saving viewport:', { instance: !!reactFlowInstanceRef.current, viewport })
 
     return {
       version: NOODLES_VERSION,
