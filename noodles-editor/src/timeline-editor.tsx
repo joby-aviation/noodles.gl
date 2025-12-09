@@ -398,6 +398,7 @@ export default function TimelineEditor() {
       onDownload={noodles.onDownload}
       onNewProject={noodles.onNewProject!}
       onImport={noodles.onImport!}
+      onOpen={noodles.onOpen}
       onOpenAddNode={noodles.onOpenAddNode}
       showChatPanel={noodles.showChatPanel}
       setShowChatPanel={noodles.setShowChatPanel}

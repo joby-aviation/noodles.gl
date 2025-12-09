@@ -19,6 +19,7 @@ interface TopMenuBarProps {
   onDownload?: () => Promise<void>
   onNewProject: () => void
   onImport: () => void
+  onOpen?: (projectName?: string) => Promise<void>
   onOpenAddNode?: () => void
   showChatPanel?: boolean
   setShowChatPanel?: (show: boolean) => void
@@ -35,6 +36,7 @@ export function TopMenuBar({
   onDownload,
   onNewProject,
   onImport,
+  onOpen,
   onOpenAddNode,
   showChatPanel,
   setShowChatPanel,

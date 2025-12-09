@@ -23,13 +23,19 @@ export type Visualization = {
   // Noodles props for creating menu in timeline-editor
   projectName?: string
   getTimelineJson?: () => Record<string, unknown>
-  loadProjectFile?: (project: any, name?: string) => void
   onSaveProject?: () => Promise<void>
   onDownload?: () => Promise<void>
   onNewProject?: () => Promise<void>
   onImport?: () => Promise<void>
+  onOpen?: (projectName?: string) => Promise<void>
   onOpenAddNode?: () => void
-  undoRedo?: UndoRedoHandlerRef | null
+  undoRedo?: {
+    undo: () => void
+    redo: () => void
+    canUndo: () => boolean
+    canRedo: () => boolean
+    getState: () => { undoDescription?: string; redoDescription?: string }
+  } | null
   undoRedoRef?: RefObject<UndoRedoHandlerRef | null>
   copyControlsRef?: RefObject<CopyControlsRef | null>
   showChatPanel?: boolean

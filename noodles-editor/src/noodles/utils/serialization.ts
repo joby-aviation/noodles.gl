@@ -5,6 +5,7 @@ import type {
   Node as ReactFlowNode,
 } from '@xyflow/react'
 import { isEqual } from 'lodash'
+import JSZip from 'jszip'
 
 import { resizeableNodes } from '../components/op-components'
 import type { useOperatorStore } from '../store'
@@ -152,7 +153,6 @@ export async function saveProjectLocally(
   projectJson: NoodlesProjectJSON,
   storageType: 'fileSystemAccess' | 'opfs' | 'publicFolder'
 ) {
-  const JSZip = (await import('jszip')).default
   const zip = new JSZip()
 
   // Create a folder with the project name
@@ -197,7 +197,11 @@ export async function saveProjectLocally(
     try {
       const { getProjectDirectoryHandle } = await import('../storage')
       const { directoryExists } = await import('./filesystem')
-      const projectDirectoryResult = await getProjectDirectoryHandle(storageType, projectName, false)
+      const projectDirectoryResult = await getProjectDirectoryHandle(
+        storageType,
+        projectName,
+        false
+      )
 
       if (projectDirectoryResult.success) {
         const projectDirectory = projectDirectoryResult.data

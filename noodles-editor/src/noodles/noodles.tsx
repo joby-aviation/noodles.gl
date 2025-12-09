@@ -21,6 +21,7 @@ import {
 import cx from 'classnames'
 import type { LayerExtension } from 'deck.gl'
 import * as deck from 'deck.gl'
+import JSZip, { type JSZipObject } from 'jszip'
 import { PrimeReactProvider } from 'primereact/api'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useParams } from 'wouter'
@@ -40,6 +41,7 @@ import { SheetProvider } from '../utils/sheet-context'
 import useSheetValue from '../utils/use-sheet-value'
 import type { Visualization } from '../visualizations'
 import { BlockLibrary, type BlockLibraryRef } from './components/block-library'
+import { Breadcrumbs } from './components/breadcrumbs'
 import { categories } from './components/categories'
 import { CopyControls, type CopyControlsRef } from './components/copy-controls'
 import { DropTarget } from './components/drop-target'
@@ -57,9 +59,11 @@ import { useProjectModifications } from './hooks/use-project-modifications'
 import type { IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
 import { load, save } from './storage'
-import { getOpStore, useNestingStore, setSheetObject, deleteSheetObject } from './store'
+import { deleteSheetObject, getOpStore, setSheetObject, useNestingStore } from './store'
 import { bindOperatorToTheatre, cleanupRemovedOperators } from './theatre-bindings'
 import { transformGraph } from './transform-graph'
+import { directoryHandleCache } from './utils/directory-handle-cache'
+import { requestPermission, selectDirectory, writeFileToDirectory } from './utils/filesystem'
 import { edgeId, nodeId } from './utils/id-utils'
 import { migrateProject } from './utils/migrate-schema'
 import { getParentPath } from './utils/path-utils'
@@ -68,6 +72,8 @@ import {
   EMPTY_PROJECT,
   NOODLES_VERSION,
   type NoodlesProjectJSON,
+  safeStringify,
+  saveProjectLocally,
   serializeEdges,
   serializeNodes,
 } from './utils/serialization'
@@ -317,7 +323,7 @@ export function getNoodles(): Visualization {
 
   const currentProjectRef = useRef<NoodlesProjectJSON>(newProjectJSON)
 
-  // Ref to access undo/redo functionality from inside ReactFlow context
+  // Ref to access undo/redo and copy/paste functionality from inside ReactFlow context
   const undoRedoRef = useRef<UndoRedoHandlerRef>(null)
   const copyControlsRef = useRef<CopyControlsRef>(null)
 
@@ -506,6 +512,8 @@ export function getNoodles(): Visualization {
     })
   }, [theatreSheet])
 
+  const { showOverlay, layoutMode } = useSheetValue(editorSheet)
+
   // Register editor sheet object in store for menu access
   useEffect(() => {
     setSheetObject('editor', editorSheet as any)
@@ -513,8 +521,6 @@ export function getNoodles(): Visualization {
       deleteSheetObject('editor')
     }
   }, [editorSheet])
-
-  const { showOverlay, layoutMode } = useSheetValue(editorSheet)
 
   const loadProjectFile = useCallback(
     (project: NoodlesProjectJSON, name?: string) => {
@@ -556,7 +562,7 @@ export function getNoodles(): Visualization {
 
       // Update URL query parameter with project name
       if (name) {
-        navigate(`${routePrefix}/${name}`, { replace: true })
+        navigate(`${routePrefix}/${name ?? ''}`, { replace: true })
       }
     },
     [setNodes, setEdges, setProjectName, setTheatreProject, navigate, routePrefix]
@@ -663,11 +669,300 @@ export function getNoodles(): Visualization {
       }))
   }, [edges, visibleNodeIds])
 
+  // File menu callbacks
+  const getNoodlesProjectJson = useCallback((): NoodlesProjectJSON => {
+    const store = getOpStore()
+    const timeline = getTimelineJson()
+
+    return {
+      version: NOODLES_VERSION,
+      nodes: serializeNodes(store, nodes, edges),
+      edges: serializeEdges(store, nodes, edges),
+      viewport: { x: 0, y: 0, zoom: 1 },
+      timeline,
+    }
+  }, [nodes, edges, getTimelineJson])
+
+  const onMenuSave = useCallback(async () => {
+    if (!projectName) return
+    const noodlesProjectJson = getNoodlesProjectJson()
+    const result = await save(storageType, projectName, noodlesProjectJson)
+    if (result.success) {
+      setCurrentDirectory(result.data.directoryHandle, projectName)
+      analytics.track('project_saved', { storageType })
+    } else {
+      setError(result.error)
+    }
+  }, [projectName, getNoodlesProjectJson, storageType, setCurrentDirectory, setError])
+
+  const onDownload = useCallback(async () => {
+    const noodlesProjectJson = getNoodlesProjectJson()
+    await saveProjectLocally(projectName || 'untitled', noodlesProjectJson, storageType)
+    analytics.track('project_exported', { storageType })
+  }, [projectName, getNoodlesProjectJson, storageType])
+
+  const onOpenAddNode = useCallback(() => {
+    const pane = reactFlowRef.current?.getBoundingClientRect()
+    if (!pane) return
+    const centerX = pane.left + pane.width / 2
+    const centerY = pane.top + pane.height / 2
+    blockLibraryRef.current?.openModal(centerX, centerY)
+  }, [])
+
+  const onNewProject = useCallback(async () => {
+    try {
+      // Prompt user to select/create a directory for the new project
+      const directoryHandle = await selectDirectory()
+      const directoryName = directoryHandle.name
+
+      // Ensure we have write permission
+      const hasPermission = await requestPermission(directoryHandle, 'readwrite')
+      if (!hasPermission) {
+        console.error('Permission denied to write to directory')
+        return
+      }
+
+      // Write starter project to noodles.json
+      const starterProject = {
+        ...newProjectJSON,
+        version: NOODLES_VERSION,
+      } as NoodlesProjectJSON
+      await writeFileToDirectory(directoryHandle, 'noodles.json', safeStringify(starterProject))
+
+      // Cache the directory handle
+      await directoryHandleCache.cacheHandle(directoryName, directoryHandle, directoryHandle.name)
+
+      // Update store with directory handle
+      setCurrentDirectory(directoryHandle, directoryName)
+
+      // Load the project directly (already in memory, no need to reload from disk)
+      loadProjectFile(starterProject, directoryName)
+
+      analytics.track('project_created', { method: 'new' })
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        // User cancelled the picker
+        return
+      }
+      console.error('Failed to create new project:', error)
+    }
+  }, [setCurrentDirectory, loadProjectFile])
+
+  const onImport = useCallback(async () => {
+    try {
+      // First, prompt for the project file to import
+      const [fileHandle] = await window.showOpenFilePicker({
+        types: [
+          {
+            description: 'Noodles Project',
+            accept: {
+              'application/json': ['.json'],
+              'application/zip': ['.zip'],
+            },
+          },
+        ],
+      })
+      const file = await fileHandle.getFile()
+      const isZip = file.name.endsWith('.zip')
+
+      let projectData: NoodlesProjectJSON
+      const filesToWrite: Map<string, string | ArrayBuffer> = new Map()
+
+      if (isZip) {
+        // Handle ZIP import
+        const zip = await JSZip.loadAsync(await file.arrayBuffer())
+
+        // Find noodles.json in the ZIP (could be at root or in a subfolder)
+        let noodlesJsonPath: string | null = null
+        let projectFolder = ''
+
+        // Iterate over files in the ZIP to find noodles.json
+        zip.forEach((relativePath, zipEntry) => {
+          if (relativePath.endsWith('noodles.json') && !zipEntry.dir) {
+            noodlesJsonPath = relativePath
+            // Extract the folder path (everything before noodles.json)
+            projectFolder = relativePath.substring(0, relativePath.lastIndexOf('noodles.json'))
+          }
+        })
+
+        if (!noodlesJsonPath) {
+          throw new Error('No noodles.json found in ZIP file')
+        }
+
+        // Parse noodles.json
+        const noodlesJsonFile = zip.file(noodlesJsonPath)
+        if (!noodlesJsonFile) {
+          throw new Error('Could not read noodles.json from ZIP')
+        }
+        const noodlesJsonText = await noodlesJsonFile.async('text')
+        const parsed = JSON.parse(noodlesJsonText) as Partial<NoodlesProjectJSON>
+        projectData = await migrateProject({
+          ...EMPTY_PROJECT,
+          ...parsed,
+        } as NoodlesProjectJSON)
+
+        // Extract all files from the ZIP
+        const fileEntries: Array<[string, JSZipObject]> = []
+        zip.forEach((relativePath, zipEntry) => {
+          if (!zipEntry.dir) {
+            fileEntries.push([relativePath, zipEntry])
+          }
+        })
+
+        for (const [relativePath, zipEntry] of fileEntries) {
+          // Remove the project folder prefix to get relative path within project
+          let cleanPath = relativePath
+          if (projectFolder && relativePath.startsWith(projectFolder)) {
+            cleanPath = relativePath.substring(projectFolder.length)
+          }
+
+          // Read file contents
+          if (cleanPath.endsWith('.json')) {
+            const text = await zipEntry.async('text')
+            filesToWrite.set(cleanPath, text)
+          } else {
+            const arrayBuffer = await zipEntry.async('arraybuffer')
+            filesToWrite.set(cleanPath, arrayBuffer)
+          }
+        }
+
+        // Write migrated noodles.json (overwrites any unmigrated version extracted from ZIP)
+        filesToWrite.set('noodles.json', safeStringify(projectData))
+      } else {
+        // Handle single JSON file import
+        const text = await file.text()
+        const parsed = JSON.parse(text) as Partial<NoodlesProjectJSON>
+        projectData = await migrateProject({
+          ...EMPTY_PROJECT,
+          ...parsed,
+        } as NoodlesProjectJSON)
+
+        // Only write noodles.json
+        filesToWrite.set('noodles.json', safeStringify(projectData))
+      }
+
+      // Now prompt for directory to save the imported project
+      const directoryHandle = await selectDirectory()
+      const directoryName = directoryHandle.name
+
+      // Ensure we have write permission
+      const hasPermission = await requestPermission(directoryHandle, 'readwrite')
+      if (!hasPermission) {
+        console.error('Permission denied to write to directory')
+        return
+      }
+
+      // Write all files to directory
+      for (const [path, content] of filesToWrite.entries()) {
+        // Handle nested paths (e.g., data/file.csv)
+        if (path.includes('/')) {
+          const parts = path.split('/')
+          const fileName = parts.pop()!
+          const subfolders = parts
+
+          // Create nested directory structure
+          let currentDir = directoryHandle
+          for (const folder of subfolders) {
+            currentDir = await currentDir.getDirectoryHandle(folder, { create: true })
+          }
+
+          // Write file in the nested directory
+          const fileHandle = await currentDir.getFileHandle(fileName, { create: true })
+          const writable = await fileHandle.createWritable()
+          await writable.write(content)
+          await writable.close()
+        } else {
+          // Write file at root level
+          await writeFileToDirectory(directoryHandle, path, content)
+        }
+      }
+
+      // Cache the directory handle
+      await directoryHandleCache.cacheHandle(directoryName, directoryHandle, directoryHandle.name)
+
+      // Update store with directory handle
+      setCurrentDirectory(directoryHandle, directoryName)
+
+      // Load the project directly (already in memory, no need to reload from disk)
+      loadProjectFile(projectData, directoryName)
+
+      analytics.track('project_imported', { format: isZip ? 'zip' : 'json' })
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        // User cancelled the picker
+        return
+      }
+      console.error('Failed to import project:', error)
+    }
+  }, [setCurrentDirectory, loadProjectFile])
+
+  const onOpen = useCallback(
+    async (projectName?: string) => {
+      try {
+        let result: Awaited<ReturnType<typeof load>>
+        let finalProjectName: string
+
+        if (projectName) {
+          // Load project by name (for recent projects and OPFS list)
+          // Cache-aware: load will prompt user if project directory not cached for fileSystemAccess
+          finalProjectName = projectName
+          result = await load(storageType, projectName)
+        } else {
+          // Show the native folder picker
+          const projectDirectory = await selectDirectory()
+          finalProjectName = projectDirectory.name
+
+          // Cache the directory handle
+          await directoryHandleCache.cacheHandle(
+            finalProjectName,
+            projectDirectory,
+            projectDirectory.name
+          )
+
+          // Load project from the selected directory
+          result = await load(storageType, projectDirectory)
+        }
+
+        if (result.success) {
+          const project = await migrateProject(result.data.projectData)
+          loadProjectFile(project, finalProjectName)
+          // Update store with directory handle returned from load
+          setCurrentDirectory(result.data.directoryHandle, finalProjectName)
+          analytics.track('project_opened', { storageType })
+        } else {
+          setError(result.error)
+          analytics.track('project_open_failed', { storageType, error: 'load_error' })
+        }
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          // User cancelled the picker
+          return
+        }
+        console.error('Failed to open project:', error)
+        setError({
+          type: 'unknown',
+          message:
+            error instanceof Error && projectName
+              ? 'Error migrating project'
+              : 'Error opening folder',
+          details: error instanceof Error ? error.message : 'Unknown error',
+          originalError: error,
+        })
+        analytics.track('project_open_failed', {
+          storageType,
+          error: projectName ? 'migration_error' : 'unknown',
+        })
+      }
+    },
+    [storageType, loadProjectFile, setCurrentDirectory, setError]
+  )
+
   const flowGraph = theatreReady && (
     <ErrorBoundary>
       <div className={cx('react-flow-wrapper', !showOverlay && 'react-flow-wrapper-hidden')}>
         <PrimeReactProvider>
           <SheetProvider value={theatreSheet}>
+            <Breadcrumbs />
             <ReactFlow
               ref={reactFlowRef}
               nodes={displayedNodes}
@@ -706,6 +1001,8 @@ export function getNoodles(): Visualization {
             loadProjectFile(project, name)
             setShowProjectNotFoundDialog(false)
           }}
+          onNewProject={onNewProject}
+          onImport={onImport}
           onClose={() => setShowProjectNotFoundDialog(false)}
         />
         <StorageErrorHandler />
@@ -814,155 +1111,6 @@ export function getNoodles(): Visualization {
     }
   }, [outOp, selectedGeoJsonFeatures])
 
-  const getNoodlesProjectJson = useCallback((): NoodlesProjectJSON => {
-    const store = getOpStore()
-    const timeline = getTimelineJson()
-
-    return {
-      version: NOODLES_VERSION,
-      nodes: serializeNodes(store, nodes, edges),
-      edges: serializeEdges(store, nodes, edges),
-      viewport: { x: 0, y: 0, zoom: 1 },
-      timeline,
-    }
-  }, [nodes, edges, getTimelineJson])
-
-  const onMenuSave = useCallback(async () => {
-    if (!projectName) return
-    const noodlesProjectJson = getNoodlesProjectJson()
-    const result = await save(storageType, projectName, noodlesProjectJson)
-    if (result.success) {
-      setCurrentDirectory(result.data.directoryHandle, projectName)
-      analytics.track('project_saved', { storageType })
-    } else {
-      setError(result.error)
-    }
-  }, [projectName, getNoodlesProjectJson, storageType, setCurrentDirectory, setError])
-
-  const onDownload = useCallback(async () => {
-    const { saveProjectLocally } = await import('./utils/serialization')
-    const noodlesProjectJson = getNoodlesProjectJson()
-    await saveProjectLocally(projectName || 'untitled', noodlesProjectJson, storageType)
-    analytics.track('project_exported', { storageType })
-  }, [projectName, getNoodlesProjectJson, storageType])
-
-  const handleOpenAddNode = useCallback(() => {
-    const pane = reactFlowRef.current?.getBoundingClientRect()
-    if (!pane) return
-    const centerX = pane.left + pane.width / 2
-    const centerY = pane.top + pane.height / 2
-    blockLibraryRef.current?.openModal(centerX, centerY)
-  }, [])
-
-  const onNewProject = useCallback(async () => {
-    try {
-      // Import the utilities we need
-      const { selectDirectory, requestPermission, writeFileToDirectory } = await import(
-        './utils/filesystem'
-      )
-      const { directoryHandleCache } = await import('./utils/directory-handle-cache')
-      const { safeStringify } = await import('./utils/serialization')
-
-      // Prompt user to select/create a directory for the new project
-      const directoryHandle = await selectDirectory()
-      const directoryName = directoryHandle.name
-
-      // Ensure we have write permission
-      const hasPermission = await requestPermission(directoryHandle, 'readwrite')
-      if (!hasPermission) {
-        console.error('Permission denied to write to directory')
-        return
-      }
-
-      // Write starter project to noodles.json
-      const starterProject = {
-        ...newProjectJSON,
-        version: NOODLES_VERSION,
-      } as NoodlesProjectJSON
-      await writeFileToDirectory(directoryHandle, 'noodles.json', safeStringify(starterProject))
-
-      // Cache the directory handle
-      await directoryHandleCache.cacheHandle(directoryName, directoryHandle, directoryHandle.name)
-
-      // Update store with directory handle
-      setCurrentDirectory(directoryHandle, directoryName)
-
-      // Load the project directly (already in memory, no need to reload from disk)
-      loadProjectFile(starterProject, directoryName)
-
-      analytics.track('project_created', { method: 'new' })
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        // User cancelled the picker
-        return
-      }
-      console.error('Failed to create new project:', error)
-    }
-  }, [setProjectName, setCurrentDirectory])
-
-  const onImport = useCallback(async () => {
-    try {
-      // Import the utilities we need
-      const { selectDirectory, requestPermission, writeFileToDirectory } = await import(
-        './utils/filesystem'
-      )
-      const { directoryHandleCache } = await import('./utils/directory-handle-cache')
-      const { safeStringify } = await import('./utils/serialization')
-
-      // First, prompt for the project file to import
-      const [fileHandle] = await window.showOpenFilePicker({
-        types: [
-          {
-            description: 'Noodles Project',
-            accept: {
-              'application/json': ['.json'],
-            },
-          },
-        ],
-      })
-      const file = await fileHandle.getFile()
-      const text = await file.text()
-      const parsed = JSON.parse(text) as Partial<NoodlesProjectJSON>
-
-      // Migrate the imported project to latest version
-      const projectData = await migrateProject({
-        ...EMPTY_PROJECT,
-        ...parsed,
-      } as NoodlesProjectJSON)
-
-      // Now prompt for directory to save the imported project
-      const directoryHandle = await selectDirectory()
-      const directoryName = directoryHandle.name
-
-      // Ensure we have write permission
-      const hasPermission = await requestPermission(directoryHandle, 'readwrite')
-      if (!hasPermission) {
-        console.error('Permission denied to write to directory')
-        return
-      }
-
-      // Write imported project to noodles.json
-      await writeFileToDirectory(directoryHandle, 'noodles.json', safeStringify(projectData))
-
-      // Cache the directory handle
-      await directoryHandleCache.cacheHandle(directoryName, directoryHandle, directoryHandle.name)
-
-      // Update store with directory handle
-      setCurrentDirectory(directoryHandle, directoryName)
-
-      // Load the project directly (already in memory, no need to reload from disk)
-      loadProjectFile(projectData, directoryName)
-
-      analytics.track('project_imported')
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        // User cancelled the picker
-        return
-      }
-      console.error('Failed to import project:', error)
-    }
-  }, [setProjectName, setCurrentDirectory])
-
   const propertiesPanel = (
     <div className={s.rightPanel}>
       <PropertyPanel />
@@ -978,12 +1126,12 @@ export function getNoodles(): Visualization {
     // Export these so timeline-editor can create the menu with render actions
     projectName,
     getTimelineJson,
-    loadProjectFile,
     onSaveProject: onMenuSave,
     onDownload,
     onNewProject,
     onImport,
-    onOpenAddNode: handleOpenAddNode,
+    onOpen,
+    onOpenAddNode,
     undoRedo: undoRedoRef.current,
     undoRedoRef,
     copyControlsRef,
