@@ -15,7 +15,6 @@ import {
   ReactFlow,
   reconnectEdge,
   useEdgesState,
-  useKeyPress,
   useNodesState,
   useReactFlow,
   type ReactFlowInstance,
@@ -212,8 +211,6 @@ export function getNoodles(): Visualization {
   const [nodes, setNodes, onNodesChangeBase] = useNodesState<AnyNodeJSON>([])
   const [edges, setEdges, onEdgesChangeBase] = useEdgesState<ReactFlowEdge<unknown>>([])
   const [defaultViewport, setDefaultViewport] = useState({ x: 0, y: 0, zoom: 1 })
-  const vPressed = useKeyPress('v')
-  const aPressed = useKeyPress('a')
   const [showChatPanel, setShowChatPanel] = useState(false)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
@@ -411,23 +408,22 @@ export function getNoodles(): Visualization {
     blockLibraryRef.current?.openModal(event.clientX, event.clientY)
   }, [])
 
-  const vPressHandledRef = useRef(false)
-
   const currentContainerId = useNestingStore(state => state.currentContainerId)
 
-  // Handle 'v' key press to create ViewerOp
+  // Handle 'v' keyup to create ViewerOp (momentary button behavior)
   useEffect(() => {
-    if (!vPressed) {
-      // Reset the flag when key is released
-      vPressHandledRef.current = false
-      return
-    }
+    const handleKeyUp = (e: KeyboardEvent) => {
+      // Ignore if key is 'v' or 'V' and target is not an input-like element
+      if (e.key !== 'v' && e.key !== 'V') return
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        (e.target instanceof HTMLElement && e.target.isContentEditable)
+      ) {
+        return
+      }
 
-    // Only handle once per key press
-    if (vPressHandledRef.current) return
-    vPressHandledRef.current = true
-
-    analytics.track('viewer_created', { method: 'keyboard' })
+      analytics.track('viewer_created', { method: 'keyboard' })
 
     setNodes(currentNodes => {
       const selectedNodes = currentNodes.filter(n => n.selected)
@@ -541,32 +537,39 @@ export function getNoodles(): Visualization {
 
       return [...currentNodes, viewerNode]
     })
-  }, [vPressed, setNodes, setEdges, currentContainerId])
-
-  const aPressHandledRef = useRef(false)
-
-  // Handle 'a' key press to open Block Library
-  useEffect(() => {
-    if (!aPressed) {
-      // Reset the flag when key is released
-      aPressHandledRef.current = false
-      return
     }
 
-    // Only handle once per key press
-    if (aPressHandledRef.current) return
-    aPressHandledRef.current = true
+    window.addEventListener('keyup', handleKeyUp)
+    return () => window.removeEventListener('keyup', handleKeyUp)
+  }, [setNodes, setEdges, currentContainerId])
 
-    analytics.track('block_library_opened', { method: 'keyboard' })
+  // Handle 'a' keyup to open Block Library (momentary button behavior)
+  useEffect(() => {
+    const handleKeyUp = (e: KeyboardEvent) => {
+      // Ignore if key is not 'a' or 'A'
+      if (e.key !== 'a' && e.key !== 'A') return
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        (e.target instanceof HTMLElement && e.target.isContentEditable)
+      ) {
+        return
+      }
 
-    // Open Block Library at center of screen
-    const pane = reactFlowRef.current?.getBoundingClientRect()
-    if (!pane) return
+      analytics.track('block_library_opened', { method: 'keyboard' })
 
-    const centerX = pane.left + pane.width / 2
-    const centerY = pane.top + pane.height / 2
-    blockLibraryRef.current?.openModal(centerX, centerY)
-  }, [aPressed])
+      // Open Block Library at center of screen
+      const pane = reactFlowRef.current?.getBoundingClientRect()
+      if (!pane) return
+
+      const centerX = pane.left + pane.width / 2
+      const centerY = pane.top + pane.height / 2
+      blockLibraryRef.current?.openModal(centerX, centerY)
+    }
+
+    window.addEventListener('keyup', handleKeyUp)
+    return () => window.removeEventListener('keyup', handleKeyUp)
+  }, [])
 
   const editorSheet = useMemo(() => {
     return theatreSheet.object('editor', {
