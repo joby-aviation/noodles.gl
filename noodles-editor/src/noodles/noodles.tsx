@@ -21,6 +21,7 @@ import {
 import cx from 'classnames'
 import type { LayerExtension } from 'deck.gl'
 import * as deck from 'deck.gl'
+import JSZip, { type JSZipObject } from 'jszip'
 import { PrimeReactProvider } from 'primereact/api'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useParams } from 'wouter'
@@ -764,7 +765,6 @@ export function getNoodles(): Visualization {
 
       if (isZip) {
         // Handle ZIP import
-        const JSZip = (await import('jszip')).default
         const zip = await JSZip.loadAsync(await file.arrayBuffer())
 
         // Find noodles.json in the ZIP (could be at root or in a subfolder)
@@ -797,7 +797,7 @@ export function getNoodles(): Visualization {
         } as NoodlesProjectJSON)
 
         // Extract all files from the ZIP
-        const fileEntries: Array<[string, any]> = []
+        const fileEntries: Array<[string, JSZipObject]> = []
         zip.forEach((relativePath, zipEntry) => {
           if (!zipEntry.dir) {
             fileEntries.push([relativePath, zipEntry])
