@@ -18,6 +18,7 @@ import {
   useKeyPress,
   useNodesState,
   useReactFlow,
+  type ReactFlowInstance,
 } from '@xyflow/react'
 import cx from 'classnames'
 import type { LayerExtension } from 'deck.gl'
@@ -196,7 +197,6 @@ function useTheatreJs(projectName?: string) {
 export function getNoodles(): Visualization {
   const [location, navigate] = useLocation()
   const params = useParams()
-  const reactFlow = useReactFlow()
 
   // Get projectId from route params (/examples/:projectId or /projects/:projectId) - router is single source of truth
   const projectName = params.projectId
@@ -317,6 +317,7 @@ export function getNoodles(): Visualization {
   }, [])
 
   const reactFlowRef = useRef<HTMLDivElement>(null)
+  const reactFlowInstanceRef = useRef<ReactFlowInstance | null>(null)
   const blockLibraryRef = useRef<BlockLibraryRef>(null)
 
   // Avoid circular dependency
@@ -327,6 +328,13 @@ export function getNoodles(): Visualization {
   // Ref to access undo/redo and copy/paste functionality from inside ReactFlow context
   const undoRedoRef = useRef<UndoRedoHandlerRef>(null)
   const copyControlsRef = useRef<CopyControlsRef>(null)
+
+  // Helper component to capture ReactFlow instance
+  function ReactFlowInstanceCapture() {
+    const instance = useReactFlow()
+    reactFlowInstanceRef.current = instance
+    return null
+  }
 
   const onDeselectAll = useCallback(() => {
     setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
@@ -552,10 +560,13 @@ export function getNoodles(): Visualization {
         // Apply viewport after a short delay to ensure nodes are rendered
         setTimeout(() => {
           try {
+            const instance = reactFlowInstanceRef.current
+            if (!instance) return
+
             if (viewport && nodes.length > 0) {
-              reactFlow.setViewport(viewport, { duration: 0 })
+              instance.setViewport(viewport, { duration: 0 })
             } else if (nodes.length > 0) {
-              reactFlow.fitView({ duration: 0 })
+              instance.fitView({ duration: 0 })
             }
           } catch (error) {
             console.warn('Could not apply viewport:', error)
@@ -568,7 +579,7 @@ export function getNoodles(): Visualization {
         navigate(`${routePrefix}/${name ?? ''}`, { replace: true })
       }
     },
-    [setNodes, setEdges, setProjectName, setTheatreProject, navigate, routePrefix, reactFlow]
+    [setNodes, setEdges, setProjectName, setTheatreProject, navigate, routePrefix]
   )
 
   // Assign to ref for undo/redo system
@@ -676,7 +687,7 @@ export function getNoodles(): Visualization {
   const getNoodlesProjectJson = useCallback((): NoodlesProjectJSON => {
     const store = getOpStore()
     const timeline = getTimelineJson()
-    const viewport = reactFlow.getViewport()
+    const viewport = reactFlowInstanceRef.current?.getViewport() || { x: 0, y: 0, zoom: 1 }
 
     return {
       version: NOODLES_VERSION,
@@ -685,7 +696,7 @@ export function getNoodles(): Visualization {
       viewport,
       timeline,
     }
-  }, [nodes, edges, getTimelineJson, reactFlow])
+  }, [nodes, edges, getTimelineJson])
 
   const onMenuSave = useCallback(async () => {
     if (!projectName) return
@@ -984,6 +995,7 @@ export function getNoodles(): Visualization {
               nodeTypes={nodeComponents}
               edgeTypes={edgeComponents}
             >
+              <ReactFlowInstanceCapture />
               <Background />
               <Controls position="bottom-right" />
               <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />
