@@ -380,12 +380,7 @@ export function TopMenuBar({
           </DropdownMenu.Root>
 
           <div className={s.breadcrumbContainer}>
-            <Breadcrumbs projectName={projectName} />
-            {hasUnsavedChanges && (
-              <div className={s.unsavedIndicator} title="Unsaved changes">
-                <div className={s.unsavedDot} />
-              </div>
-            )}
+            <Breadcrumbs projectName={projectName} hasUnsavedChanges={hasUnsavedChanges} />
           </div>
         </div>
 

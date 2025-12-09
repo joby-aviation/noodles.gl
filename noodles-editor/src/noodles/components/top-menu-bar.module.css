@@ -52,21 +52,6 @@
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
-}
-
-.unsavedIndicator {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-  cursor: help;
-}
-
-.unsavedDot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background-color: var(--color-text-accent);
 }
 
 .assistantButton {

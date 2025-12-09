@@ -11,9 +11,10 @@ import s from './breadcrumbs.module.css'
 
 interface BreadcrumbsProps {
   projectName?: string
+  hasUnsavedChanges?: boolean
 }
 
-export const Breadcrumbs: FC<BreadcrumbsProps> = ({ projectName }) => {
+export const Breadcrumbs: FC<BreadcrumbsProps> = ({ projectName, hasUnsavedChanges }) => {
   const currentContainerId = useNestingStore(state => state.currentContainerId)
   const setCurrentContainerId = useNestingStore(state => state.setCurrentContainerId)
   const reactFlow = useReactFlow()
@@ -121,7 +122,7 @@ export const Breadcrumbs: FC<BreadcrumbsProps> = ({ projectName }) => {
 
   return (
     <div className={s.bar}>
-      {pathSegments.map(segment => (
+      {pathSegments.map((segment, index) => (
         <Fragment key={segment.id}>
           <button
             type="button"
@@ -129,6 +130,11 @@ export const Breadcrumbs: FC<BreadcrumbsProps> = ({ projectName }) => {
             onClick={() => handleBreadcrumbClick(segment.id)}
           >
             {segment.name}
+            {index === 0 && hasUnsavedChanges && (
+              <span className={s.unsavedIndicator} title="Unsaved changes">
+                <span className={s.unsavedDot} />
+              </span>
+            )}
           </button>
           <DropdownMenu.Root>
             <DropdownMenu.Trigger>

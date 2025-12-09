@@ -33,6 +33,20 @@
   cursor: pointer;
 }
 
+.unsavedIndicator {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  cursor: help;
+}
+
+.unsavedDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--color-text-accent);
+}
+
 .menu {
   background-color: var(--color-bg-base);
   border: 1px solid var(--color-border);
