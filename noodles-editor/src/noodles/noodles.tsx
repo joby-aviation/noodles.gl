@@ -17,6 +17,7 @@ import {
   useEdgesState,
   useKeyPress,
   useNodesState,
+  useReactFlow,
 } from '@xyflow/react'
 import cx from 'classnames'
 import type { LayerExtension } from 'deck.gl'
@@ -195,6 +196,7 @@ function useTheatreJs(projectName?: string) {
 export function getNoodles(): Visualization {
   const [location, navigate] = useLocation()
   const params = useParams()
+  const reactFlow = useReactFlow()
 
   // Get projectId from route params (/examples/:projectId or /projects/:projectId) - router is single source of truth
   const projectName = params.projectId
@@ -526,7 +528,7 @@ export function getNoodles(): Visualization {
       const {
         nodes,
         edges,
-        // viewport, // Skip viewport to preserve current view
+        viewport,
         timeline,
       } = project
 
@@ -545,16 +547,18 @@ export function getNoodles(): Visualization {
       const hasTimeline = timeline && Object.keys(timeline).length > 0
       setTheatreProject(name && hasTimeline ? { state: timeline } : {}, name)
 
-      // Only fit view when loading a new project (not during undo/redo)
+      // Set viewport or fit view when loading a new project (not during undo/redo)
       if (name && !undoRedoRef.current?.isRestoring()) {
-        // Fit view after a short delay to ensure nodes are rendered
+        // Apply viewport after a short delay to ensure nodes are rendered
         setTimeout(() => {
           try {
-            if (reactFlowRef.current && nodes.length > 0) {
-              // TODO: Call fitView on the ReactFlow instance here if accessible
+            if (viewport && nodes.length > 0) {
+              reactFlow.setViewport(viewport, { duration: 0 })
+            } else if (nodes.length > 0) {
+              reactFlow.fitView({ duration: 0 })
             }
           } catch (error) {
-            console.warn('Could not fit view:', error)
+            console.warn('Could not apply viewport:', error)
           }
         }, 100)
       }
@@ -564,7 +568,7 @@ export function getNoodles(): Visualization {
         navigate(`${routePrefix}/${name ?? ''}`, { replace: true })
       }
     },
-    [setNodes, setEdges, setProjectName, setTheatreProject, navigate, routePrefix]
+    [setNodes, setEdges, setProjectName, setTheatreProject, navigate, routePrefix, reactFlow]
   )
 
   // Assign to ref for undo/redo system
@@ -672,15 +676,16 @@ export function getNoodles(): Visualization {
   const getNoodlesProjectJson = useCallback((): NoodlesProjectJSON => {
     const store = getOpStore()
     const timeline = getTimelineJson()
+    const viewport = reactFlow.getViewport()
 
     return {
       version: NOODLES_VERSION,
       nodes: serializeNodes(store, nodes, edges),
       edges: serializeEdges(store, nodes, edges),
-      viewport: { x: 0, y: 0, zoom: 1 },
+      viewport,
       timeline,
     }
-  }, [nodes, edges, getTimelineJson])
+  }, [nodes, edges, getTimelineJson, reactFlow])
 
   const onMenuSave = useCallback(async () => {
     if (!projectName) return
