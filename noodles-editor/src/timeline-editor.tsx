@@ -407,6 +407,7 @@ export default function TimelineEditor() {
       startRender={startRender}
       takeScreenshot={takeScreenshot}
       isRendering={isRendering}
+      hasUnsavedChanges={noodles.hasUnsavedChanges}
     />
   )
 

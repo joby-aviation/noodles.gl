@@ -210,13 +210,14 @@ export function getNoodles(): Visualization {
   const { theatreReady, theatreProject, theatreSheet, setTheatreProject, getTimelineJson } =
     useTheatreJs(projectName)
   const [nodes, setNodes, onNodesChangeBase] = useNodesState<AnyNodeJSON>([])
-  const [edges, setEdges, onEdgesChange] = useEdgesState<ReactFlowEdge<unknown>>([])
+  const [edges, setEdges, onEdgesChangeBase] = useEdgesState<ReactFlowEdge<unknown>>([])
   const [defaultViewport, setDefaultViewport] = useState({ x: 0, y: 0, zoom: 1 })
   const vPressed = useKeyPress('v')
   const aPressed = useKeyPress('a')
   const [showChatPanel, setShowChatPanel] = useState(false)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
-  // Wrap onNodesChange to track node selection
+  // Wrap onNodesChange to track node selection and mark unsaved changes
   const onNodesChange = useCallback(
     (changes: Parameters<typeof onNodesChangeBase>[0]) => {
       // Track selection changes
@@ -224,9 +225,30 @@ export function getNoodles(): Visualization {
       if (selectedChanges.length > 0) {
         analytics.track('node_selected', { count: selectedChanges.length })
       }
+
+      // Mark as unsaved if there are non-selection changes
+      const hasNonSelectionChanges = changes.some(change => change.type !== 'select')
+      if (hasNonSelectionChanges) {
+        setHasUnsavedChanges(true)
+      }
+
       onNodesChangeBase(changes)
     },
     [onNodesChangeBase]
+  )
+
+  // Wrap onEdgesChange to mark unsaved changes
+  const onEdgesChange = useCallback(
+    (changes: Parameters<typeof onEdgesChangeBase>[0]) => {
+      // Mark as unsaved if there are non-selection changes
+      const hasNonSelectionChanges = changes.some(change => change.type !== 'select')
+      if (hasNonSelectionChanges) {
+        setHasUnsavedChanges(true)
+      }
+
+      onEdgesChangeBase(changes)
+    },
+    [onEdgesChangeBase]
   )
 
   // Update URL when project name changes (for when loading a project from file/storage)
@@ -252,6 +274,20 @@ export function getNoodles(): Visualization {
       console.warn('Failed to preload AI context:', error)
     })
   }, [])
+
+  // Warn before leaving page with unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault()
+        // Modern browsers require returnValue to be set
+        e.returnValue = ''
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [hasUnsavedChanges])
 
   // `transformGraph` needs all nodes to build the opMap and resolve connections
   // Use useEffect instead of useMemo to avoid setState during render
@@ -294,16 +330,37 @@ export function getNoodles(): Visualization {
   }, [theatreReady, theatreSheet, operators])
 
   // Use shared hook for project modifications
-  const { onConnect, onNodesDelete } = useProjectModifications({
+  const { onConnect: onConnectBase, onNodesDelete: onNodesDeleteBase } = useProjectModifications({
     getNodes: useCallback(() => nodes, [nodes]),
     getEdges: useCallback(() => edges, [edges]),
     setNodes,
     setEdges,
   })
 
+  // Wrap onConnect to mark unsaved changes
+  const onConnect = useCallback(
+    (connection: Connection) => {
+      onConnectBase(connection)
+      setHasUnsavedChanges(true)
+    },
+    [onConnectBase]
+  )
+
+  // Wrap onNodesDelete to mark unsaved changes
+  const onNodesDelete = useCallback(
+    (deleted: ReactFlowNode[]) => {
+      onNodesDeleteBase(deleted)
+      setHasUnsavedChanges(true)
+    },
+    [onNodesDeleteBase]
+  )
+
+  // Wrap onReconnect to mark unsaved changes
   const onReconnect = useCallback(
-    (oldEdge: ReactFlowEdge, newConnection: Connection) =>
-      setEdges(els => reconnectEdge(oldEdge, newConnection, els)),
+    (oldEdge: ReactFlowEdge, newConnection: Connection) => {
+      setEdges(els => reconnectEdge(oldEdge, newConnection, els))
+      setHasUnsavedChanges(true)
+    },
     [setEdges]
   )
 
@@ -566,6 +623,9 @@ export function getNoodles(): Visualization {
       if (name) {
         navigate(`${routePrefix}/${name ?? ''}`, { replace: true })
       }
+
+      // Clear unsaved changes flag when loading a project
+      setHasUnsavedChanges(false)
     },
     [setNodes, setEdges, setProjectName, setTheatreProject, navigate, routePrefix]
   )
@@ -692,6 +752,7 @@ export function getNoodles(): Visualization {
     const result = await save(storageType, projectName, noodlesProjectJson)
     if (result.success) {
       setCurrentDirectory(result.data.directoryHandle, projectName)
+      setHasUnsavedChanges(false)
       analytics.track('project_saved', { storageType })
     } else {
       setError(result.error)
@@ -1140,6 +1201,7 @@ export function getNoodles(): Visualization {
     copyControlsRef,
     showChatPanel,
     setShowChatPanel,
+    hasUnsavedChanges,
     ...visProps,
     project: theatreProject,
     sheet: theatreSheet,

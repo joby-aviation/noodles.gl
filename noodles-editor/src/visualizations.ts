@@ -33,6 +33,7 @@ export type Visualization = {
   copyControlsRef?: RefObject<CopyControlsRef | null>
   showChatPanel?: boolean
   setShowChatPanel?: (show: boolean) => void
+  hasUnsavedChanges?: boolean
   // Visualization props
   mapProps?: BetterMapProps
   deckProps: BetterDeckProps

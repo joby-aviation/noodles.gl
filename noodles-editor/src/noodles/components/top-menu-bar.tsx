@@ -29,6 +29,7 @@ interface TopMenuBarProps {
   startRender?: () => Promise<void>
   takeScreenshot?: () => Promise<void>
   isRendering?: boolean
+  hasUnsavedChanges?: boolean
 }
 
 export function TopMenuBar({
@@ -46,6 +47,7 @@ export function TopMenuBar({
   startRender,
   takeScreenshot,
   isRendering,
+  hasUnsavedChanges,
 }: TopMenuBarProps) {
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false)
   const [recentProjects, setRecentProjects] = useState<string[]>([])
@@ -379,6 +381,7 @@ export function TopMenuBar({
 
           <div className={s.breadcrumbContainer}>
             <Breadcrumbs projectName={projectName} />
+            {hasUnsavedChanges && <span className={s.unsavedIndicator} title="Unsaved changes">●</span>}
           </div>
         </div>
 

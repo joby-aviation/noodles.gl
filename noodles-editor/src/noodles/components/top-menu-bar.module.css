@@ -52,6 +52,14 @@
   min-width: 0;
   display: flex;
   align-items: center;
+  gap: 8px;
+}
+
+.unsavedIndicator {
+  color: var(--color-text-accent);
+  font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
 }
 
 .assistantButton {
