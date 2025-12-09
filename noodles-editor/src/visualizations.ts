@@ -29,13 +29,6 @@ export type Visualization = {
   onImport?: () => Promise<void>
   onOpen?: (projectName?: string) => Promise<void>
   onOpenAddNode?: () => void
-  undoRedo?: {
-    undo: () => void
-    redo: () => void
-    canUndo: () => boolean
-    canRedo: () => boolean
-    getState: () => { undoDescription?: string; redoDescription?: string }
-  } | null
   undoRedoRef?: RefObject<UndoRedoHandlerRef | null>
   copyControlsRef?: RefObject<CopyControlsRef | null>
   showChatPanel?: boolean

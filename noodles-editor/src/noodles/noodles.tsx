@@ -1130,7 +1130,6 @@ export function getNoodles(): Visualization {
     onImport,
     onOpen,
     onOpenAddNode,
-    undoRedo: undoRedoRef.current,
     undoRedoRef,
     copyControlsRef,
     showChatPanel,
