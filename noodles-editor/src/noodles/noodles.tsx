@@ -62,6 +62,8 @@ import { load, save } from './storage'
 import { deleteSheetObject, getOpStore, setSheetObject, useNestingStore } from './store'
 import { bindOperatorToTheatre, cleanupRemovedOperators } from './theatre-bindings'
 import { transformGraph } from './transform-graph'
+import { directoryHandleCache } from './utils/directory-handle-cache'
+import { requestPermission, selectDirectory, writeFileToDirectory } from './utils/filesystem'
 import { edgeId, nodeId } from './utils/id-utils'
 import { migrateProject } from './utils/migrate-schema'
 import { getParentPath } from './utils/path-utils'
@@ -70,6 +72,8 @@ import {
   EMPTY_PROJECT,
   NOODLES_VERSION,
   type NoodlesProjectJSON,
+  safeStringify,
+  saveProjectLocally,
   serializeEdges,
   serializeNodes,
 } from './utils/serialization'
@@ -684,7 +688,6 @@ export function getNoodles(): Visualization {
   }, [projectName, getNoodlesProjectJson, storageType, setCurrentDirectory, setError])
 
   const onDownload = useCallback(async () => {
-    const { saveProjectLocally } = await import('./utils/serialization')
     const noodlesProjectJson = getNoodlesProjectJson()
     await saveProjectLocally(projectName || 'untitled', noodlesProjectJson, storageType)
     analytics.track('project_exported', { storageType })
@@ -692,13 +695,6 @@ export function getNoodles(): Visualization {
 
   const onNewProject = useCallback(async () => {
     try {
-      // Import the utilities we need
-      const { selectDirectory, requestPermission, writeFileToDirectory } = await import(
-        './utils/filesystem'
-      )
-      const { directoryHandleCache } = await import('./utils/directory-handle-cache')
-      const { safeStringify } = await import('./utils/serialization')
-
       // Prompt user to select/create a directory for the new project
       const directoryHandle = await selectDirectory()
       const directoryName = directoryHandle.name
@@ -738,13 +734,6 @@ export function getNoodles(): Visualization {
 
   const onImport = useCallback(async () => {
     try {
-      // Import the utilities we need
-      const { selectDirectory, requestPermission, writeFileToDirectory } = await import(
-        './utils/filesystem'
-      )
-      const { directoryHandleCache } = await import('./utils/directory-handle-cache')
-      const { safeStringify } = await import('./utils/serialization')
-
       // First, prompt for the project file to import
       const [fileHandle] = await window.showOpenFilePicker({
         types: [
@@ -887,6 +876,44 @@ export function getNoodles(): Visualization {
       console.error('Failed to import project:', error)
     }
   }, [setCurrentDirectory, loadProjectFile])
+
+  const onOpen = useCallback(async () => {
+    try {
+      // Show the native folder picker
+      const projectDirectory = await selectDirectory()
+
+      // Use the directory name as the project name
+      const projectName = projectDirectory.name
+
+      // Cache the directory handle
+      await directoryHandleCache.cacheHandle(projectName, projectDirectory, projectDirectory.name)
+
+      // Load project from the selected directory
+      const result = await load(storageType, projectDirectory)
+
+      if (result.success) {
+        const project = await migrateProject(result.data.projectData)
+        loadProjectFile(project, projectName)
+        // Update store with directory handle returned from load
+        setCurrentDirectory(result.data.directoryHandle, projectName)
+        analytics.track('project_opened', { storageType })
+      } else {
+        setError(result.error)
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        // User cancelled the picker
+        return
+      }
+      console.error('Failed to open project:', error)
+      setError({
+        type: 'unknown',
+        message: 'Error opening folder',
+        details: error instanceof Error ? error.message : 'Unknown error',
+        originalError: error,
+      })
+    }
+  }, [storageType, loadProjectFile, setCurrentDirectory, setError])
 
   const flowGraph = theatreReady && (
     <ErrorBoundary>
@@ -1066,6 +1093,7 @@ export function getNoodles(): Visualization {
     onDownload,
     onNewProject,
     onImport,
+    onOpen,
     undoRedo: undoRedoRef.current,
     showChatPanel,
     setShowChatPanel,

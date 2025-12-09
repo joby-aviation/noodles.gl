@@ -326,6 +326,7 @@ export function NoodlesMenubar({
   onDownload,
   onNewProject,
   onImport,
+  onOpen,
   undoRedo,
   showChatPanel,
   setShowChatPanel,
@@ -341,6 +342,7 @@ export function NoodlesMenubar({
   onDownload: () => Promise<void>
   onNewProject: () => Promise<void>
   onImport: () => Promise<void>
+  onOpen: () => Promise<void>
   undoRedo?: {
     undo: () => void
     redo: () => void
@@ -468,65 +470,16 @@ export function NoodlesMenubar({
     [storageType, loadProjectFile, setCurrentDirectory, setError]
   )
 
-  // Open File System Access API folder picker
-  const onOpenFileSystemFolder = useCallback(async () => {
-    try {
-      // Dynamically import filesystem utilities to avoid circular dependencies
-      const { directoryHandleCache } = await import('../utils/directory-handle-cache')
-      const { selectDirectory } = await import('../utils/filesystem')
-      const { load } = await import('../storage')
-
-      // Show the native folder picker
-      const projectDirectory = await selectDirectory()
-
-      // Use the directory name as the project name
-      const projectName = projectDirectory.name
-
-      await directoryHandleCache.cacheHandle(projectName, projectDirectory, projectDirectory.name)
-
-      const result = await load('fileSystemAccess', projectDirectory)
-
-      if (result.success) {
-        try {
-          const project = await migrateProject(result.data.projectData)
-          loadProjectFile(project, projectName)
-          // Update store with directory handle returned from load
-          setCurrentDirectory(result.data.directoryHandle, projectName)
-        } catch (error) {
-          setError({
-            type: 'unknown',
-            message: 'Error migrating project',
-            details: error instanceof Error ? error.message : 'Unknown error',
-            originalError: error,
-          })
-        }
-      } else {
-        setError(result.error)
-      }
-    } catch (error) {
-      // Handle abort error silently (user cancelled folder picker)
-      if (error instanceof Error && error.name === 'AbortError') {
-        return
-      }
-      setError({
-        type: 'unknown',
-        message: 'Error opening folder',
-        details: error instanceof Error ? error.message : 'Unknown error',
-        originalError: error,
-      })
-    }
-  }, [loadProjectFile, setCurrentDirectory, setError])
-
   // Handle "Open..." button click based on storage type
   const onOpenMenuClick = useCallback(() => {
     if (storageType === 'fileSystemAccess') {
       // For File System Access API, directly show folder picker
-      onOpenFileSystemFolder()
+      onOpen()
     } else {
       // For OPFS, show project list dialog
       setOpenProjectDialogOpen(true)
     }
-  }, [storageType, onOpenFileSystemFolder])
+  }, [storageType, onOpen])
 
   const updateRecentlyOpened = useCallback(() => {
     ;(async () => {
