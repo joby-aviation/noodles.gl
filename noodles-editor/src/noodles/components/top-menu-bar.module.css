@@ -4,8 +4,8 @@
   justify-content: space-between;
   height: 40px;
   padding: 0 12px;
-  background: var(--color-bg-base, #1a1a1a);
-  border-bottom: 1px solid var(--color-border, #333);
+  background: var(--color-bg-base);
+  border-bottom: 1px solid var(--color-border);
   gap: 16px;
 }
 
@@ -35,12 +35,12 @@
   border: none;
   border-radius: 4px;
   cursor: pointer;
-  color: var(--color-text-primary, #e0e0e0);
+  color: var(--color-text-primary);
   transition: background-color 0.15s;
 }
 
 .hamburgerButton:hover {
-  background: var(--color-bg-hover, rgba(255, 255, 255, 0.1));
+  background: var(--color-bg-hover);
 }
 
 .hamburgerButton:active {
@@ -60,29 +60,29 @@
   gap: 6px;
   padding: 6px 12px;
   background: none;
-  border: 1px solid var(--color-border, #333);
+  border: 1px solid var(--color-border);
   border-radius: 4px;
   cursor: pointer;
   font-size: 13px;
-  color: var(--color-text-primary, #e0e0e0);
+  color: var(--color-text-primary);
   transition: all 0.15s;
   white-space: nowrap;
 }
 
 .assistantButton:hover {
-  background: var(--color-bg-hover, rgba(255, 255, 255, 0.1));
-  border-color: var(--color-border-hover, #555);
+  background: var(--color-bg-hover);
+  border-color: var(--color-border-hover);
 }
 
 .assistantButton:active {
-  background: var(--color-bg-active, rgba(255, 255, 255, 0.15));
+  background: var(--color-bg-active);
 }
 
 /* Dropdown Menu Styles */
 .dropdownContent {
   min-width: 200px;
-  background: var(--color-bg-base, #1a1a1a);
-  border: 1px solid var(--color-border, #333);
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border);
   border-radius: 6px;
   padding: 4px;
   box-shadow:
@@ -97,7 +97,7 @@
   justify-content: space-between;
   padding: 8px 12px;
   font-size: 13px;
-  color: var(--color-text-primary, #e0e0e0);
+  color: var(--color-text-primary);
   border-radius: 3px;
   cursor: pointer;
   outline: none;
@@ -107,27 +107,27 @@
 }
 
 .dropdownItem:hover {
-  background: var(--color-bg-hover, rgba(255, 255, 255, 0.1));
+  background: var(--color-bg-hover);
 }
 
 .dropdownItem:focus {
-  background: var(--color-bg-hover, rgba(255, 255, 255, 0.1));
+  background: var(--color-bg-hover);
 }
 
 .dropdownItem[data-disabled] {
-  color: var(--color-text-disabled, #555);
+  color: var(--color-text-disabled);
   pointer-events: none;
 }
 
 .dropdownSeparator {
   height: 1px;
-  background: var(--color-border, #333);
+  background: var(--color-border);
   margin: 4px 0;
 }
 
 .shortcut {
   font-size: 11px;
-  color: var(--color-text-secondary, #888);
+  color: var(--color-text-secondary);
   margin-left: auto;
   font-family: monospace;
 }

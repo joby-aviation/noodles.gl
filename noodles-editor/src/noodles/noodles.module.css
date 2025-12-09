@@ -21,13 +21,16 @@
   --color-bg-primary: #282b2fde;
   --color-bg-secondary: #2a2a2a;
   --color-bg-hover: rgba(255, 255, 255, 0.1);
+  --color-bg-active: rgba(255, 255, 255, 0.15);
   --color-bg-accent: rgba(255, 255, 255, 0.15);
 
   --color-text-primary: #e2dede;
   --color-text-secondary: #888;
+  --color-text-disabled: #555;
   --color-text-accent: #4a9eff;
 
   --color-border: #333;
+  --color-border-hover: #555;
   --color-border-focus: rgba(255, 255, 255, 0.2);
 
   --color-input-hover: #383838;
