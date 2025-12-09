@@ -41,7 +41,6 @@ import { SheetProvider } from '../utils/sheet-context'
 import useSheetValue from '../utils/use-sheet-value'
 import type { Visualization } from '../visualizations'
 import { BlockLibrary, type BlockLibraryRef } from './components/block-library'
-import { Breadcrumbs } from './components/breadcrumbs'
 import { categories } from './components/categories'
 import { CopyControls, type CopyControlsRef } from './components/copy-controls'
 import { DropTarget } from './components/drop-target'
@@ -962,7 +961,6 @@ export function getNoodles(): Visualization {
       <div className={cx('react-flow-wrapper', !showOverlay && 'react-flow-wrapper-hidden')}>
         <PrimeReactProvider>
           <SheetProvider value={theatreSheet}>
-            <Breadcrumbs />
             <ReactFlow
               ref={reactFlowRef}
               nodes={displayedNodes}
