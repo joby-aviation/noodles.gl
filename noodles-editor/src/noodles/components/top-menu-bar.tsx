@@ -1,4 +1,5 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
+import { ChevronDownIcon } from '@radix-ui/react-icons'
 import studio from '@theatre/studio'
 import { useReactFlow } from '@xyflow/react'
 import { type RefObject, useCallback, useEffect, useMemo, useState } from 'react'
@@ -178,7 +179,10 @@ export function TopMenuBar({
           <DropdownMenu.Root>
             <DropdownMenu.Trigger asChild>
               <button type="button" className={s.logoButton} title="Menu">
-                <img src="/noodles-logo.png" alt="Noodles.gl" className={s.logo} />
+                <div className={s.logoContainer}>
+                  <img src="/noodles-favicon.svg" alt="Noodles.gl" className={s.logo} />
+                </div>
+                <ChevronDownIcon className={s.chevron} />
               </button>
             </DropdownMenu.Trigger>
 
@@ -379,7 +383,7 @@ export function TopMenuBar({
 
                 <DropdownMenu.Item className={s.dropdownItem} asChild>
                   <a
-                    href="https://noodles.gl/docs"
+                    href="https://noodles.gl/users/getting-started"
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{ textDecoration: 'none', color: 'inherit' }}
