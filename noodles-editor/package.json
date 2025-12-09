@@ -110,7 +110,6 @@
     "@vitest/browser": "^4.0.3",
     "@vitest/browser-playwright": "^4.0.3",
     "playwright": "^1.56.1",
-    "rollup-plugin-visualizer": "^6.0.5",
     "tsx": "^4.19.2",
     "type-fest": "^5.1.0",
     "typescript": "^5.9.3",
