@@ -809,6 +809,9 @@ export function getNoodles(): Visualization {
             filesToWrite.set(cleanPath, arrayBuffer)
           }
         }
+
+        // Write migrated noodles.json (overwrites any unmigrated version extracted from ZIP)
+        filesToWrite.set('noodles.json', safeStringify(projectData))
       } else {
         // Handle single JSON file import
         const text = await file.text()
