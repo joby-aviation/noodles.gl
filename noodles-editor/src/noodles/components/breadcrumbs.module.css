@@ -1,5 +1,5 @@
 .bar {
-  padding: 8px 10px;
+  padding: 8px 10px 8px 0;
   background-color: transparent;
   display: flex;
   align-items: center;
@@ -9,7 +9,7 @@
 }
 
 .brandingSegment {
-  color: var(--color-text-secondary);
+  color: var(--color-text-primary);
   font-size: 13px;
   font-weight: 400;
   padding: 4px 6px;
