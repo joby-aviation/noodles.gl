@@ -311,7 +311,6 @@ async function listProjects(): Promise<ProjectList> {
 // Open Recent...
 type RecentProject = {
   name: string
-  lastOpened: number // Epoch timestamp in milliseconds
 }
 
 const MAX_RECENT_PROJECTS = 10
@@ -456,7 +455,6 @@ export function NoodlesMenubar({
         .slice(0, MAX_RECENT_PROJECTS)
         .map(entry => ({
           name: entry.projectName,
-          lastOpened: entry.cachedAt, // Keep as epoch timestamp
         }))
 
       setRecentlyOpened(recentProjects)
