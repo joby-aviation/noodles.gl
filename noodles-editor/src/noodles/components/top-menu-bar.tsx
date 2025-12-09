@@ -61,6 +61,34 @@ export function TopMenuBar({
       .catch(err => console.warn('Failed to load recent projects:', err))
   }, [])
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isMod = e.metaKey || e.ctrlKey
+
+      if (isMod && e.key === 's') {
+        e.preventDefault()
+        onSaveProject()
+        analytics.track('keyboard_shortcut_used', { action: 'save' })
+      } else if (isMod && e.key === 'n') {
+        e.preventDefault()
+        onNewProject()
+        analytics.track('keyboard_shortcut_used', { action: 'new_project' })
+      } else if (isMod && e.key === 'o') {
+        e.preventDefault()
+        onOpen?.()
+        analytics.track('keyboard_shortcut_used', { action: 'open' })
+      } else if (isMod && e.key === 'i') {
+        e.preventDefault()
+        onImport()
+        analytics.track('keyboard_shortcut_used', { action: 'import' })
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onSaveProject, onNewProject, onOpen, onImport])
+
   // Detect platform for keyboard shortcuts
   const isMac = useMemo(() => navigator.platform.toUpperCase().indexOf('MAC') >= 0, [])
   const mod = isMac ? '⌘' : 'Ctrl'
@@ -175,21 +203,25 @@ export function TopMenuBar({
                   <DropdownMenu.Portal>
                     <DropdownMenu.SubContent className={s.dropdownContent} sideOffset={2}>
                       <DropdownMenu.Item className={s.dropdownItem} onSelect={onNewProject}>
-                        New Project
+                        <span>New Project</span>
+                        <span className={s.shortcut}>{mod}+N</span>
                       </DropdownMenu.Item>
                       <DropdownMenu.Item
                         className={s.dropdownItem}
                         onSelect={() => onOpen?.()}
                         disabled={!onOpen}
                       >
-                        Open
+                        <span>Open</span>
+                        <span className={s.shortcut}>{mod}+O</span>
                       </DropdownMenu.Item>
                       <DropdownMenu.Item className={s.dropdownItem} onSelect={onImport}>
-                        Import
+                        <span>Import</span>
+                        <span className={s.shortcut}>{mod}+I</span>
                       </DropdownMenu.Item>
                       <DropdownMenu.Separator className={s.dropdownSeparator} />
                       <DropdownMenu.Item className={s.dropdownItem} onSelect={onSaveProject}>
-                        Save
+                        <span>Save</span>
+                        <span className={s.shortcut}>{mod}+S</span>
                       </DropdownMenu.Item>
                       <DropdownMenu.Item
                         className={s.dropdownItem}
