@@ -24,27 +24,31 @@
   flex-shrink: 0;
 }
 
-.hamburgerButton {
+.logoButton {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
   height: 32px;
-  padding: 0;
+  padding: 4px 8px;
   background: none;
   border: none;
   border-radius: 4px;
   cursor: pointer;
-  color: var(--color-text-primary);
   transition: background-color 0.15s;
 }
 
-.hamburgerButton:hover {
+.logoButton:hover {
   background: var(--color-bg-hover);
 }
 
-.hamburgerButton:active {
+.logoButton:active {
   background: var(--color-bg-active);
+}
+
+.logo {
+  height: 24px;
+  width: auto;
+  display: block;
 }
 
 .breadcrumbContainer {

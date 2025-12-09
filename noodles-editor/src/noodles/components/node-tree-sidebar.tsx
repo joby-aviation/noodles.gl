@@ -304,16 +304,6 @@ export function NodeTreeSidebar() {
           />
         ))}
       </div>
-      <div className={s.footer}>
-        <a
-          href="https://noodles.gl"
-          target="_blank"
-          rel="noopener noreferrer"
-          className={s.brandingLink}
-        >
-          noodles.gl
-        </a>
-      </div>
     </div>
   )
 }

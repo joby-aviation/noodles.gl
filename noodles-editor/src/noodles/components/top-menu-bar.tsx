@@ -1,5 +1,4 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { HamburgerMenuIcon } from '@radix-ui/react-icons'
 import studio from '@theatre/studio'
 import { useReactFlow } from '@xyflow/react'
 import { type RefObject, useCallback, useEffect, useMemo, useState } from 'react'
@@ -178,8 +177,8 @@ export function TopMenuBar({
         <div className={s.leftSection}>
           <DropdownMenu.Root>
             <DropdownMenu.Trigger asChild>
-              <button type="button" className={s.hamburgerButton} title="Menu">
-                <HamburgerMenuIcon />
+              <button type="button" className={s.logoButton} title="Menu">
+                <img src="/noodles-logo.png" alt="Noodles.gl" className={s.logo} />
               </button>
             </DropdownMenu.Trigger>
 
@@ -374,6 +373,19 @@ export function TopMenuBar({
                   onSelect={() => setSettingsDialogOpen(true)}
                 >
                   App Settings
+                </DropdownMenu.Item>
+
+                <DropdownMenu.Separator className={s.dropdownSeparator} />
+
+                <DropdownMenu.Item className={s.dropdownItem} asChild>
+                  <a
+                    href="https://noodles.gl/docs"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ textDecoration: 'none', color: 'inherit' }}
+                  >
+                    Documentation
+                  </a>
                 </DropdownMenu.Item>
               </DropdownMenu.Content>
             </DropdownMenu.Portal>
