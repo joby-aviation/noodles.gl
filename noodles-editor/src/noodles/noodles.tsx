@@ -246,7 +246,12 @@ export function getNoodles(): Visualization {
   }, [])
 
   // `transformGraph` needs all nodes to build the opMap and resolve connections
-  const operators = useMemo(() => transformGraph({ nodes, edges }), [nodes, edges])
+  // Use useEffect instead of useMemo to avoid setState during render
+  const [operators, setOperators] = useState<Operator<IOperator>[]>([])
+  useEffect(() => {
+    const ops = transformGraph({ nodes, edges })
+    setOperators(ops)
+  }, [nodes, edges])
 
   // Bind Theatre.js objects for all operators (outside ReactFlow rendering pipeline)
   // This ensures containers and all other operators can be keyframed in the timeline
