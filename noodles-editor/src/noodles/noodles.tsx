@@ -751,19 +751,87 @@ export function getNoodles(): Visualization {
             description: 'Noodles Project',
             accept: {
               'application/json': ['.json'],
+              'application/zip': ['.zip'],
             },
           },
         ],
       })
       const file = await fileHandle.getFile()
-      const text = await file.text()
-      const parsed = JSON.parse(text) as Partial<NoodlesProjectJSON>
+      const isZip = file.name.endsWith('.zip')
 
-      // Migrate the imported project to latest version
-      const projectData = await migrateProject({
-        ...EMPTY_PROJECT,
-        ...parsed,
-      } as NoodlesProjectJSON)
+      let projectData: NoodlesProjectJSON
+      const filesToWrite: Map<string, string | ArrayBuffer> = new Map()
+
+      if (isZip) {
+        // Handle ZIP import
+        const JSZip = (await import('jszip')).default
+        const zip = await JSZip.loadAsync(await file.arrayBuffer())
+
+        // Find noodles.json in the ZIP (could be at root or in a subfolder)
+        let noodlesJsonPath: string | null = null
+        let projectFolder = ''
+
+        // Iterate over files in the ZIP to find noodles.json
+        zip.forEach((relativePath, zipEntry) => {
+          if (relativePath.endsWith('noodles.json') && !zipEntry.dir) {
+            noodlesJsonPath = relativePath
+            // Extract the folder path (everything before noodles.json)
+            projectFolder = relativePath.substring(0, relativePath.lastIndexOf('noodles.json'))
+          }
+        })
+
+        if (!noodlesJsonPath) {
+          throw new Error('No noodles.json found in ZIP file')
+        }
+
+        // Parse noodles.json
+        const noodlesJsonFile = zip.file(noodlesJsonPath)
+        if (!noodlesJsonFile) {
+          throw new Error('Could not read noodles.json from ZIP')
+        }
+        const noodlesJsonText = await noodlesJsonFile.async('text')
+        const parsed = JSON.parse(noodlesJsonText) as Partial<NoodlesProjectJSON>
+        projectData = await migrateProject({
+          ...EMPTY_PROJECT,
+          ...parsed,
+        } as NoodlesProjectJSON)
+
+        // Extract all files from the ZIP
+        const fileEntries: Array<[string, any]> = []
+        zip.forEach((relativePath, zipEntry) => {
+          if (!zipEntry.dir) {
+            fileEntries.push([relativePath, zipEntry])
+          }
+        })
+
+        for (const [relativePath, zipEntry] of fileEntries) {
+          // Remove the project folder prefix to get relative path within project
+          let cleanPath = relativePath
+          if (projectFolder && relativePath.startsWith(projectFolder)) {
+            cleanPath = relativePath.substring(projectFolder.length)
+          }
+
+          // Read file contents
+          if (cleanPath.endsWith('.json')) {
+            const text = await zipEntry.async('text')
+            filesToWrite.set(cleanPath, text)
+          } else {
+            const arrayBuffer = await zipEntry.async('arraybuffer')
+            filesToWrite.set(cleanPath, arrayBuffer)
+          }
+        }
+      } else {
+        // Handle single JSON file import
+        const text = await file.text()
+        const parsed = JSON.parse(text) as Partial<NoodlesProjectJSON>
+        projectData = await migrateProject({
+          ...EMPTY_PROJECT,
+          ...parsed,
+        } as NoodlesProjectJSON)
+
+        // Only write noodles.json
+        filesToWrite.set('noodles.json', safeStringify(projectData))
+      }
 
       // Now prompt for directory to save the imported project
       const directoryHandle = await selectDirectory()
@@ -776,8 +844,30 @@ export function getNoodles(): Visualization {
         return
       }
 
-      // Write imported project to noodles.json
-      await writeFileToDirectory(directoryHandle, 'noodles.json', safeStringify(projectData))
+      // Write all files to directory
+      for (const [path, content] of filesToWrite.entries()) {
+        // Handle nested paths (e.g., data/file.csv)
+        if (path.includes('/')) {
+          const parts = path.split('/')
+          const fileName = parts.pop()!
+          const subfolders = parts
+
+          // Create nested directory structure
+          let currentDir = directoryHandle
+          for (const folder of subfolders) {
+            currentDir = await currentDir.getDirectoryHandle(folder, { create: true })
+          }
+
+          // Write file in the nested directory
+          const fileHandle = await currentDir.getFileHandle(fileName, { create: true })
+          const writable = await fileHandle.createWritable()
+          await writable.write(content)
+          await writable.close()
+        } else {
+          // Write file at root level
+          await writeFileToDirectory(directoryHandle, path, content)
+        }
+      }
 
       // Cache the directory handle
       await directoryHandleCache.cacheHandle(directoryName, directoryHandle, directoryHandle.name)
@@ -788,7 +878,7 @@ export function getNoodles(): Visualization {
       // Load the project directly (already in memory, no need to reload from disk)
       loadProjectFile(projectData, directoryName)
 
-      analytics.track('project_imported')
+      analytics.track('project_imported', { format: isZip ? 'zip' : 'json' })
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         // User cancelled the picker
