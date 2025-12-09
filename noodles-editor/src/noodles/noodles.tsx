@@ -843,6 +843,7 @@ export function getNoodles(): Visualization {
             setShowProjectNotFoundDialog(false)
           }}
           onNewProject={onNewProject}
+          onImport={onImport}
           onClose={() => setShowProjectNotFoundDialog(false)}
         />
         <StorageErrorHandler />
