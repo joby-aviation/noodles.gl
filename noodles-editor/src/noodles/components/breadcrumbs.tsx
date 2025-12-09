@@ -122,8 +122,6 @@ export const Breadcrumbs: FC<BreadcrumbsProps> = ({ projectName, hasUnsavedChang
 
   return (
     <div className={s.bar}>
-      <span className={s.brandingSegment}>noodles.gl</span>
-      <span className={s.separator}> / </span>
       {pathSegments.map((segment, index) => (
         <Fragment key={segment.id}>
           <button

@@ -391,6 +391,26 @@ export function TopMenuBar({
                     Documentation
                   </a>
                 </DropdownMenu.Item>
+
+                <div className={s.dropdownFooter}>
+                  <a
+                    href="https://noodles.gl"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={s.footerLink}
+                  >
+                    noodles.gl
+                  </a>
+                  <span className={s.footerSeparator}>•</span>
+                  <a
+                    href="https://github.com/joby-aviation/noodles.gl"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={s.footerLink}
+                  >
+                    GitHub
+                  </a>
+                </div>
               </DropdownMenu.Content>
             </DropdownMenu.Portal>
           </DropdownMenu.Root>
