@@ -36,7 +36,10 @@
 .unsavedIndicator {
   display: inline-flex;
   align-items: center;
-  margin-left: 6px;
+  margin-left: 4px;
+  vertical-align: super;
+  font-size: 0.7em;
+  line-height: 0;
   cursor: help;
 }
 
