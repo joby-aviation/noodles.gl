@@ -12,7 +12,7 @@
 .leftSection {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 2px;
   flex: 1;
   min-width: 0;
 }
