@@ -44,6 +44,10 @@
   background: var(--color-bg-active);
 }
 
+.logoButton[data-state='open'] {
+  background: var(--color-bg-active);
+}
+
 .logoContainer {
   width: 24px;
   height: 24px;
