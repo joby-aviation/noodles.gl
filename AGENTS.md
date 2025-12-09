@@ -511,7 +511,6 @@ yarn build:all
 - **Recommended**: Use [Volta](https://volta.sh/) for automatic Node.js version management
   - Volta automatically uses the correct Node version specified in package.json
   - Run commands with `volta run yarn start` to ensure correct version
-  - Install: `curl https://get.volta.sh | bash`
 
 ### Development URLs
 
