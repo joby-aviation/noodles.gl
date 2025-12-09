@@ -877,28 +877,37 @@ export function getNoodles(): Visualization {
     }
   }, [setCurrentDirectory, loadProjectFile])
 
-  const onOpen = useCallback(async () => {
+  const onOpen = useCallback(async (projectName?: string) => {
     try {
-      // Show the native folder picker
-      const projectDirectory = await selectDirectory()
+      let result: Awaited<ReturnType<typeof load>>
+      let finalProjectName: string
 
-      // Use the directory name as the project name
-      const projectName = projectDirectory.name
+      if (projectName) {
+        // Load project by name (for recent projects and OPFS list)
+        // Cache-aware: load will prompt user if project directory not cached for fileSystemAccess
+        finalProjectName = projectName
+        result = await load(storageType, projectName)
+      } else {
+        // Show the native folder picker
+        const projectDirectory = await selectDirectory()
+        finalProjectName = projectDirectory.name
 
-      // Cache the directory handle
-      await directoryHandleCache.cacheHandle(projectName, projectDirectory, projectDirectory.name)
+        // Cache the directory handle
+        await directoryHandleCache.cacheHandle(finalProjectName, projectDirectory, projectDirectory.name)
 
-      // Load project from the selected directory
-      const result = await load(storageType, projectDirectory)
+        // Load project from the selected directory
+        result = await load(storageType, projectDirectory)
+      }
 
       if (result.success) {
         const project = await migrateProject(result.data.projectData)
-        loadProjectFile(project, projectName)
+        loadProjectFile(project, finalProjectName)
         // Update store with directory handle returned from load
-        setCurrentDirectory(result.data.directoryHandle, projectName)
+        setCurrentDirectory(result.data.directoryHandle, finalProjectName)
         analytics.track('project_opened', { storageType })
       } else {
         setError(result.error)
+        analytics.track('project_open_failed', { storageType, error: 'load_error' })
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
@@ -908,10 +917,11 @@ export function getNoodles(): Visualization {
       console.error('Failed to open project:', error)
       setError({
         type: 'unknown',
-        message: 'Error opening folder',
+        message: error instanceof Error && projectName ? 'Error migrating project' : 'Error opening folder',
         details: error instanceof Error ? error.message : 'Unknown error',
         originalError: error,
       })
+      analytics.track('project_open_failed', { storageType, error: projectName ? 'migration_error' : 'unknown' })
     }
   }, [storageType, loadProjectFile, setCurrentDirectory, setError])
 

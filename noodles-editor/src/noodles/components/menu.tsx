@@ -7,10 +7,9 @@ import { type Dispatch, type SetStateAction, useCallback, useEffect, useState } 
 import { SettingsDialog } from '../../components/settings-dialog'
 import { analytics } from '../../utils/analytics'
 import { useActiveStorageType, useFileSystemStore } from '../filesystem-store'
-import { load, save } from '../storage'
+import { save } from '../storage'
 import { getOpStore } from '../store'
 import { directoryHandleCache } from '../utils/directory-handle-cache'
-import { migrateProject } from '../utils/migrate-schema'
 import {
   NOODLES_VERSION,
   type NoodlesProjectJSON,
@@ -319,7 +318,6 @@ const MAX_RECENT_PROJECTS = 10
 
 export function NoodlesMenubar({
   projectName,
-  loadProjectFile,
   getTimelineJson,
   setProjectName,
   onSaveProject,
@@ -335,14 +333,13 @@ export function NoodlesMenubar({
   isRendering,
 }: {
   projectName?: string
-  loadProjectFile: (project: NoodlesProjectJSON, projectName?: string) => void
   getTimelineJson: () => Record<string, unknown>
   setProjectName: Dispatch<SetStateAction<string | null>>
   onSaveProject: () => Promise<void>
   onDownload: () => Promise<void>
   onNewProject: () => Promise<void>
   onImport: () => Promise<void>
-  onOpen: () => Promise<void>
+  onOpen: (projectName?: string) => Promise<void>
   undoRedo?: {
     undo: () => void
     redo: () => void
@@ -439,37 +436,6 @@ export function NoodlesMenubar({
   // Settings Dialog
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false)
 
-  // Load project by name (for OPFS projects from list)
-  const onOpenProject = useCallback(
-    (name: string) => {
-      ;(async () => {
-        // Cache-aware: load will prompt user if project directory not cached for fileSystemAccess
-        const result = await load(storageType, name)
-        if (result.success) {
-          try {
-            const project = await migrateProject(result.data.projectData)
-            loadProjectFile(project, name)
-            // Update store with directory handle returned from load
-            setCurrentDirectory(result.data.directoryHandle, name)
-            analytics.track('project_opened', { storageType })
-          } catch (error) {
-            setError({
-              type: 'unknown',
-              message: 'Error migrating project',
-              details: error instanceof Error ? error.message : 'Unknown error',
-              originalError: error,
-            })
-            analytics.track('project_open_failed', { storageType, error: 'migration_error' })
-          }
-        } else {
-          setError(result.error)
-          analytics.track('project_open_failed', { storageType, error: 'load_error' })
-        }
-      })()
-    },
-    [storageType, loadProjectFile, setCurrentDirectory, setError]
-  )
-
   // Handle "Open..." button click based on storage type
   const onOpenMenuClick = useCallback(() => {
     if (storageType === 'fileSystemAccess') {
@@ -532,7 +498,7 @@ export function NoodlesMenubar({
                       <Menubar.Item
                         key={recent.name}
                         className={s.menubarItem}
-                        onSelect={() => onOpenProject(recent.name)}
+                        onSelect={() => onOpen(recent.name)}
                       >
                         {recent.name}
                       </Menubar.Item>
@@ -678,7 +644,7 @@ export function NoodlesMenubar({
       <OpenProjectDialog
         openDialog={openProjectDialogOpen}
         setOpenDialog={setOpenProjectDialogOpen}
-        onSelectProject={onOpenProject}
+        onSelectProject={onOpen}
       />
       <SettingsDialog open={settingsDialogOpen} setOpen={setSettingsDialogOpen} />
     </>

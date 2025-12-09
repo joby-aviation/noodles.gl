@@ -27,7 +27,7 @@ export type Visualization = {
   onDownload?: () => Promise<void>
   onNewProject?: () => Promise<void>
   onImport?: () => Promise<void>
-  onOpen?: () => Promise<void>
+  onOpen?: (projectName?: string) => Promise<void>
   undoRedo?: {
     undo: () => void
     redo: () => void

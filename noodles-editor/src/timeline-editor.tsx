@@ -402,7 +402,6 @@ export default function TimelineEditor() {
               projectName={noodles.projectName}
               setProjectName={noodles.setProjectName!}
               getTimelineJson={noodles.getTimelineJson!}
-              loadProjectFile={noodles.loadProjectFile!}
               onSaveProject={noodles.onSaveProject!}
               onDownload={noodles.onDownload!}
               onNewProject={noodles.onNewProject!}
