@@ -3,7 +3,6 @@ import { Cross2Icon } from '@radix-ui/react-icons'
 import cx from 'classnames'
 import { useCallback, useState } from 'react'
 import { useFileSystemStore } from '../filesystem-store'
-import newProjectJSON from '../new.json'
 import { load } from '../storage'
 import { selectDirectory } from '../utils/filesystem'
 import { migrateProject } from '../utils/migrate-schema'
@@ -14,6 +13,7 @@ interface ProjectNotFoundDialogProps {
   projectName: string
   open: boolean
   onProjectLoaded: (project: NoodlesProjectJSON, projectName: string) => void
+  onNewProject: () => Promise<void>
   onClose: () => void
 }
 
@@ -21,6 +21,7 @@ export const ProjectNotFoundDialog = ({
   projectName,
   open,
   onProjectLoaded,
+  onNewProject,
   onClose,
 }: ProjectNotFoundDialogProps) => {
   const [error, setError] = useState<string | null>(null)
@@ -110,10 +111,19 @@ export const ProjectNotFoundDialog = ({
 
   const onCreateNew = useCallback(async () => {
     setError(null)
-    // Load blank template with the project name
-    onProjectLoaded(newProjectJSON as NoodlesProjectJSON, projectName)
-    onClose()
-  }, [projectName, onProjectLoaded, onClose])
+    try {
+      // Use the onNewProject callback which handles File System Access API setup
+      await onNewProject()
+      onClose()
+    } catch (error) {
+      // Handle abort error silently (user cancelled folder picker)
+      if (error instanceof Error && error.name === 'AbortError') {
+        return
+      }
+      console.error('Error creating new project:', error)
+      setError(error instanceof Error ? error.message : 'Failed to create new project.')
+    }
+  }, [onNewProject, onClose])
 
   return (
     <Dialog.Root open={open} onOpenChange={open => !open && onClose()}>

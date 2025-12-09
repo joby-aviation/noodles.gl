@@ -45,7 +45,6 @@ import { categories } from './components/categories'
 import { CopyControls } from './components/copy-controls'
 import { DropTarget } from './components/drop-target'
 import { ErrorBoundary } from './components/error-boundary'
-import { NoodlesMenubar } from './components/menu'
 import { PropertyPanel } from './components/node-properties'
 import { NodeTreeSidebar } from './components/node-tree-sidebar'
 import { edgeComponents, nodeComponents } from './components/op-components'
@@ -657,158 +656,7 @@ export function getNoodles(): Visualization {
       }))
   }, [edges, visibleNodeIds])
 
-  const flowGraph = theatreReady && (
-    <ErrorBoundary>
-      <div className={cx('react-flow-wrapper', !showOverlay && 'react-flow-wrapper-hidden')}>
-        <PrimeReactProvider>
-          <SheetProvider value={theatreSheet}>
-            <Breadcrumbs />
-            <ReactFlow
-              ref={reactFlowRef}
-              nodes={displayedNodes}
-              edges={activeEdges}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              onConnect={onConnect}
-              onReconnect={onReconnect}
-              onNodeClick={onNodeClick}
-              onNodesDelete={onNodesDelete}
-              onPaneContextMenu={onPaneContextMenu}
-              onPaneClick={onPaneClick}
-              minZoom={0.2}
-              fitViewOptions={fitViewOptions}
-              defaultEdgeOptions={defaultEdgeOptions}
-              nodeTypes={nodeComponents}
-              edgeTypes={edgeComponents}
-            >
-              <Background />
-              <Controls position="bottom-right" />
-              <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />
-              <CopyControls />
-              <UndoRedoHandler ref={undoRedoRef} />
-              <ChatPanel
-                project={{ nodes, edges }}
-                onClose={() => setShowChatPanel(false)}
-                isVisible={showChatPanel}
-              />
-            </ReactFlow>
-          </SheetProvider>
-        </PrimeReactProvider>
-        <ProjectNotFoundDialog
-          projectName={projectName || ''}
-          open={showProjectNotFoundDialog}
-          onProjectLoaded={(project, name) => {
-            loadProjectFile(project, name)
-            setShowProjectNotFoundDialog(false)
-          }}
-          onClose={() => setShowProjectNotFoundDialog(false)}
-        />
-        <StorageErrorHandler />
-      </div>
-    </ErrorBoundary>
-  )
-
-  // Assume there's always one 'out' op.
-  const OUT_OP_ID = '/out'
-  const outOp = operators.find(n => n.id === OUT_OP_ID)! as unknown as OutOp
-
-  const [visProps, setVisProps] = useState(outOp?.inputs.vis.value || {})
-
-  // Create overlay layer for selected GeoJSON-producing operators
-  const selectedGeoJsonFeatures = useMemo(() => {
-    const features: unknown[] = []
-    const selectedNodes = nodes.filter(n => n.selected)
-    const store = getOpStore()
-
-    for (const node of selectedNodes) {
-      const op = store.getOp(node.id)
-      if (!op) continue
-
-      // Check if this is a GeoJSON-producing operator
-      if (categories.geojson.includes(node.type)) {
-        const feature = op.outputs.feature?.value
-        if (feature) features.push(feature)
-      }
-    }
-
-    return features
-  }, [nodes])
-
-  useEffect(() => {
-    if (outOp) {
-      const visSub = outOp.inputs.vis.subscribe(
-        ({ deckProps: { layers, widgets, ...deckProps }, mapProps }) => {
-          // Map layers from POJOs to deck.gl instances
-          const instantiatedLayers =
-            layers?.map(({ type, extensions, ...layer }) => {
-              // Instantiate extensions from POJOs if present
-              let instantiatedExtensions
-              if (extensions && Array.isArray(extensions)) {
-                instantiatedExtensions = extensions
-                  .map((ext: { type: string; [key: string]: unknown }) => {
-                    const { type: extType, ...constructorArgs } = ext
-                    const extensionDef = extensionMap[extType]
-                    if (!extensionDef) {
-                      console.warn(`Unknown extension type: ${extType}`)
-                      return null
-                    }
-
-                    // Check if it's a wrapped extension (with ExtensionClass and args)
-                    if (typeof extensionDef === 'object' && 'ExtensionClass' in extensionDef) {
-                      return new extensionDef.ExtensionClass(extensionDef.args)
-                    }
-
-                    // It's a direct class constructor
-                    const ExtensionClass = extensionDef as new (
-                      ...args: unknown[]
-                    ) => LayerExtension
-                    return Object.keys(constructorArgs).length > 0
-                      ? new ExtensionClass(constructorArgs)
-                      : new ExtensionClass()
-                  })
-                  .filter((e): e is LayerExtension => e !== null)
-              }
-
-              return new deck[type]({
-                ...layer,
-                ...(instantiatedExtensions ? { extensions: instantiatedExtensions } : {}),
-              })
-            }) || []
-
-          // Add overlay layer for selected GeoJSON features
-          if (selectedGeoJsonFeatures.length > 0) {
-            const overlayLayer = new deck.GeoJsonLayer({
-              id: 'selected-geojson-overlay',
-              data: selectedGeoJsonFeatures,
-              filled: true,
-              stroked: true,
-              getFillColor: [255, 0, 0, 100], // Red with transparency
-              getLineColor: [255, 0, 0, 255], // Red outline
-              getLineWidth: 2,
-              lineWidthMinPixels: 2,
-              getPointRadius: 10,
-              pointRadiusMinPixels: 10,
-            })
-            instantiatedLayers.push(overlayLayer)
-          }
-
-          setVisProps({
-            deckProps: {
-              ...deckProps,
-              // biome-ignore lint/performance/noDynamicNamespaceImportAccess: We intentionally support all deck.gl layer types dynamically
-              layers: instantiatedLayers,
-              widgets: widgets?.map(({ type, ...widget }) => new deckWidgets[type](widget)),
-            },
-            mapProps,
-          })
-        }
-      )
-      return () => {
-        visSub.unsubscribe()
-      }
-    }
-  }, [outOp, selectedGeoJsonFeatures])
-
+  // File menu callbacks
   const getNoodlesProjectJson = useCallback((): NoodlesProjectJSON => {
     const store = getOpStore()
     const timeline = getTimelineJson()
@@ -949,6 +797,159 @@ export function getNoodles(): Visualization {
       console.error('Failed to import project:', error)
     }
   }, [setCurrentDirectory, loadProjectFile])
+
+  const flowGraph = theatreReady && (
+    <ErrorBoundary>
+      <div className={cx('react-flow-wrapper', !showOverlay && 'react-flow-wrapper-hidden')}>
+        <PrimeReactProvider>
+          <SheetProvider value={theatreSheet}>
+            <Breadcrumbs />
+            <ReactFlow
+              ref={reactFlowRef}
+              nodes={displayedNodes}
+              edges={activeEdges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onConnect={onConnect}
+              onReconnect={onReconnect}
+              onNodeClick={onNodeClick}
+              onNodesDelete={onNodesDelete}
+              onPaneContextMenu={onPaneContextMenu}
+              onPaneClick={onPaneClick}
+              minZoom={0.2}
+              fitViewOptions={fitViewOptions}
+              defaultEdgeOptions={defaultEdgeOptions}
+              nodeTypes={nodeComponents}
+              edgeTypes={edgeComponents}
+            >
+              <Background />
+              <Controls position="bottom-right" />
+              <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />
+              <CopyControls />
+              <UndoRedoHandler ref={undoRedoRef} />
+              <ChatPanel
+                project={{ nodes, edges }}
+                onClose={() => setShowChatPanel(false)}
+                isVisible={showChatPanel}
+              />
+            </ReactFlow>
+          </SheetProvider>
+        </PrimeReactProvider>
+        <ProjectNotFoundDialog
+          projectName={projectName || ''}
+          open={showProjectNotFoundDialog}
+          onProjectLoaded={(project, name) => {
+            loadProjectFile(project, name)
+            setShowProjectNotFoundDialog(false)
+          }}
+          onNewProject={onNewProject}
+          onClose={() => setShowProjectNotFoundDialog(false)}
+        />
+        <StorageErrorHandler />
+      </div>
+    </ErrorBoundary>
+  )
+
+  // Assume there's always one 'out' op.
+  const OUT_OP_ID = '/out'
+  const outOp = operators.find(n => n.id === OUT_OP_ID)! as unknown as OutOp
+
+  const [visProps, setVisProps] = useState(outOp?.inputs.vis.value || {})
+
+  // Create overlay layer for selected GeoJSON-producing operators
+  const selectedGeoJsonFeatures = useMemo(() => {
+    const features: unknown[] = []
+    const selectedNodes = nodes.filter(n => n.selected)
+    const store = getOpStore()
+
+    for (const node of selectedNodes) {
+      const op = store.getOp(node.id)
+      if (!op) continue
+
+      // Check if this is a GeoJSON-producing operator
+      if (categories.geojson.includes(node.type)) {
+        const feature = op.outputs.feature?.value
+        if (feature) features.push(feature)
+      }
+    }
+
+    return features
+  }, [nodes])
+
+  useEffect(() => {
+    if (outOp) {
+      const visSub = outOp.inputs.vis.subscribe(
+        ({ deckProps: { layers, widgets, ...deckProps }, mapProps }) => {
+          // Map layers from POJOs to deck.gl instances
+          const instantiatedLayers =
+            layers?.map(({ type, extensions, ...layer }) => {
+              // Instantiate extensions from POJOs if present
+              let instantiatedExtensions
+              if (extensions && Array.isArray(extensions)) {
+                instantiatedExtensions = extensions
+                  .map((ext: { type: string; [key: string]: unknown }) => {
+                    const { type: extType, ...constructorArgs } = ext
+                    const extensionDef = extensionMap[extType]
+                    if (!extensionDef) {
+                      console.warn(`Unknown extension type: ${extType}`)
+                      return null
+                    }
+
+                    // Check if it's a wrapped extension (with ExtensionClass and args)
+                    if (typeof extensionDef === 'object' && 'ExtensionClass' in extensionDef) {
+                      return new extensionDef.ExtensionClass(extensionDef.args)
+                    }
+
+                    // It's a direct class constructor
+                    const ExtensionClass = extensionDef as new (
+                      ...args: unknown[]
+                    ) => LayerExtension
+                    return Object.keys(constructorArgs).length > 0
+                      ? new ExtensionClass(constructorArgs)
+                      : new ExtensionClass()
+                  })
+                  .filter((e): e is LayerExtension => e !== null)
+              }
+
+              return new deck[type]({
+                ...layer,
+                ...(instantiatedExtensions ? { extensions: instantiatedExtensions } : {}),
+              })
+            }) || []
+
+          // Add overlay layer for selected GeoJSON features
+          if (selectedGeoJsonFeatures.length > 0) {
+            const overlayLayer = new deck.GeoJsonLayer({
+              id: 'selected-geojson-overlay',
+              data: selectedGeoJsonFeatures,
+              filled: true,
+              stroked: true,
+              getFillColor: [255, 0, 0, 100], // Red with transparency
+              getLineColor: [255, 0, 0, 255], // Red outline
+              getLineWidth: 2,
+              lineWidthMinPixels: 2,
+              getPointRadius: 10,
+              pointRadiusMinPixels: 10,
+            })
+            instantiatedLayers.push(overlayLayer)
+          }
+
+          setVisProps({
+            deckProps: {
+              ...deckProps,
+              // biome-ignore lint/performance/noDynamicNamespaceImportAccess: We intentionally support all deck.gl layer types dynamically
+              layers: instantiatedLayers,
+              widgets: widgets?.map(({ type, ...widget }) => new deckWidgets[type](widget)),
+            },
+            mapProps,
+          })
+        }
+      )
+      return () => {
+        visSub.unsubscribe()
+      }
+    }
+  }, [outOp, selectedGeoJsonFeatures])
 
   const projectNameBar = <ProjectNameBar projectName={projectName} />
 
