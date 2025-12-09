@@ -834,6 +834,13 @@ export function getNoodles(): Visualization {
     }
   }, [projectName, getNoodlesProjectJson, storageType, setCurrentDirectory, setError])
 
+  const onDownload = useCallback(async () => {
+    const { saveProjectLocally } = await import('./utils/serialization')
+    const noodlesProjectJson = getNoodlesProjectJson()
+    await saveProjectLocally(projectName || 'untitled', noodlesProjectJson, storageType)
+    analytics.track('project_exported', { storageType })
+  }, [projectName, getNoodlesProjectJson, storageType])
+
   const handleOpenAddNode = useCallback(() => {
     const pane = reactFlowRef.current?.getBoundingClientRect()
     if (!pane) return
@@ -970,6 +977,7 @@ export function getNoodles(): Visualization {
     loadProjectFile,
     getNoodlesProjectJson,
     onSaveProject: onMenuSave,
+    onDownload,
     onNewProject,
     onImport,
     onOpenAddNode: handleOpenAddNode,

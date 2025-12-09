@@ -27,6 +27,7 @@ export type Visualization = {
   loadProjectFile?: (project: any, name?: string) => void
   getNoodlesProjectJson?: () => any
   onSaveProject?: () => Promise<void>
+  onDownload?: () => Promise<void>
   onNewProject?: () => Promise<void>
   onImport?: () => Promise<void>
   onOpenAddNode?: () => void
