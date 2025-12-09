@@ -9,6 +9,7 @@ import { analytics } from '../../utils/analytics'
 import { useActiveStorageType, useFileSystemStore } from '../filesystem-store'
 import { load, save } from '../storage'
 import { getOpStore } from '../store'
+import { directoryHandleCache } from '../utils/directory-handle-cache'
 import { migrateProject } from '../utils/migrate-schema'
 import {
   NOODLES_VERSION,
@@ -529,7 +530,6 @@ export function NoodlesMenubar({
 
   const updateRecentlyOpened = useCallback(() => {
     ;(async () => {
-      const { directoryHandleCache } = await import('../utils/directory-handle-cache')
       const cachedHandles = await directoryHandleCache.getAllCachedHandles()
 
       // Convert to RecentProject format and limit to MAX_RECENT_PROJECTS
