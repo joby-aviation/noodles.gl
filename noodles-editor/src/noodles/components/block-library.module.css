@@ -162,6 +162,14 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
+/* Disable hover effects in keyboard mode */
+.blockLibraryContent[data-input-mode='keyboard'] .blockLibraryCard:hover {
+  background-color: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.08);
+  transform: none;
+  box-shadow: none;
+}
+
 .blockLibraryCard:focus {
   outline: 2px solid var(--color-selected);
   outline-offset: 2px;
