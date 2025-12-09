@@ -49,8 +49,8 @@ export const CopyControls = forwardRef<CopyControlsRef>((_, ref) => {
 
     if (selectedNodes.length === 0 && selectedEdges.length === 0) return
 
-    const nodesToCopySet = new Set(selectedNodes.map(n => n))
-    const edgesToCopySet = new Set(selectedEdges.map(e => e))
+    const nodesToCopySet = new Set(selectedNodes.map(n => n)) // Start with selected nodes
+    const edgesToCopySet = new Set(selectedEdges.map(e => e)) // Start with selected edges
 
     for (const node of selectedNodes) {
       if (node.type === 'ContainerOp') {
@@ -59,6 +59,7 @@ export const CopyControls = forwardRef<CopyControlsRef>((_, ref) => {
           nodesToCopySet.add(child)
         }
 
+        // Add edges connecting children within this container, or child to container
         const containerAndChildrenIds = new Set([node.id, ...children.map(c => c.id)])
         for (const edge of allGraphEdges) {
           if (
@@ -74,6 +75,7 @@ export const CopyControls = forwardRef<CopyControlsRef>((_, ref) => {
     const nodesToCopy = Array.from(nodesToCopySet)
     const edgesToCopy = Array.from(edgesToCopySet)
 
+    // sync op and node data
     const store = getOpStore()
     const serializedNodes = serializeNodes(store, nodesToCopy, edgesToCopy)
     const data = safeStringify({ nodes: serializedNodes, edges: edgesToCopy })
@@ -88,9 +90,10 @@ export const CopyControls = forwardRef<CopyControlsRef>((_, ref) => {
 
     const { nodes, edges } = JSON.parse(data) as CopiedNodesJSON
 
+    // update node ids to not conflict, and then remap edges to new node ids
     const idMap = new Map<string, string>()
     for (const node of nodes) {
-      const baseName = getBaseName(node.id).replace(/-\d+$/, '')
+      const baseName = getBaseName(node.id).replace(/-\d+$/, '') // scatter-1 -> scatter
       const newId = nodeId(baseName, currentContainerId)
       idMap.set(node.id, newId)
       node.id = newId
@@ -107,18 +110,23 @@ export const CopyControls = forwardRef<CopyControlsRef>((_, ref) => {
       }
     })
 
+    // Calculate the bounding box of copied nodes
     const [minX, minY] = nodes.reduce(
       ([minX, minY], { position }) => [Math.min(minX, position.x), Math.min(minY, position.y)],
       [Infinity, Infinity]
     )
 
+    // Convert mouse position to flow coordinates
     const flowPosition = screenToFlowPosition(mousePositionRef.current)
 
+    // Position nodes relative to cursor, maintaining their relative positions
     for (const node of nodes) {
       node.position.x = flowPosition.x + (node.position.x - minX)
       node.position.y = flowPosition.y + (node.position.y - minY)
     }
 
+    // Use applyModifications to add nodes and edges atomically
+    // This ensures nodes are in the array before edges are validated
     const modifications = [
       ...nodes.map(node => ({ type: 'add_node' as const, data: node })),
       ...deconflictedEdges.map(edge => ({ type: 'add_edge' as const, data: edge })),
@@ -156,6 +164,8 @@ export const CopyControls = forwardRef<CopyControlsRef>((_, ref) => {
 
   useEffect(() => {
     const copyListener = (_e: ClipboardEvent) => {
+      // Guard on copying text from inputs
+      // Or e.sourceElement / e.target
       if (document.activeElement?.matches('input') || document.activeElement?.matches('textarea')) {
         return
       }
@@ -163,6 +173,7 @@ export const CopyControls = forwardRef<CopyControlsRef>((_, ref) => {
     }
 
     const pasteListener = (e: ClipboardEvent) => {
+      // Or e.sourceElement / e.target
       if (document.activeElement?.matches('input') || document.activeElement?.matches('textarea')) {
         return
       }
@@ -176,7 +187,7 @@ export const CopyControls = forwardRef<CopyControlsRef>((_, ref) => {
       clipboardDataRef.current = copied
       doPaste()
     }
-
+    // TODO: use React Flow root element?
     window.addEventListener('copy', copyListener, false)
     window.addEventListener('paste', pasteListener, false)
     return () => {
