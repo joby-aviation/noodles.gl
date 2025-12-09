@@ -120,16 +120,17 @@
 /* save project dialog */
 
 .dialogOverlay {
-  background-color: var(--black-a9);
+  background-color: rgba(0, 0, 0, 0.7);
   position: fixed;
   inset: 0;
+  z-index: calc(var(--z-index-menu) - 1);
   animation: overlayShow 150ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .dialogContent {
-  background-color: white;
+  background-color: var(--color-bg-primary);
   border-radius: 6px;
-  box-shadow: hsl(206 22% 7% / 35%) 0px 10px 38px -10px, hsl(206 22% 7% / 20%) 0px 10px 20px -15px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
   position: fixed;
   top: 50%;
   left: 50%;
@@ -138,6 +139,7 @@
   max-width: 550px;
   max-height: 85vh;
   padding: 25px;
+  z-index: var(--z-index-menu);
   animation: contentShow 150ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -147,20 +149,24 @@
 
 .dialogTitle {
   margin: 0;
-  font-weight: 500;
-  color: var(--mauve-12);
-  font-size: 17px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  font-size: 1.25rem;
 }
 
 .dialogError {
-  color: var(--red-11);
+  color: #ff4444;
   font-size: 13px;
   margin-bottom: 10px;
+  background-color: rgba(255, 68, 68, 0.1);
+  padding: 8px 12px;
+  border-radius: 4px;
+  border-left: 3px solid #ff4444;
 }
 
 .dialogDescription {
   margin: 10px 0 20px;
-  color: var(--mauve-11);
+  color: var(--color-text-secondary);
   font-size: 15px;
   line-height: 1.5;
 }
@@ -171,80 +177,97 @@
   justify-content: center;
   border-radius: 4px;
   padding: 0 15px;
-  font-size: 15px;
+  font-size: 0.9rem;
   line-height: 1;
   font-weight: 500;
   height: 35px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
 .dialogButton.violet {
-  background-color: white;
-  color: var(--violet-11);
+  background-color: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
 }
 
 .dialogButton.violet:hover {
-  background-color: var(--mauve-3);
+  background-color: var(--color-bg-hover);
+  border-color: var(--color-border-hover);
 }
 
 .dialogButton.violet:focus {
-  box-shadow: 0 0 0 2px var(--violet-7);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-border-focus);
 }
 
 .dialogButton.green {
-  background-color: var(--green-4);
-  color: var(--green-11);
+  background-color: #4f46e5;
+  color: white;
 }
 
 .dialogButton.green:hover {
-  background-color: var(--green-5);
+  background-color: #4338ca;
 }
 
 .dialogButton.green:focus {
-  box-shadow: 0 0 0 2px var(--green-7);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.5);
 }
 
 .dialogButton.red {
-  background-color: var(--red-4);
-  color: var(--red-11);
+  background-color: rgba(255, 68, 68, 0.2);
+  color: #ff4444;
+  border: 1px solid #ff4444;
 }
 
 .dialogButton.red:hover {
-  background-color: var(--red-5);
+  background-color: rgba(255, 68, 68, 0.3);
 }
 
 .dialogButton.red:focus {
-  box-shadow: 0 0 0 2px var(--red-7);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(255, 68, 68, 0.5);
 }
 
 .dialogButton:disabled {
-  color: var(--mauve-8);
-  background-color: unset;
+  color: var(--color-text-disabled);
+  background-color: var(--color-input-disabled);
+  border-color: var(--color-border);
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .dialogButton:disabled:hover {
-  background-color: var(--mauve-4);
+  background-color: var(--color-input-disabled);
 }
 
 .dialogIconButton {
   font-family: inherit;
-  border-radius: 100%;
-  height: 25px;
-  width: 25px;
+  border-radius: 4px;
+  height: 32px;
+  width: 32px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--violet-11);
+  color: var(--color-text-secondary);
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
   position: absolute;
-  top: 10px;
-  right: 10px;
+  top: 1rem;
+  right: 1rem;
+  transition: all 0.2s;
 }
 
 .dialogIconButton:hover {
-  background-color: var(--violet-4);
+  background-color: var(--color-bg-hover);
 }
 
 .dialogIconButton:focus {
-  box-shadow: 0 0 0 2px var(--violet-7);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-border-focus);
 }
 
 .dialogFieldset {
@@ -256,9 +279,10 @@
 
 .dialogLabel {
   font-size: 15px;
-  color: var(--violet-11);
+  color: var(--color-text-primary);
   width: 90px;
   text-align: right;
+  font-weight: 500;
 }
 
 .dialogInput {
@@ -271,13 +295,21 @@
   padding: 0 10px;
   font-size: 15px;
   line-height: 1;
-  color: var(--violet-11);
-  box-shadow: 0 0 0 1px var(--violet-7);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
   height: 35px;
+  transition: all 0.2s;
+}
+
+.dialogInput:hover {
+  border-color: var(--color-border-hover);
 }
 
 .dialogInput:focus {
-  box-shadow: 0 0 0 2px var(--violet-8);
+  outline: none;
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 2px var(--color-border-focus);
 }
 
 @keyframes overlayShow {
@@ -328,10 +360,10 @@
 }
 
 .projectHeaderCell {
-  color: var(--violet-11);
+  color: var(--color-text-primary);
   font-size: 15px;
   line-height: 18px;
-  font-weight: 500;
+  font-weight: 600;
   margin-top: 5px;
   padding: 10px;
   text-align: left;
@@ -339,22 +371,23 @@
   position: sticky;
   top: 0;
   isolation: isolate;
-  background-color: white;
+  background-color: var(--color-bg-primary);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .projectRowCell {
-  color: var(--mauve-12);
+  color: var(--color-text-primary);
   font-size: 13px;
   line-height: 18px;
   padding: 5px 0px;
-  border-bottom: 1px solid var(--mauve-6);
+  border-bottom: 1px solid var(--color-border);
   text-indent: 10px;
   text-align: left;
   white-space: nowrap;
 }
 
 .projectRow:hover {
-  background-color: var(--mauve-3);
+  background-color: var(--color-bg-hover);
   cursor: pointer;
 }
 
