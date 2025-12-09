@@ -2,11 +2,12 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { HamburgerMenuIcon } from '@radix-ui/react-icons'
 import studio from '@theatre/studio'
 import { useReactFlow } from '@xyflow/react'
-import { type RefObject, useCallback, useMemo, useState } from 'react'
+import { type RefObject, useCallback, useEffect, useMemo, useState } from 'react'
 import { SettingsDialog } from '../../components/settings-dialog'
 import { analytics } from '../../utils/analytics'
 import { ContainerOp } from '../operators'
 import { getOpStore, useNestingStore } from '../store'
+import { directoryHandleCache } from '../utils/directory-handle-cache'
 import { getParentPath, splitPath } from '../utils/path-utils'
 import { Breadcrumbs } from './breadcrumbs'
 import type { CopyControlsRef } from './copy-controls'
@@ -47,9 +48,18 @@ export function TopMenuBar({
   isRendering,
 }: TopMenuBarProps) {
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false)
+  const [recentProjects, setRecentProjects] = useState<string[]>([])
   const currentContainerId = useNestingStore(state => state.currentContainerId)
   const setCurrentContainerId = useNestingStore(state => state.setCurrentContainerId)
   const reactFlow = useReactFlow()
+
+  // Load recent projects on mount
+  useEffect(() => {
+    directoryHandleCache
+      .getAllProjectNames()
+      .then(names => setRecentProjects(names))
+      .catch(err => console.warn('Failed to load recent projects:', err))
+  }, [])
 
   // Detect platform for keyboard shortcuts
   const isMac = useMemo(() => navigator.platform.toUpperCase().indexOf('MAC') >= 0, [])
@@ -167,9 +177,17 @@ export function TopMenuBar({
                       <DropdownMenu.Item className={s.dropdownItem} onSelect={onNewProject}>
                         New Project
                       </DropdownMenu.Item>
+                      <DropdownMenu.Item
+                        className={s.dropdownItem}
+                        onSelect={() => onOpen?.()}
+                        disabled={!onOpen}
+                      >
+                        Open
+                      </DropdownMenu.Item>
                       <DropdownMenu.Item className={s.dropdownItem} onSelect={onImport}>
                         Import
                       </DropdownMenu.Item>
+                      <DropdownMenu.Separator className={s.dropdownSeparator} />
                       <DropdownMenu.Item className={s.dropdownItem} onSelect={onSaveProject}>
                         Save
                       </DropdownMenu.Item>
@@ -180,6 +198,35 @@ export function TopMenuBar({
                       >
                         Download
                       </DropdownMenu.Item>
+                      <DropdownMenu.Separator className={s.dropdownSeparator} />
+                      <DropdownMenu.Sub>
+                        <DropdownMenu.SubTrigger className={s.dropdownItem} disabled={!onOpen}>
+                          Open Recent
+                          <i
+                            className="pi pi-chevron-right"
+                            style={{ marginLeft: 'auto', fontSize: '10px' }}
+                          />
+                        </DropdownMenu.SubTrigger>
+                        <DropdownMenu.Portal>
+                          <DropdownMenu.SubContent className={s.dropdownContent} sideOffset={2}>
+                            {recentProjects.length === 0 ? (
+                              <DropdownMenu.Item className={s.dropdownItem} disabled>
+                                No recent projects
+                              </DropdownMenu.Item>
+                            ) : (
+                              recentProjects.map(name => (
+                                <DropdownMenu.Item
+                                  key={name}
+                                  className={s.dropdownItem}
+                                  onSelect={() => onOpen?.(name)}
+                                >
+                                  {name}
+                                </DropdownMenu.Item>
+                              ))
+                            )}
+                          </DropdownMenu.SubContent>
+                        </DropdownMenu.Portal>
+                      </DropdownMenu.Sub>
                     </DropdownMenu.SubContent>
                   </DropdownMenu.Portal>
                 </DropdownMenu.Sub>
