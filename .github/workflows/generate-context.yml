@@ -18,13 +18,16 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
-          node-version: '20'
+          node-version-file: '.nvmrc'
           cache: 'yarn'
           cache-dependency-path: |
             noodles-editor/yarn.lock
             website/yarn.lock
+
+      - name: Enable Corepack
+        run: corepack enable yarn
 
       - name: Install dependencies
         run: yarn install:all
