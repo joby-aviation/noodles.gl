@@ -505,12 +505,15 @@ cd noodles-editor && yarn fix-lint
 yarn build:all
 ```
 
-**Node.js Version Requirements:**
+**Node.js and Package Manager Requirements:**
+- Node.js version pinned in `.nvmrc` (currently 24.11.0+)
+- Yarn version managed by Corepack, pinned in `package.json` (currently 4.5.3)
 - Vite requires Node.js 20.19+ or 22.12+
 - If you encounter errors like `crypto.hash is not a function`, your Node version may be incompatible
-- **Recommended**: Use [Volta](https://volta.sh/) for automatic Node.js version management
-  - Volta automatically uses the correct Node version specified in package.json
-  - Run commands with `volta run yarn start` to ensure correct version
+- **Recommended**: Use [fnm](https://github.com/Schniz/fnm) for fast Node.js version management
+  - fnm automatically uses the correct Node version from `.nvmrc`
+  - Alternative: Use [nvm](https://github.com/nvm-sh/nvm) or any Node version manager
+- **Yarn management**: Enable Corepack with `corepack enable yarn` to use the pinned Yarn version
 
 ### Development URLs
 
