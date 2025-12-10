@@ -4,6 +4,7 @@ import cx from 'classnames'
 import { type FC, Fragment, useCallback, useEffect } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { analytics } from '../../utils/analytics'
+import { useKeyboardShortcut } from '../hooks/use-keyboard-shortcut'
 import { ContainerOp } from '../operators'
 import { getOpStore, useNestingStore, useOperatorStore } from '../store'
 import { getBaseName, getParentPath, joinPath, splitPath } from '../utils/path-utils'
@@ -85,20 +86,15 @@ export const Breadcrumbs: FC<BreadcrumbsProps> = ({ projectName, hasUnsavedChang
   }, [currentContainerId, reactFlow, setCurrentContainerId])
 
   // Keyboard navigation handlers
-  useEffect(() => {
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.key === 'u' && pathSegments.length > 1) {
-        goUp()
-      } else if (e.key === 'i') {
-        goInto()
-      }
+  useKeyboardShortcut('u', () => {
+    if (pathSegments.length > 1) {
+      goUp()
     }
+  }, [goUp, pathSegments.length])
 
-    document.body.addEventListener('keyup', handleKeyUp)
-    return () => {
-      document.body.removeEventListener('keyup', handleKeyUp)
-    }
-  }, [goUp, goInto, pathSegments.length])
+  useKeyboardShortcut('i', () => {
+    goInto()
+  }, [goInto])
 
   const handleBreadcrumbClick = useCallback(
     (segmentId: string) => {
