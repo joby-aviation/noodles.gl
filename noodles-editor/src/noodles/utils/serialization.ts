@@ -32,10 +32,7 @@ export const EMPTY_PROJECT: NoodlesProjectJSON = {
   nodes: [],
   edges: [],
   viewport: { x: 0, y: 0, zoom: 1 },
-  editorSettings: {
-    layoutMode: 'noodles-on-top',
-    showOverlay: true,
-  },
+  editorSettings: {},
 }
 
 // Replace functions and circular references

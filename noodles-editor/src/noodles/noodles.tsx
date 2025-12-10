@@ -563,11 +563,9 @@ export function getNoodles(): Visualization {
       setEdges(edges)
       setProjectName(name ?? null)
 
-      // Load editor settings from project
-      if (editorSettings) {
-        if (editorSettings.layoutMode) setLayoutMode(editorSettings.layoutMode)
-        if (editorSettings.showOverlay !== undefined) setShowOverlay(editorSettings.showOverlay)
-      }
+      // Load editor settings from project with defaults
+      setLayoutMode(editorSettings?.layoutMode ?? 'noodles-on-top')
+      setShowOverlay(editorSettings?.showOverlay ?? !IS_PROD)
 
       // Set viewport state before ReactFlow renders (but not during undo/redo)
       if (viewport && name && !undoRedoRef.current?.isRestoring()) {
