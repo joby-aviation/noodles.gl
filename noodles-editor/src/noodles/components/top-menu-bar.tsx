@@ -31,6 +31,10 @@ interface TopMenuBarProps {
   takeScreenshot?: () => Promise<void>
   isRendering?: boolean
   hasUnsavedChanges?: boolean
+  showOverlay?: boolean
+  setShowOverlay?: (show: boolean) => void
+  layoutMode?: 'split' | 'noodles-on-top' | 'output-on-top'
+  setLayoutMode?: (mode: 'split' | 'noodles-on-top' | 'output-on-top') => void
 }
 
 export function TopMenuBar({
@@ -49,6 +53,10 @@ export function TopMenuBar({
   takeScreenshot,
   isRendering,
   hasUnsavedChanges,
+  showOverlay,
+  setShowOverlay,
+  layoutMode,
+  setLayoutMode,
 }: TopMenuBarProps) {
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false)
   const [recentProjects, setRecentProjects] = useState<string[]>([])
@@ -146,14 +154,6 @@ export function TopMenuBar({
   const onSelectRenderSettings = useCallback(() => {
     const store = getOpStore()
     const obj = store.getSheetObject('render')
-    if (obj) {
-      studio.setSelection([obj])
-    }
-  }, [])
-
-  const onSelectEditorSettings = useCallback(() => {
-    const store = getOpStore()
-    const obj = store.getSheetObject('editor')
     if (obj) {
       studio.setSelection([obj])
     }
@@ -370,14 +370,11 @@ export function TopMenuBar({
 
                 <DropdownMenu.Separator className={s.dropdownSeparator} />
 
-                <DropdownMenu.Item className={s.dropdownItem} onSelect={onSelectEditorSettings}>
-                  Editor Settings
-                </DropdownMenu.Item>
                 <DropdownMenu.Item
                   className={s.dropdownItem}
                   onSelect={() => setSettingsDialogOpen(true)}
                 >
-                  App Settings
+                  Settings
                 </DropdownMenu.Item>
 
                 <DropdownMenu.Separator className={s.dropdownSeparator} />
@@ -437,7 +434,14 @@ export function TopMenuBar({
         </div>
       </div>
 
-      <SettingsDialog open={settingsDialogOpen} setOpen={setSettingsDialogOpen} />
+      <SettingsDialog
+        open={settingsDialogOpen}
+        setOpen={setSettingsDialogOpen}
+        showOverlay={showOverlay}
+        setShowOverlay={setShowOverlay}
+        layoutMode={layoutMode}
+        setLayoutMode={setLayoutMode}
+      />
     </>
   )
 }
