@@ -506,10 +506,9 @@ yarn build:all
 ```
 
 **Node.js and Package Manager Requirements:**
-- Node.js version pinned in `.nvmrc` (currently 24.11.0+)
-- Yarn version managed by Corepack, pinned in `package.json` (currently 4.5.3)
-- Vite requires Node.js 20.19+ or 22.12+
-- If you encounter errors like `crypto.hash is not a function`, your Node version may be incompatible
+- Node.js version pinned in `.nvmrc`
+- Yarn version managed by Corepack, pinned in `package.json`
+- If you encounter Node.js compatibility errors, ensure you're using the correct version from `.nvmrc`
 - **Recommended**: Use [fnm](https://github.com/Schniz/fnm) for fast Node.js version management
   - fnm automatically uses the correct Node version from `.nvmrc`
   - Alternative: Use [nvm](https://github.com/nvm-sh/nvm) or any Node version manager
