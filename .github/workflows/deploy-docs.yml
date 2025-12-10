@@ -45,9 +45,9 @@ jobs:
             website/.yarn/cache
             website/.yarn/unplugged
             website/.yarn/install-state.gz
-          key: ${{ runner.os }}-yarn-v4-website-${{ hashFiles('website/yarn.lock') }}
+          key: ${{ runner.os }}-yarn-website-${{ hashFiles('website/yarn.lock') }}
           restore-keys: |
-            ${{ runner.os }}-yarn-v4-website-
+            ${{ runner.os }}-yarn-website-
 
       - name: Install dependencies for website
         run: yarn install
@@ -60,9 +60,9 @@ jobs:
             noodles-editor/.yarn/cache
             noodles-editor/.yarn/unplugged
             noodles-editor/.yarn/install-state.gz
-          key: ${{ runner.os }}-yarn-v4-app-${{ hashFiles('noodles-editor/yarn.lock') }}
+          key: ${{ runner.os }}-yarn-app-${{ hashFiles('noodles-editor/yarn.lock') }}
           restore-keys: |
-            ${{ runner.os }}-yarn-v4-app-
+            ${{ runner.os }}-yarn-app-
 
       - name: Install dependencies for app
         run: yarn install
