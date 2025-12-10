@@ -138,7 +138,6 @@ function useTheatreJs(projectName?: string) {
     (theatreConfig: IProjectConfig, incomingProjectName?: string) => {
       // Theatre stores too much state if you don't reset it properly.
       // We need to detach special objects (render) before forgetting the sheet.
-      // Note: editor object removed as it's now in project-level settings
 
       // Detach the special Theatre objects that persist across the app
       theatreSheet.detachObject('render')
@@ -165,7 +164,6 @@ function useTheatreJs(projectName?: string) {
 
     // Clear staticOverrides to prevent them from being saved, only preserve render
     // object since we're storing that state in Theatre
-    // Note: editor object removed as it's now in project-level settings
     const sheetsById = Object.fromEntries(
       Object.entries(
         timeline.sheetsById as Record<string, { staticOverrides?: { byObject?: unknown } }>
