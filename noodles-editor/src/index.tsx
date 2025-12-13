@@ -2,11 +2,15 @@
 import ReactDOM from 'react-dom/client'
 import App from './app'
 import './index.css'
+import { keyboardManager } from './noodles/utils/keyboard-manager'
 import reportWebVitals from './reportWebVitals'
 import { analytics } from './utils/analytics'
 
 // Initialize analytics
 analytics.initialize()
+
+// Initialize keyboard manager
+keyboardManager.init()
 
 const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement)
 root.render(

@@ -1,0 +1,268 @@
+// Component tests for NodeTreeSidebar nesting and tree structure
+import { render, screen } from '@testing-library/react'
+import type { Node as ReactFlowNode } from '@xyflow/react'
+import { ReactFlowProvider } from '@xyflow/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { clearOps } from '../../store'
+import { transformGraph } from '../../transform-graph'
+import { NodeTreeSidebar } from '../node-tree-sidebar'
+
+// Mock useReactFlow to return test implementations
+const setNodesSpy = vi.fn()
+const getNodesSpy = vi.fn(() => [])
+const fitViewSpy = vi.fn()
+
+vi.mock('@xyflow/react', async () => {
+  const actual = await vi.importActual('@xyflow/react')
+  return {
+    ...actual,
+    useReactFlow: () => ({
+      setNodes: setNodesSpy,
+      getNodes: getNodesSpy,
+      fitView: fitViewSpy,
+      setEdges: vi.fn(),
+      getEdges: vi.fn(() => []),
+      addNodes: vi.fn(),
+      addEdges: vi.fn(),
+      deleteElements: vi.fn(),
+      zoomIn: vi.fn(),
+      zoomOut: vi.fn(),
+      setCenter: vi.fn(),
+      toObject: vi.fn(),
+      getZoom: vi.fn(() => 1),
+      setViewport: vi.fn(),
+      getViewport: vi.fn(() => ({ x: 0, y: 0, zoom: 1 })),
+      project: vi.fn(),
+      screenToFlowPosition: vi.fn(),
+      flowToScreenPosition: vi.fn(),
+      updateNode: vi.fn(),
+      updateNodeData: vi.fn(),
+      getIntersectingNodes: vi.fn(() => []),
+      getNode: vi.fn(),
+    }),
+  }
+})
+
+// Mock Theatre.js to avoid side effects
+vi.mock('@theatre/studio', () => ({
+  default: {
+    transaction: vi.fn(fn =>
+      fn({
+        __experimental_forgetSheet: vi.fn(),
+      })
+    ),
+    setSelection: vi.fn(),
+    createContentOfSaveFile: vi.fn(() => ({ sheetsById: {} })),
+  },
+}))
+
+// Mock the nesting store
+const mockSetCurrentContainerId = vi.fn()
+const mockCurrentContainerId = '/'
+
+vi.mock('../../store', async () => {
+  const actual = await vi.importActual('../../store')
+  return {
+    ...actual,
+    useNestingStore: vi.fn(selector => {
+      if (typeof selector === 'function') {
+        return selector({
+          currentContainerId: mockCurrentContainerId,
+          setCurrentContainerId: mockSetCurrentContainerId,
+        })
+      }
+      return {
+        currentContainerId: mockCurrentContainerId,
+        setCurrentContainerId: mockSetCurrentContainerId,
+      }
+    }),
+  }
+})
+
+describe('NodeTreeSidebar tree structure and nesting', () => {
+  beforeEach(() => {
+    clearOps()
+    setNodesSpy.mockClear()
+    getNodesSpy.mockClear()
+    fitViewSpy.mockClear()
+    mockSetCurrentContainerId.mockClear()
+  })
+
+  afterEach(() => {
+    clearOps()
+  })
+
+  // Helper to setup a graph with operators
+  const setupGraph = (nodes: ReactFlowNode<{ inputs: Record<string, unknown> }>[]) => {
+    // Mock getNodes to return the nodes
+    getNodesSpy.mockReturnValue(nodes)
+    return transformGraph({ nodes, edges: [] })
+  }
+
+  // Helper to render NodeTreeSidebar
+  const renderNodeTreeSidebar = () => {
+    return render(
+      <ReactFlowProvider>
+        <NodeTreeSidebar />
+      </ReactFlowProvider>
+    )
+  }
+
+  it('builds correct tree structure with nested containers', () => {
+    const nodes = [
+      // Root level ops
+      {
+        id: '/data-loader',
+        type: 'FileOp',
+        position: { x: 0, y: 0 },
+        data: { inputs: {} },
+      },
+      // Container with children
+      {
+        id: '/container',
+        type: 'ContainerOp',
+        position: { x: 200, y: 0 },
+        data: { inputs: {} },
+      },
+      {
+        id: '/container/child1',
+        type: 'NumberOp',
+        position: { x: 300, y: 100 },
+        data: { inputs: { val: 42 } },
+      },
+      // Deeply nested container
+      {
+        id: '/container/nested',
+        type: 'ContainerOp',
+        position: { x: 300, y: 200 },
+        data: { inputs: {} },
+      },
+      {
+        id: '/container/nested/deep',
+        type: 'StringOp',
+        position: { x: 400, y: 300 },
+        data: { inputs: { val: 'test' } },
+      },
+    ]
+
+    setupGraph(nodes)
+    const { container } = renderNodeTreeSidebar()
+
+    // All operators should be rendered
+    expect(screen.getAllByText('data-loader')[0]).toBeInTheDocument()
+    expect(screen.getAllByText('container')[0]).toBeInTheDocument()
+    expect(screen.getAllByText('child1')[0]).toBeInTheDocument()
+    expect(screen.getAllByText('nested')[0]).toBeInTheDocument()
+    expect(screen.getAllByText('deep')[0]).toBeInTheDocument()
+
+    // Check nesting depth increases with each level
+    const treeItems = Array.from(container.querySelectorAll('[role="button"]'))
+    const containerItem = treeItems.find(item => item.textContent?.includes('container'))
+    const child1Item = treeItems.find(item => item.textContent?.includes('child1'))
+    const deepItem = treeItems.find(item => item.textContent?.includes('deep'))
+
+    const getPadding = (el: Element | undefined) => {
+      if (!el) return 0
+      return Number.parseInt((el as HTMLElement).style.paddingLeft) || 0
+    }
+
+    expect(getPadding(child1Item)).toBeGreaterThan(getPadding(containerItem))
+    expect(getPadding(deepItem)).toBeGreaterThan(getPadding(child1Item))
+  })
+
+  it('displays color indicators based on operator type', () => {
+    const nodes = [
+      {
+        id: '/number',
+        type: 'NumberOp',
+        position: { x: 0, y: 0 },
+        data: { inputs: { val: 42 } },
+      },
+      {
+        id: '/string',
+        type: 'StringOp',
+        position: { x: 200, y: 0 },
+        data: { inputs: { val: 'test' } },
+      },
+      {
+        id: '/file',
+        type: 'FileOp',
+        position: { x: 400, y: 0 },
+        data: { inputs: {} },
+      },
+      {
+        id: '/layer',
+        type: 'ScatterplotLayerOp',
+        position: { x: 600, y: 0 },
+        data: { inputs: {} },
+      },
+    ]
+
+    setupGraph(nodes)
+    const { container } = renderNodeTreeSidebar()
+
+    const treeItems = Array.from(container.querySelectorAll('[role="button"]')) as HTMLElement[]
+
+    // Each tree item should have a border-left style with a color
+    for (const item of treeItems) {
+      const borderLeft = item.style.borderLeft
+      expect(borderLeft).toBeTruthy()
+      expect(borderLeft).toContain('solid')
+
+      // Border should either be colored or transparent (for uncategorized ops)
+      expect(borderLeft).toMatch(/var\(--node-\w+-color\)|transparent/)
+    }
+
+    // Verify specific categories get their colors
+    const numberItem = treeItems.find(item => item.textContent?.includes('number'))
+    const stringItem = treeItems.find(item => item.textContent?.includes('string'))
+    const fileItem = treeItems.find(item => item.textContent?.includes('file'))
+    const layerItem = treeItems.find(item => item.textContent?.includes('layer'))
+
+    // Number category should use --node-number-color
+    expect(numberItem?.style.borderLeft).toContain('--node-number-color')
+
+    // String category should use --node-string-color
+    expect(stringItem?.style.borderLeft).toContain('--node-string-color')
+
+    // Data category (FileOp) should use --node-data-color
+    expect(fileItem?.style.borderLeft).toContain('--node-data-color')
+
+    // Layer category should use --node-layer-color
+    expect(layerItem?.style.borderLeft).toContain('--node-layer-color')
+  })
+
+  it('shows collapse button only for containers with children', () => {
+    const nodes = [
+      {
+        id: '/empty-container',
+        type: 'ContainerOp',
+        position: { x: 0, y: 0 },
+        data: { inputs: {} },
+      },
+      {
+        id: '/container-with-children',
+        type: 'ContainerOp',
+        position: { x: 200, y: 0 },
+        data: { inputs: {} },
+      },
+      {
+        id: '/container-with-children/child',
+        type: 'NumberOp',
+        position: { x: 300, y: 100 },
+        data: { inputs: { val: 42 } },
+      },
+    ]
+
+    setupGraph(nodes)
+    renderNodeTreeSidebar()
+
+    // Empty container should not have collapse button
+    const emptyContainerItem = screen.getAllByText('empty-container')[0].closest('[role="button"]')
+    expect(emptyContainerItem?.querySelector('.pi-chevron-down')).toBeNull()
+
+    // Container with children should have collapse button
+    const containerWithChildrenItem = screen.getAllByText('container-with-children')[0].closest('[role="button"]')
+    expect(containerWithChildrenItem?.querySelector('.pi-chevron-down')).toBeTruthy()
+  })
+})

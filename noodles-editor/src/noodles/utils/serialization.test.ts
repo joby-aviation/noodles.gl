@@ -1,10 +1,10 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { hexToColor } from '../../utils/color'
 import { CodeField, ColorField, NumberField } from '../fields'
 import { NumberOp, ScenegraphLayerOp, TableEditorOp } from '../operators'
 import { clearOps, getOpStore, setOp } from '../store'
 import { edgeId } from './id-utils'
-import { safeStringify, serializeEdges, serializeNodes } from './serialization'
+import { NOODLES_VERSION, safeStringify, saveProjectLocally, serializeEdges, serializeNodes } from './serialization'
 
 describe('safeStringify', () => {
   it('serializes a basic object correctly', () => {
@@ -383,5 +383,120 @@ describe('serializeEdges', () => {
         targetHandle: 'b',
       },
     ])
+  })
+})
+
+describe('saveProjectLocally', () => {
+  let mockAnchorElement: HTMLAnchorElement
+  let createElementSpy: ReturnType<typeof vi.spyOn>
+  let appendChildSpy: ReturnType<typeof vi.spyOn>
+  let removeChildSpy: ReturnType<typeof vi.spyOn>
+  let revokeObjectURLSpy: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    // Mock anchor element
+    mockAnchorElement = {
+      download: '',
+      href: '',
+      click: vi.fn(),
+    } as unknown as HTMLAnchorElement
+
+    // Mock DOM APIs
+    createElementSpy = vi.spyOn(document, 'createElement').mockReturnValue(mockAnchorElement)
+    appendChildSpy = vi.spyOn(document.body, 'appendChild').mockImplementation(() => mockAnchorElement)
+    removeChildSpy = vi.spyOn(document.body, 'removeChild').mockImplementation(() => mockAnchorElement)
+
+    // Mock URL APIs
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock-url')
+    revokeObjectURLSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('creates a ZIP with noodles.json for publicFolder storage', async () => {
+    const projectName = 'test-project'
+    const projectJson = {
+      version: NOODLES_VERSION,
+      nodes: [],
+      edges: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      timeline: {},
+    }
+
+    await saveProjectLocally(projectName, projectJson, 'publicFolder')
+
+    // Verify download was triggered
+    expect(createElementSpy).toHaveBeenCalledWith('a')
+    expect(mockAnchorElement.download).toBe('test-project.zip')
+    expect(mockAnchorElement.href).toBe('blob:mock-url')
+    expect(mockAnchorElement.click).toHaveBeenCalled()
+    expect(appendChildSpy).toHaveBeenCalled()
+    expect(removeChildSpy).toHaveBeenCalled()
+    expect(revokeObjectURLSpy).toHaveBeenCalledWith('blob:mock-url')
+  })
+
+  it('creates a ZIP with correct filename', async () => {
+    const projectName = 'my-awesome-viz'
+    const projectJson = {
+      version: NOODLES_VERSION,
+      nodes: [],
+      edges: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      timeline: {},
+    }
+
+    await saveProjectLocally(projectName, projectJson, 'publicFolder')
+
+    expect(mockAnchorElement.download).toBe('my-awesome-viz.zip')
+  })
+
+  it('handles opfs storage type', async () => {
+    const projectName = 'opfs-project'
+    const projectJson = {
+      version: NOODLES_VERSION,
+      nodes: [],
+      edges: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      timeline: {},
+    }
+
+    await saveProjectLocally(projectName, projectJson, 'opfs')
+
+    // Should still create download
+    expect(mockAnchorElement.download).toBe('opfs-project.zip')
+    expect(mockAnchorElement.click).toHaveBeenCalled()
+  })
+
+  it('handles fileSystemAccess storage type', async () => {
+    const projectName = 'fs-project'
+    const projectJson = {
+      version: NOODLES_VERSION,
+      nodes: [],
+      edges: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      timeline: {},
+    }
+
+    await saveProjectLocally(projectName, projectJson, 'fileSystemAccess')
+
+    // Should still create download
+    expect(mockAnchorElement.download).toBe('fs-project.zip')
+    expect(mockAnchorElement.click).toHaveBeenCalled()
+  })
+
+  it('cleans up URL after download', async () => {
+    const projectJson = {
+      version: NOODLES_VERSION,
+      nodes: [],
+      edges: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      timeline: {},
+    }
+
+    await saveProjectLocally('test', projectJson, 'publicFolder')
+
+    expect(revokeObjectURLSpy).toHaveBeenCalledWith('blob:mock-url')
   })
 })

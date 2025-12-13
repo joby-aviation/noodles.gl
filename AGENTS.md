@@ -389,6 +389,50 @@ const numberOps = data.map((value, i) => {
 })
 ```
 
+## Development Workflow
+
+### Quick Start Commands
+
+```bash
+# Install dependencies
+yarn install:all
+
+# Start development server
+cd noodles-editor && yarn start
+
+# Run tests
+cd noodles-editor && yarn test
+
+# Lint and format
+cd noodles-editor && yarn lint
+cd noodles-editor && yarn fix-lint
+
+# Build for production
+yarn build:all
+```
+
+**Node.js and Package Manager Requirements:**
+- Node.js version pinned in `.nvmrc`
+- Yarn version managed by Corepack, pinned in `package.json`
+- If you encounter Node.js compatibility errors, ensure you're using the correct version from `.nvmrc`
+- **Recommended**: Use [fnm](https://github.com/Schniz/fnm) for fast Node.js version management
+  - fnm automatically uses the correct Node version from `.nvmrc`
+  - Alternative: Use [nvm](https://github.com/nvm-sh/nvm) or any Node version manager
+- **Yarn management**: Enable Corepack with `corepack enable yarn` to use the pinned Yarn version
+
+### Development URLs
+
+- **Local**: `http://localhost:5173/examples/nyc-taxis`
+- **Specific Project**: Replace `nyc-taxis` with project name from `noodles-editor/public/examples/`
+- **Safe Mode**: Add `?safeMode=true` to disable code execution
+
+### Testing
+
+- Unit tests co-located with source files (`*.test.ts`)
+- Vitest for unit testing
+- Playwright for browser integration tests
+- Run specific tests: `yarn test src/noodles/operators.test.ts`
+
 ## Creating New Operators
 
 ### Basic Structure

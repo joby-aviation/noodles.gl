@@ -1,10 +1,9 @@
 .bar {
   padding: 8px 10px;
-  background-color: #2a2a2a;
+  background-color: transparent;
   display: flex;
   align-items: center;
   font-size: 14px;
-  border-bottom: 1px solid #1c1c1c;
   position: absolute;
   z-index: var(--z-index-breadcrumbs);
 }
@@ -12,43 +11,64 @@
 .segment {
   background: none;
   border: none;
-  color: #ccc;
+  color: var(--color-text-primary);
   cursor: pointer;
   padding: 4px 6px;
   border-radius: 4px;
+  font-size: 13px;
 }
 
 .segment:hover {
-  background-color: #383838;
+  background-color: var(--color-bg-hover);
 }
 
 .active {
-  color: #fff;
-  font-weight: bold;
-  background-color: #4a4a4a;
+  color: var(--color-text-primary);
+  font-weight: 600;
 }
 
 .separator {
   margin: 0 4px;
-  color: #777;
+  color: var(--color-text-secondary);
   cursor: pointer;
+}
+
+.unsavedIndicator {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 2px;
+  margin-right: -8px;
+  vertical-align: super;
+  font-size: 0.7em;
+  line-height: 0;
+  cursor: help;
+}
+
+.unsavedDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--color-text-accent);
 }
 
 .menu {
-  background-color: #2a2a2a;
-  border: 1px solid #1c1c1c;
-  border-radius: 4px;
+  background-color: var(--color-bg-base);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
   padding: 4px;
-  box-shadow: 0 2px 10px var(--black-a7);
+  box-shadow: 0 10px 38px -10px rgba(0, 0, 0, 0.35), 0 10px 20px -15px rgba(0, 0, 0, 0.2);
 }
 
 .menuItem {
-  padding: 4px 6px;
-  border-radius: 4px;
+  padding: 8px 12px;
+  border-radius: 3px;
   cursor: pointer;
   background-color: transparent;
+  color: var(--color-text-primary);
+  font-size: 13px;
+  transition: background-color 0.15s;
 }
 
 .menuItem:hover {
-  background-color: #383838;
+  background-color: var(--color-bg-hover);
 }

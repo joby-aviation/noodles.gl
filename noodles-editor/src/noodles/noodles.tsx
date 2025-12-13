@@ -13,14 +13,16 @@ import {
   Background,
   Controls,
   ReactFlow,
+  type ReactFlowInstance,
   reconnectEdge,
   useEdgesState,
-  useKeyPress,
   useNodesState,
+  useReactFlow,
 } from '@xyflow/react'
 import cx from 'classnames'
 import type { LayerExtension } from 'deck.gl'
 import * as deck from 'deck.gl'
+import JSZip, { type JSZipObject } from 'jszip'
 import { PrimeReactProvider } from 'primereact/api'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useParams } from 'wouter'
@@ -40,32 +42,42 @@ import { SheetProvider } from '../utils/sheet-context'
 import useSheetValue from '../utils/use-sheet-value'
 import type { Visualization } from '../visualizations'
 import { BlockLibrary, type BlockLibraryRef } from './components/block-library'
-import { Breadcrumbs } from './components/breadcrumbs'
 import { categories } from './components/categories'
-import { CopyControls } from './components/copy-controls'
+import { CopyControls, type CopyControlsRef } from './components/copy-controls'
 import { DropTarget } from './components/drop-target'
 import { ErrorBoundary } from './components/error-boundary'
-import { NoodlesMenubar } from './components/menu'
 import { PropertyPanel } from './components/node-properties'
+import { NodeTreeSidebar } from './components/node-tree-sidebar'
 import { edgeComponents, nodeComponents } from './components/op-components'
-import { ProjectNameBar, UNSAVED_PROJECT_NAME } from './components/project-name-bar'
+import { UNSAVED_PROJECT_NAME } from './components/project-name-bar'
 import { ProjectNotFoundDialog } from './components/project-not-found-dialog'
 import { StorageErrorHandler } from './components/storage-error-handler'
 import { UndoRedoHandler, type UndoRedoHandlerRef } from './components/UndoRedoHandler'
 import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
 import { IS_PROD } from './globals'
+import { useKeyboardShortcut } from './hooks/use-keyboard-shortcut'
 import { useProjectModifications } from './hooks/use-project-modifications'
 import type { IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
-import { load } from './storage'
-import { getOpStore, useNestingStore } from './store'
+import { load, save } from './storage'
+import { deleteSheetObject, getOpStore, setSheetObject, useNestingStore } from './store'
 import { bindOperatorToTheatre, cleanupRemovedOperators } from './theatre-bindings'
 import { transformGraph } from './transform-graph'
+import { directoryHandleCache } from './utils/directory-handle-cache'
+import { requestPermission, selectDirectory, writeFileToDirectory } from './utils/filesystem'
 import { edgeId, nodeId } from './utils/id-utils'
 import { migrateProject } from './utils/migrate-schema'
 import { getParentPath } from './utils/path-utils'
 import { pick } from './utils/pick'
-import { EMPTY_PROJECT, type NoodlesProjectJSON } from './utils/serialization'
+import {
+  EMPTY_PROJECT,
+  NOODLES_VERSION,
+  type NoodlesProjectJSON,
+  safeStringify,
+  saveProjectLocally,
+  serializeEdges,
+  serializeNodes,
+} from './utils/serialization'
 
 /*
  * CSS Architecture:
@@ -198,12 +210,12 @@ export function getNoodles(): Visualization {
   const { theatreReady, theatreProject, theatreSheet, setTheatreProject, getTimelineJson } =
     useTheatreJs(projectName)
   const [nodes, setNodes, onNodesChangeBase] = useNodesState<AnyNodeJSON>([])
-  const [edges, setEdges, onEdgesChange] = useEdgesState<ReactFlowEdge<unknown>>([])
-  const vPressed = useKeyPress('v')
-  const aPressed = useKeyPress('a')
+  const [edges, setEdges, onEdgesChangeBase] = useEdgesState<ReactFlowEdge<unknown>>([])
+  const [defaultViewport, setDefaultViewport] = useState({ x: 0, y: 0, zoom: 1 })
   const [showChatPanel, setShowChatPanel] = useState(false)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
-  // Wrap onNodesChange to track node selection
+  // Wrap onNodesChange to track node selection and mark unsaved changes
   const onNodesChange = useCallback(
     (changes: Parameters<typeof onNodesChangeBase>[0]) => {
       // Track selection changes
@@ -211,9 +223,30 @@ export function getNoodles(): Visualization {
       if (selectedChanges.length > 0) {
         analytics.track('node_selected', { count: selectedChanges.length })
       }
+
+      // Mark as unsaved if there are non-selection changes
+      const hasNonSelectionChanges = changes.some(change => change.type !== 'select')
+      if (hasNonSelectionChanges) {
+        setHasUnsavedChanges(true)
+      }
+
       onNodesChangeBase(changes)
     },
     [onNodesChangeBase]
+  )
+
+  // Wrap onEdgesChange to mark unsaved changes
+  const onEdgesChange = useCallback(
+    (changes: Parameters<typeof onEdgesChangeBase>[0]) => {
+      // Mark as unsaved if there are non-selection changes
+      const hasNonSelectionChanges = changes.some(change => change.type !== 'select')
+      if (hasNonSelectionChanges) {
+        setHasUnsavedChanges(true)
+      }
+
+      onEdgesChangeBase(changes)
+    },
+    [onEdgesChangeBase]
   )
 
   // Update URL when project name changes (for when loading a project from file/storage)
@@ -240,8 +273,27 @@ export function getNoodles(): Visualization {
     })
   }, [])
 
+  // Warn before leaving page with unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault()
+        // Modern browsers require returnValue to be set
+        e.returnValue = ''
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [hasUnsavedChanges])
+
   // `transformGraph` needs all nodes to build the opMap and resolve connections
-  const operators = useMemo(() => transformGraph({ nodes, edges }), [nodes, edges])
+  // Use useEffect instead of useMemo to avoid setState during render
+  const [operators, setOperators] = useState<Operator<IOperator>[]>([])
+  useEffect(() => {
+    const ops = transformGraph({ nodes, edges })
+    setOperators(ops)
+  }, [nodes, edges])
 
   // Bind Theatre.js objects for all operators (outside ReactFlow rendering pipeline)
   // This ensures containers and all other operators can be keyframed in the timeline
@@ -276,26 +328,52 @@ export function getNoodles(): Visualization {
   }, [theatreReady, theatreSheet, operators])
 
   // Use shared hook for project modifications
-  const { onConnect, onNodesDelete } = useProjectModifications({
+  const { onConnect: onConnectBase, onNodesDelete: onNodesDeleteBase } = useProjectModifications({
     getNodes: useCallback(() => nodes, [nodes]),
     getEdges: useCallback(() => edges, [edges]),
     setNodes,
     setEdges,
   })
 
+  // Wrap onConnect to mark unsaved changes
+  const onConnect = useCallback(
+    (connection: Connection) => {
+      onConnectBase(connection)
+      setHasUnsavedChanges(true)
+    },
+    [onConnectBase]
+  )
+
+  // Wrap onNodesDelete to mark unsaved changes
+  const onNodesDelete = useCallback(
+    (deleted: ReactFlowNode[]) => {
+      onNodesDeleteBase(deleted)
+      setHasUnsavedChanges(true)
+    },
+    [onNodesDeleteBase]
+  )
+
+  // Wrap onReconnect to mark unsaved changes
   const onReconnect = useCallback(
-    (oldEdge: ReactFlowEdge, newConnection: Connection) =>
-      setEdges(els => reconnectEdge(oldEdge, newConnection, els)),
+    (oldEdge: ReactFlowEdge, newConnection: Connection) => {
+      setEdges(els => reconnectEdge(oldEdge, newConnection, els))
+      setHasUnsavedChanges(true)
+    },
     [setEdges]
   )
 
   const onNodeClick = useCallback((_e: React.MouseEvent, node: ReactFlowNode<unknown>) => {
     const store = getOpStore()
     const obj = store.getSheetObject(node.id)
-    if (obj) studio.setSelection([obj])
+    if (obj) {
+      studio.setSelection([obj])
+    } else {
+      studio.setSelection([])
+    }
   }, [])
 
   const reactFlowRef = useRef<HTMLDivElement>(null)
+  const reactFlowInstanceRef = useRef<ReactFlowInstance | null>(null)
   const blockLibraryRef = useRef<BlockLibraryRef>(null)
 
   // Avoid circular dependency
@@ -303,8 +381,16 @@ export function getNoodles(): Visualization {
 
   const currentProjectRef = useRef<NoodlesProjectJSON>(newProjectJSON)
 
-  // Ref to access undo/redo functionality from inside ReactFlow context
+  // Ref to access undo/redo and copy/paste functionality from inside ReactFlow context
   const undoRedoRef = useRef<UndoRedoHandlerRef>(null)
+  const copyControlsRef = useRef<CopyControlsRef>(null)
+
+  // Helper component to capture ReactFlow instance
+  function ReactFlowInstanceCapture() {
+    const instance = useReactFlow()
+    reactFlowInstanceRef.current = instance
+    return null
+  }
 
   const onDeselectAll = useCallback(() => {
     setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
@@ -323,22 +409,10 @@ export function getNoodles(): Visualization {
     blockLibraryRef.current?.openModal(event.clientX, event.clientY)
   }, [])
 
-  const vPressHandledRef = useRef(false)
-
   const currentContainerId = useNestingStore(state => state.currentContainerId)
 
-  // Handle 'v' key press to create ViewerOp
-  useEffect(() => {
-    if (!vPressed) {
-      // Reset the flag when key is released
-      vPressHandledRef.current = false
-      return
-    }
-
-    // Only handle once per key press
-    if (vPressHandledRef.current) return
-    vPressHandledRef.current = true
-
+  // Handle 'v' keyup to create ViewerOp (momentary button behavior)
+  useKeyboardShortcut('v', () => {
     analytics.track('viewer_created', { method: 'keyboard' })
 
     setNodes(currentNodes => {
@@ -453,22 +527,10 @@ export function getNoodles(): Visualization {
 
       return [...currentNodes, viewerNode]
     })
-  }, [vPressed, setNodes, setEdges, currentContainerId])
+  }, [setNodes, setEdges, currentContainerId])
 
-  const aPressHandledRef = useRef(false)
-
-  // Handle 'a' key press to open Block Library
-  useEffect(() => {
-    if (!aPressed) {
-      // Reset the flag when key is released
-      aPressHandledRef.current = false
-      return
-    }
-
-    // Only handle once per key press
-    if (aPressHandledRef.current) return
-    aPressHandledRef.current = true
-
+  // Handle 'a' keyup to open Block Library (momentary button behavior)
+  useKeyboardShortcut('a', () => {
     analytics.track('block_library_opened', { method: 'keyboard' })
 
     // Open Block Library at center of screen
@@ -478,7 +540,7 @@ export function getNoodles(): Visualization {
     const centerX = pane.left + pane.width / 2
     const centerY = pane.top + pane.height / 2
     blockLibraryRef.current?.openModal(centerX, centerY)
-  }, [aPressed])
+  }, [])
 
   const editorSheet = useMemo(() => {
     return theatreSheet.object('editor', {
@@ -493,14 +555,17 @@ export function getNoodles(): Visualization {
 
   const { showOverlay, layoutMode } = useSheetValue(editorSheet)
 
+  // Register editor sheet object in store for menu access
+  useEffect(() => {
+    setSheetObject('editor', editorSheet as any)
+    return () => {
+      deleteSheetObject('editor')
+    }
+  }, [editorSheet])
+
   const loadProjectFile = useCallback(
     (project: NoodlesProjectJSON, name?: string) => {
-      const {
-        nodes,
-        edges,
-        // viewport, // Skip viewport to preserve current view
-        timeline,
-      } = project
+      const { nodes, edges, viewport, timeline } = project
 
       // Update current project ref for undo/redo
       currentProjectRef.current = project
@@ -513,26 +578,23 @@ export function getNoodles(): Visualization {
       setNodes(nodes)
       setEdges(edges)
       setProjectName(name ?? null)
-      setTheatreProject(name ? { state: timeline } : {}, name)
 
-      // Only fit view when loading a new project (not during undo/redo)
-      if (name && !undoRedoRef.current?.isRestoring()) {
-        // Fit view after a short delay to ensure nodes are rendered
-        setTimeout(() => {
-          try {
-            if (reactFlowRef.current && nodes.length > 0) {
-              // TODO: Call fitView on the ReactFlow instance here if accessible
-            }
-          } catch (error) {
-            console.warn('Could not fit view:', error)
-          }
-        }, 100)
+      // Set viewport state before ReactFlow renders (but not during undo/redo)
+      if (viewport && name && !undoRedoRef.current?.isRestoring()) {
+        setDefaultViewport(viewport)
       }
+
+      // Only include timeline state if it exists and has content, otherwise use empty config
+      const hasTimeline = timeline && Object.keys(timeline).length > 0
+      setTheatreProject(name && hasTimeline ? { state: timeline } : {}, name)
 
       // Update URL query parameter with project name
       if (name) {
         navigate(`${routePrefix}/${name ?? ''}`, { replace: true })
       }
+
+      // Clear unsaved changes flag when loading a project
+      setHasUnsavedChanges(false)
     },
     [setNodes, setEdges, setProjectName, setTheatreProject, navigate, routePrefix]
   )
@@ -566,7 +628,7 @@ export function getNoodles(): Visualization {
           if (!response.ok) {
             throw new Error(`Failed to fetch example project: ${response.statusText}`)
           }
-          const noodlesFile = await response.json() as Partial<NoodlesProjectJSON>
+          const noodlesFile = (await response.json()) as Partial<NoodlesProjectJSON>
           const project = await migrateProject({
             ...EMPTY_PROJECT,
             ...noodlesFile,
@@ -638,12 +700,301 @@ export function getNoodles(): Visualization {
       }))
   }, [edges, visibleNodeIds])
 
+  // File menu callbacks
+  const getNoodlesProjectJson = useCallback((): NoodlesProjectJSON => {
+    const store = getOpStore()
+    const timeline = getTimelineJson()
+    const viewport = reactFlowInstanceRef.current?.getViewport() || { x: 0, y: 0, zoom: 1 }
+
+    return {
+      version: NOODLES_VERSION,
+      nodes: serializeNodes(store, nodes, edges),
+      edges: serializeEdges(store, nodes, edges),
+      viewport,
+      timeline,
+    }
+  }, [nodes, edges, getTimelineJson])
+
+  const onMenuSave = useCallback(async () => {
+    if (!projectName) return
+    const noodlesProjectJson = getNoodlesProjectJson()
+    const result = await save(storageType, projectName, noodlesProjectJson)
+    if (result.success) {
+      setCurrentDirectory(result.data.directoryHandle, projectName)
+      setHasUnsavedChanges(false)
+      analytics.track('project_saved', { storageType })
+    } else {
+      setError(result.error)
+    }
+  }, [projectName, getNoodlesProjectJson, storageType, setCurrentDirectory, setError])
+
+  const onDownload = useCallback(async () => {
+    const noodlesProjectJson = getNoodlesProjectJson()
+    await saveProjectLocally(projectName || 'untitled', noodlesProjectJson, storageType)
+    analytics.track('project_exported', { storageType })
+  }, [projectName, getNoodlesProjectJson, storageType])
+
+  const onOpenAddNode = useCallback(() => {
+    const pane = reactFlowRef.current?.getBoundingClientRect()
+    if (!pane) return
+    const centerX = pane.left + pane.width / 2
+    const centerY = pane.top + pane.height / 2
+    blockLibraryRef.current?.openModal(centerX, centerY)
+  }, [])
+
+  const onNewProject = useCallback(async () => {
+    try {
+      // Prompt user to select/create a directory for the new project
+      const directoryHandle = await selectDirectory()
+      const directoryName = directoryHandle.name
+
+      // Ensure we have write permission
+      const hasPermission = await requestPermission(directoryHandle, 'readwrite')
+      if (!hasPermission) {
+        console.error('Permission denied to write to directory')
+        return
+      }
+
+      // Write starter project to noodles.json
+      const starterProject = {
+        ...newProjectJSON,
+        version: NOODLES_VERSION,
+      } as NoodlesProjectJSON
+      await writeFileToDirectory(directoryHandle, 'noodles.json', safeStringify(starterProject))
+
+      // Cache the directory handle
+      await directoryHandleCache.cacheHandle(directoryName, directoryHandle, directoryHandle.name)
+
+      // Update store with directory handle
+      setCurrentDirectory(directoryHandle, directoryName)
+
+      // Load the project directly (already in memory, no need to reload from disk)
+      loadProjectFile(starterProject, directoryName)
+
+      analytics.track('project_created', { method: 'new' })
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        // User cancelled the picker
+        return
+      }
+      console.error('Failed to create new project:', error)
+    }
+  }, [setCurrentDirectory, loadProjectFile])
+
+  const onImport = useCallback(async () => {
+    try {
+      // First, prompt for the project file to import
+      const [fileHandle] = await window.showOpenFilePicker({
+        types: [
+          {
+            description: 'Noodles Project',
+            accept: {
+              'application/json': ['.json'],
+              'application/zip': ['.zip'],
+            },
+          },
+        ],
+      })
+      const file = await fileHandle.getFile()
+      const isZip = file.name.endsWith('.zip')
+
+      let projectData: NoodlesProjectJSON
+      const filesToWrite: Map<string, string | ArrayBuffer> = new Map()
+
+      if (isZip) {
+        // Handle ZIP import
+        const zip = await JSZip.loadAsync(await file.arrayBuffer())
+
+        // Find noodles.json in the ZIP (could be at root or in a subfolder)
+        let noodlesJsonPath: string | null = null
+        let projectFolder = ''
+
+        // Iterate over files in the ZIP to find noodles.json
+        zip.forEach((relativePath, zipEntry) => {
+          if (relativePath.endsWith('noodles.json') && !zipEntry.dir) {
+            noodlesJsonPath = relativePath
+            // Extract the folder path (everything before noodles.json)
+            projectFolder = relativePath.substring(0, relativePath.lastIndexOf('noodles.json'))
+          }
+        })
+
+        if (!noodlesJsonPath) {
+          throw new Error('No noodles.json found in ZIP file')
+        }
+
+        // Parse noodles.json
+        const noodlesJsonFile = zip.file(noodlesJsonPath)
+        if (!noodlesJsonFile) {
+          throw new Error('Could not read noodles.json from ZIP')
+        }
+        const noodlesJsonText = await noodlesJsonFile.async('text')
+        const parsed = JSON.parse(noodlesJsonText) as Partial<NoodlesProjectJSON>
+        projectData = await migrateProject({
+          ...EMPTY_PROJECT,
+          ...parsed,
+        } as NoodlesProjectJSON)
+
+        // Extract all files from the ZIP
+        const fileEntries: Array<[string, JSZipObject]> = []
+        zip.forEach((relativePath, zipEntry) => {
+          if (!zipEntry.dir) {
+            fileEntries.push([relativePath, zipEntry])
+          }
+        })
+
+        for (const [relativePath, zipEntry] of fileEntries) {
+          // Remove the project folder prefix to get relative path within project
+          let cleanPath = relativePath
+          if (projectFolder && relativePath.startsWith(projectFolder)) {
+            cleanPath = relativePath.substring(projectFolder.length)
+          }
+
+          // Read file contents
+          if (cleanPath.endsWith('.json')) {
+            const text = await zipEntry.async('text')
+            filesToWrite.set(cleanPath, text)
+          } else {
+            const arrayBuffer = await zipEntry.async('arraybuffer')
+            filesToWrite.set(cleanPath, arrayBuffer)
+          }
+        }
+
+        // Write migrated noodles.json (overwrites any unmigrated version extracted from ZIP)
+        filesToWrite.set('noodles.json', safeStringify(projectData))
+      } else {
+        // Handle single JSON file import
+        const text = await file.text()
+        const parsed = JSON.parse(text) as Partial<NoodlesProjectJSON>
+        projectData = await migrateProject({
+          ...EMPTY_PROJECT,
+          ...parsed,
+        } as NoodlesProjectJSON)
+
+        // Only write noodles.json
+        filesToWrite.set('noodles.json', safeStringify(projectData))
+      }
+
+      // Now prompt for directory to save the imported project
+      const directoryHandle = await selectDirectory()
+      const directoryName = directoryHandle.name
+
+      // Ensure we have write permission
+      const hasPermission = await requestPermission(directoryHandle, 'readwrite')
+      if (!hasPermission) {
+        console.error('Permission denied to write to directory')
+        return
+      }
+
+      // Write all files to directory
+      for (const [path, content] of filesToWrite.entries()) {
+        // Handle nested paths (e.g., data/file.csv)
+        if (path.includes('/')) {
+          const parts = path.split('/')
+          const fileName = parts.pop()!
+          const subfolders = parts
+
+          // Create nested directory structure
+          let currentDir = directoryHandle
+          for (const folder of subfolders) {
+            currentDir = await currentDir.getDirectoryHandle(folder, { create: true })
+          }
+
+          // Write file in the nested directory
+          const fileHandle = await currentDir.getFileHandle(fileName, { create: true })
+          const writable = await fileHandle.createWritable()
+          await writable.write(content)
+          await writable.close()
+        } else {
+          // Write file at root level
+          await writeFileToDirectory(directoryHandle, path, content)
+        }
+      }
+
+      // Cache the directory handle
+      await directoryHandleCache.cacheHandle(directoryName, directoryHandle, directoryHandle.name)
+
+      // Update store with directory handle
+      setCurrentDirectory(directoryHandle, directoryName)
+
+      // Load the project directly (already in memory, no need to reload from disk)
+      loadProjectFile(projectData, directoryName)
+
+      analytics.track('project_imported', { format: isZip ? 'zip' : 'json' })
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        // User cancelled the picker
+        return
+      }
+      console.error('Failed to import project:', error)
+    }
+  }, [setCurrentDirectory, loadProjectFile])
+
+  const onOpen = useCallback(
+    async (projectName?: string) => {
+      try {
+        let result: Awaited<ReturnType<typeof load>>
+        let finalProjectName: string
+
+        if (projectName) {
+          // Load project by name (for recent projects and OPFS list)
+          // Cache-aware: load will prompt user if project directory not cached for fileSystemAccess
+          finalProjectName = projectName
+          result = await load(storageType, projectName)
+        } else {
+          // Show the native folder picker
+          const projectDirectory = await selectDirectory()
+          finalProjectName = projectDirectory.name
+
+          // Cache the directory handle
+          await directoryHandleCache.cacheHandle(
+            finalProjectName,
+            projectDirectory,
+            projectDirectory.name
+          )
+
+          // Load project from the selected directory
+          result = await load(storageType, projectDirectory)
+        }
+
+        if (result.success) {
+          const project = await migrateProject(result.data.projectData)
+          loadProjectFile(project, finalProjectName)
+          // Update store with directory handle returned from load
+          setCurrentDirectory(result.data.directoryHandle, finalProjectName)
+          analytics.track('project_opened', { storageType })
+        } else {
+          setError(result.error)
+          analytics.track('project_open_failed', { storageType, error: 'load_error' })
+        }
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          // User cancelled the picker
+          return
+        }
+        console.error('Failed to open project:', error)
+        setError({
+          type: 'unknown',
+          message:
+            error instanceof Error && projectName
+              ? 'Error migrating project'
+              : 'Error opening folder',
+          details: error instanceof Error ? error.message : 'Unknown error',
+          originalError: error,
+        })
+        analytics.track('project_open_failed', {
+          storageType,
+          error: projectName ? 'migration_error' : 'unknown',
+        })
+      }
+    },
+    [storageType, loadProjectFile, setCurrentDirectory, setError]
+  )
+
   const flowGraph = theatreReady && (
     <ErrorBoundary>
       <div className={cx('react-flow-wrapper', !showOverlay && 'react-flow-wrapper-hidden')}>
         <PrimeReactProvider>
           <SheetProvider value={theatreSheet}>
-            <Breadcrumbs />
             <ReactFlow
               ref={reactFlowRef}
               nodes={displayedNodes}
@@ -659,13 +1010,15 @@ export function getNoodles(): Visualization {
               minZoom={0.2}
               fitViewOptions={fitViewOptions}
               defaultEdgeOptions={defaultEdgeOptions}
+              defaultViewport={defaultViewport}
               nodeTypes={nodeComponents}
               edgeTypes={edgeComponents}
             >
+              <ReactFlowInstanceCapture />
               <Background />
               <Controls position="bottom-right" />
               <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />
-              <CopyControls />
+              <CopyControls ref={copyControlsRef} />
               <UndoRedoHandler ref={undoRedoRef} />
               <ChatPanel
                 project={{ nodes, edges }}
@@ -682,6 +1035,8 @@ export function getNoodles(): Visualization {
             loadProjectFile(project, name)
             setShowProjectNotFoundDialog(false)
           }}
+          onNewProject={onNewProject}
+          onImport={onImport}
           onClose={() => setShowProjectNotFoundDialog(false)}
         />
         <StorageErrorHandler />
@@ -790,19 +1145,7 @@ export function getNoodles(): Visualization {
     }
   }, [outOp, selectedGeoJsonFeatures])
 
-  const menuBar = (
-    <NoodlesMenubar
-      projectName={projectName}
-      setProjectName={setProjectName}
-      getTimelineJson={getTimelineJson}
-      loadProjectFile={loadProjectFile}
-      undoRedo={undoRedoRef.current}
-      showChatPanel={showChatPanel}
-      setShowChatPanel={setShowChatPanel}
-    />
-  )
-
-  const right = (
+  const propertiesPanel = (
     <div className={s.rightPanel}>
       <PropertyPanel />
       <DropTarget />
@@ -810,13 +1153,24 @@ export function getNoodles(): Visualization {
   )
 
   return {
-    widgets: {
-      flowGraph,
-      bottom: menuBar,
-      top: <ProjectNameBar projectName={projectName} />,
-      right,
-    },
+    flowGraph,
+    nodeSidebar: <NodeTreeSidebar />,
+    propertiesPanel,
     layoutMode,
+    // Export these so timeline-editor can create the menu with render actions
+    projectName,
+    getTimelineJson,
+    onSaveProject: onMenuSave,
+    onDownload,
+    onNewProject,
+    onImport,
+    onOpen,
+    onOpenAddNode,
+    undoRedoRef,
+    copyControlsRef,
+    showChatPanel,
+    setShowChatPanel,
+    hasUnsavedChanges,
     ...visProps,
     project: theatreProject,
     sheet: theatreSheet,

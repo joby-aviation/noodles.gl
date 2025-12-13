@@ -27,6 +27,7 @@ import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState }
 import { createPortal } from 'react-dom'
 import { Temporal } from 'temporal-polyfill'
 
+import { analytics } from '../../utils/analytics'
 import { SheetContext } from '../../utils/sheet-context'
 import { ArrayField, type Field, type IField, ListField } from '../fields'
 import s from '../noodles.module.css'
@@ -1122,6 +1123,7 @@ function ContainerOpComponent({
   }
 
   const setCurrentContainerId = useNestingStore(state => state.setCurrentContainerId)
+  const reactFlow = useReactFlow()
 
   // Subscribe to operator store to get reactive children count
   const childrenCount = useOperatorStore(state => {
@@ -1135,7 +1137,11 @@ function ContainerOpComponent({
     <div
       role="tree"
       onDoubleClick={() => {
+        // Clear selection when changing levels
+        reactFlow.setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
         setCurrentContainerId(op.id)
+        analytics.track('container_navigated', { method: 'double_click', direction: 'into' })
+        reactFlow.fitView({ duration: 0 })
       }}
     >
       <NodeHeader id={id} type={type} op={op} />

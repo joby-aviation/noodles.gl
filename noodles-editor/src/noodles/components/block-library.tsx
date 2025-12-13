@@ -176,20 +176,56 @@ export const BlockLibrary = forwardRef<BlockLibraryRef, BlockLibraryProps>(
 
     const inputRef = useRef<HTMLInputElement>(null)
     const cardRefs = useRef<Map<number, HTMLElement>>(new Map())
+    const contentRef = useRef<HTMLDivElement>(null)
+    const [inputMode, setInputMode] = useState<'keyboard' | 'mouse'>('mouse')
 
     useEffect(() => {
       if (isOpen) {
         inputRef.current?.focus()
+        // Start in mouse mode
+        setInputMode('mouse')
       }
     }, [isOpen])
 
-    // Scroll selected card into view when navigating with keyboard
+    // Switch to mouse mode only when mouse actually moves
     useEffect(() => {
-      const selectedCard = cardRefs.current.get(selectedIndex)
+      if (!isOpen) return
+
+      const handleMouseMove = (e: MouseEvent) => {
+        const lastPos = lastMousePosRef.current
+        const currentPos = { x: e.clientX, y: e.clientY }
+
+        // Only switch to mouse mode if cursor actually moved
+        if (!lastPos || lastPos.x !== currentPos.x || lastPos.y !== currentPos.y) {
+          setInputMode('mouse')
+          lastMousePosRef.current = currentPos
+        }
+      }
+
+      const contentEl = contentRef.current
+      if (contentEl) {
+        contentEl.addEventListener('mousemove', handleMouseMove)
+        return () => contentEl.removeEventListener('mousemove', handleMouseMove)
+      }
+    }, [isOpen])
+
+    // Helper to scroll selected card into view (only called by keyboard navigation)
+    const scrollToSelected = useCallback((index: number) => {
+      const selectedCard = cardRefs.current.get(index)
       if (selectedCard) {
         selectedCard.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
       }
-    }, [selectedIndex])
+    }, [])
+
+    // Handle mouse enter on cards (only when in mouse mode)
+    const handleCardMouseEnter = useCallback(
+      (index: number) => {
+        if (inputMode === 'mouse') {
+          setSelectedIndex(index)
+        }
+      },
+      [inputMode]
+    )
 
     // Handle keyboard navigation (2D grid with 3 columns)
     useEffect(() => {
@@ -215,33 +251,53 @@ export const BlockLibrary = forwardRef<BlockLibraryRef, BlockLibraryProps>(
         // 2D grid navigation with arrow keys
         if (e.key === 'ArrowDown') {
           e.preventDefault()
-          setSelectedIndex(prev => Math.min(prev + COLS, totalResults - 1))
+          setInputMode('keyboard')
+          setSelectedIndex(prev => {
+            const newIndex = Math.min(prev + COLS, totalResults - 1)
+            scrollToSelected(newIndex)
+            return newIndex
+          })
           return
         }
 
         if (e.key === 'ArrowUp') {
           e.preventDefault()
-          setSelectedIndex(prev => Math.max(prev - COLS, 0))
+          setInputMode('keyboard')
+          setSelectedIndex(prev => {
+            const newIndex = Math.max(prev - COLS, 0)
+            scrollToSelected(newIndex)
+            return newIndex
+          })
           return
         }
 
         if (e.key === 'ArrowRight') {
           e.preventDefault()
-          setSelectedIndex(prev => Math.min(prev + 1, totalResults - 1))
+          setInputMode('keyboard')
+          setSelectedIndex(prev => {
+            const newIndex = Math.min(prev + 1, totalResults - 1)
+            scrollToSelected(newIndex)
+            return newIndex
+          })
           return
         }
 
         if (e.key === 'ArrowLeft') {
           e.preventDefault()
-          setSelectedIndex(prev => Math.max(prev - 1, 0))
+          setInputMode('keyboard')
+          setSelectedIndex(prev => {
+            const newIndex = Math.max(prev - 1, 0)
+            scrollToSelected(newIndex)
+            return newIndex
+          })
           return
         }
       }
 
       document.addEventListener('keydown', handleKeyDown)
       return () => document.removeEventListener('keydown', handleKeyDown)
-      // biome-ignore lint/correctness/useExhaustiveDependencies: addNode is stable from parent context
-    }, [isOpen, onCloseModal, flatResults, selectedIndex, addNode])
+      // biome-ignore lint/correctness/useExhaustiveDependencies: addNode and setInputMode are stable from parent context
+    }, [isOpen, onCloseModal, flatResults, selectedIndex, addNode, scrollToSelected])
 
     if (!isOpen) return null
 
@@ -285,7 +341,7 @@ export const BlockLibrary = forwardRef<BlockLibraryRef, BlockLibraryProps>(
               ))}
             </div>
           </div>
-          <div className={s.blockLibraryContent}>
+          <div ref={contentRef} className={s.blockLibraryContent} data-input-mode={inputMode}>
             {displayMode.mode === 'ranked' ? (
               // Ranked mode: flat list sorted by relevance
               <div className={s.blockLibraryGrid}>
@@ -311,7 +367,7 @@ export const BlockLibrary = forwardRef<BlockLibraryRef, BlockLibraryProps>(
                       })}
                       onClick={() => addNode(type)}
                       onKeyDown={e => e.key === 'Enter' && addNode(type)}
-                      onMouseEnter={() => setSelectedIndex(index)}
+                      onMouseEnter={() => handleCardMouseEnter(index)}
                     >
                       <div className={s.blockLibraryCardHeader}>
                         <div className={s.blockLibraryCardTitle}>{displayName}</div>
@@ -328,16 +384,18 @@ export const BlockLibrary = forwardRef<BlockLibraryRef, BlockLibraryProps>(
               </div>
             ) : (
               // Grouped mode: organized by categories
-              displayMode.groups.map(group => {
-                // Find the starting index for this group in flatResults
-                const groupStartIndex = flatResults.indexOf(group.types[0])
+              (() => {
+                let cumulativeIndex = 0
+                return displayMode.groups.map(group => {
+                  const groupStartIndex = cumulativeIndex
+                  cumulativeIndex += group.types.length
 
-                return (
-                  <div key={group.category}>
-                    <div className={s.blockLibraryContentCategoryHeader}>{group.category}</div>
-                    <div className={s.blockLibraryGrid}>
-                      {group.types.map((type, indexInGroup) => {
-                        const globalIndex = groupStartIndex + indexInGroup
+                  return (
+                    <div key={group.category}>
+                      <div className={s.blockLibraryContentCategoryHeader}>{group.category}</div>
+                      <div className={s.blockLibraryGrid}>
+                        {group.types.map((type, indexInGroup) => {
+                          const globalIndex = groupStartIndex + indexInGroup
                         const description = getNodeDescription(type)
                         const displayName = typeDisplayName(type)
                         const category = typeCategory(type)
@@ -359,7 +417,7 @@ export const BlockLibrary = forwardRef<BlockLibraryRef, BlockLibraryProps>(
                             })}
                             onClick={() => addNode(type)}
                             onKeyDown={e => e.key === 'Enter' && addNode(type)}
-                            onMouseEnter={() => setSelectedIndex(globalIndex)}
+                            onMouseEnter={() => handleCardMouseEnter(globalIndex)}
                           >
                             <div className={s.blockLibraryCardHeader}>
                               <div className={s.blockLibraryCardTitle}>{displayName}</div>
@@ -372,11 +430,12 @@ export const BlockLibrary = forwardRef<BlockLibraryRef, BlockLibraryProps>(
                             )}
                           </button>
                         )
-                      })}
+                        })}
+                      </div>
                     </div>
-                  </div>
-                )
-              })
+                  )
+                })
+              })()
             )}
           </div>
         </div>

@@ -5,6 +5,7 @@ import type {
   Node as ReactFlowNode,
 } from '@xyflow/react'
 import { isEqual } from 'lodash'
+import JSZip from 'jszip'
 
 import { resizeableNodes } from '../components/op-components'
 import type { useOperatorStore } from '../store'
@@ -135,4 +136,106 @@ export function serializeEdges(
         Object.entries(edge).filter(([key]) => !['selected', 'animated'].includes(key))
       )
     )
+}
+
+// Pre-load all example asset URLs for download functionality
+const exampleAssetUrls: Record<string, string> = import.meta.glob('../../examples/**/*', {
+  eager: true,
+  import: 'default',
+  query: '?url',
+})
+
+/**
+ * Export a project as a downloadable zip file containing noodles.json and data files
+ */
+export async function saveProjectLocally(
+  projectName: string,
+  projectJson: NoodlesProjectJSON,
+  storageType: 'fileSystemAccess' | 'opfs' | 'publicFolder'
+) {
+  const zip = new JSZip()
+
+  // Create a folder with the project name
+  const projectFolder = zip.folder(projectName)
+  if (!projectFolder) {
+    throw new Error('Failed to create project folder in zip')
+  }
+
+  // Add noodles.json to the project folder
+  const contents = safeStringify(projectJson)
+  projectFolder.file('noodles.json', contents)
+
+  // Handle data files based on storage type
+  if (storageType === 'publicFolder') {
+    // For public folder projects, use pre-loaded asset URLs
+    const projectPrefix = `../../examples/${projectName}/`
+
+    for (const [assetPath, assetUrl] of Object.entries(exampleAssetUrls)) {
+      // Skip the noodles.json file itself
+      if (assetPath.endsWith('noodles.json')) {
+        continue
+      }
+
+      // Only include files from this specific project
+      if (assetPath.startsWith(projectPrefix)) {
+        // Extract the relative path within the project
+        const relativePath = assetPath.substring(projectPrefix.length)
+
+        try {
+          const response = await fetch(assetUrl)
+          if (response.ok) {
+            const arrayBuffer = await response.arrayBuffer()
+            projectFolder.file(relativePath, arrayBuffer)
+          }
+        } catch (error) {
+          console.warn(`Could not fetch asset ${relativePath}:`, error)
+        }
+      }
+    }
+  } else {
+    // For fileSystemAccess and opfs storage types
+    try {
+      const { getProjectDirectoryHandle } = await import('../storage')
+      const { directoryExists } = await import('./filesystem')
+      const projectDirectoryResult = await getProjectDirectoryHandle(
+        storageType,
+        projectName,
+        false
+      )
+
+      if (projectDirectoryResult.success) {
+        const projectDirectory = projectDirectoryResult.data
+        const hasDataDir = await directoryExists(projectDirectory, 'data')
+
+        if (hasDataDir) {
+          const dataDirectory = await projectDirectory.getDirectoryHandle('data')
+
+          // Read all files from the data directory
+          for await (const entry of dataDirectory.values()) {
+            if (entry.kind === 'file') {
+              const fileHandle = entry as FileSystemFileHandle
+              const file = await fileHandle.getFile()
+              const arrayBuffer = await file.arrayBuffer()
+              projectFolder.file(`data/${entry.name}`, arrayBuffer)
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('Could not read data files for export:', error)
+      // Continue with export even if data files can't be read
+    }
+  }
+
+  // Generate the zip file and trigger download
+  const blob = await zip.generateAsync({ type: 'blob' })
+
+  const a = document.createElement('a')
+  a.download = `${projectName}.zip`
+  const url = URL.createObjectURL(blob)
+  a.href = url
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
 }

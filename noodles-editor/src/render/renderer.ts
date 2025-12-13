@@ -273,19 +273,10 @@ export const useRenderer = ({
     return () => cancelAnimationFrame(tick)
   }, [isRendering])
 
-  // Used to trigger a re-render of the canvas in Deck when the render is stuck
-  const [_animate, setAnimate] = useState(false)
-  const advanceFrame = useCallback(() => {
-    setAnimate(true)
-    requestAnimationFrame(() => setAnimate(false))
-  }, [])
-
   return {
     startCapture,
     captureFrame,
     currentFrame: currentFrame.current,
-    advanceFrame,
-    _animate,
     isRendering,
   }
 }
