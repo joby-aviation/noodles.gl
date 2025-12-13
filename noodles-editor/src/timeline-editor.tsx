@@ -85,6 +85,9 @@ const INITIAL_RENDER_STATE = {
     av1: 'av1',
     avc: 'avc', // h264
   }),
+  exportAlpha: types.boolean(false, {
+    label: 'Export with transparency',
+  }),
   bitrateMbps: types.number(10, { range: [5, 60] }),
   bitrateMode: types.stringLiteral('constant', {
     constant: 'constant',
@@ -185,8 +188,17 @@ export default function TimelineEditor() {
 
   const renderer = useSheetValue(rendererSheet)
 
-  const { framerate, bitrateMbps, bitrateMode, codec, resolution, lod, waitForData, captureDelay } =
-    renderer
+  const {
+    framerate,
+    bitrateMbps,
+    bitrateMode,
+    codec,
+    resolution,
+    lod,
+    waitForData,
+    captureDelay,
+    exportAlpha,
+  } = renderer
 
   const { startCapture, captureFrame, currentFrame, isRendering } = useRenderer({
     project,
@@ -211,6 +223,7 @@ export default function TimelineEditor() {
       type: 'webgl',
       powerPreference: 'high-performance',
       webgl: {
+        alpha: true,
         stencil: true,
       },
     },
@@ -306,6 +319,19 @@ export default function TimelineEditor() {
   const startRender = useCallback(async () => {
     let canvas: HTMLCanvasElement | null = null
 
+    // Warn if alpha export is enabled with a basemap
+    if (exportAlpha && basemapEnabled) {
+      console.warn(
+        'Basemap layer detected with alpha export enabled. Basemap will not be transparent. Disable basemap for full transparency.'
+      )
+      const proceed = window.confirm(
+        'Warning: Basemap layer detected.\n\nThe basemap will not be transparent in the exported video. Only Deck.gl layers will have transparency.\n\nDisable the basemap for full transparency, or continue anyway?'
+      )
+      if (!proceed) {
+        return
+      }
+    }
+
     if (basemapEnabled) {
       if (!mapRef.current) {
         console.error('Start Render: maplibre is not defined (when basemapEnabled is true)')
@@ -330,10 +356,11 @@ export default function TimelineEditor() {
     await startCapture({
       canvas,
       codec,
+      exportAlpha,
       // This always scales the video to the specified value, regardless of `canvas` size
       ...resolution,
     })
-  }, [startCapture, codec, resolution, basemapEnabled])
+  }, [startCapture, codec, exportAlpha, resolution, basemapEnabled])
 
   const takeScreenshot = useCallback(async () => {
     if (!deckRef.current) {

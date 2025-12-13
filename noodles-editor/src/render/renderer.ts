@@ -3,9 +3,11 @@ import { createRafDriver, type IProject, type ISequence, onChange, val } from '@
 import {
   EncodedPacket,
   EncodedVideoPacketSource,
+  MkvOutputFormat,
   Mp4OutputFormat,
   Output,
   StreamTarget,
+  WebMOutputFormat,
 } from 'mediabunny'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -56,6 +58,7 @@ export const useRenderer = ({
       width,
       height,
       codec,
+      exportAlpha = false,
       startFrame = 0,
       endFrame = Math.floor(sequenceLength * fps),
     }: {
@@ -63,6 +66,7 @@ export const useRenderer = ({
       width: number
       height: number
       codec: 'hevc' | 'avc' | 'vp9' | 'av1'
+      exportAlpha?: boolean
       startFrame?: number
       endFrame?: number
     }) => {
@@ -74,14 +78,43 @@ export const useRenderer = ({
 
       const projectName = project.address.projectId
 
+      // Warn if alpha export is requested with incompatible codec
+      if (exportAlpha && (codec === 'avc' || codec === 'hevc')) {
+        console.warn(
+          `Alpha channel export is not supported with ${codec.toUpperCase()} codec. Please use VP9 or AV1 for transparency support.`
+        )
+        alert(
+          `Warning: H.264 and H.265 codecs don't support transparency.\n\nSwitch to VP9 or AV1 codec to export with alpha channel.`
+        )
+      }
+
       const getContainer = async (name: string) => {
+        // Determine file extension and container format based on codec and alpha
+        let extension = '.mp4'
+        let mimeType = 'video/mp4'
+        let containerFormat: Mp4OutputFormat | WebMOutputFormat | MkvOutputFormat =
+          new Mp4OutputFormat({ fastStart: 'in-memory' })
+
+        if (exportAlpha) {
+          if (codec === 'vp9') {
+            extension = '.webm'
+            mimeType = 'video/webm'
+            containerFormat = new WebMOutputFormat()
+          } else if (codec === 'av1') {
+            extension = '.mkv'
+            mimeType = 'video/x-matroska'
+            containerFormat = new MkvOutputFormat()
+          }
+          // For avc/hevc, keep MP4 format but alpha won't work (already warned above)
+        }
+
         const fileHandle = await window
           .showSaveFilePicker({
-            suggestedName: `${name}.mp4`,
+            suggestedName: `${name}${extension}`,
             types: [
               {
                 description: 'Video File',
-                accept: { 'video/mp4': ['.mp4'] },
+                accept: { [mimeType]: [extension] },
               },
             ],
           })
@@ -100,9 +133,7 @@ export const useRenderer = ({
         const fileWritableStream = await fileHandle.createWritable()
 
         const output = new Output({
-          format: new Mp4OutputFormat({
-            fastStart: 'in-memory',
-          }),
+          format: containerFormat,
           target: new StreamTarget(
             fileWritableStream as WritableStream<{
               type: 'write'
@@ -156,6 +187,7 @@ export const useRenderer = ({
           bitrateMode,
           hardwareAcceleration: 'prefer-hardware',
           framerate: fps,
+          alpha: exportAlpha ? 'keep' : 'discard',
           ...codecMap[codec],
         } as const
 
