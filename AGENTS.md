@@ -106,8 +106,11 @@ noodles-gl-public/
 │   └── users/                # User guides
 ├── dev-docs/                 # Internal dev docs
 │   ├── architecture.md
+│   ├── developing.md
 │   ├── testing-guide.md
 │   ├── pr-guidelines.md
+│   ├── analytics.md
+│   ├── tech-stack.md
 │   └── specs/                # Design specs
 ├── README.md
 └── CONTRIBUTING.md
@@ -219,7 +222,7 @@ Projects are stored as JSON files with this structure:
 
 **Path Prefixes in File References:**
 
-- `@/` - Relative to project directory
+- `@/` - Relative to project data directory
 - Absolute paths work as-is
 - URLs can reference remote resources
 
@@ -347,7 +350,10 @@ const deckColor = utils.hexToColor('#ff5733')
 const altToIntensity = utils.interpolate([0, 10000], [0, 255])
 ```
 
-For complete API documentation, see the source files or inline comments in `noodles-editor/src/utils/`.
+**For complete API documentation with all parameters and examples**, see:
+
+- [Utils API Reference](docs/developers/utils-api-reference.md) - Comprehensive function documentation
+- Source code: [noodles-editor/src/utils/](noodles-editor/src/utils/) - Implementation with inline comments
 
 ## Available Operator Classes (`opTypes`)
 

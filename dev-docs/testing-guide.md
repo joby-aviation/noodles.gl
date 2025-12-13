@@ -41,6 +41,10 @@ These components are core to the application and require thorough testing and ca
 - [noodles-editor/src/noodles/utils/serialization.ts](../noodles-editor/src/noodles/utils/serialization.ts) - Project save/load
 - Graph transformation functions in [noodles.tsx](../noodles-editor/src/noodles/noodles.tsx)
 
+### Animation & Timeline
+
+- [noodles-editor/src/timeline-editor.tsx](../noodles-editor/src/timeline-editor.tsx) - Theatre.js timeline integration and keyframe management
+
 ## Testing Best Practices
 
 ### For Operators
