@@ -7,6 +7,7 @@ import type { ScaleLinear, ScaleOrdinal } from 'd3'
 import { Button } from 'primereact/button'
 import { InputText } from 'primereact/inputtext'
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { SketchPicker } from 'react-color'
 import { Temporal } from 'temporal-polyfill'
 
 import { colorToHex } from '../../utils/color'
@@ -1144,6 +1145,8 @@ export function ColorFieldComponent({
   disabled: boolean
 }) {
   const [value, setValue] = useState(guardAccessorFallback(field.value))
+  const [showPicker, setShowPicker] = useState(false)
+  const pickerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
@@ -1153,8 +1156,27 @@ export function ColorFieldComponent({
     return () => sub.unsubscribe()
   }, [field])
 
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
+        setShowPicker(false)
+      }
+    }
+
+    if (showPicker) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside)
+      }
+    }
+  }, [showPicker])
+
   const onChange = e => {
     field.setValue(e.currentTarget.value)
+  }
+
+  const onPickerChange = (color: any) => {
+    field.setValue(color.hex)
   }
 
   const formatted = typeof value === 'string' ? value : colorToHex(value, false)
@@ -1164,15 +1186,49 @@ export function ColorFieldComponent({
       <label className={s.fieldLabel} htmlFor={id}>
         {id}
       </label>
-      <div className={s.fieldInputWrapper}>
-        <input
-          id={id}
-          type="color"
-          className={cx(s.fieldInput, s.fieldInputColor)}
-          value={formatted}
-          onChange={onChange}
-          disabled={disabled}
-        />
+      <div className={s.fieldInputWrapper} style={{ position: 'relative' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <input
+            id={id}
+            type="color"
+            className={cx(s.fieldInput, s.fieldInputColor)}
+            value={formatted}
+            onChange={onChange}
+            disabled={disabled}
+          />
+          <button
+            type="button"
+            onClick={() => !disabled && setShowPicker(!showPicker)}
+            disabled={disabled}
+            style={{
+              padding: '4px 8px',
+              fontSize: '11px',
+              backgroundColor: '#333',
+              border: '1px solid #555',
+              borderRadius: '3px',
+              color: '#fff',
+              cursor: disabled ? 'default' : 'pointer',
+              minWidth: '24px',
+            }}
+            title="Open color picker"
+          >
+            ...
+          </button>
+        </div>
+        {showPicker && (
+          <div
+            ref={pickerRef}
+            style={{
+              position: 'absolute',
+              top: '100%',
+              left: 0,
+              zIndex: 1000,
+              marginTop: '4px',
+            }}
+          >
+            <SketchPicker color={formatted} onChange={onPickerChange} disableAlpha={false} />
+          </div>
+        )}
       </div>
     </div>
   )
