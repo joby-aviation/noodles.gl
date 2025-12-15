@@ -547,19 +547,12 @@
 .colorSwatch {
   width: 32px;
   height: 24px;
-  padding: 0;
+  padding: 2px;
   border: 1px solid rgba(128, 128, 128, 0.5);
   border-radius: 2px;
   cursor: pointer;
   position: relative;
-  background-image:
-    linear-gradient(45deg, #808080 25%, transparent 25%),
-    linear-gradient(-45deg, #808080 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, #808080 75%),
-    linear-gradient(-45deg, transparent 75%, #808080 75%);
-  background-size: 8px 8px;
-  background-position: 0 0, 0 4px, 4px -4px, -4px 0px;
-  background-color: #404040;
+  background-color: #1a1a1a;
 }
 
 .colorSwatch:hover:not(:disabled) {
@@ -574,6 +567,16 @@
 .colorSwatchInner {
   width: 100%;
   height: 100%;
+  border-radius: 1px;
+  position: relative;
+  background-image:
+    linear-gradient(45deg, #808080 25%, transparent 25%),
+    linear-gradient(-45deg, #808080 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #808080 75%),
+    linear-gradient(-45deg, transparent 75%, #808080 75%);
+  background-size: 8px 8px;
+  background-position: 0 0, 0 4px, 4px -4px, -4px 0px;
+  background-color: #404040;
 }
 
 /* Dark mode ChromePicker wrapper */

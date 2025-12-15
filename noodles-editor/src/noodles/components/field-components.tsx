@@ -1163,6 +1163,16 @@ export function ColorFieldComponent({
   }, [field])
 
   useEffect(() => {
+    const closePicker = () => {
+      setShowPicker(false)
+      // Global blur: remove focus from the button to ensure the node loses focus
+      swatchRef.current?.blur()
+      // Also blur any active element to ensure complete blur behavior
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur()
+      }
+    }
+
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node
 
@@ -1171,33 +1181,49 @@ export function ColorFieldComponent({
       const isOutsideSwatch = swatchRef.current && !swatchRef.current.contains(target)
 
       if (isOutsidePicker && isOutsideSwatch) {
-        setShowPicker(false)
-        // Global blur: remove focus from the button to ensure the node loses focus
-        swatchRef.current?.blur()
-        // Also blur any active element to ensure complete blur behavior
-        if (document.activeElement instanceof HTMLElement) {
-          document.activeElement.blur()
-        }
+        closePicker()
       }
     }
 
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && showPicker) {
-        setShowPicker(false)
-        swatchRef.current?.blur()
-        if (document.activeElement instanceof HTMLElement) {
-          document.activeElement.blur()
-        }
+        closePicker()
+      }
+    }
+
+    const handleWheel = (event: WheelEvent) => {
+      // Close picker on any scroll/wheel event (e.g., React Flow canvas zoom)
+      const target = event.target as Node
+      const isInsidePicker = pickerRef.current && pickerRef.current.contains(target)
+
+      if (!isInsidePicker) {
+        closePicker()
+      }
+    }
+
+    const handleTouchStart = (event: TouchEvent) => {
+      // Close picker on touch events outside
+      const target = event.target as Node
+      const isOutsidePicker = pickerRef.current && !pickerRef.current.contains(target)
+      const isOutsideSwatch = swatchRef.current && !swatchRef.current.contains(target)
+
+      if (isOutsidePicker && isOutsideSwatch) {
+        closePicker()
       }
     }
 
     if (showPicker) {
-      // Use capture phase to ensure we catch the event before it's handled elsewhere
+      // Use capture phase to ensure we catch events before they're handled elsewhere
       document.addEventListener('mousedown', handleClickOutside, true)
       document.addEventListener('keydown', handleEscape)
+      document.addEventListener('wheel', handleWheel, true)
+      document.addEventListener('touchstart', handleTouchStart, true)
+
       return () => {
         document.removeEventListener('mousedown', handleClickOutside, true)
         document.removeEventListener('keydown', handleEscape)
+        document.removeEventListener('wheel', handleWheel, true)
+        document.removeEventListener('touchstart', handleTouchStart, true)
       }
     }
   }, [showPicker])
