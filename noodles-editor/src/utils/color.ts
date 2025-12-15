@@ -65,5 +65,5 @@ export function hexToRgba(hex: string): Rgba {
 }
 
 export function rgbaToHex(rgba: RGBX): string {
-  return colorToHex(rgbaToColor(rgba, { alpha: false }))
+  return colorToHex(rgbaToColor(rgba, { alpha: true }), true)
 }
