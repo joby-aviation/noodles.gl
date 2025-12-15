@@ -1147,6 +1147,7 @@ export function ColorFieldComponent({
   const [value, setValue] = useState(guardAccessorFallback(field.value))
   const [showPicker, setShowPicker] = useState(false)
   const pickerRef = useRef<HTMLDivElement>(null)
+  const swatchRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
@@ -1158,7 +1159,12 @@ export function ColorFieldComponent({
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
+      if (
+        pickerRef.current &&
+        !pickerRef.current.contains(event.target as Node) &&
+        swatchRef.current &&
+        !swatchRef.current.contains(event.target as Node)
+      ) {
         setShowPicker(false)
       }
     }
@@ -1181,6 +1187,54 @@ export function ColorFieldComponent({
 
   const formatted = typeof value === 'string' ? value : colorToHex(value, false)
 
+  // Custom dark theme styles for SketchPicker
+  const sketchPickerStyles = {
+    default: {
+      picker: {
+        background: '#2a2a2a',
+        border: '1px solid #555',
+        boxShadow: '0 0 10px rgba(0,0,0,0.5)',
+      },
+      saturation: {
+        borderRadius: '3px 3px 0 0',
+      },
+      controls: {
+        display: 'flex',
+      },
+      sliders: {
+        padding: '4px 0',
+        flex: '1',
+      },
+      color: {
+        width: '24px',
+        height: '24px',
+        borderRadius: '3px',
+        marginTop: '4px',
+        marginLeft: '4px',
+        marginRight: '4px',
+      },
+      activeColor: {
+        borderRadius: '3px',
+      },
+      hue: {
+        borderRadius: '3px',
+      },
+      alpha: {
+        borderRadius: '3px',
+      },
+      // Input fields styling
+      input: {
+        background: '#1a1a1a',
+        border: '1px solid #555',
+        color: '#fff',
+        boxShadow: 'none',
+      },
+      label: {
+        color: '#aaa',
+      },
+    },
+  }
+
   return (
     <div className={s.fieldWrapper}>
       <label className={s.fieldLabel} htmlFor={id}>
@@ -1197,23 +1251,23 @@ export function ColorFieldComponent({
             disabled={disabled}
           />
           <button
+            ref={swatchRef}
             type="button"
             onClick={() => !disabled && setShowPicker(!showPicker)}
             disabled={disabled}
             style={{
-              padding: '4px 8px',
-              fontSize: '11px',
-              backgroundColor: '#333',
-              border: '1px solid #555',
+              width: '24px',
+              height: '24px',
+              padding: '0',
+              backgroundColor: formatted,
+              border: '2px solid #555',
               borderRadius: '3px',
-              color: '#fff',
               cursor: disabled ? 'default' : 'pointer',
-              minWidth: '24px',
+              boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.1)',
             }}
             title="Open color picker"
-          >
-            ...
-          </button>
+            aria-label="Open color picker"
+          />
         </div>
         {showPicker && (
           <div
@@ -1226,7 +1280,12 @@ export function ColorFieldComponent({
               marginTop: '4px',
             }}
           >
-            <SketchPicker color={formatted} onChange={onPickerChange} disableAlpha={false} />
+            <SketchPicker
+              color={formatted}
+              onChange={onPickerChange}
+              disableAlpha={false}
+              styles={sketchPickerStyles}
+            />
           </div>
         )}
       </div>
