@@ -170,6 +170,7 @@ import {
   Point3DField,
   StringField,
   StringLiteralField,
+  TemporalField,
   UnknownField,
   Vec2Field,
   Vec3Field,

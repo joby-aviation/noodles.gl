@@ -21,6 +21,7 @@ import {
   Point3DField,
   StringField,
   StringLiteralField,
+  TemporalField,
   Vec2Field,
   Vec3Field,
 } from './fields'
@@ -78,6 +79,10 @@ function fieldToTheatreProp(field: Field<IField>): types.PropTypeConfig | undefi
         .toZonedDateTime('UTC')
         .toInstant()
       return types.number(instant.epochMilliseconds)
+    }
+    if (field instanceof TemporalField) {
+      // Convert any Temporal type to epoch milliseconds for Theatre.js
+      return types.number(field.toEpochMilliseconds())
     }
     if (field instanceof Vec2Field) {
       const v = field.value
@@ -150,6 +155,7 @@ export function bindOperatorToTheatre(
       field instanceof NumberField ||
       field instanceof ColorField ||
       field instanceof DateField ||
+      field instanceof TemporalField ||
       field instanceof BooleanField ||
       field instanceof StringField ||
       field instanceof StringLiteralField ||
@@ -233,6 +239,13 @@ export function bindOperatorToTheatre(
           value = Temporal.Instant.fromEpochMilliseconds(value_ as unknown as number)
             .toZonedDateTimeISO('UTC')
             .toPlainDateTime()
+        } else if (field instanceof TemporalField) {
+          // Convert from epoch milliseconds back to the appropriate Temporal type
+          value = TemporalField.fromEpochMilliseconds(
+            value_ as unknown as number,
+            field.temporalType,
+            field.timeZone
+          )
         }
 
         if (field.value !== value && value !== undefined) {
