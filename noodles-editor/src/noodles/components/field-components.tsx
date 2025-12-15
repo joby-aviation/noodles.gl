@@ -1164,12 +1164,13 @@ export function ColorFieldComponent({
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (
-        pickerRef.current &&
-        !pickerRef.current.contains(event.target as Node) &&
-        swatchRef.current &&
-        !swatchRef.current.contains(event.target as Node)
-      ) {
+      const target = event.target as Node
+
+      // Check if click is outside both picker and swatch
+      const isOutsidePicker = pickerRef.current && !pickerRef.current.contains(target)
+      const isOutsideSwatch = swatchRef.current && !swatchRef.current.contains(target)
+
+      if (isOutsidePicker && isOutsideSwatch) {
         setShowPicker(false)
         // Global blur: remove focus from the button to ensure the node loses focus
         swatchRef.current?.blur()
@@ -1191,10 +1192,11 @@ export function ColorFieldComponent({
     }
 
     if (showPicker) {
-      document.addEventListener('mousedown', handleClickOutside)
+      // Use capture phase to ensure we catch the event before it's handled elsewhere
+      document.addEventListener('mousedown', handleClickOutside, true)
       document.addEventListener('keydown', handleEscape)
       return () => {
-        document.removeEventListener('mousedown', handleClickOutside)
+        document.removeEventListener('mousedown', handleClickOutside, true)
         document.removeEventListener('keydown', handleEscape)
       }
     }
@@ -1236,7 +1238,7 @@ export function ColorFieldComponent({
     }
   }, [showPicker])
 
-  const onPickerChange = (color: any) => {
+  const onPickerChange = useCallback((color: any) => {
     // Convert from react-color format to hex with alpha
     // color.rgb = { r: 0-255, g: 0-255, b: 0-255, a: 0-1 }
     const { r, g, b, a } = color.rgb
@@ -1244,8 +1246,9 @@ export function ColorFieldComponent({
     const hexColor = `#${[r, g, b, alpha]
       .map(c => Math.round(c).toString(16).padStart(2, '0'))
       .join('')}`
+    setValue(hexColor)
     field.setValue(hexColor)
-  }
+  }, [field])
 
   const formatted = typeof value === 'string' ? value : colorToHex(value, true)
 
