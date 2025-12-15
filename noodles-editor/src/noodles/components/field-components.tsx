@@ -1146,6 +1146,12 @@ export function ColorFieldComponent({
 }) {
   const [value, setValue] = useState(guardAccessorFallback(field.value))
   const [showPicker, setShowPicker] = useState(false)
+  const [pickerPosition, setPickerPosition] = useState<{
+    top?: string
+    bottom?: string
+    left?: string
+    right?: string
+  }>({})
   const pickerRef = useRef<HTMLDivElement>(null)
   const swatchRef = useRef<HTMLButtonElement>(null)
 
@@ -1166,6 +1172,8 @@ export function ColorFieldComponent({
         !swatchRef.current.contains(event.target as Node)
       ) {
         setShowPicker(false)
+        // Blur the swatch button when closing picker
+        swatchRef.current?.blur()
       }
     }
 
@@ -1177,15 +1185,69 @@ export function ColorFieldComponent({
     }
   }, [showPicker])
 
-  const onChange = e => {
-    field.setValue(e.currentTarget.value)
-  }
+  // Calculate optimal position when picker opens
+  useEffect(() => {
+    if (showPicker && swatchRef.current) {
+      const swatchRect = swatchRef.current.getBoundingClientRect()
+      const viewportWidth = window.innerWidth
+      const viewportHeight = window.innerHeight
+
+      // SketchPicker approximate dimensions
+      const pickerWidth = 220
+      const pickerHeight = 320
+
+      const margin = 8
+
+      // Calculate available space in all directions
+      const spaceBelow = viewportHeight - swatchRect.bottom
+      const spaceAbove = swatchRect.top
+      const spaceRight = viewportWidth - swatchRect.right
+      const spaceLeft = swatchRect.left
+
+      const position: {
+        top?: string
+        bottom?: string
+        left?: string
+        right?: string
+      } = {}
+
+      // Vertical positioning: prefer below, but use above if not enough space
+      if (spaceBelow >= pickerHeight + margin || spaceBelow > spaceAbove) {
+        // Position below
+        position.top = '100%'
+      } else {
+        // Position above
+        position.bottom = '100%'
+      }
+
+      // Horizontal positioning: prefer left-aligned, but adjust if not enough space
+      if (spaceRight >= pickerWidth) {
+        // Align with left edge of swatch
+        position.left = '0'
+      } else if (spaceLeft >= pickerWidth) {
+        // Align with right edge of swatch
+        position.right = '0'
+      } else {
+        // Center as best we can
+        position.left = '50%'
+      }
+
+      setPickerPosition(position)
+    }
+  }, [showPicker])
 
   const onPickerChange = (color: any) => {
-    field.setValue(color.hex)
+    // Convert from react-color format to hex with alpha
+    // color.rgb = { r: 0-255, g: 0-255, b: 0-255, a: 0-1 }
+    const { r, g, b, a } = color.rgb
+    const alpha = Math.round(a * 255)
+    const hexColor = `#${[r, g, b, alpha]
+      .map(c => Math.round(c).toString(16).padStart(2, '0'))
+      .join('')}`
+    field.setValue(hexColor)
   }
 
-  const formatted = typeof value === 'string' ? value : colorToHex(value, false)
+  const formatted = typeof value === 'string' ? value : colorToHex(value, true)
 
   // Custom dark theme styles for SketchPicker
   const sketchPickerStyles = {
@@ -1241,43 +1303,34 @@ export function ColorFieldComponent({
         {id}
       </label>
       <div className={s.fieldInputWrapper} style={{ position: 'relative' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <input
-            id={id}
-            type="color"
-            className={cx(s.fieldInput, s.fieldInputColor)}
-            value={formatted}
-            onChange={onChange}
-            disabled={disabled}
-          />
-          <button
-            ref={swatchRef}
-            type="button"
-            onClick={() => !disabled && setShowPicker(!showPicker)}
-            disabled={disabled}
-            style={{
-              width: '24px',
-              height: '24px',
-              padding: '0',
-              backgroundColor: formatted,
-              border: '2px solid #555',
-              borderRadius: '3px',
-              cursor: disabled ? 'default' : 'pointer',
-              boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.1)',
-            }}
-            title="Open color picker"
-            aria-label="Open color picker"
-          />
-        </div>
+        <button
+          ref={swatchRef}
+          type="button"
+          onClick={() => !disabled && setShowPicker(!showPicker)}
+          disabled={disabled}
+          style={{
+            width: '32px',
+            height: '24px',
+            padding: '0',
+            backgroundColor: formatted,
+            border: '2px solid #555',
+            borderRadius: '3px',
+            cursor: disabled ? 'default' : 'pointer',
+            boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.1)',
+          }}
+          title="Open color picker"
+          aria-label="Open color picker"
+        />
         {showPicker && (
           <div
             ref={pickerRef}
             style={{
               position: 'absolute',
-              top: '100%',
-              left: 0,
+              ...pickerPosition,
               zIndex: 1000,
-              marginTop: '4px',
+              marginTop: pickerPosition.top ? '4px' : undefined,
+              marginBottom: pickerPosition.bottom ? '4px' : undefined,
+              transform: pickerPosition.left === '50%' ? 'translateX(-50%)' : undefined,
             }}
           >
             <SketchPicker
