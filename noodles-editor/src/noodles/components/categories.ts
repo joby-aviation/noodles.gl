@@ -112,6 +112,7 @@ export const categories = {
     'MapViewOp',
     'MapViewStateOp',
     'OrbitViewOp',
+    'OrthographicViewOp',
     'SplitMapViewStateOp',
   ],
   widget: ['FpsWidgetOp'],

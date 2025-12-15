@@ -14,6 +14,7 @@ import {
   type LayerProps,
   MapView,
   OrbitView,
+  OrthographicView,
   WebMercatorViewport,
 } from '@deck.gl/core'
 import {
@@ -2935,6 +2936,35 @@ export class OrbitViewOp extends Operator<OrbitViewOp> {
   }
 }
 
+export class OrthographicViewOp extends Operator<OrthographicViewOp> {
+  static displayName = 'OrthographicView'
+  static description = 'A deck.gl orthographic view.'
+
+  createInputs() {
+    return {
+      ...createBaseViewFields(),
+      ...createFrustumViewFields(),
+      viewState: new CompoundPropsField({
+        target: new Vec3Field([0, 0, 0], { returnType: 'tuple', optional: true }),
+        zoom: new NumberField(0, { optional: true }),
+      }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      view: new ViewField(),
+    }
+  }
+
+  execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    validateViewState(props.viewState)
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { orthographic, ...viewProps } = props
+    return { view: new OrthographicView({ id: this.id, ...viewProps }) }
+  }
+}
+
 export class OutOp extends Operator<OutOp> {
   static displayName = 'Out'
   static description = 'Output a visualization.'
@@ -5375,6 +5405,7 @@ export const opTypes = {
   NetworkOp,
   NumberOp,
   OrbitViewOp,
+  OrthographicViewOp,
   OutOp,
   PathLayerOp,
   PathStyleExtensionOp,
