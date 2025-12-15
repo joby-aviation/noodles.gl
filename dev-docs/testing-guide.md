@@ -166,7 +166,18 @@ Provide a complete `noodles.json` file that can be saved in `noodles-editor/publ
     }
   ],
   "edges": [],
-  "viewport": {"x": 0, "y": 0, "zoom": 1}
+  "viewport": {"x": 0, "y": 0, "zoom": 1},
+    "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": []
+  }
 }
 ```
 
