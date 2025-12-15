@@ -7,7 +7,7 @@ import type { ScaleLinear, ScaleOrdinal } from 'd3'
 import { Button } from 'primereact/button'
 import { InputText } from 'primereact/inputtext'
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { SketchPicker } from 'react-color'
+import { ChromePicker } from 'react-color'
 import { Temporal } from 'temporal-polyfill'
 
 import { colorToHex } from '../../utils/color'
@@ -1172,15 +1172,31 @@ export function ColorFieldComponent({
         !swatchRef.current.contains(event.target as Node)
       ) {
         setShowPicker(false)
-        // Blur the swatch button when closing picker
+        // Global blur: remove focus from the button to ensure the node loses focus
         swatchRef.current?.blur()
+        // Also blur any active element to ensure complete blur behavior
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur()
+        }
+      }
+    }
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && showPicker) {
+        setShowPicker(false)
+        swatchRef.current?.blur()
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur()
+        }
       }
     }
 
     if (showPicker) {
       document.addEventListener('mousedown', handleClickOutside)
+      document.addEventListener('keydown', handleEscape)
       return () => {
         document.removeEventListener('mousedown', handleClickOutside)
+        document.removeEventListener('keydown', handleEscape)
       }
     }
   }, [showPicker])
@@ -1192,9 +1208,9 @@ export function ColorFieldComponent({
       const viewportWidth = window.innerWidth
       const viewportHeight = window.innerHeight
 
-      // SketchPicker approximate dimensions
-      const pickerWidth = 220
-      const pickerHeight = 320
+      // ChromePicker approximate dimensions
+      const pickerWidth = 225
+      const pickerHeight = 250
 
       const margin = 8
 
@@ -1249,54 +1265,6 @@ export function ColorFieldComponent({
 
   const formatted = typeof value === 'string' ? value : colorToHex(value, true)
 
-  // Custom dark theme styles for SketchPicker
-  const sketchPickerStyles = {
-    default: {
-      picker: {
-        background: '#2a2a2a',
-        border: '1px solid #555',
-        boxShadow: '0 0 10px rgba(0,0,0,0.5)',
-      },
-      saturation: {
-        borderRadius: '3px 3px 0 0',
-      },
-      controls: {
-        display: 'flex',
-      },
-      sliders: {
-        padding: '4px 0',
-        flex: '1',
-      },
-      color: {
-        width: '24px',
-        height: '24px',
-        borderRadius: '3px',
-        marginTop: '4px',
-        marginLeft: '4px',
-        marginRight: '4px',
-      },
-      activeColor: {
-        borderRadius: '3px',
-      },
-      hue: {
-        borderRadius: '3px',
-      },
-      alpha: {
-        borderRadius: '3px',
-      },
-      // Input fields styling
-      input: {
-        background: '#1a1a1a',
-        border: '1px solid #555',
-        color: '#fff',
-        boxShadow: 'none',
-      },
-      label: {
-        color: '#aaa',
-      },
-    },
-  }
-
   return (
     <div className={s.fieldWrapper}>
       <label className={s.fieldLabel} htmlFor={id}>
@@ -1313,7 +1281,7 @@ export function ColorFieldComponent({
             height: '24px',
             padding: '0',
             backgroundColor: formatted,
-            border: '2px solid #555',
+            border: '2px solid white',
             borderRadius: '3px',
             cursor: disabled ? 'default' : 'pointer',
             boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.1)',
@@ -1333,11 +1301,10 @@ export function ColorFieldComponent({
               transform: pickerPosition.left === '50%' ? 'translateX(-50%)' : undefined,
             }}
           >
-            <SketchPicker
+            <ChromePicker
               color={formatted}
               onChange={onPickerChange}
               disableAlpha={false}
-              styles={sketchPickerStyles}
             />
           </div>
         )}
