@@ -1276,7 +1276,12 @@ export function ColorFieldComponent({
     field.setValue(hexColor)
   }, [field])
 
-  const formatted = typeof value === 'string' ? value : colorToHex(value, true)
+  let formatted = typeof value === 'string' ? value : colorToHex(value, true)
+
+  // Ensure formatted always has alpha channel (8 hex digits + #)
+  if (formatted && formatted.charAt(0) === '#' && formatted.length === 7) {
+    formatted = `${formatted}ff` // Append full opacity if alpha is missing
+  }
 
   return (
     <div className={s.fieldWrapper}>

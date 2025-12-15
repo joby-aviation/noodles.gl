@@ -625,6 +625,16 @@
   background: transparent !important;
 }
 
+.chromePickerWrapper :global(.chrome-picker svg) {
+  /* Color model picker icon (RGB/HSL/HEX toggle) */
+  fill: #e2dede !important;
+}
+
+.chromePickerWrapper :global(.chrome-picker path) {
+  /* SVG paths in the color model picker icon */
+  fill: #e2dede !important;
+}
+
 .fieldInputColorRamp {
   background-color: white;
   image-rendering: -moz-crisp-edges;

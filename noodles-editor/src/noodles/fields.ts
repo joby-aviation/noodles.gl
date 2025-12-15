@@ -476,20 +476,25 @@ export class NumberField extends Field<z.ZodNumber, NumberFieldOptions> {
 // How to convert to and from hex, rgb, hsl, deck [r,g,b,a] etc.
 export class ColorField extends Field<z.ZodString> {
   static type = 'color'
-  static defaultValue = '#0000ff'
+  static defaultValue = '#0000ffff' // Include alpha channel
   createSchema() {
     return z.string().refine(val => isHexColor(val))
   }
   serialize(): string {
     if (Array.isArray(this.value)) {
-      // Convert to hex
-      return colorToHex(this.value)
+      // Convert to hex with alpha
+      const hex = colorToHex(this.value, true)
+      // Ensure alpha is included (8 hex digits + #)
+      return hex.length === 7 ? `${hex}ff` : hex
     }
-    // Assume string
-    return this.value
+    // Assume string - ensure alpha is included
+    const hex = this.value
+    return hex.length === 7 ? `${hex}ff` : hex
   }
   static deserialize(value: string | [number, number, number, number]) {
-    return Array.isArray(value) ? colorToHex(value) : value
+    const hex = Array.isArray(value) ? colorToHex(value, true) : value
+    // Ensure alpha is included (8 hex digits + #)
+    return hex.length === 7 ? `${hex}ff` : hex
   }
 }
 
