@@ -543,6 +543,86 @@
   border: none;
 }
 
+/* Color swatch button - Chrome-style with checkered background */
+.colorSwatch {
+  width: 32px;
+  height: 24px;
+  padding: 0;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  cursor: pointer;
+  position: relative;
+  background-image:
+    linear-gradient(45deg, #808080 25%, transparent 25%),
+    linear-gradient(-45deg, #808080 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #808080 75%),
+    linear-gradient(-45deg, transparent 75%, #808080 75%);
+  background-size: 8px 8px;
+  background-position: 0 0, 0 4px, 4px -4px, -4px 0px;
+  background-color: #404040;
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.2),
+    0 1px 2px rgba(0, 0, 0, 0.3);
+  transition: all 0.15s ease;
+}
+
+.colorSwatch:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.2),
+    0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.colorSwatch:active:not(:disabled) {
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.3),
+    inset 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.colorSwatch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.colorSwatchInner {
+  width: 100%;
+  height: 100%;
+  border-radius: 2px;
+}
+
+/* Dark mode ChromePicker wrapper */
+.chromePickerWrapper {
+  /* Override react-color's ChromePicker styles for dark mode */
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.5));
+}
+
+.chromePickerWrapper :global(.chrome-picker) {
+  background: #282b2f !important;
+  border-radius: 4px !important;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1) !important;
+}
+
+.chromePickerWrapper :global(.chrome-picker input) {
+  background: #1a1a1a !important;
+  color: #e2dede !important;
+  border: 1px solid #333 !important;
+  box-shadow: none !important;
+}
+
+.chromePickerWrapper :global(.chrome-picker label) {
+  color: #888 !important;
+}
+
+.chromePickerWrapper :global(.chrome-picker .flexbox-fix:last-child) {
+  /* Color input fields container */
+  background: transparent !important;
+}
+
+.chromePickerWrapper :global(.chrome-picker .flexbox-fix:last-child > div) {
+  /* Individual input wrappers */
+  background: transparent !important;
+}
+
 .fieldInputColorRamp {
   background-color: white;
   image-rendering: -moz-crisp-edges;

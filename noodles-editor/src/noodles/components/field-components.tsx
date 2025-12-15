@@ -8,6 +8,7 @@ import { Button } from 'primereact/button'
 import { InputText } from 'primereact/inputtext'
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { ChromePicker } from 'react-color'
+import { createPortal } from 'react-dom'
 import { Temporal } from 'temporal-polyfill'
 
 import { colorToHex } from '../../utils/color'
@@ -1147,11 +1148,9 @@ export function ColorFieldComponent({
   const [value, setValue] = useState(guardAccessorFallback(field.value))
   const [showPicker, setShowPicker] = useState(false)
   const [pickerPosition, setPickerPosition] = useState<{
-    top?: string
-    bottom?: string
-    left?: string
-    right?: string
-  }>({})
+    top: number
+    left: number
+  }>({ top: 0, left: 0 })
   const pickerRef = useRef<HTMLDivElement>(null)
   const swatchRef = useRef<HTMLButtonElement>(null)
 
@@ -1201,7 +1200,7 @@ export function ColorFieldComponent({
     }
   }, [showPicker])
 
-  // Calculate optimal position when picker opens
+  // Calculate optimal position when picker opens - using fixed positioning
   useEffect(() => {
     if (showPicker && swatchRef.current) {
       const swatchRect = swatchRef.current.getBoundingClientRect()
@@ -1210,7 +1209,7 @@ export function ColorFieldComponent({
 
       // ChromePicker approximate dimensions
       const pickerWidth = 225
-      const pickerHeight = 250
+      const pickerHeight = 320
 
       const margin = 8
 
@@ -1220,35 +1219,20 @@ export function ColorFieldComponent({
       const spaceRight = viewportWidth - swatchRect.right
       const spaceLeft = swatchRect.left
 
-      const position: {
-        top?: string
-        bottom?: string
-        left?: string
-        right?: string
-      } = {}
+      let top = swatchRect.bottom + margin
+      let left = swatchRect.left
 
       // Vertical positioning: prefer below, but use above if not enough space
-      if (spaceBelow >= pickerHeight + margin || spaceBelow > spaceAbove) {
-        // Position below
-        position.top = '100%'
-      } else {
-        // Position above
-        position.bottom = '100%'
+      if (spaceBelow < pickerHeight + margin && spaceAbove > spaceBelow) {
+        top = swatchRect.top - pickerHeight - margin
       }
 
-      // Horizontal positioning: prefer left-aligned, but adjust if not enough space
-      if (spaceRight >= pickerWidth) {
-        // Align with left edge of swatch
-        position.left = '0'
-      } else if (spaceLeft >= pickerWidth) {
-        // Align with right edge of swatch
-        position.right = '0'
-      } else {
-        // Center as best we can
-        position.left = '50%'
+      // Horizontal positioning: ensure picker stays within viewport
+      if (left + pickerWidth > viewportWidth) {
+        left = Math.max(margin, viewportWidth - pickerWidth - margin)
       }
 
-      setPickerPosition(position)
+      setPickerPosition({ top, left })
     }
   }, [showPicker])
 
@@ -1270,44 +1254,35 @@ export function ColorFieldComponent({
       <label className={s.fieldLabel} htmlFor={id}>
         {id}
       </label>
-      <div className={s.fieldInputWrapper} style={{ position: 'relative' }}>
+      <div className={s.fieldInputWrapper}>
         <button
           ref={swatchRef}
           type="button"
           onClick={() => !disabled && setShowPicker(!showPicker)}
           disabled={disabled}
-          style={{
-            width: '32px',
-            height: '24px',
-            padding: '0',
-            backgroundColor: formatted,
-            border: '2px solid white',
-            borderRadius: '3px',
-            cursor: disabled ? 'default' : 'pointer',
-            boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.1)',
-          }}
+          className={s.colorSwatch}
           title="Open color picker"
           aria-label="Open color picker"
-        />
-        {showPicker && (
-          <div
-            ref={pickerRef}
-            style={{
-              position: 'absolute',
-              ...pickerPosition,
-              zIndex: 1000,
-              marginTop: pickerPosition.top ? '4px' : undefined,
-              marginBottom: pickerPosition.bottom ? '4px' : undefined,
-              transform: pickerPosition.left === '50%' ? 'translateX(-50%)' : undefined,
-            }}
-          >
-            <ChromePicker
-              color={formatted}
-              onChange={onPickerChange}
-              disableAlpha={false}
-            />
-          </div>
-        )}
+        >
+          <div className={s.colorSwatchInner} style={{ backgroundColor: formatted }} />
+        </button>
+        {showPicker &&
+          createPortal(
+            <div
+              ref={pickerRef}
+              style={{
+                position: 'fixed',
+                top: `${pickerPosition.top}px`,
+                left: `${pickerPosition.left}px`,
+                zIndex: 10000,
+              }}
+            >
+              <div className={s.chromePickerWrapper}>
+                <ChromePicker color={formatted} onChange={onPickerChange} disableAlpha={false} />
+              </div>
+            </div>,
+            document.body
+          )}
       </div>
     </div>
   )
