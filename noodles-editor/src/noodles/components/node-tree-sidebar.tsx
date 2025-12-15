@@ -27,9 +27,15 @@ interface TreeNode {
 }
 
 // Build hierarchical tree from flat operator list
-function buildTree(operators: Map<string, Operator<IOperator>>): TreeNode[] {
+function buildTree(
+  operators: Map<string, Operator<IOperator>>,
+  reactFlowNodes: Array<{ id: string; type: string }>
+): TreeNode[] {
   const tree: TreeNode[] = []
   const nodeMap = new Map<string, TreeNode>()
+
+  // Create a map of id -> type from ReactFlow nodes for fast lookup
+  const nodeTypeMap = new Map(reactFlowNodes.map(n => [n.id, n.type]))
 
   // Sort operators by path to ensure parents come before children
   const sortedOps = Array.from(operators.entries()).sort((a, b) => a[0].localeCompare(b[0]))
@@ -42,7 +48,7 @@ function buildTree(operators: Map<string, Operator<IOperator>>): TreeNode[] {
     const node: TreeNode = {
       id,
       name,
-      type: op.constructor.name,
+      type: nodeTypeMap.get(id) || op.constructor.name, // Fallback to constructor.name if not found
       children: [],
       depth,
     }
@@ -188,11 +194,13 @@ export function NodeTreeSidebar() {
   const reactFlow = useReactFlow()
   const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set())
 
-  // Build tree from operators
-  const tree = useMemo(() => buildTree(operators), [operators])
+  // Get nodes from React Flow
+  const nodes = reactFlow.getNodes()
+
+  // Build tree from operators and nodes
+  const tree = useMemo(() => buildTree(operators, nodes), [operators, nodes])
 
   // Get selected node IDs from React Flow (reactive)
-  const nodes = reactFlow.getNodes()
   const selectedNodeIds = useMemo(() => {
     return new Set(nodes.filter(n => n.selected).map(n => n.id))
   }, [nodes])

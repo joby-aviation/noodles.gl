@@ -96,7 +96,8 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
   const store = getOpStore()
   const op = store.getOp(node.id)
   if (!op) return null
-  const { name, displayName, description } = op.constructor
+  const { displayName, description } = op.constructor
+  const typeName = node.type
 
   const inputs = Object.entries(op.inputs).map(([name, input]) => ({
     name,
@@ -202,7 +203,7 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
       <div className={s.header}>
         <div className={s.title}>
           {displayName}
-          <div className={cx(s.capsule, headerClass(name))}>{typeCategory(name)}</div>
+          <div className={cx(s.capsule, headerClass(typeName))}>{typeCategory(typeName)}</div>
         </div>
       </div>
       {description && (
