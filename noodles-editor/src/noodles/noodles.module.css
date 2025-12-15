@@ -548,7 +548,7 @@
   width: 32px;
   height: 24px;
   padding: 2px;
-  border: 1px solid rgba(128, 128, 128, 0.5);
+  border: 1px solid #808080;
   border-radius: 2px;
   cursor: pointer;
   position: relative;
@@ -556,7 +556,7 @@
 }
 
 .colorSwatch:hover:not(:disabled) {
-  border-color: rgba(255, 255, 255, 0.3);
+  border-color: #999999;
 }
 
 .colorSwatch:disabled {
@@ -564,6 +564,7 @@
   cursor: not-allowed;
 }
 
+/* Checkered background pattern layer - sits behind the color */
 .colorSwatchInner {
   width: 100%;
   height: 100%;
@@ -577,6 +578,18 @@
   background-size: 8px 8px;
   background-position: 0 0, 0 4px, 4px -4px, -4px 0px;
   background-color: #404040;
+}
+
+/* Color overlay - sits on top of checkered pattern */
+.colorSwatchInner::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 1px;
+  background-color: var(--color-value);
 }
 
 /* Dark mode ChromePicker wrapper */

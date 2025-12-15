@@ -1293,7 +1293,10 @@ export function ColorFieldComponent({
           title="Open color picker"
           aria-label="Open color picker"
         >
-          <div className={s.colorSwatchInner} style={{ backgroundColor: formatted }} />
+          <div
+            className={s.colorSwatchInner}
+            style={{ '--color-value': formatted } as React.CSSProperties}
+          />
         </button>
         {showPicker &&
           createPortal(
