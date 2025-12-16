@@ -767,6 +767,24 @@ export class DateTimeOp extends Operator<DateTimeOp> {
   }
 }
 
+export class DateTimeMsOp extends Operator<DateTimeMsOp> {
+  static displayName = 'DateTime (ms)'
+  static description = 'A date and time with millisecond precision'
+  createInputs() {
+    return {
+      datetime: new TemporalField('datetime-ms'),
+    }
+  }
+  createOutputs() {
+    return {
+      datetime: new TemporalField('datetime-ms'),
+    }
+  }
+  execute({ datetime }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    return { datetime }
+  }
+}
+
 export class ZonedDateTimeOp extends Operator<ZonedDateTimeOp> {
   static displayName = 'ZonedDateTime'
   static description = 'A date and time with timezone'

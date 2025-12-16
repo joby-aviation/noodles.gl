@@ -25,6 +25,7 @@ export const categories = {
     'ConcatOp',
     'DateOp',
     'DateTimeOp',
+    'DateTimeMsOp',
     'DeckRendererOp',
     'DirectionsOp',
     'FileOp',
@@ -99,7 +100,7 @@ export const categories = {
   ],
   number: ['NumberOp', 'MapRangeOp', 'ExtentOp', 'MathOp', 'BezierCurveOp', 'TimeOp'],
   string: ['StringOp'],
-  temporal: ['DateOp', 'TimeOfDayOp', 'DateTimeOp', 'ZonedDateTimeOp'],
+  temporal: ['DateOp', 'TimeOfDayOp', 'DateTimeOp', 'DateTimeMsOp', 'ZonedDateTimeOp'],
   utility: [
     'BooleanOp',
     'ConsoleOp',
