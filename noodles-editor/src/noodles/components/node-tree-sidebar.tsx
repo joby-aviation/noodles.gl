@@ -8,10 +8,10 @@ import { getBaseName } from '../utils/path-utils'
 import { categories } from './categories'
 import s from './node-tree-sidebar.module.css'
 
-// Map operator type to category for color coding
-function getOperatorCategory(type: string): string | null {
+// Map operator displayName to category for color coding
+function getOperatorCategory(displayName: string): string | null {
   for (const [category, operators] of Object.entries(categories)) {
-    if ((operators as readonly string[]).includes(type)) {
+    if ((operators as readonly string[]).includes(displayName)) {
       return category
     }
   }
@@ -21,7 +21,6 @@ function getOperatorCategory(type: string): string | null {
 interface TreeNode {
   id: string
   name: string
-  type: string
   displayName: string
   children: TreeNode[]
   depth: number
@@ -39,16 +38,11 @@ function buildTree(operators: Map<string, Operator<IOperator>>): TreeNode[] {
     const pathParts = id.split('/').filter(Boolean)
     const name = getBaseName(id) || 'root'
     const depth = pathParts.length
-    // Use type from operator constructor (minification-safe)
-    const { type, displayName } = op.constructor as typeof op.constructor & {
-      type: string
-      displayName: string
-    }
+    const displayName = op.constructor.displayName
 
     const node: TreeNode = {
       id,
       name,
-      type,
       displayName,
       children: [],
       depth,
@@ -95,12 +89,12 @@ function TreeItem({
 }: TreeItemProps) {
   const [hovering, setHovering] = useState(false)
   const hasChildren = node.children.length > 0
-  const isContainer = node.type === 'ContainerOp'
+  const isContainer = node.displayName === 'Container'
   const isCollapsed = collapsedNodes.has(node.id)
   const isSelected = selectedNodeIds.has(node.id)
 
-  // Get the category color for this operator type
-  const category = getOperatorCategory(node.type)
+  // Get the category color for this operator displayName
+  const category = getOperatorCategory(node.displayName)
   const borderColor = category ? `var(--node-${category}-color)` : 'transparent'
 
   return (
