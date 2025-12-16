@@ -77,8 +77,12 @@ export abstract class Field<
   extends BehaviorSubject<z.output<S>>
   implements IField<S>
 {
-  abstract readonly type: keyof typeof inputComponents
+  static type: keyof typeof inputComponents
   static defaultValue: unknown // z.output<ReturnType<T['createSchema']>>
+
+  get type(): keyof typeof inputComponents {
+    return (this.constructor as typeof Field).type
+  }
 
   // Fields like Array and Compound need to be able to use a subschema
   abstract createSchema(options: Partial<O>): S
@@ -233,7 +237,7 @@ export abstract class Field<
 }
 
 export class StringField extends Field<z.ZodString> {
-  readonly type = 'string' as const
+  static type = 'string' as const
   static defaultValue = ''
   createSchema() {
     return z.string()
@@ -251,7 +255,7 @@ export class FileField extends Field<
     ]
   >
 > {
-  readonly type = 'file' as const
+  static type = 'file' as const
   static defaultValue = ''
   createSchema() {
     return z.union([
@@ -336,7 +340,7 @@ export class CodeField extends Field<
   >,
   CodeFieldOptions
 > {
-  readonly type = 'code' as const
+  static type = 'code' as const
   static defaultValue = ''
   language: 'javascript' | 'sql' | 'json' = 'javascript'
 
@@ -362,7 +366,7 @@ export class CodeField extends Field<
 }
 
 export class ExpressionField extends Field<z.ZodString> {
-  readonly type = 'expression' as const
+  static type = 'expression' as const
   static defaultValue = ''
   createSchema() {
     return z.string()
@@ -372,7 +376,7 @@ export class ExpressionField extends Field<z.ZodString> {
 export class FunctionField extends Field<
   z.ZodFunction<z.ZodTuple<[], z.ZodUnknown>, z.ZodUnknown>
 > {
-  readonly type = 'function' as const
+  static type = 'function' as const
   static defaultValue = (d: unknown) => d
   createSchema() {
     return z
@@ -419,7 +423,7 @@ export class StringLiteralField extends Field<
   z.ZodUnion<[z.ZodLiteral<string>, ...z.ZodLiteral<string>[]]> | z.ZodString,
   StringLiteralFieldOptions
 > {
-  readonly type = 'string-literal' as const
+  static type = 'string-literal' as const
   static defaultValue = ''
   choices: StringLiteralOption[] = []
   createSchema(options: Partial<StringLiteralFieldOptions>) {
@@ -449,7 +453,7 @@ export class StringLiteralField extends Field<
 }
 
 export class NumberField extends Field<z.ZodNumber, NumberFieldOptions> {
-  readonly type = 'number' as const
+  static type = 'number' as const
   static defaultValue = 0
 
   min: number
@@ -475,7 +479,7 @@ export class NumberField extends Field<z.ZodNumber, NumberFieldOptions> {
 // TODO: decide on storage and serialization format
 // How to convert to and from hex, rgb, hsl, deck [r,g,b,a] etc.
 export class ColorField extends Field<z.ZodString> {
-  readonly type = 'color' as const
+  static type = 'color' as const
   static defaultValue = '#0000ff'
   createSchema() {
     return z.string().refine(val => isHexColor(val))
@@ -496,7 +500,7 @@ export class ColorField extends Field<z.ZodString> {
 export class ColorRampField extends Field<
   z.ZodFunction<z.ZodTuple<[z.ZodNumber], z.ZodUnknown>, z.ZodString>
 > {
-  readonly type = 'color-ramp' as const
+  static type = 'color-ramp' as const
   static defaultValue = interpolateLab('#0000ff', '#ff0000')
   createSchema() {
     return z.function(z.tuple([z.number()]), z.string())
@@ -506,7 +510,7 @@ export class ColorRampField extends Field<
 export class CategoricalColorRampField extends Field<
   z.ZodFunction<z.ZodTuple<[z.ZodString], z.ZodUnknown>, z.ZodString>
 > {
-  readonly type = 'category-color-ramp' as const
+  static type = 'category-color-ramp' as const
   static defaultValue = scaleOrdinal(schemeAccent)
   count = 7 // number of categories. Set by the Operator on change
   createSchema() {
@@ -515,7 +519,7 @@ export class CategoricalColorRampField extends Field<
 }
 
 export class BooleanField extends Field<z.ZodBoolean> {
-  readonly type = 'boolean' as const
+  static type = 'boolean' as const
   static defaultValue = false
   createSchema() {
     return z.boolean()
@@ -531,7 +535,7 @@ export class DateField extends Field<
     ]
   >
 > {
-  readonly type = 'date' as const
+  static type = 'date' as const
   static defaultValue = Temporal.Now.plainDateTimeISO()
   createSchema() {
     return z.union([
@@ -571,7 +575,7 @@ export class DataField<D extends Field> extends Field<
   z.ZodType<unknown, unknown, z.core.$ZodTypeInternals<unknown, unknown>> | z.ZodUnknown,
   SubSchemaOptions<D['schema']>
 > {
-  readonly type = 'data' as const
+  static type = 'data' as const
   static defaultValue = []
   createSchema({ subschema }: { subschema: z.Schema<D['schema']> }) {
     return subschema.readonly()
@@ -588,7 +592,7 @@ export class GeoJsonField<D extends Field> extends Field<
   z.ZodType<unknown, unknown, z.core.$ZodTypeInternals<unknown, unknown>> | z.ZodUnknown,
   SubSchemaOptions<D['schema']>
 > {
-  readonly type = 'geojson' as const
+  static type = 'geojson' as const
   static defaultValue = { type: 'FeatureCollection', features: [] }
   createSchema({ subschema }: { subschema: z.Schema<D['schema']> }) {
     return subschema.readonly()
@@ -604,7 +608,7 @@ export class GeoJsonField<D extends Field> extends Field<
 }
 
 export class JSONUrlField extends Field<z.ZodUnion<readonly [z.ZodURL, z.ZodJSONSchema]>> {
-  readonly type = 'json-url' as const
+  static type = 'json-url' as const
   static defaultValue = ''
   createSchema(_options?: Partial<BaseFieldOptions>) {
     return z.union([z.url(), z.json()])
@@ -627,7 +631,7 @@ export class Point3DField extends Field<
   >,
   PointFieldOptions
 > {
-  readonly type = 'geopoint-3d' as const
+  static type = 'geopoint-3d' as const
   static defaultValue = { lng: 0, lat: 0, alt: 0 }
 
   returnType: 'object' | 'tuple' = 'object'
@@ -689,7 +693,7 @@ export class Point2DField extends Field<
   >,
   PointFieldOptions
 > {
-  readonly type = 'geopoint-2d' as const
+  static type = 'geopoint-2d' as const
   static defaultValue = { lng: 0, lat: 0 }
 
   returnType: 'object' | 'tuple' = 'object'
@@ -730,7 +734,7 @@ export class Vec2Field extends Field<
   >,
   Vec2FieldOptions
 > {
-  readonly type = 'vec2' as const
+  static type = 'vec2' as const
   static defaultValue = { x: 0, y: 0 }
   returnType: 'object' | 'tuple' = 'object'
   constructor(override?: Vec2FieldOverride, options?: Vec2FieldOptions) {
@@ -765,7 +769,7 @@ export class Vec3Field extends Field<
   >,
   Vec2FieldOptions
 > {
-  readonly type = 'vec3' as const
+  static type = 'vec3' as const
   static defaultValue = { x: 0, y: 0, z: 0 }
   returnType: 'object' | 'tuple' = 'object'
   constructor(override?: Vec3FieldOverride, options?: Vec2FieldOptions) {
@@ -798,7 +802,7 @@ export class Vec4Field extends Field<
     { x: number; y: number; z: number; w: number }
   >
 > {
-  readonly type = 'vec4' as const
+  static type = 'vec4' as const
   static defaultValue = { x: 0, y: 0, z: 0, w: 0 }
   createSchema() {
     return z.looseObject({
@@ -820,7 +824,7 @@ export class CompoundPropsField extends Field<
   >,
   CompoundPropsFieldOptions
 > {
-  readonly type = 'compound' as const
+  static type = 'compound' as const
   static defaultValue = {}
   fields: Record<string, Field<z.ZodTypeAny>> = {}
 
@@ -904,7 +908,7 @@ export class ListField<F extends Field> extends Field<
   z.ZodArray<F['schema']>,
   SubSchemaOptions<F['schema']>
 > {
-  readonly type = 'list' as const
+  static type = 'list' as const
   static defaultValue = []
 
   fields = new Map<string, F>()
@@ -960,7 +964,7 @@ export class ArrayField<F extends Field> extends Field<
   z.ZodArray<F['schema']>,
   SubSchemaOptions<F['schema']>
 > {
-  readonly type = 'array' as const
+  static type = 'array' as const
   static defaultValue = []
 
   createSchema({ subschema }: { subschema: z.Schema<F['schema']> }) {
@@ -976,7 +980,7 @@ export class ArrayField<F extends Field> extends Field<
 }
 
 export class UnknownField extends Field<z.ZodUnknown> {
-  readonly type = 'unknown' as const
+  static type = 'unknown' as const
   static defaultValue = null
   createSchema() {
     return z.unknown()
@@ -986,7 +990,7 @@ export class UnknownField extends Field<z.ZodUnknown> {
 // Should this be generic? Base class? Special case?
 // Most objects in the system are POJOs, but some return class instances
 export class LayerField<P extends LayerProps> extends Field<z.ZodType<P & { type: string }>> {
-  readonly type = 'layer' as const
+  static type = 'layer' as const
   static defaultValue = undefined
 
   createSchema() {
@@ -995,7 +999,7 @@ export class LayerField<P extends LayerProps> extends Field<z.ZodType<P & { type
 }
 
 export class EffectField extends Field<z.ZodTypeAny> {
-  readonly type = 'effect' as const
+  static type = 'effect' as const
   static defaultValue = undefined
   createSchema() {
     return z.custom(() => true)
@@ -1003,7 +1007,7 @@ export class EffectField extends Field<z.ZodTypeAny> {
 }
 
 export class WidgetField extends Field<z.ZodTypeAny> {
-  readonly type = 'widget' as const
+  static type = 'widget' as const
   static defaultValue = undefined
   createSchema() {
     return z.custom(() => true)
@@ -1011,7 +1015,7 @@ export class WidgetField extends Field<z.ZodTypeAny> {
 }
 
 export class ExtensionField extends Field<z.ZodTypeAny> {
-  readonly type = 'extension' as const
+  static type = 'extension' as const
   static defaultValue = undefined
   createSchema() {
     return z.strictObject({
@@ -1024,7 +1028,7 @@ export class ExtensionField extends Field<z.ZodTypeAny> {
 export class ViewField extends Field<
   z.ZodType<InstanceType<View>, z.ZodTypeDef, InstanceType<View>>
 > {
-  readonly type = 'view' as const
+  static type = 'view' as const
   static defaultValue = undefined
   createSchema() {
     return z.instanceof(View)
@@ -1037,7 +1041,7 @@ export class VisualizationField extends Field<
     mapProps?: BetterMapProps
   }>
 > {
-  readonly type = 'visualization' as const
+  static type = 'visualization' as const
   static defaultValue = { deckProps: {}, mapProps: undefined }
   createSchema() {
     return z.looseObject({
@@ -1086,7 +1090,7 @@ type BezierCurveData = {
 }
 
 export class BezierCurveField extends Field<z.ZodType<BezierCurveData>> {
-  readonly type = 'bezier-curve' as const
+  static type = 'bezier-curve' as const
   static defaultValue: BezierCurveData = {
     points: [
       { x: 0, y: 0, handleRightX: 0.3, handleRightY: 0, handleRightType: 'auto' },
