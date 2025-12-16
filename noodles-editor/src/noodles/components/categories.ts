@@ -6,7 +6,6 @@ export const categories = {
   grouping: [
     'Container',
     'ForLoop',
-    'ForLoop',
     'ForLoopBegin',
     'ForLoopEnd',
     'GraphInput',
