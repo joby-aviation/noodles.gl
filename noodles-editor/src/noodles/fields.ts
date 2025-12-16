@@ -572,9 +572,6 @@ export type TemporalType = 'date' | 'time' | 'datetime' | 'zoned-datetime'
 // Precision levels for each type
 export type TemporalPrecision = 'y' | 'M' | 'd' | 'h' | 'm' | 's' | 'ms'
 
-// Combined format string, e.g., "datetime-s" = datetime with second precision
-export type TemporalFormat = `${TemporalType}-${TemporalPrecision}`
-
 // Type mapping for Temporal types
 type TemporalValueType<T extends TemporalType> = T extends 'date'
   ? Temporal.PlainDate
@@ -596,7 +593,6 @@ type AnyTemporalType =
 type TemporalFieldOptions = BaseFieldOptions & {
   type?: TemporalType
   precision?: TemporalPrecision
-  format?: TemporalFormat
   timeZone?: string // For zoned-datetime type
 }
 
@@ -619,14 +615,6 @@ const isValidTemporalCombination = (type: TemporalType, precision: TemporalPreci
     default:
       return false
   }
-}
-
-// Parse format string like "datetime-s" into type and precision
-const parseTemporalFormat = (
-  format: TemporalFormat
-): { type: TemporalType; precision: TemporalPrecision } => {
-  const [type, precision] = format.split('-') as [TemporalType, TemporalPrecision]
-  return { type, precision }
 }
 
 // Get default value for a temporal type
@@ -654,19 +642,10 @@ export class TemporalField extends Field<z.ZodUnion<[z.ZodCustom<AnyTemporalType
   timeZone: string
 
   constructor(override?: AnyTemporalType | string, options?: TemporalFieldOptions) {
-    // Parse format string or use individual type/precision
-    let temporalType: TemporalType = 'datetime'
-    let precision: TemporalPrecision = 's'
-    let timeZone = 'UTC'
-
-    if (options?.format) {
-      const parsed = parseTemporalFormat(options.format)
-      temporalType = parsed.type
-      precision = parsed.precision
-    } else {
-      temporalType = options?.type || 'datetime'
-      precision = options?.precision || 's'
-    }
+    // Use explicit type and precision options
+    const temporalType: TemporalType = options?.type || 'datetime'
+    const precision: TemporalPrecision = options?.precision || 's'
+    const timeZone = options?.timeZone || 'UTC'
 
     // Validate the combination
     if (!isValidTemporalCombination(temporalType, precision)) {
@@ -674,10 +653,6 @@ export class TemporalField extends Field<z.ZodUnion<[z.ZodCustom<AnyTemporalType
         `Invalid temporal combination: ${temporalType}-${precision}. ` +
           `Type '${temporalType}' does not support precision '${precision}'.`
       )
-    }
-
-    if (options?.timeZone) {
-      timeZone = options.timeZone
     }
 
     // Store configuration before super call
@@ -771,20 +746,9 @@ export class TemporalField extends Field<z.ZodUnion<[z.ZodCustom<AnyTemporalType
   }
 
   static deserialize(value: string, options?: TemporalFieldOptions): AnyTemporalType {
-    // Parse the format to determine the type
-    let temporalType: TemporalType = 'datetime'
-    let timeZone = 'UTC'
-
-    if (options?.format) {
-      const parsed = parseTemporalFormat(options.format)
-      temporalType = parsed.type
-    } else if (options?.type) {
-      temporalType = options.type
-    }
-
-    if (options?.timeZone) {
-      timeZone = options.timeZone
-    }
+    // Use explicit type option
+    const temporalType: TemporalType = options?.type || 'datetime'
+    const timeZone = options?.timeZone || 'UTC'
 
     // Parse the string based on type
     switch (temporalType) {
@@ -879,8 +843,8 @@ export class TemporalField extends Field<z.ZodUnion<[z.ZodCustom<AnyTemporalType
   }
 
   // Get the format string for this field
-  getFormat(): TemporalFormat {
-    return `${this.temporalType}-${this.precision}` as TemporalFormat
+  getFormat(): string {
+    return `${this.temporalType}-${this.precision}`
   }
 
   // Convert to epoch milliseconds for Theatre.js integration

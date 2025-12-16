@@ -1080,12 +1080,6 @@ describe('TemporalField', () => {
   })
 
   describe('format string support', () => {
-    it('parses format string correctly', () => {
-      const field = new TemporalField(undefined, { format: 'datetime-s' })
-      expect(field.temporalType).toBe('datetime')
-      expect(field.precision).toBe('s')
-    })
-
     it('getFormat returns correct format string', () => {
       const field = new TemporalField(undefined, { type: 'date', precision: 'd' })
       expect(field.getFormat()).toBe('date-d')
