@@ -2704,9 +2704,6 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
 // - viewState props ordered by most to least often used.
 // - override props go last (e.g. projectionMatrix)
 // Base view fields that apply to all view types
-// Note: The `orthographic` property is NOT included here because:
-// - OrthographicView doesn't support it (always uses orthographic projection)
-// - Other views need to add it individually
 function createBaseViewFields() {
   return {
     x: new NumberField(0),
@@ -2875,7 +2872,6 @@ function createFrustumViewFields() {
   return {
     near: new NumberField(0.1, { min: 0, max: 1_000_000, step: 0.1 }),
     far: new NumberField(100000, { min: 0, max: 1_000_000 }),
-    fovy: new NumberField(40, { min: 0.1, max: 179.9 }),
   }
 }
 
@@ -2888,6 +2884,7 @@ export class FirstPersonViewOp extends Operator<FirstPersonViewOp> {
       ...createBaseViewFields(),
       orthographic: new BooleanField(false),
       ...createFrustumViewFields(),
+      fovy: new NumberField(40, { min: 0.1, max: 179.9 }),
       // focalDistance: new NumberField(1),
       viewState: new CompoundPropsField({
         ...createGeoViewStateFields(),
@@ -2922,6 +2919,7 @@ export class OrbitViewOp extends Operator<OrbitViewOp> {
         values: ['X', 'Y', 'Z'],
       }),
       ...createFrustumViewFields(),
+      fovy: new NumberField(40, { min: 0.1, max: 179.9 }),
       viewState: new CompoundPropsField({
         target: new Vec3Field([0, 0, 0], { returnType: 'tuple', optional: true }),
         rotationOrbit: new NumberField(0, { optional: true }),
@@ -2951,6 +2949,7 @@ export class OrthographicViewOp extends Operator<OrthographicViewOp> {
     return {
       ...createBaseViewFields(),
       ...createFrustumViewFields(),
+      flipY: new BooleanField(false),
       viewState: new CompoundPropsField({
         target: new Vec3Field([0, 0, 0], { returnType: 'tuple', optional: true }),
         zoom: new NumberField(0, { optional: true }),
