@@ -53,8 +53,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       setNodes(currentNodes => [...currentNodes, ...newNodes])
       // Track node addition
       newNodes.forEach(node => {
-        const nodeType = node.type || 'unknown'
-        analytics.track('node_added', { nodeType })
+        analytics.track('node_added', { nodeType: node.type || 'unknown' })
       })
     },
     [setNodes]
@@ -114,12 +113,11 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       // Handle special cases (ForLoop begin/end nodes)
       const extraDeleted = new Set<string>()
       for (const node of nodesToDelete) {
-        const nodeType = node.type
-        if (nodeType === 'ForLoopBeginOp' || nodeType === 'ForLoopEndOp') {
+        if (node.type === 'ForLoopBeginOp' || node.type === 'ForLoopEndOp') {
           const parent = node.parentId
           if (parent) {
             extraDeleted.add(parent)
-            const siblingType = nodeType === 'ForLoopBeginOp' ? 'ForLoopEndOp' : 'ForLoopBeginOp'
+            const siblingType = node.type === 'ForLoopBeginOp' ? 'ForLoopEndOp' : 'ForLoopBeginOp'
             const sibling = nodes.find(n => {
               if (n.parentId !== parent) return false
               return n.type === siblingType
@@ -127,7 +125,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
             if (sibling) {
               extraDeleted.add(sibling.id)
               warnings.push(
-                `Deleted ${nodeType} also deleted its sibling ${siblingType} and parent`
+                `Deleted ${node.type} also deleted its sibling ${siblingType} and parent`
               )
             }
           }
