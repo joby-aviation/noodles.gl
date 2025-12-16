@@ -198,6 +198,7 @@ export interface IOperator {
 export abstract class Operator<OP extends IOperator> {
   static displayName = 'Operator'
   static description = ''
+  static type = 'Operator'
   inputs: ReturnType<OP['createInputs']>
   outputs: ReturnType<OP['createOutputs']>
 
@@ -366,6 +367,7 @@ export abstract class Operator<OP extends IOperator> {
 
 export class NumberOp extends Operator<NumberOp> {
   static displayName = 'Number'
+  static type = 'NumberOp'
   static description = 'A number'
   public createInputs() {
     return {
@@ -384,6 +386,7 @@ export class NumberOp extends Operator<NumberOp> {
 
 export class MapRangeOp extends Operator<MapRangeOp> {
   static displayName = 'MapRange'
+  static type = 'MapRangeOp'
   static description =
     'Remap a number from one range to another (e.g., map 0-100 to 0-1, or temperature to color intensity)'
   public createInputs() {
@@ -416,6 +419,7 @@ export class MapRangeOp extends Operator<MapRangeOp> {
 
 export class ExtentOp extends Operator<ExtentOp> {
   static displayName = 'Extent'
+  static type = 'ExtentOp'
   static description =
     'Find the minimum and maximum values in your data (e.g., to set color scale ranges or determine data bounds)'
   createInputs() {
@@ -449,6 +453,7 @@ export class ExtentOp extends Operator<ExtentOp> {
 
 export class SelectOp extends Operator<SelectOp> {
   static displayName = 'Select'
+  static type = 'SelectOp'
   static description =
     'Select an element from an array using an index (clamped to array bounds by default, or wrapped around array bounds)'
   createInputs() {
@@ -524,6 +529,7 @@ export type MathOpType = keyof typeof mathOps
 
 export class MathOp extends Operator<MathOp> {
   static displayName = 'Math'
+  static type = 'MathOp'
   static description = 'Perform a mathematical operation'
   public createInputs() {
     return {
@@ -660,6 +666,7 @@ export class MathOp extends Operator<MathOp> {
 
 export class StringOp extends Operator<StringOp> {
   static displayName = 'String'
+  static type = 'StringOp'
   static description = 'A string'
   createInputs() {
     return {
@@ -678,6 +685,7 @@ export class StringOp extends Operator<StringOp> {
 
 export class BooleanOp extends Operator<BooleanOp> {
   static displayName = 'Boolean'
+  static type = 'BooleanOp'
   static description = 'A boolean'
   createInputs() {
     return {
@@ -696,6 +704,7 @@ export class BooleanOp extends Operator<BooleanOp> {
 
 export class DateTimeOp extends Operator<DateTimeOp> {
   static displayName = 'DateTime'
+  static type = 'DateTimeOp'
   static description = 'A date and time'
   createInputs() {
     return {
@@ -714,6 +723,7 @@ export class DateTimeOp extends Operator<DateTimeOp> {
 
 export class CombineXYOp extends Operator<CombineXYOp> {
   static displayName = 'CombineXY'
+  static type = 'CombineXYOp'
   static description = 'Combine x and y into a 2D vector'
   createInputs() {
     return {
@@ -748,6 +758,7 @@ export class CombineXYOp extends Operator<CombineXYOp> {
 
 export class CombineXYZOp extends Operator<CombineXYZOp> {
   static displayName = 'CombineXYZ'
+  static type = 'CombineXYZOp'
   static description = 'Combine x, y, and z into a 3D vector'
   createInputs() {
     return {
@@ -785,6 +796,7 @@ export class CombineXYZOp extends Operator<CombineXYZOp> {
 
 export class SplitXYOp extends Operator<SplitXYOp> {
   static displayName = 'SplitXY'
+  static type = 'SplitXYOp'
   static description = 'Split a 2D vector into its x and y components'
   createInputs() {
     return {
@@ -813,6 +825,7 @@ export class SplitXYOp extends Operator<SplitXYOp> {
 
 export class SplitXYZOp extends Operator<SplitXYZOp> {
   static displayName = 'SplitXYZ'
+  static type = 'SplitXYZOp'
   static description = 'Split a 3D vector into its x, y, and z components'
   createInputs() {
     return {
@@ -843,6 +856,7 @@ export class SplitXYZOp extends Operator<SplitXYZOp> {
 
 export class CombineRGBAOp extends Operator<CombineRGBAOp> {
   static displayName = 'CombineRGBA'
+  static type = 'CombineRGBAOp'
   static description = 'Combine r, g, b, and a into a color (range 0-255)'
   createInputs() {
     return {
@@ -883,6 +897,7 @@ export class CombineRGBAOp extends Operator<CombineRGBAOp> {
 
 export class SplitRGBAOp extends Operator<SplitRGBAOp> {
   static displayName = 'SplitRGBA'
+  static type = 'SplitRGBAOp'
   static description = 'Split a color into its red, green, blue, and alpha components (range 0-255)'
   createInputs() {
     return {
@@ -921,6 +936,7 @@ export class SplitRGBAOp extends Operator<SplitRGBAOp> {
 
 export class ColorOp extends Operator<ColorOp> {
   static displayName = 'Color'
+  static type = 'ColorOp'
   static description = 'A color'
   createInputs() {
     return {
@@ -939,6 +955,7 @@ export class ColorOp extends Operator<ColorOp> {
 
 export class HSLOp extends Operator<HSLOp> {
   static displayName = 'HSL'
+  static type = 'HSLOp'
   static description = 'A color in HSL (hue, saturation, lightness) format'
   createInputs() {
     return {
@@ -976,6 +993,7 @@ export class HSLOp extends Operator<HSLOp> {
 
 export class ColorRampOp extends Operator<ColorRampOp> {
   static displayName = 'ColorRamp'
+  static type = 'ColorRampOp'
   static description = 'Interpolate a color from a color ramp, value range 0-1'
   createInputs() {
     const colorRamp = new ColorRampField()
@@ -1056,6 +1074,7 @@ export class ColorRampOp extends Operator<ColorRampOp> {
 
 export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
   static displayName = 'CategoricalColorRamp'
+  static type = 'CategoricalColorRampOp'
   static description = 'Map a string category to a color'
   createInputs() {
     const colorRamp = new CategoricalColorRampField()
@@ -1128,6 +1147,7 @@ export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
 
 export class TimeOp extends Operator<TimeOp> {
   static displayName = 'Time'
+  static type = 'TimeOp'
   static description = 'Get the current clock, timeline, and session time'
 
   private timeState$ = new BehaviorSubject({ now: Date.now(), tick: 0, sequenceTime: 0 })
@@ -1199,6 +1219,7 @@ export class TimeOp extends Operator<TimeOp> {
 
 export class BezierCurveOp extends Operator<BezierCurveOp> {
   static displayName = 'BezierCurve'
+  static type = 'BezierCurveOp'
   static description = 'Bezier curve for mapping input values using an interactive graph editor'
   createInputs() {
     return {
@@ -1221,6 +1242,7 @@ export class BezierCurveOp extends Operator<BezierCurveOp> {
 
 export class FileOp extends Operator<FileOp> {
   static displayName = 'File'
+  static type = 'FileOp'
   static description = 'Fetch a file from a URL or text. Supports csv and json'
   asDownload = () => this.outputData
   createInputs() {
@@ -1376,6 +1398,7 @@ const duckDbInstance = (async () => {
 
 export class DuckDbOp extends Operator<DuckDbOp> {
   static displayName = 'DuckDB'
+  static type = 'DuckDbOp'
   static description = 'Query a DuckDB database using sql'
   asDownload = () => this.outputData
   createInputs() {
@@ -1457,6 +1480,7 @@ export class DuckDbOp extends Operator<DuckDbOp> {
 
 export class JSONOp extends Operator<JSONOp> {
   static displayName = 'JSON'
+  static type = 'JSONOp'
   static description = 'Parse a JSON string'
   createInputs() {
     return {
@@ -1491,6 +1515,7 @@ export class JSONOp extends Operator<JSONOp> {
 
 export class ViewerOp extends Operator<ViewerOp> {
   static displayName = 'Viewer'
+  static type = 'ViewerOp'
   static description = 'Inspect data in the viewer'
   asDownload = () => this.inputs.data.value
   createInputs() {
@@ -1511,6 +1536,7 @@ export class ViewerOp extends Operator<ViewerOp> {
 
 export class TableEditorOp extends Operator<TableEditorOp> {
   static displayName = 'TableEditor'
+  static type = 'TableEditorOp'
   static description = 'Edit a table in the viewer'
   asDownload = () => this.outputData
   createInputs() {
@@ -1533,6 +1559,7 @@ export class TableEditorOp extends Operator<TableEditorOp> {
 
 export class ScatterOp extends Operator<ScatterOp> {
   static displayName = 'Scatter'
+  static type = 'ScatterOp'
   static description = 'Scatter points within a bounding box'
   createInputs() {
     return {
@@ -1576,6 +1603,7 @@ export class ScatterOp extends Operator<ScatterOp> {
 
 export class BoundsOp extends Operator<BoundsOp> {
   static displayName = 'Bounds'
+  static type = 'BoundsOp'
   static description = 'Create a bounding box from two points'
   createInputs() {
     return {
@@ -1605,6 +1633,7 @@ export class BoundsOp extends Operator<BoundsOp> {
 
 export class BoundingBoxOp extends Operator<BoundingBoxOp> {
   static displayName = 'BoundingBox'
+  static type = 'BoundingBoxOp'
   static description =
     'Calculate the geographic bounds of your points (with lat/lng keys) and get a camera position (center, zoom) that fits them all in view.'
   asDownload = () => this.outputData
@@ -1681,6 +1710,7 @@ export class BoundingBoxOp extends Operator<BoundingBoxOp> {
 
 export class GeocoderOp extends Operator<GeocoderOp> {
   static displayName = 'Geocoder'
+  static type = 'GeocoderOp'
   static description = 'Get the location of a query string'
   createInputs() {
     return {
@@ -1709,6 +1739,7 @@ export class GeocoderOp extends Operator<GeocoderOp> {
 
 export class DirectionsOp extends Operator<DirectionsOp> {
   static displayName = 'Directions'
+  static type = 'DirectionsOp'
   static description = 'Get driving or transit directions between two points'
   asDownload = () => this.outputData
   createInputs() {
@@ -1759,6 +1790,7 @@ export class DirectionsOp extends Operator<DirectionsOp> {
 
 export class ArcOp extends Operator<ArcOp> {
   static displayName = 'Arc'
+  static type = 'ArcOp'
   static description = 'Generate an arc path between two points at a given altitude'
   asDownload = () => this.outputData
   createInputs() {
@@ -1814,6 +1846,7 @@ export class ArcOp extends Operator<ArcOp> {
 
 export class NetworkOp extends Operator<NetworkOp> {
   static displayName = 'Network'
+  static type = 'NetworkOp'
   static description = 'Generate a network of routes between a set of points (usually skyports)'
   asDownload = () => this.outputData
   createInputs() {
@@ -1937,6 +1970,7 @@ function interpolateTemporal(a: any, b: any, t: number): any {
 
 export class SwitchOp extends Operator<SwitchOp> {
   static displayName = 'Switch'
+  static type = 'SwitchOp'
   static description =
     'Select one value from a list using an index (0, 1, 2...). With blend enabled, smoothly interpolate between values for animation effects.'
   createInputs() {
@@ -2003,6 +2037,7 @@ export class SwitchOp extends Operator<SwitchOp> {
 // We need a way to signal to the UI that this is a loop, and to render the loop
 export class ForLoopBeginOp extends Operator<ForLoopBeginOp> {
   static displayName = 'ForLoopBegin'
+  static type = 'ForLoopBeginOp'
   static description =
     'Start a loop that processes each item in an array one by one. Connect operators between ForLoopBegin and ForLoopEnd to transform each item. The ForLoopEnd collects all results.'
   createInputs() {
@@ -2022,6 +2057,7 @@ export class ForLoopBeginOp extends Operator<ForLoopBeginOp> {
 
 export class ForLoopEndOp extends Operator<ForLoopEndOp> {
   static displayName = 'ForLoopEnd'
+  static type = 'ForLoopEndOp'
   static description =
     'End a loop started by ForLoopBegin. Collects all the processed items into an array and passes them to downstream operators.'
   static defaultValue = []
@@ -2117,6 +2153,7 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
 
 export class FilterOp extends Operator<FilterOp> {
   static displayName = 'FilterOp'
+  static type = 'FilterOp'
   static description = 'Filter an array of data based on a condition'
   createInputs() {
     const data = new DataField(new ArrayField(new UnknownField()))
@@ -2202,6 +2239,7 @@ export class FilterOp extends Operator<FilterOp> {
 // Should this be a special case of FilterOp?
 export class SliceOp extends Operator<SliceOp> {
   static displayName = 'Slice'
+  static type = 'SliceOp'
   static description = 'Slice an array of data'
   createInputs() {
     return {
@@ -2226,6 +2264,7 @@ export class SliceOp extends Operator<SliceOp> {
 
 export class SortOp extends Operator<SortOp> {
   static displayName = 'Sort'
+  static type = 'SortOp'
   static description = 'Sort an array of data based on a key'
   createInputs() {
     return {
@@ -2256,6 +2295,7 @@ export class SortOp extends Operator<SortOp> {
 
 export class RandomizeAttributeOp extends Operator<RandomizeAttributeOp> {
   static displayName = 'RandomizeAttribute'
+  static type = 'RandomizeAttributeOp'
   static description = 'Randomize a numeric attribute on data elements within a given range'
   createInputs() {
     return {
@@ -2286,6 +2326,7 @@ export class RandomizeAttributeOp extends Operator<RandomizeAttributeOp> {
 
 export class ConcatOp extends Operator<ConcatOp> {
   static displayName = 'Concat'
+  static type = 'ConcatOp'
   static description =
     'Concatenate multiple arrays into a single array. Use depth to flatten nested arrays (depth=1 flattens one level, depth=2 flattens two levels).'
   createInputs() {
@@ -2319,6 +2360,7 @@ export class ConcatOp extends Operator<ConcatOp> {
 
 export class MergeOp extends Operator<MergeOp> {
   static displayName = 'Merge'
+  static type = 'MergeOp'
   static description = 'Merge multiple objects into one (think Object.assign)'
   createInputs() {
     return {
@@ -2351,6 +2393,7 @@ export class MergeOp extends Operator<MergeOp> {
 
 export class MouseOp extends Operator<MouseOp> {
   static displayName = 'Mouse'
+  static type = 'MouseOp'
   static description = 'Get the current mouse position on the screen'
 
   private mousePosition$ = new BehaviorSubject({ x: 0, y: 0 })
@@ -2436,6 +2479,7 @@ class MapStyleOp extends Operator<MapStyleOp> {
 
 export class ProjectOp extends Operator<ProjectOp> {
   static displayName = 'Project'
+  static type = 'ProjectOp'
   static description =
     'Project a lat/lng point to a screen position. Requires the ViewState and dimensions of the map.'
   createInputs() {
@@ -2476,6 +2520,7 @@ export class ProjectOp extends Operator<ProjectOp> {
 
 export class UnprojectOp extends Operator<UnprojectOp> {
   static displayName = 'Unproject'
+  static type = 'UnprojectOp'
   static description =
     'Unproject a screen position to a lat/lng point. Requires the ViewState and dimensions'
   createInputs() {
@@ -2516,6 +2561,7 @@ export class UnprojectOp extends Operator<UnprojectOp> {
 
 export class MapViewStateOp extends Operator<MapViewStateOp> {
   static displayName = 'MapViewState'
+  static type = 'MapViewStateOp'
   static description = 'Create a react-map-gl MapViewState for controlling the camera.'
   createInputs() {
     return {
@@ -2552,6 +2598,7 @@ export class MapViewStateOp extends Operator<MapViewStateOp> {
 
 export class SplitMapViewStateOp extends Operator<SplitMapViewStateOp> {
   static displayName = 'SplitMapViewState'
+  static type = 'SplitMapViewStateOp'
   static description = 'Split a viewState object into its individual components.'
   createInputs() {
     return {
@@ -2581,6 +2628,7 @@ export class SplitMapViewStateOp extends Operator<SplitMapViewStateOp> {
 
 export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
   static displayName = 'MaplibreBasemap'
+  static type = 'MaplibreBasemapOp'
   static description = 'A Maplibre basemap.'
 
   createInputs() {
@@ -2619,6 +2667,7 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
 
 export class DeckRendererOp extends Operator<DeckRendererOp> {
   static displayName = 'DeckRenderer'
+  static type = 'DeckRendererOp'
   static description = 'Render a deck.gl visualization with layers and effects.'
 
   createInputs() {
@@ -2736,6 +2785,7 @@ function createGeoViewStateFields() {
 
 export class MapViewOp extends Operator<MapViewOp> {
   static displayName = 'MapView'
+  static type = 'MapViewOp'
   static description = 'A deck.gl map view.'
 
   createInputs() {
@@ -2773,6 +2823,7 @@ export class MapViewOp extends Operator<MapViewOp> {
 
 export class GraphInputOp extends Operator<GraphInputOp> {
   static displayName = 'GraphInput'
+  static type = 'GraphInputOp'
   static description = 'Receives input from the parent Container.'
 
   createInputs() {
@@ -2790,6 +2841,7 @@ export class GraphInputOp extends Operator<GraphInputOp> {
 
 export class GraphOutputOp extends Operator<GraphOutputOp> {
   static displayName = 'GraphOutput'
+  static type = 'GraphOutputOp'
   static description = 'Provides output to the parent Container.'
 
   createInputs() {
@@ -2807,6 +2859,7 @@ export class GraphOutputOp extends Operator<GraphOutputOp> {
 
 export class GlobeViewOp extends Operator<GlobeViewOp> {
   static displayName = 'GlobeView'
+  static type = 'GlobeViewOp'
   static description = 'A deck.gl globe view.'
 
   createInputs() {
@@ -2834,6 +2887,7 @@ export class GlobeViewOp extends Operator<GlobeViewOp> {
 
 export class FpsWidgetOp extends Operator<FpsWidgetOp> {
   static displayName = 'FpsWidget'
+  static type = 'FpsWidgetOp'
   static description = 'Display frames per second (FPS) widget'
 
   createInputs() {
@@ -2875,6 +2929,7 @@ function createFrustumViewFields() {
 
 export class FirstPersonViewOp extends Operator<FirstPersonViewOp> {
   static displayName = 'FirstPersonView'
+  static type = 'FirstPersonViewOp'
   static description = 'A deck.gl first person view.'
 
   createInputs() {
@@ -2905,6 +2960,7 @@ export class FirstPersonViewOp extends Operator<FirstPersonViewOp> {
 
 export class OrbitViewOp extends Operator<OrbitViewOp> {
   static displayName = 'OrbitView'
+  static type = 'OrbitViewOp'
   static description = 'A deck.gl orbit view.'
 
   createInputs() {
@@ -2937,6 +2993,7 @@ export class OrbitViewOp extends Operator<OrbitViewOp> {
 
 export class OutOp extends Operator<OutOp> {
   static displayName = 'Out'
+  static type = 'OutOp'
   static description = 'Output a visualization.'
   createInputs() {
     return {
@@ -2953,6 +3010,7 @@ export class OutOp extends Operator<OutOp> {
 
 export class ConsoleOp extends Operator<ConsoleOp> {
   static displayName = 'Console'
+  static type = 'ConsoleOp'
   static description = 'Log data to the console'
   createInputs() {
     return {
@@ -2970,6 +3028,7 @@ export class ConsoleOp extends Operator<ConsoleOp> {
 
 export class LayerPropsOp extends Operator<LayerPropsOp> {
   static displayName = 'LayerProps'
+  static type = 'LayerPropsOp'
   static description =
     'Add additional props to a layer (e.g., operation: "mask" for mask layers, beforeId for maplibre layer ordering)'
   createInputs() {
@@ -3072,6 +3131,7 @@ function parseLayerProps<P extends LayerProps>({
 
 export class PathLayerOp extends Operator<PathLayerOp> {
   static displayName = 'PathLayer'
+  static type = 'PathLayerOp'
   static description = 'Render a path on the map'
   static cacheable = false
   createInputs() {
@@ -3116,6 +3176,7 @@ export class PathLayerOp extends Operator<PathLayerOp> {
 
 export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
   static displayName = 'ScatterplotLayer'
+  static type = 'ScatterplotLayerOp'
   static description = 'Render a scatterplot of points as circles on the map'
   static cacheable = false
   createInputs() {
@@ -3153,6 +3214,7 @@ export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
 
 export class TripsLayerOp extends Operator<TripsLayerOp> {
   static displayName = 'TripsLayer'
+  static type = 'TripsLayerOp'
   static description = 'Render a set of trips with timestamps for animation on the map'
   static cacheable = false
   createInputs() {
@@ -3202,6 +3264,7 @@ export class TripsLayerOp extends Operator<TripsLayerOp> {
 
 export class SolidPolygonLayerOp extends Operator<SolidPolygonLayerOp> {
   static displayName = 'SolidPolygonLayer'
+  static type = 'SolidPolygonLayerOp'
   static description = 'Render a set of solid polygons on the map'
   static cacheable = false
   createInputs() {
@@ -3234,6 +3297,7 @@ export class SolidPolygonLayerOp extends Operator<SolidPolygonLayerOp> {
 
 export class TextLayerOp extends Operator<TextLayerOp> {
   static displayName = 'TextLayer'
+  static type = 'TextLayerOp'
   static description = 'Render a set of text labels on the map'
   static cacheable = false
   createInputs() {
@@ -3280,6 +3344,7 @@ export class TextLayerOp extends Operator<TextLayerOp> {
 
 export class IconLayerOp extends Operator<IconLayerOp> {
   static displayName = 'IconLayer'
+  static type = 'IconLayerOp'
   static description = 'Render a set of icons on the map'
   static cacheable = false
   createInputs() {
@@ -3332,6 +3397,7 @@ export class IconLayerOp extends Operator<IconLayerOp> {
 
 export class ScenegraphLayerOp extends Operator<ScenegraphLayerOp> {
   static displayName = 'ScenegraphLayer'
+  static type = 'ScenegraphLayerOp'
   static description = 'Render a 3D model on the map'
   static cacheable = false
   createInputs() {
@@ -3371,6 +3437,7 @@ export class ScenegraphLayerOp extends Operator<ScenegraphLayerOp> {
 
 export class SimpleMeshLayerOp extends Operator<SimpleMeshLayerOp> {
   static displayName = 'SimpleMeshLayer'
+  static type = 'SimpleMeshLayerOp'
   static description = 'Render simple 3D meshes/models at specified positions'
   static cacheable = false
   createInputs() {
@@ -3413,6 +3480,7 @@ export class SimpleMeshLayerOp extends Operator<SimpleMeshLayerOp> {
 
 export class H3HexagonLayerOp extends Operator<H3HexagonLayerOp> {
   static displayName = 'H3HexagonLayer'
+  static type = 'H3HexagonLayerOp'
   static description = 'Render a hexagon grid on the map using the H3 grid system'
   static cacheable = false
   createInputs() {
@@ -3445,6 +3513,7 @@ export class H3HexagonLayerOp extends Operator<H3HexagonLayerOp> {
 
 export class A5LayerOp extends Operator<A5LayerOp> {
   static displayName = 'A5Layer'
+  static type = 'A5LayerOp'
   static description =
     'Render filled and/or stroked polygons using the A5 geospatial indexing system'
   static cacheable = false
@@ -3480,6 +3549,7 @@ export class A5LayerOp extends Operator<A5LayerOp> {
 
 export class HeatmapLayerOp extends Operator<HeatmapLayerOp> {
   static displayName = 'HeatmapLayer'
+  static type = 'HeatmapLayerOp'
   static description = 'Render a heatmap from points on the map'
   static cacheable = false
   createInputs() {
@@ -3514,6 +3584,7 @@ export class HeatmapLayerOp extends Operator<HeatmapLayerOp> {
 
 export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
   static displayName = 'GeoJsonLayer'
+  static type = 'GeoJsonLayerOp'
   static description = 'Render GeoJSON data with points, lines, and polygons'
   static cacheable = false
   createInputs() {
@@ -3582,6 +3653,7 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
 
 export class ArcLayerOp extends Operator<ArcLayerOp> {
   static displayName = 'ArcLayer'
+  static type = 'ArcLayerOp'
   static description = 'Render a set of arcs on the map'
   static cacheable = false
   createInputs() {
@@ -3625,6 +3697,7 @@ const DEFAULT_COLOR_RANGE = [
 
 export class GridLayerOp extends Operator<GridLayerOp> {
   static displayName = 'GridLayer'
+  static type = 'GridLayerOp'
   static description = 'Aggregate data into a grid and render as columns'
   static cacheable = false
   createInputs() {
@@ -3691,6 +3764,7 @@ export class GridLayerOp extends Operator<GridLayerOp> {
 
 export class HexagonLayerOp extends Operator<HexagonLayerOp> {
   static displayName = 'HexagonLayer'
+  static type = 'HexagonLayerOp'
   static description = 'Aggregate data into hexagonal bins and render as hexagonal columns'
   static cacheable = false
   createInputs() {
@@ -3756,6 +3830,7 @@ export class HexagonLayerOp extends Operator<HexagonLayerOp> {
 
 export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
   static displayName = 'Tile3DLayer'
+  static type = 'Tile3DLayerOp'
   static description = 'Render Cesium or Google 3D tiles on the map'
   static cacheable = false
   createInputs() {
@@ -3848,6 +3923,7 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
 
 export class Mask3DExtensionOp extends Operator<Mask3DExtensionOp> {
   static displayName = 'Mask3DExtension'
+  static type = 'Mask3DExtensionOp'
   static description = 'Mask a sphere (used with Tile3DLayer)'
   createInputs() {
     return {
@@ -3872,6 +3948,7 @@ export class Mask3DExtensionOp extends Operator<Mask3DExtensionOp> {
 
 export class BrushingExtensionOp extends Operator<BrushingExtensionOp> {
   static displayName = 'BrushingExtension'
+  static type = 'BrushingExtensionOp'
   static description =
     'Only render the points within a given radius of the mouse position. Used with most layer types.'
   createInputs() {
@@ -3900,6 +3977,7 @@ export class BrushingExtensionOp extends Operator<BrushingExtensionOp> {
 
 export class PathStyleExtensionOp extends Operator<PathStyleExtensionOp> {
   static displayName = 'PathStyleExtension'
+  static type = 'PathStyleExtensionOp'
   static description = 'Style a path (used with PathLayer, PolygonLayer, and GeoJSONLayer)'
   createInputs() {
     return {
@@ -4098,6 +4176,7 @@ function fnWithSource(args: string[], body: string, id: string): FunctionWithSou
 // An Accessor is an ExpressionOp that returns a function instead of executing it
 export class AccessorOp extends Operator<AccessorOp> {
   static displayName = 'Accessor'
+  static type = 'AccessorOp'
   static description =
     'A function called for each row of your data and passed to Deck.gl layer properties. The current row is passed as the `d` variable (e.g., `d.population`, `d.properties.color`). Returns a value that controls visual properties like position, color, or size.'
   createInputs() {
@@ -4128,6 +4207,7 @@ export class AccessorOp extends Operator<AccessorOp> {
 
 export class CodeOp extends Operator<CodeOp> {
   static displayName = 'Code'
+  static type = 'CodeOp'
   static description =
     'Run custom JavaScript code to transform your data. Available variables: `data` (all input data), `d` (first element), `op()` (access other operators). Includes d3, turf, and other utilities. Use `this` to store state between executions.'
   asDownload = () => this.outputs.data.value
@@ -4167,6 +4247,7 @@ export class CodeOp extends Operator<CodeOp> {
 
 export class ContainerOp extends Operator<ContainerOp> {
   static displayName = 'Container'
+  static type = 'ContainerOp'
   static description = 'Encapsulates a subgraph of operators. Visually groups child nodes.'
 
   createInputs() {
@@ -4193,6 +4274,7 @@ export class ContainerOp extends Operator<ContainerOp> {
 
 export class ExpressionOp extends Operator<ExpressionOp> {
   static displayName = 'Expression'
+  static type = 'ExpressionOp'
   static description =
     'Evaluate a JavaScript expression to compute a single value. Available variables: `data` (all input data), `d` (first element), `op()` (access other operators). Includes d3, turf, and other utilities.'
   createInputs() {
@@ -4238,6 +4320,7 @@ export class ExpressionOp extends Operator<ExpressionOp> {
 
 export class RectangleOp extends Operator<RectangleOp> {
   static displayName = 'Rectangle'
+  static type = 'RectangleOp'
   static description =
     'Generate a rectangle GeoJSON geometry from a center point and dimensions in kilometers'
   asDownload = () => this.outputData
@@ -4302,6 +4385,7 @@ export class RectangleOp extends Operator<RectangleOp> {
 
 export class PointOp extends Operator<PointOp> {
   static displayName = 'Point'
+  static type = 'PointOp'
   static description = 'Create a GeoJSON Point feature from coordinates'
   createInputs() {
     return {
@@ -4330,6 +4414,7 @@ export class PointOp extends Operator<PointOp> {
 
 export class GeoJsonOp extends Operator<GeoJsonOp> {
   static displayName = 'GeoJson'
+  static type = 'GeoJsonOp'
   static description = 'Create a GeoJSON FeatureCollection from a list of features'
   asDownload = () => this.outputData
   createInputs() {
@@ -4353,6 +4438,7 @@ export class GeoJsonOp extends Operator<GeoJsonOp> {
 
 export class KmlToGeoJsonOp extends Operator<KmlToGeoJsonOp> {
   static displayName = 'KmlToGeoJson'
+  static type = 'KmlToGeoJsonOp'
   static description = 'Convert KML string to GeoJSON FeatureCollection'
   asDownload = () => this.outputData
   createInputs() {
@@ -4373,6 +4459,7 @@ export class KmlToGeoJsonOp extends Operator<KmlToGeoJsonOp> {
 
 export class GeoJsonTransformOp extends Operator<GeoJsonTransformOp> {
   static displayName = 'GeoJsonTransform'
+  static type = 'GeoJsonTransformOp'
   static description = 'Transform a GeoJSON feature with scale, translate, and rotate operations'
   asDownload = () => this.outputData
   createInputs() {
@@ -4427,6 +4514,7 @@ export class GeoJsonTransformOp extends Operator<GeoJsonTransformOp> {
 
 export class BitmapLayerOp extends Operator<BitmapLayerOp> {
   static displayName = 'BitmapLayer'
+  static type = 'BitmapLayerOp'
   static description = 'Render a raster image at specified boundaries'
   static cacheable = false
   createInputs() {
@@ -4462,6 +4550,7 @@ export class BitmapLayerOp extends Operator<BitmapLayerOp> {
 
 export class ColumnLayerOp extends Operator<ColumnLayerOp> {
   static displayName = 'ColumnLayer'
+  static type = 'ColumnLayerOp'
   static description = 'Render extruded cylinders (columns) at given positions'
   static cacheable = false
   createInputs() {
@@ -4507,6 +4596,7 @@ export class ColumnLayerOp extends Operator<ColumnLayerOp> {
 
 export class GridCellLayerOp extends Operator<GridCellLayerOp> {
   static displayName = 'GridCellLayer'
+  static type = 'GridCellLayerOp'
   static description = 'Render a grid of cells at specified coordinates'
   static cacheable = false
   createInputs() {
@@ -4546,6 +4636,7 @@ export class GridCellLayerOp extends Operator<GridCellLayerOp> {
 
 export class LineLayerOp extends Operator<LineLayerOp> {
   static displayName = 'LineLayer'
+  static type = 'LineLayerOp'
   static description = 'Render straight lines between source and target coordinates'
   static cacheable = false
   createInputs() {
@@ -4582,6 +4673,7 @@ export class LineLayerOp extends Operator<LineLayerOp> {
 
 export class PointCloudLayerOp extends Operator<PointCloudLayerOp> {
   static displayName = 'PointCloudLayer'
+  static type = 'PointCloudLayerOp'
   static description = 'Render a point cloud with millions of 3D points'
   static cacheable = false
   createInputs() {
@@ -4615,6 +4707,7 @@ export class PointCloudLayerOp extends Operator<PointCloudLayerOp> {
 
 export class PolygonLayerOp extends Operator<PolygonLayerOp> {
   static displayName = 'PolygonLayer'
+  static type = 'PolygonLayerOp'
   static description = 'Render filled and/or stroked polygons'
   static cacheable = false
   createInputs() {
@@ -4661,6 +4754,7 @@ export class PolygonLayerOp extends Operator<PolygonLayerOp> {
 
 export class ContourLayerOp extends Operator<ContourLayerOp> {
   static displayName = 'ContourLayer'
+  static type = 'ContourLayerOp'
   static description = 'Aggregate data and render contour lines or filled contour bands'
   static cacheable = false
   createInputs() {
@@ -4700,6 +4794,7 @@ export class ContourLayerOp extends Operator<ContourLayerOp> {
 
 export class ScreenGridLayerOp extends Operator<ScreenGridLayerOp> {
   static displayName = 'ScreenGridLayer'
+  static type = 'ScreenGridLayerOp'
   static description = 'Aggregate data into a grid in screen space and visualize as a heatmap'
   static cacheable = false
   createInputs() {
@@ -4737,6 +4832,7 @@ export class ScreenGridLayerOp extends Operator<ScreenGridLayerOp> {
 
 export class GreatCircleLayerOp extends Operator<GreatCircleLayerOp> {
   static displayName = 'GreatCircleLayer'
+  static type = 'GreatCircleLayerOp'
   static description = 'Render great circle arcs between pairs of source and target coordinates'
   static cacheable = false
   createInputs() {
@@ -4775,6 +4871,7 @@ export class GreatCircleLayerOp extends Operator<GreatCircleLayerOp> {
 
 export class H3ClusterLayerOp extends Operator<H3ClusterLayerOp> {
   static displayName = 'H3ClusterLayer'
+  static type = 'H3ClusterLayerOp'
   static description = 'Render hexagons from H3 hexagon indices and cluster them by density'
   static cacheable = false
   createInputs() {
@@ -4807,6 +4904,7 @@ export class H3ClusterLayerOp extends Operator<H3ClusterLayerOp> {
 
 export class GeohashLayerOp extends Operator<GeohashLayerOp> {
   static displayName = 'GeohashLayer'
+  static type = 'GeohashLayerOp'
   static description = 'Render filled and/or stroked polygons based on geohash strings'
   static cacheable = false
   createInputs() {
@@ -4844,6 +4942,7 @@ export class GeohashLayerOp extends Operator<GeohashLayerOp> {
 
 export class S2LayerOp extends Operator<S2LayerOp> {
   static displayName = 'S2Layer'
+  static type = 'S2LayerOp'
   static description = 'Render filled and/or stroked polygons based on S2 tokens'
   static cacheable = false
   createInputs() {
@@ -4881,6 +4980,7 @@ export class S2LayerOp extends Operator<S2LayerOp> {
 
 export class QuadkeyLayerOp extends Operator<QuadkeyLayerOp> {
   static displayName = 'QuadkeyLayer'
+  static type = 'QuadkeyLayerOp'
   static description = 'Render filled and/or stroked polygons based on quadkey strings'
   static cacheable = false
   createInputs() {
@@ -4918,6 +5018,7 @@ export class QuadkeyLayerOp extends Operator<QuadkeyLayerOp> {
 
 export class MVTLayerOp extends Operator<MVTLayerOp> {
   static displayName = 'MVTLayer'
+  static type = 'MVTLayerOp'
   static description = 'Render Mapbox Vector Tiles (MVT)'
   static cacheable = false
   createInputs() {
@@ -4956,6 +5057,7 @@ export class MVTLayerOp extends Operator<MVTLayerOp> {
 
 export class TerrainLayerOp extends Operator<TerrainLayerOp> {
   static displayName = 'TerrainLayer'
+  static type = 'TerrainLayerOp'
   static description = 'Render a terrain mesh from heightmap tiles'
   static cacheable = false
   createInputs() {
@@ -4995,6 +5097,7 @@ export class TerrainLayerOp extends Operator<TerrainLayerOp> {
 
 export class TileLayerOp extends Operator<TileLayerOp> {
   static displayName = 'TileLayer'
+  static type = 'TileLayerOp'
   static description = 'Render data organized in a tiled format (generic tile layer)'
   static cacheable = false
   createInputs() {
@@ -5039,6 +5142,7 @@ export class TileLayerOp extends Operator<TileLayerOp> {
 
 export class ClipExtensionOp extends Operator<ClipExtensionOp> {
   static displayName = 'ClipExtension'
+  static type = 'ClipExtensionOp'
   static description = 'Clip layers by a rectangular bounds'
   createInputs() {
     return {
@@ -5065,6 +5169,7 @@ export class ClipExtensionOp extends Operator<ClipExtensionOp> {
 
 export class CollisionFilterExtensionOp extends Operator<CollisionFilterExtensionOp> {
   static displayName = 'CollisionFilterExtension'
+  static type = 'CollisionFilterExtensionOp'
   static description = 'Hide overlapping objects (e.g., labels)'
   createInputs() {
     return {
@@ -5089,6 +5194,7 @@ export class CollisionFilterExtensionOp extends Operator<CollisionFilterExtensio
 
 export class DataFilterExtensionOp extends Operator<DataFilterExtensionOp> {
   static displayName = 'DataFilterExtension'
+  static type = 'DataFilterExtensionOp'
   static description = 'Filter data by one or more numeric ranges'
   createInputs() {
     return {
@@ -5123,6 +5229,7 @@ export class DataFilterExtensionOp extends Operator<DataFilterExtensionOp> {
 
 export class FillStyleExtensionOp extends Operator<FillStyleExtensionOp> {
   static displayName = 'FillStyleExtension'
+  static type = 'FillStyleExtensionOp'
   static description = 'Add patterns and styles to polygon fills'
   createInputs() {
     return {
@@ -5154,6 +5261,7 @@ export class FillStyleExtensionOp extends Operator<FillStyleExtensionOp> {
 
 export class MaskExtensionOp extends Operator<MaskExtensionOp> {
   static displayName = 'MaskExtension'
+  static type = 'MaskExtensionOp'
   static description = 'Show/hide layer objects by a geofence'
   createInputs() {
     return {
@@ -5239,6 +5347,7 @@ function interpolateTimeSeries(
 
 export class TimeSeriesOp extends Operator<TimeSeriesOp> {
   static displayName = 'TimeSeries'
+  static type = 'TimeSeriesOp'
   static description =
     'Interpolate time-varying data at a given time. Aligns with TripsLayer API for easy reuse of accessors.'
   asDownload = () => this.outputData

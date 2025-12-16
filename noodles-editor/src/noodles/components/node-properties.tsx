@@ -96,8 +96,8 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
   const store = getOpStore()
   const op = store.getOp(node.id)
   if (!op) return null
-  const { displayName, description } = op.constructor
-  const typeName = node.type
+  const { displayName, description, type } = op.constructor as typeof op.constructor & { type: string }
+  const typeName = type
 
   const inputs = Object.entries(op.inputs).map(([name, input]) => ({
     name,

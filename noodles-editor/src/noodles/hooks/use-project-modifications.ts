@@ -53,7 +53,9 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       setNodes(currentNodes => [...currentNodes, ...newNodes])
       // Track node addition
       newNodes.forEach(node => {
-        analytics.track('node_added', { nodeType: node.type || 'unknown' })
+        const op = getOp(node.id)
+        const nodeType = op ? (op.constructor as typeof op.constructor & { type: string }).type : 'unknown'
+        analytics.track('node_added', { nodeType })
       })
     },
     [setNodes]
@@ -113,16 +115,22 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       // Handle special cases (ForLoop begin/end nodes)
       const extraDeleted = new Set<string>()
       for (const node of nodesToDelete) {
-        if (node.type === 'ForLoopBeginOp' || node.type === 'ForLoopEndOp') {
+        const op = getOp(node.id)
+        const nodeType = op ? (op.constructor as typeof op.constructor & { type: string }).type : null
+        if (nodeType === 'ForLoopBeginOp' || nodeType === 'ForLoopEndOp') {
           const parent = node.parentId
           if (parent) {
             extraDeleted.add(parent)
-            const siblingType = node.type === 'ForLoopBeginOp' ? 'ForLoopEndOp' : 'ForLoopBeginOp'
-            const sibling = nodes.find(n => n.parentId === parent && n.type === siblingType)
+            const siblingType = nodeType === 'ForLoopBeginOp' ? 'ForLoopEndOp' : 'ForLoopBeginOp'
+            const sibling = nodes.find(n => {
+              if (n.parentId !== parent) return false
+              const siblingOp = getOp(n.id)
+              return siblingOp ? (siblingOp.constructor as typeof siblingOp.constructor & { type: string }).type === siblingType : false
+            })
             if (sibling) {
               extraDeleted.add(sibling.id)
               warnings.push(
-                `Deleted ${node.type} also deleted its sibling ${siblingType} and parent`
+                `Deleted ${nodeType} also deleted its sibling ${siblingType} and parent`
               )
             }
           }

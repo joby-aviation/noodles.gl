@@ -22,20 +22,17 @@ interface TreeNode {
   id: string
   name: string
   type: string
+  displayName: string
   children: TreeNode[]
   depth: number
 }
 
 // Build hierarchical tree from flat operator list
 function buildTree(
-  operators: Map<string, Operator<IOperator>>,
-  reactFlowNodes: Array<{ id: string; type: string }>
+  operators: Map<string, Operator<IOperator>>
 ): TreeNode[] {
   const tree: TreeNode[] = []
   const nodeMap = new Map<string, TreeNode>()
-
-  // Create a map of id -> type from ReactFlow nodes for fast lookup
-  const nodeTypeMap = new Map(reactFlowNodes.map(n => [n.id, n.type]))
 
   // Sort operators by path to ensure parents come before children
   const sortedOps = Array.from(operators.entries()).sort((a, b) => a[0].localeCompare(b[0]))
@@ -48,9 +45,9 @@ function buildTree(
     const node: TreeNode = {
       id,
       name,
-      // Use type from ReactFlow node (minification-safe) or fallback to Unknown
-      // Note: The fallback should rarely be needed since all operators should have ReactFlow nodes
-      type: nodeTypeMap.get(id) || 'Unknown',
+      // Use type from operator constructor (minification-safe)
+      type: (op.constructor as typeof op.constructor & { type: string }).type || 'Unknown',
+      displayName: (op.constructor as typeof op.constructor).displayName || 'Unknown',
       children: [],
       depth,
     }
@@ -140,7 +137,7 @@ function TreeItem({
         {!isContainer && hasChildren && <span className={s.spacer} />}
         <div className={s.nodeInfo}>
           <span className={s.nodeName}>{node.name}</span>
-          <span className={s.nodeType}>{node.type.replace(/Op$/, '')}</span>
+          <span className={s.nodeType}>{node.displayName}</span>
         </div>
         {hovering && (
           <>
@@ -199,8 +196,8 @@ export function NodeTreeSidebar() {
   // Get nodes from React Flow
   const nodes = reactFlow.getNodes()
 
-  // Build tree from operators and nodes
-  const tree = useMemo(() => buildTree(operators, nodes), [operators, nodes])
+  // Build tree from operators
+  const tree = useMemo(() => buildTree(operators), [operators])
 
   // Get selected node IDs from React Flow (reactive)
   const selectedNodeIds = useMemo(() => {
