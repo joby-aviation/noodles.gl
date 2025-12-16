@@ -684,8 +684,8 @@ function NodeHeader({ id, type, op }: { id: string; type: OpType; op: OperatorIn
 
   return (
     <div className={cx(s.header, headerClass(type))}>
-      <div className={s.headerTitle} title={`${id} (${op.constructor.displayName})`}>
-        {editableId} ({op.constructor.displayName})
+      <div className={s.headerTitle} title={`${id} (${op.displayName})`}>
+        {editableId} ({op.displayName})
       </div>
       <ExecutionIndicator {...executionState} />
       <div className={s.headerActions}>

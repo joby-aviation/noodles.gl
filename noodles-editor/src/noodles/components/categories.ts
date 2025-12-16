@@ -119,10 +119,7 @@ export const categories = {
   widget: ['FpsWidget'],
 } as const
 
+// TODO: Remove this function when we fully migrate to operator displayNames
 export function nodeTypeToDisplayName(nodeType: string): string {
   return nodeType.replace(/Op$/, '')
-}
-
-export function displayNameToNodeType(displayName: string): NodeType {
-  return (displayName + 'Op') as NodeType
 }

@@ -38,12 +38,11 @@ function buildTree(operators: Map<string, Operator<IOperator>>): TreeNode[] {
     const pathParts = id.split('/').filter(Boolean)
     const name = getBaseName(id) || 'root'
     const depth = pathParts.length
-    const displayName = op.constructor.displayName
 
     const node: TreeNode = {
       id,
       name,
-      displayName,
+      displayName: op.displayName,
       children: [],
       depth,
     }
