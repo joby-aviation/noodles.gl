@@ -35,6 +35,7 @@ function buildTree(operators: Map<string, Operator<IOperator>>): TreeNode[] {
   const sortedOps = Array.from(operators.entries()).sort((a, b) => a[0].localeCompare(b[0]))
 
   for (const [id, op] of sortedOps) {
+    const { displayName } = op.constructor as typeof Operator
     const pathParts = id.split('/').filter(Boolean)
     const name = getBaseName(id) || 'root'
     const depth = pathParts.length
@@ -42,7 +43,7 @@ function buildTree(operators: Map<string, Operator<IOperator>>): TreeNode[] {
     const node: TreeNode = {
       id,
       name,
-      displayName: op.displayName,
+      displayName,
       children: [],
       depth,
     }

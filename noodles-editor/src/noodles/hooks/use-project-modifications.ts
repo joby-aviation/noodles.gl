@@ -13,7 +13,7 @@ import {
 } from '@xyflow/react'
 import { useCallback } from 'react'
 import { analytics } from '../../utils/analytics'
-import { ListField } from '../fields'
+import { type Field, ListField } from '../fields'
 import { getOp } from '../store'
 import { canConnect } from '../utils/can-connect'
 import { edgeId } from '../utils/id-utils'
@@ -277,11 +277,14 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         }
       }
 
+      const sourceFieldType = (sourceField.constructor as typeof Field).type
+      const targetFieldType = (targetField.constructor as typeof Field).type
+
       // Validate connection
       if (!canConnect(sourceField, targetField)) {
         return {
           success: false,
-          error: `Invalid connection: ${sourceField.type} cannot connect to ${targetField.type}`,
+          error: `Invalid connection: ${sourceFieldType} cannot connect to ${targetFieldType}`,
         }
       }
 
@@ -596,8 +599,11 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
               continue
             }
 
+            const sourceFieldType = (sourceField.constructor as typeof Field).type
+            const targetFieldType = (targetField.constructor as typeof Field).type
+
             if (!canConnect(sourceField, targetField)) {
-              const error = `Edge ${edge.id}: incompatible types (${sourceField.type} -> ${targetField.type})`
+              const error = `Edge ${edge.id}: incompatible types (${sourceFieldType} -> ${targetFieldType})`
               console.error(error)
               edgeErrors.push(error)
               continue

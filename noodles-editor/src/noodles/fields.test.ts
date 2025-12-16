@@ -920,7 +920,7 @@ describe('DateField', () => {
 describe('GeoJsonField', () => {
   it('should have correct type', () => {
     const field = new GeoJsonField()
-    expect(field.type).toBe('geojson')
+    expect((field.constructor as typeof Field).type).toBe('geojson')
   })
 
   it('should have default value as FeatureCollection', () => {

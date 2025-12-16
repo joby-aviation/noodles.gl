@@ -1,5 +1,6 @@
 // MCPTools - Client-side tool implementations for Claude AI
 
+import type { Operator } from '../noodles/operators'
 import { getOpStore } from '../noodles/store'
 import { safeStringify } from '../noodles/utils/serialization'
 import type { ContextLoader } from './context-loader'
@@ -662,21 +663,6 @@ export class MCPTools {
   // Read operator output data
   async getNodeOutput(params: { nodeId: string; maxRows?: number }): Promise<ToolResult> {
     try {
-      if (!this.project) {
-        return {
-          success: false,
-          error: 'No project loaded',
-        }
-      }
-
-      const node = (this.project.nodes || []).find(n => n.id === params.nodeId)
-      if (!node) {
-        return {
-          success: false,
-          error: `Node not found: ${params.nodeId}`,
-        }
-      }
-
       const operator = getOpStore().getOp(params.nodeId)
 
       if (!operator) {
@@ -691,6 +677,7 @@ export class MCPTools {
       const outputData: any = {}
       // biome-ignore lint/suspicious/noExplicitAny: dynamic operator outputs object
       const outputs = (operator as any).outputs || {}
+      const { displayName } = operator.constructor as typeof Operator
 
       for (const [key, field] of Object.entries(outputs)) {
         // biome-ignore lint/suspicious/noExplicitAny: dynamic field value access
@@ -723,7 +710,7 @@ export class MCPTools {
           success: true,
           data: {
             nodeId: params.nodeId,
-            operatorType: node.type,
+            operatorType: displayName,
             outputs: Object.keys(outputs),
             dataSample: sample,
             totalRows,
@@ -739,7 +726,7 @@ export class MCPTools {
         success: true,
         data: {
           nodeId: params.nodeId,
-          operatorType: node.type,
+          operatorType: displayName,
           outputs: Object.keys(outputs),
           outputData,
           // biome-ignore lint/suspicious/noExplicitAny: accessing dynamic operator state

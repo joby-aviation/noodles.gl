@@ -80,10 +80,6 @@ export abstract class Field<
   static type: keyof typeof inputComponents
   static defaultValue: unknown // z.output<ReturnType<T['createSchema']>>
 
-  get type(): keyof typeof inputComponents {
-    return (this.constructor as typeof Field).type
-  }
-
   // Fields like Array and Compound need to be able to use a subschema
   abstract createSchema(options: Partial<O>): S
 

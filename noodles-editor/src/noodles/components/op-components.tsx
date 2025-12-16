@@ -148,7 +148,7 @@ export function typeDisplayName(type: NodeType) {
 export function getNodeDescription(type: NodeType): string {
   // Check for regular operators first
   if (type in opTypes) {
-    return opTypes[type].description || ''
+    return opTypes[type]?.description || ''
   }
 
   // Check for math operators
@@ -235,10 +235,11 @@ const handleClasses = {
 } as const as Record<keyof typeof inputComponents, string>
 
 export const handleClass = (field: Field<IField>): string => {
+  const { type } = field.constructor as typeof Field
   if (field instanceof ListField || field instanceof ArrayField) {
-    return cx(handleClasses[field.type], handleClass(field.field))
+    return cx(handleClasses[type], handleClass(field.field))
   }
-  return handleClasses[field.type]
+  return handleClasses[type]
 }
 
 export const SOURCE_HANDLE = 'source'
@@ -359,6 +360,8 @@ function OutputHandle({ id, field }: { id: string; field: Field<IField> }) {
     }
   }, [])
 
+  const { type } = field.constructor as typeof Field
+
   return (
     <div style={{ position: 'relative', flex: 1, pointerEvents: 'auto' }}>
       <Handle
@@ -379,7 +382,7 @@ function OutputHandle({ id, field }: { id: string; field: Field<IField> }) {
               top: `${previewPosition.y}px`,
             }}
           >
-            <HandlePreviewContent data={previewData} name={id} type={field.type} />
+            <HandlePreviewContent data={previewData} name={id} type={type} />
           </div>,
           document.body
         )}

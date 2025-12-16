@@ -1826,7 +1826,8 @@ export function FieldComponent({
       edge.target === nid && edge.targetHandle === qualifiedFieldId && edge.type !== 'ReferenceEdge'
   )
 
-  const InputComp = inputComponents[field.type]
+  const { type } = field.constructor as typeof Field
+  const InputComp = inputComponents[type]
 
   // When renderInput is false, position handle absolutely to avoid relying on container height
   const handleStyle = renderInput

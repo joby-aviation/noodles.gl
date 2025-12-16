@@ -199,14 +199,6 @@ export abstract class Operator<OP extends IOperator> {
   static displayName = 'Operator'
   static description = ''
 
-  get displayName(): string {
-    return (this.constructor as typeof Operator).displayName
-  }
-
-  get description(): string {
-    return (this.constructor as typeof Operator).description
-  }
-
   inputs: ReturnType<OP['createInputs']>
   outputs: ReturnType<OP['createOutputs']>
 
