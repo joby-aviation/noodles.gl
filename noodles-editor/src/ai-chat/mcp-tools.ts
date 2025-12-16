@@ -1,5 +1,6 @@
 // MCPTools - Client-side tool implementations for Claude AI
 
+import type { Operator } from '../noodles/operators'
 import { getOpStore } from '../noodles/store'
 import { safeStringify } from '../noodles/utils/serialization'
 import type { ContextLoader } from './context-loader'
@@ -553,7 +554,8 @@ export class MCPTools {
 
       const layerInfo = {
         id: layer.id,
-        type: layer.constructor.name,
+        // Deck.gl layers have a static layerName property that is minification-safe
+        type: layer.constructor.layerName || 'Unknown',
         visible: layer.props.visible,
         opacity: layer.props.opacity,
         pickable: layer.props.pickable,
@@ -675,6 +677,7 @@ export class MCPTools {
       const outputData: any = {}
       // biome-ignore lint/suspicious/noExplicitAny: dynamic operator outputs object
       const outputs = (operator as any).outputs || {}
+      const { displayName } = operator.constructor as typeof Operator
 
       for (const [key, field] of Object.entries(outputs)) {
         // biome-ignore lint/suspicious/noExplicitAny: dynamic field value access
@@ -707,9 +710,7 @@ export class MCPTools {
           success: true,
           data: {
             nodeId: params.nodeId,
-            operatorType:
-              // biome-ignore lint/suspicious/noExplicitAny: accessing dynamic operator constructor
-              (operator as any).constructor.displayName || (operator as any).constructor.name,
+            operatorType: displayName,
             outputs: Object.keys(outputs),
             dataSample: sample,
             totalRows,
@@ -725,9 +726,7 @@ export class MCPTools {
         success: true,
         data: {
           nodeId: params.nodeId,
-          operatorType:
-            // biome-ignore lint/suspicious/noExplicitAny: accessing dynamic operator constructor
-            (operator as any).constructor.displayName || (operator as any).constructor.name,
+          operatorType: displayName,
           outputs: Object.keys(outputs),
           outputData,
           // biome-ignore lint/suspicious/noExplicitAny: accessing dynamic operator state

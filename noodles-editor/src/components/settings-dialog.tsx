@@ -31,8 +31,9 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
       <Dialog.Portal>
         <Dialog.Overlay className={s.overlay} />
         <Dialog.Content className={s.content}>
-          <Dialog.Title className={s.title}>Settings</Dialog.Title>
+          <Dialog.Title className={s.title}>App Settings</Dialog.Title>
 
+          {/* Privacy & Analytics Section */}
           <div className={s.section}>
             <h3 className={s.sectionTitle}>Privacy & Analytics</h3>
 
