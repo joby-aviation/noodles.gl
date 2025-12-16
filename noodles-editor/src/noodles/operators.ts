@@ -695,9 +695,9 @@ export class BooleanOp extends Operator<BooleanOp> {
   }
 }
 
-export class DateTimeOp extends Operator<DateTimeOp> {
-  static displayName = 'DateTime'
-  static description = 'A date and time'
+export class LegacyDateTimeOp extends Operator<LegacyDateTimeOp> {
+  static displayName = 'DateTime (Legacy)'
+  static description = 'A date and time (deprecated - use DateTimeOp instead)'
   createInputs() {
     return {
       date: new DateField(),
@@ -710,6 +710,78 @@ export class DateTimeOp extends Operator<DateTimeOp> {
   }
   execute({ date }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     return { date }
+  }
+}
+
+export class DateOp extends Operator<DateOp> {
+  static displayName = 'Date'
+  static description = 'A calendar date (year-month-day)'
+  createInputs() {
+    return {
+      date: new TemporalField('date-d'),
+    }
+  }
+  createOutputs() {
+    return {
+      date: new TemporalField('date-d'),
+    }
+  }
+  execute({ date }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    return { date }
+  }
+}
+
+export class TimeOfDayOp extends Operator<TimeOfDayOp> {
+  static displayName = 'Time of Day'
+  static description = 'A time of day (hour:minute:second)'
+  createInputs() {
+    return {
+      time: new TemporalField('time-s'),
+    }
+  }
+  createOutputs() {
+    return {
+      time: new TemporalField('time-s'),
+    }
+  }
+  execute({ time }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    return { time }
+  }
+}
+
+export class DateTimeOp extends Operator<DateTimeOp> {
+  static displayName = 'DateTime'
+  static description = 'A date and time without timezone'
+  createInputs() {
+    return {
+      datetime: new TemporalField('datetime-s'),
+    }
+  }
+  createOutputs() {
+    return {
+      datetime: new TemporalField('datetime-s'),
+    }
+  }
+  execute({ datetime }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    return { datetime }
+  }
+}
+
+export class ZonedDateTimeOp extends Operator<ZonedDateTimeOp> {
+  static displayName = 'ZonedDateTime'
+  static description = 'A date and time with timezone'
+  createInputs() {
+    return {
+      datetime: new TemporalField('zoned-datetime-s', { timeZone: 'UTC' }),
+    }
+  }
+  createOutputs() {
+    return {
+      datetime: new TemporalField('zoned-datetime-s', { timeZone: 'UTC' }),
+    }
+  }
+  execute({ datetime }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    return { datetime }
   }
 }
 
