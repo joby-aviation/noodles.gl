@@ -723,7 +723,7 @@ export class MCPTools {
           success: true,
           data: {
             nodeId: params.nodeId,
-            operatorType: (operator.constructor as typeof operator.constructor & { type: string }).type,
+            operatorType: node.type,
             outputs: Object.keys(outputs),
             dataSample: sample,
             totalRows,
@@ -739,7 +739,7 @@ export class MCPTools {
         success: true,
         data: {
           nodeId: params.nodeId,
-          operatorType: (operator.constructor as typeof operator.constructor & { type: string }).type,
+          operatorType: node.type,
           outputs: Object.keys(outputs),
           outputData,
           // biome-ignore lint/suspicious/noExplicitAny: accessing dynamic operator state
@@ -773,7 +773,7 @@ export class MCPTools {
 
         return {
           id: node.id,
-          type: operator ? (operator.constructor as typeof operator.constructor & { type: string }).type : 'Unknown',
+          type: node.type,
           position: node.position,
           inputs: node.data?.inputs || {},
           locked: node.data?.locked || false,
@@ -842,18 +842,15 @@ export class MCPTools {
       // biome-ignore lint/suspicious/noExplicitAny: executionState is a dynamic operator property not in type definitions
       const executionState = operator ? (operator as any).executionState?.value : null
 
-      // Get opType from operator
-      const opType = operator ? (operator.constructor as typeof operator.constructor & { type: string }).type : 'Unknown'
-
       // Get available inputs and outputs from operator schema
       const registry = this.contextLoader.getOperatorRegistry()
-      const schema = registry?.operators[opType]
+      const schema = registry?.operators[node.type]
 
       return {
         success: true,
         data: {
           id: node.id,
-          type: opType,
+          type: node.type,
           position: node.position,
           inputs: node.data?.inputs || {},
           locked: node.data?.locked || false,
@@ -912,11 +909,7 @@ export class MCPTools {
       connectedNodes.add(edge.target)
     })
     ;(project.nodes || []).forEach(node => {
-      // Get operator to access its opType
-      const operator = getOpStore().getOp(node.id)
-      const opType = operator ? (operator.constructor as typeof operator.constructor & { type: string }).type : node.type
-
-      if (!connectedNodes.has(node.id) && opType !== 'OutOp') {
+      if (!connectedNodes.has(node.id) && node.type !== 'OutOp') {
         issues.push({
           type: 'disconnected',
           severity: 'warning',
@@ -925,13 +918,13 @@ export class MCPTools {
         })
       }
 
-      const schema = registry.operators[opType]
+      const schema = registry.operators[node.type]
       if (!schema) {
         issues.push({
           type: 'unknown-operator',
           severity: 'error',
           nodeId: node.id,
-          message: `Unknown operator type: ${opType}`,
+          message: `Unknown operator type: ${node.type}`,
         })
       }
     })
