@@ -557,7 +557,7 @@ Any field can be keyframed via Theatre.js. Changes in timeline propagate through
 3. Define outputs with `createOutputs()` method
 4. Implement `execute()` method with pure function logic
 5. Register operator in operator registry
-6. Add to category in `components/categories.ts`
+6. Add to category in `components/categories.ts` using display name without "Op" suffix (e.g., `'File'` not `'FileOp'`)
 7. **Write unit tests** (required for all operators)
 8. Document behavior and limitations if complex
 9. Test in UI with example projects
