@@ -274,8 +274,8 @@ describe('Graph Execution E2E', () => {
     expect(mathOp?.constructor.name).toBe('MathOp')
 
     // Verify operator metadata
-    expect(NumberOp.displayName).toBe('Number')
-    expect(MathOp.displayName).toBe('Math')
+    expect(numOp?.displayName).toBe('Number')
+    expect(mathOp?.displayName).toBe('Math')
   })
 
   it('propagates changes through dependency chain', () => {

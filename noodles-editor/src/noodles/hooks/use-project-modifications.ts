@@ -281,7 +281,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       if (!canConnect(sourceField, targetField)) {
         return {
           success: false,
-          error: `Invalid connection: ${sourceField.constructor.type} cannot connect to ${targetField.constructor.type}`,
+          error: `Invalid connection: ${sourceField.type} cannot connect to ${targetField.type}`,
         }
       }
 
@@ -597,7 +597,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
             }
 
             if (!canConnect(sourceField, targetField)) {
-              const error = `Edge ${edge.id}: incompatible types (${sourceField.constructor.type} -> ${targetField.constructor.type})`
+              const error = `Edge ${edge.id}: incompatible types (${sourceField.type} -> ${targetField.type})`
               console.error(error)
               edgeErrors.push(error)
               continue

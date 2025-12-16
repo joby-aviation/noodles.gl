@@ -56,9 +56,9 @@ import {
 } from '../store'
 import type { NodeDataJSON } from '../transform-graph'
 import { edgeId } from '../utils/id-utils'
+import type { NodeType } from '../utils/node-creation-utils'
 import { generateQualifiedPath, getBaseName, getParentPath } from '../utils/path-utils'
-import type { NodeType } from './add-node-menu'
-import { categories as baseCategories } from './categories'
+import { categories as baseCategories, nodeTypeToDisplayName } from './categories'
 import { FieldComponent, type inputComponents } from './field-components'
 import previewStyles from './handle-preview.module.css'
 
@@ -165,8 +165,9 @@ export function getNodeDescription(type: NodeType): string {
 }
 
 export function typeCategory(type: NodeType) {
+  const displayName = nodeTypeToDisplayName(type)
   for (const [category, types] of Object.entries(categories)) {
-    if ((types as readonly string[]).includes(type)) {
+    if ((types as readonly string[]).includes(displayName)) {
       return toPascal(category)
     }
   }
@@ -234,9 +235,9 @@ const handleClasses = {
 
 export const handleClass = (field: Field<IField>): string => {
   if (field instanceof ListField || field instanceof ArrayField) {
-    return cx(handleClasses[field.constructor.type], handleClass(field.field))
+    return cx(handleClasses[field.type], handleClass(field.field))
   }
-  return handleClasses[field.constructor.type]
+  return handleClasses[field.type]
 }
 
 export const SOURCE_HANDLE = 'source'
@@ -377,7 +378,7 @@ function OutputHandle({ id, field }: { id: string; field: Field<IField> }) {
               top: `${previewPosition.y}px`,
             }}
           >
-            <HandlePreviewContent data={previewData} name={id} type={field.constructor.type} />
+            <HandlePreviewContent data={previewData} name={id} type={field.type} />
           </div>,
           document.body
         )}
@@ -990,7 +991,7 @@ const viewerFormatter = (value: unknown) => {
   if (value instanceof Operator) {
     return {
       id: value.id,
-      type: value.constructor.displayName,
+      type: value.displayName,
       inputs: Object.fromEntries(
         Object.entries(value.inputs).map(([key, field]) => [key, viewerFormatter(field.value)])
       ),

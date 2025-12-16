@@ -96,11 +96,11 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
   const store = getOpStore()
   const op = store.getOp(node.id)
   if (!op) return null
-  const { displayName, description, type } = op.constructor as typeof op.constructor & { type: string }
+  const { displayName, description } = op
 
   const inputs = Object.entries(op.inputs).map(([name, input]) => ({
     name,
-    type: input.constructor.type,
+    type: input.type,
     codeRef: `op('${op.id}').${IN_NS}.${name}`,
     mustacheRef: `{{${op.id}.${IN_NS}.${name}}}`,
     handleClass: handleClass(input),
@@ -109,7 +109,7 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
 
   const outputs = Object.entries(op.outputs).map(([name, output]) => ({
     name,
-    type: output.constructor.type,
+    type: output.type,
     codeRef: `op('${op.id}').${OUT_NS}.${name}`,
     mustacheRef: `{{${op.id}.${OUT_NS}.${name}}}`,
     handleClass: handleClass(output),
