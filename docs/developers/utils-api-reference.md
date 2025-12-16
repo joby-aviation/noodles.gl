@@ -486,6 +486,4 @@ return [intensity, 100, 255 - intensity]
 
 ## See Also
 
-- [Creating Operators](../users/creating-operators.md) - Guide to creating custom operators
-- [Code Operators Guide](../users/code-operators.md) - Working with CodeOp and AccessorOp
-- Source code: [noodles-editor/src/utils/](../../noodles-editor/src/utils/)
+- [Creating Operators](./creating-operators.md) - Guide to creating custom operators including CodeOp and AccessorOp
