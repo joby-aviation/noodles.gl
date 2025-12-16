@@ -697,7 +697,7 @@ export class BooleanOp extends Operator<BooleanOp> {
 }
 
 export class LegacyDateTimeOp extends Operator<LegacyDateTimeOp> {
-  static displayName = 'DateTime (Legacy)'
+  static displayName = 'LegacyDateTime'
   static description = 'A date and time (deprecated - use DateTimeOp instead)'
   createInputs() {
     return {

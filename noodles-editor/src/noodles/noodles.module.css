@@ -42,6 +42,7 @@
   /* Node type colors */
   --node-string-color: #1299be;
   --node-number-color: #bc1212;
+  --node-temporal-color: #9333ea;
   --node-boolean-color: #c69a16;
   --node-code-color: #493590;
   --node-color-color: #c9750e;
@@ -234,6 +235,10 @@
 
 .headerString {
   background-color: var(--node-string-color);
+}
+
+.headerTemporal {
+  background-color: var(--node-temporal-color);
 }
 
 .headerBoolean {

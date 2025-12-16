@@ -185,6 +185,7 @@ const headerClasses = {
   layer: s.headerLayer,
   number: s.headerNumber,
   string: s.headerString,
+  temporal: s.headerTemporal,
   utility: s.headerUtility,
   vector: s.headerVector,
   view: s.headerView,
