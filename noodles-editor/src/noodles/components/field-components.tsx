@@ -4,6 +4,7 @@ import { Cross2Icon } from '@radix-ui/react-icons'
 import { Handle, Position, useEdges, useNodeId, useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
 import type { ScaleLinear, ScaleOrdinal } from 'd3'
+import { AutoComplete } from 'primereact/autocomplete'
 import { Button } from 'primereact/button'
 import { InputText } from 'primereact/inputtext'
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -1157,20 +1158,40 @@ export function TemporalFieldComponent({
 
   const { temporalType, precision, timeZone } = field
 
+  // Get list of all available timezones
+  const allTimeZones = useMemo(() => {
+    try {
+      return Intl.supportedValuesOf('timeZone')
+    } catch {
+      // Fallback for older browsers
+      return ['UTC', 'America/New_York', 'America/Los_Angeles', 'Europe/London', 'Asia/Tokyo']
+    }
+  }, [])
+
+  // State for timezone autocomplete
+  const [filteredTimeZones, setFilteredTimeZones] = useState<string[]>([])
+  const [selectedTimeZone, setSelectedTimeZone] = useState(timeZone)
+
   // Format value for HTML input based on type and precision
   const formatForInput = (val: unknown): string => {
-    if (!val || typeof val === 'function') return ''
+    // If no value provided or it's a function, use the field's default value
+    const actualVal = !val || typeof val === 'function' ? field.value : val
+
+    if (!actualVal || typeof actualVal === 'function') {
+      console.warn('TemporalField has no valid value or default')
+      return ''
+    }
 
     try {
       // Get string representation
       let str = ''
       if (
-        val instanceof Temporal.PlainDate ||
-        val instanceof Temporal.PlainTime ||
-        val instanceof Temporal.PlainDateTime ||
-        val instanceof Temporal.ZonedDateTime
+        actualVal instanceof Temporal.PlainDate ||
+        actualVal instanceof Temporal.PlainTime ||
+        actualVal instanceof Temporal.PlainDateTime ||
+        actualVal instanceof Temporal.ZonedDateTime
       ) {
-        str = val.toString()
+        str = actualVal.toString()
       } else {
         return ''
       }
@@ -1266,6 +1287,30 @@ export function TemporalFieldComponent({
     parseFromInput(e.currentTarget.value)
   }
 
+  // Handle timezone autocomplete search
+  const searchTimeZone = (event: { query: string }) => {
+    const query = event.query.toLowerCase()
+    const filtered = allTimeZones.filter(tz => tz.toLowerCase().includes(query))
+    setFilteredTimeZones(filtered)
+  }
+
+  // Handle timezone selection
+  const onTimeZoneChange = (newTimeZone: string) => {
+    setSelectedTimeZone(newTimeZone)
+    // Update the field's timezone property
+    field.timeZone = newTimeZone
+
+    // If we have a current ZonedDateTime value, convert it to the new timezone
+    if (value instanceof Temporal.ZonedDateTime) {
+      try {
+        const converted = value.withTimeZone(newTimeZone)
+        field.setValue(converted)
+      } catch (e) {
+        console.warn('Error converting timezone:', e)
+      }
+    }
+  }
+
   // Determine HTML input type based on temporal type
   const getInputType = (): string => {
     switch (temporalType) {
@@ -1310,6 +1355,20 @@ export function TemporalFieldComponent({
           step={getStep()}
           title={`${temporalType} with ${precision} precision${temporalType === 'zoned-datetime' ? ` (${timeZone})` : ''}`}
         />
+        {temporalType === 'zoned-datetime' && (
+          <AutoComplete
+            value={selectedTimeZone}
+            suggestions={filteredTimeZones}
+            completeMethod={searchTimeZone}
+            onChange={e => onTimeZoneChange(e.value)}
+            placeholder="Select timezone"
+            disabled={disabled}
+            className={s.fieldInput}
+            inputClassName={s.fieldInput}
+            style={{ marginTop: '4px', width: '100%' }}
+            dropdown
+          />
+        )}
       </div>
     </div>
   )
