@@ -34,21 +34,9 @@
 }
 
 .unsavedIndicator {
-  display: inline-flex;
-  align-items: center;
   margin-left: 2px;
-  margin-right: -8px;
-  vertical-align: super;
-  font-size: 0.7em;
   line-height: 0;
   cursor: help;
-}
-
-.unsavedDot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background-color: var(--color-text-accent);
 }
 
 .menu {

@@ -128,7 +128,7 @@ export const Breadcrumbs: FC<BreadcrumbsProps> = ({ projectName, hasUnsavedChang
             {segment.name}
             {index === 0 && hasUnsavedChanges && (
               <span className={s.unsavedIndicator} title="Unsaved changes">
-                <span className={s.unsavedDot} />
+                *
               </span>
             )}
           </button>
