@@ -2702,13 +2702,16 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
 // - unique view props ordered by most to least often used.
 // - viewState props ordered by most to least often used.
 // - override props go last (e.g. projectionMatrix)
+// Base view fields that apply to all view types
+// Note: The `orthographic` property is NOT included here because:
+// - OrthographicView doesn't support it (always uses orthographic projection)
+// - Other views need to add it individually
 function createBaseViewFields() {
   return {
     x: new NumberField(0),
     y: new NumberField(0),
     width: new StringField('100%'),
     height: new StringField('100%'),
-    orthographic: new BooleanField(false),
     padding: new CompoundPropsField({
       top: new NumberField(0, { min: 0 }),
       right: new NumberField(0, { min: 0 }),
@@ -2742,6 +2745,7 @@ export class MapViewOp extends Operator<MapViewOp> {
   createInputs() {
     return {
       ...createBaseViewFields(),
+      orthographic: new BooleanField(false),
       fovy: new NumberField(40, { min: 0.1, max: 179.9 }),
       repeat: new BooleanField(false),
       ...createGeoViewFields(),
@@ -2881,6 +2885,7 @@ export class FirstPersonViewOp extends Operator<FirstPersonViewOp> {
   createInputs() {
     return {
       ...createBaseViewFields(),
+      orthographic: new BooleanField(false),
       ...createFrustumViewFields(),
       // focalDistance: new NumberField(1),
       viewState: new CompoundPropsField({
@@ -2911,6 +2916,7 @@ export class OrbitViewOp extends Operator<OrbitViewOp> {
   createInputs() {
     return {
       ...createBaseViewFields(),
+      orthographic: new BooleanField(false),
       orbitAxis: new StringLiteralField('Z', {
         values: ['X', 'Y', 'Z'],
       }),
@@ -2959,9 +2965,7 @@ export class OrthographicViewOp extends Operator<OrthographicViewOp> {
 
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     validateViewState(props.viewState)
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { orthographic, ...viewProps } = props
-    return { view: new OrthographicView({ id: this.id, ...viewProps }) }
+    return { view: new OrthographicView({ id: this.id, ...props }) }
   }
 }
 
