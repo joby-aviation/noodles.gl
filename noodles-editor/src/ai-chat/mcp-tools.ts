@@ -553,7 +553,8 @@ export class MCPTools {
 
       const layerInfo = {
         id: layer.id,
-        type: layer.constructor.name,
+        // Deck.gl layers have a static layerName property that is minification-safe
+        type: layer.constructor.layerName || 'Unknown',
         visible: layer.props.visible,
         opacity: layer.props.opacity,
         pickable: layer.props.pickable,
@@ -661,6 +662,21 @@ export class MCPTools {
   // Read operator output data
   async getNodeOutput(params: { nodeId: string; maxRows?: number }): Promise<ToolResult> {
     try {
+      if (!this.project) {
+        return {
+          success: false,
+          error: 'No project loaded',
+        }
+      }
+
+      const node = (this.project.nodes || []).find(n => n.id === params.nodeId)
+      if (!node) {
+        return {
+          success: false,
+          error: `Node not found: ${params.nodeId}`,
+        }
+      }
+
       const operator = getOpStore().getOp(params.nodeId)
 
       if (!operator) {
@@ -707,9 +723,7 @@ export class MCPTools {
           success: true,
           data: {
             nodeId: params.nodeId,
-            operatorType:
-              // biome-ignore lint/suspicious/noExplicitAny: accessing dynamic operator constructor
-              (operator as any).constructor.displayName || (operator as any).constructor.name,
+            operatorType: node.type,
             outputs: Object.keys(outputs),
             dataSample: sample,
             totalRows,
@@ -725,9 +739,7 @@ export class MCPTools {
         success: true,
         data: {
           nodeId: params.nodeId,
-          operatorType:
-            // biome-ignore lint/suspicious/noExplicitAny: accessing dynamic operator constructor
-            (operator as any).constructor.displayName || (operator as any).constructor.name,
+          operatorType: node.type,
           outputs: Object.keys(outputs),
           outputData,
           // biome-ignore lint/suspicious/noExplicitAny: accessing dynamic operator state

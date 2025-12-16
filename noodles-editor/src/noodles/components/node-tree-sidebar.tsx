@@ -48,7 +48,9 @@ function buildTree(
     const node: TreeNode = {
       id,
       name,
-      type: nodeTypeMap.get(id) || op.constructor.name, // Fallback to constructor.name if not found
+      // Use type from ReactFlow node (minification-safe) or fallback to Unknown
+      // Note: The fallback should rarely be needed since all operators should have ReactFlow nodes
+      type: nodeTypeMap.get(id) || 'Unknown',
       children: [],
       depth,
     }
