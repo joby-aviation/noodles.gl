@@ -1016,11 +1016,30 @@ const viewerFormatter = (value: unknown) => {
     typeof value === 'number' ||
     typeof value === 'boolean' ||
     value instanceof Date ||
-    value instanceof Temporal.PlainDateTime
+    value instanceof Temporal.PlainDate ||
+    value instanceof Temporal.PlainTime ||
+    value instanceof Temporal.PlainDateTime ||
+    value instanceof Temporal.ZonedDateTime
   ) {
     return { value }
   }
   return value
+}
+
+// Helper to format cell values, including temporal types
+function formatCellValue(value: unknown): string {
+  if (typeof value === 'string') {
+    return value
+  }
+  if (
+    value instanceof Temporal.PlainDate ||
+    value instanceof Temporal.PlainTime ||
+    value instanceof Temporal.PlainDateTime ||
+    value instanceof Temporal.ZonedDateTime
+  ) {
+    return value.toString()
+  }
+  return JSON.stringify(value)
 }
 
 function ViewerDOMContent({ content }: { content: Element }) {
@@ -1077,9 +1096,7 @@ function ViewerOpComponent({
           {viewerData.map((row, _i) => (
             <tr key={`${JSON.stringify(row)}`}>
               {keys.map((key, _j) => (
-                <td key={key}>
-                  {typeof row[key] === 'string' ? row[key] : JSON.stringify(row[key])}
-                </td>
+                <td key={key}>{formatCellValue(row[key])}</td>
               ))}
             </tr>
           ))}
