@@ -195,8 +195,9 @@ const headerClasses = {
 } as const as Record<keyof typeof categories, string>
 
 export function headerClass(type: NodeType) {
+  const displayName = nodeTypeToDisplayName(type)
   for (const [category, types] of Object.entries(categories)) {
-    if ((types as readonly string[]).includes(type)) {
+    if ((types as readonly string[]).includes(displayName)) {
       return headerClasses[category]
     }
   }

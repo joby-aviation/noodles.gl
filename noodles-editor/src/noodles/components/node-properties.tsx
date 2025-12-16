@@ -202,7 +202,7 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
       <div className={s.header}>
         <div className={s.title}>
           {displayName}
-          <div className={cx(s.capsule, headerClass(type))}>{typeCategory(type)}</div>
+          <div className={cx(s.capsule, headerClass(node.type))}>{typeCategory(node.type)}</div>
         </div>
       </div>
       {description && (
