@@ -148,7 +148,10 @@ export function typeDisplayName(type: NodeType) {
 export function getNodeDescription(type: NodeType): string {
   // Check for regular operators first
   if (type in opTypes) {
-    return opTypes[type]?.description || ''
+    // Create a temporary instance to access instance property
+    const ctor = opTypes[type]
+    const tempInstance = new ctor('/temp')
+    return tempInstance.description || ''
   }
 
   // Check for math operators
