@@ -28,9 +28,7 @@ interface TreeNode {
 }
 
 // Build hierarchical tree from flat operator list
-function buildTree(
-  operators: Map<string, Operator<IOperator>>
-): TreeNode[] {
+function buildTree(operators: Map<string, Operator<IOperator>>): TreeNode[] {
   const tree: TreeNode[] = []
   const nodeMap = new Map<string, TreeNode>()
 
@@ -46,8 +44,8 @@ function buildTree(
       id,
       name,
       // Use type from operator constructor (minification-safe)
-      type: (op.constructor as typeof op.constructor & { type: string }).type || 'Unknown',
-      displayName: (op.constructor as typeof op.constructor).displayName || 'Unknown',
+      type: (op.constructor as typeof op.constructor & { type: string }).type,
+      displayName: (op.constructor as typeof op.constructor & { displayName: string }).displayName,
       children: [],
       depth,
     }
@@ -193,13 +191,11 @@ export function NodeTreeSidebar() {
   const reactFlow = useReactFlow()
   const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set())
 
-  // Get nodes from React Flow
-  const nodes = reactFlow.getNodes()
-
   // Build tree from operators
   const tree = useMemo(() => buildTree(operators), [operators])
 
   // Get selected node IDs from React Flow (reactive)
+  const nodes = reactFlow.getNodes()
   const selectedNodeIds = useMemo(() => {
     return new Set(nodes.filter(n => n.selected).map(n => n.id))
   }, [nodes])

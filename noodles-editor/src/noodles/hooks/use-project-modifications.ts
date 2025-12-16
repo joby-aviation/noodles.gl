@@ -118,10 +118,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
           if (parent) {
             extraDeleted.add(parent)
             const siblingType = node.type === 'ForLoopBeginOp' ? 'ForLoopEndOp' : 'ForLoopBeginOp'
-            const sibling = nodes.find(n => {
-              if (n.parentId !== parent) return false
-              return n.type === siblingType
-            })
+            const sibling = nodes.find(n => n.parentId === parent && n.type === siblingType)
             if (sibling) {
               extraDeleted.add(sibling.id)
               warnings.push(

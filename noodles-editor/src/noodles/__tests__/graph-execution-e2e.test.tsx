@@ -269,7 +269,7 @@ describe('Graph Execution E2E', () => {
     const numOp = getOp('/num')
     const mathOp = getOp('/math')
 
-    // Verify correct operator types using constructor.name (tests run unminified)
+    // Verify correct operator types
     expect(numOp?.constructor.name).toBe('NumberOp')
     expect(mathOp?.constructor.name).toBe('MathOp')
 
