@@ -282,6 +282,8 @@ export function getNoodles(): Visualization {
       }
     }
 
+    document.title = projectName ? `Noodles.gl - ${projectName}${hasUnsavedChanges ? ' *' : ''}` : 'Noodles.gl'
+
     window.addEventListener('beforeunload', handleBeforeUnload)
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [hasUnsavedChanges])
