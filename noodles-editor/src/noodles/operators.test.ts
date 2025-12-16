@@ -92,8 +92,8 @@ describe('Operator pathToProps', () => {
 describe('Error handling', () => {
   it('fails gracefully if execute throws an error', () => {
     class TestOp extends Operator<TestOp> {
-      readonly displayName = 'TestOp' as const
-      readonly description = 'Test operator for error handling'
+      static displayName = 'TestOp'
+      static description = 'Test operator for error handling'
       createInputs() {
         return {
           num: new NumberField(0),

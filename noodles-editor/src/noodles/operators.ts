@@ -196,8 +196,8 @@ export interface IOperator {
 // An Operator is a collection of Fields, and a transform function responsible
 // for taking in a set of input fields and mapping them to the output.
 export abstract class Operator<OP extends IOperator> {
-  static displayName: string = 'Operator'
-  static description: string = ''
+  static displayName = 'Operator'
+  static description = ''
 
   get displayName(): string {
     return (this.constructor as typeof Operator).displayName
@@ -329,7 +329,7 @@ export abstract class Operator<OP extends IOperator> {
           } catch (err: unknown) {
             const error = err instanceof Error ? err : new Error(String(err))
             console.warn(
-              `Failure in [${this.id} (${this.displayName})]:`,
+              `Failure in [${this.id} (${this.constructor.displayName})]:`,
               error.message,
               error.stack
             )
@@ -393,7 +393,8 @@ export class NumberOp extends Operator<NumberOp> {
 
 export class MapRangeOp extends Operator<MapRangeOp> {
   static displayName = 'MapRange'
-  static description = 'Remap a number from one range to another (e.g., map 0-100 to 0-1, or temperature to color intensity)'
+  static description =
+    'Remap a number from one range to another (e.g., map 0-100 to 0-1, or temperature to color intensity)'
   public createInputs() {
     return {
       val: new NumberField(0, { step: 0.01, accessor: true }),
@@ -424,7 +425,8 @@ export class MapRangeOp extends Operator<MapRangeOp> {
 
 export class ExtentOp extends Operator<ExtentOp> {
   static displayName = 'Extent'
-  static description = 'Find the minimum and maximum values in your data (e.g., to set color scale ranges or determine data bounds)'
+  static description =
+    'Find the minimum and maximum values in your data (e.g., to set color scale ranges or determine data bounds)'
   createInputs() {
     return {
       data: new DataField(),
@@ -456,7 +458,8 @@ export class ExtentOp extends Operator<ExtentOp> {
 
 export class SelectOp extends Operator<SelectOp> {
   static displayName = 'Select'
-  static description = 'Select an element from an array using an index (clamped to array bounds by default, or wrapped around array bounds)'
+  static description =
+    'Select an element from an array using an index (clamped to array bounds by default, or wrapped around array bounds)'
   createInputs() {
     return {
       data: new DataField(),
@@ -1611,7 +1614,8 @@ export class BoundsOp extends Operator<BoundsOp> {
 
 export class BoundingBoxOp extends Operator<BoundingBoxOp> {
   static displayName = 'BoundingBox'
-  static description = 'Calculate the geographic bounds of your points (with lat/lng keys) and get a camera position (center, zoom) that fits them all in view.'
+  static description =
+    'Calculate the geographic bounds of your points (with lat/lng keys) and get a camera position (center, zoom) that fits them all in view.'
   asDownload = () => this.outputData
   createInputs() {
     return {
@@ -1942,7 +1946,8 @@ function interpolateTemporal(a: any, b: any, t: number): any {
 
 export class SwitchOp extends Operator<SwitchOp> {
   static displayName = 'Switch'
-  static description = 'Select one value from a list using an index (0, 1, 2...). With blend enabled, smoothly interpolate between values for animation effects.'
+  static description =
+    'Select one value from a list using an index (0, 1, 2...). With blend enabled, smoothly interpolate between values for animation effects.'
   createInputs() {
     return {
       // TODO: support arbitrary outputs, maybe a union type?
@@ -2007,7 +2012,8 @@ export class SwitchOp extends Operator<SwitchOp> {
 // We need a way to signal to the UI that this is a loop, and to render the loop
 export class ForLoopBeginOp extends Operator<ForLoopBeginOp> {
   static displayName = 'ForLoopBegin'
-  static description = 'Start a loop that processes each item in an array one by one. Connect operators between ForLoopBegin and ForLoopEnd to transform each item. The ForLoopEnd collects all results.'
+  static description =
+    'Start a loop that processes each item in an array one by one. Connect operators between ForLoopBegin and ForLoopEnd to transform each item. The ForLoopEnd collects all results.'
   createInputs() {
     return {
       data: new DataField(new ArrayField(new UnknownField())),
@@ -2025,7 +2031,8 @@ export class ForLoopBeginOp extends Operator<ForLoopBeginOp> {
 
 export class ForLoopEndOp extends Operator<ForLoopEndOp> {
   static displayName = 'ForLoopEnd'
-  static description = 'End a loop started by ForLoopBegin. Collects all the processed items into an array and passes them to downstream operators.'
+  static description =
+    'End a loop started by ForLoopBegin. Collects all the processed items into an array and passes them to downstream operators.'
   static defaultValue = []
 
   // This is a special case where we need to keep track of the loop
@@ -2288,7 +2295,8 @@ export class RandomizeAttributeOp extends Operator<RandomizeAttributeOp> {
 
 export class ConcatOp extends Operator<ConcatOp> {
   static displayName = 'Concat'
-  static description = 'Concatenate multiple arrays into a single array. Use depth to flatten nested arrays (depth=1 flattens one level, depth=2 flattens two levels).'
+  static description =
+    'Concatenate multiple arrays into a single array. Use depth to flatten nested arrays (depth=1 flattens one level, depth=2 flattens two levels).'
   createInputs() {
     return {
       values: new ListField(new DataField()),
@@ -2437,7 +2445,8 @@ class MapStyleOp extends Operator<MapStyleOp> {
 
 export class ProjectOp extends Operator<ProjectOp> {
   static displayName = 'Project'
-  static description = 'Project a lat/lng point to a screen position. Requires the ViewState and dimensions of the map.'
+  static description =
+    'Project a lat/lng point to a screen position. Requires the ViewState and dimensions of the map.'
   createInputs() {
     return {
       position: new Point2DField(),
@@ -2476,7 +2485,8 @@ export class ProjectOp extends Operator<ProjectOp> {
 
 export class UnprojectOp extends Operator<UnprojectOp> {
   static displayName = 'Unproject'
-  static description = 'Unproject a screen position to a lat/lng point. Requires the ViewState and dimensions'
+  static description =
+    'Unproject a screen position to a lat/lng point. Requires the ViewState and dimensions'
   createInputs() {
     return {
       screenPosition: new Vec2Field(),
@@ -2969,7 +2979,8 @@ export class ConsoleOp extends Operator<ConsoleOp> {
 
 export class LayerPropsOp extends Operator<LayerPropsOp> {
   static displayName = 'LayerProps'
-  static description = 'Add additional props to a layer (e.g., operation: "mask" for mask layers, beforeId for maplibre layer ordering)'
+  static description =
+    'Add additional props to a layer (e.g., operation: "mask" for mask layers, beforeId for maplibre layer ordering)'
   createInputs() {
     return {
       layer: new LayerField(),
@@ -3443,7 +3454,8 @@ export class H3HexagonLayerOp extends Operator<H3HexagonLayerOp> {
 
 export class A5LayerOp extends Operator<A5LayerOp> {
   static displayName = 'A5Layer'
-  static description = 'Render filled and/or stroked polygons using the A5 geospatial indexing system'
+  static description =
+    'Render filled and/or stroked polygons using the A5 geospatial indexing system'
   static cacheable = false
   createInputs() {
     return {
@@ -3869,7 +3881,8 @@ export class Mask3DExtensionOp extends Operator<Mask3DExtensionOp> {
 
 export class BrushingExtensionOp extends Operator<BrushingExtensionOp> {
   static displayName = 'BrushingExtension'
-  static description = 'Only render the points within a given radius of the mouse position. Used with most layer types.'
+  static description =
+    'Only render the points within a given radius of the mouse position. Used with most layer types.'
   createInputs() {
     return {
       brushingRadius: new NumberField(100, { min: 0, max: 100_000 }),
@@ -4094,7 +4107,8 @@ function fnWithSource(args: string[], body: string, id: string): FunctionWithSou
 // An Accessor is an ExpressionOp that returns a function instead of executing it
 export class AccessorOp extends Operator<AccessorOp> {
   static displayName = 'Accessor'
-  static description = 'A function called for each row of your data and passed to Deck.gl layer properties. The current row is passed as the `d` variable (e.g., `d.population`, `d.properties.color`). Returns a value that controls visual properties like position, color, or size.'
+  static description =
+    'A function called for each row of your data and passed to Deck.gl layer properties. The current row is passed as the `d` variable (e.g., `d.population`, `d.properties.color`). Returns a value that controls visual properties like position, color, or size.'
   createInputs() {
     return {
       expression: new ExpressionField(),
@@ -4123,7 +4137,8 @@ export class AccessorOp extends Operator<AccessorOp> {
 
 export class CodeOp extends Operator<CodeOp> {
   static displayName = 'Code'
-  static description = 'Run custom JavaScript code to transform your data. Available variables: `data` (all input data), `d` (first element), `op()` (access other operators). Includes d3, turf, and other utilities. Use `this` to store state between executions.'
+  static description =
+    'Run custom JavaScript code to transform your data. Available variables: `data` (all input data), `d` (first element), `op()` (access other operators). Includes d3, turf, and other utilities. Use `this` to store state between executions.'
   asDownload = () => this.outputs.data.value
   createInputs() {
     return {
@@ -4187,7 +4202,8 @@ export class ContainerOp extends Operator<ContainerOp> {
 
 export class ExpressionOp extends Operator<ExpressionOp> {
   static displayName = 'Expression'
-  static description = 'Evaluate a JavaScript expression to compute a single value. Available variables: `data` (all input data), `d` (first element), `op()` (access other operators). Includes d3, turf, and other utilities.'
+  static description =
+    'Evaluate a JavaScript expression to compute a single value. Available variables: `data` (all input data), `d` (first element), `op()` (access other operators). Includes d3, turf, and other utilities.'
   createInputs() {
     return {
       data: new ListField(new DataField()),
@@ -4231,7 +4247,8 @@ export class ExpressionOp extends Operator<ExpressionOp> {
 
 export class RectangleOp extends Operator<RectangleOp> {
   static displayName = 'Rectangle'
-  static description = 'Generate a rectangle GeoJSON geometry from a center point and dimensions in kilometers'
+  static description =
+    'Generate a rectangle GeoJSON geometry from a center point and dimensions in kilometers'
   asDownload = () => this.outputData
   createInputs() {
     return {
@@ -5231,7 +5248,8 @@ function interpolateTimeSeries(
 
 export class TimeSeriesOp extends Operator<TimeSeriesOp> {
   static displayName = 'TimeSeries'
-  static description = 'Interpolate time-varying data at a given time. Aligns with TripsLayer API for easy reuse of accessors.'
+  static description =
+    'Interpolate time-varying data at a given time. Aligns with TripsLayer API for easy reuse of accessors.'
   asDownload = () => this.outputData
   createInputs() {
     return {
