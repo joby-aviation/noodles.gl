@@ -8,10 +8,10 @@ import { getBaseName } from '../utils/path-utils'
 import { categories } from './categories'
 import s from './node-tree-sidebar.module.css'
 
-// Map operator type to category for color coding
-function getOperatorCategory(type: string): string | null {
+// Map operator displayName to category for color coding
+function getOperatorCategory(displayName: string): string | null {
   for (const [category, operators] of Object.entries(categories)) {
-    if ((operators as readonly string[]).includes(type)) {
+    if ((operators as readonly string[]).includes(displayName)) {
       return category
     }
   }
@@ -21,7 +21,7 @@ function getOperatorCategory(type: string): string | null {
 interface TreeNode {
   id: string
   name: string
-  type: string
+  displayName: string
   children: TreeNode[]
   depth: number
 }
@@ -35,6 +35,7 @@ function buildTree(operators: Map<string, Operator<IOperator>>): TreeNode[] {
   const sortedOps = Array.from(operators.entries()).sort((a, b) => a[0].localeCompare(b[0]))
 
   for (const [id, op] of sortedOps) {
+    const { displayName } = op.constructor as typeof Operator
     const pathParts = id.split('/').filter(Boolean)
     const name = getBaseName(id) || 'root'
     const depth = pathParts.length
@@ -42,7 +43,7 @@ function buildTree(operators: Map<string, Operator<IOperator>>): TreeNode[] {
     const node: TreeNode = {
       id,
       name,
-      type: op.constructor.name,
+      displayName,
       children: [],
       depth,
     }
@@ -88,12 +89,12 @@ function TreeItem({
 }: TreeItemProps) {
   const [hovering, setHovering] = useState(false)
   const hasChildren = node.children.length > 0
-  const isContainer = node.type === 'ContainerOp'
+  const isContainer = node.displayName === 'Container'
   const isCollapsed = collapsedNodes.has(node.id)
   const isSelected = selectedNodeIds.has(node.id)
 
-  // Get the category color for this operator type
-  const category = getOperatorCategory(node.type)
+  // Get the category color for this operator displayName
+  const category = getOperatorCategory(node.displayName)
   const borderColor = category ? `var(--node-${category}-color)` : 'transparent'
 
   return (
@@ -132,7 +133,7 @@ function TreeItem({
         {!isContainer && hasChildren && <span className={s.spacer} />}
         <div className={s.nodeInfo}>
           <span className={s.nodeName}>{node.name}</span>
-          <span className={s.nodeType}>{node.type.replace(/Op$/, '')}</span>
+          <span className={s.nodeType}>{node.displayName}</span>
         </div>
         {hovering && (
           <>

@@ -4,10 +4,11 @@ import { useEdges, useNodes, useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
 import { useEffect, useRef, useState } from 'react'
 
-import { IN_NS, ListField, OUT_NS } from '../fields'
+import { type Field, IN_NS, ListField, OUT_NS } from '../fields'
 import { getOpStore } from '../store'
 import s from './node-properties.module.css'
 import { handleClass, headerClass, typeCategory } from './op-components'
+import type { Operator } from '../operators'
 
 function copy(text: string) {
   navigator.clipboard.writeText(text)
@@ -96,25 +97,31 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
   const store = getOpStore()
   const op = store.getOp(node.id)
   if (!op) return null
-  const { name, displayName, description } = op.constructor
+  const { displayName, description } = op.constructor as typeof Operator
 
-  const inputs = Object.entries(op.inputs).map(([name, input]) => ({
-    name,
-    type: input.constructor.type,
-    codeRef: `op('${op.id}').${IN_NS}.${name}`,
-    mustacheRef: `{{${op.id}.${IN_NS}.${name}}}`,
-    handleClass: handleClass(input),
-    field: input,
-  }))
+  const inputs = Object.entries(op.inputs).map(([name, input]) => {
+    const { type } = input.constructor as typeof Field
+    return {
+      name,
+      type,
+      codeRef: `op('${op.id}').${IN_NS}.${name}`,
+      mustacheRef: `{{${op.id}.${IN_NS}.${name}}}`,
+      handleClass: handleClass(input),
+      field: input,
+    }
+  })
 
-  const outputs = Object.entries(op.outputs).map(([name, output]) => ({
-    name,
-    type: output.constructor.type,
-    codeRef: `op('${op.id}').${OUT_NS}.${name}`,
-    mustacheRef: `{{${op.id}.${OUT_NS}.${name}}}`,
-    handleClass: handleClass(output),
-    field: output,
-  }))
+  const outputs = Object.entries(op.outputs).map(([name, output]) => {
+    const { type } = output.constructor as typeof Field
+    return {
+      name,
+      type,
+      codeRef: `op('${op.id}').${OUT_NS}.${name}`,
+      mustacheRef: `{{${op.id}.${OUT_NS}.${name}}}`,
+      handleClass: handleClass(output),
+      field: output,
+    }
+  })
 
   // Check if description is truncated
   useEffect(() => {
@@ -202,7 +209,7 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
       <div className={s.header}>
         <div className={s.title}>
           {displayName}
-          <div className={cx(s.capsule, headerClass(name))}>{typeCategory(name)}</div>
+          <div className={cx(s.capsule, headerClass(node.type))}>{typeCategory(node.type)}</div>
         </div>
       </div>
       {description && (
