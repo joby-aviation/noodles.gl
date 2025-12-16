@@ -719,12 +719,12 @@ export class DateOp extends Operator<DateOp> {
   static description = 'A calendar date (year-month-day)'
   createInputs() {
     return {
-      date: new TemporalField('date-d'),
+      date: new TemporalField(undefined, { format: 'date-d' }),
     }
   }
   createOutputs() {
     return {
-      date: new TemporalField('date-d'),
+      date: new TemporalField(undefined, { format: 'date-d' }),
     }
   }
   execute({ date }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -737,12 +737,12 @@ export class TimeOp extends Operator<TimeOp> {
   static description = 'A time of day (hour:minute:second)'
   createInputs() {
     return {
-      time: new TemporalField('time-s'),
+      time: new TemporalField(undefined, { format: 'time-s' }),
     }
   }
   createOutputs() {
     return {
-      time: new TemporalField('time-s'),
+      time: new TemporalField(undefined, { format: 'time-s' }),
     }
   }
   execute({ time }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -755,12 +755,12 @@ export class DateTimeOp extends Operator<DateTimeOp> {
   static description = 'A date and time without timezone'
   createInputs() {
     return {
-      datetime: new TemporalField('datetime-s'),
+      datetime: new TemporalField(undefined, { format: 'datetime-s' }),
     }
   }
   createOutputs() {
     return {
-      datetime: new TemporalField('datetime-s'),
+      datetime: new TemporalField(undefined, { format: 'datetime-s' }),
     }
   }
   execute({ datetime }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -773,12 +773,12 @@ export class DateTimeMsOp extends Operator<DateTimeMsOp> {
   static description = 'A date and time with millisecond precision'
   createInputs() {
     return {
-      datetime: new TemporalField('datetime-ms'),
+      datetime: new TemporalField(undefined, { format: 'datetime-ms' }),
     }
   }
   createOutputs() {
     return {
-      datetime: new TemporalField('datetime-ms'),
+      datetime: new TemporalField(undefined, { format: 'datetime-ms' }),
     }
   }
   execute({ datetime }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -791,12 +791,12 @@ export class ZonedDateTimeOp extends Operator<ZonedDateTimeOp> {
   static description = 'A date and time with timezone'
   createInputs() {
     return {
-      datetime: new TemporalField('zoned-datetime-s', { timeZone: 'UTC' }),
+      datetime: new TemporalField(undefined, { format: 'zoned-datetime-s', timeZone: 'UTC' }),
     }
   }
   createOutputs() {
     return {
-      datetime: new TemporalField('zoned-datetime-s', { timeZone: 'UTC' }),
+      datetime: new TemporalField(undefined, { format: 'zoned-datetime-s', timeZone: 'UTC' }),
     }
   }
   execute({ datetime }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
