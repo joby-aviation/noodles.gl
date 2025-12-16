@@ -282,11 +282,13 @@ export function getNoodles(): Visualization {
       }
     }
 
-    document.title = projectName ? `Noodles.gl - ${projectName}${hasUnsavedChanges ? ' *' : ''}` : 'Noodles.gl'
+    document.title = projectName
+      ? `Noodles.gl - ${projectName}${hasUnsavedChanges ? ' *' : ''}`
+      : 'Noodles.gl'
 
     window.addEventListener('beforeunload', handleBeforeUnload)
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
-  }, [hasUnsavedChanges])
+  }, [hasUnsavedChanges, projectName])
 
   // `transformGraph` needs all nodes to build the opMap and resolve connections
   // Use useEffect instead of useMemo to avoid setState during render
