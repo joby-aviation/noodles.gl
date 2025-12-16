@@ -196,9 +196,9 @@ export interface IOperator {
 // An Operator is a collection of Fields, and a transform function responsible
 // for taking in a set of input fields and mapping them to the output.
 export abstract class Operator<OP extends IOperator> {
+  static type = 'OperatorOp'
   static displayName = 'Operator'
   static description = ''
-  static type = 'Operator'
   inputs: ReturnType<OP['createInputs']>
   outputs: ReturnType<OP['createOutputs']>
 

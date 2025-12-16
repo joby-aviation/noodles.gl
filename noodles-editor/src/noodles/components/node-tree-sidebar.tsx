@@ -39,13 +39,17 @@ function buildTree(operators: Map<string, Operator<IOperator>>): TreeNode[] {
     const pathParts = id.split('/').filter(Boolean)
     const name = getBaseName(id) || 'root'
     const depth = pathParts.length
+    // Use type from operator constructor (minification-safe)
+    const { type, displayName } = op.constructor as typeof op.constructor & {
+      type: string
+      displayName: string
+    }
 
     const node: TreeNode = {
       id,
       name,
-      // Use type from operator constructor (minification-safe)
-      type: (op.constructor as typeof op.constructor & { type: string }).type,
-      displayName: (op.constructor as typeof op.constructor & { displayName: string }).displayName,
+      type,
+      displayName,
       children: [],
       depth,
     }
