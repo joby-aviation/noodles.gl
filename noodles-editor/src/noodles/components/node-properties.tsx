@@ -106,7 +106,7 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
       type,
       codeRef: `op('${op.id}').${IN_NS}.${name}`,
       mustacheRef: `{{${op.id}.${IN_NS}.${name}}}`,
-      handleClass: handleClass(type),
+      handleClass: handleClass(input),
       field: input,
     }
   })
@@ -118,7 +118,7 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
       type,
       codeRef: `op('${op.id}').${OUT_NS}.${name}`,
       mustacheRef: `{{${op.id}.${OUT_NS}.${name}}}`,
-      handleClass: handleClass(type),
+      handleClass: handleClass(output),
       field: output,
     }
   })
