@@ -33,6 +33,7 @@ import { ArrayField, type Field, type IField, ListField } from '../fields'
 import s from '../noodles.module.css'
 import type { ExecutionState, IOperator, OpType } from '../operators'
 import {
+  type AnimationTimeOp,
   type ContainerOp,
   type GeocoderOp,
   type MouseOp,
@@ -41,7 +42,6 @@ import {
   Operator,
   opTypes,
   type TableEditorOp,
-  type TimeOp,
   type ViewerOp,
 } from '../operators'
 import {
@@ -96,10 +96,10 @@ for (const key of Object.keys(opTypes)) {
 
 export const nodeComponents = {
   ...defaultNodeComponents,
+  AnimationTimeOp: AnimationTimeOpComponent,
   GeocoderOp: GeocoderOpComponent,
   MouseOp: MouseOpComponent,
   TableEditorOp: TableEditorOpComponent,
-  TimeOp: TimeOpComponent,
   ViewerOp: ViewerOpComponent,
   ContainerOp: ContainerOpComponent,
 } as const as ReactFlowNodeTypes
@@ -1194,10 +1194,10 @@ function ContainerOpComponent({
   )
 }
 
-function TimeOpComponent({
+function AnimationTimeOpComponent({
   id,
   type,
-}: ReactFlowNodeProps<NodeDataJSON<TimeOp>> & { type: 'TimeOp' }) {
+}: ReactFlowNodeProps<NodeDataJSON<AnimationTimeOp>> & { type: 'AnimationTimeOp' }) {
   const op = getOp(id as string)
   if (!op) {
     throw new Error(`Operator with id ${id} not found`)

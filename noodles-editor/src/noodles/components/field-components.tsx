@@ -1344,7 +1344,10 @@ export function TemporalFieldComponent({
       <label className={s.fieldLabel} htmlFor={id}>
         {id}
       </label>
-      <div className={s.fieldInputWrapper}>
+      <div
+        className={s.fieldInputWrapper}
+        style={temporalType === 'zoned-datetime' ? { flexDirection: 'column', alignItems: 'stretch' } : undefined}
+      >
         <input
           id={id}
           type={getInputType()}
