@@ -5394,6 +5394,7 @@ export class TimeSeriesOp extends Operator<TimeSeriesOp> {
 export const opTypes = {
   AccessorOp,
   A5LayerOp,
+  AnimationTimeOp,
   ArcOp,
   ArcLayerOp,
   BezierCurveOp,
@@ -5418,7 +5419,9 @@ export const opTypes = {
   ContainerOp,
   ContourLayerOp,
   DataFilterExtensionOp,
+  DateOp,
   DateTimeOp,
+  DateTimeMsOp,
   DeckRendererOp,
   DirectionsOp,
   DuckDbOp,
@@ -5452,6 +5455,7 @@ export const opTypes = {
   JSONOp,
   KmlToGeoJsonOp,
   LayerPropsOp,
+  LegacyDateTimeOp,
   LineLayerOp,
   MaplibreBasemapOp,
   MapRangeOp,
@@ -5506,6 +5510,7 @@ export const opTypes = {
   UnprojectOp,
   VibranceExtensionOp,
   ViewerOp,
+  ZonedDateTimeOp,
 } as const // as Record<OpType, typeof Operator>
 
 // Execution state for visual debugging
