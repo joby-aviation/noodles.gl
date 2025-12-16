@@ -31,7 +31,7 @@ import { analytics } from '../../utils/analytics'
 import { SheetContext } from '../../utils/sheet-context'
 import { ArrayField, type Field, type IField, ListField } from '../fields'
 import s from '../noodles.module.css'
-import type { ExecutionState, IOperator, OperatorInstance, OpType } from '../operators'
+import type { ExecutionState, IOperator, OpType } from '../operators'
 import {
   type ContainerOp,
   type GeocoderOp,
@@ -78,7 +78,7 @@ const categories: Record<string, string[]> = Object.fromEntries(
 const SLOW_EXECUTION_THRESHOLD_MS = 100
 
 // Hook to subscribe to operator execution state
-function useExecutionState(op: OperatorInstance): ExecutionState {
+function useExecutionState(op: Operator<IOperator>): ExecutionState {
   const [executionState, setExecutionState] = useState<ExecutionState>({ status: 'idle' })
 
   useEffect(() => {
@@ -467,7 +467,7 @@ const ExecutionIndicator = ({ status, error, executionTime }: ExecutionState) =>
   }
 }
 
-function NodeHeader({ id, type, op }: { id: string; type: OpType; op: OperatorInstance }) {
+function NodeHeader({ id, type, op }: { id: string; type: OpType; op: Operator<IOperator> }) {
   const [locked, setLocked] = useState(op.locked.value)
   const executionState = useExecutionState(op)
 
@@ -686,10 +686,12 @@ function NodeHeader({ id, type, op }: { id: string; type: OpType; op: OperatorIn
     URL.revokeObjectURL(url)
   }, [op, baseName])
 
+  const { displayName } = op.constructor as typeof Operator
+
   return (
     <div className={cx(s.header, headerClass(type))}>
-      <div className={s.headerTitle} title={`${id} (${op.displayName})`}>
-        {editableId} ({op.displayName})
+      <div className={s.headerTitle} title={`${id} (${displayName})`}>
+        {editableId} ({displayName})
       </div>
       <ExecutionIndicator {...executionState} />
       <div className={s.headerActions}>
@@ -993,9 +995,10 @@ const viewerFormatter = (value: unknown) => {
     return { lifecycle, count, isLoaded, props: { ...props } }
   }
   if (value instanceof Operator) {
+    const { displayName } = value.constructor as typeof Operator
     return {
       id: value.id,
-      type: value.displayName,
+      type: displayName,
       inputs: Object.fromEntries(
         Object.entries(value.inputs).map(([key, field]) => [key, viewerFormatter(field.value)])
       ),
