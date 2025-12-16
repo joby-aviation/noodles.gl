@@ -408,6 +408,10 @@ export default function TimelineEditor() {
       takeScreenshot={takeScreenshot}
       isRendering={isRendering}
       hasUnsavedChanges={noodles.hasUnsavedChanges}
+      showOverlay={noodles.showOverlay}
+      setShowOverlay={noodles.setShowOverlay}
+      layoutMode={noodles.layoutMode}
+      setLayoutMode={noodles.setLayoutMode}
     />
   )
 

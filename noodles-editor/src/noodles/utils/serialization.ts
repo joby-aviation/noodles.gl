@@ -14,9 +14,15 @@ import { parseHandleId } from './path-utils'
 
 export { NOODLES_VERSION } from './migrate-schema'
 
+export type EditorSettings = {
+  layoutMode?: 'split' | 'noodles-on-top' | 'output-on-top'
+  showOverlay?: boolean
+}
+
 export type NoodlesProjectJSON = ReactFlowJsonObject & {
   version: number
   timeline: Record<string, unknown>
+  editorSettings?: EditorSettings
 }
 export type CopiedNodesJSON = Omit<ReactFlowJsonObject, 'viewport'>
 
@@ -26,6 +32,7 @@ export const EMPTY_PROJECT: NoodlesProjectJSON = {
   nodes: [],
   edges: [],
   viewport: { x: 0, y: 0, zoom: 1 },
+  editorSettings: {},
 }
 
 // Replace functions and circular references
