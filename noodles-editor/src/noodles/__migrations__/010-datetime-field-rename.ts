@@ -1,14 +1,21 @@
 import type { NoodlesProjectJSON } from '../utils/serialization'
 
 // Migration to rename DateTimeOp's field from "date" to "datetime"
+// and rename TimeOfDayOp to TimeOp and TimeOp to AnimationTimeOp
 //
 // This migration:
 // 1. Renames the "date" field to "datetime" in DateTimeOp nodes
 // 2. Updates edges that connect to the old field names
+// 3. Renames TimeOfDayOp -> TimeOp
+// 4. Renames TimeOp -> AnimationTimeOp
 //
 // Background: The old DateTimeOp used DateField with a field named "date".
 // The new DateTimeOp uses TemporalField with a field named "datetime".
 // Both store PlainDateTime serialized as ISO strings, so data is compatible.
+//
+// For TimeOp: We're simplifying the temporal time operator name from "TimeOfDayOp"
+// to just "TimeOp", and renaming the animation time operator to "AnimationTimeOp"
+// for clarity.
 //
 // Note: Timeline keyframes reference the field by the operator path and field name,
 // so timeline data needs to be updated as well.
@@ -16,8 +23,19 @@ import type { NoodlesProjectJSON } from '../utils/serialization'
 export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSON> {
   const { nodes, edges, timeline, ...rest } = project
 
-  // Step 1: Update node field names
+  // Step 1: Rename operator types and update field names
   const newNodes = nodes.map(node => {
+    // Rename TimeOfDayOp -> TimeOp
+    if (node.type === 'TimeOfDayOp') {
+      return { ...node, type: 'TimeOp' }
+    }
+
+    // Rename TimeOp -> AnimationTimeOp
+    if (node.type === 'TimeOp') {
+      return { ...node, type: 'AnimationTimeOp' }
+    }
+
+    // Rename DateTimeOp's date field to datetime
     if (node.type === 'DateTimeOp' && node.data.inputs.date !== undefined) {
       const { date, ...restInputs } = node.data.inputs
       return {
@@ -113,8 +131,19 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
 export async function down(project: NoodlesProjectJSON): Promise<NoodlesProjectJSON> {
   const { nodes, edges, timeline, ...rest } = project
 
-  // Step 1: Revert node field names
+  // Step 1: Revert operator type renames and field names
   const newNodes = nodes.map(node => {
+    // Revert TimeOp -> TimeOfDayOp
+    if (node.type === 'TimeOp') {
+      return { ...node, type: 'TimeOfDayOp' }
+    }
+
+    // Revert AnimationTimeOp -> TimeOp
+    if (node.type === 'AnimationTimeOp') {
+      return { ...node, type: 'TimeOp' }
+    }
+
+    // Revert DateTimeOp's datetime field to date
     if (node.type === 'DateTimeOp' && node.data.inputs.datetime !== undefined) {
       const { datetime, ...restInputs } = node.data.inputs
       return {

@@ -731,8 +731,8 @@ export class DateOp extends Operator<DateOp> {
   }
 }
 
-export class TimeOfDayOp extends Operator<TimeOfDayOp> {
-  static displayName = 'Time of Day'
+export class TimeOp extends Operator<TimeOp> {
+  static displayName = 'Time'
   static description = 'A time of day (hour:minute:second)'
   createInputs() {
     return {
@@ -1217,8 +1217,8 @@ export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
   }
 }
 
-export class TimeOp extends Operator<TimeOp> {
-  static displayName = 'Time'
+export class AnimationTimeOp extends Operator<AnimationTimeOp> {
+  static displayName = 'Animation Time'
   static description = 'Get the current clock, timeline, and session time'
 
   private timeState$ = new BehaviorSubject({ now: Date.now(), tick: 0, sequenceTime: 0 })

@@ -135,6 +135,55 @@ const createProjectWithTimeline = (): NoodlesProjectJSON => ({
 })
 
 describe('migration 010 up', () => {
+  it('renames TimeOfDayOp to TimeOp', async () => {
+    const project: NoodlesProjectJSON = {
+      version: 9,
+      nodes: [
+        {
+          id: '/time-1',
+          type: 'TimeOfDayOp',
+          position: { x: 100, y: 100 },
+          data: {
+            inputs: {
+              time: '14:30:00',
+            },
+          },
+        },
+      ],
+      edges: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      timeline: {},
+    }
+    const migrated = await up(project)
+
+    expect(migrated.nodes).toHaveLength(1)
+    expect(migrated.nodes[0].type).toBe('TimeOp')
+    expect(migrated.nodes[0].data.inputs.time).toBe('14:30:00')
+  })
+
+  it('renames TimeOp to AnimationTimeOp', async () => {
+    const project: NoodlesProjectJSON = {
+      version: 9,
+      nodes: [
+        {
+          id: '/animation-time-1',
+          type: 'TimeOp',
+          position: { x: 100, y: 100 },
+          data: {
+            inputs: {},
+          },
+        },
+      ],
+      edges: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      timeline: {},
+    }
+    const migrated = await up(project)
+
+    expect(migrated.nodes).toHaveLength(1)
+    expect(migrated.nodes[0].type).toBe('AnimationTimeOp')
+  })
+
   it('renames date field to datetime in DateTimeOp', async () => {
     const project = createProjectWithOldDateTimeOp()
     const migrated = await up(project)
@@ -244,6 +293,55 @@ describe('migration 010 up', () => {
 })
 
 describe('migration 010 down', () => {
+  it('reverts TimeOp to TimeOfDayOp', async () => {
+    const project: NoodlesProjectJSON = {
+      version: 10,
+      nodes: [
+        {
+          id: '/time-1',
+          type: 'TimeOp',
+          position: { x: 100, y: 100 },
+          data: {
+            inputs: {
+              time: '14:30:00',
+            },
+          },
+        },
+      ],
+      edges: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      timeline: {},
+    }
+    const reverted = await down(project)
+
+    expect(reverted.nodes).toHaveLength(1)
+    expect(reverted.nodes[0].type).toBe('TimeOfDayOp')
+    expect(reverted.nodes[0].data.inputs.time).toBe('14:30:00')
+  })
+
+  it('reverts AnimationTimeOp to TimeOp', async () => {
+    const project: NoodlesProjectJSON = {
+      version: 10,
+      nodes: [
+        {
+          id: '/animation-time-1',
+          type: 'AnimationTimeOp',
+          position: { x: 100, y: 100 },
+          data: {
+            inputs: {},
+          },
+        },
+      ],
+      edges: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      timeline: {},
+    }
+    const reverted = await down(project)
+
+    expect(reverted.nodes).toHaveLength(1)
+    expect(reverted.nodes[0].type).toBe('TimeOp')
+  })
+
   it('reverts datetime field to date in DateTimeOp', async () => {
     const project = createProjectWithNewDateTimeOp()
     const reverted = await down(project)
