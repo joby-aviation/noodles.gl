@@ -31,7 +31,7 @@ import { analytics } from '../../utils/analytics'
 import { SheetContext } from '../../utils/sheet-context'
 import { ArrayField, type Field, type IField, ListField } from '../fields'
 import s from '../noodles.module.css'
-import type { ExecutionState, IOperator, OperatorInstance, OpType } from '../operators'
+import type { ExecutionState, IOperator, OpType } from '../operators'
 import {
   type ContainerOp,
   type GeocoderOp,
@@ -56,9 +56,9 @@ import {
 } from '../store'
 import type { NodeDataJSON } from '../transform-graph'
 import { edgeId } from '../utils/id-utils'
+import type { NodeType } from '../utils/node-creation-utils'
 import { generateQualifiedPath, getBaseName, getParentPath } from '../utils/path-utils'
-import type { NodeType } from './add-node-menu'
-import { categories as baseCategories } from './categories'
+import { categories as baseCategories, nodeTypeToDisplayName } from './categories'
 import { FieldComponent, type inputComponents } from './field-components'
 import previewStyles from './handle-preview.module.css'
 
@@ -78,7 +78,7 @@ const categories: Record<string, string[]> = Object.fromEntries(
 const SLOW_EXECUTION_THRESHOLD_MS = 100
 
 // Hook to subscribe to operator execution state
-function useExecutionState(op: OperatorInstance): ExecutionState {
+function useExecutionState(op: Operator<IOperator>): ExecutionState {
   const [executionState, setExecutionState] = useState<ExecutionState>({ status: 'idle' })
 
   useEffect(() => {
@@ -165,8 +165,9 @@ export function getNodeDescription(type: NodeType): string {
 }
 
 export function typeCategory(type: NodeType) {
+  const displayName = nodeTypeToDisplayName(type)
   for (const [category, types] of Object.entries(categories)) {
-    if ((types as readonly string[]).includes(type)) {
+    if ((types as readonly string[]).includes(displayName)) {
       return toPascal(category)
     }
   }
@@ -191,8 +192,9 @@ const headerClasses = {
 } as const as Record<keyof typeof categories, string>
 
 export function headerClass(type: NodeType) {
+  const displayName = nodeTypeToDisplayName(type)
   for (const [category, types] of Object.entries(categories)) {
-    if ((types as readonly string[]).includes(type)) {
+    if ((types as readonly string[]).includes(displayName)) {
       return headerClasses[category]
     }
   }
@@ -233,10 +235,11 @@ const handleClasses = {
 } as const as Record<keyof typeof inputComponents, string>
 
 export const handleClass = (field: Field<IField>): string => {
+  const { type } = field.constructor as typeof Field
   if (field instanceof ListField || field instanceof ArrayField) {
-    return cx(handleClasses[field.constructor.type], handleClass(field.field))
+    return cx(handleClasses[type], handleClass(field.field))
   }
-  return handleClasses[field.constructor.type]
+  return handleClasses[type]
 }
 
 export const SOURCE_HANDLE = 'source'
@@ -357,6 +360,8 @@ function OutputHandle({ id, field }: { id: string; field: Field<IField> }) {
     }
   }, [])
 
+  const { type } = field.constructor as typeof Field
+
   return (
     <div style={{ position: 'relative', flex: 1, pointerEvents: 'auto' }}>
       <Handle
@@ -377,7 +382,7 @@ function OutputHandle({ id, field }: { id: string; field: Field<IField> }) {
               top: `${previewPosition.y}px`,
             }}
           >
-            <HandlePreviewContent data={previewData} name={id} type={field.constructor.type} />
+            <HandlePreviewContent data={previewData} name={id} type={type} />
           </div>,
           document.body
         )}
@@ -462,7 +467,7 @@ const ExecutionIndicator = ({ status, error, executionTime }: ExecutionState) =>
   }
 }
 
-function NodeHeader({ id, type, op }: { id: string; type: OpType; op: OperatorInstance }) {
+function NodeHeader({ id, type, op }: { id: string; type: OpType; op: Operator<IOperator> }) {
   const [locked, setLocked] = useState(op.locked.value)
   const executionState = useExecutionState(op)
 
@@ -681,10 +686,12 @@ function NodeHeader({ id, type, op }: { id: string; type: OpType; op: OperatorIn
     URL.revokeObjectURL(url)
   }, [op, baseName])
 
+  const { displayName } = op.constructor as typeof Operator
+
   return (
     <div className={cx(s.header, headerClass(type))}>
-      <div className={s.headerTitle} title={`${id} (${op.constructor.displayName})`}>
-        {editableId} ({op.constructor.displayName})
+      <div className={s.headerTitle} title={`${id} (${displayName})`}>
+        {editableId} ({displayName})
       </div>
       <ExecutionIndicator {...executionState} />
       <div className={s.headerActions}>
@@ -988,9 +995,10 @@ const viewerFormatter = (value: unknown) => {
     return { lifecycle, count, isLoaded, props: { ...props } }
   }
   if (value instanceof Operator) {
+    const { displayName } = value.constructor as typeof Operator
     return {
       id: value.id,
-      type: value.constructor.displayName,
+      type: displayName,
       inputs: Object.fromEntries(
         Object.entries(value.inputs).map(([key, field]) => [key, viewerFormatter(field.value)])
       ),

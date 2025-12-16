@@ -42,7 +42,7 @@ import { SheetProvider } from '../utils/sheet-context'
 import useSheetValue from '../utils/use-sheet-value'
 import type { Visualization } from '../visualizations'
 import { BlockLibrary, type BlockLibraryRef } from './components/block-library'
-import { categories } from './components/categories'
+import { categories, nodeTypeToDisplayName } from './components/categories'
 import { CopyControls, type CopyControlsRef } from './components/copy-controls'
 import { DropTarget } from './components/drop-target'
 import { ErrorBoundary } from './components/error-boundary'
@@ -1055,7 +1055,7 @@ export function getNoodles(): Visualization {
       if (!op) continue
 
       // Check if this is a GeoJSON-producing operator
-      if (categories.geojson.includes(node.type)) {
+      if (categories.geojson.includes(nodeTypeToDisplayName(node.type))) {
         const feature = op.outputs.feature?.value
         if (feature) features.push(feature)
       }

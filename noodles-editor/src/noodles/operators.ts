@@ -199,6 +199,7 @@ export interface IOperator {
 export abstract class Operator<OP extends IOperator> {
   static displayName = 'Operator'
   static description = ''
+
   inputs: ReturnType<OP['createInputs']>
   outputs: ReturnType<OP['createOutputs']>
 
@@ -768,7 +769,7 @@ export class DateTimeOp extends Operator<DateTimeOp> {
 }
 
 export class DateTimeMsOp extends Operator<DateTimeMsOp> {
-  static displayName = 'DateTime (ms)'
+  static displayName = 'DateTimeMs'
   static description = 'A date and time with millisecond precision'
   createInputs() {
     return {
@@ -1218,7 +1219,7 @@ export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
 }
 
 export class AnimationTimeOp extends Operator<AnimationTimeOp> {
-  static displayName = 'Animation Time'
+  static displayName = 'AnimationTime'
   static description = 'Get the current clock, timeline, and session time'
 
   private timeState$ = new BehaviorSubject({ now: Date.now(), tick: 0, sequenceTime: 0 })

@@ -105,6 +105,7 @@ The project uses:
 - Write unit tests for operators
 - Use TypeScript strictly
 - Comment complex logic
+- **Avoid `constructor.name`** - it gets minified in production builds. Use static `displayName`/`description` properties and access them via `(operator.constructor as typeof Operator).displayName`
 
 ### Maintenance
 
