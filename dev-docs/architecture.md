@@ -88,3 +88,118 @@ noodles-editor/
 - Reactive data processing with RxJS where needed
 - Node-based operators for modular data transformations
 - Type system using zod for validation, parsing, and transformation
+
+## State Management with Zustand
+
+The application uses Zustand for global state management, storing operators and Theatre.js sheet objects.
+
+### Store Architecture
+
+The store contains:
+
+- `operators`: Map of operator IDs to operator instances
+- `sheetObjects`: Map of operator IDs to Theatre.js sheet objects
+- `hoveredOutputHandle`: Currently hovered output handle for UI feedback
+- Batching support for atomic updates
+
+### Accessing the Store
+
+**Direct Store Access (non-reactive):**
+
+```typescript
+import { getOpStore } from './store'
+
+// Get the store instance
+const store = getOpStore()
+
+// Access operators
+const op = store.getOp('/data-loader')
+const allOps = store.getAllOps()
+const entries = store.getOpEntries()
+```
+
+**Convenience Helpers (recommended):**
+
+```typescript
+import { getOp, getAllOps, getOpEntries, setOp, deleteOp, hasOp } from './store'
+
+// Get a single operator by absolute or relative path
+const op = getOp('/data-loader')  // Absolute path
+const relative = getOp('./sibling', contextOpId)  // Relative path
+
+// Check existence
+if (hasOp('/data-loader')) { /* ... */ }
+
+// Get all operators
+const allOps = getAllOps()
+
+// Iterate over operators
+for (const [id, op] of getOpEntries()) {
+  // ...
+}
+
+// Add/update operators
+setOp('/new-op', operatorInstance)
+
+// Remove operators
+deleteOp('/old-op')
+```
+
+**Batching for Performance:**
+
+```typescript
+import { getOpStore } from './store'
+
+// Batch multiple store operations to trigger single update
+getOpStore().batch(() => {
+  setOp('/op1', op1)
+  setOp('/op2', op2)
+  deleteOp('/op3')
+  // Only one state update after batch completes
+})
+```
+
+### Sheet Object Management
+
+```typescript
+import { getSheetObject, setSheetObject, deleteSheetObject, hasSheetObject } from './store'
+
+// Manage Theatre.js sheet objects
+const sheetObj = getSheetObject('/data-loader')
+setSheetObject('/data-loader', sheetObject)
+deleteSheetObject('/data-loader')
+if (hasSheetObject('/data-loader')) { /* ... */ }
+```
+
+### Important Notes
+
+- **Non-reactive by design**: Store access via `getOpStore()` does NOT trigger React re-renders
+- **Use in tests**: Test files should use the convenience helpers (`getOp`, `getAllOps`, etc.)
+- **Path resolution**: `getOp()` supports both absolute (`/foo/bar`) and relative (`./sibling`, `../parent`) paths
+- **Batching**: Always use `store.batch()` when making multiple related changes
+- **No `opMap` access**: The old `opMap` global is deprecated - use store helpers instead
+
+## Error Handling
+
+### Validation
+
+- Zod schemas validate all field values
+- Type mismatches caught at runtime
+- Clear error messages displayed in UI
+
+### Error Propagation
+
+```typescript
+try {
+  const result = operator.execute(inputs)
+  field.next(result)
+} catch (error) {
+  field.error(error)  // Propagate downstream
+}
+```
+
+### Debugging
+
+- Execution tracing tracks data flow
+- Performance profiling measures execution times
+- State inspection examines intermediate values

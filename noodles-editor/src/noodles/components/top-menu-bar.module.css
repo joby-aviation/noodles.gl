@@ -211,3 +211,20 @@
   opacity: 0.6;
   flex-shrink: 0;
 }
+
+.itemIndicator {
+  position: absolute;
+  left: 8px;
+  width: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-primary);
+}
+
+/* Add padding for checkbox/radio items to make room for indicator */
+.dropdownItem[data-state='checked'],
+.dropdownItem[data-state='unchecked'] {
+  padding-left: 28px;
+  position: relative;
+}

@@ -198,6 +198,7 @@ export interface IOperator {
 export abstract class Operator<OP extends IOperator> {
   static displayName = 'Operator'
   static description = ''
+
   inputs: ReturnType<OP['createInputs']>
   outputs: ReturnType<OP['createOutputs']>
 

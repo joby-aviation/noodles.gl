@@ -31,6 +31,10 @@ interface TopMenuBarProps {
   takeScreenshot?: () => Promise<void>
   isRendering?: boolean
   hasUnsavedChanges?: boolean
+  showOverlay?: boolean
+  setShowOverlay?: (show: boolean) => void
+  layoutMode?: 'split' | 'noodles-on-top' | 'output-on-top'
+  setLayoutMode?: (mode: 'split' | 'noodles-on-top' | 'output-on-top') => void
 }
 
 export function TopMenuBar({
@@ -49,6 +53,10 @@ export function TopMenuBar({
   takeScreenshot,
   isRendering,
   hasUnsavedChanges,
+  showOverlay,
+  setShowOverlay,
+  layoutMode,
+  setLayoutMode,
 }: TopMenuBarProps) {
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false)
   const [recentProjects, setRecentProjects] = useState<string[]>([])
@@ -146,14 +154,6 @@ export function TopMenuBar({
   const onSelectRenderSettings = useCallback(() => {
     const store = getOpStore()
     const obj = store.getSheetObject('render')
-    if (obj) {
-      studio.setSelection([obj])
-    }
-  }, [])
-
-  const onSelectEditorSettings = useCallback(() => {
-    const store = getOpStore()
-    const obj = store.getSheetObject('editor')
     if (obj) {
       studio.setSelection([obj])
     }
@@ -348,6 +348,80 @@ export function TopMenuBar({
                   </DropdownMenu.Portal>
                 </DropdownMenu.Sub>
 
+                <DropdownMenu.Sub>
+                  <DropdownMenu.SubTrigger className={s.dropdownItem}>
+                    Editor
+                    <i
+                      className="pi pi-chevron-right"
+                      style={{ marginLeft: 'auto', fontSize: '10px' }}
+                    />
+                  </DropdownMenu.SubTrigger>
+                  <DropdownMenu.Portal>
+                    <DropdownMenu.SubContent className={s.dropdownContent} sideOffset={2}>
+                      <DropdownMenu.CheckboxItem
+                        className={s.dropdownItem}
+                        checked={showOverlay}
+                        onCheckedChange={setShowOverlay}
+                      >
+                        <DropdownMenu.ItemIndicator className={s.itemIndicator}>
+                          <i className="pi pi-check" style={{ fontSize: '12px' }} />
+                        </DropdownMenu.ItemIndicator>
+                        Show node graph overlay
+                      </DropdownMenu.CheckboxItem>
+
+                      <DropdownMenu.Separator className={s.dropdownSeparator} />
+
+                      <DropdownMenu.Sub>
+                        <DropdownMenu.SubTrigger className={s.dropdownItem}>
+                          Layout
+                          <i
+                            className="pi pi-chevron-right"
+                            style={{ marginLeft: 'auto', fontSize: '10px' }}
+                          />
+                        </DropdownMenu.SubTrigger>
+                        <DropdownMenu.Portal>
+                          <DropdownMenu.SubContent className={s.dropdownContent} sideOffset={2}>
+                            <DropdownMenu.RadioGroup
+                              value={layoutMode}
+                              onValueChange={value =>
+                                setLayoutMode?.(value as 'split' | 'noodles-on-top' | 'output-on-top')
+                              }
+                            >
+                              <DropdownMenu.RadioItem
+                                className={s.dropdownItem}
+                                value="split"
+                              >
+                                <DropdownMenu.ItemIndicator className={s.itemIndicator}>
+                                  <i className="pi pi-check" style={{ fontSize: '12px' }} />
+                                </DropdownMenu.ItemIndicator>
+                                Split
+                              </DropdownMenu.RadioItem>
+                              <DropdownMenu.RadioItem
+                                className={s.dropdownItem}
+                                value="noodles-on-top"
+                              >
+                                <DropdownMenu.ItemIndicator className={s.itemIndicator}>
+                                  <i className="pi pi-check" style={{ fontSize: '12px' }} />
+                                </DropdownMenu.ItemIndicator>
+                                Noodles on Top
+                              </DropdownMenu.RadioItem>
+                              <DropdownMenu.RadioItem
+                                className={s.dropdownItem}
+                                value="output-on-top"
+                              >
+                                <DropdownMenu.ItemIndicator className={s.itemIndicator}>
+                                  <i className="pi pi-check" style={{ fontSize: '12px' }} />
+                                </DropdownMenu.ItemIndicator>
+                                Output on Top
+                              </DropdownMenu.RadioItem>
+                            </DropdownMenu.RadioGroup>
+                          </DropdownMenu.SubContent>
+                        </DropdownMenu.Portal>
+                      </DropdownMenu.Sub>
+                    </DropdownMenu.SubContent>
+                  </DropdownMenu.Portal>
+                </DropdownMenu.Sub>
+
                 <DropdownMenu.Separator className={s.dropdownSeparator} />
 
                 <DropdownMenu.Item
@@ -370,14 +444,11 @@ export function TopMenuBar({
 
                 <DropdownMenu.Separator className={s.dropdownSeparator} />
 
-                <DropdownMenu.Item className={s.dropdownItem} onSelect={onSelectEditorSettings}>
-                  Editor Settings
-                </DropdownMenu.Item>
                 <DropdownMenu.Item
                   className={s.dropdownItem}
                   onSelect={() => setSettingsDialogOpen(true)}
                 >
-                  App Settings
+                  Settings
                 </DropdownMenu.Item>
 
                 <DropdownMenu.Separator className={s.dropdownSeparator} />

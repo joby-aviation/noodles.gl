@@ -306,7 +306,7 @@ export const BlockLibrary = forwardRef<BlockLibraryRef, BlockLibraryProps>(
       <div className={s.blockLibraryOverlay} onClick={onCloseModal}>
         {/* biome-ignore lint/a11y/noStaticElementInteractions: modal content container */}
         <div className={s.blockLibraryModal} onClick={e => e.stopPropagation()}>
-          <div className={s.blockLibrarySidebar}>
+          <div className={s.blockLibrarySidebar} data-input-mode={inputMode}>
             <div className={s.blockLibraryHeader}>Operator Library</div>
             <input
               ref={inputRef}

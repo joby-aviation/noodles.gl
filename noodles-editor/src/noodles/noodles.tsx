@@ -42,7 +42,7 @@ import { SheetProvider } from '../utils/sheet-context'
 import useSheetValue from '../utils/use-sheet-value'
 import type { Visualization } from '../visualizations'
 import { BlockLibrary, type BlockLibraryRef } from './components/block-library'
-import { categories } from './components/categories'
+import { categories, nodeTypeToDisplayName } from './components/categories'
 import { CopyControls, type CopyControlsRef } from './components/copy-controls'
 import { DropTarget } from './components/drop-target'
 import { ErrorBoundary } from './components/error-boundary'
@@ -137,10 +137,9 @@ function useTheatreJs(projectName?: string) {
   const setTheatreProject = useCallback(
     (theatreConfig: IProjectConfig, incomingProjectName?: string) => {
       // Theatre stores too much state if you don't reset it properly.
-      // We need to detach special objects (editor, render) before forgetting the sheet.
+      // We need to detach special objects (render) before forgetting the sheet.
 
       // Detach the special Theatre objects that persist across the app
-      theatreSheet.detachObject('editor')
       theatreSheet.detachObject('render')
 
       // Then forget the sheet to clean up the Theatre.js UI
@@ -163,8 +162,8 @@ function useTheatreJs(projectName?: string) {
   const getTimelineJson = useCallback(() => {
     const timeline = studio.createContentOfSaveFile(theatreState.name)
 
-    // Clear staticOverrides to prevent them from being saved, only preserve editor and render
-    // objects since we're storing that state in Theatre
+    // Clear staticOverrides to prevent them from being saved, only preserve render
+    // object since we're storing that state in Theatre
     const sheetsById = Object.fromEntries(
       Object.entries(
         timeline.sheetsById as Record<string, { staticOverrides?: { byObject?: unknown } }>
@@ -173,7 +172,7 @@ function useTheatreJs(projectName?: string) {
         {
           ...sheet,
           staticOverrides: {
-            byObject: pick(sheet.staticOverrides?.byObject || {}, ['editor', 'render']),
+            byObject: pick(sheet.staticOverrides?.byObject || {}, ['render']),
           },
         },
       ])
@@ -283,9 +282,13 @@ export function getNoodles(): Visualization {
       }
     }
 
+    document.title = projectName
+      ? `Noodles.gl - ${projectName}${hasUnsavedChanges ? ' *' : ''}`
+      : 'Noodles.gl'
+
     window.addEventListener('beforeunload', handleBeforeUnload)
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
-  }, [hasUnsavedChanges])
+  }, [hasUnsavedChanges, projectName])
 
   // `transformGraph` needs all nodes to build the opMap and resolve connections
   // Use useEffect instead of useMemo to avoid setState during render
@@ -542,30 +545,15 @@ export function getNoodles(): Visualization {
     blockLibraryRef.current?.openModal(centerX, centerY)
   }, [])
 
-  const editorSheet = useMemo(() => {
-    return theatreSheet.object('editor', {
-      showOverlay: types.boolean(!IS_PROD),
-      layoutMode: types.stringLiteral('noodles-on-top', {
-        split: 'Split',
-        'noodles-on-top': 'Noodles on Top',
-        'output-on-top': 'Output on Top',
-      }),
-    })
-  }, [theatreSheet])
-
-  const { showOverlay, layoutMode } = useSheetValue(editorSheet)
-
-  // Register editor sheet object in store for menu access
-  useEffect(() => {
-    setSheetObject('editor', editorSheet as any)
-    return () => {
-      deleteSheetObject('editor')
-    }
-  }, [editorSheet])
+  // Editor settings state (moved from Theatre.js to project-level settings)
+  const [showOverlay, setShowOverlay] = useState(!IS_PROD)
+  const [layoutMode, setLayoutMode] = useState<'split' | 'noodles-on-top' | 'output-on-top'>(
+    'noodles-on-top'
+  )
 
   const loadProjectFile = useCallback(
     (project: NoodlesProjectJSON, name?: string) => {
-      const { nodes, edges, viewport, timeline } = project
+      const { nodes, edges, viewport, timeline, editorSettings } = project
 
       // Update current project ref for undo/redo
       currentProjectRef.current = project
@@ -578,6 +566,10 @@ export function getNoodles(): Visualization {
       setNodes(nodes)
       setEdges(edges)
       setProjectName(name ?? null)
+
+      // Load editor settings from project with defaults
+      setLayoutMode(editorSettings?.layoutMode ?? 'noodles-on-top')
+      setShowOverlay(editorSettings?.showOverlay ?? !IS_PROD)
 
       // Set viewport state before ReactFlow renders (but not during undo/redo)
       if (viewport && name && !undoRedoRef.current?.isRestoring()) {
@@ -712,8 +704,12 @@ export function getNoodles(): Visualization {
       edges: serializeEdges(store, nodes, edges),
       viewport,
       timeline,
+      editorSettings: {
+        layoutMode,
+        showOverlay,
+      },
     }
-  }, [nodes, edges, getTimelineJson])
+  }, [nodes, edges, getTimelineJson, layoutMode, showOverlay])
 
   const onMenuSave = useCallback(async () => {
     if (!projectName) return
@@ -1061,7 +1057,7 @@ export function getNoodles(): Visualization {
       if (!op) continue
 
       // Check if this is a GeoJSON-producing operator
-      if (categories.geojson.includes(node.type)) {
+      if (categories.geojson.includes(nodeTypeToDisplayName(node.type))) {
         const feature = op.outputs.feature?.value
         if (feature) features.push(feature)
       }
@@ -1157,6 +1153,9 @@ export function getNoodles(): Visualization {
     nodeSidebar: <NodeTreeSidebar />,
     propertiesPanel,
     layoutMode,
+    setLayoutMode,
+    showOverlay,
+    setShowOverlay,
     // Export these so timeline-editor can create the menu with render actions
     projectName,
     getTimelineJson,
