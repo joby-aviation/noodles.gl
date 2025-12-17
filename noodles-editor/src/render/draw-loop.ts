@@ -43,6 +43,14 @@ export function useDeckDrawLoop({
         deck?.setProps({
           ...props,
           onAfterRender: context => {
+            console.log('[onAfterRender] FIRED', {
+              timestamp: performance.now(),
+              deckReady: isDeckReady(deck),
+              layerCount: deck?.props.layers?.length,
+              layersLoaded: deck?.props.layers.filter(l => l?.isLoaded).length,
+              waitForData,
+              captureDelay,
+            })
             props.onAfterRender?.(context)
             if (waitForData && !isDeckReady(deck)) {
               console.warn('deck waiting')

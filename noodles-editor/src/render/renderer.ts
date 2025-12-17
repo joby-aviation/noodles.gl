@@ -218,6 +218,8 @@ export const useRenderer = ({
 
       for (; i < endFrame + 1; i++) {
         const simTime = i / fps
+        console.log(`[Frame ${i}] Setting timeline position: ${simTime}`)
+
         sequence.position = simTime
         rafDriver.tick(performance.now())
         // redraw in case nothing changes due to theatre raf driver
@@ -225,9 +227,11 @@ export const useRenderer = ({
         redraw()
 
         currentFrame.current = i
-        console.log(`capturing frame ${i}/${endFrame} at simtime ${simTime}`)
+        console.log(`[Frame ${i}] Waiting for canvas ready...`)
 
         const canvasResult = await canvasFrameReady()
+
+        console.log(`[Frame ${i}] Canvas ready, capturing frame`)
 
         if (canvasResult?.error) {
           console.error('Error capturing canvas frame:', canvasResult.error)
