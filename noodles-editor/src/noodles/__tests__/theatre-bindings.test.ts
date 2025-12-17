@@ -1,10 +1,12 @@
 import { getProject } from '@theatre/core'
+import { Temporal } from 'temporal-polyfill'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   BooleanField,
   ColorField,
   CompoundPropsField,
+  DateField,
   type Field,
   NumberField,
   StringField,
@@ -174,6 +176,62 @@ describe('theatre-bindings', () => {
       expect(hasSheetObject('/test-op')).toBe(true)
       cleanup?.()
     })
+
+    it('should handle date fields', () => {
+      const dateField = new DateField()
+      dateField.pathToProps = ['/test-op', 'par', 'date']
+
+      const mockOp = {
+        id: '/test-op',
+        inputs: {
+          date: dateField,
+        },
+        outputs: {},
+        locked: { value: false },
+        // biome-ignore lint/suspicious/noExplicitAny: mock operator for test
+      } as any
+
+      const cleanup = bindOperatorToTheatre(mockOp, testSheet)
+
+      expect(hasSheetObject('/test-op')).toBe(true)
+
+      // Verify Theatre stores the date as epoch milliseconds
+      const sheetObj = getSheetObject('/test-op')
+      expect(sheetObj).toBeDefined()
+      expect(sheetObj?.props.date).toBeDefined()
+      expect(typeof sheetObj?.value.date).toBe('number')
+
+      cleanup?.()
+    })
+
+    it('should convert DateField to epoch milliseconds for Theatre', () => {
+      const initialDate = Temporal.PlainDateTime.from('2024-01-15T10:30:00')
+      const dateField = createField(DateField, initialDate, {}, '/test-op', 'date')
+
+      const mockOp = {
+        id: '/test-op',
+        inputs: {
+          date: dateField,
+        },
+        outputs: {},
+        locked: { value: false },
+        // biome-ignore lint/suspicious/noExplicitAny: mock operator for test
+      } as any
+
+      const cleanup = bindOperatorToTheatre(mockOp, testSheet)
+
+      // Verify Theatre stores dates as epoch milliseconds (numbers)
+      const sheetObj = getSheetObject('/test-op')
+      expect(sheetObj).toBeDefined()
+      expect(typeof sheetObj?.value.date).toBe('number')
+
+      // Verify the initial epoch milliseconds match
+      const expectedInitialMs = initialDate.toZonedDateTime('UTC').toInstant().epochMilliseconds
+      expect(sheetObj?.value.date).toBe(expectedInitialMs)
+
+      cleanup?.()
+    })
+
 
     it('should handle vector fields', () => {
       const vec2Field = new Vec2Field([1, 2])
