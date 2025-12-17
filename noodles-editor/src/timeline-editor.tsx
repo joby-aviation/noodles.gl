@@ -145,7 +145,7 @@ export default function TimelineEditor() {
   const redraw = useCallback(() => {
     console.warn('redraw', mapRef.current, deckRef.current)
     mapRef.current?.redraw()
-    deckRef.current?.redraw()
+    deckRef.current?.redraw('frame-capture')
     setRand(Math.random())
   }, [])
 

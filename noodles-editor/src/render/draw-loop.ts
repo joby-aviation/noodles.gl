@@ -62,6 +62,14 @@ export function useDeckDrawLoop({
             setTimeout(() => resolvePass(), captureDelay)
           },
         })
+
+        // Force deck to redraw when rendering video
+        // This ensures onAfterRender fires even if deck thinks nothing changed.
+        // During normal editing (isRendering=false), deck renders on-demand.
+        if (isRendering && deck) {
+          deck.redraw('frame-capture')
+        }
+
         await passPromise
         captureFrame?.()
       } catch (e) {

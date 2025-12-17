@@ -8,6 +8,7 @@ import {
   StreamTarget,
 } from 'mediabunny'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { waitForGraphSettled } from './graph-settling'
 
 export const rafDriver = createRafDriver({ name: 'WorldView' })
 
@@ -222,6 +223,19 @@ export const useRenderer = ({
 
         sequence.position = simTime
         rafDriver.tick(performance.now())
+
+        // Wait for reactive graph to settle before rendering
+        // This ensures all operators have finished processing the timeline update
+        // before we capture the frame. Critical for data-driven animations.
+        try {
+          await waitForGraphSettled({ timeout: 5000 })
+          console.log(`[Frame ${i}] Graph settled`)
+        } catch (error) {
+          console.error(`[Frame ${i}] Graph settling timeout -`, error)
+          // Continue to next frame - operator may be stuck, but we shouldn't
+          // hang the entire render. The frame may be incorrect, but it's logged.
+        }
+
         // redraw in case nothing changes due to theatre raf driver
         // TODO: Where should this go so that the first frame captures?
         redraw()
