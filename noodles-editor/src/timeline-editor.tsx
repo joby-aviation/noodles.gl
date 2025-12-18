@@ -188,6 +188,9 @@ export default function TimelineEditor() {
   const { framerate, bitrateMbps, bitrateMode, codec, resolution, lod, waitForData, captureDelay } =
     renderer
 
+  // Ref to store requestFrame function from draw loop
+  const requestDeckFrameRef = useRef<(() => void) | null>(null)
+
   const { startCapture, captureFrame, currentFrame, isRendering } = useRenderer({
     project,
     sequence: sequence,
@@ -293,7 +296,6 @@ export default function TimelineEditor() {
   // https://www.theatrejs.com/docs/latest/manual/authoring-extensions
 
   const pureDeckInstance = !basemapEnabled ? deckRef.current : null
-  const requestDeckFrameRef = useRef<(() => void) | null>(null)
 
   useDeckDrawLoop({
     deck: pureDeckInstance,
