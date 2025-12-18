@@ -296,10 +296,11 @@ export default function TimelineEditor() {
       }
     },
   }), [
-    // When NOT rendering, allow updates so users see changes
-    // When rendering, keep stable to avoid spurious deck.setProps()
-    isRendering ? isRendering : visualization.deckProps,
-    redraw
+    // Allow updates so Deck.gl receives new layer data
+    // timeoutScheduledRef prevents multiple setTimeout callbacks per frame
+    visualization.deckProps,
+    redraw,
+    isRendering
   ])
 
   const mapProps: MapProps = {
