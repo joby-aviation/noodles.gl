@@ -47,54 +47,60 @@ export function useDeckDrawLoop({
     rendererConfigRef.current = rendererConfig
   }, [rendererConfig])
 
+  // Apply our onAfterRender wrapper every time props change
+  // This ensures it doesn't get overwritten by the DeckGL component
   useEffect(() => {
     if (!isRendering || !deck) {
       return
     }
 
-    console.log('[useDeckDrawLoop] Setting up onAfterRender callback (ONCE)')
+    console.log('[useDeckDrawLoop] Applying onAfterRender wrapper')
 
-    // Set up onAfterRender callback that persists and responds to deck.redraw() calls
-    // This only runs ONCE when rendering starts to avoid race conditions
-    deck.setProps({
-      onAfterRender: (context: any) => {
-        const { waitForData, captureDelay } = rendererConfigRef.current
-        const currentProps = propsRef.current
+    // Wrap the incoming onAfterRender to add our frame capture logic
+    const wrappedOnAfterRender = (context: any) => {
+      const { waitForData, captureDelay } = rendererConfigRef.current
+      const currentProps = propsRef.current
 
-        console.log('[onAfterRender] FIRED', {
-          timestamp: performance.now(),
-          deckReady: isDeckReady(deck),
-          layerCount: deck?.props.layers?.length,
-          layersLoaded: deck?.props.layers.filter((l: any) => l && !Array.isArray(l) && l.isLoaded).length,
-          waitForData,
-          captureDelay,
-          hasResolver: !!resolvePassRef.current,
-        })
+      console.log('[onAfterRender] FIRED', {
+        timestamp: performance.now(),
+        deckReady: isDeckReady(deck),
+        layerCount: deck?.props.layers?.length,
+        layersLoaded: deck?.props.layers.filter((l: any) => l && !Array.isArray(l) && l.isLoaded).length,
+        waitForData,
+        captureDelay,
+        hasResolver: !!resolvePassRef.current,
+      })
 
-        // Call original onAfterRender if it exists
-        currentProps.onAfterRender?.(context)
+      // Call original onAfterRender if it exists
+      currentProps.onAfterRender?.(context)
 
-        // Only resolve if we have a pending frame request
-        if (!resolvePassRef.current) {
-          console.log('[onAfterRender] No pending frame request, ignoring')
-          return
-        }
-
-        if (waitForData && !isDeckReady(deck)) {
-          console.warn('[onAfterRender] Deck not ready, waiting for layers to load')
-          return // layers aren't loaded yet
-        }
-
-        // Deck is ready - resolve after captureDelay
-        const resolver = resolvePassRef.current
-        setTimeout(() => {
-          console.log('[onAfterRender] Resolving frame capture after delay')
-          resolver()
-          resolvePassRef.current = null
-        }, captureDelay)
+      // Only resolve if we have a pending frame request
+      if (!resolvePassRef.current) {
+        console.log('[onAfterRender] No pending frame request, ignoring')
+        return
       }
+
+      if (waitForData && !isDeckReady(deck)) {
+        console.warn('[onAfterRender] Deck not ready, waiting for layers to load')
+        return // layers aren't loaded yet
+      }
+
+      // Deck is ready - resolve after captureDelay
+      const resolver = resolvePassRef.current
+      setTimeout(() => {
+        console.log('[onAfterRender] Resolving frame capture after delay')
+        resolver()
+        resolvePassRef.current = null
+      }, captureDelay)
+    }
+
+    // Apply all incoming props PLUS our wrapped onAfterRender
+    // This runs every time props change, ensuring our callback isn't overwritten
+    deck.setProps({
+      ...props,
+      onAfterRender: wrappedOnAfterRender
     })
-  }, [deck, isRendering])
+  }, [deck, isRendering, props, rendererConfig])
 
   // This effect continuously listens for deck.redraw() calls from the renderer
   useEffect(() => {
