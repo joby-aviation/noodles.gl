@@ -210,7 +210,10 @@ export default function TimelineEditor() {
   const lastFrameTimeRef = useRef(Date.now())
   const fpsRef = useRef(0)
 
-  const deckProps: DeckProps = {
+  // Ref to hold the frame capture resolver
+  const frameResolverRef = useRef<((value?: unknown) => void) | null>(null)
+
+  const deckProps: DeckProps = useMemo(() => ({
     deviceProps: {
       type: 'webgl',
       powerPreference: 'high-performance',
@@ -220,7 +223,7 @@ export default function TimelineEditor() {
     },
     useDevicePixels: false,
     ...visualization.deckProps,
-    onDeviceInitialized: device => {
+    onDeviceInitialized: (device: any) => {
       visualization.deckProps?.onDeviceInitialized?.(device)
       redraw()
     },
@@ -245,8 +248,25 @@ export default function TimelineEditor() {
         layerCount: deckRef.current?.layerManager?.getLayers().length || 0,
         timestamp: now,
       }
+
+      // Frame capture logic - integrated directly to avoid being overwritten by React
+      if (isRendering && frameResolverRef.current) {
+        const resolver = frameResolverRef.current
+        const isDeckReady = !deckRef.current || deckRef.current.props.layers.every((layer: any) => !layer || (!Array.isArray(layer) && layer.isLoaded))
+
+        if (waitForData && !isDeckReady) {
+          console.warn('[onAfterRender] Deck not ready for frame capture, waiting for layers to load')
+          return
+        }
+
+        setTimeout(() => {
+          console.log('[onAfterRender] Resolving frame capture after delay')
+          resolver()
+          frameResolverRef.current = null
+        }, captureDelay)
+      }
     },
-  }
+  }), [visualization.deckProps, redraw, isRendering, waitForData, captureDelay])
 
   const mapProps: MapProps = {
     interactive: false,
@@ -306,12 +326,8 @@ export default function TimelineEditor() {
     deck: pureDeckInstance,
     isRendering,
     captureFrame,
-    rendererConfig: {
-      waitForData,
-      captureDelay,
-    },
-    props: deckProps,
     onFrameRequestReady: handleFrameRequestReady,
+    frameResolverRef,
   })
 
   const startRender = useCallback(async () => {
