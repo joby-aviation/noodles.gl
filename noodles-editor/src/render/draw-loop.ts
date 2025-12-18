@@ -14,6 +14,8 @@ interface UseDeckDrawLoopProps {
   captureFrame?: (result?: { error?: Error }) => void
   rendererConfig: RendererConfig
   props?: Partial<DeckProps>
+  // Callback to expose frame request function to renderer
+  onFrameRequestReady?: (requestFrame: () => void) => void
 }
 
 const isDeckReady = (deck: Deck | null) =>
@@ -25,6 +27,7 @@ export function useDeckDrawLoop({
   captureFrame,
   rendererConfig,
   props = {},
+  onFrameRequestReady,
 }: UseDeckDrawLoopProps) {
   // Use refs to maintain state across renders without causing re-runs
   const resolvePassRef = useRef<((value?: unknown) => void) | null>(null)
@@ -102,58 +105,51 @@ export function useDeckDrawLoop({
     })
   }, [deck, isRendering, props, rendererConfig])
 
-  // This effect continuously waits for frames and triggers redraws
+  // Expose a requestFrame function that the renderer can call when ready for next frame
   useEffect(() => {
-    if (!isRendering || !deck) {
+    if (!isRendering || !deck || !onFrameRequestReady) {
       return
     }
 
-    let isActive = true
+    // Function that renderer calls to request a frame
+    const requestFrame = async () => {
+      try {
+        console.log('[useDeckDrawLoop] Frame requested, setting up promise')
 
-    // Continuously wait for frames
-    // We call deck.redraw() ourselves to ensure it happens AFTER all setProps calls
-    const frameLoop = async () => {
-      while (isActive) {
-        try {
-          console.log('[useDeckDrawLoop] Ready for next frame...')
+        // Set up promise for this frame
+        const passPromise = new Promise(res => {
+          resolvePassRef.current = res
+        })
 
-          // Set up promise for this frame
-          const passPromise = new Promise(res => {
-            resolvePassRef.current = res
-          })
+        // Small delay to let any pending setProps calls complete
+        // This ensures deck.redraw() happens AFTER setProps, not before
+        await new Promise(resolve => setTimeout(resolve, 0))
 
-          // Small delay to let any pending setProps calls complete
-          // This ensures deck.redraw() happens AFTER setProps, not before
-          await new Promise(resolve => setTimeout(resolve, 0))
+        // Now trigger the redraw - this will call onAfterRender
+        console.log('[useDeckDrawLoop] Calling deck.redraw()')
+        deck.redraw('frame-capture')
 
-          // Now trigger the redraw - this will call onAfterRender
-          console.log('[useDeckDrawLoop] Calling deck.redraw()')
-          deck.redraw('frame-capture')
-
-          // Wait for onAfterRender to resolve
-          await passPromise
-          console.log('[useDeckDrawLoop] Frame captured, calling captureFrame callback')
-          captureFrameRef.current?.()
-        } catch (e) {
-          const error = e instanceof Error ? e : new Error(String(e))
-          console.error('[useDeckDrawLoop] Error during frame capture:', error)
-          captureFrameRef.current?.({ error })
-          resolvePassRef.current = null
-          break
-        }
+        // Wait for onAfterRender to resolve
+        await passPromise
+        console.log('[useDeckDrawLoop] Frame captured, calling captureFrame callback')
+        captureFrameRef.current?.()
+      } catch (e) {
+        const error = e instanceof Error ? e : new Error(String(e))
+        console.error('[useDeckDrawLoop] Error during frame capture:', error)
+        captureFrameRef.current?.({ error })
+        resolvePassRef.current = null
       }
     }
 
-    // Start the continuous frame loop
-    frameLoop()
+    // Expose the requestFrame function to the renderer
+    onFrameRequestReady(requestFrame)
 
-    // Cleanup: stop the loop when component unmounts or rendering stops
+    // Cleanup
     return () => {
-      isActive = false
       if (resolvePassRef.current) {
         resolvePassRef.current()
         resolvePassRef.current = null
       }
     }
-  }, [deck, isRendering])
+  }, [deck, isRendering, onFrameRequestReady])
 }

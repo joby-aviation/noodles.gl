@@ -19,6 +19,7 @@ export const useRenderer = ({
   bitrate = 10_000_000, // 10mbps
   bitrateMode,
   redraw,
+  requestDeckFrameRef,
 }: {
   project: IProject
   sequence: ISequence
@@ -26,6 +27,7 @@ export const useRenderer = ({
   bitrate?: number
   bitrateMode: 'variable' | 'constant'
   redraw: () => void
+  requestDeckFrameRef?: React.MutableRefObject<(() => void) | null>
 }) => {
   const [sequenceLength, setSequenceLength] = useState(() => val(sequence.pointer.length))
 
@@ -236,10 +238,21 @@ export const useRenderer = ({
           // hang the entire render. The frame may be incorrect, but it's logged.
         }
 
-        // Note: redraw is now called from useDeckDrawLoop, not here
-        // This ensures deck.redraw() happens AFTER all setProps calls complete
-
         currentFrame.current = i
+        console.log(`[Frame ${i}] Requesting frame capture...`)
+
+        // For pure deck mode, trigger frame capture via callback
+        // This ensures timing is controlled by renderer, not autonomous loop
+        if (requestDeckFrameRef?.current) {
+          console.log(`[Frame ${i}] Calling requestDeckFrameRef.current()`)
+          await requestDeckFrameRef.current()
+          console.log(`[Frame ${i}] Frame request completed`)
+        } else {
+          // MapLibre mode - redraw handled by maplibre's onIdle callback
+          console.log(`[Frame ${i}] Triggering redraw for MapLibre mode`)
+          redraw()
+        }
+
         console.log(`[Frame ${i}] Waiting for canvas ready...`)
 
         const canvasResult = await canvasFrameReady()

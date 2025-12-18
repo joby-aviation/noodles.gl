@@ -195,6 +195,7 @@ export default function TimelineEditor() {
     bitrate: bitrateMbps * 1_000_000,
     bitrateMode,
     redraw,
+    requestDeckFrameRef,
   })
 
   // If the visualization doesn't supply mapProps, disable basemap.
@@ -292,6 +293,8 @@ export default function TimelineEditor() {
   // https://www.theatrejs.com/docs/latest/manual/authoring-extensions
 
   const pureDeckInstance = !basemapEnabled ? deckRef.current : null
+  const requestDeckFrameRef = useRef<(() => void) | null>(null)
+
   useDeckDrawLoop({
     deck: pureDeckInstance,
     isRendering,
@@ -301,6 +304,9 @@ export default function TimelineEditor() {
       captureDelay,
     },
     props: deckProps,
+    onFrameRequestReady: (requestFrame) => {
+      requestDeckFrameRef.current = requestFrame
+    },
   })
 
   const startRender = useCallback(async () => {
