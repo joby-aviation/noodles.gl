@@ -2583,11 +2583,12 @@ export class SplitMapViewStateOp extends Operator<SplitMapViewStateOp> {
 
 export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
   static displayName = 'MaplibreBasemap'
-  static description = 'A Maplibre basemap.'
+  static description = 'A Maplibre basemap with configurable projection.'
 
   createInputs() {
     return {
       mapStyle: new JSONUrlField(CARTO_DARK),
+      projection: new StringLiteralField('mercator', ['mercator', 'globe']),
       viewState: new CompoundPropsField({
         latitude: new NumberField(DEFAULT_LATITUDE, { min: -90, max: 90, step: 0.001 }),
         longitude: new NumberField(DEFAULT_LONGITUDE, { min: -180, max: 180, step: 0.001 }),
@@ -2612,10 +2613,21 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
   }
   execute({
     mapStyle,
+    projection,
     viewState,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     validateViewState(viewState)
-    return { maplibre: { mapStyle, ...viewState } }
+
+    // Add projection to the mapStyle if it's an object
+    let modifiedMapStyle = mapStyle
+    if (typeof mapStyle === 'object' && mapStyle !== null) {
+      modifiedMapStyle = {
+        ...mapStyle,
+        projection: { type: projection }
+      }
+    }
+
+    return { maplibre: { mapStyle: modifiedMapStyle, ...viewState } }
   }
 }
 
