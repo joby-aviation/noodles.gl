@@ -215,6 +215,18 @@ export default function TimelineEditor() {
   // Flag to indicate we're waiting for a specific redraw, not just any React re-render
   const expectingRedrawRef = useRef(false)
 
+  // Store visualization props in ref to avoid recreating deckProps on every render
+  const visualizationDeckPropsRef = useRef(visualization.deckProps)
+  useEffect(() => {
+    visualizationDeckPropsRef.current = visualization.deckProps
+  }, [visualization.deckProps])
+
+  // Store renderer config in ref
+  const rendererRef = useRef(renderer)
+  useEffect(() => {
+    rendererRef.current = renderer
+  }, [renderer])
+
   const deckProps: DeckProps = useMemo(() => ({
     deviceProps: {
       type: 'webgl',
@@ -224,13 +236,13 @@ export default function TimelineEditor() {
       },
     },
     useDevicePixels: false,
-    ...visualization.deckProps,
+    ...visualizationDeckPropsRef.current,
     onDeviceInitialized: (device: any) => {
-      visualization.deckProps?.onDeviceInitialized?.(device)
+      visualizationDeckPropsRef.current?.onDeviceInitialized?.(device)
       redraw()
     },
     onAfterRender: () => {
-      visualization.deckProps?.onAfterRender?.()
+      visualizationDeckPropsRef.current?.onAfterRender?.()
 
       // Track FPS and stats for Claude AI debugging
       // Use deck.gl's built-in fps metric when available
@@ -257,7 +269,11 @@ export default function TimelineEditor() {
         const resolver = frameResolverRef.current
         const isDeckReady = !deckRef.current || deckRef.current.props.layers.every((layer: any) => !layer || (!Array.isArray(layer) && layer.isLoaded))
 
-        if (waitForData && !isDeckReady) {
+        // Read current config from ref
+        const currentWaitForData = rendererRef.current.waitForData
+        const currentCaptureDelay = rendererRef.current.captureDelay
+
+        if (currentWaitForData && !isDeckReady) {
           console.warn('[onAfterRender] Deck not ready for frame capture, waiting for layers to load')
           return
         }
@@ -267,10 +283,10 @@ export default function TimelineEditor() {
           resolver()
           frameResolverRef.current = null
           expectingRedrawRef.current = false
-        }, captureDelay)
+        }, currentCaptureDelay)
       }
     },
-  }), [visualization.deckProps, redraw, isRendering, waitForData, captureDelay])
+  }), [isRendering, redraw])
 
   const mapProps: MapProps = {
     interactive: false,
