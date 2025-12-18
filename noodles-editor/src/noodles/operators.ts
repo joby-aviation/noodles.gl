@@ -2583,7 +2583,7 @@ export class SplitMapViewStateOp extends Operator<SplitMapViewStateOp> {
 
 export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
   static displayName = 'MaplibreBasemap'
-  static description = 'A Maplibre basemap with configurable projection.'
+  static description = 'A Maplibre basemap.'
 
   createInputs() {
     return {
