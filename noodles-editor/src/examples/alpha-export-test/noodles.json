@@ -1,0 +1,202 @@
+{
+  "version": 9,
+  "nodes": [
+    {
+      "id": "/scatterplot",
+      "type": "ScatterplotLayerOp",
+      "position": {
+        "x": -150,
+        "y": 100
+      },
+      "data": {
+        "inputs": {
+          "opacity": 0.8,
+          "getFillColor": "#ffffffff",
+          "getLineColor": "#ffffffff",
+          "getRadius": 10000,
+          "radiusUnits": "meters"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/view",
+      "type": "MapViewOp",
+      "position": {
+        "x": -181.98477648490342,
+        "y": 681.5111316602053
+      },
+      "data": {
+        "inputs": {
+          "clearColor": "#000000ff"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/renderer",
+      "type": "DeckRendererOp",
+      "position": {
+        "x": 300,
+        "y": 150
+      },
+      "data": {
+        "inputs": {},
+        "locked": false
+      }
+    },
+    {
+      "type": "ScatterOp",
+      "id": "/scatter",
+      "position": {
+        "x": -771.8154471544716,
+        "y": 144.55934959349597
+      },
+      "data": {
+        "inputs": {
+          "count": 100000
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "AccessorOp",
+      "id": "/accessor",
+      "position": {
+        "x": -775.2430894308943,
+        "y": 377.63902439024395
+      },
+      "data": {
+        "inputs": {
+          "expression": "[d.lng, d.lat]"
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "OutOp",
+      "id": "/out",
+      "position": {
+        "x": 791.4898373983741,
+        "y": 259.3853658536586
+      },
+      "data": {
+        "inputs": {},
+        "locked": false
+      }
+    },
+    {
+      "type": "MapViewStateOp",
+      "id": "/map-view-state",
+      "position": {
+        "x": -716.855623331848,
+        "y": 754.9975714799766
+      },
+      "data": {
+        "inputs": {
+          "zoom": 8
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "MaplibreBasemapOp",
+      "id": "/maplibre-basemap",
+      "position": {
+        "x": -199.81870844857536,
+        "y": 528.0057551897594
+      },
+      "data": {
+        "inputs": {},
+        "locked": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/scatterplot.out.layer->/renderer.par.layers.0",
+      "source": "/scatterplot",
+      "target": "/renderer",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/view.out.view->/renderer.par.views.0",
+      "source": "/view",
+      "target": "/renderer",
+      "sourceHandle": "out.view",
+      "targetHandle": "par.views"
+    },
+    {
+      "source": "/scatter",
+      "sourceHandle": "out.points",
+      "target": "/scatterplot",
+      "targetHandle": "par.data",
+      "id": "/scatter.out.points->/scatterplot.par.data"
+    },
+    {
+      "source": "/accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/scatterplot",
+      "targetHandle": "par.getPosition",
+      "id": "/accessor.out.accessor->/scatterplot.par.getPosition"
+    },
+    {
+      "source": "/renderer",
+      "sourceHandle": "out.vis",
+      "target": "/out",
+      "targetHandle": "par.vis",
+      "id": "/renderer.out.vis->/out.par.vis"
+    },
+    {
+      "source": "/map-view-state",
+      "sourceHandle": "out.viewState",
+      "target": "/view",
+      "targetHandle": "par.viewState",
+      "id": "/map-view-state.out.viewState->/view.par.viewState"
+    },
+    {
+      "source": "/map-view-state",
+      "sourceHandle": "out.viewState",
+      "target": "/maplibre-basemap",
+      "targetHandle": "par.viewState",
+      "id": "xy-edge__/map-view-stateout.viewState-/maplibre-basemappar.viewState"
+    },
+    {
+      "source": "/maplibre-basemap",
+      "sourceHandle": "out.maplibre",
+      "target": "/renderer",
+      "targetHandle": "par.basemap",
+      "id": "/maplibre-basemap.out.maplibre->/renderer.par.basemap"
+    },
+    {
+      "source": "/map-view-state",
+      "sourceHandle": "out.viewState",
+      "target": "/renderer",
+      "targetHandle": "par.viewState",
+      "id": "/map-view-state.out.viewState->/renderer.par.viewState"
+    }
+  ],
+  "viewport": {
+    "x": 476.7882835482791,
+    "y": 146.84069330388638,
+    "zoom": 0.3295989264519103
+  },
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": [
+      "dPtjGAQJOG08DgNB"
+    ]
+  },
+  "editorSettings": {
+    "layoutMode": "noodles-on-top",
+    "showOverlay": true
+  }
+}
