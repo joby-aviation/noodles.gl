@@ -297,6 +297,11 @@ export default function TimelineEditor() {
 
   const pureDeckInstance = !basemapEnabled ? deckRef.current : null
 
+  // Stable callback to avoid effect re-runs
+  const handleFrameRequestReady = useCallback((requestFrame: () => void) => {
+    requestDeckFrameRef.current = requestFrame
+  }, [])
+
   useDeckDrawLoop({
     deck: pureDeckInstance,
     isRendering,
@@ -306,9 +311,7 @@ export default function TimelineEditor() {
       captureDelay,
     },
     props: deckProps,
-    onFrameRequestReady: (requestFrame) => {
-      requestDeckFrameRef.current = requestFrame
-    },
+    onFrameRequestReady: handleFrameRequestReady,
   })
 
   const startRender = useCallback(async () => {

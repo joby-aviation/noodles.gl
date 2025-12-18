@@ -110,6 +110,8 @@ export function useDeckDrawLoop({
       return
     }
 
+    console.log('[useDeckDrawLoop] Effect running - setting up requestFrame')
+
     // Function that renderer calls to request a frame
     const requestFrame = async () => {
       try {
@@ -129,6 +131,7 @@ export function useDeckDrawLoop({
         deck.redraw('frame-capture')
 
         // Wait for onAfterRender to resolve
+        console.log('[useDeckDrawLoop] Waiting for onAfterRender...')
         await passPromise
         console.log('[useDeckDrawLoop] Frame captured, calling captureFrame callback')
         captureFrameRef.current?.()
@@ -145,7 +148,9 @@ export function useDeckDrawLoop({
 
     // Cleanup
     return () => {
+      console.log('[useDeckDrawLoop] Effect cleanup - resolving pending promise if any')
       if (resolvePassRef.current) {
+        console.warn('[useDeckDrawLoop] CLEANUP RESOLVING PROMISE - THIS SHOULD NOT HAPPEN DURING RENDERING!')
         resolvePassRef.current()
         resolvePassRef.current = null
       }
