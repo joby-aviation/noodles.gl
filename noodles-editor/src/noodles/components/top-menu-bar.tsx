@@ -21,6 +21,7 @@ import type { UndoRedoHandlerRef } from './UndoRedoHandler'
 interface TopMenuBarProps {
   projectName?: string
   onSaveProject: () => void
+  onSaveAs?: () => Promise<void>
   onDownload?: () => Promise<void>
   onNewProject: () => void
   onImport: () => void
@@ -44,6 +45,7 @@ interface TopMenuBarProps {
 export function TopMenuBar({
   projectName,
   onSaveProject,
+  onSaveAs,
   onDownload,
   onNewProject,
   onImport,
@@ -236,6 +238,13 @@ export function TopMenuBar({
                       <DropdownMenu.Item className={s.dropdownItem} onSelect={onSaveProject}>
                         <span>Save</span>
                         <span className={s.shortcut}>{mod}+S</span>
+                      </DropdownMenu.Item>
+                      <DropdownMenu.Item
+                        className={s.dropdownItem}
+                        onSelect={onSaveAs}
+                        disabled={!onSaveAs}
+                      >
+                        Save As...
                       </DropdownMenu.Item>
                       <DropdownMenu.Item
                         className={s.dropdownItem}

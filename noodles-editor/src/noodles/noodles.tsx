@@ -114,7 +114,7 @@ const defaultEdgeOptions: DefaultEdgeOptions = {
 // TheatreJS project names are not included in the Noodles project file.
 // TheatreJS sheet names are included, so they should be the same for every project.
 const THEATRE_SHEET_ID = 'Noodles'
-function useTheatreJs(projectName?: string) {
+function useTheatreJs(projectName: string | null) {
   // Increment whenever a new theatre project is created to keep the project name unique *within theatre*.
   const _projectCounterRef = useRef(1)
   const name = `${projectName || UNSAVED_PROJECT_NAME}-${_projectCounterRef.current}`
@@ -195,7 +195,7 @@ export function getNoodles(): Visualization {
   const params = useParams()
 
   // Get projectId from route params (/examples/:projectId or /projects/:projectId) - router is single source of truth
-  const projectName = params.projectId
+  const projectName = params.projectId ?? null
 
   // Detect if we're on /projects or /examples route to preserve it when navigating
   const routePrefix = location.startsWith('/projects/') ? '/projects' : '/examples'
@@ -722,6 +722,61 @@ export function getNoodles(): Visualization {
     }
   }, [projectName, getNoodlesProjectJson, storageType, setCurrentDirectory, setError])
 
+  const onSaveAs = useCallback(async () => {
+    try {
+      // For publicFolder storage type, inform user they need to save locally
+      if (storageType === 'publicFolder') {
+        console.log('Public folder projects are read-only. Saving to a new location...')
+      }
+
+      // Prompt user to select/create a directory for the project
+      const directoryHandle = await selectDirectory()
+      const directoryName = directoryHandle.name
+
+      // Ensure we have write permission
+      const hasPermission = await requestPermission(directoryHandle, 'readwrite')
+      if (!hasPermission) {
+        console.error('Permission denied to write to directory')
+        return
+      }
+
+      // Get current project data
+      const projectData = getNoodlesProjectJson()
+
+      // Write project to noodles.json
+      await writeFileToDirectory(directoryHandle, 'noodles.json', safeStringify(projectData))
+
+      // Cache the directory handle
+      await directoryHandleCache.cacheHandle(directoryName, directoryHandle, directoryHandle.name)
+
+      // Update store with directory handle
+      setCurrentDirectory(directoryHandle, directoryName)
+
+      // Update the URL to reflect the new project name
+      navigate(`${routePrefix}/${directoryName}`, { replace: true })
+
+      // Mark as saved
+      setHasUnsavedChanges(false)
+
+      analytics.track('project_saved_as', {
+        fromStorageType: storageType,
+        toStorageType: 'fileSystemAccess',
+      })
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        // User cancelled the picker
+        return
+      }
+      console.error('Failed to save project:', error)
+      setError({
+        type: 'unknown',
+        message: 'Error saving project',
+        details: error instanceof Error ? error.message : 'Unknown error',
+        originalError: error,
+      })
+    }
+  }, [storageType, getNoodlesProjectJson, setCurrentDirectory, navigate, routePrefix, setHasUnsavedChanges, setError])
+
   const onDownload = useCallback(async () => {
     const noodlesProjectJson = getNoodlesProjectJson()
     await saveProjectLocally(projectName || 'untitled', noodlesProjectJson, storageType)
@@ -1158,6 +1213,7 @@ export function getNoodles(): Visualization {
     projectName,
     getTimelineJson,
     onSaveProject: onMenuSave,
+    onSaveAs,
     onDownload,
     onNewProject,
     onImport,
