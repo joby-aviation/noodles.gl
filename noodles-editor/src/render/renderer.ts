@@ -242,11 +242,11 @@ export const useRenderer = ({
         console.log(`[Frame ${i}] Requesting frame capture...`)
 
         // For pure deck mode, trigger frame capture via callback
-        // This ensures timing is controlled by renderer, not autonomous loop
+        // For MapLibre mode, trigger redraw
+        // Both modes then await canvasFrameReady() which gets resolved by captureFrame() callback
         if (requestDeckFrameRef?.current) {
-          console.log(`[Frame ${i}] Calling requestDeckFrameRef.current()`)
-          await requestDeckFrameRef.current()
-          console.log(`[Frame ${i}] Frame request completed`)
+          console.log(`[Frame ${i}] Calling requestDeckFrameRef.current() (non-blocking)`)
+          requestDeckFrameRef.current() // Don't await - let it run async
         } else {
           // MapLibre mode - redraw handled by maplibre's onIdle callback
           console.log(`[Frame ${i}] Triggering redraw for MapLibre mode`)
@@ -254,7 +254,6 @@ export const useRenderer = ({
         }
 
         console.log(`[Frame ${i}] Waiting for canvas ready...`)
-
         const canvasResult = await canvasFrameReady()
 
         console.log(`[Frame ${i}] Canvas ready, capturing frame`)
