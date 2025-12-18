@@ -50,8 +50,8 @@ export function useDeckDrawLoop({
     rendererConfigRef.current = rendererConfig
   }, [rendererConfig])
 
-  // Apply our onAfterRender wrapper every time props change
-  // This ensures it doesn't get overwritten by the DeckGL component
+  // Apply our onAfterRender wrapper when rendering starts
+  // We use refs for props/config to avoid re-running this effect during rendering
   useEffect(() => {
     if (!isRendering || !deck) {
       return
@@ -97,13 +97,12 @@ export function useDeckDrawLoop({
       }, captureDelay)
     }
 
-    // Apply all incoming props PLUS our wrapped onAfterRender
-    // This runs every time props change, ensuring our callback isn't overwritten
+    // Apply wrapper with initial props - refs will provide latest values in callback
     deck.setProps({
-      ...props,
+      ...propsRef.current,
       onAfterRender: wrappedOnAfterRender
     })
-  }, [deck, isRendering, props, rendererConfig])
+  }, [deck, isRendering])
 
   // Expose a requestFrame function that the renderer can call when ready for next frame
   useEffect(() => {
