@@ -214,6 +214,8 @@ export default function TimelineEditor() {
   const frameResolverRef = useRef<((value?: unknown) => void) | null>(null)
   // Flag to indicate we're waiting for a specific redraw, not just any React re-render
   const expectingRedrawRef = useRef(false)
+  // Flag to prevent scheduling multiple timeouts per frame
+  const timeoutScheduledRef = useRef(false)
 
   // Store visualization props in ref to avoid recreating deckProps on every render
   const visualizationDeckPropsRef = useRef(visualization.deckProps)
@@ -265,7 +267,8 @@ export default function TimelineEditor() {
 
       // Frame capture logic - integrated directly to avoid being overwritten by React
       // Only resolve if we're actually expecting a frame from an explicit redraw call
-      if (isRendering && frameResolverRef.current && expectingRedrawRef.current) {
+      // AND we haven't already scheduled a timeout (prevents multiple timeouts per frame)
+      if (isRendering && frameResolverRef.current && expectingRedrawRef.current && !timeoutScheduledRef.current) {
         const resolver = frameResolverRef.current
         const isDeckReady = !deckRef.current || deckRef.current.props.layers.every((layer: any) => !layer || (!Array.isArray(layer) && layer.isLoaded))
 
@@ -278,11 +281,15 @@ export default function TimelineEditor() {
           return
         }
 
+        // Mark that we've scheduled a timeout for this frame
+        timeoutScheduledRef.current = true
+
         setTimeout(() => {
           console.log('[onAfterRender] Resolving frame capture after delay')
           // Clear flags BEFORE resolving to prevent next frame from seeing stale state
           expectingRedrawRef.current = false
           frameResolverRef.current = null
+          timeoutScheduledRef.current = false
           // Resolve last - this continues execution synchronously
           resolver()
         }, currentCaptureDelay)
