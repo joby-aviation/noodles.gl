@@ -1,5 +1,5 @@
 import type { Deck, DeckProps } from '@deck.gl/core'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 interface RendererConfig {
   waitForData: boolean
@@ -26,59 +26,118 @@ export function useDeckDrawLoop({
   rendererConfig,
   props = {},
 }: UseDeckDrawLoopProps) {
+  // Use refs to maintain state across renders without causing re-runs
+  const resolvePassRef = useRef<((value?: unknown) => void) | null>(null)
+  const captureFrameRef = useRef(captureFrame)
+
+  // Keep captureFrame ref up to date
+  useEffect(() => {
+    captureFrameRef.current = captureFrame
+  }, [captureFrame])
+
+  // Store the latest props and rendererConfig in refs to avoid re-running effect
+  const propsRef = useRef(props)
+  const rendererConfigRef = useRef(rendererConfig)
+
+  useEffect(() => {
+    propsRef.current = props
+  }, [props])
+
+  useEffect(() => {
+    rendererConfigRef.current = rendererConfig
+  }, [rendererConfig])
+
   useEffect(() => {
     if (!isRendering || !deck) {
       return
     }
 
-    const { waitForData, captureDelay } = rendererConfig
+    console.log('[useDeckDrawLoop] Setting up onAfterRender callback (ONCE)')
 
-    async function drawPass() {
-      try {
-        let resolvePass: (value?: unknown) => void
-        const passPromise = new Promise(res => {
-          resolvePass = res
+    // Set up onAfterRender callback that persists and responds to deck.redraw() calls
+    // This only runs ONCE when rendering starts to avoid race conditions
+    deck.setProps({
+      onAfterRender: (context: any) => {
+        const { waitForData, captureDelay } = rendererConfigRef.current
+        const currentProps = propsRef.current
+
+        console.log('[onAfterRender] FIRED', {
+          timestamp: performance.now(),
+          deckReady: isDeckReady(deck),
+          layerCount: deck?.props.layers?.length,
+          layersLoaded: deck?.props.layers.filter((l: any) => l && !Array.isArray(l) && l.isLoaded).length,
+          waitForData,
+          captureDelay,
+          hasResolver: !!resolvePassRef.current,
         })
 
-        deck?.setProps({
-          ...props,
-          onAfterRender: context => {
-            console.log('[onAfterRender] FIRED', {
-              timestamp: performance.now(),
-              deckReady: isDeckReady(deck),
-              layerCount: deck?.props.layers?.length,
-              layersLoaded: deck?.props.layers.filter(l => l?.isLoaded).length,
-              waitForData,
-              captureDelay,
-            })
-            props.onAfterRender?.(context)
-            if (waitForData && !isDeckReady(deck)) {
-              console.warn('deck waiting')
-              return // layers aren't loaded
-            }
-            // Deck is ready, or we are not waiting for data
-            // Delay rendering by 200ms so that deck and maplibre can settle before capturing.
-            // In testing, this helped during interleaved rendering even though captureFrame isn't defined.
-            setTimeout(() => resolvePass(), captureDelay)
-          },
-        })
+        // Call original onAfterRender if it exists
+        currentProps.onAfterRender?.(context)
 
-        // Force deck to redraw when rendering video
-        // This ensures onAfterRender fires even if deck thinks nothing changed.
-        // During normal editing (isRendering=false), deck renders on-demand.
-        if (isRendering && deck) {
-          deck.redraw('frame-capture')
+        // Only resolve if we have a pending frame request
+        if (!resolvePassRef.current) {
+          console.log('[onAfterRender] No pending frame request, ignoring')
+          return
         }
 
-        await passPromise
-        captureFrame?.()
-      } catch (e) {
-        const error = e instanceof Error ? e : new Error(String(e))
-        console.error('[useDeckDrawLoop] Error during drawing:', error)
-        captureFrame?.({ error })
+        if (waitForData && !isDeckReady(deck)) {
+          console.warn('[onAfterRender] Deck not ready, waiting for layers to load')
+          return // layers aren't loaded yet
+        }
+
+        // Deck is ready - resolve after captureDelay
+        const resolver = resolvePassRef.current
+        setTimeout(() => {
+          console.log('[onAfterRender] Resolving frame capture after delay')
+          resolver()
+          resolvePassRef.current = null
+        }, captureDelay)
+      }
+    })
+  }, [deck, isRendering])
+
+  // This effect continuously listens for deck.redraw() calls from the renderer
+  useEffect(() => {
+    if (!isRendering || !deck) {
+      return
+    }
+
+    let isActive = true
+
+    // Continuously listen for redraw events in a loop
+    // The renderer calls timeline-editor's redraw() → deckRef.current?.redraw('frame-capture')
+    // That triggers onAfterRender, which resolves our promise
+    const frameLoop = async () => {
+      while (isActive) {
+        try {
+          console.log('[useDeckDrawLoop] Ready for next frame...')
+          const passPromise = new Promise(res => {
+            resolvePassRef.current = res
+          })
+
+          await passPromise
+          console.log('[useDeckDrawLoop] Frame captured, calling captureFrame callback')
+          captureFrameRef.current?.()
+        } catch (e) {
+          const error = e instanceof Error ? e : new Error(String(e))
+          console.error('[useDeckDrawLoop] Error during frame capture:', error)
+          captureFrameRef.current?.({ error })
+          resolvePassRef.current = null
+          break
+        }
       }
     }
 
-    drawPass()
-  }, [deck, isRendering, captureFrame, props, rendererConfig])
+    // Start the continuous frame loop
+    frameLoop()
+
+    // Cleanup: stop the loop when component unmounts or rendering stops
+    return () => {
+      isActive = false
+      if (resolvePassRef.current) {
+        resolvePassRef.current()
+        resolvePassRef.current = null
+      }
+    }
+  }, [deck, isRendering])
 }
