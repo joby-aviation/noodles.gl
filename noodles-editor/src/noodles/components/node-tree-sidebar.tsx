@@ -1,10 +1,13 @@
+import * as Tooltip from '@radix-ui/react-tooltip'
 import studio from '@theatre/studio'
 import { useReactFlow } from '@xyflow/react'
-import { useCallback, useMemo, useState } from 'react'
+import cx from 'classnames'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { analytics } from '../../utils/analytics'
 import type { IOperator, Operator } from '../operators'
-import { getOpStore, useNestingStore, useOperatorStore } from '../store'
-import { getBaseName } from '../utils/path-utils'
+import { deleteOp, getAllOps, getOpStore, hasOp, setOp, useNestingStore, useOperatorStore, useUIStore } from '../store'
+import { edgeId } from '../utils/id-utils'
+import { generateQualifiedPath, getBaseName } from '../utils/path-utils'
 import { categories } from './categories'
 import s from './node-tree-sidebar.module.css'
 
@@ -88,6 +91,12 @@ function TreeItem({
   onToggleCollapse,
 }: TreeItemProps) {
   const [hovering, setHovering] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [inputValue, setInputValue] = useState('')
+  const [hasConflict, setHasConflict] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const { setNodes, setEdges } = useReactFlow()
+
   const hasChildren = node.children.length > 0
   const isContainer = node.displayName === 'Container'
   const isCollapsed = collapsedNodes.has(node.id)
@@ -96,6 +105,173 @@ function TreeItem({
   // Get the category color for this operator displayName
   const category = getOperatorCategory(node.displayName)
   const borderColor = category ? `var(--node-${category}-color)` : 'transparent'
+
+  // Auto-focus input when entering edit mode
+  const handleEditingStart = useCallback(() => {
+    setEditing(true)
+    setInputValue(node.name)
+    setHasConflict(false)
+    // Focus input after it's rendered
+    setTimeout(() => inputRef.current?.focus(), 0)
+  }, [node.name])
+
+  // Check for duplicate names
+  const checkForConflict = useCallback(
+    (newBaseName: string): boolean => {
+      if (!newBaseName.trim()) return false
+      const store = getOpStore()
+      const op = store.getOp(node.id)
+      if (!op) return false
+      const newQualifiedId = generateQualifiedPath(newBaseName.trim(), op.containerId)
+      return newQualifiedId !== node.id && hasOp(newQualifiedId)
+    },
+    [node.id]
+  )
+
+  // Update operator ID and all references
+  const updateId = useCallback(
+    (newBaseName: string) => {
+      const trimmedName = newBaseName.trim()
+
+      // If empty, just reset to original
+      if (!trimmedName) {
+        setEditing(false)
+        setHasConflict(false)
+        setInputValue('')
+        return
+      }
+
+      // If conflict, show error briefly then reset
+      if (checkForConflict(trimmedName)) {
+        setHasConflict(true)
+        setInputValue(trimmedName)
+        // Show error for a moment, then reset
+        setTimeout(() => {
+          setEditing(false)
+          setHasConflict(false)
+          setInputValue('')
+        }, 1500)
+        return
+      }
+
+      const store = getOpStore()
+      const op = store.getOp(node.id)
+      if (!op) return
+
+      const newQualifiedId = generateQualifiedPath(trimmedName, op.containerId)
+
+      // Update the operator itself
+      setOp(newQualifiedId, op)
+      op.id = newQualifiedId
+
+      // If this is a container, update all children nodes and their operators
+      if (isContainer) {
+        const childOps = getAllOps().filter((childOp: Operator<IOperator>) =>
+          childOp.id.startsWith(`${node.id}/`)
+        )
+
+        for (const childOp of childOps) {
+          const oldChildId = childOp.id
+          // Replace only the exact container path at the start
+          const newChildId = newQualifiedId + oldChildId.slice(node.id.length)
+          setOp(newChildId, childOp)
+          childOp.id = newChildId
+          queueMicrotask(() => deleteOp(oldChildId))
+        }
+      }
+
+      // Give React time to update the component tree before deleting the old id
+      queueMicrotask(() => {
+        deleteOp(node.id)
+      })
+
+      // Update React Flow nodes and edges
+      setNodes(nodes =>
+        nodes.map(n => {
+          // Update the node itself if it matches
+          if (n.id === node.id) {
+            return { ...n, id: newQualifiedId }
+          }
+          // Update children if this is a container
+          if (isContainer && n.id.startsWith(`${node.id}/`)) {
+            return { ...n, id: newQualifiedId + n.id.slice(node.id.length) }
+          }
+          return n
+        })
+      )
+
+      setEdges(edges =>
+        edges.map(edge => {
+          const sourceNeedsUpdate =
+            edge.source === node.id || (isContainer && edge.source.startsWith(`${node.id}/`))
+          const targetNeedsUpdate =
+            edge.target === node.id || (isContainer && edge.target.startsWith(`${node.id}/`))
+
+          if (!sourceNeedsUpdate && !targetNeedsUpdate) return edge
+
+          const updatedEdge = {
+            ...edge,
+            source: sourceNeedsUpdate
+              ? edge.source === node.id
+                ? newQualifiedId
+                : newQualifiedId + edge.source.slice(node.id.length)
+              : edge.source,
+            target: targetNeedsUpdate
+              ? edge.target === node.id
+                ? newQualifiedId
+                : newQualifiedId + edge.target.slice(node.id.length)
+              : edge.target,
+          }
+
+          return { ...updatedEdge, id: edgeId(updatedEdge) }
+        })
+      )
+
+      setEditing(false)
+      setHasConflict(false)
+      setInputValue('')
+    },
+    [node.id, node.name, isContainer, setNodes, setEdges, checkForConflict]
+  )
+
+  const onInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const value = e.target.value
+      setInputValue(value)
+      setHasConflict(checkForConflict(value))
+    },
+    [checkForConflict]
+  )
+
+  const onKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter') {
+        updateId(e.currentTarget.value)
+      } else if (e.key === 'Escape') {
+        setEditing(false)
+        setHasConflict(false)
+        setInputValue('')
+      }
+    },
+    [updateId]
+  )
+
+  const onBlur = useCallback(
+    (e: React.FocusEvent<HTMLInputElement>) => {
+      updateId(e.currentTarget.value)
+    },
+    [updateId]
+  )
+
+  const onDoubleClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      handleEditingStart()
+    },
+    [handleEditingStart]
+  )
+
+  const errorMessage = hasConflict ? `Duplicate name: ${inputValue} already exists` : ''
 
   return (
     <div className={s.treeItem}>
@@ -132,7 +308,35 @@ function TreeItem({
         )}
         {!isContainer && hasChildren && <span className={s.spacer} />}
         <div className={s.nodeInfo}>
-          <span className={s.nodeName}>{node.name}</span>
+          {editing ? (
+            <Tooltip.Provider>
+              <Tooltip.Root open={hasConflict}>
+                <Tooltip.Trigger asChild>
+                  <input
+                    ref={inputRef}
+                    className={cx(s.nodeName, s.nodeNameInput, {
+                      [s.nodeNameInputError]: hasConflict,
+                    })}
+                    value={inputValue}
+                    onChange={onInputChange}
+                    onKeyDown={onKeyDown}
+                    onBlur={onBlur}
+                    onClick={e => e.stopPropagation()}
+                  />
+                </Tooltip.Trigger>
+                <Tooltip.Portal>
+                  <Tooltip.Content side="bottom" className={s.tooltipContent}>
+                    {errorMessage}
+                    <Tooltip.Arrow className={s.tooltipArrow} />
+                  </Tooltip.Content>
+                </Tooltip.Portal>
+              </Tooltip.Root>
+            </Tooltip.Provider>
+          ) : (
+            <span className={s.nodeName} onDoubleClick={onDoubleClick}>
+              {node.name}
+            </span>
+          )}
           <span className={s.nodeType}>{node.displayName}</span>
         </div>
         {hovering && (
@@ -290,21 +494,19 @@ export function NodeTreeSidebar() {
   }, [])
 
   return (
-    <div className={s.sidebar}>
-      <div className={s.treeContainer}>
-        {tree.map(node => (
-          <TreeItem
-            key={node.id}
-            node={node}
-            selectedNodeIds={selectedNodeIds}
-            onSelect={handleSelect}
-            onNavigate={handleNavigate}
-            onNavigateInto={handleNavigateInto}
-            collapsedNodes={collapsedNodes}
-            onToggleCollapse={handleToggleCollapse}
-          />
-        ))}
-      </div>
+    <div className={s.treeContainer}>
+      {tree.map(node => (
+        <TreeItem
+          key={node.id}
+          node={node}
+          selectedNodeIds={selectedNodeIds}
+          onSelect={handleSelect}
+          onNavigate={handleNavigate}
+          onNavigateInto={handleNavigateInto}
+          collapsedNodes={collapsedNodes}
+          onToggleCollapse={handleToggleCollapse}
+        />
+      ))}
     </div>
   )
 }

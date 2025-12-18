@@ -15,6 +15,35 @@
   min-width: 0;
 }
 
+.sidebarToggleButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  margin-right: 4px;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--color-text-primary);
+  transition: background-color 0.15s;
+  flex-shrink: 0;
+}
+
+.sidebarToggleButton:hover {
+  background: var(--color-bg-hover);
+}
+
+.sidebarToggleButton:active {
+  background: var(--color-bg-active);
+}
+
+.sidebarToggleButton i {
+  font-size: 14px;
+}
+
 .rightSection {
   display: flex;
   align-items: center;
