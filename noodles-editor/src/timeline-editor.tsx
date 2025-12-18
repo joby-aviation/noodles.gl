@@ -395,6 +395,7 @@ export default function TimelineEditor() {
     <TopMenuBar
       projectName={noodles.projectName}
       onSaveProject={noodles.onSaveProject!}
+      onSaveAs={noodles.onSaveAs}
       onDownload={noodles.onDownload}
       onNewProject={noodles.onNewProject!}
       onImport={noodles.onImport!}
