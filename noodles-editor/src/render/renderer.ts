@@ -236,9 +236,8 @@ export const useRenderer = ({
           // hang the entire render. The frame may be incorrect, but it's logged.
         }
 
-        // redraw in case nothing changes due to theatre raf driver
-        // TODO: Where should this go so that the first frame captures?
-        redraw()
+        // Note: redraw is now called from useDeckDrawLoop, not here
+        // This ensures deck.redraw() happens AFTER all setProps calls complete
 
         currentFrame.current = i
         console.log(`[Frame ${i}] Waiting for canvas ready...`)
