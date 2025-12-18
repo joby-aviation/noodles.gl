@@ -280,9 +280,11 @@ export default function TimelineEditor() {
 
         setTimeout(() => {
           console.log('[onAfterRender] Resolving frame capture after delay')
-          resolver()
-          frameResolverRef.current = null
+          // Clear flags BEFORE resolving to prevent next frame from seeing stale state
           expectingRedrawRef.current = false
+          frameResolverRef.current = null
+          // Resolve last - this continues execution synchronously
+          resolver()
         }, currentCaptureDelay)
       }
     },
