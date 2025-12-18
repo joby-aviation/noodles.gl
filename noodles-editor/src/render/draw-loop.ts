@@ -20,6 +20,8 @@ interface UseDeckDrawLoopProps {
   frameResolverRef?: React.MutableRefObject<((value?: unknown) => void) | null>
   // Flag to indicate we're waiting for a specific redraw
   expectingRedrawRef?: React.MutableRefObject<boolean>
+  // Flag to prevent multiple setTimeout callbacks per frame
+  timeoutScheduledRef?: React.MutableRefObject<boolean>
 }
 
 const isDeckReady = (deck: Deck | null) =>
@@ -32,6 +34,7 @@ export function useDeckDrawLoop({
   onFrameRequestReady,
   frameResolverRef,
   expectingRedrawRef,
+  timeoutScheduledRef,
 }: UseDeckDrawLoopProps) {
   const captureFrameRef = useRef(captureFrame)
 
@@ -52,6 +55,13 @@ export function useDeckDrawLoop({
     const requestFrame = async () => {
       try {
         console.log('[useDeckDrawLoop] Frame requested')
+
+        // Clear timeout flag from previous frame to allow new timeouts
+        // This is done here instead of in the setTimeout callback to prevent
+        // race conditions with captureDelay=0
+        if (timeoutScheduledRef) {
+          timeoutScheduledRef.current = false
+        }
 
         // Set up promise for this frame - resolver is stored in frameResolverRef
         // The onAfterRender in deckProps will resolve it
@@ -94,5 +104,5 @@ export function useDeckDrawLoop({
       }
       expectingRedrawRef.current = false
     }
-  }, [deck, isRendering, onFrameRequestReady, frameResolverRef, expectingRedrawRef])
+  }, [deck, isRendering, onFrameRequestReady, frameResolverRef, expectingRedrawRef, timeoutScheduledRef])
 }

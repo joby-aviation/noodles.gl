@@ -289,7 +289,9 @@ export default function TimelineEditor() {
           // Clear flags BEFORE resolving to prevent next frame from seeing stale state
           expectingRedrawRef.current = false
           frameResolverRef.current = null
-          timeoutScheduledRef.current = false
+          // Note: timeoutScheduledRef NOT cleared here - it stays true until next frame starts
+          // This prevents additional onAfterRender calls (from React re-renders) from
+          // scheduling more timeouts even with captureDelay=0
           // Resolve last - this continues execution synchronously
           resolver()
         }, currentCaptureDelay)
@@ -364,6 +366,7 @@ export default function TimelineEditor() {
     onFrameRequestReady: handleFrameRequestReady,
     frameResolverRef,
     expectingRedrawRef,
+    timeoutScheduledRef,
   })
 
   const startRender = useCallback(async () => {
