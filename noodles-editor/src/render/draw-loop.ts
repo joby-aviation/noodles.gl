@@ -102,7 +102,7 @@ export function useDeckDrawLoop({
     })
   }, [deck, isRendering, props, rendererConfig])
 
-  // This effect continuously listens for deck.redraw() calls from the renderer
+  // This effect continuously waits for frames and triggers redraws
   useEffect(() => {
     if (!isRendering || !deck) {
       return
@@ -110,17 +110,27 @@ export function useDeckDrawLoop({
 
     let isActive = true
 
-    // Continuously listen for redraw events in a loop
-    // The renderer calls timeline-editor's redraw() → deckRef.current?.redraw('frame-capture')
-    // That triggers onAfterRender, which resolves our promise
+    // Continuously wait for frames
+    // We call deck.redraw() ourselves to ensure it happens AFTER all setProps calls
     const frameLoop = async () => {
       while (isActive) {
         try {
           console.log('[useDeckDrawLoop] Ready for next frame...')
+
+          // Set up promise for this frame
           const passPromise = new Promise(res => {
             resolvePassRef.current = res
           })
 
+          // Small delay to let any pending setProps calls complete
+          // This ensures deck.redraw() happens AFTER setProps, not before
+          await new Promise(resolve => setTimeout(resolve, 0))
+
+          // Now trigger the redraw - this will call onAfterRender
+          console.log('[useDeckDrawLoop] Calling deck.redraw()')
+          deck.redraw('frame-capture')
+
+          // Wait for onAfterRender to resolve
           await passPromise
           console.log('[useDeckDrawLoop] Frame captured, calling captureFrame callback')
           captureFrameRef.current?.()
