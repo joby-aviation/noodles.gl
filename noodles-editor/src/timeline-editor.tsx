@@ -286,7 +286,12 @@ export default function TimelineEditor() {
         }, currentCaptureDelay)
       }
     },
-  }), [isRendering, redraw])
+  }), [
+    // When NOT rendering, allow updates so users see changes
+    // When rendering, keep stable to avoid spurious deck.setProps()
+    isRendering ? isRendering : visualization.deckProps,
+    redraw
+  ])
 
   const mapProps: MapProps = {
     interactive: false,

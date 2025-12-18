@@ -62,11 +62,9 @@ export function useDeckDrawLoop({
         // Small delay to let any pending setProps calls complete
         await new Promise(resolve => setTimeout(resolve, 0))
 
-        // Set flag to indicate we're expecting onAfterRender from this specific redraw
-        expectingRedrawRef.current = true
-
-        // Trigger the redraw - onAfterRender in deckProps will handle resolution
+        // Set flag IMMEDIATELY before redraw with no gap for spurious onAfterRender
         console.log('[useDeckDrawLoop] Calling deck.redraw()')
+        expectingRedrawRef.current = true
         deck.redraw('frame-capture')
 
         // Wait for onAfterRender to resolve
