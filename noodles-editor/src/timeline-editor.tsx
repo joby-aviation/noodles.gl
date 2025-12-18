@@ -92,7 +92,9 @@ const INITIAL_RENDER_STATE = {
   }),
   scaleControl: types.number(0.3, { range: [0, 1] }),
   framerate: types.number(30, { range: [0.001, 1000] }),
-  // TODO: fix render jitter and remove this frame capture delay
+  // Delay after onAfterRender to wait for browser rendering pipeline:
+  // Deck.gl render → GPU flush → canvas paint → pixels ready for capture
+  // This prevents MediaStreamTrackProcessor from hanging on empty frames
   captureDelay: types.number(200, { range: [0, 2000] }),
 }
 
