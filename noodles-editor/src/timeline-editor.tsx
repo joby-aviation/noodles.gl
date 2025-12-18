@@ -212,6 +212,8 @@ export default function TimelineEditor() {
 
   // Ref to hold the frame capture resolver
   const frameResolverRef = useRef<((value?: unknown) => void) | null>(null)
+  // Flag to indicate we're waiting for a specific redraw, not just any React re-render
+  const expectingRedrawRef = useRef(false)
 
   const deckProps: DeckProps = useMemo(() => ({
     deviceProps: {
@@ -250,7 +252,8 @@ export default function TimelineEditor() {
       }
 
       // Frame capture logic - integrated directly to avoid being overwritten by React
-      if (isRendering && frameResolverRef.current) {
+      // Only resolve if we're actually expecting a frame from an explicit redraw call
+      if (isRendering && frameResolverRef.current && expectingRedrawRef.current) {
         const resolver = frameResolverRef.current
         const isDeckReady = !deckRef.current || deckRef.current.props.layers.every((layer: any) => !layer || (!Array.isArray(layer) && layer.isLoaded))
 
@@ -263,6 +266,7 @@ export default function TimelineEditor() {
           console.log('[onAfterRender] Resolving frame capture after delay')
           resolver()
           frameResolverRef.current = null
+          expectingRedrawRef.current = false
         }, captureDelay)
       }
     },
@@ -328,6 +332,7 @@ export default function TimelineEditor() {
     captureFrame,
     onFrameRequestReady: handleFrameRequestReady,
     frameResolverRef,
+    expectingRedrawRef,
   })
 
   const startRender = useCallback(async () => {

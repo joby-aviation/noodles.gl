@@ -18,6 +18,8 @@ interface UseDeckDrawLoopProps {
   onFrameRequestReady?: (requestFrame: () => void) => void
   // Ref to hold the frame capture resolver (for pure deck mode)
   frameResolverRef?: React.MutableRefObject<((value?: unknown) => void) | null>
+  // Flag to indicate we're waiting for a specific redraw
+  expectingRedrawRef?: React.MutableRefObject<boolean>
 }
 
 const isDeckReady = (deck: Deck | null) =>
@@ -29,6 +31,7 @@ export function useDeckDrawLoop({
   captureFrame,
   onFrameRequestReady,
   frameResolverRef,
+  expectingRedrawRef,
 }: UseDeckDrawLoopProps) {
   const captureFrameRef = useRef(captureFrame)
 
@@ -39,7 +42,7 @@ export function useDeckDrawLoop({
 
   // Expose a requestFrame function that the renderer can call when ready for next frame
   useEffect(() => {
-    if (!isRendering || !deck || !onFrameRequestReady || !frameResolverRef) {
+    if (!isRendering || !deck || !onFrameRequestReady || !frameResolverRef || !expectingRedrawRef) {
       return
     }
 
@@ -59,6 +62,9 @@ export function useDeckDrawLoop({
         // Small delay to let any pending setProps calls complete
         await new Promise(resolve => setTimeout(resolve, 0))
 
+        // Set flag to indicate we're expecting onAfterRender from this specific redraw
+        expectingRedrawRef.current = true
+
         // Trigger the redraw - onAfterRender in deckProps will handle resolution
         console.log('[useDeckDrawLoop] Calling deck.redraw()')
         deck.redraw('frame-capture')
@@ -73,6 +79,7 @@ export function useDeckDrawLoop({
         console.error('[useDeckDrawLoop] Error during frame capture:', error)
         captureFrameRef.current?.({ error })
         frameResolverRef.current = null
+        expectingRedrawRef.current = false
       }
     }
 
@@ -87,6 +94,7 @@ export function useDeckDrawLoop({
         frameResolverRef.current()
         frameResolverRef.current = null
       }
+      expectingRedrawRef.current = false
     }
-  }, [deck, isRendering, onFrameRequestReady, frameResolverRef])
+  }, [deck, isRendering, onFrameRequestReady, frameResolverRef, expectingRedrawRef])
 }
