@@ -2603,6 +2603,7 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
     return {
       maplibre: new CompoundPropsField({
         mapStyle: new JSONUrlField(),
+        projection: new StringField(),
         longitude: new NumberField(),
         latitude: new NumberField(),
         zoom: new NumberField(),
@@ -2618,16 +2619,13 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     validateViewState(viewState)
 
-    // Add projection to the mapStyle if it's an object
-    let modifiedMapStyle = mapStyle
-    if (typeof mapStyle === 'object' && mapStyle !== null) {
-      modifiedMapStyle = {
-        ...mapStyle,
-        projection: { type: projection }
+    return {
+      maplibre: {
+        mapStyle,
+        projection,
+        ...viewState
       }
     }
-
-    return { maplibre: { mapStyle: modifiedMapStyle, ...viewState } }
   }
 }
 
