@@ -6,6 +6,7 @@ import {
   type ProjectModification,
   useProjectModifications,
 } from '../noodles/hooks/use-project-modifications'
+import { getSecret } from '../utils/secrets-manager'
 import styles from './chat-panel.module.css'
 import { ClaudeClient } from './claude-client'
 import { loadConversation, saveConversation } from './conversation-history'
@@ -35,7 +36,6 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [contextLoading, setContextLoading] = useState(true)
-  const [showApiKeyModal, setShowApiKeyModal] = useState(false)
   const [claudeClient, setClaudeClient] = useState<ClaudeClient | null>(null)
   const [mcpTools, setMcpTools] = useState<MCPTools | null>(null)
   const [autoCapture, setAutoCapture] = useState(true)
@@ -60,13 +60,9 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
 
   useEffect(() => {
     const init = async () => {
-      const apiKey =
-        localStorage.getItem('noodles-claude-api-key') ||
-        sessionStorage.getItem('noodles-claude-api-key') ||
-        import.meta.env.VITE_CLAUDE_API_KEY
+      const apiKey = getSecret('anthropic')
 
       if (!apiKey) {
-        setShowApiKeyModal(true)
         setContextLoading(false)
         return
       }
@@ -176,10 +172,9 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
           ...prev,
           {
             role: 'assistant',
-            content: 'Authentication Error: Your API key is invalid. Please enter a valid API key.',
+            content: 'Authentication Error: Your API key is invalid. Please check your API key in Settings > API Keys & Secrets.',
           },
         ])
-        setShowApiKeyModal(true)
       } else {
         setMessages(prev => [
           ...prev,
@@ -191,31 +186,6 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
       }
     } finally {
       setLoading(false)
-    }
-  }
-
-  const handleApiKeySubmit = async (key: string, remember: boolean) => {
-    if (remember) {
-      localStorage.setItem('noodles-claude-api-key', key)
-      sessionStorage.removeItem('noodles-claude-api-key')
-    } else {
-      sessionStorage.setItem('noodles-claude-api-key', key)
-      localStorage.removeItem('noodles-claude-api-key')
-    }
-
-    setShowApiKeyModal(false)
-
-    try {
-      // Wait for context to be ready (should be instant if already loaded)
-      const loader = await globalContextManager.waitForReady()
-
-      const tools = new MCPTools(loader)
-      const client = new ClaudeClient(key, tools)
-
-      setMcpTools(tools)
-      setClaudeClient(client)
-    } catch (error) {
-      console.error('Failed to reinitialize Claude:', error)
     }
   }
 
@@ -286,10 +256,34 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
 
   if (!isVisible) return null
 
-  if (showApiKeyModal) {
+  // Check if API key is missing
+  const apiKey = getSecret('anthropic')
+  if (!apiKey && !contextLoading) {
     return (
       <div className={styles.chatPanel}>
-        <ApiKeyModal onSubmit={handleApiKeySubmit} />
+        <div className={styles.chatPanelLoading}>
+          <h3>Anthropic API Key Required</h3>
+          <p>
+            To use the Noodles assistant, you need to configure your Claude API key in Settings
+            (top menu).
+          </p>
+          <p>
+            Get your API key from{' '}
+            <a href="https://console.anthropic.com/" target="_blank" rel="noopener noreferrer">
+              Anthropic Console
+            </a>
+            , then add it in <strong>Settings → API Keys & Secrets</strong>.
+          </p>
+          <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+            <button
+              type="button"
+              onClick={onClose}
+              className={styles.chatSendBtn}
+            >
+              Close
+            </button>
+          </div>
+        </div>
       </div>
     )
   }
@@ -325,14 +319,6 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
             title="Conversation History"
           >
             📋
-          </button>
-          <button
-            type="button"
-            className={styles.chatPanelActionBtn}
-            onClick={() => setShowApiKeyModal(true)}
-            title="Change API Key"
-          >
-            ⚙
           </button>
           <button
             type="button"
@@ -465,76 +451,4 @@ const MessageContent: FC<{ content: string }> = ({ content }) => {
   }
 
   return <div>{renderContent()}</div>
-}
-
-// API Key Modal
-const ApiKeyModal: FC<{ onSubmit: (key: string, remember: boolean) => void }> = ({ onSubmit }) => {
-  const [key, setKey] = useState('')
-  const [error, setError] = useState('')
-  const [rememberKey, setRememberKey] = useState(true)
-
-  const handleSubmit = () => {
-    if (!key.trim()) {
-      setError('API key is required')
-      return
-    }
-
-    setError('')
-    onSubmit(key.trim(), rememberKey)
-  }
-
-  return (
-    <div className={styles.apiKeyModalOverlay}>
-      <div className={styles.apiKeyModal}>
-        <h3>Enter Anthropic API Key</h3>
-        <p>
-          To use the Noodles assistant, you need a Claude API key from{' '}
-          <a href="https://console.anthropic.com/" target="_blank" rel="noopener noreferrer">
-            Anthropic Console
-          </a>
-        </p>
-        <input
-          type="password"
-          value={key}
-          onChange={e => {
-            setKey(e.target.value)
-            setError('') // Clear error when user types
-          }}
-          onKeyDown={e => {
-            if (e.key === 'Enter') {
-              handleSubmit()
-            }
-          }}
-          placeholder="sk-ant-..."
-          className={styles.apiKeyInput}
-        />
-        {error && <p className={styles.apiKeyError}>{error}</p>}
-        <label className={styles.rememberKeyLabel}>
-          <input
-            type="checkbox"
-            checked={rememberKey}
-            onChange={e => setRememberKey(e.target.checked)}
-            className={styles.rememberKeyCheckbox}
-          />
-          <span>Remember my API key (stored in browser localStorage)</span>
-        </label>
-        <div className={styles.apiKeyModalActions}>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={!key.trim()}
-            className={styles.apiKeySubmitBtn}
-          >
-            Save
-          </button>
-        </div>
-        <p className={styles.apiKeyNote}>
-          {rememberKey
-            ? 'Your API key will be stored in localStorage and persist across sessions.'
-            : 'Your API key will only be stored for this session and cleared when you close the tab.'}{' '}
-          Keys are never sent to Noodles.gl servers.
-        </p>
-      </div>
-    </div>
-  )
 }
