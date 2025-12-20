@@ -117,16 +117,8 @@ const DeckGLOverlay = forwardRef<
     })
   }
 
-  // @ts-expect-error private property
-  const deckgl = deck._deck
-  // const gl = deckgl?.props.gl
-
-  useDeckDrawLoop({
-    deck: deckgl,
-    isRendering,
-    rendererConfig: renderer,
-    props,
-  })
+  // Note: MapLibre overlay mode uses mapProps.onIdle for frame capture,
+  // not useDeckDrawLoop. Only pure Deck mode needs the draw loop hook.
 
   // @ts-expect-error private property
   setRef(ref, deck._deck)

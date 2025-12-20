@@ -1,10 +1,5 @@
-import type { Deck, DeckProps } from '@deck.gl/core'
+import type { Deck } from '@deck.gl/core'
 import { useEffect, useRef } from 'react'
-
-interface RendererConfig {
-  waitForData: boolean
-  captureDelay: number
-}
 
 interface UseDeckDrawLoopProps {
   deck: Deck | null
@@ -12,8 +7,6 @@ interface UseDeckDrawLoopProps {
   // Optional callback to capture the frame, can be used when rendering a pure deck.gl scene.
   // Scenes interleaved with maplibre would use maplibre's draw callbacks.
   captureFrame?: (result?: { error?: Error }) => void
-  rendererConfig: RendererConfig
-  props?: Partial<DeckProps>
   // Callback to expose frame request function to renderer
   onFrameRequestReady?: (requestFrame: () => void) => void
   // Ref to hold the frame capture resolver (for pure deck mode)
@@ -23,9 +16,6 @@ interface UseDeckDrawLoopProps {
   // Flag to prevent multiple setTimeout callbacks per frame
   timeoutScheduledRef?: React.MutableRefObject<boolean>
 }
-
-const isDeckReady = (deck: Deck | null) =>
-  !deck || deck.props.layers.every(layer => !layer || (!Array.isArray(layer) && layer.isLoaded))
 
 export function useDeckDrawLoop({
   deck,
