@@ -10,7 +10,8 @@ import ReactMapGL, { type MapProps, useControl } from 'react-map-gl/maplibre'
 import { Layout } from './layout'
 import { getNoodles } from './noodles/noodles'
 import { TopMenuBar } from './noodles/components/top-menu-bar'
-import { setSheetObject, deleteSheetObject } from './noodles/store'
+import { type Operator } from './noodles/operators'
+import { setSheetObject, deleteSheetObject, useOperatorStore } from './noodles/store'
 import { useDeckDrawLoop } from './render/draw-loop'
 import { captureScreenshot, rafDriver, useRenderer } from './render/renderer'
 import { TransformScale } from './render/transform-scale'
@@ -69,15 +70,6 @@ observer.observe(document.body, { childList: true, subtree: true })
 injectTheatreStyles()
 
 const INITIAL_RENDER_STATE = {
-  display: types.stringLiteral('fixed', {
-    fixed: 'fixed',
-    responsive: 'responsive',
-  }),
-  resolution: types.compound({
-    width: types.number(1920),
-    height: types.number(1080),
-  }),
-  lod: types.number(2, { range: [1, 2] }),
   waitForData: types.boolean(true),
   codec: types.stringLiteral('avc', {
     hevc: 'hevc', // h265
@@ -99,10 +91,10 @@ const INITIAL_RENDER_STATE = {
 const DeckGLOverlay = forwardRef<
   Deck,
   MapboxOverlayProps & {
-    renderer: PropsValue<typeof INITIAL_RENDER_STATE>
+    rendererConfig: { waitForData: boolean; captureDelay: number }
     isRendering: boolean
   }
->(({ renderer, isRendering, ...props }, ref) => {
+>(({ rendererConfig, isRendering, ...props }, ref) => {
   // MapboxOverlay handles a variety of props differently than the Deck class.
   // https://deck.gl/docs/api-reference/mapbox/mapbox-overlay#constructor
   const deck = useControl<MapboxOverlay>(() => new MapboxOverlay({ ...props, interleaved: true }))
@@ -122,7 +114,7 @@ const DeckGLOverlay = forwardRef<
   useDeckDrawLoop({
     deck: deckgl,
     isRendering,
-    rendererConfig: renderer,
+    rendererConfig,
     props,
   })
 
@@ -184,9 +176,20 @@ export default function TimelineEditor() {
   }, [rendererSheet])
 
   const renderer = useSheetValue(rendererSheet)
+  const { framerate, bitrateMbps, bitrateMode, codec, waitForData, captureDelay } = renderer
 
-  const { framerate, bitrateMbps, bitrateMode, codec, resolution, lod, waitForData, captureDelay } =
-    renderer
+  // Get render settings from OutOp operator
+  const outOp = useOperatorStore(state => {
+    const ops = Array.from(state.operators.values())
+    return ops.find(op => (op.constructor as typeof Operator).displayName === 'Out')
+  })
+
+  // Extract render settings from OutOp inputs with inline defaults
+  const {
+    display: { value: display = 'fixed' } = {},
+    resolution: { value: resolution = { width: 1920, height: 1080 } } = {},
+    lod: { value: lod = 2 } = {},
+  } = outOp?.inputs ?? {}
 
   const { startCapture, captureFrame, currentFrame, isRendering } = useRenderer({
     project,
@@ -361,7 +364,7 @@ export default function TimelineEditor() {
   }
 
   // Use fixed resolution for 'fixed' display mode, undefined for 'responsive' mode to use natural dimensions
-  const isFixedMode = renderer.display === 'fixed'
+  const isFixedMode = display === 'fixed'
   const displayResolution = isFixedMode ? lodResolution : undefined
 
   if (!ready) {
@@ -375,7 +378,7 @@ export default function TimelineEditor() {
         <ReactMapGL style={displayResolution} {...mapProps}>
           <DeckGLOverlay
             ref={deckRef}
-            renderer={renderer}
+            rendererConfig={{ waitForData, captureDelay }}
             isRendering={isRendering}
             {...deckProps}
           />

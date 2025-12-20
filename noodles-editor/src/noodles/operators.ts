@@ -2985,6 +2985,17 @@ export class OutOp extends Operator<OutOp> {
   createInputs() {
     return {
       vis: new VisualizationField(),
+      display: new StringLiteralField('fixed', {
+        options: {
+          fixed: 'fixed',
+          responsive: 'responsive',
+        },
+      }),
+      resolution: new CompoundPropsField({
+        width: new NumberField(1920),
+        height: new NumberField(1080),
+      }),
+      lod: new NumberField(2, { min: 1, max: 2 }),
     }
   }
   createOutputs() {
