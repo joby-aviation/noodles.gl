@@ -319,19 +319,6 @@ export default function TimelineEditor() {
   const startRender = useCallback(async () => {
     let canvas: HTMLCanvasElement | null = null
 
-    // Warn if alpha export is enabled with a basemap
-    if (exportAlpha && basemapEnabled) {
-      console.warn(
-        'Basemap layer detected with alpha export enabled. Basemap will not be transparent. Disable basemap for full transparency.'
-      )
-      const proceed = window.confirm(
-        'Warning: Basemap layer detected.\n\nThe basemap will not be transparent in the exported video. Only Deck.gl layers will have transparency.\n\nDisable the basemap for full transparency, or continue anyway?'
-      )
-      if (!proceed) {
-        return
-      }
-    }
-
     if (basemapEnabled) {
       if (!mapRef.current) {
         console.error('Start Render: maplibre is not defined (when basemapEnabled is true)')
