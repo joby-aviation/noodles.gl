@@ -48,6 +48,7 @@ import { DropTarget } from './components/drop-target'
 import { ErrorBoundary } from './components/error-boundary'
 import { PropertyPanel } from './components/node-properties'
 import { NodeTreeSidebar } from './components/node-tree-sidebar'
+import { ToolsShelf } from './components/tools-shelf'
 import { edgeComponents, nodeComponents } from './components/op-components'
 import { UNSAVED_PROJECT_NAME } from './components/project-name-bar'
 import { ProjectNotFoundDialog } from './components/project-not-found-dialog'
@@ -1027,6 +1028,7 @@ export function getNoodles(): Visualization {
               <ReactFlowInstanceCapture />
               <Background />
               <Controls position="bottom-right" />
+              <ToolsShelf reactFlowRef={reactFlowRef} />
               <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />
               <CopyControls ref={copyControlsRef} />
               <UndoRedoHandler ref={undoRedoRef} />

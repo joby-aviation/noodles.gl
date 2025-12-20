@@ -1,0 +1,205 @@
+.dialogOverlay {
+  background-color: rgba(0, 0, 0, 0.7);
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-index-menu) - 1);
+  animation: overlayShow 150ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dialogContent {
+  background-color: var(--color-bg-primary);
+  border-radius: 6px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 90vw;
+  max-width: 550px;
+  max-height: 85vh;
+  padding: 25px;
+  z-index: var(--z-index-menu);
+  animation: contentShow 150ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dialogContent:focus {
+  outline: none;
+}
+
+.dialogTitle {
+  margin: 0;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  font-size: 1.25rem;
+}
+
+.dialogDescription {
+  margin: 10px 0 20px;
+  color: var(--color-text-secondary);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.dropZone {
+  border: 2px dashed var(--color-border);
+  border-radius: 8px;
+  padding: 40px 20px;
+  text-align: center;
+  transition: all 0.2s;
+  background-color: var(--color-bg-secondary);
+  cursor: pointer;
+}
+
+.dropZone:hover {
+  border-color: var(--color-border-hover);
+  background-color: var(--color-bg-hover);
+}
+
+.dropZoneDragging {
+  border-color: #4f46e5;
+  background-color: rgba(79, 70, 229, 0.1);
+}
+
+.dropZoneContent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: var(--color-text-secondary);
+}
+
+.dropZoneText {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.dropZoneSubtext {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+
+.dropZoneHint {
+  font-size: 12px;
+  color: var(--color-text-disabled);
+  margin-top: 8px;
+}
+
+.uploadButton {
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  color: white;
+  background-color: #4f46e5;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.uploadButton:hover {
+  background-color: #4338ca;
+}
+
+.uploadButton:disabled {
+  background-color: var(--color-input-disabled);
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.error {
+  color: #ff4444;
+  font-size: 13px;
+  margin-top: 15px;
+  background-color: rgba(255, 68, 68, 0.1);
+  padding: 10px 12px;
+  border-radius: 4px;
+  border-left: 3px solid #ff4444;
+}
+
+.importing {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 15px;
+  padding: 10px;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+}
+
+.dialogActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 25px;
+}
+
+.cancelButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  padding: 0 15px;
+  font-size: 0.9rem;
+  line-height: 1;
+  font-weight: 500;
+  height: 35px;
+  border: 1px solid var(--color-border);
+  background-color: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cancelButton:hover {
+  background-color: var(--color-bg-hover);
+  border-color: var(--color-border-hover);
+}
+
+.closeButton {
+  font-family: inherit;
+  border-radius: 4px;
+  height: 32px;
+  width: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary);
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  transition: all 0.2s;
+}
+
+.closeButton:hover {
+  background-color: var(--color-bg-hover);
+}
+
+.closeButton:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-border-focus);
+}
+
+@keyframes overlayShow {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes contentShow {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -48%) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}

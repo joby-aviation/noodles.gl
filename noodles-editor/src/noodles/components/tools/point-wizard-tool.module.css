@@ -1,0 +1,249 @@
+.dialogOverlay {
+  background-color: rgba(0, 0, 0, 0.7);
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-index-menu) - 1);
+  animation: overlayShow 150ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dialogContent {
+  background-color: var(--color-bg-primary);
+  border-radius: 6px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 90vw;
+  max-width: 550px;
+  max-height: 85vh;
+  padding: 25px;
+  z-index: var(--z-index-menu);
+  animation: contentShow 150ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dialogContent:focus {
+  outline: none;
+}
+
+.dialogTitle {
+  margin: 0;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  font-size: 1.25rem;
+}
+
+.dialogDescription {
+  margin: 10px 0 20px;
+  color: var(--color-text-secondary);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.formGroup {
+  margin-bottom: 20px;
+}
+
+.label {
+  display: block;
+  font-size: 14px;
+  color: var(--color-text-primary);
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.select,
+.input,
+.textarea {
+  width: 100%;
+  padding: 10px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.select:hover,
+.input:hover,
+.textarea:hover {
+  border-color: var(--color-border-hover);
+}
+
+.select:focus,
+.input:focus,
+.textarea:focus {
+  outline: none;
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 80px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
+
+.error {
+  color: #ff4444;
+  font-size: 13px;
+  margin-bottom: 15px;
+  background-color: rgba(255, 68, 68, 0.1);
+  padding: 10px 12px;
+  border-radius: 4px;
+  border-left: 3px solid #ff4444;
+}
+
+.dialogActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 25px;
+}
+
+.cancelButton,
+.createButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  padding: 0 15px;
+  font-size: 0.9rem;
+  line-height: 1;
+  font-weight: 500;
+  height: 35px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cancelButton {
+  background-color: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+}
+
+.cancelButton:hover {
+  background-color: var(--color-bg-hover);
+  border-color: var(--color-border-hover);
+}
+
+.createButton {
+  background-color: #4f46e5;
+  color: white;
+}
+
+.createButton:hover {
+  background-color: #4338ca;
+}
+
+.createButton:disabled {
+  color: var(--color-text-disabled);
+  background-color: var(--color-input-disabled);
+  border-color: var(--color-border);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.closeButton {
+  font-family: inherit;
+  border-radius: 4px;
+  height: 32px;
+  width: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary);
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  transition: all 0.2s;
+}
+
+.closeButton:hover {
+  background-color: var(--color-bg-hover);
+}
+
+.closeButton:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-border-focus);
+}
+
+.fileUploadContainer {
+  margin-top: 10px;
+}
+
+.uploadButton {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 14px;
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.uploadButton:hover {
+  background-color: var(--color-bg-hover);
+  border-color: var(--color-border-hover);
+}
+
+.autocompleteContainer {
+  position: relative;
+}
+
+.suggestionsDropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background-color: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  margin-top: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+}
+
+.suggestionItem {
+  padding: 10px 12px;
+  cursor: pointer;
+  color: var(--color-text-primary);
+  font-size: 14px;
+  transition: background-color 0.1s;
+}
+
+.suggestionItem:hover {
+  background-color: var(--color-bg-hover);
+}
+
+@keyframes overlayShow {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes contentShow {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -48%) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
