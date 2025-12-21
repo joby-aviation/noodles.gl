@@ -44,11 +44,9 @@ import type { Visualization } from '../visualizations'
 import { BlockLibrary, type BlockLibraryRef } from './components/block-library'
 import { categories, nodeTypeToDisplayName } from './components/categories'
 import { CopyControls, type CopyControlsRef } from './components/copy-controls'
-import { DropTarget } from './components/drop-target'
 import { ErrorBoundary } from './components/error-boundary'
 import { PropertyPanel } from './components/node-properties'
 import { NodeTreeSidebar } from './components/node-tree-sidebar'
-import { ToolsShelf } from './components/tools-shelf'
 import { edgeComponents, nodeComponents } from './components/op-components'
 import { UNSAVED_PROJECT_NAME } from './components/project-name-bar'
 import { ProjectNotFoundDialog } from './components/project-not-found-dialog'
@@ -1028,7 +1026,6 @@ export function getNoodles(): Visualization {
               <ReactFlowInstanceCapture />
               <Background />
               <Controls position="bottom-right" />
-              <ToolsShelf reactFlowRef={reactFlowRef} blockLibraryRef={blockLibraryRef} />
               <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />
               <CopyControls ref={copyControlsRef} />
               <UndoRedoHandler ref={undoRedoRef} />
@@ -1160,7 +1157,6 @@ export function getNoodles(): Visualization {
   const propertiesPanel = (
     <div className={s.rightPanel}>
       <PropertyPanel />
-      <DropTarget />
     </div>
   )
 
@@ -1183,6 +1179,7 @@ export function getNoodles(): Visualization {
     onOpenAddNode,
     undoRedoRef,
     copyControlsRef,
+    reactFlowRef,
     showChatPanel,
     setShowChatPanel,
     hasUnsavedChanges,

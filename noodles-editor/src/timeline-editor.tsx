@@ -404,6 +404,7 @@ export default function TimelineEditor() {
       setShowChatPanel={noodles.setShowChatPanel}
       undoRedoRef={noodles.undoRedoRef!}
       copyControlsRef={noodles.copyControlsRef!}
+      reactFlowRef={noodles.reactFlowRef}
       startRender={startRender}
       takeScreenshot={takeScreenshot}
       isRendering={isRendering}

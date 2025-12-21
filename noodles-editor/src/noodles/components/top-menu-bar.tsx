@@ -14,6 +14,8 @@ import { Breadcrumbs } from './breadcrumbs'
 import type { CopyControlsRef } from './copy-controls'
 import s from './top-menu-bar.module.css'
 import type { UndoRedoHandlerRef } from './UndoRedoHandler'
+import { PointWizardTool } from './tools/point-wizard-tool'
+import { DataImporterTool } from './tools/data-importer-tool'
 
 interface TopMenuBarProps {
   projectName?: string
@@ -35,6 +37,7 @@ interface TopMenuBarProps {
   setShowOverlay?: (show: boolean) => void
   layoutMode?: 'split' | 'noodles-on-top' | 'output-on-top'
   setLayoutMode?: (mode: 'split' | 'noodles-on-top' | 'output-on-top') => void
+  reactFlowRef?: RefObject<HTMLDivElement>
 }
 
 export function TopMenuBar({
@@ -57,9 +60,12 @@ export function TopMenuBar({
   setShowOverlay,
   layoutMode,
   setLayoutMode,
+  reactFlowRef,
 }: TopMenuBarProps) {
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false)
   const [recentProjects, setRecentProjects] = useState<string[]>([])
+  const [showPointWizard, setShowPointWizard] = useState(false)
+  const [showDataImporter, setShowDataImporter] = useState(false)
   const currentContainerId = useNestingStore(state => state.currentContainerId)
   const setCurrentContainerId = useNestingStore(state => state.setCurrentContainerId)
   const reactFlow = useReactFlow()
@@ -493,6 +499,40 @@ export function TopMenuBar({
           </div>
         </div>
 
+        <div className={s.centerSection}>
+          {reactFlowRef && (
+            <>
+              <button
+                type="button"
+                className={s.toolButton}
+                onClick={onOpenAddNode}
+                disabled={!onOpenAddNode}
+              >
+                <i className="pi pi-plus-circle" />
+                <span className={s.toolLabel}>Add Node</span>
+              </button>
+
+              <button
+                type="button"
+                className={s.toolButton}
+                onClick={() => setShowPointWizard(true)}
+              >
+                <i className="pi pi-map-marker" />
+                <span className={s.toolLabel}>Create Point</span>
+              </button>
+
+              <button
+                type="button"
+                className={s.toolButton}
+                onClick={() => setShowDataImporter(true)}
+              >
+                <i className="pi pi-file-import" />
+                <span className={s.toolLabel}>Import Data</span>
+              </button>
+            </>
+          )}
+        </div>
+
         <div className={s.rightSection}>
           {setShowChatPanel && (
             <button
@@ -507,6 +547,22 @@ export function TopMenuBar({
           )}
         </div>
       </div>
+
+      {reactFlowRef && (
+        <>
+          <PointWizardTool
+            open={showPointWizard}
+            onOpenChange={setShowPointWizard}
+            reactFlowRef={reactFlowRef}
+          />
+
+          <DataImporterTool
+            open={showDataImporter}
+            onOpenChange={setShowDataImporter}
+            reactFlowRef={reactFlowRef}
+          />
+        </>
+      )}
 
       <SettingsDialog open={settingsDialogOpen} setOpen={setSettingsDialogOpen} />
     </>
