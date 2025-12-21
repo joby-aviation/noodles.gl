@@ -73,7 +73,7 @@ export function Layout({
     <div className={cx(s.layout, layoutClass)}>
       <div style={{ gridArea: 'top-bar' }}>{top}</div>
       <div style={{ gridArea: 'left-widget', minHeight: 0 }}>{left}</div>
-      <div style={{ gridArea: 'right-widget', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      <div className={s.rightWidgetWrapper}>
         <TheatrePropPanel width={propPanelWidth} height={propPanelHeight} />
         <div style={{ flex: 1, minHeight: 0 }}>{right}</div>
       </div>

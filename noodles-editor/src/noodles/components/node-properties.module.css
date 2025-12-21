@@ -1,17 +1,13 @@
 /* Base panel */
 .panel {
   width: var(--property-panel-width);
-  margin: 8px;
   padding: 16px;
-  background-color: var(--color-bg-primary);
-  border: 1px solid rgba(255, 255, 255, 0.08);
   font-size: 11px;
   display: flex;
   flex-direction: column;
   gap: 0;
-  flex: 0;
-  border-radius: 12px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  flex: 1;
+  min-height: 0;
 }
 
 /* Header */

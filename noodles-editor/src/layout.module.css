@@ -69,3 +69,12 @@
 .fillWidget.layoutOutputOnTop .outputArea > * {
   pointer-events: auto;
 }
+
+/* Right widget wrapper - unified background for Theatre.js and properties panel */
+.rightWidgetWrapper {
+  grid-area: right-widget;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background-color: var(--property-panel-background-color);
+}
