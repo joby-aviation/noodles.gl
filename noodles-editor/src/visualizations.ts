@@ -34,6 +34,7 @@ export type Visualization = {
   onOpenAddNode?: () => void
   undoRedoRef?: RefObject<UndoRedoHandlerRef | null>
   copyControlsRef?: RefObject<CopyControlsRef | null>
+  reactFlowRef?: RefObject<HTMLDivElement>
   showChatPanel?: boolean
   setShowChatPanel?: (show: boolean) => void
   hasUnsavedChanges?: boolean
