@@ -29,27 +29,27 @@ export function ToolsShelf({ reactFlowRef, blockLibraryRef }: ToolsShelfProps) {
           type="button"
           className={s.toolButton}
           onClick={handleAddNode}
-          title="Add Node (A)"
         >
           <i className="pi pi-plus-circle" />
+          <span className={s.toolLabel}>Add Node</span>
         </button>
 
         <button
           type="button"
           className={s.toolButton}
           onClick={() => setShowPointWizard(true)}
-          title="Create Point"
         >
           <i className="pi pi-map-marker" />
+          <span className={s.toolLabel}>Create Point</span>
         </button>
 
         <button
           type="button"
           className={s.toolButton}
           onClick={() => setShowDataImporter(true)}
-          title="Import Data"
         >
           <i className="pi pi-file-import" />
+          <span className={s.toolLabel}>Import Data</span>
         </button>
       </div>
 

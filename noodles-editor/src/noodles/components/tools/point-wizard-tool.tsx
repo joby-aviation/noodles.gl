@@ -49,7 +49,7 @@ interface PointWizardToolProps {
 
 export function PointWizardTool({ open, onOpenChange, reactFlowRef }: PointWizardToolProps) {
   const [coordinateInput, setCoordinateInput] = useState('')
-  const [selectedGeocoder, setSelectedGeocoder] = useState<string>('coordinates')
+  const [selectedGeocoder, setSelectedGeocoder] = useState<string>('google')
   const [apiKey, setApiKey] = useState('') // TODO: Use secrets manager for API keys
   const [error, setError] = useState<string | null>(null)
   const [isGeocoding, setIsGeocoding] = useState(false)
@@ -292,17 +292,6 @@ export function PointWizardTool({ open, onOpenChange, reactFlowRef }: PointWizar
           <div className={s.tabSelector}>
             <button
               type="button"
-              className={`${s.tab} ${selectedGeocoder === 'coordinates' ? s.tabActive : ''}`}
-              onClick={() => {
-                setSelectedGeocoder('coordinates')
-                setCoordinateInput('')
-                setSuggestions([])
-              }}
-            >
-              Coordinates
-            </button>
-            <button
-              type="button"
               className={`${s.tab} ${selectedGeocoder === 'google' ? s.tabActive : ''}`}
               onClick={() => {
                 setSelectedGeocoder('google')
@@ -311,6 +300,17 @@ export function PointWizardTool({ open, onOpenChange, reactFlowRef }: PointWizar
               }}
             >
               Search
+            </button>
+            <button
+              type="button"
+              className={`${s.tab} ${selectedGeocoder === 'coordinates' ? s.tabActive : ''}`}
+              onClick={() => {
+                setSelectedGeocoder('coordinates')
+                setCoordinateInput('')
+                setSuggestions([])
+              }}
+            >
+              Coordinates
             </button>
             <button
               type="button"
