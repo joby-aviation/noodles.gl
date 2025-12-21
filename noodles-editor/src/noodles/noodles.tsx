@@ -1028,7 +1028,7 @@ export function getNoodles(): Visualization {
               <ReactFlowInstanceCapture />
               <Background />
               <Controls position="bottom-right" />
-              <ToolsShelf reactFlowRef={reactFlowRef} />
+              <ToolsShelf reactFlowRef={reactFlowRef} blockLibraryRef={blockLibraryRef} />
               <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />
               <CopyControls ref={copyControlsRef} />
               <UndoRedoHandler ref={undoRedoRef} />

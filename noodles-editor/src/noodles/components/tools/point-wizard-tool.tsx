@@ -289,24 +289,40 @@ export function PointWizardTool({ open, onOpenChange, reactFlowRef }: PointWizar
             Choose a geocoding method and enter location information.
           </Dialog.Description>
 
-          <div className={s.formGroup}>
-            <label htmlFor="geocoder" className={s.label}>
-              Geocoding Method
-            </label>
-            <select
-              id="geocoder"
-              value={selectedGeocoder}
-              onChange={(e) => {
-                setSelectedGeocoder(e.target.value)
+          <div className={s.tabSelector}>
+            <button
+              type="button"
+              className={`${s.tab} ${selectedGeocoder === 'coordinates' ? s.tabActive : ''}`}
+              onClick={() => {
+                setSelectedGeocoder('coordinates')
                 setCoordinateInput('')
                 setSuggestions([])
               }}
-              className={s.select}
             >
-              <option value="coordinates">Coordinates</option>
-              <option value="google">Google Maps</option>
-              <option value="geojson">GeoJSON Centroid</option>
-            </select>
+              Coordinates
+            </button>
+            <button
+              type="button"
+              className={`${s.tab} ${selectedGeocoder === 'google' ? s.tabActive : ''}`}
+              onClick={() => {
+                setSelectedGeocoder('google')
+                setCoordinateInput('')
+                setSuggestions([])
+              }}
+            >
+              Search
+            </button>
+            <button
+              type="button"
+              className={`${s.tab} ${selectedGeocoder === 'geojson' ? s.tabActive : ''}`}
+              onClick={() => {
+                setSelectedGeocoder('geojson')
+                setCoordinateInput('')
+                setSuggestions([])
+              }}
+            >
+              GeoJSON
+            </button>
           </div>
 
           {currentGeocoder?.requiresApiKey && (

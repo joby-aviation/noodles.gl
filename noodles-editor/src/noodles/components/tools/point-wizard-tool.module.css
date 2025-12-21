@@ -40,6 +40,47 @@
   line-height: 1.5;
 }
 
+.tabSelector {
+  display: flex;
+  gap: 0;
+  margin-bottom: 20px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  overflow: hidden;
+  background-color: var(--color-bg-secondary);
+}
+
+.tab {
+  flex: 1;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  background-color: transparent;
+  border: none;
+  border-right: 1px solid var(--color-border);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tab:last-child {
+  border-right: none;
+}
+
+.tab:hover {
+  background-color: var(--color-bg-hover);
+  color: var(--color-text-primary);
+}
+
+.tabActive {
+  background-color: var(--color-bg-accent);
+  color: var(--color-text-primary);
+}
+
+.tabActive:hover {
+  background-color: var(--color-bg-accent);
+}
+
 .formGroup {
   margin-bottom: 20px;
 }
