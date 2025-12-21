@@ -3,10 +3,10 @@ import { Cross2Icon } from '@radix-ui/react-icons'
 import { useEffect, useState } from 'react'
 import { analytics } from '../utils/analytics'
 import {
-  type SecretsConfig,
-  getSecretsFromStorage,
-  saveSecretsToStorage,
-} from '../utils/secrets-manager'
+  type KeysConfig,
+  getKeysFromStorage,
+  saveKeysToStorage,
+} from '../utils/keys-manager'
 import s from './settings-dialog.module.css'
 
 interface SettingsDialogProps {
@@ -16,16 +16,16 @@ interface SettingsDialogProps {
 
 export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
   const [analyticsEnabled, setAnalyticsEnabled] = useState(false)
-  const [secrets, setSecrets] = useState<SecretsConfig>({})
+  const [keys, setKeys] = useState<KeysConfig>({})
   const [saveInProject, setSaveInProject] = useState(false)
-  const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({})
+  const [showKeys, setShowKeys] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     const consent = analytics.getConsent()
     setAnalyticsEnabled(consent?.enabled ?? false)
 
-    const stored = getSecretsFromStorage()
-    setSecrets(stored.secrets)
+    const stored = getKeysFromStorage()
+    setKeys(stored.keys)
     setSaveInProject(stored.saveInProject)
   }, [])
 
@@ -38,23 +38,23 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
     }
   }
 
-  const handleSecretChange = (key: keyof SecretsConfig, value: string) => {
-    const newSecrets = { ...secrets, [key]: value }
-    setSecrets(newSecrets)
-    saveSecretsToStorage(newSecrets, saveInProject)
+  const handleKeyChange = (key: keyof KeysConfig, value: string) => {
+    const newKeys = { ...keys, [key]: value }
+    setKeys(newKeys)
+    saveKeysToStorage(newKeys, saveInProject)
   }
 
   const handleSaveInProjectToggle = (enabled: boolean) => {
     setSaveInProject(enabled)
-    saveSecretsToStorage(secrets, enabled)
+    saveKeysToStorage(keys, enabled)
 
     if (enabled) {
-      analytics.track('secrets_save_in_project_enabled')
+      analytics.track('keys_save_in_project_enabled')
     }
   }
 
-  const toggleShowSecret = (key: string) => {
-    setShowSecrets(prev => ({ ...prev, [key]: !prev[key] }))
+  const toggleShowKey = (key: string) => {
+    setShowKeys(prev => ({ ...prev, [key]: !prev[key] }))
   }
 
   return (
@@ -87,9 +87,9 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
             </div>
           </div>
 
-          {/* API Keys & Secrets Section */}
+          {/* API Keys Section */}
           <div className={s.section}>
-            <h3 className={s.sectionTitle}>API Keys & Secrets</h3>
+            <h3 className={s.sectionTitle}>API Keys</h3>
 
             <div className={s.settingItem}>
               <div className={s.settingContent}>
@@ -99,19 +99,19 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                 </div>
                 <div className={s.inputGroup}>
                   <input
-                    type={showSecrets.mapbox ? 'text' : 'password'}
-                    value={secrets.mapbox || ''}
-                    onChange={e => handleSecretChange('mapbox', e.target.value)}
+                    type={showKeys.mapbox ? 'text' : 'password'}
+                    value={keys.mapbox || ''}
+                    onChange={e => handleKeyChange('mapbox', e.target.value)}
                     placeholder="pk.eyJ1..."
                     className={s.input}
                   />
                   <button
                     type="button"
-                    onClick={() => toggleShowSecret('mapbox')}
+                    onClick={() => toggleShowKey('mapbox')}
                     className={s.toggleButton}
-                    aria-label={showSecrets.mapbox ? 'Hide' : 'Show'}
+                    aria-label={showKeys.mapbox ? 'Hide' : 'Show'}
                   >
-                    {showSecrets.mapbox ? 'Hide' : 'Show'}
+                    {showKeys.mapbox ? 'Hide' : 'Show'}
                   </button>
                 </div>
               </div>
@@ -123,19 +123,19 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                 <div className={s.settingDescription}>Required for Google Maps transit directions</div>
                 <div className={s.inputGroup}>
                   <input
-                    type={showSecrets.googleMaps ? 'text' : 'password'}
-                    value={secrets.googleMaps || ''}
-                    onChange={e => handleSecretChange('googleMaps', e.target.value)}
+                    type={showKeys.googleMaps ? 'text' : 'password'}
+                    value={keys.googleMaps || ''}
+                    onChange={e => handleKeyChange('googleMaps', e.target.value)}
                     placeholder="AIza..."
                     className={s.input}
                   />
                   <button
                     type="button"
-                    onClick={() => toggleShowSecret('googleMaps')}
+                    onClick={() => toggleShowKey('googleMaps')}
                     className={s.toggleButton}
-                    aria-label={showSecrets.googleMaps ? 'Hide' : 'Show'}
+                    aria-label={showKeys.googleMaps ? 'Hide' : 'Show'}
                   >
-                    {showSecrets.googleMaps ? 'Hide' : 'Show'}
+                    {showKeys.googleMaps ? 'Hide' : 'Show'}
                   </button>
                 </div>
               </div>
@@ -147,19 +147,19 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                 <div className={s.settingDescription}>Required for Claude AI assistant features</div>
                 <div className={s.inputGroup}>
                   <input
-                    type={showSecrets.anthropic ? 'text' : 'password'}
-                    value={secrets.anthropic || ''}
-                    onChange={e => handleSecretChange('anthropic', e.target.value)}
+                    type={showKeys.anthropic ? 'text' : 'password'}
+                    value={keys.anthropic || ''}
+                    onChange={e => handleKeyChange('anthropic', e.target.value)}
                     placeholder="sk-ant-..."
                     className={s.input}
                   />
                   <button
                     type="button"
-                    onClick={() => toggleShowSecret('anthropic')}
+                    onClick={() => toggleShowKey('anthropic')}
                     className={s.toggleButton}
-                    aria-label={showSecrets.anthropic ? 'Hide' : 'Show'}
+                    aria-label={showKeys.anthropic ? 'Hide' : 'Show'}
                   >
-                    {showSecrets.anthropic ? 'Hide' : 'Show'}
+                    {showKeys.anthropic ? 'Hide' : 'Show'}
                   </button>
                 </div>
               </div>
@@ -174,7 +174,7 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                   className={s.checkbox}
                 />
                 <div className={s.settingContent}>
-                  <div className={s.settingName}>Save secrets in project file</div>
+                  <div className={s.settingName}>Save API keys in project file</div>
                   <div className={s.settingDescription}>
                     Include API keys in the project file when saving. Only enable this if you want
                     to share your keys with collaborators or use them on other machines. Keys are

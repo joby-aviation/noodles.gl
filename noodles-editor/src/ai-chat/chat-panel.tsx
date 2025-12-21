@@ -6,7 +6,7 @@ import {
   type ProjectModification,
   useProjectModifications,
 } from '../noodles/hooks/use-project-modifications'
-import { getSecret } from '../utils/secrets-manager'
+import { getKey } from '../utils/keys-manager'
 import styles from './chat-panel.module.css'
 import { ClaudeClient } from './claude-client'
 import { loadConversation, saveConversation } from './conversation-history'
@@ -60,7 +60,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
 
   useEffect(() => {
     const init = async () => {
-      const apiKey = getSecret('anthropic')
+      const apiKey = getKey('anthropic')
 
       if (!apiKey) {
         setContextLoading(false)
@@ -172,7 +172,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
           ...prev,
           {
             role: 'assistant',
-            content: 'Authentication Error: Your API key is invalid. Please check your API key in Settings > API Keys & Secrets.',
+            content: 'Authentication Error: Your API key is invalid. Please check your API key in Settings > API Keys.',
           },
         ])
       } else {
@@ -257,7 +257,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
   if (!isVisible) return null
 
   // Check if API key is missing
-  const apiKey = getSecret('anthropic')
+  const apiKey = getKey('anthropic')
   if (!apiKey && !contextLoading) {
     return (
       <div className={styles.chatPanel}>
@@ -272,7 +272,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
             <a href="https://console.anthropic.com/" target="_blank" rel="noopener noreferrer">
               Anthropic Console
             </a>
-            , then add it in <strong>Settings → API Keys & Secrets</strong>.
+            , then add it in <strong>Settings → API Keys</strong>.
           </p>
           <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
             <button

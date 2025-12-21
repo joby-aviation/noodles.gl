@@ -1,0 +1,110 @@
+// Keys Manager
+//
+// Manages client-side API keys for external services.
+// Keys can be stored in:
+// 1. localStorage (persistent across sessions, not shared)
+// 2. Project file (shared when project is shared)
+// 3. Environment variables (fallback for development)
+
+export type KeyType = 'mapbox' | 'googleMaps' | 'anthropic'
+
+export interface KeysConfig {
+  mapbox?: string
+  googleMaps?: string
+  anthropic?: string
+}
+
+export interface KeysState {
+  keys: KeysConfig
+  saveInProject: boolean
+}
+
+const STORAGE_KEY = 'noodles-keys'
+const STORAGE_SAVE_IN_PROJECT_KEY = 'noodles-keys-save-in-project'
+
+// Get an API key from localStorage, project data, or environment variables
+// Priority: localStorage > project > env
+export function getKey(key: KeyType, projectKeys?: KeysConfig): string | undefined {
+  // Try localStorage first (user's personal keys)
+  const stored = getKeysFromStorage()
+  if (stored.keys[key]) {
+    return stored.keys[key]
+  }
+
+  // Try project keys (if shared)
+  if (projectKeys?.[key]) {
+    return projectKeys[key]
+  }
+
+  // Fallback to environment variables
+  switch (key) {
+    case 'mapbox':
+      return import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
+    case 'googleMaps':
+      return import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+    case 'anthropic':
+      return import.meta.env.VITE_CLAUDE_API_KEY
+  }
+}
+
+// Get all API keys from localStorage
+export function getKeysFromStorage(): KeysState {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    const saveInProject = localStorage.getItem(STORAGE_SAVE_IN_PROJECT_KEY) === 'true'
+
+    if (stored) {
+      const keys = JSON.parse(stored) as KeysConfig
+      return { keys, saveInProject }
+    }
+  } catch (error) {
+    console.error('Failed to load API keys from localStorage:', error)
+  }
+
+  return { keys: {}, saveInProject: false }
+}
+
+// Save API keys to localStorage
+export function saveKeysToStorage(keys: KeysConfig, saveInProject: boolean): void {
+  try {
+    // Clean up empty values
+    const cleanedKeys: KeysConfig = {}
+    if (keys.mapbox?.trim()) cleanedKeys.mapbox = keys.mapbox.trim()
+    if (keys.googleMaps?.trim()) cleanedKeys.googleMaps = keys.googleMaps.trim()
+    if (keys.anthropic?.trim()) cleanedKeys.anthropic = keys.anthropic.trim()
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(cleanedKeys))
+    localStorage.setItem(STORAGE_SAVE_IN_PROJECT_KEY, saveInProject.toString())
+  } catch (error) {
+    console.error('Failed to save API keys to localStorage:', error)
+  }
+}
+
+// Clear all API keys from localStorage
+export function clearKeysFromStorage(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEY)
+    localStorage.removeItem(STORAGE_SAVE_IN_PROJECT_KEY)
+  } catch (error) {
+    console.error('Failed to clear API keys from localStorage:', error)
+  }
+}
+
+// Get API keys to be included in project file (if user opted in)
+export function getKeysForProject(): KeysConfig | undefined {
+  const { keys, saveInProject } = getKeysFromStorage()
+  return saveInProject ? keys : undefined
+}
+
+// Mask an API key for display (show first 4 and last 4 characters)
+export function maskKey(key: string): string {
+  if (!key || key.length < 8) {
+    return '••••••••'
+  }
+  return `${key.slice(0, 4)}${'•'.repeat(Math.max(8, key.length - 8))}${key.slice(-4)}`
+}
+
+// Check if an API key is available from any source
+export function hasKey(key: KeyType, projectKeys?: KeysConfig): boolean {
+  return !!getKey(key, projectKeys)
+}
