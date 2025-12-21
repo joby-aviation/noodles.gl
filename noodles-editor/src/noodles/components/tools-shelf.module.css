@@ -6,12 +6,12 @@
   right: 0;
   width: 100%;
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
-  gap: 24px;
+  gap: 12px;
   background-color: var(--color-bg-primary);
   backdrop-filter: blur(8px);
-  padding: 12px 16px;
+  padding: 6px 8px;
   border-bottom: 1px solid var(--color-border);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   z-index: 10;
@@ -43,7 +43,7 @@
 }
 
 .toolButton i {
-  font-size: 20px;
+  font-size: 16px;
 }
 
 .toolLabel {
