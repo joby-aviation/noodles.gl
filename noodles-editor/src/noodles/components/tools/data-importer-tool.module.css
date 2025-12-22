@@ -9,9 +9,9 @@
 
 .dialogContent {
   position: fixed;
-  top: 50%;
+  top: 10vh;
   left: 50%;
-  transform: translate(-50%, -50%);
+  transform: translateX(-50%);
   background-color: #1a1a1a;
   color: var(--color-text-primary);
   border-radius: 12px;
@@ -197,10 +197,10 @@
 @keyframes contentShow {
   from {
     opacity: 0;
-    transform: translate(-50%, -48%) scale(0.96);
+    transform: translateX(-50%) scale(0.96);
   }
   to {
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
+    transform: translateX(-50%) scale(1);
   }
 }
