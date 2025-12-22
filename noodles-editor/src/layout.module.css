@@ -77,4 +77,5 @@
   flex-direction: column;
   min-height: 0;
   background-color: var(--property-panel-background-color);
+  width: 296px; /* Fixed width: property panel width (280px) + Theatre panel padding (16px) */
 }

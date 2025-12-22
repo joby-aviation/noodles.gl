@@ -200,7 +200,7 @@ export function TopMenuBar({
                   onSelect={onOpenAddNode}
                   disabled={!onOpenAddNode}
                 >
-                  <span>Add Node</span>
+                  <span>Add Operator</span>
                   <span className={s.shortcut}>A</span>
                 </DropdownMenu.Item>
 
@@ -509,7 +509,7 @@ export function TopMenuBar({
                 disabled={!onOpenAddNode}
               >
                 <i className="pi pi-plus-circle" />
-                <span className={s.toolLabel}>Add Node</span>
+                <span className={s.toolLabel}>Add Op</span>
               </button>
 
               <button
