@@ -6,7 +6,7 @@ import {
   type ProjectModification,
   useProjectModifications,
 } from '../noodles/hooks/use-project-modifications'
-import { getKey } from '../utils/keys-manager'
+import { keysManager } from '../utils/keys-manager'
 import styles from './chat-panel.module.css'
 import { ClaudeClient } from './claude-client'
 import { loadConversation, saveConversation } from './conversation-history'
@@ -42,6 +42,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
   const [showHistory, setShowHistory] = useState(false)
   const [contextProgress, setContextProgress] = useState<string>('')
+  const [apiKey, setApiKey] = useState<string | undefined>(undefined)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -60,9 +61,10 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
 
   useEffect(() => {
     const init = async () => {
-      const apiKey = getKey('anthropic')
+      const key = keysManager.getKey('anthropic')
+      setApiKey(key)
 
-      if (!apiKey) {
+      if (!key) {
         setContextLoading(false)
         return
       }
@@ -72,7 +74,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
         const loader = await globalContextManager.waitForReady()
 
         const tools = new MCPTools(loader)
-        const client = new ClaudeClient(apiKey.trim(), tools)
+        const client = new ClaudeClient(key.trim(), tools)
 
         setMcpTools(tools)
         setClaudeClient(client)
@@ -257,7 +259,6 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
   if (!isVisible) return null
 
   // Check if API key is missing
-  const apiKey = getKey('anthropic')
   if (!apiKey && !contextLoading) {
     return (
       <div className={styles.chatPanel}>

@@ -1,6 +1,6 @@
 import polyline from '@mapbox/polyline'
 import haversine from 'haversine-distance'
-import { getKey } from './keys-manager'
+import { keysManager } from './keys-manager'
 
 export type AnimatedDirections = {
   distance: number
@@ -39,7 +39,7 @@ async function getDrivingDirections({
   origin: { lat: number; lng: number }
   destination: { lat: number; lng: number }
 }): Promise<AnimatedDirections> {
-  const token = getKey('mapbox')
+  const token = keysManager.getKey('mapbox')
   if (!token) {
     throw new Error(
       'Mapbox access token not configured. Please add your token in Settings > API Keys.'
@@ -93,7 +93,7 @@ async function getTransitDirections({
   origin: { lat: number; lng: number }
   destination: { lat: number; lng: number }
 }): Promise<AnimatedDirections> {
-  const apiKey = getKey('googleMaps')
+  const apiKey = keysManager.getKey('googleMaps')
   if (!apiKey) {
     throw new Error(
       'Google Maps API key not configured. Please add your key in Settings > API Keys.'

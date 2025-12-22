@@ -22,30 +22,53 @@ export interface KeysState {
 const STORAGE_KEY = 'noodles-keys'
 const STORAGE_SAVE_IN_PROJECT_KEY = 'noodles-keys-save-in-project'
 
-// Get an API key from localStorage, project data, or environment variables
-// Priority: localStorage > project > env
-export function getKey(key: KeyType, projectKeys?: KeysConfig): string | undefined {
-  // Try localStorage first (user's personal keys)
-  const stored = getKeysFromStorage()
-  if (stored.keys[key]) {
-    return stored.keys[key]
+class KeysManager {
+  private projectKeys: KeysConfig | undefined
+
+  // Set project keys from loaded project file
+  setProjectKeys(keys: KeysConfig | undefined): void {
+    this.projectKeys = keys
   }
 
-  // Try project keys (if shared)
-  if (projectKeys?.[key]) {
-    return projectKeys[key]
+  // Get project keys (returns undefined if no project loaded)
+  getProjectKeys(): KeysConfig | undefined {
+    return this.projectKeys
   }
 
-  // Fallback to environment variables
-  switch (key) {
-    case 'mapbox':
-      return import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
-    case 'googleMaps':
-      return import.meta.env.VITE_GOOGLE_MAPS_API_KEY
-    case 'anthropic':
-      return import.meta.env.VITE_CLAUDE_API_KEY
+  // Get an API key from localStorage, project data, or environment variables
+  // Priority: localStorage > project > env
+  getKey(key: KeyType, projectKeys?: KeysConfig): string | undefined {
+    // Try localStorage first (user's personal keys)
+    const stored = getKeysFromStorage()
+    if (stored.keys[key]) {
+      return stored.keys[key]
+    }
+
+    // Try project keys (if provided as parameter or from loaded project)
+    const keysToCheck = projectKeys || this.projectKeys
+    if (keysToCheck?.[key]) {
+      return keysToCheck[key]
+    }
+
+    // Fallback to environment variables
+    switch (key) {
+      case 'mapbox':
+        return import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
+      case 'googleMaps':
+        return import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+      case 'anthropic':
+        return import.meta.env.VITE_CLAUDE_API_KEY
+    }
+  }
+
+  // Check if an API key is available from any source
+  hasKey(key: KeyType, projectKeys?: KeysConfig): boolean {
+    return !!this.getKey(key, projectKeys)
   }
 }
+
+// Export singleton instance
+export const keysManager = new KeysManager()
 
 // Get all API keys from localStorage
 export function getKeysFromStorage(): KeysState {
@@ -102,9 +125,4 @@ export function maskKey(key: string): string {
     return '••••••••'
   }
   return `${key.slice(0, 4)}${'•'.repeat(Math.max(8, key.length - 8))}${key.slice(-4)}`
-}
-
-// Check if an API key is available from any source
-export function hasKey(key: KeyType, projectKeys?: KeysConfig): boolean {
-  return !!getKey(key, projectKeys)
 }

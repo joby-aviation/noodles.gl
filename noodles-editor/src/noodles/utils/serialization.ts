@@ -23,6 +23,11 @@ export type NoodlesProjectJSON = ReactFlowJsonObject & {
   version: number
   timeline: Record<string, unknown>
   editorSettings?: EditorSettings
+  apiKeys?: {
+    mapbox?: string
+    googleMaps?: string
+    anthropic?: string
+  }
 }
 export type CopiedNodesJSON = Omit<ReactFlowJsonObject, 'viewport'>
 
