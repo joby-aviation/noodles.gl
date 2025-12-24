@@ -28,7 +28,7 @@ import { createPortal } from 'react-dom'
 import { Temporal } from 'temporal-polyfill'
 
 import { analytics } from '../../utils/analytics'
-import { keysManager } from '../../utils/keys-manager'
+import { KEYS_CHANGED_EVENT, keysManager } from '../../utils/keys-manager'
 import { SheetContext } from '../../utils/sheet-context'
 import { ArrayField, type Field, type IField, ListField } from '../fields'
 import s from '../noodles.module.css'
@@ -732,12 +732,23 @@ function GeocoderOpComponent({
 
   const containerRef = useRef<HTMLDivElement>(null)
   const geocoderRef = useRef<MapboxGeocoder>()
-  const [hasApiKey, setHasApiKey] = useState(false)
+  const [hasApiKey, setHasApiKey] = useState(() => keysManager.hasKey('mapbox'))
+
+  // Listen for key changes
+  useEffect(() => {
+    const handleKeysChanged = () => {
+      setHasApiKey(keysManager.hasKey('mapbox'))
+    }
+
+    window.addEventListener(KEYS_CHANGED_EVENT, handleKeysChanged)
+    return () => {
+      window.removeEventListener(KEYS_CHANGED_EVENT, handleKeysChanged)
+    }
+  }, [])
 
   useLayoutEffect(() => {
     // Check if Mapbox API key is available
     const apiKey = keysManager.getKey('mapbox')
-    setHasApiKey(!!apiKey)
 
     if (!containerRef.current || !apiKey) {
       if (!apiKey) {
@@ -787,7 +798,7 @@ function GeocoderOpComponent({
     } catch (error) {
       console.error('GeocoderOp: Failed to initialize geocoder:', error)
     }
-  }, [op])
+  }, [op, hasApiKey])
 
   const locked = useLocked(op)
   useEffect(() => {

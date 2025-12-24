@@ -87,6 +87,9 @@ export function getKeysFromStorage(): KeysState {
   return { keys: {}, saveInProject: false }
 }
 
+// Custom event for key changes
+export const KEYS_CHANGED_EVENT = 'noodles-keys-changed'
+
 // Save API keys to localStorage
 export function saveKeysToStorage(keys: KeysConfig, saveInProject: boolean): void {
   try {
@@ -98,6 +101,9 @@ export function saveKeysToStorage(keys: KeysConfig, saveInProject: boolean): voi
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(cleanedKeys))
     localStorage.setItem(STORAGE_SAVE_IN_PROJECT_KEY, saveInProject.toString())
+
+    // Dispatch custom event to notify listeners of key changes
+    window.dispatchEvent(new CustomEvent(KEYS_CHANGED_EVENT, { detail: cleanedKeys }))
   } catch (error) {
     console.error('Failed to save API keys to localStorage:', error)
   }
@@ -108,6 +114,9 @@ export function clearKeysFromStorage(): void {
   try {
     localStorage.removeItem(STORAGE_KEY)
     localStorage.removeItem(STORAGE_SAVE_IN_PROJECT_KEY)
+
+    // Dispatch custom event to notify listeners of key changes
+    window.dispatchEvent(new CustomEvent(KEYS_CHANGED_EVENT, { detail: {} }))
   } catch (error) {
     console.error('Failed to clear API keys from localStorage:', error)
   }
