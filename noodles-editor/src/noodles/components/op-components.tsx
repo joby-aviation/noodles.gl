@@ -35,6 +35,7 @@ import s from '../noodles.module.css'
 import type { ExecutionState, IOperator, OpType } from '../operators'
 import {
   type ContainerOp,
+  type DirectionsOp,
   type GeocoderOp,
   type MouseOp,
   mathOpDescriptions,
@@ -98,6 +99,7 @@ for (const key of Object.keys(opTypes)) {
 export const nodeComponents = {
   ...defaultNodeComponents,
   GeocoderOp: GeocoderOpComponent,
+  DirectionsOp: DirectionsOpComponent,
   MouseOp: MouseOpComponent,
   TableEditorOp: TableEditorOpComponent,
   TimeOp: TimeOpComponent,
@@ -837,6 +839,50 @@ function GeocoderOpComponent({
       </div>
     </>
   )
+}
+
+function DirectionsOpComponent({
+  id,
+  type,
+}: ReactFlowNodeProps<NodeDataJSON<DirectionsOp>> & { type: 'DirectionsOp' }) {
+  const op = getOp(id as string)
+  if (!op) {
+    throw new Error(`Operator with id ${id} not found`)
+  }
+
+  // Track whether API keys are available
+  const [hasMapboxKey, setHasMapboxKey] = useState(() => keysManager.hasKey('mapbox'))
+  const [hasGoogleMapsKey, setHasGoogleMapsKey] = useState(() => keysManager.hasKey('googleMaps'))
+
+  // Listen for key changes and trigger re-execution when keys are added
+  useEffect(() => {
+    const handleKeysChanged = () => {
+      const newHasMapboxKey = keysManager.hasKey('mapbox')
+      const newHasGoogleMapsKey = keysManager.hasKey('googleMaps')
+
+      // Only trigger re-execution if a key was ADDED (not removed)
+      const mapboxKeyAdded = !hasMapboxKey && newHasMapboxKey
+      const googleMapsKeyAdded = !hasGoogleMapsKey && newHasGoogleMapsKey
+
+      if (mapboxKeyAdded || googleMapsKeyAdded) {
+        // Trigger re-execution by touching one of the input fields
+        // This will invalidate the memoization cache and cause the operator to re-execute
+        const currentOrigin = op.inputs.origin.value
+        op.inputs.origin.setValue(currentOrigin)
+      }
+
+      // Update state
+      setHasMapboxKey(newHasMapboxKey)
+      setHasGoogleMapsKey(newHasGoogleMapsKey)
+    }
+
+    window.addEventListener(KEYS_CHANGED_EVENT, handleKeysChanged)
+    return () => {
+      window.removeEventListener(KEYS_CHANGED_EVENT, handleKeysChanged)
+    }
+  }, [op, hasMapboxKey, hasGoogleMapsKey])
+
+  return <NodeComponent id={id} type={type} />
 }
 
 function MouseOpComponent({
