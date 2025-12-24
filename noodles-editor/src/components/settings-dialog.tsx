@@ -91,6 +91,11 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
           <div className={s.section}>
             <h3 className={s.sectionTitle}>API Keys</h3>
 
+            <div className={s.privacyNote}>
+              Your API key will be stored in localStorage and persist across sessions. Keys are
+              never sent to Noodles.gl servers.
+            </div>
+
             <div className={s.settingItem}>
               <div className={s.settingContent}>
                 <div className={s.settingName}>Mapbox Access Token</div>
