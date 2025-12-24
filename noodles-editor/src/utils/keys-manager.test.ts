@@ -21,6 +21,11 @@ describe('keysManager', () => {
 
   describe('getKey', () => {
     it('should return undefined when no key is available from any source', () => {
+      // Stub environment variables to be undefined
+      vi.stubEnv('VITE_MAPBOX_ACCESS_TOKEN', undefined)
+      vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', undefined)
+      vi.stubEnv('VITE_CLAUDE_API_KEY', undefined)
+
       expect(keysManager.getKey('mapbox')).toBeUndefined()
       expect(keysManager.getKey('googleMaps')).toBeUndefined()
       expect(keysManager.getKey('anthropic')).toBeUndefined()
@@ -106,6 +111,11 @@ describe('keysManager', () => {
 
   describe('hasKey', () => {
     it('should return false when no key is available', () => {
+      // Stub environment variables to be undefined
+      vi.stubEnv('VITE_MAPBOX_ACCESS_TOKEN', undefined)
+      vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', undefined)
+      vi.stubEnv('VITE_CLAUDE_API_KEY', undefined)
+
       expect(keysManager.hasKey('mapbox')).toBe(false)
     })
 
