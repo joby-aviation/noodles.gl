@@ -1,31 +1,26 @@
 // ChatPanel - Main UI component for Claude AI integration
 
-import { useEffect, useRef, useState, type FC } from 'react'
 import { useReactFlow } from '@xyflow/react'
-
+import { type FC, useEffect, useRef, useState } from 'react'
+import {
+  type ProjectModification,
+  useProjectModifications,
+} from '../noodles/hooks/use-project-modifications'
+import styles from './chat-panel.module.css'
 import { ClaudeClient } from './claude-client'
+import { loadConversation, saveConversation } from './conversation-history'
+import { ConversationHistoryPanel } from './conversation-history-panel'
 import { globalContextManager } from './global-context-manager'
 import { MCPTools } from './mcp-tools'
-import type { Message } from './types'
-import {
-  saveConversation,
-  loadConversation,
-} from './conversation-history'
-import { ConversationHistoryPanel } from './conversation-history-panel'
-import styles from './chat-panel.module.css'
-import { useProjectModifications, type ProjectModification } from '../noodles/hooks/use-project-modifications'
+import type { Message, NoodlesProject } from './types'
 
 interface ChatPanelProps {
-  project: any
+  project: NoodlesProject
   onClose: () => void
   isVisible: boolean
 }
 
-export const ChatPanel: FC<ChatPanelProps> = ({
-  project,
-  onClose,
-  isVisible
-}) => {
+export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) => {
   // Get ReactFlow state for the modification hook
   const { getNodes, getEdges, setNodes, setEdges } = useReactFlow()
 
@@ -34,7 +29,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({
     getNodes,
     getEdges,
     setNodes,
-    setEdges
+    setEdges,
   })
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -52,7 +47,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({
 
   // Subscribe to context loading progress
   useEffect(() => {
-    const unsubscribe = globalContextManager.subscribe((state) => {
+    const unsubscribe = globalContextManager.subscribe(state => {
       if (state.status === 'loading') {
         setContextProgress(`Loading ${state.progress.stage}...`)
       } else {
@@ -65,9 +60,10 @@ export const ChatPanel: FC<ChatPanelProps> = ({
 
   useEffect(() => {
     const init = async () => {
-      const apiKey = localStorage.getItem('noodles-claude-api-key') ||
-                     sessionStorage.getItem('noodles-claude-api-key') ||
-                     import.meta.env.VITE_CLAUDE_API_KEY
+      const apiKey =
+        localStorage.getItem('noodles-claude-api-key') ||
+        sessionStorage.getItem('noodles-claude-api-key') ||
+        import.meta.env.VITE_CLAUDE_API_KEY
 
       if (!apiKey) {
         setShowApiKeyModal(true)
@@ -104,14 +100,14 @@ export const ChatPanel: FC<ChatPanelProps> = ({
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [])
 
   const handleSend = async () => {
     if (!input.trim() || !claudeClient || !project) return
 
     const userMessage: Message = {
       role: 'user',
-      content: input
+      content: input,
     }
 
     setMessages(prev => [...prev, userMessage])
@@ -123,12 +119,12 @@ export const ChatPanel: FC<ChatPanelProps> = ({
         message: input,
         project,
         autoCapture,
-        conversationHistory: messages
+        conversationHistory: messages,
       })
 
       const assistantMessage: Message = {
         role: 'assistant',
-        content: response.message
+        content: response.message,
       }
 
       setMessages(prev => [...prev, assistantMessage])
@@ -142,18 +138,24 @@ export const ChatPanel: FC<ChatPanelProps> = ({
           // Surface validation errors back to the user and AI
           const errorMessage = `Failed to apply modifications: ${result.error}`
           console.error(errorMessage)
-          setMessages(prev => [...prev, {
-            role: 'assistant',
-            content: errorMessage
-          }])
+          setMessages(prev => [
+            ...prev,
+            {
+              role: 'assistant',
+              content: errorMessage,
+            },
+          ])
         } else if (result.warnings && result.warnings.length > 0) {
           // Show warnings in console and chat
           console.warn('Modification warnings:', result.warnings)
           const warningMessage = `⚠️ Modifications applied with warnings:\n${result.warnings.map(w => `• ${w}`).join('\n')}`
-          setMessages(prev => [...prev, {
-            role: 'assistant',
-            content: warningMessage
-          }])
+          setMessages(prev => [
+            ...prev,
+            {
+              role: 'assistant',
+              content: warningMessage,
+            },
+          ])
         }
       }
     } catch (error) {
@@ -161,30 +163,36 @@ export const ChatPanel: FC<ChatPanelProps> = ({
 
       // Check if this is an authentication error
       const errorStr = error instanceof Error ? error.message : String(error)
-      const isAuthError = errorStr.includes('authentication') ||
-                          errorStr.includes('401') ||
-                          errorStr.includes('invalid_api_key') ||
-                          errorStr.includes('api_key')
+      const isAuthError =
+        errorStr.includes('authentication') ||
+        errorStr.includes('401') ||
+        errorStr.includes('invalid_api_key') ||
+        errorStr.includes('api_key')
 
       if (isAuthError) {
         localStorage.removeItem('noodles-claude-api-key')
         sessionStorage.removeItem('noodles-claude-api-key')
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: 'Authentication Error: Your API key is invalid. Please enter a valid API key.'
-        }])
+        setMessages(prev => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: 'Authentication Error: Your API key is invalid. Please enter a valid API key.',
+          },
+        ])
         setShowApiKeyModal(true)
       } else {
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: `Error: ${errorStr}`
-        }])
+        setMessages(prev => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: `Error: ${errorStr}`,
+          },
+        ])
       }
     } finally {
       setLoading(false)
     }
   }
-
 
   const handleApiKeySubmit = async (key: string, remember: boolean) => {
     if (remember) {
@@ -218,7 +226,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({
     if (result.success) {
       alert('Screenshot captured! It will be included with your next message.')
     } else {
-      alert('Failed to capture screenshot: ' + result.error)
+      alert(`Failed to capture screenshot: ${result.error}`)
     }
   }
 
@@ -239,7 +247,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({
     setShowHistory(false)
   }
 
-  const saveCurrentConversation = () => {
+  const _saveCurrentConversation = () => {
     if (messages.length === 0) {
       alert('No messages to save')
       return
@@ -250,7 +258,9 @@ export const ChatPanel: FC<ChatPanelProps> = ({
       setCurrentConversationId(id)
       alert('Conversation saved!')
     } catch (error) {
-      alert('Failed to save conversation: ' + (error instanceof Error ? error.message : 'Unknown error'))
+      alert(
+        `Failed to save conversation: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
     }
   }
 
@@ -340,7 +350,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({
           <input
             type="checkbox"
             checked={autoCapture}
-            onChange={(e) => setAutoCapture(e.target.checked)}
+            onChange={e => setAutoCapture(e.target.checked)}
           />
           <span>Auto-capture screenshots</span>
         </label>
@@ -371,12 +381,15 @@ export const ChatPanel: FC<ChatPanelProps> = ({
         )}
 
         {messages.map((msg, idx) => (
-          <div key={`msg-${idx}-${msg.role}`} className={`${styles.chatMessage} ${msg.role === 'user' ? styles.chatMessageUser : styles.chatMessageAssistant}`}>
-            <div className={styles.chatMessageRole}>
-              {msg.role === 'user' ? 'You' : 'Claude'}
-            </div>
+          <div
+            key={`msg-${idx}-${msg.role}`}
+            className={`${styles.chatMessage} ${msg.role === 'user' ? styles.chatMessageUser : styles.chatMessageAssistant}`}
+          >
+            <div className={styles.chatMessageRole}>{msg.role === 'user' ? 'You' : 'Claude'}</div>
             <div className={styles.chatMessageContent}>
-              <MessageContent content={Array.isArray(msg.content) ? msg.content.join('\n') : msg.content} />
+              <MessageContent
+                content={Array.isArray(msg.content) ? msg.content.join('\n') : msg.content}
+              />
             </div>
           </div>
         ))}
@@ -386,9 +399,9 @@ export const ChatPanel: FC<ChatPanelProps> = ({
             <div className={styles.chatMessageRole}>Claude</div>
             <div className={styles.chatMessageContent}>
               <div className={styles.typingIndicator}>
-                <span></span>
-                <span></span>
-                <span></span>
+                <span />
+                <span />
+                <span />
               </div>
             </div>
           </div>
@@ -400,8 +413,8 @@ export const ChatPanel: FC<ChatPanelProps> = ({
       <div className={styles.chatPanelInput}>
         <textarea
           value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault()
               handleSend()
@@ -437,15 +450,17 @@ const MessageContent: FC<{ content: string }> = ({ content }) => {
   const renderContent = () => {
     const parts = content.split(/(```[\s\S]*?```)/g)
     return parts.map((part, idx) => {
+      // Use combination of index and content snippet for stable key
+      const key = `${idx}-${part.substring(0, 20)}`
       if (part.startsWith('```')) {
         const code = part.replace(/```(\w+)?\n?/, '').replace(/```$/, '')
         return (
-          <pre key={idx}>
+          <pre key={key}>
             <code>{code}</code>
           </pre>
         )
       }
-      return <p key={idx}>{part}</p>
+      return <p key={key}>{part}</p>
     })
   }
 
@@ -481,11 +496,11 @@ const ApiKeyModal: FC<{ onSubmit: (key: string, remember: boolean) => void }> = 
         <input
           type="password"
           value={key}
-          onChange={(e) => {
+          onChange={e => {
             setKey(e.target.value)
             setError('') // Clear error when user types
           }}
-          onKeyDown={(e) => {
+          onKeyDown={e => {
             if (e.key === 'Enter') {
               handleSubmit()
             }
@@ -498,7 +513,7 @@ const ApiKeyModal: FC<{ onSubmit: (key: string, remember: boolean) => void }> = 
           <input
             type="checkbox"
             checked={rememberKey}
-            onChange={(e) => setRememberKey(e.target.checked)}
+            onChange={e => setRememberKey(e.target.checked)}
             className={styles.rememberKeyCheckbox}
           />
           <span>Remember my API key (stored in browser localStorage)</span>
@@ -516,8 +531,8 @@ const ApiKeyModal: FC<{ onSubmit: (key: string, remember: boolean) => void }> = 
         <p className={styles.apiKeyNote}>
           {rememberKey
             ? 'Your API key will be stored in localStorage and persist across sessions.'
-            : 'Your API key will only be stored for this session and cleared when you close the tab.'}
-          {' '}Keys are never sent to Noodles.gl servers.
+            : 'Your API key will only be stored for this session and cleared when you close the tab.'}{' '}
+          Keys are never sent to Noodles.gl servers.
         </p>
       </div>
     </div>

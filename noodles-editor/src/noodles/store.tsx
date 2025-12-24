@@ -1,65 +1,119 @@
 import type { ISheetObject } from '@theatre/core'
-import { createContext, type PropsWithChildren, useContext } from 'react'
+import { create } from 'zustand'
 import type { IOperator, Operator } from './operators'
 // only import types from noodles to avoid circular dependencies
 import type { OpId } from './utils/id-utils'
 import { isAbsolutePath, resolvePath } from './utils/path-utils'
 
-export const opMap = new Map<OpId, Operator<IOperator>>()
-export const sheetObjectMap = new Map<OpId, ISheetObject>()
+// ============================================================================
+// Operator Store (Zustand) - Separate slice for operators and sheet objects
+// ============================================================================
 
-export type NestingContextValue = {
-  currentContainerId: string
-  setCurrentContainerId: (id: string) => void
+interface OperatorStoreState {
+  // The actual maps
+  operators: Map<OpId, Operator<IOperator>>
+  sheetObjects: Map<OpId, ISheetObject>
+
+  // Batching state
+  _batching: boolean
+
+  // Operator actions
+  getOp: (id: OpId) => Operator<IOperator> | undefined
+  setOp: (id: OpId, op: Operator<IOperator>) => void
+  deleteOp: (id: OpId) => void
+  hasOp: (id: OpId) => boolean
+  clearOps: () => void
+  getAllOps: () => Operator<IOperator>[]
+  getOpEntries: () => [OpId, Operator<IOperator>][]
+
+  // Sheet object actions
+  getSheetObject: (id: OpId) => ISheetObject | undefined
+  setSheetObject: (id: OpId, sheetObj: ISheetObject) => void
+  deleteSheetObject: (id: OpId) => void
+  hasSheetObject: (id: OpId) => boolean
+
+  // Batching
+  batch: (fn: () => void) => void
 }
 
-let currentContainerId = '/'
+export const useOperatorStore = create<OperatorStoreState>((set, get) => ({
+  operators: new Map(),
+  sheetObjects: new Map(),
+  _batching: false,
 
-// Track currently hovered output handle for viewer creation
-export let hoveredOutputHandle: { nodeId: string; handleId: string } | null = null
-export const setHoveredOutputHandle = (handle: { nodeId: string; handleId: string } | null) => {
-  hoveredOutputHandle = handle
-}
+  // Operator actions
+  getOp: id => get().operators.get(id),
 
-const noodlesContextValue = {
-  ops: {
-    get: (id: OpId) => opMap.get(id),
-    set: (id: OpId, op: Operator<IOperator>) => opMap.set(id, op),
+  setOp: (id, op) => {
+    const operators = new Map(get().operators)
+    operators.set(id, op)
+    set({ operators })
   },
-  sheetObjects: {
-    get: (id: OpId) => sheetObjectMap.get(id),
-    set: (id: OpId, sheetObj: ISheetObject) => sheetObjectMap.set(id, sheetObj),
-    delete: (id: OpId) => sheetObjectMap.delete(id),
+
+  deleteOp: id => {
+    const operators = new Map(get().operators)
+    operators.delete(id)
+    set({ operators })
   },
-  nesting: {
-    get currentContainerId() {
-      return currentContainerId
-    },
-    setCurrentContainerId: (id: string) => {
-      currentContainerId = id
-    },
+
+  hasOp: id => get().operators.has(id),
+
+  clearOps: () => {
+    set({ operators: new Map(), sheetObjects: new Map() })
   },
+
+  getAllOps: () => Array.from(get().operators.values()),
+
+  getOpEntries: () => Array.from(get().operators.entries()),
+
+  // Sheet object actions
+  getSheetObject: id => get().sheetObjects.get(id),
+
+  setSheetObject: (id, sheetObj) => {
+    const sheetObjects = new Map(get().sheetObjects)
+    sheetObjects.set(id, sheetObj)
+    set({ sheetObjects })
+  },
+
+  deleteSheetObject: id => {
+    const sheetObjects = new Map(get().sheetObjects)
+    sheetObjects.delete(id)
+    set({ sheetObjects })
+  },
+
+  hasSheetObject: id => get().sheetObjects.has(id),
+
+  // Batching - prevents multiple Zustand updates during batch operations
+  batch: fn => {
+    set({ _batching: true })
+    fn()
+    set({ _batching: false })
+  },
+}))
+
+// ============================================================================
+// UI Store (Zustand) - Separate slice for UI state
+// ============================================================================
+
+interface UIStoreState {
+  hoveredOutputHandle: { nodeId: string; handleId: string } | null
+  setHoveredOutputHandle: (handle: { nodeId: string; handleId: string } | null) => void
 }
 
-export type NoodlesContextValue = typeof noodlesContextValue
+export const useUIStore = create<UIStoreState>(set => ({
+  hoveredOutputHandle: null,
+  setHoveredOutputHandle: handle => set({ hoveredOutputHandle: handle }),
+}))
 
-export const NoodlesContext = createContext<NoodlesContextValue>(noodlesContextValue)
+// ============================================================================
+// Helper functions for non-React contexts
+// ============================================================================
 
-export const NoodlesProvider = ({ children }: PropsWithChildren) => (
-  <NoodlesContext.Provider value={noodlesContextValue}>{children}</NoodlesContext.Provider>
-)
+// Get the operator store instance for use outside React components
+export const getOpStore = () => useOperatorStore.getState()
 
-export const useSlice: <T>(resolver: (state: NoodlesContextValue) => T) => T = resolver =>
-  resolver(useContext(NoodlesContext))
-
-// Helpful hook to get an op, just be careful not to break rule of hooks with it.
-export const useOp = (id: OpId) => {
-  const op = useSlice(state => state.ops).get(id)
-  if (!op) {
-    throw new Error(`Operator with id ${id} not found`)
-  }
-  return op
-}
+// Get the UI store instance for use outside React components
+export const getUIStore = () => useUIStore.getState()
 
 // `path` can be absolute or relative to `contextOperatorId`
 export const getOp = (
@@ -70,9 +124,11 @@ export const getOp = (
     return undefined
   }
 
+  const store = useOperatorStore.getState()
+
   // If path is absolute or no context provided, use direct lookup
   if (isAbsolutePath(path) || !contextOperatorId) {
-    return opMap.get(path)
+    return store.getOp(path)
   }
 
   // Resolve relative path using context
@@ -81,5 +137,39 @@ export const getOp = (
     return undefined
   }
 
-  return opMap.get(resolvedPath)
+  return store.getOp(resolvedPath)
 }
+
+// Convenience helpers for common store operations
+export const setOp = (id: OpId, op: Operator<IOperator>) => getOpStore().setOp(id, op)
+export const deleteOp = (id: OpId) => getOpStore().deleteOp(id)
+export const hasOp = (id: OpId) => getOpStore().hasOp(id)
+export const clearOps = () => getOpStore().clearOps()
+export const getAllOps = () => getOpStore().getAllOps()
+export const getOpEntries = () => getOpStore().getOpEntries()
+
+// Sheet object helpers
+export const getSheetObject = (id: OpId) => getOpStore().getSheetObject(id)
+export const setSheetObject = (id: OpId, sheetObj: ISheetObject) =>
+  getOpStore().setSheetObject(id, sheetObj)
+export const deleteSheetObject = (id: OpId) => getOpStore().deleteSheetObject(id)
+export const hasSheetObject = (id: OpId) => getOpStore().hasSheetObject(id)
+export const getAllSheetObjectIds = () => Array.from(getOpStore().sheetObjects.keys())
+
+// Hovered output handle helpers
+export const setHoveredOutputHandle = (handle: { nodeId: string; handleId: string } | null) =>
+  getUIStore().setHoveredOutputHandle(handle)
+
+// ============================================================================
+// Nesting State (Zustand)
+// ============================================================================
+
+interface NestingState {
+  currentContainerId: string
+  setCurrentContainerId: (id: string) => void
+}
+
+export const useNestingStore = create<NestingState>(set => ({
+  currentContainerId: '/',
+  setCurrentContainerId: (id: string) => set({ currentContainerId: id }),
+}))

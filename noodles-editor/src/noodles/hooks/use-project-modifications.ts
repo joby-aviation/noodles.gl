@@ -1,23 +1,23 @@
 // Shared hook for applying project modifications using ReactFlow hooks
 // Used by both the UI and the AI chat system
 
-import { useCallback } from 'react'
 import {
-  type Edge as ReactFlowEdge,
-  type Node as ReactFlowNode,
-  type OnConnect,
+  applyEdgeChanges,
   getConnectedEdges,
   getIncomers,
   getOutgoers,
+  type OnConnect,
+  type Edge as ReactFlowEdge,
+  type Node as ReactFlowNode,
   addEdge as reactFlowAddEdge,
-  applyEdgeChanges,
 } from '@xyflow/react'
-
-import { opMap } from '../store'
+import { useCallback } from 'react'
+import { analytics } from '../../utils/analytics'
+import { type Field, ListField } from '../fields'
+import { getOp } from '../store'
 import { canConnect } from '../utils/can-connect'
-import { parseHandleId } from '../utils/path-utils'
 import { edgeId } from '../utils/id-utils'
-import { ListField } from '../fields'
+import { parseHandleId } from '../utils/path-utils'
 
 // Using ReactFlowNode instead of AnyNodeJSON for compatibility
 export type ProjectModification =
@@ -36,8 +36,12 @@ export interface ModificationResult {
 interface UseProjectModificationsOptions {
   getNodes: () => ReactFlowNode<any>[]
   getEdges: () => ReactFlowEdge<any>[]
-  setNodes: (nodes: ReactFlowNode<any>[] | ((nodes: ReactFlowNode<any>[]) => ReactFlowNode<any>[])) => void
-  setEdges: (edges: ReactFlowEdge<any>[] | ((edges: ReactFlowEdge<any>[]) => ReactFlowEdge<any>[])) => void
+  setNodes: (
+    nodes: ReactFlowNode<any>[] | ((nodes: ReactFlowNode<any>[]) => ReactFlowNode<any>[])
+  ) => void
+  setEdges: (
+    edges: ReactFlowEdge<any>[] | ((edges: ReactFlowEdge<any>[]) => ReactFlowEdge<any>[])
+  ) => void
 }
 
 export function useProjectModifications(options: UseProjectModificationsOptions) {
@@ -47,6 +51,10 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
   const addNodes = useCallback(
     (newNodes: ReactFlowNode[]) => {
       setNodes(currentNodes => [...currentNodes, ...newNodes])
+      // Track node addition
+      newNodes.forEach(node => {
+        analytics.track('node_added', { nodeType: node.type || 'unknown' })
+      })
     },
     [setNodes]
   )
@@ -54,19 +62,31 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
   const addEdges = useCallback(
     (newEdges: ReactFlowEdge[]) => {
       setEdges(currentEdges => [...currentEdges, ...newEdges])
+      // Track edge addition
+      if (newEdges.length > 0) {
+        analytics.track('edge_added', { count: newEdges.length })
+      }
     },
     [setEdges]
   )
 
   const deleteElements = useCallback(
-    ({ nodes: nodesToDelete, edges: edgesToDelete }: { nodes?: { id: string }[]; edges?: { id: string }[] }) => {
+    ({
+      nodes: nodesToDelete,
+      edges: edgesToDelete,
+    }: {
+      nodes?: { id: string }[]
+      edges?: { id: string }[]
+    }) => {
       if (nodesToDelete && nodesToDelete.length > 0) {
         const nodeIds = new Set(nodesToDelete.map(n => n.id))
         setNodes(currentNodes => currentNodes.filter(n => !nodeIds.has(n.id)))
+        analytics.track('node_deleted', { count: nodesToDelete.length })
       }
       if (edgesToDelete && edgesToDelete.length > 0) {
         const edgeIds = new Set(edgesToDelete.map(e => e.id))
         setEdges(currentEdges => currentEdges.filter(e => !edgeIds.has(e.id)))
+        analytics.track('edge_deleted', { count: edgesToDelete.length })
       }
     },
     [setNodes, setEdges]
@@ -85,7 +105,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       const nodesToDelete = deletedNodes
 
       if (nodesToDelete.length === 0) {
-        return { success: false, error: `No nodes provided for deletion` }
+        return { success: false, error: 'No nodes provided for deletion' }
       }
 
       const warnings: string[] = []
@@ -151,8 +171,8 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
           const createdEdges = incomers.flatMap(({ id: source }) =>
             outgoers
               .filter(({ id: target }) => {
-                const sourceField = opMap.get(source)?.outputs[sourceHandleInfo.fieldName]
-                const targetField = opMap.get(target)?.inputs[targetHandleInfo.fieldName]
+                const sourceField = getOp(source)?.outputs[sourceHandleInfo.fieldName]
+                const targetField = getOp(target)?.inputs[targetHandleInfo.fieldName]
                 if (!sourceField || !targetField) {
                   return false
                 }
@@ -225,13 +245,13 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       }
 
       // Get operators
-      const sourceOp = opMap.get(edge.source)
-      const targetOp = opMap.get(edge.target)
+      const sourceOp = getOp(edge.source)
+      const targetOp = getOp(edge.target)
 
       if (!sourceOp || !targetOp) {
         return {
           success: false,
-          error: `Invalid edge: source or target operator not found in opMap`,
+          error: 'Invalid edge: source or target operator not found in store',
         }
       }
 
@@ -257,11 +277,14 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         }
       }
 
+      const sourceFieldType = (sourceField.constructor as typeof Field).type
+      const targetFieldType = (targetField.constructor as typeof Field).type
+
       // Validate connection
       if (!canConnect(sourceField, targetField)) {
         return {
           success: false,
-          error: `Invalid connection: ${sourceField.constructor.name} cannot connect to ${targetField.constructor.name}`,
+          error: `Invalid connection: ${sourceFieldType} cannot connect to ${targetFieldType}`,
         }
       }
 
@@ -286,8 +309,8 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         return { success: false, error: `Node not found: ${nodeId}` }
       }
 
-      // Get the operator instance from opMap
-      const operator = opMap.get(nodeId)
+      // Get the operator instance from store
+      const operator = getOp(nodeId)
 
       if (operator && updates.data?.inputs) {
         // Update operator inputs using setValue
@@ -472,7 +495,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
       // Update operator inputs for node updates
       for (const { id, updates } of nodesToUpdate) {
-        const operator = opMap.get(id)
+        const operator = getOp(id)
         if (operator && updates.data?.inputs) {
           const inputs = updates.data.inputs as Record<string, unknown>
           for (const [key, value] of Object.entries(inputs)) {
@@ -487,7 +510,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
       // Add edges - with optional validation depending on whether new nodes were added
       if (edgesToAdd.length > 0) {
-        // If we just added nodes, we can't validate edges yet because opMap hasn't been updated
+        // If we just added nodes, we can't validate edges yet because the store hasn't been updated
         // In this case, add edges optimistically and let the system handle them on next render
         const hasNewNodes = nodesToAdd.length > 0
 
@@ -539,8 +562,8 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
               continue
             }
 
-            const sourceOp = opMap.get(edge.source)
-            const targetOp = opMap.get(edge.target)
+            const sourceOp = getOp(edge.source)
+            const targetOp = getOp(edge.target)
 
             if (!sourceOp || !targetOp) {
               const error = `Edge ${edge.id}: source or target operator not found`
@@ -576,8 +599,11 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
               continue
             }
 
+            const sourceFieldType = (sourceField.constructor as typeof Field).type
+            const targetFieldType = (targetField.constructor as typeof Field).type
+
             if (!canConnect(sourceField, targetField)) {
-              const error = `Edge ${edge.id}: incompatible types (${sourceField.constructor.name} -> ${targetField.constructor.name})`
+              const error = `Edge ${edge.id}: incompatible types (${sourceFieldType} -> ${targetFieldType})`
               console.error(error)
               edgeErrors.push(error)
               continue
@@ -598,7 +624,9 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
             }
 
             if (edgeErrors.length > 0) {
-              console.log(`Added ${validEdges.length}/${edgesToAdd.length} edges (${edgeErrors.length} skipped)`)
+              console.log(
+                `Added ${validEdges.length}/${edgesToAdd.length} edges (${edgeErrors.length} skipped)`
+              )
             }
           }
 
@@ -650,8 +678,8 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         return
       }
 
-      const sourceOp = opMap.get(source.id)
-      const targetOp = opMap.get(target.id)
+      const sourceOp = getOp(source.id)
+      const targetOp = getOp(target.id)
 
       if (!sourceOp || !targetOp) {
         console.warn('Invalid source or target', connection)
@@ -689,7 +717,10 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
           e => e.target === newEdge.target && e.targetHandle === newEdge.targetHandle
         )
         if (existing && !(targetField instanceof ListField)) {
-          return applyEdgeChanges([{ type: 'replace', id: existing.id, item: newEdge }], eds as ReactFlowEdge[])
+          return applyEdgeChanges(
+            [{ type: 'replace', id: existing.id, item: newEdge }],
+            eds as ReactFlowEdge[]
+          )
         }
         return reactFlowAddEdge(newEdge, eds as ReactFlowEdge[])
       })

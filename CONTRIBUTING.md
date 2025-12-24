@@ -8,8 +8,8 @@ This guide covers development workflows, testing strategies, and contribution gu
 
 ### Prerequisites
 
-- **Node.js** (managed by Volta)
-- **Yarn** with PnP mode
+- **Node.js** (version pinned in `.nvmrc`) - [Download from nodejs.org](https://nodejs.org/en/download)
+- **Yarn** (version managed by Corepack, pinned in `package.json`)
 - Modern browser with WebGL support
 
 ### Setup
@@ -17,6 +17,13 @@ This guide covers development workflows, testing strategies, and contribution gu
 ```bash
 # Clone the repository
 git clone <repository-url>
+
+# Enable Corepack to manage Yarn version
+corepack enable yarn
+
+# Verify versions match project requirements
+node -v  # Check against .nvmrc
+yarn -v  # Check against package.json
 
 # Install dependencies
 yarn install
@@ -27,9 +34,9 @@ yarn start
 
 ### Development URLs
 
-- **Local Development**: `http://localhost:5173/?project=example`
-- **Specific Project**: Replace `example` with project name from `/public/noodles/`
-- **Safe Mode**: Add `&safeMode=true` to disable code execution
+- **Local Development**: `http://localhost:5173/examples/nyc-taxis`
+- **Specific Project**: Replace `nyc-taxis` with project name from `/public/examples/`
+- **Safe Mode**: Add `?safeMode=true` to disable code execution
 
 ## 📁 Project Structure
 

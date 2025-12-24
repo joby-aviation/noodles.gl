@@ -1,8 +1,7 @@
 import MapboxGeocoder from '@mapbox/mapbox-gl-geocoder'
 import ReactJson from '@microlink/react-json-view'
 import * as Tooltip from '@radix-ui/react-tooltip'
-import { type ISheet, onChange, types, val } from '@theatre/core'
-import studio from '@theatre/studio'
+import type { ISheet } from '@theatre/core'
 import {
   BaseEdge,
   type EdgeProps,
@@ -14,7 +13,6 @@ import {
   type NodeProps as ReactFlowNodeProps,
   type NodeTypes as ReactFlowNodeTypes,
   useNodeId,
-  useNodes,
   useReactFlow,
 } from '@xyflow/react'
 import cx from 'classnames'
@@ -28,48 +26,41 @@ import { InputText } from 'primereact/inputtext'
 import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Temporal } from 'temporal-polyfill'
-import { isHexColor } from 'validator'
 
-import { colorToRgba, hexToRgba, type Rgba, rgbaToHex } from '../../utils/color'
+import { analytics } from '../../utils/analytics'
 import { SheetContext } from '../../utils/sheet-context'
-import {
-  ArrayField,
-  BooleanField,
-  ColorField,
-  CompoundPropsField,
-  DateField,
-  type Field,
-  ListField,
-  NumberField,
-  Point2DField,
-  Point3DField,
-  StringField,
-  StringLiteralField,
-  Vec2Field,
-  Vec3Field,
-} from '../fields'
+import { ArrayField, type Field, type IField, ListField } from '../fields'
 import s from '../noodles.module.css'
-import type { ExecutionState, IOperator, OperatorInstance, OpType } from '../operators'
+import type { ExecutionState, IOperator, OpType } from '../operators'
 import {
   type ContainerOp,
   type GeocoderOp,
   type MouseOp,
-  mathOps,
   mathOpDescriptions,
+  mathOps,
   Operator,
   opTypes,
   type TableEditorOp,
   type TimeOp,
   type ViewerOp,
 } from '../operators'
-import { opMap, setHoveredOutputHandle, useOp, useSlice } from '../store'
+import {
+  deleteOp,
+  getAllOps,
+  getOp,
+  hasOp,
+  setHoveredOutputHandle,
+  setOp,
+  useNestingStore,
+  useOperatorStore,
+} from '../store'
 import type { NodeDataJSON } from '../transform-graph'
 import { edgeId } from '../utils/id-utils'
+import type { NodeType } from '../utils/node-creation-utils'
 import { generateQualifiedPath, getBaseName, getParentPath } from '../utils/path-utils'
-import type { NodeType } from './add-node-menu'
+import { categories as baseCategories, nodeTypeToDisplayName } from './categories'
 import { FieldComponent, type inputComponents } from './field-components'
 import previewStyles from './handle-preview.module.css'
-import { categories as baseCategories } from './categories'
 
 const MAPBOX_ACCESS_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
 
@@ -87,7 +78,7 @@ const categories: Record<string, string[]> = Object.fromEntries(
 const SLOW_EXECUTION_THRESHOLD_MS = 100
 
 // Hook to subscribe to operator execution state
-function useExecutionState(op: OperatorInstance): ExecutionState {
+function useExecutionState(op: Operator<IOperator>): ExecutionState {
   const [executionState, setExecutionState] = useState<ExecutionState>({ status: 'idle' })
 
   useEffect(() => {
@@ -174,8 +165,9 @@ export function getNodeDescription(type: NodeType): string {
 }
 
 export function typeCategory(type: NodeType) {
+  const displayName = nodeTypeToDisplayName(type)
   for (const [category, types] of Object.entries(categories)) {
-    if ((types as readonly string[]).includes(type)) {
+    if ((types as readonly string[]).includes(displayName)) {
       return toPascal(category)
     }
   }
@@ -200,8 +192,9 @@ const headerClasses = {
 } as const as Record<keyof typeof categories, string>
 
 export function headerClass(type: NodeType) {
+  const displayName = nodeTypeToDisplayName(type)
   for (const [category, types] of Object.entries(categories)) {
-    if ((types as readonly string[]).includes(type)) {
+    if ((types as readonly string[]).includes(displayName)) {
       return headerClasses[category]
     }
   }
@@ -226,7 +219,7 @@ const handleClasses = {
   'feature-collection': s.handleData,
   file: s.handleString,
   function: s.handleCode,
-  geometry: s.handleData,
+  geojson: s.handleGeojson,
   'geopoint-2d': s.handleVector,
   'geopoint-3d': s.handleVector,
   'json-url': s.handleString,
@@ -245,126 +238,17 @@ const handleClasses = {
 } as const as Record<keyof typeof inputComponents, string>
 
 export const handleClass = (field: Field<IField>): string => {
+  const { type } = field.constructor as typeof Field
   if (field instanceof ListField || field instanceof ArrayField) {
-    return cx(handleClasses[field.constructor.type], handleClass(field.field))
+    return cx(handleClasses[type], handleClass(field.field))
   }
-  return handleClasses[field.constructor.type]
+  return handleClasses[type]
 }
 
 export const SOURCE_HANDLE = 'source'
 export const TARGET_HANDLE = 'target'
 export const PAR_NAMESPACE = 'par'
 export const OUT_NAMESPACE = 'out'
-
-function colorToTheatreColor(color: [number, number, number, number] | string): Rgba {
-  const val =
-    typeof color === 'string' && isHexColor(color)
-      ? hexToRgba(color)
-      : Array.isArray(color)
-        ? colorToRgba(color)
-        : color
-  return val as Rgba
-}
-
-function fieldToTheatreProp(input: Field<IField>, fields: [string, Field<IField>][]) {
-  try {
-    if (input instanceof NumberField) {
-      return types.number(input.value, {
-        range: [input.min, input.max],
-        nudgeMultiplier: input.step,
-      })
-    }
-    if (input instanceof BooleanField) {
-      return types.boolean(input.value)
-    }
-    if (input instanceof StringField) {
-      return types.string(input.value)
-    }
-    if (input instanceof StringLiteralField) {
-      return types.stringLiteral(
-        input.value,
-        Object.fromEntries(input.choices.map(({ label, value }) => [label, value]))
-      )
-    }
-    if (input instanceof ColorField) {
-      return types.rgba(colorToTheatreColor(input.value))
-    }
-    if (input instanceof DateField) {
-      // Convert Temporal.PlainDateTime to epoch milliseconds for Theatre.js
-      const instant = input.value.toZonedDateTime('UTC').toInstant()
-      return types.number(instant.epochMilliseconds)
-    }
-    if (input instanceof CompoundPropsField) {
-      return types.compound(fieldsToTheatreProps({}, input.fields, fields))
-    }
-    if (input instanceof Vec2Field) {
-      return types.compound({
-        x: types.number('x' in input.value ? input.value.x : input.value[0]),
-        y: types.number('y' in input.value ? input.value.y : input.value[1]),
-      })
-    }
-    if (input instanceof Vec3Field) {
-      return types.compound({
-        x: types.number('x' in input.value ? input.value.x : input.value[0]),
-        y: types.number('y' in input.value ? input.value.y : input.value[1]),
-        z: types.number('z' in input.value ? input.value.z : input.value[2]),
-      })
-    }
-    if (input instanceof Point2DField) {
-      return types.compound({
-        lng: types.number('lng' in input.value ? input.value.lng : input.value[0]),
-        lat: types.number('lat' in input.value ? input.value.lat : input.value[1]),
-      })
-    }
-    if (input instanceof Point3DField) {
-      return types.compound({
-        lng: types.number('lng' in input.value ? input.value.lng : input.value[0]),
-        lat: types.number('lat' in input.value ? input.value.lat : input.value[1]),
-        alt: types.number('alt' in input.value ? input.value.alt : input.value[2]),
-      })
-    }
-  } catch (e) {
-    // When thrown, theatre will create a Sheet Object for this field, and this should subsequently be addressed.
-    const link = input.subscriptions.keys().next().value
-    console.error(`Caught TheatreJS prop error (${link})`, e)
-  }
-}
-function fieldsToTheatreProps(
-  propConfig: Record<string, types.PropTypeConfig>,
-  inputs: Record<string, Field<IField>>,
-  fields: Field<IField>[]
-) {
-  const theatreFields = Object.entries(inputs)
-    .map(([k, f]) => (f instanceof ListField ? [k, f.field] : [k, f]))
-    .filter(
-      ([_, f]) =>
-        // Accessor functions should not be passed to Theatre
-        typeof f.value !== 'function'
-    )
-    .filter(
-      ([_, f]) =>
-        f instanceof NumberField ||
-        f instanceof ColorField ||
-        f instanceof DateField ||
-        f instanceof BooleanField ||
-        f instanceof StringField ||
-        f instanceof StringLiteralField ||
-        f instanceof CompoundPropsField ||
-        f instanceof Vec2Field ||
-        f instanceof Vec3Field ||
-        f instanceof Point2DField ||
-        f instanceof Point3DField
-    )
-
-  for (const [key, field] of theatreFields) {
-    const theatreProp = fieldToTheatreProp(field, fields)
-    if (theatreProp) {
-      propConfig[key] = theatreProp
-      fields.push([key, field])
-    }
-  }
-  return propConfig
-}
 
 function useLocked(op: Operator<IOperator>) {
   const [locked, setLocked] = useState(op.locked.value)
@@ -479,6 +363,8 @@ function OutputHandle({ id, field }: { id: string; field: Field<IField> }) {
     }
   }, [])
 
+  const { type } = field.constructor as typeof Field
+
   return (
     <div style={{ position: 'relative', flex: 1, pointerEvents: 'auto' }}>
       <Handle
@@ -499,7 +385,7 @@ function OutputHandle({ id, field }: { id: string; field: Field<IField> }) {
               top: `${previewPosition.y}px`,
             }}
           >
-            <HandlePreviewContent data={previewData} name={id} type={field.constructor.type} />
+            <HandlePreviewContent data={previewData} name={id} type={type} />
           </div>,
           document.body
         )}
@@ -512,103 +398,11 @@ function NodeComponent({
   type,
   selected,
 }: ReactFlowNodeProps<NodeDataJSON<Operator<IOperator>>> & { type: OpType }) {
-  const op = useOp(id)
-
-  const sheet = useContext(SheetContext) as ISheet
-  const sheetObjects = useSlice(state => state.sheetObjects)
-
+  const op = getOp(id as string)
+  if (!op) {
+    throw new Error(`Operator with id ${id} not found`)
+  }
   const locked = useLocked(op)
-
-  useEffect(() => {
-    const untapFns = [] as (() => void)[]
-    const fields = [] as [string, Field<IField>][]
-    const propConfig = fieldsToTheatreProps({}, op.inputs, fields)
-
-    if (!Object.keys(propConfig).length) return
-
-    const basename = getBaseName(id)
-    const obj = sheet.object(basename, propConfig)
-    sheetObjects.set(id, obj)
-
-    for (const [_key, input] of fields) {
-      const pathToProps = input.pathToProps.slice(2) // Skip the object id and par/out keys
-      let updating = false
-      let pointer = obj.props
-      for (const p of pathToProps) {
-        pointer = pointer[p]
-      }
-      const unsub = input.subscribe(value_ => {
-        if (op.locked.value) return
-        // Note: Transactions can only run after the theatre project is "ready"
-        if (updating) return
-        updating = true
-
-        try {
-          // Try to detect an infinite loop for setting values to Theatre
-          const value = input instanceof ColorField ? colorToTheatreColor(value_) : value_
-
-          // TODO: This has a bug with StringLiterals where the value is not updated, but removing
-          // the value check causes another bug.
-
-          // Prevent infinite loop
-          if (input instanceof CompoundPropsField) {
-            updating = false
-            return
-          }
-
-          // Read the current value BEFORE entering the transaction
-          // Cannot use val() inside a transaction as it reads from a cold prism
-          const currentValue = val(pointer)
-
-          if (currentValue !== value) {
-            studio.transaction(({ set }) => {
-              set(pointer, value)
-            })
-          }
-        } catch (e) {
-          console.warn(e)
-          debugger
-        }
-        updating = false
-      })
-      untapFns.push(unsub.unsubscribe.bind(unsub))
-
-      // Parse Theatre values to Op input field types
-      const untapFn = onChange(pointer, value_ => {
-        if (op.locked.value) return
-        try {
-          if (updating) return
-          updating = true
-
-          const value =
-            input instanceof ColorField
-              ? rgbaToHex(value_)
-              : input instanceof DateField
-                ? Temporal.Instant.fromEpochMilliseconds(value_ as unknown as number)
-                    .toZonedDateTimeISO('UTC')
-                    .toPlainDateTime()
-                : value_
-
-          if (input.value !== value && value !== undefined) {
-            input.setValue(value)
-          }
-        } catch (_e) {
-          debugger
-        }
-        updating = false
-      })
-      untapFns.push(untapFn)
-    }
-
-    return () => {
-      for (const untapFn of untapFns) {
-        untapFn()
-      }
-      sheet?.detachObject(basename)
-      sheetObjects.delete(id)
-    }
-  }, [sheet, op.locked.value, id, op.inputs, sheetObjects])
-
   const executionState = useExecutionState(op)
 
   return (
@@ -676,8 +470,7 @@ const ExecutionIndicator = ({ status, error, executionTime }: ExecutionState) =>
   }
 }
 
-const headerHeight = 49
-function NodeHeader({ id, type, op }: { id: string; type: OpType; op: OperatorInstance }) {
+function NodeHeader({ id, type, op }: { id: string; type: OpType; op: Operator<IOperator> }) {
   const [locked, setLocked] = useState(op.locked.value)
   const executionState = useExecutionState(op)
 
@@ -698,7 +491,7 @@ function NodeHeader({ id, type, op }: { id: string; type: OpType; op: OperatorIn
     (newBaseName: string): boolean => {
       if (!newBaseName.trim()) return false
       const newQualifiedId = generateQualifiedPath(newBaseName.trim(), op.containerId)
-      return newQualifiedId !== id && opMap.has(newQualifiedId)
+      return newQualifiedId !== id && hasOp(newQualifiedId)
     },
     [id, op.containerId]
   )
@@ -735,12 +528,12 @@ function NodeHeader({ id, type, op }: { id: string; type: OpType; op: OperatorIn
       const isContainer = type === 'ContainerOp'
 
       // Update the operator itself
-      opMap.set(newQualifiedId, op)
+      setOp(newQualifiedId, op)
       op.id = newQualifiedId
 
       // If this is a container, update all children nodes and their operators
       if (isContainer) {
-        const childOps = Array.from(opMap.values()).filter(childOp =>
+        const childOps = getAllOps().filter((childOp: Operator<IOperator>) =>
           childOp.id.startsWith(`${id}/`)
         )
 
@@ -748,17 +541,17 @@ function NodeHeader({ id, type, op }: { id: string; type: OpType; op: OperatorIn
           const oldChildId = childOp.id
           // Replace only the exact container path at the start
           const newChildId = newQualifiedId + oldChildId.slice(id.length)
-          opMap.set(newChildId, childOp)
+          setOp(newChildId, childOp)
           childOp.id = newChildId
           // TODO: this is a hack. We should hook into some sort of "after update" event
-          queueMicrotask(() => opMap.delete(oldChildId))
+          queueMicrotask(() => deleteOp(oldChildId))
         }
       }
 
       // Give React time to update the component tree before deleting the old id
       // TODO: this is a hack. We should hook into some sort of "after update" event
       queueMicrotask(() => {
-        opMap.delete(id)
+        deleteOp(id)
       })
 
       // Update React Flow nodes and edges
@@ -896,10 +689,12 @@ function NodeHeader({ id, type, op }: { id: string; type: OpType; op: OperatorIn
     URL.revokeObjectURL(url)
   }, [op, baseName])
 
+  const { displayName } = op.constructor as typeof Operator
+
   return (
     <div className={cx(s.header, headerClass(type))}>
-      <div className={s.headerTitle} title={`${id} (${op.constructor.displayName})`}>
-        {editableId} ({op.constructor.displayName})
+      <div className={s.headerTitle} title={`${id} (${displayName})`}>
+        {editableId} ({displayName})
       </div>
       <ExecutionIndicator {...executionState} />
       <div className={s.headerActions}>
@@ -932,7 +727,10 @@ function GeocoderOpComponent({
   id,
   type,
 }: ReactFlowNodeProps<NodeDataJSON<GeocoderOp>> & { type: 'GeocoderOp' }) {
-  const op = useOp(id)
+  const op = getOp(id as string)
+  if (!op) {
+    throw new Error(`Operator with id ${id} not found`)
+  }
 
   const containerRef = useRef<HTMLDivElement>(null)
   const geocoderRef = useRef<MapboxGeocoder>()
@@ -1013,7 +811,10 @@ function MouseOpComponent({
   id,
   type,
 }: ReactFlowNodeProps<NodeDataJSON<MouseOp>> & { type: 'MouseOp' }) {
-  const op = useOp(id)
+  const op = getOp(id as string)
+  if (!op) {
+    throw new Error(`Operator with id ${id} not found`)
+  }
 
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
 
@@ -1060,7 +861,10 @@ function TableEditorOpComponent({
   type,
   selected,
 }: ReactFlowNodeProps<NodeDataJSON<TableEditorOp>> & { type: 'TableEditorOp' }) {
-  const op = useOp(id)
+  const op = getOp(id as string)
+  if (!op) {
+    throw new Error(`Operator with id ${id} not found`)
+  }
 
   const [dataArray, setDataArray] = useState(op.inputs.data.value as unknown[])
   useEffect(() => {
@@ -1194,9 +998,10 @@ const viewerFormatter = (value: unknown) => {
     return { lifecycle, count, isLoaded, props: { ...props } }
   }
   if (value instanceof Operator) {
+    const { displayName } = value.constructor as typeof Operator
     return {
       id: value.id,
-      type: value.constructor.displayName,
+      type: displayName,
       inputs: Object.fromEntries(
         Object.entries(value.inputs).map(([key, field]) => [key, viewerFormatter(field.value)])
       ),
@@ -1235,7 +1040,10 @@ function ViewerOpComponent({
   type,
   selected,
 }: ReactFlowNodeProps<NodeDataJSON<ViewerOp>> & { type: 'ViewerOp' }) {
-  const op = useOp(id)
+  const op = getOp(id as string)
+  if (!op) {
+    throw new Error(`Operator with id ${id} not found`)
+  }
 
   // TODO: use react-flow helpers
   const [viewerData, setViewerData] = useState(viewerFormatter(op.inputs.data.value))
@@ -1320,11 +1128,18 @@ function ContainerOpComponent({
   type,
   selected,
 }: ReactFlowNodeProps<NodeDataJSON<ContainerOp>>) {
-  const op = useOp(id)
+  const op = getOp(id as string)
+  if (!op) {
+    throw new Error(`Operator with id ${id} not found`)
+  }
 
-  const { setCurrentContainerId } = useSlice(state => state.nesting)
-  const nodes = useNodes()
-  const children = nodes.filter(node => getParentPath(node.id) === id)
+  const setCurrentContainerId = useNestingStore(state => state.setCurrentContainerId)
+  const reactFlow = useReactFlow()
+
+  // Subscribe to operator store to get reactive children count
+  const childrenCount = useOperatorStore(state => {
+    return Array.from(state.operators.keys()).filter(opId => getParentPath(opId) === id).length
+  })
 
   const locked = useLocked(op)
 
@@ -1333,7 +1148,11 @@ function ContainerOpComponent({
     <div
       role="tree"
       onDoubleClick={() => {
+        // Clear selection when changing levels
+        reactFlow.setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
         setCurrentContainerId(op.id)
+        analytics.track('container_navigated', { method: 'double_click', direction: 'into' })
+        reactFlow.fitView({ duration: 0 })
       }}
     >
       <NodeHeader id={id} type={type} op={op} />
@@ -1348,7 +1167,7 @@ function ContainerOpComponent({
             handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
           />
         ))}
-        <div>Children: {children.length}</div>
+        <div>Children: {childrenCount}</div>
         {/* Children nodes are rendered by React Flow normally */}
         <div className={s.outputHandleContainer}>
           {Object.entries(op.outputs).map(([key, field]) => (
@@ -1364,7 +1183,10 @@ function TimeOpComponent({
   id,
   type,
 }: ReactFlowNodeProps<NodeDataJSON<TimeOp>> & { type: 'TimeOp' }) {
-  const op = useOp(id)
+  const op = getOp(id as string)
+  if (!op) {
+    throw new Error(`Operator with id ${id} not found`)
+  }
   const sheet = useContext(SheetContext) as ISheet
 
   const [now, setNow] = useState(0)

@@ -26,13 +26,14 @@
     "@theatre/core": "0.7.2",
     "@theatre/react": "0.7.2",
     "@theatre/studio": "0.7.2",
+    "@tmcw/togeojson": "^7.1.2",
     "@turf/turf": "^7.2.0",
     "@types/suncalc": "^1.9.2",
     "@vitejs/plugin-react": "^5.1.0",
     "@xyflow/react": "^12.9.0",
     "classnames": "^2.5.1",
     "d3": "^7.9.0",
-    "deck.gl": "^9.2.2",
+    "deck.gl": "^9.2.5",
     "flexsearch": "^0.7.43",
     "geojson2h3": "^1.2.0",
     "gl-matrix": "^3.4.4",
@@ -40,10 +41,11 @@
     "haversine-distance": "^1.2.4",
     "jszip": "^3.10.1",
     "lodash": "^4.17.21",
-    "maplibre-gl": "^5.9.0",
+    "maplibre-gl": "^5.15.0",
     "mediabunny": "^1.24.2",
     "memoize-one": "^6.0.0",
     "nanoid": "^5.1.6",
+    "posthog-js": "^1.290.0",
     "primeicons": "^7.0.0",
     "primereact": "^10.9.7",
     "react": "^19.2.0",
@@ -57,6 +59,7 @@
     "vega-embed": "^7.1.0",
     "vega-lite": "^6.4.1",
     "web-vitals": "^5.1.0",
+    "wouter": "^3.7.1",
     "zod": "^4.1.12"
   },
   "resolutions": {
@@ -64,6 +67,7 @@
   },
   "scripts": {
     "start": "vite",
+    "start:local": "vite --config vite.config.local.js",
     "build": "NODE_ENV=development vite build",
     "serve": "vite preview",
     "test": "vitest",
@@ -71,7 +75,8 @@
     "fix-lint": "biome check --write --unsafe ./src/**/*.{ts,tsx}",
     "build:migrate-script": "vite build --config vite.config.migrate.ts",
     "migrate-projects": "yarn build:migrate-script && node dist/migrate-project-files.js",
-    "generate:context": "tsx scripts/generate-context.ts"
+    "generate:context": "tsx scripts/generate-context.ts",
+    "generate:migration": "tsx scripts/generate-migration.ts"
   },
   "browserslist": {
     "production": [
@@ -114,9 +119,8 @@
     "vitest": "^4.0.3",
     "vitest-fetch-mock": "^0.4.5"
   },
-  "volta": {
-    "node": "24.11.0",
-    "yarn": "4.5.3"
+  "engines": {
+    "node": ">=24.11.0"
   },
-  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
+  "packageManager": "yarn@4.5.3"
 }

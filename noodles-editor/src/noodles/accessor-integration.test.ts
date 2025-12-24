@@ -30,7 +30,7 @@ describe('Accessor Integration Tests', () => {
       expect(typeof result.color).toBe('function')
 
       // Test the composed accessor
-      const colorFn = result.color as Function
+      const colorFn = result.color as (d: { value: number }) => string
       const color1 = colorFn({ value: 0.2 })
       const color2 = colorFn({ value: 0.8 })
 
@@ -46,7 +46,7 @@ describe('Accessor Integration Tests', () => {
 
       const result = op.execute(op.data)
 
-      const colorFn = result.color as Function
+      const colorFn = result.color as (d: { count: number }) => string
       expect(typeof colorFn).toBe('function')
 
       // Test with different data points
@@ -91,7 +91,7 @@ describe('Accessor Integration Tests', () => {
 
       expect(typeof result.scaled).toBe('function')
 
-      const scaledFn = result.scaled as Function
+      const scaledFn = result.scaled as (d: { value: number }) => number
       expect(scaledFn({ value: 0 })).toBe(0)
       expect(scaledFn({ value: 50 })).toBe(5)
       expect(scaledFn({ value: 100 })).toBe(10)
@@ -107,7 +107,7 @@ describe('Accessor Integration Tests', () => {
 
       const result = op.execute(op.data)
 
-      const scaledFn = result.scaled as Function
+      const scaledFn = result.scaled as (d: { temperature: number }) => number
       expect(scaledFn({ temperature: -20 })).toBeCloseTo(0)
       expect(scaledFn({ temperature: 10 })).toBeCloseTo(0.5)
       expect(scaledFn({ temperature: 40 })).toBeCloseTo(1)
@@ -147,7 +147,7 @@ describe('Accessor Integration Tests', () => {
       expect(typeof colorRampResult.color).toBe('function')
 
       // Step 3: Test the composed chain
-      const colorFn = colorRampResult.color as Function
+      const colorFn = colorRampResult.color as (d: { count: number }) => string
       const color1 = colorFn({ count: 20 }) // 0.2 normalized
       const color2 = colorFn({ count: 80 }) // 0.8 normalized
 
@@ -171,7 +171,7 @@ describe('Accessor Integration Tests', () => {
 
       const colorRampResult = colorRampOp.execute(colorRampOp.data)
 
-      const colorFn = colorRampResult.color as Function
+      const colorFn = colorRampResult.color as (d: { value: number }) => string
 
       // Process multiple data points
       const dataPoints = [{ value: 0 }, { value: 2.5 }, { value: 5 }, { value: 7.5 }, { value: 10 }]
@@ -255,8 +255,14 @@ describe('Accessor Integration Tests', () => {
       expect(typeof layerConfig.layer.getRadius).toBe('function')
 
       // Test composed accessors work correctly
-      const fillColorFn = layerConfig.layer.getFillColor as Function
-      const getRadiusFn = layerConfig.layer.getRadius as Function
+      const fillColorFn = layerConfig.layer.getFillColor as (d: {
+        category: number
+        size: number
+      }) => string
+      const getRadiusFn = layerConfig.layer.getRadius as (d: {
+        category: number
+        size: number
+      }) => number
 
       const dataPoint1 = { category: 0.2, size: 50 }
       const dataPoint2 = { category: 0.8, size: 100 }
@@ -312,8 +318,8 @@ describe('Accessor Integration Tests', () => {
       expect(typeof layer.getFillColor).toBe('function')
       expect(typeof layer.getPosition).toBe('function')
 
-      const fillColorFn = layer.getFillColor as Function
-      const positionFn = layer.getPosition as Function
+      const fillColorFn = layer.getFillColor as (d: { count: number; id: number }) => string
+      const positionFn = layer.getPosition as (d: { count: number; id: number }) => [number, number]
 
       // Test with actual data points
       const low = { count: 50, id: 1 }

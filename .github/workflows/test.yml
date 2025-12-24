@@ -16,7 +16,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: volta-cli/action@5c175f92dea6f48441c436471e6479dbc192e194 # v4.2.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Enable Corepack
+        run: corepack enable yarn
 
       - name: Cache yarn dependencies
         uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
@@ -25,9 +32,9 @@ jobs:
             noodles-editor/.yarn/cache
             noodles-editor/.yarn/unplugged
             noodles-editor/.yarn/install-state.gz
-          key: ${{ runner.os }}-yarn-${{ hashFiles('noodles-editor/yarn.lock') }}
+          key: ${{ runner.os }}-yarn-app-${{ hashFiles('noodles-editor/yarn.lock') }}
           restore-keys: |
-            ${{ runner.os }}-yarn-
+            ${{ runner.os }}-yarn-app-
 
       - name: Install dependencies
         run: |
@@ -85,7 +92,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: volta-cli/action@5c175f92dea6f48441c436471e6479dbc192e194 # v4.2.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Enable Corepack
+        run: corepack enable yarn
 
       - name: Cache yarn dependencies
         uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
@@ -94,9 +108,9 @@ jobs:
             website/.yarn/cache
             website/.yarn/unplugged
             website/.yarn/install-state.gz
-          key: ${{ runner.os }}-yarn-${{ hashFiles('website/yarn.lock') }}
+          key: ${{ runner.os }}-yarn-website-${{ hashFiles('website/yarn.lock') }}
           restore-keys: |
-            ${{ runner.os }}-yarn-
+            ${{ runner.os }}-yarn-website-
 
       - name: Install dependencies
         run: |

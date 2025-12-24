@@ -94,6 +94,7 @@ return distances
 - `turf` - Turf.js geospatial functions
 - `deck` - Deck.gl utilities
 - `Plot` - Observable Plot
+- `utils` - Utility functions (color conversion, geospatial helpers, KML conversion, etc.)
 - All Operator classes for instantiation
 
 ### AccessorOp

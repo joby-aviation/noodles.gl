@@ -1,4 +1,5 @@
 #!/usr/bin/env tsx
+
 // Generate context bundles for Claude AI integration
 //
 // This script generates:
@@ -8,10 +9,10 @@
 // - code-index.json: Simplified source code index
 // - manifest.json: Bundle metadata
 
-import * as fs from 'fs'
-import * as path from 'path'
-import { createHash } from 'crypto'
-import { execSync } from 'child_process'
+import { execSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
+import * as fs from 'node:fs'
+import * as path from 'node:path'
 
 // Import categories directly from source
 import { categories as baseCategories } from '../src/noodles/components/categories.ts'
@@ -22,8 +23,8 @@ const ROOT_DIR = path.join(process.cwd(), '..')
 const SRC_DIR = path.join(process.cwd(), 'src')
 const DOCS_DIR = path.join(ROOT_DIR, 'docs')
 const AI_CHAT_DIR = path.join(SRC_DIR, 'ai-chat')
-const EXAMPLES_DIR = path.join(process.cwd(), 'public', 'noodles')
-const OUTPUT_DIR = path.join(process.cwd(), 'public', 'app', 'context')
+const EXAMPLES_DIR = path.join(SRC_DIR, 'examples')
+const OUTPUT_DIR = path.join(process.cwd(), 'public', 'context')
 
 const packageJson = JSON.parse(
   fs.readFileSync(path.join(ROOT_DIR, 'package.json'), 'utf-8')
@@ -68,7 +69,7 @@ function ensureDir(dir: string) {
   }
 }
 
-function readFilesSafe(dir: string, extension: string, required: boolean = false): string[] {
+function readFilesSafe(dir: string, extension: string, required = false): string[] {
   if (!fs.existsSync(dir)) {
     if (required) {
       throw new Error(`Required directory not found: ${dir}`)
@@ -223,7 +224,7 @@ function generateDocsIndex(): DocsIndex {
     }
   }
 
-  // 3. Load example READMEs from public/noodles/*/README.md
+  // 3. Load example READMEs from public/examples/*/README.md
   if (fs.existsSync(EXAMPLES_DIR)) {
     const exampleDirs = fs.readdirSync(EXAMPLES_DIR, { withFileTypes: true })
       .filter(entry => entry.isDirectory())
@@ -498,7 +499,7 @@ async function main() {
 
   const manifestPath = path.join(OUTPUT_DIR, 'manifest.json')
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8')
-  console.log(`\nWrote manifest.json`)
+  console.log('\nWrote manifest.json')
 
   console.log('\n✅ Context generation complete!')
   console.log(`Output directory: ${OUTPUT_DIR}`)

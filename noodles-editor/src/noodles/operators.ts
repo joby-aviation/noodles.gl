@@ -14,6 +14,7 @@ import {
   type LayerProps,
   MapView,
   OrbitView,
+  OrthographicView,
   WebMercatorViewport,
 } from '@deck.gl/core'
 import {
@@ -65,7 +66,6 @@ import { fitBounds } from '@math.gl/web-mercator'
 import * as Plot from '@observablehq/plot'
 import { onChange } from '@theatre/core'
 import * as turf from '@turf/turf'
-import type { Feature, FeatureCollection, Geometry } from 'geojson'
 import * as d3 from 'd3'
 import {
   csv,
@@ -154,13 +154,11 @@ import {
   EffectField,
   ExpressionField,
   ExtensionField,
-  FeatureCollectionField,
-  FeatureField,
   type Field,
   type FieldReference,
   FileField,
   FunctionField,
-  GeometryField,
+  GeoJsonField,
   IN_NS,
   type InOut,
   JSONUrlField,
@@ -171,7 +169,6 @@ import {
   OUT_NS,
   Point2DField,
   Point3DField,
-  pointsToFeatureCollection,
   StringField,
   StringLiteralField,
   UnknownField,
@@ -182,7 +179,7 @@ import {
   WidgetField,
 } from './fields'
 import { DEFAULT_LATITUDE, DEFAULT_LONGITUDE, safeMode } from './globals'
-import { getOp, opMap } from './store'
+import { getAllOps, getOp, hasOp } from './store'
 import { composeAccessor, isAccessor } from './utils/accessor-helpers'
 import type { ExtractProps } from './utils/extract-props'
 import { projectScheme } from './utils/filesystem'
@@ -190,12 +187,6 @@ import type { OpId } from './utils/id-utils'
 import { isDirectChild } from './utils/path-utils'
 import { pick } from './utils/pick'
 import { validateViewState } from './utils/viewstate-helpers'
-
-// Conversion factors for area units
-// 1 square meter = 1 / 1,000,000 square kilometers
-const SQ_METERS_TO_SQ_KM = 1_000_000
-// 1 square meter = 1 / 2,589,988.110336 square miles (exact conversion: 1 mi² = 2,589,988.110336 m²)
-const SQ_METERS_TO_SQ_MILES = 2_589_988.110336
 
 // https://stackoverflow.com/questions/66044717/typescript-infer-type-of-abstract-methods-implementation
 export interface IOperator {
@@ -208,6 +199,7 @@ export interface IOperator {
 export abstract class Operator<OP extends IOperator> {
   static displayName = 'Operator'
   static description = ''
+
   inputs: ReturnType<OP['createInputs']>
   outputs: ReturnType<OP['createOutputs']>
 
@@ -300,7 +292,7 @@ export abstract class Operator<OP extends IOperator> {
   }
 
   // Left open for sub-classes to override
-  onError(_err: unknown) { }
+  onError(_err: unknown) {}
 
   // Needs to be called after sub-classes have created their inputs and outputs
   createListeners() {
@@ -394,7 +386,8 @@ export class NumberOp extends Operator<NumberOp> {
 
 export class MapRangeOp extends Operator<MapRangeOp> {
   static displayName = 'MapRange'
-  static description = 'Remap a number from one range to another (e.g., map 0-100 to 0-1, or temperature to color intensity)'
+  static description =
+    'Remap a number from one range to another (e.g., map 0-100 to 0-1, or temperature to color intensity)'
   public createInputs() {
     return {
       val: new NumberField(0, { step: 0.01, accessor: true }),
@@ -458,7 +451,8 @@ export class ExtentOp extends Operator<ExtentOp> {
 
 export class SelectOp extends Operator<SelectOp> {
   static displayName = 'Select'
-  static description = 'Select an element from an array using an index (clamped to array bounds by default, or wrapped around array bounds)'
+  static description =
+    'Select an element from an array using an index (clamped to array bounds by default, or wrapped around array bounds)'
   createInputs() {
     return {
       data: new DataField(),
@@ -471,7 +465,11 @@ export class SelectOp extends Operator<SelectOp> {
       value: new UnknownField(undefined),
     }
   }
-  execute({ data, index, wrap }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  execute({
+    data,
+    index,
+    wrap,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!Array.isArray(data) || data.length === 0) {
       return { value: undefined }
     }
@@ -698,9 +696,9 @@ export class BooleanOp extends Operator<BooleanOp> {
   }
 }
 
-export class DateOp extends Operator<DateOp> {
-  static displayName = 'Date'
-  static description = 'A date'
+export class DateTimeOp extends Operator<DateTimeOp> {
+  static displayName = 'DateTime'
+  static description = 'A date and time'
   createInputs() {
     return {
       date: new DateField(),
@@ -1319,14 +1317,24 @@ const duckDbInstance = (async () => {
   } else {
     // Dynamically import the WASM files only when not using CDN
     // Vite will tree-shake this entire branch when VITE_USE_CDN_DUCKDB is 'true'
-    const [duckdb_wasm, mvp_worker, duckdb_wasm_eh, eh_worker, duckdb_wasm_coi, coi_worker, duckdb_pthread_worker] = await Promise.all([
+    const [
+      duckdb_wasm,
+      mvp_worker,
+      duckdb_wasm_eh,
+      eh_worker,
+      duckdb_wasm_coi,
+      coi_worker,
+      duckdb_pthread_worker,
+    ] = await Promise.all([
       import('@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm?url').then(m => m.default),
       import('@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js?url').then(m => m.default),
       import('@duckdb/duckdb-wasm/dist/duckdb-eh.wasm?url').then(m => m.default),
       import('@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js?url').then(m => m.default),
       import('@duckdb/duckdb-wasm/dist/duckdb-coi.wasm?url').then(m => m.default),
       import('@duckdb/duckdb-wasm/dist/duckdb-browser-coi.worker.js?url').then(m => m.default),
-      import('@duckdb/duckdb-wasm/dist/duckdb-browser-coi.pthread.worker.js?url').then(m => m.default),
+      import('@duckdb/duckdb-wasm/dist/duckdb-browser-coi.pthread.worker.js?url').then(
+        m => m.default
+      ),
     ])
 
     // Bundle the WASM files locally for environments that support it
@@ -1386,7 +1394,11 @@ export class DuckDbOp extends Operator<DuckDbOp> {
   async execute({
     query: queryString = '',
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> | null {
-    const queries = queryString.split(';').map(s => s.trim()).filter(Boolean).map(s => `${s};`)
+    const queries = queryString
+      .split(';')
+      .map(s => s.trim())
+      .filter(Boolean)
+      .map(s => `${s};`)
     if (!queries?.length) {
       return { data: [] }
     }
@@ -1596,11 +1608,11 @@ export class BoundsOp extends Operator<BoundsOp> {
 export class BoundingBoxOp extends Operator<BoundingBoxOp> {
   static displayName = 'BoundingBox'
   static description =
-    'Calculate the bounding box of a GeoJSON feature or collection. Returns bounds, center point, zoom level, and individual coordinate values.'
+    'Calculate the geographic bounds of your points (with lat/lng keys) and get a camera position (center, zoom) that fits them all in view.'
   asDownload = () => this.outputData
   createInputs() {
     return {
-      data: new FeatureCollectionField(),
+      data: new ArrayField(new Point2DField()),
       // TODO: could be a union, either a number or object with top, right, bottom, left
       padding: new NumberField(0, { min: -1_000, max: 1_000 }),
     }
@@ -1619,13 +1631,29 @@ export class BoundingBoxOp extends Operator<BoundingBoxOp> {
     }
   }
   execute({ data, padding }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // Use turf.bbox to calculate bounding box from GeoJSON or point data
-    const bbox = turf.bbox(data)
-    const [minLng, minLat, maxLng, maxLat] = bbox
-
+    let east = -180
+    let west = 180
+    let north = -90
+    let south = 90
+    // Should this be a turf function? Do we need to cast data to GeoJSON first?
+    // Or allow the lat / lng keys to be configurable?
+    for (const d of data) {
+      if (d.lng < west) {
+        west = d.lng
+      }
+      if (d.lng > east) {
+        east = d.lng
+      }
+      if (d.lat < south) {
+        south = d.lat
+      }
+      if (d.lat > north) {
+        north = d.lat
+      }
+    }
     const bounds = [
-      [minLng, minLat],
-      [maxLng, maxLat],
+      [west, south],
+      [east, north],
     ] as [[number, number], [number, number]]
 
     // const { resolution: { width, height } } = useSlice(store => store.renderer)
@@ -1838,6 +1866,77 @@ export class NetworkOp extends Operator<NetworkOp> {
   }
 }
 
+// Helper function to detect Temporal objects
+function isTemporal(
+  value: unknown
+): value is
+  | Temporal.PlainDate
+  | Temporal.PlainDateTime
+  | Temporal.Instant
+  | Temporal.ZonedDateTime {
+  return (
+    value instanceof Temporal.PlainDate ||
+    value instanceof Temporal.PlainDateTime ||
+    value instanceof Temporal.Instant ||
+    value instanceof Temporal.ZonedDateTime
+  )
+}
+
+// Helper function to interpolate between two Temporal objects
+function interpolateTemporal(a: any, b: any, t: number): any {
+  // Convert both to epoch milliseconds for interpolation
+  let aMs: number
+  let bMs: number
+  let type: 'Instant' | 'ZonedDateTime' | 'PlainDateTime' | 'PlainDate'
+
+  if (a instanceof Temporal.Instant) {
+    aMs = a.epochMilliseconds
+    bMs = b.epochMilliseconds
+    type = 'Instant'
+  } else if (a instanceof Temporal.ZonedDateTime) {
+    aMs = a.epochMilliseconds
+    bMs = b.epochMilliseconds
+    type = 'ZonedDateTime'
+  } else if (a instanceof Temporal.PlainDateTime) {
+    // Convert to a reference Instant (using UTC as reference)
+    aMs = a.toZonedDateTime('UTC').epochMilliseconds
+    bMs = b.toZonedDateTime('UTC').epochMilliseconds
+    type = 'PlainDateTime'
+  } else if (a instanceof Temporal.PlainDate) {
+    // Convert to a reference Instant (start of day in UTC)
+    aMs = a.toZonedDateTime({
+      timeZone: 'UTC',
+      plainTime: Temporal.PlainTime.from('00:00'),
+    }).epochMilliseconds
+    bMs = b.toZonedDateTime({
+      timeZone: 'UTC',
+      plainTime: Temporal.PlainTime.from('00:00'),
+    }).epochMilliseconds
+    type = 'PlainDate'
+  } else {
+    throw new Error('Unsupported Temporal type for interpolation')
+  }
+
+  // Interpolate the milliseconds
+  const interpolatedMs = Math.round(aMs + (bMs - aMs) * t)
+
+  // Convert back to the appropriate Temporal type
+  if (type === 'Instant') {
+    return Temporal.Instant.fromEpochMilliseconds(interpolatedMs)
+  }
+  if (type === 'ZonedDateTime') {
+    const instant = Temporal.Instant.fromEpochMilliseconds(interpolatedMs)
+    return instant.toZonedDateTimeISO((a as Temporal.ZonedDateTime).timeZoneId)
+  }
+  if (type === 'PlainDateTime') {
+    const instant = Temporal.Instant.fromEpochMilliseconds(interpolatedMs)
+    return instant.toZonedDateTimeISO('UTC').toPlainDateTime()
+  }
+  // PlainDate
+  const instant = Temporal.Instant.fromEpochMilliseconds(interpolatedMs)
+  return instant.toZonedDateTimeISO('UTC').toPlainDate()
+}
+
 export class SwitchOp extends Operator<SwitchOp> {
   static displayName = 'Switch'
   static description =
@@ -1861,7 +1960,7 @@ export class SwitchOp extends Operator<SwitchOp> {
     blend,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!blend) {
-      const value = values[Math.min(index, values.length - 1)]
+      const value = values[Math.floor(Math.min(index, values.length - 1))]
       return { value }
     }
 
@@ -1886,7 +1985,18 @@ export class SwitchOp extends Operator<SwitchOp> {
 
     // Calculate the interpolation factor between the two values
     const t = clampedIndex - lowerIndex
-    const value = interpolate(values[lowerIndex], values[upperIndex])(t)
+
+    // Check if we're dealing with Temporal objects
+    const lowerValue = values[lowerIndex]
+    const upperValue = values[upperIndex]
+
+    if (isTemporal(lowerValue) && isTemporal(upperValue)) {
+      const value = interpolateTemporal(lowerValue, upperValue, t)
+      return { value }
+    }
+
+    // Fall back to d3's interpolate for other types
+    const value = interpolate(lowerValue, upperValue)(t)
     return { value }
   }
 }
@@ -1995,7 +2105,7 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
         .pipe(debounceTime(200))
         .subscribe(() => {
           // Only run if the operator is still mounted
-          if (opMap.has(beginOp.id)) {
+          if (hasOp(beginOp.id)) {
             runForLoop()
           }
         })
@@ -2168,7 +2278,7 @@ export class RandomizeAttributeOp extends Operator<RandomizeAttributeOp> {
     min,
     max,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const randomized = data.map((item) => ({
+    const randomized = data.map(item => ({
       ...item,
       [key]: Math.random() * (max - min) + min,
     }))
@@ -2465,9 +2575,7 @@ export class SplitMapViewStateOp extends Operator<SplitMapViewStateOp> {
       bearing: new NumberField(),
     }
   }
-  execute({
-    viewState,
-  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  execute({ viewState }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     validateViewState(viewState)
     return { ...viewState }
   }
@@ -2480,6 +2588,7 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
   createInputs() {
     return {
       mapStyle: new JSONUrlField(CARTO_DARK),
+      projection: new StringLiteralField('mercator', ['mercator', 'globe']),
       viewState: new CompoundPropsField({
         latitude: new NumberField(DEFAULT_LATITUDE, { min: -90, max: 90, step: 0.001 }),
         longitude: new NumberField(DEFAULT_LONGITUDE, { min: -180, max: 180, step: 0.001 }),
@@ -2494,6 +2603,7 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
     return {
       maplibre: new CompoundPropsField({
         mapStyle: new JSONUrlField(),
+        projection: new StringField(),
         longitude: new NumberField(),
         latitude: new NumberField(),
         zoom: new NumberField(),
@@ -2504,10 +2614,18 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
   }
   execute({
     mapStyle,
+    projection,
     viewState,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     validateViewState(viewState)
-    return { maplibre: { mapStyle, ...viewState } }
+
+    return {
+      maplibre: {
+        mapStyle,
+        projection,
+        ...viewState
+      }
+    }
   }
 }
 
@@ -2576,9 +2694,9 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
     const mapProps =
       basemap !== null
         ? {
-          ...basemap,
-          ...pick(viewState, ['longitude', 'latitude', 'zoom', 'pitch', 'bearing']),
-        }
+            ...basemap,
+            ...pick(viewState, ['longitude', 'latitude', 'zoom', 'pitch', 'bearing']),
+          }
         : undefined
 
     return {
@@ -2595,13 +2713,13 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
 // - unique view props ordered by most to least often used.
 // - viewState props ordered by most to least often used.
 // - override props go last (e.g. projectionMatrix)
+// Base view fields that apply to all view types
 function createBaseViewFields() {
   return {
     x: new NumberField(0),
     y: new NumberField(0),
     width: new StringField('100%'),
     height: new StringField('100%'),
-    orthographic: new BooleanField(false),
     padding: new CompoundPropsField({
       top: new NumberField(0, { min: 0 }),
       right: new NumberField(0, { min: 0 }),
@@ -2635,6 +2753,7 @@ export class MapViewOp extends Operator<MapViewOp> {
   createInputs() {
     return {
       ...createBaseViewFields(),
+      orthographic: new BooleanField(false),
       fovy: new NumberField(40, { min: 0.1, max: 179.9 }),
       repeat: new BooleanField(false),
       ...createGeoViewFields(),
@@ -2763,7 +2882,6 @@ function createFrustumViewFields() {
   return {
     near: new NumberField(0.1, { min: 0, max: 1_000_000, step: 0.1 }),
     far: new NumberField(100000, { min: 0, max: 1_000_000 }),
-    fovy: new NumberField(40, { min: 0.1, max: 179.9 }),
   }
 }
 
@@ -2774,7 +2892,9 @@ export class FirstPersonViewOp extends Operator<FirstPersonViewOp> {
   createInputs() {
     return {
       ...createBaseViewFields(),
+      orthographic: new BooleanField(false),
       ...createFrustumViewFields(),
+      fovy: new NumberField(40, { min: 0.1, max: 179.9 }),
       // focalDistance: new NumberField(1),
       viewState: new CompoundPropsField({
         ...createGeoViewStateFields(),
@@ -2804,10 +2924,12 @@ export class OrbitViewOp extends Operator<OrbitViewOp> {
   createInputs() {
     return {
       ...createBaseViewFields(),
+      orthographic: new BooleanField(false),
       orbitAxis: new StringLiteralField('Z', {
         values: ['X', 'Y', 'Z'],
       }),
       ...createFrustumViewFields(),
+      fovy: new NumberField(40, { min: 0.1, max: 179.9 }),
       viewState: new CompoundPropsField({
         target: new Vec3Field([0, 0, 0], { returnType: 'tuple', optional: true }),
         rotationOrbit: new NumberField(0, { optional: true }),
@@ -2826,6 +2948,34 @@ export class OrbitViewOp extends Operator<OrbitViewOp> {
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     validateViewState(props.viewState)
     return { view: new OrbitView({ id: this.id, ...props }) }
+  }
+}
+
+export class OrthographicViewOp extends Operator<OrthographicViewOp> {
+  static displayName = 'OrthographicView'
+  static description = 'A deck.gl orthographic view.'
+
+  createInputs() {
+    return {
+      ...createBaseViewFields(),
+      ...createFrustumViewFields(),
+      flipY: new BooleanField(false),
+      viewState: new CompoundPropsField({
+        target: new Vec3Field([0, 0, 0], { returnType: 'tuple', optional: true }),
+        zoom: new NumberField(0, { optional: true }),
+      }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      view: new ViewField(),
+    }
+  }
+
+  execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    validateViewState(props.viewState)
+    return { view: new OrthographicView({ id: this.id, ...props }) }
   }
 }
 
@@ -2917,8 +3067,8 @@ type LayerExtensionFieldReturnValue = null | {
 export const extensionMap: Record<
   string,
   | (new (
-    ...args: unknown[]
-  ) => LayerExtension)
+      ...args: unknown[]
+    ) => LayerExtension)
   | { ExtensionClass: new (...args: unknown[]) => LayerExtension; args: unknown }
 > = {
   BrushingExtension,
@@ -3339,7 +3489,8 @@ export class H3HexagonLayerOp extends Operator<H3HexagonLayerOp> {
 
 export class A5LayerOp extends Operator<A5LayerOp> {
   static displayName = 'A5Layer'
-  static description = 'Render filled and/or stroked polygons using the A5 geospatial indexing system'
+  static description =
+    'Render filled and/or stroked polygons using the A5 geospatial indexing system'
   static cacheable = false
   createInputs() {
     return {
@@ -3411,7 +3562,7 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
   static cacheable = false
   createInputs() {
     return {
-      data: new DataField(),
+      data: new GeoJsonField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
 
@@ -3700,11 +3851,11 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
         ? { fetch: { headers: { 'X-GOOG-API-KEY': GOOGLE_MAPS_API_KEY } } }
         : provider === 'Cesium'
           ? {
-            tileset: {
-              throttleRequests,
-            },
-            'cesium-ion': { accessToken: CESIUM_ACCESS_TOKEN },
-          }
+              tileset: {
+                throttleRequests,
+              },
+              'cesium-ion': { accessToken: CESIUM_ACCESS_TOKEN },
+            }
           : null
 
     const onTilesetLoad = (tileset3d: Tileset3D) => {
@@ -3967,7 +4118,7 @@ class VibranceExtensionOp extends Operator<VibranceExtensionOp> {
 // TODO: Do we want to include the args as a property as well? Source is currently just the function body
 type FunctionWithSource = ((...args: unknown[]) => unknown | Promise<unknown>) & { source: string }
 // biome-ignore lint/complexity/useArrowFunction: This is a function declaration
-const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor
+const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 
 // Create a function with a source property for debugging
 function fnWithSource(args: string[], body: string, id: string): FunctionWithSource {
@@ -3991,7 +4142,8 @@ function fnWithSource(args: string[], body: string, id: string): FunctionWithSou
 // An Accessor is an ExpressionOp that returns a function instead of executing it
 export class AccessorOp extends Operator<AccessorOp> {
   static displayName = 'Accessor'
-  static description = 'A function called for each row of your data and passed to Deck.gl layer properties. The current row is passed as the `d` variable (e.g., `d.population`, `d.properties.color`). Returns a value that controls visual properties like position, color, or size.'
+  static description =
+    'A function called for each row of your data and passed to Deck.gl layer properties. The current row is passed as the `d` variable (e.g., `d.population`, `d.properties.color`). Returns a value that controls visual properties like position, color, or size.'
   createInputs() {
     return {
       expression: new ExpressionField(),
@@ -4073,7 +4225,7 @@ export class ContainerOp extends Operator<ContainerOp> {
     let outputValue = null
     // The 'in' port of ContainerOp drives its execution.
     // The 'out' port should reflect the value from a GraphOutputOp inside it.
-    for (const op of opMap.values()) {
+    for (const op of getAllOps()) {
       if (op instanceof GraphOutputOp && isDirectChild(op.id, this.id)) {
         outputValue = op.outputs.propagatedValue.value
         break // Take the first one found
@@ -4144,7 +4296,7 @@ export class RectangleOp extends Operator<RectangleOp> {
   }
   createOutputs() {
     return {
-      feature: new FeatureField(),
+      feature: new GeoJsonField(),
     }
   }
   execute({
@@ -4203,7 +4355,7 @@ export class PointOp extends Operator<PointOp> {
   }
   createOutputs() {
     return {
-      feature: new FeatureField(),
+      feature: new GeoJsonField(),
     }
   }
   execute({
@@ -4222,28 +4374,44 @@ export class PointOp extends Operator<PointOp> {
 
 export class GeoJsonOp extends Operator<GeoJsonOp> {
   static displayName = 'GeoJson'
-  static description = 'Create a GeoJSON FeatureCollection from an array of features or objects'
+  static description = 'Create a GeoJSON FeatureCollection from a list of features'
   asDownload = () => this.outputData
   createInputs() {
     return {
-      features: new DataField(),
+      features: new ListField(new GeoJsonField()),
     }
   }
   createOutputs() {
     return {
-      featureCollection: new FeatureCollectionField(),
+      featureCollection: new GeoJsonField(),
     }
   }
   execute({ features }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // Use the existing helper function to convert various formats to FeatureCollection
-    const featureCollection = pointsToFeatureCollection(features)
-
-    if (featureCollection) {
-      return { featureCollection }
+    const featureCollection = {
+      type: 'FeatureCollection',
+      features,
     }
+    return { featureCollection }
+  }
+}
 
-    // Fallback: return empty FeatureCollection
-    return { featureCollection: turf.featureCollection([]) }
+export class KmlToGeoJsonOp extends Operator<KmlToGeoJsonOp> {
+  static displayName = 'KmlToGeoJson'
+  static description = 'Convert KML string to GeoJSON FeatureCollection'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      kml: new CodeField('', { language: 'xml' }),
+    }
+  }
+  createOutputs() {
+    return {
+      geojson: new DataField(),
+    }
+  }
+  execute({ kml }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const geojson = utils.kmlToGeoJson(kml)
+    return { geojson }
   }
 }
 
@@ -4253,7 +4421,7 @@ export class GeoJsonTransformOp extends Operator<GeoJsonTransformOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      feature: new FeatureField(),
+      feature: new GeoJsonField(),
       scale: new NumberField(1, { min: 0.001, max: 100, step: 0.1 }),
       translateX: new NumberField(0, { min: -10000, max: 10000, step: 0.1 }),
       translateY: new NumberField(0, { min: -10000, max: 10000, step: 0.1 }),
@@ -4262,7 +4430,7 @@ export class GeoJsonTransformOp extends Operator<GeoJsonTransformOp> {
   }
   createOutputs() {
     return {
-      feature: new FeatureField(),
+      feature: new GeoJsonField(),
     }
   }
   execute({
@@ -4296,354 +4464,6 @@ export class GeoJsonTransformOp extends Operator<GeoJsonTransformOp> {
     }
 
     return { feature: transformed }
-  }
-}
-
-export class SpatialJoinOp extends Operator<SpatialJoinOp> {
-  static displayName = 'SpatialJoin'
-  static description = 'Perform spatial operations on two GeoJSON features (union, difference, intersection)'
-  asDownload = () => this.outputData
-  createInputs() {
-    return {
-      featureA: new FeatureField(),
-      featureB: new FeatureField(),
-      operation: new StringLiteralField('union', {
-        values: ['union', 'difference', 'intersection', 'a', 'b'],
-      }),
-    }
-  }
-  createOutputs() {
-    return {
-      feature: new FeatureField(),
-    }
-  }
-  execute({
-    featureA,
-    featureB,
-    operation,
-  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    let result: any
-
-    switch (operation) {
-      case 'union':
-        result = turf.union(turf.featureCollection([featureA, featureB]))
-        break
-      case 'difference':
-        result = turf.difference(turf.featureCollection([featureA, featureB]))
-        break
-      case 'intersection':
-        result = turf.intersect(turf.featureCollection([featureA, featureB]))
-        break
-      case 'a':
-        result = featureA
-        break
-      case 'b':
-        result = featureB
-        break
-      default:
-        result = featureA
-    }
-
-    return { feature: result }
-  }
-}
-
-export class DistanceOp extends Operator<DistanceOp> {
-  static displayName = 'Distance'
-  static description = 'Calculate distance between two points (great circle or rhumb line)'
-  createInputs() {
-    return {
-      from: new Point2DField(),
-      to: new Point2DField(),
-      units: new StringLiteralField('kilometers', {
-        values: ['meters', 'kilometers', 'miles', 'nauticalmiles', 'degrees', 'radians'],
-      }),
-      method: new StringLiteralField('haversine', {
-        values: ['haversine', 'rhumb'],
-      }),
-    }
-  }
-  createOutputs() {
-    return {
-      distance: new NumberField(),
-    }
-  }
-  execute({
-    from,
-    to,
-    units,
-    method,
-  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const fromPoint = turf.point([from.lng, from.lat])
-    const toPoint = turf.point([to.lng, to.lat])
-
-    const distance =
-      method === 'rhumb'
-        ? turf.rhumbDistance(fromPoint, toPoint, { units })
-        : turf.distance(fromPoint, toPoint, { units })
-
-    return { distance }
-  }
-}
-
-export class RadiansToDegreesOp extends Operator<RadiansToDegreesOp> {
-  static displayName = 'RadiansToDegrees'
-  static description = 'Convert radians to degrees'
-  createInputs() {
-    return {
-      radians: new NumberField(0, { step: 0.01 }),
-    }
-  }
-  createOutputs() {
-    return {
-      degrees: new NumberField(),
-    }
-  }
-  execute({ radians }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const degrees = turf.radiansToDegrees(radians)
-    return { degrees }
-  }
-}
-
-export class DegreesToRadiansOp extends Operator<DegreesToRadiansOp> {
-  static displayName = 'DegreesToRadians'
-  static description = 'Convert degrees to radians'
-  createInputs() {
-    return {
-      degrees: new NumberField(0, { step: 1 }),
-    }
-  }
-  createOutputs() {
-    return {
-      radians: new NumberField(),
-    }
-  }
-  execute({ degrees }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const radians = turf.degreesToRadians(degrees)
-    return { radians }
-  }
-}
-
-export class CentroidOp extends Operator<CentroidOp> {
-  static displayName = 'Centroid'
-  static description = 'Calculate the centroid of a GeoJSON feature'
-  asDownload = () => this.outputData
-  createInputs() {
-    return {
-      feature: new FeatureField(),
-      properties: new DataField({}),
-    }
-  }
-  createOutputs() {
-    return {
-      centroid: new FeatureField(),
-    }
-  }
-  execute({
-    feature,
-    properties,
-  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const centroid = turf.centroid(feature, { properties })
-    return { centroid }
-  }
-}
-
-export class AreaOp extends Operator<AreaOp> {
-  static displayName = 'Area'
-  static description = 'Calculate the area of a GeoJSON feature in square meters'
-  createInputs() {
-    return {
-      feature: new FeatureField(),
-    }
-  }
-  createOutputs() {
-    return {
-      area: new NumberField(),
-      areaKm2: new NumberField(),
-      areaMi2: new NumberField(),
-    }
-  }
-  execute({ feature }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const area = turf.area(feature)
-    const areaKm2 = area / SQ_METERS_TO_SQ_KM
-    const areaMi2 = area / SQ_METERS_TO_SQ_MILES
-
-    return { area, areaKm2, areaMi2 }
-  }
-}
-
-export class BufferOp extends Operator<BufferOp> {
-  static displayName = 'Buffer'
-  static description = 'Create a buffer around a GeoJSON feature'
-  asDownload = () => this.outputData
-  createInputs() {
-    return {
-      feature: new FeatureField(),
-      radius: new NumberField(1, { min: 0, max: 10000, step: 0.1 }),
-      units: new StringLiteralField('kilometers', {
-        values: ['meters', 'kilometers', 'miles', 'nauticalmiles', 'degrees', 'radians'],
-      }),
-      steps: new NumberField(64, { min: 8, max: 128, step: 8 }),
-    }
-  }
-  createOutputs() {
-    return {
-      buffer: new FeatureField(),
-    }
-  }
-  execute({
-    feature,
-    radius,
-    units,
-    steps,
-  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const buffer = turf.buffer(feature, radius, { units, steps })
-    return { buffer }
-  }
-}
-
-export class SimplifyOp extends Operator<SimplifyOp> {
-  static displayName = 'Simplify'
-  static description = 'Simplify a GeoJSON feature by removing points'
-  asDownload = () => this.outputData
-  createInputs() {
-    return {
-      feature: new FeatureField(),
-      tolerance: new NumberField(0.01, { min: 0.001, max: 10, step: 0.001 }),
-      highQuality: new BooleanField(false),
-    }
-  }
-  createOutputs() {
-    return {
-      simplified: new FeatureField(),
-    }
-  }
-  execute({
-    feature,
-    tolerance,
-    highQuality,
-  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const simplified = turf.simplify(feature, { tolerance, highQuality })
-    return { simplified }
-  }
-}
-
-export class LengthOp extends Operator<LengthOp> {
-  static displayName = 'Length'
-  static description = 'Calculate the length of a line feature'
-  createInputs() {
-    return {
-      feature: new FeatureField(),
-      units: new StringLiteralField('kilometers', {
-        values: ['meters', 'kilometers', 'miles', 'nauticalmiles', 'degrees', 'radians'],
-      }),
-    }
-  }
-  createOutputs() {
-    return {
-      length: new NumberField(),
-    }
-  }
-  execute({ feature, units }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const length = turf.length(feature, { units })
-    return { length }
-  }
-}
-
-export class BearingOp extends Operator<BearingOp> {
-  static displayName = 'Bearing'
-  static description = 'Calculate the bearing between two points'
-  createInputs() {
-    return {
-      from: new Point2DField(),
-      to: new Point2DField(),
-      final: new BooleanField(false),
-    }
-  }
-  createOutputs() {
-    return {
-      bearing: new NumberField(),
-    }
-  }
-  execute({
-    from,
-    to,
-    final,
-  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const fromPoint = turf.point([from.lng, from.lat])
-    const toPoint = turf.point([to.lng, to.lat])
-
-    const bearing = final
-      ? turf.bearing(toPoint, fromPoint)
-      : turf.bearing(fromPoint, toPoint)
-
-    return { bearing }
-  }
-}
-
-export class DestinationOp extends Operator<DestinationOp> {
-  static displayName = 'Destination'
-  static description = 'Calculate a destination point from origin, distance, and bearing'
-  asDownload = () => this.outputData
-  createInputs() {
-    return {
-      origin: new Point2DField(),
-      distance: new NumberField(10, { min: 0, step: 0.1 }),
-      bearing: new NumberField(0, { min: -180, max: 180, step: 1 }),
-      units: new StringLiteralField('kilometers', {
-        values: ['meters', 'kilometers', 'miles', 'nauticalmiles', 'degrees', 'radians'],
-      }),
-      properties: new DataField({}),
-    }
-  }
-  createOutputs() {
-    return {
-      destination: new FeatureField(),
-    }
-  }
-  execute({
-    origin,
-    distance,
-    bearing,
-    units,
-    properties,
-  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const originPoint = turf.point([origin.lng, origin.lat])
-    const destination = turf.destination(originPoint, distance, bearing, { units, properties })
-
-    return { destination }
-  }
-}
-
-export class CircleOp extends Operator<CircleOp> {
-  static displayName = 'Circle'
-  static description = 'Create a circular GeoJSON polygon from a center point and radius'
-  asDownload = () => this.outputData
-  createInputs() {
-    return {
-      center: new Point2DField(),
-      radius: new NumberField(5, { min: 0, step: 0.1 }),
-      units: new StringLiteralField('kilometers', {
-        values: ['meters', 'kilometers', 'miles', 'nauticalmiles', 'degrees', 'radians'],
-      }),
-      steps: new NumberField(64, { min: 3, max: 256, step: 1 }),
-    }
-  }
-  createOutputs() {
-    return {
-      feature: new FeatureField(),
-    }
-  }
-  execute({
-    center,
-    radius,
-    units,
-    steps,
-  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const centerPoint = turf.point([center.lng, center.lat])
-    const circle = turf.circle(centerPoint, radius, { units, steps })
-
-    return { feature: circle }
   }
 }
 
@@ -5399,13 +5219,135 @@ export class MaskExtensionOp extends Operator<MaskExtensionOp> {
   }
 }
 
+type TimeSeriesDataPoint = {
+  time: number
+  [key: string]: number
+}
+
+// Interpolate time series data at a given time using linear interpolation
+function interpolateTimeSeries(
+  timeSeries: TimeSeriesDataPoint[],
+  currentTime: number
+): Record<string, number> {
+  if (!timeSeries || timeSeries.length === 0) {
+    return { time: currentTime }
+  }
+
+  // If only one data point, return it
+  if (timeSeries.length === 1) {
+    return { ...timeSeries[0] }
+  }
+
+  // If currentTime is before first point, return first point
+  if (currentTime <= timeSeries[0].time) {
+    return { ...timeSeries[0] }
+  }
+
+  // If currentTime is after last point, return last point
+  if (currentTime >= timeSeries[timeSeries.length - 1].time) {
+    return { ...timeSeries[timeSeries.length - 1] }
+  }
+
+  // Binary search to find the two points to interpolate between
+  let left = 0
+  let right = timeSeries.length - 1
+
+  while (left < right - 1) {
+    const mid = Math.floor((left + right) / 2)
+    if (timeSeries[mid].time <= currentTime) {
+      left = mid
+    } else {
+      right = mid
+    }
+  }
+
+  const before = timeSeries[left]
+  const after = timeSeries[right]
+
+  // Calculate interpolation factor (0 to 1)
+  const timeDelta = after.time - before.time
+  const factor = timeDelta === 0 ? 0 : (currentTime - before.time) / timeDelta
+
+  // Interpolate all numeric fields
+  const result: Record<string, number> = {}
+  const allKeys = new Set([...Object.keys(before), ...Object.keys(after)])
+
+  for (const key of allKeys) {
+    const beforeVal = before[key] ?? 0
+    const afterVal = after[key] ?? 0
+    result[key] = beforeVal + (afterVal - beforeVal) * factor
+  }
+
+  return result
+}
+
+export class TimeSeriesOp extends Operator<TimeSeriesOp> {
+  static displayName = 'TimeSeries'
+  static description =
+    'Interpolate time-varying data at a given time. Aligns with TripsLayer API for easy reuse of accessors.'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      data: new DataField(),
+      currentTime: new NumberField(0),
+      getTimestamps: new UnknownField((d: any) => d?.timestamps || [], { accessor: true }),
+      getValues: new UnknownField((d: any) => d?.values || [], { accessor: true }),
+      getProperties: new UnknownField((d: any) => d, { accessor: true, optional: true }),
+    }
+  }
+  createOutputs() {
+    return {
+      data: new DataField(),
+    }
+  }
+
+  execute({
+    data,
+    currentTime,
+    getTimestamps,
+    getValues,
+    getProperties,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!Array.isArray(data) || !data.length) {
+      return { data: [] }
+    }
+
+    return {
+      data: data.map((d, i) => {
+        // Call accessors with proper deck.gl accessor signature
+        const timestamps = (getTimestamps as Function)(d, {
+          index: i,
+          data,
+          target: [],
+        }) as number[]
+        const values = (getValues as Function)(d, { index: i, data, target: [] }) as any[]
+        const properties = getProperties
+          ? (getProperties as Function)(d, { index: i, data, target: [] })
+          : {}
+
+        // Convert values array to timeSeries format for interpolation
+        const timeSeries = timestamps.map((time: number, idx: number) => ({
+          time,
+          ...(values[idx] || {}),
+        }))
+
+        const interpolated = interpolateTimeSeries(timeSeries, currentTime)
+
+        return {
+          ...properties,
+          ...interpolated,
+          time: currentTime,
+        }
+      }),
+    }
+  }
+}
+
 export const opTypes = {
   AccessorOp,
   A5LayerOp,
-  AreaOp,
   ArcOp,
   ArcLayerOp,
-  BearingOp,
   BezierCurveOp,
   BitmapLayerOp,
   BooleanOp,
@@ -5413,10 +5355,7 @@ export const opTypes = {
   BoundsOp,
   BrightnessContrastExtensionOp,
   BrushingExtensionOp,
-  BufferOp,
   CategoricalColorRampOp,
-  CentroidOp,
-  CircleOp,
   ClipExtensionOp,
   CodeOp,
   CollisionFilterExtensionOp,
@@ -5431,12 +5370,9 @@ export const opTypes = {
   ContainerOp,
   ContourLayerOp,
   DataFilterExtensionOp,
-  DateOp,
+  DateTimeOp,
   DeckRendererOp,
-  DegreesToRadiansOp,
-  DestinationOp,
   DirectionsOp,
-  DistanceOp,
   DuckDbOp,
   ExpressionOp,
   ExtentOp,
@@ -5466,8 +5402,8 @@ export const opTypes = {
   HueSaturationExtensionOp,
   IconLayerOp,
   JSONOp,
+  KmlToGeoJsonOp,
   LayerPropsOp,
-  LengthOp,
   LineLayerOp,
   MaplibreBasemapOp,
   MapRangeOp,
@@ -5483,6 +5419,7 @@ export const opTypes = {
   NetworkOp,
   NumberOp,
   OrbitViewOp,
+  OrthographicViewOp,
   OutOp,
   PathLayerOp,
   PathStyleExtensionOp,
@@ -5491,7 +5428,6 @@ export const opTypes = {
   PolygonLayerOp,
   ProjectOp,
   QuadkeyLayerOp,
-  RadiansToDegreesOp,
   RandomizeAttributeOp,
   RasterTileLayerOp,
   RectangleOp,
@@ -5501,12 +5437,10 @@ export const opTypes = {
   ScenegraphLayerOp,
   ScreenGridLayerOp,
   SimpleMeshLayerOp,
-  SimplifyOp,
   SelectOp,
   SliceOp,
   SolidPolygonLayerOp,
   SortOp,
-  SpatialJoinOp,
   SplitRGBAOp,
   SplitMapViewStateOp,
   SplitXYOp,
@@ -5520,6 +5454,7 @@ export const opTypes = {
   Tile3DLayerOp,
   TileLayerOp,
   TimeOp,
+  TimeSeriesOp,
   TripsLayerOp,
   UnprojectOp,
   VibranceExtensionOp,
@@ -5529,22 +5464,22 @@ export const opTypes = {
 // Execution state for visual debugging
 export type ExecutionState =
   | {
-    status: 'idle'
-  }
+      status: 'idle'
+    }
   | {
-    status: 'executing'
-  }
+      status: 'executing'
+    }
   | {
-    status: 'success'
-    lastExecuted: Date
-    executionTime: number
-  }
+      status: 'success'
+      lastExecuted: Date
+      executionTime: number
+    }
   | {
-    status: 'error'
-    lastExecuted?: Date
-    executionTime?: number
-    error?: string
-  }
+      status: 'error'
+      lastExecuted?: Date
+      executionTime?: number
+      error?: string
+    }
 
 export type OpType = keyof typeof opTypes
 

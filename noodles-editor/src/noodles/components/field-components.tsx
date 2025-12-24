@@ -32,12 +32,13 @@ import {
 } from '../fields'
 import { useFileSystemStore } from '../filesystem-store'
 import type { Edge } from '../noodles'
-import s from '../noodles.module.css'
 import type { IOperator, Operator } from '../operators'
 import { checkAssetExists, writeAsset } from '../storage'
 import { projectScheme } from '../utils/filesystem'
 import { edgeId, type OpId } from '../utils/id-utils'
 import { handleClass } from './op-components'
+
+import s from '../noodles.module.css'
 import menuStyles from './menu.module.css'
 
 type InputComponent = React.ComponentType<{
@@ -49,23 +50,6 @@ type InputComponent = React.ComponentType<{
 export interface HandleOptions {
   type: 'target' | 'source'
   namespace: 'par' | 'out'
-}
-
-// Helper to format values for the handle preview
-function viewerFormatter(value: unknown): unknown {
-  if (typeof value === 'function') {
-    return { value: `Function(${value.name || 'anonymous'})` }
-  }
-  if (
-    typeof value === 'string' ||
-    typeof value === 'number' ||
-    typeof value === 'boolean' ||
-    value instanceof Date ||
-    value instanceof Temporal.PlainDateTime
-  ) {
-    return { value }
-  }
-  return value
 }
 
 export const inputComponents = {
@@ -86,7 +70,7 @@ export const inputComponents = {
   'feature-collection': EmptyFieldComponent,
   file: FileFieldComponent,
   function: EmptyFieldComponent,
-  geometry: EmptyFieldComponent,
+  geojson: EmptyFieldComponent,
   'geopoint-2d': VectorFieldComponent,
   'geopoint-3d': VectorFieldComponent,
   'json-url': TextFieldComponent,
@@ -343,7 +327,7 @@ export function CodeFieldComponent({
     if (editorRef.current) {
       editorRef.current.layout()
     }
-  }, [nodeHeight])
+  }, [])
 
   useEffect(() => {
     const sub = field.subscribe(_ => {
@@ -552,15 +536,15 @@ export function FileFieldComponent({
 
   return (
     <>
-      <div className="node-field-wrapper">
-        <label className="node-field-label" htmlFor={id}>
+      <div className={s.nodeFieldWrapper}>
+        <label className={s.nodeFieldLabel} htmlFor={id}>
           {id}
         </label>
-        <div className="p-inputgroup node-field-input-group">
+        <div className={cx('p-inputgroup', s.fieldFileInputGroup)}>
           <InputText
             id={id}
             placeholder="https://"
-            className="node-field-input"
+            className={cx(s.fieldInput, s.fieldInputFileUrl)}
             value={value}
             onBlur={onBlur}
             onChange={onChange}
@@ -568,7 +552,7 @@ export function FileFieldComponent({
           />
           <Button
             icon="pi pi-upload"
-            className="node-field-input--upload"
+            className={s.fieldInputUploadButton}
             onClick={onReupload}
             title="Upload Data"
             size="small"
@@ -1120,18 +1104,18 @@ export function DateFieldComponent({
     return () => sub.unsubscribe()
   }, [field])
 
-  const onChange = e => {
+  const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     // Parse the datetime-local input value and create a Temporal.PlainDateTime
-    // datetime-local format: YYYY-MM-DDTHH:mm (no timezone, local time)
     const inputValue = e.currentTarget.value
     if (inputValue) {
-      // Add seconds to match ISO format, then parse as PlainDateTime
-      field.setValue(Temporal.PlainDateTime.from(`${inputValue}:00`))
+      // Parse the full ISO datetime string from the input
+      field.setValue(Temporal.PlainDateTime.from(inputValue))
     }
   }
 
-  // Convert Temporal.PlainDateTime to datetime-local format (YYYY-MM-DDTHH:mm)
-  const formatted = value?.toString?.()?.substring(0, 16) || ''
+  // Convert Temporal.PlainDateTime to datetime-local format
+  // Always show full precision with milliseconds: YYYY-MM-DDTHH:mm:ss.SSS
+  const formatted = value?.toString?.()?.substring(0, 23) || ''
 
   return (
     <div className={s.fieldWrapper}>
@@ -1146,6 +1130,7 @@ export function DateFieldComponent({
           value={formatted}
           onChange={onChange}
           disabled={disabled}
+          step={0.001}
         />
       </div>
     </div>
@@ -1271,7 +1256,9 @@ export function CompoundFieldComponent({
         aria-expanded={expanded}
       >
         {id}
-        <span className={cx(s.compoundPropsExpander, expanded && s.compoundPropsExpanderExpanded)}>►</span>
+        <span className={cx(s.compoundPropsExpander, expanded && s.compoundPropsExpanderExpanded)}>
+          ►
+        </span>
       </button>
       {expanded ? (
         <div id={id} className={s.fieldCompoundWrapper}>
@@ -1280,15 +1267,14 @@ export function CompoundFieldComponent({
           ))}
         </div>
       ) : (
-          <button
-            className={s.compoundPropsExpander}
-            type="button"
-            onClick={() => setExpanded(e => !e)}
-          >
-            ({Object.entries(field.fields).length} hidden props)
-          </button>
-        )
-      }
+        <button
+          className={s.compoundPropsExpander}
+          type="button"
+          onClick={() => setExpanded(e => !e)}
+        >
+          ({Object.entries(field.fields).length} hidden props)
+        </button>
+      )}
     </div>
   )
 }
@@ -1843,8 +1829,8 @@ export function FieldComponent({
       edge.target === nid && edge.targetHandle === qualifiedFieldId && edge.type !== 'ReferenceEdge'
   )
 
-  const ctor = field.constructor as unknown as Field<IField>
-  const InputComp = inputComponents[ctor.type]
+  const { type } = field.constructor as typeof Field
+  const InputComp = inputComponents[type]
 
   // When renderInput is false, position handle absolutely to avoid relying on container height
   const handleStyle = renderInput
@@ -1862,11 +1848,12 @@ export function FieldComponent({
           position={Position.Left}
         />
       )}
-      {renderInput && (
-        incomers.length > 0
-          ? <EmptyFieldComponent id={fieldId} field={field} />
-          : <InputComp id={fieldId} field={field} disabled={disabled} />
-      )}
+      {renderInput &&
+        (incomers.length > 0 ? (
+          <EmptyFieldComponent id={fieldId} field={field} />
+        ) : (
+          <InputComp id={fieldId} field={field} disabled={disabled} />
+        ))}
     </div>
   )
 }

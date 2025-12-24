@@ -49,7 +49,7 @@ class GlobalContextManager {
     try {
       this.loader = new ContextLoader()
 
-      await this.loader.load((progress) => {
+      await this.loader.load(progress => {
         this.setState({ status: 'loading', progress })
       })
 
@@ -85,7 +85,9 @@ class GlobalContextManager {
 
   private setState(newState: ContextLoadState) {
     this.state = newState
-    this.listeners.forEach(listener => listener(newState))
+    this.listeners.forEach(listener => {
+      listener(newState)
+    })
   }
 
   // Wait for context to be ready

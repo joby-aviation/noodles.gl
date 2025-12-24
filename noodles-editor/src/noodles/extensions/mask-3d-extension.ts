@@ -82,6 +82,7 @@ export class Mask3DExtension extends LayerExtension {
     }
   }
 
+  // biome-ignore lint/suspicious/noExplicitAny: Deck.gl extension context type is not fully typed
   initializeState(this: Layer, _context: any, _extension: this) {
     // Set default uniform values using the new API
     this.setShaderModuleProps({
@@ -94,6 +95,7 @@ export class Mask3DExtension extends LayerExtension {
   }
 
   updateState(this: Layer, params: UpdateParameters<Layer>, _extension: this) {
+    // biome-ignore lint/suspicious/noExplicitAny: accessing dynamic extension props from layer
     const props = params.props as any
     const {
       targetPosition = props.targetPosition,

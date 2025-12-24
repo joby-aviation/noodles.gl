@@ -78,7 +78,7 @@ export interface FieldSchema {
   type: string
   description?: string
   required: boolean
-  defaultValue?: any
+  defaultValue?: unknown
 }
 
 export interface DocsIndex {
@@ -119,7 +119,7 @@ export interface Example {
   name: string
   description: string
   category: string
-  project: any; // NoodlesProject
+  project: unknown // NoodlesProject - keeping as unknown since it's serialized JSON
   annotations: Record<string, NodeAnnotation>
   tags: string[]
   dataSourceTypes: string[]
@@ -144,7 +144,7 @@ export interface LoadProgress {
 
 export interface ToolResult {
   success: boolean
-  data?: any
+  data?: unknown
   error?: string
 }
 
@@ -165,7 +165,7 @@ export interface SearchCodeResult {
 
 export interface Message {
   role: 'user' | 'assistant'
-  content: string | any[]
+  content: string | Array<{ type: string; text?: string; [key: string]: unknown }>
 }
 
 export interface ClaudeResponse {
@@ -176,12 +176,12 @@ export interface ClaudeResponse {
 
 export interface ProjectModification {
   type: 'add_node' | 'update_node' | 'delete_node' | 'add_edge' | 'delete_edge'
-  data: any
+  data: unknown
 }
 
 export interface ToolCall {
   name: string
-  params: any
+  params: Record<string, unknown>
   result: ToolResult
 }
 
@@ -193,4 +193,24 @@ export interface ConsoleError {
   colno?: number
   stack?: string
   timestamp: number
+}
+
+// Basic project structure with nodes and edges
+export interface NoodlesProject {
+  nodes?: Array<{
+    id: string
+    type: string
+    position?: { x: number; y: number }
+    data?: Record<string, unknown>
+    [key: string]: unknown
+  }>
+  edges?: Array<{
+    id: string
+    source: string
+    target: string
+    sourceHandle?: string
+    targetHandle?: string
+    [key: string]: unknown
+  }>
+  [key: string]: unknown
 }

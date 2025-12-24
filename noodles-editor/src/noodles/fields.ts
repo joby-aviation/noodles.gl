@@ -523,7 +523,15 @@ export class BooleanField extends Field<z.ZodBoolean> {
   }
 }
 
-export class DateField extends Field<z.ZodUnion<[z.ZodDate, z.ZodISODateTime]>> {
+export class DateField extends Field<
+  z.ZodUnion<
+    readonly [
+      z.ZodCustom<Temporal.PlainDateTime, Temporal.PlainDateTime>,
+      z.ZodPipe<z.ZodDate, z.ZodTransform<Temporal.PlainDateTime, Date>>,
+      z.ZodPipe<z.ZodISODateTime, z.ZodTransform<Temporal.PlainDateTime, string>>,
+    ]
+  >
+> {
   static type = 'date'
   static defaultValue = Temporal.Now.plainDateTimeISO()
   createSchema() {
@@ -534,15 +542,19 @@ export class DateField extends Field<z.ZodUnion<[z.ZodDate, z.ZodISODateTime]>> 
         'Expected Temporal.PlainDateTime'
       ),
       // Convert Date to Temporal.PlainDateTime in UTC
-      z.date().transform(date => {
-        return Temporal.Instant.fromEpochMilliseconds(date.getTime())
-          .toZonedDateTimeISO('UTC')
-          .toPlainDateTime()
-      }),
+      z
+        .date()
+        .transform(date => {
+          return Temporal.Instant.fromEpochMilliseconds(date.getTime())
+            .toZonedDateTimeISO('UTC')
+            .toPlainDateTime()
+        }),
       // Parse ISO datetime string from project files to Temporal
-      z.iso.datetime({ offset: true, local: true }).transform(str => {
-        return Temporal.PlainDateTime.from(str)
-      }),
+      z.iso
+        .datetime({ offset: true, local: true })
+        .transform(str => {
+          return Temporal.PlainDateTime.from(str)
+        }),
     ])
   }
   static deserialize(value: string) {
@@ -568,6 +580,26 @@ export class DataField<D extends Field> extends Field<
   constructor(public field?: D) {
     const subschema = field?.schema || z.unknown()
     const defaultValue = typeof field?.defaultValue !== 'undefined' ? field.defaultValue : []
+    super(defaultValue, { subschema })
+  }
+}
+
+// GeoJSON field type with lime color to distinguish from regular data fields
+export class GeoJsonField<D extends Field> extends Field<
+  z.ZodType<unknown, unknown, z.core.$ZodTypeInternals<unknown, unknown>> | z.ZodUnknown,
+  SubSchemaOptions<D['schema']>
+> {
+  static type = 'geojson'
+  static defaultValue = { type: 'FeatureCollection', features: [] }
+  createSchema({ subschema }: { subschema: z.Schema<D['schema']> }) {
+    return subschema.readonly()
+  }
+  constructor(public field?: D) {
+    const subschema = field?.schema || z.unknown()
+    const defaultValue =
+      typeof field?.defaultValue !== 'undefined'
+        ? field.defaultValue
+        : { type: 'FeatureCollection', features: [] }
     super(defaultValue, { subschema })
   }
 }

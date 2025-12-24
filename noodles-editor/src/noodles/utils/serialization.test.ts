@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { hexToColor } from '../../utils/color'
 import { CodeField, ColorField, NumberField } from '../fields'
 import { NumberOp, ScenegraphLayerOp, TableEditorOp } from '../operators'
+import { clearOps, getOpStore, setOp } from '../store'
 import { edgeId } from './id-utils'
-import { safeStringify, serializeEdges, serializeNodes } from './serialization'
+import { NOODLES_VERSION, safeStringify, saveProjectLocally, serializeEdges, serializeNodes } from './serialization'
 
 describe('safeStringify', () => {
   it('serializes a basic object correctly', () => {
@@ -54,26 +55,27 @@ const makeOp = (inputs: Record<string, unknown>, locked = false): MockOp => ({
 })
 
 describe('serializeNodes', () => {
+  afterEach(() => {
+    clearOps()
+  })
+
   it('includes group nodes as-is', () => {
-    const ops = new Map()
     const groupNode = { id: 'group1', type: 'group', data: {}, position: { x: 0, y: 0 } }
-    const result = serializeNodes(ops, [groupNode], [])
+    const result = serializeNodes(getOpStore(), [groupNode], [])
     expect(result).toEqual([groupNode])
   })
 
   it('skips nodes without corresponding op', () => {
-    const ops = new Map()
     const node = { id: 'node1', type: 'basic', data: {}, position: { x: 0, y: 0 } }
-    const result = serializeNodes(ops, [node], [])
+    const result = serializeNodes(getOpStore(), [node], [])
     expect(result).toEqual([])
   })
 
   it('serializes a single node with inputs and no incomers', () => {
-    const ops = new Map()
-    ops.set('node1', makeOp({ a: 1, b: 'text' }, false))
+    setOp('node1', makeOp({ a: 1, b: 'text' }, false) as any)
 
     const node = { id: 'node1', type: 'basic', data: {}, position: { x: 0, y: 0 } }
-    const result = serializeNodes(ops, [node], [])
+    const result = serializeNodes(getOpStore(), [node], [])
     expect(result[0].data).toEqual({
       inputs: { a: 1, b: 'text' },
       locked: false,
@@ -81,9 +83,8 @@ describe('serializeNodes', () => {
   })
 
   it('omits inputs for unlocked incomers', () => {
-    const ops = new Map()
-    ops.set('node1', makeOp({ x: 1 }, false))
-    ops.set('node0', makeOp({ foo: 42 }, false))
+    setOp('node1', makeOp({ x: 1 }, false))
+    setOp('node0', makeOp({ foo: 42 }, false))
 
     const node = { id: 'node1', type: 'basic', data: {}, position: { x: 0, y: 0 } }
     const connection = {
@@ -96,14 +97,13 @@ describe('serializeNodes', () => {
       id: edgeId(connection),
       ...connection,
     }
-    const result = serializeNodes(ops, [node], [edge])
+    const result = serializeNodes(getOpStore(), [node], [edge])
     expect(result[0].data.inputs).toEqual({})
   })
 
   it('does not overwrite input if incoming edge is from locked op', () => {
-    const ops = new Map()
-    ops.set('node1', makeOp({ x: 123 }, false))
-    ops.set('node0', makeOp({ foo: 'ignored' }, true)) // locked = true
+    setOp('node1', makeOp({ x: 123 }, false))
+    setOp('node0', makeOp({ foo: 'ignored' }, true)) // locked = true
 
     const node = { id: 'node1', type: 'basic', data: {}, position: { x: 0, y: 0 } }
     const connection = {
@@ -116,35 +116,32 @@ describe('serializeNodes', () => {
       id: edgeId(connection),
       ...connection,
     }
-    const result = serializeNodes(ops, [node], [edge])
+    const result = serializeNodes(getOpStore(), [node], [edge])
     expect(result[0].data.inputs).toEqual({ x: 123 })
   })
 
   it('does not serialize default values', () => {
-    const ops = new Map()
-    ops.set('num1', new NumberOp('num1', { val: 123 }, false))
-    ops.set('num2', new NumberOp('num2', { val: 0 }, false))
+    setOp('num1', new NumberOp('num1', { val: 123 }, false))
+    setOp('num2', new NumberOp('num2', { val: 0 }, false))
     const nodes = [
       { id: 'num1', type: 'NumberOp', data: { val: 123 }, position: { x: 0, y: 0 } },
       { id: 'num2', type: 'NumberOp', data: { val: 0 }, position: { x: 0, y: 0 } },
     ]
-    const result = serializeNodes(ops, nodes, [])
+    const result = serializeNodes(getOpStore(), nodes, [])
     expect(result[0].data.inputs).toEqual({ val: 123 })
     expect(result[1].data.inputs).toEqual({})
   })
 
   it('does not serialize object default values', () => {
-    const ops = new Map()
-    ops.set('model', new ScenegraphLayerOp('model', {}, false))
+    setOp('model', new ScenegraphLayerOp('model', {}, false))
     const nodes = [{ id: 'model', type: 'ScenegraphLayerOp', data: {}, position: { x: 0, y: 0 } }]
-    const result = serializeNodes(ops, nodes, [])
+    const result = serializeNodes(getOpStore(), nodes, [])
     expect(result[0].data.inputs).not.toHaveProperty('getScale')
   })
 
   it('serializes multiple nodes with edges correctly', () => {
-    const ops = new Map()
-    ops.set('nodeA', makeOp({ val: 10 }, false))
-    ops.set('nodeB', makeOp({ input: 5 }, false))
+    setOp('nodeA', makeOp({ val: 10 }, false))
+    setOp('nodeB', makeOp({ input: 5 }, false))
 
     const nodes = [
       { id: 'nodeA', type: 'basic', data: {}, position: { x: 0, y: 0 } },
@@ -162,15 +159,14 @@ describe('serializeNodes', () => {
         ...connection,
       },
     ]
-    const result = serializeNodes(ops, nodes, edges)
+    const result = serializeNodes(getOpStore(), nodes, edges)
     expect(result.length).toBe(2)
     const nodeB = result.find(n => n.id === 'nodeB')
     expect(nodeB?.data.inputs).toEqual({})
   })
 
   it('does not serialize selected property', () => {
-    const ops = new Map()
-    ops.set('node1', makeOp({ a: 1 }, false))
+    setOp('node1', makeOp({ a: 1 }, false))
 
     const node = {
       id: 'node1',
@@ -181,13 +177,12 @@ describe('serializeNodes', () => {
       selected: true,
       position: { x: 0, y: 0 },
     }
-    const [result] = serializeNodes(ops, [node], [])
+    const [result] = serializeNodes(getOpStore(), [node], [])
     expect(result.data.selected).toBeUndefined()
   })
 
   it('does not serialize width and height for non-resizeable nodes', () => {
-    const ops = new Map()
-    ops.set('node1', makeOp({ a: 1 }, false))
+    setOp('node1', makeOp({ a: 1 }, false))
 
     const node = {
       id: 'node1',
@@ -198,13 +193,12 @@ describe('serializeNodes', () => {
       selected: true,
       position: { x: 0, y: 0 },
     }
-    const [result] = serializeNodes(ops, [node], [])
+    const [result] = serializeNodes(getOpStore(), [node], [])
     expect(result.width).toBeUndefined()
     expect(result.height).toBeUndefined()
   })
   it('serializes width and height for resizeable nodes', () => {
-    const ops = new Map()
-    ops.set('node1', new TableEditorOp('node1', {}, false))
+    setOp('node1', new TableEditorOp('node1', {}, false))
 
     const node = {
       id: 'node1',
@@ -214,9 +208,43 @@ describe('serializeNodes', () => {
       height: 200,
       position: { x: 0, y: 0 },
     }
-    const [result] = serializeNodes(ops, [node], [])
+    const [result] = serializeNodes(getOpStore(), [node], [])
     expect(result.width).toEqual(100)
     expect(result.height).toEqual(200)
+  })
+
+  it('excludes ReferenceEdge connections when determining connected inputs', () => {
+    setOp('node1', makeOp({ x: 123 }, false))
+    setOp('node0', makeOp({ foo: 42 }, false))
+
+    const node = { id: 'node1', type: 'basic', data: {}, position: { x: 0, y: 0 } }
+    const dataConnection = {
+      source: 'node0',
+      target: 'node1',
+      sourceHandle: 'out.foo',
+      targetHandle: 'par.x',
+    }
+    const referenceConnection = {
+      source: 'node0',
+      target: 'node1',
+      sourceHandle: 'out.bar',
+      targetHandle: 'par.y',
+    }
+    const edges = [
+      {
+        id: edgeId(dataConnection),
+        type: 'ReferenceEdge',
+        ...referenceConnection,
+      },
+      {
+        id: edgeId(dataConnection),
+        ...dataConnection,
+      },
+    ]
+    const result = serializeNodes(getOpStore(), [node], edges)
+    // The x input should be omitted because it has a data edge connection
+    // But if there were a y input, it would be included because ReferenceEdges don't count as connections
+    expect(result[0].data.inputs).toEqual({})
   })
 
   describe('Field serialization', () => {
@@ -262,7 +290,6 @@ describe('serializeNodes', () => {
 
 describe('serializeEdges', () => {
   it('serializes edges', () => {
-    const ops = new Map()
     const nodes = [
       { id: 'node-0', type: 'NumberOp', data: {}, position: { x: 0, y: 0 } },
       { id: 'node-1', type: 'NumberOp', data: {}, position: { x: 0, y: 0 } },
@@ -278,14 +305,13 @@ describe('serializeEdges', () => {
         animated: false,
       },
     ]
-    const result = serializeEdges(ops, nodes, edges)
+    const result = serializeEdges(getOpStore(), nodes, edges)
     expect(result).toEqual([
       { id: 'edge-0', source: 'node-0', target: 'node-1', sourceHandle: 'a', targetHandle: 'b' },
     ])
   })
 
   it('filters out orphaned edges', () => {
-    const ops = new Map()
     const nodes = [
       { id: 'node-0', type: 'NumberOp', data: {}, position: { x: 0, y: 0 } },
       { id: 'node-1', type: 'NumberOp', data: {}, position: { x: 0, y: 0 } },
@@ -313,7 +339,7 @@ describe('serializeEdges', () => {
         targetHandle: 'b',
       },
     ]
-    const result = serializeEdges(ops, nodes, edges)
+    const result = serializeEdges(getOpStore(), nodes, edges)
     expect(result).toEqual([
       {
         id: 'valid-edge',
@@ -323,5 +349,154 @@ describe('serializeEdges', () => {
         targetHandle: 'b',
       },
     ])
+  })
+
+  it('filters out ReferenceEdge types', () => {
+    const nodes = [
+      { id: 'node-0', type: 'NumberOp', data: {}, position: { x: 0, y: 0 } },
+      { id: 'node-1', type: 'NumberOp', data: {}, position: { x: 0, y: 0 } },
+    ]
+    const edges = [
+      {
+        id: 'data-edge',
+        source: 'node-0',
+        target: 'node-1',
+        sourceHandle: 'a',
+        targetHandle: 'b',
+      },
+      {
+        id: 'reference-edge',
+        type: 'ReferenceEdge',
+        source: 'node-0',
+        target: 'node-1',
+        sourceHandle: 'c',
+        targetHandle: 'd',
+      },
+    ]
+    const result = serializeEdges(getOpStore(), nodes, edges)
+    expect(result).toEqual([
+      {
+        id: 'data-edge',
+        source: 'node-0',
+        target: 'node-1',
+        sourceHandle: 'a',
+        targetHandle: 'b',
+      },
+    ])
+  })
+})
+
+describe('saveProjectLocally', () => {
+  let mockAnchorElement: HTMLAnchorElement
+  let createElementSpy: ReturnType<typeof vi.spyOn>
+  let appendChildSpy: ReturnType<typeof vi.spyOn>
+  let removeChildSpy: ReturnType<typeof vi.spyOn>
+  let revokeObjectURLSpy: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    // Mock anchor element
+    mockAnchorElement = {
+      download: '',
+      href: '',
+      click: vi.fn(),
+    } as unknown as HTMLAnchorElement
+
+    // Mock DOM APIs
+    createElementSpy = vi.spyOn(document, 'createElement').mockReturnValue(mockAnchorElement)
+    appendChildSpy = vi.spyOn(document.body, 'appendChild').mockImplementation(() => mockAnchorElement)
+    removeChildSpy = vi.spyOn(document.body, 'removeChild').mockImplementation(() => mockAnchorElement)
+
+    // Mock URL APIs
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock-url')
+    revokeObjectURLSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('creates a ZIP with noodles.json for publicFolder storage', async () => {
+    const projectName = 'test-project'
+    const projectJson = {
+      version: NOODLES_VERSION,
+      nodes: [],
+      edges: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      timeline: {},
+    }
+
+    await saveProjectLocally(projectName, projectJson, 'publicFolder')
+
+    // Verify download was triggered
+    expect(createElementSpy).toHaveBeenCalledWith('a')
+    expect(mockAnchorElement.download).toBe('test-project.zip')
+    expect(mockAnchorElement.href).toBe('blob:mock-url')
+    expect(mockAnchorElement.click).toHaveBeenCalled()
+    expect(appendChildSpy).toHaveBeenCalled()
+    expect(removeChildSpy).toHaveBeenCalled()
+    expect(revokeObjectURLSpy).toHaveBeenCalledWith('blob:mock-url')
+  })
+
+  it('creates a ZIP with correct filename', async () => {
+    const projectName = 'my-awesome-viz'
+    const projectJson = {
+      version: NOODLES_VERSION,
+      nodes: [],
+      edges: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      timeline: {},
+    }
+
+    await saveProjectLocally(projectName, projectJson, 'publicFolder')
+
+    expect(mockAnchorElement.download).toBe('my-awesome-viz.zip')
+  })
+
+  it('handles opfs storage type', async () => {
+    const projectName = 'opfs-project'
+    const projectJson = {
+      version: NOODLES_VERSION,
+      nodes: [],
+      edges: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      timeline: {},
+    }
+
+    await saveProjectLocally(projectName, projectJson, 'opfs')
+
+    // Should still create download
+    expect(mockAnchorElement.download).toBe('opfs-project.zip')
+    expect(mockAnchorElement.click).toHaveBeenCalled()
+  })
+
+  it('handles fileSystemAccess storage type', async () => {
+    const projectName = 'fs-project'
+    const projectJson = {
+      version: NOODLES_VERSION,
+      nodes: [],
+      edges: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      timeline: {},
+    }
+
+    await saveProjectLocally(projectName, projectJson, 'fileSystemAccess')
+
+    // Should still create download
+    expect(mockAnchorElement.download).toBe('fs-project.zip')
+    expect(mockAnchorElement.click).toHaveBeenCalled()
+  })
+
+  it('cleans up URL after download', async () => {
+    const projectJson = {
+      version: NOODLES_VERSION,
+      nodes: [],
+      edges: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      timeline: {},
+    }
+
+    await saveProjectLocally('test', projectJson, 'publicFolder')
+
+    expect(revokeObjectURLSpy).toHaveBeenCalledWith('blob:mock-url')
   })
 })

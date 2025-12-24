@@ -1,0 +1,90 @@
+/*
+ * CSS Cascade Layers for Noodles.gl
+ *
+ * This file establishes the CSS layer architecture and imports all vendor CSS
+ * into the appropriate layers. CSS layers control cascade priority independently
+ * of specificity and source order.
+ *
+ * Layer order (lowest to highest priority):
+ * 1. vendors - Third-party CSS from node_modules (XYFlow, Deck.gl, PrimeReact, etc.)
+ * 2. reset - CSS resets and normalizations
+ * 3. base - Base application styles (body, html, root element)
+ * 4. components - Component-specific styles
+ * 5. utilities - Utility classes and helpers
+ *
+ * Important: Unlayered styles (not in any @layer) have the HIGHEST priority
+ * and will override all layered styles regardless of specificity.
+ * Critical overrides should remain unlayered (see noodles.module.css).
+ */
+
+/* Declare layer order - first declared = lowest priority */
+@layer vendors, reset, base, components, utilities;
+
+/* ========================================================================
+   VENDORS LAYER - All third-party CSS libraries
+   ======================================================================== */
+
+/* React Flow - Node-based editor */
+@import '@xyflow/react/dist/style.css' layer(vendors);
+
+/* Deck.gl - WebGL visualization widgets */
+@import '@deck.gl/widgets/stylesheet.css' layer(vendors);
+
+/* Mapbox Geocoder */
+@import '@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css' layer(vendors);
+
+/* PrimeReact - UI component library */
+@import 'primereact/resources/themes/md-dark-indigo/theme.css' layer(vendors);
+@import 'primeicons/primeicons.css' layer(vendors);
+
+/* MapLibre GL - Map rendering */
+@import 'maplibre-gl/dist/maplibre-gl.css' layer(vendors);
+
+/* Radix UI Colors - Design system colors (CSS custom properties) */
+@import '@radix-ui/colors/black-alpha.css' layer(vendors);
+@import '@radix-ui/colors/mauve.css' layer(vendors);
+@import '@radix-ui/colors/violet.css' layer(vendors);
+@import '@radix-ui/colors/green.css' layer(vendors);
+@import '@radix-ui/colors/red.css' layer(vendors);
+
+/* ========================================================================
+   RESET LAYER - CSS resets and normalizations
+   ======================================================================== */
+
+@layer reset {
+  /* Remove default browser styling from form elements */
+  fieldset,
+  button,
+  input {
+    all: unset;
+  }
+}
+
+/* ========================================================================
+   BASE LAYER - Base application styles
+   ======================================================================== */
+
+@layer base {
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+      'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+      sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  code {
+    font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+      monospace;
+  }
+
+  #root {
+    height: 100vh;
+    overflow-y: hidden;
+  }
+
+  #deckgl-wrapper {
+    height: 100vh;
+  }
+}
