@@ -119,10 +119,12 @@ export function getKeysForProject(): KeysConfig | undefined {
   return saveInProject ? keys : undefined
 }
 
-// Mask an API key for display (show first 4 and last 4 characters)
+// Mask an API key for display (show first 6 characters, then dots)
 export function maskKey(key: string): string {
-  if (!key || key.length < 8) {
+  if (!key || key.length <= 6) {
     return '••••••••'
   }
-  return `${key.slice(0, 4)}${'•'.repeat(Math.max(8, key.length - 8))}${key.slice(-4)}`
+  // Show first 6 chars, mask the rest with at least 8 dots
+  const dotsCount = Math.max(8, key.length - 6)
+  return `${key.slice(0, 6)}${'•'.repeat(dotsCount)}`
 }

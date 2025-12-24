@@ -28,6 +28,7 @@ import { createPortal } from 'react-dom'
 import { Temporal } from 'temporal-polyfill'
 
 import { analytics } from '../../utils/analytics'
+import { keysManager } from '../../utils/keys-manager'
 import { SheetContext } from '../../utils/sheet-context'
 import { ArrayField, type Field, type IField, ListField } from '../fields'
 import s from '../noodles.module.css'
@@ -731,43 +732,60 @@ function GeocoderOpComponent({
 
   const containerRef = useRef<HTMLDivElement>(null)
   const geocoderRef = useRef<MapboxGeocoder>()
+  const [hasApiKey, setHasApiKey] = useState(false)
 
   useLayoutEffect(() => {
-    if (!containerRef.current) return
+    // Check if Mapbox API key is available
+    const apiKey = keysManager.getKey('mapbox')
+    setHasApiKey(!!apiKey)
+
+    if (!containerRef.current || !apiKey) {
+      if (!apiKey) {
+        console.error(
+          'GeocoderOp: Mapbox API key not found. Please configure it in Settings > API Keys.'
+        )
+      }
+      return
+    }
+
     const container = containerRef.current
 
-    const g = new MapboxGeocoder({
-      accessToken: MAPBOX_ACCESS_TOKEN,
-      collapsed: true,
-    })
+    try {
+      const g = new MapboxGeocoder({
+        accessToken: apiKey,
+        collapsed: true,
+      })
 
-    g.on('query', e => {
-      op.inputs.query.setValue(e.query)
-    })
+      g.on('query', e => {
+        op.inputs.query.setValue(e.query)
+      })
 
-    g.on('result', e => {
-      const [lng, lat] = e.result.geometry.coordinates as [number, number]
-      op.outputs.location.next({ lng, lat })
-    })
+      g.on('result', e => {
+        const [lng, lat] = e.result.geometry.coordinates as [number, number]
+        op.outputs.location.next({ lng, lat })
+      })
 
-    g.addTo(container)
+      g.addTo(container)
 
-    g.query(op.inputs.query.value)
+      g.query(op.inputs.query.value)
 
-    // Hack for the MapboxGecoder to not automatically open the dropdown.
-    // It focuses the input field on results which is not what we want. Honestly might be easier to
-    // just implement our own geocoder with a react typeahead component
-    let removed = false
-    setTimeout(() => {
-      if (removed) return
-      g._typeahead.list.hide()
-    }, 500)
+      // Hack for the MapboxGecoder to not automatically open the dropdown.
+      // It focuses the input field on results which is not what we want. Honestly might be easier to
+      // just implement our own geocoder with a react typeahead component
+      let removed = false
+      setTimeout(() => {
+        if (removed) return
+        g._typeahead.list.hide()
+      }, 500)
 
-    geocoderRef.current = g
+      geocoderRef.current = g
 
-    return () => {
-      removed = true
-      g.onRemove()
+      return () => {
+        removed = true
+        g.onRemove()
+      }
+    } catch (error) {
+      console.error('GeocoderOp: Failed to initialize geocoder:', error)
     }
   }, [op])
 
@@ -793,7 +811,13 @@ function GeocoderOpComponent({
             renderInput={false}
           />
         ))}
-        <div ref={containerRef} className={s.fieldWrapper} />
+        {!hasApiKey ? (
+          <div className={s.fieldWrapper} style={{ padding: '8px', color: '#ff6b6b' }}>
+            ⚠️ Mapbox API key required. Configure it in Settings → API Keys.
+          </div>
+        ) : (
+          <div ref={containerRef} className={s.fieldWrapper} />
+        )}
         <div className={s.outputHandleContainer}>
           {Object.entries(op.outputs).map(([key, field]) => (
             <OutputHandle key={key} id={key} field={field} />

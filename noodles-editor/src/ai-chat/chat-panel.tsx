@@ -74,7 +74,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
         const loader = await globalContextManager.waitForReady()
 
         const tools = new MCPTools(loader)
-        const client = new ClaudeClient(key.trim(), tools)
+        const client = new ClaudeClient(key, tools)
 
         setMcpTools(tools)
         setClaudeClient(client)
