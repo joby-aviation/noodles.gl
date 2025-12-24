@@ -1268,10 +1268,7 @@ export function ColorFieldComponent({
     // Convert from react-color format to hex with alpha
     // color.rgb = { r: 0-255, g: 0-255, b: 0-255, a: 0-1 }
     const { r, g, b, a } = color.rgb
-    const alpha = Math.round(a * 255)
-    const hexColor = `#${[r, g, b, alpha]
-      .map(c => Math.round(c).toString(16).padStart(2, '0'))
-      .join('')}`
+    const hexColor = colorToHex([r, g, b, Math.round(a * 255)])
     setValue(hexColor)
     field.setValue(hexColor)
   }, [field])
