@@ -1150,7 +1150,7 @@ export function ColorFieldComponent({
   const [pickerPosition, setPickerPosition] = useState<{
     top: number
     left: number
-  }>({ top: 0, left: 0 })
+  } | null>(null)
   const pickerRef = useRef<HTMLDivElement>(null)
   const swatchRef = useRef<HTMLButtonElement>(null)
 
@@ -1228,41 +1228,40 @@ export function ColorFieldComponent({
     }
   }, [showPicker])
 
-  // Calculate optimal position when picker opens - using fixed positioning
-  useEffect(() => {
-    if (showPicker && swatchRef.current) {
-      const swatchRect = swatchRef.current.getBoundingClientRect()
-      const viewportWidth = window.innerWidth
-      const viewportHeight = window.innerHeight
+  const calculatePickerPosition = useCallback(() => {
+    if (!swatchRef.current) return null
 
-      // ChromePicker approximate dimensions
-      const pickerWidth = 225
-      const pickerHeight = 320
+    const swatchRect = swatchRef.current.getBoundingClientRect()
 
-      const margin = 8
+    // ChromePicker approximate dimensions
+    const pickerWidth = 225
+    const pickerHeight = 320
 
-      // Calculate available space in all directions
-      const spaceBelow = viewportHeight - swatchRect.bottom
-      const spaceAbove = swatchRect.top
-      const spaceRight = viewportWidth - swatchRect.right
-      const spaceLeft = swatchRect.left
+    const margin = 8
 
-      let top = swatchRect.bottom + margin
-      let left = swatchRect.left
+    // Always position picker directly below the swatch, without checking available space
+    // The picker will be scrollable/accessible even if it extends beyond viewport
+    const top = swatchRect.bottom + margin
+    const left = swatchRect.left
 
-      // Vertical positioning: prefer below, but use above if not enough space
-      if (spaceBelow < pickerHeight + margin && spaceAbove > spaceBelow) {
-        top = swatchRect.top - pickerHeight - margin
+    return { top, left }
+  }, [])
+
+  const handleSwatchClick = useCallback(() => {
+    if (disabled) return
+
+    if (showPicker) {
+      // Close picker if already open
+      setShowPicker(false)
+    } else {
+      // Calculate position and open picker
+      const position = calculatePickerPosition()
+      if (position) {
+        setPickerPosition(position)
+        setShowPicker(true)
       }
-
-      // Horizontal positioning: ensure picker stays within viewport
-      if (left + pickerWidth > viewportWidth) {
-        left = Math.max(margin, viewportWidth - pickerWidth - margin)
-      }
-
-      setPickerPosition({ top, left })
     }
-  }, [showPicker])
+  }, [disabled, showPicker, calculatePickerPosition])
 
   const onPickerChange = useCallback((color: any) => {
     // Convert from react-color format to hex with alpha
@@ -1284,7 +1283,7 @@ export function ColorFieldComponent({
         <button
           ref={swatchRef}
           type="button"
-          onClick={() => !disabled && setShowPicker(!showPicker)}
+          onClick={handleSwatchClick}
           disabled={disabled}
           className={s.colorSwatch}
           title="Open color picker"
@@ -1295,7 +1294,7 @@ export function ColorFieldComponent({
             style={{ '--color-value': formatted } as React.CSSProperties}
           />
         </button>
-        {showPicker &&
+        {showPicker && pickerPosition &&
           createPortal(
             <div
               ref={pickerRef}
