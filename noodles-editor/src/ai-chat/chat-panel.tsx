@@ -6,7 +6,7 @@ import {
   type ProjectModification,
   useProjectModifications,
 } from '../noodles/hooks/use-project-modifications'
-import { keysManager } from '../utils/keys-manager'
+import { KEYS_CHANGED_EVENT, keysManager } from '../utils/keys-manager'
 import styles from './chat-panel.module.css'
 import { ClaudeClient } from './claude-client'
 import { loadConversation, saveConversation } from './conversation-history'
@@ -87,6 +87,38 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
 
     init()
   }, [])
+
+  // Listen for API key changes
+  useEffect(() => {
+    const handleKeysChanged = () => {
+      const key = keysManager.getKey('anthropic')
+      setApiKey(key)
+
+      // If key was just added and we don't have a client yet, initialize
+      if (key && !claudeClient) {
+        const init = async () => {
+          setContextLoading(true)
+          try {
+            const loader = await globalContextManager.waitForReady()
+            const tools = new MCPTools(loader)
+            const client = new ClaudeClient(key, tools)
+            setMcpTools(tools)
+            setClaudeClient(client)
+          } catch (error) {
+            console.error('Failed to initialize Claude:', error)
+          } finally {
+            setContextLoading(false)
+          }
+        }
+        init()
+      }
+    }
+
+    window.addEventListener(KEYS_CHANGED_EVENT, handleKeysChanged)
+    return () => {
+      window.removeEventListener(KEYS_CHANGED_EVENT, handleKeysChanged)
+    }
+  }, [claudeClient])
 
   // Update MCPTools with current project whenever it changes
   useEffect(() => {
