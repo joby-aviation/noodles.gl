@@ -168,8 +168,6 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
         errorStr.includes('api_key')
 
       if (isAuthError) {
-        localStorage.removeItem('noodles-claude-api-key')
-        sessionStorage.removeItem('noodles-claude-api-key')
         setMessages(prev => [
           ...prev,
           {
