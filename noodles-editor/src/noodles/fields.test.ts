@@ -546,15 +546,15 @@ describe('Accessor fields', () => {
 
   it('allows ColorFields to pass a string color', () => {
     const field = new ColorField('#ff0000', { accessor: true })
-    expect(field.value).toEqual('#ff0000')
-    expect(hexToColor(field.value)).toEqual([255, 0, 0, 255]) // ensure it's a valid color
+    expect(field.value).toEqual('#ff0000ff')
+    expect(hexToColor(field.value)).toEqual([255, 0, 0, 255])
     field.setValue('#00ff00')
-    expect(field.value).toEqual('#00ff00')
+    expect(field.value).toEqual('#00ff00ff')
   })
 
   it('allows ColorFields to pass a callback function', () => {
     const field = new ColorField('#ff0000', { accessor: true })
-    expect(field.value).toEqual('#ff0000')
+    expect(field.value).toEqual('#ff0000ff')
     field.setValue(d => d.color)
     expect(field.value({ color: '#00ff00' })).toEqual('#00ff00')
   })
@@ -837,47 +837,26 @@ describe('ColorField', () => {
     expect(field.value).toBe('#0000ffff')
   })
 
-  it('allows setting both 6-char and 8-char hex colors', () => {
+  it('normalizes 6-char hex to 8-char hex via schema', () => {
     const field = new ColorField()
 
-    // 6-char hex (old format)
     field.setValue('#ff0000')
-    expect(field.value).toBe('#ff0000')
+    expect(field.value).toBe('#ff0000ff')
 
-    // 8-char hex (new format with alpha)
     field.setValue('#00ff0080')
     expect(field.value).toBe('#00ff0080')
   })
 
-  it('serializes colors with alpha channel', () => {
-    // 6-char input gets ff alpha appended
-    const field1 = new ColorField('#00ff00')
-    expect(field1.serialize()).toBe('#00ff00ff')
-
-    // 8-char input is serialized as-is
-    const field2 = new ColorField('#00ff0080')
-    expect(field2.serialize()).toBe('#00ff0080')
-  })
-
-  it('deserializes both old and new formats (backwards compatibility)', () => {
-    // Old format: 6-char hex without alpha -> adds ff
-    expect(ColorField.deserialize('#ff0000')).toBe('#ff0000ff')
-
-    // New format: 8-char hex with alpha -> preserved
+  it('deserializes both old and new formats', () => {
+    expect(ColorField.deserialize('#ff0000')).toBe('#ff0000')
     expect(ColorField.deserialize('#ff000080')).toBe('#ff000080')
-
-    // RGBA array format -> converted to hex
     expect(ColorField.deserialize([255, 0, 0, 128])).toBe('#ff000080')
   })
 
-  it('handles roundtrip from old format to new format', () => {
-    // Simulate loading an old project file with 6-char hex
+  it('handles loading old project files with 6-char hex', () => {
     const deserialized = ColorField.deserialize('#00ff00')
-    expect(deserialized).toBe('#00ff00ff')
-
-    // When saved again, it will be in new format
     const field = new ColorField(deserialized)
-    expect(field.serialize()).toBe('#00ff00ff')
+    expect(field.value).toBe('#00ff00ff')
   })
 })
 
