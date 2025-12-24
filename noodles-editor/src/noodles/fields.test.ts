@@ -831,6 +831,56 @@ describe('Point3DField', () => {
   })
 })
 
+describe('ColorField', () => {
+  it('creates a field with default color value', () => {
+    const field = new ColorField()
+    expect(field.value).toBe('#0000ffff')
+  })
+
+  it('allows setting both 6-char and 8-char hex colors', () => {
+    const field = new ColorField()
+
+    // 6-char hex (old format)
+    field.setValue('#ff0000')
+    expect(field.value).toBe('#ff0000')
+
+    // 8-char hex (new format with alpha)
+    field.setValue('#00ff0080')
+    expect(field.value).toBe('#00ff0080')
+  })
+
+  it('serializes colors with alpha channel', () => {
+    // 6-char input gets ff alpha appended
+    const field1 = new ColorField('#00ff00')
+    expect(field1.serialize()).toBe('#00ff00ff')
+
+    // 8-char input is serialized as-is
+    const field2 = new ColorField('#00ff0080')
+    expect(field2.serialize()).toBe('#00ff0080')
+  })
+
+  it('deserializes both old and new formats (backwards compatibility)', () => {
+    // Old format: 6-char hex without alpha -> adds ff
+    expect(ColorField.deserialize('#ff0000')).toBe('#ff0000ff')
+
+    // New format: 8-char hex with alpha -> preserved
+    expect(ColorField.deserialize('#ff000080')).toBe('#ff000080')
+
+    // RGBA array format -> converted to hex
+    expect(ColorField.deserialize([255, 0, 0, 128])).toBe('#ff000080')
+  })
+
+  it('handles roundtrip from old format to new format', () => {
+    // Simulate loading an old project file with 6-char hex
+    const deserialized = ColorField.deserialize('#00ff00')
+    expect(deserialized).toBe('#00ff00ff')
+
+    // When saved again, it will be in new format
+    const field = new ColorField(deserialized)
+    expect(field.serialize()).toBe('#00ff00ff')
+  })
+})
+
 describe('DateField', () => {
   it('creates a field with default PlainDateTime value', () => {
     const field = new DateField()
