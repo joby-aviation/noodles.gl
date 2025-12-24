@@ -794,6 +794,7 @@ function GeocoderOpComponent({
       return () => {
         removed = true
         g.onRemove()
+        geocoderRef.current = undefined
       }
     } catch (error) {
       console.error('GeocoderOp: Failed to initialize geocoder:', error)
@@ -822,13 +823,12 @@ function GeocoderOpComponent({
             renderInput={false}
           />
         ))}
-        {!hasApiKey ? (
+        {!hasApiKey && (
           <div className={s.fieldWrapper} style={{ padding: '8px', color: '#ff6b6b' }}>
             ⚠️ Mapbox API key required. Configure it in Settings → API Keys.
           </div>
-        ) : (
-          <div ref={containerRef} className={s.fieldWrapper} />
         )}
+        <div ref={containerRef} className={s.fieldWrapper} style={{ display: hasApiKey ? 'block' : 'none' }} />
         <div className={s.outputHandleContainer}>
           {Object.entries(op.outputs).map(([key, field]) => (
             <OutputHandle key={key} id={key} field={field} />
