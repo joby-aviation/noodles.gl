@@ -1232,6 +1232,8 @@ export function ColorFieldComponent({
     if (!swatchRef.current) return null
 
     const swatchRect = swatchRef.current.getBoundingClientRect()
+    const viewportWidth = window.innerWidth
+    const viewportHeight = window.innerHeight
 
     // ChromePicker approximate dimensions
     const pickerWidth = 225
@@ -1239,10 +1241,22 @@ export function ColorFieldComponent({
 
     const margin = 8
 
-    // Always position picker directly below the swatch, without checking available space
-    // The picker will be scrollable/accessible even if it extends beyond viewport
-    const top = swatchRect.bottom + margin
-    const left = swatchRect.left
+    // Calculate available space in all directions
+    const spaceBelow = viewportHeight - swatchRect.bottom
+    const spaceAbove = swatchRect.top
+
+    let top = swatchRect.bottom + margin
+    let left = swatchRect.left
+
+    // Vertical positioning: prefer below, but use above if not enough space
+    if (spaceBelow < pickerHeight + margin && spaceAbove > spaceBelow) {
+      top = swatchRect.top - pickerHeight - margin
+    }
+
+    // Horizontal positioning: ensure picker stays within viewport
+    if (left + pickerWidth > viewportWidth) {
+      left = Math.max(margin, viewportWidth - pickerWidth - margin)
+    }
 
     return { top, left }
   }, [])
