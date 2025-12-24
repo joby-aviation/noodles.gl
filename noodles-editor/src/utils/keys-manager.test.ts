@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   type KeysConfig,
-  clearKeysFromStorage,
   getKeysForProject,
   getKeysFromStorage,
   keysManager,
@@ -287,46 +286,6 @@ describe('saveKeysToStorage', () => {
 
     // Restore original implementation
     localStorage.setItem = originalSetItem
-  })
-})
-
-describe('clearKeysFromStorage', () => {
-  beforeEach(() => {
-    localStorage.clear()
-  })
-
-  it('should clear all keys from localStorage', () => {
-    const keys: KeysConfig = {
-      mapbox: 'test-token',
-      googleMaps: 'google-token',
-    }
-
-    saveKeysToStorage(keys, true)
-
-    // Verify keys are saved
-    expect(getKeysFromStorage().keys).toEqual(keys)
-    expect(getKeysFromStorage().saveInProject).toBe(true)
-
-    clearKeysFromStorage()
-
-    // Verify keys are cleared
-    const result = getKeysFromStorage()
-    expect(result.keys).toEqual({})
-    expect(result.saveInProject).toBe(false)
-  })
-
-  it('should handle localStorage errors gracefully', () => {
-    // Mock localStorage.removeItem to throw an error
-    const originalRemoveItem = localStorage.removeItem
-    localStorage.removeItem = vi.fn(() => {
-      throw new Error('Storage error')
-    })
-
-    // Should not throw
-    expect(() => clearKeysFromStorage()).not.toThrow()
-
-    // Restore original implementation
-    localStorage.removeItem = originalRemoveItem
   })
 })
 

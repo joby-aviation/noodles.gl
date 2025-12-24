@@ -109,19 +109,6 @@ export function saveKeysToStorage(keys: KeysConfig, saveInProject: boolean): voi
   }
 }
 
-// Clear all API keys from localStorage
-export function clearKeysFromStorage(): void {
-  try {
-    localStorage.removeItem(STORAGE_KEY)
-    localStorage.removeItem(STORAGE_SAVE_IN_PROJECT_KEY)
-
-    // Dispatch custom event to notify listeners of key changes
-    window.dispatchEvent(new CustomEvent(KEYS_CHANGED_EVENT, { detail: {} }))
-  } catch (error) {
-    console.error('Failed to clear API keys from localStorage:', error)
-  }
-}
-
 // Get API keys to be included in project file (if user opted in)
 export function getKeysForProject(): KeysConfig | undefined {
   const { keys, saveInProject } = getKeysFromStorage()
