@@ -14,10 +14,11 @@ import {
 import { useCallback } from 'react'
 import { analytics } from '../../utils/analytics'
 import { type Field, ListField } from '../fields'
-import { getOp } from '../store'
+import type { IOperator, Operator } from '../operators'
+import { deleteOp, getAllOps, getOp, setOp } from '../store'
 import { canConnect } from '../utils/can-connect'
 import { edgeId } from '../utils/id-utils'
-import { parseHandleId } from '../utils/path-utils'
+import { generateQualifiedPath, parseHandleId } from '../utils/path-utils'
 
 // Using ReactFlowNode instead of AnyNodeJSON for compatibility
 export type ProjectModification =
@@ -763,6 +764,85 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
     [handleNodesDeleted]
   )
 
+  // Update operator ID and all references to it (nodes, edges, children)
+  // Used when renaming operators in the node tree sidebar or node headers
+  const updateOperatorId = useCallback(
+    (nodeId: string, newBaseName: string, isContainer: boolean) => {
+      const op = getOp(nodeId)
+      if (!op) return
+
+      const newQualifiedId = generateQualifiedPath(newBaseName, op.containerId ?? '/')
+
+      // Update the operator itself
+      setOp(newQualifiedId, op)
+      op.id = newQualifiedId
+
+      // If this is a container, update all children nodes and their operators
+      if (isContainer) {
+        const childOps = getAllOps().filter((childOp: Operator<IOperator>) =>
+          childOp.id.startsWith(`${nodeId}/`)
+        )
+
+        for (const childOp of childOps) {
+          const oldChildId = childOp.id
+          // Replace only the exact container path at the start
+          const newChildId = newQualifiedId + oldChildId.slice(nodeId.length)
+          setOp(newChildId, childOp)
+          childOp.id = newChildId
+          queueMicrotask(() => deleteOp(oldChildId))
+        }
+      }
+
+      // Give React time to update the component tree before deleting the old id
+      queueMicrotask(() => {
+        deleteOp(nodeId)
+      })
+
+      // Update React Flow nodes and edges
+      setNodes(nodes =>
+        nodes.map(n => {
+          // Update the node itself if it matches
+          if (n.id === nodeId) {
+            return { ...n, id: newQualifiedId }
+          }
+          // Update children if this is a container
+          if (isContainer && n.id.startsWith(`${nodeId}/`)) {
+            return { ...n, id: newQualifiedId + n.id.slice(nodeId.length) }
+          }
+          return n
+        })
+      )
+
+      setEdges(edges =>
+        edges.map(edge => {
+          const sourceNeedsUpdate =
+            edge.source === nodeId || (isContainer && edge.source.startsWith(`${nodeId}/`))
+          const targetNeedsUpdate =
+            edge.target === nodeId || (isContainer && edge.target.startsWith(`${nodeId}/`))
+
+          if (!sourceNeedsUpdate && !targetNeedsUpdate) return edge
+
+          const updatedEdge = {
+            ...edge,
+            source: sourceNeedsUpdate
+              ? edge.source === nodeId
+                ? newQualifiedId
+                : newQualifiedId + edge.source.slice(nodeId.length)
+              : edge.source,
+            target: targetNeedsUpdate
+              ? edge.target === nodeId
+                ? newQualifiedId
+                : newQualifiedId + edge.target.slice(nodeId.length)
+              : edge.target,
+          }
+
+          return { ...updatedEdge, id: edgeId(updatedEdge) }
+        })
+      )
+    },
+    [setNodes, setEdges]
+  )
+
   return {
     // Batch operations
     applyModifications,
@@ -773,6 +853,9 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
     deleteNodes,
     addEdge: addEdgeWithValidation,
     deleteEdge: (edgeId: string) => deleteElements({ edges: [{ id: edgeId }] }),
+
+    // Operator operations
+    updateOperatorId,
 
     // ReactFlow callbacks
     onConnect,

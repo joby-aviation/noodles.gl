@@ -101,9 +101,10 @@ describe('NodeTreeSidebar tree structure and nesting', () => {
 
   // Helper to render NodeTreeSidebar
   const renderNodeTreeSidebar = () => {
+    const mockUpdateOperatorId = vi.fn()
     return render(
       <ReactFlowProvider>
-        <NodeTreeSidebar />
+        <NodeTreeSidebar updateOperatorId={mockUpdateOperatorId} />
       </ReactFlowProvider>
     )
   }

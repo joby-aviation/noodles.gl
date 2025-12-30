@@ -5,7 +5,7 @@ import cx from 'classnames'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { analytics } from '../../utils/analytics'
 import type { IOperator, Operator } from '../operators'
-import { getOpStore, hasOp, updateOperatorId, useNestingStore, useOperatorStore, useUIStore } from '../store'
+import { getOpStore, hasOp, useNestingStore, useOperatorStore, useUIStore } from '../store'
 import { generateQualifiedPath, getBaseName } from '../utils/path-utils'
 import { categories } from './categories'
 import s from './node-tree-sidebar.module.css'
@@ -78,6 +78,7 @@ interface TreeItemProps {
   onNavigateInto: (id: string) => void
   collapsedNodes: Set<string>
   onToggleCollapse: (id: string) => void
+  updateOperatorId: (nodeId: string, newBaseName: string, isContainer: boolean) => void
 }
 
 function TreeItem({
@@ -88,13 +89,13 @@ function TreeItem({
   onNavigateInto,
   collapsedNodes,
   onToggleCollapse,
+  updateOperatorId,
 }: TreeItemProps) {
   const [hovering, setHovering] = useState(false)
   const [editing, setEditing] = useState(false)
   const [inputValue, setInputValue] = useState('')
   const [hasConflict, setHasConflict] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
-  const { setNodes, setEdges } = useReactFlow()
 
   const hasChildren = node.children.length > 0
   const isContainer = node.displayName === 'Container'
@@ -152,14 +153,13 @@ function TreeItem({
         return
       }
 
-      // Call the store function to update the operator
-      updateOperatorId(node.id, trimmedName, isContainer, setNodes, setEdges)
+      updateOperatorId(node.id, trimmedName, isContainer)
 
       setEditing(false)
       setHasConflict(false)
       setInputValue('')
     },
-    [node.id, isContainer, checkForConflict, setNodes, setEdges]
+    [node.id, isContainer, checkForConflict, updateOperatorId]
   )
 
   const onInputChange = useCallback(
@@ -308,6 +308,7 @@ function TreeItem({
               onNavigateInto={onNavigateInto}
               collapsedNodes={collapsedNodes}
               onToggleCollapse={onToggleCollapse}
+              updateOperatorId={updateOperatorId}
             />
           ))}
         </div>
@@ -316,7 +317,11 @@ function TreeItem({
   )
 }
 
-export function NodeTreeSidebar() {
+interface NodeTreeSidebarProps {
+  updateOperatorId: (nodeId: string, newBaseName: string, isContainer: boolean) => void
+}
+
+export function NodeTreeSidebar({ updateOperatorId }: NodeTreeSidebarProps) {
   const operators = useOperatorStore(state => state.operators)
   const reactFlow = useReactFlow()
   const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set())
@@ -433,6 +438,7 @@ export function NodeTreeSidebar() {
           onNavigateInto={handleNavigateInto}
           collapsedNodes={collapsedNodes}
           onToggleCollapse={handleToggleCollapse}
+          updateOperatorId={updateOperatorId}
         />
       ))}
     </div>
