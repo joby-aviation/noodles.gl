@@ -5,8 +5,7 @@ import cx from 'classnames'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { analytics } from '../../utils/analytics'
 import type { IOperator, Operator } from '../operators'
-import { deleteOp, getAllOps, getOpStore, hasOp, setOp, useNestingStore, useOperatorStore, useUIStore } from '../store'
-import { edgeId } from '../utils/id-utils'
+import { getOpStore, hasOp, updateOperatorId, useNestingStore, useOperatorStore, useUIStore } from '../store'
 import { generateQualifiedPath, getBaseName } from '../utils/path-utils'
 import { categories } from './categories'
 import s from './node-tree-sidebar.module.css'
@@ -122,13 +121,12 @@ function TreeItem({
       const store = getOpStore()
       const op = store.getOp(node.id)
       if (!op) return false
-      const newQualifiedId = generateQualifiedPath(newBaseName.trim(), op.containerId)
+      const newQualifiedId = generateQualifiedPath(newBaseName.trim(), op.containerId ?? '/')
       return newQualifiedId !== node.id && hasOp(newQualifiedId)
     },
     [node.id]
   )
 
-  // Update operator ID and all references
   const updateId = useCallback(
     (newBaseName: string) => {
       const trimmedName = newBaseName.trim()
@@ -154,84 +152,14 @@ function TreeItem({
         return
       }
 
-      const store = getOpStore()
-      const op = store.getOp(node.id)
-      if (!op) return
-
-      const newQualifiedId = generateQualifiedPath(trimmedName, op.containerId)
-
-      // Update the operator itself
-      setOp(newQualifiedId, op)
-      op.id = newQualifiedId
-
-      // If this is a container, update all children nodes and their operators
-      if (isContainer) {
-        const childOps = getAllOps().filter((childOp: Operator<IOperator>) =>
-          childOp.id.startsWith(`${node.id}/`)
-        )
-
-        for (const childOp of childOps) {
-          const oldChildId = childOp.id
-          // Replace only the exact container path at the start
-          const newChildId = newQualifiedId + oldChildId.slice(node.id.length)
-          setOp(newChildId, childOp)
-          childOp.id = newChildId
-          queueMicrotask(() => deleteOp(oldChildId))
-        }
-      }
-
-      // Give React time to update the component tree before deleting the old id
-      queueMicrotask(() => {
-        deleteOp(node.id)
-      })
-
-      // Update React Flow nodes and edges
-      setNodes(nodes =>
-        nodes.map(n => {
-          // Update the node itself if it matches
-          if (n.id === node.id) {
-            return { ...n, id: newQualifiedId }
-          }
-          // Update children if this is a container
-          if (isContainer && n.id.startsWith(`${node.id}/`)) {
-            return { ...n, id: newQualifiedId + n.id.slice(node.id.length) }
-          }
-          return n
-        })
-      )
-
-      setEdges(edges =>
-        edges.map(edge => {
-          const sourceNeedsUpdate =
-            edge.source === node.id || (isContainer && edge.source.startsWith(`${node.id}/`))
-          const targetNeedsUpdate =
-            edge.target === node.id || (isContainer && edge.target.startsWith(`${node.id}/`))
-
-          if (!sourceNeedsUpdate && !targetNeedsUpdate) return edge
-
-          const updatedEdge = {
-            ...edge,
-            source: sourceNeedsUpdate
-              ? edge.source === node.id
-                ? newQualifiedId
-                : newQualifiedId + edge.source.slice(node.id.length)
-              : edge.source,
-            target: targetNeedsUpdate
-              ? edge.target === node.id
-                ? newQualifiedId
-                : newQualifiedId + edge.target.slice(node.id.length)
-              : edge.target,
-          }
-
-          return { ...updatedEdge, id: edgeId(updatedEdge) }
-        })
-      )
+      // Call the store function to update the operator
+      updateOperatorId(node.id, trimmedName, isContainer, setNodes, setEdges)
 
       setEditing(false)
       setHasConflict(false)
       setInputValue('')
     },
-    [node.id, node.name, isContainer, setNodes, setEdges, checkForConflict]
+    [node.id, isContainer, checkForConflict, setNodes, setEdges]
   )
 
   const onInputChange = useCallback(
