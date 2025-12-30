@@ -33,7 +33,7 @@
     "@xyflow/react": "^12.9.0",
     "classnames": "^2.5.1",
     "d3": "^7.9.0",
-    "deck.gl": "^9.2.3",
+    "deck.gl": "^9.2.5",
     "flexsearch": "^0.7.43",
     "geojson2h3": "^1.2.0",
     "gl-matrix": "^3.4.4",
@@ -41,7 +41,7 @@
     "haversine-distance": "^1.2.4",
     "jszip": "^3.10.1",
     "lodash": "^4.17.21",
-    "maplibre-gl": "^5.9.0",
+    "maplibre-gl": "^5.15.0",
     "mediabunny": "^1.24.2",
     "memoize-one": "^6.0.0",
     "nanoid": "^5.1.6",
@@ -119,9 +119,8 @@
     "vitest": "^4.0.3",
     "vitest-fetch-mock": "^0.4.5"
   },
-  "volta": {
-    "node": "24.11.0",
-    "yarn": "4.5.3"
+  "engines": {
+    "node": ">=24.11.0"
   },
-  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
+  "packageManager": "yarn@4.5.3"
 }

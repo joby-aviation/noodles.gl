@@ -2588,6 +2588,7 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
   createInputs() {
     return {
       mapStyle: new JSONUrlField(CARTO_DARK),
+      projection: new StringLiteralField('mercator', ['mercator', 'globe']),
       viewState: new CompoundPropsField({
         latitude: new NumberField(DEFAULT_LATITUDE, { min: -90, max: 90, step: 0.001 }),
         longitude: new NumberField(DEFAULT_LONGITUDE, { min: -180, max: 180, step: 0.001 }),
@@ -2602,6 +2603,7 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
     return {
       maplibre: new CompoundPropsField({
         mapStyle: new JSONUrlField(),
+        projection: new StringField(),
         longitude: new NumberField(),
         latitude: new NumberField(),
         zoom: new NumberField(),
@@ -2612,10 +2614,18 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
   }
   execute({
     mapStyle,
+    projection,
     viewState,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     validateViewState(viewState)
-    return { maplibre: { mapStyle, ...viewState } }
+
+    return {
+      maplibre: {
+        mapStyle,
+        projection,
+        ...viewState
+      }
+    }
   }
 }
 
