@@ -10,6 +10,55 @@
   position: relative;
 }
 
+.sidebarContainer {
+  width: 240px;
+  min-width: 240px;
+  max-width: 240px;
+  background: var(--color-bg-base);
+  border-right: 1px solid var(--color-border);
+  overflow: hidden;
+}
+
+.sidebarToggle {
+  position: fixed;
+  left: 240px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 40px;
+  padding: 0;
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border);
+  border-left: none;
+  border-radius: 0 4px 4px 0;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.sidebarToggle:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
+  width: 24px;
+}
+
+.sidebarToggle:active {
+  background: var(--color-bg-active);
+}
+
+.sidebarToggle i {
+  font-size: 10px;
+}
+
+.sidebarToggleCollapsed {
+  left: 0;
+}
+
 .fillWidget {
   grid-area: fill-widget;
   position: relative;

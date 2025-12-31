@@ -1,18 +1,5 @@
-.sidebar {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-  width: 240px;
-  min-width: 240px;
-  max-width: 240px;
-  background: var(--color-bg-base);
-  border-right: 1px solid var(--color-border);
-  overflow: hidden;
-}
-
 .treeContainer {
-  flex: 1;
+  height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
 }
@@ -88,6 +75,25 @@
   min-width: 0;
 }
 
+.nodeNameInput {
+  width: 100%;
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border-hover);
+  border-radius: 3px;
+  padding: 2px 4px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.nodeNameInput:focus {
+  border-color: var(--color-text-accent);
+}
+
+.nodeNameInputError {
+  border-color: var(--color-error, #e74c3c);
+  background: var(--color-error-bg, rgba(231, 76, 60, 0.1));
+}
+
 .nodeType {
   font-size: 10px;
   color: var(--color-text-secondary);
@@ -118,4 +124,19 @@
 
 .children {
   /* Children are indented via paddingLeft in the TreeItem component */
+}
+
+.tooltipContent {
+  background: var(--color-error, #e74c3c);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  max-width: 250px;
+  z-index: 1000;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.tooltipArrow {
+  fill: var(--color-error, #e74c3c);
 }
