@@ -104,20 +104,11 @@ interface UIStoreState {
   setSidebarVisible: (visible: boolean) => void
 }
 
-// Initialize sidebar visibility from localStorage
-const getInitialSidebarVisibility = () => {
-  const stored = localStorage.getItem('noodles-sidebar-visible')
-  return stored !== null ? stored === 'true' : true
-}
-
 export const useUIStore = create<UIStoreState>(set => ({
   hoveredOutputHandle: null,
   setHoveredOutputHandle: handle => set({ hoveredOutputHandle: handle }),
-  sidebarVisible: getInitialSidebarVisibility(),
-  setSidebarVisible: visible => {
-    localStorage.setItem('noodles-sidebar-visible', String(visible))
-    set({ sidebarVisible: visible })
-  },
+  sidebarVisible: true,
+  setSidebarVisible: visible => set({ sidebarVisible: visible }),
 }))
 
 // ============================================================================
