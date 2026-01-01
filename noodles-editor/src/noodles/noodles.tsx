@@ -29,7 +29,7 @@ import { useLocation, useParams } from 'wouter'
 import { ChatPanel } from '../ai-chat/chat-panel'
 import { globalContextManager } from '../ai-chat/global-context-manager'
 import { analytics } from '../utils/analytics'
-import { getKeysForProject, keysManager } from '../utils/keys-manager'
+import { getKeysForProject, getKeysStore } from './keys-store'
 import newProjectJSON from './new.json'
 
 // Get URLs for all example noodles.json files (lazy-loaded)
@@ -576,7 +576,7 @@ export function getNoodles(): Visualization {
       setShowOverlay(editorSettings?.showOverlay ?? !IS_PROD)
 
       // Load API keys from project file if present
-      keysManager.setProjectKeys(apiKeys)
+      getKeysStore().setProjectKeys(apiKeys)
 
       // Set viewport state before ReactFlow renders (but not during undo/redo)
       if (viewport && name && !undoRedoRef.current?.isRestoring()) {
