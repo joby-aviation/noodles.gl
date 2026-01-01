@@ -219,84 +219,124 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
             <h3 className={s.sectionTitle}>API Keys</h3>
 
             <div className={s.privacyNote}>
-              Your API key will be stored in localStorage and persist across sessions. Keys are
-              never sent to Noodles.gl servers.
+              Your API keys are never sent to Noodles.gl servers. Keys can be stored in your browser
+              or in project files.
             </div>
 
-            <div className={s.settingItem}>
-              <div className={s.settingContent}>
-                <div className={s.settingName}>Mapbox Access Token</div>
-                <div className={s.settingDescription}>
-                  Required for Mapbox basemaps and directions API
-                </div>
-                <div className={s.inputGroup}>
-                  <input
-                    type={showKeys.mapbox ? 'text' : 'password'}
-                    value={keys.mapbox || ''}
-                    onChange={e => handleKeyChange('mapbox', e.target.value)}
-                    placeholder="pk.eyJ1..."
-                    className={s.input}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => toggleShowKey('mapbox')}
-                    className={s.toggleButton}
-                    aria-label={showKeys.mapbox ? 'Hide' : 'Show'}
-                  >
-                    {showKeys.mapbox ? 'Hide' : 'Show'}
-                  </button>
-                </div>
+            {/* Browser Keys */}
+            <div className={s.subsection}>
+              <h4 className={s.subsectionTitle}>Browser Keys</h4>
+              <div className={s.subsectionDescription}>
+                Stored locally in your browser, not shared with others
+              </div>
+
+              <div className={s.keysGroup}>
+                <BrowserKeyInput
+                  keyType="mapbox"
+                  label="Mapbox Access Token"
+                  description="Required for Mapbox basemaps and directions"
+                  placeholder="pk.eyJ1..."
+                />
+
+                <BrowserKeyInput
+                  keyType="googleMaps"
+                  label="Google Maps API Key"
+                  description="Required for Google Maps transit directions"
+                  placeholder="AIza..."
+                />
+
+                <BrowserKeyInput
+                  keyType="anthropic"
+                  label="Anthropic API Key"
+                  description="Required for Claude AI assistant features"
+                  placeholder="sk-ant-..."
+                />
               </div>
             </div>
 
-            <div className={s.settingItem}>
-              <div className={s.settingContent}>
-                <div className={s.settingName}>Google Maps API Key</div>
-                <div className={s.settingDescription}>Required for Google Maps transit directions</div>
-                <div className={s.inputGroup}>
-                  <input
-                    type={showKeys.googleMaps ? 'text' : 'password'}
-                    value={keys.googleMaps || ''}
-                    onChange={e => handleKeyChange('googleMaps', e.target.value)}
-                    placeholder="AIza..."
-                    className={s.input}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => toggleShowKey('googleMaps')}
-                    className={s.toggleButton}
-                    aria-label={showKeys.googleMaps ? 'Hide' : 'Show'}
-                  >
-                    {showKeys.googleMaps ? 'Hide' : 'Show'}
-                  </button>
+            {/* Project Keys */}
+            {(projectKeys.mapbox || projectKeys.googleMaps || projectKeys.anthropic) && (
+              <div className={s.subsection}>
+                <h4 className={s.subsectionTitle}>Project Keys (Read-Only)</h4>
+                <div className={s.subsectionDescription}>
+                  Keys saved in the project file, shared when project is shared
+                </div>
+
+                <div className={s.keysGroup}>
+                  {projectKeys.mapbox && (
+                    <ProjectKeyDisplay keyType="mapbox" label="Mapbox Access Token" />
+                  )}
+
+                  {projectKeys.googleMaps && (
+                    <ProjectKeyDisplay keyType="googleMaps" label="Google Maps API Key" />
+                  )}
+
+                  {projectKeys.anthropic && (
+                    <ProjectKeyDisplay keyType="anthropic" label="Anthropic API Key" />
+                  )}
                 </div>
               </div>
-            </div>
+            )}
 
-            <div className={s.settingItem}>
-              <div className={s.settingContent}>
-                <div className={s.settingName}>Anthropic API Key</div>
-                <div className={s.settingDescription}>Required for Claude AI assistant features</div>
-                <div className={s.inputGroup}>
-                  <input
-                    type={showKeys.anthropic ? 'text' : 'password'}
-                    value={keys.anthropic || ''}
-                    onChange={e => handleKeyChange('anthropic', e.target.value)}
-                    placeholder="sk-ant-..."
-                    className={s.input}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => toggleShowKey('anthropic')}
-                    className={s.toggleButton}
-                    aria-label={showKeys.anthropic ? 'Hide' : 'Show'}
-                  >
-                    {showKeys.anthropic ? 'Hide' : 'Show'}
-                  </button>
+            {/* Environment Keys */}
+            {(envKeys.mapbox || envKeys.googleMaps || envKeys.anthropic) && (
+              <div className={s.subsection}>
+                <h4 className={s.subsectionTitle}>Environment Keys (Read-Only)</h4>
+                <div className={s.subsectionDescription}>
+                  Fallback keys from .env files
+                </div>
+
+                <div className={s.keysGroup}>
+                  {envKeys.mapbox && (
+                    <div className={s.keyDisplay}>
+                      <div className={s.keyLabelRow}>
+                        <div className={s.keyLabel}>Mapbox</div>
+                        {isSourceActive('mapbox', 'env') && <span className={s.activeBadge}>Active</span>}
+                      </div>
+                      <div className={s.keyValue}>{maskKey(envKeys.mapbox)}</div>
+                      {!isSourceActive('mapbox', 'env') && (
+                        <div className={s.inactiveNote}>
+                          {getActiveSource('mapbox') === 'browser' && 'Browser key is active'}
+                          {getActiveSource('mapbox') === 'project' && 'Project key is active'}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {envKeys.googleMaps && (
+                    <div className={s.keyDisplay}>
+                      <div className={s.keyLabelRow}>
+                        <div className={s.keyLabel}>Google Maps</div>
+                        {isSourceActive('googleMaps', 'env') && <span className={s.activeBadge}>Active</span>}
+                      </div>
+                      <div className={s.keyValue}>{maskKey(envKeys.googleMaps)}</div>
+                      {!isSourceActive('googleMaps', 'env') && (
+                        <div className={s.inactiveNote}>
+                          {getActiveSource('googleMaps') === 'browser' && 'Browser key is active'}
+                          {getActiveSource('googleMaps') === 'project' && 'Project key is active'}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {envKeys.anthropic && (
+                    <div className={s.keyDisplay}>
+                      <div className={s.keyLabelRow}>
+                        <div className={s.keyLabel}>Anthropic</div>
+                        {isSourceActive('anthropic', 'env') && <span className={s.activeBadge}>Active</span>}
+                      </div>
+                      <div className={s.keyValue}>{maskKey(envKeys.anthropic)}</div>
+                      {!isSourceActive('anthropic', 'env') && (
+                        <div className={s.inactiveNote}>
+                          {getActiveSource('anthropic') === 'browser' && 'Browser key is active'}
+                          {getActiveSource('anthropic') === 'project' && 'Project key is active'}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
+            )}
 
+            {/* Save in project checkbox */}
             <div className={s.settingItem}>
               <label className={s.settingLabel}>
                 <input
@@ -306,11 +346,10 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                   className={s.checkbox}
                 />
                 <div className={s.settingContent}>
-                  <div className={s.settingName}>Save API keys in project file</div>
+                  <div className={s.settingName}>Save browser keys in project file</div>
                   <div className={s.settingDescription}>
-                    Include API keys in the project file when saving. Only enable this if you want
-                    to share your keys with collaborators or use them on other machines. Keys are
-                    stored in plain text in the project file.
+                    Include your browser keys in the project file when saving. Only enable this if you
+                    want to share your keys with collaborators. Keys are stored in plain text.
                   </div>
                 </div>
               </label>
