@@ -1153,7 +1153,6 @@ export function ColorFieldComponent({
 
   const handleColorChange = useCallback(
     (hexColor: string) => {
-      setValue(hexColor)
       field.setValue(hexColor)
     },
     [field]
