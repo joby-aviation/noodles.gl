@@ -97,7 +97,8 @@
   text-overflow: ellipsis;
 }
 
-.blockLibraryCategoryItem:hover {
+/* Only apply hover in mouse mode */
+.blockLibrarySidebar:not([data-input-mode='keyboard']) .blockLibraryCategoryItem:hover {
   background-color: rgba(255, 255, 255, 0.05);
 }
 
@@ -155,19 +156,12 @@
   gap: 10px;
 }
 
-.blockLibraryCard:hover {
+/* Only apply hover in mouse mode */
+.blockLibraryContent:not([data-input-mode='keyboard']) .blockLibraryCard:hover {
   background-color: rgba(255, 255, 255, 0.06);
   border-color: rgba(255, 255, 255, 0.15);
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-/* Disable hover effects in keyboard mode */
-.blockLibraryContent[data-input-mode='keyboard'] .blockLibraryCard:hover {
-  background-color: rgba(255, 255, 255, 0.03);
-  border-color: rgba(255, 255, 255, 0.08);
-  transform: none;
-  box-shadow: none;
 }
 
 .blockLibraryCard:focus {

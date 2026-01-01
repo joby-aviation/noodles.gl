@@ -93,6 +93,7 @@ describe('Error handling', () => {
   it('fails gracefully if execute throws an error', () => {
     class TestOp extends Operator<TestOp> {
       static displayName = 'TestOp'
+      static description = 'Test operator for error handling'
       createInputs() {
         return {
           num: new NumberField(0),

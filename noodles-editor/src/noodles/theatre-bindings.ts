@@ -72,12 +72,12 @@ function fieldToTheatreProp(field: Field<IField>): types.PropTypeConfig | undefi
       return types.rgba(colorValue as Rgba)
     }
     if (field instanceof DateField) {
-      // Convert Temporal.PlainDateTime to epoch milliseconds for Theatre.js
-      // DateField's schema transforms all inputs to PlainDateTime
       const instant = (field.value as unknown as Temporal.PlainDateTime)
         .toZonedDateTime('UTC')
         .toInstant()
-      return types.number(instant.epochMilliseconds)
+      return types.number(instant.epochMilliseconds, {
+        nudgeMultiplier: 1,
+      })
     }
     if (field instanceof Vec2Field) {
       const v = field.value
@@ -202,6 +202,11 @@ export function bindOperatorToTheatre(
                 : Array.isArray(value_)
                   ? colorToRgba(value_)
                   : value_
+          } else if (field instanceof DateField) {
+            const instant = (value_ as unknown as Temporal.PlainDateTime)
+              .toZonedDateTime('UTC')
+              .toInstant()
+            value = instant.epochMilliseconds
           }
 
           // Prevent infinite loop for compound props
@@ -230,7 +235,8 @@ export function bindOperatorToTheatre(
         if (field instanceof ColorField) {
           value = rgbaToHex(value_)
         } else if (field instanceof DateField) {
-          value = Temporal.Instant.fromEpochMilliseconds(value_ as unknown as number)
+          const epochMs = Math.round(value_ as unknown as number)
+          value = Temporal.Instant.fromEpochMilliseconds(epochMs)
             .toZonedDateTimeISO('UTC')
             .toPlainDateTime()
         }
