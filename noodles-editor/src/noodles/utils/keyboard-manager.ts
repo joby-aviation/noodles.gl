@@ -25,13 +25,6 @@ class KeyboardManager {
 
   private handleKeyUp = (e: KeyboardEvent) => {
     const isInput = this.isInputDOMNode(e)
-    console.log('[KeyboardManager] keyup:', {
-      key: e.key,
-      target: e.target,
-      isInput,
-      nodeName: (e.target as Element)?.nodeName,
-      composedPath: e.composedPath?.().map((el: any) => el.nodeName || el.toString())
-    })
 
     if (isInput) return
 
@@ -39,7 +32,6 @@ class KeyboardManager {
 
     for (const registration of this.registrations) {
       if (registration.key === key) {
-        console.log('[KeyboardManager] Executing handler for key:', key)
         const result = registration.handler(e)
         if (result === false) {
           break
