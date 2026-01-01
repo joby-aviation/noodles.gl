@@ -1,6 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { analytics } from '../utils/analytics'
 import {
   type KeysConfig,
@@ -22,13 +22,17 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({})
   const [projectKeys, setProjectKeys] = useState<KeysConfig>({})
   const [envKeys, setEnvKeys] = useState<KeysConfig>({})
+  const keysRef = useRef(keys)
+  const saveInProjectRef = useRef(saveInProject)
+
+  // Keep refs in sync
+  useEffect(() => {
+    keysRef.current = keys
+    saveInProjectRef.current = saveInProject
+  }, [keys, saveInProject])
 
   useEffect(() => {
-    if (!open) {
-      // Save keys when dialog closes
-      saveKeysToStorage(keys, saveInProject)
-      return
-    }
+    if (!open) return // Skip if dialog is closed
 
     // Analytics consent
     const consent = analytics.getConsent()
@@ -46,7 +50,13 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
     // Environment keys
     const envKeysFound = keysManager.getEnvKeys()
     setEnvKeys(envKeysFound)
-  }, [open, keys, saveInProject])
+
+    // Return cleanup to save when dialog closes
+    return () => {
+      console.log('[Dialog] Closing, saving keys')
+      saveKeysToStorage(keysRef.current, saveInProjectRef.current)
+    }
+  }, [open])
 
   const handleAnalyticsToggle = (enabled: boolean) => {
     setAnalyticsEnabled(enabled)
