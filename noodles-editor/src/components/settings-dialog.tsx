@@ -148,11 +148,16 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
     )
   }
 
-  const ProjectKeyDisplay = ({ keyType, label }: { keyType: keyof KeysConfig, label: string }) => {
-    const projectKey = projectKeys[keyType]
-    const isActive = isSourceActive(keyType, 'project')
-    const activeSource = getActiveSource(keyType)
-    const showKey = showKeys[`project-${keyType}`]
+  // Shared component for read-only key display (project and env keys)
+  interface ReadOnlyKeyDisplayProps {
+    label: string
+    value: string | undefined
+    isActive: boolean
+    showKeyId: string
+  }
+
+  const ReadOnlyKeyDisplay = ({ label, value, isActive, showKeyId }: ReadOnlyKeyDisplayProps) => {
+    const showKey = showKeys[showKeyId]
 
     return (
       <div className={s.keyDisplay}>
@@ -161,29 +166,35 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
           {isActive && <span className={s.activeBadge}>Active</span>}
         </div>
 
-        {projectKey ? (
-          <>
-            <div className={s.inputGroup}>
-              <div className={`${s.input} ${s.readOnly}`}>
-                {showKey ? projectKey : maskKey(projectKey)}
-              </div>
-              <button
-                type="button"
-                onClick={() => toggleShowKey(`project-${keyType}`)}
-                className={s.toggleButton}
-                aria-label={showKey ? 'Hide' : 'Show'}
-              >
-                {showKey ? 'Hide' : 'Show'}
-              </button>
+        {value ? (
+          <div className={s.inputGroup}>
+            <div className={`${s.input} ${s.readOnly}`}>
+              {showKey ? value : maskKey(value)}
             </div>
-            {!isActive && activeSource === 'browser' && (
-              <div className={s.inactiveNote}>Browser key is active</div>
-            )}
-          </>
+            <button
+              type="button"
+              onClick={() => toggleShowKey(showKeyId)}
+              className={s.toggleButton}
+              aria-label={showKey ? 'Hide' : 'Show'}
+            >
+              {showKey ? 'Hide' : 'Show'}
+            </button>
+          </div>
         ) : (
           <div className={s.notSet}>Not set in project</div>
         )}
       </div>
+    )
+  }
+
+  const ProjectKeyDisplay = ({ keyType, label }: { keyType: keyof KeysConfig, label: string }) => {
+    return (
+      <ReadOnlyKeyDisplay
+        label={label}
+        value={projectKeys[keyType]}
+        isActive={isSourceActive(keyType, 'project')}
+        showKeyId={`project-${keyType}`}
+      />
     )
   }
 
@@ -294,85 +305,28 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
 
                 <div className={s.keysGroup}>
                   {envKeys.mapbox && (
-                    <div className={s.keyDisplay}>
-                      <div className={s.keyLabelRow}>
-                        <div className={s.keyLabel}>Mapbox</div>
-                        {isSourceActive('mapbox', 'env') && <span className={s.activeBadge}>Active</span>}
-                      </div>
-                      <div className={s.inputGroup}>
-                        <div className={`${s.input} ${s.readOnly}`}>
-                          {showKeys['env-mapbox'] ? envKeys.mapbox : maskKey(envKeys.mapbox)}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => toggleShowKey('env-mapbox')}
-                          className={s.toggleButton}
-                          aria-label={showKeys['env-mapbox'] ? 'Hide' : 'Show'}
-                        >
-                          {showKeys['env-mapbox'] ? 'Hide' : 'Show'}
-                        </button>
-                      </div>
-                      {!isSourceActive('mapbox', 'env') && (
-                        <div className={s.inactiveNote}>
-                          {getActiveSource('mapbox') === 'browser' && 'Browser key is active'}
-                          {getActiveSource('mapbox') === 'project' && 'Project key is active'}
-                        </div>
-                      )}
-                    </div>
+                    <ReadOnlyKeyDisplay
+                      label="Mapbox"
+                      value={envKeys.mapbox}
+                      isActive={isSourceActive('mapbox', 'env')}
+                      showKeyId="env-mapbox"
+                    />
                   )}
                   {envKeys.googleMaps && (
-                    <div className={s.keyDisplay}>
-                      <div className={s.keyLabelRow}>
-                        <div className={s.keyLabel}>Google Maps</div>
-                        {isSourceActive('googleMaps', 'env') && <span className={s.activeBadge}>Active</span>}
-                      </div>
-                      <div className={s.inputGroup}>
-                        <div className={`${s.input} ${s.readOnly}`}>
-                          {showKeys['env-googleMaps'] ? envKeys.googleMaps : maskKey(envKeys.googleMaps)}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => toggleShowKey('env-googleMaps')}
-                          className={s.toggleButton}
-                          aria-label={showKeys['env-googleMaps'] ? 'Hide' : 'Show'}
-                        >
-                          {showKeys['env-googleMaps'] ? 'Hide' : 'Show'}
-                        </button>
-                      </div>
-                      {!isSourceActive('googleMaps', 'env') && (
-                        <div className={s.inactiveNote}>
-                          {getActiveSource('googleMaps') === 'browser' && 'Browser key is active'}
-                          {getActiveSource('googleMaps') === 'project' && 'Project key is active'}
-                        </div>
-                      )}
-                    </div>
+                    <ReadOnlyKeyDisplay
+                      label="Google Maps"
+                      value={envKeys.googleMaps}
+                      isActive={isSourceActive('googleMaps', 'env')}
+                      showKeyId="env-googleMaps"
+                    />
                   )}
                   {envKeys.anthropic && (
-                    <div className={s.keyDisplay}>
-                      <div className={s.keyLabelRow}>
-                        <div className={s.keyLabel}>Anthropic</div>
-                        {isSourceActive('anthropic', 'env') && <span className={s.activeBadge}>Active</span>}
-                      </div>
-                      <div className={s.inputGroup}>
-                        <div className={`${s.input} ${s.readOnly}`}>
-                          {showKeys['env-anthropic'] ? envKeys.anthropic : maskKey(envKeys.anthropic)}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => toggleShowKey('env-anthropic')}
-                          className={s.toggleButton}
-                          aria-label={showKeys['env-anthropic'] ? 'Hide' : 'Show'}
-                        >
-                          {showKeys['env-anthropic'] ? 'Hide' : 'Show'}
-                        </button>
-                      </div>
-                      {!isSourceActive('anthropic', 'env') && (
-                        <div className={s.inactiveNote}>
-                          {getActiveSource('anthropic') === 'browser' && 'Browser key is active'}
-                          {getActiveSource('anthropic') === 'project' && 'Project key is active'}
-                        </div>
-                      )}
-                    </div>
+                    <ReadOnlyKeyDisplay
+                      label="Anthropic"
+                      value={envKeys.anthropic}
+                      isActive={isSourceActive('anthropic', 'env')}
+                      showKeyId="env-anthropic"
+                    />
                   )}
                 </div>
               </div>
