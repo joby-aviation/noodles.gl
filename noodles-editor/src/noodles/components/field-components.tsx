@@ -7,11 +7,7 @@ import type { ScaleLinear, ScaleOrdinal } from 'd3'
 import { Button } from 'primereact/button'
 import { InputText } from 'primereact/inputtext'
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { ChromePicker } from 'react-color'
-import { createPortal } from 'react-dom'
 import { Temporal } from 'temporal-polyfill'
-
-import { colorToHex } from '../../utils/color'
 import {
   type BezierCurveField,
   type BooleanField,
@@ -34,14 +30,14 @@ import {
 } from '../fields'
 import { useFileSystemStore } from '../filesystem-store'
 import type { Edge } from '../noodles'
+import s from '../noodles.module.css'
 import type { IOperator, Operator } from '../operators'
 import { checkAssetExists, writeAsset } from '../storage'
 import { projectScheme } from '../utils/filesystem'
 import { edgeId, type OpId } from '../utils/id-utils'
-import { handleClass } from './op-components'
-
-import s from '../noodles.module.css'
+import { ColorSwatch } from './color-swatch'
 import menuStyles from './menu.module.css'
+import { handleClass } from './op-components'
 
 type InputComponent = React.ComponentType<{
   id: OpId
@@ -1146,13 +1142,6 @@ export function ColorFieldComponent({
   disabled: boolean
 }) {
   const [value, setValue] = useState(guardAccessorFallback(field.value))
-  const [showPicker, setShowPicker] = useState(false)
-  const [pickerPosition, setPickerPosition] = useState<{
-    top: number
-    left: number
-  } | null>(null)
-  const pickerRef = useRef<HTMLDivElement>(null)
-  const swatchRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
@@ -1162,131 +1151,13 @@ export function ColorFieldComponent({
     return () => sub.unsubscribe()
   }, [field])
 
-  useEffect(() => {
-    const closePicker = () => {
-      setShowPicker(false)
-      // Global blur: remove focus from the button to ensure the node loses focus
-      swatchRef.current?.blur()
-      // Also blur any active element to ensure complete blur behavior
-      if (document.activeElement instanceof HTMLElement) {
-        document.activeElement.blur()
-      }
-    }
-
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node
-
-      // Check if click is outside both picker and swatch
-      const isOutsidePicker = pickerRef.current && !pickerRef.current.contains(target)
-      const isOutsideSwatch = swatchRef.current && !swatchRef.current.contains(target)
-
-      if (isOutsidePicker && isOutsideSwatch) {
-        closePicker()
-      }
-    }
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && showPicker) {
-        closePicker()
-      }
-    }
-
-    const handleWheel = (event: WheelEvent) => {
-      // Close picker on any scroll/wheel event (e.g., React Flow canvas zoom)
-      const target = event.target as Node
-      const isInsidePicker = pickerRef.current && pickerRef.current.contains(target)
-
-      if (!isInsidePicker) {
-        closePicker()
-      }
-    }
-
-    const handleTouchStart = (event: TouchEvent) => {
-      // Close picker on touch events outside
-      const target = event.target as Node
-      const isOutsidePicker = pickerRef.current && !pickerRef.current.contains(target)
-      const isOutsideSwatch = swatchRef.current && !swatchRef.current.contains(target)
-
-      if (isOutsidePicker && isOutsideSwatch) {
-        closePicker()
-      }
-    }
-
-    if (showPicker) {
-      // Use capture phase to ensure we catch events before they're handled elsewhere
-      document.addEventListener('mousedown', handleClickOutside, true)
-      document.addEventListener('keydown', handleEscape)
-      document.addEventListener('wheel', handleWheel, true)
-      document.addEventListener('touchstart', handleTouchStart, true)
-
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside, true)
-        document.removeEventListener('keydown', handleEscape)
-        document.removeEventListener('wheel', handleWheel, true)
-        document.removeEventListener('touchstart', handleTouchStart, true)
-      }
-    }
-  }, [showPicker])
-
-  const calculatePickerPosition = useCallback(() => {
-    if (!swatchRef.current) return null
-
-    const swatchRect = swatchRef.current.getBoundingClientRect()
-    const viewportWidth = window.innerWidth
-    const viewportHeight = window.innerHeight
-
-    // ChromePicker approximate dimensions
-    const pickerWidth = 225
-    const pickerHeight = 320
-
-    const margin = 8
-
-    // Calculate available space in all directions
-    const spaceBelow = viewportHeight - swatchRect.bottom
-    const spaceAbove = swatchRect.top
-
-    let top = swatchRect.bottom + margin
-    let left = swatchRect.left
-
-    // Vertical positioning: prefer below, but use above if not enough space
-    if (spaceBelow < pickerHeight + margin && spaceAbove > spaceBelow) {
-      top = swatchRect.top - pickerHeight - margin
-    }
-
-    // Horizontal positioning: ensure picker stays within viewport
-    if (left + pickerWidth > viewportWidth) {
-      left = Math.max(margin, viewportWidth - pickerWidth - margin)
-    }
-
-    return { top, left }
-  }, [])
-
-  const handleSwatchClick = useCallback(() => {
-    if (disabled) return
-
-    if (showPicker) {
-      // Close picker if already open
-      setShowPicker(false)
-    } else {
-      // Calculate position and open picker
-      const position = calculatePickerPosition()
-      if (position) {
-        setPickerPosition(position)
-        setShowPicker(true)
-      }
-    }
-  }, [disabled, showPicker, calculatePickerPosition])
-
-  const onPickerChange = useCallback((color: any) => {
-    // Convert from react-color format to hex with alpha
-    // color.rgb = { r: 0-255, g: 0-255, b: 0-255, a: 0-1 }
-    const { r, g, b, a } = color.rgb
-    const hexColor = colorToHex([r, g, b, Math.round(a * 255)])
-    setValue(hexColor)
-    field.setValue(hexColor)
-  }, [field])
-
-  let formatted = typeof value === 'string' ? value : colorToHex(value, true)
+  const handleColorChange = useCallback(
+    (hexColor: string) => {
+      setValue(hexColor)
+      field.setValue(hexColor)
+    },
+    [field]
+  )
 
   return (
     <div className={s.fieldWrapper}>
@@ -1294,37 +1165,7 @@ export function ColorFieldComponent({
         {id}
       </label>
       <div className={s.fieldInputWrapper}>
-        <button
-          ref={swatchRef}
-          type="button"
-          onClick={handleSwatchClick}
-          disabled={disabled}
-          className={s.colorSwatch}
-          title="Open color picker"
-          aria-label="Open color picker"
-        >
-          <div
-            className={s.colorSwatchInner}
-            style={{ '--color-value': formatted } as React.CSSProperties}
-          />
-        </button>
-        {showPicker && pickerPosition &&
-          createPortal(
-            <div
-              ref={pickerRef}
-              style={{
-                position: 'fixed',
-                top: `${pickerPosition.top}px`,
-                left: `${pickerPosition.left}px`,
-                zIndex: 10000,
-              }}
-            >
-              <div className={s.chromePickerWrapper}>
-                <ChromePicker color={formatted} onChange={onPickerChange} disableAlpha={false} />
-              </div>
-            </div>,
-            document.body
-          )}
+        <ColorSwatch value={value} onChange={handleColorChange} disabled={disabled} />
       </div>
     </div>
   )
