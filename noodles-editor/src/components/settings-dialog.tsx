@@ -21,13 +21,15 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
+    if (!open) return // Skip if dialog is closed
+
     const consent = analytics.getConsent()
     setAnalyticsEnabled(consent?.enabled ?? false)
 
     const stored = getKeysFromStorage()
     setKeys(stored.keys)
     setSaveInProject(stored.saveInProject)
-  }, [])
+  }, [open])
 
   const handleAnalyticsToggle = (enabled: boolean) => {
     setAnalyticsEnabled(enabled)
