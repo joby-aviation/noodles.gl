@@ -112,7 +112,7 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
         <div className={s.inputGroup}>
           <input
             type="text"
-            value={isEditing ? value : maskKey(value)}
+            value={isEditing || !value ? value : maskKey(value)}
             onChange={e => {
               if (isEditing) {
                 handleKeyChange(keyType, e.target.value)
