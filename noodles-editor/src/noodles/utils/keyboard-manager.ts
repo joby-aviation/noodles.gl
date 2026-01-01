@@ -24,9 +24,7 @@ class KeyboardManager {
   }
 
   private handleKeyUp = (e: KeyboardEvent) => {
-    const isInput = this.isInputDOMNode(e)
-
-    if (isInput) return
+    if (this.isInputDOMNode(e)) return
 
     const key = e.key.toLowerCase()
 

@@ -104,7 +104,7 @@ export const useKeysStore = create<KeysStore>()(
       },
     }),
     {
-      name: 'noodles-keys', // localStorage key (same as before)
+      name: 'noodles-keys',
       partialize: (state) => ({
         browserKeys: state.browserKeys,
         saveInProject: state.saveInProject,

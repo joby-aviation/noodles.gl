@@ -87,7 +87,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
     }
 
     init()
-  }, [apiKey])  // Re-run when apiKey changes (reactive!)
+  }, [apiKey])
 
   // Update MCPTools with current project whenever it changes
   useEffect(() => {
