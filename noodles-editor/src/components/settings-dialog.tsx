@@ -1,13 +1,13 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { analytics } from '../utils/analytics'
 import {
   type KeysConfig,
-  saveKeysToStorage,
-  keysManager,
+  useKeysStore,
+  getEnvKeys,
   maskKey,
-} from '../utils/keys-manager'
+} from '../noodles/keys-store'
 import s from './settings-dialog.module.css'
 
 interface SettingsDialogProps {
@@ -17,44 +17,26 @@ interface SettingsDialogProps {
 
 export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
   const [analyticsEnabled, setAnalyticsEnabled] = useState(false)
-  const [keys, setKeys] = useState<KeysConfig>({})
-  const [saveInProject, setSaveInProject] = useState(false)
+
+  // Direct store subscriptions (reactive)
+  const browserKeys = useKeysStore(state => state.browserKeys)
+  const saveInProject = useKeysStore(state => state.saveInProject)
+  const projectKeys = useKeysStore(state => state.projectKeys || {})
+  const setBrowserKey = useKeysStore(state => state.setBrowserKey)
+  const setSaveInProjectAction = useKeysStore(state => state.setSaveInProject)
+  const getActiveSource = useKeysStore(state => state.getActiveSource)
+
+  // Environment keys (static)
+  const envKeys = getEnvKeys()
+
+  // Keep showKeys local state (UI-only, doesn't need persistence)
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({})
-  const [projectKeys, setProjectKeys] = useState<KeysConfig>({})
-  const [envKeys, setEnvKeys] = useState<KeysConfig>({})
-  const keysRef = useRef(keys)
-  const saveInProjectRef = useRef(saveInProject)
 
-  // Keep refs in sync
+  // Load analytics consent on open
   useEffect(() => {
-    keysRef.current = keys
-    saveInProjectRef.current = saveInProject
-  }, [keys, saveInProject])
-
-  useEffect(() => {
-    if (!open) return // Skip if dialog is closed
-
-    // Analytics consent
-    const consent = analytics.getConsent()
-    setAnalyticsEnabled(consent?.enabled ?? false)
-
-    // localStorage keys
-    const browserKeys = keysManager.getBrowserKeys()
-    setKeys(browserKeys)
-    setSaveInProject(keysManager.getSaveInProject())
-
-    // Project keys
-    const projectKeysFromManager = keysManager.getProjectKeys() || {}
-    setProjectKeys(projectKeysFromManager)
-
-    // Environment keys
-    const envKeysFound = keysManager.getEnvKeys()
-    setEnvKeys(envKeysFound)
-
-    // Return cleanup to save when dialog closes
-    return () => {
-      console.log('[Dialog] Closing, saving keys')
-      saveKeysToStorage(keysRef.current, saveInProjectRef.current)
+    if (open) {
+      const consent = analytics.getConsent()
+      setAnalyticsEnabled(consent?.enabled ?? false)
     }
   }, [open])
 
@@ -68,18 +50,11 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
   }
 
   const handleKeyChange = (key: keyof KeysConfig, value: string) => {
-    const newKeys = { ...keys, [key]: value }
-    setKeys(newKeys)
-  }
-
-  const handleKeyBlur = () => {
-    // Save to storage when input loses focus
-    saveKeysToStorage(keys, saveInProject)
+    setBrowserKey(key, value)  // Auto-persists
   }
 
   const handleSaveInProjectToggle = (enabled: boolean) => {
-    setSaveInProject(enabled)
-    saveKeysToStorage(keys, enabled)
+    setSaveInProjectAction(enabled)  // Auto-persists
 
     if (enabled) {
       analytics.track('keys_save_in_project_enabled')
@@ -91,22 +66,8 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
   }
 
   const handleClearKey = (key: keyof KeysConfig) => {
-    const newKeys = { ...keys }
-    delete newKeys[key]
-    setKeys(newKeys)
-
-    // Save immediately with newKeys (can't wait for blur as state is async)
-    saveKeysToStorage(newKeys, saveInProject)
-
+    setBrowserKey(key, undefined)  // Auto-persists
     analytics.track('key_cleared', { key })
-  }
-
-  // Get active source for a key
-  const getActiveSource = (key: keyof KeysConfig): 'browser' | 'project' | 'env' | null => {
-    if (keys[key]) return 'browser'
-    if (projectKeys[key]) return 'project'
-    if (envKeys[key]) return 'env'
-    return null
   }
 
   // Check if a specific source is active for a key
@@ -136,24 +97,16 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
         <div className={s.inputGroup}>
           <input
             type={showKeys[keyType] ? 'text' : 'password'}
-            value={keys[keyType] || ''}
+            value={browserKeys[keyType] || ''}
             onChange={e => {
-              console.log('[Input] onChange:', keyType, 'new value length:', e.target.value.length)
               handleKeyChange(keyType, e.target.value)
-            }}
-            onBlur={() => {
-              console.log('[Input] BLUR:', keyType)
-              handleKeyBlur()
             }}
             placeholder={placeholder}
             className={s.input}
-            onFocus={() => console.log('[Input] FOCUS:', keyType)}
             onKeyDown={e => {
-              console.log('[Input] keydown:', e.key, 'stopPropagation called')
               e.stopPropagation()
             }}
             onKeyUp={e => {
-              console.log('[Input] keyup:', e.key, 'stopPropagation called')
               e.stopPropagation()
             }}
           />
@@ -165,7 +118,7 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
           >
             {showKeys[keyType] ? 'Hide' : 'Show'}
           </button>
-          {keys[keyType] && (
+          {browserKeys[keyType] && (
             <button
               type="button"
               onClick={() => handleClearKey(keyType)}
