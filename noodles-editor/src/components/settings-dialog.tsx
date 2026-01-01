@@ -24,7 +24,11 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
   const [envKeys, setEnvKeys] = useState<KeysConfig>({})
 
   useEffect(() => {
-    if (!open) return // Skip if dialog is closed
+    if (!open) {
+      // Save keys when dialog closes
+      saveKeysToStorage(keys, saveInProject)
+      return
+    }
 
     // Analytics consent
     const consent = analytics.getConsent()
@@ -42,7 +46,7 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
     // Environment keys
     const envKeysFound = keysManager.getEnvKeys()
     setEnvKeys(envKeysFound)
-  }, [open])
+  }, [open, keys, saveInProject])
 
   const handleAnalyticsToggle = (enabled: boolean) => {
     setAnalyticsEnabled(enabled)
@@ -56,7 +60,11 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
   const handleKeyChange = (key: keyof KeysConfig, value: string) => {
     const newKeys = { ...keys, [key]: value }
     setKeys(newKeys)
-    saveKeysToStorage(newKeys, saveInProject)
+  }
+
+  const handleKeyBlur = () => {
+    // Save to storage when input loses focus
+    saveKeysToStorage(keys, saveInProject)
   }
 
   const handleSaveInProjectToggle = (enabled: boolean) => {
@@ -76,6 +84,8 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
     const newKeys = { ...keys }
     delete newKeys[key]
     setKeys(newKeys)
+
+    // Save immediately with newKeys (can't wait for blur as state is async)
     saveKeysToStorage(newKeys, saveInProject)
 
     analytics.track('key_cleared', { key })
@@ -117,9 +127,17 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
           <input
             type={showKeys[keyType] ? 'text' : 'password'}
             value={keys[keyType] || ''}
-            onChange={e => handleKeyChange(keyType, e.target.value)}
+            onChange={e => {
+              console.log('[Input] onChange:', keyType, 'new value length:', e.target.value.length)
+              handleKeyChange(keyType, e.target.value)
+            }}
+            onBlur={() => {
+              console.log('[Input] BLUR:', keyType)
+              handleKeyBlur()
+            }}
             placeholder={placeholder}
             className={s.input}
+            onFocus={() => console.log('[Input] FOCUS:', keyType)}
             onKeyDown={e => {
               console.log('[Input] keydown:', e.key, 'stopPropagation called')
               e.stopPropagation()
