@@ -3,7 +3,6 @@ import { Cross2Icon } from '@radix-ui/react-icons'
 import { useEffect, useState } from 'react'
 import { analytics } from '../utils/analytics'
 import {
-  type KeysConfig,
   useKeysStore,
   getEnvKeys,
   maskKey,
@@ -13,6 +12,104 @@ import s from './settings-dialog.module.css'
 interface SettingsDialogProps {
   open: boolean
   setOpen: (open: boolean) => void
+}
+
+// Helper component for rendering browser key inputs
+interface KeyInputProps {
+  label: string
+  description: string
+  placeholder: string
+  value: string
+  isActive: boolean
+  onChange: (value: string) => void
+  onClear: () => void
+}
+
+const BrowserKeyInput = ({
+  label,
+  description,
+  placeholder,
+  value,
+  isActive,
+  onChange,
+  onClear
+}: KeyInputProps) => {
+  const [isEditing, setIsEditing] = useState(false)
+
+  return (
+    <div className={s.keyInput}>
+      <div className={s.keyLabelRow}>
+        <div className={s.keyLabel}>{label}</div>
+        {isActive && <span className={s.activeBadge}>Active</span>}
+      </div>
+      <div className={s.keyDescription}>{description}</div>
+
+      <div className={s.inputGroup}>
+        <input
+          type="text"
+          value={isEditing || !value ? value : maskKey(value)}
+          onChange={e => onChange(e.target.value)}
+          onFocus={() => setIsEditing(true)}
+          onBlur={() => setIsEditing(false)}
+          placeholder={placeholder}
+          className={s.input}
+          onKeyDown={e => e.stopPropagation()}
+          onKeyUp={e => e.stopPropagation()}
+        />
+        {value && (
+          <button
+            type="button"
+            onClick={onClear}
+            className={s.clearButton}
+          >
+            Clear
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Shared component for read-only key display (project and env keys)
+interface ReadOnlyKeyDisplayProps {
+  label: string
+  value: string | undefined
+  isActive: boolean
+}
+
+const ReadOnlyKeyDisplay = ({
+  label,
+  value,
+  isActive
+}: ReadOnlyKeyDisplayProps) => {
+  const [showKey, setShowKey] = useState(false)
+
+  return (
+    <div className={s.keyDisplay}>
+      <div className={s.keyLabelRow}>
+        <div className={s.keyLabel}>{label}</div>
+        {isActive && <span className={s.activeBadge}>Active</span>}
+      </div>
+
+      {value ? (
+        <div className={s.inputGroup}>
+          <div className={`${s.input} ${s.readOnly}`}>
+            {showKey ? value : maskKey(value)}
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowKey(!showKey)}
+            className={s.toggleButton}
+            aria-label={showKey ? 'Hide' : 'Show'}
+          >
+            {showKey ? 'Hide' : 'Show'}
+          </button>
+        </div>
+      ) : (
+        <div className={s.notSet}>Not set in project</div>
+      )}
+    </div>
+  )
 }
 
 export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
@@ -29,19 +126,13 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
   // Environment keys (static)
   const envKeys = getEnvKeys()
 
-  // Local state for inputs (to avoid focus loss during typing)
-  const [localKeys, setLocalKeys] = useState<KeysConfig>({})
-  const [editingKeys, setEditingKeys] = useState<Record<string, boolean>>({})
-  const [showKeys, setShowKeys] = useState<Record<string, boolean>>({})
-
-  // Sync local keys with store when dialog opens
+  // Sync analytics setting when dialog opens
   useEffect(() => {
     if (open) {
       const consent = analytics.getConsent()
       setAnalyticsEnabled(consent?.enabled ?? false)
-      setLocalKeys(browserKeys)
     }
-  }, [open, browserKeys])
+  }, [open])
 
   const handleAnalyticsToggle = (enabled: boolean) => {
     setAnalyticsEnabled(enabled)
@@ -52,150 +143,12 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
     }
   }
 
-  const handleKeyChange = (key: keyof KeysConfig, value: string) => {
-    setLocalKeys(prev => ({ ...prev, [key]: value }))
-  }
-
-  const handleKeyBlur = (key: keyof KeysConfig) => {
-    const value = localKeys[key]
-    setBrowserKey(key, value)
-  }
-
   const handleSaveInProjectToggle = (enabled: boolean) => {
     setSaveInProjectAction(enabled)
 
     if (enabled) {
       analytics.track('keys_save_in_project_enabled')
     }
-  }
-
-  const toggleShowKey = (key: string) => {
-    setShowKeys(prev => ({ ...prev, [key]: !prev[key] }))
-  }
-
-  const handleClearKey = (key: keyof KeysConfig) => {
-    setLocalKeys(prev => {
-      const updated = { ...prev }
-      delete updated[key]
-      return updated
-    })
-    setBrowserKey(key, undefined)
-    analytics.track('key_cleared', { key })
-  }
-
-  // Check if a specific source is active for a key
-  const isSourceActive = (key: keyof KeysConfig, source: 'browser' | 'project' | 'env'): boolean => {
-    return getActiveSource(key) === source
-  }
-
-  // Helper component for rendering browser key inputs
-  interface KeyInputProps {
-    keyType: keyof KeysConfig
-    label: string
-    description: string
-    placeholder: string
-  }
-
-  const BrowserKeyInput = ({ keyType, label, description, placeholder }: KeyInputProps) => {
-    const isActive = isSourceActive(keyType, 'browser')
-    const isEditing = editingKeys[keyType]
-    const value = localKeys[keyType] || ''
-
-    return (
-      <div className={s.keyInput}>
-        <div className={s.keyLabelRow}>
-          <div className={s.keyLabel}>{label}</div>
-          {isActive && <span className={s.activeBadge}>Active</span>}
-        </div>
-        <div className={s.keyDescription}>{description}</div>
-
-        <div className={s.inputGroup}>
-          <input
-            type="text"
-            value={isEditing || !value ? value : maskKey(value)}
-            onChange={e => {
-              if (isEditing) {
-                handleKeyChange(keyType, e.target.value)
-              }
-            }}
-            onFocus={() => {
-              setEditingKeys(prev => ({ ...prev, [keyType]: true }))
-            }}
-            onBlur={() => {
-              setEditingKeys(prev => ({ ...prev, [keyType]: false }))
-              handleKeyBlur(keyType)
-            }}
-            placeholder={placeholder}
-            className={s.input}
-            onKeyDown={e => {
-              e.stopPropagation()
-            }}
-            onKeyUp={e => {
-              e.stopPropagation()
-            }}
-          />
-          {localKeys[keyType] && (
-            <button
-              type="button"
-              onClick={() => handleClearKey(keyType)}
-              className={s.clearButton}
-            >
-              Clear
-            </button>
-          )}
-        </div>
-      </div>
-    )
-  }
-
-  // Shared component for read-only key display (project and env keys)
-  interface ReadOnlyKeyDisplayProps {
-    label: string
-    value: string | undefined
-    isActive: boolean
-    showKeyId: string
-  }
-
-  const ReadOnlyKeyDisplay = ({ label, value, isActive, showKeyId }: ReadOnlyKeyDisplayProps) => {
-    const showKey = showKeys[showKeyId]
-
-    return (
-      <div className={s.keyDisplay}>
-        <div className={s.keyLabelRow}>
-          <div className={s.keyLabel}>{label}</div>
-          {isActive && <span className={s.activeBadge}>Active</span>}
-        </div>
-
-        {value ? (
-          <div className={s.inputGroup}>
-            <div className={`${s.input} ${s.readOnly}`}>
-              {showKey ? value : maskKey(value)}
-            </div>
-            <button
-              type="button"
-              onClick={() => toggleShowKey(showKeyId)}
-              className={s.toggleButton}
-              aria-label={showKey ? 'Hide' : 'Show'}
-            >
-              {showKey ? 'Hide' : 'Show'}
-            </button>
-          </div>
-        ) : (
-          <div className={s.notSet}>Not set in project</div>
-        )}
-      </div>
-    )
-  }
-
-  const ProjectKeyDisplay = ({ keyType, label }: { keyType: keyof KeysConfig, label: string }) => {
-    return (
-      <ReadOnlyKeyDisplay
-        label={label}
-        value={projectKeys[keyType]}
-        isActive={isSourceActive(keyType, 'project')}
-        showKeyId={`project-${keyType}`}
-      />
-    )
   }
 
   return (
@@ -249,24 +202,42 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
 
               <div className={s.keysGroup}>
                 <BrowserKeyInput
-                  keyType="mapbox"
                   label="Mapbox Access Token"
                   description="Required for Mapbox basemaps and directions"
                   placeholder="pk.eyJ1..."
+                  value={browserKeys.mapbox || ''}
+                  isActive={getActiveSource('mapbox') === 'browser'}
+                  onChange={value => setBrowserKey('mapbox', value)}
+                  onClear={() => {
+                    setBrowserKey('mapbox', undefined)
+                    analytics.track('key_cleared', { key: 'mapbox' })
+                  }}
                 />
 
                 <BrowserKeyInput
-                  keyType="googleMaps"
                   label="Google Maps API Key"
                   description="Required for Google Maps transit directions"
                   placeholder="AIza..."
+                  value={browserKeys.googleMaps || ''}
+                  isActive={getActiveSource('googleMaps') === 'browser'}
+                  onChange={value => setBrowserKey('googleMaps', value)}
+                  onClear={() => {
+                    setBrowserKey('googleMaps', undefined)
+                    analytics.track('key_cleared', { key: 'googleMaps' })
+                  }}
                 />
 
                 <BrowserKeyInput
-                  keyType="anthropic"
                   label="Anthropic API Key"
                   description="Required for Claude AI assistant features"
                   placeholder="sk-ant-..."
+                  value={browserKeys.anthropic || ''}
+                  isActive={getActiveSource('anthropic') === 'browser'}
+                  onChange={value => setBrowserKey('anthropic', value)}
+                  onClear={() => {
+                    setBrowserKey('anthropic', undefined)
+                    analytics.track('key_cleared', { key: 'anthropic' })
+                  }}
                 />
               </div>
             </div>
@@ -281,15 +252,27 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
 
                 <div className={s.keysGroup}>
                   {projectKeys.mapbox && (
-                    <ProjectKeyDisplay keyType="mapbox" label="Mapbox Access Token" />
+                    <ReadOnlyKeyDisplay
+                      label="Mapbox Access Token"
+                      value={projectKeys.mapbox}
+                      isActive={getActiveSource('mapbox') === 'project'}
+                    />
                   )}
 
                   {projectKeys.googleMaps && (
-                    <ProjectKeyDisplay keyType="googleMaps" label="Google Maps API Key" />
+                    <ReadOnlyKeyDisplay
+                      label="Google Maps API Key"
+                      value={projectKeys.googleMaps}
+                      isActive={getActiveSource('googleMaps') === 'project'}
+                    />
                   )}
 
                   {projectKeys.anthropic && (
-                    <ProjectKeyDisplay keyType="anthropic" label="Anthropic API Key" />
+                    <ReadOnlyKeyDisplay
+                      label="Anthropic API Key"
+                      value={projectKeys.anthropic}
+                      isActive={getActiveSource('anthropic') === 'project'}
+                    />
                   )}
                 </div>
               </div>
@@ -308,24 +291,21 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                     <ReadOnlyKeyDisplay
                       label="Mapbox"
                       value={envKeys.mapbox}
-                      isActive={isSourceActive('mapbox', 'env')}
-                      showKeyId="env-mapbox"
+                      isActive={getActiveSource('mapbox') === 'env'}
                     />
                   )}
                   {envKeys.googleMaps && (
                     <ReadOnlyKeyDisplay
                       label="Google Maps"
                       value={envKeys.googleMaps}
-                      isActive={isSourceActive('googleMaps', 'env')}
-                      showKeyId="env-googleMaps"
+                      isActive={getActiveSource('googleMaps') === 'env'}
                     />
                   )}
                   {envKeys.anthropic && (
                     <ReadOnlyKeyDisplay
                       label="Anthropic"
                       value={envKeys.anthropic}
-                      isActive={isSourceActive('anthropic', 'env')}
-                      showKeyId="env-anthropic"
+                      isActive={getActiveSource('anthropic') === 'env'}
                     />
                   )}
                 </div>
