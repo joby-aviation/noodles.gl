@@ -73,6 +73,15 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
     setShowKeys(prev => ({ ...prev, [key]: !prev[key] }))
   }
 
+  const handleClearKey = (key: keyof KeysConfig) => {
+    const newKeys = { ...keys }
+    delete newKeys[key]
+    setKeys(newKeys)
+    saveKeysToStorage(newKeys, saveInProject)
+
+    analytics.track('key_cleared', { key })
+  }
+
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Portal>
