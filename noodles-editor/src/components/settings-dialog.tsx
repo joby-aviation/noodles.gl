@@ -120,8 +120,14 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
             onChange={e => handleKeyChange(keyType, e.target.value)}
             placeholder={placeholder}
             className={s.input}
-            onKeyDown={e => e.stopPropagation()}
-            onKeyUp={e => e.stopPropagation()}
+            onKeyDown={e => {
+              console.log('[Input] keydown:', e.key, 'stopPropagation called')
+              e.stopPropagation()
+            }}
+            onKeyUp={e => {
+              console.log('[Input] keyup:', e.key, 'stopPropagation called')
+              e.stopPropagation()
+            }}
           />
           <button
             type="button"
