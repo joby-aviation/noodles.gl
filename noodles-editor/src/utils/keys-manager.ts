@@ -35,13 +35,36 @@ class KeysManager {
     return this.projectKeys
   }
 
+  // Get browser keys from localStorage
+  getBrowserKeys(): KeysConfig {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY)
+      if (stored) {
+        return JSON.parse(stored) as KeysConfig
+      }
+    } catch (error) {
+      console.error('Failed to load API keys from localStorage:', error)
+    }
+    return {}
+  }
+
+  // Get saveInProject setting from localStorage
+  getSaveInProject(): boolean {
+    try {
+      return localStorage.getItem(STORAGE_SAVE_IN_PROJECT_KEY) === 'true'
+    } catch (error) {
+      console.error('Failed to load saveInProject setting from localStorage:', error)
+      return false
+    }
+  }
+
   // Get an API key from localStorage, project data, or environment variables
   // Priority: localStorage > project > env
   getKey(key: KeyType, projectKeys?: KeysConfig): string | undefined {
     // Try localStorage first (user's personal keys)
-    const stored = getKeysFromStorage()
-    if (stored.keys[key]) {
-      return stored.keys[key]
+    const browserKeys = this.getBrowserKeys()
+    if (browserKeys[key]) {
+      return browserKeys[key]
     }
 
     // Try project keys (if provided as parameter or from loaded project)
@@ -128,7 +151,8 @@ export function saveKeysToStorage(keys: KeysConfig, saveInProject: boolean): voi
 
 // Get API keys to be included in project file (if user opted in)
 export function getKeysForProject(): KeysConfig | undefined {
-  const { keys, saveInProject } = getKeysFromStorage()
+  const keys = keysManager.getBrowserKeys()
+  const saveInProject = keysManager.getSaveInProject()
   return saveInProject ? keys : undefined
 }
 

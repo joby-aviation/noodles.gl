@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import { analytics } from '../utils/analytics'
 import {
   type KeysConfig,
-  getKeysFromStorage,
   saveKeysToStorage,
   keysManager,
   maskKey,
@@ -32,9 +31,9 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
     setAnalyticsEnabled(consent?.enabled ?? false)
 
     // localStorage keys
-    const stored = getKeysFromStorage()
-    setKeys(stored.keys)
-    setSaveInProject(stored.saveInProject)
+    const browserKeys = keysManager.getBrowserKeys()
+    setKeys(browserKeys)
+    setSaveInProject(keysManager.getSaveInProject())
 
     // Project keys
     const projectKeysFromManager = keysManager.getProjectKeys() || {}
@@ -93,6 +92,96 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
   // Check if a specific source is active for a key
   const isSourceActive = (key: keyof KeysConfig, source: 'browser' | 'project' | 'env'): boolean => {
     return getActiveSource(key) === source
+  }
+
+  // Helper component for rendering browser key inputs
+  interface KeyInputProps {
+    keyType: keyof KeysConfig
+    label: string
+    description: string
+    placeholder: string
+  }
+
+  const BrowserKeyInput = ({ keyType, label, description, placeholder }: KeyInputProps) => {
+    const isActive = isSourceActive(keyType, 'browser')
+
+    return (
+      <div className={s.keyInput}>
+        <div className={s.keyLabelRow}>
+          <div className={s.keyLabel}>{label}</div>
+          {isActive && <span className={s.activeBadge}>Active</span>}
+        </div>
+        <div className={s.keyDescription}>{description}</div>
+
+        <div className={s.inputGroup}>
+          <input
+            type={showKeys[keyType] ? 'text' : 'password'}
+            value={keys[keyType] || ''}
+            onChange={e => handleKeyChange(keyType, e.target.value)}
+            placeholder={placeholder}
+            className={s.input}
+          />
+          <button
+            type="button"
+            onClick={() => toggleShowKey(keyType)}
+            className={s.toggleButton}
+            aria-label={showKeys[keyType] ? 'Hide' : 'Show'}
+          >
+            {showKeys[keyType] ? 'Hide' : 'Show'}
+          </button>
+          {keys[keyType] && (
+            <button
+              type="button"
+              onClick={() => handleClearKey(keyType)}
+              className={s.clearButton}
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  const ProjectKeyDisplay = ({ keyType, label }: { keyType: keyof KeysConfig, label: string }) => {
+    const projectKey = projectKeys[keyType]
+    const isActive = isSourceActive(keyType, 'project')
+    const activeSource = getActiveSource(keyType)
+
+    return (
+      <div className={s.keyDisplay}>
+        <div className={s.keyLabelRow}>
+          <div className={s.keyLabel}>{label}</div>
+          {isActive && <span className={s.activeBadge}>Active</span>}
+        </div>
+
+        {projectKey ? (
+          <>
+            <div className={s.inputGroup}>
+              <input
+                type={showKeys[`project-${keyType}`] ? 'text' : 'password'}
+                value={projectKey}
+                readOnly
+                className={`${s.input} ${s.readOnly}`}
+              />
+              <button
+                type="button"
+                onClick={() => toggleShowKey(`project-${keyType}`)}
+                className={s.toggleButton}
+                aria-label={showKeys[`project-${keyType}`] ? 'Hide' : 'Show'}
+              >
+                {showKeys[`project-${keyType}`] ? 'Hide' : 'Show'}
+              </button>
+            </div>
+            {!isActive && activeSource === 'browser' && (
+              <div className={s.inactiveNote}>Browser key is active</div>
+            )}
+          </>
+        ) : (
+          <div className={s.notSet}>Not set in project</div>
+        )}
+      </div>
+    )
   }
 
   return (
