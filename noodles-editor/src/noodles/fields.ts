@@ -487,10 +487,10 @@ export class ColorField extends Field<z.ZodString> {
       })
   }
   serialize(): string {
-    return Array.isArray(this.value) ? colorToHex(this.value, true) : this.value
+    return Array.isArray(this.value) ? colorToHex(this.value) : this.value
   }
   static deserialize(value: string | [number, number, number, number]) {
-    return Array.isArray(value) ? colorToHex(value, true) : value
+    return Array.isArray(value) ? colorToHex(value) : value
   }
 }
 

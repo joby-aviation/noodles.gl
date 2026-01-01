@@ -36,7 +36,7 @@ export function ColorSwatch({ value, onChange, disabled = false }: ColorSwatchPr
       ? value
       : (() => {
           const [r, g, b, a = 255] = value
-          return colorToHex([r, g, b, a], true)
+          return colorToHex([r, g, b, a])
         })()
 
   // Handle click outside, escape, wheel, and touch events
