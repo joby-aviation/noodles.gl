@@ -18,7 +18,7 @@ interface SettingsDialogProps {
 export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
   const [analyticsEnabled, setAnalyticsEnabled] = useState(false)
 
-  // Direct store subscriptions (reactive)
+  // Store subscriptions
   const browserKeys = useKeysStore(state => state.browserKeys)
   const saveInProject = useKeysStore(state => state.saveInProject)
   const projectKeys = useKeysStore(state => state.projectKeys || {})
@@ -29,16 +29,19 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
   // Environment keys (static)
   const envKeys = getEnvKeys()
 
-  // Keep showKeys local state (UI-only, doesn't need persistence)
+  // Local state for inputs (to avoid focus loss during typing)
+  const [localKeys, setLocalKeys] = useState<KeysConfig>({})
+  const [editingKeys, setEditingKeys] = useState<Record<string, boolean>>({})
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({})
 
-  // Load analytics consent on open
+  // Sync local keys with store when dialog opens
   useEffect(() => {
     if (open) {
       const consent = analytics.getConsent()
       setAnalyticsEnabled(consent?.enabled ?? false)
+      setLocalKeys(browserKeys)
     }
-  }, [open])
+  }, [open, browserKeys])
 
   const handleAnalyticsToggle = (enabled: boolean) => {
     setAnalyticsEnabled(enabled)
@@ -50,11 +53,16 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
   }
 
   const handleKeyChange = (key: keyof KeysConfig, value: string) => {
-    setBrowserKey(key, value)  // Auto-persists
+    setLocalKeys(prev => ({ ...prev, [key]: value }))
+  }
+
+  const handleKeyBlur = (key: keyof KeysConfig) => {
+    const value = localKeys[key]
+    setBrowserKey(key, value)
   }
 
   const handleSaveInProjectToggle = (enabled: boolean) => {
-    setSaveInProjectAction(enabled)  // Auto-persists
+    setSaveInProjectAction(enabled)
 
     if (enabled) {
       analytics.track('keys_save_in_project_enabled')
@@ -66,7 +74,12 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
   }
 
   const handleClearKey = (key: keyof KeysConfig) => {
-    setBrowserKey(key, undefined)  // Auto-persists
+    setLocalKeys(prev => {
+      const updated = { ...prev }
+      delete updated[key]
+      return updated
+    })
+    setBrowserKey(key, undefined)
     analytics.track('key_cleared', { key })
   }
 
@@ -85,6 +98,8 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
 
   const BrowserKeyInput = ({ keyType, label, description, placeholder }: KeyInputProps) => {
     const isActive = isSourceActive(keyType, 'browser')
+    const isEditing = editingKeys[keyType]
+    const value = localKeys[keyType] || ''
 
     return (
       <div className={s.keyInput}>
@@ -96,10 +111,19 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
 
         <div className={s.inputGroup}>
           <input
-            type={showKeys[keyType] ? 'text' : 'password'}
-            value={browserKeys[keyType] || ''}
+            type="text"
+            value={isEditing ? value : maskKey(value)}
             onChange={e => {
-              handleKeyChange(keyType, e.target.value)
+              if (isEditing) {
+                handleKeyChange(keyType, e.target.value)
+              }
+            }}
+            onFocus={() => {
+              setEditingKeys(prev => ({ ...prev, [keyType]: true }))
+            }}
+            onBlur={() => {
+              setEditingKeys(prev => ({ ...prev, [keyType]: false }))
+              handleKeyBlur(keyType)
             }}
             placeholder={placeholder}
             className={s.input}
@@ -110,15 +134,7 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
               e.stopPropagation()
             }}
           />
-          <button
-            type="button"
-            onClick={() => toggleShowKey(keyType)}
-            className={s.toggleButton}
-            aria-label={showKeys[keyType] ? 'Hide' : 'Show'}
-          >
-            {showKeys[keyType] ? 'Hide' : 'Show'}
-          </button>
-          {browserKeys[keyType] && (
+          {localKeys[keyType] && (
             <button
               type="button"
               onClick={() => handleClearKey(keyType)}
@@ -136,6 +152,7 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
     const projectKey = projectKeys[keyType]
     const isActive = isSourceActive(keyType, 'project')
     const activeSource = getActiveSource(keyType)
+    const showKey = showKeys[`project-${keyType}`]
 
     return (
       <div className={s.keyDisplay}>
@@ -147,19 +164,16 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
         {projectKey ? (
           <>
             <div className={s.inputGroup}>
-              <input
-                type={showKeys[`project-${keyType}`] ? 'text' : 'password'}
-                value={projectKey}
-                readOnly
-                className={`${s.input} ${s.readOnly}`}
-              />
+              <div className={`${s.input} ${s.readOnly}`}>
+                {showKey ? projectKey : maskKey(projectKey)}
+              </div>
               <button
                 type="button"
                 onClick={() => toggleShowKey(`project-${keyType}`)}
                 className={s.toggleButton}
-                aria-label={showKeys[`project-${keyType}`] ? 'Hide' : 'Show'}
+                aria-label={showKey ? 'Hide' : 'Show'}
               >
-                {showKeys[`project-${keyType}`] ? 'Hide' : 'Show'}
+                {showKey ? 'Hide' : 'Show'}
               </button>
             </div>
             {!isActive && activeSource === 'browser' && (
@@ -285,7 +299,19 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                         <div className={s.keyLabel}>Mapbox</div>
                         {isSourceActive('mapbox', 'env') && <span className={s.activeBadge}>Active</span>}
                       </div>
-                      <div className={s.keyValue}>{maskKey(envKeys.mapbox)}</div>
+                      <div className={s.inputGroup}>
+                        <div className={`${s.input} ${s.readOnly}`}>
+                          {showKeys['env-mapbox'] ? envKeys.mapbox : maskKey(envKeys.mapbox)}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => toggleShowKey('env-mapbox')}
+                          className={s.toggleButton}
+                          aria-label={showKeys['env-mapbox'] ? 'Hide' : 'Show'}
+                        >
+                          {showKeys['env-mapbox'] ? 'Hide' : 'Show'}
+                        </button>
+                      </div>
                       {!isSourceActive('mapbox', 'env') && (
                         <div className={s.inactiveNote}>
                           {getActiveSource('mapbox') === 'browser' && 'Browser key is active'}
@@ -300,7 +326,19 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                         <div className={s.keyLabel}>Google Maps</div>
                         {isSourceActive('googleMaps', 'env') && <span className={s.activeBadge}>Active</span>}
                       </div>
-                      <div className={s.keyValue}>{maskKey(envKeys.googleMaps)}</div>
+                      <div className={s.inputGroup}>
+                        <div className={`${s.input} ${s.readOnly}`}>
+                          {showKeys['env-googleMaps'] ? envKeys.googleMaps : maskKey(envKeys.googleMaps)}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => toggleShowKey('env-googleMaps')}
+                          className={s.toggleButton}
+                          aria-label={showKeys['env-googleMaps'] ? 'Hide' : 'Show'}
+                        >
+                          {showKeys['env-googleMaps'] ? 'Hide' : 'Show'}
+                        </button>
+                      </div>
                       {!isSourceActive('googleMaps', 'env') && (
                         <div className={s.inactiveNote}>
                           {getActiveSource('googleMaps') === 'browser' && 'Browser key is active'}
@@ -315,7 +353,19 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                         <div className={s.keyLabel}>Anthropic</div>
                         {isSourceActive('anthropic', 'env') && <span className={s.activeBadge}>Active</span>}
                       </div>
-                      <div className={s.keyValue}>{maskKey(envKeys.anthropic)}</div>
+                      <div className={s.inputGroup}>
+                        <div className={`${s.input} ${s.readOnly}`}>
+                          {showKeys['env-anthropic'] ? envKeys.anthropic : maskKey(envKeys.anthropic)}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => toggleShowKey('env-anthropic')}
+                          className={s.toggleButton}
+                          aria-label={showKeys['env-anthropic'] ? 'Hide' : 'Show'}
+                        >
+                          {showKeys['env-anthropic'] ? 'Hide' : 'Show'}
+                        </button>
+                      </div>
                       {!isSourceActive('anthropic', 'env') && (
                         <div className={s.inactiveNote}>
                           {getActiveSource('anthropic') === 'browser' && 'Browser key is active'}
