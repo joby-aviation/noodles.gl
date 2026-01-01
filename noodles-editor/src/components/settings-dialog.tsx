@@ -82,6 +82,19 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
     analytics.track('key_cleared', { key })
   }
 
+  // Get active source for a key
+  const getActiveSource = (key: keyof KeysConfig): 'browser' | 'project' | 'env' | null => {
+    if (keys[key]) return 'browser'
+    if (projectKeys[key]) return 'project'
+    if (envKeys[key]) return 'env'
+    return null
+  }
+
+  // Check if a specific source is active for a key
+  const isSourceActive = (key: keyof KeysConfig, source: 'browser' | 'project' | 'env'): boolean => {
+    return getActiveSource(key) === source
+  }
+
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Portal>
