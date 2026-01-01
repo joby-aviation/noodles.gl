@@ -120,6 +120,8 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
             onChange={e => handleKeyChange(keyType, e.target.value)}
             placeholder={placeholder}
             className={s.input}
+            onKeyDown={e => e.stopPropagation()}
+            onKeyUp={e => e.stopPropagation()}
           />
           <button
             type="button"
@@ -188,7 +190,10 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Portal>
         <Dialog.Overlay className={s.overlay} />
-        <Dialog.Content className={`${s.content} nokey`}>
+        <Dialog.Content
+          className={`${s.content} nokey`}
+          onOpenAutoFocus={(e) => e.preventDefault()}
+        >
           <Dialog.Title className={s.title}>App Settings</Dialog.Title>
 
           {/* Privacy & Analytics Section */}
