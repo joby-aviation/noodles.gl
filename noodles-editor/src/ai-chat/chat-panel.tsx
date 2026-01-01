@@ -6,7 +6,7 @@ import {
   type ProjectModification,
   useProjectModifications,
 } from '../noodles/hooks/use-project-modifications'
-import { KEYS_CHANGED_EVENT, keysManager } from '../utils/keys-manager'
+import { useKeysStore } from '../noodles/keys-store'
 import styles from './chat-panel.module.css'
 import { ClaudeClient } from './claude-client'
 import { loadConversation, saveConversation } from './conversation-history'
@@ -42,7 +42,9 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
   const [showHistory, setShowHistory] = useState(false)
   const [contextProgress, setContextProgress] = useState<string>('')
-  const [apiKey, setApiKey] = useState<string | undefined>(undefined)
+
+  // Get API key directly from store (reactive)
+  const apiKey = useKeysStore(state => state.getKey('anthropic'))
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -59,66 +61,33 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
     return unsubscribe
   }, [])
 
+  // Initialize Claude client when API key is available
   useEffect(() => {
+    if (!apiKey) {
+      setContextLoading(false)
+      return
+    }
+
     const init = async () => {
-      const key = keysManager.getKey('anthropic')
-      setApiKey(key)
-
-      if (!key) {
-        setContextLoading(false)
-        return
-      }
-
+      setContextLoading(true)
       try {
         // Wait for context to be ready (should be instant if already loaded)
         const loader = await globalContextManager.waitForReady()
 
         const tools = new MCPTools(loader)
-        const client = new ClaudeClient(key, tools)
+        const client = new ClaudeClient(apiKey, tools)
 
         setMcpTools(tools)
         setClaudeClient(client)
-        setContextLoading(false)
       } catch (error) {
         console.error('Failed to initialize Claude:', error)
+      } finally {
         setContextLoading(false)
       }
     }
 
     init()
-  }, [])
-
-  // Listen for API key changes
-  useEffect(() => {
-    const handleKeysChanged = () => {
-      const key = keysManager.getKey('anthropic')
-      setApiKey(key)
-
-      // If key was just added and we don't have a client yet, initialize
-      if (key && !claudeClient) {
-        const init = async () => {
-          setContextLoading(true)
-          try {
-            const loader = await globalContextManager.waitForReady()
-            const tools = new MCPTools(loader)
-            const client = new ClaudeClient(key, tools)
-            setMcpTools(tools)
-            setClaudeClient(client)
-          } catch (error) {
-            console.error('Failed to initialize Claude:', error)
-          } finally {
-            setContextLoading(false)
-          }
-        }
-        init()
-      }
-    }
-
-    window.addEventListener(KEYS_CHANGED_EVENT, handleKeysChanged)
-    return () => {
-      window.removeEventListener(KEYS_CHANGED_EVENT, handleKeysChanged)
-    }
-  }, [claudeClient])
+  }, [apiKey])  // Re-run when apiKey changes (reactive!)
 
   // Update MCPTools with current project whenever it changes
   useEffect(() => {
