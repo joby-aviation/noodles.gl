@@ -65,6 +65,23 @@ class KeysManager {
   hasKey(key: KeyType, projectKeys?: KeysConfig): boolean {
     return !!this.getKey(key, projectKeys)
   }
+
+  // Get environment keys (fallback from .env files)
+  getEnvKeys(): KeysConfig {
+    const envKeys: KeysConfig = {}
+
+    if (import.meta.env.VITE_MAPBOX_ACCESS_TOKEN) {
+      envKeys.mapbox = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
+    }
+    if (import.meta.env.VITE_GOOGLE_MAPS_API_KEY) {
+      envKeys.googleMaps = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+    }
+    if (import.meta.env.VITE_CLAUDE_API_KEY) {
+      envKeys.anthropic = import.meta.env.VITE_CLAUDE_API_KEY
+    }
+
+    return envKeys
+  }
 }
 
 // Export singleton instance

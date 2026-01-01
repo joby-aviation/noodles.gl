@@ -6,6 +6,8 @@ import {
   type KeysConfig,
   getKeysFromStorage,
   saveKeysToStorage,
+  keysManager,
+  maskKey,
 } from '../utils/keys-manager'
 import s from './settings-dialog.module.css'
 
@@ -19,16 +21,28 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
   const [keys, setKeys] = useState<KeysConfig>({})
   const [saveInProject, setSaveInProject] = useState(false)
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({})
+  const [projectKeys, setProjectKeys] = useState<KeysConfig>({})
+  const [envKeys, setEnvKeys] = useState<KeysConfig>({})
 
   useEffect(() => {
     if (!open) return // Skip if dialog is closed
 
+    // Analytics consent
     const consent = analytics.getConsent()
     setAnalyticsEnabled(consent?.enabled ?? false)
 
+    // localStorage keys
     const stored = getKeysFromStorage()
     setKeys(stored.keys)
     setSaveInProject(stored.saveInProject)
+
+    // Project keys
+    const projectKeysFromManager = keysManager.getProjectKeys() || {}
+    setProjectKeys(projectKeysFromManager)
+
+    // Environment keys
+    const envKeysFound = keysManager.getEnvKeys()
+    setEnvKeys(envKeysFound)
   }, [open])
 
   const handleAnalyticsToggle = (enabled: boolean) => {
