@@ -28,7 +28,7 @@ import { createPortal } from 'react-dom'
 import { Temporal } from 'temporal-polyfill'
 
 import { analytics } from '../../utils/analytics'
-import { KEYS_CHANGED_EVENT, keysManager } from '../../utils/keys-manager'
+import { useKeysStore } from '../keys-store'
 import { SheetContext } from '../../utils/sheet-context'
 import { ArrayField, type Field, type IField, ListField } from '../fields'
 import s from '../noodles.module.css'
@@ -666,23 +666,13 @@ function GeocoderOpComponent({
 
   const containerRef = useRef<HTMLDivElement>(null)
   const geocoderRef = useRef<MapboxGeocoder>()
-  const [hasApiKey, setHasApiKey] = useState(() => keysManager.hasKey('mapbox'))
 
-  // Listen for key changes
-  useEffect(() => {
-    const handleKeysChanged = () => {
-      setHasApiKey(keysManager.hasKey('mapbox'))
-    }
-
-    window.addEventListener(KEYS_CHANGED_EVENT, handleKeysChanged)
-    return () => {
-      window.removeEventListener(KEYS_CHANGED_EVENT, handleKeysChanged)
-    }
-  }, [])
+  // Get API key directly from store (reactive)
+  const apiKey = useKeysStore(state => state.getKey('mapbox'))
+  const hasApiKey = useKeysStore(state => state.hasKey('mapbox'))
 
   useLayoutEffect(() => {
     // Check if Mapbox API key is available
-    const apiKey = keysManager.getKey('mapbox')
 
     if (!containerRef.current || !apiKey) {
       if (!apiKey) {
@@ -782,36 +772,28 @@ function DirectionsOpComponent({
     throw new Error(`Operator with id ${id} not found`)
   }
 
-  // Track whether API keys are available
-  const [hasMapboxKey, setHasMapboxKey] = useState(() => keysManager.hasKey('mapbox'))
-  const [hasGoogleMapsKey, setHasGoogleMapsKey] = useState(() => keysManager.hasKey('googleMaps'))
+  // Reactive - automatically updates when keys change
+  const hasMapboxKey = useKeysStore(state => state.hasKey('mapbox'))
+  const hasGoogleMapsKey = useKeysStore(state => state.hasKey('googleMaps'))
 
-  // Listen for key changes and trigger re-execution when keys are added
+  // Track previous values to detect additions
+  const prevHasMapboxKey = useRef(hasMapboxKey)
+  const prevHasGoogleMapsKey = useRef(hasGoogleMapsKey)
+
   useEffect(() => {
-    const handleKeysChanged = () => {
-      const newHasMapboxKey = keysManager.hasKey('mapbox')
-      const newHasGoogleMapsKey = keysManager.hasKey('googleMaps')
+    const mapboxKeyAdded = !prevHasMapboxKey.current && hasMapboxKey
+    const googleMapsKeyAdded = !prevHasGoogleMapsKey.current && hasGoogleMapsKey
 
-      // Only trigger re-execution if a key was ADDED (not removed)
-      const mapboxKeyAdded = !hasMapboxKey && newHasMapboxKey
-      const googleMapsKeyAdded = !hasGoogleMapsKey && newHasGoogleMapsKey
-
-      if (mapboxKeyAdded || googleMapsKeyAdded) {
-        // Trigger re-execution by touching one of the input fields
-        // This will invalidate the memoization cache and cause the operator to re-execute
-        const currentOrigin = op.inputs.origin.value
-        op.inputs.origin.setValue(currentOrigin)
-      }
-
-      // Update state
-      setHasMapboxKey(newHasMapboxKey)
-      setHasGoogleMapsKey(newHasGoogleMapsKey)
+    if (mapboxKeyAdded || googleMapsKeyAdded) {
+      // Trigger re-execution by touching one of the input fields
+      // This will invalidate the memoization cache and cause the operator to re-execute
+      const currentOrigin = op.inputs.origin.value
+      op.inputs.origin.setValue(currentOrigin)
     }
 
-    window.addEventListener(KEYS_CHANGED_EVENT, handleKeysChanged)
-    return () => {
-      window.removeEventListener(KEYS_CHANGED_EVENT, handleKeysChanged)
-    }
+    // Update refs for next check
+    prevHasMapboxKey.current = hasMapboxKey
+    prevHasGoogleMapsKey.current = hasGoogleMapsKey
   }, [op, hasMapboxKey, hasGoogleMapsKey])
 
   return <NodeComponent id={id} type={type} />
