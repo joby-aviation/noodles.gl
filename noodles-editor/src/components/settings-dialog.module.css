@@ -15,7 +15,7 @@
   color: var(--color-text-primary);
   border-radius: 12px;
   padding: 1.5rem;
-  max-width: 500px;
+  max-width: 900px;
   width: 90vw;
   max-height: 85vh;
   overflow: auto;
@@ -104,7 +104,7 @@
 }
 
 .checkbox:checked::after {
-  content: '';
+  content: "";
   position: absolute;
   left: 5px;
   top: 2px;
@@ -249,13 +249,21 @@
   border-color: rgba(255, 255, 255, 0.2);
 }
 
+/* Subsections grid layout */
+.subsectionsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
 /* Subsection styles */
 .subsection {
   padding: 1rem;
   background-color: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: 8px;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0;
 }
 
 .subsectionTitle {

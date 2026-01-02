@@ -1,12 +1,8 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
 import { useEffect, useState } from 'react'
+import { getEnvKeys, maskKey, useKeysStore } from '../noodles/keys-store'
 import { analytics } from '../utils/analytics'
-import {
-  useKeysStore,
-  getEnvKeys,
-  maskKey,
-} from '../noodles/keys-store'
 import s from './settings-dialog.module.css'
 
 interface SettingsDialogProps {
@@ -32,7 +28,7 @@ const BrowserKeyInput = ({
   value,
   isActive,
   onChange,
-  onClear
+  onClear,
 }: KeyInputProps) => {
   const [isEditing, setIsEditing] = useState(false)
 
@@ -57,11 +53,7 @@ const BrowserKeyInput = ({
           onKeyUp={e => e.stopPropagation()}
         />
         {value && (
-          <button
-            type="button"
-            onClick={onClear}
-            className={s.clearButton}
-          >
+          <button type="button" onClick={onClear} className={s.clearButton}>
             Clear
           </button>
         )}
@@ -77,11 +69,7 @@ interface ReadOnlyKeyDisplayProps {
   isActive: boolean
 }
 
-const ReadOnlyKeyDisplay = ({
-  label,
-  value,
-  isActive
-}: ReadOnlyKeyDisplayProps) => {
+const ReadOnlyKeyDisplay = ({ label, value, isActive }: ReadOnlyKeyDisplayProps) => {
   const [showKey, setShowKey] = useState(false)
 
   return (
@@ -93,9 +81,7 @@ const ReadOnlyKeyDisplay = ({
 
       {value ? (
         <div className={s.inputGroup}>
-          <div className={`${s.input} ${s.readOnly}`}>
-            {showKey ? value : maskKey(value)}
-          </div>
+          <div className={`${s.input} ${s.readOnly}`}>{showKey ? value : maskKey(value)}</div>
           <button
             type="button"
             onClick={() => setShowKey(!showKey)}
@@ -155,10 +141,7 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Portal>
         <Dialog.Overlay className={s.overlay} />
-        <Dialog.Content
-          className={`${s.content} nokey`}
-          onOpenAutoFocus={(e) => e.preventDefault()}
-        >
+        <Dialog.Content className={`${s.content} nokey`} onOpenAutoFocus={e => e.preventDefault()}>
           <Dialog.Title className={s.title}>App Settings</Dialog.Title>
 
           {/* Privacy & Analytics Section */}
@@ -193,124 +176,124 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
               or in project files.
             </div>
 
-            {/* Browser Keys */}
-            <div className={s.subsection}>
-              <h4 className={s.subsectionTitle}>Browser Keys</h4>
-              <div className={s.subsectionDescription}>
-                Stored locally in your browser, not shared with others
+            <div className={s.subsectionsGrid}>
+              {/* Browser Keys */}
+              <div className={s.subsection}>
+                <h4 className={s.subsectionTitle}>Browser Keys</h4>
+                <div className={s.subsectionDescription}>
+                  Stored locally in your browser, not shared with others
+                </div>
+
+                <div className={s.keysGroup}>
+                  <BrowserKeyInput
+                    label="Mapbox Access Token"
+                    description="Required for Mapbox basemaps and directions"
+                    placeholder="pk.eyJ1..."
+                    value={browserKeys.mapbox || ''}
+                    isActive={getActiveSource('mapbox') === 'browser'}
+                    onChange={value => setBrowserKey('mapbox', value)}
+                    onClear={() => {
+                      setBrowserKey('mapbox', undefined)
+                      analytics.track('key_cleared', { key: 'mapbox' })
+                    }}
+                  />
+
+                  <BrowserKeyInput
+                    label="Google Maps API Key"
+                    description="Required for Google Maps transit directions"
+                    placeholder="AIza..."
+                    value={browserKeys.googleMaps || ''}
+                    isActive={getActiveSource('googleMaps') === 'browser'}
+                    onChange={value => setBrowserKey('googleMaps', value)}
+                    onClear={() => {
+                      setBrowserKey('googleMaps', undefined)
+                      analytics.track('key_cleared', { key: 'googleMaps' })
+                    }}
+                  />
+
+                  <BrowserKeyInput
+                    label="Anthropic API Key"
+                    description="Required for Claude AI assistant features"
+                    placeholder="sk-ant-..."
+                    value={browserKeys.anthropic || ''}
+                    isActive={getActiveSource('anthropic') === 'browser'}
+                    onChange={value => setBrowserKey('anthropic', value)}
+                    onClear={() => {
+                      setBrowserKey('anthropic', undefined)
+                      analytics.track('key_cleared', { key: 'anthropic' })
+                    }}
+                  />
+                </div>
               </div>
 
-              <div className={s.keysGroup}>
-                <BrowserKeyInput
-                  label="Mapbox Access Token"
-                  description="Required for Mapbox basemaps and directions"
-                  placeholder="pk.eyJ1..."
-                  value={browserKeys.mapbox || ''}
-                  isActive={getActiveSource('mapbox') === 'browser'}
-                  onChange={value => setBrowserKey('mapbox', value)}
-                  onClear={() => {
-                    setBrowserKey('mapbox', undefined)
-                    analytics.track('key_cleared', { key: 'mapbox' })
-                  }}
-                />
+              {/* Project Keys */}
+              {(projectKeys.mapbox || projectKeys.googleMaps || projectKeys.anthropic) && (
+                <div className={s.subsection}>
+                  <h4 className={s.subsectionTitle}>Project Keys (Read-Only)</h4>
+                  <div className={s.subsectionDescription}>
+                    Keys saved in the project file, shared when project is shared
+                  </div>
 
-                <BrowserKeyInput
-                  label="Google Maps API Key"
-                  description="Required for Google Maps transit directions"
-                  placeholder="AIza..."
-                  value={browserKeys.googleMaps || ''}
-                  isActive={getActiveSource('googleMaps') === 'browser'}
-                  onChange={value => setBrowserKey('googleMaps', value)}
-                  onClear={() => {
-                    setBrowserKey('googleMaps', undefined)
-                    analytics.track('key_cleared', { key: 'googleMaps' })
-                  }}
-                />
+                  <div className={s.keysGroup}>
+                    {projectKeys.mapbox && (
+                      <ReadOnlyKeyDisplay
+                        label="Mapbox Access Token"
+                        value={projectKeys.mapbox}
+                        isActive={getActiveSource('mapbox') === 'project'}
+                      />
+                    )}
 
-                <BrowserKeyInput
-                  label="Anthropic API Key"
-                  description="Required for Claude AI assistant features"
-                  placeholder="sk-ant-..."
-                  value={browserKeys.anthropic || ''}
-                  isActive={getActiveSource('anthropic') === 'browser'}
-                  onChange={value => setBrowserKey('anthropic', value)}
-                  onClear={() => {
-                    setBrowserKey('anthropic', undefined)
-                    analytics.track('key_cleared', { key: 'anthropic' })
-                  }}
-                />
-              </div>
+                    {projectKeys.googleMaps && (
+                      <ReadOnlyKeyDisplay
+                        label="Google Maps API Key"
+                        value={projectKeys.googleMaps}
+                        isActive={getActiveSource('googleMaps') === 'project'}
+                      />
+                    )}
+
+                    {projectKeys.anthropic && (
+                      <ReadOnlyKeyDisplay
+                        label="Anthropic API Key"
+                        value={projectKeys.anthropic}
+                        isActive={getActiveSource('anthropic') === 'project'}
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Environment Keys */}
+              {(envKeys.mapbox || envKeys.googleMaps || envKeys.anthropic) && (
+                <div className={s.subsection}>
+                  <h4 className={s.subsectionTitle}>Environment Keys (Read-Only)</h4>
+                  <div className={s.subsectionDescription}>Fallback keys from .env files</div>
+
+                  <div className={s.keysGroup}>
+                    {envKeys.mapbox && (
+                      <ReadOnlyKeyDisplay
+                        label="Mapbox"
+                        value={envKeys.mapbox}
+                        isActive={getActiveSource('mapbox') === 'env'}
+                      />
+                    )}
+                    {envKeys.googleMaps && (
+                      <ReadOnlyKeyDisplay
+                        label="Google Maps"
+                        value={envKeys.googleMaps}
+                        isActive={getActiveSource('googleMaps') === 'env'}
+                      />
+                    )}
+                    {envKeys.anthropic && (
+                      <ReadOnlyKeyDisplay
+                        label="Anthropic"
+                        value={envKeys.anthropic}
+                        isActive={getActiveSource('anthropic') === 'env'}
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
-
-            {/* Project Keys */}
-            {(projectKeys.mapbox || projectKeys.googleMaps || projectKeys.anthropic) && (
-              <div className={s.subsection}>
-                <h4 className={s.subsectionTitle}>Project Keys (Read-Only)</h4>
-                <div className={s.subsectionDescription}>
-                  Keys saved in the project file, shared when project is shared
-                </div>
-
-                <div className={s.keysGroup}>
-                  {projectKeys.mapbox && (
-                    <ReadOnlyKeyDisplay
-                      label="Mapbox Access Token"
-                      value={projectKeys.mapbox}
-                      isActive={getActiveSource('mapbox') === 'project'}
-                    />
-                  )}
-
-                  {projectKeys.googleMaps && (
-                    <ReadOnlyKeyDisplay
-                      label="Google Maps API Key"
-                      value={projectKeys.googleMaps}
-                      isActive={getActiveSource('googleMaps') === 'project'}
-                    />
-                  )}
-
-                  {projectKeys.anthropic && (
-                    <ReadOnlyKeyDisplay
-                      label="Anthropic API Key"
-                      value={projectKeys.anthropic}
-                      isActive={getActiveSource('anthropic') === 'project'}
-                    />
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Environment Keys */}
-            {(envKeys.mapbox || envKeys.googleMaps || envKeys.anthropic) && (
-              <div className={s.subsection}>
-                <h4 className={s.subsectionTitle}>Environment Keys (Read-Only)</h4>
-                <div className={s.subsectionDescription}>
-                  Fallback keys from .env files
-                </div>
-
-                <div className={s.keysGroup}>
-                  {envKeys.mapbox && (
-                    <ReadOnlyKeyDisplay
-                      label="Mapbox"
-                      value={envKeys.mapbox}
-                      isActive={getActiveSource('mapbox') === 'env'}
-                    />
-                  )}
-                  {envKeys.googleMaps && (
-                    <ReadOnlyKeyDisplay
-                      label="Google Maps"
-                      value={envKeys.googleMaps}
-                      isActive={getActiveSource('googleMaps') === 'env'}
-                    />
-                  )}
-                  {envKeys.anthropic && (
-                    <ReadOnlyKeyDisplay
-                      label="Anthropic"
-                      value={envKeys.anthropic}
-                      isActive={getActiveSource('anthropic') === 'env'}
-                    />
-                  )}
-                </div>
-              </div>
-            )}
 
             {/* Save in project checkbox */}
             <div className={s.settingItem}>
@@ -324,8 +307,8 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                 <div className={s.settingContent}>
                   <div className={s.settingName}>Save browser keys in project file</div>
                   <div className={s.settingDescription}>
-                    Include your browser keys in the project file when saving. Only enable this if you
-                    want to share your keys with collaborators. Keys are stored in plain text.
+                    Include your browser keys in the project file when saving. Only enable this if
+                    you want to share your keys with collaborators. Keys are stored in plain text.
                   </div>
                 </div>
               </label>
