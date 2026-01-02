@@ -1,7 +1,7 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
 import { useEffect, useState } from 'react'
-import { getEnvKeys, maskKey, useKeysStore } from '../noodles/keys-store'
+import { getEnvKeys, useKeysStore } from '../noodles/keys-store'
 import { analytics } from '../utils/analytics'
 import s from './settings-dialog.module.css'
 
@@ -34,14 +34,10 @@ const KeyGroup = ({
   onBrowserChange,
   onBrowserClear,
 }: KeyGroupProps) => {
-  const [isEditing, setIsEditing] = useState(false)
-
   const handleCopy = (value: string, source: 'project' | 'env') => {
     navigator.clipboard.writeText(value)
     analytics.track('key_copied', { source })
   }
-
-  const getPreview = (value: string) => (value.length > 10 ? `${value.slice(0, 10)}...` : value)
 
   return (
     <div className={s.keyGroup}>
@@ -60,10 +56,8 @@ const KeyGroup = ({
           <div className={s.inputGroup}>
             <input
               type="text"
-              value={isEditing || !browserValue ? browserValue : maskKey(browserValue)}
+              value={browserValue}
               onChange={e => onBrowserChange(e.target.value)}
-              onFocus={() => setIsEditing(true)}
-              onBlur={() => setIsEditing(false)}
               placeholder={placeholder}
               className={s.input}
               onKeyDown={e => e.stopPropagation()}
@@ -84,9 +78,7 @@ const KeyGroup = ({
               <span className={s.sourceText}>Project</span>
               {activeSource === 'project' && <span className={s.activeBadge}>Active</span>}
             </div>
-            <div className={s.keyPreview} title={getPreview(projectValue)}>
-              {maskKey(projectValue)}
-            </div>
+            <div className={s.keyPreview}>{projectValue}</div>
             <button
               type="button"
               onClick={() => handleCopy(projectValue, 'project')}
@@ -104,9 +96,7 @@ const KeyGroup = ({
               <span className={s.sourceText}>Environment</span>
               {activeSource === 'env' && <span className={s.activeBadge}>Active</span>}
             </div>
-            <div className={s.keyPreview} title={getPreview(envValue)}>
-              {maskKey(envValue)}
-            </div>
+            <div className={s.keyPreview}>{envValue}</div>
             <button
               type="button"
               onClick={() => handleCopy(envValue, 'env')}
