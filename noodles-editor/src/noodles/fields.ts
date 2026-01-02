@@ -1577,4 +1577,230 @@ export class FeatureCollectionField extends Field<z.ZodType<FeatureCollection<Ge
       : turf.featureCollection([])
     super(initialFC, options)
   }
+
+  // Convert FeatureCollection to tabular format (extract properties)
+  toTabular(): TabularData {
+    const features = this.value.features
+    const properties = features.map((f, i) => {
+      const coords = f.geometry.type === 'Point' ? f.geometry.coordinates : null
+      return {
+        ...f.properties,
+        _lng: coords?.[0],
+        _lat: coords?.[1],
+        _geometryType: f.geometry.type,
+        _featureIndex: i,
+      }
+    })
+    return {
+      length: properties.length,
+      properties,
+      attributes: {},
+    }
+  }
+}
+
+// Helper to detect ALL coordinate pairs in an object (e.g., pickup/dropoff)
+export function detectCoordinateSets(
+  obj: Record<string, unknown>
+): Record<string, { lng: string; lat: string }> {
+  if (typeof obj !== 'object' || obj === null) return {}
+
+  const lngPattern = /^(.+?)_?(lng|lon|longitude)$/i
+  const latPattern = /^(.+?)_?(lat|latitude)$/i
+
+  const sets: Record<string, { lng: string; lat: string }> = {}
+  const lngFields: Array<{ key: string; prefix: string }> = []
+  const latFields: Array<{ key: string; prefix: string }> = []
+
+  // Find all lng/lat fields with their prefixes
+  for (const key of Object.keys(obj)) {
+    if (typeof obj[key] === 'number') {
+      const lngMatch = key.match(lngPattern)
+      if (lngMatch) {
+        lngFields.push({ key, prefix: lngMatch[1] || '' })
+      }
+
+      const latMatch = key.match(latPattern)
+      if (latMatch) {
+        latFields.push({ key, prefix: latMatch[1] || '' })
+      }
+    }
+  }
+
+  // Match lng/lat pairs by prefix
+  for (const lngField of lngFields) {
+    const matchingLatField = latFields.find(latField => latField.prefix === lngField.prefix)
+
+    if (matchingLatField) {
+      const setName = lngField.prefix || 'default'
+      sets[setName] = {
+        lng: lngField.key,
+        lat: matchingLatField.key,
+      }
+    }
+  }
+
+  return sets
+}
+
+// Binary attribute for deck.gl
+export interface BinaryAttribute {
+  value: TypedArray
+  size: number
+  offset?: number
+  stride?: number
+}
+
+// Tabular data with binary attributes
+export interface TabularData {
+  length: number
+  properties?: Array<Record<string, unknown>> // Original row data
+  attributes: Record<string, BinaryAttribute>
+  coordinateSets?: Record<string, { lng: string; lat: string }>
+}
+
+type TypedArray =
+  | Int8Array
+  | Uint8Array
+  | Uint8ClampedArray
+  | Int16Array
+  | Uint16Array
+  | Int32Array
+  | Uint32Array
+  | Float32Array
+  | Float64Array
+
+export class TabularField extends Field<z.ZodType<TabularData>> {
+  static type = 'tabular'
+  static defaultValue: TabularData = { length: 0, attributes: {}, properties: [] }
+
+  createSchema() {
+    return z
+      .union([
+        // Accept TabularData directly
+        z.custom<TabularData>((val): val is TabularData => {
+          if (typeof val !== 'object' || val === null) return false
+          const data = val as TabularData
+          return typeof data.length === 'number' && typeof data.attributes === 'object'
+        }),
+        // Accept array of objects (most common case)
+        z.unknown().transform((val): TabularData => {
+          if (Array.isArray(val)) {
+            return {
+              length: val.length,
+              properties: val,
+              attributes: {},
+              coordinateSets: val.length > 0 ? detectCoordinateSets(val[0]) : undefined,
+            }
+          }
+          return val as TabularData
+        }),
+        // Accept FeatureCollection (extract properties + coordinates)
+        z.unknown().transform((val): TabularData => {
+          if (
+            typeof val === 'object' &&
+            val !== null &&
+            'type' in val &&
+            (val as FeatureCollection).type === 'FeatureCollection'
+          ) {
+            const fc = val as FeatureCollection
+            const properties = fc.features.map((f, i) => {
+              const coords = f.geometry.type === 'Point' ? f.geometry.coordinates : null
+              return {
+                ...f.properties,
+                _lng: coords?.[0],
+                _lat: coords?.[1],
+                _geometryType: f.geometry.type,
+                _featureIndex: i,
+              }
+            })
+            return {
+              length: properties.length,
+              properties,
+              attributes: {},
+              coordinateSets: { default: { lng: '_lng', lat: '_lat' } },
+            }
+          }
+          return val as TabularData
+        }),
+      ])
+      .transform(val => val as TabularData)
+  }
+
+  constructor(defaultValue?: TabularData | Array<Record<string, unknown>>, options?: BaseFieldOptions) {
+    let initial: TabularData
+    if (Array.isArray(defaultValue)) {
+      initial = {
+        length: defaultValue.length,
+        properties: defaultValue,
+        attributes: {},
+        coordinateSets: defaultValue.length > 0 ? detectCoordinateSets(defaultValue[0]) : undefined,
+      }
+    } else {
+      initial = defaultValue || TabularField.defaultValue
+    }
+    super(initial, options)
+  }
+
+  // Lazily create binary attribute if it doesn't exist
+  getOrCreateAttribute(name: string, coordSet?: string): BinaryAttribute | null {
+    // Return existing attribute
+    if (this.value.attributes?.[name]) {
+      return this.value.attributes[name]
+    }
+
+    // Auto-generate position attribute from detected coordinates
+    if (name === 'position' && this.value.coordinateSets) {
+      const setToUse = coordSet
+        ? this.value.coordinateSets[coordSet]
+        : this.value.coordinateSets.default || Object.values(this.value.coordinateSets)[0]
+
+      if (setToUse && this.value.properties) {
+        const attr = this.createPositionAttribute(setToUse)
+        // Cache the attribute
+        this.value.attributes[name] = attr
+        return attr
+      }
+    }
+
+    return null
+  }
+
+  private createPositionAttribute(coordSet: { lng: string; lat: string }): BinaryAttribute {
+    if (!this.value.properties) {
+      return { value: new Float32Array(0), size: 2 }
+    }
+
+    const positions = new Float32Array(this.value.length * 2)
+    for (let i = 0; i < this.value.length; i++) {
+      const row = this.value.properties[i]
+      positions[i * 2] = Number(row[coordSet.lng]) || 0
+      positions[i * 2 + 1] = Number(row[coordSet.lat]) || 0
+    }
+
+    return { value: positions, size: 2 }
+  }
+
+  // Convert to FeatureCollection using specified coordinate set
+  toFeatureCollection(coordSet?: string): FeatureCollection {
+    if (!this.value.properties || this.value.length === 0) {
+      return turf.featureCollection([])
+    }
+
+    const setToUse = coordSet
+      ? this.value.coordinateSets?.[coordSet]
+      : this.value.coordinateSets?.default || Object.values(this.value.coordinateSets || {})[0]
+
+    if (!setToUse) {
+      throw new Error('No coordinate set found for FeatureCollection conversion')
+    }
+
+    const features = this.value.properties.map(row => {
+      const lng = Number(row[setToUse.lng]) || 0
+      const lat = Number(row[setToUse.lat]) || 0
+      return turf.point([lng, lat], row)
+    })
+
+    return turf.featureCollection(features)
+  }
 }

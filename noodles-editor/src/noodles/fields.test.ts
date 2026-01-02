@@ -8,6 +8,8 @@ import {
   CompoundPropsField,
   DataField,
   DateField,
+  detectCoordinateSets,
+  FeatureCollectionField,
   Field,
   FunctionField,
   GeoJsonField,
@@ -21,6 +23,8 @@ import {
   parseChoices,
   StringField,
   StringLiteralField,
+  TabularField,
+  type TabularData,
 } from './fields'
 import { NumberOp } from './operators'
 import { clearOps, setOp } from './store'
@@ -959,5 +963,394 @@ describe('GeoJsonField', () => {
     }
     field.setValue(featureCollection)
     expect(field.value).toEqual(featureCollection)
+  })
+})
+
+
+describe('detectCoordinateSets', () => {
+  it('should detect default lng/lat pairs', () => {
+    const obj = { lng: -74.0, lat: 40.7, value: 100 }
+    const sets = detectCoordinateSets(obj)
+
+    expect(sets).toHaveProperty('default')
+    expect(sets.default).toEqual({ lng: 'lng', lat: 'lat' })
+  })
+
+  it('should detect lon/lat pairs', () => {
+    const obj = { lon: -74.0, lat: 40.7, value: 100 }
+    const sets = detectCoordinateSets(obj)
+
+    expect(sets).toHaveProperty('default')
+    expect(sets.default).toEqual({ lng: 'lon', lat: 'lat' })
+  })
+
+  it('should detect longitude/latitude pairs', () => {
+    const obj = { longitude: -74.0, latitude: 40.7, value: 100 }
+    const sets = detectCoordinateSets(obj)
+
+    expect(sets).toHaveProperty('default')
+    expect(sets.default).toEqual({ lng: 'longitude', lat: 'latitude' })
+  })
+
+  it('should detect pickup/dropoff coordinate pairs', () => {
+    const obj = {
+      pickup_lng: -74.0,
+      pickup_lat: 40.7,
+      dropoff_lng: -73.9,
+      dropoff_lat: 40.8,
+      fare: 12.5,
+    }
+    const sets = detectCoordinateSets(obj)
+
+    expect(sets).toHaveProperty('pickup')
+    expect(sets.pickup).toEqual({ lng: 'pickup_lng', lat: 'pickup_lat' })
+    expect(sets).toHaveProperty('dropoff')
+    expect(sets.dropoff).toEqual({ lng: 'dropoff_lng', lat: 'dropoff_lat' })
+  })
+
+  it('should detect origin/destination coordinate pairs', () => {
+    const obj = {
+      origin_longitude: -74.0,
+      origin_latitude: 40.7,
+      destination_longitude: -73.9,
+      destination_latitude: 40.8,
+    }
+    const sets = detectCoordinateSets(obj)
+
+    expect(sets).toHaveProperty('origin')
+    expect(sets.origin).toEqual({ lng: 'origin_longitude', lat: 'origin_latitude' })
+    expect(sets).toHaveProperty('destination')
+    expect(sets.destination).toEqual({ lng: 'destination_longitude', lat: 'destination_latitude' })
+  })
+
+  it('should detect start/end coordinate pairs', () => {
+    const obj = {
+      start_lng: -74.0,
+      start_lat: 40.7,
+      end_lon: -73.9,
+      end_lat: 40.8,
+    }
+    const sets = detectCoordinateSets(obj)
+
+    expect(sets).toHaveProperty('start')
+    expect(sets.start).toEqual({ lng: 'start_lng', lat: 'start_lat' })
+    expect(sets).toHaveProperty('end')
+    expect(sets.end).toEqual({ lng: 'end_lon', lat: 'end_lat' })
+  })
+
+  it('should handle mixed coordinate naming', () => {
+    const obj = {
+      lng: -74.0,
+      lat: 40.7,
+      pickup_longitude: -74.1,
+      pickup_latitude: 40.8,
+    }
+    const sets = detectCoordinateSets(obj)
+
+    expect(sets).toHaveProperty('default')
+    expect(sets).toHaveProperty('pickup')
+  })
+
+  it('should return empty object when no coordinates found', () => {
+    const obj = { value: 100, name: 'test' }
+    const sets = detectCoordinateSets(obj)
+
+    expect(Object.keys(sets)).toHaveLength(0)
+  })
+
+  it('should handle case-insensitive matching', () => {
+    const obj = { LNG: -74.0, LAT: 40.7 }
+    const sets = detectCoordinateSets(obj)
+
+    expect(sets).toHaveProperty('default')
+    expect(sets.default).toEqual({ lng: 'LNG', lat: 'LAT' })
+  })
+
+  it('should not match partial coordinate pairs', () => {
+    const obj = { lng: -74.0, value: 100 }
+    const sets = detectCoordinateSets(obj)
+
+    // Should not create a coordinate set with only lng
+    expect(Object.keys(sets)).toHaveLength(0)
+  })
+})
+
+describe('TabularField', () => {
+  describe('constructor and schema validation', () => {
+    it('should accept array of objects', () => {
+      const field = new TabularField()
+      const data = [
+        { lng: -74.0, lat: 40.7, value: 100 },
+        { lng: -73.9, lat: 40.8, value: 200 },
+      ]
+
+      field.setValue(data)
+      const result = field.getValue()
+
+      expect(result).toHaveProperty('length', 2)
+      expect(result).toHaveProperty('properties')
+      expect(result.properties).toHaveLength(2)
+      expect(result).toHaveProperty('attributes')
+      expect(result).toHaveProperty('coordinateSets')
+    })
+
+    it('should accept TabularData directly', () => {
+      const field = new TabularField()
+      const data: TabularData = {
+        length: 2,
+        properties: [
+          { lng: -74.0, lat: 40.7, value: 100 },
+          { lng: -73.9, lat: 40.8, value: 200 },
+        ],
+        attributes: {},
+        coordinateSets: {
+          default: { lng: 'lng', lat: 'lat' },
+        },
+      }
+
+      field.setValue(data)
+      const result = field.getValue()
+
+      expect(result.length).toBe(2)
+      expect(result.coordinateSets).toEqual({
+        default: { lng: 'lng', lat: 'lat' },
+      })
+    })
+
+    it('should extract properties from FeatureCollection', () => {
+      const field = new TabularField()
+      const featureCollection = {
+        type: 'FeatureCollection' as const,
+        features: [
+          {
+            type: 'Feature' as const,
+            geometry: { type: 'Point' as const, coordinates: [-74.0, 40.7] },
+            properties: { value: 100 },
+          },
+          {
+            type: 'Feature' as const,
+            geometry: { type: 'Point' as const, coordinates: [-73.9, 40.8] },
+            properties: { value: 200 },
+          },
+        ],
+      }
+
+      field.setValue(featureCollection)
+      const result = field.getValue()
+
+      expect(result.length).toBe(2)
+      expect(result.properties?.[0]).toHaveProperty('value', 100)
+      expect(result.properties?.[0]).toHaveProperty('_lng', -74.0)
+      expect(result.properties?.[0]).toHaveProperty('_lat', 40.7)
+    })
+
+    it('should detect coordinate sets from array of objects', () => {
+      const field = new TabularField()
+      const data = [
+        {
+          pickup_lng: -74.0,
+          pickup_lat: 40.7,
+          dropoff_lng: -73.9,
+          dropoff_lat: 40.8,
+        },
+      ]
+
+      field.setValue(data)
+      const result = field.getValue()
+
+      expect(result.coordinateSets).toHaveProperty('pickup')
+      expect(result.coordinateSets).toHaveProperty('dropoff')
+    })
+  })
+
+  describe('getOrCreateAttribute', () => {
+    it('should return existing binary attribute', () => {
+      const field = new TabularField()
+      const positions = new Float32Array([1, 2, 3, 4])
+      const data: TabularData = {
+        length: 2,
+        properties: [],
+        attributes: {
+          position: { value: positions, size: 2 },
+        },
+      }
+
+      field.setValue(data)
+      const attr = field.getOrCreateAttribute('position')
+
+      expect(attr).toBeDefined()
+      expect(attr?.value).toBe(positions)
+      expect(attr?.size).toBe(2)
+    })
+
+    it('should auto-generate position attribute from detected coordinates', () => {
+      const field = new TabularField()
+      const data = [
+        { lng: -74.0, lat: 40.7 },
+        { lng: -73.9, lat: 40.8 },
+      ]
+
+      field.setValue(data)
+      const attr = field.getOrCreateAttribute('position')
+
+      expect(attr).toBeDefined()
+      expect(attr?.size).toBe(2)
+      expect(attr?.value).toBeInstanceOf(Float32Array)
+      expect(attr?.value.length).toBe(4) // 2 points × 2 components
+
+      const positions = attr!.value as Float32Array
+      expect(positions[0]).toBe(-74.0)
+      expect(positions[1]).toBe(40.7)
+      expect(positions[2]).toBe(-73.9)
+      expect(positions[3]).toBe(40.8)
+    })
+
+    it('should auto-generate position from specific coordinate set', () => {
+      const field = new TabularField()
+      const data = [
+        {
+          pickup_lng: -74.0,
+          pickup_lat: 40.7,
+          dropoff_lng: -73.9,
+          dropoff_lat: 40.8,
+        },
+      ]
+
+      field.setValue(data)
+      const attr = field.getOrCreateAttribute('position', 'pickup')
+
+      expect(attr).toBeDefined()
+      const positions = attr!.value as Float32Array
+      expect(positions[0]).toBe(-74.0)
+      expect(positions[1]).toBe(40.7)
+    })
+
+    it('should cache generated attributes', () => {
+      const field = new TabularField()
+      const data = [{ lng: -74.0, lat: 40.7 }]
+
+      field.setValue(data)
+      const attr1 = field.getOrCreateAttribute('position')
+      const attr2 = field.getOrCreateAttribute('position')
+
+      // Should return same instance (cached)
+      expect(attr1).toBe(attr2)
+    })
+
+    it('should return null for unknown attribute without coordinates', () => {
+      const field = new TabularField()
+      const data = [{ value: 100 }]
+
+      field.setValue(data)
+      const attr = field.getOrCreateAttribute('position')
+
+      expect(attr).toBeNull()
+    })
+  })
+
+  describe('toFeatureCollection', () => {
+    it('should convert to FeatureCollection using default coordinates', () => {
+      const field = new TabularField()
+      const data = [
+        { lng: -74.0, lat: 40.7, value: 100 },
+        { lng: -73.9, lat: 40.8, value: 200 },
+      ]
+
+      field.setValue(data)
+      const fc = field.toFeatureCollection()
+
+      expect(fc.type).toBe('FeatureCollection')
+      expect(fc.features).toHaveLength(2)
+      expect(fc.features[0].geometry.type).toBe('Point')
+      expect((fc.features[0].geometry as any).coordinates).toEqual([-74.0, 40.7])
+      expect(fc.features[0].properties).toEqual({ value: 100 })
+    })
+
+    it('should convert using specific coordinate set', () => {
+      const field = new TabularField()
+      const data = [
+        {
+          pickup_lng: -74.0,
+          pickup_lat: 40.7,
+          dropoff_lng: -73.9,
+          dropoff_lat: 40.8,
+        },
+      ]
+
+      field.setValue(data)
+      const fc = field.toFeatureCollection('dropoff')
+
+      expect((fc.features[0].geometry as any).coordinates).toEqual([-73.9, 40.8])
+    })
+
+    it('should return empty FeatureCollection when no coordinates', () => {
+      const field = new TabularField()
+      const data = [{ value: 100 }]
+
+      field.setValue(data)
+      const fc = field.toFeatureCollection()
+
+      expect(fc.type).toBe('FeatureCollection')
+      expect(fc.features).toHaveLength(0)
+    })
+  })
+})
+
+describe('FeatureCollectionField.toTabular', () => {
+  it('should convert FeatureCollection to TabularData', () => {
+    const field = new FeatureCollectionField()
+    const featureCollection = {
+      type: 'FeatureCollection' as const,
+      features: [
+        {
+          type: 'Feature' as const,
+          geometry: { type: 'Point' as const, coordinates: [-74.0, 40.7] },
+          properties: { value: 100, name: 'Location A' },
+        },
+        {
+          type: 'Feature' as const,
+          geometry: { type: 'Point' as const, coordinates: [-73.9, 40.8] },
+          properties: { value: 200, name: 'Location B' },
+        },
+      ],
+    }
+
+    field.setValue(featureCollection)
+    const tabular = field.toTabular()
+
+    expect(tabular.length).toBe(2)
+    expect(tabular.properties).toHaveLength(2)
+    expect(tabular.properties?.[0]).toMatchObject({
+      value: 100,
+      name: 'Location A',
+      _lng: -74.0,
+      _lat: 40.7,
+      _geometryType: 'Point',
+      _featureIndex: 0,
+    })
+  })
+
+  it('should handle non-Point geometries', () => {
+    const field = new FeatureCollectionField()
+    const featureCollection = {
+      type: 'FeatureCollection' as const,
+      features: [
+        {
+          type: 'Feature' as const,
+          geometry: {
+            type: 'Polygon' as const,
+            coordinates: [[[-74, 40], [-73, 40], [-73, 41], [-74, 41], [-74, 40]]],
+          },
+          properties: { value: 100 },
+        },
+      ],
+    }
+
+    field.setValue(featureCollection)
+    const tabular = field.toTabular()
+
+    expect(tabular.properties?.[0]._geometryType).toBe('Polygon')
+    expect(tabular.properties?.[0]._lng).toBeUndefined()
+    expect(tabular.properties?.[0]._lat).toBeUndefined()
   })
 })

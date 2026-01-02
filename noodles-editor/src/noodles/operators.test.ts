@@ -6,6 +6,7 @@ import {
   BoundingBoxOp,
   CodeOp,
   ConcatOp,
+  CreateAttributeOp,
   DeckRendererOp,
   DuckDbOp,
   ExpressionOp,
@@ -1928,5 +1929,234 @@ describe('KmlToGeoJsonOp', () => {
     expect(result.geojson.features).toHaveLength(1)
     expect(result.geojson.features[0].geometry.type).toBe('Point')
     expect(result.geojson.features[0].properties?.name).toBe('Test Point')
+  })
+})
+
+describe('CreateAttributeOp', () => {
+  it('should create a float attribute from expression', () => {
+    const operator = new CreateAttributeOp('/create-attr-0')
+
+    const data = [
+      { lng: -74.0, lat: 40.7, radius: 5 },
+      { lng: -73.9, lat: 40.8, radius: 10 },
+      { lng: -73.8, lat: 40.9, radius: 15 },
+    ]
+
+    const result = operator.execute({
+      data: data as any,
+      attributeName: 'radius',
+      expression: 'd.radius',
+      dataType: 'float',
+    })
+
+    expect(result.data.length).toBe(3)
+    expect(result.data.attributes).toBeDefined()
+    expect(result.data.attributes?.radius).toBeDefined()
+    expect(result.data.attributes?.radius.value).toBeInstanceOf(Float32Array)
+    expect(result.data.attributes?.radius.size).toBe(1)
+
+    const radiusAttr = result.data.attributes?.radius.value as Float32Array
+    expect(radiusAttr[0]).toBe(5)
+    expect(radiusAttr[1]).toBe(10)
+    expect(radiusAttr[2]).toBe(15)
+  })
+
+  it('should create a vec2 attribute (position) from expression', () => {
+    const operator = new CreateAttributeOp('/create-attr-1')
+
+    const data = [
+      { lng: -74.0, lat: 40.7 },
+      { lng: -73.9, lat: 40.8 },
+    ]
+
+    const result = operator.execute({
+      data: data as any,
+      attributeName: 'position',
+      expression: '[d.lng, d.lat]',
+      dataType: 'vec2',
+    })
+
+    expect(result.data.attributes?.position).toBeDefined()
+    expect(result.data.attributes?.position.value).toBeInstanceOf(Float32Array)
+    expect(result.data.attributes?.position.size).toBe(2)
+
+    const positions = result.data.attributes?.position.value as Float32Array
+    expect(positions[0]).toBe(-74.0)
+    expect(positions[1]).toBe(40.7)
+    expect(positions[2]).toBe(-73.9)
+    expect(positions[3]).toBe(40.8)
+  })
+
+  it('should create a vec3 attribute from expression', () => {
+    const operator = new CreateAttributeOp('/create-attr-2')
+
+    const data = [
+      { lng: -74.0, lat: 40.7, alt: 100 },
+      { lng: -73.9, lat: 40.8, alt: 200 },
+    ]
+
+    const result = operator.execute({
+      data: data as any,
+      attributeName: 'position',
+      expression: '[d.lng, d.lat, d.alt]',
+      dataType: 'vec3',
+    })
+
+    expect(result.data.attributes?.position).toBeDefined()
+    expect(result.data.attributes?.position.size).toBe(3)
+
+    const positions = result.data.attributes?.position.value as Float32Array
+    expect(positions.length).toBe(6) // 2 points × 3 components
+    expect(positions[0]).toBe(-74.0)
+    expect(positions[1]).toBe(40.7)
+    expect(positions[2]).toBe(100)
+    expect(positions[3]).toBe(-73.9)
+    expect(positions[4]).toBe(40.8)
+    expect(positions[5]).toBe(200)
+  })
+
+  it('should create an rgba attribute from expression', () => {
+    const operator = new CreateAttributeOp('/create-attr-3')
+
+    const data = [
+      { value: 50 },
+      { value: 100 },
+    ]
+
+    const result = operator.execute({
+      data: data as any,
+      attributeName: 'fillColor',
+      expression: 'd.value > 75 ? [255, 0, 0, 255] : [0, 255, 0, 255]',
+      dataType: 'rgba',
+    })
+
+    expect(result.data.attributes?.fillColor).toBeDefined()
+    expect(result.data.attributes?.fillColor.value).toBeInstanceOf(Uint8ClampedArray)
+    expect(result.data.attributes?.fillColor.size).toBe(4)
+
+    const colors = result.data.attributes?.fillColor.value as Uint8ClampedArray
+    expect(colors.length).toBe(8) // 2 points × 4 components
+    // First point: value=50, should be green
+    expect(colors[0]).toBe(0)
+    expect(colors[1]).toBe(255)
+    expect(colors[2]).toBe(0)
+    expect(colors[3]).toBe(255)
+    // Second point: value=100, should be red
+    expect(colors[4]).toBe(255)
+    expect(colors[5]).toBe(0)
+    expect(colors[6]).toBe(0)
+    expect(colors[7]).toBe(255)
+  })
+
+  it('should preserve existing attributes', () => {
+    const operator = new CreateAttributeOp('/create-attr-4')
+
+    const existingPositions = new Float32Array([-74.0, 40.7, -73.9, 40.8])
+    const data = {
+      length: 2,
+      properties: [
+        { lng: -74.0, lat: 40.7, radius: 5 },
+        { lng: -73.9, lat: 40.8, radius: 10 },
+      ],
+      attributes: {
+        position: { value: existingPositions, size: 2 },
+      },
+    }
+
+    const result = operator.execute({
+      data,
+      attributeName: 'radius',
+      expression: 'd.radius',
+      dataType: 'float',
+    })
+
+    // Should preserve existing position attribute
+    expect(result.data.attributes?.position).toBeDefined()
+    expect(result.data.attributes?.position.value).toBe(existingPositions)
+
+    // Should add new radius attribute
+    expect(result.data.attributes?.radius).toBeDefined()
+    expect(result.data.attributes?.radius.size).toBe(1)
+  })
+
+  it('should preserve properties array', () => {
+    const operator = new CreateAttributeOp('/create-attr-5')
+
+    const data = [
+      { lng: -74.0, lat: 40.7, name: 'Point A' },
+      { lng: -73.9, lat: 40.8, name: 'Point B' },
+    ]
+
+    const result = operator.execute({
+      data: data as any,
+      attributeName: 'position',
+      expression: '[d.lng, d.lat]',
+      dataType: 'vec2',
+    })
+
+    expect(result.data.properties).toBeDefined()
+    expect(result.data.properties).toHaveLength(2)
+    expect(result.data.properties?.[0]).toEqual({ lng: -74.0, lat: 40.7, name: 'Point A' })
+    expect(result.data.properties?.[1]).toEqual({ lng: -73.9, lat: 40.8, name: 'Point B' })
+  })
+
+  it('should preserve coordinateSets', () => {
+    const operator = new CreateAttributeOp('/create-attr-6')
+
+    const data = {
+      length: 1,
+      properties: [
+        { pickup_lng: -74.0, pickup_lat: 40.7, dropoff_lng: -73.9, dropoff_lat: 40.8 },
+      ],
+      attributes: {},
+      coordinateSets: {
+        pickup: { lng: 'pickup_lng', lat: 'pickup_lat' },
+        dropoff: { lng: 'dropoff_lng', lat: 'dropoff_lat' },
+      },
+    }
+
+    const result = operator.execute({
+      data,
+      attributeName: 'pickupPosition',
+      expression: '[d.pickup_lng, d.pickup_lat]',
+      dataType: 'vec2',
+    })
+
+    expect(result.data.coordinateSets).toEqual(data.coordinateSets)
+  })
+
+  it('should handle empty data array', () => {
+    const operator = new CreateAttributeOp('/create-attr-7')
+
+    const result = operator.execute({
+      data: [] as any,
+      attributeName: 'position',
+      expression: '[d.lng, d.lat]',
+      dataType: 'vec2',
+    })
+
+    expect(result.data.length).toBe(0)
+    expect(result.data.attributes?.position).toBeDefined()
+    expect(result.data.attributes?.position.value).toBeInstanceOf(Float32Array)
+    expect(result.data.attributes?.position.value.length).toBe(0)
+  })
+
+  it('should handle expression errors gracefully', () => {
+    const operator = new CreateAttributeOp('/create-attr-8')
+
+    const data = [{ lng: -74.0, lat: 40.7 }]
+
+    // Expression references non-existent field
+    const result = operator.execute({
+      data: data as any,
+      attributeName: 'radius',
+      expression: 'd.nonExistentField',
+      dataType: 'float',
+    })
+
+    // Should still create attribute, but with undefined/NaN values
+    expect(result.data.attributes?.radius).toBeDefined()
+    const radiusAttr = result.data.attributes?.radius.value as Float32Array
+    expect(Number.isNaN(radiusAttr[0])).toBe(true)
   })
 })
