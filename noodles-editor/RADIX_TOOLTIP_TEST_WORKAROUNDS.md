@@ -7,6 +7,8 @@ Research findings from investigating the test hang issue.
 
 ## Workarounds to Try (in order)
 
+**Note:** Tests hang for HOURS (confirmed deadlock, not timeout). Focus on architectural solutions.
+
 ### 1. ❌ Manual Mock File (TRIED - DIDN'T WORK)
 Create a manual mock that Vitest picks up automatically.
 
@@ -52,16 +54,12 @@ vi.mock('@radix-ui/react-tooltip', () => {
 
 ---
 
-### 3. Increase Timeouts
-Maybe it's just slow initialization?
+### 3. ❌ Increase Timeouts (NOT THE ISSUE)
+~~Maybe it's just slow initialization?~~
 
-In `vitest.config.ts`:
-```typescript
-test: {
-  testTimeout: 60000,
-  hookTimeout: 60000,
-}
-```
+**Confirmed:** Tests hang for HOURS, not seconds. This is a deadlock/infinite loop, not a timeout issue.
+- Increasing timeouts won't help
+- Skip this workaround entirely
 
 ---
 
@@ -101,10 +99,15 @@ export const TooltipWrapper = ({ children, content }) => {
 ---
 
 ## Root Cause Hypothesis
-1. **Namespace import issue**: `import * as Tooltip` may interact poorly with Vitest browser mode
-2. **Portal/DOM dependencies**: Component may access DOM during module initialization
-3. **Event listener setup**: Global listeners may cause issues in test environment
-4. **Async initialization**: Waiting for browser APIs not fully available in tests
+Given that tests hang for HOURS (not seconds), this is a **deadlock or infinite loop**, not slow initialization.
+
+Most likely causes:
+1. **Infinite loop in module initialization**: Radix Tooltip may have circular dependencies or initialization that never completes
+2. **Portal/DOM polling**: Component may be polling for DOM elements that never appear in test environment
+3. **Event listener deadlock**: Waiting for browser events that never fire in vitest browser mode
+4. **Namespace import + browser mode conflict**: `import * as Tooltip` creates a sealed object that vitest can't properly mock in browser mode
+
+~~Async initialization~~ - ruled out since it would timeout, not hang indefinitely
 
 ---
 
