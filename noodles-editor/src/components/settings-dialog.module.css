@@ -201,10 +201,12 @@
   display: flex;
   gap: 0.5rem;
   margin-top: 0.5rem;
+  min-width: 0;
 }
 
 .input {
   flex: 1;
+  min-width: 0;
   padding: 0.5rem;
   background-color: rgba(255, 255, 255, 0.05);
   color: var(--color-text-primary);
@@ -213,6 +215,8 @@
   font-size: 0.9rem;
   font-family: monospace;
   transition: all 0.2s;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .input:hover {
@@ -264,6 +268,8 @@
   border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: 8px;
   margin-bottom: 0;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .subsectionTitle {
@@ -292,6 +298,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  min-width: 0;
 }
 
 .keyLabel {
