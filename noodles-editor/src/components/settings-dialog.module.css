@@ -330,8 +330,11 @@
   display: grid;
   grid-template-columns: 140px 1fr auto;
   align-items: center;
-  gap: 0.75rem;
   min-width: 0;
+}
+
+.keySource > *:not(:first-child) {
+  margin-left: 0.75rem;
 }
 
 .keySourceLabel {
