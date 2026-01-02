@@ -1,7 +1,14 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { type MapLayerMouseEvent, Map as MapLibre, Marker, useMap } from 'react-map-gl/maplibre'
+import {
+  type MapLayerMouseEvent,
+  Map as MapLibre,
+  Marker,
+  type MarkerDragEvent,
+  NavigationControl,
+  useMap,
+} from 'react-map-gl/maplibre'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { analytics } from '../../utils/analytics'
 import { useKeysStore } from '../keys-store'
@@ -25,6 +32,12 @@ interface GeocodingSuggestion {
   confidence?: number
 }
 
+interface MapCoordinates {
+  longitude: number
+  latitude: number
+  zoom?: number
+}
+
 interface MapboxFeature {
   place_name: string
   center: [number, number]
@@ -40,7 +53,7 @@ interface PhotonFeature {
   }
 }
 
-// Parse Google Maps URLs
+// Parse Google Maps URLs (synchronous - for direct/place URLs)
 function parseGoogleMapsUrl(value: string): { lat: number; lng: number } | null {
   try {
     // Format 1: Direct coordinates (@lat,lng)
@@ -49,15 +62,44 @@ function parseGoogleMapsUrl(value: string): { lat: number; lng: number } | null 
       return { lat: parseFloat(directMatch[1]), lng: parseFloat(directMatch[2]) }
     }
 
-    // Format 2: Place URL with coordinates
+    // Format 2: Place URL with coordinates (NOTE: these are camera center, not place location)
     const placeMatch = value.match(/place\/[^/]+\/@(-?\d+\.?\d*),(-?\d+\.?\d*)/)
     if (placeMatch) {
       return { lat: parseFloat(placeMatch[1]), lng: parseFloat(placeMatch[2]) }
     }
 
-    // Note: Short links (goo.gl/maps/...) require async fetching - handled separately
     return null
   } catch {
+    return null
+  }
+}
+
+// Resolve short Google Maps URLs by fetching and following redirects
+async function resolveShortGoogleMapsUrl(
+  value: string
+): Promise<{ lat: number; lng: number } | null> {
+  try {
+    // Check if it's a short URL (goo.gl or maps.app.goo.gl)
+    const isShortUrl =
+      value.includes('goo.gl/maps/') ||
+      value.includes('maps.app.goo.gl/') ||
+      value.includes('g.co/maps/')
+
+    if (!isShortUrl) {
+      return null
+    }
+
+    // Fetch the URL with redirect: 'follow' to get the final URL
+    const response = await fetch(value, {
+      method: 'HEAD',
+      redirect: 'follow',
+    })
+
+    // Parse the final URL
+    const finalUrl = response.url
+    return parseGoogleMapsUrl(finalUrl)
+  } catch (error) {
+    console.error('Error resolving short Google Maps URL:', error)
     return null
   }
 }
@@ -180,7 +222,9 @@ export function GeocodingDialog({
   initialValue,
   mode,
 }: GeocodingDialogProps) {
-  const [mapCoordinates, setMapCoordinates] = useState(initialValue || DEFAULT_LOCATION)
+  const [mapCoordinates, setMapCoordinates] = useState<MapCoordinates>(
+    initialValue || DEFAULT_LOCATION
+  )
   const [inputValue, setInputValue] = useState('')
   const [suggestions, setSuggestions] = useState<GeocodingSuggestion[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
@@ -221,7 +265,20 @@ export function GeocodingDialog({
     async (value: string): Promise<GeocodingSuggestion[]> => {
       if (!value.trim()) return []
 
-      // Priority 1: Check if Google Maps URL
+      // Priority 1a: Check if short Google Maps URL (requires async resolution)
+      const shortUrlResult = await resolveShortGoogleMapsUrl(value)
+      if (shortUrlResult) {
+        analytics.track('geocoding_parsed', { method: 'short_url' })
+        return [
+          {
+            type: 'url',
+            label: `🔗 ${shortUrlResult.lat.toFixed(5)}, ${shortUrlResult.lng.toFixed(5)} (from short URL)`,
+            coordinates: { longitude: shortUrlResult.lng, latitude: shortUrlResult.lat },
+          },
+        ]
+      }
+
+      // Priority 1b: Check if regular Google Maps URL
       const urlResult = parseGoogleMapsUrl(value)
       if (urlResult) {
         analytics.track('geocoding_parsed', { method: 'url' })
@@ -310,7 +367,7 @@ export function GeocodingDialog({
   }, [])
 
   // Handle marker drag
-  const handleMarkerDragEnd = useCallback((event: MapLayerMouseEvent) => {
+  const handleMarkerDragEnd = useCallback((event: MarkerDragEvent) => {
     setMapCoordinates({
       longitude: event.lngLat.lng,
       latitude: event.lngLat.lat,
@@ -384,6 +441,7 @@ export function GeocodingDialog({
               zoom={mapCoordinates.zoom || 12}
               onClick={handleMapClick}
             >
+              <NavigationControl position="top-right" showCompass={false} />
               <Marker
                 longitude={mapCoordinates.longitude}
                 latitude={mapCoordinates.latitude}
