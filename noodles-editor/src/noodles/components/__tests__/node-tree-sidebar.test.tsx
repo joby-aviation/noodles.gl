@@ -7,6 +7,16 @@ import { clearOps } from '../../store'
 import { transformGraph } from '../../transform-graph'
 import { NodeTreeSidebar } from '../node-tree-sidebar'
 
+// Mock Radix UI Tooltip to avoid browser test hang
+vi.mock('@radix-ui/react-tooltip', () => ({
+  Provider: ({ children }: any) => children,
+  Root: ({ children }: any) => children,
+  Trigger: ({ children }: any) => children,
+  Portal: () => null,
+  Content: () => null,
+  Arrow: () => null,
+}))
+
 // Mock useReactFlow to return test implementations
 const setNodesSpy = vi.fn()
 const getNodesSpy = vi.fn(() => [])
@@ -81,6 +91,7 @@ vi.mock('../../store', async () => {
 
 describe('NodeTreeSidebar tree structure and nesting', () => {
   beforeEach(() => {
+    vi.useRealTimers()
     clearOps()
     setNodesSpy.mockClear()
     getNodesSpy.mockClear()
@@ -90,6 +101,7 @@ describe('NodeTreeSidebar tree structure and nesting', () => {
 
   afterEach(() => {
     clearOps()
+    vi.useFakeTimers()
   })
 
   // Helper to setup a graph with operators
