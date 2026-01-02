@@ -10,84 +10,109 @@ interface SettingsDialogProps {
   setOpen: (open: boolean) => void
 }
 
-// Helper component for rendering browser key inputs
-interface KeyInputProps {
+// Component that groups all sources (browser, project, env) for a single key type
+interface KeyGroupProps {
   label: string
   description: string
   placeholder: string
-  value: string
-  isActive: boolean
-  onChange: (value: string) => void
-  onClear: () => void
+  browserValue: string
+  projectValue?: string
+  envValue?: string
+  activeSource: 'browser' | 'project' | 'env' | null
+  onBrowserChange: (value: string) => void
+  onBrowserClear: () => void
 }
 
-const BrowserKeyInput = ({
+const KeyGroup = ({
   label,
   description,
   placeholder,
-  value,
-  isActive,
-  onChange,
-  onClear,
-}: KeyInputProps) => {
+  browserValue,
+  projectValue,
+  envValue,
+  activeSource,
+  onBrowserChange,
+  onBrowserClear,
+}: KeyGroupProps) => {
   const [isEditing, setIsEditing] = useState(false)
 
-  return (
-    <div className={s.keyInput}>
-      <div className={s.keyLabelRow}>
-        <div className={s.keyLabel}>{label}</div>
-        {isActive && <span className={s.activeBadge}>Active</span>}
-      </div>
-      <div className={s.keyDescription}>{description}</div>
-
-      <div className={s.inputGroup}>
-        <input
-          type="text"
-          value={isEditing || !value ? value : maskKey(value)}
-          onChange={e => onChange(e.target.value)}
-          onFocus={() => setIsEditing(true)}
-          onBlur={() => setIsEditing(false)}
-          placeholder={placeholder}
-          className={s.input}
-          onKeyDown={e => e.stopPropagation()}
-          onKeyUp={e => e.stopPropagation()}
-        />
-        {value && (
-          <button type="button" onClick={onClear} className={s.clearButton}>
-            Clear
-          </button>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// Shared component for read-only key display (project and env keys)
-interface ReadOnlyKeyDisplayProps {
-  label: string
-  value: string
-  source: 'project' | 'env'
-  isActive: boolean
-}
-
-const ReadOnlyKeyDisplay = ({ label, value, source, isActive }: ReadOnlyKeyDisplayProps) => {
-  const handleCopy = () => {
+  const handleCopy = (value: string, source: 'project' | 'env') => {
     navigator.clipboard.writeText(value)
     analytics.track('key_copied', { source })
   }
 
-  const preview = value.length > 10 ? `${value.slice(0, 10)}...` : value
+  const getPreview = (value: string) => (value.length > 10 ? `${value.slice(0, 10)}...` : value)
 
   return (
-    <div className={s.keyDisplay} title={preview}>
-      <div className={s.keyLabel}>{label}</div>
-      <div className={s.keyBadges}>
-        <span className={s.sourceBadge}>{source === 'project' ? 'Project' : 'Env'}</span>
-        {isActive && <span className={s.activeBadge}>Active</span>}
+    <div className={s.keyGroup}>
+      <div className={s.keyGroupHeader}>
+        <div className={s.keyLabel}>{label}</div>
+        <div className={s.keyDescription}>{description}</div>
       </div>
-      <button type="button" onClick={handleCopy} className={s.copyButton} aria-label="Copy">
-        Copy
-      </button>
+
+      <div className={s.keySourcesList}>
+        {/* Browser key input */}
+        <div className={s.keySource}>
+          <div className={s.keySourceLabel}>
+            <span className={s.sourceBadge}>Browser</span>
+            {activeSource === 'browser' && <span className={s.activeBadge}>Active</span>}
+          </div>
+          <div className={s.inputGroup}>
+            <input
+              type="text"
+              value={isEditing || !browserValue ? browserValue : maskKey(browserValue)}
+              onChange={e => onBrowserChange(e.target.value)}
+              onFocus={() => setIsEditing(true)}
+              onBlur={() => setIsEditing(false)}
+              placeholder={placeholder}
+              className={s.input}
+              onKeyDown={e => e.stopPropagation()}
+              onKeyUp={e => e.stopPropagation()}
+            />
+            {browserValue && (
+              <button type="button" onClick={onBrowserClear} className={s.clearButton}>
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Project key (read-only) */}
+        {projectValue && (
+          <div className={s.keySource}>
+            <div className={s.keySourceLabel}>
+              <span className={s.sourceBadge}>Project</span>
+              {activeSource === 'project' && <span className={s.activeBadge}>Active</span>}
+            </div>
+            <button
+              type="button"
+              onClick={() => handleCopy(projectValue, 'project')}
+              className={s.copyButton}
+              title={getPreview(projectValue)}
+            >
+              Copy
+            </button>
+          </div>
+        )}
+
+        {/* Environment key (read-only) */}
+        {envValue && (
+          <div className={s.keySource}>
+            <div className={s.keySourceLabel}>
+              <span className={s.sourceBadge}>Env</span>
+              {activeSource === 'env' && <span className={s.activeBadge}>Active</span>}
+            </div>
+            <button
+              type="button"
+              onClick={() => handleCopy(envValue, 'env')}
+              className={s.copyButton}
+              title={getPreview(envValue)}
+            >
+              Copy
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -170,123 +195,51 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
               or in project files.
             </div>
 
-            <div className={s.subsectionsGrid}>
-              {/* Browser Keys */}
-              <div className={s.subsection}>
-                <h4 className={s.subsectionTitle}>Browser Keys</h4>
-                <div className={s.subsectionDescription}>
-                  Stored locally in your browser, not shared with others
-                </div>
+            <div className={s.keysGroup}>
+              <KeyGroup
+                label="Mapbox Access Token"
+                description="Required for Mapbox basemaps and directions"
+                placeholder="pk.eyJ1..."
+                browserValue={browserKeys.mapbox || ''}
+                projectValue={projectKeys.mapbox}
+                envValue={envKeys.mapbox}
+                activeSource={getActiveSource('mapbox')}
+                onBrowserChange={value => setBrowserKey('mapbox', value)}
+                onBrowserClear={() => {
+                  setBrowserKey('mapbox', undefined)
+                  analytics.track('key_cleared', { key: 'mapbox' })
+                }}
+              />
 
-                <div className={s.keysGroup}>
-                  <BrowserKeyInput
-                    label="Mapbox Access Token"
-                    description="Required for Mapbox basemaps and directions"
-                    placeholder="pk.eyJ1..."
-                    value={browserKeys.mapbox || ''}
-                    isActive={getActiveSource('mapbox') === 'browser'}
-                    onChange={value => setBrowserKey('mapbox', value)}
-                    onClear={() => {
-                      setBrowserKey('mapbox', undefined)
-                      analytics.track('key_cleared', { key: 'mapbox' })
-                    }}
-                  />
+              <KeyGroup
+                label="Google Maps API Key"
+                description="Required for Google Maps transit directions"
+                placeholder="AIza..."
+                browserValue={browserKeys.googleMaps || ''}
+                projectValue={projectKeys.googleMaps}
+                envValue={envKeys.googleMaps}
+                activeSource={getActiveSource('googleMaps')}
+                onBrowserChange={value => setBrowserKey('googleMaps', value)}
+                onBrowserClear={() => {
+                  setBrowserKey('googleMaps', undefined)
+                  analytics.track('key_cleared', { key: 'googleMaps' })
+                }}
+              />
 
-                  <BrowserKeyInput
-                    label="Google Maps API Key"
-                    description="Required for Google Maps transit directions"
-                    placeholder="AIza..."
-                    value={browserKeys.googleMaps || ''}
-                    isActive={getActiveSource('googleMaps') === 'browser'}
-                    onChange={value => setBrowserKey('googleMaps', value)}
-                    onClear={() => {
-                      setBrowserKey('googleMaps', undefined)
-                      analytics.track('key_cleared', { key: 'googleMaps' })
-                    }}
-                  />
-
-                  <BrowserKeyInput
-                    label="Anthropic API Key"
-                    description="Required for Claude AI assistant features"
-                    placeholder="sk-ant-..."
-                    value={browserKeys.anthropic || ''}
-                    isActive={getActiveSource('anthropic') === 'browser'}
-                    onChange={value => setBrowserKey('anthropic', value)}
-                    onClear={() => {
-                      setBrowserKey('anthropic', undefined)
-                      analytics.track('key_cleared', { key: 'anthropic' })
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* Read-Only Keys (Project & Environment) */}
-              {(projectKeys.mapbox ||
-                projectKeys.googleMaps ||
-                projectKeys.anthropic ||
-                envKeys.mapbox ||
-                envKeys.googleMaps ||
-                envKeys.anthropic) && (
-                <div className={s.subsection}>
-                  <h4 className={s.subsectionTitle}>Read-Only Keys</h4>
-                  <div className={s.subsectionDescription}>
-                    Keys from project file or environment variables
-                  </div>
-
-                  <div className={s.keysGroup}>
-                    {projectKeys.mapbox && (
-                      <ReadOnlyKeyDisplay
-                        label="Mapbox Access Token"
-                        value={projectKeys.mapbox}
-                        source="project"
-                        isActive={getActiveSource('mapbox') === 'project'}
-                      />
-                    )}
-                    {envKeys.mapbox && (
-                      <ReadOnlyKeyDisplay
-                        label="Mapbox Access Token"
-                        value={envKeys.mapbox}
-                        source="env"
-                        isActive={getActiveSource('mapbox') === 'env'}
-                      />
-                    )}
-
-                    {projectKeys.googleMaps && (
-                      <ReadOnlyKeyDisplay
-                        label="Google Maps API Key"
-                        value={projectKeys.googleMaps}
-                        source="project"
-                        isActive={getActiveSource('googleMaps') === 'project'}
-                      />
-                    )}
-                    {envKeys.googleMaps && (
-                      <ReadOnlyKeyDisplay
-                        label="Google Maps API Key"
-                        value={envKeys.googleMaps}
-                        source="env"
-                        isActive={getActiveSource('googleMaps') === 'env'}
-                      />
-                    )}
-
-                    {projectKeys.anthropic && (
-                      <ReadOnlyKeyDisplay
-                        label="Anthropic API Key"
-                        value={projectKeys.anthropic}
-                        source="project"
-                        isActive={getActiveSource('anthropic') === 'project'}
-                      />
-                    )}
-                    {envKeys.anthropic && (
-                      <ReadOnlyKeyDisplay
-                        label="Anthropic API Key"
-                        value={envKeys.anthropic}
-                        source="env"
-                        isActive={getActiveSource('anthropic') === 'env'}
-                      />
-                    )}
-                  </div>
-                </div>
-              )}
+              <KeyGroup
+                label="Anthropic API Key"
+                description="Required for Claude AI assistant features"
+                placeholder="sk-ant-..."
+                browserValue={browserKeys.anthropic || ''}
+                projectValue={projectKeys.anthropic}
+                envValue={envKeys.anthropic}
+                activeSource={getActiveSource('anthropic')}
+                onBrowserChange={value => setBrowserKey('anthropic', value)}
+                onBrowserClear={() => {
+                  setBrowserKey('anthropic', undefined)
+                  analytics.track('key_cleared', { key: 'anthropic' })
+                }}
+              />
             </div>
 
             {/* Save in project checkbox */}
