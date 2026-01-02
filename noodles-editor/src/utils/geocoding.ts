@@ -9,7 +9,7 @@ export interface GeocodingResult {
 let googleMapsLoaded = false
 
 /**
- * Load Google Maps JavaScript API
+ * Load Google Maps JavaScript API with Places library
  */
 async function loadGoogleMapsAPI(apiKey: string): Promise<void> {
   if (googleMapsLoaded) return
@@ -17,6 +17,8 @@ async function loadGoogleMapsAPI(apiKey: string): Promise<void> {
   const params = new URLSearchParams({
     v: 'weekly',
     key: apiKey,
+    libraries: 'places',
+    loading: 'async',
   })
 
   await import(/* @vite-ignore */ `https://maps.googleapis.com/maps/api/js?${params.toString()}`)

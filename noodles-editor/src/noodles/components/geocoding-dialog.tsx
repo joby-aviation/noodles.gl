@@ -440,10 +440,10 @@ export function GeocodingDialog({
                     Searching...
                   </div>
                 ) : (
-                  suggestions.map(suggestion => (
+                  suggestions.map((suggestion, index) => (
                     <button
                       type="button"
-                      key={suggestion.label}
+                      key={index}
                       className={`${s.suggestionItem} ${suggestion.isError ? s.suggestionItemError : ''}`}
                       onMouseDown={() => !suggestion.isError && handleSuggestionSelect(suggestion)}
                       disabled={suggestion.isError}
