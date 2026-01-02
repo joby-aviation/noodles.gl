@@ -152,7 +152,7 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Portal>
         <Dialog.Overlay className={s.overlay} />
-        <Dialog.Content className={`${s.content} nokey`} onOpenAutoFocus={e => e.preventDefault()}>
+        <Dialog.Content className={`${s.content} nokey`}>
           <Dialog.Title className={s.title}>App Settings</Dialog.Title>
 
           {/* Privacy & Analytics Section */}
