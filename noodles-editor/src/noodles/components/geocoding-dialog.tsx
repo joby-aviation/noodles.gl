@@ -8,6 +8,7 @@ import {
   type MarkerDragEvent,
   NavigationControl,
   useMap,
+  type ViewStateChangeEvent,
 } from 'react-map-gl/maplibre'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { analytics } from '../../utils/analytics'
@@ -366,12 +367,27 @@ export function GeocodingDialog({
     analytics.track('geocoding_map_clicked')
   }, [])
 
-  // Handle marker drag
-  const handleMarkerDragEnd = useCallback((event: MarkerDragEvent) => {
-    setMapCoordinates({
+  // Handle map movement (zoom/pan)
+  const handleMove = useCallback((event: ViewStateChangeEvent) => {
+    setMapCoordinates(prev => ({
+      ...prev,
+      longitude: event.viewState.longitude,
+      latitude: event.viewState.latitude,
+      zoom: event.viewState.zoom,
+    }))
+  }, [])
+
+  // Handle marker drag (update in real-time)
+  const handleMarkerDrag = useCallback((event: MarkerDragEvent) => {
+    setMapCoordinates(prev => ({
+      ...prev,
       longitude: event.lngLat.lng,
       latitude: event.lngLat.lat,
-    })
+    }))
+  }, [])
+
+  // Handle marker drag end (analytics only)
+  const handleMarkerDragEnd = useCallback(() => {
     analytics.track('geocoding_marker_dragged')
   }, [])
 
@@ -439,13 +455,16 @@ export function GeocodingDialog({
               longitude={mapCoordinates.longitude}
               latitude={mapCoordinates.latitude}
               zoom={mapCoordinates.zoom || 12}
+              onMove={handleMove}
               onClick={handleMapClick}
             >
               <NavigationControl position="top-right" showCompass={false} />
               <Marker
                 longitude={mapCoordinates.longitude}
                 latitude={mapCoordinates.latitude}
+                anchor="center"
                 draggable
+                onDrag={handleMarkerDrag}
                 onDragEnd={handleMarkerDragEnd}
               />
             </MapLibre>
