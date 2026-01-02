@@ -45,7 +45,7 @@ async function loadGoogleMapsAPI(apiKey: string): Promise<void> {
 }
 
 /**
- * Geocode using Google Places Autocomplete Service
+ * Geocode using Google Places AutocompleteSuggestion API (recommended)
  * Returns autocomplete predictions for a search query
  */
 export async function geocodeWithGooglePlaces(query: string): Promise<GeocodingResult[]> {
@@ -57,61 +57,53 @@ export async function geocodeWithGooglePlaces(query: string): Promise<GeocodingR
   // Load API if needed
   await loadGoogleMapsAPI(apiKey)
 
-  // Get autocomplete predictions
-  const autocompleteService = new google.maps.places.AutocompleteService()
-  const predictions = await new Promise<google.maps.places.AutocompletePrediction[]>(
-    (resolve, reject) => {
-      autocompleteService.getPlacePredictions(
-        {
-          input: query,
-          types: ['geocode'], // Addresses and place names
-        },
-        (results, status) => {
-          if (status === google.maps.places.PlacesServiceStatus.OK && results) {
-            resolve(results)
-          } else if (status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
-            resolve([])
-          } else {
-            reject(new Error(`Google Places API error: ${status}`))
-          }
-        }
-      )
-    }
-  )
-
-  // Geocode each prediction to get coordinates
-  const geocoder = new google.maps.Geocoder()
-  const results: GeocodingResult[] = []
-
-  for (const prediction of predictions.slice(0, 5)) {
-    try {
-      const geocodeResult = await new Promise<google.maps.GeocoderResult[]>((resolve, reject) => {
-        geocoder.geocode({ placeId: prediction.place_id }, (results, status) => {
-          if (status === google.maps.GeocoderStatus.OK && results) {
-            resolve(results)
-          } else {
-            reject(new Error(`Geocoding failed: ${status}`))
-          }
-        })
-      })
-
-      if (geocodeResult[0]) {
-        const location = geocodeResult[0].geometry.location
-        results.push({
-          place_name: prediction.description,
-          coordinates: {
-            longitude: location.lng(),
-            latitude: location.lat(),
-          },
-        })
-      }
-    } catch (error) {
-      console.error('Error geocoding place:', error)
-      // Continue with other predictions even if one fails
-    }
+  // Use the new AutocompleteSuggestion API (recommended as of March 2025)
+  const request = {
+    input: query,
+    includedPrimaryTypes: ['geocode'], // Addresses and place names
   }
 
-  return results
+  try {
+    const { suggestions } = await google.maps.places.AutocompleteSuggestion.fetchAutocompleteSuggestions(
+      request
+    )
+
+    if (!suggestions || suggestions.length === 0) {
+      return []
+    }
+
+    // Get place details for each suggestion (up to 5)
+    const results: GeocodingResult[] = []
+
+    for (const suggestion of suggestions.slice(0, 5)) {
+      try {
+        if (suggestion.placePrediction) {
+          const place = suggestion.placePrediction.toPlace()
+          await place.fetchFields({
+            fields: ['displayName', 'location'],
+          })
+
+          if (place.location) {
+            results.push({
+              place_name: place.displayName || suggestion.placePrediction.text.toString(),
+              coordinates: {
+                longitude: place.location.lng(),
+                latitude: place.location.lat(),
+              },
+            })
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching place details:', error)
+        // Continue with other suggestions even if one fails
+      }
+    }
+
+    return results
+  } catch (error) {
+    console.error('Google Places API error:', error)
+    throw error
+  }
 }
 
 /**
