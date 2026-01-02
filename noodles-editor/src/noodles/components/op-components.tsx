@@ -683,6 +683,14 @@ function GeocoderOpComponent({
       return
     }
 
+    // Validate Mapbox token format (should start with pk.)
+    if (!apiKey.startsWith('pk.')) {
+      console.error(
+        'GeocoderOp: Invalid Mapbox API key format. Mapbox tokens should start with "pk."'
+      )
+      return
+    }
+
     const container = containerRef.current
 
     try {
