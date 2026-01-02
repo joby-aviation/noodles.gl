@@ -118,6 +118,7 @@
 }
 
 .suggestionItem {
+  width: 100%;
   padding: 0.75rem;
   cursor: pointer;
   color: var(--color-text-primary);
@@ -125,6 +126,10 @@
   transition: background-color 0.15s;
   display: flex;
   align-items: center;
+  border: none;
+  background: none;
+  text-align: left;
+  font-family: inherit;
 }
 
 .suggestionItem:hover {
