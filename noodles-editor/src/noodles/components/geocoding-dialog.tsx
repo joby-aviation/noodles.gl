@@ -12,6 +12,11 @@ import {
 } from 'react-map-gl/maplibre'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { analytics } from '../../utils/analytics'
+import {
+  geocodeWithGooglePlaces,
+  geocodeWithMapbox,
+  geocodeWithPhoton,
+} from '../../utils/geocoding'
 import { useKeysStore } from '../keys-store'
 import s from './geocoding-dialog.module.css'
 
@@ -38,21 +43,6 @@ interface MapCoordinates {
   longitude: number
   latitude: number
   zoom?: number
-}
-
-interface MapboxFeature {
-  place_name: string
-  center: [number, number]
-}
-
-interface PhotonFeature {
-  properties: {
-    name?: string
-    street?: string
-  }
-  geometry: {
-    coordinates: [number, number]
-  }
 }
 
 // Parse Google Maps URLs (synchronous - for direct/place URLs)
@@ -97,7 +87,7 @@ function extractPlaceNameFromUrl(url: string): string | null {
 // Geocode place URL by extracting and geocoding the place name
 async function geocodePlaceUrl(
   value: string,
-  mapboxKey: string | null
+  mapboxKey: string | undefined
 ): Promise<{ lat: number; lng: number; source: string } | null> {
   const placeName = extractPlaceNameFromUrl(value)
 
@@ -176,57 +166,6 @@ function parseCoordinates(value: string): Array<{
   }
 }
 
-// Geocoding search using Mapbox API
-async function geocodeWithMapbox(
-  query: string,
-  apiKey: string
-): Promise<Array<{ place_name: string; coordinates: { longitude: number; latitude: number } }>> {
-  try {
-    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${apiKey}&limit=5`
-    const response = await fetch(url)
-    const data = await response.json()
-
-    if (data.features) {
-      return data.features.map((feature: MapboxFeature) => ({
-        place_name: feature.place_name,
-        coordinates: {
-          longitude: feature.center[0],
-          latitude: feature.center[1],
-        },
-      }))
-    }
-    return []
-  } catch (error) {
-    console.error('Mapbox geocoding error:', error)
-    return []
-  }
-}
-
-// Geocoding search using Photon API (free fallback)
-async function geocodeWithPhoton(
-  query: string
-): Promise<Array<{ place_name: string; coordinates: { longitude: number; latitude: number } }>> {
-  try {
-    const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5`
-    const response = await fetch(url)
-    const data = await response.json()
-
-    if (data.features) {
-      return data.features.map((feature: PhotonFeature) => ({
-        place_name: feature.properties.name || feature.properties.street || 'Unknown location',
-        coordinates: {
-          longitude: feature.geometry.coordinates[0],
-          latitude: feature.geometry.coordinates[1],
-        },
-      }))
-    }
-    return []
-  } catch (error) {
-    console.error('Photon geocoding error:', error)
-    return []
-  }
-}
-
 const MAP_ID = 'geocoding-map'
 
 export function GeocodingDialog({
@@ -246,6 +185,7 @@ export function GeocodingDialog({
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const getKey = useKeysStore(state => state.getKey)
+  const googleMapsKey = getKey('googleMaps')
   const mapboxKey = getKey('mapbox')
 
   // Access the map instance for flyTo animations
@@ -348,10 +288,37 @@ export function GeocodingDialog({
 
       // Priority 5: Treat as search query
       if (value.trim().length > 2) {
-        analytics.track('geocoding_search', { method: mapboxKey ? 'mapbox' : 'photon' })
-        const places = mapboxKey
-          ? await geocodeWithMapbox(value, mapboxKey)
-          : await geocodeWithPhoton(value)
+        let places: Array<{ place_name: string; coordinates: { longitude: number; latitude: number } }> =
+          []
+        let method = 'photon' // Default fallback
+
+        // Try Google Places first
+        if (googleMapsKey) {
+          try {
+            places = await geocodeWithGooglePlaces(value)
+            method = 'google_places'
+          } catch (error) {
+            console.warn('Google Places failed, falling back to Mapbox/Photon:', error)
+          }
+        }
+
+        // Fall back to Mapbox if Google failed or no Google key
+        if (places.length === 0 && mapboxKey) {
+          try {
+            places = await geocodeWithMapbox(value, mapboxKey)
+            method = 'mapbox'
+          } catch (error) {
+            console.warn('Mapbox failed, falling back to Photon:', error)
+          }
+        }
+
+        // Final fallback to Photon
+        if (places.length === 0) {
+          places = await geocodeWithPhoton(value)
+          method = 'photon'
+        }
+
+        analytics.track('geocoding_search', { method })
 
         return places.map(place => ({
           type: 'place' as const,
@@ -362,7 +329,7 @@ export function GeocodingDialog({
 
       return []
     },
-    [mapboxKey]
+    [googleMapsKey, mapboxKey]
   )
 
   // Handle input change with debouncing
