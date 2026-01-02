@@ -681,13 +681,13 @@ function GeocoderOpComponent({
 
     // Check if Mapbox API key is available
     if (!apiKey) {
-      setError('Mapbox API key not found. Please configure it in Settings > API Keys.')
+      setError('API key required (Settings > API Keys)')
       return
     }
 
     // Validate Mapbox token format (should start with pk.)
     if (!apiKey.startsWith('pk.')) {
-      setError('Invalid Mapbox API key format. Mapbox tokens should start with "pk."')
+      setError('Invalid token format (must start with "pk.")')
       return
     }
 
@@ -711,8 +711,8 @@ function GeocoderOpComponent({
 
       g.addTo(container)
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Invalid API key'
-      setError(`Failed to initialize Mapbox Geocoder: ${message}. Please check your Mapbox API key in Settings.`)
+      const message = err instanceof Error ? err.message : 'Invalid token'
+      setError(`Geocoder error: ${message}`)
       return
     }
 
