@@ -35,13 +35,6 @@ interface KeysActions {
 
 type KeysStore = KeysState & KeysActions
 
-// Environment keys - read once at module level (immutable)
-const envKeys: KeysConfig = {
-  mapbox: import.meta.env.VITE_MAPBOX_ACCESS_TOKEN,
-  googleMaps: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
-  anthropic: import.meta.env.VITE_CLAUDE_API_KEY,
-}
-
 export const useKeysStore = create<KeysStore>()(
   persist(
     (set, get) => ({
@@ -88,6 +81,7 @@ export const useKeysStore = create<KeysStore>()(
         const state = get()
         if (state.browserKeys[key]) return state.browserKeys[key]
         if (state.projectKeys?.[key]) return state.projectKeys[key]
+        const envKeys = getEnvKeys()
         return envKeys[key]
       },
 
@@ -99,6 +93,7 @@ export const useKeysStore = create<KeysStore>()(
         const state = get()
         if (state.browserKeys[key]) return 'browser'
         if (state.projectKeys?.[key]) return 'project'
+        const envKeys = getEnvKeys()
         if (envKeys[key]) return 'env'
         return null
       },
@@ -129,7 +124,11 @@ export function getKeysForProject(): KeysConfig | undefined {
 }
 
 export function getEnvKeys(): KeysConfig {
-  return envKeys
+  return {
+    mapbox: import.meta.env.VITE_MAPBOX_ACCESS_TOKEN,
+    googleMaps: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+    anthropic: import.meta.env.VITE_CLAUDE_API_KEY,
+  }
 }
 
 export function maskKey(key: string): string {

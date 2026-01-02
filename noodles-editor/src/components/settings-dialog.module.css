@@ -235,24 +235,6 @@
   color: rgba(255, 255, 255, 0.3);
 }
 
-.toggleButton {
-  padding: 0.5rem 1rem;
-  background-color: rgba(255, 255, 255, 0.05);
-  color: var(--color-text-secondary);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.85rem;
-  font-weight: 500;
-  white-space: nowrap;
-  transition: all 0.2s;
-}
-
-.toggleButton:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
 /* Subsections grid layout */
 .subsectionsGrid {
   display: grid;
@@ -331,38 +313,49 @@
   color: #60a5fa;
 }
 
-/* Inactive note */
-.inactiveNote {
-  font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.4);
-  font-style: italic;
-  margin-top: 0.25rem;
-}
-
-/* Key value display (for env keys) */
-.keyValue {
-  font-size: 0.75rem;
-  color: var(--color-text-secondary);
-  font-family: monospace;
-  padding: 0.5rem;
-  background-color: rgba(255, 255, 255, 0.02);
-  border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+/* Source badge */
+.sourceBadge {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+  letter-spacing: 0.05em;
+  background-color: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.6);
 }
 
 /* Read-only input */
 .readOnly {
   background-color: rgba(255, 255, 255, 0.02);
-  cursor: default;
+  cursor: help;
   opacity: 0.7;
 }
 
-/* Not set display */
-.notSet {
-  font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.3);
-  font-style: italic;
-  padding: 0.5rem;
+/* Copy button */
+.copyButton {
+  padding: 0.5rem 1rem;
+  background-color: rgba(255, 255, 255, 0.05);
+  color: var(--color-text-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.copyButton:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--color-text-primary);
+}
+
+.copyButton:active {
+  background-color: rgba(59, 130, 246, 0.2);
+  border-color: rgba(59, 130, 246, 0.3);
+  color: #60a5fa;
 }
 
 /* Clear button */

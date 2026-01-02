@@ -65,35 +65,33 @@ const BrowserKeyInput = ({
 // Shared component for read-only key display (project and env keys)
 interface ReadOnlyKeyDisplayProps {
   label: string
-  value: string | undefined
+  value: string
+  source: 'project' | 'env'
   isActive: boolean
 }
 
-const ReadOnlyKeyDisplay = ({ label, value, isActive }: ReadOnlyKeyDisplayProps) => {
-  const [showKey, setShowKey] = useState(false)
+const ReadOnlyKeyDisplay = ({ label, value, source, isActive }: ReadOnlyKeyDisplayProps) => {
+  const handleCopy = () => {
+    navigator.clipboard.writeText(value)
+    analytics.track('key_copied', { source })
+  }
 
   return (
     <div className={s.keyDisplay}>
       <div className={s.keyLabelRow}>
         <div className={s.keyLabel}>{label}</div>
+        <span className={s.sourceBadge}>{source === 'project' ? 'Project' : 'Env'}</span>
         {isActive && <span className={s.activeBadge}>Active</span>}
       </div>
 
-      {value ? (
-        <div className={s.inputGroup}>
-          <div className={`${s.input} ${s.readOnly}`}>{showKey ? value : maskKey(value)}</div>
-          <button
-            type="button"
-            onClick={() => setShowKey(!showKey)}
-            className={s.toggleButton}
-            aria-label={showKey ? 'Hide' : 'Show'}
-          >
-            {showKey ? 'Hide' : 'Show'}
-          </button>
+      <div className={s.inputGroup}>
+        <div className={`${s.input} ${s.readOnly}`} title={value}>
+          {maskKey(value)}
         </div>
-      ) : (
-        <div className={s.notSet}>Not set in project</div>
-      )}
+        <button type="button" onClick={handleCopy} className={s.copyButton} aria-label="Copy">
+          Copy
+        </button>
+      </div>
     </div>
   )
 }
@@ -226,12 +224,17 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                 </div>
               </div>
 
-              {/* Project Keys */}
-              {(projectKeys.mapbox || projectKeys.googleMaps || projectKeys.anthropic) && (
+              {/* Read-Only Keys (Project & Environment) */}
+              {(projectKeys.mapbox ||
+                projectKeys.googleMaps ||
+                projectKeys.anthropic ||
+                envKeys.mapbox ||
+                envKeys.googleMaps ||
+                envKeys.anthropic) && (
                 <div className={s.subsection}>
-                  <h4 className={s.subsectionTitle}>Project Keys (Read-Only)</h4>
+                  <h4 className={s.subsectionTitle}>Read-Only Keys</h4>
                   <div className={s.subsectionDescription}>
-                    Keys saved in the project file, shared when project is shared
+                    Keys from project file or environment variables
                   </div>
 
                   <div className={s.keysGroup}>
@@ -239,7 +242,16 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                       <ReadOnlyKeyDisplay
                         label="Mapbox Access Token"
                         value={projectKeys.mapbox}
+                        source="project"
                         isActive={getActiveSource('mapbox') === 'project'}
+                      />
+                    )}
+                    {envKeys.mapbox && !projectKeys.mapbox && (
+                      <ReadOnlyKeyDisplay
+                        label="Mapbox Access Token"
+                        value={envKeys.mapbox}
+                        source="env"
+                        isActive={getActiveSource('mapbox') === 'env'}
                       />
                     )}
 
@@ -247,7 +259,16 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                       <ReadOnlyKeyDisplay
                         label="Google Maps API Key"
                         value={projectKeys.googleMaps}
+                        source="project"
                         isActive={getActiveSource('googleMaps') === 'project'}
+                      />
+                    )}
+                    {envKeys.googleMaps && !projectKeys.googleMaps && (
+                      <ReadOnlyKeyDisplay
+                        label="Google Maps API Key"
+                        value={envKeys.googleMaps}
+                        source="env"
+                        isActive={getActiveSource('googleMaps') === 'env'}
                       />
                     )}
 
@@ -255,38 +276,15 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                       <ReadOnlyKeyDisplay
                         label="Anthropic API Key"
                         value={projectKeys.anthropic}
+                        source="project"
                         isActive={getActiveSource('anthropic') === 'project'}
                       />
                     )}
-                  </div>
-                </div>
-              )}
-
-              {/* Environment Keys */}
-              {(envKeys.mapbox || envKeys.googleMaps || envKeys.anthropic) && (
-                <div className={s.subsection}>
-                  <h4 className={s.subsectionTitle}>Environment Keys (Read-Only)</h4>
-                  <div className={s.subsectionDescription}>Fallback keys from .env files</div>
-
-                  <div className={s.keysGroup}>
-                    {envKeys.mapbox && (
+                    {envKeys.anthropic && !projectKeys.anthropic && (
                       <ReadOnlyKeyDisplay
-                        label="Mapbox"
-                        value={envKeys.mapbox}
-                        isActive={getActiveSource('mapbox') === 'env'}
-                      />
-                    )}
-                    {envKeys.googleMaps && (
-                      <ReadOnlyKeyDisplay
-                        label="Google Maps"
-                        value={envKeys.googleMaps}
-                        isActive={getActiveSource('googleMaps') === 'env'}
-                      />
-                    )}
-                    {envKeys.anthropic && (
-                      <ReadOnlyKeyDisplay
-                        label="Anthropic"
+                        label="Anthropic API Key"
                         value={envKeys.anthropic}
+                        source="env"
                         isActive={getActiveSource('anthropic') === 'env'}
                       />
                     )}
