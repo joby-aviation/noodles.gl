@@ -1,10 +1,10 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import Map, { Marker } from 'react-map-gl/maplibre'
+import { type MapLayerMouseEvent, Map as MapLibre, Marker, useMap } from 'react-map-gl/maplibre'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { useKeysStore } from '../keys-store'
 import { analytics } from '../../utils/analytics'
+import { useKeysStore } from '../keys-store'
 import s from './geocoding-dialog.module.css'
 
 const DEFAULT_LOCATION = { longitude: -74.006, latitude: 40.7128, zoom: 12 } // NYC
@@ -23,6 +23,21 @@ interface GeocodingSuggestion {
   label: string
   coordinates: { longitude: number; latitude: number }
   confidence?: number
+}
+
+interface MapboxFeature {
+  place_name: string
+  center: [number, number]
+}
+
+interface PhotonFeature {
+  properties: {
+    name?: string
+    street?: string
+  }
+  geometry: {
+    coordinates: [number, number]
+  }
 }
 
 // Parse Google Maps URLs
@@ -116,7 +131,7 @@ async function geocodeWithMapbox(
     const data = await response.json()
 
     if (data.features) {
-      return data.features.map((feature: any) => ({
+      return data.features.map((feature: MapboxFeature) => ({
         place_name: feature.place_name,
         coordinates: {
           longitude: feature.center[0],
@@ -141,7 +156,7 @@ async function geocodeWithPhoton(
     const data = await response.json()
 
     if (data.features) {
-      return data.features.map((feature: any) => ({
+      return data.features.map((feature: PhotonFeature) => ({
         place_name: feature.properties.name || feature.properties.street || 'Unknown location',
         coordinates: {
           longitude: feature.geometry.coordinates[0],
@@ -155,6 +170,8 @@ async function geocodeWithPhoton(
     return []
   }
 }
+
+const MAP_ID = 'geocoding-map'
 
 export function GeocodingDialog({
   open,
@@ -170,8 +187,11 @@ export function GeocodingDialog({
   const [isLoading, setIsLoading] = useState(false)
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  const getKey = useKeysStore((state) => state.getKey)
+  const getKey = useKeysStore(state => state.getKey)
   const mapboxKey = getKey('mapbox')
+
+  // Access the map instance for flyTo animations
+  const { [MAP_ID]: mapInstance } = useMap()
 
   // Reset map coordinates when dialog opens with new initial value
   useEffect(() => {
@@ -179,6 +199,22 @@ export function GeocodingDialog({
       setMapCoordinates(initialValue)
     }
   }, [open, initialValue])
+
+  // Fly to a location with smooth animation
+  const flyToLocation = useCallback(
+    (coordinates: { longitude: number; latitude: number }, zoom = 14) => {
+      if (mapInstance) {
+        mapInstance.flyTo({
+          center: [coordinates.longitude, coordinates.latitude],
+          zoom,
+          duration: 1500,
+          essential: true,
+        })
+      }
+      setMapCoordinates({ ...coordinates, zoom })
+    },
+    [mapInstance]
+  )
 
   // Parse input and generate suggestions
   const parseInput = useCallback(
@@ -202,7 +238,7 @@ export function GeocodingDialog({
       const coordResults = parseCoordinates(value)
       if (coordResults.length > 0) {
         analytics.track('geocoding_parsed', { method: 'coordinates' })
-        return coordResults.map((result) => ({
+        return coordResults.map(result => ({
           type: 'coordinates' as const,
           label: `📍 ${result.label}${result.confidence < 1 ? ' (possible)' : ''}`,
           coordinates: result.coordinates,
@@ -217,7 +253,7 @@ export function GeocodingDialog({
           ? await geocodeWithMapbox(value, mapboxKey)
           : await geocodeWithPhoton(value)
 
-        return places.map((place) => ({
+        return places.map(place => ({
           type: 'place' as const,
           label: `🔍 ${place.place_name}`,
           coordinates: place.coordinates,
@@ -252,15 +288,20 @@ export function GeocodingDialog({
   )
 
   // Handle suggestion selection
-  const handleSuggestionSelect = useCallback((suggestion: GeocodingSuggestion) => {
-    setMapCoordinates(suggestion.coordinates)
-    setInputValue('')
-    setSuggestions([])
-    setShowDropdown(false)
-  }, [])
+  const handleSuggestionSelect = useCallback(
+    (suggestion: GeocodingSuggestion) => {
+      // Different zoom levels based on suggestion type
+      const zoom = suggestion.type === 'place' ? 13 : 14
+      flyToLocation(suggestion.coordinates, zoom)
+      setInputValue('')
+      setSuggestions([])
+      setShowDropdown(false)
+    },
+    [flyToLocation]
+  )
 
   // Handle map click
-  const handleMapClick = useCallback((event: any) => {
+  const handleMapClick = useCallback((event: MapLayerMouseEvent) => {
     setMapCoordinates({
       longitude: event.lngLat.lng,
       latitude: event.lngLat.lat,
@@ -269,7 +310,7 @@ export function GeocodingDialog({
   }, [])
 
   // Handle marker drag
-  const handleMarkerDragEnd = useCallback((event: any) => {
+  const handleMarkerDragEnd = useCallback((event: MapLayerMouseEvent) => {
     setMapCoordinates({
       longitude: event.lngLat.lng,
       latitude: event.lngLat.lat,
@@ -301,7 +342,7 @@ export function GeocodingDialog({
             <input
               type="text"
               value={inputValue}
-              onChange={(e) => handleInputChange(e.target.value)}
+              onChange={e => handleInputChange(e.target.value)}
               onFocus={() => suggestions.length > 0 && setShowDropdown(true)}
               onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
               placeholder="Search places, paste coordinates, or Google Maps link..."
@@ -317,14 +358,15 @@ export function GeocodingDialog({
                     Searching...
                   </div>
                 ) : (
-                  suggestions.map((suggestion, i) => (
-                    <div
-                      key={i}
+                  suggestions.map(suggestion => (
+                    <button
+                      type="button"
+                      key={suggestion.label}
                       className={s.suggestionItem}
                       onMouseDown={() => handleSuggestionSelect(suggestion)}
                     >
                       {suggestion.label}
-                    </div>
+                    </button>
                   ))
                 )}
               </div>
@@ -333,7 +375,8 @@ export function GeocodingDialog({
 
           {/* Map */}
           <div className={s.mapContainer}>
-            <Map
+            <MapLibre
+              id={MAP_ID}
               mapStyle={CARTO_DARK}
               style={{ width: '100%', height: '400px' }}
               longitude={mapCoordinates.longitude}
@@ -347,7 +390,7 @@ export function GeocodingDialog({
                 draggable
                 onDragEnd={handleMarkerDragEnd}
               />
-            </Map>
+            </MapLibre>
           </div>
 
           {/* Footer */}
