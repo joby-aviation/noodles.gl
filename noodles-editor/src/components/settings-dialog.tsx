@@ -242,7 +242,7 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                         isActive={getActiveSource('mapbox') === 'project'}
                       />
                     )}
-                    {envKeys.mapbox && !projectKeys.mapbox && (
+                    {envKeys.mapbox && (
                       <ReadOnlyKeyDisplay
                         label="Mapbox Access Token"
                         value={envKeys.mapbox}
@@ -259,7 +259,7 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                         isActive={getActiveSource('googleMaps') === 'project'}
                       />
                     )}
-                    {envKeys.googleMaps && !projectKeys.googleMaps && (
+                    {envKeys.googleMaps && (
                       <ReadOnlyKeyDisplay
                         label="Google Maps API Key"
                         value={envKeys.googleMaps}
@@ -276,7 +276,7 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                         isActive={getActiveSource('anthropic') === 'project'}
                       />
                     )}
-                    {envKeys.anthropic && !projectKeys.anthropic && (
+                    {envKeys.anthropic && (
                       <ReadOnlyKeyDisplay
                         label="Anthropic API Key"
                         value={envKeys.anthropic}
