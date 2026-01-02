@@ -18,7 +18,7 @@ export class MCPTools {
   private project: NoodlesProject | null = null
 
   constructor(private contextLoader: ContextLoader) {
-    // this.setupConsoleTracking()
+    this.setupConsoleTracking()
   }
 
   // Set current project for MCP tools to access
