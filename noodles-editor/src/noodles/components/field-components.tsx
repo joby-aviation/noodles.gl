@@ -37,6 +37,7 @@ import { checkAssetExists, writeAsset } from '../storage'
 import { projectScheme } from '../utils/filesystem'
 import { edgeId, type OpId } from '../utils/id-utils'
 import { handleClass } from './op-components'
+import { GeocodingDialog } from './geocoding-dialog'
 
 import s from '../noodles.module.css'
 import menuStyles from './menu.module.css'
@@ -216,6 +217,10 @@ export function VectorFieldComponent({
   const [value, setValue] = useState<
     { [key: string]: number } | [number, number] | [number, number, number]
   >(guardAccessorFallback(field.value))
+  const [geocodingOpen, setGeocodingOpen] = useState(false)
+
+  const isPointField = field instanceof Point2DField || field instanceof Point3DField
+  const isPoint3D = field instanceof Point3DField
 
   const keys =
     field instanceof Point3DField
@@ -258,6 +263,46 @@ export function VectorFieldComponent({
     field.setValue(latestValueRef.current)
   }, [field])
 
+  // Get current coordinates for Point fields
+  const getCurrentCoordinates = useCallback(() => {
+    const currentValue = field.value
+    if (field.returnType === 'tuple') {
+      return {
+        longitude: (currentValue as number[])[0],
+        latitude: (currentValue as number[])[1],
+      }
+    }
+    return {
+      longitude: (currentValue as { lng: number; lat: number }).lng,
+      latitude: (currentValue as { lng: number; lat: number }).lat,
+    }
+  }, [field])
+
+  // Handle location selection from geocoding dialog
+  const handleLocationSelected = useCallback(
+    (result: { longitude: number; latitude: number }) => {
+      if (field.returnType === 'tuple') {
+        // For tuple format, preserve altitude for Point3D
+        if (isPoint3D) {
+          const currentAlt = (field.value as number[])[2] || 0
+          field.setValue([result.longitude, result.latitude, currentAlt])
+        } else {
+          field.setValue([result.longitude, result.latitude])
+        }
+      } else {
+        // For object format, preserve altitude for Point3D
+        if (isPoint3D) {
+          const currentAlt = (field.value as { lng: number; lat: number; alt: number }).alt || 0
+          field.setValue({ lng: result.longitude, lat: result.latitude, alt: currentAlt })
+        } else {
+          field.setValue({ lng: result.longitude, lat: result.latitude })
+        }
+      }
+      setGeocodingOpen(false)
+    },
+    [field, isPoint3D]
+  )
+
   return (
     <div className={s.fieldWrapper}>
       <label className={s.fieldLabel} htmlFor={id}>
@@ -278,7 +323,29 @@ export function VectorFieldComponent({
             />
           )
         })}
+        {isPointField && (
+          <Button
+            icon="pi pi-map-marker"
+            className={s.fieldLookupButton}
+            onClick={() => setGeocodingOpen(true)}
+            title="Lookup Location"
+            size="small"
+            disabled={disabled}
+            severity="secondary"
+            text
+          />
+        )}
       </div>
+
+      {isPointField && (
+        <GeocodingDialog
+          open={geocodingOpen}
+          onOpenChange={setGeocodingOpen}
+          mode="update-field"
+          initialValue={getCurrentCoordinates()}
+          onLocationSelected={handleLocationSelected}
+        />
+      )}
     </div>
   )
 }
