@@ -84,11 +84,13 @@ const KeyGroup = ({
               <span className={s.sourceBadge}>Project</span>
               {activeSource === 'project' && <span className={s.activeBadge}>Active</span>}
             </div>
+            <div className={s.keyPreview} title={getPreview(projectValue)}>
+              {maskKey(projectValue)}
+            </div>
             <button
               type="button"
               onClick={() => handleCopy(projectValue, 'project')}
               className={s.copyButton}
-              title={getPreview(projectValue)}
             >
               Copy
             </button>
@@ -102,11 +104,13 @@ const KeyGroup = ({
               <span className={s.sourceBadge}>Env</span>
               {activeSource === 'env' && <span className={s.activeBadge}>Active</span>}
             </div>
+            <div className={s.keyPreview} title={getPreview(envValue)}>
+              {maskKey(envValue)}
+            </div>
             <button
               type="button"
               onClick={() => handleCopy(envValue, 'env')}
               className={s.copyButton}
-              title={getPreview(envValue)}
             >
               Copy
             </button>
