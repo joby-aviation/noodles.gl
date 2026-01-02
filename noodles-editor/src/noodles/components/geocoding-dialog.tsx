@@ -87,13 +87,29 @@ function extractPlaceNameFromUrl(url: string): string | null {
 // Geocode place URL by extracting and geocoding the place name
 async function geocodePlaceUrl(
   value: string,
+  googleMapsKey: string | undefined,
   mapboxKey: string | undefined
 ): Promise<{ lat: number; lng: number; source: string } | null> {
   const placeName = extractPlaceNameFromUrl(value)
-
   if (!placeName) return null
 
-  // Try geocoding the place name using existing geocoding services
+  // Try Google Places search first (most accurate for Google Maps URLs)
+  if (googleMapsKey) {
+    try {
+      const results = await geocodeWithGooglePlaces(placeName)
+      if (results && results.length > 0) {
+        return {
+          lat: results[0].coordinates.latitude,
+          lng: results[0].coordinates.longitude,
+          source: 'google_places',
+        }
+      }
+    } catch (error) {
+      console.warn('Google Places search failed, trying Mapbox/Photon:', error)
+    }
+  }
+
+  // Fall back to Mapbox or Photon geocoding by name
   const geocodeFunc = mapboxKey ? geocodeWithMapbox : geocodeWithPhoton
   const results = await geocodeFunc(placeName, mapboxKey || '')
 
@@ -101,7 +117,7 @@ async function geocodePlaceUrl(
     return {
       lat: results[0].coordinates.latitude,
       lng: results[0].coordinates.longitude,
-      source: 'place_search',
+      source: mapboxKey ? 'mapbox' : 'photon',
     }
   }
 
@@ -232,16 +248,22 @@ export function GeocodingDialog({
         ]
       }
 
-      // Priority 2: Check if place URL (try geocoding place name first)
+      // Priority 2: Check if place URL (try extracting place ID or geocoding)
       if (value.includes('/place/')) {
-        // Try geocoding place name for accurate coordinates
-        const placeResult = await geocodePlaceUrl(value, mapboxKey)
+        // Try extracting place ID or geocoding place name for accurate coordinates
+        const placeResult = await geocodePlaceUrl(value, googleMapsKey, mapboxKey)
         if (placeResult) {
-          analytics.track('geocoding_parsed', { method: 'place_url_geocoded' })
+          analytics.track('geocoding_parsed', { method: `place_url_${placeResult.source}` })
+          const sourceLabel =
+            placeResult.source === 'google_places'
+              ? 'Google Places'
+              : placeResult.source === 'mapbox'
+                ? 'Mapbox'
+                : 'place search'
           return [
             {
               type: 'url',
-              label: `🔗 ${placeResult.lat.toFixed(5)}, ${placeResult.lng.toFixed(5)} (from place search)`,
+              label: `🔗 ${placeResult.lat.toFixed(5)}, ${placeResult.lng.toFixed(5)} (${sourceLabel})`,
               coordinates: { longitude: placeResult.lng, latitude: placeResult.lat },
             },
           ]
