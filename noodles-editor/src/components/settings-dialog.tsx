@@ -62,12 +62,10 @@ const KeyGroup = ({
             onKeyDown={e => e.stopPropagation()}
             onKeyUp={e => e.stopPropagation()}
           />
-          {browserValue ? (
+          {browserValue && (
             <button type="button" onClick={onBrowserClear} className={s.clearButton}>
               Clear
             </button>
-          ) : (
-            <div />
           )}
         </div>
 
