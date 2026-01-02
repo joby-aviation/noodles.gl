@@ -7,22 +7,41 @@ export interface GeocodingResult {
 
 // Track if Google Maps API is loaded to avoid duplicate imports
 let googleMapsLoaded = false
+let googleMapsPromise: Promise<void> | null = null
 
 /**
  * Load Google Maps JavaScript API with Places library
  */
 async function loadGoogleMapsAPI(apiKey: string): Promise<void> {
   if (googleMapsLoaded) return
+  if (googleMapsPromise) return googleMapsPromise
 
-  const params = new URLSearchParams({
-    v: 'weekly',
-    key: apiKey,
-    libraries: 'places',
-    loading: 'async',
+  googleMapsPromise = new Promise<void>((resolve, reject) => {
+    // Create a unique callback name
+    const callbackName = `googleMapsCallback_${Date.now()}`
+
+    // Set up the callback
+    ;(window as any)[callbackName] = () => {
+      googleMapsLoaded = true
+      resolve()
+      delete (window as any)[callbackName]
+    }
+
+    const params = new URLSearchParams({
+      v: 'weekly',
+      key: apiKey,
+      libraries: 'places',
+      loading: 'async',
+      callback: callbackName,
+    })
+
+    // Dynamically load the script
+    import(/* @vite-ignore */ `https://maps.googleapis.com/maps/api/js?${params.toString()}`).catch(
+      reject
+    )
   })
 
-  await import(/* @vite-ignore */ `https://maps.googleapis.com/maps/api/js?${params.toString()}`)
-  googleMapsLoaded = true
+  return googleMapsPromise
 }
 
 /**
