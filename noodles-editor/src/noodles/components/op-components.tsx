@@ -666,23 +666,29 @@ function GeocoderOpComponent({
 
   const containerRef = useRef<HTMLDivElement>(null)
   const geocoderRef = useRef<MapboxGeocoder>()
+  const [error, setError] = useState<string | null>(null)
 
   // Get API key directly from store (reactive)
   const apiKey = useKeysStore(state => state.getKey('mapbox'))
 
   useLayoutEffect(() => {
+    // Clear previous error
+    setError(null)
+
     if (!containerRef.current) {
       return
     }
 
     // Check if Mapbox API key is available
     if (!apiKey) {
-      throw new Error('Mapbox API key not found. Please configure it in Settings > API Keys.')
+      setError('Mapbox API key not found. Please configure it in Settings > API Keys.')
+      return
     }
 
     // Validate Mapbox token format (should start with pk.)
     if (!apiKey.startsWith('pk.')) {
-      throw new Error('Invalid Mapbox API key format. Mapbox tokens should start with "pk."')
+      setError('Invalid Mapbox API key format. Mapbox tokens should start with "pk."')
+      return
     }
 
     const container = containerRef.current
@@ -704,10 +710,10 @@ function GeocoderOpComponent({
       })
 
       g.addTo(container)
-    } catch (error) {
-      throw new Error(
-        `Failed to initialize Mapbox Geocoder: ${error instanceof Error ? error.message : 'Invalid API key'}. Please check your Mapbox API key in Settings.`
-      )
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Invalid API key'
+      setError(`Failed to initialize Mapbox Geocoder: ${message}. Please check your Mapbox API key in Settings.`)
+      return
     }
 
     g.query(op.inputs.query.value)
@@ -752,12 +758,12 @@ function GeocoderOpComponent({
             renderInput={false}
           />
         ))}
-        {!apiKey && (
+        {error && (
           <div className={s.fieldWrapper} style={{ padding: '8px', color: '#ff6b6b' }}>
-            ⚠️ Mapbox API key required. Configure it in Settings → API Keys.
+            ⚠️ {error}
           </div>
         )}
-        <div ref={containerRef} className={s.fieldWrapper} style={{ display: apiKey ? 'block' : 'none' }} />
+        <div ref={containerRef} className={s.fieldWrapper} style={{ display: error ? 'none' : 'block' }} />
         <div className={s.outputHandleContainer}>
           {Object.entries(op.outputs).map(([key, field]) => (
             <OutputHandle key={key} id={key} field={field} />
