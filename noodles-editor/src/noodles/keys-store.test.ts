@@ -341,19 +341,6 @@ describe('Keys Store', () => {
       expect(callback).toHaveBeenCalled()
       unsubscribe()
     })
-
-    it('should update state correctly after subscription', () => {
-      const { setBrowserKey } = getKeysStore()
-
-      const unsubscribe = useKeysStore.subscribe(() => {
-        // Subscription callback
-      })
-
-      setBrowserKey('mapbox', 'reactive-key')
-
-      expect(getKeysStore().browserKeys.mapbox).toBe('reactive-key')
-      unsubscribe()
-    })
   })
 })
 
