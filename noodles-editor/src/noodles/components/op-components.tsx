@@ -745,12 +745,12 @@ function GeocoderOpComponent({
             renderInput={false}
           />
         ))}
-        {!hasApiKey && (
+        {!apiKey && (
           <div className={s.fieldWrapper} style={{ padding: '8px', color: '#ff6b6b' }}>
             ⚠️ Mapbox API key required. Configure it in Settings → API Keys.
           </div>
         )}
-        <div ref={containerRef} className={s.fieldWrapper} style={{ display: hasApiKey ? 'block' : 'none' }} />
+        <div ref={containerRef} className={s.fieldWrapper} style={{ display: apiKey ? 'block' : 'none' }} />
         <div className={s.outputHandleContainer}>
           {Object.entries(op.outputs).map(([key, field]) => (
             <OutputHandle key={key} id={key} field={field} />
