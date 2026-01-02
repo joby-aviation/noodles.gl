@@ -211,8 +211,8 @@
   background-color: rgba(255, 255, 255, 0.05);
   color: var(--color-text-primary);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  font-size: 0.9rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
   font-family: monospace;
   transition: all 0.2s;
   overflow: hidden;
@@ -394,13 +394,13 @@
 
 /* Clear button */
 .clearButton {
-  padding: 0.5rem 1rem;
+  padding: 0.25rem 0.5rem;
   background-color: rgba(239, 68, 68, 0.1);
   color: #f87171;
   border: 1px solid rgba(239, 68, 68, 0.3);
-  border-radius: 6px;
+  border-radius: 4px;
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   font-weight: 500;
   white-space: nowrap;
   transition: all 0.2s;
