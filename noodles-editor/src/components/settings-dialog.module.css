@@ -353,16 +353,11 @@
   color: #60a5fa;
 }
 
-/* Source badge */
-.sourceBadge {
-  font-size: 0.65rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  padding: 0.15rem 0.4rem;
-  border-radius: 3px;
-  letter-spacing: 0.05em;
-  background-color: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.6);
+/* Source text label */
+.sourceText {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--color-text-primary);
 }
 
 /* Read-only input */

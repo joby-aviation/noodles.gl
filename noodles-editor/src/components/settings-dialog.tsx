@@ -54,7 +54,7 @@ const KeyGroup = ({
         {/* Browser key input */}
         <div className={s.keySource}>
           <div className={s.keySourceLabel}>
-            <span className={s.sourceBadge}>Browser</span>
+            <span className={s.sourceText}>Browser</span>
             {activeSource === 'browser' && <span className={s.activeBadge}>Active</span>}
           </div>
           <div className={s.inputGroup}>
@@ -81,7 +81,7 @@ const KeyGroup = ({
         {projectValue && (
           <div className={s.keySource}>
             <div className={s.keySourceLabel}>
-              <span className={s.sourceBadge}>Project</span>
+              <span className={s.sourceText}>Project</span>
               {activeSource === 'project' && <span className={s.activeBadge}>Active</span>}
             </div>
             <div className={s.keyPreview} title={getPreview(projectValue)}>
@@ -101,7 +101,7 @@ const KeyGroup = ({
         {envValue && (
           <div className={s.keySource}>
             <div className={s.keySourceLabel}>
-              <span className={s.sourceBadge}>Env</span>
+              <span className={s.sourceText}>Environment</span>
               {activeSource === 'env' && <span className={s.activeBadge}>Active</span>}
             </div>
             <div className={s.keyPreview} title={getPreview(envValue)}>
