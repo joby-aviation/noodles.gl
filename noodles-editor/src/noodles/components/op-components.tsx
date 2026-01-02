@@ -28,12 +28,14 @@ import { createPortal } from 'react-dom'
 import { Temporal } from 'temporal-polyfill'
 
 import { analytics } from '../../utils/analytics'
+import { useKeysStore } from '../keys-store'
 import { SheetContext } from '../../utils/sheet-context'
 import { ArrayField, type Field, type IField, ListField } from '../fields'
 import s from '../noodles.module.css'
 import type { ExecutionState, IOperator, OpType } from '../operators'
 import {
   type ContainerOp,
+  type DirectionsOp,
   type GeocoderOp,
   type MouseOp,
   mathOpDescriptions,
@@ -45,12 +47,10 @@ import {
   type ViewerOp,
 } from '../operators'
 import {
-  deleteOp,
-  getAllOps,
   getOp,
   hasOp,
   setHoveredOutputHandle,
-  setOp,
+  updateOperatorId,
   useNestingStore,
   useOperatorStore,
 } from '../store'
@@ -97,6 +97,7 @@ for (const key of Object.keys(opTypes)) {
 export const nodeComponents = {
   ...defaultNodeComponents,
   GeocoderOp: GeocoderOpComponent,
+  DirectionsOp: DirectionsOpComponent,
   MouseOp: MouseOpComponent,
   TableEditorOp: TableEditorOpComponent,
   TimeOp: TimeOpComponent,
@@ -521,82 +522,16 @@ function NodeHeader({ id, type, op }: { id: string; type: OpType; op: Operator<I
         return
       }
 
-      const newQualifiedId = generateQualifiedPath(trimmedName, op.containerId)
       const isContainer = type === 'ContainerOp'
 
-      // Update the operator itself
-      setOp(newQualifiedId, op)
-      op.id = newQualifiedId
+      // Call the store function to update the operator
+      updateOperatorId(id, trimmedName, isContainer, setNodes, setEdges)
 
-      // If this is a container, update all children nodes and their operators
-      if (isContainer) {
-        const childOps = getAllOps().filter((childOp: Operator<IOperator>) =>
-          childOp.id.startsWith(`${id}/`)
-        )
-
-        for (const childOp of childOps) {
-          const oldChildId = childOp.id
-          // Replace only the exact container path at the start
-          const newChildId = newQualifiedId + oldChildId.slice(id.length)
-          setOp(newChildId, childOp)
-          childOp.id = newChildId
-          // TODO: this is a hack. We should hook into some sort of "after update" event
-          queueMicrotask(() => deleteOp(oldChildId))
-        }
-      }
-
-      // Give React time to update the component tree before deleting the old id
-      // TODO: this is a hack. We should hook into some sort of "after update" event
-      queueMicrotask(() => {
-        deleteOp(id)
-      })
-
-      // Update React Flow nodes and edges
-      setNodes(nodes =>
-        nodes.map(n => {
-          // Update the node itself if it matches
-          if (n.id === id) {
-            return { ...n, id: newQualifiedId }
-          }
-          // Update children if this is a container
-          if (isContainer && n.id.startsWith(`${id}/`)) {
-            return { ...n, id: newQualifiedId + n.id.slice(id.length) }
-          }
-          return n
-        })
-      )
-
-      setEdges(edges =>
-        edges.map(edge => {
-          const sourceNeedsUpdate =
-            edge.source === id || (isContainer && edge.source.startsWith(`${id}/`))
-          const targetNeedsUpdate =
-            edge.target === id || (isContainer && edge.target.startsWith(`${id}/`))
-
-          if (!sourceNeedsUpdate && !targetNeedsUpdate) return edge
-
-          const updatedEdge = {
-            ...edge,
-            source: sourceNeedsUpdate
-              ? edge.source === id
-                ? newQualifiedId
-                : newQualifiedId + edge.source.slice(id.length)
-              : edge.source,
-            target: targetNeedsUpdate
-              ? edge.target === id
-                ? newQualifiedId
-                : newQualifiedId + edge.target.slice(id.length)
-              : edge.target,
-          }
-
-          return { ...updatedEdge, id: edgeId(updatedEdge) }
-        })
-      )
       setEditing(false)
       setHasConflict(false)
       setInputValue('')
     },
-    [id, op, type, setNodes, setEdges, checkForConflict]
+    [id, type, setNodes, setEdges, checkForConflict]
   )
 
   const onInputChange = useCallback(
@@ -731,26 +666,49 @@ function GeocoderOpComponent({
 
   const containerRef = useRef<HTMLDivElement>(null)
   const geocoderRef = useRef<MapboxGeocoder>()
+  const [error, setError] = useState<string | null>(null)
+
+  // Get API key directly from store (reactive)
+  const apiKey = useKeysStore(state => state.getKey('mapbox'))
 
   useLayoutEffect(() => {
-    if (!containerRef.current) return
+    // Clear previous error
+    setError(null)
+
+    if (!containerRef.current) {
+      return
+    }
+
+    // Check if Mapbox API key is available
+    if (!apiKey) {
+      setError('API key required (Settings > API Keys)')
+      return
+    }
+
     const container = containerRef.current
 
-    const g = new MapboxGeocoder({
-      accessToken: MAPBOX_ACCESS_TOKEN,
-      collapsed: true,
-    })
+    let g: MapboxGeocoder
+    try {
+      g = new MapboxGeocoder({
+        accessToken: apiKey,
+        collapsed: true,
+      })
 
-    g.on('query', e => {
-      op.inputs.query.setValue(e.query)
-    })
+      g.on('query', (e: { query: string }) => {
+        op.inputs.query.setValue(e.query)
+      })
 
-    g.on('result', e => {
-      const [lng, lat] = e.result.geometry.coordinates as [number, number]
-      op.outputs.location.next({ lng, lat })
-    })
+      g.on('result', (e: { result: { geometry: { coordinates: [number, number] } } }) => {
+        const [lng, lat] = e.result.geometry.coordinates as [number, number]
+        op.outputs.location.next({ lng, lat })
+      })
 
-    g.addTo(container)
+      g.addTo(container)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Invalid token'
+      setError(`Geocoder error: ${message}`)
+      return
+    }
 
     g.query(op.inputs.query.value)
 
@@ -768,8 +726,9 @@ function GeocoderOpComponent({
     return () => {
       removed = true
       g.onRemove()
+      geocoderRef.current = undefined
     }
-  }, [op])
+  }, [op, apiKey])
 
   const locked = useLocked(op)
   useEffect(() => {
@@ -793,7 +752,12 @@ function GeocoderOpComponent({
             renderInput={false}
           />
         ))}
-        <div ref={containerRef} className={s.fieldWrapper} />
+        {error && (
+          <div className={s.fieldWrapper} style={{ padding: '8px', color: '#ff6b6b' }}>
+            ⚠️ {error}
+          </div>
+        )}
+        <div ref={containerRef} className={s.fieldWrapper} style={{ display: error ? 'none' : 'block' }} />
         <div className={s.outputHandleContainer}>
           {Object.entries(op.outputs).map(([key, field]) => (
             <OutputHandle key={key} id={key} field={field} />
@@ -802,6 +766,42 @@ function GeocoderOpComponent({
       </div>
     </>
   )
+}
+
+function DirectionsOpComponent({
+  id,
+  type,
+}: ReactFlowNodeProps<NodeDataJSON<DirectionsOp>> & { type: 'DirectionsOp' }) {
+  const op = getOp(id as string)
+  if (!op) {
+    throw new Error(`Operator with id ${id} not found`)
+  }
+
+  // Reactive - automatically updates when keys change
+  const hasMapboxKey = useKeysStore(state => state.hasKey('mapbox'))
+  const hasGoogleMapsKey = useKeysStore(state => state.hasKey('googleMaps'))
+
+  // Track previous values to detect additions
+  const prevHasMapboxKey = useRef(hasMapboxKey)
+  const prevHasGoogleMapsKey = useRef(hasGoogleMapsKey)
+
+  useEffect(() => {
+    const mapboxKeyAdded = !prevHasMapboxKey.current && hasMapboxKey
+    const googleMapsKeyAdded = !prevHasGoogleMapsKey.current && hasGoogleMapsKey
+
+    if (mapboxKeyAdded || googleMapsKeyAdded) {
+      // Trigger re-execution by touching one of the input fields
+      // This will invalidate the memoization cache and cause the operator to re-execute
+      const currentOrigin = op.inputs.origin.value
+      op.inputs.origin.setValue(currentOrigin)
+    }
+
+    // Update refs for next check
+    prevHasMapboxKey.current = hasMapboxKey
+    prevHasGoogleMapsKey.current = hasGoogleMapsKey
+  }, [op, hasMapboxKey, hasGoogleMapsKey])
+
+  return <NodeComponent id={id} type={type} />
 }
 
 function MouseOpComponent({

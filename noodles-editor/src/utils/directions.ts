@@ -1,8 +1,6 @@
 import polyline from '@mapbox/polyline'
 import haversine from 'haversine-distance'
-
-const MAPBOX_ACCESS_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
-const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+import { getKeysStore } from '../noodles/keys-store'
 
 export type AnimatedDirections = {
   distance: number
@@ -41,8 +39,15 @@ async function getDrivingDirections({
   origin: { lat: number; lng: number }
   destination: { lat: number; lng: number }
 }): Promise<AnimatedDirections> {
+  const token = getKeysStore().getKey('mapbox')
+  if (!token) {
+    throw new Error(
+      'Mapbox access token not configured. Please add your token in Settings > API Keys.'
+    )
+  }
+
   const res = await fetch(
-    `https://api.mapbox.com/directions/v5/mapbox/driving/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?access_token=${MAPBOX_ACCESS_TOKEN}&overview=full`
+    `https://api.mapbox.com/directions/v5/mapbox/driving/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?access_token=${token}&overview=full`
   )
   const data = await res.json()
 
@@ -88,9 +93,16 @@ async function getTransitDirections({
   origin: { lat: number; lng: number }
   destination: { lat: number; lng: number }
 }): Promise<AnimatedDirections> {
+  const apiKey = getKeysStore().getKey('googleMaps')
+  if (!apiKey) {
+    throw new Error(
+      'Google Maps API key not configured. Please add your key in Settings > API Keys.'
+    )
+  }
+
   const params = new URLSearchParams({
     v: 'weekly',
-    key: GOOGLE_MAPS_API_KEY,
+    key: apiKey,
   })
 
   await import(/* @vite-ignore */ `https://maps.googleapis.com/maps/api/js?${params.toString()}`)

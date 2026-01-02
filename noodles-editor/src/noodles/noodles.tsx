@@ -29,6 +29,7 @@ import { useLocation, useParams } from 'wouter'
 import { ChatPanel } from '../ai-chat/chat-panel'
 import { globalContextManager } from '../ai-chat/global-context-manager'
 import { analytics } from '../utils/analytics'
+import { getKeysForProject, getKeysStore } from './keys-store'
 import newProjectJSON from './new.json'
 
 // Get URLs for all example noodles.json files (lazy-loaded)
@@ -330,7 +331,7 @@ export function getNoodles(): Visualization {
   }, [theatreReady, theatreSheet, operators])
 
   // Use shared hook for project modifications
-  const { onConnect: onConnectBase, onNodesDelete: onNodesDeleteBase } = useProjectModifications({
+  const { onConnect: onConnectBase, onNodesDelete: onNodesDeleteBase, updateOperatorId } = useProjectModifications({
     getNodes: useCallback(() => nodes, [nodes]),
     getEdges: useCallback(() => edges, [edges]),
     setNodes,
@@ -555,7 +556,7 @@ export function getNoodles(): Visualization {
 
   const loadProjectFile = useCallback(
     (project: NoodlesProjectJSON, name?: string) => {
-      const { nodes, edges, viewport, timeline, editorSettings } = project
+      const { nodes, edges, viewport, timeline, editorSettings, apiKeys } = project
 
       // Update current project ref for undo/redo
       currentProjectRef.current = project
@@ -572,6 +573,9 @@ export function getNoodles(): Visualization {
       // Load editor settings from project with defaults
       setLayoutMode(editorSettings?.layoutMode ?? 'noodles-on-top')
       setShowOverlay(editorSettings?.showOverlay ?? !IS_PROD)
+
+      // Load API keys from project file if present
+      getKeysStore().setProjectKeys(apiKeys)
 
       // Set viewport state before ReactFlow renders (but not during undo/redo)
       if (viewport && name && !undoRedoRef.current?.isRestoring()) {
@@ -710,6 +714,7 @@ export function getNoodles(): Visualization {
     const store = getOpStore()
     const timeline = getTimelineJson()
     const viewport = reactFlowInstanceRef.current?.getViewport() || { x: 0, y: 0, zoom: 1 }
+    const projectKeys = getKeysForProject()
 
     return {
       version: NOODLES_VERSION,
@@ -721,6 +726,7 @@ export function getNoodles(): Visualization {
         layoutMode,
         showOverlay,
       },
+      ...(projectKeys ? { apiKeys: projectKeys } : {}),
     }
   }, [nodes, edges, getTimelineJson, layoutMode, showOverlay])
 
@@ -1162,7 +1168,7 @@ export function getNoodles(): Visualization {
 
   return {
     flowGraph,
-    nodeSidebar: <NodeTreeSidebar />,
+    nodeSidebar: <NodeTreeSidebar updateOperatorId={updateOperatorId} />,
     propertiesPanel,
     layoutMode,
     setLayoutMode,
