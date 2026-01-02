@@ -31,6 +31,7 @@ interface GeocodingSuggestion {
   label: string
   coordinates: { longitude: number; latitude: number }
   confidence?: number
+  isError?: boolean
 }
 
 interface MapCoordinates {
@@ -75,34 +76,46 @@ function parseGoogleMapsUrl(value: string): { lat: number; lng: number } | null 
   }
 }
 
-// Resolve short Google Maps URLs by fetching and following redirects
-async function resolveShortGoogleMapsUrl(
-  value: string
-): Promise<{ lat: number; lng: number } | null> {
-  try {
-    // Check if it's a short URL (goo.gl or maps.app.goo.gl)
-    const isShortUrl =
-      value.includes('goo.gl/maps/') ||
-      value.includes('maps.app.goo.gl/') ||
-      value.includes('g.co/maps/')
+// Check if URL is a short Google Maps link (cannot be resolved due to CORS)
+function isShortUrl(value: string): boolean {
+  return (
+    value.includes('goo.gl/maps/') ||
+    value.includes('maps.app.goo.gl/') ||
+    value.includes('g.co/maps/')
+  )
+}
 
-    if (!isShortUrl) {
-      return null
-    }
-
-    // Fetch the URL with redirect: 'follow' to get the final URL
-    const response = await fetch(value, {
-      method: 'HEAD',
-      redirect: 'follow',
-    })
-
-    // Parse the final URL
-    const finalUrl = response.url
-    return parseGoogleMapsUrl(finalUrl)
-  } catch (error) {
-    console.error('Error resolving short Google Maps URL:', error)
-    return null
+// Extract place name from Google Maps place URL
+function extractPlaceNameFromUrl(url: string): string | null {
+  const match = url.match(/\/place\/([^/@]+)/)
+  if (match) {
+    return decodeURIComponent(match[1].replace(/\+/g, ' '))
   }
+  return null
+}
+
+// Geocode place URL by extracting and geocoding the place name
+async function geocodePlaceUrl(
+  value: string,
+  mapboxKey: string | null
+): Promise<{ lat: number; lng: number; source: string } | null> {
+  const placeName = extractPlaceNameFromUrl(value)
+
+  if (!placeName) return null
+
+  // Try geocoding the place name using existing geocoding services
+  const geocodeFunc = mapboxKey ? geocodeWithMapbox : geocodeWithPhoton
+  const results = await geocodeFunc(placeName, mapboxKey || '')
+
+  if (results && results.length > 0) {
+    return {
+      lat: results[0].coordinates.latitude,
+      lng: results[0].coordinates.longitude,
+      source: 'place_search',
+    }
+  }
+
+  return null
 }
 
 // Parse coordinate pairs with ambiguity handling
@@ -266,20 +279,49 @@ export function GeocodingDialog({
     async (value: string): Promise<GeocodingSuggestion[]> => {
       if (!value.trim()) return []
 
-      // Priority 1a: Check if short Google Maps URL (requires async resolution)
-      const shortUrlResult = await resolveShortGoogleMapsUrl(value)
-      if (shortUrlResult) {
-        analytics.track('geocoding_parsed', { method: 'short_url' })
+      // Priority 1: Check if short URL (show error - cannot resolve due to CORS)
+      if (isShortUrl(value)) {
+        analytics.track('geocoding_short_url_detected')
         return [
           {
             type: 'url',
-            label: `🔗 ${shortUrlResult.lat.toFixed(5)}, ${shortUrlResult.lng.toFixed(5)} (from short URL)`,
-            coordinates: { longitude: shortUrlResult.lng, latitude: shortUrlResult.lat },
+            label: '⚠️ Short URL detected - Please open in browser and copy full URL',
+            coordinates: { longitude: 0, latitude: 0 },
+            isError: true,
           },
         ]
       }
 
-      // Priority 1b: Check if regular Google Maps URL
+      // Priority 2: Check if place URL (try geocoding place name first)
+      if (value.includes('/place/')) {
+        // Try geocoding place name for accurate coordinates
+        const placeResult = await geocodePlaceUrl(value, mapboxKey)
+        if (placeResult) {
+          analytics.track('geocoding_parsed', { method: 'place_url_geocoded' })
+          return [
+            {
+              type: 'url',
+              label: `🔗 ${placeResult.lat.toFixed(5)}, ${placeResult.lng.toFixed(5)} (from place search)`,
+              coordinates: { longitude: placeResult.lng, latitude: placeResult.lat },
+            },
+          ]
+        }
+
+        // Fallback to camera coordinates if geocoding fails
+        const urlResult = parseGoogleMapsUrl(value)
+        if (urlResult) {
+          analytics.track('geocoding_parsed', { method: 'place_url_camera_fallback' })
+          return [
+            {
+              type: 'url',
+              label: `🔗 ${urlResult.lat.toFixed(5)}, ${urlResult.lng.toFixed(5)} (camera position)`,
+              coordinates: { longitude: urlResult.lng, latitude: urlResult.lat },
+            },
+          ]
+        }
+      }
+
+      // Priority 3: Check if direct coordinate URL
       const urlResult = parseGoogleMapsUrl(value)
       if (urlResult) {
         analytics.track('geocoding_parsed', { method: 'url' })
@@ -292,7 +334,7 @@ export function GeocodingDialog({
         ]
       }
 
-      // Priority 2: Check if coordinate pair
+      // Priority 4: Check if coordinate pair
       const coordResults = parseCoordinates(value)
       if (coordResults.length > 0) {
         analytics.track('geocoding_parsed', { method: 'coordinates' })
@@ -304,7 +346,7 @@ export function GeocodingDialog({
         }))
       }
 
-      // Priority 3: Treat as search query
+      // Priority 5: Treat as search query
       if (value.trim().length > 2) {
         analytics.track('geocoding_search', { method: mapboxKey ? 'mapbox' : 'photon' })
         const places = mapboxKey
@@ -435,8 +477,9 @@ export function GeocodingDialog({
                     <button
                       type="button"
                       key={suggestion.label}
-                      className={s.suggestionItem}
-                      onMouseDown={() => handleSuggestionSelect(suggestion)}
+                      className={`${s.suggestionItem} ${suggestion.isError ? s.suggestionItemError : ''}`}
+                      onMouseDown={() => !suggestion.isError && handleSuggestionSelect(suggestion)}
+                      disabled={suggestion.isError}
                     >
                       {suggestion.label}
                     </button>

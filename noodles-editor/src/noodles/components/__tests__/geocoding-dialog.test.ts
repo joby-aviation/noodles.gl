@@ -4,6 +4,24 @@ import { describe, expect, it } from 'vitest'
 // For testing, we're duplicating the logic here
 // In a production refactor, these would be extracted to a separate utils file
 
+// Check if URL is a short Google Maps link
+function isShortUrl(value: string): boolean {
+	return (
+		value.includes('goo.gl/maps/') ||
+		value.includes('maps.app.goo.gl/') ||
+		value.includes('g.co/maps/')
+	)
+}
+
+// Extract place name from Google Maps place URL
+function extractPlaceNameFromUrl(url: string): string | null {
+	const match = url.match(/\/place\/([^/@]+)/)
+	if (match) {
+		return decodeURIComponent(match[1].replace(/\+/g, ' '))
+	}
+	return null
+}
+
 // Parse Google Maps URLs
 function parseGoogleMapsUrl(value: string): { lat: number; lng: number } | null {
 	try {
@@ -84,6 +102,54 @@ function parseCoordinates(value: string): Array<{
 }
 
 describe('Geocoding Dialog Parsing Utilities', () => {
+	describe('isShortUrl', () => {
+		it('should detect goo.gl/maps short URLs', () => {
+			expect(isShortUrl('https://goo.gl/maps/abc123')).toBe(true)
+		})
+
+		it('should detect maps.app.goo.gl short URLs', () => {
+			expect(isShortUrl('https://maps.app.goo.gl/xyz789')).toBe(true)
+		})
+
+		it('should detect g.co/maps short URLs', () => {
+			expect(isShortUrl('https://g.co/maps/test')).toBe(true)
+		})
+
+		it('should return false for regular Google Maps URLs', () => {
+			expect(isShortUrl('https://www.google.com/maps/@40.7128,-74.0060,15z')).toBe(false)
+		})
+
+		it('should return false for non-map URLs', () => {
+			expect(isShortUrl('https://www.google.com')).toBe(false)
+		})
+	})
+
+	describe('extractPlaceNameFromUrl', () => {
+		it('should extract place name from place URL', () => {
+			const url = 'https://www.google.com/maps/place/New+York,+NY/@40.7128,-74.0060,15z'
+			const result = extractPlaceNameFromUrl(url)
+			expect(result).toBe('New York, NY')
+		})
+
+		it('should decode URL-encoded characters', () => {
+			const url = 'https://www.google.com/maps/place/Caf%C3%A9+Paris/@48.8566,2.3522,15z'
+			const result = extractPlaceNameFromUrl(url)
+			expect(result).toBe('Café Paris')
+		})
+
+		it('should return null for URLs without place', () => {
+			const url = 'https://www.google.com/maps/@40.7128,-74.0060,15z'
+			const result = extractPlaceNameFromUrl(url)
+			expect(result).toBeNull()
+		})
+
+		it('should handle multi-word places', () => {
+			const url = 'https://www.google.com/maps/place/Los+Angeles,+CA/@34.0522,-118.2437,15z'
+			const result = extractPlaceNameFromUrl(url)
+			expect(result).toBe('Los Angeles, CA')
+		})
+	})
+
 	describe('parseGoogleMapsUrl', () => {
 		it('should parse direct coordinate URLs', () => {
 			const url = 'https://www.google.com/maps/@40.7128,-74.0060,15z'
