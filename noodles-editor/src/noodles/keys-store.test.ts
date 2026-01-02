@@ -4,7 +4,6 @@ import {
   getEnvKeys,
   getKeysForProject,
   getKeysStore,
-  maskKey,
   useKeysStore,
 } from './keys-store'
 
@@ -346,14 +345,12 @@ describe('Keys Store', () => {
     it('should update state correctly after subscription', () => {
       const { setBrowserKey } = getKeysStore()
 
-      let capturedState: any = null
-      const unsubscribe = useKeysStore.subscribe((state) => {
-        capturedState = state
+      const unsubscribe = useKeysStore.subscribe(() => {
+        // Subscription callback
       })
 
       setBrowserKey('mapbox', 'reactive-key')
 
-      // Wait for next tick
       expect(getKeysStore().browserKeys.mapbox).toBe('reactive-key')
       unsubscribe()
     })
@@ -398,27 +395,3 @@ describe('getKeysForProject', () => {
   })
 })
 
-describe('maskKey', () => {
-  it('should mask short keys completely', () => {
-    expect(maskKey('short')).toBe('••••••••')
-    expect(maskKey('')).toBe('••••••••')
-  })
-
-  it('should show first 6 characters and mask rest with at least 8 dots', () => {
-    // 'sk-abcd' is 7 chars, shows first 6 + max(8, 7-6) = 6 + 8 dots
-    expect(maskKey('sk-abcd')).toBe('sk-abc••••••••')
-
-    // Normal API key: 'sk-abcdefghijklmnopqrstuvwxyz' is 29 chars
-    // shows first 6 + max(8, 29-6) = 6 + 23 dots
-    expect(maskKey('sk-abcdefghijklmnopqrstuvwxyz')).toBe('sk-abc•••••••••••••••••••••••')
-  })
-
-  it('should handle long keys', () => {
-    const longKey = 'a'.repeat(100)
-    const masked = maskKey(longKey)
-    expect(masked.startsWith('aaaaaa')).toBe(true)
-    expect(masked.endsWith('•')).toBe(true)
-    // first 6 + max(8, 100-6) = 6 + 94 = 100
-    expect(masked.length).toBe(100)
-  })
-})

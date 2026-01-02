@@ -53,22 +53,22 @@ const KeyGroup = ({
             <span className={s.sourceText}>Browser</span>
             {activeSource === 'browser' && <span className={s.activeBadge}>Active</span>}
           </div>
-          <div className={s.inputGroup}>
-            <input
-              type="text"
-              value={browserValue}
-              onChange={e => onBrowserChange(e.target.value)}
-              placeholder={placeholder}
-              className={s.input}
-              onKeyDown={e => e.stopPropagation()}
-              onKeyUp={e => e.stopPropagation()}
-            />
-            {browserValue && (
-              <button type="button" onClick={onBrowserClear} className={s.clearButton}>
-                Clear
-              </button>
-            )}
-          </div>
+          <input
+            type="text"
+            value={browserValue}
+            onChange={e => onBrowserChange(e.target.value)}
+            placeholder={placeholder}
+            className={s.input}
+            onKeyDown={e => e.stopPropagation()}
+            onKeyUp={e => e.stopPropagation()}
+          />
+          {browserValue ? (
+            <button type="button" onClick={onBrowserClear} className={s.clearButton}>
+              Clear
+            </button>
+          ) : (
+            <div />
+          )}
         </div>
 
         {/* Project key (read-only) */}

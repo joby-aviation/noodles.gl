@@ -130,9 +130,3 @@ export function getEnvKeys(): KeysConfig {
     anthropic: import.meta.env.VITE_CLAUDE_API_KEY,
   }
 }
-
-export function maskKey(key: string): string {
-  if (!key || key.length <= 6) return '••••••••'
-  const dotsCount = Math.max(8, key.length - 6)
-  return `${key.slice(0, 6)}${'•'.repeat(dotsCount)}`
-}
