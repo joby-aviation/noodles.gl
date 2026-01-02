@@ -122,6 +122,19 @@
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
 }
 
+.apiKeyMessage {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #3b82f6;
+  font-size: 0.8125rem;
+  margin-bottom: 1rem;
+  background-color: rgba(59, 130, 246, 0.1);
+  padding: 0.75rem;
+  border-radius: 6px;
+  border-left: 3px solid #3b82f6;
+}
+
 .error {
   color: #ff4444;
   font-size: 0.8125rem;

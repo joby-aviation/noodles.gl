@@ -6,6 +6,7 @@ import * as turf from '@turf/turf'
 import { _CoordinatesGeocoder, _GoogleGeocoder } from '@deck.gl/widgets'
 import { analytics } from '../../../utils/analytics'
 import { useNestingStore } from '../../store'
+import { useKeysStore } from '../../keys-store'
 import type { NodeJSON } from '@xyflow/react'
 import type { OpType } from '../../operators'
 import { nodeId } from '../../utils/id-utils'
@@ -50,7 +51,6 @@ interface PointWizardToolProps {
 export function PointWizardTool({ open, onOpenChange, reactFlowRef }: PointWizardToolProps) {
   const [coordinateInput, setCoordinateInput] = useState('')
   const [selectedGeocoder, setSelectedGeocoder] = useState<string>('google')
-  const [apiKey, setApiKey] = useState('') // TODO: Use secrets manager for API keys
   const [error, setError] = useState<string | null>(null)
   const [isGeocoding, setIsGeocoding] = useState(false)
   const [suggestions, setSuggestions] = useState<Array<{ description: string; placeId: string }>>([])
@@ -59,6 +59,8 @@ export function PointWizardTool({ open, onOpenChange, reactFlowRef }: PointWizar
 
   const { addNodes, screenToFlowPosition } = useReactFlow()
   const currentContainerId = useNestingStore(state => state.currentContainerId)
+  const getKey = useKeysStore(state => state.getKey)
+  const apiKey = getKey('googleMaps') || ''
 
   // Available geocoders
   const geocoders: Record<string, Geocoder> = {
@@ -178,7 +180,6 @@ export function PointWizardTool({ open, onOpenChange, reactFlowRef }: PointWizar
       // Close wizard and reset
       onOpenChange(false)
       setCoordinateInput('')
-      setApiKey('')
       setError(null)
       setSuggestions([])
 
@@ -325,19 +326,13 @@ export function PointWizardTool({ open, onOpenChange, reactFlowRef }: PointWizar
             </button>
           </div>
 
-          {currentGeocoder?.requiresApiKey && (
-            <div className={s.formGroup}>
-              <label htmlFor="apiKey" className={s.label}>
-                API Key
-              </label>
-              <input
-                id="apiKey"
-                type="text"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="Enter your API key"
-                className={s.input}
-              />
+          {currentGeocoder?.requiresApiKey && !apiKey && (
+            <div className={s.apiKeyMessage}>
+              <i className="pi pi-info-circle" style={{ fontSize: '14px' }} />
+              <span>
+                Google Maps API key required. Add it in{' '}
+                <strong>Settings → API Keys</strong>
+              </span>
             </div>
           )}
 
