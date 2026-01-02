@@ -687,21 +687,28 @@ function GeocoderOpComponent({
 
     const container = containerRef.current
 
-    const g = new MapboxGeocoder({
-      accessToken: apiKey,
-      collapsed: true,
-    })
+    let g: MapboxGeocoder
+    try {
+      g = new MapboxGeocoder({
+        accessToken: apiKey,
+        collapsed: true,
+      })
 
-    g.on('query', e => {
-      op.inputs.query.setValue(e.query)
-    })
+      g.on('query', (e: { query: string }) => {
+        op.inputs.query.setValue(e.query)
+      })
 
-    g.on('result', e => {
-      const [lng, lat] = e.result.geometry.coordinates as [number, number]
-      op.outputs.location.next({ lng, lat })
-    })
+      g.on('result', (e: { result: { geometry: { coordinates: [number, number] } } }) => {
+        const [lng, lat] = e.result.geometry.coordinates as [number, number]
+        op.outputs.location.next({ lng, lat })
+      })
 
-    g.addTo(container)
+      g.addTo(container)
+    } catch (error) {
+      throw new Error(
+        `Failed to initialize Mapbox Geocoder: ${error instanceof Error ? error.message : 'Invalid API key'}. Please check your Mapbox API key in Settings.`
+      )
+    }
 
     g.query(op.inputs.query.value)
 
