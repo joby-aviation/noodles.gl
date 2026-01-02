@@ -669,69 +669,59 @@ function GeocoderOpComponent({
 
   // Get API key directly from store (reactive)
   const apiKey = useKeysStore(state => state.getKey('mapbox'))
-  const hasApiKey = useKeysStore(state => state.hasKey('mapbox'))
 
   useLayoutEffect(() => {
-    // Check if Mapbox API key is available
-
-    if (!containerRef.current || !apiKey) {
-      if (!apiKey) {
-        console.error(
-          'GeocoderOp: Mapbox API key not found. Please configure it in Settings > API Keys.'
-        )
-      }
+    if (!containerRef.current) {
       return
+    }
+
+    // Check if Mapbox API key is available
+    if (!apiKey) {
+      throw new Error('Mapbox API key not found. Please configure it in Settings > API Keys.')
     }
 
     // Validate Mapbox token format (should start with pk.)
     if (!apiKey.startsWith('pk.')) {
-      console.error(
-        'GeocoderOp: Invalid Mapbox API key format. Mapbox tokens should start with "pk."'
-      )
-      return
+      throw new Error('Invalid Mapbox API key format. Mapbox tokens should start with "pk."')
     }
 
     const container = containerRef.current
 
-    try {
-      const g = new MapboxGeocoder({
-        accessToken: apiKey,
-        collapsed: true,
-      })
+    const g = new MapboxGeocoder({
+      accessToken: apiKey,
+      collapsed: true,
+    })
 
-      g.on('query', e => {
-        op.inputs.query.setValue(e.query)
-      })
+    g.on('query', e => {
+      op.inputs.query.setValue(e.query)
+    })
 
-      g.on('result', e => {
-        const [lng, lat] = e.result.geometry.coordinates as [number, number]
-        op.outputs.location.next({ lng, lat })
-      })
+    g.on('result', e => {
+      const [lng, lat] = e.result.geometry.coordinates as [number, number]
+      op.outputs.location.next({ lng, lat })
+    })
 
-      g.addTo(container)
+    g.addTo(container)
 
-      g.query(op.inputs.query.value)
+    g.query(op.inputs.query.value)
 
-      // Hack for the MapboxGecoder to not automatically open the dropdown.
-      // It focuses the input field on results which is not what we want. Honestly might be easier to
-      // just implement our own geocoder with a react typeahead component
-      let removed = false
-      setTimeout(() => {
-        if (removed) return
-        g._typeahead.list.hide()
-      }, 500)
+    // Hack for the MapboxGecoder to not automatically open the dropdown.
+    // It focuses the input field on results which is not what we want. Honestly might be easier to
+    // just implement our own geocoder with a react typeahead component
+    let removed = false
+    setTimeout(() => {
+      if (removed) return
+      g._typeahead.list.hide()
+    }, 500)
 
-      geocoderRef.current = g
+    geocoderRef.current = g
 
-      return () => {
-        removed = true
-        g.onRemove()
-        geocoderRef.current = undefined
-      }
-    } catch (error) {
-      console.error('GeocoderOp: Failed to initialize geocoder:', error)
+    return () => {
+      removed = true
+      g.onRemove()
+      geocoderRef.current = undefined
     }
-  }, [op, hasApiKey])
+  }, [op, apiKey])
 
   const locked = useLocked(op)
   useEffect(() => {
