@@ -77,21 +77,15 @@ const ReadOnlyKeyDisplay = ({ label, value, source, isActive }: ReadOnlyKeyDispl
   }
 
   return (
-    <div className={s.keyDisplay}>
-      <div className={s.keyLabelRow}>
-        <div className={s.keyLabel}>{label}</div>
+    <div className={s.keyDisplay} title={`${label}: ${maskKey(value)}`}>
+      <div className={s.keyLabel}>{label}</div>
+      <div className={s.keyBadges}>
         <span className={s.sourceBadge}>{source === 'project' ? 'Project' : 'Env'}</span>
         {isActive && <span className={s.activeBadge}>Active</span>}
       </div>
-
-      <div className={s.inputGroup}>
-        <div className={`${s.input} ${s.readOnly}`} title={value}>
-          {maskKey(value)}
-        </div>
-        <button type="button" onClick={handleCopy} className={s.copyButton} aria-label="Copy">
-          Copy
-        </button>
-      </div>
+      <button type="button" onClick={handleCopy} className={s.copyButton} aria-label="Copy">
+        Copy
+      </button>
     </div>
   )
 }

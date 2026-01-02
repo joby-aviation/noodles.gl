@@ -275,17 +275,26 @@
 }
 
 /* Key input/display styles */
-.keyInput,
-.keyDisplay {
+.keyInput {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   min-width: 0;
 }
 
+.keyDisplay {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  min-width: 0;
+}
+
 .keyLabel {
   font-weight: 500;
   font-size: 0.9rem;
+  flex: 1;
+  min-width: 0;
 }
 
 .keyDescription {
@@ -299,6 +308,13 @@
   align-items: center;
   gap: 0.5rem;
   margin-bottom: 0.25rem;
+}
+
+/* Key badges container */
+.keyBadges {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 /* Active badge */
