@@ -59,8 +59,6 @@ const KeyGroup = ({
             onChange={e => onBrowserChange(e.target.value)}
             placeholder={placeholder}
             className={s.input}
-            onKeyDown={e => e.stopPropagation()}
-            onKeyUp={e => e.stopPropagation()}
           />
           {browserValue && (
             <button type="button" onClick={onBrowserClear} className={s.clearButton}>
