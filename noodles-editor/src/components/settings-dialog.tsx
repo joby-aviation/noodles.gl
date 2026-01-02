@@ -76,8 +76,10 @@ const ReadOnlyKeyDisplay = ({ label, value, source, isActive }: ReadOnlyKeyDispl
     analytics.track('key_copied', { source })
   }
 
+  const preview = value.length > 10 ? `${value.slice(0, 10)}...` : value
+
   return (
-    <div className={s.keyDisplay} title={`${label}: ${maskKey(value)}`}>
+    <div className={s.keyDisplay} title={preview}>
       <div className={s.keyLabel}>{label}</div>
       <div className={s.keyBadges}>
         <span className={s.sourceBadge}>{source === 'project' ? 'Project' : 'Env'}</span>
