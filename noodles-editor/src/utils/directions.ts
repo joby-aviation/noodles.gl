@@ -1,6 +1,7 @@
 import polyline from '@mapbox/polyline'
 import haversine from 'haversine-distance'
 import { getKeysStore } from '../noodles/keys-store'
+import { loadGoogleMapsAPI } from './geocoding'
 
 export type AnimatedDirections = {
   distance: number
@@ -100,23 +101,18 @@ async function getTransitDirections({
     )
   }
 
-  const params = new URLSearchParams({
-    v: 'weekly',
-    key: apiKey,
-  })
-
-  await import(/* @vite-ignore */ `https://maps.googleapis.com/maps/api/js?${params.toString()}`)
+  await loadGoogleMapsAPI(apiKey)
 
   const directionsService = new google.maps.DirectionsService()
-  const request = {
+  const request: google.maps.DirectionsRequest = {
     origin: `${origin.lat}, ${origin.lng}`,
     destination: `${destination.lat}, ${destination.lng}`,
-    travelMode: 'TRANSIT',
+    travelMode: google.maps.TravelMode.TRANSIT,
   }
 
-  const data = await new Promise((resolve, reject) => {
+  const data = await new Promise<google.maps.DirectionsResult>((resolve, reject) => {
     directionsService.route(request, (result, status) => {
-      if (status === 'OK') {
+      if (status === 'OK' && result) {
         resolve(result)
       } else {
         reject(new Error(status))
@@ -134,7 +130,7 @@ async function getTransitDirections({
         },
       ],
     },
-  ] = data.routes
+  ] = data.routes as any
 
   const coords = polyline.decode(overview_polyline)
   const path = coords.map(([lat, lng]) => [lng, lat])

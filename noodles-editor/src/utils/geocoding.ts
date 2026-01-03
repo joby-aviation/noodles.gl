@@ -9,18 +9,14 @@ export interface GeocodingResult {
 let googleMapsLoaded = false
 let googleMapsPromise: Promise<void> | null = null
 
-/**
- * Load Google Maps JavaScript API with Places library
- */
-async function loadGoogleMapsAPI(apiKey: string): Promise<void> {
+// Load Google Maps JavaScript API
+export async function loadGoogleMapsAPI(apiKey: string): Promise<void> {
   if (googleMapsLoaded) return
   if (googleMapsPromise) return googleMapsPromise
 
   googleMapsPromise = new Promise<void>((resolve, reject) => {
-    // Create a unique callback name
     const callbackName = `googleMapsCallback_${Date.now()}`
 
-    // Set up the callback
     ;(window as any)[callbackName] = () => {
       googleMapsLoaded = true
       resolve()
@@ -30,12 +26,10 @@ async function loadGoogleMapsAPI(apiKey: string): Promise<void> {
     const params = new URLSearchParams({
       v: 'weekly',
       key: apiKey,
-      libraries: 'places',
       loading: 'async',
       callback: callbackName,
     })
 
-    // Dynamically load the script
     import(/* @vite-ignore */ `https://maps.googleapis.com/maps/api/js?${params.toString()}`).catch(
       reject
     )
@@ -44,10 +38,8 @@ async function loadGoogleMapsAPI(apiKey: string): Promise<void> {
   return googleMapsPromise
 }
 
-/**
- * Geocode using Google Places AutocompleteSuggestion API (recommended)
- * Returns autocomplete predictions for a search query
- */
+// Geocode using Google Places AutocompleteSuggestion API (recommended)
+// Returns autocomplete predictions for a search query
 export async function geocodeWithGooglePlaces(
   query: string,
   locationBias?: { lat: number; lng: number; radiusMeters?: number }
@@ -61,7 +53,7 @@ export async function geocodeWithGooglePlaces(
   await loadGoogleMapsAPI(apiKey)
 
   // Use the new AutocompleteSuggestion API (recommended as of March 2025)
-  const request: google.maps.places.AutocompleteSuggestionRequest = {
+  const request: any = {
     input: query,
     // Don't restrict primary types - allow both geocodes (addresses) and establishments (businesses)
   }
@@ -118,9 +110,7 @@ export async function geocodeWithGooglePlaces(
   }
 }
 
-/**
- * Geocode using Mapbox Geocoding API
- */
+// Geocode using Mapbox Geocoding API
 export async function geocodeWithMapbox(
   query: string,
   apiKey: string,
@@ -152,9 +142,7 @@ export async function geocodeWithMapbox(
   }
 }
 
-/**
- * Geocode using Photon API (free, OSM-based)
- */
+// Geocode using Photon API (free, OSM-based)
 export async function geocodeWithPhoton(
   query: string,
   locationBias?: { lat: number; lng: number }
