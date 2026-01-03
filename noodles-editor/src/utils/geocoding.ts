@@ -5,20 +5,73 @@ export interface GeocodingResult {
   coordinates: { longitude: number; latitude: number }
 }
 
+// Type definitions for Google Places API (New) - AutocompleteSuggestion
+// See: https://developers.google.com/maps/documentation/javascript/place-autocomplete-new
+interface AutocompleteSuggestionRequest {
+  input: string
+  locationBias?: {
+    center: { lat: number; lng: number }
+    radius: number
+  }
+  includedPrimaryTypes?: string[]
+  includedRegionCodes?: string[]
+  language?: string
+  region?: string
+}
+
+// Mapbox Geocoding API response types
+// See: https://docs.mapbox.com/api/search/geocoding/
+interface MapboxFeature {
+  place_name: string
+  center: [number, number] // [longitude, latitude]
+}
+
+interface MapboxGeocodingResponse {
+  features?: MapboxFeature[]
+}
+
+// Photon API response types
+// See: https://photon.komoot.io/
+interface PhotonFeature {
+  properties: {
+    name?: string
+    street?: string
+  }
+  geometry: {
+    coordinates: [number, number] // [longitude, latitude]
+  }
+}
+
+interface PhotonGeocodingResponse {
+  features?: PhotonFeature[]
+}
+
 // Track if Google Maps API is loaded to avoid duplicate imports
 let googleMapsLoaded = false
 let googleMapsPromise: Promise<void> | null = null
+let loadingApiKey: string | null = null
 
 // Load Google Maps JavaScript API
 export async function loadGoogleMapsAPI(apiKey: string): Promise<void> {
   if (googleMapsLoaded) return
-  if (googleMapsPromise) return googleMapsPromise
 
+  // If currently loading, check if it's the same key
+  if (googleMapsPromise) {
+    if (loadingApiKey !== apiKey) {
+      throw new Error(
+        'Google Maps API is already loading with a different API key. Please wait for the current load to complete.'
+      )
+    }
+    return googleMapsPromise
+  }
+
+  loadingApiKey = apiKey
   googleMapsPromise = new Promise<void>((resolve, reject) => {
     const callbackName = `googleMapsCallback_${Date.now()}`
 
     ;(window as any)[callbackName] = () => {
       googleMapsLoaded = true
+      loadingApiKey = null
       resolve()
       delete (window as any)[callbackName]
     }
@@ -32,7 +85,10 @@ export async function loadGoogleMapsAPI(apiKey: string): Promise<void> {
     })
 
     import(/* @vite-ignore */ `https://maps.googleapis.com/maps/api/js?${params.toString()}`).catch(
-      reject
+      (error) => {
+        loadingApiKey = null
+        reject(error)
+      }
     )
   })
 
@@ -54,7 +110,7 @@ export async function geocodeWithGooglePlaces(
   await loadGoogleMapsAPI(apiKey)
 
   // Use the new AutocompleteSuggestion API (recommended as of March 2025)
-  const request: any = {
+  const request: AutocompleteSuggestionRequest = {
     input: query,
     // Don't restrict primary types - allow both geocodes (addresses) and establishments (businesses)
   }
@@ -125,10 +181,10 @@ export async function geocodeWithMapbox(
       url += `&proximity=${locationBias.lng},${locationBias.lat}`
     }
     const response = await fetch(url)
-    const data = await response.json()
+    const data: MapboxGeocodingResponse = await response.json()
 
     if (data.features) {
-      return data.features.map((feature: any) => ({
+      return data.features.map((feature) => ({
         place_name: feature.place_name,
         coordinates: {
           longitude: feature.center[0],
@@ -156,10 +212,10 @@ export async function geocodeWithPhoton(
       url += `&lat=${locationBias.lat}&lon=${locationBias.lng}`
     }
     const response = await fetch(url)
-    const data = await response.json()
+    const data: PhotonGeocodingResponse = await response.json()
 
     if (data.features) {
-      return data.features.map((feature: any) => ({
+      return data.features.map((feature) => ({
         place_name: feature.properties.name || feature.properties.street || 'Unknown location',
         coordinates: {
           longitude: feature.geometry.coordinates[0],

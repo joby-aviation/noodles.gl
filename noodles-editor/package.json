@@ -100,6 +100,7 @@
     "@types/dom-mediacapture-transform": "^0.1.11",
     "@types/flexsearch": "^0.7.6",
     "@types/geojson": "^7946.0.16",
+    "@types/google.maps": "^3.58.1",
     "@types/jest": "^27.0.1",
     "@types/jszip": "^3.4.1",
     "@types/lodash": "^4.17.20",

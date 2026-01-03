@@ -5252,7 +5252,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/google.maps@npm:^3.48.6":
+"@types/google.maps@npm:^3.48.6, @types/google.maps@npm:^3.58.1":
   version: 3.58.1
   resolution: "@types/google.maps@npm:3.58.1"
   checksum: 7ad5bd9566ffa0396485c432368e45c43e3fe1ecc2b89324f257a49d9abbe03dfe046a771d82ae1808fa0fb6e04e6ffca870c7f2295fef73a6015a678b067364
@@ -9491,6 +9491,7 @@ __metadata:
     "@types/dom-mediacapture-transform": ^0.1.11
     "@types/flexsearch": ^0.7.6
     "@types/geojson": ^7946.0.16
+    "@types/google.maps": ^3.58.1
     "@types/jest": ^27.0.1
     "@types/jszip": ^3.4.1
     "@types/lodash": ^4.17.20

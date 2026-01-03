@@ -11,6 +11,20 @@ export type AnimatedDirections = {
   timestamps: number[]
 }
 
+// Mapbox Directions API response types
+// See: https://docs.mapbox.com/api/navigation/directions/
+interface MapboxRoute {
+  geometry: string // polyline-encoded string
+  distance: number // meters
+  duration: number // seconds
+}
+
+interface MapboxDirectionsResponse {
+  code: string
+  message?: string
+  routes: MapboxRoute[]
+}
+
 export const DRIVING = 'driving'
 export const TRANSIT = 'transit'
 
@@ -50,7 +64,7 @@ async function getDrivingDirections({
   const res = await fetch(
     `https://api.mapbox.com/directions/v5/mapbox/driving/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?access_token=${token}&overview=full`
   )
-  const data = await res.json()
+  const data: MapboxDirectionsResponse = await res.json()
 
   if (data.code === 'NoSegment' || data.code === 'InvalidInput') {
     throw new Error(data.message)
@@ -130,7 +144,7 @@ async function getTransitDirections({
         },
       ],
     },
-  ] = data.routes as any
+  ] = data.routes
 
   const coords = polyline.decode(overview_polyline)
   const path = coords.map(([lat, lng]) => [lng, lat])

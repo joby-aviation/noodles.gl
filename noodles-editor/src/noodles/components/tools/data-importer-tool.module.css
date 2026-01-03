@@ -71,6 +71,10 @@
   color: var(--color-text-secondary);
 }
 
+.uploadIcon {
+  font-size: 48px;
+}
+
 .dropZoneText {
   font-size: 1rem;
   font-weight: 500;

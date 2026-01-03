@@ -238,6 +238,15 @@ export function GeocodingDialog({
     }
   }, [open, initialValue])
 
+  // Cleanup debounce timeout on unmount to prevent memory leak
+  useEffect(() => {
+    return () => {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current)
+      }
+    }
+  }, [])
+
   // Fly to a location with smooth animation
   const flyToLocation = useCallback(
     (coordinates: { longitude: number; latitude: number }, zoom = 14) => {

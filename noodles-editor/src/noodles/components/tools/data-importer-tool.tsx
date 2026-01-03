@@ -243,7 +243,7 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
             />
 
             <div className={s.dropZoneContent}>
-              <i className="pi pi-cloud-upload" style={{ fontSize: '48px' }} />
+              <i className={`pi pi-cloud-upload ${s.uploadIcon}`} />
               <div className={s.dropZoneText}>
                 Drag and drop files here
               </div>
