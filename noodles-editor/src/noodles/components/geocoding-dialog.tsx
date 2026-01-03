@@ -93,10 +93,13 @@ async function geocodePlaceUrl(
   const placeName = extractPlaceNameFromUrl(value)
   if (!placeName) return null
 
+  // Extract camera center coordinates from URL to use as location bias hint
+  const locationHint = parseGoogleMapsUrl(value)
+
   // Try Google Places search first (most accurate for Google Maps URLs)
   if (googleMapsKey) {
     try {
-      const results = await geocodeWithGooglePlaces(placeName)
+      const results = await geocodeWithGooglePlaces(placeName, locationHint || undefined)
       if (results && results.length > 0) {
         return {
           lat: results[0].coordinates.latitude,
@@ -110,14 +113,23 @@ async function geocodePlaceUrl(
   }
 
   // Fall back to Mapbox or Photon geocoding by name
-  const geocodeFunc = mapboxKey ? geocodeWithMapbox : geocodeWithPhoton
-  const results = await geocodeFunc(placeName, mapboxKey || '')
-
-  if (results && results.length > 0) {
-    return {
-      lat: results[0].coordinates.latitude,
-      lng: results[0].coordinates.longitude,
-      source: mapboxKey ? 'mapbox' : 'photon',
+  if (mapboxKey) {
+    const results = await geocodeWithMapbox(placeName, mapboxKey, locationHint || undefined)
+    if (results && results.length > 0) {
+      return {
+        lat: results[0].coordinates.latitude,
+        lng: results[0].coordinates.longitude,
+        source: 'mapbox',
+      }
+    }
+  } else {
+    const results = await geocodeWithPhoton(placeName, locationHint || undefined)
+    if (results && results.length > 0) {
+      return {
+        lat: results[0].coordinates.latitude,
+        lng: results[0].coordinates.longitude,
+        source: 'photon',
+      }
     }
   }
 

@@ -48,7 +48,10 @@ async function loadGoogleMapsAPI(apiKey: string): Promise<void> {
  * Geocode using Google Places AutocompleteSuggestion API (recommended)
  * Returns autocomplete predictions for a search query
  */
-export async function geocodeWithGooglePlaces(query: string): Promise<GeocodingResult[]> {
+export async function geocodeWithGooglePlaces(
+  query: string,
+  locationBias?: { lat: number; lng: number }
+): Promise<GeocodingResult[]> {
   const apiKey = getKeysStore().getKey('googleMaps')
   if (!apiKey) {
     throw new Error('Google Maps API key not configured')
@@ -58,9 +61,17 @@ export async function geocodeWithGooglePlaces(query: string): Promise<GeocodingR
   await loadGoogleMapsAPI(apiKey)
 
   // Use the new AutocompleteSuggestion API (recommended as of March 2025)
-  const request = {
+  const request: google.maps.places.AutocompleteSuggestionRequest = {
     input: query,
     includedPrimaryTypes: ['geocode'], // Addresses and place names
+  }
+
+  // Add location bias if provided (helps disambiguate place names)
+  if (locationBias) {
+    request.locationBias = {
+      center: { lat: locationBias.lat, lng: locationBias.lng },
+      radius: 20000, // 20km (~12 miles) radius
+    }
   }
 
   try {
@@ -111,10 +122,16 @@ export async function geocodeWithGooglePlaces(query: string): Promise<GeocodingR
  */
 export async function geocodeWithMapbox(
   query: string,
-  apiKey: string
+  apiKey: string,
+  locationBias?: { lat: number; lng: number }
 ): Promise<GeocodingResult[]> {
   try {
-    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${apiKey}&limit=5`
+    let url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${apiKey}&limit=5`
+
+    // Add proximity parameter if location bias provided (helps disambiguate place names)
+    if (locationBias) {
+      url += `&proximity=${locationBias.lng},${locationBias.lat}`
+    }
     const response = await fetch(url)
     const data = await response.json()
 
@@ -137,9 +154,17 @@ export async function geocodeWithMapbox(
 /**
  * Geocode using Photon API (free, OSM-based)
  */
-export async function geocodeWithPhoton(query: string): Promise<GeocodingResult[]> {
+export async function geocodeWithPhoton(
+  query: string,
+  locationBias?: { lat: number; lng: number }
+): Promise<GeocodingResult[]> {
   try {
-    const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5`
+    let url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5`
+
+    // Add location bias parameters if provided (helps disambiguate place names)
+    if (locationBias) {
+      url += `&lat=${locationBias.lat}&lon=${locationBias.lng}`
+    }
     const response = await fetch(url)
     const data = await response.json()
 
