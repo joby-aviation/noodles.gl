@@ -33,120 +33,16 @@ interface GeocodingDialogProps {
 }
 
 interface GeocodingSuggestion {
-  type: 'url' | 'coordinates' | 'place'
+  type: 'coordinates' | 'place'
   label: string
   coordinates: { longitude: number; latitude: number }
   confidence?: number
-  isError?: boolean
 }
 
 interface MapCoordinates {
   longitude: number
   latitude: number
   zoom?: number
-}
-
-// Parse Google Maps URLs (synchronous - for direct/place URLs)
-export function parseGoogleMapsUrl(value: string): { lat: number; lng: number; radiusMeters?: number } | null {
-  try {
-    // Match coordinates with optional zoom/radius: @lat,lng,{zoom}m or @lat,lng,{zoom}z
-    const coordMatch = value.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*),?(\d+)?([mz])?/)
-    if (!coordMatch) return null
-
-    const lat = parseFloat(coordMatch[1])
-    const lng = parseFloat(coordMatch[2])
-    const zoom = coordMatch[3] ? parseFloat(coordMatch[3]) : undefined
-    const unit = coordMatch[4]
-
-    // If zoom is specified with 'm' suffix, it's already in meters (viewport size)
-    // Use it as the radius for location bias
-    if (zoom && unit === 'm') {
-      return { lat, lng, radiusMeters: zoom }
-    }
-
-    // If zoom is a level (z) or no unit, use default
-    return { lat, lng }
-  } catch {
-    return null
-  }
-}
-
-// Check if URL is a short Google Maps link (cannot be resolved due to CORS)
-export function isShortUrl(value: string): boolean {
-  return (
-    value.includes('goo.gl/maps/') ||
-    value.includes('maps.app.goo.gl/') ||
-    value.includes('g.co/maps/')
-  )
-}
-
-// Extract place name from Google Maps place URL
-export function extractPlaceNameFromUrl(url: string): string | null {
-  const match = url.match(/\/place\/([^/@]+)/)
-  if (match) {
-    return decodeURIComponent(match[1].replace(/\+/g, ' '))
-  }
-  return null
-}
-
-// Geocode place URL by extracting and geocoding the place name
-async function geocodePlaceUrl(
-  value: string,
-  googleMapsKey: string | undefined,
-  mapboxKey: string | undefined
-): Promise<{ lat: number; lng: number; source: string } | null> {
-  const placeName = extractPlaceNameFromUrl(value)
-  if (!placeName) return null
-
-  // Extract camera center coordinates from URL to use as location bias hint
-  const locationHint = parseGoogleMapsUrl(value)
-
-  // Try Google Places search first (most accurate for Google Maps URLs)
-  if (googleMapsKey) {
-    try {
-      if (locationHint) {
-        const radiusKm = locationHint.radiusMeters ? (locationHint.radiusMeters / 1000).toFixed(1) : '20.0'
-        console.log(`[Geocoding] Searching Google Places for "${placeName}" near ${locationHint.lat.toFixed(4)},${locationHint.lng.toFixed(4)} (radius: ${radiusKm}km)`)
-      }
-      const results = await geocodeWithGooglePlaces(placeName, locationHint || undefined)
-      if (results && results.length > 0) {
-        console.log(`[Geocoding] Google Places found ${results.length} results for "${placeName}"`)
-        return {
-          lat: results[0].coordinates.latitude,
-          lng: results[0].coordinates.longitude,
-          source: 'google_places',
-        }
-      }
-      console.warn(`[Geocoding] Google Places returned no results for "${placeName}", trying Mapbox/Photon`)
-    } catch (error) {
-      console.warn('[Geocoding] Google Places search failed, trying Mapbox/Photon:', error)
-    }
-  } else {
-    console.log('[Geocoding] Google Maps API key not configured, skipping Google Places')
-  }
-
-  // Fall back to Mapbox or Photon geocoding by name
-  if (mapboxKey) {
-    const results = await geocodeWithMapbox(placeName, mapboxKey, locationHint || undefined)
-    if (results && results.length > 0) {
-      return {
-        lat: results[0].coordinates.latitude,
-        lng: results[0].coordinates.longitude,
-        source: 'mapbox',
-      }
-    }
-  } else {
-    const results = await geocodeWithPhoton(placeName, locationHint || undefined)
-    if (results && results.length > 0) {
-      return {
-        lat: results[0].coordinates.latitude,
-        lng: results[0].coordinates.longitude,
-        source: 'photon',
-      }
-    }
-  }
-
-  return null
 }
 
 // Parse coordinate pairs with ambiguity handling
@@ -292,68 +188,7 @@ export function GeocodingDialog({
     async (value: string): Promise<GeocodingSuggestion[]> => {
       if (!value.trim()) return []
 
-      // Priority 1: Check if short URL (show error - cannot resolve due to CORS)
-      if (isShortUrl(value)) {
-        analytics.track('geocoding_short_url_detected')
-        return [
-          {
-            type: 'url',
-            label: '⚠️ Short URL detected - Please open in browser and copy full URL',
-            coordinates: { longitude: 0, latitude: 0 },
-            isError: true,
-          },
-        ]
-      }
-
-      // Priority 2: Check if place URL (try extracting place ID or geocoding)
-      if (value.includes('/place/')) {
-        // Try extracting place ID or geocoding place name for accurate coordinates
-        const placeResult = await geocodePlaceUrl(value, googleMapsKey, mapboxKey)
-        if (placeResult) {
-          analytics.track('geocoding_parsed', { method: `place_url_${placeResult.source}` })
-          const sourceLabel =
-            placeResult.source === 'google_places'
-              ? 'Google Places'
-              : placeResult.source === 'mapbox'
-                ? 'Mapbox'
-                : 'place search'
-          return [
-            {
-              type: 'url',
-              label: `🔗 ${placeResult.lat.toFixed(5)}, ${placeResult.lng.toFixed(5)} (${sourceLabel})`,
-              coordinates: { longitude: placeResult.lng, latitude: placeResult.lat },
-            },
-          ]
-        }
-
-        // Fallback to camera coordinates if geocoding fails
-        const urlResult = parseGoogleMapsUrl(value)
-        if (urlResult) {
-          analytics.track('geocoding_parsed', { method: 'place_url_camera_fallback' })
-          return [
-            {
-              type: 'url',
-              label: `🔗 ${urlResult.lat.toFixed(5)}, ${urlResult.lng.toFixed(5)} (camera position)`,
-              coordinates: { longitude: urlResult.lng, latitude: urlResult.lat },
-            },
-          ]
-        }
-      }
-
-      // Priority 3: Check if direct coordinate URL
-      const urlResult = parseGoogleMapsUrl(value)
-      if (urlResult) {
-        analytics.track('geocoding_parsed', { method: 'url' })
-        return [
-          {
-            type: 'url',
-            label: `🔗 ${urlResult.lat.toFixed(5)}, ${urlResult.lng.toFixed(5)} (from URL)`,
-            coordinates: { longitude: urlResult.lng, latitude: urlResult.lat },
-          },
-        ]
-      }
-
-      // Priority 4: Check if coordinate pair
+      // Priority 1: Check if coordinate pair
       const coordResults = parseCoordinates(value)
       if (coordResults.length > 0) {
         analytics.track('geocoding_parsed', { method: 'coordinates' })
@@ -365,7 +200,7 @@ export function GeocodingDialog({
         }))
       }
 
-      // Priority 5: Treat as search query
+      // Priority 2: Treat as search query
       if (value.trim().length > 2) {
         let places: GeocodingResult[] = []
         let method = 'photon' // Default fallback
@@ -494,7 +329,7 @@ export function GeocodingDialog({
               onChange={e => handleInputChange(e.target.value)}
               onFocus={() => suggestions.length > 0 && setShowDropdown(true)}
               onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
-              placeholder="Search places, paste coordinates, or Google Maps link..."
+              placeholder="Search places or paste coordinates..."
               className={s.smartInput}
             />
 
@@ -511,9 +346,8 @@ export function GeocodingDialog({
                     <button
                       type="button"
                       key={index}
-                      className={`${s.suggestionItem} ${suggestion.isError ? s.suggestionItemError : ''}`}
-                      onMouseDown={() => !suggestion.isError && handleSuggestionSelect(suggestion)}
-                      disabled={suggestion.isError}
+                      className={s.suggestionItem}
+                      onMouseDown={() => handleSuggestionSelect(suggestion)}
                     >
                       {suggestion.label}
                     </button>
