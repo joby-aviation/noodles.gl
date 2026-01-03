@@ -13,6 +13,7 @@ import {
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { analytics } from '../../utils/analytics'
 import {
+  type GeocodingResult,
   geocodeWithGooglePlaces,
   geocodeWithMapbox,
   geocodeWithPhoton,
@@ -366,8 +367,7 @@ export function GeocodingDialog({
 
       // Priority 5: Treat as search query
       if (value.trim().length > 2) {
-        let places: Array<{ place_name: string; coordinates: { longitude: number; latitude: number } }> =
-          []
+        let places: GeocodingResult[] = []
         let method = 'photon' // Default fallback
 
         // Try Google Places first
@@ -400,7 +400,9 @@ export function GeocodingDialog({
 
         return places.map(place => ({
           type: 'place' as const,
-          label: `🔍 ${place.place_name}`,
+          label: place.context
+            ? `🔍 ${place.place_name} • ${place.context}`
+            : `🔍 ${place.place_name}`,
           coordinates: place.coordinates,
         }))
       }

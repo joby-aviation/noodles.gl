@@ -3,6 +3,7 @@ import { getKeysStore } from '../noodles/keys-store'
 export interface GeocodingResult {
   place_name: string
   coordinates: { longitude: number; latitude: number }
+  context?: string // Additional context like city, state, or full address
 }
 
 // Type definitions for Google Places API (New) - AutocompleteSuggestion
@@ -141,16 +142,23 @@ export async function geocodeWithGooglePlaces(
         if (suggestion.placePrediction) {
           const place = suggestion.placePrediction.toPlace()
           await place.fetchFields({
-            fields: ['displayName', 'location'],
+            fields: ['displayName', 'location', 'formattedAddress'],
           })
 
           if (place.location) {
+            const displayName = place.displayName || suggestion.placePrediction.text.toString()
+            // Extract context from formatted address (everything after the first part)
+            const fullAddress = place.formattedAddress || ''
+            // Remove the display name from the address to get just the context (city, state, country)
+            const context = fullAddress.replace(displayName, '').replace(/^,\s*/, '').trim()
+
             results.push({
-              place_name: place.displayName || suggestion.placePrediction.text.toString(),
+              place_name: displayName,
               coordinates: {
                 longitude: place.location.lng(),
                 latitude: place.location.lat(),
               },
+              context: context || undefined,
             })
           }
         }
