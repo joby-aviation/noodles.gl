@@ -26,6 +26,7 @@ export async function loadGoogleMapsAPI(apiKey: string): Promise<void> {
     const params = new URLSearchParams({
       v: 'weekly',
       key: apiKey,
+      libraries: 'places',
       loading: 'async',
       callback: callbackName,
     })
