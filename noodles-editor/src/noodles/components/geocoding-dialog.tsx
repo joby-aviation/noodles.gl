@@ -46,7 +46,7 @@ interface MapCoordinates {
 }
 
 // Parse Google Maps URLs (synchronous - for direct/place URLs)
-function parseGoogleMapsUrl(value: string): { lat: number; lng: number; radiusMeters?: number } | null {
+export function parseGoogleMapsUrl(value: string): { lat: number; lng: number; radiusMeters?: number } | null {
   try {
     // Match coordinates with optional zoom/radius: @lat,lng,{zoom}m or @lat,lng,{zoom}z
     const coordMatch = value.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*),?(\d+)?([mz])?/)
@@ -71,7 +71,7 @@ function parseGoogleMapsUrl(value: string): { lat: number; lng: number; radiusMe
 }
 
 // Check if URL is a short Google Maps link (cannot be resolved due to CORS)
-function isShortUrl(value: string): boolean {
+export function isShortUrl(value: string): boolean {
   return (
     value.includes('goo.gl/maps/') ||
     value.includes('maps.app.goo.gl/') ||
@@ -80,7 +80,7 @@ function isShortUrl(value: string): boolean {
 }
 
 // Extract place name from Google Maps place URL
-function extractPlaceNameFromUrl(url: string): string | null {
+export function extractPlaceNameFromUrl(url: string): string | null {
   const match = url.match(/\/place\/([^/@]+)/)
   if (match) {
     return decodeURIComponent(match[1].replace(/\+/g, ' '))
@@ -149,7 +149,7 @@ async function geocodePlaceUrl(
 }
 
 // Parse coordinate pairs with ambiguity handling
-function parseCoordinates(value: string): Array<{
+export function parseCoordinates(value: string): Array<{
   label: string
   coordinates: { longitude: number; latitude: number }
   confidence: number
