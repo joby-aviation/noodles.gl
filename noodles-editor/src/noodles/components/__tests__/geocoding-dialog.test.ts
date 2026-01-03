@@ -172,7 +172,7 @@ describe('Geocoding Dialog Parsing Utilities', () => {
 
 		it('should format labels with 5 decimal places', () => {
 			const results = parseCoordinates('40.712800001, -74.006000002')
-			expect(results[0].label).toBe('Lat 40.71280, Lng -74.00600')
+			expect(results[0].label).toBe('40.71280, -74.00600 (Lat, Lng) • Most common')
 		})
 	})
 

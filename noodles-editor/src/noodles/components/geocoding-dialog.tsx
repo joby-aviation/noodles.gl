@@ -179,11 +179,34 @@ export function parseCoordinates(value: string): Array<{
       return order === 'lat-lng' ? 0.7 : 0.5 // lat-first is more common
     }
 
+    // Helper to create informative labels based on confidence
+    const createLabel = (
+      first: number,
+      second: number,
+      confidence: number,
+      format: 'lat-lng' | 'lng-lat'
+    ): string => {
+      const coords = `${first.toFixed(5)}, ${second.toFixed(5)}`
+      const formatLabel = format === 'lat-lng' ? '(Lat, Lng)' : '(Lng, Lat)'
+
+      // Only add context when there's ambiguity
+      if (confidence === 1.0) {
+        return `${coords} ${formatLabel}`
+      }
+      if (confidence === 0.7) {
+        return `${coords} ${formatLabel} • Most common`
+      }
+      if (confidence === 0.5) {
+        return `${coords} ${formatLabel} • Alternative`
+      }
+      return `${coords} ${formatLabel}`
+    }
+
     // Option 1: a=lat, b=lng
     if (aCanBeLat && bCanBeLng) {
       const confidence = guessConfidence(a, b, 'lat-lng')
       results.push({
-        label: `Lat ${a.toFixed(5)}, Lng ${b.toFixed(5)}`,
+        label: createLabel(a, b, confidence, 'lat-lng'),
         coordinates: { latitude: a, longitude: b },
         confidence,
       })
@@ -193,7 +216,7 @@ export function parseCoordinates(value: string): Array<{
     if (aCanBeLng && bCanBeLat && aCanBeLat && bCanBeLng && a !== b) {
       const confidence = guessConfidence(a, b, 'lng-lat')
       results.push({
-        label: `Lng ${a.toFixed(5)}, Lat ${b.toFixed(5)}`,
+        label: createLabel(a, b, confidence, 'lng-lat'),
         coordinates: { latitude: b, longitude: a },
         confidence,
       })
@@ -335,7 +358,7 @@ export function GeocodingDialog({
         analytics.track('geocoding_parsed', { method: 'coordinates' })
         return coordResults.map(result => ({
           type: 'coordinates' as const,
-          label: `📍 ${result.label}${result.confidence < 1 ? ' (possible)' : ''}`,
+          label: `📍 ${result.label}`,
           coordinates: result.coordinates,
           confidence: result.confidence,
         }))
