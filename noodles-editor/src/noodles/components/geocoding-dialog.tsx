@@ -46,21 +46,25 @@ interface MapCoordinates {
 }
 
 // Parse Google Maps URLs (synchronous - for direct/place URLs)
-function parseGoogleMapsUrl(value: string): { lat: number; lng: number } | null {
+function parseGoogleMapsUrl(value: string): { lat: number; lng: number; radiusMeters?: number } | null {
   try {
-    // Format 1: Direct coordinates (@lat,lng)
-    const directMatch = value.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/)
-    if (directMatch) {
-      return { lat: parseFloat(directMatch[1]), lng: parseFloat(directMatch[2]) }
+    // Match coordinates with optional zoom/radius: @lat,lng,{zoom}m or @lat,lng,{zoom}z
+    const coordMatch = value.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*),?(\d+)?([mz])?/)
+    if (!coordMatch) return null
+
+    const lat = parseFloat(coordMatch[1])
+    const lng = parseFloat(coordMatch[2])
+    const zoom = coordMatch[3] ? parseFloat(coordMatch[3]) : undefined
+    const unit = coordMatch[4]
+
+    // If zoom is specified with 'm' suffix, it's already in meters (viewport size)
+    // Use it as the radius for location bias
+    if (zoom && unit === 'm') {
+      return { lat, lng, radiusMeters: zoom }
     }
 
-    // Format 2: Place URL with coordinates (NOTE: these are camera center, not place location)
-    const placeMatch = value.match(/place\/[^/]+\/@(-?\d+\.?\d*),(-?\d+\.?\d*)/)
-    if (placeMatch) {
-      return { lat: parseFloat(placeMatch[1]), lng: parseFloat(placeMatch[2]) }
-    }
-
-    return null
+    // If zoom is a level (z) or no unit, use default
+    return { lat, lng }
   } catch {
     return null
   }
@@ -99,6 +103,10 @@ async function geocodePlaceUrl(
   // Try Google Places search first (most accurate for Google Maps URLs)
   if (googleMapsKey) {
     try {
+      if (locationHint) {
+        const radiusKm = locationHint.radiusMeters ? (locationHint.radiusMeters / 1000).toFixed(1) : '20.0'
+        console.log(`[Geocoding] Searching Google Places for "${placeName}" near ${locationHint.lat.toFixed(4)},${locationHint.lng.toFixed(4)} (radius: ${radiusKm}km)`)
+      }
       const results = await geocodeWithGooglePlaces(placeName, locationHint || undefined)
       if (results && results.length > 0) {
         console.log(`[Geocoding] Google Places found ${results.length} results for "${placeName}"`)

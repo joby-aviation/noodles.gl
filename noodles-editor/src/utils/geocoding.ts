@@ -50,7 +50,7 @@ async function loadGoogleMapsAPI(apiKey: string): Promise<void> {
  */
 export async function geocodeWithGooglePlaces(
   query: string,
-  locationBias?: { lat: number; lng: number }
+  locationBias?: { lat: number; lng: number; radiusMeters?: number }
 ): Promise<GeocodingResult[]> {
   const apiKey = getKeysStore().getKey('googleMaps')
   if (!apiKey) {
@@ -70,7 +70,8 @@ export async function geocodeWithGooglePlaces(
   if (locationBias) {
     request.locationBias = {
       center: { lat: locationBias.lat, lng: locationBias.lng },
-      radius: 20000, // 20km (~12 miles) radius
+      // Use viewport radius from URL if available, otherwise default to 20km
+      radius: locationBias.radiusMeters ?? 20000,
     }
   }
 

@@ -23,21 +23,25 @@ function extractPlaceNameFromUrl(url: string): string | null {
 }
 
 // Parse Google Maps URLs
-function parseGoogleMapsUrl(value: string): { lat: number; lng: number } | null {
+function parseGoogleMapsUrl(value: string): { lat: number; lng: number; radiusMeters?: number } | null {
 	try {
-		// Format 1: Direct coordinates (@lat,lng)
-		const directMatch = value.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/)
-		if (directMatch) {
-			return { lat: parseFloat(directMatch[1]), lng: parseFloat(directMatch[2]) }
+		// Match coordinates with optional zoom/radius: @lat,lng,{zoom}m or @lat,lng,{zoom}z
+		const coordMatch = value.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*),?(\d+)?([mz])?/)
+		if (!coordMatch) return null
+
+		const lat = parseFloat(coordMatch[1])
+		const lng = parseFloat(coordMatch[2])
+		const zoom = coordMatch[3] ? parseFloat(coordMatch[3]) : undefined
+		const unit = coordMatch[4]
+
+		// If zoom is specified with 'm' suffix, it's already in meters (viewport size)
+		// Use it as the radius for location bias
+		if (zoom && unit === 'm') {
+			return { lat, lng, radiusMeters: zoom }
 		}
 
-		// Format 2: Place URL with coordinates
-		const placeMatch = value.match(/place\/[^/]+\/@(-?\d+\.?\d*),(-?\d+\.?\d*)/)
-		if (placeMatch) {
-			return { lat: parseFloat(placeMatch[1]), lng: parseFloat(placeMatch[2]) }
-		}
-
-		return null
+		// If zoom is a level (z) or no unit, use default
+		return { lat, lng }
 	} catch {
 		return null
 	}
@@ -167,6 +171,24 @@ describe('Geocoding Dialog Parsing Utilities', () => {
 			const url = 'https://www.google.com/maps/@-33.8688,151.2093,15z'
 			const result = parseGoogleMapsUrl(url)
 			expect(result).toEqual({ lat: -33.8688, lng: 151.2093 })
+		})
+
+		it('should parse viewport radius from URLs with meters', () => {
+			const url = 'https://www.google.com/maps/@37.7305776,-122.4770007,1328m'
+			const result = parseGoogleMapsUrl(url)
+			expect(result).toEqual({ lat: 37.7305776, lng: -122.4770007, radiusMeters: 1328 })
+		})
+
+		it('should parse place URLs with viewport radius in meters', () => {
+			const url = 'https://www.google.com/maps/place/Whole+Foods+Market/@37.7305776,-122.4770007,1328m/data'
+			const result = parseGoogleMapsUrl(url)
+			expect(result).toEqual({ lat: 37.7305776, lng: -122.4770007, radiusMeters: 1328 })
+		})
+
+		it('should parse coordinates without radius when no unit or z unit', () => {
+			const url = 'https://www.google.com/maps/@40.7128,-74.0060'
+			const result = parseGoogleMapsUrl(url)
+			expect(result).toEqual({ lat: 40.7128, lng: -74.006 })
 		})
 
 		it('should return null for invalid URLs', () => {
