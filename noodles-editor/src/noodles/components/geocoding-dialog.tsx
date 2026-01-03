@@ -447,12 +447,13 @@ export function GeocodingDialog({
     [flyToLocation]
   )
 
-  // Handle map click
+  // Handle map click (preserve zoom level)
   const handleMapClick = useCallback((event: MapLayerMouseEvent) => {
-    setMapCoordinates({
+    setMapCoordinates(prev => ({
+      ...prev,
       longitude: event.lngLat.lng,
       latitude: event.lngLat.lat,
-    })
+    }))
     analytics.track('geocoding_map_clicked')
   }, [])
 
