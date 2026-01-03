@@ -242,7 +242,6 @@ export function GeocodingDialog({
   const [mapCoordinates, setMapCoordinates] = useState<MapCoordinates>(
     initialValue || DEFAULT_LOCATION
   )
-  const [dragPosition, setDragPosition] = useState<{ longitude: number; latitude: number } | null>(null)
   const [inputValue, setInputValue] = useState('')
   const [suggestions, setSuggestions] = useState<GeocodingSuggestion[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
@@ -467,34 +466,12 @@ export function GeocodingDialog({
     }))
   }, [])
 
-  // Handle marker drag (update temporary position only)
-  const handleMarkerDrag = useCallback((event: MarkerDragEvent) => {
-    setDragPosition({
-      longitude: event.lngLat.lng,
-      latitude: event.lngLat.lat,
-    })
-  }, [])
-
-  // Handle marker drag end (commit position to map coordinates)
-  const handleMarkerDragEnd = useCallback((event: MarkerDragEvent) => {
-    setMapCoordinates(prev => ({
-      ...prev,
-      longitude: event.lngLat.lng,
-      latitude: event.lngLat.lat,
-    }))
-    setDragPosition(null)
-    analytics.track('geocoding_marker_dragged')
-  }, [])
-
   // Handle location confirmation
   const handleConfirm = useCallback(() => {
     onLocationSelected(mapCoordinates)
     analytics.track('geocoding_confirmed', { mode })
     onOpenChange(false)
   }, [mapCoordinates, onLocationSelected, mode, onOpenChange])
-
-  // Use drag position during drag, otherwise use map coordinates
-  const displayCoordinates = dragPosition || mapCoordinates
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -560,12 +537,9 @@ export function GeocodingDialog({
               >
                 <NavigationControl position="top-right" showCompass={false} />
                 <Marker
-                  longitude={displayCoordinates.longitude}
-                  latitude={displayCoordinates.latitude}
+                  longitude={mapCoordinates.longitude}
+                  latitude={mapCoordinates.latitude}
                   anchor="center"
-                  draggable
-                  onDrag={handleMarkerDrag}
-                  onDragEnd={handleMarkerDragEnd}
                 />
               </MapLibre>
             </div>
@@ -574,8 +548,8 @@ export function GeocodingDialog({
           {/* Footer */}
           <div className={s.dialogFooter}>
             <div className={s.coordinateDisplay}>
-              {displayCoordinates.longitude != null && displayCoordinates.latitude != null
-                ? `${displayCoordinates.latitude.toFixed(5)}, ${displayCoordinates.longitude.toFixed(5)}`
+              {mapCoordinates.longitude != null && mapCoordinates.latitude != null
+                ? `${mapCoordinates.latitude.toFixed(5)}, ${mapCoordinates.longitude.toFixed(5)}`
                 : 'Loading...'}
             </div>
             <button type="button" className={s.confirmButton} onClick={handleConfirm}>
