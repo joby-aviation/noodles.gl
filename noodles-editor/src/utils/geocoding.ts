@@ -63,7 +63,7 @@ export async function geocodeWithGooglePlaces(
   // Use the new AutocompleteSuggestion API (recommended as of March 2025)
   const request: google.maps.places.AutocompleteSuggestionRequest = {
     input: query,
-    includedPrimaryTypes: ['geocode'], // Addresses and place names
+    // Don't restrict primary types - allow both geocodes (addresses) and establishments (businesses)
   }
 
   // Add location bias if provided (helps disambiguate place names)

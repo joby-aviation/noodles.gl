@@ -101,15 +101,19 @@ async function geocodePlaceUrl(
     try {
       const results = await geocodeWithGooglePlaces(placeName, locationHint || undefined)
       if (results && results.length > 0) {
+        console.log(`[Geocoding] Google Places found ${results.length} results for "${placeName}"`)
         return {
           lat: results[0].coordinates.latitude,
           lng: results[0].coordinates.longitude,
           source: 'google_places',
         }
       }
+      console.warn(`[Geocoding] Google Places returned no results for "${placeName}", trying Mapbox/Photon`)
     } catch (error) {
-      console.warn('Google Places search failed, trying Mapbox/Photon:', error)
+      console.warn('[Geocoding] Google Places search failed, trying Mapbox/Photon:', error)
     }
+  } else {
+    console.log('[Geocoding] Google Maps API key not configured, skipping Google Places')
   }
 
   // Fall back to Mapbox or Photon geocoding by name
