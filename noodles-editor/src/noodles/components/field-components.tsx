@@ -280,22 +280,22 @@ export function VectorFieldComponent({
 
   // Handle location selection from geocoding dialog
   const handleLocationSelected = useCallback(
-    (result: { longitude: number; latitude: number }) => {
+    ({ longitude, latitude }: { longitude: number; latitude: number }) => {
       if (field.returnType === 'tuple') {
         // For tuple format, preserve altitude for Point3D
         if (isPoint3D) {
           const currentAlt = (field.value as number[])[2] || 0
-          field.setValue([result.longitude, result.latitude, currentAlt])
+          field.setValue([longitude, latitude, currentAlt])
         } else {
-          field.setValue([result.longitude, result.latitude])
+          field.setValue([longitude, latitude])
         }
       } else {
         // For object format, preserve altitude for Point3D
         if (isPoint3D) {
           const currentAlt = (field.value as { lng: number; lat: number; alt: number }).alt || 0
-          field.setValue({ lng: result.longitude, lat: result.latitude, alt: currentAlt })
+          field.setValue({ lng: longitude, lat: latitude, alt: currentAlt })
         } else {
-          field.setValue({ lng: result.longitude, lat: result.latitude })
+          field.setValue({ lng: longitude, lat: latitude })
         }
       }
       setGeocodingOpen(false)

@@ -18,7 +18,7 @@ export function PointWizardTool({ open, onOpenChange, reactFlowRef }: PointWizar
   const currentContainerId = useNestingStore((state) => state.currentContainerId)
 
   const handleLocationSelected = useCallback(
-    (result: { longitude: number; latitude: number }) => {
+    ({ longitude, latitude }: { longitude: number; latitude: number }) => {
       // Position node at center of viewport
       const pane = reactFlowRef.current?.getBoundingClientRect()
       if (!pane) return
@@ -35,7 +35,7 @@ export function PointWizardTool({ open, onOpenChange, reactFlowRef }: PointWizar
         type: 'PointOp',
         data: {
           inputs: {
-            coordinates: [result.longitude, result.latitude],
+            coordinates: [longitude, latitude],
           },
         },
         position,
