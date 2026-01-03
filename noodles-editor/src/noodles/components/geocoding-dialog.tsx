@@ -503,33 +503,37 @@ export function GeocodingDialog({
           </div>
 
           {/* Map */}
-          <div className={s.mapContainer}>
-            <MapLibre
-              id={MAP_ID}
-              mapStyle={CARTO_DARK}
-              style={{ width: '100%', height: '400px' }}
-              longitude={mapCoordinates.longitude}
-              latitude={mapCoordinates.latitude}
-              zoom={mapCoordinates.zoom || 12}
-              onMove={handleMove}
-              onClick={handleMapClick}
-            >
-              <NavigationControl position="top-right" showCompass={false} />
-              <Marker
+          {mapCoordinates.longitude != null && mapCoordinates.latitude != null && (
+            <div className={s.mapContainer}>
+              <MapLibre
+                id={MAP_ID}
+                mapStyle={CARTO_DARK}
+                style={{ width: '100%', height: '400px' }}
                 longitude={mapCoordinates.longitude}
                 latitude={mapCoordinates.latitude}
-                anchor="center"
-                draggable
-                onDrag={handleMarkerDrag}
-                onDragEnd={handleMarkerDragEnd}
-              />
-            </MapLibre>
-          </div>
+                zoom={mapCoordinates.zoom || 12}
+                onMove={handleMove}
+                onClick={handleMapClick}
+              >
+                <NavigationControl position="top-right" showCompass={false} />
+                <Marker
+                  longitude={mapCoordinates.longitude}
+                  latitude={mapCoordinates.latitude}
+                  anchor="center"
+                  draggable
+                  onDrag={handleMarkerDrag}
+                  onDragEnd={handleMarkerDragEnd}
+                />
+              </MapLibre>
+            </div>
+          )}
 
           {/* Footer */}
           <div className={s.dialogFooter}>
             <div className={s.coordinateDisplay}>
-              {mapCoordinates.latitude.toFixed(5)}, {mapCoordinates.longitude.toFixed(5)}
+              {mapCoordinates.longitude != null && mapCoordinates.latitude != null
+                ? `${mapCoordinates.latitude.toFixed(5)}, ${mapCoordinates.longitude.toFixed(5)}`
+                : 'Loading...'}
             </div>
             <button type="button" className={s.confirmButton} onClick={handleConfirm}>
               {mode === 'create-node' ? 'Create Point' : 'Update Field'}
