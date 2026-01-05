@@ -665,7 +665,7 @@ export class StringOp extends Operator<StringOp> {
   static description = 'A string'
   createInputs() {
     return {
-      val: new StringField(''),
+      val: new StringField('', { multiline: true }),
     }
   }
   createOutputs() {

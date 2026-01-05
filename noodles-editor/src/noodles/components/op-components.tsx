@@ -135,6 +135,7 @@ export const resizeableNodes = [
   'CodeOp',
   'DuckDbOp',
   'JSONOp',
+  'StringOp',
 ] as const
 
 function toPascal(str: string) {
