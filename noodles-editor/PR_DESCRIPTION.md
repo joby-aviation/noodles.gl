@@ -6,8 +6,8 @@ Video frame capture would hang when animating data-driven properties (e.g., Date
 
 **Before:**
 - ✅ Frame capture worked when animating visual properties (opacity, colors, etc.)
-- ❌ Frame capture hung when only data changed (filtered layers, updated datasets)
-- ❌ Timeout of 120 seconds, then error
+- ❌ Frame capture hung indefinitely when only data changed (filtered layers, updated datasets)
+- ❌ Even basic Pure Deck examples (like orbit) hung at frame 0-1
 
 **Root causes identified:**
 1. Deck.gl doesn't fire `onAfterRender` for data-only changes (by design)
