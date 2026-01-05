@@ -163,7 +163,8 @@ export const useRenderer = ({
 
         if (!supported) {
           console.error('Unsupported codec configuration', config)
-          debugger
+          alert(`${codec.toUpperCase()} codec is not supported on this system. Please try a different codec (HEVC, VP9, or AVC).`)
+          return null
         }
 
         videoEncoder.configure(config)
@@ -209,11 +210,54 @@ export const useRenderer = ({
 
       const mapRecorder = getCanvasRecorder(canvas)
 
+      // Create intermediate canvas for compositing onto black background
+      const compositeCanvas = document.createElement('canvas')
+      compositeCanvas.width = width
+      compositeCanvas.height = height
+      const ctx = compositeCanvas.getContext('2d', { alpha: false })
+
       async function finishEncoding() {
         for (const container of containers.values()) {
           await container.finishEncoding()
         }
         mapRecorder?.reader?.releaseLock()
+      }
+
+      const addRecorderFrame = async (
+        recorder: ReturnType<typeof getCanvasRecorder>,
+        container: Awaited<ReturnType<typeof getContainer>>
+      ) => {
+        // @ts-expect-error - typescript types not updated yet
+        recorder.track.requestFrame()
+        console.log('requesting frame')
+        const result = await recorder.reader.read()
+        const frame = result.value
+        console.log('got frame', frame)
+
+        assert(frame, 'frame is required - might be a problem with the browser')
+
+        // Composite frame onto black background
+        if (ctx) {
+          // Fill with black
+          ctx.fillStyle = 'black'
+          ctx.fillRect(0, 0, width, height)
+          // Draw the frame on top
+          ctx.drawImage(frame, 0, 0, width, height)
+
+          // Create new VideoFrame from composite canvas
+          const compositeFrame = new VideoFrame(compositeCanvas, {
+            timestamp: frame.timestamp,
+            duration: frame.duration,
+          })
+
+          frame.close()
+          await container?.encodeFrame(compositeFrame)
+          compositeFrame.close()
+        } else {
+          // Fallback to original frame if canvas context not available
+          await container?.encodeFrame(frame)
+          frame.close()
+        }
       }
 
       for (; i < endFrame + 1; i++) {
@@ -232,23 +276,6 @@ export const useRenderer = ({
         if (canvasResult?.error) {
           console.error('Error capturing canvas frame:', canvasResult.error)
           return
-        }
-
-        const addRecorderFrame = async (
-          recorder: ReturnType<typeof getCanvasRecorder>,
-          container: Awaited<ReturnType<typeof getContainer>>
-        ) => {
-          // @ts-expect-error - typescript types not updated yet
-          recorder.track.requestFrame()
-          console.log('requesting frame')
-          const result = await recorder.reader.read()
-          const frame = result.value
-          console.log('got frame', frame)
-
-          assert(frame, 'frame is required - might be a problem with the browser')
-
-          await container?.encodeFrame(frame)
-          frame.close()
         }
 
         await addRecorderFrame(mapRecorder, mapContainer)
