@@ -3304,6 +3304,11 @@ export class TextLayerOp extends Operator<TextLayerOp> {
         accessor: true,
       }),
       extensions: new ListField(new ExtensionField()),
+      parameters: new CompoundPropsField({
+        cullMode: new StringLiteralField('back', {
+          values: ['none', 'back', 'front'],
+        }),
+      }),
     }
   }
   createOutputs() {
@@ -3606,6 +3611,11 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
       elevationScale: new NumberField(1, { min: 0, max: 100 }),
       _full3d: new BooleanField(false),
       extensions: new ListField(new ExtensionField()),
+      parameters: new CompoundPropsField({
+        cullMode: new StringLiteralField('back', {
+          values: ['none', 'back', 'front'],
+        }),
+      }),
     }
   }
   createOutputs() {
