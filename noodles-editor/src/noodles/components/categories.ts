@@ -31,6 +31,7 @@ export const categories = {
     'Filter',
     'Geocoder',
     'Merge',
+    'MergeOps',
     'Network',
     'Out',
     'RandomizeAttribute',

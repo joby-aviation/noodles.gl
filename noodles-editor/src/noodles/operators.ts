@@ -179,12 +179,12 @@ import {
   WidgetField,
 } from './fields'
 import { DEFAULT_LATITUDE, DEFAULT_LONGITUDE, safeMode } from './globals'
-import { getAllOps, getOp, hasOp } from './store'
+import { getAllOps, getEdgeStore, getOp, hasOp } from './store'
 import { composeAccessor, isAccessor } from './utils/accessor-helpers'
 import type { ExtractProps } from './utils/extract-props'
 import { projectScheme } from './utils/filesystem'
 import type { OpId } from './utils/id-utils'
-import { isDirectChild } from './utils/path-utils'
+import { getBaseName, isDirectChild } from './utils/path-utils'
 import { pick } from './utils/pick'
 import { validateViewState } from './utils/viewstate-helpers'
 
@@ -2347,6 +2347,63 @@ export class MergeOp extends Operator<MergeOp> {
 
     // Static evaluation
     const object = Object.assign({}, ...objects)
+    return { object }
+  }
+}
+
+export class MergeOpsOp extends Operator<MergeOpsOp> {
+  static displayName = 'MergeOps'
+  static description =
+    'Collect values from connected operators into an object {[opId]: value}. Connect multiple operators to the values list.'
+  createInputs() {
+    return {
+      values: new ListField(new DataField()),
+    }
+  }
+  createOutputs() {
+    return {
+      object: new DataField(),
+    }
+  }
+  execute({ values }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const edges = getEdgeStore().edges
+
+    // Find all edges targeting this operator's values list
+    // ListField edges all have the same targetHandle (e.g., "par.values"), not indexed
+    const targetEdges = edges.filter(
+      edge =>
+        edge.target === this.id &&
+        (edge.targetHandle === 'par.values' || edge.targetHandle?.startsWith('par.values.'))
+    )
+
+    // Check if any values are accessor functions
+    const hasAccessors = values.some(isAccessor)
+
+    if (hasAccessors) {
+      // Return an accessor function
+      const result = (...args: unknown[]) => {
+        const obj: Record<string, unknown> = {}
+        for (let i = 0; i < values.length; i++) {
+          const value = isAccessor(values[i]) ? values[i](...args) : values[i]
+          // Match edge to value by index in the filtered edges array
+          const edge = targetEdges[i]
+          const key = edge?.source ? getBaseName(edge.source) : `value_${i}`
+          obj[key] = value
+        }
+        return obj
+      }
+      return { object: result }
+    }
+
+    // Static evaluation
+    const object: Record<string, unknown> = {}
+    for (let i = 0; i < values.length; i++) {
+      // Match edge to value by index in the filtered edges array
+      const edge = targetEdges[i]
+      const key = edge?.source ? getBaseName(edge.source) : `value_${i}`
+      object[key] = values[i]
+    }
+
     return { object }
   }
 }
@@ -5414,6 +5471,7 @@ export const opTypes = {
   MaskExtensionOp,
   MathOp,
   MergeOp,
+  MergeOpsOp,
   MouseOp,
   MVTLayerOp,
   NetworkOp,
