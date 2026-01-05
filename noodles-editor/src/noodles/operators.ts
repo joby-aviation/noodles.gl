@@ -3581,6 +3581,25 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
 
       // pointType: text
       getText: new StringField('', { accessor: true }),
+      getTextSize: new NumberField(32, { min: 0, accessor: true }),
+      getTextColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
+      getTextAngle: new NumberField(0, { min: -180, max: 180, accessor: true }),
+      getTextAnchor: new StringLiteralField('middle', {
+        values: ['start', 'middle', 'end'],
+        accessor: true,
+      }),
+      getTextAlignmentBaseline: new StringLiteralField('center', {
+        values: ['top', 'center', 'bottom'],
+        accessor: true,
+      }),
+      getTextPixelOffset: new Vec2Field({ x: 0, y: 0 }, { returnType: 'tuple', accessor: true }),
+      textSizeUnits: new StringLiteralField('pixels', ['pixels', 'meters']),
+      textSizeScale: new NumberField(1, { min: 0, max: 100 }),
+      textSizeMinPixels: new NumberField(0, { min: 0, max: 100 }),
+      textSizeMaxPixels: new NumberField(100, { min: 0 }),
+      textBillboard: new BooleanField(true),
+      textFontFamily: new StringField('Monaco, monospace'),
+      textFontWeight: new NumberField(400, { min: 100, max: 900, step: 100 }),
 
       // polygon
       filled: new BooleanField(true),
