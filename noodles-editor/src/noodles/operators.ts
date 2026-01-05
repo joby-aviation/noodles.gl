@@ -3583,7 +3583,7 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
       getText: new StringField('', { accessor: true }),
       getTextSize: new NumberField(32, { min: 0, accessor: true }),
       getTextColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
-      getTextAngle: new NumberField(0, { min: -180, max: 180, accessor: true }),
+      getTextAngle: new NumberField(0, { accessor: true }),
       getTextAnchor: new StringLiteralField('middle', {
         values: ['start', 'middle', 'end'],
         accessor: true,
