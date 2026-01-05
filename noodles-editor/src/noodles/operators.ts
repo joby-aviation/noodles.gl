@@ -3291,7 +3291,7 @@ export class TextLayerOp extends Operator<TextLayerOp> {
       fontFamily: new StringField('Inter'),
       fontWeight: new NumberField(400, { min: 100, max: 900, step: 100 }),
       sizeUnits: new StringLiteralField('pixels', ['pixels', 'meters']),
-      getSize: new NumberField(48, { min: 0, max: 100, accessor: true }),
+      getSize: new NumberField(48, { min: 0, accessor: true }),
       getColor: new ColorField('#f0f0f0', { accessor: true, transform: hexToColor }),
       getAngle: new NumberField(0, { min: 0, max: 360, accessor: true }),
       getTextAnchor: new StringLiteralField('middle', {
@@ -3302,6 +3302,14 @@ export class TextLayerOp extends Operator<TextLayerOp> {
       getAlignmentBaseline: new StringLiteralField('center', {
         values: ['top', 'center', 'bottom'],
         accessor: true,
+      }),
+      fontSettings: new CompoundPropsField({
+        sdf: new BooleanField(false),
+        fontSize: new NumberField(64, { min: 8, max: 256 }),
+        buffer: new NumberField(4, { min: 0, max: 20 }),
+        radius: new NumberField(12, { min: 0, max: 50 }),
+        cutoff: new NumberField(0.25, { min: 0, max: 1, step: 0.01 }),
+        smoothing: new NumberField(0.1, { min: 0, max: 1, step: 0.01 }),
       }),
       extensions: new ListField(new ExtensionField()),
     }
