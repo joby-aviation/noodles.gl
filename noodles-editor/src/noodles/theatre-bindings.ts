@@ -25,7 +25,26 @@ import {
   Vec3Field,
 } from './fields'
 import type { IOperator, Operator } from './operators'
-import { getOpStore } from './store'
+import { getEdgeStore, getOpStore } from './store'
+
+// Deep equality check for compound objects (RGBA, Vec2, Vec3, Point2D, Point3D)
+// Ignores function properties that Theatre.js adds (like toString)
+function isObjectEqual(a: any, b: any): boolean {
+  if (a === b) return true
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false
+
+  // Filter out function properties (Theatre.js adds toString to RGBA objects)
+  const keysA = Object.keys(a).filter(key => typeof a[key] !== 'function')
+  const keysB = Object.keys(b).filter(key => typeof b[key] !== 'function')
+
+  if (keysA.length !== keysB.length) return false
+
+  for (const key of keysA) {
+    if (a[key] !== b[key]) return false
+  }
+
+  return true
+}
 
 // Helper to recursively convert fields to Theatre props
 function fieldsToTheatreProps(
@@ -191,6 +210,16 @@ export function bindOperatorToTheatre(
     // Field -> Theatre binding
     const fieldSub = field.subscribe((value_: any) => {
       if (op.locked.value || updating) return
+
+      // Don't sync to Theatre if this field is connected (driven by upstream operator)
+      // Check if there's an incoming edge to this field
+      const edgeStore = getEdgeStore()
+      const targetHandle = `par.${key}`
+      const isConnected = edgeStore.edges.some(
+        edge => edge.target === op.id && edge.targetHandle === targetHandle
+      )
+      if (isConnected) return
+
       updating = true
       studio.transaction(({ set }) => {
         try {
@@ -207,6 +236,22 @@ export function bindOperatorToTheatre(
               .toZonedDateTime('UTC')
               .toInstant()
             value = instant.epochMilliseconds
+          } else if (field instanceof Vec2Field) {
+            // Normalize array format to object format
+            const v = value_
+            value = Array.isArray(v) ? { x: v[0], y: v[1] } : v
+          } else if (field instanceof Vec3Field) {
+            // Normalize array format to object format
+            const v = value_
+            value = Array.isArray(v) ? { x: v[0], y: v[1], z: v[2] } : v
+          } else if (field instanceof Point2DField) {
+            // Normalize array format to object format
+            const v = value_
+            value = Array.isArray(v) ? { lng: v[0], lat: v[1] } : v
+          } else if (field instanceof Point3DField) {
+            // Normalize array format to object format
+            const v = value_
+            value = Array.isArray(v) ? { lng: v[0], lat: v[1], alt: v[2] } : v
           }
 
           // Prevent infinite loop for compound props
@@ -215,7 +260,21 @@ export function bindOperatorToTheatre(
             return
           }
 
-          if (val(pointer) !== value) {
+          const currentValue = val(pointer)
+
+          // Use deep equality check for object/compound types to prevent unnecessary keyframes
+          const isCompoundType =
+            field instanceof ColorField ||
+            field instanceof Vec2Field ||
+            field instanceof Vec3Field ||
+            field instanceof Point2DField ||
+            field instanceof Point3DField
+
+          const needsUpdate = isCompoundType
+            ? !isObjectEqual(currentValue, value)
+            : currentValue !== value
+
+          if (needsUpdate) {
             set(pointer, value)
           }
         } catch (e) {

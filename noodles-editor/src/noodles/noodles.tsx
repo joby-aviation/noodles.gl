@@ -61,7 +61,13 @@ import { useProjectModifications } from './hooks/use-project-modifications'
 import type { IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
 import { load, save } from './storage'
-import { deleteSheetObject, getOpStore, setSheetObject, useNestingStore } from './store'
+import {
+  deleteSheetObject,
+  getOpStore,
+  setSheetObject,
+  useEdgeStore,
+  useNestingStore,
+} from './store'
 import { bindOperatorToTheatre, cleanupRemovedOperators } from './theatre-bindings'
 import { transformGraph } from './transform-graph'
 import { directoryHandleCache } from './utils/directory-handle-cache'
@@ -214,6 +220,11 @@ export function getNoodles(): Visualization {
   const [defaultViewport, setDefaultViewport] = useState({ x: 0, y: 0, zoom: 1 })
   const [showChatPanel, setShowChatPanel] = useState(false)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+
+  // Sync edges to the edge store so operators can access them
+  useEffect(() => {
+    useEdgeStore.getState().setEdges(edges)
+  }, [edges])
 
   // Wrap onNodesChange to track node selection and mark unsaved changes
   const onNodesChange = useCallback(

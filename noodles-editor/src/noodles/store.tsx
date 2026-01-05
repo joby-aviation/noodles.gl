@@ -112,6 +112,20 @@ export const useUIStore = create<UIStoreState>(set => ({
 }))
 
 // ============================================================================
+// Edge Store (for tracking React Flow edges)
+// ============================================================================
+
+interface EdgeStoreState {
+  edges: ReactFlowEdge[]
+  setEdges: (edges: ReactFlowEdge[]) => void
+}
+
+export const useEdgeStore = create<EdgeStoreState>(set => ({
+  edges: [],
+  setEdges: edges => set({ edges }),
+}))
+
+// ============================================================================
 // Helper functions for non-React contexts
 // ============================================================================
 
@@ -120,6 +134,9 @@ export const getOpStore = () => useOperatorStore.getState()
 
 // Get the UI store instance for use outside React components
 export const getUIStore = () => useUIStore.getState()
+
+// Get the edge store instance for use outside React components
+export const getEdgeStore = () => useEdgeStore.getState()
 
 // `path` can be absolute or relative to `contextOperatorId`
 export const getOp = (
