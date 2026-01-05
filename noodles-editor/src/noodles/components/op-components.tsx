@@ -34,6 +34,7 @@ import { ArrayField, type Field, type IField, ListField } from '../fields'
 import s from '../noodles.module.css'
 import type { ExecutionState, IOperator, OpType } from '../operators'
 import {
+  type AnimationTimeOp,
   type ContainerOp,
   type DirectionsOp,
   type GeocoderOp,
@@ -43,7 +44,6 @@ import {
   Operator,
   opTypes,
   type TableEditorOp,
-  type TimeOp,
   type ViewerOp,
 } from '../operators'
 import {
@@ -96,11 +96,11 @@ for (const key of Object.keys(opTypes)) {
 
 export const nodeComponents = {
   ...defaultNodeComponents,
+  AnimationTimeOp: AnimationTimeOpComponent,
   GeocoderOp: GeocoderOpComponent,
   DirectionsOp: DirectionsOpComponent,
   MouseOp: MouseOpComponent,
   TableEditorOp: TableEditorOpComponent,
-  TimeOp: TimeOpComponent,
   ViewerOp: ViewerOpComponent,
   ContainerOp: ContainerOpComponent,
 } as const as ReactFlowNodeTypes
@@ -186,6 +186,7 @@ const headerClasses = {
   layer: s.headerLayer,
   number: s.headerNumber,
   string: s.headerString,
+  temporal: s.headerTemporal,
   utility: s.headerUtility,
   vector: s.headerVector,
   view: s.headerView,
@@ -1015,11 +1016,30 @@ const viewerFormatter = (value: unknown) => {
     typeof value === 'number' ||
     typeof value === 'boolean' ||
     value instanceof Date ||
-    value instanceof Temporal.PlainDateTime
+    value instanceof Temporal.PlainDate ||
+    value instanceof Temporal.PlainTime ||
+    value instanceof Temporal.PlainDateTime ||
+    value instanceof Temporal.ZonedDateTime
   ) {
     return { value }
   }
   return value
+}
+
+// Helper to format cell values, including temporal types
+function formatCellValue(value: unknown): string {
+  if (typeof value === 'string') {
+    return value
+  }
+  if (
+    value instanceof Temporal.PlainDate ||
+    value instanceof Temporal.PlainTime ||
+    value instanceof Temporal.PlainDateTime ||
+    value instanceof Temporal.ZonedDateTime
+  ) {
+    return value.toString()
+  }
+  return JSON.stringify(value)
 }
 
 function ViewerDOMContent({ content }: { content: Element }) {
@@ -1076,9 +1096,7 @@ function ViewerOpComponent({
           {viewerData.map((row, _i) => (
             <tr key={`${JSON.stringify(row)}`}>
               {keys.map((key, _j) => (
-                <td key={key}>
-                  {typeof row[key] === 'string' ? row[key] : JSON.stringify(row[key])}
-                </td>
+                <td key={key}>{formatCellValue(row[key])}</td>
               ))}
             </tr>
           ))}
@@ -1176,10 +1194,10 @@ function ContainerOpComponent({
   )
 }
 
-function TimeOpComponent({
+function AnimationTimeOpComponent({
   id,
   type,
-}: ReactFlowNodeProps<NodeDataJSON<TimeOp>> & { type: 'TimeOp' }) {
+}: ReactFlowNodeProps<NodeDataJSON<AnimationTimeOp>> & { type: 'AnimationTimeOp' }) {
   const op = getOp(id as string)
   if (!op) {
     throw new Error(`Operator with id ${id} not found`)

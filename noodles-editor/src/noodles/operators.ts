@@ -171,6 +171,7 @@ import {
   Point3DField,
   StringField,
   StringLiteralField,
+  TemporalField,
   UnknownField,
   Vec2Field,
   Vec3Field,
@@ -696,9 +697,9 @@ export class BooleanOp extends Operator<BooleanOp> {
   }
 }
 
-export class DateTimeOp extends Operator<DateTimeOp> {
-  static displayName = 'DateTime'
-  static description = 'A date and time'
+export class LegacyDateTimeOp extends Operator<LegacyDateTimeOp> {
+  static displayName = 'LegacyDateTime'
+  static description = 'A date and time (deprecated - use DateTimeOp instead)'
   createInputs() {
     return {
       date: new DateField(),
@@ -711,6 +712,96 @@ export class DateTimeOp extends Operator<DateTimeOp> {
   }
   execute({ date }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     return { date }
+  }
+}
+
+export class DateOp extends Operator<DateOp> {
+  static displayName = 'Date'
+  static description = 'A calendar date (year-month-day)'
+  createInputs() {
+    return {
+      date: new TemporalField(undefined, { type: 'date', precision: 'd' }),
+    }
+  }
+  createOutputs() {
+    return {
+      date: new TemporalField(undefined, { type: 'date', precision: 'd' }),
+    }
+  }
+  execute({ date }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    return { date }
+  }
+}
+
+export class TimeOp extends Operator<TimeOp> {
+  static displayName = 'Time'
+  static description = 'A time of day (hour:minute:second)'
+  createInputs() {
+    return {
+      time: new TemporalField(undefined, { type: 'time', precision: 's' }),
+    }
+  }
+  createOutputs() {
+    return {
+      time: new TemporalField(undefined, { type: 'time', precision: 's' }),
+    }
+  }
+  execute({ time }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    return { time }
+  }
+}
+
+export class DateTimeOp extends Operator<DateTimeOp> {
+  static displayName = 'DateTime'
+  static description = 'A date and time without timezone'
+  createInputs() {
+    return {
+      datetime: new TemporalField(undefined, { type: 'datetime', precision: 's' }),
+    }
+  }
+  createOutputs() {
+    return {
+      datetime: new TemporalField(undefined, { type: 'datetime', precision: 's' }),
+    }
+  }
+  execute({ datetime }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    return { datetime }
+  }
+}
+
+export class DateTimeMsOp extends Operator<DateTimeMsOp> {
+  static displayName = 'DateTimeMs'
+  static description = 'A date and time with millisecond precision'
+  createInputs() {
+    return {
+      datetime: new TemporalField(undefined, { type: 'datetime', precision: 'ms' }),
+    }
+  }
+  createOutputs() {
+    return {
+      datetime: new TemporalField(undefined, { type: 'datetime', precision: 'ms' }),
+    }
+  }
+  execute({ datetime }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    return { datetime }
+  }
+}
+
+export class ZonedDateTimeOp extends Operator<ZonedDateTimeOp> {
+  static displayName = 'ZonedDateTime'
+  static description = 'A date and time with timezone'
+  createInputs() {
+    return {
+      datetime: new TemporalField(undefined, { type: 'zoned-datetime', precision: 's', timeZone: 'UTC' }),
+    }
+  }
+  createOutputs() {
+    return {
+      datetime: new TemporalField(undefined, { type: 'zoned-datetime', precision: 's', timeZone: 'UTC' }),
+    }
+  }
+  execute({ datetime }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    return { datetime }
   }
 }
 
@@ -1128,8 +1219,8 @@ export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
   }
 }
 
-export class TimeOp extends Operator<TimeOp> {
-  static displayName = 'Time'
+export class AnimationTimeOp extends Operator<AnimationTimeOp> {
+  static displayName = 'AnimationTime'
   static description = 'Get the current clock, timeline, and session time'
 
   private timeState$ = new BehaviorSubject({ now: Date.now(), tick: 0, sequenceTime: 0 })
@@ -5346,6 +5437,7 @@ export class TimeSeriesOp extends Operator<TimeSeriesOp> {
 export const opTypes = {
   AccessorOp,
   A5LayerOp,
+  AnimationTimeOp,
   ArcOp,
   ArcLayerOp,
   BezierCurveOp,
@@ -5370,7 +5462,9 @@ export const opTypes = {
   ContainerOp,
   ContourLayerOp,
   DataFilterExtensionOp,
+  DateOp,
   DateTimeOp,
+  DateTimeMsOp,
   DeckRendererOp,
   DirectionsOp,
   DuckDbOp,
@@ -5404,6 +5498,7 @@ export const opTypes = {
   JSONOp,
   KmlToGeoJsonOp,
   LayerPropsOp,
+  LegacyDateTimeOp,
   LineLayerOp,
   MaplibreBasemapOp,
   MapRangeOp,
@@ -5459,6 +5554,7 @@ export const opTypes = {
   UnprojectOp,
   VibranceExtensionOp,
   ViewerOp,
+  ZonedDateTimeOp,
 } as const // as Record<OpType, typeof Operator>
 
 // Execution state for visual debugging

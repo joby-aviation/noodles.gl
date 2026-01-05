@@ -567,6 +567,356 @@ export class DateField extends Field<
   }
 }
 
+// Temporal types supported by TemporalField
+export type TemporalType = 'date' | 'time' | 'datetime' | 'zoned-datetime'
+
+// Precision levels for each type
+export type TemporalPrecision = 'y' | 'M' | 'd' | 'h' | 'm' | 's' | 'ms'
+
+// Type mapping for Temporal types
+type TemporalValueType<T extends TemporalType> = T extends 'date'
+  ? Temporal.PlainDate
+  : T extends 'time'
+    ? Temporal.PlainTime
+    : T extends 'datetime'
+      ? Temporal.PlainDateTime
+      : T extends 'zoned-datetime'
+        ? Temporal.ZonedDateTime
+        : never
+
+// Union of all possible Temporal types
+type AnyTemporalType =
+  | Temporal.PlainDate
+  | Temporal.PlainTime
+  | Temporal.PlainDateTime
+  | Temporal.ZonedDateTime
+
+type TemporalFieldOptions = BaseFieldOptions & {
+  type?: TemporalType
+  precision?: TemporalPrecision
+  timeZone?: string // For zoned-datetime type
+}
+
+// Validation: Check if a type-precision combination is logically valid
+const isValidTemporalCombination = (type: TemporalType, precision: TemporalPrecision): boolean => {
+  const precisionOrder = ['y', 'M', 'd', 'h', 'm', 's', 'ms']
+  const precisionIndex = precisionOrder.indexOf(precision)
+
+  switch (type) {
+    case 'date':
+      // Date can have precision up to 'd' (day)
+      return precisionIndex <= 2
+    case 'time':
+      // Time must have precision from 'h' to 'ms'
+      return precisionIndex >= 3
+    case 'datetime':
+    case 'zoned-datetime':
+      // Datetime can have any precision
+      return true
+    default:
+      return false
+  }
+}
+
+// Get default value for a temporal type
+const getTemporalDefaultValue = (type: TemporalType, timeZone?: string): AnyTemporalType => {
+  switch (type) {
+    case 'date':
+      return Temporal.Now.plainDateISO()
+    case 'time':
+      return Temporal.Now.plainTimeISO()
+    case 'datetime':
+      return Temporal.Now.plainDateTimeISO()
+    case 'zoned-datetime':
+      return Temporal.Now.zonedDateTimeISO(timeZone || Temporal.Now.timeZoneId())
+    default:
+      throw new Error(`Unknown temporal type: ${type}`)
+  }
+}
+
+export class TemporalField extends Field<z.ZodUnion<[z.ZodCustom<AnyTemporalType>]>, TemporalFieldOptions> {
+  static type = 'temporal'
+  static defaultValue = Temporal.Now.plainDateTimeISO()
+
+  temporalType: TemporalType
+  precision: TemporalPrecision
+  timeZone: string
+
+  constructor(override?: AnyTemporalType | string, options?: TemporalFieldOptions) {
+    // Use explicit type and precision options
+    const temporalType: TemporalType = options?.type || 'datetime'
+    const precision: TemporalPrecision = options?.precision || 's'
+    const timeZone = options?.timeZone || 'UTC'
+
+    // Validate the combination
+    if (!isValidTemporalCombination(temporalType, precision)) {
+      throw new Error(
+        `Invalid temporal combination: ${temporalType}-${precision}. ` +
+          `Type '${temporalType}' does not support precision '${precision}'.`
+      )
+    }
+
+    // Store configuration before super call
+    const actualValue =
+      override !== undefined
+        ? override
+        : (getTemporalDefaultValue(temporalType, timeZone) as AnyTemporalType)
+
+    // Merge configuration into options for createSchema
+    const mergedOptions = {
+      ...options,
+      type: temporalType,
+      precision,
+      timeZone,
+    }
+
+    super(actualValue, mergedOptions)
+
+    this.temporalType = temporalType
+    this.precision = precision
+    this.timeZone = timeZone
+  }
+
+  createSchema(options: Partial<TemporalFieldOptions>) {
+    const temporalType = options.type || 'datetime'
+    const timeZone = options.timeZone || 'UTC'
+
+    // Create transforming string schema
+    const stringSchema = z.string().transform(str => {
+      switch (temporalType) {
+        case 'date':
+          return Temporal.PlainDate.from(str)
+        case 'time':
+          return Temporal.PlainTime.from(str)
+        case 'datetime':
+          return Temporal.PlainDateTime.from(str)
+        case 'zoned-datetime':
+          // Try parsing with timezone info, fall back to UTC
+          try {
+            return Temporal.ZonedDateTime.from(str)
+          } catch {
+            return Temporal.PlainDateTime.from(str).toZonedDateTime(timeZone)
+          }
+        default:
+          throw new Error(`Unknown temporal type: ${temporalType}`)
+      }
+    })
+
+    // Accept Date objects (for datetime types)
+    const dateSchemas =
+      temporalType === 'datetime' || temporalType === 'zoned-datetime'
+        ? [
+            z.date().transform(date => {
+              const instant = Temporal.Instant.fromEpochMilliseconds(date.getTime())
+              if (temporalType === 'zoned-datetime') {
+                return instant.toZonedDateTimeISO(timeZone)
+              }
+              return instant.toZonedDateTimeISO('UTC').toPlainDateTime()
+            }),
+          ]
+        : []
+
+    // Accept the native Temporal type
+    const customSchema = z.custom<AnyTemporalType>(val => {
+      switch (temporalType) {
+        case 'date':
+          return val instanceof Temporal.PlainDate
+        case 'time':
+          return val instanceof Temporal.PlainTime
+        case 'datetime':
+          return val instanceof Temporal.PlainDateTime
+        case 'zoned-datetime':
+          return val instanceof Temporal.ZonedDateTime
+        default:
+          return false
+      }
+    }, `Expected Temporal ${temporalType}`)
+
+    // Build union - always include custom first (no transform), then string, then date
+    return z.union([customSchema, stringSchema, ...dateSchemas] as [
+      typeof customSchema,
+      typeof stringSchema,
+      ...typeof dateSchemas,
+    ])
+  }
+
+  serialize(): string {
+    // Truncate to the specified precision before serializing
+    const truncated = this.truncateToPrecision(this.value)
+    return truncated.toString()
+  }
+
+  static deserialize(value: string, options?: TemporalFieldOptions): AnyTemporalType {
+    // Use explicit type option
+    const temporalType: TemporalType = options?.type || 'datetime'
+    const timeZone = options?.timeZone || 'UTC'
+
+    // Parse the string based on type
+    switch (temporalType) {
+      case 'date':
+        return Temporal.PlainDate.from(value)
+      case 'time':
+        return Temporal.PlainTime.from(value)
+      case 'datetime':
+        return Temporal.PlainDateTime.from(value)
+      case 'zoned-datetime':
+        try {
+          return Temporal.ZonedDateTime.from(value)
+        } catch {
+          return Temporal.PlainDateTime.from(value).toZonedDateTime(timeZone)
+        }
+      default:
+        throw new Error(`Unknown temporal type: ${temporalType}`)
+    }
+  }
+
+  // Truncate a temporal value to the specified precision
+  private truncateToPrecision(value: AnyTemporalType): AnyTemporalType {
+    const { temporalType, precision } = this
+
+    // Helper to get fields up to precision
+    const getFieldsUpToPrecision = (val: {
+      year?: number
+      month?: number
+      day?: number
+      hour?: number
+      minute?: number
+      second?: number
+      millisecond?: number
+    }) => {
+      const fields: Record<string, number> = {}
+      const precisionOrder = ['y', 'M', 'd', 'h', 'm', 's', 'ms']
+      const precisionIndex = precisionOrder.indexOf(precision)
+
+      const fieldMap = {
+        y: 'year',
+        M: 'month',
+        d: 'day',
+        h: 'hour',
+        m: 'minute',
+        s: 'second',
+        ms: 'millisecond',
+      }
+
+      for (let i = 0; i <= precisionIndex; i++) {
+        const fieldName = fieldMap[precisionOrder[i]]
+        if (val[fieldName] !== undefined) {
+          fields[fieldName] = val[fieldName]
+        }
+      }
+
+      // Fill in defaults for missing lower-precision fields
+      const defaults = { year: 1970, month: 1, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0 }
+      for (const [key, defaultVal] of Object.entries(defaults)) {
+        if (fields[key] === undefined) {
+          fields[key] = defaultVal
+        }
+      }
+
+      return fields
+    }
+
+    switch (temporalType) {
+      case 'date': {
+        if (!(value instanceof Temporal.PlainDate)) break
+        const fields = getFieldsUpToPrecision(value)
+        return Temporal.PlainDate.from(fields)
+      }
+      case 'time': {
+        if (!(value instanceof Temporal.PlainTime)) break
+        const fields = getFieldsUpToPrecision(value)
+        return Temporal.PlainTime.from(fields)
+      }
+      case 'datetime': {
+        if (!(value instanceof Temporal.PlainDateTime)) break
+        const fields = getFieldsUpToPrecision(value)
+        return Temporal.PlainDateTime.from(fields)
+      }
+      case 'zoned-datetime': {
+        if (!(value instanceof Temporal.ZonedDateTime)) break
+        const plainDT = value.toPlainDateTime()
+        const fields = getFieldsUpToPrecision(plainDT)
+        return Temporal.PlainDateTime.from(fields).toZonedDateTime(value.timeZoneId)
+      }
+    }
+
+    return value
+  }
+
+  // Get the format string for this field
+  getFormat(): string {
+    return `${this.temporalType}-${this.precision}`
+  }
+
+  // Convert to epoch milliseconds for Theatre.js integration
+  toEpochMilliseconds(): number {
+    const { value, temporalType } = this
+
+    if (!value) {
+      throw new Error('Temporal value is not set')
+    }
+
+    switch (temporalType) {
+      case 'date':
+        if (value instanceof Temporal.PlainDate) {
+          return value.toPlainDateTime().toZonedDateTime('UTC').toInstant().epochMilliseconds
+        }
+        break
+      case 'time':
+        if (value instanceof Temporal.PlainTime) {
+          // Represent time as milliseconds since midnight
+          return value.hour * 3600000 + value.minute * 60000 + value.second * 1000 + value.millisecond
+        }
+        break
+      case 'datetime':
+        if (value instanceof Temporal.PlainDateTime) {
+          return value.toZonedDateTime('UTC').toInstant().epochMilliseconds
+        }
+        break
+      case 'zoned-datetime':
+        if (value instanceof Temporal.ZonedDateTime) {
+          return value.toInstant().epochMilliseconds
+        }
+        break
+    }
+
+    throw new Error(`Invalid temporal value: expected ${temporalType} but got ${value?.constructor?.name}`)
+  }
+
+  // Create from epoch milliseconds for Theatre.js integration
+  static fromEpochMilliseconds(
+    ms: number,
+    type: TemporalType,
+    timeZone = 'UTC'
+  ): AnyTemporalType {
+    switch (type) {
+      case 'date': {
+        const instant = Temporal.Instant.fromEpochMilliseconds(ms)
+        return instant.toZonedDateTimeISO(timeZone).toPlainDate()
+      }
+      case 'time': {
+        // Convert milliseconds since midnight to PlainTime
+        const totalMs = ms % 86400000 // Wrap to 24 hours
+        const hour = Math.floor(totalMs / 3600000)
+        const minute = Math.floor((totalMs % 3600000) / 60000)
+        const second = Math.floor((totalMs % 60000) / 1000)
+        const millisecond = totalMs % 1000
+        return Temporal.PlainTime.from({ hour, minute, second, millisecond })
+      }
+      case 'datetime': {
+        const instant = Temporal.Instant.fromEpochMilliseconds(ms)
+        return instant.toZonedDateTimeISO('UTC').toPlainDateTime()
+      }
+      case 'zoned-datetime': {
+        const instant = Temporal.Instant.fromEpochMilliseconds(ms)
+        return instant.toZonedDateTimeISO(timeZone)
+      }
+      default:
+        throw new Error(`Unknown temporal type: ${type}`)
+    }
+  }
+}
+
 // Mostly serves as a hint to the UI to render the correct colors, but could be used to validate schemas in the future
 export class DataField<D extends Field> extends Field<
   z.ZodType<unknown, unknown, z.core.$ZodTypeInternals<unknown, unknown>> | z.ZodUnknown,

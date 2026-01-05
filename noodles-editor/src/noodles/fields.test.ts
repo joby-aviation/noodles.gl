@@ -21,6 +21,7 @@ import {
   parseChoices,
   StringField,
   StringLiteralField,
+  TemporalField,
 } from './fields'
 import { NumberOp } from './operators'
 import { clearOps, setOp } from './store'
@@ -943,6 +944,272 @@ describe('DateField', () => {
     const deserialized = DateField.deserialize(serialized)
 
     expect(Temporal.PlainDateTime.compare(originalDate, deserialized)).toBe(0)
+  })
+})
+
+describe('TemporalField', () => {
+  describe('type validation', () => {
+    it('rejects invalid type-precision combinations', () => {
+      // Date cannot have hour precision
+      expect(() => new TemporalField(undefined, { type: 'date', precision: 'h' })).toThrow(
+        /Invalid temporal combination/
+      )
+
+      // Time cannot have day precision
+      expect(() => new TemporalField(undefined, { type: 'time', precision: 'd' })).toThrow(
+        /Invalid temporal combination/
+      )
+    })
+
+    it('accepts valid type-precision combinations', () => {
+      expect(() => new TemporalField(undefined, { type: 'date', precision: 'd' })).not.toThrow()
+      expect(() => new TemporalField(undefined, { type: 'time', precision: 'h' })).not.toThrow()
+      expect(() => new TemporalField(undefined, { type: 'datetime', precision: 's' })).not.toThrow()
+      expect(() => new TemporalField(undefined, { type: 'zoned-datetime', precision: 'ms' })).not.toThrow()
+    })
+  })
+
+  describe('PlainDate type', () => {
+    it('creates a field with default PlainDate value', () => {
+      const field = new TemporalField(undefined, { type: 'date', precision: 'd' })
+      expect(field.value).toBeInstanceOf(Temporal.PlainDate)
+    })
+
+    it('allows setting a PlainDate value', () => {
+      const field = new TemporalField(undefined, { type: 'date', precision: 'd' })
+      const testDate = Temporal.PlainDate.from('2024-03-15')
+      field.setValue(testDate)
+      expect(field.value).toEqual(testDate)
+    })
+
+    it('parses ISO date strings to PlainDate', () => {
+      const field = new TemporalField(undefined, { type: 'date', precision: 'd' })
+      field.setValue('2024-03-15')
+      expect(field.value).toBeInstanceOf(Temporal.PlainDate)
+      expect(field.value.toString()).toBe('2024-03-15')
+    })
+
+    it('serializes PlainDate to ISO string', () => {
+      const field = new TemporalField(undefined, { type: 'date', precision: 'd' })
+      field.setValue('2024-03-15')
+      const serialized = field.serialize()
+      expect(typeof serialized).toBe('string')
+      expect(serialized).toBe('2024-03-15')
+    })
+  })
+
+  describe('PlainTime type', () => {
+    it('creates a field with default PlainTime value', () => {
+      const field = new TemporalField(undefined, { type: 'time', precision: 's' })
+      expect(field.value).toBeInstanceOf(Temporal.PlainTime)
+    })
+
+    it('allows setting a PlainTime value', () => {
+      const field = new TemporalField(undefined, { type: 'time', precision: 's' })
+      const testTime = Temporal.PlainTime.from('10:30:45')
+      field.setValue(testTime)
+      expect(field.value).toEqual(testTime)
+    })
+
+    it('parses ISO time strings to PlainTime', () => {
+      const field = new TemporalField(undefined, { type: 'time', precision: 's' })
+      field.setValue('10:30:45')
+      expect(field.value).toBeInstanceOf(Temporal.PlainTime)
+      expect(field.value.toString()).toBe('10:30:45')
+    })
+
+    it('serializes PlainTime to ISO string', () => {
+      const field = new TemporalField(undefined, { type: 'time', precision: 's' })
+      field.setValue('10:30:45')
+      const serialized = field.serialize()
+      expect(typeof serialized).toBe('string')
+      expect(serialized).toBe('10:30:45')
+    })
+  })
+
+  describe('PlainDateTime type', () => {
+    it('creates a field with default PlainDateTime value', () => {
+      const field = new TemporalField(undefined, { type: 'datetime', precision: 's' })
+      expect(field.value).toBeInstanceOf(Temporal.PlainDateTime)
+    })
+
+    it('allows setting a PlainDateTime value', () => {
+      const field = new TemporalField(undefined, { type: 'datetime', precision: 's' })
+      const testDateTime = Temporal.PlainDateTime.from('2024-03-15T10:30:45')
+      field.setValue(testDateTime)
+      expect(field.value).toEqual(testDateTime)
+    })
+
+    it('parses ISO datetime strings to PlainDateTime', () => {
+      const field = new TemporalField(undefined, { type: 'datetime', precision: 's' })
+      field.setValue('2024-03-15T10:30:45')
+      expect(field.value).toBeInstanceOf(Temporal.PlainDateTime)
+      expect(field.value.toString()).toBe('2024-03-15T10:30:45')
+    })
+
+    it('converts Date objects to PlainDateTime', () => {
+      const field = new TemporalField(undefined, { type: 'datetime', precision: 's' })
+      const jsDate = new Date('2024-03-15T10:30:45Z')
+      field.setValue(jsDate)
+      expect(field.value).toBeInstanceOf(Temporal.PlainDateTime)
+      expect(field.value.year).toBe(2024)
+      expect(field.value.month).toBe(3)
+      expect(field.value.day).toBe(15)
+    })
+  })
+
+  describe('ZonedDateTime type', () => {
+    it('creates a field with default ZonedDateTime value', () => {
+      const field = new TemporalField(undefined, { type: 'zoned-datetime', precision: 's', timeZone: 'America/New_York' })
+      expect(field.value).toBeInstanceOf(Temporal.ZonedDateTime)
+    })
+
+    it('allows setting a ZonedDateTime value', () => {
+      const field = new TemporalField(undefined, { type: 'zoned-datetime', precision: 's', timeZone: 'America/New_York' })
+      const testZDT = Temporal.ZonedDateTime.from('2024-03-15T10:30:45-04:00[America/New_York]')
+      field.setValue(testZDT)
+      expect(field.value).toEqual(testZDT)
+    })
+
+    it('parses ISO strings with timezone to ZonedDateTime', () => {
+      const field = new TemporalField(undefined, { type: 'zoned-datetime', precision: 's', timeZone: 'UTC' })
+      field.setValue('2024-03-15T10:30:45+00:00[UTC]')
+      expect(field.value).toBeInstanceOf(Temporal.ZonedDateTime)
+    })
+  })
+
+  describe('precision handling', () => {
+    it('formats value according to year precision', () => {
+      const field = new TemporalField(undefined, { type: 'date', precision: 'y' })
+      field.setValue('2024-03-15')
+      const serialized = field.serialize()
+      expect(serialized).toBe('2024-01-01')
+    })
+
+    it('formats value according to month precision', () => {
+      const field = new TemporalField(undefined, { type: 'date', precision: 'M' })
+      field.setValue('2024-03-15')
+      const serialized = field.serialize()
+      expect(serialized).toBe('2024-03-01')
+    })
+
+    it('formats value according to day precision', () => {
+      const field = new TemporalField(undefined, { type: 'date', precision: 'd' })
+      field.setValue('2024-03-15')
+      const serialized = field.serialize()
+      expect(serialized).toBe('2024-03-15')
+    })
+
+    it('formats value according to second precision', () => {
+      const field = new TemporalField(undefined, { type: 'datetime', precision: 's' })
+      field.setValue('2024-03-15T10:30:45.123')
+      const serialized = field.serialize()
+      expect(serialized).toBe('2024-03-15T10:30:45')
+    })
+  })
+
+  describe('format string support', () => {
+    it('getFormat returns correct format string', () => {
+      const field = new TemporalField(undefined, { type: 'date', precision: 'd' })
+      expect(field.getFormat()).toBe('date-d')
+    })
+  })
+
+  describe('Theatre.js integration', () => {
+    it('converts PlainDate to epoch milliseconds', () => {
+      const field = new TemporalField(undefined, { type: 'date', precision: 'd' })
+      field.setValue('2024-03-15')
+      const ms = field.toEpochMilliseconds()
+      expect(typeof ms).toBe('number')
+      expect(ms).toBeGreaterThan(0)
+    })
+
+    it('converts PlainTime to milliseconds since midnight', () => {
+      const field = new TemporalField(undefined, { type: 'time', precision: 's' })
+      field.setValue('10:30:45')
+      const ms = field.toEpochMilliseconds()
+      // 10 hours * 3600000 + 30 minutes * 60000 + 45 seconds * 1000
+      expect(ms).toBe(37845000)
+    })
+
+    it('converts PlainDateTime to epoch milliseconds', () => {
+      const field = new TemporalField(undefined, { type: 'datetime', precision: 's' })
+      field.setValue('2024-03-15T10:30:45')
+      const ms = field.toEpochMilliseconds()
+      expect(typeof ms).toBe('number')
+      expect(ms).toBeGreaterThan(0)
+    })
+
+    it('roundtrips through epoch milliseconds for date', () => {
+      const field = new TemporalField(undefined, { type: 'date', precision: 'd' })
+      const originalDate = Temporal.PlainDate.from('2024-03-15')
+      field.setValue(originalDate)
+
+      const ms = field.toEpochMilliseconds()
+      const restored = TemporalField.fromEpochMilliseconds(ms, 'date', 'UTC')
+
+      expect(restored).toBeInstanceOf(Temporal.PlainDate)
+      expect(Temporal.PlainDate.compare(originalDate, restored as Temporal.PlainDate)).toBe(0)
+    })
+
+    it('roundtrips through epoch milliseconds for time', () => {
+      const field = new TemporalField(undefined, { type: 'time', precision: 's' })
+      const originalTime = Temporal.PlainTime.from('10:30:45')
+      field.setValue(originalTime)
+
+      const ms = field.toEpochMilliseconds()
+      const restored = TemporalField.fromEpochMilliseconds(ms, 'time', 'UTC')
+
+      expect(restored).toBeInstanceOf(Temporal.PlainTime)
+      expect(Temporal.PlainTime.compare(originalTime, restored as Temporal.PlainTime)).toBe(0)
+    })
+
+    it('roundtrips through epoch milliseconds for datetime', () => {
+      const field = new TemporalField(undefined, { type: 'datetime', precision: 's' })
+      const originalDateTime = Temporal.PlainDateTime.from('2024-03-15T10:30:45')
+      field.setValue(originalDateTime)
+
+      const ms = field.toEpochMilliseconds()
+      const restored = TemporalField.fromEpochMilliseconds(ms, 'datetime', 'UTC')
+
+      expect(restored).toBeInstanceOf(Temporal.PlainDateTime)
+      expect(Temporal.PlainDateTime.compare(originalDateTime, restored as Temporal.PlainDateTime)).toBe(0)
+    })
+  })
+
+  describe('serialization and deserialization', () => {
+    it('handles roundtrip serialization for date', () => {
+      const field = new TemporalField(undefined, { type: 'date', precision: 'd' })
+      const originalDate = Temporal.PlainDate.from('2024-03-15')
+      field.setValue(originalDate)
+
+      const serialized = field.serialize()
+      const deserialized = TemporalField.deserialize(serialized, { type: 'date', precision: 'd' })
+
+      expect(Temporal.PlainDate.compare(originalDate, deserialized as Temporal.PlainDate)).toBe(0)
+    })
+
+    it('handles roundtrip serialization for time', () => {
+      const field = new TemporalField(undefined, { type: 'time', precision: 's' })
+      const originalTime = Temporal.PlainTime.from('10:30:45')
+      field.setValue(originalTime)
+
+      const serialized = field.serialize()
+      const deserialized = TemporalField.deserialize(serialized, { type: 'time', precision: 's' })
+
+      expect(Temporal.PlainTime.compare(originalTime, deserialized as Temporal.PlainTime)).toBe(0)
+    })
+
+    it('handles roundtrip serialization for datetime', () => {
+      const field = new TemporalField(undefined, { type: 'datetime', precision: 's' })
+      const originalDateTime = Temporal.PlainDateTime.from('2024-03-15T10:30:45')
+      field.setValue(originalDateTime)
+
+      const serialized = field.serialize()
+      const deserialized = TemporalField.deserialize(serialized, { type: 'datetime', precision: 's' })
+
+      expect(Temporal.PlainDateTime.compare(originalDateTime, deserialized as Temporal.PlainDateTime)).toBe(0)
+    })
   })
 })
 

@@ -24,7 +24,6 @@ export const categories = {
     'BoundingBox',
     'Bounds',
     'Concat',
-    'DateTime',
     'DeckRenderer',
     'Directions',
     'File',
@@ -94,8 +93,9 @@ export const categories = {
     'TerrainExtension',
     'VibranceExtension',
   ],
-  number: ['Number', 'MapRange', 'Extent', 'Math', 'BezierCurve', 'Time'],
+  number: ['Number', 'MapRange', 'Extent', 'Math', 'BezierCurve', 'AnimationTime'],
   string: ['String'],
+  temporal: ['Date', 'Time', 'DateTime', 'DateTimeMs', 'ZonedDateTime'],
   utility: [
     'Boolean',
     'Console',
