@@ -1071,6 +1071,18 @@ export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
       set2: schemeSet2,
       set3: schemeSet3,
       tableau10: schemeTableau10,
+      joby: [
+        '#FFB300', // Joby Yellow
+        '#EB6110', // Joby Orange
+        '#E64839', // Joby Red
+        '#00994C', // Joby Green
+        '#883DF2', // Joby Purple
+        '#7CC3FF', // Joby Light Blue
+        '#3EC26A', // Joby Light Green
+        '#FF9058', // Joby Light Orange
+        '#FFCC54', // Joby Light Yellow
+        '#B580FF', // Joby Light Purple
+      ],
 
       // These schemes are arrays of arrays, ordered by number of stops. In the future we should
       // allow the user to select the number of stops
