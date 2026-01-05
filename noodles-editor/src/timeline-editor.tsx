@@ -247,6 +247,7 @@ export default function TimelineEditor() {
   const mapProps: MapProps = {
     interactive: false,
     antialias: true,
+    reuseMaps: true,
     preserveDrawingBuffer: true,
     onLoad: ({ target: map }) => {
       // Redraw react to ensure hooks check for map ref changes
@@ -258,6 +259,23 @@ export default function TimelineEditor() {
       ? { maxPitch: Math.min(visualization.mapProps?.maxPitch, 85) }
       : {}),
   }
+
+  // Apply light and sky settings imperatively to avoid style reloading
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !map.isStyleLoaded()) return
+
+    const light = visualization.mapProps?.light
+    const sky = visualization.mapProps?.sky
+
+    if (light) {
+      map.setLight(light)
+    }
+
+    if (sky) {
+      map.setSky(sky)
+    }
+  }, [visualization.mapProps?.light, visualization.mapProps?.sky])
 
   // Expose deck.gl canvas and instance for Claude AI visual debugging
   useEffect(() => {

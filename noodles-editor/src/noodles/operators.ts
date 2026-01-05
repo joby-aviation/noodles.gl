@@ -179,12 +179,12 @@ import {
   WidgetField,
 } from './fields'
 import { DEFAULT_LATITUDE, DEFAULT_LONGITUDE, safeMode } from './globals'
-import { getAllOps, getOp, hasOp } from './store'
+import { getAllOps, getEdgeStore, getOp, hasOp } from './store'
 import { composeAccessor, isAccessor } from './utils/accessor-helpers'
 import type { ExtractProps } from './utils/extract-props'
 import { projectScheme } from './utils/filesystem'
 import type { OpId } from './utils/id-utils'
-import { isDirectChild } from './utils/path-utils'
+import { getBaseName, isDirectChild } from './utils/path-utils'
 import { pick } from './utils/pick'
 import { validateViewState } from './utils/viewstate-helpers'
 
@@ -665,7 +665,7 @@ export class StringOp extends Operator<StringOp> {
   static description = 'A string'
   createInputs() {
     return {
-      val: new StringField(''),
+      val: new StringField('', { multiline: true }),
     }
   }
   createOutputs() {
@@ -1071,6 +1071,19 @@ export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
       set2: schemeSet2,
       set3: schemeSet3,
       tableau10: schemeTableau10,
+      joby: [
+        // '#491C8A', // Joby Dark Purple
+        '#FFB300', // Joby Yellow
+        '#EB6110', // Joby Orange
+        '#E64839', // Joby Red
+        '#00994C', // Joby Green
+        '#883DF2', // Joby Purple
+        '#7CC3FF', // Joby Light Blue
+        '#3EC26A', // Joby Light Green
+        '#FF9058', // Joby Light Orange
+        '#FFCC54', // Joby Light Yellow
+        '#B580FF', // Joby Light Purple
+      ],
 
       // These schemes are arrays of arrays, ordered by number of stops. In the future we should
       // allow the user to select the number of stops
@@ -2351,6 +2364,63 @@ export class MergeOp extends Operator<MergeOp> {
   }
 }
 
+export class MergeOpsOp extends Operator<MergeOpsOp> {
+  static displayName = 'MergeOps'
+  static description =
+    'Collect values from connected operators into an object {[opId]: value}. Connect multiple operators to the values list.'
+  createInputs() {
+    return {
+      values: new ListField(new DataField()),
+    }
+  }
+  createOutputs() {
+    return {
+      object: new DataField(),
+    }
+  }
+  execute({ values }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const edges = getEdgeStore().edges
+
+    // Find all edges targeting this operator's values list
+    // ListField edges all have the same targetHandle (e.g., "par.values"), not indexed
+    const targetEdges = edges.filter(
+      edge =>
+        edge.target === this.id &&
+        (edge.targetHandle === 'par.values' || edge.targetHandle?.startsWith('par.values.'))
+    )
+
+    // Check if any values are accessor functions
+    const hasAccessors = values.some(isAccessor)
+
+    if (hasAccessors) {
+      // Return an accessor function
+      const result = (...args: unknown[]) => {
+        const obj: Record<string, unknown> = {}
+        for (let i = 0; i < values.length; i++) {
+          const value = isAccessor(values[i]) ? values[i](...args) : values[i]
+          // Match edge to value by index in the filtered edges array
+          const edge = targetEdges[i]
+          const key = edge?.source ? getBaseName(edge.source) : `value_${i}`
+          obj[key] = value
+        }
+        return obj
+      }
+      return { object: result }
+    }
+
+    // Static evaluation
+    const object: Record<string, unknown> = {}
+    for (let i = 0; i < values.length; i++) {
+      // Match edge to value by index in the filtered edges array
+      const edge = targetEdges[i]
+      const key = edge?.source ? getBaseName(edge.source) : `value_${i}`
+      object[key] = values[i]
+    }
+
+    return { object }
+  }
+}
+
 export class MouseOp extends Operator<MouseOp> {
   static displayName = 'Mouse'
   static description = 'Get the current mouse position on the screen'
@@ -2581,6 +2651,85 @@ export class SplitMapViewStateOp extends Operator<SplitMapViewStateOp> {
   }
 }
 
+export class MaplibreLightOp extends Operator<MaplibreLightOp> {
+  static displayName = 'MaplibreLight'
+  static description = 'Control MapLibre directional lighting without reloading the style'
+
+  createInputs() {
+    return {
+      anchor: new StringLiteralField('viewport', ['map', 'viewport']),
+      azimuthal: new NumberField(210, { step: 1 }),
+      polar: new NumberField(30, { step: 1 }),
+      radial: new NumberField(500, { step: 10 }),
+      color: new ColorField('#ffffff'),
+      intensity: new NumberField(0.5, { min: 0, max: 1, step: 0.01 }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      light: new UnknownField(),
+    }
+  }
+
+  execute({
+    anchor,
+    azimuthal,
+    polar,
+    radial,
+    color,
+    intensity,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    return {
+      light: {
+        anchor,
+        position: [azimuthal, polar, radial],
+        color,
+        intensity,
+      },
+    }
+  }
+}
+
+export class MaplibreSkyOp extends Operator<MaplibreSkyOp> {
+  static displayName = 'MaplibreSky'
+  static description = 'Control MapLibre sky and atmosphere rendering'
+
+  createInputs() {
+    return {
+      skyColor: new ColorField('#80a5ff'),
+      horizonColor: new ColorField('#ffffff'),
+      fogColor: new ColorField('#ffffff'),
+      fogGroundBlend: new NumberField(0.5, { min: 0, max: 1, step: 0.01 }),
+      atmosphereBlend: new NumberField(0.5, { min: 0, max: 1, step: 0.01 }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      sky: new UnknownField(),
+    }
+  }
+
+  execute({
+    skyColor,
+    horizonColor,
+    fogColor,
+    fogGroundBlend,
+    atmosphereBlend,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    return {
+      sky: {
+        'sky-color': skyColor,
+        'horizon-color': horizonColor,
+        'fog-color': fogColor,
+        'fog-ground-blend': fogGroundBlend,
+        'atmosphere-blend': atmosphereBlend,
+      },
+    }
+  }
+}
+
 export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
   static displayName = 'MaplibreBasemap'
   static description = 'A Maplibre basemap.'
@@ -2596,6 +2745,8 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
         pitch: new NumberField(0, { min: 0, max: 60, optional: true }),
         bearing: new NumberField(0, { optional: true }),
       }),
+      light: new UnknownField(undefined, { optional: true }),
+      sky: new UnknownField(undefined, { optional: true }),
     }
   }
 
@@ -2609,6 +2760,8 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
         zoom: new NumberField(),
         pitch: new NumberField(),
         bearing: new NumberField(),
+        light: new UnknownField(),
+        sky: new UnknownField(),
       }),
     }
   }
@@ -2616,6 +2769,8 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
     mapStyle,
     projection,
     viewState,
+    light,
+    sky,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     validateViewState(viewState)
 
@@ -2623,7 +2778,9 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
       maplibre: {
         mapStyle,
         projection,
-        ...viewState
+        ...viewState,
+        light,
+        sky,
       }
     }
   }
@@ -3291,7 +3448,7 @@ export class TextLayerOp extends Operator<TextLayerOp> {
       fontFamily: new StringField('Inter'),
       fontWeight: new NumberField(400, { min: 100, max: 900, step: 100 }),
       sizeUnits: new StringLiteralField('pixels', ['pixels', 'meters']),
-      getSize: new NumberField(48, { min: 0, max: 100, accessor: true }),
+      getSize: new NumberField(48, { min: 0, accessor: true }),
       getColor: new ColorField('#f0f0f0', { accessor: true, transform: hexToColor }),
       getAngle: new NumberField(0, { min: 0, max: 360, accessor: true }),
       getTextAnchor: new StringLiteralField('middle', {
@@ -3303,7 +3460,20 @@ export class TextLayerOp extends Operator<TextLayerOp> {
         values: ['top', 'center', 'bottom'],
         accessor: true,
       }),
+      fontSettings: new CompoundPropsField({
+        sdf: new BooleanField(false),
+        fontSize: new NumberField(64, { min: 8, max: 256 }),
+        buffer: new NumberField(4, { min: 0, max: 20 }),
+        radius: new NumberField(12, { min: 0, max: 50 }),
+        cutoff: new NumberField(0.25, { min: 0, max: 1, step: 0.01 }),
+        smoothing: new NumberField(0.1, { min: 0, max: 1, step: 0.01 }),
+      }),
       extensions: new ListField(new ExtensionField()),
+      parameters: new CompoundPropsField({
+        cullMode: new StringLiteralField('back', {
+          values: ['none', 'back', 'front'],
+        }),
+      }),
     }
   }
   createOutputs() {
@@ -3581,6 +3751,38 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
 
       // pointType: text
       getText: new StringField('', { accessor: true }),
+      getTextSize: new NumberField(32, { min: 0, accessor: true }),
+      getTextColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
+      getTextAngle: new NumberField(0, { min: -180, max: 180, accessor: true }),
+      getTextAnchor: new StringLiteralField('middle', {
+        values: ['start', 'middle', 'end'],
+        accessor: true,
+      }),
+      getTextAlignmentBaseline: new StringLiteralField('center', {
+        values: ['top', 'center', 'bottom'],
+        accessor: true,
+      }),
+      getTextPixelOffset: new Vec2Field({ x: 0, y: 0 }, { returnType: 'tuple', accessor: true }),
+      textSizeUnits: new StringLiteralField('pixels', ['pixels', 'meters']),
+      textSizeScale: new NumberField(1, { min: 0, max: 100 }),
+      textSizeMinPixels: new NumberField(0, { min: 0, max: 100 }),
+      textSizeMaxPixels: new NumberField(100, { min: 0 }),
+      textBillboard: new BooleanField(true),
+      textFontFamily: new StringField('Monaco, monospace'),
+      textFontWeight: new NumberField(400, { min: 100, max: 900, step: 100 }),
+      // textFontWeight: new StringLiteralField('normal', {
+      //   values: ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'],
+      // }),
+      // textLineHeight: new NumberField(1, { min: 0, max: 10, step: 0.1 }),
+      // textMaxWidth: new NumberField(-1, { min: -1 }),
+      // textWordBreak: new StringLiteralField('break-word', {
+      //   values: ['break-word', 'break-all'],
+      // }),
+      // textBackground: new BooleanField(false),
+      // getTextBackgroundColor: new ColorField('#ffffff', { accessor: true, transform: hexToColor }),
+      // textBackgroundPadding: new Vec2Field([0, 0]),
+      // textOutlineWidth: new NumberField(0, { min: 0, max: 10 }),
+      // textOutlineColor: new ColorField('#000000', { transform: hexToColor }),
 
       // polygon
       filled: new BooleanField(true),
@@ -3606,6 +3808,11 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
       elevationScale: new NumberField(1, { min: 0, max: 100 }),
       _full3d: new BooleanField(false),
       extensions: new ListField(new ExtensionField()),
+      parameters: new CompoundPropsField({
+        cullMode: new StringLiteralField('back', {
+          values: ['none', 'back', 'front'],
+        }),
+      }),
     }
   }
   createOutputs() {
@@ -4291,7 +4498,7 @@ export class RectangleOp extends Operator<RectangleOp> {
       altitude: new NumberField(0, { step: 0.1 }),
       width: new NumberField(10, { min: 0.001, max: 10000, step: 0.1 }),
       height: new NumberField(10, { min: 0.001, max: 10000, step: 0.1 }),
-      properties: new DataField({}),
+      properties: new UnknownField({}),
     }
   }
   createOutputs() {
@@ -4350,7 +4557,7 @@ export class PointOp extends Operator<PointOp> {
   createInputs() {
     return {
       coordinates: new Point2DField(),
-      properties: new DataField({}),
+      properties: new UnknownField({}),
     }
   }
   createOutputs() {
@@ -5406,6 +5613,8 @@ export const opTypes = {
   LayerPropsOp,
   LineLayerOp,
   MaplibreBasemapOp,
+  MaplibreLightOp,
+  MaplibreSkyOp,
   MapRangeOp,
   MapStyleOp,
   MapViewOp,
@@ -5414,6 +5623,7 @@ export const opTypes = {
   MaskExtensionOp,
   MathOp,
   MergeOp,
+  MergeOpsOp,
   MouseOp,
   MVTLayerOp,
   NetworkOp,

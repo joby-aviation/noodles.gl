@@ -235,8 +235,13 @@ export abstract class Field<
 export class StringField extends Field<z.ZodString> {
   static type = 'string'
   static defaultValue = ''
+  multiline?: boolean
   createSchema() {
     return z.string()
+  }
+  constructor(defaultValue = '', options?: BaseFieldOptions & { multiline?: boolean }) {
+    super(defaultValue, options)
+    this.multiline = options?.multiline
   }
 }
 
