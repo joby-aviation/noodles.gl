@@ -257,7 +257,7 @@ describe('serializeNodes', () => {
     it('serializes hex string ColorFields', () => {
       const field = new ColorField('#00ff00')
       const serialized = field.serialize()
-      expect(serialized).toEqual('#00ff00')
+      expect(serialized).toEqual('#00ff00ff')
     })
 
     it('serializes a ColorField with [R,G,B, A] array', () => {

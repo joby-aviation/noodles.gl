@@ -546,15 +546,15 @@ describe('Accessor fields', () => {
 
   it('allows ColorFields to pass a string color', () => {
     const field = new ColorField('#ff0000', { accessor: true })
-    expect(field.value).toEqual('#ff0000')
-    expect(hexToColor(field.value)).toEqual([255, 0, 0, 255]) // ensure it's a valid color
+    expect(field.value).toEqual('#ff0000ff')
+    expect(hexToColor(field.value)).toEqual([255, 0, 0, 255])
     field.setValue('#00ff00')
-    expect(field.value).toEqual('#00ff00')
+    expect(field.value).toEqual('#00ff00ff')
   })
 
   it('allows ColorFields to pass a callback function', () => {
     const field = new ColorField('#ff0000', { accessor: true })
-    expect(field.value).toEqual('#ff0000')
+    expect(field.value).toEqual('#ff0000ff')
     field.setValue(d => d.color)
     expect(field.value({ color: '#00ff00' })).toEqual('#00ff00')
   })
@@ -828,6 +828,35 @@ describe('Point3DField', () => {
 
   it('defaultValue is correct', () => {
     expect(Point3DField.defaultValue).toEqual({ lng: 0, lat: 0, alt: 0 })
+  })
+})
+
+describe('ColorField', () => {
+  it('creates a field with default color value', () => {
+    const field = new ColorField()
+    expect(field.value).toBe('#0000ffff')
+  })
+
+  it('normalizes 6-char hex to 8-char hex via schema', () => {
+    const field = new ColorField()
+
+    field.setValue('#ff0000')
+    expect(field.value).toBe('#ff0000ff')
+
+    field.setValue('#00ff0080')
+    expect(field.value).toBe('#00ff0080')
+  })
+
+  it('deserializes both old and new formats', () => {
+    expect(ColorField.deserialize('#ff0000')).toBe('#ff0000')
+    expect(ColorField.deserialize('#ff000080')).toBe('#ff000080')
+    expect(ColorField.deserialize([255, 0, 0, 128])).toBe('#ff000080')
+  })
+
+  it('handles loading old project files with 6-char hex', () => {
+    const deserialized = ColorField.deserialize('#00ff00')
+    const field = new ColorField(deserialized)
+    expect(field.value).toBe('#00ff00ff')
   })
 })
 

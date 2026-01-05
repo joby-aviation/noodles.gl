@@ -56,8 +56,8 @@ export function hexToColor(val: string, alpha = true): Color {
   return [r, g, b, a]
 }
 
-export function colorToHex(color: Color, alpha = true): string {
-  return `#${color.map(c => c.toString(16).padStart(2, '0')).join('')}`.slice(0, alpha ? 9 : 7)
+export function colorToHex(color: Color): string {
+  return `#${color.map(c => c.toString(16).padStart(2, '0')).join('')}`.slice(0, 9)
 }
 
 export function hexToRgba(hex: string): Rgba {
@@ -65,5 +65,5 @@ export function hexToRgba(hex: string): Rgba {
 }
 
 export function rgbaToHex(rgba: RGBX): string {
-  return colorToHex(rgbaToColor(rgba, { alpha: false }))
+  return colorToHex(rgbaToColor(rgba, { alpha: true }))
 }

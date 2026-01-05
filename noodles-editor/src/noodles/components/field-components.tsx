@@ -8,8 +8,6 @@ import { Button } from 'primereact/button'
 import { InputText } from 'primereact/inputtext'
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Temporal } from 'temporal-polyfill'
-
-import { colorToHex } from '../../utils/color'
 import {
   type BezierCurveField,
   type BooleanField,
@@ -32,15 +30,15 @@ import {
 } from '../fields'
 import { useFileSystemStore } from '../filesystem-store'
 import type { Edge } from '../noodles'
+import s from '../noodles.module.css'
 import type { IOperator, Operator } from '../operators'
 import { checkAssetExists, writeAsset } from '../storage'
 import { projectScheme } from '../utils/filesystem'
 import { edgeId, type OpId } from '../utils/id-utils'
-import { handleClass } from './op-components'
 import { GeocodingDialog } from './geocoding-dialog'
-
-import s from '../noodles.module.css'
+import { ColorSwatch } from './color-swatch'
 import menuStyles from './menu.module.css'
+import { handleClass } from './op-components'
 
 type InputComponent = React.ComponentType<{
   id: OpId
@@ -1220,11 +1218,12 @@ export function ColorFieldComponent({
     return () => sub.unsubscribe()
   }, [field])
 
-  const onChange = e => {
-    field.setValue(e.currentTarget.value)
-  }
-
-  const formatted = typeof value === 'string' ? value : colorToHex(value, false)
+  const handleColorChange = useCallback(
+    (hexColor: string) => {
+      field.setValue(hexColor)
+    },
+    [field]
+  )
 
   return (
     <div className={s.fieldWrapper}>
@@ -1232,14 +1231,7 @@ export function ColorFieldComponent({
         {id}
       </label>
       <div className={s.fieldInputWrapper}>
-        <input
-          id={id}
-          type="color"
-          className={cx(s.fieldInput, s.fieldInputColor)}
-          value={formatted}
-          onChange={onChange}
-          disabled={disabled}
-        />
+        <ColorSwatch value={value} onChange={handleColorChange} disabled={disabled} />
       </div>
     </div>
   )
