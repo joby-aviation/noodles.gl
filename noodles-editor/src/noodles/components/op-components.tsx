@@ -135,6 +135,7 @@ export const resizeableNodes = [
   'CodeOp',
   'DuckDbOp',
   'JSONOp',
+  'StringOp',
 ] as const
 
 function toPascal(str: string) {
@@ -277,6 +278,16 @@ function HandlePreviewContent({ data, name, type }: { data: unknown; name: strin
           Object.keys(data[0]).length < 10 ? (
           (() => {
             const keys = Object.keys(data[0] || {})
+            // Check if all objects have the same keys
+            const allHaveSameKeys = data.every(
+              row => isPlainObject(row) && Object.keys(row).sort().join(',') === keys.sort().join(',')
+            )
+
+            // If keys are inconsistent, fall back to JSON rendering
+            if (!allHaveSameKeys) {
+              return <ReactJson src={data} theme="twilight" collapsed={1} />
+            }
+
             return (
               <table className={previewStyles.handlePreviewTable}>
                 <thead>
@@ -1067,24 +1078,34 @@ function ViewerOpComponent({
     Object.keys(viewerData[0]).length < 20
   ) {
     const keys = Object.keys(viewerData[0] || {})
-    content = (
-      <table>
-        <thead>
-          <tr>{viewerData.length > 0 && keys.map(key => <th key={key}>{key}</th>)}</tr>
-        </thead>
-        <tbody>
-          {viewerData.map((row, _i) => (
-            <tr key={`${JSON.stringify(row)}`}>
-              {keys.map((key, _j) => (
-                <td key={key}>
-                  {typeof row[key] === 'string' ? row[key] : JSON.stringify(row[key])}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    // Check if all objects have the same keys
+    const allHaveSameKeys = viewerData.every(
+      row => isPlainObject(row) && Object.keys(row).sort().join(',') === keys.sort().join(',')
     )
+
+    // If keys are inconsistent, fall back to JSON rendering
+    if (!allHaveSameKeys) {
+      content = <ReactJson src={viewerData} theme="twilight" />
+    } else {
+      content = (
+        <table>
+          <thead>
+            <tr>{viewerData.length > 0 && keys.map(key => <th key={key}>{key}</th>)}</tr>
+          </thead>
+          <tbody>
+            {viewerData.map((row, _i) => (
+              <tr key={`${JSON.stringify(row)}`}>
+                {keys.map((key, _j) => (
+                  <td key={key}>
+                    {typeof row[key] === 'string' ? row[key] : JSON.stringify(row[key])}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )
+    }
   } else if (viewerData instanceof Operator) {
     content = <ReactJson src={viewerFormatter(viewerData)} theme="twilight" />
   } else if (viewerData instanceof Promise) {

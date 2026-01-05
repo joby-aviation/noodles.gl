@@ -24,6 +24,7 @@ import {
   type NumberField,
   Point2DField,
   Point3DField,
+  StringField,
   StringLiteralField,
   Vec2Field,
   Vec3Field,
@@ -106,6 +107,18 @@ export function TextFieldComponent({
   disabled: boolean
 }) {
   const [value, setValue] = useState(formatText(field.value))
+  const { getNode } = useReactFlow()
+  const nodeId = useNodeId() as string
+  const node = getNode(nodeId)
+  const [nodeHeight, setNodeHeight] = useState(node?.height || 100)
+
+  // Track node height changes
+  useEffect(() => {
+    const currentNode = getNode(nodeId)
+    if (currentNode?.height !== nodeHeight) {
+      setNodeHeight(currentNode?.height || 100)
+    }
+  }, [node?.height, nodeId, getNode, nodeHeight])
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
@@ -140,6 +153,22 @@ export function TextFieldComponent({
           </option>
         ))}
       </select>
+    )
+  } else if (field instanceof StringField && (field.multiline || value.includes('\n'))) {
+    // Calculate height based on node height, accounting for header and padding
+    const textareaHeight = Math.max(60, nodeHeight - 40) // Reserve space for header
+
+    input = (
+      <textarea
+        id={id}
+        className={cx(s.fieldInput, s.fieldTextarea)}
+        title={value}
+        value={value}
+        onBlur={onChange}
+        onChange={onChange}
+        disabled={disabled}
+        style={{ height: `${textareaHeight}px` }}
+      />
     )
   } else {
     input = (
