@@ -92,7 +92,9 @@ const INITIAL_RENDER_STATE = {
   }),
   scaleControl: types.number(0.3, { range: [0, 1] }),
   framerate: types.number(30, { range: [0.001, 1000] }),
-  // TODO: fix render jitter and remove this frame capture delay
+  // Delay after onAfterRender to wait for browser rendering pipeline:
+  // Deck.gl render → GPU flush → canvas paint → pixels ready for capture
+  // This prevents MediaStreamTrackProcessor from hanging on empty frames
   captureDelay: types.number(200, { range: [0, 2000] }),
 }
 
@@ -115,16 +117,8 @@ const DeckGLOverlay = forwardRef<
     })
   }
 
-  // @ts-expect-error private property
-  const deckgl = deck._deck
-  // const gl = deckgl?.props.gl
-
-  useDeckDrawLoop({
-    deck: deckgl,
-    isRendering,
-    rendererConfig: renderer,
-    props,
-  })
+  // Note: MapLibre overlay mode uses mapProps.onIdle for frame capture,
+  // not useDeckDrawLoop. Only pure Deck mode needs the draw loop hook.
 
   // @ts-expect-error private property
   setRef(ref, deck._deck)
@@ -145,7 +139,7 @@ export default function TimelineEditor() {
   const redraw = useCallback(() => {
     console.warn('redraw', mapRef.current, deckRef.current)
     mapRef.current?.redraw()
-    deckRef.current?.redraw()
+    deckRef.current?.redraw('frame-capture')
     setRand(Math.random())
   }, [])
 
@@ -188,6 +182,9 @@ export default function TimelineEditor() {
   const { framerate, bitrateMbps, bitrateMode, codec, resolution, lod, waitForData, captureDelay } =
     renderer
 
+  // Ref to store requestFrame function from draw loop
+  const requestDeckFrameRef = useRef<(() => void) | null>(null)
+
   const { startCapture, captureFrame, currentFrame, isRendering } = useRenderer({
     project,
     sequence: sequence,
@@ -195,6 +192,7 @@ export default function TimelineEditor() {
     bitrate: bitrateMbps * 1_000_000,
     bitrateMode,
     redraw,
+    requestDeckFrameRef,
   })
 
   // If the visualization doesn't supply mapProps, disable basemap.
@@ -206,7 +204,26 @@ export default function TimelineEditor() {
   const lastFrameTimeRef = useRef(Date.now())
   const fpsRef = useRef(0)
 
-  const deckProps: DeckProps = {
+  // Ref to hold the frame capture resolver
+  const frameResolverRef = useRef<((value?: unknown) => void) | null>(null)
+  // Flag to indicate we're waiting for a specific redraw, not just any React re-render
+  const expectingRedrawRef = useRef(false)
+  // Flag to prevent scheduling multiple timeouts per frame
+  const timeoutScheduledRef = useRef(false)
+
+  // Store visualization props in ref to avoid recreating deckProps on every render
+  const visualizationDeckPropsRef = useRef(visualization.deckProps)
+  useEffect(() => {
+    visualizationDeckPropsRef.current = visualization.deckProps
+  }, [visualization.deckProps])
+
+  // Store renderer config in ref
+  const rendererRef = useRef(renderer)
+  useEffect(() => {
+    rendererRef.current = renderer
+  }, [renderer])
+
+  const deckProps: DeckProps = useMemo(() => ({
     deviceProps: {
       type: 'webgl',
       powerPreference: 'high-performance',
@@ -215,13 +232,13 @@ export default function TimelineEditor() {
       },
     },
     useDevicePixels: false,
-    ...visualization.deckProps,
-    onDeviceInitialized: device => {
-      visualization.deckProps?.onDeviceInitialized?.(device)
+    ...visualizationDeckPropsRef.current,
+    onDeviceInitialized: (device: any) => {
+      visualizationDeckPropsRef.current?.onDeviceInitialized?.(device)
       redraw()
     },
     onAfterRender: () => {
-      visualization.deckProps?.onAfterRender?.()
+      visualizationDeckPropsRef.current?.onAfterRender?.()
 
       // Track FPS and stats for Claude AI debugging
       // Use deck.gl's built-in fps metric when available
@@ -241,8 +258,46 @@ export default function TimelineEditor() {
         layerCount: deckRef.current?.layerManager?.getLayers().length || 0,
         timestamp: now,
       }
+
+      // Frame capture logic - integrated directly to avoid being overwritten by React
+      // Only resolve if we're actually expecting a frame from an explicit redraw call
+      // AND we haven't already scheduled a timeout (prevents multiple timeouts per frame)
+      if (isRendering && frameResolverRef.current && expectingRedrawRef.current && !timeoutScheduledRef.current) {
+        const resolver = frameResolverRef.current
+        const isDeckReady = !deckRef.current || deckRef.current.props.layers.every((layer: any) => !layer || (!Array.isArray(layer) && layer.isLoaded))
+
+        // Read current config from ref
+        const currentWaitForData = rendererRef.current.waitForData
+        const currentCaptureDelay = rendererRef.current.captureDelay
+
+        if (currentWaitForData && !isDeckReady) {
+          console.warn('[onAfterRender] Deck not ready for frame capture, waiting for layers to load')
+          return
+        }
+
+        // Mark that we've scheduled a timeout for this frame
+        timeoutScheduledRef.current = true
+
+        setTimeout(() => {
+          console.log('[onAfterRender] Resolving frame capture after delay')
+          // Clear flags BEFORE resolving to prevent next frame from seeing stale state
+          expectingRedrawRef.current = false
+          frameResolverRef.current = null
+          // Note: timeoutScheduledRef NOT cleared here - it stays true until next frame starts
+          // This prevents additional onAfterRender calls (from React re-renders) from
+          // scheduling more timeouts even with captureDelay=0
+          // Resolve last - this continues execution synchronously
+          resolver()
+        }, currentCaptureDelay)
+      }
     },
-  }
+  }), [
+    // Allow updates so Deck.gl receives new layer data
+    // timeoutScheduledRef prevents multiple setTimeout callbacks per frame
+    visualization.deckProps,
+    redraw,
+    isRendering
+  ])
 
   const mapProps: MapProps = {
     interactive: false,
@@ -292,15 +347,20 @@ export default function TimelineEditor() {
   // https://www.theatrejs.com/docs/latest/manual/authoring-extensions
 
   const pureDeckInstance = !basemapEnabled ? deckRef.current : null
+
+  // Stable callback to avoid effect re-runs
+  const handleFrameRequestReady = useCallback((requestFrame: () => void) => {
+    requestDeckFrameRef.current = requestFrame
+  }, [])
+
   useDeckDrawLoop({
     deck: pureDeckInstance,
     isRendering,
     captureFrame,
-    rendererConfig: {
-      waitForData,
-      captureDelay,
-    },
-    props: deckProps,
+    onFrameRequestReady: handleFrameRequestReady,
+    frameResolverRef,
+    expectingRedrawRef,
+    timeoutScheduledRef,
   })
 
   const startRender = useCallback(async () => {

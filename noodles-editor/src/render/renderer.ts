@@ -8,6 +8,7 @@ import {
   StreamTarget,
 } from 'mediabunny'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { waitForGraphSettled } from './graph-settling'
 
 export const rafDriver = createRafDriver({ name: 'WorldView' })
 
@@ -18,6 +19,7 @@ export const useRenderer = ({
   bitrate = 10_000_000, // 10mbps
   bitrateMode,
   redraw,
+  requestDeckFrameRef,
 }: {
   project: IProject
   sequence: ISequence
@@ -25,6 +27,7 @@ export const useRenderer = ({
   bitrate?: number
   bitrateMode: 'variable' | 'constant'
   redraw: () => void
+  requestDeckFrameRef?: React.MutableRefObject<(() => void) | null>
 }) => {
   const [sequenceLength, setSequenceLength] = useState(() => val(sequence.pointer.length))
 
@@ -218,16 +221,42 @@ export const useRenderer = ({
 
       for (; i < endFrame + 1; i++) {
         const simTime = i / fps
+        console.log(`[Frame ${i}] Setting timeline position: ${simTime}`)
+
         sequence.position = simTime
         rafDriver.tick(performance.now())
-        // redraw in case nothing changes due to theatre raf driver
-        // TODO: Where should this go so that the first frame captures?
-        redraw()
+
+        // Wait for reactive graph to settle before rendering
+        // This ensures all operators have finished processing the timeline update
+        // before we capture the frame. Critical for data-driven animations.
+        try {
+          await waitForGraphSettled({ timeout: 5000 })
+          console.log(`[Frame ${i}] Graph settled`)
+        } catch (error) {
+          console.error(`[Frame ${i}] Graph settling timeout -`, error)
+          // Continue to next frame - operator may be stuck, but we shouldn't
+          // hang the entire render. The frame may be incorrect, but it's logged.
+        }
 
         currentFrame.current = i
-        console.log(`capturing frame ${i}/${endFrame} at simtime ${simTime}`)
+        console.log(`[Frame ${i}] Requesting frame capture...`)
 
+        // For pure deck mode, trigger frame capture via callback
+        // For MapLibre mode, trigger redraw
+        // Both modes then await canvasFrameReady() which gets resolved by captureFrame() callback
+        if (requestDeckFrameRef?.current) {
+          console.log(`[Frame ${i}] Calling requestDeckFrameRef.current() (non-blocking)`)
+          requestDeckFrameRef.current() // Don't await - let it run async
+        } else {
+          // MapLibre mode - redraw handled by maplibre's onIdle callback
+          console.log(`[Frame ${i}] Triggering redraw for MapLibre mode`)
+          redraw()
+        }
+
+        console.log(`[Frame ${i}] Waiting for canvas ready...`)
         const canvasResult = await canvasFrameReady()
+
+        console.log(`[Frame ${i}] Canvas ready, capturing frame`)
 
         if (canvasResult?.error) {
           console.error('Error capturing canvas frame:', canvasResult.error)
