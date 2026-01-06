@@ -15,7 +15,7 @@ interface PointWizardToolProps {
 
 export function PointWizardTool({ open, onOpenChange, reactFlowRef }: PointWizardToolProps) {
   const { addNodes, screenToFlowPosition } = useReactFlow()
-  const currentContainerId = useNestingStore((state) => state.currentContainerId)
+  const currentContainerId = useNestingStore(state => state.currentContainerId)
 
   const handleLocationSelected = useCallback(
     ({ longitude, latitude }: { longitude: number; latitude: number }) => {

@@ -98,7 +98,7 @@
 }
 
 /* Only apply hover in mouse mode */
-.blockLibrarySidebar:not([data-input-mode='keyboard']) .blockLibraryCategoryItem:hover {
+.blockLibrarySidebar:not([data-input-mode="keyboard"]) .blockLibraryCategoryItem:hover {
   background-color: rgba(255, 255, 255, 0.05);
 }
 
@@ -157,7 +157,7 @@
 }
 
 /* Only apply hover in mouse mode */
-.blockLibraryContent:not([data-input-mode='keyboard']) .blockLibraryCard:hover {
+.blockLibraryContent:not([data-input-mode="keyboard"]) .blockLibraryCard:hover {
   background-color: rgba(255, 255, 255, 0.06);
   border-color: rgba(255, 255, 255, 0.15);
   transform: translateY(-2px);

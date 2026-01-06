@@ -232,7 +232,6 @@ describe('theatre-bindings', () => {
       cleanup?.()
     })
 
-
     it('should handle vector fields', () => {
       const vec2Field = new Vec2Field([1, 2])
       vec2Field.pathToProps = ['/test-op', 'par', 'vec2']

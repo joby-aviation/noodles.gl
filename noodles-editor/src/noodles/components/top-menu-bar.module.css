@@ -57,7 +57,7 @@
   background: var(--color-bg-active);
 }
 
-.logoButton[data-state='open'] {
+.logoButton[data-state="open"] {
   background: var(--color-bg-active);
 }
 
@@ -254,8 +254,8 @@
 }
 
 /* Add padding for checkbox/radio items to make room for indicator */
-.dropdownItem[data-state='checked'],
-.dropdownItem[data-state='unchecked'] {
+.dropdownItem[data-state="checked"],
+.dropdownItem[data-state="unchecked"] {
   padding-left: 28px;
   position: relative;
 }

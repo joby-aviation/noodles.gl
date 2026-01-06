@@ -390,13 +390,12 @@ export function TopMenuBar({
                             <DropdownMenu.RadioGroup
                               value={layoutMode}
                               onValueChange={value =>
-                                setLayoutMode?.(value as 'split' | 'noodles-on-top' | 'output-on-top')
+                                setLayoutMode?.(
+                                  value as 'split' | 'noodles-on-top' | 'output-on-top'
+                                )
                               }
                             >
-                              <DropdownMenu.RadioItem
-                                className={s.dropdownItem}
-                                value="split"
-                              >
+                              <DropdownMenu.RadioItem className={s.dropdownItem} value="split">
                                 <DropdownMenu.ItemIndicator className={s.itemIndicator}>
                                   <i className="pi pi-check" style={{ fontSize: '12px' }} />
                                 </DropdownMenu.ItemIndicator>

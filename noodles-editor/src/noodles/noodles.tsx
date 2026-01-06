@@ -331,7 +331,11 @@ export function getNoodles(): Visualization {
   }, [theatreReady, theatreSheet, operators])
 
   // Use shared hook for project modifications
-  const { onConnect: onConnectBase, onNodesDelete: onNodesDeleteBase, updateOperatorId } = useProjectModifications({
+  const {
+    onConnect: onConnectBase,
+    onNodesDelete: onNodesDeleteBase,
+    updateOperatorId,
+  } = useProjectModifications({
     getNodes: useCallback(() => nodes, [nodes]),
     getEdges: useCallback(() => edges, [edges]),
     setNodes,

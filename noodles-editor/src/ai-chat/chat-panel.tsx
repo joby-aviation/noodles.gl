@@ -173,7 +173,8 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
           ...prev,
           {
             role: 'assistant',
-            content: 'Authentication Error: Your API key is invalid. Please check your API key in Settings > API Keys.',
+            content:
+              'Authentication Error: Your API key is invalid. Please check your API key in Settings > API Keys.',
           },
         ])
       } else {
@@ -264,8 +265,8 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
         <div className={styles.chatPanelLoading}>
           <h3>Anthropic API Key Required</h3>
           <p>
-            To use the Noodles assistant, you need to configure your Claude API key in Settings
-            (top menu).
+            To use the Noodles assistant, you need to configure your Claude API key in Settings (top
+            menu).
           </p>
           <p>
             Get your API key from{' '}
@@ -274,12 +275,10 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
             </a>
             , then add it in <strong>Settings → API Keys</strong>.
           </p>
-          <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-            <button
-              type="button"
-              onClick={onClose}
-              className={styles.chatSendBtn}
-            >
+          <div
+            style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', justifyContent: 'center' }}
+          >
+            <button type="button" onClick={onClose} className={styles.chatSendBtn}>
               Close
             </button>
           </div>

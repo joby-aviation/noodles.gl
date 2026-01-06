@@ -41,5 +41,13 @@
       "semicolons": "asNeeded",
       "quoteStyle": "single"
     }
+  },
+  "css": {
+    "parser": {
+      "cssModules": true
+    },
+    "formatter": {
+      "enabled": true
+    }
   }
 }

@@ -119,7 +119,7 @@
 .textarea {
   resize: vertical;
   min-height: 80px;
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
 }
 
 .apiKeyMessage {

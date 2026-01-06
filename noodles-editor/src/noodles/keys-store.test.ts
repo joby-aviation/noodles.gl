@@ -381,4 +381,3 @@ describe('getKeysForProject', () => {
     expect(getKeysForProject()).toEqual({})
   })
 })
-

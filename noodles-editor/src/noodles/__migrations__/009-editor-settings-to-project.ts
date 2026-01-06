@@ -70,7 +70,8 @@ export async function down(project: NoodlesProjectJSON): Promise<NoodlesProjectJ
             ...byObject,
             editor: {
               layoutMode: editorSettings?.layoutMode || 'noodles-on-top',
-              showOverlay: editorSettings?.showOverlay !== undefined ? editorSettings.showOverlay : true,
+              showOverlay:
+                editorSettings?.showOverlay !== undefined ? editorSettings.showOverlay : true,
             },
           },
         },

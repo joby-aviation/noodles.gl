@@ -757,7 +757,11 @@ function GeocoderOpComponent({
             ⚠️ {error}
           </div>
         )}
-        <div ref={containerRef} className={s.fieldWrapper} style={{ display: error ? 'none' : 'block' }} />
+        <div
+          ref={containerRef}
+          className={s.fieldWrapper}
+          style={{ display: error ? 'none' : 'block' }}
+        />
         <div className={s.outputHandleContainer}>
           {Object.entries(op.outputs).map(([key, field]) => (
             <OutputHandle key={key} id={key} field={field} />

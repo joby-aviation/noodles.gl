@@ -8,7 +8,15 @@ import { writeAsset } from '../../storage'
 import { projectScheme } from '../../utils/filesystem'
 import { edgeId, nodeId } from '../../utils/id-utils'
 import type { NodeJSON } from '@xyflow/react'
-import type { OpType, AccessorOp, BoundingBoxOp, DeckRendererOp, FileOp, MaplibreBasemapOp, ScatterplotLayerOp } from '../../operators'
+import type {
+  OpType,
+  AccessorOp,
+  BoundingBoxOp,
+  DeckRendererOp,
+  FileOp,
+  MaplibreBasemapOp,
+  ScatterplotLayerOp,
+} from '../../operators'
 import type { Edge } from '../../noodles'
 import s from './data-importer-tool.module.css'
 
@@ -121,70 +129,76 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
   const [error, setError] = useState<string | null>(null)
   const [isImporting, setIsImporting] = useState(false)
 
-  const handleFileImport = useCallback(async (file: File) => {
-    setError(null)
-    setIsImporting(true)
-
-    try {
-      // Get current project and storage type
-      const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
-      if (!currentProjectName) {
-        throw new Error('No project loaded. Please save or load a project first.')
-      }
-
-      // Read file contents and write to project's data directory
-      const contents = await file.text()
-      const result = await writeAsset(activeStorageType, currentProjectName, file.name, contents)
-
-      if (!result.success) {
-        throw new Error(result.error?.message || `Failed to write file: ${file.name}`)
-      }
-
-      console.log('File imported:', file.name)
-      const type = file.type.includes('csv') ? 'csv' : 'json'
-
-      // Position nodes at center of viewport (same as block library)
-      const pane = reactFlowRef.current?.getBoundingClientRect()
-      if (!pane) return
-
-      const basePosition = screenToFlowPosition({
-        x: pane.left + pane.width / 2,
-        y: pane.top + pane.height / 2,
-      })
-
-      const { nodes, edges } = createFileDropNodes(projectScheme + file.name, type, basePosition)
-
-      addNodes(nodes)
-      addEdges(edges)
-
-      analytics.track('data_imported', {
-        source: 'tools_shelf',
-        format: type,
-      })
-
-      // Close dialog on success
-      onOpenChange(false)
+  const handleFileImport = useCallback(
+    async (file: File) => {
       setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to import file')
-    } finally {
-      setIsImporting(false)
-    }
-  }, [addNodes, addEdges, screenToFlowPosition, reactFlowRef, onOpenChange])
+      setIsImporting(true)
 
-  const handleFileSelect = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files
-    if (!files || files.length === 0) return
+      try {
+        // Get current project and storage type
+        const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
+        if (!currentProjectName) {
+          throw new Error('No project loaded. Please save or load a project first.')
+        }
 
-    for (const file of Array.from(files)) {
-      await handleFileImport(file)
-    }
+        // Read file contents and write to project's data directory
+        const contents = await file.text()
+        const result = await writeAsset(activeStorageType, currentProjectName, file.name, contents)
 
-    // Reset file input so the same file can be selected again
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
-    }
-  }, [handleFileImport])
+        if (!result.success) {
+          throw new Error(result.error?.message || `Failed to write file: ${file.name}`)
+        }
+
+        console.log('File imported:', file.name)
+        const type = file.type.includes('csv') ? 'csv' : 'json'
+
+        // Position nodes at center of viewport (same as block library)
+        const pane = reactFlowRef.current?.getBoundingClientRect()
+        if (!pane) return
+
+        const basePosition = screenToFlowPosition({
+          x: pane.left + pane.width / 2,
+          y: pane.top + pane.height / 2,
+        })
+
+        const { nodes, edges } = createFileDropNodes(projectScheme + file.name, type, basePosition)
+
+        addNodes(nodes)
+        addEdges(edges)
+
+        analytics.track('data_imported', {
+          source: 'tools_shelf',
+          format: type,
+        })
+
+        // Close dialog on success
+        onOpenChange(false)
+        setError(null)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to import file')
+      } finally {
+        setIsImporting(false)
+      }
+    },
+    [addNodes, addEdges, screenToFlowPosition, reactFlowRef, onOpenChange]
+  )
+
+  const handleFileSelect = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const files = event.target.files
+      if (!files || files.length === 0) return
+
+      for (const file of Array.from(files)) {
+        await handleFileImport(file)
+      }
+
+      // Reset file input so the same file can be selected again
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    },
+    [handleFileImport]
+  )
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -203,18 +217,21 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
     e.stopPropagation()
   }, [])
 
-  const handleDrop = useCallback(async (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDragging(false)
+  const handleDrop = useCallback(
+    async (e: React.DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setIsDragging(false)
 
-    const files = e.dataTransfer.files
-    if (!files || files.length === 0) return
+      const files = e.dataTransfer.files
+      if (!files || files.length === 0) return
 
-    for (const file of Array.from(files)) {
-      await handleFileImport(file)
-    }
-  }, [handleFileImport])
+      for (const file of Array.from(files)) {
+        await handleFileImport(file)
+      }
+    },
+    [handleFileImport]
+  )
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -244,9 +261,7 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
 
             <div className={s.dropZoneContent}>
               <i className={`pi pi-cloud-upload ${s.uploadIcon}`} />
-              <div className={s.dropZoneText}>
-                Drag and drop files here
-              </div>
+              <div className={s.dropZoneText}>Drag and drop files here</div>
               <div className={s.dropZoneSubtext}>or</div>
               <button
                 type="button"
@@ -256,9 +271,7 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
               >
                 Browse Files
               </button>
-              <div className={s.dropZoneHint}>
-                Supports CSV and JSON files
-              </div>
+              <div className={s.dropZoneHint}>Supports CSV and JSON files</div>
             </div>
           </div>
 

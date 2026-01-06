@@ -434,12 +434,7 @@
                       "id": "xHJJWLB41a",
                       "position": 0,
                       "connectedRight": true,
-                      "handles": [
-                        0.5,
-                        1,
-                        0.5,
-                        0
-                      ],
+                      "handles": [0.5, 1, 0.5, 0],
                       "type": "bezier",
                       "value": 1567555200
                     },
@@ -447,12 +442,7 @@
                       "id": "0XrkIwvDZr",
                       "position": 2.967,
                       "connectedRight": true,
-                      "handles": [
-                        0.5,
-                        1,
-                        0.5,
-                        0
-                      ],
+                      "handles": [0.5, 1, 0.5, 0],
                       "type": "bezier",
                       "value": 1567561720
                     }

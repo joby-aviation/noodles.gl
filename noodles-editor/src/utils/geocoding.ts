@@ -82,7 +82,7 @@ export async function loadGoogleMapsAPI(apiKey: string): Promise<void> {
     })
 
     import(/* @vite-ignore */ `https://maps.googleapis.com/maps/api/js?${params.toString()}`).catch(
-      (error) => {
+      error => {
         loadingApiKey = null
         reject(error)
       }
@@ -110,9 +110,8 @@ export async function geocodeWithGooglePlaces(query: string): Promise<GeocodingR
   }
 
   try {
-    const { suggestions } = await google.maps.places.AutocompleteSuggestion.fetchAutocompleteSuggestions(
-      request
-    )
+    const { suggestions } =
+      await google.maps.places.AutocompleteSuggestion.fetchAutocompleteSuggestions(request)
 
     if (!suggestions || suggestions.length === 0) {
       return []
@@ -160,17 +159,14 @@ export async function geocodeWithGooglePlaces(query: string): Promise<GeocodingR
 }
 
 // Geocode using Mapbox Geocoding API
-export async function geocodeWithMapbox(
-  query: string,
-  apiKey: string
-): Promise<GeocodingResult[]> {
+export async function geocodeWithMapbox(query: string, apiKey: string): Promise<GeocodingResult[]> {
   try {
     const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${apiKey}&limit=5`
     const response = await fetch(url)
     const data: MapboxGeocodingResponse = await response.json()
 
     if (data.features) {
-      return data.features.map((feature) => ({
+      return data.features.map(feature => ({
         place_name: feature.place_name,
         coordinates: {
           longitude: feature.center[0],
@@ -193,7 +189,7 @@ export async function geocodeWithPhoton(query: string): Promise<GeocodingResult[
     const data: PhotonGeocodingResponse = await response.json()
 
     if (data.features) {
-      return data.features.map((feature) => ({
+      return data.features.map(feature => ({
         place_name: feature.properties.name || feature.properties.street || 'Unknown location',
         coordinates: {
           longitude: feature.geometry.coordinates[0],

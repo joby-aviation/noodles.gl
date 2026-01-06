@@ -4,7 +4,13 @@ import { CodeField, ColorField, NumberField } from '../fields'
 import { NumberOp, ScenegraphLayerOp, TableEditorOp } from '../operators'
 import { clearOps, getOpStore, setOp } from '../store'
 import { edgeId } from './id-utils'
-import { NOODLES_VERSION, safeStringify, saveProjectLocally, serializeEdges, serializeNodes } from './serialization'
+import {
+  NOODLES_VERSION,
+  safeStringify,
+  saveProjectLocally,
+  serializeEdges,
+  serializeNodes,
+} from './serialization'
 
 describe('safeStringify', () => {
   it('serializes a basic object correctly', () => {
@@ -403,8 +409,12 @@ describe('saveProjectLocally', () => {
 
     // Mock DOM APIs
     createElementSpy = vi.spyOn(document, 'createElement').mockReturnValue(mockAnchorElement)
-    appendChildSpy = vi.spyOn(document.body, 'appendChild').mockImplementation(() => mockAnchorElement)
-    removeChildSpy = vi.spyOn(document.body, 'removeChild').mockImplementation(() => mockAnchorElement)
+    appendChildSpy = vi
+      .spyOn(document.body, 'appendChild')
+      .mockImplementation(() => mockAnchorElement)
+    removeChildSpy = vi
+      .spyOn(document.body, 'removeChild')
+      .mockImplementation(() => mockAnchorElement)
 
     // Mock URL APIs
     vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock-url')

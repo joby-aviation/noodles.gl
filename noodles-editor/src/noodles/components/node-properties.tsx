@@ -213,7 +213,11 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
         </div>
       </div>
       {description && (
-        <div className={cx(s.descriptionSection, { [s.descriptionSectionWithButton]: isTruncated || isDescriptionExpanded })}>
+        <div
+          className={cx(s.descriptionSection, {
+            [s.descriptionSectionWithButton]: isTruncated || isDescriptionExpanded,
+          })}
+        >
           <div
             ref={descriptionRef}
             className={cx(s.description, { [s.descriptionExpanded]: isDescriptionExpanded })}

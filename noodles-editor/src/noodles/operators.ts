@@ -2623,8 +2623,8 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
       maplibre: {
         mapStyle,
         projection,
-        ...viewState
-      }
+        ...viewState,
+      },
     }
   }
 }

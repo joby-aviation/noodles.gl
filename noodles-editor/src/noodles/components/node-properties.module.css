@@ -286,7 +286,9 @@
   font-weight: 500;
   font-size: 11px;
   opacity: 0;
-  transition: opacity 0.2s, transform 0.2s;
+  transition:
+    opacity 0.2s,
+    transform 0.2s;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   /* Position above the tooltip icon by default */
   bottom: 125%;
@@ -335,8 +337,8 @@
   will-change: transform, opacity;
 }
 
-.tooltipContent[data-state='delayed-open'][data-side='bottom'],
-.tooltipContent[data-state='instant-open'][data-side='bottom'] {
+.tooltipContent[data-state="delayed-open"][data-side="bottom"],
+.tooltipContent[data-state="instant-open"][data-side="bottom"] {
   animation-name: slideUpAndFade;
 }
 

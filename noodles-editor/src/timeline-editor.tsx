@@ -150,15 +150,8 @@ export default function TimelineEditor() {
   }, [])
 
   const noodles = getNoodles()
-  const {
-    project,
-    sheet,
-    flowGraph,
-    nodeSidebar,
-    propertiesPanel,
-    layoutMode,
-    ...visualization
-  } = noodles
+  const { project, sheet, flowGraph, nodeSidebar, propertiesPanel, layoutMode, ...visualization } =
+    noodles
   const sequence = sheet.sequence
 
   useEffect(() => {

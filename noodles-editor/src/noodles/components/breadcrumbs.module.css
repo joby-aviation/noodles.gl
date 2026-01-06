@@ -44,7 +44,9 @@
   border: 1px solid var(--color-border);
   border-radius: 6px;
   padding: 4px;
-  box-shadow: 0 10px 38px -10px rgba(0, 0, 0, 0.35), 0 10px 20px -15px rgba(0, 0, 0, 0.2);
+  box-shadow:
+    0 10px 38px -10px rgba(0, 0, 0, 0.35),
+    0 10px 20px -15px rgba(0, 0, 0, 0.2);
 }
 
 .menuItem {

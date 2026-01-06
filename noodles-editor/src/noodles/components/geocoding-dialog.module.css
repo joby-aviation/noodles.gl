@@ -170,7 +170,7 @@
 
 .coordinateDisplay {
   font-size: 0.875rem;
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
   color: var(--color-text-secondary);
   padding: 0.5rem 0.75rem;
   background-color: rgba(255, 255, 255, 0.03);
