@@ -14,6 +14,7 @@ vi.mock('./utils/filesystem', () => ({
   getOPFSRoot: vi.fn(),
   selectDirectory: vi.fn(),
   readFileFromDirectory: vi.fn(),
+  readFileFromDirectoryBinary: vi.fn(),
   writeFileToDirectory: vi.fn(),
   fileExists: vi.fn(),
   directoryExists: vi.fn(),
@@ -34,7 +35,7 @@ vi.mock('./utils/directory-handle-cache', () => ({
 }))
 
 // Import after mocks are set up
-import { checkAssetExists, readAsset } from './storage'
+import { checkAssetExists, readAsset, readAssetBinary } from './storage'
 import { directoryHandleCache } from './utils/directory-handle-cache'
 import * as filesystem from './utils/filesystem'
 
@@ -449,6 +450,105 @@ describe('storage.ts', () => {
         const exists = await checkAssetExists('fileSystemAccess', 'test-project', 'missing.csv')
 
         expect(exists).toBe(false)
+      })
+    })
+  })
+
+  describe('readAssetBinary', () => {
+    describe('publicFolder storage type', () => {
+      it('returns error when binary asset not found in URL map', async () => {
+        // For public folder projects, if the asset isn't in the exampleAssetUrls map,
+        // it returns a not-found error before even trying to fetch
+        const result = await readAssetBinary('publicFolder', 'test-project', 'missing.bin')
+
+        expect(result.success).toBe(false)
+        if (!result.success) {
+          expect(result.error.type).toBe('not-found')
+          expect(result.error.message).toContain('Asset not found')
+        }
+      })
+    })
+
+    describe('fileSystemAccess storage type', () => {
+      it('reads binary asset from filesystem', async () => {
+        const mockHandle = createMockDirectoryHandle('test-project')
+        const binaryData = new ArrayBuffer(8)
+        const view = new Uint8Array(binaryData)
+        view.set([1, 2, 3, 4, 5, 6, 7, 8])
+
+        vi.mocked(directoryHandleCache.getCachedHandle).mockResolvedValue({
+          projectName: 'test-project',
+          handle: mockHandle,
+          path: '/test-project',
+          cachedAt: Date.now(),
+        })
+
+        vi.mocked(directoryHandleCache.validateHandle).mockResolvedValue(true)
+        vi.mocked(filesystem.requestPermission).mockResolvedValue(true)
+        vi.mocked(filesystem.directoryExists).mockResolvedValue(true)
+        vi.mocked(filesystem.readFileFromDirectoryBinary).mockResolvedValue(binaryData)
+
+        const result = await readAssetBinary('fileSystemAccess', 'test-project', 'data.bin')
+
+        expect(result.success).toBe(true)
+        if (result.success) {
+          expect(result.data).toBe(binaryData)
+          expect(result.data).toBeInstanceOf(ArrayBuffer)
+        }
+
+        expect(filesystem.readFileFromDirectoryBinary).toHaveBeenCalledWith(
+          expect.anything(),
+          'data.bin'
+        )
+      })
+
+      it('strips data/ prefix when reading binary files', async () => {
+        const mockHandle = createMockDirectoryHandle('test-project')
+        const binaryData = new ArrayBuffer(4)
+
+        vi.mocked(directoryHandleCache.getCachedHandle).mockResolvedValue({
+          projectName: 'test-project',
+          handle: mockHandle,
+          path: '/test-project',
+          cachedAt: Date.now(),
+        })
+
+        vi.mocked(directoryHandleCache.validateHandle).mockResolvedValue(true)
+        vi.mocked(filesystem.requestPermission).mockResolvedValue(true)
+        vi.mocked(filesystem.directoryExists).mockResolvedValue(true)
+        vi.mocked(filesystem.readFileFromDirectoryBinary).mockResolvedValue(binaryData)
+
+        const result = await readAssetBinary('fileSystemAccess', 'test-project', 'data/image.jpg')
+
+        expect(result.success).toBe(true)
+
+        // Verify that readFileFromDirectoryBinary was called with stripped filename
+        expect(filesystem.readFileFromDirectoryBinary).toHaveBeenCalledWith(
+          expect.anything(),
+          'image.jpg' // stripped filename without 'data/' prefix
+        )
+      })
+    })
+
+    describe('opfs storage type', () => {
+      it('reads binary asset from OPFS', async () => {
+        const mockRoot = createMockDirectoryHandle('root')
+        const mockProjectDir = createMockDirectoryHandle('test-project')
+        const binaryData = new ArrayBuffer(16)
+
+        vi.mocked(filesystem.getOPFSRoot).mockResolvedValue(mockRoot)
+        mockRoot.getDirectoryHandle = vi.fn().mockResolvedValue(mockProjectDir)
+
+        vi.mocked(filesystem.directoryExists).mockResolvedValue(true)
+        vi.mocked(filesystem.readFileFromDirectoryBinary).mockResolvedValue(binaryData)
+
+        const result = await readAssetBinary('opfs', 'test-project', 'data.dat')
+
+        expect(result.success).toBe(true)
+        if (result.success) {
+          expect(result.data).toBe(binaryData)
+          expect(result.data).toBeInstanceOf(ArrayBuffer)
+        }
       })
     })
   })

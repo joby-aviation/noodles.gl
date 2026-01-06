@@ -5,6 +5,7 @@ import {
   fileExists,
   getOPFSRoot,
   readFileFromDirectory,
+  readFileFromDirectoryBinary,
   requestPermission,
   selectDirectory,
   writeFileToDirectory,
@@ -406,6 +407,91 @@ export async function readAsset(
     return {
       success: false,
       error: handleError(error, 'read asset file'),
+    }
+  }
+}
+
+// Read a binary asset file from a project's data directory or from public folder
+export async function readAssetBinary(
+  type: StorageType,
+  projectName: string,
+  fileName: string
+): Promise<FileSystemResult<ArrayBuffer>> {
+  // For public folder projects, fetch from asset URLs
+  if (type === 'publicFolder') {
+    try {
+      // Build the key that import.meta.glob uses: '../examples/project-name/file.ext'
+      const assetKey = `../examples/${projectName}/${fileName}`
+      const url = exampleAssetUrls[assetKey]
+
+      if (!url) {
+        return {
+          success: false,
+          error: {
+            type: 'not-found',
+            message: `Asset not found: ${fileName}`,
+            details: `Path: examples/${projectName}/${fileName}`,
+          },
+        }
+      }
+
+      // Fetch the file contents from the URL as binary
+      const response = await fetch(url)
+      if (!response.ok) {
+        return {
+          success: false,
+          error: {
+            type: 'not-found',
+            message: `Asset not found: ${fileName}`,
+            details: `Path: ${url}`,
+          },
+        }
+      }
+
+      const contents = await response.arrayBuffer()
+      return {
+        success: true,
+        data: contents,
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: handleError(error, 'read binary asset file from public folder'),
+      }
+    }
+  }
+
+  // For filesystem-based storage types (fileSystemAccess or opfs)
+  // Try to get directory handle, prompting user if not found in cache
+  const projectDirectory = await getProjectDirectoryHandle(type, projectName, true)
+  if (!projectDirectory.success) {
+    return projectDirectory
+  }
+
+  try {
+    const hasDataDir = await directoryExists(projectDirectory.data, DATA_DIRECTORY_NAME)
+    if (!hasDataDir) {
+      return {
+        success: false,
+        error: {
+          type: 'not-found',
+          message: 'Data directory not found',
+        },
+      }
+    }
+
+    const dataDirectory = await projectDirectory.data.getDirectoryHandle(DATA_DIRECTORY_NAME)
+    const filenameWithoutDir = fileName.replace(/^data\//, '') // Remove data/ prefix if present
+    const contents = await readFileFromDirectoryBinary(dataDirectory, filenameWithoutDir)
+
+    return {
+      success: true,
+      data: contents,
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: handleError(error, 'read binary asset file'),
     }
   }
 }
