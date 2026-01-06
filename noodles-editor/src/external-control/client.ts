@@ -1,4 +1,4 @@
-//
+
 // Reference client implementation for external control
 // This can be used by external tools like Claude Code to control Noodles
 
@@ -37,8 +37,7 @@ export interface PipelineSpec {
   }>
 }
 
-// 
- * Noodles External Control Client
+/** Noodles External Control Client
  *
  * Example usage:
  * ```javascript

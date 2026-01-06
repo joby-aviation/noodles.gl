@@ -1,4 +1,4 @@
-//
+
 // External Control Component
 // React component to initialize and manage external control
 
@@ -16,8 +16,7 @@ export interface ExternalControlProps {
   onError?: (error: Error) => void
 }
 
-// 
- * External Control Provider Component
+/** External Control Provider Component
  * Initializes the external control system when mounted
  */
 export const ExternalControlProvider: React.FC<ExternalControlProps> = ({

@@ -64,8 +64,7 @@ export interface Screenshot {
   height: number
 }
 
-// 
- * Main external control API class
+/** Main external control API class
  */
 export class ExternalControl {
   private config: ExternalControlConfig

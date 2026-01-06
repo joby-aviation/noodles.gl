@@ -1,4 +1,4 @@
-//
+
 // Tool adapter for exposing MCP tools to external control
 // Provides a unified interface for tool execution
 
@@ -29,8 +29,7 @@ export interface ToolExecutionResult {
   executionTime: number
 }
 
-// 
- * Registry of available tools for external control
+/** Registry of available tools for external control
  */
 export class ToolRegistry {
   private tools = new Map<string, ToolDefinition>()

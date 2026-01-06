@@ -1,4 +1,4 @@
-//
+
 // Web Worker for handling WebSocket connections to external tools
 // Runs in a separate thread to avoid blocking the main UI
 
@@ -28,15 +28,13 @@ const CONFIG = {
   defaultHost: 'localhost',
 }
 
-// 
- * Send message to main thread
+/** Send message to main thread
  */
 const postToMain = (message: Message) => {
   self.postMessage(message)
 }
 
-// 
- * Send message to WebSocket
+/** Send message to WebSocket
  */
 const sendToWebSocket = (message: Message) => {
   if (ws && ws.readyState === WebSocket.OPEN) {
@@ -46,8 +44,7 @@ const sendToWebSocket = (message: Message) => {
   return false
 }
 
-// 
- * Handle connection to WebSocket server
+/** Handle connection to WebSocket server
  */
 const connect = (url: string) => {
   // Clean up existing connection
@@ -131,8 +128,7 @@ const connect = (url: string) => {
   }
 }
 
-// 
- * Disconnect from WebSocket
+/** Disconnect from WebSocket
  */
 const disconnect = () => {
   if (reconnectTimer) {
@@ -155,8 +151,7 @@ const disconnect = () => {
   matcher.clear()
 }
 
-// 
- * Schedule reconnection attempt
+/** Schedule reconnection attempt
  */
 const scheduleReconnect = (url: string) => {
   if (reconnectTimer) return
@@ -168,8 +163,7 @@ const scheduleReconnect = (url: string) => {
   }, CONFIG.reconnectDelay) as unknown as number
 }
 
-// 
- * Handle messages from main thread
+/** Handle messages from main thread
  */
 self.onmessage = async (event: MessageEvent) => {
   const message = event.data as Message

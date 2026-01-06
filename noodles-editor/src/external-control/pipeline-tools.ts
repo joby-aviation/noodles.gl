@@ -1,4 +1,4 @@
-//
+
 // Pipeline-specific tools for automated data pipeline creation and testing
 
 
@@ -57,8 +57,7 @@ export interface ValidationResult {
   }>
 }
 
-// 
- * Pipeline manager for creating and managing data pipelines
+/** Pipeline manager for creating and managing data pipelines
  */
 export class PipelineManager {
   private pipelines = new Map<string, PipelineHandle>()
