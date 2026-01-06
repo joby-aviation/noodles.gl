@@ -16,27 +16,34 @@ describe('safeStringify', () => {
   it('serializes a basic object correctly', () => {
     const obj = { a: 1, b: 'text', c: true }
     const result = safeStringify(obj)
-    expect(result).toEqual(JSON.stringify(obj, null, 2))
+    expect(result).toEqual(JSON.stringify(obj, null, 2) + '\n')
+  })
+
+  it('ensures output ends with a newline', () => {
+    const obj = { test: 'value' }
+    const result = safeStringify(obj)
+    expect(result.endsWith('\n')).toBe(true)
+    expect(result).toEqual(JSON.stringify(obj, null, 2) + '\n')
   })
 
   it('removes circular references', () => {
     const obj = { name: 'A' } as Record<string, unknown>
     obj.self = obj
     const result = safeStringify(obj)
-    expect(result).toEqual('{\n  "name": "A"\n}')
+    expect(result).toEqual('{\n  "name": "A"\n}\n')
   })
 
   it('removes functions', () => {
     const obj = { a: 1, fn: () => {} }
     const result = safeStringify(obj)
-    expect(result).toEqual('{\n  "a": 1\n}')
+    expect(result).toEqual('{\n  "a": 1\n}\n')
   })
 
   it('handles nested objects with circular references', () => {
     const obj = { a: { b: {} } } as Record<string, unknown>
     obj.a.b.c = obj.a
     const result = safeStringify(obj)
-    expect(result).toEqual('{\n  "a": {\n    "b": {}\n  }\n}')
+    expect(result).toEqual('{\n  "a": {\n    "b": {}\n  }\n}\n')
   })
 
   it('handles arrays with circular references', () => {
