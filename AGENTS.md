@@ -520,7 +520,7 @@ getOpStore().batch(() => {
 - Use DuckDB for large dataset queries
 - Profile bottlenecks with execution tracing
 
-See [developing.md](dev-docs/developing.md#best-practices) for complete best practices.
+See [developing.md](dev-docs/developing.md#best-practices) for complete best practices (2 spaces, no semicolons, single quotes).
 
 ## Common Patterns
 
