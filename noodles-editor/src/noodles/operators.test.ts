@@ -1,5 +1,5 @@
 import { Temporal } from 'temporal-polyfill'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NumberField } from './fields'
 import {
   AccessorOp,
@@ -9,6 +9,7 @@ import {
   DeckRendererOp,
   DuckDbOp,
   ExpressionOp,
+  FileOp,
   FilterOp,
   GeoJsonTransformOp,
   JSONOp,
@@ -1621,5 +1622,247 @@ describe('KmlToGeoJsonOp', () => {
     expect(result.geojson.features).toHaveLength(1)
     expect(result.geojson.features[0].geometry.type).toBe('Point')
     expect(result.geojson.features[0].properties?.name).toBe('Test Point')
+  })
+})
+
+describe('FileOp', () => {
+  // Mock fetch for testing
+  const originalFetch = global.fetch
+  beforeEach(() => {
+    vi.resetAllMocks()
+  })
+
+  afterEach(() => {
+    global.fetch = originalFetch
+  })
+
+  describe('JSON format', () => {
+    it('should parse JSON from text input', async () => {
+      const operator = new FileOp('/file-0')
+      const testData = { test: 'data', value: 123 }
+      const result = await operator.execute({
+        format: 'json',
+        url: '',
+        text: JSON.stringify(testData),
+        autoType: true,
+        pulse: 0,
+      })
+      expect(result.data).toEqual(testData)
+    })
+
+    it('should fetch and parse JSON from URL', async () => {
+      const operator = new FileOp('/file-1')
+      const testData = { test: 'remote', value: 456 }
+      global.fetch = vi.fn().mockResolvedValue({
+        json: () => Promise.resolve(testData),
+      })
+
+      const result = await operator.execute({
+        format: 'json',
+        url: 'https://example.com/data.json',
+        text: '',
+        autoType: true,
+        pulse: 0,
+      })
+      expect(result.data).toEqual(testData)
+      expect(global.fetch).toHaveBeenCalledWith('https://example.com/data.json')
+    })
+
+    it('should throw error for invalid JSON', async () => {
+      const operator = new FileOp('/file-2')
+      await expect(
+        operator.execute({
+          format: 'json',
+          url: '',
+          text: 'invalid json',
+          autoType: true,
+          pulse: 0,
+        })
+      ).rejects.toThrow()
+    })
+  })
+
+  describe('CSV format', () => {
+    it('should parse CSV from text input', async () => {
+      const operator = new FileOp('/file-3')
+      const csvText = 'name,value\nJohn,30\nJane,25'
+      const result = await operator.execute({
+        format: 'csv',
+        url: '',
+        text: csvText,
+        autoType: true,
+        pulse: 0,
+      })
+      // DSVRowArray is an array with extra properties, check the actual content
+      expect(result.data).toHaveLength(2)
+      expect(result.data[0]).toEqual({ name: 'John', value: 30 })
+      expect(result.data[1]).toEqual({ name: 'Jane', value: 25 })
+    })
+
+    it('should parse CSV without autoType', async () => {
+      const operator = new FileOp('/file-4')
+      const csvText = 'name,value\nJohn,30\nJane,25'
+      const result = await operator.execute({
+        format: 'csv',
+        url: '',
+        text: csvText,
+        autoType: false,
+        pulse: 0,
+      })
+      // DSVRowArray is an array with extra properties, check the actual content
+      expect(result.data).toHaveLength(2)
+      expect(result.data[0]).toEqual({ name: 'John', value: '30' })
+      expect(result.data[1]).toEqual({ name: 'Jane', value: '25' })
+    })
+  })
+
+  describe('Text format', () => {
+    it('should return text from text input', async () => {
+      const operator = new FileOp('/file-5')
+      const textContent = 'This is plain text content\nwith multiple lines'
+      const result = await operator.execute({
+        format: 'text',
+        url: '',
+        text: textContent,
+        autoType: true,
+        pulse: 0,
+      })
+      expect(result.data).toEqual(textContent)
+    })
+
+    it('should fetch text from URL', async () => {
+      const operator = new FileOp('/file-6')
+      const textContent = 'Remote text content'
+      global.fetch = vi.fn().mockResolvedValue({
+        text: () => Promise.resolve(textContent),
+      })
+
+      const result = await operator.execute({
+        format: 'text',
+        url: 'https://example.com/file.txt',
+        text: '',
+        autoType: true,
+        pulse: 0,
+      })
+      expect(result.data).toEqual(textContent)
+      expect(global.fetch).toHaveBeenCalledWith('https://example.com/file.txt')
+    })
+
+    it('should return empty string when no input provided', async () => {
+      const operator = new FileOp('/file-7')
+      const result = await operator.execute({
+        format: 'text',
+        url: '',
+        text: '',
+        autoType: true,
+        pulse: 0,
+      })
+      expect(result.data).toEqual('')
+    })
+  })
+
+  describe('Binary format', () => {
+    it('should convert text input to Uint8Array', async () => {
+      const operator = new FileOp('/file-8')
+      const textContent = 'Binary data as text'
+      const result = await operator.execute({
+        format: 'binary',
+        url: '',
+        text: textContent,
+        autoType: true,
+        pulse: 0,
+      })
+
+      // Result should be a Uint8Array
+      expect(result.data).toBeInstanceOf(Uint8Array)
+
+      // Convert back to string to verify
+      const decoder = new TextDecoder()
+      expect(decoder.decode(result.data as Uint8Array)).toEqual(textContent)
+    })
+
+    it('should fetch binary data from URL', async () => {
+      const operator = new FileOp('/file-9')
+      const binaryData = new ArrayBuffer(8)
+      const view = new Uint8Array(binaryData)
+      view.set([1, 2, 3, 4, 5, 6, 7, 8])
+
+      global.fetch = vi.fn().mockResolvedValue({
+        arrayBuffer: () => Promise.resolve(binaryData),
+      })
+
+      const result = await operator.execute({
+        format: 'binary',
+        url: 'https://example.com/file.bin',
+        text: '',
+        autoType: true,
+        pulse: 0,
+      })
+
+      expect(result.data).toEqual(binaryData)
+      expect(global.fetch).toHaveBeenCalledWith('https://example.com/file.bin')
+    })
+
+    it('should return empty Uint8Array when no input provided', async () => {
+      const operator = new FileOp('/file-10')
+      const result = await operator.execute({
+        format: 'binary',
+        url: '',
+        text: '',
+        autoType: true,
+        pulse: 0,
+      })
+
+      expect(result.data).toBeInstanceOf(Uint8Array)
+      expect((result.data as Uint8Array).length).toEqual(0)
+    })
+
+    it('should handle UTF-8 encoded text in binary format', async () => {
+      const operator = new FileOp('/file-11')
+      const textWithEmoji = 'Hello 👋 World'
+      const result = await operator.execute({
+        format: 'binary',
+        url: '',
+        text: textWithEmoji,
+        autoType: true,
+        pulse: 0,
+      })
+
+      expect(result.data).toBeInstanceOf(Uint8Array)
+
+      // Decode and verify
+      const decoder = new TextDecoder()
+      expect(decoder.decode(result.data as Uint8Array)).toEqual(textWithEmoji)
+    })
+  })
+
+  describe('Error handling', () => {
+    it('should throw error with descriptive message on fetch failure', async () => {
+      const operator = new FileOp('/file-12')
+      global.fetch = vi.fn().mockRejectedValue(new Error('Network error'))
+
+      await expect(
+        operator.execute({
+          format: 'json',
+          url: 'https://example.com/data.json',
+          text: '',
+          autoType: true,
+          pulse: 0,
+        })
+      ).rejects.toThrow('Unable to read file "https://example.com/data.json": Network error')
+    })
+
+    it('should throw error for unsupported format', async () => {
+      const operator = new FileOp('/file-13')
+      await expect(
+        operator.execute({
+          format: 'unsupported' as any,
+          url: '',
+          text: 'test',
+          autoType: true,
+          pulse: 0,
+        })
+      ).rejects.toThrow('Unsupported format: unsupported')
+    })
   })
 })

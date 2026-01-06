@@ -1223,11 +1223,11 @@ export class BezierCurveOp extends Operator<BezierCurveOp> {
 
 export class FileOp extends Operator<FileOp> {
   static displayName = 'File'
-  static description = 'Fetch a file from a URL or text. Supports csv and json'
+  static description = 'Fetch a file from a URL or text. Supports csv, json, text, and binary formats'
   asDownload = () => this.outputData
   createInputs() {
     return {
-      format: new StringLiteralField('json', { values: ['json', 'csv'] }),
+      format: new StringLiteralField('json', { values: ['json', 'csv', 'text', 'binary'] }),
       url: new FileField(),
       text: new StringField(),
       autoType: new BooleanField(true), // TODO: Make this only available for csv
@@ -1298,6 +1298,68 @@ export class FileOp extends Operator<FileOp> {
         }
         return { data }
       }
+      if (format === 'text') {
+        let data = ''
+        if (url?.startsWith(projectScheme)) {
+          // Lazy imports to avoid circular dependency
+          const { readAsset } = await import('./storage')
+          const { useFileSystemStore } = await import('./filesystem-store')
+
+          // Use new readAsset function with current project and storage type
+          const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
+          if (!currentProjectName) {
+            throw new Error('No project loaded. Please save or load a project first.')
+          }
+          const fileName = url.substring(projectScheme.length)
+          const result = await readAsset(activeStorageType, currentProjectName, fileName)
+          if (!result.success) {
+            throw new Error(result.error.message)
+          }
+          data = result.data
+        } else if (url) {
+          const resp = await fetch(url)
+          data = await resp.text()
+        } else if (text) {
+          data = text
+        }
+        return { data }
+      }
+      if (format === 'binary') {
+        let data: ArrayBuffer | Uint8Array
+        if (url?.startsWith(projectScheme)) {
+          // Lazy imports to avoid circular dependency
+          const { readAsset } = await import('./storage')
+          const { useFileSystemStore } = await import('./filesystem-store')
+
+          // Use new readAsset function with current project and storage type
+          const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
+          if (!currentProjectName) {
+            throw new Error('No project loaded. Please save or load a project first.')
+          }
+          const fileName = url.substring(projectScheme.length)
+          // For binary format, we need to read as binary, not text
+          // Convert text result back to binary for now
+          const result = await readAsset(activeStorageType, currentProjectName, fileName)
+          if (!result.success) {
+            throw new Error(result.error.message)
+          }
+          // Convert string to Uint8Array
+          const encoder = new TextEncoder()
+          data = encoder.encode(result.data)
+        } else if (url) {
+          const resp = await fetch(url)
+          data = await resp.arrayBuffer()
+        } else if (text) {
+          // Convert text to Uint8Array for binary format
+          const encoder = new TextEncoder()
+          data = encoder.encode(text)
+        } else {
+          data = new Uint8Array()
+        }
+        return { data }
+      }
+      // Default case - should not reach here with current format options
+      throw new Error(`Unsupported format: ${format}`)
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       throw new Error(`Unable to read file "${url}": ${errorMessage}`)
