@@ -16,6 +16,7 @@ import { DataImporterTool } from './tools/data-importer-tool'
 import { PointWizardTool } from './tools/point-wizard-tool'
 import s from './top-menu-bar.module.css'
 import type { UndoRedoHandlerRef } from './UndoRedoHandler'
+import { ExternalControlButton } from '../../external-control/components/external-control-button'
 
 interface TopMenuBarProps {
   projectName?: string
@@ -533,6 +534,7 @@ export function TopMenuBar({
         </div>
 
         <div className={s.rightSection}>
+          <ExternalControlButton />
           {setShowChatPanel && (
             <button
               type="button"

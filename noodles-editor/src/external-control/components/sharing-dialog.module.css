@@ -1,0 +1,297 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+}
+
+.dialog {
+  background: var(--color-bg-base);
+  border-radius: 8px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  width: 100%;
+  max-width: 640px;
+  max-height: 80vh;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.headerTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.headerIcon {
+  width: 20px;
+  height: 20px;
+  color: var(--color-primary);
+}
+
+.title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.closeButton {
+  padding: 4px;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  transition: all 0.15s ease;
+}
+
+.closeButton:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
+}
+
+.content {
+  padding: 20px;
+  overflow-y: auto;
+  max-height: 60vh;
+}
+
+.section {
+  margin-bottom: 24px;
+}
+
+.sectionTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.inputRow {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-family: var(--font-family);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.createButton {
+  padding: 8px 16px;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.createButton:hover {
+  background: var(--color-primary-hover);
+}
+
+.helpText {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  margin-top: 4px;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--color-text-secondary);
+}
+
+.emptyIcon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 12px;
+  opacity: 0.3;
+}
+
+.emptyText {
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.emptyHint {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}
+
+.sessionList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sessionCard {
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 16px;
+  background: var(--color-bg-surface);
+}
+
+.sessionHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.sessionInfo {
+  flex: 1;
+}
+
+.sessionName {
+  font-weight: 500;
+  color: var(--color-text-primary);
+  margin-bottom: 4px;
+}
+
+.sessionMeta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.clockIcon {
+  width: 12px;
+  height: 12px;
+}
+
+.revokeButton {
+  padding: 4px;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--color-danger);
+  transition: all 0.15s ease;
+}
+
+.revokeButton:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.codeBlock {
+  background: var(--color-bg-code);
+  border-radius: 4px;
+  padding: 12px;
+  margin-bottom: 8px;
+}
+
+.codeHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.codeLabel {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-tertiary);
+}
+
+.copyButton {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  background: none;
+  border: none;
+  border-radius: 3px;
+  font-size: 11px;
+  color: var(--color-primary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.copyButton:hover {
+  background: var(--color-bg-hover);
+}
+
+.copyIcon {
+  width: 12px;
+  height: 12px;
+}
+
+.code {
+  font-family: var(--font-family-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--color-text-primary);
+  word-break: break-all;
+  display: block;
+}
+
+.instructions {
+  padding: 16px;
+  background: var(--color-bg-info);
+  border-radius: 6px;
+  border: 1px solid var(--color-border-info);
+}
+
+.instructionsTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: 12px;
+}
+
+.instructionsList {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--color-text-primary);
+  padding-left: 20px;
+  margin: 0;
+}
+
+.instructionsList li {
+  margin-bottom: 8px;
+}
+
+.instructionsList code {
+  background: var(--color-bg-code);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: var(--font-family-mono);
+  font-size: 11px;
+}

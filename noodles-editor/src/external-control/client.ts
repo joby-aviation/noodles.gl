@@ -17,6 +17,7 @@ export interface ClientConfig {
   port?: number
   reconnectDelay?: number
   debug?: boolean
+  token?: string
 }
 
 export interface PipelineSpec {
@@ -85,6 +86,18 @@ export class NoodlesClient {
     return new Promise((resolve, reject) => {
       const wsUrl = url || `ws://${this.config.host}:${this.config.port}`
       this.log('Connecting to', wsUrl)
+
+      // Extract token from URL if present
+      let token: string | null = null
+      try {
+        const urlObj = new URL(wsUrl)
+        token = urlObj.searchParams.get('token')
+        if (token) {
+          this.config.token = token
+        }
+      } catch (error) {
+        // URL parsing failed, continue without token
+      }
 
       try {
         this.ws = new WebSocket(wsUrl)
@@ -347,6 +360,11 @@ export class NoodlesClient {
   private send(message: Message): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       throw new Error('Not connected')
+    }
+
+    // Add token to message payload if available
+    if (this.config.token && message.payload) {
+      message.payload.token = this.config.token
     }
 
     this.ws.send(serializeMessage(message))

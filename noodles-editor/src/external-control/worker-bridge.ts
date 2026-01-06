@@ -18,6 +18,7 @@ import {
 } from './message-protocol'
 import { MCPTools } from '../ai-chat/mcp-tools'
 import { getOpStore } from '../noodles/store'
+import { sessionManager } from './session-manager'
 
 // Worker instance
 let worker: Worker | null = null
@@ -28,6 +29,21 @@ const eventHandlers = new Map<string, Set<(data: any) => void>>()
 
 // Tool executor instance
 let toolExecutor: MCPTools | null = null
+
+// Helper to check if message type requires authentication
+const requiresAuth = (type: MessageType): boolean => {
+  // These message types don't require auth
+  const publicTypes = [
+    MessageType.CONNECT,
+    MessageType.DISCONNECT,
+    MessageType.PING,
+    MessageType.PONG,
+    MessageType.STATUS,
+    MessageType.ERROR,
+  ]
+
+  return !publicTypes.includes(type)
+}
 
 /** Initialize the worker bridge
  */
@@ -85,6 +101,21 @@ export const disconnect = (): void => {
  */
 const handleWorkerMessage = async (event: MessageEvent) => {
   const message = event.data as Message
+
+  // Check if message requires authentication
+  if (requiresAuth(message.type)) {
+    // Extract token from message payload if present
+    const token = message.payload?.token || message.payload?.auth?.token
+
+    if (!token || !sessionManager.validateToken(token)) {
+      sendToWorker(createErrorMessage(
+        'Invalid or expired session token',
+        'AUTH_FAILED',
+        message.id
+      ))
+      return
+    }
+  }
 
   switch (message.type) {
     case MessageType.STATUS:

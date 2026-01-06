@@ -50,6 +50,15 @@ const connect = (url: string) => {
   // Clean up existing connection
   disconnect()
 
+  // Extract token from URL if present
+  let token: string | null = null
+  try {
+    const urlObj = new URL(url)
+    token = urlObj.searchParams.get('token')
+  } catch (error) {
+    console.error('[Worker] Invalid URL:', error)
+  }
+
   try {
     ws = new WebSocket(url)
 
