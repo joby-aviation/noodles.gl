@@ -1,23 +1,23 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
+import type { NodeJSON } from '@xyflow/react'
 import { useReactFlow } from '@xyflow/react'
 import { useCallback, useRef, useState } from 'react'
 import { analytics } from '../../../utils/analytics'
 import { useFileSystemStore } from '../../filesystem-store'
-import { writeAsset } from '../../storage'
-import { projectScheme } from '../../utils/filesystem'
-import { edgeId, nodeId } from '../../utils/id-utils'
-import type { NodeJSON } from '@xyflow/react'
+import type { Edge } from '../../noodles'
 import type {
-  OpType,
   AccessorOp,
   BoundingBoxOp,
   DeckRendererOp,
   FileOp,
   MaplibreBasemapOp,
+  OpType,
   ScatterplotLayerOp,
 } from '../../operators'
-import type { Edge } from '../../noodles'
+import { writeAsset } from '../../storage'
+import { projectScheme } from '../../utils/filesystem'
+import { edgeId, nodeId } from '../../utils/id-utils'
 import s from './data-importer-tool.module.css'
 
 function createFileDropNodes(url: string, format: string, basePosition: { x: number; y: number }) {

@@ -1,5 +1,3 @@
-import type { NodeType } from '../utils/node-creation-utils'
-
 // Operator categories
 export const categories = {
   code: ['Accessor', 'Code', 'DuckDb', 'JSON', 'Expression'],

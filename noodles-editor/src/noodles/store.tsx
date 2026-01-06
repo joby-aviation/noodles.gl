@@ -1,5 +1,5 @@
 import type { ISheetObject } from '@theatre/core'
-import type { Node as ReactFlowNode, Edge as ReactFlowEdge } from '@xyflow/react'
+import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react'
 import { create } from 'zustand'
 import type { IOperator, Operator } from './operators'
 // only import types from noodles to avoid circular dependencies

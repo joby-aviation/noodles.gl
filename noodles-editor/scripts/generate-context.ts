@@ -26,30 +26,79 @@ const AI_CHAT_DIR = path.join(SRC_DIR, 'ai-chat')
 const EXAMPLES_DIR = path.join(SRC_DIR, 'examples')
 const OUTPUT_DIR = path.join(process.cwd(), 'public', 'context')
 
-const packageJson = JSON.parse(
-  fs.readFileSync(path.join(ROOT_DIR, 'package.json'), 'utf-8')
-)
+const packageJson = JSON.parse(fs.readFileSync(path.join(ROOT_DIR, 'package.json'), 'utf-8'))
 const version = packageJson.version
+
+interface OperatorInfo {
+  type: string
+  category: string
+  description: string
+  displayName: string
+  inputs: Record<string, unknown>
+  outputs: Record<string, unknown>
+  sourceFile: string
+}
 
 interface OperatorRegistry {
   version: string
-  operators: Record<string, any>
+  operators: Record<string, OperatorInfo>
   categories: Record<string, string[]>
+}
+
+interface TopicInfo {
+  id: string
+  title: string
+  section: string
+  file: string
+  content: string
+  headings: Array<{ level: number; text: string; anchor: string }>
+  codeExamples: string[]
+  relatedTopics: string[]
 }
 
 interface DocsIndex {
   version: string
-  topics: Record<string, any>
+  topics: Record<string, TopicInfo>
+}
+
+interface ExampleInfo {
+  id: string
+  name: string
+  description: string
+  category: string
+  readme: string
+  project: unknown
+  annotations: Record<string, unknown>
+  tags: string[]
+  dataSourceTypes: string[]
+  layerTypes: string[]
+  techniques: string[]
 }
 
 interface ExamplesIndex {
   version: string
-  examples: Record<string, any>
+  examples: Record<string, ExampleInfo>
+}
+
+interface FileInfo {
+  path: string
+  fullText: string
+  lines: string[]
+  hash: string
+  lastModified: string
+  symbols: Array<{
+    name: string
+    kind: string
+    line: number
+    endLine?: number
+  }>
+  imports: string[]
+  exports: string[]
 }
 
 interface CodeIndex {
   version: string
-  files: Record<string, any>
+  files: Record<string, FileInfo>
 }
 
 interface Manifest {
@@ -128,7 +177,7 @@ function generateOperatorRegistry(): OperatorRegistry {
 
   // Parse operators using TypeScript Compiler API
   const parsedOperators = parseOperatorsFile(operatorsFile)
-  const operators: Record<string, any> = {}
+  const operators: Record<string, OperatorInfo> = {}
 
   for (const [opName, meta] of parsedOperators) {
     const category = opToCategory[opName] || 'utility'
@@ -161,14 +210,14 @@ function generateOperatorRegistry(): OperatorRegistry {
   return {
     version,
     operators,
-    categories: categoriesObject
+    categories: categoriesObject,
   }
 }
 
 function generateDocsIndex(): DocsIndex {
   console.log('Generating docs index...')
 
-  const topics: Record<string, any> = {}
+  const topics: Record<string, TopicInfo> = {}
 
   // 1. Load main documentation from docs/ directory
   const docFiles = readFilesSafe(DOCS_DIR, '.md')
@@ -182,8 +231,11 @@ function generateDocsIndex(): DocsIndex {
     const title = titleMatch ? titleMatch[1] : path.basename(file, '.md')
 
     // Determine section
-    const section = relativePath.startsWith('users/') ? 'users' :
-      relativePath.startsWith('developers/') ? 'developers' : 'intro'
+    const section = relativePath.startsWith('users/')
+      ? 'users'
+      : relativePath.startsWith('developers/')
+        ? 'developers'
+        : 'intro'
 
     topics[id] = {
       id,
@@ -193,7 +245,7 @@ function generateDocsIndex(): DocsIndex {
       content,
       headings: extractHeadings(content),
       codeExamples: [],
-      relatedTopics: []
+      relatedTopics: [],
     }
   }
 
@@ -220,13 +272,14 @@ function generateDocsIndex(): DocsIndex {
       content,
       headings: extractHeadings(content),
       codeExamples: [],
-      relatedTopics: []
+      relatedTopics: [],
     }
   }
 
   // 3. Load example READMEs from public/examples/*/README.md
   if (fs.existsSync(EXAMPLES_DIR)) {
-    const exampleDirs = fs.readdirSync(EXAMPLES_DIR, { withFileTypes: true })
+    const exampleDirs = fs
+      .readdirSync(EXAMPLES_DIR, { withFileTypes: true })
       .filter(entry => entry.isDirectory())
       .map(entry => entry.name)
 
@@ -248,7 +301,7 @@ function generateDocsIndex(): DocsIndex {
           content,
           headings: extractHeadings(content),
           codeExamples: [],
-          relatedTopics: []
+          relatedTopics: [],
         }
       }
     }
@@ -258,7 +311,7 @@ function generateDocsIndex(): DocsIndex {
 
   return {
     version: '1.0.0',
-    topics
+    topics,
   }
 }
 
@@ -271,7 +324,10 @@ function extractHeadings(content: string): Array<{ level: number; text: string; 
     if (match) {
       const level = match[1].length
       const text = match[2]
-      const anchor = text.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-')
+      const anchor = text
+        .toLowerCase()
+        .replace(/[^\w\s-]/g, '')
+        .replace(/\s+/g, '-')
       headings.push({ level, text, anchor })
     }
   }
@@ -279,34 +335,36 @@ function extractHeadings(content: string): Array<{ level: number; text: string; 
   return headings
 }
 
-function stripLargeDataFields(project: any): any {
+function stripLargeDataFields(project: unknown): unknown {
   // Deep clone the project but exclude large data fields
   // This removes embedded data from nodes to keep the context bundle small for GitHub Pages
-  const stripped = JSON.parse(JSON.stringify(project, (key, value) => {
-    // Skip data fields that typically contain large datasets
-    if (key === 'data' && typeof value === 'object' && value !== null) {
-      // Check if this looks like embedded data (arrays of objects, large strings, etc.)
-      if (Array.isArray(value) && value.length > 10) {
-        // Keep first 10 rows as a sample, then add a note about truncation
-        const sample = value.slice(0, 10)
-        return {
-          _sample: sample,
-          _note: `Sample of first 10 items. Full dataset has ${value.length} items (truncated for size).`
+  const stripped = JSON.parse(
+    JSON.stringify(project, (key, value) => {
+      // Skip data fields that typically contain large datasets
+      if (key === 'data' && typeof value === 'object' && value !== null) {
+        // Check if this looks like embedded data (arrays of objects, large strings, etc.)
+        if (Array.isArray(value) && value.length > 10) {
+          // Keep first 10 rows as a sample, then add a note about truncation
+          const sample = value.slice(0, 10)
+          return {
+            _sample: sample,
+            _note: `Sample of first 10 items. Full dataset has ${value.length} items (truncated for size).`,
+          }
         }
-      }
-      if (typeof value === 'string' && value.length > 1000) {
-        // Keep first 1000 chars as a sample
-        return {
-          _sample: value.substring(0, 1000),
-          _note: `Sample of first 1000 characters. Full string has ${value.length} characters (truncated for size).`
+        if (typeof value === 'string' && value.length > 1000) {
+          // Keep first 1000 chars as a sample
+          return {
+            _sample: value.substring(0, 1000),
+            _note: `Sample of first 1000 characters. Full string has ${value.length} characters (truncated for size).`,
+          }
         }
+        // For smaller data or metadata, keep it
+        return value
       }
-      // For smaller data or metadata, keep it
-      return value
-    }
 
-    return value
-  }))
+      return value
+    })
+  )
 
   return stripped
 }
@@ -314,14 +372,15 @@ function stripLargeDataFields(project: any): any {
 function generateExamplesIndex(): ExamplesIndex {
   console.log('Generating examples index...')
 
-  const examples: Record<string, any> = {}
+  const examples: Record<string, ExampleInfo> = {}
 
   // Only read noodles.json files from subdirectories
   if (!fs.existsSync(EXAMPLES_DIR)) {
     throw new Error(`Required directory not found: ${EXAMPLES_DIR}`)
   }
 
-  const exampleDirs = fs.readdirSync(EXAMPLES_DIR, { withFileTypes: true })
+  const exampleDirs = fs
+    .readdirSync(EXAMPLES_DIR, { withFileTypes: true })
     .filter(entry => entry.isDirectory())
     .map(entry => entry.name)
 
@@ -347,15 +406,18 @@ function generateExamplesIndex(): ExamplesIndex {
       }
 
       // Infer metadata from project
-      const nodeTypes = new Set(project.nodes?.map((n: any) => n.type) || [])
-      const layerTypes = Array.from(nodeTypes).filter((t: any) => t.includes('Layer'))
-      const dataSourceTypes = Array.from(nodeTypes).filter((t: any) =>
-        t.includes('File') || t.includes('JSON') || t.includes('DuckDb')
+      const projectData = project as { nodes?: Array<{ type: string }> }
+      const nodeTypes = new Set(projectData.nodes?.map(n => n.type) || [])
+      const layerTypes = Array.from(nodeTypes).filter(t => t.includes('Layer'))
+      const dataSourceTypes = Array.from(nodeTypes).filter(
+        t => t.includes('File') || t.includes('JSON') || t.includes('DuckDb')
       )
 
       // Extract title from README if available
       const titleMatch = readme.match(/^#\s+(.+)$/m)
-      const name = titleMatch ? titleMatch[1] : exampleDir.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+      const name = titleMatch
+        ? titleMatch[1]
+        : exampleDir.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
 
       // Extract description from README (first paragraph after title)
       let description = `Example project: ${exampleDir}`
@@ -380,7 +442,7 @@ function generateExamplesIndex(): ExamplesIndex {
         tags: exampleDir.split('-'),
         dataSourceTypes,
         layerTypes,
-        techniques: []
+        techniques: [],
       }
     } catch (err) {
       console.warn(`Failed to parse example: ${exampleDir}`, err)
@@ -391,7 +453,7 @@ function generateExamplesIndex(): ExamplesIndex {
 
   return {
     version: '1.0.0',
-    examples
+    examples,
   }
 }
 
@@ -399,15 +461,18 @@ function generateCodeIndex(): CodeIndex {
   console.log('Generating code index...')
 
   // Mark SRC_DIR as required - fail if it doesn't exist
-  const sourceFiles = readFilesSafe(SRC_DIR, '.ts', true).concat(readFilesSafe(SRC_DIR, '.tsx', true))
-  const files: Record<string, any> = {}
+  const sourceFiles = readFilesSafe(SRC_DIR, '.ts', true).concat(
+    readFilesSafe(SRC_DIR, '.tsx', true)
+  )
+  const files: Record<string, FileInfo> = {}
 
   // Limit to key files to keep size manageable
-  const keyFiles = sourceFiles.filter(f =>
-    f.includes('noodles/operators.ts') ||
-    f.includes('noodles/fields.ts') ||
-    f.includes('noodles/noodles.tsx') ||
-    f.includes('README.md')
+  const keyFiles = sourceFiles.filter(
+    f =>
+      f.includes('noodles/operators.ts') ||
+      f.includes('noodles/fields.ts') ||
+      f.includes('noodles/noodles.tsx') ||
+      f.includes('README.md')
   )
 
   // Verify critical files exist
@@ -430,7 +495,7 @@ function generateCodeIndex(): CodeIndex {
         lastModified: fs.statSync(file).mtime.toISOString(),
         symbols: [],
         imports: [],
-        exports: []
+        exports: [],
       }
     } catch (err) {
       console.warn(`Failed to index file: ${file}`, err)
@@ -441,11 +506,11 @@ function generateCodeIndex(): CodeIndex {
 
   return {
     version: '1.0.0',
-    files
+    files,
   }
 }
 
-function writeBundle(name: string, data: any): { file: string; size: number; hash: string } {
+function writeBundle(name: string, data: unknown): { file: string; size: number; hash: string } {
   const content = JSON.stringify(data, null, 2)
   const hash = hashContent(content)
   const filename = `${name}.${hash}.json`
@@ -486,7 +551,7 @@ async function main() {
     operatorRegistry: writeBundle('operator-registry', operatorRegistry),
     docsIndex: writeBundle('docs-index', docsIndex),
     examples: writeBundle('examples', examplesIndex),
-    codeIndex: writeBundle('code-index', codeIndex)
+    codeIndex: writeBundle('code-index', codeIndex),
   }
 
   // Generate manifest
@@ -494,7 +559,7 @@ async function main() {
     version: '1.0.0',
     generated: new Date().toISOString(),
     commit: getGitCommit(),
-    bundles
+    bundles,
   }
 
   const manifestPath = path.join(OUTPUT_DIR, 'manifest.json')
@@ -503,7 +568,9 @@ async function main() {
 
   console.log('\n✅ Context generation complete!')
   console.log(`Output directory: ${OUTPUT_DIR}`)
-  console.log(`Total size: ${(Object.values(bundles).reduce((sum, b) => sum + b.size, 0) / 1024).toFixed(2)} KB`)
+  console.log(
+    `Total size: ${(Object.values(bundles).reduce((sum, b) => sum + b.size, 0) / 1024).toFixed(2)} KB`
+  )
 }
 
 main().catch(err => {

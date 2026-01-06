@@ -4,8 +4,8 @@ import type {
   ReactFlowJsonObject,
   Node as ReactFlowNode,
 } from '@xyflow/react'
-import { isEqual } from 'lodash'
 import JSZip from 'jszip'
+import { isEqual } from 'lodash'
 
 import { resizeableNodes } from '../components/op-components'
 import type { useOperatorStore } from '../store'

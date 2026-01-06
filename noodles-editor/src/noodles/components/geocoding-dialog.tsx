@@ -5,7 +5,6 @@ import {
   type MapLayerMouseEvent,
   Map as MapLibre,
   Marker,
-  type MarkerDragEvent,
   NavigationControl,
   useMap,
   type ViewStateChangeEvent,

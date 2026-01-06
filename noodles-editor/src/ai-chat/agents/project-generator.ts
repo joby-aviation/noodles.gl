@@ -251,7 +251,7 @@ export class ProjectGeneratorAgent {
   /**
    * Get layer-specific configuration
    */
-  private getLayerConfig(layerType: string, _description: string): Record<string, any> {
+  private getLayerConfig(layerType: string, _description: string): Record<string, unknown> {
     const baseConfig = OPERATOR_CONFIGS.layers[layerType as keyof typeof OPERATOR_CONFIGS.layers]
     if (baseConfig) {
       return { ...baseConfig.inputs }

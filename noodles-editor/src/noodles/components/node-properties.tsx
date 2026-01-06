@@ -5,10 +5,10 @@ import cx from 'classnames'
 import { useEffect, useRef, useState } from 'react'
 
 import { type Field, IN_NS, ListField, OUT_NS } from '../fields'
+import type { Operator } from '../operators'
 import { getOpStore } from '../store'
 import s from './node-properties.module.css'
 import { handleClass, headerClass, typeCategory } from './op-components'
-import type { Operator } from '../operators'
 
 function copy(text: string) {
   navigator.clipboard.writeText(text)

@@ -7,6 +7,22 @@
 
 import type { ContextLoader } from '../context-loader'
 
+interface CodeSymbol {
+  name: string
+  kind: string
+  line: number
+  endLine?: number
+}
+
+interface CodeFile {
+  lines: string[]
+  symbols: CodeSymbol[]
+}
+
+interface CodeIndex {
+  files: Record<string, CodeFile>
+}
+
 export interface CodeAnalysisResult {
   file: string
   issues: CodeIssue[]
@@ -161,17 +177,15 @@ export class RefactoringAssistantAgent {
 
   private findOperatorFile(
     operatorType: string,
-    codeIndex: any
+    codeIndex: CodeIndex
   ): { filePath: string; lines: string[]; startLine: number; endLine: number } | null {
     // Search for class definition in code index
     for (const [filePath, file] of Object.entries(codeIndex.files)) {
-      const symbol = (file as any).symbols.find(
-        (s: any) => s.name === operatorType && s.kind === 'class'
-      )
+      const symbol = file.symbols.find(s => s.name === operatorType && s.kind === 'class')
       if (symbol) {
         return {
           filePath,
-          lines: (file as any).lines,
+          lines: file.lines,
           startLine: symbol.line,
           endLine: symbol.endLine || symbol.line + 50, // Default to 50 lines
         }
@@ -415,10 +429,12 @@ execute({ data }) {
   private extractDependencies(code: string): string[] {
     const deps: string[] = []
     const importRegex = /import\s+.*?\s+from\s+['"]([^'"]+)['"]/g
-    let match: RegExpExecArray | null
+    let match: RegExpExecArray | null = null
 
-    while ((match = importRegex.exec(code)) !== null) {
+    match = importRegex.exec(code)
+    while (match !== null) {
       deps.push(match[1])
+      match = importRegex.exec(code)
     }
 
     return deps
@@ -439,13 +455,13 @@ execute({ data }) {
   }
 
   private extractCodeBlocks(
-    codeIndex: any,
+    codeIndex: CodeIndex,
     minLines: number
   ): Array<{ file: string; line: number; code: string }> {
     const blocks: Array<{ file: string; line: number; code: string }> = []
 
     for (const [filePath, file] of Object.entries(codeIndex.files)) {
-      const lines = (file as any).lines
+      const lines = file.lines
       for (let i = 0; i < lines.length - minLines; i++) {
         const block = lines.slice(i, i + minLines).join('\n')
         if (block.trim().length > 0) {

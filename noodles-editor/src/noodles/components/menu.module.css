@@ -116,7 +116,7 @@
 }
 
 [data-radix-popper-content-wrapper] {
-  z-index: var(--z-index-menu) !important;
+  z-index: var(--z-index-menu);
 }
 
 /* save project dialog */

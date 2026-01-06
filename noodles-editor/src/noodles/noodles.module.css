@@ -14,7 +14,7 @@
  */
 
 :root {
-  color-scheme: dark !important;
+  color-scheme: dark;
 
   /* Generic UI colors - used throughout the interface */
   --color-bg-base: #1a1a1a;
@@ -80,7 +80,7 @@
  * Should be added first for proper cascade order
  */
 :global(.revert) {
-  all: revert !important;
+  all: revert;
 }
 
 :global(.react-flow) {
@@ -115,49 +115,49 @@
 }
 
 :global(.react-flow-wrapper) {
-  z-index: var(--z-index-react-flow) !important;
-  width: 100% !important;
-  height: 100% !important;
+  z-index: var(--z-index-react-flow);
+  width: 100%;
+  height: 100%;
 }
 
 :global(.react-flow-wrapper-hidden) {
-  display: none !important;
+  display: none;
 }
 
 :global(.react-flow__node) {
-  color: var(--node-text-color) !important;
-  background: var(--node-background-color) !important;
-  border-radius: 10px !important;
+  color: var(--node-text-color);
+  background: var(--node-background-color);
+  border-radius: 10px;
 }
 
 :global(.react-flow__handle) {
-  border-color: var(--node-handle-outline-color) !important;
-  height: 8px !important;
-  width: 8px !important;
+  border-color: var(--node-handle-outline-color);
+  height: 8px;
+  width: 8px;
 }
 
 :global(.react-flow__handle-left) {
-  left: -3px !important;
+  left: -3px;
 }
 
 :global(.react-flow__resize-control.line) {
   /* Hide the border on resizable nodes. Overrides React Flow class */
-  border-width: 0 !important;
+  border-width: 0;
 }
 
 :global(.react-flow__node.selectable:focus) {
-  outline: 1px solid var(--node-selected-color) !important;
+  outline: 1px solid var(--node-selected-color);
 }
 
 :global(.react-flow__node-group) {
-  background-color: var(--node-group-background-color) !important;
+  background-color: var(--node-group-background-color);
   /* Allow nodes to be selected over the ForLoopBody. Needs to override the style prop */
-  z-index: var(--z-index-for-loop) !important;
-  pointer-events: none !important;
+  z-index: var(--z-index-for-loop);
+  pointer-events: none;
 }
 
 :global(.deck-widget-icon-button) {
-  all: revert !important;
+  all: revert;
 }
 
 .header {
@@ -166,8 +166,7 @@
   color: var(--node-header-text-color);
   font-weight: bold;
   margin-bottom: 0.5em;
-  padding: .25em .75em .25em 1em;
-
+  padding: 0.25em 0.75em 0.25em 1em;
 
   display: flex;
   justify-content: space-between;
@@ -188,7 +187,7 @@
 }
 
 .headerIdInput {
-  background-color: rgba(0, 0, 0, .2);
+  background-color: rgba(0, 0, 0, 0.2);
 }
 
 .headerIdInputError {
@@ -300,8 +299,8 @@
 
 /* Handle sizes */
 .handleList {
-  height: .75em !important;
-  border-radius: 5px !important
+  height: 0.75em;
+  border-radius: 5px;
 }
 
 /* Handle colors */
@@ -530,10 +529,10 @@
 
 .fieldLookupButton {
   margin-left: 4px;
-  padding: 0 !important;
-  width: 24px !important;
-  height: 24px !important;
-  min-width: 24px !important;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
   flex-shrink: 0;
 }
 
@@ -585,13 +584,17 @@
     linear-gradient(45deg, transparent 75%, #808080 75%),
     linear-gradient(-45deg, transparent 75%, #808080 75%);
   background-size: 8px 8px;
-  background-position: 0 0, 0 4px, 4px -4px, -4px 0px;
+  background-position:
+    0 0,
+    0 4px,
+    4px -4px,
+    -4px 0px;
   background-color: #404040;
 }
 
 /* Color overlay - sits on top of checkered pattern */
 .colorSwatchInner::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: 0;
@@ -608,45 +611,46 @@
 }
 
 .chromePickerWrapper :global(.chrome-picker) {
-  background: #282b2f !important;
-  border-radius: 4px !important;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1) !important;
+  background: #282b2f;
+  border-radius: 4px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 
 .chromePickerWrapper :global(.chrome-picker input) {
-  background: #1a1a1a !important;
-  color: #e2dede !important;
-  border: 1px solid #333 !important;
-  box-shadow: none !important;
+  background: #1a1a1a;
+  color: #e2dede;
+  border: 1px solid #333;
+  box-shadow: none;
 }
 
 .chromePickerWrapper :global(.chrome-picker label) {
-  color: #888 !important;
+  color: #888;
 }
 
 .chromePickerWrapper :global(.chrome-picker .flexbox-fix:last-child) {
   /* Color input fields container */
-  background: transparent !important;
+  background: transparent;
 }
 
 .chromePickerWrapper :global(.chrome-picker .flexbox-fix:last-child > div) {
   /* Individual input wrappers */
-  background: transparent !important;
+  background: transparent;
 }
 
 .chromePickerWrapper :global(.chrome-picker svg) {
   /* Color model picker icon (RGB/HSL/HEX toggle) */
-  fill: #e2dede !important;
+  fill: #e2dede;
 }
 
 .chromePickerWrapper :global(.chrome-picker path) {
   /* SVG paths in the color model picker icon */
-  fill: #e2dede !important;
+  fill: #e2dede;
 }
 
 .fieldInputColorRamp {
   background-color: white;
   image-rendering: -moz-crisp-edges;
+  /* biome-ignore lint/suspicious/noDuplicateProperties: Firefox fallback, standard follows */
   image-rendering: pixelated;
 
   width: 200px;
@@ -702,7 +706,7 @@
   justify-content: center;
   padding: 3px 6px;
   font-size: 11px;
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
   color: var(--node-field-hint-color);
   border-radius: 1px;
   transition: all 0.1s ease;
@@ -766,7 +770,7 @@
 
 .addNodeMenuHeader {
   font-weight: bold;
-  padding: .5em;
+  padding: 0.5em;
   background: var(--node-add-menu-header-background-color);
   color: var(--node-add-menu-header-text-color);
   position: sticky;
@@ -860,7 +864,6 @@
 }
 
 @keyframes pulse {
-
   0%,
   100% {
     opacity: 0.6;
@@ -871,7 +874,8 @@
   }
 }
 
-.wrapper {}
+.wrapper {
+}
 
 .wrapperError {
   box-shadow: 0 0 0 1px var(--node-execution-error-color);

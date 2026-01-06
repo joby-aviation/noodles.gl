@@ -32,8 +32,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-shrink: 0;
-  flex: 1;
+  flex: 1 0 auto;
   justify-content: flex-end;
 }
 

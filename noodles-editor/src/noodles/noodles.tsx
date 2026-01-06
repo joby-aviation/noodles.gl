@@ -1,6 +1,6 @@
 import type { AnyNodeJSON } from 'SKIP-@xyflow/react'
 import * as deckWidgets from '@deck.gl/widgets'
-import { getProject, type IProjectConfig, types } from '@theatre/core'
+import { getProject, type IProjectConfig } from '@theatre/core'
 import studio from '@theatre/studio'
 import type {
   Connection,
@@ -40,7 +40,6 @@ const exampleProjectUrls = import.meta.glob('../examples/**/noodles.json', {
 })
 
 import { SheetProvider } from '../utils/sheet-context'
-import useSheetValue from '../utils/use-sheet-value'
 import type { Visualization } from '../visualizations'
 import { BlockLibrary, type BlockLibraryRef } from './components/block-library'
 import { categories, nodeTypeToDisplayName } from './components/categories'
@@ -60,7 +59,7 @@ import { useProjectModifications } from './hooks/use-project-modifications'
 import type { IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
 import { load, save } from './storage'
-import { deleteSheetObject, getOpStore, setSheetObject, useNestingStore } from './store'
+import { getOpStore, useNestingStore } from './store'
 import { bindOperatorToTheatre, cleanupRemovedOperators } from './theatre-bindings'
 import { transformGraph } from './transform-graph'
 import { directoryHandleCache } from './utils/directory-handle-cache'
@@ -1097,7 +1096,7 @@ export function getNoodles(): Visualization {
           const instantiatedLayers =
             layers?.map(({ type, extensions, ...layer }) => {
               // Instantiate extensions from POJOs if present
-              let instantiatedExtensions
+              let instantiatedExtensions: unknown[] | undefined
               if (extensions && Array.isArray(extensions)) {
                 instantiatedExtensions = extensions
                   .map((ext: { type: string; [key: string]: unknown }) => {

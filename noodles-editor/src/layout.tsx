@@ -1,7 +1,7 @@
 import cx from 'classnames'
-import { type PropsWithChildren, useEffect, useRef, useState } from 'react'
-import { useUIStore } from './noodles/store'
+import { type PropsWithChildren, useEffect, useState } from 'react'
 import s from './layout.module.css'
+import { useUIStore } from './noodles/store'
 
 const TheatrePropPanel = ({ width, height }: { width: number; height: number }) => (
   <div style={{ width: `${width + 16}px`, height: `${height + 8}px` }} />

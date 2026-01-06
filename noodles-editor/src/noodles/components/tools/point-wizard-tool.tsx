@@ -1,9 +1,9 @@
 import { useReactFlow } from '@xyflow/react'
 import { useCallback } from 'react'
 import { analytics } from '../../../utils/analytics'
+import type { OpType } from '../../operators'
 import { useNestingStore } from '../../store'
 import type { NodeJSON } from '../../transform-graph'
-import type { OpType } from '../../operators'
 import { nodeId } from '../../utils/id-utils'
 import { GeocodingDialog } from '../geocoding-dialog'
 

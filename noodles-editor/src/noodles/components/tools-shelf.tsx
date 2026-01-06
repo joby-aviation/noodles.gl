@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { PointWizardTool } from './tools/point-wizard-tool'
-import { DataImporterTool } from './tools/data-importer-tool'
 import type { BlockLibraryRef } from './block-library'
+import { DataImporterTool } from './tools/data-importer-tool'
+import { PointWizardTool } from './tools/point-wizard-tool'
 import s from './tools-shelf.module.css'
 
 interface ToolsShelfProps {

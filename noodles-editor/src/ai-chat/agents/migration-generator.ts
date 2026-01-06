@@ -13,8 +13,8 @@ export interface MigrationParams {
     oldHandle?: string
     newHandle?: string
     fieldName?: string
-    oldDefault?: any
-    newDefault?: any
+    oldDefault?: unknown
+    newDefault?: unknown
     oldType?: string
     newType?: string
   }

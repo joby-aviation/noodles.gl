@@ -1134,16 +1134,16 @@ export class BezierCurveField extends Field<z.ZodType<BezierCurveData>> {
     if (points.length === 1) return points[0].y
 
     // Clamp x to [0, 1]
-    x = Math.max(0, Math.min(1, x))
+    const clampedX = Math.max(0, Math.min(1, x))
 
     // Find the segment containing this x
     for (let i = 0; i < points.length - 1; i++) {
       const p0 = points[i]
       const p1 = points[i + 1]
 
-      if (x >= p0.x && x <= p1.x) {
+      if (clampedX >= p0.x && clampedX <= p1.x) {
         // Cubic bezier interpolation
-        const t = (x - p0.x) / (p1.x - p0.x)
+        const t = (clampedX - p0.x) / (p1.x - p0.x)
 
         const _cp0x = p0.x
         const cp0y = p0.y
@@ -1166,7 +1166,7 @@ export class BezierCurveField extends Field<z.ZodType<BezierCurveData>> {
     }
 
     // If x is outside the curve range, return the nearest endpoint
-    return x <= points[0].x ? points[0].y : points[points.length - 1].y
+    return clampedX <= points[0].x ? points[0].y : points[points.length - 1].y
   }
 
   // Add a new point to the curve
