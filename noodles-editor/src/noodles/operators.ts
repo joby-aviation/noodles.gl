@@ -154,6 +154,7 @@ import {
   EffectField,
   ExpressionField,
   ExtensionField,
+  FeatureField,
   type Field,
   type FieldReference,
   FileField,
@@ -171,6 +172,8 @@ import {
   Point3DField,
   StringField,
   StringLiteralField,
+  type TabularData,
+  TabularField,
   UnknownField,
   Vec2Field,
   Vec3Field,
@@ -3114,9 +3117,120 @@ function parseLayerProps<P extends LayerProps>({
   return result
 }
 
+// Helper function to get or create binary attributes for deck.gl layers
+// Supports hybrid approach: binary attributes, auto-generation, accessors, or default keys
+function getOrCreateBinaryAttribute(
+  data: unknown,
+  attributeName: string,
+  accessor?: unknown,
+  defaultKeyPatterns?: string[]
+): unknown {
+  // Check if data is TabularData with binary attributes
+  if (
+    data &&
+    typeof data === 'object' &&
+    'attributes' in data &&
+    'properties' in data &&
+    'length' in data
+  ) {
+    const tabularData = data as TabularData
+
+    // 1. If binary attribute already exists, use it directly
+    if (tabularData.attributes?.[attributeName]) {
+      return tabularData.attributes[attributeName]
+    }
+
+    // 2. Try to auto-generate position attribute from detected coordinates
+    if (attributeName === 'position' && tabularData.coordinateSets) {
+      const coordSet =
+        tabularData.coordinateSets.default || Object.values(tabularData.coordinateSets)[0]
+
+      if (coordSet && tabularData.properties) {
+        // Generate binary position attribute on-the-fly
+        const positions = new Float32Array(tabularData.length * 2)
+        for (let i = 0; i < tabularData.length; i++) {
+          const row = tabularData.properties[i]
+          positions[i * 2] = Number(row[coordSet.lng]) || 0
+          positions[i * 2 + 1] = Number(row[coordSet.lat]) || 0
+        }
+
+        // Cache it for next time
+        tabularData.attributes[attributeName] = {
+          value: positions,
+          size: 2,
+        }
+
+        return tabularData.attributes[attributeName]
+      }
+    }
+  }
+
+  // 3. If accessor provided, use it (for custom logic or override)
+  if (accessor !== undefined && accessor !== null) {
+    return accessor
+  }
+
+  // 4. Try default key patterns (e.g., 'radius', 'color', 'fillColor')
+  if (defaultKeyPatterns && Array.isArray(data) && data.length > 0) {
+    const firstItem = data[0]
+    if (typeof firstItem === 'object' && firstItem !== null) {
+      for (const pattern of defaultKeyPatterns) {
+        if (pattern in firstItem) {
+          return (d: Record<string, unknown>) => d[pattern]
+        }
+      }
+    }
+  }
+
+  // 5. Return undefined - layer will use static default value
+  return undefined
+}
+
+// Helper to infer coordinate set name from attribute type
+// Used for multi-coordinate scenarios like ArcLayer (source/target positions)
+function inferCoordinateSet(
+  data: TabularData,
+  attributeType: 'position' | 'sourcePosition' | 'targetPosition'
+): { lng: string; lat: string } | undefined {
+  if (!data.coordinateSets) return undefined
+
+  const sets = data.coordinateSets
+
+  // For single position, use default/first
+  if (attributeType === 'position') {
+    return sets.default || Object.values(sets)[0]
+  }
+
+  // For source/target, look for semantic names
+  if (attributeType === 'sourcePosition') {
+    return (
+      sets.pickup ||
+      sets.origin ||
+      sets.source ||
+      sets.start ||
+      sets.from ||
+      Object.values(sets)[0]
+    )
+  }
+
+  if (attributeType === 'targetPosition') {
+    return (
+      sets.dropoff ||
+      sets.destination ||
+      sets.target ||
+      sets.end ||
+      sets.to ||
+      Object.values(sets)[1] ||
+      Object.values(sets)[0]
+    )
+  }
+
+  return undefined
+}
+
 export class PathLayerOp extends Operator<PathLayerOp> {
   static displayName = 'PathLayer'
-  static description = 'Render a path on the map'
+  static description = 'Render a path on the map. Supports binary attributes for improved performance.'
   static cacheable = false
   createInputs() {
     return {
@@ -3128,10 +3242,10 @@ export class PathLayerOp extends Operator<PathLayerOp> {
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       billboard: new BooleanField(true),
       capRounded: new BooleanField(true),
-      getPath: new UnknownField((d: unknown) => d?.path || [], { accessor: true }),
+      getPath: new UnknownField((d: unknown) => d?.path || [], { accessor: true, optional: true }),
       // getPath: new ArrayField(new Point3DField([0, 0, 0], { returnType: 'tuple' }), { accessor: true }),
-      getColor: new ColorField('#006ac6', { accessor: true, transform: hexToColor }),
-      getWidth: new NumberField(8, { min: 0, max: 100, accessor: true }),
+      getColor: new ColorField('#006ac6', { accessor: true, transform: hexToColor, optional: true }),
+      getWidth: new NumberField(8, { min: 0, max: 100, accessor: true, optional: true }),
       widthUnits: new StringLiteralField('meters', ['pixels', 'meters']),
       widthScale: new NumberField(20, { min: 0, max: 100 }),
       widthMinPixels: new NumberField(2, { min: 0, max: 100 }),
@@ -3148,10 +3262,16 @@ export class PathLayerOp extends Operator<PathLayerOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const { data, getPath, getColor, getWidth } = props
+
     const layer = {
-      ...parseLayerProps<PathLayerProps>(props),
+      ...parseLayerProps<PathLayerProps>(props as any),
       type: 'PathLayer' as const,
       id: this.id,
+      data,
+      getPath: getOrCreateBinaryAttribute(data, 'path', getPath, ['path', 'coordinates']),
+      getColor: getOrCreateBinaryAttribute(data, 'color', getColor, ['color', 'fill_color', 'fillColor']),
+      getWidth: getOrCreateBinaryAttribute(data, 'width', getWidth, ['width', 'lineWidth', 'line_width']),
       updateTriggers: gatherTriggers(this.inputs, props),
     }
     return { layer }
@@ -3160,20 +3280,20 @@ export class PathLayerOp extends Operator<PathLayerOp> {
 
 export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
   static displayName = 'ScatterplotLayer'
-  static description = 'Render a scatterplot of points as circles on the map'
+  static description = 'Render a scatterplot of points as circles on the map. Supports binary attributes for 10-100x performance improvement with large datasets.'
   static cacheable = false
   createInputs() {
     return {
-      data: new DataField(),
+      data: new DataField(), // Accepts TabularField with binary attributes or regular array
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       stroked: new BooleanField(true),
       billboard: new BooleanField(false),
-      getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
-      getFillColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
-      getLineColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
-      getRadius: new NumberField(20, { min: 0, max: 1_000_000, accessor: true }),
-      getLineWidth: new NumberField(0, { accessor: true }),
+      getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true, optional: true }),
+      getFillColor: new ColorField('#fff', { accessor: true, transform: hexToColor, optional: true }),
+      getLineColor: new ColorField('#fff', { accessor: true, transform: hexToColor, optional: true }),
+      getRadius: new NumberField(20, { min: 0, max: 1_000_000, accessor: true, optional: true }),
+      getLineWidth: new NumberField(0, { accessor: true, optional: true }),
       radiusScale: new NumberField(1, { min: 0, max: 100 }),
       radiusUnits: new StringLiteralField('pixels', ['pixels', 'meters']),
       extensions: new ListField(new ExtensionField()),
@@ -3185,10 +3305,19 @@ export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const { data, getPosition, getFillColor, getLineColor, getRadius, getLineWidth } = props
+
     const layer = {
-      ...parseLayerProps<ScatterplotLayerProps>(props),
+      ...parseLayerProps<ScatterplotLayerProps>(props as any),
       type: 'ScatterplotLayer' as const,
       id: this.id,
+      data,
+      // Use binary attributes if available, otherwise fall back to accessors or auto-generation
+      getPosition: getOrCreateBinaryAttribute(data, 'position', getPosition),
+      getFillColor: getOrCreateBinaryAttribute(data, 'fillColor', getFillColor, ['color', 'fillColor', 'fill_color']),
+      getLineColor: getOrCreateBinaryAttribute(data, 'lineColor', getLineColor, ['lineColor', 'line_color', 'strokeColor', 'stroke_color']),
+      getRadius: getOrCreateBinaryAttribute(data, 'radius', getRadius, ['radius', 'size']),
+      getLineWidth: getOrCreateBinaryAttribute(data, 'lineWidth', getLineWidth, ['lineWidth', 'line_width', 'strokeWidth', 'stroke_width']),
       updateTriggers: gatherTriggers(this.inputs, props),
     }
     return { layer }
@@ -3653,19 +3782,19 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
 
 export class ArcLayerOp extends Operator<ArcLayerOp> {
   static displayName = 'ArcLayer'
-  static description = 'Render a set of arcs on the map'
+  static description = 'Render a set of arcs on the map. Automatically detects source/target coordinates from pickup/dropoff or origin/destination fields.'
   static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      getSourcePosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
-      getTargetPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
-      getSourceColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
-      getTargetColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
+      getSourcePosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true, optional: true }),
+      getTargetPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true, optional: true }),
+      getSourceColor: new ColorField('#fff', { accessor: true, transform: hexToColor, optional: true }),
+      getTargetColor: new ColorField('#fff', { accessor: true, transform: hexToColor, optional: true }),
       widthUnits: new StringLiteralField('meters', ['pixels', 'meters']),
-      getWidth: new NumberField(1, { min: 0, max: 100, accessor: true }),
+      getWidth: new NumberField(1, { min: 0, max: 100, accessor: true, optional: true }),
       extensions: new ListField(new ExtensionField()),
     }
   }
@@ -3675,10 +3804,57 @@ export class ArcLayerOp extends Operator<ArcLayerOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const { data, getSourcePosition, getTargetPosition, getSourceColor, getTargetColor, getWidth } = props
+
+    // For ArcLayer, try to auto-detect source/target coordinate pairs
+    let sourcePos = getSourcePosition
+    let targetPos = getTargetPosition
+
+    // If data is TabularData and no accessors provided, try to auto-generate from detected coordinate sets
+    if (
+      !getSourcePosition &&
+      data &&
+      typeof data === 'object' &&
+      'coordinateSets' in data &&
+      'attributes' in data
+    ) {
+      const tabularData = data as TabularData
+      const sourceCoordSet = inferCoordinateSet(tabularData, 'sourcePosition')
+      const targetCoordSet = inferCoordinateSet(tabularData, 'targetPosition')
+
+      if (sourceCoordSet && tabularData.properties) {
+        const sourcePositions = new Float32Array(tabularData.length * 2)
+        for (let i = 0; i < tabularData.length; i++) {
+          const row = tabularData.properties[i]
+          sourcePositions[i * 2] = Number(row[sourceCoordSet.lng]) || 0
+          sourcePositions[i * 2 + 1] = Number(row[sourceCoordSet.lat]) || 0
+        }
+        tabularData.attributes.sourcePosition = { value: sourcePositions, size: 2 }
+        sourcePos = tabularData.attributes.sourcePosition
+      }
+
+      if (targetCoordSet && tabularData.properties) {
+        const targetPositions = new Float32Array(tabularData.length * 2)
+        for (let i = 0; i < tabularData.length; i++) {
+          const row = tabularData.properties[i]
+          targetPositions[i * 2] = Number(row[targetCoordSet.lng]) || 0
+          targetPositions[i * 2 + 1] = Number(row[targetCoordSet.lat]) || 0
+        }
+        tabularData.attributes.targetPosition = { value: targetPositions, size: 2 }
+        targetPos = tabularData.attributes.targetPosition
+      }
+    }
+
     const layer = {
-      ...parseLayerProps<ArcLayerProps>(props),
+      ...parseLayerProps<ArcLayerProps>(props as any),
       type: 'ArcLayer' as const,
       id: this.id,
+      data,
+      getSourcePosition: sourcePos || getSourcePosition,
+      getTargetPosition: targetPos || getTargetPosition,
+      getSourceColor: getOrCreateBinaryAttribute(data, 'sourceColor', getSourceColor, ['sourceColor', 'source_color']),
+      getTargetColor: getOrCreateBinaryAttribute(data, 'targetColor', getTargetColor, ['targetColor', 'target_color']),
+      getWidth: getOrCreateBinaryAttribute(data, 'width', getWidth, ['width', 'lineWidth', 'line_width']),
       updateTriggers: gatherTriggers(this.inputs, props),
     }
     return { layer }
@@ -4304,6 +4480,188 @@ export class ExpressionOp extends Operator<ExpressionOp> {
     // Static evaluation
     const result = fn(data, data[0], contextualGetOp, ...Object.values(freeExports))
     return { data: result }
+  }
+}
+
+export class CreateAttributeOp extends Operator<CreateAttributeOp> {
+  static displayName = 'Create Attribute'
+  static description =
+    'Create a binary attribute from tabular data for efficient deck.gl rendering. Computes an attribute (position, color, radius, etc.) from an expression and stores it as a typed array for much faster performance.'
+
+  createInputs() {
+    return {
+      data: new TabularField(),
+      attributeName: new StringField('radius'),
+      expression: new ExpressionField('d.population / 1000'),
+      dataType: new StringLiteralField('float', {
+        values: [
+          { label: 'Float (single number)', value: 'float' },
+          { label: 'Vec2 (2D vector [x, y])', value: 'vec2' },
+          { label: 'Vec3 (3D vector [x, y, z])', value: 'vec3' },
+          { label: 'RGBA (color [r, g, b, a])', value: 'rgba' },
+        ],
+      }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      data: new TabularField(),
+    }
+  }
+
+  execute({
+    data,
+    attributeName,
+    expression,
+    dataType,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!data.properties || data.length === 0) {
+      return { data }
+    }
+
+    // Compile expression to function
+    const fn = fnWithSource(
+      ['d', 'i', 'data', 'op', ...Object.keys(freeExports)],
+      `return ${expression}`,
+      this.id
+    )
+    const contextualGetOp = (path: string) => getOp(path, this.id)
+
+    // Determine TypedArray constructor and size based on dataType
+    const { ArrayConstructor, size } = getTypedArrayInfo(dataType)
+
+    // Execute expression for each row and collect results
+    const values: number[] = []
+    for (let i = 0; i < data.length; i++) {
+      const row = data.properties[i]
+      const result = fn(row, i, data.properties, contextualGetOp, ...Object.values(freeExports))
+
+      // Handle different result types
+      if (Array.isArray(result)) {
+        // Result is already an array (e.g., [r, g, b, a] or [x, y, z])
+        values.push(...result.slice(0, size))
+        // Pad if necessary
+        for (let j = result.length; j < size; j++) {
+          values.push(0)
+        }
+      } else if (typeof result === 'number') {
+        // Single number
+        values.push(result)
+        // Pad if size > 1
+        for (let j = 1; j < size; j++) {
+          values.push(0)
+        }
+      } else {
+        // Invalid result, use zeros
+        for (let j = 0; j < size; j++) {
+          values.push(0)
+        }
+      }
+    }
+
+    // Create typed array
+    const typedArray = new ArrayConstructor(values)
+
+    // Create new data object with attribute added
+    const newData: TabularData = {
+      ...data,
+      attributes: {
+        ...data.attributes,
+        [attributeName]: {
+          value: typedArray,
+          size,
+        },
+      },
+    }
+
+    return { data: newData }
+  }
+}
+
+// Helper function to get TypedArray constructor and size from dataType
+function getTypedArrayInfo(dataType: string): {
+  ArrayConstructor: Float32ArrayConstructor | Uint8ClampedArrayConstructor
+  size: number
+} {
+  switch (dataType) {
+    case 'float':
+      return { ArrayConstructor: Float32Array, size: 1 }
+    case 'vec2':
+      return { ArrayConstructor: Float32Array, size: 2 }
+    case 'vec3':
+      return { ArrayConstructor: Float32Array, size: 3 }
+    case 'rgba':
+      return { ArrayConstructor: Uint8ClampedArray, size: 4 }
+    default:
+      return { ArrayConstructor: Float32Array, size: 1 }
+  }
+}
+
+export class SimplifyOp extends Operator<SimplifyOp> {
+  static displayName = 'Simplify'
+  static description =
+    'Simplify a GeoJSON feature by removing points while preserving shape. Uses Ramer-Douglas-Peucker algorithm.'
+
+  createInputs() {
+    return {
+      feature: new FeatureField(),
+      tolerance: new NumberField(0.01, { min: 0, max: 1, step: 0.01 }),
+      highQuality: new BooleanField(false),
+    }
+  }
+
+  createOutputs() {
+    return {
+      simplified: new FeatureField(),
+    }
+  }
+
+  execute({
+    feature,
+    tolerance,
+    highQuality,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const simplified = turf.simplify(feature, {
+      tolerance,
+      highQuality,
+    })
+    return { simplified }
+  }
+}
+
+export class BufferOp extends Operator<BufferOp> {
+  static displayName = 'Buffer'
+  static description = 'Create a buffer around a GeoJSON feature at a given radius'
+
+  createInputs() {
+    return {
+      feature: new FeatureField(),
+      radius: new NumberField(1, { min: 0, max: 1000, step: 0.1 }),
+      units: new StringLiteralField('kilometers', {
+        values: ['meters', 'kilometers', 'miles', 'feet'],
+      }),
+      steps: new NumberField(8, { min: 3, max: 64, step: 1 }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      buffered: new FeatureField(),
+    }
+  }
+
+  execute({
+    feature,
+    radius,
+    units,
+    steps,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const buffered = turf.buffer(feature, radius, {
+      units,
+      steps
+    })
+    return { buffered: buffered || feature }
   }
 }
 

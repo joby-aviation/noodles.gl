@@ -6,10 +6,12 @@ import {
   BoundingBoxOp,
   CodeOp,
   ConcatOp,
+  CreateAttributeOp,
   DeckRendererOp,
   DuckDbOp,
   ExpressionOp,
   FilterOp,
+  GeoJsonOp,
   GeoJsonTransformOp,
   JSONOp,
   KmlToGeoJsonOp,
@@ -23,6 +25,7 @@ import {
   RectangleOp,
   ScatterplotLayerOp,
   SelectOp,
+  SimplifyOp,
   SwitchOp,
   TimeSeriesOp,
 } from './operators'
@@ -320,11 +323,31 @@ describe('AccessorOp', () => {
 describe('BoundingBoxOp', () => {
   it('finds the bounding box of a list of points', () => {
     const operator = new BoundingBoxOp('/bbox-0')
+    operator.inputs.data.setValue([
+      { lng: 1, lat: 2 },
+      { lng: 3, lat: 4 },
+    ])
     const val = operator.execute({
-      data: [
-        { lng: 1, lat: 2 },
-        { lng: 3, lat: 4 },
+      data: operator.par.data,
+      padding: 0,
+    })
+    expect(val.viewState).toEqual({
+      latitude: 3.000457402301878,
+      longitude: 2.0000000000000027,
+      zoom: 7.185340053829005,
+    })
+  })
+  it('finds the bounding box of a geojson FeatureCollection', () => {
+    const operator = new BoundingBoxOp('/bbox-0')
+    operator.inputs.data.setValue({
+      type: 'FeatureCollection',
+      features: [
+        { type: 'Feature', geometry: { type: 'Point', coordinates: [1, 2] }, properties: {} },
+        { type: 'Feature', geometry: { type: 'Point', coordinates: [3, 4] }, properties: {} },
       ],
+    })
+    const val = operator.execute({
+      data: operator.par.data,
       padding: 0,
     })
     expect(val.viewState).toEqual({
@@ -1391,6 +1414,291 @@ describe('SelectOp', () => {
   })
 })
 
+describe('SimplifyOp', () => {
+  it('simplifies a polygon feature', () => {
+    const operator = new SimplifyOp('/simplify-0')
+
+    // Create a complex polygon with many points
+    const complexPolygon = {
+      type: 'Feature' as const,
+      geometry: {
+        type: 'Polygon' as const,
+        coordinates: [[
+          [0, 0], [0.01, 0.01], [0.02, 0.02], [0.03, 0.01],
+          [1, 0], [1.01, 0.01], [1, 1], [0.99, 0.99],
+          [0, 1], [0.01, 0.99], [0, 0]
+        ]]
+      },
+      properties: {}
+    }
+
+    const result = operator.execute({
+      feature: complexPolygon as any,
+      tolerance: 0.1,
+      highQuality: false
+    })
+
+    expect(result.simplified).toBeDefined()
+    expect(result.simplified.type).toBe('Feature')
+    expect(result.simplified.geometry.type).toBe('Polygon')
+    // The simplified polygon should have fewer points
+    expect((result.simplified.geometry as any).coordinates[0].length).toBeLessThan(complexPolygon.geometry.coordinates[0].length)
+  })
+
+  it('simplifies a LineString feature', () => {
+    const operator = new SimplifyOp('/simplify-1')
+
+    const complexLine = {
+      type: 'Feature' as const,
+      geometry: {
+        type: 'LineString' as const,
+        coordinates: [
+          [0, 0], [0.01, 0.01], [0.02, 0.02], [0.03, 0.01],
+          [1, 0], [1.01, 0.01], [2, 0], [2.01, 0.01],
+          [3, 0]
+        ]
+      },
+      properties: { name: 'test-line' }
+    }
+
+    const result = operator.execute({
+      feature: complexLine as any,
+      tolerance: 0.05,
+      highQuality: false
+    })
+
+    expect(result.simplified).toBeDefined()
+    expect(result.simplified.geometry.type).toBe('LineString')
+    expect((result.simplified.geometry as any).coordinates.length).toBeLessThan(complexLine.geometry.coordinates.length)
+    expect(result.simplified.properties?.name).toBe('test-line')
+  })
+
+  it('applies high quality simplification', () => {
+    const operator = new SimplifyOp('/simplify-2')
+
+    const polygon = {
+      type: 'Feature' as const,
+      geometry: {
+        type: 'Polygon' as const,
+        coordinates: [[
+          [0, 0], [0.1, 0.1], [0.2, 0], [0.3, 0.1],
+          [1, 0], [1, 1], [0, 1], [0, 0]
+        ]]
+      },
+      properties: {}
+    }
+
+    const lowQualityResult = operator.execute({
+      feature: polygon as any,
+      tolerance: 0.15,
+      highQuality: false
+    })
+
+    const highQualityResult = operator.execute({
+      feature: polygon as any,
+      tolerance: 0.15,
+      highQuality: true
+    })
+
+    expect(lowQualityResult.simplified).toBeDefined()
+    expect(highQualityResult.simplified).toBeDefined()
+    // Both should simplify, but high quality may produce different results
+    expect((lowQualityResult.simplified.geometry as any).coordinates[0].length).toBeGreaterThanOrEqual(4)
+    expect((highQualityResult.simplified.geometry as any).coordinates[0].length).toBeGreaterThanOrEqual(4)
+  })
+
+  it('handles different tolerance values', () => {
+    const operator = new SimplifyOp('/simplify-3')
+
+    const feature = {
+      type: 'Feature' as const,
+      geometry: {
+        type: 'LineString' as const,
+        coordinates: [
+          [0, 0], [0.01, 0], [0.02, 0], [0.03, 0],
+          [0.04, 0], [0.05, 0], [1, 0]
+        ]
+      },
+      properties: {}
+    }
+
+    // Low tolerance - more points retained
+    const lowToleranceResult = operator.execute({
+      feature: feature as any,
+      tolerance: 0.001,
+      highQuality: false
+    })
+
+    // High tolerance - fewer points retained
+    const highToleranceResult = operator.execute({
+      feature: feature as any,
+      tolerance: 0.1,
+      highQuality: false
+    })
+
+    expect((lowToleranceResult.simplified.geometry as any).coordinates.length)
+      .toBeGreaterThan((highToleranceResult.simplified.geometry as any).coordinates.length)
+  })
+
+  it('preserves feature properties', () => {
+    const operator = new SimplifyOp('/simplify-4')
+
+    const feature = {
+      type: 'Feature' as const,
+      geometry: {
+        type: 'LineString' as const,
+        coordinates: [[0, 0], [0.01, 0.01], [1, 1]]
+      },
+      properties: {
+        name: 'test',
+        id: 123,
+        metadata: { foo: 'bar' }
+      }
+    }
+
+    const result = operator.execute({
+      feature: feature as any,
+      tolerance: 0.05,
+      highQuality: false
+    })
+
+    expect(result.simplified.properties).toEqual(feature.properties)
+  })
+
+  it('handles MultiLineString features', () => {
+    const operator = new SimplifyOp('/simplify-5')
+
+    const multiLine = {
+      type: 'Feature' as const,
+      geometry: {
+        type: 'MultiLineString' as const,
+        coordinates: [
+          [[0, 0], [0.01, 0.01], [1, 1]],
+          [[2, 2], [2.01, 2.01], [3, 3]]
+        ]
+      },
+      properties: {}
+    }
+
+    const result = operator.execute({
+      feature: multiLine as any,
+      tolerance: 0.05,
+      highQuality: false
+    })
+
+    expect(result.simplified).toBeDefined()
+    expect(result.simplified.geometry.type).toBe('MultiLineString')
+  })
+})
+
+describe('GeoJsonOp', () => {
+  it('creates a FeatureCollection from an array of Features', () => {
+    const operator = new GeoJsonOp('/geojson-0')
+    const features = [
+      { type: 'Feature', geometry: { type: 'Point', coordinates: [0, 0] }, properties: {} },
+      { type: 'Feature', geometry: { type: 'Point', coordinates: [1, 1] }, properties: { name: 'test' } },
+    ]
+
+    const result = operator.execute({ features })
+
+    expect(result.featureCollection).toBeDefined()
+    expect(result.featureCollection.type).toBe('FeatureCollection')
+    expect(result.featureCollection.features).toHaveLength(2)
+    expect(result.featureCollection.features[0].geometry.coordinates).toEqual([0, 0])
+    expect(result.featureCollection.features[1].properties?.name).toBe('test')
+  })
+
+  it('creates a FeatureCollection from an array of objects with lng/lat', () => {
+    const operator = new GeoJsonOp('/geojson-1')
+    const features = [
+      { lng: -122.4, lat: 37.8, name: 'San Francisco' },
+      { lng: -118.2, lat: 34.0, name: 'Los Angeles' },
+      { lng: -87.6, lat: 41.9, name: 'Chicago' },
+    ]
+
+    const result = operator.execute({ features })
+
+    expect(result.featureCollection).toBeDefined()
+    expect(result.featureCollection.type).toBe('FeatureCollection')
+    expect(result.featureCollection.features).toHaveLength(3)
+
+    // Verify the first feature
+    expect(result.featureCollection.features[0]?.type).toBe('Feature')
+    expect(result.featureCollection.features[0]?.geometry?.type).toBe('Point')
+    expect((result.featureCollection.features[0]?.geometry as any)?.coordinates).toEqual([-122.4, 37.8])
+    expect(result.featureCollection.features[0]?.properties?.name).toBe('San Francisco')
+
+    // Verify the last feature
+    expect((result.featureCollection.features[2]?.geometry as any)?.coordinates).toEqual([-87.6, 41.9])
+    expect(result.featureCollection.features[2]?.properties?.name).toBe('Chicago')
+  })
+
+  it('creates an empty FeatureCollection from an empty array', () => {
+    const operator = new GeoJsonOp('/geojson-empty')
+    const result = operator.execute({ features: [] })
+
+    expect(result.featureCollection).toBeDefined()
+    expect(result.featureCollection.type).toBe('FeatureCollection')
+    expect(result.featureCollection.features).toHaveLength(0)
+  })
+
+  it('creates a FeatureCollection from an array of objects with named coordinates ', () => {
+    const operator = new GeoJsonOp('/geojson-named')
+    const features = [
+      { pickup_longitude: -122.4, pickup_latitude: 37.8, dropoff_longitude: -122.5, dropoff_latitude: 37.9, name: 'San Francisco' },
+      { pickup_longitude: -118.2, pickup_latitude: 34.0, dropoff_longitude: -118.3, dropoff_latitude: 34.1, name: 'Los Angeles' },
+      { pickup_longitude: -87.6, pickup_latitude: 41.9, dropoff_longitude: -87.7, dropoff_latitude: 42.0, name: 'Chicago' },
+    ]
+
+    const result = operator.execute({ features })
+
+    expect(result.featureCollection).toBeDefined()
+    expect(result.featureCollection.type).toBe('FeatureCollection')
+    expect(result.featureCollection.features).toHaveLength(3)
+
+    // Verify the first feature
+    expect(result.featureCollection.features[0]?.type).toBe('Feature')
+    expect(result.featureCollection.features[0]?.geometry?.type).toBe('Point')
+    expect((result.featureCollection.features[0]?.geometry as any)?.coordinates).toEqual([-122.4, 37.8])
+    expect(result.featureCollection.features[0]?.properties?.name).toBe('San Francisco')
+
+    // Verify the last feature
+    expect((result.featureCollection.features[2]?.geometry as any)?.coordinates).toEqual([-87.6, 41.9])
+    expect(result.featureCollection.features[2]?.properties?.name).toBe('Chicago')
+  })
+
+  it('creates a FeatureCollection from an array of coordinate pairs', () => {
+    const operator = new GeoJsonOp('/geojson-2')
+    const coords = [
+      [-122.4, 37.8],
+      [-118.2, 34.0],
+      [-87.6, 41.9],
+    ]
+
+    const result = operator.execute({ features: coords })
+
+    expect(result.featureCollection).toBeDefined()
+    expect(result.featureCollection.type).toBe('FeatureCollection')
+    expect(result.featureCollection.features).toHaveLength(3)
+    expect(result.featureCollection.features[0].geometry.type).toBe('Point')
+    expect(result.featureCollection.features[0].geometry.coordinates).toEqual([-122.4, 37.8])
+  })
+
+  it('passes through an existing FeatureCollection unchanged', () => {
+    const operator = new GeoJsonOp('/geojson-3')
+    const existingFC = {
+      type: 'FeatureCollection',
+      features: [
+        { type: 'Feature', geometry: { type: 'Point', coordinates: [0, 0] }, properties: { id: 1 } },
+      ],
+    }
+
+    const result = operator.execute({ features: existingFC })
+
+    expect(result.featureCollection).toEqual(existingFC)
+  })
+})
+
 describe('TimeSeriesOp', () => {
   it('returns empty array when no data is provided', () => {
     const operator = new TimeSeriesOp('timeseries-0')
@@ -1621,5 +1929,234 @@ describe('KmlToGeoJsonOp', () => {
     expect(result.geojson.features).toHaveLength(1)
     expect(result.geojson.features[0].geometry.type).toBe('Point')
     expect(result.geojson.features[0].properties?.name).toBe('Test Point')
+  })
+})
+
+describe('CreateAttributeOp', () => {
+  it('should create a float attribute from expression', () => {
+    const operator = new CreateAttributeOp('/create-attr-0')
+
+    const data = [
+      { lng: -74.0, lat: 40.7, radius: 5 },
+      { lng: -73.9, lat: 40.8, radius: 10 },
+      { lng: -73.8, lat: 40.9, radius: 15 },
+    ]
+
+    const result = operator.execute({
+      data: data as any,
+      attributeName: 'radius',
+      expression: 'd.radius',
+      dataType: 'float',
+    })
+
+    expect(result.data.length).toBe(3)
+    expect(result.data.attributes).toBeDefined()
+    expect(result.data.attributes?.radius).toBeDefined()
+    expect(result.data.attributes?.radius.value).toBeInstanceOf(Float32Array)
+    expect(result.data.attributes?.radius.size).toBe(1)
+
+    const radiusAttr = result.data.attributes?.radius.value as Float32Array
+    expect(radiusAttr[0]).toBe(5)
+    expect(radiusAttr[1]).toBe(10)
+    expect(radiusAttr[2]).toBe(15)
+  })
+
+  it('should create a vec2 attribute (position) from expression', () => {
+    const operator = new CreateAttributeOp('/create-attr-1')
+
+    const data = [
+      { lng: -74.0, lat: 40.7 },
+      { lng: -73.9, lat: 40.8 },
+    ]
+
+    const result = operator.execute({
+      data: data as any,
+      attributeName: 'position',
+      expression: '[d.lng, d.lat]',
+      dataType: 'vec2',
+    })
+
+    expect(result.data.attributes?.position).toBeDefined()
+    expect(result.data.attributes?.position.value).toBeInstanceOf(Float32Array)
+    expect(result.data.attributes?.position.size).toBe(2)
+
+    const positions = result.data.attributes?.position.value as Float32Array
+    expect(positions[0]).toBe(-74.0)
+    expect(positions[1]).toBe(40.7)
+    expect(positions[2]).toBe(-73.9)
+    expect(positions[3]).toBe(40.8)
+  })
+
+  it('should create a vec3 attribute from expression', () => {
+    const operator = new CreateAttributeOp('/create-attr-2')
+
+    const data = [
+      { lng: -74.0, lat: 40.7, alt: 100 },
+      { lng: -73.9, lat: 40.8, alt: 200 },
+    ]
+
+    const result = operator.execute({
+      data: data as any,
+      attributeName: 'position',
+      expression: '[d.lng, d.lat, d.alt]',
+      dataType: 'vec3',
+    })
+
+    expect(result.data.attributes?.position).toBeDefined()
+    expect(result.data.attributes?.position.size).toBe(3)
+
+    const positions = result.data.attributes?.position.value as Float32Array
+    expect(positions.length).toBe(6) // 2 points × 3 components
+    expect(positions[0]).toBe(-74.0)
+    expect(positions[1]).toBe(40.7)
+    expect(positions[2]).toBe(100)
+    expect(positions[3]).toBe(-73.9)
+    expect(positions[4]).toBe(40.8)
+    expect(positions[5]).toBe(200)
+  })
+
+  it('should create an rgba attribute from expression', () => {
+    const operator = new CreateAttributeOp('/create-attr-3')
+
+    const data = [
+      { value: 50 },
+      { value: 100 },
+    ]
+
+    const result = operator.execute({
+      data: data as any,
+      attributeName: 'fillColor',
+      expression: 'd.value > 75 ? [255, 0, 0, 255] : [0, 255, 0, 255]',
+      dataType: 'rgba',
+    })
+
+    expect(result.data.attributes?.fillColor).toBeDefined()
+    expect(result.data.attributes?.fillColor.value).toBeInstanceOf(Uint8ClampedArray)
+    expect(result.data.attributes?.fillColor.size).toBe(4)
+
+    const colors = result.data.attributes?.fillColor.value as Uint8ClampedArray
+    expect(colors.length).toBe(8) // 2 points × 4 components
+    // First point: value=50, should be green
+    expect(colors[0]).toBe(0)
+    expect(colors[1]).toBe(255)
+    expect(colors[2]).toBe(0)
+    expect(colors[3]).toBe(255)
+    // Second point: value=100, should be red
+    expect(colors[4]).toBe(255)
+    expect(colors[5]).toBe(0)
+    expect(colors[6]).toBe(0)
+    expect(colors[7]).toBe(255)
+  })
+
+  it('should preserve existing attributes', () => {
+    const operator = new CreateAttributeOp('/create-attr-4')
+
+    const existingPositions = new Float32Array([-74.0, 40.7, -73.9, 40.8])
+    const data = {
+      length: 2,
+      properties: [
+        { lng: -74.0, lat: 40.7, radius: 5 },
+        { lng: -73.9, lat: 40.8, radius: 10 },
+      ],
+      attributes: {
+        position: { value: existingPositions, size: 2 },
+      },
+    }
+
+    const result = operator.execute({
+      data,
+      attributeName: 'radius',
+      expression: 'd.radius',
+      dataType: 'float',
+    })
+
+    // Should preserve existing position attribute
+    expect(result.data.attributes?.position).toBeDefined()
+    expect(result.data.attributes?.position.value).toBe(existingPositions)
+
+    // Should add new radius attribute
+    expect(result.data.attributes?.radius).toBeDefined()
+    expect(result.data.attributes?.radius.size).toBe(1)
+  })
+
+  it('should preserve properties array', () => {
+    const operator = new CreateAttributeOp('/create-attr-5')
+
+    const data = [
+      { lng: -74.0, lat: 40.7, name: 'Point A' },
+      { lng: -73.9, lat: 40.8, name: 'Point B' },
+    ]
+
+    const result = operator.execute({
+      data: data as any,
+      attributeName: 'position',
+      expression: '[d.lng, d.lat]',
+      dataType: 'vec2',
+    })
+
+    expect(result.data.properties).toBeDefined()
+    expect(result.data.properties).toHaveLength(2)
+    expect(result.data.properties?.[0]).toEqual({ lng: -74.0, lat: 40.7, name: 'Point A' })
+    expect(result.data.properties?.[1]).toEqual({ lng: -73.9, lat: 40.8, name: 'Point B' })
+  })
+
+  it('should preserve coordinateSets', () => {
+    const operator = new CreateAttributeOp('/create-attr-6')
+
+    const data = {
+      length: 1,
+      properties: [
+        { pickup_lng: -74.0, pickup_lat: 40.7, dropoff_lng: -73.9, dropoff_lat: 40.8 },
+      ],
+      attributes: {},
+      coordinateSets: {
+        pickup: { lng: 'pickup_lng', lat: 'pickup_lat' },
+        dropoff: { lng: 'dropoff_lng', lat: 'dropoff_lat' },
+      },
+    }
+
+    const result = operator.execute({
+      data,
+      attributeName: 'pickupPosition',
+      expression: '[d.pickup_lng, d.pickup_lat]',
+      dataType: 'vec2',
+    })
+
+    expect(result.data.coordinateSets).toEqual(data.coordinateSets)
+  })
+
+  it('should handle empty data array', () => {
+    const operator = new CreateAttributeOp('/create-attr-7')
+
+    const result = operator.execute({
+      data: [] as any,
+      attributeName: 'position',
+      expression: '[d.lng, d.lat]',
+      dataType: 'vec2',
+    })
+
+    expect(result.data.length).toBe(0)
+    expect(result.data.attributes?.position).toBeDefined()
+    expect(result.data.attributes?.position.value).toBeInstanceOf(Float32Array)
+    expect(result.data.attributes?.position.value.length).toBe(0)
+  })
+
+  it('should handle expression errors gracefully', () => {
+    const operator = new CreateAttributeOp('/create-attr-8')
+
+    const data = [{ lng: -74.0, lat: 40.7 }]
+
+    // Expression references non-existent field
+    const result = operator.execute({
+      data: data as any,
+      attributeName: 'radius',
+      expression: 'd.nonExistentField',
+      dataType: 'float',
+    })
+
+    // Should still create attribute, but with undefined/NaN values
+    expect(result.data.attributes?.radius).toBeDefined()
+    const radiusAttr = result.data.attributes?.radius.value as Float32Array
+    expect(Number.isNaN(radiusAttr[0])).toBe(true)
   })
 })
