@@ -1,6 +1,7 @@
 import { Component, lazy, type ReactNode, Suspense } from 'react'
 import { Redirect, Route, Router, Switch, useRoute, useSearchParams } from 'wouter'
 import { AnalyticsConsentBanner } from './components/analytics-consent-banner'
+import { ExternalControlProvider } from './external-control'
 import TimelineEditor from './timeline-editor'
 
 // Lazy-load ExamplesPage to reduce main bundle size
@@ -34,8 +35,26 @@ const baseUrl = import.meta.env.BASE_URL.replace(/\/+$/, '')
 
 function App() {
   console.log('App rendering, baseUrl:', baseUrl, 'location:', window.location.pathname)
+
+  // Check if external control should be enabled based on URL params
+  const urlParams = new URLSearchParams(window.location.search)
+  const enableExternalControl = urlParams.get('externalControl') === 'true'
+  const externalControlDebug = urlParams.get('externalControlDebug') === 'true'
+
   return (
     <Router base={baseUrl}>
+      {/* External control provider - only enable when requested via URL params */}
+      <ExternalControlProvider
+        enabled={enableExternalControl}
+        autoConnect={false}
+        debug={externalControlDebug}
+        onStatusChange={(connected) => {
+          console.log('[ExternalControl] Status:', connected ? 'Connected' : 'Disconnected')
+        }}
+        onError={(error) => {
+          console.error('[ExternalControl] Error:', error)
+        }}
+      />
       <Switch>
         {/* Project routes - /examples/:projectId and /projects/:projectId (most specific first) */}
         <Route path="/examples/:projectId">
