@@ -6,11 +6,28 @@ import { ContainerOp, ForLoopEndOp, GraphInputOp, opTypes } from './operators'
 import { getOpStore } from './store'
 import { memoize } from './utils/memoize'
 import { getParentPath, isDirectChild, parseHandleId } from './utils/path-utils'
-import { updateDependencyGraph } from './pull-integration'
-import type { ComputeState, ComputeResult } from './graph-executor'
+import {
+  updateGraph,
+  type ComputeState,
+  type ComputeResult,
+  type Edge as ExecutorEdge,
+} from './graph-executor'
 
 // Re-export GraphExecutor and related types for use elsewhere
-export { GraphExecutor, GraphScope, type ComputeState, type ComputeResult } from './graph-executor'
+export {
+  GraphExecutor,
+  GraphScope,
+  type ComputeState,
+  type ComputeResult,
+  initializeExecutor,
+  startExecutor,
+  stopExecutor,
+  getExecutor,
+  forceUpdate,
+  getPerformanceMetrics,
+  wouldCreateCycle,
+  getExecutionOrder,
+} from './graph-executor'
 import type { ExtractProps } from './utils/extract-props'
 
 // Local type definitions for ReactFlow node data using Operator class constraint
@@ -114,7 +131,7 @@ export function transformGraph<
   }
 
   // Update dependency graph
-  updateDependencyGraph(edges)
+  updateGraph(edges as unknown as ExecutorEdge[])
 
   // Remove any connections that are not in the edges array
   for (const op of instances) {

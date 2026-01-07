@@ -434,9 +434,13 @@ describe('Operator dirty flag', () => {
     expect(op.dirty).toBe(true)
   })
 
-  it('should be marked dirty via markDirty method', () => {
+  it('should be marked dirty via markDirty method', async () => {
     const op = new NumberOp('/number-1')
-    op.dirty = false
+    // First, pull to make the operator clean
+    await op.pull()
+    expect(op.dirty).toBe(false)
+
+    // Now markDirty should set dirty to true
     op.markDirty()
     expect(op.dirty).toBe(true)
   })

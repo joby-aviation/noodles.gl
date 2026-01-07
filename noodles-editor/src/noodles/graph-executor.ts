@@ -1,5 +1,5 @@
-// GraphExecutor - Cleaner execution engine replacing PullRenderer
-// Manages operator execution with topological sorting and dirty tracking
+// GraphExecutor - Execution engine for the operator graph
+// Manages operator execution with topological sorting, dirty tracking, and RAF loop
 
 import type { IOperator, Operator } from './operators'
 import { getAllOps, getOp } from './store'
@@ -17,6 +17,15 @@ export type ComputeResult<T = unknown> = {
   value: T
   changed: boolean
   error?: Error
+}
+
+// Edge type for graph connections
+export type Edge = {
+  id: string
+  source: OpId
+  target: OpId
+  sourceHandle: string
+  targetHandle: string
 }
 
 // Simple topological sort with cycle detection
@@ -116,34 +125,101 @@ function findCycle(
 
 // Execution options
 export type ExecutorOptions = {
+  targetFPS?: number // Target frame rate (default 60)
   parallel?: boolean // Execute independent nodes in parallel
   batchDelay?: number // Delay for batching dirty marks (ms)
-  maxExecutionTime?: number // Maximum time per frame (ms)
+  enableProfiling?: boolean // Enable performance monitoring
+}
+
+// Performance metrics
+export type PerformanceMetrics = {
+  frameTime: number
+  executionCount: number
+  dirtyCount: number
+  totalOperators: number
 }
 
 // GraphExecutor - manages execution of the operator graph
 export class GraphExecutor {
   private nodes: Map<string, Operator<IOperator>> = new Map()
   private edges: Array<{ source: string; target: string }> = []
+  private upstream: Map<string, Set<string>> = new Map()
+  private downstream: Map<string, Set<string>> = new Map()
   private sortedOrder: string[] = []
   private executionLevels: string[][] = []
   private isDirty: boolean = true
-  private options: ExecutorOptions
+  private options: Required<ExecutorOptions>
+
+  // RAF loop state
+  private rafId: number | null = null
+  private isPulling: boolean = false
+  private lastFrameTime: number = 0
+  private frameInterval: number
 
   // Dirty tracking
   private dirtyNodes: Set<string> = new Set()
   private batchTimeout: number | null = null
 
   // Performance tracking
-  private lastExecutionTime: number = 0
+  private metrics: PerformanceMetrics = {
+    frameTime: 0,
+    executionCount: 0,
+    dirtyCount: 0,
+    totalOperators: 0,
+  }
   private executionCount: number = 0
 
   constructor(options: ExecutorOptions = {}) {
     this.options = {
+      targetFPS: options.targetFPS ?? 60,
       parallel: options.parallel ?? true,
       batchDelay: options.batchDelay ?? 16,
-      maxExecutionTime: options.maxExecutionTime ?? 50,
+      enableProfiling: options.enableProfiling ?? false,
     }
+    this.frameInterval = 1000 / this.options.targetFPS
+  }
+
+  // Start the execution loop
+  start(): void {
+    if (this.rafId !== null) return
+    this.lastFrameTime = performance.now()
+    this.loop()
+  }
+
+  // Stop the execution loop
+  stop(): void {
+    if (this.rafId !== null) {
+      cancelAnimationFrame(this.rafId)
+      this.rafId = null
+    }
+    if (this.batchTimeout !== null) {
+      clearTimeout(this.batchTimeout)
+      this.batchTimeout = null
+    }
+  }
+
+  // Main loop - runs on animation frame
+  private loop = (): void => {
+    const currentTime = performance.now()
+    const deltaTime = currentTime - this.lastFrameTime
+
+    // Throttle to target FPS
+    if (deltaTime >= this.frameInterval) {
+      this.lastFrameTime = currentTime - (deltaTime % this.frameInterval)
+
+      if (!this.isPulling) {
+        this.isPulling = true
+        this.executeFrame(currentTime).finally(() => {
+          this.isPulling = false
+        })
+      }
+    }
+
+    this.rafId = requestAnimationFrame(this.loop)
+  }
+
+  get isRunning(): boolean {
+    return this.rafId !== null
   }
 
   // Add a node to the graph
@@ -158,6 +234,10 @@ export class GraphExecutor {
     this.edges = this.edges.filter(
       edge => edge.source !== nodeId && edge.target !== nodeId
     )
+    this.upstream.delete(nodeId)
+    this.downstream.delete(nodeId)
+    for (const set of this.upstream.values()) set.delete(nodeId)
+    for (const set of this.downstream.values()) set.delete(nodeId)
     this.isDirty = true
   }
 
@@ -172,6 +252,14 @@ export class GraphExecutor {
     }
 
     this.edges.push({ source: sourceId, target: targetId })
+
+    // Update upstream/downstream maps
+    if (!this.downstream.has(sourceId)) this.downstream.set(sourceId, new Set())
+    this.downstream.get(sourceId)!.add(targetId)
+
+    if (!this.upstream.has(targetId)) this.upstream.set(targetId, new Set())
+    this.upstream.get(targetId)!.add(sourceId)
+
     this.isDirty = true
   }
 
@@ -180,7 +268,45 @@ export class GraphExecutor {
     this.edges = this.edges.filter(
       edge => !(edge.source === sourceId && edge.target === targetId)
     )
+    this.downstream.get(sourceId)?.delete(targetId)
+    this.upstream.get(targetId)?.delete(sourceId)
     this.isDirty = true
+  }
+
+  // Build graph from edges array
+  buildFromEdges(edges: Edge[]): void {
+    this.edges = []
+    this.upstream.clear()
+    this.downstream.clear()
+
+    for (const edge of edges) {
+      this.edges.push({ source: edge.source, target: edge.target })
+
+      if (!this.downstream.has(edge.source)) this.downstream.set(edge.source, new Set())
+      this.downstream.get(edge.source)!.add(edge.target)
+
+      if (!this.upstream.has(edge.target)) this.upstream.set(edge.target, new Set())
+      this.upstream.get(edge.target)!.add(edge.source)
+    }
+
+    this.isDirty = true
+  }
+
+  // Get upstream dependencies for a node
+  getUpstream(nodeId: string): Set<string> {
+    return this.upstream.get(nodeId) || new Set()
+  }
+
+  // Get downstream dependents for a node
+  getDownstream(nodeId: string): Set<string> {
+    return this.downstream.get(nodeId) || new Set()
+  }
+
+  // Check if adding an edge would create a cycle
+  wouldCreateCycle(sourceId: string, targetId: string): boolean {
+    const testEdges = [...this.edges, { source: sourceId, target: targetId }]
+    const { cycles } = topologicalSort(this.nodes, testEdges)
+    return cycles.length > 0
   }
 
   // Update topological sort and execution levels
@@ -225,12 +351,30 @@ export class GraphExecutor {
     return levels
   }
 
+  // Get execution order for debugging
+  getExecutionOrder(): string[] {
+    this.updateSort()
+    return [...this.sortedOrder]
+  }
+
+  // Get parallel execution levels
+  getParallelExecutionLevels(): string[][] {
+    this.updateSort()
+    return this.executionLevels.map(level => [...level])
+  }
+
   // Execute a single frame
   async executeFrame(time: number): Promise<Map<string, ComputeResult>> {
     const frameStart = performance.now()
     const results = new Map<string, ComputeResult>()
 
     this.updateSort()
+
+    // Reset frame metrics
+    if (this.options.enableProfiling) {
+      this.metrics.executionCount = 0
+      this.metrics.dirtyCount = this.dirtyNodes.size
+    }
 
     // Create execution state
     const state: ComputeState = {
@@ -282,17 +426,23 @@ export class GraphExecutor {
     for (const [nodeId, result] of results) {
       if (!result.error) {
         this.dirtyNodes.delete(nodeId)
+        const node = this.nodes.get(nodeId)
+        if (node) node.dirty = false
       }
     }
 
-    this.lastExecutionTime = performance.now() - frameStart
+    // Update metrics
+    this.metrics.frameTime = performance.now() - frameStart
+    this.metrics.executionCount = results.size
+    this.metrics.totalOperators = this.nodes.size
+
     return results
   }
 
   // Execute a single node
   private async executeNode(
     node: Operator<IOperator>,
-    state: ComputeState
+    _state: ComputeState
   ): Promise<ComputeResult> {
     try {
       // Get input values
@@ -333,18 +483,21 @@ export class GraphExecutor {
       // Batch dirty marks
       for (const id of nodeIds) {
         this.dirtyNodes.add(id)
+        const node = this.nodes.get(id)
+        if (node) node.dirty = true
       }
 
       if (this.batchTimeout === null) {
         this.batchTimeout = window.setTimeout(() => {
           this.batchTimeout = null
-          // Trigger execution after batch delay
         }, this.options.batchDelay)
       }
     } else {
       // Mark immediately
       for (const id of nodeIds) {
         this.dirtyNodes.add(id)
+        const node = this.nodes.get(id)
+        if (node) node.dirty = true
         this.markDownstreamDirty(id)
       }
     }
@@ -355,8 +508,18 @@ export class GraphExecutor {
     for (const edge of this.edges) {
       if (edge.source === nodeId) {
         this.dirtyNodes.add(edge.target)
-        this.markDownstreamDirty(edge.target) // Recursive
+        const node = this.nodes.get(edge.target)
+        if (node) node.dirty = true
+        this.markDownstreamDirty(edge.target)
       }
+    }
+  }
+
+  // Force update all nodes
+  forceUpdate(): void {
+    for (const [id, node] of this.nodes) {
+      this.dirtyNodes.add(id)
+      node.dirty = true
     }
   }
 
@@ -370,9 +533,14 @@ export class GraphExecutor {
     return {
       nodeCount: this.nodes.size,
       edgeCount: this.edges.length,
-      lastExecutionTime: this.lastExecutionTime,
+      lastExecutionTime: this.metrics.frameTime,
       dirtyCount: this.dirtyNodes.size,
     }
+  }
+
+  // Get performance metrics
+  getMetrics(): PerformanceMetrics {
+    return { ...this.metrics }
   }
 
   // Create a sub-graph scope for control flow operations
@@ -388,6 +556,35 @@ export class GraphExecutor {
   // Get all edges
   getEdges(): Array<{ source: string; target: string }> {
     return [...this.edges]
+  }
+
+  // Find root operators (sinks - DeckRenderer, Out, Viewer, etc.)
+  findRootOperators(): Operator<IOperator>[] {
+    const roots: Operator<IOperator>[] = []
+
+    for (const [_, op] of this.nodes) {
+      const opType = (op.constructor as any).displayName
+
+      if (
+        opType === 'DeckRenderer' ||
+        opType === 'Out' ||
+        opType === 'Viewer' ||
+        opType === 'ConsoleOp'
+      ) {
+        roots.push(op)
+      } else {
+        // Also include operators with no downstream dependents
+        const downstream = this.getDownstream(op.id)
+        if (downstream.size === 0) {
+          const upstream = this.getUpstream(op.id)
+          if (upstream.size > 0) {
+            roots.push(op)
+          }
+        }
+      }
+    }
+
+    return roots
   }
 }
 
@@ -410,7 +607,7 @@ export class GraphScope {
   addNodeReference(nodeId: string): void {
     const node = this.parentGraph.getNode(nodeId)
     if (node) {
-      this.nodes.set(nodeId, node) // Keep same ID
+      this.nodes.set(nodeId, node)
     }
   }
 
@@ -492,4 +689,64 @@ export class GraphScope {
   markParentDirty(): void {
     this.parentGraph.markDirty([this.parentId])
   }
+}
+
+// Global executor instance
+let globalExecutor: GraphExecutor | null = null
+
+// Initialize the execution system
+export function initializeExecutor(options?: ExecutorOptions): GraphExecutor {
+  globalExecutor = new GraphExecutor(options)
+
+  if (typeof window !== 'undefined') {
+    ;(window as any).__noodlesExecutor = globalExecutor
+  }
+
+  return globalExecutor
+}
+
+// Get the global executor
+export function getExecutor(): GraphExecutor | null {
+  return globalExecutor
+}
+
+// Start the executor
+export function startExecutor(): void {
+  if (!globalExecutor) {
+    initializeExecutor()
+  }
+  globalExecutor?.start()
+}
+
+// Stop the executor
+export function stopExecutor(): void {
+  globalExecutor?.stop()
+}
+
+// Update graph from edges
+export function updateGraph(edges: Edge[]): void {
+  if (!globalExecutor) {
+    initializeExecutor()
+  }
+  globalExecutor?.buildFromEdges(edges)
+}
+
+// Force update all operators
+export function forceUpdate(): void {
+  globalExecutor?.forceUpdate()
+}
+
+// Get performance metrics
+export function getPerformanceMetrics(): PerformanceMetrics | null {
+  return globalExecutor?.getMetrics() ?? null
+}
+
+// Check if adding an edge would create a cycle
+export function wouldCreateCycle(sourceId: string, targetId: string): boolean {
+  return globalExecutor?.wouldCreateCycle(sourceId, targetId) ?? false
+}
+
+// Get execution order for debugging
+export function getExecutionOrder(): string[] | null {
+  return globalExecutor?.getExecutionOrder() ?? null
 }

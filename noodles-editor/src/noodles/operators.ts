@@ -379,6 +379,7 @@ export abstract class Operator<OP extends IOperator> {
       // Cache result and mark clean
       this._cachedOutput = finalResult
       this._pullExecutionStatus = PullExecutionStatus.CLEAN
+      this.dirty = false // Also clear the dirty flag for GraphExecutor
       this._lastExecutionTime = performance.now() - startTime
 
       // Update execution state for UI
@@ -450,6 +451,7 @@ export abstract class Operator<OP extends IOperator> {
 
     this._pullExecutionStatus = PullExecutionStatus.DIRTY
     this._cachedOutput = null
+    this.dirty = true // Also set the dirty flag for GraphExecutor
 
     // Propagate dirty flag to downstream dependents
     for (const dependent of this._downstreamDependents) {
@@ -2419,14 +2421,14 @@ export class ForEachMetaOp extends Operator<ForEachMetaOp> {
 
   createInputs() {
     return {
-      initialValue: new Field(null, { description: 'Initial accumulator value' }),
-      currentValue: new Field(null, { description: 'Value to pass to next iteration' }),
+      initialValue: new DataField(new UnknownField(), { description: 'Initial accumulator value' }),
+      currentValue: new DataField(new UnknownField(), { description: 'Value to pass to next iteration' }),
     }
   }
 
   createOutputs() {
     return {
-      accumulator: new Field(null), // Current accumulator value, set by executor
+      accumulator: new DataField(new UnknownField()), // Current accumulator value, set by executor
       index: new NumberField(0), // Current iteration index
       total: new NumberField(0), // Total number of iterations
       isFirst: new BooleanField(false), // True for first iteration
