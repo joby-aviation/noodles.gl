@@ -40,7 +40,7 @@ export class ToolRegistry {
     this.registerDefaultTools()
   }
 
-  //
+  /**
    * Register default tools
    */
   private registerDefaultTools() {
@@ -207,28 +207,28 @@ export class ToolRegistry {
     })
   }
 
-  //
+  /**
    * Register a tool
    */
   register(tool: ToolDefinition) {
     this.tools.set(tool.name, tool)
   }
 
-  //
+  /**
    * Get tool definition
    */
   getTool(name: string): ToolDefinition | undefined {
     return this.tools.get(name)
   }
 
-  //
+  /**
    * List all tools
    */
   listTools(): ToolDefinition[] {
     return Array.from(this.tools.values())
   }
 
-  //
+  /**
    * Execute a tool
    */
   async execute(
@@ -330,7 +330,7 @@ export class ToolRegistry {
     }
   }
 
-  //
+  /**
    * Create a new node
    */
   private async createNode(args: {
@@ -374,7 +374,7 @@ export class ToolRegistry {
     }
   }
 
-  //
+  /**
    * Connect two nodes
    */
   private async connectNodes(args: {
@@ -413,7 +413,7 @@ export class ToolRegistry {
     }
   }
 
-  //
+  /**
    * Delete a node
    */
   private async deleteNode(args: { nodeId: string }): Promise<any> {
@@ -432,7 +432,7 @@ export class ToolRegistry {
     }
   }
 
-  //
+  /**
    * List available operator types
    */
   private listOperatorTypes(): any {

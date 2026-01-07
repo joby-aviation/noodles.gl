@@ -79,7 +79,7 @@ export class NoodlesClient {
     }
   }
 
-  //
+  /**
    * Connect to Noodles external control server
    */
   connect(url?: string): Promise<void> {
@@ -146,7 +146,7 @@ export class NoodlesClient {
     })
   }
 
-  //
+  /**
    * Disconnect from server
    */
   disconnect(): void {
@@ -166,7 +166,7 @@ export class NoodlesClient {
 
   // ==================== Pipeline Operations ====================
 
-  //
+  /**
    * Create a pipeline from specification
    */
   async createPipeline(spec: PipelineSpec): Promise<any> {
@@ -185,7 +185,7 @@ export class NoodlesClient {
     return response.payload.result
   }
 
-  //
+  /**
    * Test a pipeline with sample data
    */
   async testPipeline(pipelineId: string, testData: any[]): Promise<any> {
@@ -206,7 +206,7 @@ export class NoodlesClient {
     return response.payload.result
   }
 
-  //
+  /**
    * Validate a pipeline
    */
   async validatePipeline(pipelineId: string): Promise<any> {
@@ -224,7 +224,7 @@ export class NoodlesClient {
 
   // ==================== Tool Operations ====================
 
-  //
+  /**
    * Call a tool directly
    */
   async callTool(tool: string, args: Record<string, any>): Promise<any> {
@@ -242,35 +242,35 @@ export class NoodlesClient {
     return response.payload.result
   }
 
-  //
+  /**
    * Get current project state
    */
   async getCurrentProject(): Promise<any> {
     return this.callTool('getCurrentProject', {})
   }
 
-  //
+  /**
    * Apply modifications to the project
    */
   async applyModifications(modifications: any): Promise<any> {
     return this.callTool('applyModifications', { modifications })
   }
 
-  //
+  /**
    * List all nodes
    */
   async listNodes(): Promise<any> {
     return this.callTool('listNodes', {})
   }
 
-  //
+  /**
    * Get node output
    */
   async getNodeOutput(nodeId: string, outputName = 'result'): Promise<any> {
     return this.callTool('getNodeOutput', { nodeId, outputName })
   }
 
-  //
+  /**
    * Capture visualization screenshot
    */
   async captureVisualization(format = 'png', quality = 0.9): Promise<any> {
@@ -279,7 +279,7 @@ export class NoodlesClient {
 
   // ==================== Data Operations ====================
 
-  //
+  /**
    * Upload a data file
    */
   async uploadDataFile(
@@ -304,7 +304,7 @@ export class NoodlesClient {
 
   // ==================== State Operations ====================
 
-  //
+  /**
    * Request current state
    */
   async getState(): Promise<any> {
@@ -313,14 +313,14 @@ export class NoodlesClient {
     return response.payload
   }
 
-  //
+  /**
    * Subscribe to state changes
    */
   onStateChange(callback: (state: any) => void): void {
     this.on('stateChange', callback)
   }
 
-  //
+  /**
    * Subscribe to errors
    */
   onError(callback: (error: any) => void): void {

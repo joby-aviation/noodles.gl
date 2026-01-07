@@ -66,7 +66,7 @@ export class PipelineManager {
     this.registerPipelineTools()
   }
 
-  //
+  /**
    * Register pipeline-specific tools
    */
   private registerPipelineTools() {
@@ -180,7 +180,7 @@ export class PipelineManager {
     })
   }
 
-  //
+  /**
    * Create a pipeline from specification
    */
   async createPipeline(
@@ -248,7 +248,7 @@ export class PipelineManager {
     return handle
   }
 
-  //
+  /**
    * Test a pipeline with sample data
    */
   async testPipeline(
@@ -330,7 +330,7 @@ export class PipelineManager {
     return result
   }
 
-  //
+  /**
    * Validate a pipeline
    */
   async validatePipeline(pipelineId: string): Promise<ValidationResult> {
@@ -426,7 +426,7 @@ export class PipelineManager {
     }
   }
 
-  //
+  /**
    * Validate pipeline specification
    */
   private validateSpec(spec: PipelineSpec) {
@@ -475,7 +475,7 @@ export class PipelineManager {
     }
   }
 
-  //
+  /**
    * Get default output field for an operator type
    */
   private getDefaultOutputField(type: string): string {
@@ -491,7 +491,7 @@ export class PipelineManager {
     return (outputPatterns as any)[type] || 'out.result'
   }
 
-  //
+  /**
    * Get default input field for an operator type
    */
   private getDefaultInputField(type: string): string {
@@ -507,14 +507,14 @@ export class PipelineManager {
     return (inputPatterns as any)[type] || 'par.data'
   }
 
-  //
+  /**
    * Get pipeline information
    */
   getPipelineInfo(pipelineId: string): PipelineHandle | undefined {
     return this.pipelines.get(pipelineId)
   }
 
-  //
+  /**
    * Delete a pipeline
    */
   async deletePipeline(pipelineId: string): Promise<void> {
