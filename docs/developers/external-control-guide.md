@@ -292,7 +292,7 @@ client.onError((error) => {
 - `GeoJsonLayerOp` - Geographic features
 - `TextLayerOp` - Text labels
 
-See the [Operators Reference](../users/operators-reference.md) for complete list.
+See the [Operators Guide](../users/operators-guide.md) for complete list.
 
 ## Message Protocol
 
