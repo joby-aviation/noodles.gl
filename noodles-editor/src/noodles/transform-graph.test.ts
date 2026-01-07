@@ -67,7 +67,7 @@ describe('transform-graph', () => {
     }
 
     expect(() => transformGraph(graph)).toThrow(
-      'Invalid handle ID format - migration should have converted all handles to qualified format'
+      'Invalid handle ID format (invalid-format or par.a) - migration should have converted all handles to qualified format'
     )
   })
 
