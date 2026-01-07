@@ -384,11 +384,13 @@ export class GraphExecutor {
     return this.executionLevels.map(level => [...level])
   }
 
-  // Execute a single frame
-  async executeFrame(time: number): Promise<Map<string, ComputeResult>> {
+  // Execute a single frame - uses pull-based execution from root operators
+  async executeFrame(_time: number): Promise<Map<string, ComputeResult>> {
     const frameStart = performance.now()
     const results = new Map<string, ComputeResult>()
 
+    // Sync nodes from store to ensure we have latest operators
+    this.syncNodesFromStore()
     this.updateSort()
 
     // Reset frame metrics
@@ -397,58 +399,37 @@ export class GraphExecutor {
       this.metrics.dirtyCount = this.dirtyNodes.size
     }
 
-    // Create execution state
-    const state: ComputeState = {
-      time,
-      frame: this.executionCount++,
-      context: new Map(),
-    }
+    // Find root operators to pull from (sinks like DeckRenderer, Viewer, etc.)
+    const roots = this.findRootOperators()
 
-    // Execute based on parallel option
+    // Pull from roots - this recursively executes all upstream dependencies
     if (this.options.parallel) {
-      // Execute by levels
-      for (const level of this.executionLevels) {
-        const levelNodes = level
-          .filter(id => this.dirtyNodes.has(id))
-          .map(id => this.nodes.get(id))
-          .filter((node): node is Operator<IOperator> => node !== undefined)
-
-        if (levelNodes.length > 0) {
-          const levelResults = await Promise.all(
-            levelNodes.map(node => this.executeNode(node, state))
-          )
-
-          levelNodes.forEach((node, i) => {
-            results.set(node.id, levelResults[i])
-            if (levelResults[i].changed) {
-              this.markDownstreamDirty(node.id)
-            }
+      await Promise.all(
+        roots.map(async op => {
+          try {
+            const output = await op.pull()
+            results.set(op.id, { value: output, changed: true })
+          } catch (error) {
+            results.set(op.id, {
+              value: null,
+              changed: false,
+              error: error instanceof Error ? error : new Error(String(error)),
+            })
+          }
+        })
+      )
+    } else {
+      for (const op of roots) {
+        try {
+          const output = await op.pull()
+          results.set(op.id, { value: output, changed: true })
+        } catch (error) {
+          results.set(op.id, {
+            value: null,
+            changed: false,
+            error: error instanceof Error ? error : new Error(String(error)),
           })
         }
-      }
-    } else {
-      // Execute sequentially
-      for (const nodeId of this.sortedOrder) {
-        if (this.dirtyNodes.has(nodeId)) {
-          const node = this.nodes.get(nodeId)
-          if (node) {
-            const result = await this.executeNode(node, state)
-            results.set(nodeId, result)
-
-            if (result.changed) {
-              this.markDownstreamDirty(nodeId)
-            }
-          }
-        }
-      }
-    }
-
-    // Clear dirty flags for executed nodes
-    for (const [nodeId, result] of results) {
-      if (!result.error) {
-        this.dirtyNodes.delete(nodeId)
-        const node = this.nodes.get(nodeId)
-        if (node) node.dirty = false
       }
     }
 
@@ -577,6 +558,31 @@ export class GraphExecutor {
   // Get all edges
   getEdges(): Array<{ source: string; target: string }> {
     return [...this.edges]
+  }
+
+  // Sync nodes from the operator store
+  syncNodesFromStore(): void {
+    const ops = getAllOps()
+
+    // Remove nodes that no longer exist in store
+    for (const [id] of this.nodes) {
+      if (!ops.find(op => op.id === id)) {
+        this.nodes.delete(id)
+      }
+    }
+
+    // Add/update nodes from store
+    for (const op of ops) {
+      if (!this.nodes.has(op.id)) {
+        this.nodes.set(op.id, op)
+        // New nodes are dirty by default
+        if (op.dirty) {
+          this.dirtyNodes.add(op.id)
+        }
+      }
+    }
+
+    this.isDirty = true
   }
 
   // Find root operators (sinks - DeckRenderer, Out, Viewer, etc.)
@@ -898,12 +904,17 @@ export function stopExecutor(): void {
   globalExecutor?.stop()
 }
 
-// Update graph from edges
+// Update graph from edges - syncs nodes from the store
 export function updateGraph(edges: Edge[]): void {
   if (!globalExecutor) {
     initializeExecutor()
   }
-  globalExecutor?.buildFromEdges(edges)
+  if (globalExecutor) {
+    // Sync nodes from store
+    globalExecutor.syncNodesFromStore()
+    // Build edge relationships
+    globalExecutor.buildFromEdges(edges)
+  }
 }
 
 // Force update all operators

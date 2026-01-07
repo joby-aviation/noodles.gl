@@ -617,7 +617,7 @@ export class JSONUrlField extends Field<z.ZodUnion<readonly [z.ZodURL, z.ZodJSON
 }
 
 type Point3DFieldValue =
-  | { lng: number; lat: number; alt: number; [key: string]: unknown }
+  | { lng: number; lat: number; alt: number;[key: string]: unknown }
   | [number, number, number]
 
 // Should this just be a Vec2? Should it be a GeoJSON Point Or does it need to be a special case
@@ -672,7 +672,7 @@ export class Point3DField extends Field<
   }
 }
 
-type Point2DFieldValue = { lng: number; lat: number; [key: string]: unknown } | [number, number]
+type Point2DFieldValue = { lng: number; lat: number;[key: string]: unknown } | [number, number]
 
 // Should this just be a Vec2? Should it be a GeoJSON Point Or does it need to be a special case
 export class Point2DField extends Field<
