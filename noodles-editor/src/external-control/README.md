@@ -4,7 +4,25 @@ This module enables external AI tools and scripts to control the Noodles applica
 
 ## Architecture
 
-The external control system consists of several key components:
+The external control system supports two connection methods:
+
+### Option 1: MCP Protocol (Recommended for Claude Desktop)
+
+Use the MCP proxy to connect Claude Desktop directly to Noodles:
+
+```
+Claude Desktop ←--stdio/MCP--→ mcp-proxy.js ←--WebSocket--→ Noodles Browser
+```
+
+See `examples/external-control/mcp-proxy.js` for the proxy implementation.
+
+### Option 2: Direct WebSocket
+
+For custom tools, connect directly via WebSocket:
+
+```
+Custom Tool ←--WebSocket--→ server-example.js ←--WebSocket--→ Noodles Browser
+```
 
 ### Core Components
 

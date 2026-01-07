@@ -13,6 +13,20 @@ The External Control API provides:
 
 ## Architecture
 
+There are two ways to connect to Noodles:
+
+### Option A: MCP Protocol (Recommended for Claude Desktop)
+
+```
+Claude Desktop
+      ↓ (stdio/MCP)
+MCP Proxy Server
+      ↓ (WebSocket)
+Noodles Browser App
+```
+
+### Option B: Direct WebSocket (For Custom Tools)
+
 ```
 External AI Tool (e.g., Claude Code)
          ↓
@@ -27,7 +41,51 @@ External AI Tool (e.g., Claude Code)
 
 ## Quick Start
 
-### 1. Enable External Control in Noodles
+### Method 1: Claude Desktop Integration (MCP)
+
+This is the recommended approach for Claude Desktop users.
+
+#### 1. Install the MCP Proxy
+
+```bash
+cd examples/external-control
+npm install
+```
+
+#### 2. Configure Claude Desktop
+
+Add to your Claude Desktop config file:
+
+**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "noodles": {
+      "command": "node",
+      "args": ["/absolute/path/to/examples/external-control/mcp-proxy.js"]
+    }
+  }
+}
+```
+
+#### 3. Open Noodles with External Control
+
+```
+http://localhost:5173/examples/nyc-taxis?externalControl=true
+```
+
+#### 4. Use Claude Desktop
+
+Now Claude can control Noodles directly! Try asking:
+- "List all the nodes in the current project"
+- "Create a scatterplot layer showing the pickup locations"
+- "Capture a screenshot of the visualization"
+
+### Method 2: Direct WebSocket (Custom Tools)
+
+#### 1. Enable External Control in Noodles
 
 Add URL parameters when opening Noodles:
 
@@ -39,17 +97,17 @@ Parameters:
 - `externalControl=true` - Enables the external control system
 - `externalControlDebug=true` - Shows connection status indicator
 
-### 2. Start the Bridge Server
+#### 2. Start the Bridge Server
 
 The bridge server routes messages between external tools and Noodles:
 
 ```bash
 cd examples/external-control
-npm install ws
+npm install
 node server-example.js
 ```
 
-### 3. Connect from External Tool
+#### 3. Connect from External Tool
 
 #### JavaScript/Node.js
 ```javascript
