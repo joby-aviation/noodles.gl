@@ -73,11 +73,12 @@ type CodeFieldOptions = BaseFieldOptions & {
 // to be able to be serialized and deserialized. It's also meant to serve as a template for
 // the UI, say to hint to the Node to render a Number input, a Geocoder or a ColorPicker.
 export abstract class Field<
-  S extends z.ZodType = z.ZodType,
-  O extends BaseFieldOptions = BaseFieldOptions,
->
+    S extends z.ZodType = z.ZodType,
+    O extends BaseFieldOptions = BaseFieldOptions,
+  >
   extends BehaviorSubject<z.output<S>>
-  implements IField<S> {
+  implements IField<S>
+{
   static type: keyof typeof inputComponents
   static defaultValue: unknown // z.output<ReturnType<T['createSchema']>>
 

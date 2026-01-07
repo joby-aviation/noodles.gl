@@ -431,13 +431,7 @@ export abstract class Operator<OP extends IOperator> {
     }
 
     await Promise.all(promises)
-
-    // After pulling dependencies, update our input values from connected fields
-    // This ensures we have the latest values from upstream operators
-    for (const [key, field] of Object.entries(this.inputs)) {
-      // Field connections will have updated the values already via subscriptions
-      // We just need to ensure we're reading the latest
-    }
+    // Field connections will have updated the values already via subscriptions
   }
 
   /**
@@ -2348,17 +2342,23 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
   }
 }
 
-// ForEach scope-based control flow operators
-// These work together with a group node wrapping the scope body:
-// - ForEachBeginOp: Receives data array and emits current item
-// - ForEachEndOp: Collects results from each iteration
-// - ForEachMetaOp: Access to iteration metadata and accumulator (like Houdini)
-// The graph executor is responsible for managing iteration and setting values
+// ForEach scope-based control flow construct (Houdini-style)
+// The ForEach construct consists of:
+// - ForEachBeginOp: Entry point that receives the data array. Outputs are set by GraphExecutor.
+// - ForEachEndOp: Exit point that collects results. GraphExecutor accumulates results across iterations.
+// - ForEachMetaOp (optional): Provides accumulator for reduce-like operations. Takes initialValue
+//   input and outputs the accumulator. GraphExecutor manages accumulator state across iterations.
+// The body of the forEach is wrapped in a group node containing all operators in the scope.
+// GraphExecutor is responsible for:
+// - Iterating over the data array
+// - Setting item/index/total on ForEachBeginOp for each iteration
+// - Setting accumulator/index/total/isFirst/isLast on ForEachMetaOp
+// - Collecting results from ForEachEndOp across iterations
 
 export class ForEachBeginOp extends Operator<ForEachBeginOp> {
   static displayName = 'ForEachBegin'
   static description =
-    'Start a forEach scope that processes each item in an array. The scope body is wrapped in a group node.'
+    'Start a forEach scope. The scope body is wrapped in a group node. Outputs are set by the executor during iteration.'
 
   createInputs() {
     return {
@@ -2368,19 +2368,19 @@ export class ForEachBeginOp extends Operator<ForEachBeginOp> {
 
   createOutputs() {
     return {
-      item: new DataField(new UnknownField()), // Current item, set by executor
-      index: new NumberField(0), // Current index, set by executor
-      total: new NumberField(0), // Total count, set by executor
+      item: new DataField(new UnknownField()),
+      index: new NumberField(0),
+      total: new NumberField(0),
     }
   }
 
   execute({ data }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // The executor sets item/index/total during iteration
-    // Default execute just returns first item or empty state
+    // GraphExecutor sets these values during iteration
+    const arr = Array.isArray(data) ? data : []
     return {
-      item: Array.isArray(data) && data.length > 0 ? data[0] : null,
+      item: arr.length > 0 ? arr[0] : null,
       index: 0,
-      total: Array.isArray(data) ? data.length : 0,
+      total: arr.length,
     }
   }
 }
@@ -2392,19 +2392,18 @@ export class ForEachEndOp extends Operator<ForEachEndOp> {
 
   createInputs() {
     return {
-      result: new DataField(new UnknownField()), // Result from this iteration
+      result: new DataField(new UnknownField()),
     }
   }
 
   createOutputs() {
     return {
-      results: new DataField(new ArrayField(new UnknownField())), // Collected results, set by executor
+      results: new DataField(new ArrayField(new UnknownField())),
     }
   }
 
   execute({ result }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // The executor collects results across iterations
-    // Default execute just wraps single result
+    // GraphExecutor collects results across all iterations
     return {
       results: [result],
     }
@@ -2414,7 +2413,7 @@ export class ForEachEndOp extends Operator<ForEachEndOp> {
 export class ForEachMetaOp extends Operator<ForEachMetaOp> {
   static displayName = 'ForEachMeta'
   static description =
-    'Access iteration metadata and accumulator within a forEach scope. Similar to Houdini iteration metadata.'
+    'Access iteration metadata and accumulator within a forEach scope. Like Houdini iteration metadata.'
 
   createInputs() {
     return {
@@ -2425,16 +2424,16 @@ export class ForEachMetaOp extends Operator<ForEachMetaOp> {
 
   createOutputs() {
     return {
-      accumulator: new DataField(new UnknownField()), // Current accumulator value, set by executor
-      index: new NumberField(0), // Current iteration index
-      total: new NumberField(0), // Total number of iterations
-      isFirst: new BooleanField(false), // True for first iteration
-      isLast: new BooleanField(false), // True for last iteration
+      accumulator: new DataField(new UnknownField()),
+      index: new NumberField(0),
+      total: new NumberField(0),
+      isFirst: new BooleanField(false),
+      isLast: new BooleanField(false),
     }
   }
 
   execute({ initialValue, currentValue }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // The executor manages accumulator state across iterations
+    // GraphExecutor manages accumulator state across iterations
     return {
       accumulator: currentValue ?? initialValue,
       index: 0,
