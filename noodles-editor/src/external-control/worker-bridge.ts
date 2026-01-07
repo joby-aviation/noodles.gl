@@ -17,6 +17,7 @@ import {
   DataUploadMessage,
 } from './message-protocol'
 import { MCPTools } from '../ai-chat/mcp-tools'
+import { globalContextManager } from '../ai-chat/global-context-manager'
 import { getOpStore } from '../noodles/store'
 import { sessionManager } from './session-manager'
 
@@ -57,8 +58,10 @@ export const initializeWorkerBridge = async (): Promise<void> => {
       { type: 'module' }
     )
 
-    // Initialize tool executor
-    toolExecutor = new MCPTools()
+    // Initialize tool executor with context loader for full functionality
+    // This enables code search, operator schemas, documentation, etc.
+    const contextLoader = globalContextManager.getLoader()
+    toolExecutor = new MCPTools(contextLoader ?? undefined)
 
     // Set up message handler
     worker.onmessage = handleWorkerMessage

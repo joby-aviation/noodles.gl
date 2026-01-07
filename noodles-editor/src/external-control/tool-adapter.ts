@@ -4,6 +4,7 @@
 
 
 import { MCPTools } from '../ai-chat/mcp-tools'
+import { globalContextManager } from '../ai-chat/global-context-manager'
 import { getOpStore } from '../noodles/store'
 import { opTypes } from '../noodles/operators'
 
@@ -36,7 +37,9 @@ export class ToolRegistry {
   private mcpTools: MCPTools
 
   constructor() {
-    this.mcpTools = new MCPTools()
+    // Use context loader for full functionality (code search, operator schemas, docs, etc.)
+    const contextLoader = globalContextManager.getLoader()
+    this.mcpTools = new MCPTools(contextLoader ?? undefined)
     this.registerDefaultTools()
   }
 

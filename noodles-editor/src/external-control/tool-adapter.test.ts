@@ -15,6 +15,12 @@ vi.mock('../ai-chat/mcp-tools', () => ({
   },
 }))
 
+vi.mock('../ai-chat/global-context-manager', () => ({
+  globalContextManager: {
+    getLoader: () => null,
+  },
+}))
+
 vi.mock('../noodles/store', () => ({
   getOpStore: () => ({
     ops: new Map(),
