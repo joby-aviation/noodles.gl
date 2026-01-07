@@ -26,9 +26,7 @@ export class SessionManager {
     return SessionManager.instance
   }
 
-  /**
-   * Create a new session
-   */
+  // Create a new session
   createSession(name?: string): Session {
     const id = generateMessageId()
     const token = this.generateSecureToken()
@@ -50,9 +48,7 @@ export class SessionManager {
     return session
   }
 
-  /**
-   * Generate a secure connection URL for the session
-   */
+  // Generate a secure connection URL for the session
   generateConnectionUrl(session: Session, host = window.location.hostname, port = 8765): string {
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
     const baseUrl = `${protocol}://${host}:${port}`
@@ -65,17 +61,13 @@ export class SessionManager {
     return url.toString()
   }
 
-  /**
-   * Generate a user-friendly connection command
-   */
+  // Generate a user-friendly connection command
   generateConnectionCommand(session: Session): string {
     const url = this.generateConnectionUrl(session)
     return `await client.connect('${url}')`
   }
 
-  /**
-   * Validate a session token
-   */
+  // Validate a session token
   validateToken(token: string): boolean {
     const session = this.sessions.get(token)
 
@@ -93,9 +85,7 @@ export class SessionManager {
     return true
   }
 
-  /**
-   * Get session by token
-   */
+  // Get session by token
   getSession(token: string): Session | null {
     if (!this.validateToken(token)) {
       return null
@@ -103,17 +93,13 @@ export class SessionManager {
     return this.sessions.get(token) || null
   }
 
-  /**
-   * Revoke a session
-   */
+  // Revoke a session
   revokeSession(token: string): void {
     this.sessions.delete(token)
     this.persistSessions()
   }
 
-  /**
-   * Get all active sessions
-   */
+  // Get all active sessions
   getActiveSessions(): Session[] {
     const now = new Date()
     const active: Session[] = []
@@ -131,26 +117,20 @@ export class SessionManager {
     return active
   }
 
-  /**
-   * Clear all sessions
-   */
+  // Clear all sessions
   clearAllSessions(): void {
     this.sessions.clear()
     this.persistSessions()
   }
 
-  /**
-   * Generate a cryptographically secure token
-   */
+  // Generate a cryptographically secure token
   private generateSecureToken(): string {
     const array = new Uint8Array(32)
     crypto.getRandomValues(array)
     return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('')
   }
 
-  /**
-   * Persist sessions to localStorage
-   */
+  // Persist sessions to localStorage
   private persistSessions(): void {
     try {
       const sessionsArray = Array.from(this.sessions.entries()).map(([token, session]) => ({
@@ -166,9 +146,7 @@ export class SessionManager {
     }
   }
 
-  /**
-   * Load sessions from localStorage
-   */
+  // Load sessions from localStorage
   loadSessions(): void {
     try {
       const stored = localStorage.getItem('noodles-external-sessions')

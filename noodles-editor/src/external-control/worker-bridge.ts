@@ -46,8 +46,7 @@ const requiresAuth = (type: MessageType): boolean => {
   return !publicTypes.includes(type)
 }
 
-/** Initialize the worker bridge
- */
+// Initialize the worker bridge
 export const initializeWorkerBridge = async (): Promise<void> => {
   if (isInitialized) return
 
@@ -80,8 +79,7 @@ export const initializeWorkerBridge = async (): Promise<void> => {
   }
 }
 
-/** Connect to external control server
- */
+// Connect to external control server
 export const connect = (host = 'localhost', port = 8765): void => {
   if (!worker) {
     throw new Error('Worker bridge not initialized')
@@ -92,16 +90,14 @@ export const connect = (host = 'localhost', port = 8765): void => {
   )
 }
 
-/** Disconnect from external control server
- */
+// Disconnect from external control server
 export const disconnect = (): void => {
   if (!worker) return
 
   worker.postMessage(createMessage(MessageType.DISCONNECT, {}))
 }
 
-/** Handle messages from worker
- */
+// Handle messages from worker
 const handleWorkerMessage = async (event: MessageEvent) => {
   const message = event.data as Message
 
@@ -158,8 +154,7 @@ const handleWorkerMessage = async (event: MessageEvent) => {
   }
 }
 
-/** Handle tool call from external client
- */
+// Handle tool call from external client
 const handleToolCall = async (message: ToolCallMessage) => {
   if (!toolExecutor) {
     sendToWorker(createErrorMessage(
@@ -205,8 +200,7 @@ const handleToolCall = async (message: ToolCallMessage) => {
   }
 }
 
-/** Execute a tool from MCPTools
- */
+// Execute a tool from MCPTools
 const executeTool = async (
   executor: MCPTools,
   toolName: string,
@@ -222,8 +216,7 @@ const executeTool = async (
   return await tool.call(executor, args)
 }
 
-/** Handle pipeline creation
- */
+// Handle pipeline creation
 const handlePipelineCreate = async (message: PipelineCreateMessage) => {
   const { spec, options } = message.payload
   const store = getOpStore()
@@ -328,8 +321,7 @@ const handlePipelineCreate = async (message: PipelineCreateMessage) => {
   }
 }
 
-/** Handle pipeline test
- */
+// Handle pipeline test
 const handlePipelineTest = async (message: PipelineTestMessage) => {
   const { pipelineId, testData, options } = message.payload
 
@@ -370,8 +362,7 @@ const handlePipelineTest = async (message: PipelineTestMessage) => {
   }
 }
 
-/** Handle data upload
- */
+// Handle data upload
 const handleDataUpload = async (message: DataUploadMessage) => {
   const { filename, content, mimeType, encoding } = message.payload
 
@@ -417,8 +408,7 @@ const handleDataUpload = async (message: DataUploadMessage) => {
   }
 }
 
-/** Handle state request
- */
+// Handle state request
 const handleStateRequest = async (message: Message) => {
   try {
     if (!toolExecutor) {
@@ -441,8 +431,7 @@ const handleStateRequest = async (message: Message) => {
   }
 }
 
-/** Send message to worker
- */
+// Send message to worker
 const sendToWorker = (message: Message) => {
   if (!worker) {
     console.error('[Bridge] Worker not initialized')
@@ -451,8 +440,7 @@ const sendToWorker = (message: Message) => {
   worker.postMessage(message)
 }
 
-/** Subscribe to events
- */
+// Subscribe to events
 export const on = (event: string, handler: (data: any) => void): void => {
   if (!eventHandlers.has(event)) {
     eventHandlers.set(event, new Set())
@@ -460,8 +448,7 @@ export const on = (event: string, handler: (data: any) => void): void => {
   eventHandlers.get(event)!.add(handler)
 }
 
-/** Unsubscribe from events
- */
+// Unsubscribe from events
 export const off = (event: string, handler: (data: any) => void): void => {
   const handlers = eventHandlers.get(event)
   if (handlers) {
@@ -469,8 +456,7 @@ export const off = (event: string, handler: (data: any) => void): void => {
   }
 }
 
-/** Emit event
- */
+// Emit event
 const emit = (event: string, data: any): void => {
   const handlers = eventHandlers.get(event)
   if (handlers) {
@@ -478,8 +464,7 @@ const emit = (event: string, data: any): void => {
   }
 }
 
-/** Clean up resources
- */
+// Clean up resources
 export const cleanup = (): void => {
   disconnect()
   if (worker) {

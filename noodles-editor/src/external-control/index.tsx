@@ -16,9 +16,8 @@ export interface ExternalControlProps {
   onError?: (error: Error) => void
 }
 
-/** External Control Provider Component
- * Initializes the external control system when mounted
- */
+// External Control Provider Component
+ // Initializes the external control system when mounted
 export const ExternalControlProvider: React.FC<ExternalControlProps> = ({
   enabled = true,
   autoConnect = false,

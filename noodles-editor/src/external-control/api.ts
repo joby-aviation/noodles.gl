@@ -64,8 +64,7 @@ export interface Screenshot {
   height: number
 }
 
-/** Main external control API class
- */
+// Main external control API class
 export class ExternalControl {
   private config: ExternalControlConfig
   private isConnected = false
@@ -81,9 +80,7 @@ export class ExternalControl {
     }
   }
 
-  /**
-   * Initialize and optionally connect
-   */
+  // Initialize and optionally connect
   async initialize(): Promise<void> {
     try {
       // Initialize the worker bridge
@@ -103,9 +100,7 @@ export class ExternalControl {
     }
   }
 
-  /**
-   * Connect to external control server
-   */
+  // Connect to external control server
   async connect(host?: string, port?: number): Promise<void> {
     const connectHost = host || this.config.host
     const connectPort = port || this.config.port
@@ -133,9 +128,7 @@ export class ExternalControl {
     })
   }
 
-  /**
-   * Disconnect from external control server
-   */
+  // Disconnect from external control server
   async disconnect(): Promise<void> {
     this.log('info', 'Disconnecting')
     bridgeDisconnect()
@@ -144,9 +137,7 @@ export class ExternalControl {
 
   // ==================== Pipeline Operations ====================
 
-  /**
-   * Create a data pipeline from specification
-   */
+  // Create a data pipeline from specification
   async createPipeline(spec: PipelineSpec): Promise<string> {
     this.ensureConnected()
 
@@ -165,9 +156,7 @@ export class ExternalControl {
     return handle.id
   }
 
-  /**
-   * Run a pipeline
-   */
+  // Run a pipeline
   async runPipeline(id: string): Promise<ExecutionResult> {
     this.ensureConnected()
 
@@ -185,9 +174,7 @@ export class ExternalControl {
     }
   }
 
-  /**
-   * Test a pipeline with sample data
-   */
+  // Test a pipeline with sample data
   async testPipeline(id: string, testData: any[]): Promise<TestResult> {
     this.ensureConnected()
 
@@ -207,9 +194,7 @@ export class ExternalControl {
     return result.result as TestResult
   }
 
-  /**
-   * Validate a pipeline
-   */
+  // Validate a pipeline
   async validatePipeline(id: string): Promise<ValidationResult> {
     this.ensureConnected()
 
@@ -224,9 +209,7 @@ export class ExternalControl {
     return result.result as ValidationResult
   }
 
-  /**
-   * Debug a pipeline
-   */
+  // Debug a pipeline
   async debugPipeline(id: string): Promise<DebugInfo> {
     this.ensureConnected()
 
@@ -258,9 +241,7 @@ export class ExternalControl {
 
   // ==================== Node Operations ====================
 
-  /**
-   * Add a node to the project
-   */
+  // Add a node to the project
   async addNode(
     type: string,
     position: Point,
@@ -281,9 +262,7 @@ export class ExternalControl {
     return result.result.nodeId
   }
 
-  /**
-   * Connect two nodes
-   */
+  // Connect two nodes
   async connectNodes(
     source: string,
     target: string,
@@ -304,9 +283,7 @@ export class ExternalControl {
     }
   }
 
-  /**
-   * Delete a node
-   */
+  // Delete a node
   async deleteNode(id: string): Promise<void> {
     this.ensureConnected()
 
@@ -321,9 +298,7 @@ export class ExternalControl {
 
   // ==================== Data Operations ====================
 
-  /**
-   * Upload a data file
-   */
+  // Upload a data file
   async uploadDataFile(
     filename: string,
     content: string | ArrayBuffer,
@@ -347,9 +322,7 @@ export class ExternalControl {
 
   // ==================== State Operations ====================
 
-  /**
-   * Get current project state
-   */
+  // Get current project state
   async getProjectState(): Promise<ProjectState> {
     this.ensureConnected()
 
@@ -362,9 +335,7 @@ export class ExternalControl {
     return result.result as ProjectState
   }
 
-  /**
-   * Get node outputs
-   */
+  // Get node outputs
   async getNodeOutputs(nodeId: string): Promise<any> {
     this.ensureConnected()
 
@@ -380,9 +351,7 @@ export class ExternalControl {
     return result.result
   }
 
-  /**
-   * List available operator types
-   */
+  // List available operator types
   async listAvailableOperators(): Promise<Record<string, any>> {
     this.ensureConnected()
 
@@ -395,9 +364,7 @@ export class ExternalControl {
     return result.result
   }
 
-  /**
-   * Capture a screenshot of the visualization
-   */
+  // Capture a screenshot of the visualization
   async captureVisualization(
     format: 'png' | 'jpeg' = 'png',
     quality = 0.9
@@ -418,25 +385,19 @@ export class ExternalControl {
 
   // ==================== Event Handling ====================
 
-  /**
-   * Subscribe to state changes
-   */
+  // Subscribe to state changes
   onStateChange(callback: (state: ProjectState) => void): void {
     this.on('stateChange', callback)
   }
 
-  /**
-   * Subscribe to errors
-   */
+  // Subscribe to errors
   onError(callback: (error: Error) => void): void {
     this.on('error', (data) => {
       callback(new Error(data.message || 'Unknown error'))
     })
   }
 
-  /**
-   * Subscribe to connection status changes
-   */
+  // Subscribe to connection status changes
   onStatusChange(callback: (connected: boolean) => void): void {
     this.on('status', (data) => {
       callback(data.connected)
@@ -445,48 +406,36 @@ export class ExternalControl {
 
   // ==================== Private Methods ====================
 
-  /**
-   * Execute a tool
-   */
+  // Execute a tool
   private async executeTool(tool: string, args: Record<string, any>): Promise<any> {
     return toolRegistry.execute(tool, args)
   }
 
-  /**
-   * Ensure connected
-   */
+  // Ensure connected
   private ensureConnected(): void {
     if (!this.isConnected) {
       throw new Error('Not connected to external control server')
     }
   }
 
-  /**
-   * Handle status change
-   */
+  // Handle status change
   private handleStatusChange(data: any): void {
     this.isConnected = data.connected
     this.emit('status', data)
   }
 
-  /**
-   * Handle error
-   */
+  // Handle error
   private handleError(data: any): void {
     this.log('error', 'Error received:', data)
     this.emit('error', data)
   }
 
-  /**
-   * Handle state change
-   */
+  // Handle state change
   private handleStateChange(data: any): void {
     this.emit('stateChange', data)
   }
 
-  /**
-   * Subscribe to events
-   */
+  // Subscribe to events
   private on(event: string, handler: (data: any) => void): void {
     if (!this.eventHandlers.has(event)) {
       this.eventHandlers.set(event, new Set())
@@ -494,9 +443,7 @@ export class ExternalControl {
     this.eventHandlers.get(event)!.add(handler)
   }
 
-  /**
-   * Emit event
-   */
+  // Emit event
   private emit(event: string, data: any): void {
     const handlers = this.eventHandlers.get(event)
     if (handlers) {
@@ -504,18 +451,14 @@ export class ExternalControl {
     }
   }
 
-  /**
-   * Log message
-   */
+  // Log message
   private log(level: 'info' | 'error' | 'debug', ...args: any[]): void {
     if (this.config.debug || level === 'error') {
       console[level]('[ExternalControl]', ...args)
     }
   }
 
-  /**
-   * Convert ArrayBuffer to base64
-   */
+  // Convert ArrayBuffer to base64
   private arrayBufferToBase64(buffer: ArrayBuffer): string {
     const bytes = new Uint8Array(buffer)
     let binary = ''
@@ -525,9 +468,7 @@ export class ExternalControl {
     return btoa(binary)
   }
 
-  /**
-   * Clean up resources
-   */
+  // Clean up resources
   dispose(): void {
     this.disconnect()
     bridgeCleanup()

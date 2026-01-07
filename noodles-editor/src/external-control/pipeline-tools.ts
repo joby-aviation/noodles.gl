@@ -57,8 +57,7 @@ export interface ValidationResult {
   }>
 }
 
-/** Pipeline manager for creating and managing data pipelines
- */
+// Pipeline manager for creating and managing data pipelines
 export class PipelineManager {
   private pipelines = new Map<string, PipelineHandle>()
 
@@ -66,9 +65,7 @@ export class PipelineManager {
     this.registerPipelineTools()
   }
 
-  /**
-   * Register pipeline-specific tools
-   */
+  // Register pipeline-specific tools
   private registerPipelineTools() {
     toolRegistry.register({
       name: 'createPipeline',
@@ -180,9 +177,7 @@ export class PipelineManager {
     })
   }
 
-  /**
-   * Create a pipeline from specification
-   */
+  // Create a pipeline from specification
   async createPipeline(
     spec: PipelineSpec,
     options = {
@@ -248,9 +243,7 @@ export class PipelineManager {
     return handle
   }
 
-  /**
-   * Test a pipeline with sample data
-   */
+  // Test a pipeline with sample data
   async testPipeline(
     pipelineId: string,
     testData: any[],
@@ -330,9 +323,7 @@ export class PipelineManager {
     return result
   }
 
-  /**
-   * Validate a pipeline
-   */
+  // Validate a pipeline
   async validatePipeline(pipelineId: string): Promise<ValidationResult> {
     const pipeline = this.pipelines.get(pipelineId)
 
@@ -426,9 +417,7 @@ export class PipelineManager {
     }
   }
 
-  /**
-   * Validate pipeline specification
-   */
+  // Validate pipeline specification
   private validateSpec(spec: PipelineSpec) {
     // Check nodes
     if (!spec.nodes || spec.nodes.length === 0) {
@@ -475,9 +464,7 @@ export class PipelineManager {
     }
   }
 
-  /**
-   * Get default output field for an operator type
-   */
+  // Get default output field for an operator type
   private getDefaultOutputField(type: string): string {
     // Common patterns for output fields
     const outputPatterns = {
@@ -491,9 +478,7 @@ export class PipelineManager {
     return (outputPatterns as any)[type] || 'out.result'
   }
 
-  /**
-   * Get default input field for an operator type
-   */
+  // Get default input field for an operator type
   private getDefaultInputField(type: string): string {
     // Common patterns for input fields
     const inputPatterns = {
@@ -507,16 +492,12 @@ export class PipelineManager {
     return (inputPatterns as any)[type] || 'par.data'
   }
 
-  /**
-   * Get pipeline information
-   */
+  // Get pipeline information
   getPipelineInfo(pipelineId: string): PipelineHandle | undefined {
     return this.pipelines.get(pipelineId)
   }
 
-  /**
-   * Delete a pipeline
-   */
+  // Delete a pipeline
   async deletePipeline(pipelineId: string): Promise<void> {
     const pipeline = this.pipelines.get(pipelineId)
     if (!pipeline) {

@@ -30,8 +30,7 @@ export interface ToolExecutionResult {
   executionTime: number
 }
 
-/** Registry of available tools for external control
- */
+// Registry of available tools for external control
 export class ToolRegistry {
   private tools = new Map<string, ToolDefinition>()
   private mcpTools: MCPTools
@@ -43,9 +42,7 @@ export class ToolRegistry {
     this.registerDefaultTools()
   }
 
-  /**
-   * Register default tools
-   */
+  // Register default tools
   private registerDefaultTools() {
     // Project management tools
     this.register({
@@ -210,30 +207,22 @@ export class ToolRegistry {
     })
   }
 
-  /**
-   * Register a tool
-   */
+  // Register a tool
   register(tool: ToolDefinition) {
     this.tools.set(tool.name, tool)
   }
 
-  /**
-   * Get tool definition
-   */
+  // Get tool definition
   getTool(name: string): ToolDefinition | undefined {
     return this.tools.get(name)
   }
 
-  /**
-   * List all tools
-   */
+  // List all tools
   listTools(): ToolDefinition[] {
     return Array.from(this.tools.values())
   }
 
-  /**
-   * Execute a tool
-   */
+  // Execute a tool
   async execute(
     toolName: string,
     args: Record<string, any>
@@ -333,9 +322,7 @@ export class ToolRegistry {
     }
   }
 
-  /**
-   * Create a new node
-   */
+  // Create a new node
   private async createNode(args: {
     type: string
     id?: string
@@ -377,9 +364,7 @@ export class ToolRegistry {
     }
   }
 
-  /**
-   * Connect two nodes
-   */
+  // Connect two nodes
   private async connectNodes(args: {
     sourceId: string
     targetId: string
@@ -416,9 +401,7 @@ export class ToolRegistry {
     }
   }
 
-  /**
-   * Delete a node
-   */
+  // Delete a node
   private async deleteNode(args: { nodeId: string }): Promise<any> {
     const { nodeId } = args
 
@@ -435,9 +418,7 @@ export class ToolRegistry {
     }
   }
 
-  /**
-   * List available operator types
-   */
+  // List available operator types
   private listOperatorTypes(): any {
     const types: Record<string, any> = {}
 
