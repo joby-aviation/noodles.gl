@@ -3,20 +3,20 @@ import { ToolRegistry, type ToolDefinition, type ToolExecutionResult } from './t
 
 // Mock the dependencies
 vi.mock('../ai-chat/mcp-tools', () => ({
-  MCPTools: vi.fn().mockImplementation(() => ({
-    getCurrentProject: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
-    applyModifications: vi.fn().mockResolvedValue({ success: true }),
-    listNodes: vi.fn().mockResolvedValue([]),
-    getNodeInfo: vi.fn().mockResolvedValue(null),
-    getNodeOutput: vi.fn().mockResolvedValue(null),
-    captureVisualization: vi.fn().mockResolvedValue(null),
-    getConsoleErrors: vi.fn().mockResolvedValue([]),
-    getRenderStats: vi.fn().mockResolvedValue({}),
-  })),
+  MCPTools: class MockMCPTools {
+    getCurrentProject = async () => ({ nodes: [], edges: [] })
+    applyModifications = async () => ({ success: true })
+    listNodes = async () => []
+    getNodeInfo = async () => null
+    getNodeOutput = async () => null
+    captureVisualization = async () => null
+    getConsoleErrors = async () => []
+    getRenderStats = async () => ({})
+  },
 }))
 
 vi.mock('../noodles/store', () => ({
-  getOpStore: vi.fn().mockReturnValue({
+  getOpStore: () => ({
     ops: new Map(),
   }),
 }))

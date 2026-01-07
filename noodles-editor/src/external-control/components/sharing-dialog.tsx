@@ -3,7 +3,14 @@
 
 import React, { useState, useEffect } from 'react'
 import { sessionManager, type Session } from '../session-manager'
-import { Copy, X, ExternalLink, Shield, Clock, Trash2 } from 'lucide-react'
+import {
+  CopyIcon,
+  Cross2Icon,
+  ExternalLinkIcon,
+  LockClosedIcon,
+  ClockIcon,
+  TrashIcon,
+} from '@radix-ui/react-icons'
 
 interface SharingDialogProps {
   isOpen: boolean
@@ -66,14 +73,14 @@ export const SharingDialog: React.FC<SharingDialogProps> = ({ isOpen, onClose })
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
           <div className="flex items-center gap-2">
-            <Shield className="w-5 h-5 text-blue-500" />
+            <LockClosedIcon className="w-5 h-5 text-blue-500" />
             <h2 className="text-lg font-semibold">External Control Sessions</h2>
           </div>
           <button
             onClick={onClose}
             className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
           >
-            <X className="w-5 h-5" />
+            <Cross2Icon className="w-5 h-5" />
           </button>
         </div>
 
@@ -107,7 +114,7 @@ export const SharingDialog: React.FC<SharingDialogProps> = ({ isOpen, onClose })
             <h3 className="text-sm font-medium mb-2">Active Sessions</h3>
             {sessions.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
-                <Shield className="w-12 h-12 mx-auto mb-2 opacity-30" />
+                <LockClosedIcon className="w-12 h-12 mx-auto mb-2 opacity-30" />
                 <p>No active sessions</p>
                 <p className="text-sm mt-1">Create a session to allow external control</p>
               </div>
@@ -122,7 +129,7 @@ export const SharingDialog: React.FC<SharingDialogProps> = ({ isOpen, onClose })
                       <div>
                         <h4 className="font-medium">{session.name}</h4>
                         <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
-                          <Clock className="w-3 h-3" />
+                          <ClockIcon className="w-3 h-3" />
                           <span>{formatTimeRemaining(session.expiresAt)}</span>
                         </div>
                       </div>
@@ -131,7 +138,7 @@ export const SharingDialog: React.FC<SharingDialogProps> = ({ isOpen, onClose })
                         className="p-1 hover:bg-red-100 dark:hover:bg-red-900/20 rounded text-red-500"
                         title="Revoke session"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <TrashIcon className="w-4 h-4" />
                       </button>
                     </div>
 
@@ -150,7 +157,7 @@ export const SharingDialog: React.FC<SharingDialogProps> = ({ isOpen, onClose })
                           }
                           className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-600"
                         >
-                          <Copy className="w-3 h-3" />
+                          <CopyIcon className="w-3 h-3" />
                           {copiedToken === session.token + '-url' ? 'Copied!' : 'Copy'}
                         </button>
                       </div>
@@ -174,7 +181,7 @@ export const SharingDialog: React.FC<SharingDialogProps> = ({ isOpen, onClose })
                           }
                           className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-600"
                         >
-                          <Copy className="w-3 h-3" />
+                          <CopyIcon className="w-3 h-3" />
                           {copiedToken === session.token + '-cmd' ? 'Copied!' : 'Copy'}
                         </button>
                       </div>
@@ -191,7 +198,7 @@ export const SharingDialog: React.FC<SharingDialogProps> = ({ isOpen, onClose })
           {/* Instructions */}
           <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
             <h3 className="text-sm font-medium mb-2 flex items-center gap-2">
-              <ExternalLink className="w-4 h-4" />
+              <ExternalLinkIcon className="w-4 h-4" />
               How to connect from Claude Code
             </h3>
             <ol className="text-sm space-y-1 text-gray-700 dark:text-gray-300">
