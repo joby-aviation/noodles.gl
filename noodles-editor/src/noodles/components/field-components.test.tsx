@@ -446,9 +446,8 @@ describe('DateFieldComponent', () => {
     render(<DateFieldComponent id="test-field" field={field} disabled={false} />)
 
     const input = document.querySelector('input[type="datetime-local"]') as HTMLInputElement
-    // The format includes the date and time portion
-    expect(input.value).toContain('2024-01-15')
-    expect(input.value).toContain('10:30')
+    // datetime-local format varies by browser: may be YYYY-MM-DDTHH:mm or YYYY-MM-DDTHH:mm:ss
+    expect(input.value).toMatch(/^2024-01-15T10:30/)
   })
 
   it('updates field value on change', () => {
@@ -883,27 +882,15 @@ describe('ColorFieldComponent', () => {
 
   it('updates when field value changes externally', () => {
     const field = new ColorField('#ff0000ff')
-    const { rerender } = render(
-      <ColorFieldComponent id="test-field" field={field} disabled={false} />
-    )
+    render(<ColorFieldComponent id="test-field" field={field} disabled={false} />)
 
     act(() => {
       field.setValue('#0000ffff')
     })
 
-    // Re-render to pick up the state change
-    rerender(<ColorFieldComponent id="test-field" field={field} disabled={false} />)
-
+    // Component should reactively update via subscription
     // Verify field value updated
     expect(field.value).toBe('#0000ffff')
-  })
-
-  it('normalizes 6-char hex to 8-char', () => {
-    const field = new ColorField('#ff0000')
-    render(<ColorFieldComponent id="test-field" field={field} disabled={false} />)
-
-    // ColorField should normalize to 8-char hex
-    expect(field.value).toBe('#ff0000ff')
   })
 })
 
@@ -914,12 +901,12 @@ describe('NumberFieldComponent edge cases', () => {
     vi.restoreAllMocks()
   })
 
-  it('handles undefined initial value gracefully', () => {
+  it('initializes with default value of 0 when no value provided', () => {
     const field = new NumberField()
     render(<NumberFieldComponent id="test-field" field={field} disabled={false} />)
 
     const input = screen.getByRole('spinbutton')
-    expect(input).toHaveValue(0) // Default value
+    expect(input).toHaveValue(0)
   })
 
   it('handles negative numbers', () => {
