@@ -863,6 +863,8 @@ function DraggableNumberInput({
   onCommit,
   min,
   max,
+  softMin,
+  softMax,
   step = 1,
   className,
   title,
@@ -874,6 +876,8 @@ function DraggableNumberInput({
   onCommit?: () => void
   min?: number
   max?: number
+  softMin?: number
+  softMax?: number
   step?: number
   className?: string
   title?: string
@@ -1039,8 +1043,8 @@ function DraggableNumberInput({
         title={title || displayValue}
         onChange={onInputChange}
         disabled={disabled}
-        min={min}
-        max={max}
+        min={Number.isFinite(softMin ?? -Infinity) ? softMin : min}
+        max={Number.isFinite(softMax ?? Infinity) ? softMax : max}
         step={step}
       />
       {shouldShowLadder && (
@@ -1094,6 +1098,8 @@ export function NumberFieldComponent({
         onChange={handleChange}
         min={field.min}
         max={field.max}
+        softMin={field.softMin}
+        softMax={field.softMax}
         step={field.step}
         className={cx(s.fieldInput, s.fieldInputNumber)}
         title={value.toString()}

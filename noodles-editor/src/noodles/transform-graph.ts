@@ -158,7 +158,7 @@ export function transformGraph<
 
       if (!sourceHandleInfo || !targetHandleInfo) {
         throw new Error(
-          'Invalid handle ID format - migration should have converted all handles to qualified format'
+          `Invalid handle ID format (${edge.id}) - migration should have converted all handles to qualified format`
         )
       }
 
