@@ -5,17 +5,17 @@ import type { IOperator, Operator } from './operators'
 import { getAllOps, getOp } from './store'
 import type { OpId } from './utils/id-utils'
 
-// Import ForEach operators for type checking during execution
-// These are imported dynamically to avoid circular dependencies
-type ForEachBeginOp = Operator<IOperator> & {
+// ForLoop operator type definitions for type checking during execution
+// These are defined here to avoid circular dependencies with operators.ts
+type ForLoopBeginOp = Operator<IOperator> & {
   inputs: { data: { value: unknown[] } }
-  outputs: { item: { next: (v: unknown) => void }; index: { next: (v: number) => void }; total: { next: (v: number) => void } }
+  outputs: { d: { next: (v: unknown) => void }; index: { next: (v: number) => void }; total: { next: (v: number) => void } }
 }
-type ForEachEndOp = Operator<IOperator> & {
-  inputs: { result: { value: unknown } }
-  outputs: { results: { next: (v: unknown[]) => void } }
+type ForLoopEndOp = Operator<IOperator> & {
+  inputs: { d: { value: unknown } }
+  outputs: { data: { next: (v: unknown[]) => void } }
 }
-type ForEachMetaOp = Operator<IOperator> & {
+type ForLoopMetaOp = Operator<IOperator> & {
   inputs: { initialValue: { value: unknown }; currentValue: { value: unknown } }
   outputs: {
     accumulator: { next: (v: unknown) => void }
@@ -614,13 +614,13 @@ export class GraphExecutor {
     return roots
   }
 
-  // Execute a ForEach scope - handles iteration with accumulator (reduce-like semantics)
+  // Execute a ForLoop scope - handles iteration with accumulator (reduce-like semantics)
   // The scope body is defined by nodes with parentNode pointing to the group node
-  async executeForEachScope(
-    beginOp: ForEachBeginOp,
-    endOp: ForEachEndOp,
+  async executeForLoopScope(
+    beginOp: ForLoopBeginOp,
+    endOp: ForLoopEndOp,
     scopeNodeIds: string[],
-    metaOp?: ForEachMetaOp
+    metaOp?: ForLoopMetaOp
   ): Promise<unknown[]> {
     const data = beginOp.inputs.data.value
     if (!Array.isArray(data)) {
@@ -638,12 +638,12 @@ export class GraphExecutor {
       const isFirst = index === 0
       const isLast = index === total - 1
 
-      // Set iteration values on ForEachBeginOp
-      beginOp.outputs.item.next(item)
+      // Set iteration values on ForLoopBeginOp
+      beginOp.outputs.d.next(item)
       beginOp.outputs.index.next(index)
       beginOp.outputs.total.next(total)
 
-      // Set iteration metadata on ForEachMetaOp if present
+      // Set iteration metadata on ForLoopMetaOp if present
       if (metaOp) {
         metaOp.outputs.accumulator.next(accumulator)
         metaOp.outputs.index.next(index)
@@ -686,7 +686,7 @@ export class GraphExecutor {
       }
 
       // Collect result from this iteration
-      const iterationResult = endOp.inputs.result.value
+      const iterationResult = endOp.inputs.d.value
       results.push(iterationResult)
 
       // Update accumulator from meta op's currentValue input for next iteration
@@ -695,37 +695,37 @@ export class GraphExecutor {
       }
     }
 
-    // Set final results on ForEachEndOp
-    endOp.outputs.results.next(results)
+    // Set final results on ForLoopEndOp
+    endOp.outputs.data.next(results)
 
     return results
   }
 
-  // Find ForEach scopes in the graph (ForEachBegin + ForEachEnd pairs within same group)
-  findForEachScopes(): Array<{
-    beginOp: ForEachBeginOp
-    endOp: ForEachEndOp
-    metaOp?: ForEachMetaOp
+  // Find ForLoop scopes in the graph (ForLoopBegin + ForLoopEnd pairs within same group)
+  findForLoopScopes(): Array<{
+    beginOp: ForLoopBeginOp
+    endOp: ForLoopEndOp
+    metaOp?: ForLoopMetaOp
     scopeNodeIds: string[]
     groupId: string
   }> {
     const scopes: Array<{
-      beginOp: ForEachBeginOp
-      endOp: ForEachEndOp
-      metaOp?: ForEachMetaOp
+      beginOp: ForLoopBeginOp
+      endOp: ForLoopEndOp
+      metaOp?: ForLoopMetaOp
       scopeNodeIds: string[]
       groupId: string
     }> = []
 
-    // Find all ForEachBeginOp nodes
+    // Find all ForLoopBeginOp nodes
     for (const [_, op] of this.nodes) {
       const opType = (op.constructor as any).displayName
-      if (opType === 'ForEachBegin') {
-        // Find the corresponding ForEachEndOp by traversing downstream
+      if (opType === 'ForLoopBegin') {
+        // Find the corresponding ForLoopEndOp by traversing downstream
         const visited = new Set<string>()
         const queue = [op.id]
-        let endOp: ForEachEndOp | undefined
-        let metaOp: ForEachMetaOp | undefined
+        let endOp: ForLoopEndOp | undefined
+        let metaOp: ForLoopMetaOp | undefined
         const scopeNodeIds: string[] = [op.id]
 
         while (queue.length > 0) {
@@ -739,11 +739,11 @@ export class GraphExecutor {
             if (!downstreamNode) continue
 
             const downstreamType = (downstreamNode.constructor as any).displayName
-            if (downstreamType === 'ForEachEnd') {
-              endOp = downstreamNode as ForEachEndOp
+            if (downstreamType === 'ForLoopEnd') {
+              endOp = downstreamNode as ForLoopEndOp
               scopeNodeIds.push(downstreamId)
-            } else if (downstreamType === 'ForEachMeta') {
-              metaOp = downstreamNode as ForEachMetaOp
+            } else if (downstreamType === 'ForLoopMeta') {
+              metaOp = downstreamNode as ForLoopMetaOp
               scopeNodeIds.push(downstreamId)
               queue.push(downstreamId)
             } else {
@@ -755,7 +755,7 @@ export class GraphExecutor {
 
         if (endOp) {
           scopes.push({
-            beginOp: op as ForEachBeginOp,
+            beginOp: op as ForLoopBeginOp,
             endOp,
             metaOp,
             scopeNodeIds,

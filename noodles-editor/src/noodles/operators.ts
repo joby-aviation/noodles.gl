@@ -2235,19 +2235,30 @@ export class SwitchOp extends Operator<SwitchOp> {
 export class ForLoopBeginOp extends Operator<ForLoopBeginOp> {
   static displayName = 'ForLoopBegin'
   static description =
-    'Start a loop that processes each item in an array one by one. Connect operators between ForLoopBegin and ForLoopEnd to transform each item. The ForLoopEnd collects all results.'
+    'Start a loop that processes each item in an array. The scope body is wrapped in a group node. Outputs are set by the executor during iteration.'
+
   createInputs() {
     return {
       data: new DataField(new ArrayField(new UnknownField())),
     }
   }
+
   createOutputs() {
     return {
-      d: new DataField(new UnknownField()),
+      d: new DataField(new UnknownField()), // Current item (legacy name)
+      index: new NumberField(0), // Current iteration index
+      total: new NumberField(0), // Total number of items
     }
   }
+
   execute({ data }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    return { d: data }
+    // GraphExecutor sets these values during iteration
+    const arr = Array.isArray(data) ? data : []
+    return {
+      d: arr.length > 0 ? arr[0] : null,
+      index: 0,
+      total: arr.length,
+    }
   }
 }
 
@@ -2342,78 +2353,17 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
   }
 }
 
-// ForEach scope-based control flow construct (Houdini-style)
-// The ForEach construct consists of:
-// - ForEachBeginOp: Entry point that receives the data array. Outputs are set by GraphExecutor.
-// - ForEachEndOp: Exit point that collects results. GraphExecutor accumulates results across iterations.
-// - ForEachMetaOp (optional): Provides accumulator for reduce-like operations. Takes initialValue
-//   input and outputs the accumulator. GraphExecutor manages accumulator state across iterations.
-// The body of the forEach is wrapped in a group node containing all operators in the scope.
+// ForLoopMetaOp provides accumulator for reduce-like operations within a ForLoop scope.
 // GraphExecutor is responsible for:
 // - Iterating over the data array
-// - Setting item/index/total on ForEachBeginOp for each iteration
-// - Setting accumulator/index/total/isFirst/isLast on ForEachMetaOp
-// - Collecting results from ForEachEndOp across iterations
+// - Setting d/index/total on ForLoopBeginOp for each iteration
+// - Setting accumulator/index/total/isFirst/isLast on ForLoopMetaOp
+// - Collecting results from ForLoopEndOp across iterations
 
-export class ForEachBeginOp extends Operator<ForEachBeginOp> {
-  static displayName = 'ForEachBegin'
+export class ForLoopMetaOp extends Operator<ForLoopMetaOp> {
+  static displayName = 'ForLoopMeta'
   static description =
-    'Start a forEach scope. The scope body is wrapped in a group node. Outputs are set by the executor during iteration.'
-
-  createInputs() {
-    return {
-      data: new DataField(new ArrayField(new UnknownField())),
-    }
-  }
-
-  createOutputs() {
-    return {
-      item: new DataField(new UnknownField()),
-      index: new NumberField(0),
-      total: new NumberField(0),
-    }
-  }
-
-  execute({ data }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // GraphExecutor sets these values during iteration
-    const arr = Array.isArray(data) ? data : []
-    return {
-      item: arr.length > 0 ? arr[0] : null,
-      index: 0,
-      total: arr.length,
-    }
-  }
-}
-
-export class ForEachEndOp extends Operator<ForEachEndOp> {
-  static displayName = 'ForEachEnd'
-  static description =
-    'End a forEach scope. Collects the result from each iteration into an array.'
-
-  createInputs() {
-    return {
-      result: new DataField(new UnknownField()),
-    }
-  }
-
-  createOutputs() {
-    return {
-      results: new DataField(new ArrayField(new UnknownField())),
-    }
-  }
-
-  execute({ result }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // GraphExecutor collects results across all iterations
-    return {
-      results: [result],
-    }
-  }
-}
-
-export class ForEachMetaOp extends Operator<ForEachMetaOp> {
-  static displayName = 'ForEachMeta'
-  static description =
-    'Access iteration metadata and accumulator within a forEach scope. Like Houdini iteration metadata.'
+    'Access iteration metadata and accumulator within a ForLoop scope. Like Houdini iteration metadata.'
 
   createInputs() {
     return {
@@ -5739,11 +5689,9 @@ export const opTypes = {
   FillStyleExtensionOp,
   FilterOp,
   FirstPersonViewOp,
-  ForEachBeginOp,
-  ForEachEndOp,
-  ForEachMetaOp,
   ForLoopBeginOp,
   ForLoopEndOp,
+  ForLoopMetaOp,
   FpsWidgetOp,
   GeocoderOp,
   GeohashLayerOp,

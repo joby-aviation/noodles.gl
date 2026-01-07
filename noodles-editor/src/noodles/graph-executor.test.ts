@@ -2,9 +2,9 @@
 import { describe, it, expect } from 'vitest'
 import { GraphExecutor, GraphScope, topologicalSort } from './graph-executor'
 import {
-  ForEachBeginOp,
-  ForEachEndOp,
-  ForEachMetaOp,
+  ForLoopBeginOp,
+  ForLoopEndOp,
+  ForLoopMetaOp,
   NumberOp,
   MathOp,
 } from './operators'
@@ -276,44 +276,44 @@ describe('GraphScope', () => {
   })
 })
 
-describe('ForEachBeginOp', () => {
+describe('ForLoopBeginOp', () => {
   it('should create instance with correct inputs and outputs', () => {
-    const op = new ForEachBeginOp('/foreach-begin')
+    const op = new ForLoopBeginOp('/forloop-begin')
     expect(op).toBeDefined()
-    expect(op.id).toBe('/foreach-begin')
+    expect(op.id).toBe('/forloop-begin')
     expect(op.inputs.data).toBeDefined()
-    expect(op.outputs.item).toBeDefined()
+    expect(op.outputs.d).toBeDefined()
     expect(op.outputs.index).toBeDefined()
     expect(op.outputs.total).toBeDefined()
   })
 
   it('should execute with array data', () => {
-    const op = new ForEachBeginOp('/foreach-begin')
+    const op = new ForLoopBeginOp('/forloop-begin')
     const result = op.execute({ data: [1, 2, 3] })
 
-    expect(result.item).toBe(1)
+    expect(result.d).toBe(1)
     expect(result.index).toBe(0)
     expect(result.total).toBe(3)
   })
 
   it('should handle empty array', () => {
-    const op = new ForEachBeginOp('/foreach-begin')
+    const op = new ForLoopBeginOp('/forloop-begin')
     const result = op.execute({ data: [] })
 
-    expect(result.item).toBeNull()
+    expect(result.d).toBeNull()
     expect(result.index).toBe(0)
     expect(result.total).toBe(0)
   })
 
   it('should handle non-array data', () => {
-    const op = new ForEachBeginOp('/foreach-begin')
+    const op = new ForLoopBeginOp('/forloop-begin')
     const result = op.execute({ data: 'not an array' as any })
 
     expect(result.total).toBe(0)
   })
 
   it('should have dirty flag', () => {
-    const op = new ForEachBeginOp('/foreach-begin')
+    const op = new ForLoopBeginOp('/forloop-begin')
     expect(op.dirty).toBe(true)
 
     op.dirty = false
@@ -321,40 +321,42 @@ describe('ForEachBeginOp', () => {
   })
 })
 
-describe('ForEachEndOp', () => {
-  it('should create instance with correct inputs and outputs', () => {
-    const op = new ForEachEndOp('/foreach-end')
+describe('ForLoopEndOp - execute', () => {
+  // Note: ForLoopEndOp has complex loop handling via createForLoopListeners
+  // These tests cover the basic execute() method
+  it('should have correct inputs and outputs', () => {
+    const op = new ForLoopEndOp('/forloop-end')
     expect(op).toBeDefined()
-    expect(op.inputs.result).toBeDefined()
-    expect(op.outputs.results).toBeDefined()
+    expect(op.inputs.d).toBeDefined()
+    expect(op.outputs.data).toBeDefined()
   })
 
-  it('should wrap single result in array', () => {
-    const op = new ForEachEndOp('/foreach-end')
-    const result = op.execute({ result: 'test-value' })
+  it('should pass through single value', () => {
+    const op = new ForLoopEndOp('/forloop-end')
+    const result = op.execute({ d: 'test-value' })
 
-    expect(result.results).toEqual(['test-value'])
+    expect(result.data).toBe('test-value')
   })
 
-  it('should handle null result', () => {
-    const op = new ForEachEndOp('/foreach-end')
-    const result = op.execute({ result: null })
+  it('should handle null input', () => {
+    const op = new ForLoopEndOp('/forloop-end')
+    const result = op.execute({ d: null })
 
-    expect(result.results).toEqual([null])
+    expect(result.data).toBeNull()
   })
 
-  it('should handle object result', () => {
-    const op = new ForEachEndOp('/foreach-end')
+  it('should handle object input', () => {
+    const op = new ForLoopEndOp('/forloop-end')
     const obj = { key: 'value' }
-    const result = op.execute({ result: obj })
+    const result = op.execute({ d: obj })
 
-    expect(result.results).toEqual([obj])
+    expect(result.data).toEqual(obj)
   })
 })
 
-describe('ForEachMetaOp', () => {
+describe('ForLoopMetaOp', () => {
   it('should create instance with correct inputs and outputs', () => {
-    const op = new ForEachMetaOp('/foreach-meta')
+    const op = new ForLoopMetaOp('/forloop-meta')
     expect(op).toBeDefined()
     expect(op.inputs.initialValue).toBeDefined()
     expect(op.inputs.currentValue).toBeDefined()
@@ -366,7 +368,7 @@ describe('ForEachMetaOp', () => {
   })
 
   it('should use initialValue when currentValue is null', () => {
-    const op = new ForEachMetaOp('/foreach-meta')
+    const op = new ForLoopMetaOp('/forloop-meta')
     const result = op.execute({
       initialValue: 'initial',
       currentValue: null,
@@ -376,7 +378,7 @@ describe('ForEachMetaOp', () => {
   })
 
   it('should prefer currentValue over initialValue', () => {
-    const op = new ForEachMetaOp('/foreach-meta')
+    const op = new ForLoopMetaOp('/forloop-meta')
     const result = op.execute({
       initialValue: 'initial',
       currentValue: 'current',
@@ -386,7 +388,7 @@ describe('ForEachMetaOp', () => {
   })
 
   it('should return default iteration metadata', () => {
-    const op = new ForEachMetaOp('/foreach-meta')
+    const op = new ForLoopMetaOp('/forloop-meta')
     const result = op.execute({
       initialValue: 0,
       currentValue: null,
@@ -399,7 +401,7 @@ describe('ForEachMetaOp', () => {
   })
 
   it('should handle numeric accumulator', () => {
-    const op = new ForEachMetaOp('/foreach-meta')
+    const op = new ForLoopMetaOp('/forloop-meta')
     const result = op.execute({
       initialValue: 0,
       currentValue: 42,
@@ -409,7 +411,7 @@ describe('ForEachMetaOp', () => {
   })
 
   it('should handle array accumulator', () => {
-    const op = new ForEachMetaOp('/foreach-meta')
+    const op = new ForLoopMetaOp('/forloop-meta')
     const result = op.execute({
       initialValue: [],
       currentValue: [1, 2, 3],
