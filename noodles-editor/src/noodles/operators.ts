@@ -187,7 +187,6 @@ import type { OpId } from './utils/id-utils'
 import { isDirectChild } from './utils/path-utils'
 import { pick } from './utils/pick'
 import { validateViewState } from './utils/viewstate-helpers'
-import { isPullBased } from './pull-config'
 
 // https://stackoverflow.com/questions/66044717/typescript-infer-type-of-abstract-methods-implementation
 export interface IOperator {
@@ -2239,8 +2238,6 @@ export class SwitchOp extends Operator<SwitchOp> {
   }
 }
 
-// This is a special control flow Operator that will loop over an array of data
-// We need a way to signal to the UI that this is a loop, and to render the loop
 export class ForLoopBeginOp extends Operator<ForLoopBeginOp> {
   static displayName = 'ForLoopBegin'
   static description =

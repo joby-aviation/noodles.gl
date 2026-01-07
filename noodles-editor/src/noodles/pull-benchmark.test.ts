@@ -1,12 +1,11 @@
 /**
- * Performance benchmark tests for push vs pull execution models
+ * Performance benchmark tests for pull-based execution model
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { Operator, PullExecutionStatus } from './operators'
 import { NumberField, DataField } from './fields'
 import { GraphExecutor, topologicalSort } from './graph-executor'
-import { setPullConfig, resetPullConfig, isPullBased } from './pull-config'
 import type { ExtractProps } from './utils/extract-props'
 
 // Test operator that simulates computation
@@ -111,12 +110,9 @@ describe('Pull-based execution benchmarks', () => {
 
   afterEach(() => {
     executor.stop()
-    resetPullConfig()
   })
 
-  it('should execute operators only when needed in pull mode', async () => {
-    setPullConfig({ enabled: true })
-    expect(isPullBased()).toBe(true)
+  it('should execute operators only when needed', async () => {
 
     // Create operator chain
     const compute = new ComputeOp('/compute')
@@ -157,7 +153,6 @@ describe('Pull-based execution benchmarks', () => {
   })
 
   it('should handle parallel execution efficiently', async () => {
-    setPullConfig({ enabled: true, enableParallel: true })
 
     // Create multiple independent operators
     const ops: ComputeOp[] = []
@@ -192,7 +187,6 @@ describe('Pull-based execution benchmarks', () => {
   })
 
   it('should prevent unnecessary cascading updates', async () => {
-    setPullConfig({ enabled: true })
 
     // Create a deep chain
     const depth = 10
@@ -236,7 +230,6 @@ describe('Pull-based execution benchmarks', () => {
   })
 
   it('should handle large data efficiently', async () => {
-    setPullConfig({ enabled: true })
 
     const dataSource = new DataSourceOp('/data')
     dataSource.inputs.size.setValue(10000)
@@ -261,7 +254,6 @@ describe('Pull-based execution benchmarks', () => {
   })
 
   it('should batch dirty marking efficiently', async () => {
-    setPullConfig({ enabled: true, batchDelay: 16 })
 
     const ops: ComputeOp[] = []
     for (let i = 0; i < 10; i++) {
@@ -290,7 +282,6 @@ describe('Pull-based execution benchmarks', () => {
   })
 
   it('should measure performance metrics correctly', async () => {
-    setPullConfig({ enabled: true, enableProfiling: true })
 
     // Create operators
     const source = new DataSourceOp('/source')

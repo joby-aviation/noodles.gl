@@ -45,11 +45,12 @@ This document provides essential context for Large Language Models (LLMs) workin
 - Can be keyframed in timeline for animations
 - Custom React components for specialized UI controls
 
-**Reactive Flow**: Automatic updates using RxJS
-- Unidirectional data flow from outputs to inputs
-- Lazy evaluation: nodes only execute when upstream values change
+**Pull-Based Execution**: Demand-driven operator execution
+- Operators only execute when outputs are requested and inputs have changed
+- Dirty flag system tracks which operators need re-execution
 - Topological sorting determines execution order
 - Parallel execution for independent branches
+- GraphExecutor manages the execution loop with RAF-based timing
 
 ### Technology Stack
 
@@ -122,6 +123,7 @@ noodles-gl-public/
 
 - **`noodles-editor/src/noodles/operators.ts`** - Registry of all available operators. Add new operators here.
 - **`noodles-editor/src/noodles/fields.ts`** - Field system implementation. All field types defined here.
+- **`noodles-editor/src/noodles/graph-executor.ts`** - Pull-based execution engine with topological sorting, dirty tracking, and RAF loop.
 - **`noodles-editor/src/noodles/components/op-components.tsx`** - React components for rendering operator nodes. Most use default renderer, some have custom components.
 - **`noodles-editor/src/noodles/components/field-components.tsx`** - React components for rendering field inputs.
 - **`noodles-editor/src/noodles/noodles.tsx`** - Main visualization component that loads projects and manages state, orchestrates nodes with React Flow.

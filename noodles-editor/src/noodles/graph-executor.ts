@@ -5,6 +5,27 @@ import type { IOperator, Operator } from './operators'
 import { getAllOps, getOp } from './store'
 import type { OpId } from './utils/id-utils'
 
+// Import ForEach operators for type checking during execution
+// These are imported dynamically to avoid circular dependencies
+type ForEachBeginOp = Operator<IOperator> & {
+  inputs: { data: { value: unknown[] } }
+  outputs: { item: { next: (v: unknown) => void }; index: { next: (v: number) => void }; total: { next: (v: number) => void } }
+}
+type ForEachEndOp = Operator<IOperator> & {
+  inputs: { result: { value: unknown } }
+  outputs: { results: { next: (v: unknown[]) => void } }
+}
+type ForEachMetaOp = Operator<IOperator> & {
+  inputs: { initialValue: { value: unknown }; currentValue: { value: unknown } }
+  outputs: {
+    accumulator: { next: (v: unknown) => void }
+    index: { next: (v: number) => void }
+    total: { next: (v: number) => void }
+    isFirst: { next: (v: boolean) => void }
+    isLast: { next: (v: boolean) => void }
+  }
+}
+
 // Simple types for execution
 export type ComputeState = {
   time: number
@@ -585,6 +606,160 @@ export class GraphExecutor {
     }
 
     return roots
+  }
+
+  // Execute a ForEach scope - handles iteration with accumulator (reduce-like semantics)
+  // The scope body is defined by nodes with parentNode pointing to the group node
+  async executeForEachScope(
+    beginOp: ForEachBeginOp,
+    endOp: ForEachEndOp,
+    scopeNodeIds: string[],
+    metaOp?: ForEachMetaOp
+  ): Promise<unknown[]> {
+    const data = beginOp.inputs.data.value
+    if (!Array.isArray(data)) {
+      return []
+    }
+
+    const total = data.length
+    const results: unknown[] = []
+
+    // Get initial accumulator value if meta op exists
+    let accumulator: unknown = metaOp?.inputs.initialValue.value ?? null
+
+    for (let index = 0; index < total; index++) {
+      const item = data[index]
+      const isFirst = index === 0
+      const isLast = index === total - 1
+
+      // Set iteration values on ForEachBeginOp
+      beginOp.outputs.item.next(item)
+      beginOp.outputs.index.next(index)
+      beginOp.outputs.total.next(total)
+
+      // Set iteration metadata on ForEachMetaOp if present
+      if (metaOp) {
+        metaOp.outputs.accumulator.next(accumulator)
+        metaOp.outputs.index.next(index)
+        metaOp.outputs.total.next(total)
+        metaOp.outputs.isFirst.next(isFirst)
+        metaOp.outputs.isLast.next(isLast)
+      }
+
+      // Mark all scope nodes as dirty for this iteration
+      for (const nodeId of scopeNodeIds) {
+        const node = this.nodes.get(nodeId)
+        if (node) {
+          node.dirty = true
+          this.dirtyNodes.add(nodeId)
+        }
+      }
+
+      // Execute scope body nodes in topological order
+      const scopeNodes = new Map(
+        scopeNodeIds
+          .map(id => [id, this.nodes.get(id)] as const)
+          .filter((entry): entry is [string, Operator<IOperator>] => entry[1] !== undefined)
+      )
+      const scopeEdges = this.edges.filter(
+        e => scopeNodeIds.includes(e.source) && scopeNodeIds.includes(e.target)
+      )
+      const { sorted } = topologicalSort(scopeNodes, scopeEdges)
+
+      for (const nodeId of sorted) {
+        const node = this.nodes.get(nodeId)
+        if (node && this.dirtyNodes.has(nodeId)) {
+          await this.executeNode(node, {
+            time: performance.now(),
+            frame: index,
+            context: new Map([['iteration', { index, total, isFirst, isLast, accumulator }]]),
+          })
+          this.dirtyNodes.delete(nodeId)
+          node.dirty = false
+        }
+      }
+
+      // Collect result from this iteration
+      const iterationResult = endOp.inputs.result.value
+      results.push(iterationResult)
+
+      // Update accumulator from meta op's currentValue input for next iteration
+      if (metaOp) {
+        accumulator = metaOp.inputs.currentValue.value
+      }
+    }
+
+    // Set final results on ForEachEndOp
+    endOp.outputs.results.next(results)
+
+    return results
+  }
+
+  // Find ForEach scopes in the graph (ForEachBegin + ForEachEnd pairs within same group)
+  findForEachScopes(): Array<{
+    beginOp: ForEachBeginOp
+    endOp: ForEachEndOp
+    metaOp?: ForEachMetaOp
+    scopeNodeIds: string[]
+    groupId: string
+  }> {
+    const scopes: Array<{
+      beginOp: ForEachBeginOp
+      endOp: ForEachEndOp
+      metaOp?: ForEachMetaOp
+      scopeNodeIds: string[]
+      groupId: string
+    }> = []
+
+    // Find all ForEachBeginOp nodes
+    for (const [_, op] of this.nodes) {
+      const opType = (op.constructor as any).displayName
+      if (opType === 'ForEachBegin') {
+        // Find the corresponding ForEachEndOp by traversing downstream
+        const visited = new Set<string>()
+        const queue = [op.id]
+        let endOp: ForEachEndOp | undefined
+        let metaOp: ForEachMetaOp | undefined
+        const scopeNodeIds: string[] = [op.id]
+
+        while (queue.length > 0) {
+          const nodeId = queue.shift()!
+          if (visited.has(nodeId)) continue
+          visited.add(nodeId)
+
+          const downstream = this.getDownstream(nodeId)
+          for (const downstreamId of downstream) {
+            const downstreamNode = this.nodes.get(downstreamId)
+            if (!downstreamNode) continue
+
+            const downstreamType = (downstreamNode.constructor as any).displayName
+            if (downstreamType === 'ForEachEnd') {
+              endOp = downstreamNode as ForEachEndOp
+              scopeNodeIds.push(downstreamId)
+            } else if (downstreamType === 'ForEachMeta') {
+              metaOp = downstreamNode as ForEachMetaOp
+              scopeNodeIds.push(downstreamId)
+              queue.push(downstreamId)
+            } else {
+              scopeNodeIds.push(downstreamId)
+              queue.push(downstreamId)
+            }
+          }
+        }
+
+        if (endOp) {
+          scopes.push({
+            beginOp: op as ForEachBeginOp,
+            endOp,
+            metaOp,
+            scopeNodeIds,
+            groupId: op.id.split('/').slice(0, -1).join('/') || '/',
+          })
+        }
+      }
+    }
+
+    return scopes
   }
 }
 

@@ -2,13 +2,19 @@ import type { NodeJSON } from '@xyflow/react'
 import { type MathOpType, mathOps, type OpType, opTypes } from '../operators'
 import { edgeId, nodeId } from './id-utils'
 
-export type NodeType = OpType | MathOpType | 'ForLoop'
+export type NodeType = OpType | MathOpType | 'ForLoop' | 'ForEach'
 
-// Get all available node types (operators, math ops, and special types like ForLoop)
+// Get all available node types (operators, math ops, and special types like ForLoop/ForEach)
 export function getNodeTypeOptions(): NodeType[] {
   return (Object.keys(opTypes) as NodeType[])
-    .filter(type => type !== 'ForLoopBeginOp' && type !== 'ForLoopEndOp')
-    .concat(['ForLoop', ...Object.keys(mathOps)])
+    .filter(type =>
+      type !== 'ForLoopBeginOp' &&
+      type !== 'ForLoopEndOp' &&
+      type !== 'ForEachBeginOp' &&
+      type !== 'ForEachEndOp' &&
+      type !== 'ForEachMetaOp'
+    )
+    .concat(['ForLoop', 'ForEach', ...Object.keys(mathOps)])
     .sort()
 }
 
@@ -89,6 +95,57 @@ export function createNodesForType(
       target: endNode.id,
       sourceHandle: 'out.d',
       targetHandle: 'par.d',
+    })
+  } else if (type === 'ForEach') {
+    // ForEach scope: group node containing ForEachBeginOp, ForEachEndOp, and optionally ForEachMetaOp
+    const bodyId = nodeId('for-each-body', currentContainerId)
+    const beginNode = {
+      id: makeOpId('ForEachBeginOp', currentContainerId),
+      type: 'ForEachBeginOp',
+      data: undefined,
+      parentNode: bodyId,
+      expandParent: true,
+      position: { x: 0, y: 100 },
+    }
+    const endNode = {
+      id: makeOpId('ForEachEndOp', currentContainerId),
+      type: 'ForEachEndOp',
+      data: undefined,
+      parentNode: bodyId,
+      expandParent: true,
+      position: { x: 900, y: 100 },
+    }
+    const metaNode = {
+      id: makeOpId('ForEachMetaOp', currentContainerId),
+      type: 'ForEachMetaOp',
+      data: undefined,
+      parentNode: bodyId,
+      expandParent: true,
+      position: { x: 450, y: 250 },
+    }
+    nodes.push({
+      id: bodyId,
+      type: 'group',
+      selectable: false,
+      draggable: false,
+      style: { width: 1200, height: 400 },
+      position: { x, y },
+    } as NodeJSON<'group'>)
+    nodes.push(beginNode)
+    nodes.push(endNode)
+    nodes.push(metaNode)
+    // Connect ForEachBegin.item -> ForEachEnd.result (default connection)
+    edges.push({
+      id: edgeId({
+        source: beginNode.id,
+        sourceHandle: 'out.item',
+        target: endNode.id,
+        targetHandle: 'par.result',
+      }),
+      source: beginNode.id,
+      target: endNode.id,
+      sourceHandle: 'out.item',
+      targetHandle: 'par.result',
     })
   } else if (type === 'ContainerOp') {
     const id = nodeId('container', currentContainerId)
