@@ -49,6 +49,8 @@ type SubSchemaOptions<S extends z.ZodType = z.ZodType> = BaseFieldOptions & {
 type NumberFieldOptions = BaseFieldOptions & {
   min: number
   max: number
+  softMin: number
+  softMax: number
   step: number
 }
 
@@ -454,6 +456,8 @@ export class NumberField extends Field<z.ZodNumber, NumberFieldOptions> {
 
   min: number
   max: number
+  softMin: number
+  softMax: number
   step: number
 
   createSchema(options: NumberFieldOptions) {
@@ -464,10 +468,19 @@ export class NumberField extends Field<z.ZodNumber, NumberFieldOptions> {
   }
 
   constructor(override?: number, options?: Partial<NumberFieldOptions>) {
-    const opts = { min: -Infinity, max: Infinity, step: 0.1, ...options }
+    const opts = {
+      min: -Infinity,
+      max: Infinity,
+      softMin: -Infinity,
+      softMax: Infinity,
+      step: 0.1,
+      ...options,
+    }
     super(override, opts)
     this.min = opts.min
     this.max = opts.max
+    this.softMin = opts.softMin
+    this.softMax = opts.softMax
     this.step = opts.step
   }
 }
