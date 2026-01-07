@@ -71,12 +71,11 @@ type CodeFieldOptions = BaseFieldOptions & {
 // to be able to be serialized and deserialized. It's also meant to serve as a template for
 // the UI, say to hint to the Node to render a Number input, a Geocoder or a ColorPicker.
 export abstract class Field<
-    S extends z.ZodType = z.ZodType,
-    O extends BaseFieldOptions = BaseFieldOptions,
-  >
+  S extends z.ZodType = z.ZodType,
+  O extends BaseFieldOptions = BaseFieldOptions,
+>
   extends BehaviorSubject<z.output<S>>
-  implements IField<S>
-{
+  implements IField<S> {
   static type: keyof typeof inputComponents
   static defaultValue: unknown // z.output<ReturnType<T['createSchema']>>
 
@@ -179,6 +178,11 @@ export abstract class Field<
     })
     if (parsed.success) {
       this.next(parsed.data)
+
+      // Mark the owning operator as dirty
+      if (this.op) {
+        this.op.markDirty()
+      }
     } else {
       console.warn('Parse error', parsed.error.issues)
       // console.trace()
@@ -199,6 +203,10 @@ export abstract class Field<
         this.setValue(value)
       } else {
         this.next(this.value)
+        // For reference connections, also mark dirty
+        if (this.op) {
+          this.op.markDirty()
+        }
       }
     })
     this.subscriptions.set(id, subscription)
@@ -613,7 +621,7 @@ export class JSONUrlField extends Field<z.ZodUnion<readonly [z.ZodURL, z.ZodJSON
 }
 
 type Point3DFieldValue =
-  | { lng: number; lat: number; alt: number; [key: string]: unknown }
+  | { lng: number; lat: number; alt: number;[key: string]: unknown }
   | [number, number, number]
 
 // Should this just be a Vec2? Should it be a GeoJSON Point Or does it need to be a special case
@@ -668,7 +676,7 @@ export class Point3DField extends Field<
   }
 }
 
-type Point2DFieldValue = { lng: number; lat: number; [key: string]: unknown } | [number, number]
+type Point2DFieldValue = { lng: number; lat: number;[key: string]: unknown } | [number, number]
 
 // Should this just be a Vec2? Should it be a GeoJSON Point Or does it need to be a special case
 export class Point2DField extends Field<
