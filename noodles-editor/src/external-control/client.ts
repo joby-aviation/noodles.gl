@@ -164,6 +164,40 @@ export class NoodlesClient {
     this.matcher.clear()
   }
 
+  /**
+   * Check if the client is connected and ready
+   */
+  isReady(): boolean {
+    return this.isConnected && this.ws !== null && this.ws.readyState === WebSocket.OPEN
+  }
+
+  /**
+   * Wait for the client to be ready
+   * @param timeout Maximum time to wait in milliseconds (default: 10000)
+   * @param pollInterval Interval between checks in milliseconds (default: 100)
+   */
+  waitUntilReady(timeout = 10000, pollInterval = 100): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const startTime = Date.now()
+
+      const check = () => {
+        if (this.isReady()) {
+          resolve()
+          return
+        }
+
+        if (Date.now() - startTime > timeout) {
+          reject(new Error('Timeout waiting for client to be ready'))
+          return
+        }
+
+        setTimeout(check, pollInterval)
+      }
+
+      check()
+    })
+  }
+
   // ==================== Pipeline Operations ====================
 
   /**

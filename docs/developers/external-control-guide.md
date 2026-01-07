@@ -163,7 +163,7 @@ if (!validation.valid) {
 ### Node Operations
 
 #### `addNode(type, position, config?)`
-Adds a new node to the project.
+Adds a new node to the pipeline.
 
 ```javascript
 const nodeId = await client.addNode('FilterOp', { x: 100, y: 200 }, {
@@ -291,6 +291,7 @@ client.onError((error) => {
 - `HeatmapLayerOp` - Density maps
 - `GeoJsonLayerOp` - Geographic features
 - `TextLayerOp` - Text labels
+- `TripsLayerOp` - Animated paths/trips
 
 See the [Operators Guide](../users/operators-guide.md) for complete list.
 

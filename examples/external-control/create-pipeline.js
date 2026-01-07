@@ -108,8 +108,9 @@ async function main() {
 
     console.log('Pipeline created:', pipeline)
 
-    // Wait a bit for the pipeline to render
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    // Wait for the pipeline to be ready
+    console.log('Waiting for pipeline to render...')
+    await client.waitUntilReady()
 
     // Capture the visualization
     console.log('Capturing visualization...')
@@ -130,6 +131,9 @@ async function main() {
     }
 
     // Test with sample data (optional)
+    // Note: Test data structure should match the CSV file format
+    // For NYC taxi data, this typically includes pickup coordinates,
+    // passenger count, trip duration (seconds), and trip distance (miles)
     console.log('Testing pipeline with sample data...')
     const testData = [
       {
