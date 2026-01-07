@@ -445,3 +445,178 @@ describe('Operator dirty flag', () => {
     expect(op.dirty).toBe(true)
   })
 })
+
+describe('Graph execution', () => {
+  it('should execute a single operator and produce output', async () => {
+    const num = new NumberOp('/num')
+    num.inputs.val.setValue(42)
+
+    const result = await num.pull()
+    expect(result.val).toBe(42)
+  })
+
+  it('should execute a chain of connected operators', async () => {
+    // Create a chain: num1 -> math (adds num2)
+    const num1 = new NumberOp('/num1')
+    const num2 = new NumberOp('/num2')
+    const math = new MathOp('/math')
+
+    // Set values
+    num1.inputs.val.setValue(10)
+    num2.inputs.val.setValue(5)
+
+    // Connect num1 to math.a
+    math.inputs.a.addConnection('num1-to-math', num1.outputs.val)
+    math.addUpstreamDependency(num1)
+    num1.addDownstreamDependent(math)
+
+    // Connect num2 to math.b
+    math.inputs.b.addConnection('num2-to-math', num2.outputs.val)
+    math.addUpstreamDependency(num2)
+    num2.addDownstreamDependent(math)
+
+    // Set operator to add
+    math.inputs.operator.setValue('add')
+
+    // Pull from math - should execute upstream operators first
+    const result = await math.pull()
+    expect(result.result).toBe(15) // 10 + 5
+  })
+
+  it('should re-execute when upstream changes', async () => {
+    const num = new NumberOp('/num')
+    const math = new MathOp('/math')
+
+    num.inputs.val.setValue(10)
+    math.inputs.a.addConnection('num-to-math', num.outputs.val)
+    math.inputs.b.setValue(5)
+    math.inputs.operator.setValue('add')
+    math.addUpstreamDependency(num)
+    num.addDownstreamDependent(math)
+
+    // First pull
+    const result1 = await math.pull()
+    expect(result1.result).toBe(15)
+
+    // Change upstream value
+    num.inputs.val.setValue(20)
+
+    // Pull again - should get new value
+    const result2 = await math.pull()
+    expect(result2.result).toBe(25) // 20 + 5
+  })
+
+  it('should use cached result when nothing changed', async () => {
+    const num = new NumberOp('/num')
+    num.inputs.val.setValue(42)
+
+    // First pull
+    const result1 = await num.pull()
+    expect(result1.val).toBe(42)
+    expect(num.dirty).toBe(false)
+
+    // Second pull without changes - should use cache
+    const result2 = await num.pull()
+    expect(result2.val).toBe(42)
+    expect(result1).toBe(result2) // Same reference (cached)
+  })
+
+  it('should propagate dirty flag downstream', async () => {
+    const num = new NumberOp('/num')
+    const math = new MathOp('/math')
+
+    num.inputs.val.setValue(10)
+    math.inputs.a.addConnection('num-to-math', num.outputs.val)
+    math.inputs.b.setValue(5)
+    math.inputs.operator.setValue('add')
+    math.addUpstreamDependency(num)
+    num.addDownstreamDependent(math)
+
+    // Pull to make everything clean
+    await math.pull()
+    expect(num.dirty).toBe(false)
+    expect(math.dirty).toBe(false)
+
+    // Change upstream - should mark downstream dirty
+    num.inputs.val.setValue(20)
+    expect(num.dirty).toBe(true)
+    expect(math.dirty).toBe(true)
+  })
+
+  it('should handle diamond dependencies correctly', async () => {
+    // Create diamond: source -> branch1 -> sink
+    //                source -> branch2 -> sink
+    const source = new NumberOp('/source')
+    const branch1 = new MathOp('/branch1')
+    const branch2 = new MathOp('/branch2')
+    const sink = new MathOp('/sink')
+
+    source.inputs.val.setValue(10)
+
+    // Branch1: source * 2
+    branch1.inputs.a.addConnection('source-to-b1', source.outputs.val)
+    branch1.inputs.b.setValue(2)
+    branch1.inputs.operator.setValue('multiply')
+    branch1.addUpstreamDependency(source)
+    source.addDownstreamDependent(branch1)
+
+    // Branch2: source + 5
+    branch2.inputs.a.addConnection('source-to-b2', source.outputs.val)
+    branch2.inputs.b.setValue(5)
+    branch2.inputs.operator.setValue('add')
+    branch2.addUpstreamDependency(source)
+    source.addDownstreamDependent(branch2)
+
+    // Sink: branch1 + branch2
+    sink.inputs.a.addConnection('b1-to-sink', branch1.outputs.result)
+    sink.inputs.b.addConnection('b2-to-sink', branch2.outputs.result)
+    sink.inputs.operator.setValue('add')
+    sink.addUpstreamDependency(branch1)
+    sink.addUpstreamDependency(branch2)
+    branch1.addDownstreamDependent(sink)
+    branch2.addDownstreamDependent(sink)
+
+    // Pull from sink
+    const result = await sink.pull()
+    // source=10, branch1=10*2=20, branch2=10+5=15, sink=20+15=35
+    expect(result.result).toBe(35)
+  })
+
+  it('should handle deep chains efficiently', async () => {
+    // Create a chain of 10 connected MathOps
+    const source = new NumberOp('/source')
+    source.inputs.val.setValue(1)
+
+    const ops: MathOp[] = []
+    for (let i = 0; i < 10; i++) {
+      const op = new MathOp(`/math-${i}`)
+      op.inputs.operator.setValue('add')
+      op.inputs.b.setValue(1) // Each step adds 1
+
+      if (i === 0) {
+        // Connect to source
+        op.inputs.a.addConnection('source-to-op', source.outputs.val)
+        op.addUpstreamDependency(source)
+        source.addDownstreamDependent(op)
+      } else {
+        // Connect to previous op
+        op.inputs.a.addConnection(`op${i - 1}-to-op`, ops[i - 1].outputs.result)
+        op.addUpstreamDependency(ops[i - 1])
+        ops[i - 1].addDownstreamDependent(op)
+      }
+
+      ops.push(op)
+    }
+
+    // Pull from the last one - should execute entire chain
+    const result = await ops[9].pull()
+    // source=1, then 10 adds of 1: 1+1+1+1+1+1+1+1+1+1+1 = 11
+    expect(result.result).toBe(11)
+
+    // All should be clean now
+    expect(source.dirty).toBe(false)
+    for (const op of ops) {
+      expect(op.dirty).toBe(false)
+    }
+  })
+})
