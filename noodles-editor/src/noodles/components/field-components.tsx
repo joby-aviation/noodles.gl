@@ -1043,8 +1043,8 @@ function DraggableNumberInput({
         title={title || displayValue}
         onChange={onInputChange}
         disabled={disabled}
-        min={softMin ?? min}
-        max={softMax ?? max}
+        min={Number.isFinite(softMin ?? -Infinity) ? softMin : min}
+        max={Number.isFinite(softMax ?? Infinity) ? softMax : max}
         step={step}
       />
       {shouldShowLadder && (
