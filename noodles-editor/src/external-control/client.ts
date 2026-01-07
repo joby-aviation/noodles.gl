@@ -38,30 +38,29 @@ export interface PipelineSpec {
   }>
 }
 
-/** Noodles External Control Client
- *
- * Example usage:
- * ```javascript
- * const client = new NoodlesClient()
- * await client.connect()
- *
- * // Create a data pipeline
- * const pipeline = await client.createPipeline({
- *   nodes: [
- *     { id: '/file', type: 'FileOp', data: { inputs: { url: 'data.csv', format: 'csv' } } },
- *     { id: '/filter', type: 'FilterOp', data: { inputs: { expression: 'd.value > 100' } } },
- *     { id: '/viz', type: 'ScatterplotLayerOp', data: { inputs: {} } }
- *   ],
- *   edges: [
- *     { source: '/file', target: '/filter', sourceHandle: 'out.data', targetHandle: 'par.data' },
- *     { source: '/filter', target: '/viz', sourceHandle: 'out.result', targetHandle: 'par.data' }
- *   ]
- * })
- *
- * // Test the pipeline
- * const result = await client.testPipeline(pipeline.id, testData)
- * ```
- */
+// Noodles External Control Client
+//
+// Example usage:
+// ```javascript
+// const client = new NoodlesClient()
+// await client.connect()
+//
+// // Create a data pipeline
+// const pipeline = await client.createPipeline({
+//   nodes: [
+//     { id: '/file', type: 'FileOp', data: { inputs: { url: 'data.csv', format: 'csv' } } },
+//     { id: '/filter', type: 'FilterOp', data: { inputs: { expression: 'd.value > 100' } } },
+//     { id: '/viz', type: 'ScatterplotLayerOp', data: { inputs: {} } }
+//   ],
+//   edges: [
+//     { source: '/file', target: '/filter', sourceHandle: 'out.data', targetHandle: 'par.data' },
+//     { source: '/filter', target: '/viz', sourceHandle: 'out.result', targetHandle: 'par.data' }
+//   ]
+// })
+//
+// // Test the pipeline
+// const result = await client.testPipeline(pipeline.id, testData)
+// ```
 export class NoodlesClient {
   private ws: WebSocket | null = null
   private config: Required<ClientConfig>
@@ -79,9 +78,7 @@ export class NoodlesClient {
     }
   }
 
-  /**
-   * Connect to Noodles external control server
-   */
+  // Connect to Noodles external control server
   connect(url?: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const wsUrl = url || `ws://${this.config.host}:${this.config.port}`
@@ -146,9 +143,7 @@ export class NoodlesClient {
     })
   }
 
-  /**
-   * Disconnect from server
-   */
+  // Disconnect from server
   disconnect(): void {
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer)
@@ -164,18 +159,14 @@ export class NoodlesClient {
     this.matcher.clear()
   }
 
-  /**
-   * Check if the client is connected and ready
-   */
+  // Check if the client is connected and ready
   isReady(): boolean {
     return this.isConnected && this.ws !== null && this.ws.readyState === WebSocket.OPEN
   }
 
-  /**
-   * Wait for the client to be ready
-   * @param timeout Maximum time to wait in milliseconds (default: 10000)
-   * @param pollInterval Interval between checks in milliseconds (default: 100)
-   */
+  // Wait for the client to be ready
+  // timeout: Maximum time to wait in milliseconds (default: 10000)
+  // pollInterval: Interval between checks in milliseconds (default: 100)
   waitUntilReady(timeout = 10000, pollInterval = 100): Promise<void> {
     return new Promise((resolve, reject) => {
       const startTime = Date.now()
@@ -200,9 +191,7 @@ export class NoodlesClient {
 
   // ==================== Pipeline Operations ====================
 
-  /**
-   * Create a pipeline from specification
-   */
+  // Create a pipeline from specification
   async createPipeline(spec: PipelineSpec): Promise<any> {
     const message = createMessage(MessageType.PIPELINE_CREATE, {
       spec,
@@ -219,9 +208,7 @@ export class NoodlesClient {
     return response.payload.result
   }
 
-  /**
-   * Test a pipeline with sample data
-   */
+  // Test a pipeline with sample data
   async testPipeline(pipelineId: string, testData: any[]): Promise<any> {
     const message = createMessage(MessageType.PIPELINE_TEST, {
       pipelineId,
@@ -240,9 +227,7 @@ export class NoodlesClient {
     return response.payload.result
   }
 
-  /**
-   * Validate a pipeline
-   */
+  // Validate a pipeline
   async validatePipeline(pipelineId: string): Promise<any> {
     const message = createMessage(MessageType.PIPELINE_VALIDATE, {
       pipelineId,
@@ -258,9 +243,7 @@ export class NoodlesClient {
 
   // ==================== Tool Operations ====================
 
-  /**
-   * Call a tool directly
-   */
+  // Call a tool directly
   async callTool(tool: string, args: Record<string, any>): Promise<any> {
     const message = createMessage(MessageType.TOOL_CALL, {
       tool,
@@ -276,46 +259,34 @@ export class NoodlesClient {
     return response.payload.result
   }
 
-  /**
-   * Get current project state
-   */
+  // Get current project state
   async getCurrentProject(): Promise<any> {
     return this.callTool('getCurrentProject', {})
   }
 
-  /**
-   * Apply modifications to the project
-   */
+  // Apply modifications to the project
   async applyModifications(modifications: any): Promise<any> {
     return this.callTool('applyModifications', { modifications })
   }
 
-  /**
-   * List all nodes
-   */
+  // List all nodes
   async listNodes(): Promise<any> {
     return this.callTool('listNodes', {})
   }
 
-  /**
-   * Get node output
-   */
+  // Get node output
   async getNodeOutput(nodeId: string, outputName = 'result'): Promise<any> {
     return this.callTool('getNodeOutput', { nodeId, outputName })
   }
 
-  /**
-   * Capture visualization screenshot
-   */
+  // Capture visualization screenshot
   async captureVisualization(format = 'png', quality = 0.9): Promise<any> {
     return this.callTool('captureVisualization', { format, quality })
   }
 
   // ==================== Data Operations ====================
 
-  /**
-   * Upload a data file
-   */
+  // Upload a data file
   async uploadDataFile(
     filename: string,
     content: string | ArrayBuffer,
@@ -338,25 +309,19 @@ export class NoodlesClient {
 
   // ==================== State Operations ====================
 
-  /**
-   * Request current state
-   */
+  // Request current state
   async getState(): Promise<any> {
     const message = createMessage(MessageType.STATE_REQUEST, {})
     const response = await this.sendAndWait(message)
     return response.payload
   }
 
-  /**
-   * Subscribe to state changes
-   */
+  // Subscribe to state changes
   onStateChange(callback: (state: any) => void): void {
     this.on('stateChange', callback)
   }
 
-  /**
-   * Subscribe to errors
-   */
+  // Subscribe to errors
   onError(callback: (error: any) => void): void {
     this.on('error', callback)
   }

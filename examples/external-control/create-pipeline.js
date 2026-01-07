@@ -131,9 +131,9 @@ async function main() {
     }
 
     // Test with sample data (optional)
-    // Note: Test data structure should match the CSV file format
-    // For NYC taxi data, this typically includes pickup coordinates,
-    // passenger count, trip duration (seconds), and trip distance (miles)
+    // Note: When using testPipeline, the test data replaces the FileOp output.
+    // The data structure should match what your transformations expect.
+    // This example skips the file loading and tests the filter -> map -> viz pipeline.
     console.log('Testing pipeline with sample data...')
     const testData = [
       {
@@ -150,10 +150,20 @@ async function main() {
         trip_duration: 900,
         trip_distance: 3.2,
       },
+      {
+        pickup_longitude: -73.99,
+        pickup_latitude: 40.74,
+        passenger_count: 1,  // Will be filtered out (passenger_count <= 2)
+        trip_duration: 300,
+        trip_distance: 1.0,
+      },
     ]
 
     const testResult = await client.testPipeline(pipeline.pipelineId, testData)
     console.log('Test result:', testResult.success ? 'Success' : 'Failed')
+    if (testResult.success) {
+      console.log('Output records:', testResult.outputCount)
+    }
 
   } catch (error) {
     console.error('Error:', error)
