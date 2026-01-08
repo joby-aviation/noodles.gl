@@ -1443,7 +1443,22 @@ const duckDbInstance = (async () => {
 
   // Select a bundle based on browser checks
   const bundle = await duckdb.selectBundle(bundles)
-  const worker = new Worker(bundle.mainWorker!)
+  const workerUrl = bundle.mainWorker!
+
+  // Handle cross-origin URLs by fetching and creating blob URL
+  const isCrossOrigin =
+    workerUrl.startsWith('http') && !workerUrl.startsWith(window.location.origin)
+  const resolvedWorkerUrl = isCrossOrigin
+    ? await fetch(workerUrl).then(async res => {
+        if (!res.ok) {
+          throw new Error(`Failed to fetch DuckDB worker: ${res.status} ${res.statusText}`)
+        }
+        const blob = new Blob([await res.text()], { type: 'application/javascript' })
+        return URL.createObjectURL(blob)
+      })
+    : workerUrl
+
+  const worker = new Worker(resolvedWorkerUrl)
   const logger = new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING)
   const db = new duckdb.AsyncDuckDB(logger, worker)
   await db.instantiate(bundle.mainModule, bundle.pthreadWorker)
