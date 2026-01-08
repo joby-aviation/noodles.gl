@@ -230,7 +230,6 @@ describe('Pull-based execution benchmarks', () => {
   })
 
   it('should handle large data efficiently', async () => {
-
     const dataSource = new DataSourceOp('/data')
     dataSource.inputs.size.setValue(10000)
 
@@ -246,36 +245,40 @@ describe('Pull-based execution benchmarks', () => {
     const cachePullTime = performance.now() - cacheStartTime
 
     expect(cachedResult).toBe(result) // Same reference
-    expect(cachePullTime).toBeLessThan(firstPullTime * 0.1) // Much faster
+    // Cached pull should be fast - use a minimum threshold to avoid flaky test when firstPullTime is 0
+    const threshold = Math.max(firstPullTime * 0.1, 1) // At least 1ms threshold
+    expect(cachePullTime).toBeLessThan(threshold)
 
     console.log('First pull:', firstPullTime.toFixed(2), 'ms')
     console.log('Cached pull:', cachePullTime.toFixed(2), 'ms')
-    console.log('Cache speedup:', (firstPullTime / cachePullTime).toFixed(0), 'x')
+    console.log('Cache speedup:', (firstPullTime / Math.max(cachePullTime, 0.001)).toFixed(0), 'x')
   })
 
   it('should batch dirty marking efficiently', async () => {
-
     const ops: ComputeOp[] = []
     for (let i = 0; i < 10; i++) {
       ops.push(new ComputeOp(`/compute-${i}`))
     }
 
-    // Rapidly change multiple values
-    const changes = ops.map((op, i) => {
-      return new Promise<void>(resolve => {
-        setTimeout(() => {
-          op.inputs.value.setValue(i * 10)
-          resolve()
-        }, i * 2) // Stagger changes by 2ms
-      })
+    // Initially all operators are dirty (new operators start dirty)
+    for (const op of ops) {
+      expect(op.pullExecutionStatus).toBe(PullExecutionStatus.DIRTY)
+    }
+
+    // Pull to make them clean
+    await Promise.all(ops.map(op => op.pull()))
+
+    // Now all should be clean
+    for (const op of ops) {
+      expect(op.pullExecutionStatus).toBe(PullExecutionStatus.CLEAN)
+    }
+
+    // Change values should mark them dirty again
+    ops.forEach((op, i) => {
+      op.inputs.value.setValue(i * 10)
     })
 
-    await Promise.all(changes)
-
-    // Wait for batch to complete
-    await new Promise(resolve => setTimeout(resolve, 20))
-
-    // All should be dirty
+    // All should be dirty again
     for (const op of ops) {
       expect(op.pullExecutionStatus).toBe(PullExecutionStatus.DIRTY)
     }
