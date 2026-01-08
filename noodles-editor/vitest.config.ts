@@ -14,6 +14,12 @@ export default defineConfig({
       headless: true,
       screenshotFailures: false,
       instances: [{ browser: 'chromium' }],
+      trace: {
+        mode: 'retain-on-failure',
+        tracesDir: '.vitest-traces',
+        screenshots: true,
+        snapshots: true,
+      },
     },
   },
   optimizeDeps: {
