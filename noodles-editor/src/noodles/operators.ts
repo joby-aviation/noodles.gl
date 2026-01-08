@@ -318,9 +318,7 @@ export abstract class Operator<OP extends IOperator> {
 
   // === Pull-based execution methods ===
 
-  /**
-   * Pull data from this operator, executing if needed (pull-based model)
-   */
+  // Pull data from this operator, executing if needed (pull-based model)
   async pull(): Promise<ExtractProps<(typeof this)['outputs']>> {
     // Return cached if clean
     if (this._pullExecutionStatus === PullExecutionStatus.CLEAN && this._cachedOutput !== null) {
@@ -351,9 +349,7 @@ export abstract class Operator<OP extends IOperator> {
     }
   }
 
-  /**
-   * Internal pull execution logic
-   */
+  // Internal pull execution logic
   private async _pullExecution(): Promise<ExtractProps<(typeof this)['outputs']>> {
     const startTime = performance.now()
 
@@ -420,9 +416,7 @@ export abstract class Operator<OP extends IOperator> {
     }
   }
 
-  /**
-   * Pull all upstream dependencies
-   */
+  // Pull all upstream dependencies
   private async _pullUpstreamDependencies(): Promise<void> {
     const promises: Promise<unknown>[] = []
 
@@ -434,9 +428,7 @@ export abstract class Operator<OP extends IOperator> {
     // Field connections will have updated the values already via subscriptions
   }
 
-  /**
-   * Mark this operator as dirty and propagate downstream
-   */
+  // Mark this operator as dirty and propagate downstream
   markDirty(): void {
     if (this._pullExecutionStatus === PullExecutionStatus.DIRTY) {
       return // Already dirty
@@ -452,44 +444,32 @@ export abstract class Operator<OP extends IOperator> {
     }
   }
 
-  /**
-   * Add upstream dependency (for pull-based model)
-   */
+  // Add upstream dependency (for pull-based model)
   addUpstreamDependency(op: Operator<IOperator>): void {
     this._upstreamDependencies.add(op)
   }
 
-  /**
-   * Add downstream dependent (for pull-based model)
-   */
+  // Add downstream dependent (for pull-based model)
   addDownstreamDependent(op: Operator<IOperator>): void {
     this._downstreamDependents.add(op)
   }
 
-  /**
-   * Remove upstream dependency (for pull-based model)
-   */
+  // Remove upstream dependency (for pull-based model)
   removeUpstreamDependency(op: Operator<IOperator>): void {
     this._upstreamDependencies.delete(op)
   }
 
-  /**
-   * Remove downstream dependent (for pull-based model)
-   */
+  // Remove downstream dependent (for pull-based model)
   removeDownstreamDependent(op: Operator<IOperator>): void {
     this._downstreamDependents.delete(op)
   }
 
-  /**
-   * Get pull execution status
-   */
+  // Get pull execution status
   get pullExecutionStatus(): PullExecutionStatus {
     return this._pullExecutionStatus
   }
 
-  /**
-   * Get cached output (for debugging)
-   */
+  // Get cached output (for debugging)
   get cachedOutput(): ExtractProps<(typeof this)['outputs']> | null {
     return this._cachedOutput
   }
