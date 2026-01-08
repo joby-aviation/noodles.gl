@@ -86,6 +86,18 @@ function useExecutionState(op: Operator<IOperator>): ExecutionState {
   return executionState
 }
 
+// Hook to subscribe to operator connection errors
+function useConnectionErrors(op: Operator<IOperator>): Map<string, string> {
+  const [connectionErrors, setConnectionErrors] = useState<Map<string, string>>(new Map())
+
+  useEffect(() => {
+    const subscription = op.connectionErrors.subscribe(setConnectionErrors)
+    return () => subscription.unsubscribe()
+  }, [op])
+
+  return connectionErrors
+}
+
 const defaultNodeComponents = {} as Record<OpType, typeof NodeComponent>
 for (const key of Object.keys(opTypes)) {
   defaultNodeComponents[key] = NodeComponent
@@ -399,15 +411,17 @@ function NodeComponent({
   }
   const locked = useLocked(op)
   const executionState = useExecutionState(op)
+  const connectionErrors = useConnectionErrors(op)
+  const hasConnectionErrors = connectionErrors.size > 0
 
   return (
     <div
       className={cx(s.wrapper, {
-        [s.wrapperError]: executionState.status === 'error',
+        [s.wrapperError]: executionState.status === 'error' || hasConnectionErrors,
         [s.wrapperExecuting]: executionState.status === 'executing',
       })}
     >
-      <NodeHeader id={id} type={type} op={op} />
+      <NodeHeader id={id} type={type} op={op} connectionErrors={connectionErrors} />
       {resizeableNodes.includes(type) && (
         <NodeResizer isVisible={selected} minWidth={200} minHeight={100} />
       )}
@@ -465,9 +479,20 @@ const ExecutionIndicator = ({ status, error, executionTime }: ExecutionState) =>
   }
 }
 
-function NodeHeader({ id, type, op }: { id: string; type: OpType; op: Operator<IOperator> }) {
+function NodeHeader({
+  id,
+  type,
+  op,
+  connectionErrors,
+}: {
+  id: string
+  type: OpType
+  op: Operator<IOperator>
+  connectionErrors?: Map<string, string>
+}) {
   const [locked, setLocked] = useState(op.locked.value)
   const executionState = useExecutionState(op)
+  const hasConnectionErrors = connectionErrors && connectionErrors.size > 0
 
   const toggleLock = () => {
     op.locked.next(!op.locked.value)
@@ -620,12 +645,25 @@ function NodeHeader({ id, type, op }: { id: string; type: OpType; op: Operator<I
 
   const { displayName } = op.constructor as typeof Operator
 
+  // Format connection error tooltip
+  const connectionErrorTooltip = hasConnectionErrors
+    ? Array.from(connectionErrors!.values()).join('\n')
+    : ''
+
   return (
     <div className={cx(s.header, headerClass(type))}>
       <div className={s.headerTitle} title={`${id} (${displayName})`}>
         {editableId} ({displayName})
       </div>
       <ExecutionIndicator {...executionState} />
+      {hasConnectionErrors && (
+        <div
+          className={cx(s.executionIndicator, s.executionIndicatorError)}
+          title={connectionErrorTooltip}
+        >
+          <i className="pi pi-link" />
+        </div>
+      )}
       <div className={s.headerActions}>
         {downloadable && (
           <Button

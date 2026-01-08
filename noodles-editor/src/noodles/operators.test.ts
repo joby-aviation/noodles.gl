@@ -157,6 +157,72 @@ describe('Error handling', () => {
   })
 })
 
+describe('Connection error tracking', () => {
+  it('tracks connection errors on operators', () => {
+    const operator = new NumberOp('/num-0')
+
+    // Initially no connection errors
+    expect(operator.hasConnectionErrors()).toBe(false)
+    expect(operator.connectionErrors.value.size).toBe(0)
+
+    // Add a connection error
+    const edgeId = '/source.out.val->/num-0.par.val'
+    operator.addConnectionError(edgeId, 'Type mismatch: string cannot connect to number')
+
+    expect(operator.hasConnectionErrors()).toBe(true)
+    expect(operator.connectionErrors.value.get(edgeId)).toBe(
+      'Type mismatch: string cannot connect to number'
+    )
+    expect(operator.getConnectionErrorMessages()).toEqual([
+      'Type mismatch: string cannot connect to number',
+    ])
+
+    // Remove the connection error
+    operator.removeConnectionError(edgeId)
+
+    expect(operator.hasConnectionErrors()).toBe(false)
+    expect(operator.connectionErrors.value.size).toBe(0)
+  })
+
+  it('tracks multiple connection errors', () => {
+    const operator = new MergeOp('/merge-0')
+
+    operator.addConnectionError('edge1', 'Error 1')
+    operator.addConnectionError('edge2', 'Error 2')
+
+    expect(operator.hasConnectionErrors()).toBe(true)
+    expect(operator.connectionErrors.value.size).toBe(2)
+    expect(operator.getConnectionErrorMessages()).toContain('Error 1')
+    expect(operator.getConnectionErrorMessages()).toContain('Error 2')
+
+    // Remove one error
+    operator.removeConnectionError('edge1')
+
+    expect(operator.hasConnectionErrors()).toBe(true)
+    expect(operator.connectionErrors.value.size).toBe(1)
+    expect(operator.getConnectionErrorMessages()).toEqual(['Error 2'])
+  })
+
+  it('is reactive via BehaviorSubject', () => {
+    const operator = new NumberOp('/num-0')
+    const errors: Map<string, string>[] = []
+
+    const subscription = operator.connectionErrors.subscribe(e => errors.push(new Map(e)))
+
+    operator.addConnectionError('edge1', 'Error 1')
+    operator.addConnectionError('edge2', 'Error 2')
+    operator.removeConnectionError('edge1')
+
+    subscription.unsubscribe()
+
+    expect(errors.length).toBe(4) // Initial + 3 updates
+    expect(errors[0].size).toBe(0) // Initial empty state
+    expect(errors[1].size).toBe(1) // After adding edge1
+    expect(errors[2].size).toBe(2) // After adding edge2
+    expect(errors[3].size).toBe(1) // After removing edge1
+  })
+})
+
 describe('CodeOp', () => {
   it('executes a CodeOp', async () => {
     const operator = new CodeOp('code-0', { code: ['return d + 1'] }, false)

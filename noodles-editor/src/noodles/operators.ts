@@ -235,6 +235,10 @@ export abstract class Operator<OP extends IOperator> {
   // Execution state for visual debugging
   executionState = new BehaviorSubject<ExecutionState>({ status: 'idle' })
 
+  // Connection errors - tracks errors from incompatible connections
+  // Map of edgeId -> error message
+  connectionErrors = new BehaviorSubject<Map<string, string>>(new Map())
+
   // Dirty flag for GraphExecutor
   dirty: boolean = true
 
@@ -315,6 +319,33 @@ export abstract class Operator<OP extends IOperator> {
 
   // Left open for sub-classes to override
   onError(_err: unknown) {}
+
+  // === Connection error methods ===
+
+  // Add a connection error for a specific edge
+  addConnectionError(edgeId: string, error: string) {
+    const errors = new Map(this.connectionErrors.value)
+    errors.set(edgeId, error)
+    this.connectionErrors.next(errors)
+  }
+
+  // Remove a connection error for a specific edge
+  removeConnectionError(edgeId: string) {
+    const errors = new Map(this.connectionErrors.value)
+    if (errors.delete(edgeId)) {
+      this.connectionErrors.next(errors)
+    }
+  }
+
+  // Check if the operator has any connection errors
+  hasConnectionErrors(): boolean {
+    return this.connectionErrors.value.size > 0
+  }
+
+  // Get all connection error messages
+  getConnectionErrorMessages(): string[] {
+    return Array.from(this.connectionErrors.value.values())
+  }
 
   // === Pull-based execution methods ===
 

@@ -16,7 +16,7 @@ import { analytics } from '../../utils/analytics'
 import { type Field, ListField } from '../fields'
 import type { IOperator, Operator } from '../operators'
 import { deleteOp, getAllOps, getOp, setOp } from '../store'
-import { canConnect } from '../utils/can-connect'
+import { canConnect, validateConnection } from '../utils/can-connect'
 import { edgeId } from '../utils/id-utils'
 import { generateQualifiedPath, parseHandleId } from '../utils/path-utils'
 
@@ -707,10 +707,9 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         return
       }
 
-      // Validate connection
-      if (!canConnect(sourceField, targetField)) {
-        return
-      }
+      // Validate connection - allow the connection even if types are incompatible
+      // but track the error on the target operator
+      const validation = validateConnection(sourceField, targetField)
 
       // Update edges - replace existing if target is not a ListField
       setEdges(eds => {
@@ -718,6 +717,8 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
           e => e.target === newEdge.target && e.targetHandle === newEdge.targetHandle
         )
         if (existing && !(targetField instanceof ListField)) {
+          // Clear any previous error for the replaced edge
+          targetOp.removeConnectionError(existing.id)
           return applyEdgeChanges(
             [{ type: 'replace', id: existing.id, item: newEdge }],
             eds as ReactFlowEdge[]
@@ -725,6 +726,11 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         }
         return reactFlowAddEdge(newEdge, eds as ReactFlowEdge[])
       })
+
+      // Track connection error if validation failed
+      if (!validation.valid && validation.error) {
+        targetOp.addConnectionError(newEdge.id, validation.error)
+      }
 
       // Update target node with new input value
       setNodes(nds => {
