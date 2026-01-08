@@ -124,10 +124,8 @@ export function transformGraph<
     }) as OP[]
   })
 
-  // In pull-based mode, we don't create listeners
-  // Just mark new operators as dirty
   for (const op of created) {
-    op.markDirty()
+    op.createListeners()
   }
 
   // Update dependency graph

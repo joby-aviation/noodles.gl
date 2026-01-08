@@ -494,6 +494,66 @@ export abstract class Operator<OP extends IOperator> {
     return this._cachedOutput
   }
 
+  // Needs to be called after sub-classes have created their inputs and outputs
+  createListeners() {
+    const sub = combineLatest(this.inputs)
+      .pipe(
+        // Don't set if node is locked
+        filter(() => !safeMode && !this.locked.value),
+        mergeMap(async (inputValues: ExtractProps<(typeof this)['inputs']>) => {
+          const startTime = performance.now()
+
+          // Set executing state
+          this.executionState.next({ status: 'executing' })
+
+          try {
+            const result = this.execute(inputValues)
+            const finalResult = result instanceof Promise ? await result : result
+
+            // Set success state
+            const executionTime = performance.now() - startTime
+            this.executionState.next({
+              status: 'success',
+              lastExecuted: new Date(),
+              executionTime,
+            })
+
+            return finalResult
+          } catch (err: unknown) {
+            const error = err instanceof Error ? err : new Error(String(err))
+            console.warn(
+              `Failure in [${this.id} (${(this.constructor as typeof Operator).displayName})]:`,
+              error.message,
+              error.stack
+            )
+            this.onError(error)
+
+            // Set error state
+            const executionTime = performance.now() - startTime
+            this.executionState.next({
+              status: 'error',
+              lastExecuted: new Date(),
+              executionTime,
+              error: error.message,
+            })
+
+            return null
+          }
+        }),
+        filter(result => result !== null)
+      )
+      .subscribe(outputValues => {
+        for (const [key, field] of Object.entries(this.outputs)) {
+          if (field.value !== outputValues[key]) {
+            // Skip schema validation on outputs
+            field.next(outputValues[key])
+          }
+        }
+      })
+
+    this.subs.push(sub)
+  }
+
   unsubscribeListeners() {
     for (const sub of this.subs) {
       sub.unsubscribe()
@@ -2174,7 +2234,6 @@ export class SwitchOp extends Operator<SwitchOp> {
     'Select one value from a list using an index (0, 1, 2...). With blend enabled, smoothly interpolate between values for animation effects.'
   createInputs() {
     return {
-      // TODO: support arbitrary outputs, maybe a union type?
       values: new ListField(new DataField()),
       index: new NumberField(0, { min: 0, step: 1 }),
       blend: new BooleanField(false),
@@ -2245,7 +2304,7 @@ export class ForLoopBeginOp extends Operator<ForLoopBeginOp> {
 
   createOutputs() {
     return {
-      d: new DataField(new UnknownField()), // Current item (legacy name)
+      d: new DataField(new UnknownField()),
       index: new NumberField(0), // Current iteration index
       total: new NumberField(0), // Total number of items
     }

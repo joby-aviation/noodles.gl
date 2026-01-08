@@ -91,7 +91,7 @@ describe('Operator pathToProps', () => {
 })
 
 describe('Error handling', () => {
-  it('fails gracefully if execute throws an error', () => {
+  it('fails gracefully if execute throws an error', async () => {
     class TestOp extends Operator<TestOp> {
       static displayName = 'TestOp'
       static description = 'Test operator for error handling'
@@ -121,7 +121,8 @@ describe('Error handling', () => {
     expect(consoleWarn).not.toHaveBeenCalled()
     expect(operator.outputData).toEqual({})
 
-    operator.createListeners()
+    // In pull-based model, pull() triggers execution and handles errors
+    await expect(operator.pull()).rejects.toThrow('Test error')
 
     expect(execute).toHaveBeenCalledTimes(1)
     expect(onError).toHaveBeenCalledTimes(1)
@@ -132,15 +133,17 @@ describe('Error handling', () => {
       num: 0,
     })
     expect(onError.mock.calls[0][0]).toEqual(new Error('Test error'))
-    expect(consoleWarn.mock.calls[0][0]).toEqual('Failure in [/test-0 (TestOp)]:')
+    expect(consoleWarn.mock.calls[0][0]).toEqual('Pull execution failure in [/test-0 (TestOp)]:')
     expect(consoleWarn.mock.calls[0][1]).toEqual('Test error')
-    expect(consoleWarn.mock.calls[0][2]).toMatch(/TestOp.execute/)
 
-    // Test that operation will continue listening without the subscription closing
+    // Test that pull can be called again after error
     operator.inputs.num.setValue(1)
 
     expect(operator.inputs.num.value).toEqual(1)
     expect(operator.outputData).toEqual({})
+
+    await expect(operator.pull()).rejects.toThrow('Test error')
+
     expect(execute).toHaveBeenCalledTimes(2)
     expect(onError).toHaveBeenCalledTimes(2)
     expect(consoleWarn).toHaveBeenCalledTimes(2)
@@ -149,7 +152,7 @@ describe('Error handling', () => {
       num: 1,
     })
     expect(onError.mock.calls[1][0]).toEqual(new Error('Test error'))
-    expect(consoleWarn.mock.calls[1][0]).toEqual('Failure in [/test-0 (TestOp)]:')
+    expect(consoleWarn.mock.calls[1][0]).toEqual('Pull execution failure in [/test-0 (TestOp)]:')
     expect(consoleWarn.mock.calls[1][1]).toEqual('Test error')
   })
 })
@@ -417,7 +420,7 @@ describe('DuckDbOp', () => {
     const ddb = new DuckDbOp('/duckdb-0', {}, false)
     const val = await ddb.execute({ query: 'SELECT {{num-0.par.val}}' })
 
-    // Wait for `mergeMap` in `createListeners` to run
+    // Wait for async operations to complete
     await Promise.resolve()
     expect(val).toEqual({ data: [expect.objectContaining({ $1: 1 })] })
   })
@@ -1060,7 +1063,6 @@ describe('Viral Accessor Tests', () => {
   describe('MathOp', () => {
     it('should handle static values', () => {
       const op = new MathOp('test-math-1')
-      op.createListeners()
 
       const result = op.execute({ operator: 'add', a: 5, b: 3 })
 
@@ -1070,7 +1072,6 @@ describe('Viral Accessor Tests', () => {
 
     it('should handle accessor function for a', () => {
       const op = new MathOp('test-math-2')
-      op.createListeners()
 
       const accessor = (d: { value: number }) => d.value
       const result = op.execute({ operator: 'add', a: accessor, b: 10 })
@@ -1081,7 +1082,6 @@ describe('Viral Accessor Tests', () => {
 
     it('should handle accessor function for b', () => {
       const op = new MathOp('test-math-3')
-      op.createListeners()
 
       const accessor = (d: { value: number }) => d.value
       const result = op.execute({ operator: 'multiply', a: 3, b: accessor })
@@ -1092,7 +1092,6 @@ describe('Viral Accessor Tests', () => {
 
     it('should handle accessor functions for both a and b', () => {
       const op = new MathOp('test-math-4')
-      op.createListeners()
 
       const accessorA = (d: { x: number }) => d.x
       const accessorB = (d: { y: number }) => d.y
@@ -1104,7 +1103,6 @@ describe('Viral Accessor Tests', () => {
 
     it('should handle unary operations with accessor', () => {
       const op = new MathOp('test-math-5')
-      op.createListeners()
 
       const accessor = (d: { angle: number }) => d.angle
       const result = op.execute({ operator: 'sine', a: accessor, b: 0 })
@@ -1118,7 +1116,6 @@ describe('Viral Accessor Tests', () => {
   describe('ExpressionOp', () => {
     it('should handle static values', () => {
       const op = new ExpressionOp('test-expr-1')
-      op.createListeners()
 
       const result = op.execute({ data: [10, 20, 30], expression: 'd * 2' })
 
@@ -1128,7 +1125,6 @@ describe('Viral Accessor Tests', () => {
 
     it('should handle accessor function in data', () => {
       const op = new ExpressionOp('test-expr-2')
-      op.createListeners()
 
       const accessor = (d: { count: number }) => d.count
       const result = op.execute({ data: [accessor, 10], expression: 'd + 5' })
@@ -1139,7 +1135,6 @@ describe('Viral Accessor Tests', () => {
 
     it('should handle multiple accessor functions in data', () => {
       const op = new ExpressionOp('test-expr-3')
-      op.createListeners()
 
       const accessor1 = (d: { x: number }) => d.x
       const accessor2 = (d: { y: number }) => d.y
@@ -1154,7 +1149,6 @@ describe('Viral Accessor Tests', () => {
 
     it('should handle mixed static and accessor values', () => {
       const op = new ExpressionOp('test-expr-4')
-      op.createListeners()
 
       const accessor = (d: { value: number }) => d.value
       const result = op.execute({
@@ -1170,7 +1164,6 @@ describe('Viral Accessor Tests', () => {
   describe('ConcatOp', () => {
     it('should handle static arrays', () => {
       const op = new ConcatOp('test-concat-1')
-      op.createListeners()
 
       const result = op.execute({
         values: [
@@ -1186,7 +1179,6 @@ describe('Viral Accessor Tests', () => {
 
     it('should handle accessor function in values', () => {
       const op = new ConcatOp('test-concat-2')
-      op.createListeners()
 
       const accessor = (d: { items: number[] }) => d.items
       const result = op.execute({ values: [accessor, [7, 8]], depth: 1 })
@@ -1197,7 +1189,6 @@ describe('Viral Accessor Tests', () => {
 
     it('should handle multiple accessor functions in values', () => {
       const op = new ConcatOp('test-concat-3')
-      op.createListeners()
 
       const accessor1 = (d: { first: number[] }) => d.first
       const accessor2 = (d: { second: number[] }) => d.second
@@ -1209,7 +1200,6 @@ describe('Viral Accessor Tests', () => {
 
     it('should handle depth parameter with accessors', () => {
       const op = new ConcatOp('test-concat-4')
-      op.createListeners()
 
       const accessor = (d: { nested: number[][] }) => d.nested
       const result = op.execute({ values: [accessor, [[7, 8]]], depth: 2 })
@@ -1227,7 +1217,6 @@ describe('Viral Accessor Tests', () => {
 
     it('should handle mixed static and accessor values', () => {
       const op = new ConcatOp('test-concat-5')
-      op.createListeners()
 
       const accessor = (d: { dynamic: number[] }) => d.dynamic
       const result = op.execute({ values: [[1, 2], accessor, [5, 6]], depth: 1 })
@@ -1240,13 +1229,11 @@ describe('Viral Accessor Tests', () => {
   describe('Chained Viral Accessors', () => {
     it('should chain MathOp with ExpressionOp', () => {
       const mathOp = new MathOp('test-chain-1')
-      mathOp.createListeners()
 
       const accessor = (d: { price: number }) => d.price
       const mathResult = mathOp.execute({ operator: 'multiply', a: accessor, b: 1.1 })
 
       const exprOp = new ExpressionOp('test-chain-2')
-      exprOp.createListeners()
 
       const exprResult = exprOp.execute({
         data: [mathResult.result],
@@ -1262,7 +1249,6 @@ describe('Viral Accessor Tests', () => {
       const accessor2 = (d: { y: number }) => [d.y * 2]
 
       const concatOp = new ConcatOp('test-chain-5')
-      concatOp.createListeners()
 
       const concatResult = concatOp.execute({
         values: [accessor1, accessor2],
@@ -1277,7 +1263,6 @@ describe('Viral Accessor Tests', () => {
   describe('MergeOp', () => {
     it('should handle static objects', () => {
       const op = new MergeOp('test-merge-1')
-      op.createListeners()
 
       const result = op.execute({ objects: [{ a: 1 }, { b: 2 }] })
 
@@ -1287,7 +1272,6 @@ describe('Viral Accessor Tests', () => {
 
     it('should handle accessor function in objects', () => {
       const op = new MergeOp('test-merge-2')
-      op.createListeners()
 
       const accessor = (d: { x: number }) => ({ a: d.x })
       const result = op.execute({ objects: [accessor, { b: 2 }] })
@@ -1298,7 +1282,6 @@ describe('Viral Accessor Tests', () => {
 
     it('should handle multiple accessor functions in objects', () => {
       const op = new MergeOp('test-merge-3')
-      op.createListeners()
 
       const accessor1 = (d: { x: number }) => ({ a: d.x })
       const accessor2 = (d: { y: number }) => ({ b: d.y })
@@ -1310,7 +1293,6 @@ describe('Viral Accessor Tests', () => {
 
     it('should handle overlapping properties with accessors', () => {
       const op = new MergeOp('test-merge-4')
-      op.createListeners()
 
       const accessor = (d: { value: number }) => ({ a: d.value })
       const result = op.execute({ objects: [{ a: 1, b: 2 }, accessor] })
@@ -1322,7 +1304,6 @@ describe('Viral Accessor Tests', () => {
 
     it('should handle mixed static and accessor values', () => {
       const op = new MergeOp('test-merge-5')
-      op.createListeners()
 
       const accessor1 = (d: { x: number }) => ({ x: d.x })
       const accessor2 = (d: { y: number }) => ({ y: d.y })
