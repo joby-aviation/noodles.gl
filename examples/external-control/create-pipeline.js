@@ -131,11 +131,12 @@ async function main() {
     }
 
     // Test with sample data (optional)
-    // Note: When using testPipeline, the test data replaces the FileOp output.
-    // The data structure should match what your transformations expect.
-    // This example skips the file loading and tests the filter -> map -> viz pipeline.
+    // Note: testPipeline injects test data at the first node (FileOp), replacing its output.
+    // The data format should match what a parsed CSV produces: an array of row objects.
+    // Each object has properties matching CSV column headers with auto-typed values.
     console.log('Testing pipeline with sample data...')
     const testData = [
+      // Sample rows matching the expected nyc-taxis.csv schema
       {
         pickup_longitude: -73.98,
         pickup_latitude: 40.75,
@@ -153,7 +154,7 @@ async function main() {
       {
         pickup_longitude: -73.99,
         pickup_latitude: 40.74,
-        passenger_count: 1,  // Will be filtered out (passenger_count <= 2)
+        passenger_count: 1, // Will be filtered out (filter is passenger_count > 2)
         trip_duration: 300,
         trip_distance: 1.0,
       },

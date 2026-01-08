@@ -11,6 +11,7 @@ import {
   ClockIcon,
   TrashIcon,
 } from '@radix-ui/react-icons'
+import s from './sharing-dialog.module.css'
 
 interface SharingDialogProps {
   isOpen: boolean
@@ -68,86 +69,73 @@ export const SharingDialog: React.FC<SharingDialogProps> = ({ isOpen, onClose })
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] overflow-hidden">
+    <div className={s.overlay}>
+      <div className={s.dialog}>
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
-          <div className="flex items-center gap-2">
-            <LockClosedIcon className="w-5 h-5 text-blue-500" />
-            <h2 className="text-lg font-semibold">External Control Sessions</h2>
+        <div className={s.header}>
+          <div className={s.headerTitle}>
+            <LockClosedIcon className={s.headerIcon} />
+            <h2 className={s.title}>External Control Sessions</h2>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
-          >
-            <Cross2Icon className="w-5 h-5" />
+          <button onClick={onClose} className={s.closeButton}>
+            <Cross2Icon />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-4 overflow-y-auto max-h-[60vh]">
+        <div className={s.content}>
           {/* Create new session */}
-          <div className="mb-6">
-            <h3 className="text-sm font-medium mb-2">Create New Session</h3>
-            <div className="flex gap-2">
+          <div className={s.section}>
+            <h3 className={s.sectionTitle}>Create New Session</h3>
+            <div className={s.inputRow}>
               <input
                 type="text"
                 placeholder="Session name (optional)"
                 value={newSessionName}
                 onChange={(e) => setNewSessionName(e.target.value)}
-                className="flex-1 px-3 py-2 border rounded-md dark:bg-gray-800 dark:border-gray-700"
+                className={s.input}
               />
-              <button
-                onClick={createNewSession}
-                className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
-              >
+              <button onClick={createNewSession} className={s.createButton}>
                 Create Session
               </button>
             </div>
-            <p className="text-xs text-gray-500 mt-1">
-              Sessions expire after 24 hours for security
-            </p>
+            <p className={s.helpText}>Sessions expire after 24 hours for security</p>
           </div>
 
           {/* Active sessions */}
-          <div>
-            <h3 className="text-sm font-medium mb-2">Active Sessions</h3>
+          <div className={s.section}>
+            <h3 className={s.sectionTitle}>Active Sessions</h3>
             {sessions.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <LockClosedIcon className="w-12 h-12 mx-auto mb-2 opacity-30" />
-                <p>No active sessions</p>
-                <p className="text-sm mt-1">Create a session to allow external control</p>
+              <div className={s.emptyState}>
+                <LockClosedIcon className={s.emptyIcon} />
+                <p className={s.emptyText}>No active sessions</p>
+                <p className={s.emptyHint}>Create a session to allow external control</p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className={s.sessionList}>
                 {sessions.map((session) => (
-                  <div
-                    key={session.id}
-                    className="border rounded-lg p-4 dark:border-gray-700"
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <h4 className="font-medium">{session.name}</h4>
-                        <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
-                          <ClockIcon className="w-3 h-3" />
+                  <div key={session.id} className={s.sessionCard}>
+                    <div className={s.sessionHeader}>
+                      <div className={s.sessionInfo}>
+                        <div className={s.sessionName}>{session.name}</div>
+                        <div className={s.sessionMeta}>
+                          <ClockIcon className={s.clockIcon} />
                           <span>{formatTimeRemaining(session.expiresAt)}</span>
                         </div>
                       </div>
                       <button
                         onClick={() => revokeSession(session.token)}
-                        className="p-1 hover:bg-red-100 dark:hover:bg-red-900/20 rounded text-red-500"
+                        className={s.revokeButton}
                         title="Revoke session"
                       >
-                        <TrashIcon className="w-4 h-4" />
+                        <TrashIcon />
                       </button>
                     </div>
 
                     {/* Connection URL */}
-                    <div className="bg-gray-50 dark:bg-gray-800 rounded p-3 mb-2">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
-                          Connection URL
-                        </span>
+                    <div className={s.codeBlock}>
+                      <div className={s.codeHeader}>
+                        <span className={s.codeLabel}>Connection URL</span>
                         <button
                           onClick={() =>
                             copyToClipboard(
@@ -155,23 +143,21 @@ export const SharingDialog: React.FC<SharingDialogProps> = ({ isOpen, onClose })
                               session.token + '-url'
                             )
                           }
-                          className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-600"
+                          className={s.copyButton}
                         >
-                          <CopyIcon className="w-3 h-3" />
+                          <CopyIcon className={s.copyIcon} />
                           {copiedToken === session.token + '-url' ? 'Copied!' : 'Copy'}
                         </button>
                       </div>
-                      <code className="text-xs break-all text-gray-700 dark:text-gray-300">
+                      <code className={s.code}>
                         {sessionManager.generateConnectionUrl(session)}
                       </code>
                     </div>
 
                     {/* Connection command */}
-                    <div className="bg-gray-50 dark:bg-gray-800 rounded p-3">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
-                          Claude Code Command
-                        </span>
+                    <div className={s.codeBlock}>
+                      <div className={s.codeHeader}>
+                        <span className={s.codeLabel}>Claude Code Command</span>
                         <button
                           onClick={() =>
                             copyToClipboard(
@@ -179,13 +165,13 @@ export const SharingDialog: React.FC<SharingDialogProps> = ({ isOpen, onClose })
                               session.token + '-cmd'
                             )
                           }
-                          className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-600"
+                          className={s.copyButton}
                         >
-                          <CopyIcon className="w-3 h-3" />
+                          <CopyIcon className={s.copyIcon} />
                           {copiedToken === session.token + '-cmd' ? 'Copied!' : 'Copy'}
                         </button>
                       </div>
-                      <code className="text-xs break-all text-gray-700 dark:text-gray-300">
+                      <code className={s.code}>
                         {sessionManager.generateConnectionCommand(session)}
                       </code>
                     </div>
@@ -196,26 +182,22 @@ export const SharingDialog: React.FC<SharingDialogProps> = ({ isOpen, onClose })
           </div>
 
           {/* Instructions */}
-          <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-            <h3 className="text-sm font-medium mb-2 flex items-center gap-2">
-              <ExternalLinkIcon className="w-4 h-4" />
+          <div className={s.instructions}>
+            <h3 className={s.instructionsTitle}>
+              <ExternalLinkIcon />
               How to connect from Claude Code
             </h3>
-            <ol className="text-sm space-y-1 text-gray-700 dark:text-gray-300">
-              <li>1. Create a new session above</li>
-              <li>2. Copy the connection command</li>
-              <li>3. In Claude Code, use the command to connect:</li>
-              <li className="ml-4">
-                <code className="bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded text-xs">
-                  const client = new NoodlesClient()
-                </code>
+            <ol className={s.instructionsList}>
+              <li>Create a new session above</li>
+              <li>Copy the connection command</li>
+              <li>
+                In Claude Code, use the command to connect:
+                <br />
+                <code>const client = new NoodlesClient()</code>
+                <br />
+                <code>{`await client.connect('<paste-url-here>')`}</code>
               </li>
-              <li className="ml-4">
-                <code className="bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded text-xs">
-                  {`await client.connect('<paste-url-here>')`}
-                </code>
-              </li>
-              <li>4. The session will remain active for 24 hours</li>
+              <li>The session will remain active for 24 hours</li>
             </ol>
           </div>
         </div>
