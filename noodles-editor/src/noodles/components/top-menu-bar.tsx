@@ -7,7 +7,7 @@ import logoSvg from '/noodles-favicon.svg'
 import { SettingsDialog } from '../../components/settings-dialog'
 import { analytics } from '../../utils/analytics'
 import { ContainerOp } from '../operators'
-import { getOpStore, useNestingStore } from '../store'
+import { getOpStore, useNestingStore, useUIStore } from '../store'
 import { directoryHandleCache } from '../utils/directory-handle-cache'
 import { getParentPath, splitPath } from '../utils/path-utils'
 import { Breadcrumbs } from './breadcrumbs'
@@ -63,7 +63,8 @@ export function TopMenuBar({
   setLayoutMode,
   reactFlowRef,
 }: TopMenuBarProps) {
-  const [settingsDialogOpen, setSettingsDialogOpen] = useState(false)
+  const settingsDialogOpen = useUIStore(state => state.settingsDialogOpen)
+  const setSettingsDialogOpen = useUIStore(state => state.setSettingsDialogOpen)
   const [recentProjects, setRecentProjects] = useState<string[]>([])
   const [showPointWizard, setShowPointWizard] = useState(false)
   const [showDataImporter, setShowDataImporter] = useState(false)
