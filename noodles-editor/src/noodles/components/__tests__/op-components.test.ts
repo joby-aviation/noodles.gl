@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
-import { typeCategory, typeDisplayName } from '../op-components'
+import { headerClass, typeCategory, typeDisplayName } from '../op-components'
 
 describe('op-components utilities', () => {
   describe('typeDisplayName', () => {
@@ -90,6 +90,93 @@ describe('op-components utilities', () => {
 
     it('should return Unknown for unrecognized types', () => {
       expect(typeCategory('NonExistentOp' as any)).toBe('Unknown')
+    })
+  })
+
+  describe('headerClass', () => {
+    it('should return correct class for layer category', () => {
+      expect(headerClass('ScatterplotLayerOp')).toContain('headerLayer')
+      expect(headerClass('ArcLayerOp')).toContain('headerLayer')
+      expect(headerClass('PathLayerOp')).toContain('headerLayer')
+    })
+
+    it('should return correct class for code category', () => {
+      expect(headerClass('CodeOp')).toContain('headerCode')
+      expect(headerClass('AccessorOp')).toContain('headerCode')
+      expect(headerClass('DuckDbOp')).toContain('headerCode')
+    })
+
+    it('should return correct class for number category including pseudo-operators', () => {
+      expect(headerClass('NumberOp')).toContain('headerNumber')
+      expect(headerClass('MathOp')).toContain('headerNumber')
+      // Math pseudo-operators
+      expect(headerClass('AddOp')).toContain('headerNumber')
+      expect(headerClass('MultiplyOp')).toContain('headerNumber')
+      expect(headerClass('SubtractOp')).toContain('headerNumber')
+      expect(headerClass('DivideOp')).toContain('headerNumber')
+      expect(headerClass('ModuloOp')).toContain('headerNumber')
+      expect(headerClass('SineOp')).toContain('headerNumber')
+      expect(headerClass('CosineOp')).toContain('headerNumber')
+      expect(headerClass('MinOp')).toContain('headerNumber')
+      expect(headerClass('MaxOp')).toContain('headerNumber')
+      expect(headerClass('RoundOp')).toContain('headerNumber')
+      expect(headerClass('FloorOp')).toContain('headerNumber')
+      expect(headerClass('CeilOp')).toContain('headerNumber')
+      expect(headerClass('AbsOp')).toContain('headerNumber')
+    })
+
+    it('should return correct class for data category', () => {
+      expect(headerClass('FileOp')).toContain('headerData')
+      expect(headerClass('FilterOp')).toContain('headerData')
+    })
+
+    it('should return correct class for extension category', () => {
+      expect(headerClass('DataFilterExtensionOp')).toContain('headerExtension')
+      expect(headerClass('BrushingExtensionOp')).toContain('headerExtension')
+    })
+
+    it('should return correct class for view category', () => {
+      expect(headerClass('MapViewOp')).toContain('headerView')
+      expect(headerClass('GlobeViewOp')).toContain('headerView')
+    })
+
+    it('should return correct class for color category', () => {
+      expect(headerClass('ColorOp')).toContain('headerColor')
+      expect(headerClass('ColorRampOp')).toContain('headerColor')
+      expect(headerClass('HSLOp')).toContain('headerColor')
+    })
+
+    it('should return correct class for vector category', () => {
+      expect(headerClass('CombineXYOp')).toContain('headerVector')
+      expect(headerClass('SplitXYZOp')).toContain('headerVector')
+    })
+
+    it('should return correct class for geojson category', () => {
+      expect(headerClass('GeoJsonOp')).toContain('headerGeojson')
+      expect(headerClass('PointOp')).toContain('headerGeojson')
+    })
+
+    it('should return correct class for string category', () => {
+      expect(headerClass('StringOp')).toContain('headerString')
+    })
+
+    it('should return correct class for utility category', () => {
+      expect(headerClass('BooleanOp')).toContain('headerUtility')
+      expect(headerClass('MouseOp')).toContain('headerUtility')
+    })
+
+    it('should return correct class for grouping category', () => {
+      expect(headerClass('ContainerOp')).toContain('headerGrouping')
+      expect(headerClass('ForLoopBeginOp')).toContain('headerGrouping')
+    })
+
+    it('should return correct class for widget category', () => {
+      expect(headerClass('FpsWidgetOp')).toContain('headerWidget')
+    })
+
+    it('should return default headerData class for unknown operators', () => {
+      expect(headerClass('UnknownOp' as any)).toContain('headerData')
+      expect(headerClass('NonExistentOperator' as any)).toContain('headerData')
     })
   })
 })
