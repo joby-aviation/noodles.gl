@@ -2,29 +2,9 @@
 // Manages operator execution with topological sorting, dirty tracking, and RAF loop
 
 import type { IOperator, Operator } from './operators'
-import { getAllOps, getOp } from './store'
+import type { ForLoopBeginOp, ForLoopEndOp, ForLoopMetaOp } from './operators'
+import { getAllOps } from './store'
 import type { OpId } from './utils/id-utils'
-
-// ForLoop operator type definitions for type checking during execution
-// These are defined here to avoid circular dependencies with operators.ts
-type ForLoopBeginOp = Operator<IOperator> & {
-  inputs: { data: { value: unknown[] } }
-  outputs: { d: { next: (v: unknown) => void }; index: { next: (v: number) => void }; total: { next: (v: number) => void } }
-}
-type ForLoopEndOp = Operator<IOperator> & {
-  inputs: { d: { value: unknown } }
-  outputs: { data: { next: (v: unknown[]) => void } }
-}
-type ForLoopMetaOp = Operator<IOperator> & {
-  inputs: { initialValue: { value: unknown }; currentValue: { value: unknown } }
-  outputs: {
-    accumulator: { next: (v: unknown) => void }
-    index: { next: (v: number) => void }
-    total: { next: (v: number) => void }
-    isFirst: { next: (v: boolean) => void }
-    isLast: { next: (v: boolean) => void }
-  }
-}
 
 // Simple types for execution
 export type ComputeState = {
