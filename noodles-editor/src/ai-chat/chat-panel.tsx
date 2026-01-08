@@ -273,15 +273,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
             <button
               type="button"
               onClick={() => setSettingsDialogOpen(true)}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: 'inherit',
-                textDecoration: 'underline',
-                cursor: 'pointer',
-                padding: 0,
-                font: 'inherit',
-              }}
+              className={styles.linkButton}
             >
               Settings
             </button>{' '}

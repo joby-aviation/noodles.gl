@@ -420,6 +420,21 @@
   line-height: 1.4;
 }
 
+/* Link button style for inline text links */
+.linkButton {
+  background: none;
+  border: none;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+}
+
+.linkButton:hover {
+  color: #4a9eff;
+}
+
 /* Animation for chat panel */
 @keyframes slideUp {
   from {
