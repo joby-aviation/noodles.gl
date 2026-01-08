@@ -9,10 +9,15 @@ export async function onRequest(context) {
   const hasExtension = /\.[a-zA-Z0-9]+$/.test(pathname)
 
   if (hasExtension) {
-    // Let Cloudflare serve the static file
-    return context.next()
+    // Try to serve the static file
+    const response = await context.env.ASSETS.fetch(context.request)
+    if (response.status !== 404) {
+      return response
+    }
+    // If static file not found, fall through to serve index.html
   }
 
-  // For client-side routes without file extensions, serve the SPA index.html
-  return context.env.ASSETS.fetch(new URL('/app/', url.origin))
+  // For client-side routes without file extensions (or missing static files),
+  // serve the SPA index.html
+  return context.env.ASSETS.fetch(new URL('/app/index.html', url.origin))
 }
