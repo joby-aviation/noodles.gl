@@ -1008,10 +1008,10 @@ describe('Node Operations Integration Tests', () => {
       const beginNode = nodes.find(n => n.type === 'ForLoopBeginOp')!
 
       // Group should be within the container
-      expect(groupNode.id.startsWith(containerPath + '/')).toBe(true)
+      expect(groupNode.id.startsWith(`${containerPath}/`)).toBe(true)
 
       // Child nodes should be within the group
-      expect(beginNode.id.startsWith(containerPath + '/')).toBe(true)
+      expect(beginNode.id.startsWith(`${containerPath}/`)).toBe(true)
     })
 
     it('sets expandParent on child nodes', () => {

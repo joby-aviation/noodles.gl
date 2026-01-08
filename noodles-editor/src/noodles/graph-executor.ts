@@ -2,14 +2,18 @@
 // Manages operator execution with topological sorting, dirty tracking, and RAF loop
 
 import type { IOperator, Operator } from './operators'
-import { getAllOps, getOp } from './store'
+import { getAllOps } from './store'
 import type { OpId } from './utils/id-utils'
 
 // ForLoop operator type definitions for type checking during execution
 // These are defined here to avoid circular dependencies with operators.ts
 type ForLoopBeginOp = Operator<IOperator> & {
   inputs: { data: { value: unknown[] } }
-  outputs: { d: { next: (v: unknown) => void }; index: { next: (v: number) => void }; total: { next: (v: number) => void } }
+  outputs: {
+    d: { next: (v: unknown) => void }
+    index: { next: (v: number) => void }
+    total: { next: (v: number) => void }
+  }
 }
 type ForLoopEndOp = Operator<IOperator> & {
   inputs: { d: { value: unknown } }
@@ -168,13 +172,13 @@ export class GraphExecutor {
   private downstream: Map<string, Set<string>> = new Map()
   private sortedOrder: string[] = []
   private executionLevels: string[][] = []
-  private isDirty: boolean = true
+  private isDirty = true
   private options: Required<ExecutorOptions>
 
   // RAF loop state
   private rafId: number | null = null
-  private isPulling: boolean = false
-  private lastFrameTime: number = 0
+  private isPulling = false
+  private lastFrameTime = 0
   private frameInterval: number
 
   // Dirty tracking
@@ -188,7 +192,6 @@ export class GraphExecutor {
     dirtyCount: 0,
     totalOperators: 0,
   }
-  private executionCount: number = 0
 
   constructor(options: ExecutorOptions = {}) {
     this.options = {
@@ -252,9 +255,7 @@ export class GraphExecutor {
   // Remove a node and all its connections
   removeNode(nodeId: string): void {
     this.nodes.delete(nodeId)
-    this.edges = this.edges.filter(
-      edge => edge.source !== nodeId && edge.target !== nodeId
-    )
+    this.edges = this.edges.filter(edge => edge.source !== nodeId && edge.target !== nodeId)
     this.upstream.delete(nodeId)
     this.downstream.delete(nodeId)
     for (const set of this.upstream.values()) set.delete(nodeId)
@@ -286,9 +287,7 @@ export class GraphExecutor {
 
   // Remove an edge
   removeEdge(sourceId: string, targetId: string): void {
-    this.edges = this.edges.filter(
-      edge => !(edge.source === sourceId && edge.target === targetId)
-    )
+    this.edges = this.edges.filter(edge => !(edge.source === sourceId && edge.target === targetId))
     this.downstream.get(sourceId)?.delete(targetId)
     this.upstream.get(targetId)?.delete(sourceId)
     this.isDirty = true
@@ -800,7 +799,7 @@ export class GraphScope {
   // Execute this scope with given input
   async execute(input: unknown, state: ComputeState): Promise<ComputeResult> {
     // Create scoped state
-    const scopedState: ComputeState = {
+    const _scopedState: ComputeState = {
       ...state,
       scope: this,
       context: new Map([...state.context, ...this.context]),

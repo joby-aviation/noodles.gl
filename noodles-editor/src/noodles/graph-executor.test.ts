@@ -1,14 +1,8 @@
 // Test file for GraphExecutor implementation
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { GraphExecutor, GraphScope, topologicalSort } from './graph-executor'
-import {
-  ForLoopBeginOp,
-  ForLoopEndOp,
-  ForLoopMetaOp,
-  NumberOp,
-  MathOp,
-} from './operators'
-import type { Operator, IOperator } from './operators'
+import type { IOperator, Operator } from './operators'
+import { ForLoopBeginOp, ForLoopEndOp, ForLoopMetaOp, MathOp, NumberOp } from './operators'
 
 describe('topologicalSort', () => {
   it('should sort a linear chain correctly', () => {
@@ -93,9 +87,7 @@ describe('topologicalSort', () => {
   })
 
   it('should detect self-loops', () => {
-    const nodes = new Map<string, Operator<IOperator>>([
-      ['a', { id: 'a' } as any],
-    ])
+    const nodes = new Map<string, Operator<IOperator>>([['a', { id: 'a' } as any]])
 
     const edges = [{ source: 'a', target: 'a' }]
 
@@ -113,9 +105,7 @@ describe('topologicalSort', () => {
   })
 
   it('should handle single node with no edges', () => {
-    const nodes = new Map<string, Operator<IOperator>>([
-      ['a', { id: 'a' } as any],
-    ])
+    const nodes = new Map<string, Operator<IOperator>>([['a', { id: 'a' } as any]])
     const edges: Array<{ source: string; target: string }> = []
 
     const result = topologicalSort(nodes, edges)

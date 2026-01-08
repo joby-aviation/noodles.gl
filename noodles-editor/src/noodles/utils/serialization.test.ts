@@ -16,14 +16,14 @@ describe('safeStringify', () => {
   it('serializes a basic object correctly', () => {
     const obj = { a: 1, b: 'text', c: true }
     const result = safeStringify(obj)
-    expect(result).toEqual(JSON.stringify(obj, null, 2) + '\n')
+    expect(result).toEqual(`${JSON.stringify(obj, null, 2)}\n`)
   })
 
   it('ensures output ends with a newline', () => {
     const obj = { test: 'value' }
     const result = safeStringify(obj)
     expect(result.endsWith('\n')).toBe(true)
-    expect(result).toEqual(JSON.stringify(obj, null, 2) + '\n')
+    expect(result).toEqual(`${JSON.stringify(obj, null, 2)}\n`)
   })
 
   it('removes circular references', () => {

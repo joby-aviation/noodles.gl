@@ -236,13 +236,13 @@ export abstract class Operator<OP extends IOperator> {
   executionState = new BehaviorSubject<ExecutionState>({ status: 'idle' })
 
   // Dirty flag for GraphExecutor
-  dirty: boolean = true
+  dirty = true
 
   // === Pull-based execution additions ===
   // Execution status for pull-based model
   private _pullExecutionStatus: PullExecutionStatus = PullExecutionStatus.DIRTY
   private _cachedOutput: ExtractProps<(typeof this)['outputs']> | null = null
-  private _lastExecutionTime: number = 0
+  private _lastExecutionTime = 0
   private _computingPromise: Promise<ExtractProps<(typeof this)['outputs']>> | null = null
 
   // Dependency tracking for pull-based model
@@ -326,7 +326,10 @@ export abstract class Operator<OP extends IOperator> {
     }
 
     // Wait for ongoing computation
-    if (this._pullExecutionStatus === PullExecutionStatus.COMPUTING && this._computingPromise !== null) {
+    if (
+      this._pullExecutionStatus === PullExecutionStatus.COMPUTING &&
+      this._computingPromise !== null
+    ) {
       return this._computingPromise
     }
 
@@ -1408,7 +1411,8 @@ export class BezierCurveOp extends Operator<BezierCurveOp> {
 
 export class FileOp extends Operator<FileOp> {
   static displayName = 'File'
-  static description = 'Fetch a file from a URL or text. Supports csv, json, text, and binary formats'
+  static description =
+    'Fetch a file from a URL or text. Supports csv, json, text, and binary formats'
   asDownload = () => this.outputData
 
   createInputs() {
@@ -1430,7 +1434,7 @@ export class FileOp extends Operator<FileOp> {
   // Helper method to read from project assets
   private async readFromProjectAsset(
     url: string,
-    binary: boolean = false
+    binary = false
   ): Promise<string | ArrayBuffer | null> {
     if (!url?.startsWith(projectScheme)) {
       return null
@@ -1455,13 +1459,12 @@ export class FileOp extends Operator<FileOp> {
         throw new Error(result.error.message)
       }
       return result.data
-    } else {
-      const result = await readAsset(activeStorageType, currentProjectName, fileName)
-      if (!result.success) {
-        throw new Error(result.error.message)
-      }
-      return result.data
     }
+    const result = await readAsset(activeStorageType, currentProjectName, fileName)
+    if (!result.success) {
+      throw new Error(result.error.message)
+    }
+    return result.data
   }
 
   // Helper method to fetch from URL
@@ -1511,17 +1514,19 @@ export class FileOp extends Operator<FileOp> {
     autoType: boolean
   ): ExtractProps<typeof this.outputs> {
     switch (format) {
-      case 'csv':
+      case 'csv': {
         const parseFn = autoType ? d3.autoType : null
         return { data: csvParse(text, parseFn) }
+      }
       case 'json':
         return { data: JSON.parse(text) }
       case 'text':
         return { data: text }
-      case 'binary':
+      case 'binary': {
         // Convert text to Uint8Array for binary format
         const encoder = new TextEncoder()
         return { data: encoder.encode(text) }
+      }
       default:
         throw new Error(`Unsupported format: ${format}`)
     }
@@ -2422,7 +2427,9 @@ export class ForLoopMetaOp extends Operator<ForLoopMetaOp> {
   createInputs() {
     return {
       initialValue: new DataField(new UnknownField(), { description: 'Initial accumulator value' }),
-      currentValue: new DataField(new UnknownField(), { description: 'Value to pass to next iteration' }),
+      currentValue: new DataField(new UnknownField(), {
+        description: 'Value to pass to next iteration',
+      }),
     }
   }
 
@@ -2436,7 +2443,10 @@ export class ForLoopMetaOp extends Operator<ForLoopMetaOp> {
     }
   }
 
-  execute({ initialValue, currentValue }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  execute({
+    initialValue,
+    currentValue,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     // GraphExecutor manages accumulator state across iterations
     return {
       accumulator: currentValue ?? initialValue,

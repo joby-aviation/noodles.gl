@@ -1,9 +1,8 @@
-
 // External Control Component
 // React component to initialize and manage external control
 
-
-import React, { useEffect, useState } from 'react'
+import type React from 'react'
+import { useEffect, useState } from 'react'
 import { ExternalControl } from './api'
 
 export interface ExternalControlProps {
@@ -17,7 +16,7 @@ export interface ExternalControlProps {
 }
 
 // External Control Provider Component
- // Initializes the external control system when mounted
+// Initializes the external control system when mounted
 export const ExternalControlProvider: React.FC<ExternalControlProps> = ({
   enabled = true,
   autoConnect = false,
@@ -46,12 +45,12 @@ export const ExternalControlProvider: React.FC<ExternalControlProps> = ({
         })
 
         // Set up event handlers
-        control.onStatusChange((connected) => {
+        control.onStatusChange(connected => {
           setIsConnected(connected)
           onStatusChange?.(connected)
         })
 
-        control.onError((err) => {
+        control.onError(err => {
           setError(err)
           onError?.(err)
         })
@@ -62,7 +61,7 @@ export const ExternalControlProvider: React.FC<ExternalControlProps> = ({
 
         // Make it available globally for debugging
         if (debug) {
-          (window as any).__externalControl = control
+          ;(window as any).__externalControl = control
         }
       } catch (err) {
         const error = err instanceof Error ? err : new Error(String(err))
@@ -82,7 +81,7 @@ export const ExternalControlProvider: React.FC<ExternalControlProps> = ({
         }
       }
     }
-  }, [enabled, autoConnect, host, port, debug])
+  }, [enabled, autoConnect, host, port, debug, onError, onStatusChange])
 
   // Render status indicator if in debug mode
   if (!debug) return null
@@ -103,12 +102,14 @@ export const ExternalControlProvider: React.FC<ExternalControlProps> = ({
         pointerEvents: 'none',
       }}
     >
-      External Control: {
-        isConnected ? 'Connected' :
-        error ? 'Error' :
-        isInitialized ? 'Disconnected' :
-        'Initializing...'
-      }
+      External Control:{' '}
+      {isConnected
+        ? 'Connected'
+        : error
+          ? 'Error'
+          : isInitialized
+            ? 'Disconnected'
+            : 'Initializing...'}
     </div>
   )
 }

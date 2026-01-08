@@ -219,21 +219,18 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
     setShowHistory(false)
   }
 
-  const _saveCurrentConversation = () => {
-    if (messages.length === 0) {
-      alert('No messages to save')
-      return
+  const handleClose = () => {
+    // Auto-save current conversation if it has messages and hasn't been saved yet
+    if (messages.length > 0 && !currentConversationId) {
+      try {
+        const id = saveConversation(messages)
+        console.log('Auto-saved conversation on close:', id)
+      } catch (error) {
+        console.warn('Failed to auto-save conversation on close:', error)
+      }
     }
 
-    try {
-      const id = saveConversation(messages)
-      setCurrentConversationId(id)
-      alert('Conversation saved!')
-    } catch (error) {
-      alert(
-        `Failed to save conversation: ${error instanceof Error ? error.message : 'Unknown error'}`
-      )
-    }
+    onClose()
   }
 
   const loadConversationById = (id: string) => {
@@ -278,7 +275,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
           <div
             style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', justifyContent: 'center' }}
           >
-            <button type="button" onClick={onClose} className={styles.chatSendBtn}>
+            <button type="button" onClick={handleClose} className={styles.chatSendBtn}>
               Close
             </button>
           </div>
@@ -322,7 +319,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
           <button
             type="button"
             className={styles.chatPanelActionBtn}
-            onClick={onClose}
+            onClick={handleClose}
             title="Close"
           >
             ✕

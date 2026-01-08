@@ -1,33 +1,33 @@
 import { getIncomers, type Node as ReactFlowNode } from '@xyflow/react'
-
+import {
+  type ComputeResult,
+  type ComputeState,
+  type Edge as ExecutorEdge,
+  updateGraph,
+} from './graph-executor'
 import type { Edge } from './noodles'
 import type { IOperator, Operator, OpType } from './operators'
 import { ContainerOp, ForLoopEndOp, GraphInputOp, opTypes } from './operators'
 import { getOpStore } from './store'
 import { memoize } from './utils/memoize'
 import { getParentPath, isDirectChild, parseHandleId } from './utils/path-utils'
-import {
-  updateGraph,
-  type ComputeState,
-  type ComputeResult,
-  type Edge as ExecutorEdge,
-} from './graph-executor'
 
 // Re-export GraphExecutor and related types for use elsewhere
 export {
+  type ComputeResult,
+  type ComputeState,
+  forceUpdate,
   GraphExecutor,
   GraphScope,
-  type ComputeState,
-  type ComputeResult,
+  getExecutionOrder,
+  getExecutor,
+  getPerformanceMetrics,
   initializeExecutor,
   startExecutor,
   stopExecutor,
-  getExecutor,
-  forceUpdate,
-  getPerformanceMetrics,
   wouldCreateCycle,
-  getExecutionOrder,
 } from './graph-executor'
+
 import type { ExtractProps } from './utils/extract-props'
 
 // Local type definitions for ReactFlow node data using Operator class constraint
@@ -243,7 +243,7 @@ export function transformGraph<
 // This replaces the need for a compute() method on Operator class
 export async function compute(
   operators: Operator<IOperator>[],
-  state: ComputeState
+  _state: ComputeState
 ): Promise<Map<string, ComputeResult>> {
   const results = new Map<string, ComputeResult>()
 
@@ -258,7 +258,7 @@ export async function compute(
         if (connection.sourceOp) {
           edges.push({
             source: connection.sourceOp.id,
-            target: op.id
+            target: op.id,
           })
         }
       }
@@ -272,7 +272,7 @@ export async function compute(
   const nodes = operators.map(op => ({
     id: op.id,
     type: (op.constructor as any).displayName || 'Unknown',
-    data: {}
+    data: {},
   })) as NodeJSON<OpType>[]
 
   const sortedNodes = topologicalSort(nodes, edges as any)
@@ -304,7 +304,7 @@ export async function compute(
 
       results.set(node.id, {
         value: finalOutput,
-        changed: true
+        changed: true,
       })
 
       // Clear dirty flag
@@ -313,7 +313,7 @@ export async function compute(
       results.set(node.id, {
         value: null,
         changed: false,
-        error: error instanceof Error ? error : new Error(String(error))
+        error: error instanceof Error ? error : new Error(String(error)),
       })
     }
   }

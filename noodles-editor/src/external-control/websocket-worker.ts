@@ -1,21 +1,19 @@
-
 // Web Worker for handling WebSocket connections to external tools
 // Runs in a separate thread to avoid blocking the main UI
 
-
 import {
-  Message,
+  createErrorMessage,
+  createMessage,
+  type Message,
+  MessageMatcher,
   MessageType,
   parseMessage,
   serializeMessage,
-  createMessage,
-  createErrorMessage,
-  MessageMatcher,
 } from './message-protocol'
 
 // Worker state
 let ws: WebSocket | null = null
-let isConnected = false
+let _isConnected = false
 let reconnectTimer: number | null = null
 let pingInterval: number | null = null
 const matcher = new MessageMatcher()
@@ -48,10 +46,10 @@ const connect = (url: string) => {
   disconnect()
 
   // Extract token from URL if present
-  let token: string | null = null
+  let _token: string | null = null
   try {
     const urlObj = new URL(url)
-    token = urlObj.searchParams.get('token')
+    _token = urlObj.searchParams.get('token')
   } catch (error) {
     console.error('[Worker] Invalid URL:', error)
   }
@@ -61,13 +59,15 @@ const connect = (url: string) => {
 
     ws.onopen = () => {
       console.log('[Worker] WebSocket connected to', url)
-      isConnected = true
+      _isConnected = true
 
       // Send connection status to main thread
-      postToMain(createMessage(MessageType.STATUS, {
-        connected: true,
-        url,
-      }))
+      postToMain(
+        createMessage(MessageType.STATUS, {
+          connected: true,
+          url,
+        })
+      )
 
       // Start ping interval to keep connection alive
       if (pingInterval) clearInterval(pingInterval)
@@ -76,7 +76,7 @@ const connect = (url: string) => {
       }, CONFIG.pingInterval) as unknown as number
     }
 
-    ws.onmessage = (event) => {
+    ws.onmessage = event => {
       const message = parseMessage(event.data)
       if (!message) {
         console.error('[Worker] Invalid message received:', event.data)
@@ -98,14 +98,14 @@ const connect = (url: string) => {
       postToMain(message)
     }
 
-    ws.onerror = (error) => {
+    ws.onerror = error => {
       console.error('[Worker] WebSocket error:', error)
       postToMain(createErrorMessage('WebSocket error', 'WS_ERROR', error))
     }
 
-    ws.onclose = (event) => {
+    ws.onclose = event => {
       console.log('[Worker] WebSocket closed:', event.code, event.reason)
-      isConnected = false
+      _isConnected = false
 
       // Clear ping interval
       if (pingInterval) {
@@ -114,11 +114,13 @@ const connect = (url: string) => {
       }
 
       // Send disconnection status to main thread
-      postToMain(createMessage(MessageType.STATUS, {
-        connected: false,
-        code: event.code,
-        reason: event.reason,
-      }))
+      postToMain(
+        createMessage(MessageType.STATUS, {
+          connected: false,
+          code: event.code,
+          reason: event.reason,
+        })
+      )
 
       // Attempt reconnection if not a normal closure
       if (event.code !== 1000 && event.code !== 1001) {
@@ -127,10 +129,12 @@ const connect = (url: string) => {
     }
   } catch (error) {
     console.error('[Worker] Failed to create WebSocket:', error)
-    postToMain(createErrorMessage(
-      error instanceof Error ? error : 'Failed to create WebSocket',
-      'CONNECTION_FAILED'
-    ))
+    postToMain(
+      createErrorMessage(
+        error instanceof Error ? error : 'Failed to create WebSocket',
+        'CONNECTION_FAILED'
+      )
+    )
   }
 }
 
@@ -152,7 +156,7 @@ const disconnect = () => {
     ws = null
   }
 
-  isConnected = false
+  _isConnected = false
   matcher.clear()
 }
 
@@ -197,18 +201,20 @@ self.onmessage = async (event: MessageEvent) => {
           const response = await matcher.waitForResponse(message.id)
           postToMain(response)
         } catch (error) {
-          postToMain(createErrorMessage(
-            error instanceof Error ? error : 'Request failed',
-            'REQUEST_FAILED',
-            { originalMessage: message }
-          ))
+          postToMain(
+            createErrorMessage(
+              error instanceof Error ? error : 'Request failed',
+              'REQUEST_FAILED',
+              { originalMessage: message }
+            )
+          )
         }
       } else {
-        postToMain(createErrorMessage(
-          'WebSocket not connected',
-          'NOT_CONNECTED',
-          { originalMessage: message }
-        ))
+        postToMain(
+          createErrorMessage('WebSocket not connected', 'NOT_CONNECTED', {
+            originalMessage: message,
+          })
+        )
       }
       break
     }
@@ -216,11 +222,11 @@ self.onmessage = async (event: MessageEvent) => {
     default:
       // Forward any other messages to WebSocket
       if (!sendToWebSocket(message)) {
-        postToMain(createErrorMessage(
-          'Failed to send message: WebSocket not connected',
-          'SEND_FAILED',
-          { originalMessage: message }
-        ))
+        postToMain(
+          createErrorMessage('Failed to send message: WebSocket not connected', 'SEND_FAILED', {
+            originalMessage: message,
+          })
+        )
       }
   }
 }
