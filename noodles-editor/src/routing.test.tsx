@@ -87,47 +87,6 @@ describe.skip('Routing Tests', () => {
     })
   })
 
-  describe('GitHub Pages 404 redirects', () => {
-    test('redirects from ?redirect=/examples/name to /examples/name', async () => {
-      window.history.replaceState({}, '', '/?redirect=/examples/nyc-taxis')
-      render(<App />)
-
-      const timelineEditor = await screen.findByTestId('timeline-editor', {}, { timeout: 5000 })
-      expect(timelineEditor).toBeTruthy()
-      expect(window.location.pathname).toBe('/examples/nyc-taxis')
-    })
-
-    test('redirects from ?redirect=/app/examples/name (removes /app/ prefix)', async () => {
-      window.history.replaceState({}, '', '/?redirect=/app/examples/my-project')
-      render(<App />)
-
-      const timelineEditor = await screen.findByTestId('timeline-editor', {}, { timeout: 5000 })
-      expect(timelineEditor).toBeTruthy()
-      expect(window.location.pathname).toBe('/examples/my-project')
-    })
-
-    test('ignores invalid redirect URLs (security)', async () => {
-      // Should not redirect to external URLs
-      window.history.replaceState({}, '', '/?redirect=https://evil.com')
-      render(<App />)
-
-      // Should fallback to examples page
-      const examplesPage = await screen.findByTestId('examples-page', {}, { timeout: 5000 })
-      expect(examplesPage).toBeTruthy()
-      expect(window.location.pathname).toBe('/examples')
-    })
-
-    test('ignores redirect URLs without leading slash', async () => {
-      window.history.replaceState({}, '', '/?redirect=examples/project')
-      render(<App />)
-
-      // Should fallback to examples page (doesn't process invalid redirect)
-      const examplesPage = await screen.findByTestId('examples-page', {}, { timeout: 5000 })
-      expect(examplesPage).toBeTruthy()
-      expect(window.location.pathname).toBe('/examples')
-    })
-  })
-
   describe('404 handling', () => {
     test('unknown paths redirect to /examples', async () => {
       window.history.replaceState({}, '', '/unknown/path')

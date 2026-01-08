@@ -68,29 +68,17 @@ function FallbackRoute() {
   const [searchParams] = useSearchParams()
   const [match] = useRoute('/examples/:projectId')
 
-  const redirect = searchParams.get('redirect')
   const projectParam = searchParams.get('project')
 
   console.log('FallbackRoute:', {
     path: window.location.pathname,
     search: window.location.search,
-    redirect,
     projectParam,
     match,
   })
 
-  // From Github / Cloudflare pages redirects (404.html)
-  if (redirect) {
-    if (redirect.startsWith('/') && !redirect.startsWith('//')) {
-      // Valid redirect - process it
-      const path = redirect.replace(/^\/app\//, '/') // Remove /app/ base if present
-      console.log('Redirecting to:', path)
-      return <Redirect to={path} />
-    }
-    // Invalid redirect - log warning and fall through to default navigation
-    console.warn('Ignoring invalid redirect URL:', redirect)
-  } else if (projectParam && !match) {
-    // Redirect from ?project=name to /examples/name
+  // Legacy support: redirect from ?project=name to /examples/name
+  if (projectParam && !match) {
     console.log('Redirecting to project:', projectParam)
     return <Redirect to={`/examples/${projectParam}`} />
   }
