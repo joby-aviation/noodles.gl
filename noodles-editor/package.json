@@ -74,6 +74,7 @@
     "serve": "vite preview",
     "test": "vitest",
     "lint": "biome lint ./src/**/*.{ts,tsx}",
+    "format:check": "biome format ./src/**/*.{ts,tsx}",
     "fix-lint": "biome check --write --unsafe ./src/**/*.{ts,tsx}",
     "build:migrate-script": "vite build --config vite.config.migrate.ts",
     "migrate-projects": "yarn build:migrate-script && node dist/migrate-project-files.js",
