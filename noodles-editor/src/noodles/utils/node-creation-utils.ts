@@ -55,7 +55,7 @@ export function createNodesForType(
   const { x, y } = position
 
   if (type === 'ForLoop') {
-    // ForLoop scope: group node containing ForLoopBeginOp, ForLoopEndOp, and optionally ForLoopMetaOp
+    // ForLoop scope: group node containing ForLoopBeginOp, ForLoopEndOp, and ForLoopMetaOp
     const bodyId = nodeId('for-loop-body', currentContainerId)
     const beginNode = {
       id: makeOpId('ForLoopBeginOp', currentContainerId),
@@ -77,7 +77,7 @@ export function createNodesForType(
       id: makeOpId('ForLoopMetaOp', currentContainerId),
       type: 'ForLoopMetaOp',
       data: undefined,
-      parentNode: bodyId,
+      parentId: bodyId,
       expandParent: true,
       position: { x: 450, y: 250 },
     }

@@ -913,4 +913,151 @@ describe('Node Operations Integration Tests', () => {
       verifyGraphConsistency(updatedNodes, updatedEdges)
     })
   })
+
+  describe('ForLoop Node Creation', () => {
+    it('creates all required nodes for ForLoop', () => {
+      const { nodes, edges } = createNodesForType('ForLoop', { x: 100, y: 100 }, '/')
+
+      // Should create 4 nodes: group, ForLoopBeginOp, ForLoopEndOp, ForLoopMetaOp
+      expect(nodes).toHaveLength(4)
+
+      const groupNode = nodes.find(n => n.type === 'group')
+      const beginNode = nodes.find(n => n.type === 'ForLoopBeginOp')
+      const endNode = nodes.find(n => n.type === 'ForLoopEndOp')
+      const metaNode = nodes.find(n => n.type === 'ForLoopMetaOp')
+
+      expect(groupNode).toBeDefined()
+      expect(beginNode).toBeDefined()
+      expect(endNode).toBeDefined()
+      expect(metaNode).toBeDefined()
+    })
+
+    it('creates ForLoop child nodes with correct parentId', () => {
+      const { nodes } = createNodesForType('ForLoop', { x: 100, y: 100 }, '/')
+
+      const groupNode = nodes.find(n => n.type === 'group')!
+      const beginNode = nodes.find(n => n.type === 'ForLoopBeginOp')!
+      const endNode = nodes.find(n => n.type === 'ForLoopEndOp')!
+      const metaNode = nodes.find(n => n.type === 'ForLoopMetaOp')!
+
+      // All child nodes should have parentId pointing to the group
+      expect(beginNode.parentId).toBe(groupNode.id)
+      expect(endNode.parentId).toBe(groupNode.id)
+      expect(metaNode.parentId).toBe(groupNode.id)
+    })
+
+    it('creates ForLoop child node IDs within the group namespace', () => {
+      const { nodes } = createNodesForType('ForLoop', { x: 100, y: 100 }, '/')
+
+      const groupNode = nodes.find(n => n.type === 'group')!
+      const beginNode = nodes.find(n => n.type === 'ForLoopBeginOp')!
+      const endNode = nodes.find(n => n.type === 'ForLoopEndOp')!
+      const metaNode = nodes.find(n => n.type === 'ForLoopMetaOp')!
+
+      // Child node IDs should be children of the group ID
+      expect(beginNode.id.startsWith(groupNode.id + '/')).toBe(true)
+      expect(endNode.id.startsWith(groupNode.id + '/')).toBe(true)
+      expect(metaNode.id.startsWith(groupNode.id + '/')).toBe(true)
+    })
+
+    it('creates default edge between ForLoopBegin and ForLoopEnd', () => {
+      const { nodes, edges } = createNodesForType('ForLoop', { x: 100, y: 100 }, '/')
+
+      const beginNode = nodes.find(n => n.type === 'ForLoopBeginOp')!
+      const endNode = nodes.find(n => n.type === 'ForLoopEndOp')!
+
+      // Should have one edge connecting begin to end
+      expect(edges).toHaveLength(1)
+
+      const edge = edges[0]
+      expect(edge.source).toBe(beginNode.id)
+      expect(edge.target).toBe(endNode.id)
+      expect(edge.sourceHandle).toBe('out.d')
+      expect(edge.targetHandle).toBe('par.d')
+    })
+
+    it('creates operators in store via transformGraph', () => {
+      const { nodes, edges } = createNodesForType('ForLoop', { x: 100, y: 100 }, '/')
+
+      // Transform to create operators in store
+      transformGraph({ nodes: nodes as any, edges: edges as any })
+
+      const beginNode = nodes.find(n => n.type === 'ForLoopBeginOp')!
+      const endNode = nodes.find(n => n.type === 'ForLoopEndOp')!
+      const metaNode = nodes.find(n => n.type === 'ForLoopMetaOp')!
+
+      // All operators should be created in the store
+      expect(hasOp(beginNode.id)).toBe(true)
+      expect(hasOp(endNode.id)).toBe(true)
+      expect(hasOp(metaNode.id)).toBe(true)
+
+      // Get the actual operators and verify their types
+      const beginOp = getOp(beginNode.id)
+      const endOp = getOp(endNode.id)
+      const metaOp = getOp(metaNode.id)
+
+      expect(beginOp).toBeDefined()
+      expect(endOp).toBeDefined()
+      expect(metaOp).toBeDefined()
+    })
+
+    it('creates ForLoop in nested container correctly', () => {
+      const containerPath = '/my-container'
+      const { nodes, edges } = createNodesForType('ForLoop', { x: 100, y: 100 }, containerPath)
+
+      const groupNode = nodes.find(n => n.type === 'group')!
+      const beginNode = nodes.find(n => n.type === 'ForLoopBeginOp')!
+
+      // Group should be within the container
+      expect(groupNode.id.startsWith(containerPath + '/')).toBe(true)
+
+      // Child nodes should be within the group
+      expect(beginNode.id.startsWith(groupNode.id + '/')).toBe(true)
+    })
+
+    it('sets expandParent on child nodes', () => {
+      const { nodes } = createNodesForType('ForLoop', { x: 100, y: 100 }, '/')
+
+      const beginNode = nodes.find(n => n.type === 'ForLoopBeginOp')!
+      const endNode = nodes.find(n => n.type === 'ForLoopEndOp')!
+      const metaNode = nodes.find(n => n.type === 'ForLoopMetaOp')!
+
+      expect(beginNode.expandParent).toBe(true)
+      expect(endNode.expandParent).toBe(true)
+      expect(metaNode.expandParent).toBe(true)
+    })
+
+    it('sets correct positions for child nodes', () => {
+      const { nodes } = createNodesForType('ForLoop', { x: 100, y: 100 }, '/')
+
+      const beginNode = nodes.find(n => n.type === 'ForLoopBeginOp')!
+      const endNode = nodes.find(n => n.type === 'ForLoopEndOp')!
+      const metaNode = nodes.find(n => n.type === 'ForLoopMetaOp')!
+
+      // Begin should be on the left
+      expect(beginNode.position.x).toBeLessThan(metaNode.position.x)
+      expect(beginNode.position.x).toBeLessThan(endNode.position.x)
+
+      // End should be on the right
+      expect(endNode.position.x).toBeGreaterThan(beginNode.position.x)
+      expect(endNode.position.x).toBeGreaterThan(metaNode.position.x)
+
+      // Meta should be below begin/end
+      expect(metaNode.position.y).toBeGreaterThan(beginNode.position.y)
+    })
+
+    it('establishes connection between ForLoopBegin output and ForLoopEnd input after transform', () => {
+      const { nodes, edges } = createNodesForType('ForLoop', { x: 100, y: 100 }, '/')
+
+      transformGraph({ nodes: nodes as any, edges: edges as any })
+
+      const endNode = nodes.find(n => n.type === 'ForLoopEndOp')!
+
+      const endOp = getOp(endNode.id)
+      expect(endOp).toBeDefined()
+
+      // The 'd' input on ForLoopEndOp should have a connection
+      expect(endOp?.inputs.d.subscriptions.size).toBe(1)
+    })
+  })
 })
