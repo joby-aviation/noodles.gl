@@ -56,7 +56,7 @@ export function createNodesForType(
       id: makeOpId('ForLoopBeginOp', currentContainerId),
       type: 'ForLoopBeginOp',
       data: undefined,
-      parentNode: bodyId,
+      parentId: bodyId,
       expandParent: true,
       position: { x: 0, y: 100 },
     }
@@ -64,7 +64,7 @@ export function createNodesForType(
       id: makeOpId('ForLoopEndOp', currentContainerId),
       type: 'ForLoopEndOp',
       data: undefined,
-      parentNode: bodyId,
+      parentId: bodyId,
       expandParent: true,
       position: { x: 900, y: 100 },
     }
