@@ -67,6 +67,19 @@ export class SessionManager {
     return `await client.connect('${url}')`
   }
 
+  // Generate MCP server configuration for Claude Desktop
+  generateMcpConfig(): string {
+    const config = {
+      mcpServers: {
+        noodles: {
+          command: 'node',
+          args: ['<path-to>/mcp-proxy.js'],
+        },
+      },
+    }
+    return JSON.stringify(config, null, 2)
+  }
+
   // Validate a session token
   validateToken(token: string): boolean {
     const session = this.sessions.get(token)

@@ -154,25 +154,25 @@ export const SharingDialog: React.FC<SharingDialogProps> = ({ isOpen, onClose })
                       </code>
                     </div>
 
-                    {/* Connection command */}
+                    {/* MCP Server Config */}
                     <div className={s.codeBlock}>
                       <div className={s.codeHeader}>
-                        <span className={s.codeLabel}>Claude Code Command</span>
+                        <span className={s.codeLabel}>Claude Desktop MCP Config</span>
                         <button
                           onClick={() =>
                             copyToClipboard(
-                              sessionManager.generateConnectionCommand(session),
-                              session.token + '-cmd'
+                              sessionManager.generateMcpConfig(),
+                              session.token + '-mcp'
                             )
                           }
                           className={s.copyButton}
                         >
                           <CopyIcon className={s.copyIcon} />
-                          {copiedToken === session.token + '-cmd' ? 'Copied!' : 'Copy'}
+                          {copiedToken === session.token + '-mcp' ? 'Copied!' : 'Copy'}
                         </button>
                       </div>
                       <code className={s.code}>
-                        {sessionManager.generateConnectionCommand(session)}
+                        {sessionManager.generateMcpConfig()}
                       </code>
                     </div>
                   </div>
@@ -185,19 +185,29 @@ export const SharingDialog: React.FC<SharingDialogProps> = ({ isOpen, onClose })
           <div className={s.instructions}>
             <h3 className={s.instructionsTitle}>
               <ExternalLinkIcon />
-              How to connect from Claude Code
+              How to connect from Claude Code / Claude Desktop
             </h3>
             <ol className={s.instructionsList}>
-              <li>Create a new session above</li>
-              <li>Copy the connection command</li>
               <li>
-                In Claude Code, use the command to connect:
+                Add the MCP config to your Claude Desktop settings:
                 <br />
-                <code>const client = new NoodlesClient()</code>
+                <code>~/.config/claude/claude_desktop_config.json</code> (Linux/Mac)
                 <br />
-                <code>{`await client.connect('<paste-url-here>')`}</code>
+                <code>%APPDATA%\Claude\claude_desktop_config.json</code> (Windows)
               </li>
-              <li>The session will remain active for 24 hours</li>
+              <li>Restart Claude Desktop to load the MCP server</li>
+              <li>
+                Claude will now have access to Noodles tools like:
+                <br />
+                <code>getCurrentProject</code>, <code>createNode</code>, <code>connectNodes</code>,
+                <br />
+                <code>captureVisualization</code>, <code>listOperatorTypes</code>
+              </li>
+              <li>
+                Ask Claude to help you build visualizations:
+                <br />
+                <em>&quot;Create a scatterplot from the CSV data&quot;</em>
+              </li>
             </ol>
           </div>
         </div>
