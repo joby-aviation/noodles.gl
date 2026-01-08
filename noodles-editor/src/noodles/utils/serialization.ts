@@ -110,10 +110,11 @@ export function serializeNodes(
 
     preparedNodes.push({
       ...cleanedNode,
-      ...(resizeableNodes.includes(node.type) ? { width, height, measured } : {}),
+      ...(node.type && resizeableNodes.includes(node.type as any) ? { width, height, measured } : {}),
       data: {
         inputs,
         locked: op.locked.value,
+        ...(op.customInputDefinitions.length > 0 ? { customInputs: op.customInputDefinitions } : {}),
       },
     })
   }

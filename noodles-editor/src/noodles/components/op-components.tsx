@@ -400,6 +400,10 @@ function NodeComponent({
   const locked = useLocked(op)
   const executionState = useExecutionState(op)
 
+  // Get all inputs (including custom fields for operators that support them)
+  const allInputs =
+    (op.constructor as typeof Operator).supportsCustomFields ? op.getAllInputs() : op.inputs
+
   return (
     <div
       className={cx(s.wrapper, {
@@ -408,11 +412,11 @@ function NodeComponent({
       })}
     >
       <NodeHeader id={id} type={type} op={op} />
-      {resizeableNodes.includes(type) && (
+      {resizeableNodes.includes(type as any) && (
         <NodeResizer isVisible={selected} minWidth={200} minHeight={100} />
       )}
       <div className={s.content}>
-        {Object.entries(op.inputs).map(([key, field]) => (
+        {Object.entries(allInputs).map(([key, field]) => (
           <FieldComponent
             key={key}
             id={key}

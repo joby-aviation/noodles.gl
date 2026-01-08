@@ -194,6 +194,16 @@ export interface IOperator {
   createOutputs(): Record<string, Field<z.ZodType>>
 }
 
+// Custom field definition for dynamic parameters
+export interface CustomFieldDefinition {
+  id: string // UUID
+  name: string // Field name (valid JS identifier)
+  type: string // Field type ('number', 'string', 'boolean', etc.)
+  order: number // Display order
+  options?: Record<string, unknown> // Type-specific options (min, max, step, etc.)
+  defaultValue?: unknown // Default value
+}
+
 // Pull-based execution status
 export enum PullExecutionStatus {
   CLEAN = 'clean', // Valid cached output
@@ -208,6 +218,9 @@ export abstract class Operator<OP extends IOperator> {
   static displayName = 'Operator'
   static description = ''
 
+  // Opt-in flag for operators that support custom fields
+  static supportsCustomFields = false
+
   inputs: ReturnType<OP['createInputs']>
   outputs: ReturnType<OP['createOutputs']>
 
@@ -221,6 +234,9 @@ export abstract class Operator<OP extends IOperator> {
   // Should the execute function be memoized? Ops that store state elsewhere might not want to be cached.
   static cacheable = true
   public containerId?: string
+
+  // Custom field definitions for dynamic parameters
+  customInputDefinitions: CustomFieldDefinition[] = []
 
   abstract createInputs(): ReturnType<OP['createInputs']>
   abstract createOutputs(): ReturnType<OP['createOutputs']>
@@ -538,6 +554,160 @@ export abstract class Operator<OP extends IOperator> {
     for (const sub of this.subs) {
       sub.unsubscribe()
     }
+  }
+
+  // === Custom Field Management ===
+
+  // Get all inputs (built-in + custom)
+  getAllInputs(): Record<string, Field> {
+    const builtIn = this.inputs
+    const custom = this.getCustomInputFields()
+    return { ...builtIn, ...custom }
+  }
+
+  // Get custom input fields as Field instances
+  getCustomInputFields(): Record<string, Field> {
+    const fields: Record<string, Field> = {}
+    for (const def of this.customInputDefinitions) {
+      const field = this.createFieldFromDefinition(def)
+      fields[def.name] = field
+    }
+    return fields
+  }
+
+  // Create a Field instance from a custom field definition
+  private createFieldFromDefinition(def: CustomFieldDefinition): Field {
+    // Import fieldTypeToClass mapping
+    const { fieldTypeToClass } = require('./fields')
+    const FieldClass = fieldTypeToClass[def.type]
+    if (!FieldClass) {
+      throw new Error(`Unknown field type: ${def.type}`)
+    }
+    return new FieldClass(def.defaultValue, def.options)
+  }
+
+  // Validate custom field name
+  validateCustomFieldName(name: string, excludeId?: string): string | null {
+    if (!name.trim()) {
+      return 'Name is required'
+    }
+    if (!/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(name)) {
+      return 'Invalid identifier (use only letters, numbers, _, $)'
+    }
+    const builtInFieldNames = Object.keys(this.createInputs())
+    if (builtInFieldNames.includes(name)) {
+      return 'Name conflicts with built-in field'
+    }
+    if (this.customInputDefinitions.some(d => d.id !== excludeId && d.name === name)) {
+      return 'Name already exists'
+    }
+    return null
+  }
+
+  // Add custom field
+  addCustomInput(def: CustomFieldDefinition): void {
+    const error = this.validateCustomFieldName(def.name, def.id)
+    if (error) {
+      throw new Error(error)
+    }
+    this.customInputDefinitions.push(def)
+    this.rebuildInputs()
+    this.markDirty()
+  }
+
+  // Remove custom field
+  removeCustomInput(id: string): void {
+    this.customInputDefinitions = this.customInputDefinitions.filter(d => d.id !== id)
+    this.rebuildInputs()
+    this.markDirty()
+  }
+
+  // Update custom field definition
+  updateCustomInput(id: string, updates: Partial<CustomFieldDefinition>): void {
+    const index = this.customInputDefinitions.findIndex(d => d.id === id)
+    if (index >= 0) {
+      const updated = { ...this.customInputDefinitions[index], ...updates }
+      if (updates.name) {
+        const error = this.validateCustomFieldName(updates.name, id)
+        if (error) {
+          throw new Error(error)
+        }
+      }
+      this.customInputDefinitions[index] = updated
+      this.rebuildInputs()
+      this.markDirty()
+    }
+  }
+
+  // Reorder custom fields
+  reorderCustomInputs(fromIndex: number, toIndex: number): void {
+    const defs = [...this.customInputDefinitions]
+    const [moved] = defs.splice(fromIndex, 1)
+    defs.splice(toIndex, 0, moved)
+    // Update order property
+    defs.forEach((def, index) => {
+      def.order = index
+    })
+    this.customInputDefinitions = defs
+    // No need to rebuild inputs, just update order
+  }
+
+  // Rebuild inputs when custom fields change
+  rebuildInputs(): void {
+    // Preserve existing field values and connections
+    const oldValues = new Map<string, unknown>()
+    const oldConnections = new Map<string, Array<{ id: string; field: Field; connectionType: 'reference' | 'value' }>>()
+
+    for (const [name, field] of Object.entries(this.inputs)) {
+      oldValues.set(name, field.value)
+      const connections = []
+      for (const [id, subscription] of field.subscriptions) {
+        // We can't easily get the field reference, so we'll need to rely on transform-graph to reconnect
+        connections.push({ id, field: field, connectionType: 'value' })
+      }
+      if (connections.length > 0) {
+        oldConnections.set(name, connections)
+      }
+    }
+
+    // Recreate inputs (built-in + custom)
+    const builtInInputs = this.createInputs()
+    const customInputs = this.getCustomInputFields()
+
+    this.inputs = { ...builtInInputs, ...customInputs } as ReturnType<OP['createInputs']>
+
+    // Restore values
+    for (const [name, field] of Object.entries(this.inputs)) {
+      if (oldValues.has(name)) {
+        try {
+          field.setValue(oldValues.get(name))
+        } catch (err) {
+          console.warn(`Failed to restore value for field ${name}:`, err)
+        }
+      }
+    }
+
+    // Re-assign pathToProps for all fields
+    const assignPathToProps = (field: Field, key: string, parentPath: string[] = []) => {
+      const currentPath = [...parentPath, key]
+      field.pathToProps = currentPath
+      field.op = this
+
+      if (field.field !== undefined) {
+        field.field.pathToProps = currentPath
+      }
+      if (field instanceof CompoundPropsField) {
+        for (const [k, f] of Object.entries(field.fields)) {
+          assignPathToProps(f, k, currentPath)
+        }
+      }
+    }
+
+    for (const [key, field] of Object.entries(this.inputs)) {
+      assignPathToProps(field, key, [this.id, IN_NS])
+    }
+
+    // Note: Connections will be restored by transform-graph.ts when edges are re-applied
   }
 
   dispose() {
@@ -4537,6 +4707,7 @@ export class CodeOp extends Operator<CodeOp> {
   static displayName = 'Code'
   static description =
     'Run custom JavaScript code to transform your data. Available variables: `data` (all input data), `d` (first element), `op()` (access other operators). Includes d3, turf, and other utilities. Use `this` to store state between executions.'
+  static supportsCustomFields = true
   asDownload = () => this.outputs.data.value
   createInputs() {
     return {
@@ -4575,6 +4746,7 @@ export class CodeOp extends Operator<CodeOp> {
 export class ContainerOp extends Operator<ContainerOp> {
   static displayName = 'Container'
   static description = 'Encapsulates a subgraph of operators. Visually groups child nodes.'
+  static supportsCustomFields = true
 
   createInputs() {
     return { in: new UnknownField(null, { optional: true }) }

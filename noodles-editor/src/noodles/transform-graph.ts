@@ -35,6 +35,14 @@ import type { ExtractProps } from './utils/extract-props'
 export type NodeDataJSON<_T extends Operator<IOperator> = Operator<IOperator>> = {
   inputs?: Record<string, unknown>
   locked?: boolean
+  customInputs?: Array<{
+    id: string
+    name: string
+    type: string
+    order: number
+    options?: Record<string, unknown>
+    defaultValue?: unknown
+  }>
 }
 
 export type NodeJSON<T extends OpType> = ReactFlowNode<
@@ -112,6 +120,13 @@ export function transformGraph<
         const containerId = getParentPath(id)
         // Create operator with fully qualified path as id and store containerId
         op = new ctor(id, data?.inputs, data?.locked, containerId) as unknown as OP
+
+        // Restore custom field definitions if present
+        if (data?.customInputs && Array.isArray(data.customInputs)) {
+          op.customInputDefinitions = data.customInputs
+          op.rebuildInputs()
+        }
+
         if (ctor.cacheable) {
           op.execute = memoize(op.execute)
         }

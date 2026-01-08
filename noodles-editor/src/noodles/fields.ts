@@ -1379,3 +1379,25 @@ export class BezierCurveField extends Field<z.ZodType<BezierCurveData>> {
     return segments
   }
 }
+
+// Mapping of field type strings to Field class constructors
+// Used for creating custom fields dynamically
+// Using any to avoid TypeScript variance issues with Field<T> generics
+export const fieldTypeToClass: Record<string, any> = {
+  number: NumberField,
+  string: StringField,
+  boolean: BooleanField,
+  color: ColorField,
+  vec2: Vec2Field,
+  vec3: Vec3Field,
+  vec4: Vec4Field,
+  'geopoint-2d': Point2DField,
+  'geopoint-3d': Point3DField,
+  date: DateField,
+  expression: ExpressionField,
+  code: CodeField,
+  'bezier-curve': BezierCurveField,
+  'string-literal': StringLiteralField,
+  data: DataField,
+  unknown: UnknownField,
+}

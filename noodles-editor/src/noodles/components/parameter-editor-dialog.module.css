@@ -1,0 +1,406 @@
+/* Dialog overlay */
+.dialogOverlay {
+  background: rgba(0, 0, 0, 0.7);
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  animation: fadeIn 150ms ease-out;
+}
+
+/* Dialog content */
+.dialogContent {
+  background: var(--color-surface-2, #1e1e1e);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 90vw;
+  max-width: 700px;
+  max-height: 85vh;
+  padding: 24px;
+  z-index: 1001;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: slideUp 200ms ease-out;
+  color: var(--color-text, #e0e0e0);
+}
+
+.dialogTitle {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--color-text, #e0e0e0);
+}
+
+.dialogDescription {
+  font-size: 14px;
+  color: var(--color-text-secondary, #a0a0a0);
+  margin: 0;
+}
+
+/* Parameter list */
+.parameterList {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding-right: 8px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sectionTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-secondary, #a0a0a0);
+  margin: 0 0 4px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.emptyMessage {
+  font-size: 14px;
+  color: var(--color-text-secondary, #a0a0a0);
+  font-style: italic;
+  margin: 8px 0;
+}
+
+/* Built-in fields */
+.builtInFieldRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--color-surface-3, #2a2a2a);
+  border-radius: 4px;
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.builtInBadge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  background: var(--color-surface-4, #3a3a3a);
+  border-radius: 4px;
+  color: var(--color-text-secondary, #a0a0a0);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Custom field rows */
+.fieldRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
+  background: var(--color-surface-3, #2a2a2a);
+  border-radius: 4px;
+  border: 1px solid transparent;
+  transition: all 150ms;
+}
+
+.fieldRow:hover {
+  border-color: var(--color-accent, #4a9eff);
+  background: var(--color-surface-4, #333333);
+}
+
+.fieldContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.fieldActions {
+  display: flex;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+.fieldActions button {
+  padding: 6px;
+  border: none;
+  background: var(--color-surface-4, #3a3a3a);
+  color: var(--color-text-secondary, #a0a0a0);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 150ms;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fieldActions button:hover:not(:disabled) {
+  background: var(--color-accent, #4a9eff);
+  color: white;
+}
+
+.fieldActions button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.moveButton {
+  width: 28px;
+  height: 28px;
+}
+
+.editButton {
+  padding: 6px 12px !important;
+  font-size: 12px;
+}
+
+.deleteButton {
+  width: 28px;
+  height: 28px;
+}
+
+.deleteButton:hover:not(:disabled) {
+  background: var(--color-error, #ff4444) !important;
+}
+
+/* Field display */
+.fieldDisplay {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fieldName {
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text, #e0e0e0);
+}
+
+.fieldType {
+  font-size: 12px;
+  color: var(--color-text-secondary, #a0a0a0);
+  font-style: italic;
+}
+
+/* Field editor */
+.fieldEditor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.formRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-secondary, #a0a0a0);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.input,
+.select {
+  padding: 8px;
+  border: 1px solid var(--color-border, #444444);
+  border-radius: 4px;
+  background: var(--color-surface-1, #1a1a1a);
+  color: var(--color-text, #e0e0e0);
+  font-size: 13px;
+  transition: border-color 150ms;
+}
+
+.input:focus,
+.select:focus {
+  outline: none;
+  border-color: var(--color-accent, #4a9eff);
+}
+
+.inputError {
+  padding: 8px;
+  border: 1px solid var(--color-error, #ff4444);
+  border-radius: 4px;
+  background: var(--color-surface-1, #1a1a1a);
+  color: var(--color-text, #e0e0e0);
+  font-size: 13px;
+}
+
+.inputError:focus {
+  outline: none;
+  border-color: var(--color-error, #ff4444);
+}
+
+.errorText {
+  color: var(--color-error, #ff4444);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.typeOptions {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.typeOptions .label input[type='checkbox'] {
+  width: auto;
+}
+
+/* Add field button */
+.addFieldButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--color-accent, #4a9eff);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 150ms;
+  margin-top: 4px;
+}
+
+.addFieldButton:hover {
+  background: var(--color-accent-hover, #3a8eef);
+}
+
+/* Quick add templates */
+.templateGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.templateButton {
+  padding: 10px 12px;
+  background: var(--color-surface-3, #2a2a2a);
+  color: var(--color-text, #e0e0e0);
+  border: 1px solid var(--color-border, #444444);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 150ms;
+  text-align: left;
+}
+
+.templateButton:hover {
+  background: var(--color-surface-4, #333333);
+  border-color: var(--color-accent, #4a9eff);
+}
+
+/* Dialog footer */
+.dialogFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border, #444444);
+}
+
+.cancelButton,
+.saveButton {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 150ms;
+}
+
+.cancelButton {
+  background: var(--color-surface-3, #2a2a2a);
+  color: var(--color-text, #e0e0e0);
+}
+
+.cancelButton:hover {
+  background: var(--color-surface-4, #333333);
+}
+
+.saveButton {
+  background: var(--color-accent, #4a9eff);
+  color: white;
+}
+
+.saveButton:hover {
+  background: var(--color-accent-hover, #3a8eef);
+}
+
+/* Close button */
+.closeButton {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary, #a0a0a0);
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 150ms;
+}
+
+.closeButton:hover {
+  background: var(--color-surface-4, #333333);
+  color: var(--color-text, #e0e0e0);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -48%);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* Scrollbar styling */
+.parameterList::-webkit-scrollbar {
+  width: 8px;
+}
+
+.parameterList::-webkit-scrollbar-track {
+  background: var(--color-surface-1, #1a1a1a);
+  border-radius: 4px;
+}
+
+.parameterList::-webkit-scrollbar-thumb {
+  background: var(--color-surface-4, #3a3a3a);
+  border-radius: 4px;
+}
+
+.parameterList::-webkit-scrollbar-thumb:hover {
+  background: var(--color-surface-5, #4a4a4a);
+}

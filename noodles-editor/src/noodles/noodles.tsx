@@ -48,6 +48,7 @@ import { ErrorBoundary } from './components/error-boundary'
 import { PropertyPanel } from './components/node-properties'
 import { NodeTreeSidebar } from './components/node-tree-sidebar'
 import { edgeComponents, nodeComponents } from './components/op-components'
+import { ParameterEditorDialog } from './components/parameter-editor-dialog'
 import { UNSAVED_PROJECT_NAME } from './components/project-name-bar'
 import { ProjectNotFoundDialog } from './components/project-not-found-dialog'
 import { StorageErrorHandler } from './components/storage-error-handler'
@@ -59,7 +60,7 @@ import { useProjectModifications } from './hooks/use-project-modifications'
 import type { IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
 import { load, save } from './storage'
-import { getOpStore, useNestingStore } from './store'
+import { getOp, getOpStore, useNestingStore } from './store'
 import { bindOperatorToTheatre, cleanupRemovedOperators } from './theatre-bindings'
 import { transformGraph } from './transform-graph'
 import { directoryHandleCache } from './utils/directory-handle-cache'
@@ -212,6 +213,10 @@ export function getNoodles(): Visualization {
   const [defaultViewport, setDefaultViewport] = useState({ x: 0, y: 0, zoom: 1 })
   const [showChatPanel, setShowChatPanel] = useState(false)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [parameterEditorState, setParameterEditorState] = useState<{
+    open: boolean
+    operatorId: string | null
+  }>({ open: false, operatorId: null })
 
   // Wrap onNodesChange to track node selection and mark unsaved changes
   const onNodesChange = useCallback(
@@ -377,6 +382,17 @@ export function getNoodles(): Visualization {
       studio.setSelection([])
     }
   }, [])
+
+  const onNodeContextMenu = useCallback(
+    (event: React.MouseEvent, node: ReactFlowNode<Record<string, unknown>>) => {
+      event.preventDefault()
+      const op = getOp(node.id)
+      if (op && (op.constructor as typeof Operator).supportsCustomFields) {
+        setParameterEditorState({ open: true, operatorId: node.id })
+      }
+    },
+    []
+  )
 
   const reactFlowRef = useRef<HTMLDivElement>(null)
   const reactFlowInstanceRef = useRef<ReactFlowInstance | null>(null)
@@ -1022,6 +1038,7 @@ export function getNoodles(): Visualization {
               onConnect={onConnect}
               onReconnect={onReconnect}
               onNodeClick={onNodeClick}
+              onNodeContextMenu={onNodeContextMenu}
               onNodesDelete={onNodesDelete}
               onPaneContextMenu={onPaneContextMenu}
               onPaneClick={onPaneClick}
@@ -1046,6 +1063,21 @@ export function getNoodles(): Visualization {
             </ReactFlow>
           </SheetProvider>
         </PrimeReactProvider>
+        {parameterEditorState.operatorId && (
+          <ParameterEditorDialog
+            open={parameterEditorState.open}
+            onOpenChange={open => setParameterEditorState({ open, operatorId: null })}
+            operator={getOp(parameterEditorState.operatorId)!}
+            onSave={definitions => {
+              const op = getOp(parameterEditorState.operatorId!)
+              if (op) {
+                op.customInputDefinitions = definitions
+                op.rebuildInputs()
+                setNodes(nodes => [...nodes]) // Force re-render
+              }
+            }}
+          />
+        )}
         <ProjectNotFoundDialog
           projectName={projectName || ''}
           open={showProjectNotFoundDialog}
