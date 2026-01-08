@@ -17,10 +17,19 @@ yarn test src/examples-page.visual.test.tsx -u
 
 ## Baseline Screenshots
 
-Baseline screenshots are stored in `.vitest-attachments/src/` directory alongside the test files and should be committed to version control. They are organized by test file path.
+Baseline screenshots are stored in two locations:
+- `.vitest-attachments/src/` - Reference screenshots used for comparison
+- `__screenshots__/` - Generated screenshots during test runs (next to test files)
 
-Example:
+Both directories should be committed to version control.
+
+Example structure:
 ```
+src/
+  __screenshots__/
+    examples-page.visual.test.tsx/
+      examples-page-layout-chromium-linux.png
+      examples-page-title-chromium-linux.png
 .vitest-attachments/
   src/
     examples-page.visual.test.tsx/

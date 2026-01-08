@@ -61,9 +61,9 @@ describe('ExamplesPage Visual Regression', () => {
     const grid = container.querySelector('[class*="examplesGrid"]')
     expect(grid).toBeTruthy()
 
-    // Take a screenshot of the grid container
-    // Note: This creates a baseline that will detect layout/styling changes
-    await expect(page.getByText('Examples')).toMatchScreenshot(
+    // Take a screenshot of the full page containing the grid
+    // Note: We screenshot the whole page to capture grid layout context
+    await expect(screen.getByText('Examples')).toMatchScreenshot(
       'examples-grid-container.png'
     )
   })
