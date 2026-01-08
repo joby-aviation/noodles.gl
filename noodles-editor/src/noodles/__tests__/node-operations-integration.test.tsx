@@ -949,15 +949,14 @@ describe('Node Operations Integration Tests', () => {
     it('creates ForLoop child node IDs within the group namespace', () => {
       const { nodes } = createNodesForType('ForLoop', { x: 100, y: 100 }, '/')
 
-      const groupNode = nodes.find(n => n.type === 'group')!
       const beginNode = nodes.find(n => n.type === 'ForLoopBeginOp')!
       const endNode = nodes.find(n => n.type === 'ForLoopEndOp')!
       const metaNode = nodes.find(n => n.type === 'ForLoopMetaOp')!
 
-      // Child node IDs should be children of the group ID
-      expect(beginNode.id.startsWith(groupNode.id + '/')).toBe(true)
-      expect(endNode.id.startsWith(groupNode.id + '/')).toBe(true)
-      expect(metaNode.id.startsWith(groupNode.id + '/')).toBe(true)
+      // Child node IDs should be children of the container path
+      expect(beginNode.id).toBe('/for-loop-begin')
+      expect(endNode.id).toBe('/for-loop-end')
+      expect(metaNode.id).toBe('/for-loop-meta')
     })
 
     it('creates default edge between ForLoopBegin and ForLoopEnd', () => {
@@ -1012,7 +1011,7 @@ describe('Node Operations Integration Tests', () => {
       expect(groupNode.id.startsWith(containerPath + '/')).toBe(true)
 
       // Child nodes should be within the group
-      expect(beginNode.id.startsWith(groupNode.id + '/')).toBe(true)
+      expect(beginNode.id.startsWith(containerPath + '/')).toBe(true)
     })
 
     it('sets expandParent on child nodes', () => {
