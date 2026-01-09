@@ -246,6 +246,13 @@
   font-weight: 500;
 }
 
+.hintText {
+  color: var(--color-text-secondary, #808080);
+  font-size: 11px;
+  font-weight: 400;
+  font-style: italic;
+}
+
 .typeOptions {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

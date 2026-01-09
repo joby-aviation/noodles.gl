@@ -246,11 +246,25 @@ export function transformGraph<
       const containerOp = op
       for (const childOp of store.getAllOps()) {
         if (childOp instanceof GraphInputOp && isDirectChild(childOp.id, containerOp.id)) {
+          // Set up parent container relationship (triggers output rebuild)
+          childOp.setParentContainer(containerOp)
+
+          // Wire the base 'in' field to GraphInputOp's parentValue
           const parentValueField = childOp.inputs.parentValue
           const containerInField = containerOp.inputs.in
-
           const connectionId = `container_in_to_child_${childOp.id}`
           parentValueField.addConnection(connectionId, containerInField, 'value')
+
+          // Wire container's custom inputs to GraphInputOp's dynamic outputs
+          // This allows child operators to access container's custom parameters via GraphInputOp
+          for (const def of containerOp.customInputDefinitions) {
+            const containerCustomField = containerOp.inputs[def.name]
+            const graphInputOutputField = childOp.outputs[def.name]
+            if (containerCustomField && graphInputOutputField) {
+              const customConnectionId = `container_custom_${def.name}_to_child_${childOp.id}`
+              graphInputOutputField.addConnection(customConnectionId, containerCustomField, 'value')
+            }
+          }
         }
       }
     }

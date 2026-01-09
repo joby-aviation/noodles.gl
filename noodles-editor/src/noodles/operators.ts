@@ -123,7 +123,7 @@ import {
   schemeYlGn,
 } from 'd3'
 import * as deck from 'deck.gl'
-import { BehaviorSubject, combineLatest, type Subscription } from 'rxjs'
+import { BehaviorSubject, Subject, combineLatest, type Subscription } from 'rxjs'
 import { debounceTime, filter, mergeMap } from 'rxjs/operators'
 import { Temporal } from 'temporal-polyfill'
 import vega from 'vega-embed'
@@ -203,6 +203,7 @@ export interface CustomFieldDefinition {
   order: number // Display order
   options?: Record<string, unknown> // Type-specific options (min, max, step, etc.)
   defaultValue?: unknown // Default value
+  enableExpression?: string // JavaScript expression for conditional visibility (e.g., "par.mode === 'advanced'")
 }
 
 // Pull-based execution status
@@ -238,6 +239,9 @@ export abstract class Operator<OP extends IOperator> {
 
   // Custom field definitions for dynamic parameters
   customInputDefinitions: CustomFieldDefinition[] = []
+
+  // Emits when custom field definitions change (for reactive updates like GraphInputOp)
+  customFieldsChanged = new Subject<CustomFieldDefinition[]>()
 
   abstract createInputs(): ReturnType<OP['createInputs']>
   abstract createOutputs(): ReturnType<OP['createOutputs']>
@@ -743,11 +747,15 @@ export abstract class Operator<OP extends IOperator> {
     }
 
     // Note: Connections will be restored by transform-graph.ts when edges are re-applied
+
+    // Notify listeners that custom fields have changed
+    this.customFieldsChanged.next(this.customInputDefinitions)
   }
 
   dispose() {
     this.unsubscribeListeners()
     this.executionState.complete()
+    this.customFieldsChanged.complete()
   }
 }
 
@@ -3339,6 +3347,10 @@ export class GraphInputOp extends Operator<GraphInputOp> {
   static displayName = 'GraphInput'
   static description = 'Receives input from the parent Container.'
 
+  // Reference to parent container for custom field synchronization
+  private _parentContainerOp: ContainerOp | null = null
+  private _containerSub: Subscription | null = null
+
   createInputs() {
     return { parentValue: new UnknownField(null, { optional: true }) }
   }
@@ -3349,6 +3361,82 @@ export class GraphInputOp extends Operator<GraphInputOp> {
 
   execute({ parentValue }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     return { value: parentValue }
+  }
+
+  /**
+   * Set the parent ContainerOp and subscribe to custom field changes.
+   * When container custom fields change, rebuild outputs to mirror them.
+   */
+  setParentContainer(containerOp: ContainerOp | null) {
+    // Unsubscribe from previous container
+    if (this._containerSub) {
+      this._containerSub.unsubscribe()
+      this._containerSub = null
+    }
+
+    this._parentContainerOp = containerOp
+
+    if (containerOp) {
+      // Initial sync
+      this.rebuildOutputsFromContainer(containerOp)
+
+      // Subscribe to future changes
+      this._containerSub = containerOp.customFieldsChanged.subscribe(() => {
+        this.rebuildOutputsFromContainer(containerOp)
+      })
+    }
+  }
+
+  /**
+   * Rebuild outputs to mirror the parent ContainerOp's custom input fields.
+   * Creates an output for each custom field on the container.
+   */
+  rebuildOutputsFromContainer(containerOp: ContainerOp) {
+    // Preserve old output values where possible
+    const oldValues = new Map<string, unknown>()
+    for (const [name, field] of Object.entries(this.outputs)) {
+      oldValues.set(name, field.value)
+    }
+
+    // Start with the base output
+    const newOutputs: Record<string, Field> = {
+      value: new UnknownField(null, { optional: true }),
+    }
+
+    // Add outputs for each container custom input
+    for (const def of containerOp.customInputDefinitions) {
+      const field = this.createFieldFromDefinition(def)
+      newOutputs[def.name] = field
+    }
+
+    this.outputs = newOutputs as ReturnType<GraphInputOp['createOutputs']>
+
+    // Restore values where field names match
+    for (const [name, field] of Object.entries(this.outputs)) {
+      if (oldValues.has(name)) {
+        try {
+          field.setValue(oldValues.get(name))
+        } catch (err) {
+          // Type mismatch, skip
+        }
+      }
+    }
+
+    // Re-assign pathToProps for outputs
+    for (const [key, field] of Object.entries(this.outputs)) {
+      field.pathToProps = [this.id, OUT_NS, key]
+      field.op = this
+    }
+
+    // Notify that outputs changed
+    this.markDirty()
+  }
+
+  dispose() {
+    if (this._containerSub) {
+      this._containerSub.unsubscribe()
+    }
+    super.dispose()
   }
 }
 

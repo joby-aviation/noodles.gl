@@ -400,6 +400,20 @@ function FieldEditor({ definition, onUpdate, onValidate, error }: FieldEditorPro
         </label>
       </div>
 
+      <div className={s.formRow}>
+        <label className={s.label}>
+          Enable When (optional)
+          <input
+            type="text"
+            value={definition.enableExpression || ''}
+            onChange={e => onUpdate({ enableExpression: e.target.value || undefined })}
+            className={s.input}
+            placeholder="par.showAdvanced === true"
+          />
+          <span className={s.hintText}>JavaScript expression to conditionally show this field</span>
+        </label>
+      </div>
+
       {/* Type-specific options */}
       <FieldTypeOptions definition={definition} onUpdate={onUpdate} />
     </div>

@@ -55,6 +55,7 @@ import {
   useOperatorStore,
 } from '../store'
 import type { NodeDataJSON } from '../transform-graph'
+import { evaluateEnableExpression } from '../utils/enable-expression-evaluator'
 import type { NodeType } from '../utils/node-creation-utils'
 import { generateQualifiedPath, getBaseName, getParentPath } from '../utils/path-utils'
 import { categories as baseCategories, nodeTypeToDisplayName } from './categories'
@@ -414,6 +415,25 @@ function OutputHandle({ id, field }: { id: string; field: Field<IField> }) {
   )
 }
 
+// Hook to subscribe to all field value changes for reactive enable expressions
+function useFieldValueChanges(op: Operator<IOperator>) {
+  const [, forceUpdate] = useState(0)
+
+  useEffect(() => {
+    const allInputs = (op.constructor as typeof Operator).supportsCustomFields
+      ? op.getAllInputs()
+      : op.inputs
+
+    const subscriptions = Object.values(allInputs).map(field =>
+      field.subscribe(() => forceUpdate(n => n + 1))
+    )
+
+    return () => {
+      subscriptions.forEach(sub => sub.unsubscribe())
+    }
+  }, [op, op.customInputDefinitions.length])
+}
+
 function NodeComponent({
   id,
   type,
@@ -428,9 +448,33 @@ function NodeComponent({
   const connectionErrors = useConnectionErrors(op)
   const hasConnectionErrors = connectionErrors.size > 0
 
+  // Subscribe to field value changes for reactive enable expressions
+  useFieldValueChanges(op)
+
   // Get all inputs (including custom fields for operators that support them)
   const allInputs =
     (op.constructor as typeof Operator).supportsCustomFields ? op.getAllInputs() : op.inputs
+
+  // Get custom field definitions for enable expression checking
+  const customFieldDefs = op.customInputDefinitions
+  const builtInFieldNames = Object.keys(op.createInputs())
+
+  // Check if a field should be visible based on its enable expression
+  const isFieldEnabled = useCallback(
+    (fieldName: string): boolean => {
+      // Built-in fields are always enabled
+      if (builtInFieldNames.includes(fieldName)) {
+        return true
+      }
+      // Find the custom field definition
+      const def = customFieldDefs.find(d => d.name === fieldName)
+      if (!def || !def.enableExpression) {
+        return true // No expression means always enabled
+      }
+      return evaluateEnableExpression(def.enableExpression, op, getOp)
+    },
+    [builtInFieldNames, customFieldDefs, op]
+  )
 
   return (
     <div
@@ -444,15 +488,17 @@ function NodeComponent({
         <NodeResizer isVisible={selected} minWidth={200} minHeight={100} />
       )}
       <div className={s.content}>
-        {Object.entries(allInputs).map(([key, field]) => (
-          <FieldComponent
-            key={key}
-            id={key}
-            field={field}
-            disabled={locked}
-            handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
-          />
-        ))}
+        {Object.entries(allInputs)
+          .filter(([key]) => isFieldEnabled(key))
+          .map(([key, field]) => (
+            <FieldComponent
+              key={key}
+              id={key}
+              field={field}
+              disabled={locked}
+              handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
+            />
+          ))}
         <div className={s.outputHandleContainer}>
           {Object.entries(op.outputs).map(([key, field]) => (
             <OutputHandle key={key} id={key} field={field} />

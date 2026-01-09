@@ -114,7 +114,7 @@ export function serializeNodes(
       data: {
         inputs,
         locked: op.locked.value,
-        ...(op.customInputDefinitions.length > 0 ? { customInputs: op.customInputDefinitions } : {}),
+        ...(op.customInputDefinitions?.length > 0 ? { customInputs: op.customInputDefinitions } : {}),
       },
     })
   }
