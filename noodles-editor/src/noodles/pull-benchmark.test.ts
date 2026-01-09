@@ -165,7 +165,9 @@ describe('Pull-based execution benchmarks', () => {
 
     // Reset and execute sequentially for comparison
     ComputeOp.executionCount = 0
-    ops.forEach(op => op.markDirty())
+    for (const op of ops) {
+      op.markDirty()
+    }
 
     const seqStartTime = performance.now()
     for (const op of ops) {
@@ -218,7 +220,9 @@ describe('Pull-based execution benchmarks', () => {
     expect(ComputeOp.executionCount).toBe(depth) // All need re-execution
 
     // But pulling from middle should only execute up to that point
-    operators.forEach(op => op.markDirty())
+    for (const op of operators) {
+      op.markDirty()
+    }
     ComputeOp.executionCount = 0
     await operators[5].pull()
     expect(ComputeOp.executionCount).toBe(6) // Only first 6 operators

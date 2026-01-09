@@ -1679,6 +1679,7 @@ export function BezierCurveFieldComponent({
             const isSelected = selectedIndex === index
 
             return (
+              // biome-ignore lint/suspicious/noArrayIndexKey: Bezier curve points don't have stable IDs
               <g key={index}>
                 {/* Left handle */}
                 {point.handleLeftX !== undefined && point.handleLeftY !== undefined && (

@@ -299,7 +299,7 @@ function HandlePreviewContent({ data, name, type }: { data: unknown; name: strin
                 </thead>
                 <tbody>
                   {data.map((row, i) => (
-                    <tr key={i}>
+                    <tr key={`row-${i}-${JSON.stringify(row).slice(0, 50)}`}>
                       {keys.map(key => (
                         <td key={key}>
                           {typeof row[key] === 'string' ? row[key] : JSON.stringify(row[key])}
