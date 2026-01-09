@@ -1,10 +1,7 @@
-
 // Pipeline-specific tools for automated data pipeline creation and testing
 
-
-import { toolRegistry } from './tool-adapter'
-import { getOpStore } from '../noodles/store'
 import { opTypes } from '../noodles/operators'
+import { toolRegistry } from './tool-adapter'
 
 export interface PipelineSpec {
   nodes: Array<{
@@ -212,7 +209,8 @@ export class PipelineManager {
 
     // Create edges
     for (const edge of spec.edges) {
-      const edgeId = edge.id || `${edge.source}.${edge.sourceHandle}->${edge.target}.${edge.targetHandle}`
+      const edgeId =
+        edge.id || `${edge.source}.${edge.sourceHandle}->${edge.target}.${edge.targetHandle}`
       edgeIds.push(edgeId)
       modifications.edges.push({
         type: 'add',
@@ -296,7 +294,7 @@ export class PipelineManager {
             timeoutPromise,
           ])
 
-          if (output && output.success) {
+          if (output?.success) {
             result.outputs[nodeId] = output.result
 
             if (options.captureIntermediateResults) {
@@ -330,10 +328,12 @@ export class PipelineManager {
     if (!pipeline) {
       return {
         valid: false,
-        errors: [{
-          type: 'invalid_config',
-          message: `Pipeline not found: ${pipelineId}`,
-        }],
+        errors: [
+          {
+            type: 'invalid_config',
+            message: `Pipeline not found: ${pipelineId}`,
+          },
+        ],
         warnings: [],
       }
     }
@@ -347,10 +347,12 @@ export class PipelineManager {
     if (!projectState.success || !projectState.result) {
       return {
         valid: false,
-        errors: [{
-          type: 'invalid_config',
-          message: 'Failed to get project state',
-        }],
+        errors: [
+          {
+            type: 'invalid_config',
+            message: 'Failed to get project state',
+          },
+        ],
         warnings: [],
       }
     }
@@ -462,34 +464,6 @@ export class PipelineManager {
         throw new Error(`Edge target node not found: ${edge.target}`)
       }
     }
-  }
-
-  // Get default output field for an operator type
-  private getDefaultOutputField(type: string): string {
-    // Common patterns for output fields
-    const outputPatterns = {
-      FileOp: 'out.data',
-      DuckDbOp: 'out.result',
-      FilterOp: 'out.result',
-      MapOp: 'out.result',
-      // Add more as needed
-    }
-
-    return (outputPatterns as any)[type] || 'out.result'
-  }
-
-  // Get default input field for an operator type
-  private getDefaultInputField(type: string): string {
-    // Common patterns for input fields
-    const inputPatterns = {
-      FilterOp: 'par.data',
-      MapOp: 'par.data',
-      ScatterplotLayerOp: 'par.data',
-      PathLayerOp: 'par.data',
-      // Add more as needed
-    }
-
-    return (inputPatterns as any)[type] || 'par.data'
   }
 
   // Get pipeline information

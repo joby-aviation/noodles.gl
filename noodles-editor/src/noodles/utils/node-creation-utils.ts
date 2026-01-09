@@ -7,10 +7,8 @@ export type NodeType = OpType | MathOpType | 'ForLoop'
 // Get all available node types (operators, math ops, and special types like ForLoop)
 export function getNodeTypeOptions(): NodeType[] {
   return (Object.keys(opTypes) as NodeType[])
-    .filter(type =>
-      type !== 'ForLoopBeginOp' &&
-      type !== 'ForLoopEndOp' &&
-      type !== 'ForLoopMetaOp'
+    .filter(
+      type => type !== 'ForLoopBeginOp' && type !== 'ForLoopEndOp' && type !== 'ForLoopMetaOp'
     )
     .concat(['ForLoop', ...Object.keys(mathOps)])
     .sort()

@@ -227,16 +227,16 @@ export const serializeMessage = (message: Message): string => {
 
 // Response matcher for request-response patterns
 export class MessageMatcher {
-  private pending = new Map<string, {
-    resolve: (msg: Message) => void
-    reject: (error: Error) => void
-    timeout: NodeJS.Timeout
-  }>()
+  private pending = new Map<
+    string,
+    {
+      resolve: (msg: Message) => void
+      reject: (error: Error) => void
+      timeout: NodeJS.Timeout
+    }
+  >()
 
-  waitForResponse(
-    requestId: string,
-    timeout = 30000
-  ): Promise<Message> {
+  waitForResponse(requestId: string, timeout = 30000): Promise<Message> {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(requestId)

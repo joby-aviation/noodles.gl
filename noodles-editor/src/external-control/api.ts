@@ -1,22 +1,16 @@
 // External Control API
 // High-level API for external tools to control Noodles
 
+import type { PipelineHandle, PipelineSpec, TestResult, ValidationResult } from './pipeline-tools'
+import { toolRegistry } from './tool-adapter'
 import {
-  initializeWorkerBridge,
+  cleanup as bridgeCleanup,
   connect as bridgeConnect,
   disconnect as bridgeDisconnect,
-  on as bridgeOn,
   off as bridgeOff,
-  cleanup as bridgeCleanup,
+  on as bridgeOn,
+  initializeWorkerBridge,
 } from './worker-bridge'
-import { toolRegistry } from './tool-adapter'
-import { pipelineManager, PipelineSpec, PipelineHandle, TestResult, ValidationResult } from './pipeline-tools'
-import {
-  createToolCallMessage,
-  createMessage,
-  MessageType,
-  Message,
-} from './message-protocol'
 
 export interface ExternalControlConfig {
   host?: string
@@ -242,11 +236,7 @@ export class ExternalControl {
   // ==================== Node Operations ====================
 
   // Add a node to the project
-  async addNode(
-    type: string,
-    position: Point,
-    config?: Record<string, any>
-  ): Promise<string> {
+  async addNode(type: string, position: Point, config?: Record<string, any>): Promise<string> {
     this.ensureConnected()
 
     const result = await this.executeTool('createNode', {
@@ -365,10 +355,7 @@ export class ExternalControl {
   }
 
   // Capture a screenshot of the visualization
-  async captureVisualization(
-    format: 'png' | 'jpeg' = 'png',
-    quality = 0.9
-  ): Promise<Screenshot> {
+  async captureVisualization(format: 'png' | 'jpeg' = 'png', quality = 0.9): Promise<Screenshot> {
     this.ensureConnected()
 
     const result = await this.executeTool('captureVisualization', {
@@ -392,14 +379,14 @@ export class ExternalControl {
 
   // Subscribe to errors
   onError(callback: (error: Error) => void): void {
-    this.on('error', (data) => {
+    this.on('error', data => {
       callback(new Error(data.message || 'Unknown error'))
     })
   }
 
   // Subscribe to connection status changes
   onStatusChange(callback: (connected: boolean) => void): void {
-    this.on('status', (data) => {
+    this.on('status', data => {
       callback(data.connected)
     })
   }
@@ -447,7 +434,9 @@ export class ExternalControl {
   private emit(event: string, data: any): void {
     const handlers = this.eventHandlers.get(event)
     if (handlers) {
-      handlers.forEach(handler => handler(data))
+      handlers.forEach(handler => {
+        handler(data)
+      })
     }
   }
 

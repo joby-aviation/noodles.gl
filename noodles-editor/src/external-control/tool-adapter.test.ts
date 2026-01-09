@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ToolRegistry, type ToolDefinition, type ToolExecutionResult } from './tool-adapter'
+import { type ToolDefinition, type ToolExecutionResult, ToolRegistry } from './tool-adapter'
 
 // Mock the dependencies
 vi.mock('../ai-chat/mcp-tools', () => ({

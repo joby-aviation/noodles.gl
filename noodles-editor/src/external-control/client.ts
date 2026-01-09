@@ -1,15 +1,13 @@
-
 // Reference client implementation for external control
 // This can be used by external tools like Claude Code to control Noodles
 
-
 import {
-  Message,
-  MessageType,
   createMessage,
+  type Message,
+  MessageMatcher,
+  MessageType,
   parseMessage,
   serializeMessage,
-  MessageMatcher,
 } from './message-protocol'
 
 export interface ClientConfig {
@@ -92,7 +90,7 @@ export class NoodlesClient {
         if (token) {
           this.config.token = token
         }
-      } catch (error) {
+      } catch (_error) {
         // URL parsing failed, continue without token
       }
 
@@ -104,16 +102,18 @@ export class NoodlesClient {
           this.isConnected = true
 
           // Send connect message
-          this.send(createMessage(MessageType.CONNECT, {
-            clientId: `client-${Date.now()}`,
-            version: '1.0.0',
-            capabilities: ['pipeline', 'tools', 'state'],
-          }))
+          this.send(
+            createMessage(MessageType.CONNECT, {
+              clientId: `client-${Date.now()}`,
+              version: '1.0.0',
+              capabilities: ['pipeline', 'tools', 'state'],
+            })
+          )
 
           resolve()
         }
 
-        this.ws.onmessage = (event) => {
+        this.ws.onmessage = event => {
           const message = parseMessage(event.data)
           if (!message) {
             this.log('Invalid message received:', event.data)
@@ -123,12 +123,12 @@ export class NoodlesClient {
           this.handleMessage(message)
         }
 
-        this.ws.onerror = (error) => {
+        this.ws.onerror = error => {
           this.log('WebSocket error:', error)
           reject(new Error('WebSocket connection failed'))
         }
 
-        this.ws.onclose = (event) => {
+        this.ws.onclose = event => {
           this.log('Disconnected:', event.code, event.reason)
           this.isConnected = false
 
@@ -397,7 +397,9 @@ export class NoodlesClient {
   private emit(event: string, data: any): void {
     const handlers = this.eventHandlers.get(event)
     if (handlers) {
-      handlers.forEach(handler => handler(data))
+      handlers.forEach(handler => {
+        handler(data)
+      })
     }
   }
 

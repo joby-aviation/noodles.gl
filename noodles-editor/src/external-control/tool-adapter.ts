@@ -1,22 +1,22 @@
-
 // Tool adapter for exposing MCP tools to external control
 // Provides a unified interface for tool execution
 
-
-import { MCPTools } from '../ai-chat/mcp-tools'
 import { globalContextManager } from '../ai-chat/global-context-manager'
-import { getOpStore } from '../noodles/store'
+import { MCPTools } from '../ai-chat/mcp-tools'
 import { opTypes } from '../noodles/operators'
 
 export interface ToolDefinition {
   name: string
   description: string
-  parameters: Record<string, {
-    type: string
-    description?: string
-    required?: boolean
-    default?: any
-  }>
+  parameters: Record<
+    string,
+    {
+      type: string
+      description?: string
+      required?: boolean
+      default?: any
+    }
+  >
 }
 
 export interface ToolExecutionResult {
@@ -223,10 +223,7 @@ export class ToolRegistry {
   }
 
   // Execute a tool
-  async execute(
-    toolName: string,
-    args: Record<string, any>
-  ): Promise<ToolExecutionResult> {
+  async execute(toolName: string, args: Record<string, any>): Promise<ToolExecutionResult> {
     const startTime = Date.now()
 
     try {
@@ -371,12 +368,7 @@ export class ToolRegistry {
     sourceField?: string
     targetField?: string
   }): Promise<any> {
-    const {
-      sourceId,
-      targetId,
-      sourceField = 'out.result',
-      targetField = 'par.data',
-    } = args
+    const { sourceId, targetId, sourceField = 'out.result', targetField = 'par.data' } = args
 
     // Create the edge
     const edge = {
