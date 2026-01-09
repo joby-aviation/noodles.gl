@@ -1,4 +1,5 @@
 // Type definitions for Claude AI integration
+import { z } from 'zod'
 
 export interface Manifest {
   version: string
@@ -168,15 +169,94 @@ export interface Message {
   content: string | Array<{ type: string; text?: string; [key: string]: unknown }>
 }
 
+// Zod schemas for project modification validation
+const PositionSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+})
+
+const NodeSchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  position: PositionSchema.optional(),
+  data: z.record(z.string(), z.unknown()).optional(),
+})
+
+const EdgeSchema = z.object({
+  id: z.string(),
+  source: z.string(),
+  target: z.string(),
+  sourceHandle: z.string().optional(),
+  targetHandle: z.string().optional(),
+})
+
+export const ProjectModificationSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('add_node'),
+    data: NodeSchema,
+  }),
+  z.object({
+    type: z.literal('update_node'),
+    data: NodeSchema.partial().extend({ id: z.string() }),
+  }),
+  z.object({
+    type: z.literal('delete_node'),
+    data: z.object({ id: z.string() }),
+  }),
+  z.object({
+    type: z.literal('add_edge'),
+    data: EdgeSchema,
+  }),
+  z.object({
+    type: z.literal('delete_edge'),
+    data: z.object({ id: z.string() }),
+  }),
+])
+
+export type ProjectModification = z.infer<typeof ProjectModificationSchema>
+
+const ModificationsArraySchema = z.array(ProjectModificationSchema)
+
+const ModificationsResponseSchema = z.object({
+  modifications: ModificationsArraySchema,
+})
+
+// Parse and validate project modifications from a JSON string or object.
+// Returns validated modifications array or null if invalid.
+export function parseModifications(input: unknown): ProjectModification[] | null {
+  let parsed: unknown = input
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed)
+    } catch {
+      return null
+    }
+  }
+
+  const responseResult = ModificationsResponseSchema.safeParse(parsed)
+  if (responseResult.success) {
+    return responseResult.data.modifications
+  }
+
+  const arrayResult = ModificationsArraySchema.safeParse(parsed)
+  if (arrayResult.success) {
+    return arrayResult.data
+  }
+
+  return null
+}
+
+// Validate a single modification object.
+// Returns the validated modification or null if invalid.
+export function validateModification(mod: unknown): ProjectModification | null {
+  const result = ProjectModificationSchema.safeParse(mod)
+  return result.success ? result.data : null
+}
+
 export interface ClaudeResponse {
   message: string
   projectModifications?: ProjectModification[]
   toolCalls?: ToolCall[]
-}
-
-export interface ProjectModification {
-  type: 'add_node' | 'update_node' | 'delete_node' | 'add_edge' | 'delete_edge'
-  data: unknown
 }
 
 export interface ToolCall {
