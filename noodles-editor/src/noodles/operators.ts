@@ -619,7 +619,7 @@ export class ExtentOp extends Operator<ExtentOp> {
   execute({ data, accessor }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     // Use d3.extent with the accessor function if provided
     const accessorFn = typeof accessor === 'function' ? accessor : undefined
-    const extent = d3.extent(data, accessorFn as any)
+    const extent = d3.extent(data, accessorFn as (d: unknown) => number | undefined)
 
     const min = extent[0] ?? 0
     const max = extent[1] ?? 0
@@ -826,8 +826,8 @@ export class MathOp extends Operator<MathOp> {
     if (aIsAccessor && bIsAccessor) {
       // Both are accessors
       const result = (...args: unknown[]) => {
-        const aVal = (a as Function)(...args)
-        const bVal = (b as Function)(...args)
+        const aVal = (a as (...args: unknown[]) => number)(...args)
+        const bVal = (b as (...args: unknown[]) => number)(...args)
         return transform(aVal, bVal)
       }
       return { result }
@@ -835,8 +835,8 @@ export class MathOp extends Operator<MathOp> {
 
     // One is accessor, one is static
     const result = (...args: unknown[]) => {
-      const aVal = aIsAccessor ? (a as Function)(...args) : (a as number)
-      const bVal = bIsAccessor ? (b as Function)(...args) : (b as number)
+      const aVal = aIsAccessor ? (a as (...args: unknown[]) => number)(...args) : (a as number)
+      const bVal = bIsAccessor ? (b as (...args: unknown[]) => number)(...args) : (b as number)
       return transform(aVal, bVal)
     }
     return { result }
@@ -1401,7 +1401,10 @@ export class BezierCurveOp extends Operator<BezierCurveOp> {
       value: new NumberField(),
     }
   }
-  execute({ factor, curve }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  execute({
+    factor,
+    curve: _curve,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const curveField = this.inputs.curve as BezierCurveField
     // Use composeAccessor helper to handle both static values and accessor functions
     const value = composeAccessor(factor, (f: number) => curveField.evaluate(f))
@@ -1471,7 +1474,7 @@ export class FileOp extends Operator<FileOp> {
   private async fetchFromUrl(
     url: string,
     format: 'json' | 'csv' | 'text' | 'binary'
-  ): Promise<any> {
+  ): Promise<unknown> {
     if (format === 'csv') {
       const parseFn = this.inputs.autoType.value ? d3.autoType : null
       return await csv(url, parseFn)
@@ -1493,7 +1496,7 @@ export class FileOp extends Operator<FileOp> {
 
   // Helper method to process data based on format
   private processData(
-    data: string | ArrayBuffer | DSVRowArray<string> | any,
+    data: string | ArrayBuffer | DSVRowArray<string> | unknown,
     format: string,
     autoType: boolean
   ): ExtractProps<typeof this.outputs> {
@@ -2174,7 +2177,7 @@ function isTemporal(
 }
 
 // Helper function to interpolate between two Temporal objects
-function interpolateTemporal(a: any, b: any, t: number): any {
+function interpolateTemporal(a: unknown, b: unknown, t: number): unknown {
   // Convert both to epoch milliseconds for interpolation
   let aMs: number
   let bMs: number
@@ -5663,9 +5666,14 @@ export class TimeSeriesOp extends Operator<TimeSeriesOp> {
     return {
       data: new DataField(),
       currentTime: new NumberField(0),
-      getTimestamps: new UnknownField((d: any) => d?.timestamps || [], { accessor: true }),
-      getValues: new UnknownField((d: any) => d?.values || [], { accessor: true }),
-      getProperties: new UnknownField((d: any) => d, { accessor: true, optional: true }),
+      getTimestamps: new UnknownField(
+        (d: unknown) => (d as { timestamps?: unknown[] })?.timestamps || [],
+        { accessor: true }
+      ),
+      getValues: new UnknownField((d: unknown) => (d as { values?: unknown[] })?.values || [], {
+        accessor: true,
+      }),
+      getProperties: new UnknownField((d: unknown) => d, { accessor: true, optional: true }),
     }
   }
   createOutputs() {
@@ -5685,17 +5693,30 @@ export class TimeSeriesOp extends Operator<TimeSeriesOp> {
       return { data: [] }
     }
 
+    type DeckAccessor<T> = (
+      d: unknown,
+      info: { index: number; data: unknown; target: unknown[] }
+    ) => T
+
     return {
       data: data.map((d, i) => {
         // Call accessors with proper deck.gl accessor signature
-        const timestamps = (getTimestamps as Function)(d, {
+        const timestamps = (getTimestamps as DeckAccessor<number[]>)(d, {
           index: i,
           data,
           target: [],
-        }) as number[]
-        const values = (getValues as Function)(d, { index: i, data, target: [] }) as any[]
+        })
+        const values = (getValues as DeckAccessor<unknown[]>)(d, {
+          index: i,
+          data,
+          target: [],
+        })
         const properties = getProperties
-          ? (getProperties as Function)(d, { index: i, data, target: [] })
+          ? (getProperties as DeckAccessor<Record<string, unknown>>)(d, {
+              index: i,
+              data,
+              target: [],
+            })
           : {}
 
         // Convert values array to timeSeries format for interpolation
