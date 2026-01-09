@@ -206,11 +206,10 @@ const executeTool = async (
 // Handle pipeline creation
 const handlePipelineCreate = async (message: PipelineCreateMessage) => {
   const { spec, options } = message.payload
-  const _store = getOpStore()
 
   try {
-    const nodes: any[] = []
-    const edges: any[] = []
+    const nodes = []
+    const edges = []
     let yPosition = 100
 
     // Create data source node

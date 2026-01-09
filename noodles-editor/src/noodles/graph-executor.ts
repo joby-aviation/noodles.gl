@@ -5,14 +5,6 @@ import type { ForLoopBeginOp, ForLoopEndOp, ForLoopMetaOp, IOperator, Operator }
 import { getAllOps } from './store'
 import type { OpId } from './utils/id-utils'
 
-// Simple types for execution
-export type ComputeState = {
-  time: number
-  frame: number
-  context: Map<string, unknown>
-  scope?: GraphScope
-}
-
 export type ComputeResult<T = unknown> = {
   value: T
   changed: boolean
@@ -418,7 +410,6 @@ export class GraphExecutor {
   // Execute a single node
   private async executeNode(
     node: Operator<IOperator>,
-    _state: ComputeState
   ): Promise<ComputeResult> {
     try {
       // Get input values
@@ -772,14 +763,7 @@ export class GraphScope {
   }
 
   // Execute this scope with given input
-  async execute(input: unknown, state: ComputeState): Promise<ComputeResult> {
-    // Create scoped state
-    const _scopedState: ComputeState = {
-      ...state,
-      scope: this,
-      context: new Map([...state.context, ...this.context]),
-    }
-
+  async execute(input: unknown): Promise<ComputeResult> {
     // Set input in context
     this.setContext('input', input)
 

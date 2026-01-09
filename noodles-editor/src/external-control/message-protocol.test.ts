@@ -294,7 +294,7 @@ describe('MessageMatcher', () => {
 
   it('clears pending handlers on clear()', async () => {
     const requestId = 'req-789'
-    const _promise = matcher.waitForResponse(requestId, 30000)
+    matcher.waitForResponse(requestId, 30000)
 
     matcher.clear()
 
