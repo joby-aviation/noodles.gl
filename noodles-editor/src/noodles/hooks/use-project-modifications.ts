@@ -727,9 +727,12 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         return reactFlowAddEdge(newEdge, eds as ReactFlowEdge[])
       })
 
-      // Track connection error if validation failed
+      // Track connection error if validation failed, or clear error if valid
       if (!validation.valid && validation.error) {
         targetOp.addConnectionError(newEdge.id, validation.error)
+      } else {
+        // Clear any existing error for this edge if connection is now valid
+        targetOp.removeConnectionError(newEdge.id)
       }
 
       // Update target node with new input value
