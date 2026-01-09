@@ -3419,7 +3419,10 @@ export const extensionMap: Record<
   | (new (
       ...args: ExtensionConstructorArgs
     ) => LayerExtension)
-  | { ExtensionClass: new (...args: ExtensionConstructorArgs) => LayerExtension; args: ExtensionConstructorArgs }
+  | {
+      ExtensionClass: new (...args: ExtensionConstructorArgs) => LayerExtension
+      args: ExtensionConstructorArgs
+    }
 > = {
   BrushingExtension,
   ClipExtension,
