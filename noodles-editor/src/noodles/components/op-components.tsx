@@ -429,9 +429,11 @@ function useFieldValueChanges(op: Operator<IOperator>) {
     )
 
     return () => {
-      subscriptions.forEach(sub => sub.unsubscribe())
+      subscriptions.forEach(sub => {
+        sub.unsubscribe()
+      })
     }
-  }, [op, op.customInputDefinitions.length])
+  }, [op])
 }
 
 function NodeComponent({
@@ -452,8 +454,9 @@ function NodeComponent({
   useFieldValueChanges(op)
 
   // Get all inputs (including custom fields for operators that support them)
-  const allInputs =
-    (op.constructor as typeof Operator).supportsCustomFields ? op.getAllInputs() : op.inputs
+  const allInputs = (op.constructor as typeof Operator).supportsCustomFields
+    ? op.getAllInputs()
+    : op.inputs
 
   // Get custom field definitions for enable expression checking
   const customFieldDefs = op.customInputDefinitions

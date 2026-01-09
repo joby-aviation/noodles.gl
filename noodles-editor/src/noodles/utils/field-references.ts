@@ -1,6 +1,5 @@
 import type { Edge as ReactFlowEdge } from '@xyflow/react'
 import { CodeField, ExpressionField } from '../fields'
-import type { IOperator, Operator } from '../operators'
 import { getAllOps } from '../store'
 
 export interface FieldReference {
@@ -32,9 +31,13 @@ export function findFieldReferences(
           // This is a simple regex check - it may have false positives but better safe than sorry
           const patterns = [
             // op('/operatorId').par.fieldName
-            new RegExp(`op\\s*\\(\\s*['"\`]${escapeRegex(operatorId)}['"\`]\\s*\\)\\.par\\.${escapeRegex(fieldName)}\\b`),
+            new RegExp(
+              `op\\s*\\(\\s*['"\`]${escapeRegex(operatorId)}['"\`]\\s*\\)\\.par\\.${escapeRegex(fieldName)}\\b`
+            ),
             // op('/operatorId').inputs.fieldName (less common but possible)
-            new RegExp(`op\\s*\\(\\s*['"\`]${escapeRegex(operatorId)}['"\`]\\s*\\)\\.inputs\\.${escapeRegex(fieldName)}\\b`),
+            new RegExp(
+              `op\\s*\\(\\s*['"\`]${escapeRegex(operatorId)}['"\`]\\s*\\)\\.inputs\\.${escapeRegex(fieldName)}\\b`
+            ),
           ]
 
           if (patterns.some(pattern => pattern.test(code))) {

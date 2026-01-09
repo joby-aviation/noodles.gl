@@ -178,4 +178,132 @@ describe('Container Integration with Transform Graph', () => {
     // The container should return the value from its child GraphOutputOp
     expect(result.out).toBe('container-output-value')
   })
+
+  describe('Container Custom Field Integration', () => {
+    it('GraphInputOp mirrors container custom parameters as outputs', () => {
+      const nodes: NodeJSON<OpType>[] = [
+        {
+          id: '/analysis',
+          type: 'ContainerOp',
+          position: { x: 0, y: 0 },
+          data: {
+            inputs: {},
+            customInputs: [
+              { id: '1', name: 'threshold', type: 'number', order: 0, defaultValue: 50 },
+              { id: '2', name: 'enabled', type: 'boolean', order: 1, defaultValue: true },
+            ],
+          },
+        },
+        {
+          id: '/analysis/input',
+          type: 'GraphInputOp',
+          position: { x: 100, y: 100 },
+          data: { inputs: {} },
+        },
+      ]
+
+      const edges: Edge[] = []
+
+      // Transform the graph
+      transformGraph({ nodes, edges })
+
+      // Get the operators
+      const container = getOp('/analysis') as ContainerOp
+      const graphInput = getOp('/analysis/input') as GraphInputOp
+
+      // Verify container has custom inputs
+      expect(container.customInputDefinitions).toHaveLength(2)
+      expect(container.inputs.threshold).toBeDefined()
+      expect(container.inputs.enabled).toBeDefined()
+
+      // Verify GraphInputOp has dynamic outputs mirroring container's custom inputs
+      expect(graphInput.outputs.value).toBeDefined() // Base output
+      expect(graphInput.outputs.threshold).toBeDefined() // Custom output
+      expect(graphInput.outputs.enabled).toBeDefined() // Custom output
+    })
+
+    it('GraphInputOp outputs are wired to container custom inputs', () => {
+      const nodes: NodeJSON<OpType>[] = [
+        {
+          id: '/analysis',
+          type: 'ContainerOp',
+          position: { x: 0, y: 0 },
+          data: {
+            inputs: {},
+            customInputs: [
+              { id: '1', name: 'multiplier', type: 'number', order: 0, defaultValue: 2 },
+            ],
+          },
+        },
+        {
+          id: '/analysis/input',
+          type: 'GraphInputOp',
+          position: { x: 100, y: 100 },
+          data: { inputs: {} },
+        },
+      ]
+
+      const edges: Edge[] = []
+
+      // Transform the graph
+      transformGraph({ nodes, edges })
+
+      // Get the operators
+      const container = getOp('/analysis') as ContainerOp
+      const graphInput = getOp('/analysis/input') as GraphInputOp
+
+      // Set a value on the container's custom input
+      container.inputs.multiplier.setValue(10)
+
+      // The GraphInputOp output should be connected to the container input
+      const multiplierOutput = graphInput.outputs.multiplier
+      expect(multiplierOutput.subscriptions.size).toBe(1)
+
+      // Verify the connection exists
+      const connectionId = `container_custom_multiplier_to_child_${graphInput.id}`
+      expect(multiplierOutput.subscriptions.has(connectionId)).toBe(true)
+    })
+
+    it('GraphInputOp updates when container custom fields change', () => {
+      const nodes: NodeJSON<OpType>[] = [
+        {
+          id: '/analysis',
+          type: 'ContainerOp',
+          position: { x: 0, y: 0 },
+          data: { inputs: {} },
+        },
+        {
+          id: '/analysis/input',
+          type: 'GraphInputOp',
+          position: { x: 100, y: 100 },
+          data: { inputs: {} },
+        },
+      ]
+
+      const edges: Edge[] = []
+
+      // Transform the graph
+      transformGraph({ nodes, edges })
+
+      // Get the operators
+      const container = getOp('/analysis') as ContainerOp
+      const graphInput = getOp('/analysis/input') as GraphInputOp
+
+      // Initially, GraphInputOp should only have the base output
+      expect(Object.keys(graphInput.outputs)).toEqual(['value'])
+
+      // Add a custom field to the container
+      container.customInputDefinitions = [
+        { id: '1', name: 'newParam', type: 'number', order: 0, defaultValue: 100 },
+      ]
+      container.rebuildInputs()
+
+      // Retransform to apply changes
+      transformGraph({ nodes, edges })
+
+      // Now GraphInputOp should have the new output
+      const updatedGraphInput = getOp('/analysis/input') as GraphInputOp
+      expect(updatedGraphInput.outputs.newParam).toBeDefined()
+    })
+  })
 })

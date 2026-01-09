@@ -123,7 +123,7 @@ import {
   schemeYlGn,
 } from 'd3'
 import * as deck from 'deck.gl'
-import { BehaviorSubject, Subject, combineLatest, type Subscription } from 'rxjs'
+import { BehaviorSubject, combineLatest, Subject, type Subscription } from 'rxjs'
 import { debounceTime, filter, mergeMap } from 'rxjs/operators'
 import { Temporal } from 'temporal-polyfill'
 import vega from 'vega-embed'
@@ -158,6 +158,7 @@ import {
   type FieldReference,
   FileField,
   FunctionField,
+  fieldTypeToClass,
   GeoJsonField,
   IN_NS,
   type InOut,
@@ -180,13 +181,13 @@ import {
 } from './fields'
 import { DEFAULT_LATITUDE, DEFAULT_LONGITUDE, safeMode } from './globals'
 import { getAllOps, getOp, hasOp } from './store'
+import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
 import { composeAccessor, isAccessor } from './utils/accessor-helpers'
 import type { ExtractProps } from './utils/extract-props'
 import { projectScheme } from './utils/filesystem'
 import type { OpId } from './utils/id-utils'
 import { isDirectChild } from './utils/path-utils'
 import { pick } from './utils/pick'
-import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
 import { validateViewState } from './utils/viewstate-helpers'
 
 // https://stackoverflow.com/questions/66044717/typescript-infer-type-of-abstract-methods-implementation
@@ -616,8 +617,6 @@ export abstract class Operator<OP extends IOperator> {
 
   // Create a Field instance from a custom field definition
   private createFieldFromDefinition(def: CustomFieldDefinition): Field {
-    // Import fieldTypeToClass mapping
-    const { fieldTypeToClass } = require('./fields')
     const FieldClass = fieldTypeToClass[def.type]
     if (!FieldClass) {
       throw new Error(`Unknown field type: ${def.type}`)
@@ -695,12 +694,15 @@ export abstract class Operator<OP extends IOperator> {
   rebuildInputs(): void {
     // Preserve existing field values and connections
     const oldValues = new Map<string, unknown>()
-    const oldConnections = new Map<string, Array<{ id: string; field: Field; connectionType: 'reference' | 'value' }>>()
+    const oldConnections = new Map<
+      string,
+      Array<{ id: string; field: Field; connectionType: 'reference' | 'value' }>
+    >()
 
     for (const [name, field] of Object.entries(this.inputs)) {
       oldValues.set(name, field.value)
       const connections = []
-      for (const [id, subscription] of field.subscriptions) {
+      for (const [id, _subscription] of field.subscriptions) {
         // We can't easily get the field reference, so we'll need to rely on transform-graph to reconnect
         connections.push({ id, field: field, connectionType: 'value' })
       }
@@ -3346,9 +3348,6 @@ export class MapViewOp extends Operator<MapViewOp> {
 export class GraphInputOp extends Operator<GraphInputOp> {
   static displayName = 'GraphInput'
   static description = 'Receives input from the parent Container.'
-
-  // Reference to parent container for custom field synchronization
-  private _parentContainerOp: ContainerOp | null = null
   private _containerSub: Subscription | null = null
 
   createInputs() {
@@ -3416,7 +3415,7 @@ export class GraphInputOp extends Operator<GraphInputOp> {
       if (oldValues.has(name)) {
         try {
           field.setValue(oldValues.get(name))
-        } catch (err) {
+        } catch (_err) {
           // Type mismatch, skip
         }
       }

@@ -1948,3 +1948,183 @@ describe('FileOp', () => {
     })
   })
 })
+
+describe('Custom Fields', () => {
+  it('adds custom input definitions', () => {
+    const operator = new CodeOp('/code-custom')
+
+    expect(operator.customInputDefinitions).toEqual([])
+
+    const def = {
+      id: 'test-id',
+      name: 'myParam',
+      type: 'number',
+      order: 0,
+      defaultValue: 42,
+    }
+
+    operator.addCustomInput(def)
+
+    expect(operator.customInputDefinitions).toHaveLength(1)
+    expect(operator.customInputDefinitions[0]).toEqual(def)
+    expect(operator.inputs.myParam).toBeDefined()
+    expect(operator.inputs.myParam.value).toBe(42)
+  })
+
+  it('removes custom input definitions', () => {
+    const operator = new CodeOp('/code-custom')
+
+    operator.addCustomInput({
+      id: 'id-1',
+      name: 'param1',
+      type: 'number',
+      order: 0,
+      defaultValue: 1,
+    })
+    operator.addCustomInput({
+      id: 'id-2',
+      name: 'param2',
+      type: 'string',
+      order: 1,
+      defaultValue: 'hello',
+    })
+
+    expect(operator.customInputDefinitions).toHaveLength(2)
+
+    operator.removeCustomInput('id-1')
+
+    expect(operator.customInputDefinitions).toHaveLength(1)
+    expect(operator.customInputDefinitions[0].name).toBe('param2')
+    expect(operator.inputs.param1).toBeUndefined()
+    expect(operator.inputs.param2).toBeDefined()
+  })
+
+  it('validates custom field names', () => {
+    const operator = new CodeOp('/code-custom')
+
+    // Empty name
+    expect(operator.validateCustomFieldName('')).toBe('Name is required')
+
+    // Invalid identifier
+    expect(operator.validateCustomFieldName('123abc')).toBe(
+      'Invalid identifier (use only letters, numbers, _, $)'
+    )
+    expect(operator.validateCustomFieldName('my-param')).toBe(
+      'Invalid identifier (use only letters, numbers, _, $)'
+    )
+
+    // Conflicts with built-in field
+    expect(operator.validateCustomFieldName('data')).toBe('Name conflicts with built-in field')
+    expect(operator.validateCustomFieldName('code')).toBe('Name conflicts with built-in field')
+
+    // Valid names
+    expect(operator.validateCustomFieldName('myParam')).toBeNull()
+    expect(operator.validateCustomFieldName('_private')).toBeNull()
+    expect(operator.validateCustomFieldName('$special')).toBeNull()
+  })
+
+  it('emits customFieldsChanged on rebuildInputs', () => {
+    const operator = new CodeOp('/code-custom')
+    const changes: Array<typeof operator.customInputDefinitions> = []
+
+    const subscription = operator.customFieldsChanged.subscribe(defs => {
+      changes.push([...defs])
+    })
+
+    operator.addCustomInput({
+      id: 'id-1',
+      name: 'param1',
+      type: 'number',
+      order: 0,
+      defaultValue: 1,
+    })
+
+    operator.addCustomInput({
+      id: 'id-2',
+      name: 'param2',
+      type: 'boolean',
+      order: 1,
+      defaultValue: false,
+    })
+
+    subscription.unsubscribe()
+
+    // Each addCustomInput calls rebuildInputs which emits
+    expect(changes).toHaveLength(2)
+    expect(changes[0]).toHaveLength(1)
+    expect(changes[1]).toHaveLength(2)
+  })
+
+  it('preserves values when rebuilding inputs', () => {
+    const operator = new CodeOp('/code-custom')
+
+    operator.addCustomInput({
+      id: 'id-1',
+      name: 'myNumber',
+      type: 'number',
+      order: 0,
+      defaultValue: 0,
+    })
+
+    // Set a non-default value
+    operator.inputs.myNumber.setValue(999)
+    expect(operator.inputs.myNumber.value).toBe(999)
+
+    // Add another custom input (triggers rebuild)
+    operator.addCustomInput({
+      id: 'id-2',
+      name: 'myString',
+      type: 'string',
+      order: 1,
+      defaultValue: '',
+    })
+
+    // Original value should be preserved
+    expect(operator.inputs.myNumber.value).toBe(999)
+  })
+
+  it('getAllInputs returns built-in and custom inputs', () => {
+    const operator = new CodeOp('/code-custom')
+
+    operator.addCustomInput({
+      id: 'id-1',
+      name: 'customParam',
+      type: 'number',
+      order: 0,
+      defaultValue: 42,
+    })
+
+    const allInputs = operator.getAllInputs()
+
+    // Built-in inputs
+    expect(allInputs.data).toBeDefined()
+    expect(allInputs.code).toBeDefined()
+
+    // Custom input
+    expect(allInputs.customParam).toBeDefined()
+    expect(allInputs.customParam.value).toBe(42)
+  })
+
+  it('supports enableExpression in custom field definition', () => {
+    const operator = new CodeOp('/code-custom')
+
+    operator.addCustomInput({
+      id: 'id-1',
+      name: 'mode',
+      type: 'string',
+      order: 0,
+      defaultValue: 'simple',
+    })
+
+    operator.addCustomInput({
+      id: 'id-2',
+      name: 'advancedSetting',
+      type: 'number',
+      order: 1,
+      defaultValue: 100,
+      enableExpression: "par.mode === 'advanced'",
+    })
+
+    expect(operator.customInputDefinitions[1].enableExpression).toBe("par.mode === 'advanced'")
+  })
+})

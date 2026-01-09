@@ -1,10 +1,15 @@
-import { Cross2Icon, PlusIcon, TrashIcon, ChevronUpIcon, ChevronDownIcon } from '@radix-ui/react-icons'
 import * as Dialog from '@radix-ui/react-dialog'
+import {
+  ChevronDownIcon,
+  ChevronUpIcon,
+  Cross2Icon,
+  PlusIcon,
+  TrashIcon,
+} from '@radix-ui/react-icons'
+import { useEdges } from '@xyflow/react'
 import { useCallback, useState } from 'react'
 import type { CustomFieldDefinition, IOperator, Operator } from '../operators'
 import { findFieldReferences } from '../utils/field-references'
-import { useEdges } from '@xyflow/react'
-import { inputComponents } from './field-components'
 import s from './parameter-editor-dialog.module.css'
 
 interface ParameterEditorDialogProps {
@@ -20,7 +25,9 @@ export function ParameterEditorDialog({
   operator,
   onSave,
 }: ParameterEditorDialogProps) {
-  const [definitions, setDefinitions] = useState<CustomFieldDefinition[]>([...operator.customInputDefinitions])
+  const [definitions, setDefinitions] = useState<CustomFieldDefinition[]>([
+    ...operator.customInputDefinitions,
+  ])
   const [editingField, setEditingField] = useState<string | null>(null)
   const [errors, setErrors] = useState<Map<string, string>>(new Map())
   const edges = useEdges()
@@ -61,7 +68,7 @@ export function ParameterEditorDialog({
         const message =
           `This field is referenced in ${references.length} place(s):\n` +
           references.map(r => `- ${r.opId} (${r.location})`).join('\n') +
-          `\n\nDeleting it may break your project. Continue?`
+          '\n\nDeleting it may break your project. Continue?'
 
         if (!window.confirm(message)) {
           return
@@ -113,9 +120,7 @@ export function ParameterEditorDialog({
   // Update field
   const handleUpdateField = useCallback(
     (id: string, updates: Partial<CustomFieldDefinition>) => {
-      setDefinitions(
-        definitions.map(d => (d.id === id ? { ...d, ...updates } : d))
-      )
+      setDefinitions(definitions.map(d => (d.id === id ? { ...d, ...updates } : d)))
       // Clear error for this field if name was updated
       if (updates.name) {
         const newErrors = new Map(errors)
@@ -318,11 +323,7 @@ function CustomFieldRow({
         >
           <ChevronDownIcon />
         </button>
-        <button
-          type="button"
-          className={s.editButton}
-          onClick={onEdit}
-        >
+        <button type="button" className={s.editButton} onClick={onEdit}>
           {isEditing ? 'Done' : 'Edit'}
         </button>
         <button type="button" className={s.deleteButton} onClick={onDelete} title="Delete">
@@ -450,7 +451,10 @@ function FieldTypeOptions({
             value={options.min ?? ''}
             onChange={e =>
               onUpdate({
-                options: { ...options, min: e.target.value ? parseFloat(e.target.value) : undefined },
+                options: {
+                  ...options,
+                  min: e.target.value ? parseFloat(e.target.value) : undefined,
+                },
               })
             }
             className={s.input}
@@ -464,7 +468,10 @@ function FieldTypeOptions({
             value={options.max ?? ''}
             onChange={e =>
               onUpdate({
-                options: { ...options, max: e.target.value ? parseFloat(e.target.value) : undefined },
+                options: {
+                  ...options,
+                  max: e.target.value ? parseFloat(e.target.value) : undefined,
+                },
               })
             }
             className={s.input}
@@ -562,8 +569,18 @@ const FIELD_TEMPLATES: FieldTemplate[] = [
     name: 'Lat/Lng',
     description: 'Add latitude and longitude',
     fields: [
-      { name: 'lat', type: 'number', defaultValue: 0, options: { min: -90, max: 90, step: 0.00001 } },
-      { name: 'lng', type: 'number', defaultValue: 0, options: { min: -180, max: 180, step: 0.00001 } },
+      {
+        name: 'lat',
+        type: 'number',
+        defaultValue: 0,
+        options: { min: -90, max: 90, step: 0.00001 },
+      },
+      {
+        name: 'lng',
+        type: 'number',
+        defaultValue: 0,
+        options: { min: -180, max: 180, step: 0.00001 },
+      },
     ],
   },
 ]

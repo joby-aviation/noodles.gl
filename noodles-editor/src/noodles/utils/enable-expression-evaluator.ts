@@ -82,8 +82,8 @@ export function getEnableExpressionDependencies(expr: string): string[] {
 
   const dependencies: string[] = []
 
-  // Match par.fieldName patterns
-  const parMatches = expr.matchAll(/par\.(\w+)/g)
+  // Match par.fieldName patterns (not preceded by . to avoid matching op('...').par.field)
+  const parMatches = expr.matchAll(/(?<!\.)par\.(\w+)/g)
   for (const match of parMatches) {
     dependencies.push(`par.${match[1]}`)
   }
