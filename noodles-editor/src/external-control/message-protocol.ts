@@ -159,7 +159,7 @@ export type Message =
 // Message factory functions
 export const createMessage = <T extends Message>(
   type: MessageType,
-  payload: any,
+  payload: unknown,
   id?: string
 ): T => {
   return {
@@ -173,7 +173,7 @@ export const createMessage = <T extends Message>(
 export const createErrorMessage = (
   error: Error | string,
   code?: string,
-  context?: any
+  context?: unknown
 ): ErrorMessage => {
   return createMessage(MessageType.ERROR, {
     message: typeof error === 'string' ? error : error.message,
@@ -185,7 +185,7 @@ export const createErrorMessage = (
 
 export const createToolCallMessage = (
   tool: string,
-  args: Record<string, any>,
+  args: Record<string, unknown>,
   timeout?: number
 ): ToolCallMessage => {
   return createMessage(MessageType.TOOL_CALL, {
@@ -200,7 +200,7 @@ export const generateMessageId = (): string => {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 }
 
-export const isValidMessage = (data: any): data is Message => {
+export const isValidMessage = (data: unknown): data is Message => {
   return (
     typeof data === 'object' &&
     data !== null &&

@@ -23,7 +23,7 @@ let worker: Worker | null = null
 let isInitialized = false
 
 // Event handlers
-const eventHandlers = new Map<string, Set<(data: any) => void>>()
+const eventHandlers = new Map<string, Set<(data: unknown) => void>>()
 
 // Tool executor instance
 let toolExecutor: MCPTools | null = null
@@ -439,7 +439,7 @@ const sendToWorker = (message: Message) => {
 }
 
 // Subscribe to events
-export const on = (event: string, handler: (data: any) => void): void => {
+export const on = (event: string, handler: (data: unknown) => void): void => {
   if (!eventHandlers.has(event)) {
     eventHandlers.set(event, new Set())
   }
@@ -447,7 +447,7 @@ export const on = (event: string, handler: (data: any) => void): void => {
 }
 
 // Unsubscribe from events
-export const off = (event: string, handler: (data: any) => void): void => {
+export const off = (event: string, handler: (data: unknown) => void): void => {
   const handlers = eventHandlers.get(event)
   if (handlers) {
     handlers.delete(handler)
@@ -455,7 +455,7 @@ export const off = (event: string, handler: (data: any) => void): void => {
 }
 
 // Emit event
-const emit = (event: string, data: any): void => {
+const emit = (event: string, data: unknown): void => {
   const handlers = eventHandlers.get(event)
   if (handlers) {
     handlers.forEach(handler => {

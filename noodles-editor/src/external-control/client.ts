@@ -192,7 +192,7 @@ export class NoodlesClient {
   // ==================== Pipeline Operations ====================
 
   // Create a pipeline from specification
-  async createPipeline(spec: PipelineSpec): Promise<any> {
+  async createPipeline(spec: PipelineSpec): Promise<unknown> {
     const message = createMessage(MessageType.PIPELINE_CREATE, {
       spec,
       options: {
@@ -270,17 +270,17 @@ export class NoodlesClient {
   }
 
   // List all nodes
-  async listNodes(): Promise<any> {
+  async listNodes(): Promise<unknown> {
     return this.callTool('listNodes', {})
   }
 
   // Get node output
-  async getNodeOutput(nodeId: string, outputName = 'result'): Promise<any> {
+  async getNodeOutput(nodeId: string, outputName = 'result'): Promise<unknown> {
     return this.callTool('getNodeOutput', { nodeId, outputName })
   }
 
   // Capture visualization screenshot
-  async captureVisualization(format = 'png', quality = 0.9): Promise<any> {
+  async captureVisualization(format = 'png', quality = 0.9): Promise<unknown> {
     return this.callTool('captureVisualization', { format, quality })
   }
 
@@ -291,7 +291,7 @@ export class NoodlesClient {
     filename: string,
     content: string | ArrayBuffer,
     mimeType = 'text/csv'
-  ): Promise<any> {
+  ): Promise<unknown> {
     const message = createMessage(MessageType.DATA_UPLOAD, {
       filename,
       content: typeof content === 'string' ? content : this.arrayBufferToBase64(content),
@@ -310,7 +310,7 @@ export class NoodlesClient {
   // ==================== State Operations ====================
 
   // Request current state
-  async getState(): Promise<any> {
+  async getState(): Promise<unknown> {
     const message = createMessage(MessageType.STATE_REQUEST, {})
     const response = await this.sendAndWait(message)
     return response.payload

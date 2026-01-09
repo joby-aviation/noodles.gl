@@ -13,7 +13,6 @@ import {
 
 // Worker state
 let ws: WebSocket | null = null
-let _isConnected = false
 let reconnectTimer: number | null = null
 let pingInterval: number | null = null
 const matcher = new MessageMatcher()
@@ -59,7 +58,6 @@ const connect = (url: string) => {
 
     ws.onopen = () => {
       console.log('[Worker] WebSocket connected to', url)
-      _isConnected = true
 
       // Send connection status to main thread
       postToMain(
@@ -105,7 +103,6 @@ const connect = (url: string) => {
 
     ws.onclose = event => {
       console.log('[Worker] WebSocket closed:', event.code, event.reason)
-      _isConnected = false
 
       // Clear ping interval
       if (pingInterval) {
@@ -156,7 +153,6 @@ const disconnect = () => {
     ws = null
   }
 
-  _isConnected = false
   matcher.clear()
 }
 
