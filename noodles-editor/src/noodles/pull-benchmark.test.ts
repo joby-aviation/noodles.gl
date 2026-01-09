@@ -1,11 +1,9 @@
-/**
- * Performance benchmark tests for pull-based execution model
- */
+// Performance benchmark tests for pull-based execution model
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { Operator, PullExecutionStatus } from './operators'
-import { NumberField, DataField } from './fields'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { DataField, NumberField } from './fields'
 import { GraphExecutor, topologicalSort } from './graph-executor'
+import { Operator, PullExecutionStatus } from './operators'
 import type { ExtractProps } from './utils/extract-props'
 
 // Test operator that simulates computation
@@ -113,7 +111,6 @@ describe('Pull-based execution benchmarks', () => {
   })
 
   it('should execute operators only when needed', async () => {
-
     // Create operator chain
     const compute = new ComputeOp('/compute')
     const chain = new ChainOp('/chain')
@@ -153,7 +150,6 @@ describe('Pull-based execution benchmarks', () => {
   })
 
   it('should handle parallel execution efficiently', async () => {
-
     // Create multiple independent operators
     const ops: ComputeOp[] = []
     for (let i = 0; i < 5; i++) {
@@ -169,7 +165,9 @@ describe('Pull-based execution benchmarks', () => {
 
     // Reset and execute sequentially for comparison
     ComputeOp.executionCount = 0
-    ops.forEach(op => op.markDirty())
+    for (const op of ops) {
+      op.markDirty()
+    }
 
     const seqStartTime = performance.now()
     for (const op of ops) {
@@ -187,7 +185,6 @@ describe('Pull-based execution benchmarks', () => {
   })
 
   it('should prevent unnecessary cascading updates', async () => {
-
     // Create a deep chain
     const depth = 10
     const operators: ComputeOp[] = []
@@ -223,7 +220,9 @@ describe('Pull-based execution benchmarks', () => {
     expect(ComputeOp.executionCount).toBe(depth) // All need re-execution
 
     // But pulling from middle should only execute up to that point
-    operators.forEach(op => op.markDirty())
+    for (const op of operators) {
+      op.markDirty()
+    }
     ComputeOp.executionCount = 0
     await operators[5].pull()
     expect(ComputeOp.executionCount).toBe(6) // Only first 6 operators
@@ -285,7 +284,6 @@ describe('Pull-based execution benchmarks', () => {
   })
 
   it('should measure performance metrics correctly', async () => {
-
     // Create operators
     const source = new DataSourceOp('/source')
     const compute1 = new ComputeOp('/compute1')

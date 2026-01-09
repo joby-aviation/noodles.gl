@@ -5,6 +5,7 @@ import { useReactFlow } from '@xyflow/react'
 import { type RefObject, useCallback, useEffect, useMemo, useState } from 'react'
 import logoSvg from '/noodles-favicon.svg'
 import { SettingsDialog } from '../../components/settings-dialog'
+import { ExternalControlButton } from '../../external-control/components/external-control-button'
 import { analytics } from '../../utils/analytics'
 import { ContainerOp } from '../operators'
 import { getOpStore, useNestingStore, useUIStore } from '../store'
@@ -16,7 +17,6 @@ import { DataImporterTool } from './tools/data-importer-tool'
 import { PointWizardTool } from './tools/point-wizard-tool'
 import s from './top-menu-bar.module.css'
 import type { UndoRedoHandlerRef } from './UndoRedoHandler'
-import { ExternalControlButton } from '../../external-control/components/external-control-button'
 
 interface TopMenuBarProps {
   projectName?: string

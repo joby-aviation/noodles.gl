@@ -35,14 +35,16 @@ export interface ModificationResult {
 }
 
 interface UseProjectModificationsOptions {
-  getNodes: () => ReactFlowNode<any>[]
-  getEdges: () => ReactFlowEdge<any>[]
+  getNodes: () => ReactFlowNode<Record<string, unknown>>[]
+  getEdges: () => ReactFlowEdge[]
   setNodes: (
-    nodes: ReactFlowNode<any>[] | ((nodes: ReactFlowNode<any>[]) => ReactFlowNode<any>[])
+    nodes:
+      | ReactFlowNode<Record<string, unknown>>[]
+      | ((
+          nodes: ReactFlowNode<Record<string, unknown>>[]
+        ) => ReactFlowNode<Record<string, unknown>>[])
   ) => void
-  setEdges: (
-    edges: ReactFlowEdge<any>[] | ((edges: ReactFlowEdge<any>[]) => ReactFlowEdge<any>[])
-  ) => void
+  setEdges: (edges: ReactFlowEdge[] | ((edges: ReactFlowEdge[]) => ReactFlowEdge[])) => void
 }
 
 export function useProjectModifications(options: UseProjectModificationsOptions) {
@@ -316,8 +318,10 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       if (operator && updates.data?.inputs) {
         // Update operator inputs using setValue
         const inputs = updates.data.inputs
-        Object.entries(inputs).forEach(([key, value]: [string, any]) => {
-          const operatorInputs = (operator as Record<string, any>).inputs
+        Object.entries(inputs).forEach(([key, value]: [string, unknown]) => {
+          const operatorInputs = (operator as unknown as Record<string, unknown>).inputs as
+            | Record<string, { setValue?: (value: unknown) => void }>
+            | undefined
           const input = operatorInputs?.[key]
           if (input && typeof input.setValue === 'function') {
             input.setValue(value)
@@ -331,8 +335,10 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       setNodes(currentNodes =>
         currentNodes.map(n => {
           if (n.id === nodeId) {
-            const nodeData = n.data as any
-            const updatesData = updates.data as any
+            const nodeData = (n.data || {}) as Record<string, unknown>
+            const updatesData = (updates.data || {}) as Record<string, unknown>
+            const nodeInputs = (nodeData.inputs || {}) as Record<string, unknown>
+            const updateInputs = (updatesData.inputs || {}) as Record<string, unknown>
             return {
               ...n,
               ...updates,
@@ -340,8 +346,8 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
                 ...nodeData,
                 ...updatesData,
                 inputs: {
-                  ...nodeData?.inputs,
-                  ...updatesData?.inputs,
+                  ...nodeInputs,
+                  ...updateInputs,
                 },
               },
             }
@@ -365,7 +371,8 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
       // Collect all modifications by type
       const nodesToAdd: ReactFlowNode[] = []
-      const nodesToUpdate: Array<{ id: string; updates: any }> = []
+      const nodesToUpdate: Array<{ id: string; updates: Partial<ReactFlowNode> & { id: string } }> =
+        []
       const nodesToDelete: string[] = []
       const edgesToAdd: ReactFlowEdge[] = []
       const edgesToDelete: string[] = []
@@ -396,7 +403,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
           default:
             return {
               success: false,
-              error: `Unknown modification type: ${(mod as any).type}`,
+              error: `Unknown modification type: ${(mod as { type: string }).type}`,
             }
         }
       }
@@ -439,8 +446,10 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         completeNodeList = completeNodeList.map(n => {
           const update = nodesToUpdate.find(u => u.id === n.id)
           if (update) {
-            const nodeData = n.data as any
-            const updatesData = update.updates.data as any
+            const nodeData = (n.data || {}) as Record<string, unknown>
+            const updatesData = (update.updates.data || {}) as Record<string, unknown>
+            const nodeInputs = (nodeData.inputs || {}) as Record<string, unknown>
+            const updateInputs = (updatesData.inputs || {}) as Record<string, unknown>
             return {
               ...n,
               ...update.updates,
@@ -448,8 +457,8 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
                 ...nodeData,
                 ...updatesData,
                 inputs: {
-                  ...nodeData?.inputs,
-                  ...updatesData?.inputs,
+                  ...nodeInputs,
+                  ...updateInputs,
                 },
               },
             }
@@ -472,8 +481,10 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
           updatedNodes = updatedNodes.map(n => {
             const update = nodesToUpdate.find(u => u.id === n.id)
             if (update) {
-              const nodeData = n.data as any
-              const updatesData = update.updates.data as any
+              const nodeData = (n.data || {}) as Record<string, unknown>
+              const updatesData = (update.updates.data || {}) as Record<string, unknown>
+              const nodeInputs = (nodeData.inputs || {}) as Record<string, unknown>
+              const updateInputs = (updatesData.inputs || {}) as Record<string, unknown>
               return {
                 ...n,
                 ...update.updates,
@@ -481,8 +492,8 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
                   ...nodeData,
                   ...updatesData,
                   inputs: {
-                    ...nodeData?.inputs,
-                    ...updatesData?.inputs,
+                    ...nodeInputs,
+                    ...updateInputs,
                   },
                 },
               }
@@ -500,7 +511,9 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         if (operator && updates.data?.inputs) {
           const inputs = updates.data.inputs as Record<string, unknown>
           for (const [key, value] of Object.entries(inputs)) {
-            const operatorInputs = (operator as Record<string, any>).inputs
+            const operatorInputs = (operator as unknown as Record<string, unknown>).inputs as
+              | Record<string, { setValue?: (value: unknown) => void }>
+              | undefined
             const input = operatorInputs?.[key]
             if (input && typeof input.setValue === 'function') {
               input.setValue(value)
@@ -547,8 +560,10 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
           const validEdges: ReactFlowEdge[] = []
           const edgeFieldConnections: Array<{
             edge: ReactFlowEdge
-            sourceField: any
-            targetField: any
+            // biome-ignore lint/suspicious/noExplicitAny: Field type requires generic parameter
+            sourceField: Field<any>
+            // biome-ignore lint/suspicious/noExplicitAny: Field type requires generic parameter
+            targetField: Field<any>
           }> = []
 
           for (const edge of edgesToAdd) {

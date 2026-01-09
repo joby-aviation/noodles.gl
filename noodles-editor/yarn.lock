@@ -326,7 +326,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@biomejs/biome@npm:^2.3.0":
+"@biomejs/biome@npm:2.3.0":
   version: 2.3.0
   resolution: "@biomejs/biome@npm:2.3.0"
   dependencies:
@@ -9495,7 +9495,7 @@ __metadata:
   resolution: "noodles-editor@workspace:."
   dependencies:
     "@anthropic-ai/sdk": ^0.67.0
-    "@biomejs/biome": ^2.3.0
+    "@biomejs/biome": 2.3.0
     "@codeium/react-code-editor": ^1.0.12
     "@duckdb/duckdb-wasm": 1.31.0
     "@loaders.gl/3d-tiles": ^4.3.4

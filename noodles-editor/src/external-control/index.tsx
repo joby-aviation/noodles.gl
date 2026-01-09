@@ -1,9 +1,8 @@
-
 // External Control Component
 // React component to initialize and manage external control
 
-
-import React, { useEffect, useState } from 'react'
+import type React from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ExternalControl } from './api'
 
 export interface ExternalControlProps {
@@ -17,7 +16,7 @@ export interface ExternalControlProps {
 }
 
 // External Control Provider Component
- // Initializes the external control system when mounted
+// Initializes the external control system when mounted
 export const ExternalControlProvider: React.FC<ExternalControlProps> = ({
   enabled = true,
   autoConnect = false,
@@ -30,6 +29,15 @@ export const ExternalControlProvider: React.FC<ExternalControlProps> = ({
   const [isInitialized, setIsInitialized] = useState(false)
   const [isConnected, setIsConnected] = useState(false)
   const [error, setError] = useState<Error | null>(null)
+
+  // Use refs to keep latest callbacks without triggering re-initialization
+  const onStatusChangeRef = useRef(onStatusChange)
+  const onErrorRef = useRef(onError)
+
+  useEffect(() => {
+    onStatusChangeRef.current = onStatusChange
+    onErrorRef.current = onError
+  }, [onStatusChange, onError])
 
   useEffect(() => {
     if (!enabled) return
@@ -46,14 +54,14 @@ export const ExternalControlProvider: React.FC<ExternalControlProps> = ({
         })
 
         // Set up event handlers
-        control.onStatusChange((connected) => {
+        control.onStatusChange(connected => {
           setIsConnected(connected)
-          onStatusChange?.(connected)
+          onStatusChangeRef.current?.(connected)
         })
 
-        control.onError((err) => {
+        control.onError(err => {
           setError(err)
-          onError?.(err)
+          onErrorRef.current?.(err)
         })
 
         // Initialize the control
@@ -62,12 +70,12 @@ export const ExternalControlProvider: React.FC<ExternalControlProps> = ({
 
         // Make it available globally for debugging
         if (debug) {
-          (window as any).__externalControl = control
+          ;(window as Window & { __externalControl?: ExternalControl }).__externalControl = control
         }
       } catch (err) {
         const error = err instanceof Error ? err : new Error(String(err))
         setError(error)
-        onError?.(error)
+        onErrorRef.current?.(error)
       }
     }
 
@@ -78,7 +86,7 @@ export const ExternalControlProvider: React.FC<ExternalControlProps> = ({
       if (control) {
         control.dispose()
         if (debug) {
-          delete (window as any).__externalControl
+          delete (window as Window & { __externalControl?: ExternalControl }).__externalControl
         }
       }
     }
@@ -103,12 +111,14 @@ export const ExternalControlProvider: React.FC<ExternalControlProps> = ({
         pointerEvents: 'none',
       }}
     >
-      External Control: {
-        isConnected ? 'Connected' :
-        error ? 'Error' :
-        isInitialized ? 'Disconnected' :
-        'Initializing...'
-      }
+      External Control:{' '}
+      {isConnected
+        ? 'Connected'
+        : error
+          ? 'Error'
+          : isInitialized
+            ? 'Disconnected'
+            : 'Initializing...'}
     </div>
   )
 }

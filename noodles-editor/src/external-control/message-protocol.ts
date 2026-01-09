@@ -53,7 +53,7 @@ export interface ToolCallMessage extends BaseMessage {
   type: MessageType.TOOL_CALL
   payload: {
     tool: string
-    args: Record<string, any>
+    args: Record<string, unknown>
     timeout?: number
   }
 }
@@ -62,7 +62,7 @@ export interface ToolResponseMessage extends BaseMessage {
   type: MessageType.TOOL_RESPONSE
   payload: {
     tool: string
-    result: any
+    result: unknown
     executionTime: number
   }
 }
@@ -74,7 +74,7 @@ export interface ToolErrorMessage extends BaseMessage {
     error: {
       message: string
       code?: string
-      details?: any
+      details?: unknown
     }
   }
 }
@@ -83,7 +83,7 @@ export interface StateChangeMessage extends BaseMessage {
   type: MessageType.STATE_CHANGE
   payload: {
     path: string[]
-    value: any
+    value: unknown
     operation: 'set' | 'delete' | 'push' | 'splice'
   }
 }
@@ -94,15 +94,15 @@ export interface PipelineCreateMessage extends BaseMessage {
     spec: {
       dataSource: {
         type: string
-        config: Record<string, any>
+        config: Record<string, unknown>
       }
       transformations: Array<{
         type: string
-        config: Record<string, any>
+        config: Record<string, unknown>
       }>
       output: {
         type: string
-        config: Record<string, any>
+        config: Record<string, unknown>
       }
     }
     options?: {
@@ -116,7 +116,7 @@ export interface PipelineTestMessage extends BaseMessage {
   type: MessageType.PIPELINE_TEST
   payload: {
     pipelineId: string
-    testData: any[]
+    testData: unknown[]
     options?: {
       timeout?: number
       captureIntermediateResults?: boolean
@@ -140,7 +140,7 @@ export interface ErrorMessage extends BaseMessage {
     message: string
     code?: string
     stack?: string
-    context?: any
+    context?: unknown
   }
 }
 
@@ -159,7 +159,7 @@ export type Message =
 // Message factory functions
 export const createMessage = <T extends Message>(
   type: MessageType,
-  payload: any,
+  payload: unknown,
   id?: string
 ): T => {
   return {
@@ -173,7 +173,7 @@ export const createMessage = <T extends Message>(
 export const createErrorMessage = (
   error: Error | string,
   code?: string,
-  context?: any
+  context?: unknown
 ): ErrorMessage => {
   return createMessage(MessageType.ERROR, {
     message: typeof error === 'string' ? error : error.message,
@@ -185,7 +185,7 @@ export const createErrorMessage = (
 
 export const createToolCallMessage = (
   tool: string,
-  args: Record<string, any>,
+  args: Record<string, unknown>,
   timeout?: number
 ): ToolCallMessage => {
   return createMessage(MessageType.TOOL_CALL, {
@@ -200,7 +200,7 @@ export const generateMessageId = (): string => {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 }
 
-export const isValidMessage = (data: any): data is Message => {
+export const isValidMessage = (data: unknown): data is Message => {
   return (
     typeof data === 'object' &&
     data !== null &&
@@ -227,16 +227,16 @@ export const serializeMessage = (message: Message): string => {
 
 // Response matcher for request-response patterns
 export class MessageMatcher {
-  private pending = new Map<string, {
-    resolve: (msg: Message) => void
-    reject: (error: Error) => void
-    timeout: NodeJS.Timeout
-  }>()
+  private pending = new Map<
+    string,
+    {
+      resolve: (msg: Message) => void
+      reject: (error: Error) => void
+      timeout: NodeJS.Timeout
+    }
+  >()
 
-  waitForResponse(
-    requestId: string,
-    timeout = 30000
-  ): Promise<Message> {
+  waitForResponse(requestId: string, timeout = 30000): Promise<Message> {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(requestId)

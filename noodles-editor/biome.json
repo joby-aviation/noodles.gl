@@ -1,7 +1,14 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.3.0/schema.json",
   "files": {
-    "includes": ["**", "!**/dist", "!**/node_modules", "!**/public", "!**/website/build"]
+    "includes": [
+      "**",
+      "!**/dist",
+      "!**/node_modules",
+      "!**/public",
+      "!**/website/build",
+      "!**/src/examples/nyc-census/data.json"
+    ]
   },
   "assist": { "actions": { "source": { "organizeImports": "on" } } },
   "formatter": {
@@ -58,6 +65,21 @@
       "includes": ["**/noodles.json"],
       "formatter": {
         "enabled": false
+      }
+    },
+    {
+      "includes": [
+        "**/__tests__/**",
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "src/noodles/__migrations__/**"
+      ],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noExplicitAny": "off"
+          }
+        }
       }
     }
   ]

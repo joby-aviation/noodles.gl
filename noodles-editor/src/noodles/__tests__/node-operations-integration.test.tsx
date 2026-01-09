@@ -916,7 +916,7 @@ describe('Node Operations Integration Tests', () => {
 
   describe('ForLoop Node Creation', () => {
     it('creates all required nodes for ForLoop', () => {
-      const { nodes, edges } = createNodesForType('ForLoop', { x: 100, y: 100 }, '/')
+      const { nodes } = createNodesForType('ForLoop', { x: 100, y: 100 }, '/')
 
       // Should create 4 nodes: group, ForLoopBeginOp, ForLoopEndOp, ForLoopMetaOp
       expect(nodes).toHaveLength(4)
@@ -1002,16 +1002,16 @@ describe('Node Operations Integration Tests', () => {
 
     it('creates ForLoop in nested container correctly', () => {
       const containerPath = '/my-container'
-      const { nodes, edges } = createNodesForType('ForLoop', { x: 100, y: 100 }, containerPath)
+      const { nodes } = createNodesForType('ForLoop', { x: 100, y: 100 }, containerPath)
 
       const groupNode = nodes.find(n => n.type === 'group')!
       const beginNode = nodes.find(n => n.type === 'ForLoopBeginOp')!
 
       // Group should be within the container
-      expect(groupNode.id.startsWith(containerPath + '/')).toBe(true)
+      expect(groupNode.id.startsWith(`${containerPath}/`)).toBe(true)
 
       // Child nodes should be within the group
-      expect(beginNode.id.startsWith(containerPath + '/')).toBe(true)
+      expect(beginNode.id.startsWith(`${containerPath}/`)).toBe(true)
     })
 
     it('sets expandParent on child nodes', () => {

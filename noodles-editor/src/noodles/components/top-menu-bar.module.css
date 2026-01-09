@@ -208,16 +208,16 @@
   color: var(--color-text-accent);
 }
 
-.footerLink:hover .externalIcon {
-  color: var(--color-text-accent);
-}
-
 .externalIcon {
   width: 10px;
   height: 10px;
   color: var(--color-text-secondary);
   transition: color 0.15s;
   opacity: 0.6;
+}
+
+.footerLink:hover .externalIcon {
+  color: var(--color-text-accent);
 }
 
 .footerSeparator {

@@ -66,11 +66,11 @@ export async function loadGoogleMapsAPI(apiKey: string): Promise<void> {
   googleMapsPromise = new Promise<void>((resolve, reject) => {
     const callbackName = `googleMapsCallback_${Date.now()}`
 
-    ;(window as any)[callbackName] = () => {
+    window[callbackName] = () => {
       googleMapsLoaded = true
       loadingApiKey = null
       resolve()
-      delete (window as any)[callbackName]
+      delete window[callbackName]
     }
 
     const params = new URLSearchParams({

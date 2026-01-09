@@ -57,7 +57,7 @@ function getJsonSanitizer() {
 }
 
 export function safeStringify(obj: Record<string, unknown>) {
-  return JSON.stringify(obj, getJsonSanitizer(), 2) + '\n'
+  return `${JSON.stringify(obj, getJsonSanitizer(), 2)}\n`
 }
 
 export function serializeNodes(
@@ -157,9 +157,7 @@ const exampleAssetUrls: Record<string, string> = import.meta.glob('../../example
   query: '?url',
 })
 
-/**
- * Export a project as a downloadable zip file containing noodles.json and data files
- */
+// Export a project as a downloadable zip file containing noodles.json and data files
 export async function saveProjectLocally(
   projectName: string,
   projectJson: NoodlesProjectJSON,

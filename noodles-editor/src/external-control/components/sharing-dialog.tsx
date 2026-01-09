@@ -1,16 +1,17 @@
 // External Control Sharing Dialog
 // UI for creating and managing external control sessions
 
-import React, { useState, useEffect } from 'react'
-import { sessionManager, type Session } from '../session-manager'
 import {
+  ClockIcon,
   CopyIcon,
   Cross2Icon,
   ExternalLinkIcon,
   LockClosedIcon,
-  ClockIcon,
   TrashIcon,
 } from '@radix-ui/react-icons'
+import type React from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { type Session, sessionManager } from '../session-manager'
 import s from './sharing-dialog.module.css'
 
 interface SharingDialogProps {
@@ -23,15 +24,15 @@ export const SharingDialog: React.FC<SharingDialogProps> = ({ isOpen, onClose })
   const [newSessionName, setNewSessionName] = useState('')
   const [copiedToken, setCopiedToken] = useState<string | null>(null)
 
+  const loadSessions = useCallback(() => {
+    setSessions(sessionManager.getActiveSessions())
+  }, [])
+
   useEffect(() => {
     if (isOpen) {
       loadSessions()
     }
-  }, [isOpen])
-
-  const loadSessions = () => {
-    setSessions(sessionManager.getActiveSessions())
-  }
+  }, [isOpen, loadSessions])
 
   const createNewSession = () => {
     const session = sessionManager.createSession(newSessionName || undefined)
@@ -77,7 +78,7 @@ export const SharingDialog: React.FC<SharingDialogProps> = ({ isOpen, onClose })
             <LockClosedIcon className={s.headerIcon} />
             <h2 className={s.title}>External Control Sessions</h2>
           </div>
-          <button onClick={onClose} className={s.closeButton}>
+          <button type="button" onClick={onClose} className={s.closeButton}>
             <Cross2Icon />
           </button>
         </div>
@@ -92,10 +93,10 @@ export const SharingDialog: React.FC<SharingDialogProps> = ({ isOpen, onClose })
                 type="text"
                 placeholder="Session name (optional)"
                 value={newSessionName}
-                onChange={(e) => setNewSessionName(e.target.value)}
+                onChange={e => setNewSessionName(e.target.value)}
                 className={s.input}
               />
-              <button onClick={createNewSession} className={s.createButton}>
+              <button type="button" onClick={createNewSession} className={s.createButton}>
                 Create Session
               </button>
             </div>
@@ -113,7 +114,7 @@ export const SharingDialog: React.FC<SharingDialogProps> = ({ isOpen, onClose })
               </div>
             ) : (
               <div className={s.sessionList}>
-                {sessions.map((session) => (
+                {sessions.map(session => (
                   <div key={session.id} className={s.sessionCard}>
                     <div className={s.sessionHeader}>
                       <div className={s.sessionInfo}>
@@ -124,6 +125,7 @@ export const SharingDialog: React.FC<SharingDialogProps> = ({ isOpen, onClose })
                         </div>
                       </div>
                       <button
+                        type="button"
                         onClick={() => revokeSession(session.token)}
                         className={s.revokeButton}
                         title="Revoke session"
@@ -137,16 +139,17 @@ export const SharingDialog: React.FC<SharingDialogProps> = ({ isOpen, onClose })
                       <div className={s.codeHeader}>
                         <span className={s.codeLabel}>Connection URL</span>
                         <button
+                          type="button"
                           onClick={() =>
                             copyToClipboard(
                               sessionManager.generateConnectionUrl(session),
-                              session.token + '-url'
+                              `${session.token}-url`
                             )
                           }
                           className={s.copyButton}
                         >
                           <CopyIcon className={s.copyIcon} />
-                          {copiedToken === session.token + '-url' ? 'Copied!' : 'Copy'}
+                          {copiedToken === `${session.token}-url` ? 'Copied!' : 'Copy'}
                         </button>
                       </div>
                       <code className={s.code}>
@@ -159,21 +162,20 @@ export const SharingDialog: React.FC<SharingDialogProps> = ({ isOpen, onClose })
                       <div className={s.codeHeader}>
                         <span className={s.codeLabel}>Claude Desktop MCP Config</span>
                         <button
+                          type="button"
                           onClick={() =>
                             copyToClipboard(
                               sessionManager.generateMcpConfig(),
-                              session.token + '-mcp'
+                              `${session.token}-mcp`
                             )
                           }
                           className={s.copyButton}
                         >
                           <CopyIcon className={s.copyIcon} />
-                          {copiedToken === session.token + '-mcp' ? 'Copied!' : 'Copy'}
+                          {copiedToken === `${session.token}-mcp` ? 'Copied!' : 'Copy'}
                         </button>
                       </div>
-                      <code className={s.code}>
-                        {sessionManager.generateMcpConfig()}
-                      </code>
+                      <code className={s.code}>{sessionManager.generateMcpConfig()}</code>
                     </div>
                   </div>
                 ))}

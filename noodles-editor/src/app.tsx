@@ -48,10 +48,10 @@ function App() {
         enabled={enableExternalControl}
         autoConnect={false}
         debug={externalControlDebug}
-        onStatusChange={(connected) => {
+        onStatusChange={connected => {
           console.log('[ExternalControl] Status:', connected ? 'Connected' : 'Disconnected')
         }}
-        onError={(error) => {
+        onError={error => {
           console.error('[ExternalControl] Error:', error)
         }}
       />

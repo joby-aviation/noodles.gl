@@ -49,6 +49,7 @@ function ReferenceIcon({
       <svg
         className={s.referenceIcon}
         role="img"
+        aria-label="Copy reference"
         onClick={e => {
           const reference = e.shiftKey ? altReference : codeReference
           copy(reference)
@@ -63,6 +64,7 @@ function ReferenceIcon({
         }}
         viewBox="0 -960 960 960"
       >
+        <title>{isShiftHeld ? 'Copy Mustache Format' : 'Copy Code Format'}</title>
         <path d="M360-240q-29.7 0-50.85-21.15Q288-282.3 288-312v-480q0-29.7 21.15-50.85Q330.3-864 360-864h384q29.7 0 50.85 21.15Q816-821.7 816-792v480q0 29.7-21.15 50.85Q773.7-240 744-240H360Zm0-72h384v-480H360v480ZM216-96q-29.7 0-50.85-21.15Q144-138.3 144-168v-552h72v552h456v72H216Zm144-216v-480 480Z" />
       </svg>
     </Tooltip>
@@ -96,8 +98,21 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
   const draggingRef = useRef<HTMLElement | null>(null)
   const store = getOpStore()
   const op = store.getOp(node.id)
+
+  const { displayName, description } = op
+    ? (op.constructor as typeof Operator)
+    : { displayName: '', description: '' }
+
+  // Check if description is truncated
+  useEffect(() => {
+    if (descriptionRef.current && description) {
+      const isTruncated = descriptionRef.current.scrollHeight > descriptionRef.current.clientHeight
+      setIsTruncated(isTruncated)
+    }
+  }, [description])
+
+  // Early return after all hooks
   if (!op) return null
-  const { displayName, description } = op.constructor as typeof Operator
 
   const inputs = Object.entries(op.inputs).map(([name, input]) => {
     const { type } = input.constructor as typeof Field
@@ -122,14 +137,6 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
       field: output,
     }
   })
-
-  // Check if description is truncated
-  useEffect(() => {
-    if (descriptionRef.current && description) {
-      const isTruncated = descriptionRef.current.scrollHeight > descriptionRef.current.clientHeight
-      setIsTruncated(isTruncated)
-    }
-  }, [description])
 
   const handleMoveConnection = (inputName: string, fromIndex: number, toIndex: number) => {
     const input = op.inputs[inputName]
@@ -272,8 +279,10 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
                   </div>
                 </div>
                 {input.field instanceof ListField && incomers.length > 0 && (
+                  // biome-ignore lint/a11y/useSemanticElements: Drag-and-drop list requires div with role
                   <div className={s.connections} role="list" onDragOver={handleDragOver}>
                     {incomers.map((edge, index) => (
+                      // biome-ignore lint/a11y/useSemanticElements: Draggable list item requires div with role
                       <div
                         key={edge.id}
                         className={s.connection}

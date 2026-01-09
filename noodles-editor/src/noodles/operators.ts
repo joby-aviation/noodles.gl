@@ -186,6 +186,7 @@ import { projectScheme } from './utils/filesystem'
 import type { OpId } from './utils/id-utils'
 import { isDirectChild } from './utils/path-utils'
 import { pick } from './utils/pick'
+import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
 import { validateViewState } from './utils/viewstate-helpers'
 
 // https://stackoverflow.com/questions/66044717/typescript-infer-type-of-abstract-methods-implementation
@@ -216,7 +217,7 @@ export abstract class Operator<OP extends IOperator> {
   out = proxyFields(this, 'outputs')
 
   // If the operator allows its data to be downloaded, override this method
-  asDownload?: () => unknown
+  asDownload?: () => Blob | string | ArrayBuffer
 
   // Should the execute function be memoized? Ops that store state elsewhere might not want to be cached.
   static cacheable = true
@@ -236,13 +237,13 @@ export abstract class Operator<OP extends IOperator> {
   executionState = new BehaviorSubject<ExecutionState>({ status: 'idle' })
 
   // Dirty flag for GraphExecutor
-  dirty: boolean = true
+  dirty = true
 
   // === Pull-based execution additions ===
   // Execution status for pull-based model
   private _pullExecutionStatus: PullExecutionStatus = PullExecutionStatus.DIRTY
   private _cachedOutput: ExtractProps<(typeof this)['outputs']> | null = null
-  private _lastExecutionTime: number = 0
+  private _lastExecutionTime = 0
   private _computingPromise: Promise<ExtractProps<(typeof this)['outputs']>> | null = null
 
   // Dependency tracking for pull-based model
@@ -326,7 +327,10 @@ export abstract class Operator<OP extends IOperator> {
     }
 
     // Wait for ongoing computation
-    if (this._pullExecutionStatus === PullExecutionStatus.COMPUTING && this._computingPromise !== null) {
+    if (
+      this._pullExecutionStatus === PullExecutionStatus.COMPUTING &&
+      this._computingPromise !== null
+    ) {
       return this._computingPromise
     }
 
@@ -616,7 +620,7 @@ export class ExtentOp extends Operator<ExtentOp> {
   execute({ data, accessor }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     // Use d3.extent with the accessor function if provided
     const accessorFn = typeof accessor === 'function' ? accessor : undefined
-    const extent = d3.extent(data, accessorFn as any)
+    const extent = d3.extent(data, accessorFn as (d: unknown) => number | undefined)
 
     const min = extent[0] ?? 0
     const max = extent[1] ?? 0
@@ -823,8 +827,8 @@ export class MathOp extends Operator<MathOp> {
     if (aIsAccessor && bIsAccessor) {
       // Both are accessors
       const result = (...args: unknown[]) => {
-        const aVal = (a as Function)(...args)
-        const bVal = (b as Function)(...args)
+        const aVal = (a as (...args: unknown[]) => number)(...args)
+        const bVal = (b as (...args: unknown[]) => number)(...args)
         return transform(aVal, bVal)
       }
       return { result }
@@ -832,8 +836,8 @@ export class MathOp extends Operator<MathOp> {
 
     // One is accessor, one is static
     const result = (...args: unknown[]) => {
-      const aVal = aIsAccessor ? (a as Function)(...args) : (a as number)
-      const bVal = bIsAccessor ? (b as Function)(...args) : (b as number)
+      const aVal = aIsAccessor ? (a as (...args: unknown[]) => number)(...args) : (a as number)
+      const bVal = bIsAccessor ? (b as (...args: unknown[]) => number)(...args) : (b as number)
       return transform(aVal, bVal)
     }
     return { result }
@@ -1398,7 +1402,10 @@ export class BezierCurveOp extends Operator<BezierCurveOp> {
       value: new NumberField(),
     }
   }
-  execute({ factor, curve }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  execute({
+    factor,
+    curve: _curve,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const curveField = this.inputs.curve as BezierCurveField
     // Use composeAccessor helper to handle both static values and accessor functions
     const value = composeAccessor(factor, (f: number) => curveField.evaluate(f))
@@ -1408,7 +1415,8 @@ export class BezierCurveOp extends Operator<BezierCurveOp> {
 
 export class FileOp extends Operator<FileOp> {
   static displayName = 'File'
-  static description = 'Fetch a file from a URL or text. Supports csv, json, text, and binary formats'
+  static description =
+    'Fetch a file from a URL or text. Supports csv, json, text, and binary formats'
   asDownload = () => this.outputData
 
   createInputs() {
@@ -1430,7 +1438,7 @@ export class FileOp extends Operator<FileOp> {
   // Helper method to read from project assets
   private async readFromProjectAsset(
     url: string,
-    binary: boolean = false
+    binary = false
   ): Promise<string | ArrayBuffer | null> {
     if (!url?.startsWith(projectScheme)) {
       return null
@@ -1455,20 +1463,19 @@ export class FileOp extends Operator<FileOp> {
         throw new Error(result.error.message)
       }
       return result.data
-    } else {
-      const result = await readAsset(activeStorageType, currentProjectName, fileName)
-      if (!result.success) {
-        throw new Error(result.error.message)
-      }
-      return result.data
     }
+    const result = await readAsset(activeStorageType, currentProjectName, fileName)
+    if (!result.success) {
+      throw new Error(result.error.message)
+    }
+    return result.data
   }
 
   // Helper method to fetch from URL
   private async fetchFromUrl(
     url: string,
     format: 'json' | 'csv' | 'text' | 'binary'
-  ): Promise<any> {
+  ): Promise<unknown> {
     if (format === 'csv') {
       const parseFn = this.inputs.autoType.value ? d3.autoType : null
       return await csv(url, parseFn)
@@ -1490,7 +1497,7 @@ export class FileOp extends Operator<FileOp> {
 
   // Helper method to process data based on format
   private processData(
-    data: string | ArrayBuffer | DSVRowArray<string> | any,
+    data: string | ArrayBuffer | DSVRowArray<string> | unknown,
     format: string,
     autoType: boolean
   ): ExtractProps<typeof this.outputs> {
@@ -1511,17 +1518,19 @@ export class FileOp extends Operator<FileOp> {
     autoType: boolean
   ): ExtractProps<typeof this.outputs> {
     switch (format) {
-      case 'csv':
+      case 'csv': {
         const parseFn = autoType ? d3.autoType : null
         return { data: csvParse(text, parseFn) }
+      }
       case 'json':
         return { data: JSON.parse(text) }
       case 'text':
         return { data: text }
-      case 'binary':
+      case 'binary': {
         // Convert text to Uint8Array for binary format
         const encoder = new TextEncoder()
         return { data: encoder.encode(text) }
+      }
       default:
         throw new Error(`Unsupported format: ${format}`)
     }
@@ -2169,7 +2178,7 @@ function isTemporal(
 }
 
 // Helper function to interpolate between two Temporal objects
-function interpolateTemporal(a: any, b: any, t: number): any {
+function interpolateTemporal(a: unknown, b: unknown, t: number): unknown {
   // Convert both to epoch milliseconds for interpolation
   let aMs: number
   let bMs: number
@@ -2422,7 +2431,9 @@ export class ForLoopMetaOp extends Operator<ForLoopMetaOp> {
   createInputs() {
     return {
       initialValue: new DataField(new UnknownField(), { description: 'Initial accumulator value' }),
-      currentValue: new DataField(new UnknownField(), { description: 'Value to pass to next iteration' }),
+      currentValue: new DataField(new UnknownField(), {
+        description: 'Value to pass to next iteration',
+      }),
     }
   }
 
@@ -2436,7 +2447,10 @@ export class ForLoopMetaOp extends Operator<ForLoopMetaOp> {
     }
   }
 
-  execute({ initialValue, currentValue }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  execute({
+    initialValue,
+    currentValue,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     // GraphExecutor manages accumulator state across iterations
     return {
       accumulator: currentValue ?? initialValue,
@@ -3396,16 +3410,16 @@ function gatherTriggers(
 
 type LayerExtensionFieldReturnValue = null | {
   extension: LayerExtension
-  props: Record<string, unknown>
+  props: Record<string, LayerPropsValue>
 }
 
 // Map of extension type names to extension classes or wrapped classes with constructor args
 export const extensionMap: Record<
   string,
   | (new (
-      ...args: unknown[]
+      ...args: ExtensionConstructorArgs
     ) => LayerExtension)
-  | { ExtensionClass: new (...args: unknown[]) => LayerExtension; args: unknown }
+  | { ExtensionClass: new (...args: ExtensionConstructorArgs) => LayerExtension; args: ExtensionConstructorArgs }
 > = {
   BrushingExtension,
   ClipExtension,
@@ -5653,9 +5667,14 @@ export class TimeSeriesOp extends Operator<TimeSeriesOp> {
     return {
       data: new DataField(),
       currentTime: new NumberField(0),
-      getTimestamps: new UnknownField((d: any) => d?.timestamps || [], { accessor: true }),
-      getValues: new UnknownField((d: any) => d?.values || [], { accessor: true }),
-      getProperties: new UnknownField((d: any) => d, { accessor: true, optional: true }),
+      getTimestamps: new UnknownField(
+        (d: unknown) => (d as { timestamps?: unknown[] })?.timestamps || [],
+        { accessor: true }
+      ),
+      getValues: new UnknownField((d: unknown) => (d as { values?: unknown[] })?.values || [], {
+        accessor: true,
+      }),
+      getProperties: new UnknownField((d: unknown) => d, { accessor: true, optional: true }),
     }
   }
   createOutputs() {
@@ -5675,17 +5694,30 @@ export class TimeSeriesOp extends Operator<TimeSeriesOp> {
       return { data: [] }
     }
 
+    type DeckAccessor<T> = (
+      d: unknown,
+      info: { index: number; data: unknown; target: unknown[] }
+    ) => T
+
     return {
       data: data.map((d, i) => {
         // Call accessors with proper deck.gl accessor signature
-        const timestamps = (getTimestamps as Function)(d, {
+        const timestamps = (getTimestamps as DeckAccessor<number[]>)(d, {
           index: i,
           data,
           target: [],
-        }) as number[]
-        const values = (getValues as Function)(d, { index: i, data, target: [] }) as any[]
+        })
+        const values = (getValues as DeckAccessor<unknown[]>)(d, {
+          index: i,
+          data,
+          target: [],
+        })
         const properties = getProperties
-          ? (getProperties as Function)(d, { index: i, data, target: [] })
+          ? (getProperties as DeckAccessor<Record<string, unknown>>)(d, {
+              index: i,
+              data,
+              target: [],
+            })
           : {}
 
         // Convert values array to timeSeries format for interpolation

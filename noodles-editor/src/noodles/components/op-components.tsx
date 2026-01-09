@@ -299,7 +299,7 @@ function HandlePreviewContent({ data, name, type }: { data: unknown; name: strin
                 </thead>
                 <tbody>
                   {data.map((row, i) => (
-                    <tr key={i}>
+                    <tr key={`row-${i}-${JSON.stringify(row).slice(0, 50)}`}>
                       {keys.map(key => (
                         <td key={key}>
                           {typeof row[key] === 'string' ? row[key] : JSON.stringify(row[key])}
@@ -613,6 +613,7 @@ function NodeHeader({ id, type, op }: { id: string; type: OpType; op: Operator<I
       </Tooltip.Root>
     </Tooltip.Provider>
   ) : (
+    // biome-ignore lint/a11y/useSemanticElements: Inline editable text requires span with role
     <span className={s.headerId} role="button" tabIndex={0} onDoubleClick={onNodeHeaderDoubleClick}>
       {baseName}
     </span>

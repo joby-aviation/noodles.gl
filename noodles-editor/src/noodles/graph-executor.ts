@@ -1,18 +1,9 @@
 // GraphExecutor - Execution engine for the operator graph
 // Manages operator execution with topological sorting, dirty tracking, and RAF loop
 
-import type { IOperator, Operator } from './operators'
-import type { ForLoopBeginOp, ForLoopEndOp, ForLoopMetaOp } from './operators'
+import type { ForLoopBeginOp, ForLoopEndOp, ForLoopMetaOp, IOperator, Operator } from './operators'
 import { getAllOps } from './store'
 import type { OpId } from './utils/id-utils'
-
-// Simple types for execution
-export type ComputeState = {
-  time: number
-  frame: number
-  context: Map<string, unknown>
-  scope?: GraphScope
-}
 
 export type ComputeResult<T = unknown> = {
   value: T
@@ -148,13 +139,13 @@ export class GraphExecutor {
   private downstream: Map<string, Set<string>> = new Map()
   private sortedOrder: string[] = []
   private executionLevels: string[][] = []
-  private isDirty: boolean = true
+  private isDirty = true
   private options: Required<ExecutorOptions>
 
   // RAF loop state
   private rafId: number | null = null
-  private isPulling: boolean = false
-  private lastFrameTime: number = 0
+  private isPulling = false
+  private lastFrameTime = 0
   private frameInterval: number
 
   // Dirty tracking
@@ -168,7 +159,6 @@ export class GraphExecutor {
     dirtyCount: 0,
     totalOperators: 0,
   }
-  private executionCount: number = 0
 
   constructor(options: ExecutorOptions = {}) {
     this.options = {
@@ -232,9 +222,7 @@ export class GraphExecutor {
   // Remove a node and all its connections
   removeNode(nodeId: string): void {
     this.nodes.delete(nodeId)
-    this.edges = this.edges.filter(
-      edge => edge.source !== nodeId && edge.target !== nodeId
-    )
+    this.edges = this.edges.filter(edge => edge.source !== nodeId && edge.target !== nodeId)
     this.upstream.delete(nodeId)
     this.downstream.delete(nodeId)
     for (const set of this.upstream.values()) set.delete(nodeId)
@@ -266,9 +254,7 @@ export class GraphExecutor {
 
   // Remove an edge
   removeEdge(sourceId: string, targetId: string): void {
-    this.edges = this.edges.filter(
-      edge => !(edge.source === sourceId && edge.target === targetId)
-    )
+    this.edges = this.edges.filter(edge => !(edge.source === sourceId && edge.target === targetId))
     this.downstream.get(sourceId)?.delete(targetId)
     this.upstream.get(targetId)?.delete(sourceId)
     this.isDirty = true
@@ -422,10 +408,7 @@ export class GraphExecutor {
   }
 
   // Execute a single node
-  private async executeNode(
-    node: Operator<IOperator>,
-    _state: ComputeState
-  ): Promise<ComputeResult> {
+  private async executeNode(node: Operator<IOperator>): Promise<ComputeResult> {
     try {
       // Get input values
       const inputs = {}
@@ -570,7 +553,7 @@ export class GraphExecutor {
     const roots: Operator<IOperator>[] = []
 
     for (const [_, op] of this.nodes) {
-      const opType = (op.constructor as any).displayName
+      const opType = (op.constructor as { displayName?: string }).displayName
 
       if (
         opType === 'DeckRenderer' ||
@@ -655,11 +638,8 @@ export class GraphExecutor {
       for (const nodeId of sorted) {
         const node = this.nodes.get(nodeId)
         if (node && this.dirtyNodes.has(nodeId)) {
-          await this.executeNode(node, {
-            time: performance.now(),
-            frame: index,
-            context: new Map([['iteration', { index, total, isFirst, isLast, accumulator }]]),
-          })
+          // Execute node - iteration context is already set via ForLoopBeginOp and ForLoopMetaOp outputs
+          await this.executeNode(node)
           this.dirtyNodes.delete(nodeId)
           node.dirty = false
         }
@@ -699,7 +679,7 @@ export class GraphExecutor {
 
     // Find all ForLoopBeginOp nodes
     for (const [_, op] of this.nodes) {
-      const opType = (op.constructor as any).displayName
+      const opType = (op.constructor as { displayName?: string }).displayName
       if (opType === 'ForLoopBegin') {
         // Find the corresponding ForLoopEndOp by traversing downstream
         const visited = new Set<string>()
@@ -718,7 +698,8 @@ export class GraphExecutor {
             const downstreamNode = this.nodes.get(downstreamId)
             if (!downstreamNode) continue
 
-            const downstreamType = (downstreamNode.constructor as any).displayName
+            const downstreamType = (downstreamNode.constructor as { displayName?: string })
+              .displayName
             if (downstreamType === 'ForLoopEnd') {
               endOp = downstreamNode as ForLoopEndOp
               scopeNodeIds.push(downstreamId)
@@ -778,14 +759,7 @@ export class GraphScope {
   }
 
   // Execute this scope with given input
-  async execute(input: unknown, state: ComputeState): Promise<ComputeResult> {
-    // Create scoped state
-    const scopedState: ComputeState = {
-      ...state,
-      scope: this,
-      context: new Map([...state.context, ...this.context]),
-    }
-
+  async execute(input: unknown): Promise<ComputeResult> {
     // Set input in context
     this.setContext('input', input)
 
@@ -860,7 +834,7 @@ export function initializeExecutor(options?: ExecutorOptions): GraphExecutor {
   globalExecutor = new GraphExecutor(options)
 
   if (typeof window !== 'undefined') {
-    ;(window as any).__noodlesExecutor = globalExecutor
+    ;(window as Window & { __noodlesExecutor?: GraphExecutor }).__noodlesExecutor = globalExecutor
   }
 
   return globalExecutor
