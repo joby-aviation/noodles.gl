@@ -243,6 +243,7 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
             Upload CSV or JSON files to create a visualization pipeline.
           </Dialog.Description>
 
+          {/* biome-ignore lint/a11y/useSemanticElements: div needed for drag-and-drop zone styling */}
           <div
             className={`${s.dropZone} ${isDragging ? s.dropZoneDragging : ''}`}
             role="button"

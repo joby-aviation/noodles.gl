@@ -50,6 +50,3 @@ venv.bak/
 .claude
 .spec-workflow/
 !.spec-workflow/specs
-
-# AI chat context files
-noodles-editor/public/app/context/

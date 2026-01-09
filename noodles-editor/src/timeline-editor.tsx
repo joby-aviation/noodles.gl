@@ -1,7 +1,7 @@
 import type { Deck, DeckProps } from '@deck.gl/core'
 import { MapboxOverlay, type MapboxOverlayProps } from '@deck.gl/mapbox'
 import { DeckGL } from '@deck.gl/react'
-import { types, val, type ISheetObject } from '@theatre/core'
+import { type ISheetObject, types, val } from '@theatre/core'
 import studio from '@theatre/studio'
 import { ReactFlowProvider } from '@xyflow/react'
 import type { Map as MapLibre } from 'maplibre-gl'

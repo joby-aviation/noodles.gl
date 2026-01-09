@@ -261,6 +261,7 @@ function TreeItem({
               </Tooltip.Root>
             </Tooltip.Provider>
           ) : (
+            // biome-ignore lint/a11y/useSemanticElements: span needed for inline editable text
             <span className={s.nodeName} role="button" tabIndex={0} onDoubleClick={onDoubleClick}>
               {node.name}
             </span>

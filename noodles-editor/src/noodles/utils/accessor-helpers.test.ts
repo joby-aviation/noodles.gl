@@ -42,7 +42,7 @@ describe('accessor-helpers', () => {
         const result = composeAccessor(accessor, (x: number) => x * 2)
 
         expect(typeof result).toBe('function')
-        const composed = result as Function
+        const composed = result as unknown as (d: { value: number }) => number
         expect(composed({ value: 10 })).toBe(20)
       })
 
@@ -50,7 +50,7 @@ describe('accessor-helpers', () => {
         const accessor = (d: { x: number }, index: number) => d.x + index
         const result = composeAccessor(accessor, (x: number) => x * 2)
 
-        const composed = result as Function
+        const composed = result as unknown as (d: { x: number }, index: number) => number
         expect(composed({ x: 10 }, 3)).toBe(26) // (10 + 3) * 2
       })
 

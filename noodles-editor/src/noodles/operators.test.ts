@@ -1077,7 +1077,7 @@ describe('Viral Accessor Tests', () => {
       const result = op.execute({ operator: 'add', a: accessor, b: 10 })
 
       expect(isAccessor(result.result)).toBe(true)
-      expect((result.result as Function)({ value: 5 })).toBe(15)
+      expect((result.result as unknown as (d: { value: number }) => number)({ value: 5 })).toBe(15)
     })
 
     it('should handle accessor function for b', () => {
@@ -1087,7 +1087,7 @@ describe('Viral Accessor Tests', () => {
       const result = op.execute({ operator: 'multiply', a: 3, b: accessor })
 
       expect(isAccessor(result.result)).toBe(true)
-      expect((result.result as Function)({ value: 4 })).toBe(12)
+      expect((result.result as unknown as (d: { value: number }) => number)({ value: 4 })).toBe(12)
     })
 
     it('should handle accessor functions for both a and b', () => {
@@ -1098,7 +1098,9 @@ describe('Viral Accessor Tests', () => {
       const result = op.execute({ operator: 'subtract', a: accessorA, b: accessorB })
 
       expect(isAccessor(result.result)).toBe(true)
-      expect((result.result as Function)({ x: 10, y: 3 })).toBe(7)
+      expect(
+        (result.result as unknown as (d: { x: number; y: number }) => number)({ x: 10, y: 3 })
+      ).toBe(7)
     })
 
     it('should handle unary operations with accessor', () => {
@@ -1108,8 +1110,10 @@ describe('Viral Accessor Tests', () => {
       const result = op.execute({ operator: 'sine', a: accessor, b: 0 })
 
       expect(isAccessor(result.result)).toBe(true)
-      expect((result.result as Function)({ angle: 0 })).toBe(0)
-      expect((result.result as Function)({ angle: Math.PI / 2 })).toBeCloseTo(1, 5)
+      expect((result.result as unknown as (d: { angle: number }) => number)({ angle: 0 })).toBe(0)
+      expect(
+        (result.result as unknown as (d: { angle: number }) => number)({ angle: Math.PI / 2 })
+      ).toBeCloseTo(1, 5)
     })
   })
 
@@ -1130,7 +1134,7 @@ describe('Viral Accessor Tests', () => {
       const result = op.execute({ data: [accessor, 10], expression: 'd + 5' })
 
       expect(isAccessor(result.data)).toBe(true)
-      expect((result.data as Function)({ count: 15 })).toBe(20)
+      expect((result.data as unknown as (d: { count: number }) => number)({ count: 15 })).toBe(20)
     })
 
     it('should handle multiple accessor functions in data', () => {

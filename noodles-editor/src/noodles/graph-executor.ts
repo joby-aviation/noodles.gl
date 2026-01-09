@@ -701,7 +701,8 @@ export class GraphExecutor {
             const downstreamNode = this.nodes.get(downstreamId)
             if (!downstreamNode) continue
 
-            const downstreamType = (downstreamNode.constructor as { displayName?: string }).displayName
+            const downstreamType = (downstreamNode.constructor as { displayName?: string })
+              .displayName
             if (downstreamType === 'ForLoopEnd') {
               endOp = downstreamNode as ForLoopEndOp
               scopeNodeIds.push(downstreamId)

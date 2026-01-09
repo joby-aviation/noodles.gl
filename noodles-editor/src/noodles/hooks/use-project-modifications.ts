@@ -371,7 +371,8 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
       // Collect all modifications by type
       const nodesToAdd: ReactFlowNode[] = []
-      const nodesToUpdate: Array<{ id: string; updates: Partial<ReactFlowNode> & { id: string } }> = []
+      const nodesToUpdate: Array<{ id: string; updates: Partial<ReactFlowNode> & { id: string } }> =
+        []
       const nodesToDelete: string[] = []
       const edgesToAdd: ReactFlowEdge[] = []
       const edgesToDelete: string[] = []
