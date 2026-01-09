@@ -553,7 +553,7 @@ export class GraphExecutor {
     const roots: Operator<IOperator>[] = []
 
     for (const [_, op] of this.nodes) {
-      const opType = (op.constructor as any).displayName
+      const opType = (op.constructor as { displayName?: string }).displayName
 
       if (
         opType === 'DeckRenderer' ||
@@ -682,7 +682,7 @@ export class GraphExecutor {
 
     // Find all ForLoopBeginOp nodes
     for (const [_, op] of this.nodes) {
-      const opType = (op.constructor as any).displayName
+      const opType = (op.constructor as { displayName?: string }).displayName
       if (opType === 'ForLoopBegin') {
         // Find the corresponding ForLoopEndOp by traversing downstream
         const visited = new Set<string>()
@@ -701,7 +701,7 @@ export class GraphExecutor {
             const downstreamNode = this.nodes.get(downstreamId)
             if (!downstreamNode) continue
 
-            const downstreamType = (downstreamNode.constructor as any).displayName
+            const downstreamType = (downstreamNode.constructor as { displayName?: string }).displayName
             if (downstreamType === 'ForLoopEnd') {
               endOp = downstreamNode as ForLoopEndOp
               scopeNodeIds.push(downstreamId)
@@ -836,7 +836,7 @@ export function initializeExecutor(options?: ExecutorOptions): GraphExecutor {
   globalExecutor = new GraphExecutor(options)
 
   if (typeof window !== 'undefined') {
-    ;(window as any).__noodlesExecutor = globalExecutor
+    ;(window as Window & { __noodlesExecutor?: GraphExecutor }).__noodlesExecutor = globalExecutor
   }
 
   return globalExecutor

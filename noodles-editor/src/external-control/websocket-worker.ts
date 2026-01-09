@@ -174,7 +174,8 @@ self.onmessage = async (event: MessageEvent) => {
   switch (message.type) {
     case MessageType.CONNECT: {
       const messageWithPayload = message as { payload?: { host?: string; port?: number } }
-      const { host = CONFIG.defaultHost, port = CONFIG.defaultPort } = messageWithPayload.payload || {}
+      const { host = CONFIG.defaultHost, port = CONFIG.defaultPort } =
+        messageWithPayload.payload || {}
       const url = `ws://${host}:${port}`
       connect(url)
       break

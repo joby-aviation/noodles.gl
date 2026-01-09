@@ -410,7 +410,9 @@ export class ToolRegistry {
   }
 
   // Delete a node
-  private async deleteNode(args: { nodeId: string }): Promise<{ nodeId: string; deleted: boolean }> {
+  private async deleteNode(args: {
+    nodeId: string
+  }): Promise<{ nodeId: string; deleted: boolean }> {
     const { nodeId } = args
 
     // Apply the modification
