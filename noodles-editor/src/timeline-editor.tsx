@@ -259,10 +259,10 @@ export default function TimelineEditor() {
       const canvas = deckRef.current.canvas
       if (canvas) {
         // Store canvas globally for MCPTools to access
-        ;(window as any).__deckCanvas = canvas
+        ;(window as Window & { __deckCanvas?: unknown }).__deckCanvas = canvas
       }
       // Store deck instance globally for layer inspection
-      ;(window as any).__deckInstance = deckRef.current
+      ;(window as Window & { __deckInstance?: unknown }).__deckInstance = deckRef.current
     }
   }, [])
 
