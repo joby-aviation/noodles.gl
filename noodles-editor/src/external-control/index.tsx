@@ -70,7 +70,7 @@ export const ExternalControlProvider: React.FC<ExternalControlProps> = ({
 
         // Make it available globally for debugging
         if (debug) {
-          ;(window as any).__externalControl = control
+          ;(window as Window & { __externalControl?: ExternalControl }).__externalControl = control
         }
       } catch (err) {
         const error = err instanceof Error ? err : new Error(String(err))
@@ -86,7 +86,7 @@ export const ExternalControlProvider: React.FC<ExternalControlProps> = ({
       if (control) {
         control.dispose()
         if (debug) {
-          delete (window as any).__externalControl
+          delete (window as Window & { __externalControl?: ExternalControl }).__externalControl
         }
       }
     }

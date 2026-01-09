@@ -24,7 +24,7 @@ export interface PipelineSpec {
     type: string
     position?: { x: number; y: number }
     data?: {
-      inputs?: Record<string, any>
+      inputs?: Record<string, unknown>
     }
   }>
   edges: Array<{
@@ -65,7 +65,7 @@ export class NoodlesClient {
   private isConnected = false
   private reconnectTimer: NodeJS.Timeout | null = null
   private matcher = new MessageMatcher()
-  private eventHandlers = new Map<string, Set<(data: any) => void>>()
+  private eventHandlers = new Map<string, Set<(data: unknown) => void>>()
 
   constructor(config: ClientConfig = {}) {
     this.config = {
@@ -209,7 +209,7 @@ export class NoodlesClient {
   }
 
   // Test a pipeline with sample data
-  async testPipeline(pipelineId: string, testData: any[]): Promise<any> {
+  async testPipeline(pipelineId: string, testData: unknown[]): Promise<unknown> {
     const message = createMessage(MessageType.PIPELINE_TEST, {
       pipelineId,
       testData,
@@ -228,7 +228,7 @@ export class NoodlesClient {
   }
 
   // Validate a pipeline
-  async validatePipeline(pipelineId: string): Promise<any> {
+  async validatePipeline(pipelineId: string): Promise<unknown> {
     const message = createMessage(MessageType.PIPELINE_VALIDATE, {
       pipelineId,
     })
@@ -244,7 +244,7 @@ export class NoodlesClient {
   // ==================== Tool Operations ====================
 
   // Call a tool directly
-  async callTool(tool: string, args: Record<string, any>): Promise<any> {
+  async callTool(tool: string, args: Record<string, unknown>): Promise<unknown> {
     const message = createMessage(MessageType.TOOL_CALL, {
       tool,
       args,
@@ -260,12 +260,12 @@ export class NoodlesClient {
   }
 
   // Get current project state
-  async getCurrentProject(): Promise<any> {
+  async getCurrentProject(): Promise<unknown> {
     return this.callTool('getCurrentProject', {})
   }
 
   // Apply modifications to the project
-  async applyModifications(modifications: any): Promise<any> {
+  async applyModifications(modifications: unknown): Promise<unknown> {
     return this.callTool('applyModifications', { modifications })
   }
 
@@ -317,12 +317,12 @@ export class NoodlesClient {
   }
 
   // Subscribe to state changes
-  onStateChange(callback: (state: any) => void): void {
+  onStateChange(callback: (state: unknown) => void): void {
     this.on('stateChange', callback)
   }
 
   // Subscribe to errors
-  onError(callback: (error: any) => void): void {
+  onError(callback: (error: unknown) => void): void {
     this.on('error', callback)
   }
 
@@ -363,7 +363,7 @@ export class NoodlesClient {
 
     // Add token to message payload if available
     if (this.config.token && message.payload) {
-      message.payload.token = this.config.token
+      ;(message.payload as Record<string, unknown>).token = this.config.token
     }
 
     this.ws.send(serializeMessage(message))
@@ -387,14 +387,14 @@ export class NoodlesClient {
     }, this.config.reconnectDelay)
   }
 
-  private on(event: string, handler: (data: any) => void): void {
+  private on(event: string, handler: (data: unknown) => void): void {
     if (!this.eventHandlers.has(event)) {
       this.eventHandlers.set(event, new Set())
     }
     this.eventHandlers.get(event)!.add(handler)
   }
 
-  private emit(event: string, data: any): void {
+  private emit(event: string, data: unknown): void {
     const handlers = this.eventHandlers.get(event)
     if (handlers) {
       handlers.forEach(handler => {
@@ -403,7 +403,7 @@ export class NoodlesClient {
     }
   }
 
-  private log(...args: any[]): void {
+  private log(...args: unknown[]): void {
     if (this.config.debug) {
       console.log('[NoodlesClient]', ...args)
     }

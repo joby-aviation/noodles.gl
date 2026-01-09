@@ -35,13 +35,13 @@ export interface ModificationResult {
 }
 
 interface UseProjectModificationsOptions {
-  getNodes: () => ReactFlowNode<any>[]
-  getEdges: () => ReactFlowEdge<any>[]
+  getNodes: () => ReactFlowNode<Record<string, unknown>>[]
+  getEdges: () => ReactFlowEdge[]
   setNodes: (
-    nodes: ReactFlowNode<any>[] | ((nodes: ReactFlowNode<any>[]) => ReactFlowNode<any>[])
+    nodes: ReactFlowNode<Record<string, unknown>>[] | ((nodes: ReactFlowNode<Record<string, unknown>>[]) => ReactFlowNode<Record<string, unknown>>[])
   ) => void
   setEdges: (
-    edges: ReactFlowEdge<any>[] | ((edges: ReactFlowEdge<any>[]) => ReactFlowEdge<any>[])
+    edges: ReactFlowEdge[] | ((edges: ReactFlowEdge[]) => ReactFlowEdge[])
   ) => void
 }
 

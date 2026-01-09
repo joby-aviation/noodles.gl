@@ -78,45 +78,6 @@
         "rules": {
           "suspicious": {
             "noExplicitAny": "off"
-          },
-          "nursery": {
-            "useUniqueElementIds": {
-              "level": "off"
-            }
-          }
-        }
-      }
-    },
-    {
-      "includes": ["src/external-control/**"],
-      "linter": {
-        "rules": {
-          "suspicious": {
-            "noExplicitAny": "off"
-          }
-        }
-      }
-    },
-    {
-      "includes": ["src/utils/geocoding.ts"],
-      "linter": {
-        "rules": {
-          "suspicious": {
-            "noExplicitAny": "off"
-          }
-        }
-      }
-    },
-    {
-      "includes": [
-        "src/noodles/components/field-components.tsx",
-        "src/noodles/graph-executor.ts",
-        "src/noodles/hooks/use-project-modifications.ts"
-      ],
-      "linter": {
-        "rules": {
-          "suspicious": {
-            "noExplicitAny": "off"
           }
         }
       }
