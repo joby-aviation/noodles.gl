@@ -585,40 +585,53 @@ export class DateField extends Field<
   }
 }
 
-// Mostly serves as a hint to the UI to render the correct colors, but could be used to validate schemas in the future
-export class DataField<D extends Field> extends Field<
+// DataField represents an array of data items with optional subfield for schema validation
+// The TElement type parameter allows type inference in ExtractProps
+// Usage: new DataField() for untyped data, new DataField(new SomeField()) for schema validation
+export class DataField<D extends Field = Field, TElement = unknown> extends Field<
   z.ZodType<unknown, unknown, z.core.$ZodTypeInternals<unknown, unknown>> | z.ZodUnknown,
   SubSchemaOptions<D['schema']>
 > {
   static type = 'data'
   static defaultValue = []
+
+  // Phantom type for ExtractProps inference
+  declare readonly _elementType: TElement
+
   createSchema({ subschema }: { subschema: z.Schema<D['schema']> }) {
     return subschema.readonly()
   }
+
   constructor(public field?: D) {
     const subschema = field?.schema || z.unknown()
     const defaultValue = typeof field?.defaultValue !== 'undefined' ? field.defaultValue : []
-    super(defaultValue, { subschema })
+    super(defaultValue, { subschema } as SubSchemaOptions<D['schema']>)
   }
 }
 
 // GeoJSON field type with lime color to distinguish from regular data fields
-export class GeoJsonField<D extends Field> extends Field<
+// The TElement type parameter allows type inference in ExtractProps
+export class GeoJsonField<D extends Field = Field, TElement = unknown> extends Field<
   z.ZodType<unknown, unknown, z.core.$ZodTypeInternals<unknown, unknown>> | z.ZodUnknown,
   SubSchemaOptions<D['schema']>
 > {
   static type = 'geojson'
   static defaultValue = { type: 'FeatureCollection', features: [] }
+
+  // Phantom type for ExtractProps inference
+  declare readonly _elementType: TElement
+
   createSchema({ subschema }: { subschema: z.Schema<D['schema']> }) {
     return subschema.readonly()
   }
+
   constructor(public field?: D) {
     const subschema = field?.schema || z.unknown()
     const defaultValue =
       typeof field?.defaultValue !== 'undefined'
         ? field.defaultValue
         : { type: 'FeatureCollection', features: [] }
-    super(defaultValue, { subschema })
+    super(defaultValue, { subschema } as SubSchemaOptions<D['schema']>)
   }
 }
 
@@ -657,7 +670,6 @@ export class Point3DField extends Field<
   }
 
   createSchema({ returnType }: PointFieldOptions = { returnType: 'object' }) {
-    const noop = (val: unknown) => val
     return z.union([
       z
         .looseObject({
@@ -665,23 +677,27 @@ export class Point3DField extends Field<
           lat: z.number(),
           alt: z.number(),
         })
-        .transform(returnType === 'tuple' ? val => [val.lng, val.lat, val.alt] : noop),
+        .transform(val =>
+          returnType === 'tuple' ? [val.lng, val.lat, val.alt] : val
+        ),
       z
         .looseObject({
           lng: z.number(),
           lat: z.number(),
         })
-        .transform(
-          returnType === 'tuple' ? val => [val.lng, val.lat, 0] : val => ({ ...val, alt: 0 })
+        .transform(val =>
+          returnType === 'tuple' ? [val.lng, val.lat, 0] : { ...val, alt: 0 }
         ),
       z
         .tuple([z.number(), z.number(), z.number()])
-        .transform(
-          returnType === 'object' ? val => ({ lng: val[0], lat: val[1], alt: val[2] }) : noop
+        .transform(val =>
+          returnType === 'object' ? { lng: val[0], lat: val[1], alt: val[2] } : val
         ),
       z
         .tuple([z.number(), z.number()])
-        .transform(returnType === 'object' ? val => ({ lng: val[0], lat: val[1], alt: 0 }) : noop),
+        .transform(val =>
+          returnType === 'object' ? { lng: val[0], lat: val[1], alt: 0 } : val
+        ),
     ])
   }
 }
