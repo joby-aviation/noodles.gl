@@ -3,6 +3,7 @@ import {
   ChevronDownIcon,
   ChevronUpIcon,
   Cross2Icon,
+  EyeOpenIcon,
   PlusIcon,
   TrashIcon,
 } from '@radix-ui/react-icons'
@@ -345,6 +346,9 @@ interface FieldEditorProps {
 function FieldEditor({ definition, onUpdate, onValidate, error }: FieldEditorProps) {
   const [localName, setLocalName] = useState(definition.name)
   const [localError, setLocalError] = useState<string | null>(error || null)
+  const [showEnableExpression, setShowEnableExpression] = useState(
+    !!definition.enableExpression
+  )
 
   const handleNameChange = (newName: string) => {
     setLocalName(newName)
@@ -361,6 +365,14 @@ function FieldEditor({ definition, onUpdate, onValidate, error }: FieldEditorPro
     if (validationError) {
       setLocalError(validationError)
     }
+  }
+
+  const handleToggleConditionalShow = () => {
+    if (showEnableExpression) {
+      // Turning off - clear the expression
+      onUpdate({ enableExpression: undefined })
+    }
+    setShowEnableExpression(!showEnableExpression)
   }
 
   return (
@@ -402,17 +414,31 @@ function FieldEditor({ definition, onUpdate, onValidate, error }: FieldEditorPro
       </div>
 
       <div className={s.formRow}>
-        <label className={s.label}>
-          Enable When (optional)
-          <input
-            type="text"
-            value={definition.enableExpression || ''}
-            onChange={e => onUpdate({ enableExpression: e.target.value || undefined })}
-            className={s.input}
-            placeholder="par.showAdvanced === true"
-          />
-          <span className={s.hintText}>JavaScript expression to conditionally show this field</span>
-        </label>
+        <div className={s.conditionalShowHeader}>
+          <button
+            type="button"
+            className={`${s.conditionalShowToggle} ${showEnableExpression ? s.active : ''}`}
+            onClick={handleToggleConditionalShow}
+            title={showEnableExpression ? 'Disable conditional visibility' : 'Enable conditional visibility'}
+          >
+            <EyeOpenIcon />
+          </button>
+          <span className={s.conditionalShowLabel}>
+            {showEnableExpression ? 'Conditionally Show' : 'Conditionally Show (off)'}
+          </span>
+        </div>
+        {showEnableExpression && (
+          <>
+            <input
+              type="text"
+              value={definition.enableExpression || ''}
+              onChange={e => onUpdate({ enableExpression: e.target.value || undefined })}
+              className={s.input}
+              placeholder="par.showAdvanced === true"
+            />
+            <span className={s.hintText}>JavaScript expression to conditionally show this field</span>
+          </>
+        )}
       </div>
 
       {/* Type-specific options */}

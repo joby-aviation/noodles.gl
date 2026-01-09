@@ -253,6 +253,46 @@
   font-style: italic;
 }
 
+/* Conditional show toggle */
+.conditionalShowHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.conditionalShowToggle {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--color-border, #444444);
+  background: var(--color-surface-3, #2a2a2a);
+  color: var(--color-text-secondary, #a0a0a0);
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 150ms;
+}
+
+.conditionalShowToggle:hover {
+  background: var(--color-surface-4, #333333);
+  border-color: var(--color-accent, #4a9eff);
+}
+
+.conditionalShowToggle.active {
+  background: var(--color-accent, #4a9eff);
+  border-color: var(--color-accent, #4a9eff);
+  color: white;
+}
+
+.conditionalShowLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-secondary, #a0a0a0);
+}
+
 .typeOptions {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
