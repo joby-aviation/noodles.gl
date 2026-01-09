@@ -99,7 +99,9 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
   const store = getOpStore()
   const op = store.getOp(node.id)
 
-  const { displayName, description } = op ? (op.constructor as typeof Operator) : { displayName: '', description: '' }
+  const { displayName, description } = op
+    ? (op.constructor as typeof Operator)
+    : { displayName: '', description: '' }
 
   // Check if description is truncated
   useEffect(() => {

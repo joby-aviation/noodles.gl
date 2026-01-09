@@ -13,7 +13,7 @@ import {
 
 // Worker state
 let ws: WebSocket | null = null
-let isConnected = false
+let _isConnected = false
 let reconnectTimer: number | null = null
 let pingInterval: number | null = null
 const matcher = new MessageMatcher()
@@ -46,10 +46,10 @@ const connect = (url: string) => {
   disconnect()
 
   // Extract token from URL if present
-  let token: string | null = null
+  let _token: string | null = null
   try {
     const urlObj = new URL(url)
-    token = urlObj.searchParams.get('token')
+    _token = urlObj.searchParams.get('token')
   } catch (error) {
     console.error('[Worker] Invalid URL:', error)
   }
@@ -59,7 +59,7 @@ const connect = (url: string) => {
 
     ws.onopen = () => {
       console.log('[Worker] WebSocket connected to', url)
-      isConnected = true
+      _isConnected = true
 
       // Send connection status to main thread
       postToMain(
@@ -105,7 +105,7 @@ const connect = (url: string) => {
 
     ws.onclose = event => {
       console.log('[Worker] WebSocket closed:', event.code, event.reason)
-      isConnected = false
+      _isConnected = false
 
       // Clear ping interval
       if (pingInterval) {
@@ -156,7 +156,7 @@ const disconnect = () => {
     ws = null
   }
 
-  isConnected = false
+  _isConnected = false
   matcher.clear()
 }
 

@@ -203,7 +203,6 @@ function TreeItem({
 
   return (
     <div className={s.treeItem}>
-      {/* biome-ignore lint/a11y/useSemanticElements: Using div for flexible tree item styling */}
       <div
         role="button"
         tabIndex={0}

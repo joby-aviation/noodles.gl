@@ -408,9 +408,7 @@ export class GraphExecutor {
   }
 
   // Execute a single node
-  private async executeNode(
-    node: Operator<IOperator>,
-  ): Promise<ComputeResult> {
+  private async executeNode(node: Operator<IOperator>): Promise<ComputeResult> {
     try {
       // Get input values
       const inputs = {}
