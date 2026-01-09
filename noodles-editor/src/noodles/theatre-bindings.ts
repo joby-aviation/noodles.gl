@@ -29,6 +29,7 @@ import { getOpStore } from './store'
 
 // Helper to recursively convert fields to Theatre props
 function fieldsToTheatreProps(
+  // biome-ignore lint/suspicious/noExplicitAny: Field type requires generic parameter
   fields: Record<string, Field<any>>
 ): Record<string, types.PropTypeConfig> {
   const props: Record<string, types.PropTypeConfig> = {}
@@ -183,12 +184,14 @@ export function bindOperatorToTheatre(
   for (const [key, field] of fields) {
     const pathToProps = field.pathToProps?.slice(2) || [key] // Skip object id and par/out keys
     let updating = false
+    // biome-ignore lint/suspicious/noExplicitAny: Theatre.js props are dynamically accessed
     let pointer: any = sheetObj.props
     for (const p of pathToProps) {
       pointer = pointer[p]
     }
 
     // Field -> Theatre binding
+    // biome-ignore lint/suspicious/noExplicitAny: Field values can be any type
     const fieldSub = field.subscribe((value_: any) => {
       if (op.locked.value || updating) return
       updating = true
@@ -227,6 +230,7 @@ export function bindOperatorToTheatre(
     untapFns.push(() => fieldSub.unsubscribe())
 
     // Theatre -> Field binding
+    // biome-ignore lint/suspicious/noExplicitAny: Theatre.js values can be any type
     const theatreSub = onChange(pointer, (value_: any) => {
       if (op.locked.value || updating) return
       updating = true

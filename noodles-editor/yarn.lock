@@ -326,9 +326,19 @@ __metadata:
   languageName: node
   linkType: hard
 
+<<<<<<< HEAD
 "@biomejs/biome@npm:^2.3.11":
   version: 2.3.11
   resolution: "@biomejs/biome@npm:2.3.11"
+||||||| 1fd0c4e
+"@biomejs/biome@npm:^2.3.0":
+  version: 2.3.0
+  resolution: "@biomejs/biome@npm:2.3.0"
+=======
+"@biomejs/biome@npm:2.3.0":
+  version: 2.3.0
+  resolution: "@biomejs/biome@npm:2.3.0"
+>>>>>>> main
   dependencies:
     "@biomejs/cli-darwin-arm64": 2.3.11
     "@biomejs/cli-darwin-x64": 2.3.11
@@ -9440,8 +9450,16 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "noodles-editor@workspace:."
   dependencies:
+<<<<<<< HEAD
     "@anthropic-ai/sdk": ^0.71.2
     "@biomejs/biome": ^2.3.11
+||||||| 1fd0c4e
+    "@anthropic-ai/sdk": ^0.67.0
+    "@biomejs/biome": ^2.3.0
+=======
+    "@anthropic-ai/sdk": ^0.67.0
+    "@biomejs/biome": 2.3.0
+>>>>>>> main
     "@codeium/react-code-editor": ^1.0.12
     "@duckdb/duckdb-wasm": 1.32.0
     "@loaders.gl/3d-tiles": ^4.3.4

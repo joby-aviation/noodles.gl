@@ -344,7 +344,7 @@ export function GeocodingDialog({
                   suggestions.map((suggestion, index) => (
                     <button
                       type="button"
-                      key={index}
+                      key={`${suggestion.label}-${index}`}
                       className={s.suggestionItem}
                       onMouseDown={() => handleSuggestionSelect(suggestion)}
                     >

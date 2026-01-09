@@ -1,22 +1,18 @@
 // External Control API
 // High-level API for external tools to control Noodles
 
+import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react'
+import type { ConsoleError } from '../ai-chat/types'
+import type { PipelineHandle, PipelineSpec, TestResult, ValidationResult } from './pipeline-tools'
+import { toolRegistry } from './tool-adapter'
 import {
-  initializeWorkerBridge,
+  cleanup as bridgeCleanup,
   connect as bridgeConnect,
   disconnect as bridgeDisconnect,
-  on as bridgeOn,
   off as bridgeOff,
-  cleanup as bridgeCleanup,
+  on as bridgeOn,
+  initializeWorkerBridge,
 } from './worker-bridge'
-import { toolRegistry } from './tool-adapter'
-import { pipelineManager, PipelineSpec, PipelineHandle, TestResult, ValidationResult } from './pipeline-tools'
-import {
-  createToolCallMessage,
-  createMessage,
-  MessageType,
-  Message,
-} from './message-protocol'
 
 export interface ExternalControlConfig {
   host?: string
@@ -32,23 +28,45 @@ export interface Point {
 
 export interface ExecutionResult {
   success: boolean
-  result?: any
+  result?: unknown
   error?: Error
   executionTime: number
 }
 
+export interface RenderStats {
+  fps: number
+  frameTime: number
+  layerCount: number
+  [key: string]: unknown
+}
+
+export interface NodeState {
+  id: string
+  type: string
+  inputs: Record<string, unknown>
+  outputs: Record<string, unknown>
+  status: 'idle' | 'running' | 'error'
+  [key: string]: unknown
+}
+
 export interface DebugInfo {
-  errors: any[]
-  warnings: any[]
-  stats: any
-  nodeStates: Record<string, any>
+  errors: ConsoleError[]
+  warnings: ConsoleError[]
+  stats: RenderStats
+  nodeStates: Record<string, NodeState>
+}
+
+export interface ViewportState {
+  x: number
+  y: number
+  zoom: number
 }
 
 export interface ProjectState {
-  nodes: any[]
-  edges: any[]
-  viewport: any
-  editorSettings?: any
+  nodes: ReactFlowNode<Record<string, unknown>>[]
+  edges: ReactFlowEdge[]
+  viewport: ViewportState
+  editorSettings?: Record<string, unknown>
 }
 
 export interface NodeHandle {
@@ -68,7 +86,7 @@ export interface Screenshot {
 export class ExternalControl {
   private config: ExternalControlConfig
   private isConnected = false
-  private eventHandlers = new Map<string, Set<(data: any) => void>>()
+  private eventHandlers = new Map<string, Set<(data: unknown) => void>>()
 
   constructor(config: ExternalControlConfig = {}) {
     this.config = {
@@ -113,8 +131,9 @@ export class ExternalControl {
         reject(new Error('Connection timeout'))
       }, 10000)
 
-      const statusHandler = (data: any) => {
-        if (data.connected) {
+      const statusHandler = (data: unknown) => {
+        const statusData = data as { connected: boolean }
+        if (statusData.connected) {
           clearTimeout(timeout)
           bridgeOff('status', statusHandler)
           this.isConnected = true
@@ -175,7 +194,7 @@ export class ExternalControl {
   }
 
   // Test a pipeline with sample data
-  async testPipeline(id: string, testData: any[]): Promise<TestResult> {
+  async testPipeline(id: string, testData: unknown[]): Promise<TestResult> {
     this.ensureConnected()
 
     const result = await this.executeTool('testPipeline', {
@@ -219,22 +238,22 @@ export class ExternalControl {
       this.executeTool('getPipelineInfo', { pipelineId: id }),
     ])
 
-    const nodeStates: Record<string, any> = {}
+    const nodeStates: Record<string, NodeState> = {}
 
     if (pipeline.success && pipeline.result) {
       const handle = pipeline.result as PipelineHandle
       for (const nodeId of handle.nodes) {
         const nodeInfo = await this.executeTool('getNodeInfo', { nodeId })
         if (nodeInfo.success) {
-          nodeStates[nodeId] = nodeInfo.result
+          nodeStates[nodeId] = nodeInfo.result as NodeState
         }
       }
     }
 
     return {
-      errors: errors.result || [],
+      errors: (errors.result as ConsoleError[]) || [],
       warnings: [],
-      stats: stats.result || {},
+      stats: (stats.result as RenderStats) || { fps: 0, frameTime: 0, layerCount: 0 },
       nodeStates,
     }
   }
@@ -242,11 +261,7 @@ export class ExternalControl {
   // ==================== Node Operations ====================
 
   // Add a node to the project
-  async addNode(
-    type: string,
-    position: Point,
-    config?: Record<string, any>
-  ): Promise<string> {
+  async addNode(type: string, position: Point, config?: Record<string, unknown>): Promise<string> {
     this.ensureConnected()
 
     const result = await this.executeTool('createNode', {
@@ -259,7 +274,8 @@ export class ExternalControl {
       throw new Error(result.error?.message || 'Failed to add node')
     }
 
-    return result.result.nodeId
+    const nodeResult = result.result as { nodeId: string }
+    return nodeResult.nodeId
   }
 
   // Connect two nodes
@@ -317,7 +333,8 @@ export class ExternalControl {
       throw new Error(result.error?.message || 'Failed to upload data file')
     }
 
-    return result.result.url
+    const uploadResult = result.result as { url: string }
+    return uploadResult.url
   }
 
   // ==================== State Operations ====================
@@ -336,7 +353,7 @@ export class ExternalControl {
   }
 
   // Get node outputs
-  async getNodeOutputs(nodeId: string): Promise<any> {
+  async getNodeOutputs(nodeId: string): Promise<unknown> {
     this.ensureConnected()
 
     const result = await this.executeTool('getNodeOutput', {
@@ -352,7 +369,9 @@ export class ExternalControl {
   }
 
   // List available operator types
-  async listAvailableOperators(): Promise<Record<string, any>> {
+  async listAvailableOperators(): Promise<
+    Record<string, { name: string; displayName: string; description: string }>
+  > {
     this.ensureConnected()
 
     const result = await this.executeTool('listOperatorTypes', {})
@@ -361,14 +380,14 @@ export class ExternalControl {
       throw new Error(result.error?.message || 'Failed to list operators')
     }
 
-    return result.result
+    return result.result as Record<
+      string,
+      { name: string; displayName: string; description: string }
+    >
   }
 
   // Capture a screenshot of the visualization
-  async captureVisualization(
-    format: 'png' | 'jpeg' = 'png',
-    quality = 0.9
-  ): Promise<Screenshot> {
+  async captureVisualization(format: 'png' | 'jpeg' = 'png', quality = 0.9): Promise<Screenshot> {
     this.ensureConnected()
 
     const result = await this.executeTool('captureVisualization', {
@@ -387,27 +406,39 @@ export class ExternalControl {
 
   // Subscribe to state changes
   onStateChange(callback: (state: ProjectState) => void): void {
-    this.on('stateChange', callback)
+    this.on('stateChange', (data: unknown) => {
+      callback(data as ProjectState)
+    })
   }
 
   // Subscribe to errors
   onError(callback: (error: Error) => void): void {
-    this.on('error', (data) => {
-      callback(new Error(data.message || 'Unknown error'))
+    this.on('error', (data: unknown) => {
+      const errorData = data as { message?: string }
+      callback(new Error(errorData.message || 'Unknown error'))
     })
   }
 
   // Subscribe to connection status changes
   onStatusChange(callback: (connected: boolean) => void): void {
-    this.on('status', (data) => {
-      callback(data.connected)
+    this.on('status', (data: unknown) => {
+      const statusData = data as { connected: boolean }
+      callback(statusData.connected)
     })
   }
 
   // ==================== Private Methods ====================
 
   // Execute a tool
-  private async executeTool(tool: string, args: Record<string, any>): Promise<any> {
+  private async executeTool(
+    tool: string,
+    args: Record<string, unknown>
+  ): Promise<{
+    success: boolean
+    result?: unknown
+    error?: { message: string; code?: string; details?: unknown }
+    executionTime: number
+  }> {
     return toolRegistry.execute(tool, args)
   }
 
@@ -419,24 +450,25 @@ export class ExternalControl {
   }
 
   // Handle status change
-  private handleStatusChange(data: any): void {
-    this.isConnected = data.connected
+  private handleStatusChange(data: unknown): void {
+    const statusData = data as { connected: boolean }
+    this.isConnected = statusData.connected
     this.emit('status', data)
   }
 
   // Handle error
-  private handleError(data: any): void {
+  private handleError(data: unknown): void {
     this.log('error', 'Error received:', data)
     this.emit('error', data)
   }
 
   // Handle state change
-  private handleStateChange(data: any): void {
+  private handleStateChange(data: unknown): void {
     this.emit('stateChange', data)
   }
 
   // Subscribe to events
-  private on(event: string, handler: (data: any) => void): void {
+  private on(event: string, handler: (data: unknown) => void): void {
     if (!this.eventHandlers.has(event)) {
       this.eventHandlers.set(event, new Set())
     }
@@ -444,15 +476,17 @@ export class ExternalControl {
   }
 
   // Emit event
-  private emit(event: string, data: any): void {
+  private emit(event: string, data: unknown): void {
     const handlers = this.eventHandlers.get(event)
     if (handlers) {
-      handlers.forEach(handler => handler(data))
+      handlers.forEach(handler => {
+        handler(data)
+      })
     }
   }
 
   // Log message
-  private log(level: 'info' | 'error' | 'debug', ...args: any[]): void {
+  private log(level: 'info' | 'error' | 'debug', ...args: unknown[]): void {
     if (this.config.debug || level === 'error') {
       console[level]('[ExternalControl]', ...args)
     }

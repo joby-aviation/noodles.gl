@@ -87,7 +87,7 @@ export class AnalyticsManager {
     return this.getConsent() !== null
   }
 
-  track(event: string, properties?: Record<string, any>) {
+  track(event: string, properties?: Record<string, unknown>) {
     if (!this.initialized || !this.getConsent()?.enabled) {
       return
     }
@@ -104,7 +104,7 @@ export class AnalyticsManager {
     }
   }
 
-  identify(userId: string, properties?: Record<string, any>) {
+  identify(userId: string, properties?: Record<string, unknown>) {
     if (!this.initialized || !this.getConsent()?.enabled) {
       return
     }
@@ -135,7 +135,7 @@ export class AnalyticsManager {
     }
   }
 
-  private filterSensitiveData(properties: Record<string, any>): Record<string, any> {
+  private filterSensitiveData(properties: Record<string, unknown>): Record<string, unknown> {
     const filtered = { ...properties }
 
     // Remove sensitive keys that might contain user data
@@ -173,7 +173,7 @@ export class AnalyticsManager {
     // Recursively filter nested objects
     Object.keys(filtered).forEach(key => {
       if (filtered[key] && typeof filtered[key] === 'object' && !Array.isArray(filtered[key])) {
-        filtered[key] = this.filterSensitiveData(filtered[key])
+        filtered[key] = this.filterSensitiveData(filtered[key] as Record<string, unknown>)
       }
     })
 

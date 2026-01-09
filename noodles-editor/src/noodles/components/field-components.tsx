@@ -937,9 +937,10 @@ function DraggableNumberInput({
     disabled,
     onDragStart: e => {
       const target = e.target as HTMLInputElement
+      const touchEvent = e as unknown as TouchEvent
       if (
         target.type === 'number' &&
-        ('offsetX' in e ? e.offsetX : (e as any).touches[0].clientX - target.offsetLeft) >
+        ('offsetX' in e ? e.offsetX : touchEvent.touches[0].clientX - target.offsetLeft) >
           target.offsetWidth - 20
       ) {
         return false
@@ -947,8 +948,8 @@ function DraggableNumberInput({
 
       startValueRef.current = value
       setInitialMousePos({
-        x: 'clientX' in e ? e.clientX : (e as any).touches[0].clientX,
-        y: 'clientY' in e ? e.clientY : (e as any).touches[0].clientY,
+        x: 'clientX' in e ? e.clientX : touchEvent.touches[0].clientX,
+        y: 'clientY' in e ? e.clientY : touchEvent.touches[0].clientY,
       })
       setCurrentStepMultiplier(1)
       isHorizontalLockedRef.current = false
@@ -1019,9 +1020,11 @@ function DraggableNumberInput({
     displayValue === '' ? '' : Math.round((+displayValue + Number.EPSILON) * 100) / 100
 
   return (
+    // biome-ignore lint/a11y/useSemanticElements: Number input wrapper with drag interaction requires div with role
     <div
       className={s.fieldInputWrapper}
       style={{ position: 'relative' }}
+      role="group"
       tabIndex={-1}
       onMouseDown={handleMouseDown}
       onTouchStart={handleTouchStart}
@@ -1344,7 +1347,7 @@ export function CompoundFieldComponent({
 export function EmptyFieldComponent({ id }: { id: OpId; field: Field<IField> }) {
   return (
     <div className={s.fieldWrapper}>
-      <label className={s.fieldLabel}>{id}</label>
+      <div className={s.fieldLabel}>{id}</div>
     </div>
   )
 }
@@ -1370,10 +1373,13 @@ export function BezierCurveFieldComponent({
 
   const svgSize = { width: 200, height: 150 }
   const padding = { top: 10, right: 10, bottom: 20, left: 20 }
-  const graphArea = {
-    width: svgSize.width - padding.left - padding.right,
-    height: svgSize.height - padding.top - padding.bottom,
-  }
+  const graphArea = useMemo(
+    () => ({
+      width: svgSize.width - padding.left - padding.right,
+      height: svgSize.height - padding.top - padding.bottom,
+    }),
+    []
+  )
 
   // Convert SVG coordinates to curve coordinates (0-1, 0-1)
   const svgToCurve = useCallback(
@@ -1651,7 +1657,9 @@ export function BezierCurveFieldComponent({
             maxWidth: '100%',
             height: 'auto',
           }}
+          aria-label="Bezier curve editor"
         >
+          <title>Bezier curve editor</title>
           {/* Background */}
           <rect width={svgSize.width} height={svgSize.height} fill="#1a1a1a" />
 
@@ -1678,6 +1686,7 @@ export function BezierCurveFieldComponent({
             const isSelected = selectedIndex === index
 
             return (
+              // biome-ignore lint/suspicious/noArrayIndexKey: Bezier curve points don't have stable IDs
               <g key={index}>
                 {/* Left handle */}
                 {point.handleLeftX !== undefined && point.handleLeftY !== undefined && (

@@ -1096,7 +1096,7 @@ export function getNoodles(): Visualization {
           const instantiatedLayers =
             layers?.map(({ type, extensions, ...layer }) => {
               // Instantiate extensions from POJOs if present
-              let instantiatedExtensions: unknown[] | undefined
+              let instantiatedExtensions: LayerExtension[] | undefined
               if (extensions && Array.isArray(extensions)) {
                 instantiatedExtensions = extensions
                   .map((ext: { type: string; [key: string]: unknown }) => {
@@ -1123,6 +1123,7 @@ export function getNoodles(): Visualization {
                   .filter((e): e is LayerExtension => e !== null)
               }
 
+              // biome-ignore lint/performance/noDynamicNamespaceImportAccess: We intentionally support all deck.gl layer types dynamically
               return new deck[type]({
                 ...layer,
                 ...(instantiatedExtensions ? { extensions: instantiatedExtensions } : {}),
@@ -1149,8 +1150,8 @@ export function getNoodles(): Visualization {
           setVisProps({
             deckProps: {
               ...deckProps,
-              // biome-ignore lint/performance/noDynamicNamespaceImportAccess: We intentionally support all deck.gl layer types dynamically
               layers: instantiatedLayers,
+              // biome-ignore lint/performance/noDynamicNamespaceImportAccess: We intentionally support all deck.gl widget types dynamically
               widgets: widgets?.map(({ type, ...widget }) => new deckWidgets[type](widget)),
             },
             mapProps,

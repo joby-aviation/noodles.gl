@@ -1,10 +1,7 @@
-
 // Pipeline-specific tools for automated data pipeline creation and testing
 
-
-import { toolRegistry } from './tool-adapter'
-import { getOpStore } from '../noodles/store'
 import { opTypes } from '../noodles/operators'
+import { toolRegistry } from './tool-adapter'
 
 export interface PipelineSpec {
   nodes: Array<{
@@ -12,7 +9,7 @@ export interface PipelineSpec {
     type: string
     position?: { x: number; y: number }
     data?: {
-      inputs?: Record<string, any>
+      inputs?: Record<string, unknown>
     }
   }>
   edges: Array<{
@@ -34,13 +31,13 @@ export interface PipelineHandle {
 export interface TestResult {
   pipelineId: string
   success: boolean
-  outputs: Record<string, any>
+  outputs: Record<string, unknown>
   errors: Array<{
     nodeId: string
     error: string
   }>
   executionTime: number
-  intermediateResults?: Record<string, any>
+  intermediateResults?: Record<string, unknown>
 }
 
 export interface ValidationResult {
@@ -186,7 +183,10 @@ export class PipelineManager {
   ): Promise<PipelineHandle> {
     const nodeIds: string[] = []
     const edgeIds: string[] = []
-    const modifications: any = {
+    const modifications: {
+      nodes: Array<{ type: 'add'; node: unknown }>
+      edges: Array<{ type: 'add'; edge: unknown }>
+    } = {
       nodes: [],
       edges: [],
     }
@@ -212,7 +212,8 @@ export class PipelineManager {
 
     // Create edges
     for (const edge of spec.edges) {
-      const edgeId = edge.id || `${edge.source}.${edge.sourceHandle}->${edge.target}.${edge.targetHandle}`
+      const edgeId =
+        edge.id || `${edge.source}.${edge.sourceHandle}->${edge.target}.${edge.targetHandle}`
       edgeIds.push(edgeId)
       modifications.edges.push({
         type: 'add',
@@ -246,7 +247,7 @@ export class PipelineManager {
   // Test a pipeline with sample data
   async testPipeline(
     pipelineId: string,
-    testData: any[],
+    testData: unknown[],
     options = {
       timeout: 30000,
       captureIntermediateResults: false,
@@ -296,7 +297,7 @@ export class PipelineManager {
             timeoutPromise,
           ])
 
-          if (output && output.success) {
+          if (output?.success) {
             result.outputs[nodeId] = output.result
 
             if (options.captureIntermediateResults) {
@@ -330,10 +331,12 @@ export class PipelineManager {
     if (!pipeline) {
       return {
         valid: false,
-        errors: [{
-          type: 'invalid_config',
-          message: `Pipeline not found: ${pipelineId}`,
-        }],
+        errors: [
+          {
+            type: 'invalid_config',
+            message: `Pipeline not found: ${pipelineId}`,
+          },
+        ],
         warnings: [],
       }
     }
@@ -347,19 +350,24 @@ export class PipelineManager {
     if (!projectState.success || !projectState.result) {
       return {
         valid: false,
-        errors: [{
-          type: 'invalid_config',
-          message: 'Failed to get project state',
-        }],
+        errors: [
+          {
+            type: 'invalid_config',
+            message: 'Failed to get project state',
+          },
+        ],
         warnings: [],
       }
     }
 
-    const { nodes, edges } = projectState.result
+    const { nodes, edges } = projectState.result as {
+      nodes: Array<{ id: string }>
+      edges: Array<{ id: string; source: string; target: string }>
+    }
 
     // Check all pipeline nodes exist
     for (const nodeId of pipeline.nodes) {
-      const node = nodes.find((n: any) => n.id === nodeId)
+      const node = nodes.find(n => n.id === nodeId)
       if (!node) {
         errors.push({
           type: 'invalid_config',
@@ -371,7 +379,7 @@ export class PipelineManager {
 
     // Check all edges are valid
     for (const edgeId of pipeline.edges) {
-      const edge = edges.find((e: any) => e.id === edgeId)
+      const edge = edges.find(e => e.id === edgeId)
       if (!edge) {
         errors.push({
           type: 'missing_connection',
@@ -389,7 +397,7 @@ export class PipelineManager {
       visited.add(nodeId)
       recursionStack.add(nodeId)
 
-      const outgoingEdges = edges.filter((e: any) => e.source === nodeId)
+      const outgoingEdges = edges.filter(e => e.source === nodeId)
       for (const edge of outgoingEdges) {
         if (!visited.has(edge.target)) {
           if (hasCycle(edge.target)) return true
@@ -462,34 +470,6 @@ export class PipelineManager {
         throw new Error(`Edge target node not found: ${edge.target}`)
       }
     }
-  }
-
-  // Get default output field for an operator type
-  private getDefaultOutputField(type: string): string {
-    // Common patterns for output fields
-    const outputPatterns = {
-      FileOp: 'out.data',
-      DuckDbOp: 'out.result',
-      FilterOp: 'out.result',
-      MapOp: 'out.result',
-      // Add more as needed
-    }
-
-    return (outputPatterns as any)[type] || 'out.result'
-  }
-
-  // Get default input field for an operator type
-  private getDefaultInputField(type: string): string {
-    // Common patterns for input fields
-    const inputPatterns = {
-      FilterOp: 'par.data',
-      MapOp: 'par.data',
-      ScatterplotLayerOp: 'par.data',
-      PathLayerOp: 'par.data',
-      // Add more as needed
-    }
-
-    return (inputPatterns as any)[type] || 'par.data'
   }
 
   // Get pipeline information

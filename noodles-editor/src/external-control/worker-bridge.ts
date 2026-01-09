@@ -1,24 +1,21 @@
-
 // Bridge between main thread and WebSocket worker
 // Handles communication and tool execution in the main thread
 
-
-import {
-  Message,
-  MessageType,
-  createMessage,
-  createErrorMessage,
-  createToolCallMessage,
-  ToolCallMessage,
-  ToolResponseMessage,
-  ToolErrorMessage,
-  PipelineCreateMessage,
-  PipelineTestMessage,
-  DataUploadMessage,
-} from './message-protocol'
-import { MCPTools } from '../ai-chat/mcp-tools'
 import { globalContextManager } from '../ai-chat/global-context-manager'
+import { MCPTools } from '../ai-chat/mcp-tools'
 import { getOpStore } from '../noodles/store'
+import {
+  createErrorMessage,
+  createMessage,
+  type DataUploadMessage,
+  type Message,
+  MessageType,
+  type PipelineCreateMessage,
+  type PipelineTestMessage,
+  type ToolCallMessage,
+  type ToolErrorMessage,
+  type ToolResponseMessage,
+} from './message-protocol'
 import { sessionManager } from './session-manager'
 
 // Worker instance
@@ -26,7 +23,7 @@ let worker: Worker | null = null
 let isInitialized = false
 
 // Event handlers
-const eventHandlers = new Map<string, Set<(data: any) => void>>()
+const eventHandlers = new Map<string, Set<(data: unknown) => void>>()
 
 // Tool executor instance
 let toolExecutor: MCPTools | null = null
@@ -52,10 +49,7 @@ export const initializeWorkerBridge = async (): Promise<void> => {
 
   try {
     // Create Web Worker
-    worker = new Worker(
-      new URL('./websocket-worker.ts', import.meta.url),
-      { type: 'module' }
-    )
+    worker = new Worker(new URL('./websocket-worker.ts', import.meta.url), { type: 'module' })
 
     // Initialize tool executor with context loader for full functionality
     // This enables code search, operator schemas, documentation, etc.
@@ -66,7 +60,7 @@ export const initializeWorkerBridge = async (): Promise<void> => {
     worker.onmessage = handleWorkerMessage
 
     // Set up error handler
-    worker.onerror = (error) => {
+    worker.onerror = error => {
       console.error('[Bridge] Worker error:', error)
       emit('error', { error })
     }
@@ -85,9 +79,7 @@ export const connect = (host = 'localhost', port = 8765): void => {
     throw new Error('Worker bridge not initialized')
   }
 
-  worker.postMessage(
-    createMessage(MessageType.CONNECT, { host, port })
-  )
+  worker.postMessage(createMessage(MessageType.CONNECT, { host, port }))
 }
 
 // Disconnect from external control server
@@ -107,11 +99,9 @@ const handleWorkerMessage = async (event: MessageEvent) => {
     const token = message.payload?.token || message.payload?.auth?.token
 
     if (!token || !sessionManager.validateToken(token)) {
-      sendToWorker(createErrorMessage(
-        'Invalid or expired session token',
-        'AUTH_FAILED',
-        message.id
-      ))
+      sendToWorker(
+        createErrorMessage('Invalid or expired session token', 'AUTH_FAILED', message.id)
+      )
       return
     }
   }
@@ -157,10 +147,7 @@ const handleWorkerMessage = async (event: MessageEvent) => {
 // Handle tool call from external client
 const handleToolCall = async (message: ToolCallMessage) => {
   if (!toolExecutor) {
-    sendToWorker(createErrorMessage(
-      'Tool executor not initialized',
-      'EXECUTOR_NOT_INITIALIZED'
-    ))
+    sendToWorker(createErrorMessage('Tool executor not initialized', 'EXECUTOR_NOT_INITIALIZED'))
     return
   }
 
@@ -204,10 +191,12 @@ const handleToolCall = async (message: ToolCallMessage) => {
 const executeTool = async (
   executor: MCPTools,
   toolName: string,
-  args: Record<string, any>
-): Promise<any> => {
+  args: Record<string, unknown>
+): Promise<unknown> => {
   // Get the tool method
-  const tool = (executor as any)[toolName]
+  const tool = (executor as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>)[
+    toolName
+  ]
   if (typeof tool !== 'function') {
     throw new Error(`Unknown tool: ${toolName}`)
   }
@@ -219,11 +208,10 @@ const executeTool = async (
 // Handle pipeline creation
 const handlePipelineCreate = async (message: PipelineCreateMessage) => {
   const { spec, options } = message.payload
-  const store = getOpStore()
 
   try {
-    const nodes: any[] = []
-    const edges: any[] = []
+    const nodes = []
+    const edges = []
     let yPosition = 100
 
     // Create data source node
@@ -299,31 +287,37 @@ const handlePipelineCreate = async (message: PipelineCreateMessage) => {
     }
 
     // Send response
-    sendToWorker(createMessage(
-      MessageType.TOOL_RESPONSE,
-      {
-        tool: 'createPipeline',
-        result: {
-          pipelineId: outputNode.id,
-          nodes: nodes.map(n => n.id),
-          edges: edges.map(e => e.id),
+    sendToWorker(
+      createMessage(
+        MessageType.TOOL_RESPONSE,
+        {
+          tool: 'createPipeline',
+          result: {
+            pipelineId: outputNode.id,
+            nodes: nodes.map(n => n.id),
+            edges: edges.map(e => e.id),
+          },
+          executionTime: 0,
         },
-        executionTime: 0,
-      },
-      message.id
-    ))
+        message.id
+      )
+    )
   } catch (error) {
-    sendToWorker(createErrorMessage(
-      error instanceof Error ? error : 'Failed to create pipeline',
-      'PIPELINE_CREATE_ERROR',
-      { spec }
-    ))
+    sendToWorker(
+      createErrorMessage(
+        error instanceof Error ? error : 'Failed to create pipeline',
+        'PIPELINE_CREATE_ERROR',
+        { spec }
+      )
+    )
   }
 }
 
 // Handle pipeline test
 const handlePipelineTest = async (message: PipelineTestMessage) => {
-  const { pipelineId, testData, options } = message.payload
+  const { pipelineId } = message.payload
+  // testData and options are destructured but not used yet - they will be used when implementing test data injection
+  // const { testData, options } = message.payload
 
   try {
     // Get the pipeline node
@@ -344,21 +338,25 @@ const handlePipelineTest = async (message: PipelineTestMessage) => {
       executionTime: 0,
     }
 
-    sendToWorker(createMessage(
-      MessageType.TOOL_RESPONSE,
-      {
-        tool: 'testPipeline',
-        result,
-        executionTime: 0,
-      },
-      message.id
-    ))
+    sendToWorker(
+      createMessage(
+        MessageType.TOOL_RESPONSE,
+        {
+          tool: 'testPipeline',
+          result,
+          executionTime: 0,
+        },
+        message.id
+      )
+    )
   } catch (error) {
-    sendToWorker(createErrorMessage(
-      error instanceof Error ? error : 'Failed to test pipeline',
-      'PIPELINE_TEST_ERROR',
-      { pipelineId }
-    ))
+    sendToWorker(
+      createErrorMessage(
+        error instanceof Error ? error : 'Failed to test pipeline',
+        'PIPELINE_TEST_ERROR',
+        { pipelineId }
+      )
+    )
   }
 }
 
@@ -386,25 +384,29 @@ const handleDataUpload = async (message: DataUploadMessage) => {
     // TODO: Integrate with actual storage system
     console.log('[Bridge] Data upload:', filename, mimeType, data)
 
-    sendToWorker(createMessage(
-      MessageType.TOOL_RESPONSE,
-      {
-        tool: 'uploadData',
-        result: {
-          filename,
-          url: fileUrl,
-          size: typeof data === 'string' ? data.length : data.byteLength,
+    sendToWorker(
+      createMessage(
+        MessageType.TOOL_RESPONSE,
+        {
+          tool: 'uploadData',
+          result: {
+            filename,
+            url: fileUrl,
+            size: typeof data === 'string' ? data.length : data.byteLength,
+          },
+          executionTime: 0,
         },
-        executionTime: 0,
-      },
-      message.id
-    ))
+        message.id
+      )
+    )
   } catch (error) {
-    sendToWorker(createErrorMessage(
-      error instanceof Error ? error : 'Failed to upload data',
-      'DATA_UPLOAD_ERROR',
-      { filename }
-    ))
+    sendToWorker(
+      createErrorMessage(
+        error instanceof Error ? error : 'Failed to upload data',
+        'DATA_UPLOAD_ERROR',
+        { filename }
+      )
+    )
   }
 }
 
@@ -418,16 +420,14 @@ const handleStateRequest = async (message: Message) => {
     // Get current project state
     const projectState = await executeTool(toolExecutor, 'getCurrentProject', {})
 
-    sendToWorker(createMessage(
-      MessageType.STATE_RESPONSE,
-      projectState,
-      message.id
-    ))
+    sendToWorker(createMessage(MessageType.STATE_RESPONSE, projectState, message.id))
   } catch (error) {
-    sendToWorker(createErrorMessage(
-      error instanceof Error ? error : 'Failed to get state',
-      'STATE_REQUEST_ERROR'
-    ))
+    sendToWorker(
+      createErrorMessage(
+        error instanceof Error ? error : 'Failed to get state',
+        'STATE_REQUEST_ERROR'
+      )
+    )
   }
 }
 
@@ -441,7 +441,7 @@ const sendToWorker = (message: Message) => {
 }
 
 // Subscribe to events
-export const on = (event: string, handler: (data: any) => void): void => {
+export const on = (event: string, handler: (data: unknown) => void): void => {
   if (!eventHandlers.has(event)) {
     eventHandlers.set(event, new Set())
   }
@@ -449,7 +449,7 @@ export const on = (event: string, handler: (data: any) => void): void => {
 }
 
 // Unsubscribe from events
-export const off = (event: string, handler: (data: any) => void): void => {
+export const off = (event: string, handler: (data: unknown) => void): void => {
   const handlers = eventHandlers.get(event)
   if (handlers) {
     handlers.delete(handler)
@@ -457,10 +457,12 @@ export const off = (event: string, handler: (data: any) => void): void => {
 }
 
 // Emit event
-const emit = (event: string, data: any): void => {
+const emit = (event: string, data: unknown): void => {
   const handlers = eventHandlers.get(event)
   if (handlers) {
-    handlers.forEach(handler => handler(data))
+    handlers.forEach(handler => {
+      handler(data)
+    })
   }
 }
 

@@ -57,7 +57,7 @@ function getJsonSanitizer() {
 }
 
 export function safeStringify(obj: Record<string, unknown>) {
-  return JSON.stringify(obj, getJsonSanitizer(), 2) + '\n'
+  return `${JSON.stringify(obj, getJsonSanitizer(), 2)}\n`
 }
 
 export function serializeNodes(

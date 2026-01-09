@@ -1,7 +1,7 @@
 import type { Deck, DeckProps } from '@deck.gl/core'
 import { MapboxOverlay, type MapboxOverlayProps } from '@deck.gl/mapbox'
 import { DeckGL } from '@deck.gl/react'
-import { types, val } from '@theatre/core'
+import { type ISheetObject, types, val } from '@theatre/core'
 import studio from '@theatre/studio'
 import { ReactFlowProvider } from '@xyflow/react'
 import type { Map as MapLibre } from 'maplibre-gl'
@@ -169,7 +169,7 @@ export default function TimelineEditor() {
   // Register render sheet object in store for menu access
   useEffect(() => {
     if (rendererSheet) {
-      setSheetObject('render', rendererSheet as any)
+      setSheetObject('render', rendererSheet as unknown as ISheetObject)
     }
     return () => {
       deleteSheetObject('render')
@@ -228,7 +228,7 @@ export default function TimelineEditor() {
       fpsRef.current = deckFps !== undefined ? deckFps : calculatedFps
 
       // Expose stats globally for MCPTools
-      ;(window as any).__deckStats = {
+      ;(window as Window & { __deckStats?: Record<string, unknown> }).__deckStats = {
         fps: fpsRef.current,
         lastFrameTime: deltaTime,
         layerCount: deckRef.current?.layerManager?.getLayers().length || 0,
@@ -259,10 +259,10 @@ export default function TimelineEditor() {
       const canvas = deckRef.current.canvas
       if (canvas) {
         // Store canvas globally for MCPTools to access
-        ;(window as any).__deckCanvas = canvas
+        ;(window as Window & { __deckCanvas?: unknown }).__deckCanvas = canvas
       }
       // Store deck instance globally for layer inspection
-      ;(window as any).__deckInstance = deckRef.current
+      ;(window as Window & { __deckInstance?: unknown }).__deckInstance = deckRef.current
     }
   }, [])
 
