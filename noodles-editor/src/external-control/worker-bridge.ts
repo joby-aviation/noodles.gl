@@ -191,10 +191,10 @@ const handleToolCall = async (message: ToolCallMessage) => {
 const executeTool = async (
   executor: MCPTools,
   toolName: string,
-  args: Record<string, any>
-): Promise<any> => {
+  args: Record<string, unknown>
+): Promise<unknown> => {
   // Get the tool method
-  const tool = (executor as any)[toolName]
+  const tool = (executor as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>)[toolName]
   if (typeof tool !== 'function') {
     throw new Error(`Unknown tool: ${toolName}`)
   }

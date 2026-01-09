@@ -937,9 +937,10 @@ function DraggableNumberInput({
     disabled,
     onDragStart: e => {
       const target = e.target as HTMLInputElement
+      const touchEvent = e as unknown as TouchEvent
       if (
         target.type === 'number' &&
-        ('offsetX' in e ? e.offsetX : (e as any).touches[0].clientX - target.offsetLeft) >
+        ('offsetX' in e ? e.offsetX : touchEvent.touches[0].clientX - target.offsetLeft) >
           target.offsetWidth - 20
       ) {
         return false
@@ -947,8 +948,8 @@ function DraggableNumberInput({
 
       startValueRef.current = value
       setInitialMousePos({
-        x: 'clientX' in e ? e.clientX : (e as any).touches[0].clientX,
-        y: 'clientY' in e ? e.clientY : (e as any).touches[0].clientY,
+        x: 'clientX' in e ? e.clientX : touchEvent.touches[0].clientX,
+        y: 'clientY' in e ? e.clientY : touchEvent.touches[0].clientY,
       })
       setCurrentStepMultiplier(1)
       isHorizontalLockedRef.current = false
