@@ -86,6 +86,18 @@ function useExecutionState(op: Operator<IOperator>): ExecutionState {
   return executionState
 }
 
+// Hook to subscribe to operator connection errors
+function useConnectionErrors(op: Operator<IOperator>): Map<string, string> {
+  const [connectionErrors, setConnectionErrors] = useState<Map<string, string>>(new Map())
+
+  useEffect(() => {
+    const subscription = op.connectionErrors.subscribe(setConnectionErrors)
+    return () => subscription.unsubscribe()
+  }, [op])
+
+  return connectionErrors
+}
+
 const defaultNodeComponents = {} as Record<OpType, typeof NodeComponent>
 for (const key of Object.keys(opTypes)) {
   defaultNodeComponents[key] = NodeComponent
@@ -163,6 +175,13 @@ export function getNodeDescription(type: NodeType): string {
 }
 
 export function typeCategory(type: NodeType) {
+  // Check for type directly first (handles mathOps like AddOp, MultiplyOp, etc.)
+  for (const [category, types] of Object.entries(categories)) {
+    if ((types as readonly string[]).includes(type)) {
+      return toPascal(category)
+    }
+  }
+  // Fall back to checking display name (handles regular operators)
   const displayName = nodeTypeToDisplayName(type)
   for (const [category, types] of Object.entries(categories)) {
     if ((types as readonly string[]).includes(displayName)) {
@@ -190,6 +209,13 @@ const headerClasses = {
 } as const as Record<keyof typeof categories, string>
 
 export function headerClass(type: NodeType) {
+  // Check for type directly first (handles mathOps like AddOp, MultiplyOp, etc.)
+  for (const [category, types] of Object.entries(categories)) {
+    if ((types as readonly string[]).includes(type)) {
+      return headerClasses[category]
+    }
+  }
+  // Fall back to checking display name (handles regular operators)
   const displayName = nodeTypeToDisplayName(type)
   for (const [category, types] of Object.entries(categories)) {
     if ((types as readonly string[]).includes(displayName)) {
@@ -285,7 +311,7 @@ function HandlePreviewContent({ data, name, type }: { data: unknown; name: strin
                 </thead>
                 <tbody>
                   {data.map((row, i) => (
-                    <tr key={i}>
+                    <tr key={`row-${i}-${JSON.stringify(row).slice(0, 50)}`}>
                       {keys.map(key => (
                         <td key={key}>
                           {typeof row[key] === 'string' ? row[key] : JSON.stringify(row[key])}
@@ -399,6 +425,8 @@ function NodeComponent({
   }
   const locked = useLocked(op)
   const executionState = useExecutionState(op)
+  const connectionErrors = useConnectionErrors(op)
+  const hasConnectionErrors = connectionErrors.size > 0
 
   // Get all inputs (including custom fields for operators that support them)
   const allInputs =
@@ -407,11 +435,11 @@ function NodeComponent({
   return (
     <div
       className={cx(s.wrapper, {
-        [s.wrapperError]: executionState.status === 'error',
+        [s.wrapperError]: executionState.status === 'error' || hasConnectionErrors,
         [s.wrapperExecuting]: executionState.status === 'executing',
       })}
     >
-      <NodeHeader id={id} type={type} op={op} />
+      <NodeHeader id={id} type={type} op={op} connectionErrors={connectionErrors} />
       {resizeableNodes.includes(type as any) && (
         <NodeResizer isVisible={selected} minWidth={200} minHeight={100} />
       )}
@@ -469,9 +497,20 @@ const ExecutionIndicator = ({ status, error, executionTime }: ExecutionState) =>
   }
 }
 
-function NodeHeader({ id, type, op }: { id: string; type: OpType; op: Operator<IOperator> }) {
+function NodeHeader({
+  id,
+  type,
+  op,
+  connectionErrors,
+}: {
+  id: string
+  type: OpType
+  op: Operator<IOperator>
+  connectionErrors?: Map<string, string>
+}) {
   const [locked, setLocked] = useState(op.locked.value)
   const executionState = useExecutionState(op)
+  const hasConnectionErrors = connectionErrors && connectionErrors.size > 0
 
   const toggleLock = () => {
     op.locked.next(!op.locked.value)
@@ -603,6 +642,7 @@ function NodeHeader({ id, type, op }: { id: string; type: OpType; op: Operator<I
       </Tooltip.Root>
     </Tooltip.Provider>
   ) : (
+    // biome-ignore lint/a11y/useSemanticElements: Inline editable text requires span with role
     <span className={s.headerId} role="button" tabIndex={0} onDoubleClick={onNodeHeaderDoubleClick}>
       {baseName}
     </span>
@@ -624,12 +664,25 @@ function NodeHeader({ id, type, op }: { id: string; type: OpType; op: Operator<I
 
   const { displayName } = op.constructor as typeof Operator
 
+  // Format connection error tooltip
+  const connectionErrorTooltip = hasConnectionErrors
+    ? Array.from(connectionErrors!.values()).join('\n')
+    : ''
+
   return (
     <div className={cx(s.header, headerClass(type))}>
       <div className={s.headerTitle} title={`${id} (${displayName})`}>
         {editableId} ({displayName})
       </div>
       <ExecutionIndicator {...executionState} />
+      {hasConnectionErrors && (
+        <div
+          className={cx(s.executionIndicator, s.executionIndicatorError)}
+          title={connectionErrorTooltip}
+        >
+          <i className="pi pi-link" />
+        </div>
+      )}
       <div className={s.headerActions}>
         {downloadable && (
           <Button

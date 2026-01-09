@@ -1,9 +1,7 @@
-/**
- * Refactoring Assistant Agent
- *
- * Analyzes operator code and suggests improvements based on best practices.
- * Read-only analysis - does not automatically apply changes.
- */
+// Refactoring Assistant Agent
+//
+// Analyzes operator code and suggests improvements based on best practices.
+// Read-only analysis - does not automatically apply changes.
 
 import type { ContextLoader } from '../context-loader'
 
@@ -53,9 +51,7 @@ export interface CodeMetrics {
 export class RefactoringAssistantAgent {
   constructor(private contextLoader: ContextLoader) {}
 
-  /**
-   * Analyze an operator for common issues and improvement opportunities
-   */
+  // Analyze an operator for common issues and improvement opportunities
   async analyzeOperator(params: { operatorType: string }): Promise<CodeAnalysisResult> {
     const { operatorType } = params
     const codeIndex = this.contextLoader.getCodeIndex()
@@ -99,9 +95,7 @@ export class RefactoringAssistantAgent {
     }
   }
 
-  /**
-   * Find duplicate code patterns across operators
-   */
+  // Find duplicate code patterns across operators
   async findDuplicates(params: { minLines?: number; category?: string }): Promise<{
     duplicates: Array<{
       pattern: string
@@ -139,9 +133,7 @@ export class RefactoringAssistantAgent {
     return { duplicates }
   }
 
-  /**
-   * Suggest refactorings for an operator
-   */
+  // Suggest refactorings for an operator
   async suggestRefactorings(params: { operatorType: string }): Promise<{
     refactorings: Array<{
       type: string

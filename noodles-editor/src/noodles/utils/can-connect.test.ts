@@ -10,7 +10,7 @@ import {
   StringField,
   UnknownField,
 } from '../fields'
-import { canConnect } from './can-connect'
+import { canConnect, validateConnection } from './can-connect'
 
 describe('CanConnect', () => {
   it('allows compatible fields to connect', () => {
@@ -129,5 +129,47 @@ describe('CanConnect', () => {
     expect(canConnect(field6, field1), 'ArrayField with String can connect to UnknownField').toBe(
       true
     )
+  })
+})
+
+describe('ValidateConnection', () => {
+  it('returns valid for compatible fields', () => {
+    const field1 = new NumberField(5)
+    const field2 = new NumberField(10)
+    const result = validateConnection(field2, field1)
+    expect(result.valid).toBe(true)
+    expect(result.error).toBeUndefined()
+  })
+
+  it('returns invalid with error message for incompatible fields', () => {
+    const field1 = new NumberField(5)
+    const field2 = new StringField('test')
+    const result = validateConnection(field2, field1)
+    expect(result.valid).toBe(false)
+    expect(result.error).toBeDefined()
+    expect(result.error).toContain('Type mismatch')
+    expect(result.error).toContain('string')
+    expect(result.error).toContain('number')
+  })
+
+  it('returns valid for UnknownField connecting to any field', () => {
+    const unknownField = new UnknownField()
+    const numberField = new NumberField(10)
+    const result = validateConnection(unknownField, numberField)
+    expect(result.valid).toBe(true)
+    expect(result.error).toBeUndefined()
+  })
+
+  it('returns invalid with error message for nested incompatible fields', () => {
+    const dataField = new ArrayField(new NumberField())
+    dataField.setValue([1, 2, 3])
+
+    const arrayField = new ArrayField(new StringField('test'))
+    arrayField.setValue(['a', 'b', 'c'])
+
+    const result = validateConnection(arrayField, dataField)
+    expect(result.valid).toBe(false)
+    expect(result.error).toBeDefined()
+    expect(result.error).toContain('Type mismatch')
   })
 })

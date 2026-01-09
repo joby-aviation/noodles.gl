@@ -37,7 +37,7 @@ export class SessionManager {
       createdAt: new Date(),
       expiresAt: new Date(Date.now() + this.SESSION_DURATION),
       name: name || `Session ${this.sessions.size + 1}`,
-      permissions: ['read', 'write', 'execute'] // Full permissions by default
+      permissions: ['read', 'write', 'execute'], // Full permissions by default
     }
 
     this.sessions.set(token, session)
@@ -150,7 +150,7 @@ export class SessionManager {
         token,
         ...session,
         createdAt: session.createdAt.toISOString(),
-        expiresAt: session.expiresAt.toISOString()
+        expiresAt: session.expiresAt.toISOString(),
       }))
 
       localStorage.setItem('noodles-external-sessions', JSON.stringify(sessionsArray))
@@ -172,7 +172,7 @@ export class SessionManager {
         const session: Session = {
           ...sessionData,
           createdAt: new Date(sessionData.createdAt),
-          expiresAt: new Date(sessionData.expiresAt)
+          expiresAt: new Date(sessionData.expiresAt),
         }
 
         // Only load non-expired sessions

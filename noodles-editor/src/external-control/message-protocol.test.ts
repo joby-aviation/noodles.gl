@@ -1,18 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  type BaseMessage,
   createErrorMessage,
   createMessage,
   createToolCallMessage,
   generateMessageId,
   isValidMessage,
+  type Message,
   MessageMatcher,
   MessageType,
   parseMessage,
   serializeMessage,
-  type BaseMessage,
-  type ErrorMessage,
-  type Message,
-  type ToolCallMessage,
 } from './message-protocol'
 
 describe('MessageType enum', () => {
@@ -296,7 +294,7 @@ describe('MessageMatcher', () => {
 
   it('clears pending handlers on clear()', async () => {
     const requestId = 'req-789'
-    const promise = matcher.waitForResponse(requestId, 30000)
+    matcher.waitForResponse(requestId, 30000)
 
     matcher.clear()
 

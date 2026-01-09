@@ -157,6 +157,72 @@ describe('Error handling', () => {
   })
 })
 
+describe('Connection error tracking', () => {
+  it('tracks connection errors on operators', () => {
+    const operator = new NumberOp('/num-0')
+
+    // Initially no connection errors
+    expect(operator.hasConnectionErrors()).toBe(false)
+    expect(operator.connectionErrors.value.size).toBe(0)
+
+    // Add a connection error
+    const edgeId = '/source.out.val->/num-0.par.val'
+    operator.addConnectionError(edgeId, 'Type mismatch: string cannot connect to number')
+
+    expect(operator.hasConnectionErrors()).toBe(true)
+    expect(operator.connectionErrors.value.get(edgeId)).toBe(
+      'Type mismatch: string cannot connect to number'
+    )
+    expect(operator.getConnectionErrorMessages()).toEqual([
+      'Type mismatch: string cannot connect to number',
+    ])
+
+    // Remove the connection error
+    operator.removeConnectionError(edgeId)
+
+    expect(operator.hasConnectionErrors()).toBe(false)
+    expect(operator.connectionErrors.value.size).toBe(0)
+  })
+
+  it('tracks multiple connection errors', () => {
+    const operator = new MergeOp('/merge-0')
+
+    operator.addConnectionError('edge1', 'Error 1')
+    operator.addConnectionError('edge2', 'Error 2')
+
+    expect(operator.hasConnectionErrors()).toBe(true)
+    expect(operator.connectionErrors.value.size).toBe(2)
+    expect(operator.getConnectionErrorMessages()).toContain('Error 1')
+    expect(operator.getConnectionErrorMessages()).toContain('Error 2')
+
+    // Remove one error
+    operator.removeConnectionError('edge1')
+
+    expect(operator.hasConnectionErrors()).toBe(true)
+    expect(operator.connectionErrors.value.size).toBe(1)
+    expect(operator.getConnectionErrorMessages()).toEqual(['Error 2'])
+  })
+
+  it('is reactive via BehaviorSubject', () => {
+    const operator = new NumberOp('/num-0')
+    const errors: Map<string, string>[] = []
+
+    const subscription = operator.connectionErrors.subscribe(e => errors.push(new Map(e)))
+
+    operator.addConnectionError('edge1', 'Error 1')
+    operator.addConnectionError('edge2', 'Error 2')
+    operator.removeConnectionError('edge1')
+
+    subscription.unsubscribe()
+
+    expect(errors.length).toBe(4) // Initial + 3 updates
+    expect(errors[0].size).toBe(0) // Initial empty state
+    expect(errors[1].size).toBe(1) // After adding edge1
+    expect(errors[2].size).toBe(2) // After adding edge2
+    expect(errors[3].size).toBe(1) // After removing edge1
+  })
+})
+
 describe('CodeOp', () => {
   it('executes a CodeOp', async () => {
     const operator = new CodeOp('code-0', { code: ['return d + 1'] }, false)
@@ -1077,7 +1143,7 @@ describe('Viral Accessor Tests', () => {
       const result = op.execute({ operator: 'add', a: accessor, b: 10 })
 
       expect(isAccessor(result.result)).toBe(true)
-      expect((result.result as Function)({ value: 5 })).toBe(15)
+      expect((result.result as unknown as (d: { value: number }) => number)({ value: 5 })).toBe(15)
     })
 
     it('should handle accessor function for b', () => {
@@ -1087,7 +1153,7 @@ describe('Viral Accessor Tests', () => {
       const result = op.execute({ operator: 'multiply', a: 3, b: accessor })
 
       expect(isAccessor(result.result)).toBe(true)
-      expect((result.result as Function)({ value: 4 })).toBe(12)
+      expect((result.result as unknown as (d: { value: number }) => number)({ value: 4 })).toBe(12)
     })
 
     it('should handle accessor functions for both a and b', () => {
@@ -1098,7 +1164,9 @@ describe('Viral Accessor Tests', () => {
       const result = op.execute({ operator: 'subtract', a: accessorA, b: accessorB })
 
       expect(isAccessor(result.result)).toBe(true)
-      expect((result.result as Function)({ x: 10, y: 3 })).toBe(7)
+      expect(
+        (result.result as unknown as (d: { x: number; y: number }) => number)({ x: 10, y: 3 })
+      ).toBe(7)
     })
 
     it('should handle unary operations with accessor', () => {
@@ -1108,8 +1176,10 @@ describe('Viral Accessor Tests', () => {
       const result = op.execute({ operator: 'sine', a: accessor, b: 0 })
 
       expect(isAccessor(result.result)).toBe(true)
-      expect((result.result as Function)({ angle: 0 })).toBe(0)
-      expect((result.result as Function)({ angle: Math.PI / 2 })).toBeCloseTo(1, 5)
+      expect((result.result as unknown as (d: { angle: number }) => number)({ angle: 0 })).toBe(0)
+      expect(
+        (result.result as unknown as (d: { angle: number }) => number)({ angle: Math.PI / 2 })
+      ).toBeCloseTo(1, 5)
     })
   })
 
@@ -1130,7 +1200,7 @@ describe('Viral Accessor Tests', () => {
       const result = op.execute({ data: [accessor, 10], expression: 'd + 5' })
 
       expect(isAccessor(result.data)).toBe(true)
-      expect((result.data as Function)({ count: 15 })).toBe(20)
+      expect((result.data as unknown as (d: { count: number }) => number)({ count: 15 })).toBe(20)
     })
 
     it('should handle multiple accessor functions in data', () => {
@@ -1144,7 +1214,9 @@ describe('Viral Accessor Tests', () => {
       })
 
       expect(isAccessor(result.data)).toBe(true)
-      expect((result.data as Function)({ x: 5, y: 10 })).toBe(15)
+      expect(
+        (result.data as unknown as (d: { x: number; y: number }) => number)({ x: 5, y: 10 })
+      ).toBe(15)
     })
 
     it('should handle mixed static and accessor values', () => {
@@ -1157,7 +1229,7 @@ describe('Viral Accessor Tests', () => {
       })
 
       expect(isAccessor(result.data)).toBe(true)
-      expect((result.data as Function)({ value: 10 })).toBe(20)
+      expect((result.data as unknown as (d: { value: number }) => number)({ value: 10 })).toBe(20)
     })
   })
 
@@ -1184,7 +1256,9 @@ describe('Viral Accessor Tests', () => {
       const result = op.execute({ values: [accessor, [7, 8]], depth: 1 })
 
       expect(isAccessor(result.data)).toBe(true)
-      expect((result.data as Function)({ items: [5, 6] })).toEqual([5, 6, 7, 8])
+      expect(
+        (result.data as unknown as (d: { items: number[] }) => number[])({ items: [5, 6] })
+      ).toEqual([5, 6, 7, 8])
     })
 
     it('should handle multiple accessor functions in values', () => {
@@ -1195,7 +1269,12 @@ describe('Viral Accessor Tests', () => {
       const result = op.execute({ values: [accessor1, accessor2], depth: 1 })
 
       expect(isAccessor(result.data)).toBe(true)
-      expect((result.data as Function)({ first: [1, 2], second: [3, 4] })).toEqual([1, 2, 3, 4])
+      expect(
+        (result.data as unknown as (d: { first: number[]; second: number[] }) => number[])({
+          first: [1, 2],
+          second: [3, 4],
+        })
+      ).toEqual([1, 2, 3, 4])
     })
 
     it('should handle depth parameter with accessors', () => {
@@ -1206,7 +1285,7 @@ describe('Viral Accessor Tests', () => {
 
       expect(isAccessor(result.data)).toBe(true)
       expect(
-        (result.data as Function)({
+        (result.data as unknown as (d: { nested: number[][] }) => number[])({
           nested: [
             [1, 2],
             [3, 4],
@@ -1222,7 +1301,9 @@ describe('Viral Accessor Tests', () => {
       const result = op.execute({ values: [[1, 2], accessor, [5, 6]], depth: 1 })
 
       expect(isAccessor(result.data)).toBe(true)
-      expect((result.data as Function)({ dynamic: [3, 4] })).toEqual([1, 2, 3, 4, 5, 6])
+      expect(
+        (result.data as unknown as (d: { dynamic: number[] }) => number[])({ dynamic: [3, 4] })
+      ).toEqual([1, 2, 3, 4, 5, 6])
     })
   })
 
@@ -1241,7 +1322,9 @@ describe('Viral Accessor Tests', () => {
       })
 
       expect(isAccessor(exprResult.data)).toBe(true)
-      expect((exprResult.data as Function)({ price: 100 })).toBe(110)
+      expect((exprResult.data as unknown as (d: { price: number }) => number)({ price: 100 })).toBe(
+        110
+      )
     })
 
     it('should chain accessor functions through ConcatOp', () => {
@@ -1256,7 +1339,9 @@ describe('Viral Accessor Tests', () => {
       })
 
       expect(isAccessor(concatResult.data)).toBe(true)
-      expect((concatResult.data as Function)({ x: 5, y: 10 })).toEqual([5, 6, 20])
+      expect(
+        (concatResult.data as unknown as (d: { x: number; y: number }) => number[])({ x: 5, y: 10 })
+      ).toEqual([5, 6, 20])
     })
   })
 
@@ -1277,7 +1362,9 @@ describe('Viral Accessor Tests', () => {
       const result = op.execute({ objects: [accessor, { b: 2 }] })
 
       expect(isAccessor(result.object)).toBe(true)
-      expect((result.object as Function)({ x: 5 })).toEqual({ a: 5, b: 2 })
+      expect(
+        (result.object as unknown as (d: { x: number }) => Record<string, number>)({ x: 5 })
+      ).toEqual({ a: 5, b: 2 })
     })
 
     it('should handle multiple accessor functions in objects', () => {
@@ -1288,7 +1375,12 @@ describe('Viral Accessor Tests', () => {
       const result = op.execute({ objects: [accessor1, accessor2] })
 
       expect(isAccessor(result.object)).toBe(true)
-      expect((result.object as Function)({ x: 5, y: 10 })).toEqual({ a: 5, b: 10 })
+      expect(
+        (result.object as unknown as (d: { x: number; y: number }) => Record<string, number>)({
+          x: 5,
+          y: 10,
+        })
+      ).toEqual({ a: 5, b: 10 })
     })
 
     it('should handle overlapping properties with accessors', () => {
@@ -1299,7 +1391,11 @@ describe('Viral Accessor Tests', () => {
 
       expect(isAccessor(result.object)).toBe(true)
       // Later objects override earlier ones (Object.assign behavior)
-      expect((result.object as Function)({ value: 10 })).toEqual({ a: 10, b: 2 })
+      expect(
+        (result.object as unknown as (d: { value: number }) => Record<string, number>)({
+          value: 10,
+        })
+      ).toEqual({ a: 10, b: 2 })
     })
 
     it('should handle mixed static and accessor values', () => {
@@ -1310,7 +1406,12 @@ describe('Viral Accessor Tests', () => {
       const result = op.execute({ objects: [accessor1, { z: 3 }, accessor2] })
 
       expect(isAccessor(result.object)).toBe(true)
-      expect((result.object as Function)({ x: 1, y: 2 })).toEqual({ x: 1, z: 3, y: 2 })
+      expect(
+        (result.object as unknown as (d: { x: number; y: number }) => Record<string, number>)({
+          x: 1,
+          y: 2,
+        })
+      ).toEqual({ x: 1, z: 3, y: 2 })
     })
   })
 })

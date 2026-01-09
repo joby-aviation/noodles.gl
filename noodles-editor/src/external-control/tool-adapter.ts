@@ -1,31 +1,31 @@
-
 // Tool adapter for exposing MCP tools to external control
 // Provides a unified interface for tool execution
 
-
-import { MCPTools } from '../ai-chat/mcp-tools'
 import { globalContextManager } from '../ai-chat/global-context-manager'
-import { getOpStore } from '../noodles/store'
+import { MCPTools } from '../ai-chat/mcp-tools'
 import { opTypes } from '../noodles/operators'
 
 export interface ToolDefinition {
   name: string
   description: string
-  parameters: Record<string, {
-    type: string
-    description?: string
-    required?: boolean
-    default?: any
-  }>
+  parameters: Record<
+    string,
+    {
+      type: string
+      description?: string
+      required?: boolean
+      default?: unknown
+    }
+  >
 }
 
 export interface ToolExecutionResult {
   success: boolean
-  result?: any
+  result?: unknown
   error?: {
     message: string
     code?: string
-    details?: any
+    details?: unknown
   }
   executionTime: number
 }
@@ -223,10 +223,7 @@ export class ToolRegistry {
   }
 
   // Execute a tool
-  async execute(
-    toolName: string,
-    args: Record<string, any>
-  ): Promise<ToolExecutionResult> {
+  async execute(toolName: string, args: Record<string, unknown>): Promise<ToolExecutionResult> {
     const startTime = Date.now()
 
     try {
@@ -258,7 +255,7 @@ export class ToolRegistry {
       }
 
       // Execute the tool
-      let result: any
+      let result: unknown
 
       switch (toolName) {
         // MCP tools
@@ -270,7 +267,9 @@ export class ToolRegistry {
         case 'captureVisualization':
         case 'getConsoleErrors':
         case 'getRenderStats': {
-          const mcpMethod = (this.mcpTools as any)[toolName]
+          const mcpMethod = (
+            this.mcpTools as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>
+          )[toolName]
           if (typeof mcpMethod === 'function') {
             result = await mcpMethod.call(this.mcpTools, args)
           } else {
@@ -281,17 +280,31 @@ export class ToolRegistry {
 
         // Custom tools
         case 'createNode': {
-          result = await this.createNode(args)
+          result = await this.createNode(
+            args as {
+              type: string
+              id?: string
+              position?: { x: number; y: number }
+              inputs?: Record<string, unknown>
+            }
+          )
           break
         }
 
         case 'connectNodes': {
-          result = await this.connectNodes(args)
+          result = await this.connectNodes(
+            args as {
+              sourceId: string
+              targetId: string
+              sourceField?: string
+              targetField?: string
+            }
+          )
           break
         }
 
         case 'deleteNode': {
-          result = await this.deleteNode(args)
+          result = await this.deleteNode(args as { nodeId: string })
           break
         }
 
@@ -327,12 +340,12 @@ export class ToolRegistry {
     type: string
     id?: string
     position?: { x: number; y: number }
-    inputs?: Record<string, any>
-  }): Promise<any> {
+    inputs?: Record<string, unknown>
+  }): Promise<{ nodeId: string; type: string; position: { x: number; y: number } }> {
     const { type, id, position = { x: 100, y: 100 }, inputs = {} } = args
 
     // Check if operator type exists
-    const OpClass = opTypes[type]
+    const OpClass = opTypes[type as keyof typeof opTypes]
     if (!OpClass) {
       throw new Error(`Unknown operator type: ${type}`)
     }
@@ -353,7 +366,7 @@ export class ToolRegistry {
     // Apply the modification
     await this.mcpTools.applyModifications({
       modifications: {
-        nodes: [{ type: 'add', node }],
+        nodes: [{ type: 'add' as const, node }],
       },
     })
 
@@ -370,13 +383,8 @@ export class ToolRegistry {
     targetId: string
     sourceField?: string
     targetField?: string
-  }): Promise<any> {
-    const {
-      sourceId,
-      targetId,
-      sourceField = 'out.result',
-      targetField = 'par.data',
-    } = args
+  }): Promise<{ edgeId: string; source: string; target: string }> {
+    const { sourceId, targetId, sourceField = 'out.result', targetField = 'par.data' } = args
 
     // Create the edge
     const edge = {
@@ -390,7 +398,7 @@ export class ToolRegistry {
     // Apply the modification
     await this.mcpTools.applyModifications({
       modifications: {
-        edges: [{ type: 'add', edge }],
+        edges: [{ type: 'add' as const, edge }],
       },
     })
 
@@ -402,13 +410,15 @@ export class ToolRegistry {
   }
 
   // Delete a node
-  private async deleteNode(args: { nodeId: string }): Promise<any> {
+  private async deleteNode(args: {
+    nodeId: string
+  }): Promise<{ nodeId: string; deleted: boolean }> {
     const { nodeId } = args
 
     // Apply the modification
     await this.mcpTools.applyModifications({
       modifications: {
-        nodes: [{ type: 'delete', nodeId }],
+        nodes: [{ type: 'delete' as const, nodeId }],
       },
     })
 
@@ -419,14 +429,21 @@ export class ToolRegistry {
   }
 
   // List available operator types
-  private listOperatorTypes(): any {
-    const types: Record<string, any> = {}
+  private listOperatorTypes(): Record<
+    string,
+    { name: string; displayName: string; description: string }
+  > {
+    const types: Record<string, { name: string; displayName: string; description: string }> = {}
 
     for (const [name, OpClass] of Object.entries(opTypes)) {
+      const OpClassAny = OpClass as {
+        displayName?: string
+        description?: string
+      }
       types[name] = {
         name,
-        displayName: (OpClass as any).displayName || name,
-        description: (OpClass as any).description || '',
+        displayName: OpClassAny.displayName || name,
+        description: OpClassAny.description || '',
       }
     }
 

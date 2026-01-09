@@ -1,15 +1,13 @@
-
 // Reference client implementation for external control
 // This can be used by external tools like Claude Code to control Noodles
 
-
 import {
-  Message,
-  MessageType,
   createMessage,
+  type Message,
+  MessageMatcher,
+  MessageType,
   parseMessage,
   serializeMessage,
-  MessageMatcher,
 } from './message-protocol'
 
 export interface ClientConfig {
@@ -26,7 +24,7 @@ export interface PipelineSpec {
     type: string
     position?: { x: number; y: number }
     data?: {
-      inputs?: Record<string, any>
+      inputs?: Record<string, unknown>
     }
   }>
   edges: Array<{
@@ -67,7 +65,7 @@ export class NoodlesClient {
   private isConnected = false
   private reconnectTimer: NodeJS.Timeout | null = null
   private matcher = new MessageMatcher()
-  private eventHandlers = new Map<string, Set<(data: any) => void>>()
+  private eventHandlers = new Map<string, Set<(data: unknown) => void>>()
 
   constructor(config: ClientConfig = {}) {
     this.config = {
@@ -92,7 +90,7 @@ export class NoodlesClient {
         if (token) {
           this.config.token = token
         }
-      } catch (error) {
+      } catch (_error) {
         // URL parsing failed, continue without token
       }
 
@@ -104,16 +102,18 @@ export class NoodlesClient {
           this.isConnected = true
 
           // Send connect message
-          this.send(createMessage(MessageType.CONNECT, {
-            clientId: `client-${Date.now()}`,
-            version: '1.0.0',
-            capabilities: ['pipeline', 'tools', 'state'],
-          }))
+          this.send(
+            createMessage(MessageType.CONNECT, {
+              clientId: `client-${Date.now()}`,
+              version: '1.0.0',
+              capabilities: ['pipeline', 'tools', 'state'],
+            })
+          )
 
           resolve()
         }
 
-        this.ws.onmessage = (event) => {
+        this.ws.onmessage = event => {
           const message = parseMessage(event.data)
           if (!message) {
             this.log('Invalid message received:', event.data)
@@ -123,12 +123,12 @@ export class NoodlesClient {
           this.handleMessage(message)
         }
 
-        this.ws.onerror = (error) => {
+        this.ws.onerror = error => {
           this.log('WebSocket error:', error)
           reject(new Error('WebSocket connection failed'))
         }
 
-        this.ws.onclose = (event) => {
+        this.ws.onclose = event => {
           this.log('Disconnected:', event.code, event.reason)
           this.isConnected = false
 
@@ -192,7 +192,7 @@ export class NoodlesClient {
   // ==================== Pipeline Operations ====================
 
   // Create a pipeline from specification
-  async createPipeline(spec: PipelineSpec): Promise<any> {
+  async createPipeline(spec: PipelineSpec): Promise<unknown> {
     const message = createMessage(MessageType.PIPELINE_CREATE, {
       spec,
       options: {
@@ -209,7 +209,7 @@ export class NoodlesClient {
   }
 
   // Test a pipeline with sample data
-  async testPipeline(pipelineId: string, testData: any[]): Promise<any> {
+  async testPipeline(pipelineId: string, testData: unknown[]): Promise<unknown> {
     const message = createMessage(MessageType.PIPELINE_TEST, {
       pipelineId,
       testData,
@@ -228,7 +228,7 @@ export class NoodlesClient {
   }
 
   // Validate a pipeline
-  async validatePipeline(pipelineId: string): Promise<any> {
+  async validatePipeline(pipelineId: string): Promise<unknown> {
     const message = createMessage(MessageType.PIPELINE_VALIDATE, {
       pipelineId,
     })
@@ -244,7 +244,7 @@ export class NoodlesClient {
   // ==================== Tool Operations ====================
 
   // Call a tool directly
-  async callTool(tool: string, args: Record<string, any>): Promise<any> {
+  async callTool(tool: string, args: Record<string, unknown>): Promise<unknown> {
     const message = createMessage(MessageType.TOOL_CALL, {
       tool,
       args,
@@ -260,27 +260,27 @@ export class NoodlesClient {
   }
 
   // Get current project state
-  async getCurrentProject(): Promise<any> {
+  async getCurrentProject(): Promise<unknown> {
     return this.callTool('getCurrentProject', {})
   }
 
   // Apply modifications to the project
-  async applyModifications(modifications: any): Promise<any> {
+  async applyModifications(modifications: unknown): Promise<unknown> {
     return this.callTool('applyModifications', { modifications })
   }
 
   // List all nodes
-  async listNodes(): Promise<any> {
+  async listNodes(): Promise<unknown> {
     return this.callTool('listNodes', {})
   }
 
   // Get node output
-  async getNodeOutput(nodeId: string, outputName = 'result'): Promise<any> {
+  async getNodeOutput(nodeId: string, outputName = 'result'): Promise<unknown> {
     return this.callTool('getNodeOutput', { nodeId, outputName })
   }
 
   // Capture visualization screenshot
-  async captureVisualization(format = 'png', quality = 0.9): Promise<any> {
+  async captureVisualization(format = 'png', quality = 0.9): Promise<unknown> {
     return this.callTool('captureVisualization', { format, quality })
   }
 
@@ -291,7 +291,7 @@ export class NoodlesClient {
     filename: string,
     content: string | ArrayBuffer,
     mimeType = 'text/csv'
-  ): Promise<any> {
+  ): Promise<unknown> {
     const message = createMessage(MessageType.DATA_UPLOAD, {
       filename,
       content: typeof content === 'string' ? content : this.arrayBufferToBase64(content),
@@ -310,19 +310,19 @@ export class NoodlesClient {
   // ==================== State Operations ====================
 
   // Request current state
-  async getState(): Promise<any> {
+  async getState(): Promise<unknown> {
     const message = createMessage(MessageType.STATE_REQUEST, {})
     const response = await this.sendAndWait(message)
     return response.payload
   }
 
   // Subscribe to state changes
-  onStateChange(callback: (state: any) => void): void {
+  onStateChange(callback: (state: unknown) => void): void {
     this.on('stateChange', callback)
   }
 
   // Subscribe to errors
-  onError(callback: (error: any) => void): void {
+  onError(callback: (error: unknown) => void): void {
     this.on('error', callback)
   }
 
@@ -363,7 +363,7 @@ export class NoodlesClient {
 
     // Add token to message payload if available
     if (this.config.token && message.payload) {
-      message.payload.token = this.config.token
+      ;(message.payload as Record<string, unknown>).token = this.config.token
     }
 
     this.ws.send(serializeMessage(message))
@@ -387,21 +387,23 @@ export class NoodlesClient {
     }, this.config.reconnectDelay)
   }
 
-  private on(event: string, handler: (data: any) => void): void {
+  private on(event: string, handler: (data: unknown) => void): void {
     if (!this.eventHandlers.has(event)) {
       this.eventHandlers.set(event, new Set())
     }
     this.eventHandlers.get(event)!.add(handler)
   }
 
-  private emit(event: string, data: any): void {
+  private emit(event: string, data: unknown): void {
     const handlers = this.eventHandlers.get(event)
     if (handlers) {
-      handlers.forEach(handler => handler(data))
+      handlers.forEach(handler => {
+        handler(data)
+      })
     }
   }
 
-  private log(...args: any[]): void {
+  private log(...args: unknown[]): void {
     if (this.config.debug) {
       console.log('[NoodlesClient]', ...args)
     }
