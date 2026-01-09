@@ -12,11 +12,7 @@
 // Generic accessor type for deck.gl style accessors
 // TData: the type of each data item
 // TReturn: the return type of the accessor
-export type Accessor<TData, TReturn> = (
-  datum: TData,
-  index?: number,
-  data?: TData[]
-) => TReturn
+export type Accessor<TData, TReturn> = (datum: TData, index?: number, data?: TData[]) => TReturn
 
 // A value that can be either a static value or an accessor function
 export type AccessorOrValue<TData, TReturn> = TReturn | Accessor<TData, TReturn>

@@ -677,17 +677,13 @@ export class Point3DField extends Field<
           lat: z.number(),
           alt: z.number(),
         })
-        .transform(val =>
-          returnType === 'tuple' ? [val.lng, val.lat, val.alt] : val
-        ),
+        .transform(val => (returnType === 'tuple' ? [val.lng, val.lat, val.alt] : val)),
       z
         .looseObject({
           lng: z.number(),
           lat: z.number(),
         })
-        .transform(val =>
-          returnType === 'tuple' ? [val.lng, val.lat, 0] : { ...val, alt: 0 }
-        ),
+        .transform(val => (returnType === 'tuple' ? [val.lng, val.lat, 0] : { ...val, alt: 0 })),
       z
         .tuple([z.number(), z.number(), z.number()])
         .transform(val =>
@@ -695,9 +691,7 @@ export class Point3DField extends Field<
         ),
       z
         .tuple([z.number(), z.number()])
-        .transform(val =>
-          returnType === 'object' ? { lng: val[0], lat: val[1], alt: 0 } : val
-        ),
+        .transform(val => (returnType === 'object' ? { lng: val[0], lat: val[1], alt: 0 } : val)),
     ])
   }
 }
