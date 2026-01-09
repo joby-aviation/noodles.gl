@@ -638,11 +638,8 @@ export class GraphExecutor {
       for (const nodeId of sorted) {
         const node = this.nodes.get(nodeId)
         if (node && this.dirtyNodes.has(nodeId)) {
-          await this.executeNode(node, {
-            time: performance.now(),
-            frame: index,
-            context: new Map([['iteration', { index, total, isFirst, isLast, accumulator }]]),
-          })
+          // Execute node - iteration context is already set via ForLoopBeginOp and ForLoopMetaOp outputs
+          await this.executeNode(node)
           this.dirtyNodes.delete(nodeId)
           node.dirty = false
         }

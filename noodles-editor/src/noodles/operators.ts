@@ -186,6 +186,7 @@ import { projectScheme } from './utils/filesystem'
 import type { OpId } from './utils/id-utils'
 import { isDirectChild } from './utils/path-utils'
 import { pick } from './utils/pick'
+import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
 import { validateViewState } from './utils/viewstate-helpers'
 
 // https://stackoverflow.com/questions/66044717/typescript-infer-type-of-abstract-methods-implementation
@@ -216,7 +217,7 @@ export abstract class Operator<OP extends IOperator> {
   out = proxyFields(this, 'outputs')
 
   // If the operator allows its data to be downloaded, override this method
-  asDownload?: () => unknown
+  asDownload?: () => Blob | string | ArrayBuffer
 
   // Should the execute function be memoized? Ops that store state elsewhere might not want to be cached.
   static cacheable = true
@@ -3409,16 +3410,16 @@ function gatherTriggers(
 
 type LayerExtensionFieldReturnValue = null | {
   extension: LayerExtension
-  props: Record<string, unknown>
+  props: Record<string, LayerPropsValue>
 }
 
 // Map of extension type names to extension classes or wrapped classes with constructor args
 export const extensionMap: Record<
   string,
   | (new (
-      ...args: unknown[]
+      ...args: ExtensionConstructorArgs
     ) => LayerExtension)
-  | { ExtensionClass: new (...args: unknown[]) => LayerExtension; args: unknown }
+  | { ExtensionClass: new (...args: ExtensionConstructorArgs) => LayerExtension; args: ExtensionConstructorArgs }
 > = {
   BrushingExtension,
   ClipExtension,

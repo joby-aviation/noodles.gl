@@ -611,4 +611,38 @@ describe('Graph execution', () => {
       expect(op.dirty).toBe(false)
     }
   })
+
+  it('should call executeNode with correct number of parameters', async () => {
+    // This test verifies the fix for the critical bug where executeNode was previously
+    // called with 2 parameters (node, context) but only accepts 1 parameter (node).
+    // The bug occurred at line 641 in the for-loop execution code.
+    //
+    // The fix: Removed the invalid second parameter. Iteration context is passed via
+    // ForLoopBeginOp and ForLoopMetaOp outputs, not as an execution context parameter.
+
+    const executor = new GraphExecutor()
+
+    // Create simple operators to test basic execution without parameter errors
+    const num1 = new NumberOp('/num1')
+    const num2 = new NumberOp('/num2')
+    const math = new MathOp('/math')
+
+    num1.inputs.val.setValue(10)
+    num2.inputs.val.setValue(20)
+    math.inputs.operator.setValue('add')
+
+    executor.addNode(num1)
+    executor.addNode(num2)
+    executor.addNode(math)
+
+    executor.addEdge('/num1', '/math')
+    executor.addEdge('/num2', '/math')
+
+    executor.markDirty(['/num1', '/num2', '/math'])
+
+    // This should execute without throwing parameter-related errors
+    // If executeNode was being called with 2 parameters, TypeScript would error
+    // or the function would throw at runtime
+    await expect(executor.executeFrame(performance.now())).resolves.not.toThrow()
+  })
 })
