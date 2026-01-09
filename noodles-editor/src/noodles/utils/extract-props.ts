@@ -13,7 +13,8 @@ export type ExtractProps<T> = {
         : unknown[]
       : T[K] extends CompoundPropsField
         ? T[K] extends { fields: infer F }
-          ? F extends Record<string, Field<any>>
+          ? // biome-ignore lint/suspicious/noExplicitAny: Generic field type extraction requires any
+            F extends Record<string, Field<any>>
             ? {
                 [P in keyof F]: F[P] extends Field<infer U>
                   ? U extends z.ZodType

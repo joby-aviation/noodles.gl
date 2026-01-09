@@ -1020,9 +1020,11 @@ function DraggableNumberInput({
     displayValue === '' ? '' : Math.round((+displayValue + Number.EPSILON) * 100) / 100
 
   return (
+    // biome-ignore lint/a11y/useSemanticElements: Number input wrapper with drag interaction requires div with role
     <div
       className={s.fieldInputWrapper}
       style={{ position: 'relative' }}
+      role="group"
       tabIndex={-1}
       onMouseDown={handleMouseDown}
       onTouchStart={handleTouchStart}
@@ -1345,7 +1347,7 @@ export function CompoundFieldComponent({
 export function EmptyFieldComponent({ id }: { id: OpId; field: Field<IField> }) {
   return (
     <div className={s.fieldWrapper}>
-      <label className={s.fieldLabel}>{id}</label>
+      <div className={s.fieldLabel}>{id}</div>
     </div>
   )
 }
@@ -1371,10 +1373,13 @@ export function BezierCurveFieldComponent({
 
   const svgSize = { width: 200, height: 150 }
   const padding = { top: 10, right: 10, bottom: 20, left: 20 }
-  const graphArea = {
-    width: svgSize.width - padding.left - padding.right,
-    height: svgSize.height - padding.top - padding.bottom,
-  }
+  const graphArea = useMemo(
+    () => ({
+      width: svgSize.width - padding.left - padding.right,
+      height: svgSize.height - padding.top - padding.bottom,
+    }),
+    []
+  )
 
   // Convert SVG coordinates to curve coordinates (0-1, 0-1)
   const svgToCurve = useCallback(
@@ -1652,7 +1657,9 @@ export function BezierCurveFieldComponent({
             maxWidth: '100%',
             height: 'auto',
           }}
+          aria-label="Bezier curve editor"
         >
+          <title>Bezier curve editor</title>
           {/* Background */}
           <rect width={svgSize.width} height={svgSize.height} fill="#1a1a1a" />
 

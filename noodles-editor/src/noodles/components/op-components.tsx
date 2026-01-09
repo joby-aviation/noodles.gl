@@ -613,6 +613,7 @@ function NodeHeader({ id, type, op }: { id: string; type: OpType; op: Operator<I
       </Tooltip.Root>
     </Tooltip.Provider>
   ) : (
+    // biome-ignore lint/a11y/useSemanticElements: Inline editable text requires span with role
     <span className={s.headerId} role="button" tabIndex={0} onDoubleClick={onNodeHeaderDoubleClick}>
       {baseName}
     </span>

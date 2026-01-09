@@ -203,6 +203,7 @@ function TreeItem({
 
   return (
     <div className={s.treeItem}>
+      {/* biome-ignore lint/a11y/useSemanticElements: Complex styling requires div */}
       <div
         role="button"
         tabIndex={0}
@@ -260,7 +261,7 @@ function TreeItem({
               </Tooltip.Root>
             </Tooltip.Provider>
           ) : (
-            <span className={s.nodeName} onDoubleClick={onDoubleClick}>
+            <span className={s.nodeName} role="button" tabIndex={0} onDoubleClick={onDoubleClick}>
               {node.name}
             </span>
           )}

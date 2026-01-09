@@ -45,10 +45,11 @@ const connect = (url: string) => {
   disconnect()
 
   // Extract token from URL if present
-  let _token: string | null = null
+  let token: string | null = null
   try {
     const urlObj = new URL(url)
-    _token = urlObj.searchParams.get('token')
+    token = urlObj.searchParams.get('token')
+    console.log('[Worker] Extracted token from URL:', token)
   } catch (error) {
     console.error('[Worker] Invalid URL:', error)
   }

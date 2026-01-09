@@ -245,6 +245,8 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
 
           <div
             className={`${s.dropZone} ${isDragging ? s.dropZoneDragging : ''}`}
+            role="button"
+            tabIndex={0}
             onDragEnter={handleDragEnter}
             onDragLeave={handleDragLeave}
             onDragOver={handleDragOver}

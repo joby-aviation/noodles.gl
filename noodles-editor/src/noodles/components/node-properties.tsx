@@ -279,8 +279,10 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
                   </div>
                 </div>
                 {input.field instanceof ListField && incomers.length > 0 && (
+                  // biome-ignore lint/a11y/useSemanticElements: Drag-and-drop list requires div with role
                   <div className={s.connections} role="list" onDragOver={handleDragOver}>
                     {incomers.map((edge, index) => (
+                      // biome-ignore lint/a11y/useSemanticElements: Draggable list item requires div with role
                       <div
                         key={edge.id}
                         className={s.connection}

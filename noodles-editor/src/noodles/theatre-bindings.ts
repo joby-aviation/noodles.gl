@@ -230,6 +230,7 @@ export function bindOperatorToTheatre(
     untapFns.push(() => fieldSub.unsubscribe())
 
     // Theatre -> Field binding
+    // biome-ignore lint/suspicious/noExplicitAny: Theatre.js values can be any type
     const theatreSub = onChange(pointer, (value_: any) => {
       if (op.locked.value || updating) return
       updating = true
