@@ -411,6 +411,157 @@ describe('ForLoopMetaOp', () => {
   })
 })
 
+describe('ForLoop execution - result collection', () => {
+  it('should return array of all iteration results with map-like behavior', async () => {
+    // Setup: [1, 2, 3] -> ForLoopBegin -> MathOp(add 1) -> ForLoopEnd
+    // Expected output: [2, 3, 4]
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const mathOp = new MathOp('/math')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    // Set input data on beginOp
+    beginOp.inputs.data.setValue([1, 2, 3])
+
+    // Connect beginOp.d -> mathOp.a
+    mathOp.inputs.a.addConnection('begin-to-math', beginOp.outputs.d)
+    mathOp.addUpstreamDependency(beginOp)
+    beginOp.addDownstreamDependent(mathOp)
+
+    // Set mathOp to add 1
+    mathOp.inputs.b.setValue(1)
+    mathOp.inputs.operator.setValue('add')
+
+    // Connect mathOp.result -> endOp.d
+    endOp.inputs.d.addConnection('math-to-end', mathOp.outputs.result)
+    endOp.addUpstreamDependency(mathOp)
+    mathOp.addDownstreamDependent(endOp)
+
+    // Set up the chain for ForLoopEndOp
+    endOp.createForLoopListeners([beginOp, mathOp, endOp])
+
+    // Pull from endOp - should execute the loop and collect all results
+    const result = await endOp.pull()
+
+    expect(result.data).toEqual([2, 3, 4])
+  })
+
+  it('should handle empty array input', async () => {
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    // Set empty input data
+    beginOp.inputs.data.setValue([])
+
+    // Connect beginOp.d -> endOp.d (direct passthrough)
+    endOp.inputs.d.addConnection('begin-to-end', beginOp.outputs.d)
+    endOp.addUpstreamDependency(beginOp)
+    beginOp.addDownstreamDependent(endOp)
+
+    // Set up the chain
+    endOp.createForLoopListeners([beginOp, endOp])
+
+    const result = await endOp.pull()
+
+    expect(result.data).toEqual([])
+  })
+
+  it('should provide correct index and total during iteration', async () => {
+    // Track what index/total values were seen during iteration
+    const seenIndices: number[] = []
+    const seenTotals: number[] = []
+
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    // Set input data
+    beginOp.inputs.data.setValue(['a', 'b', 'c'])
+
+    // Connect beginOp.d -> endOp.d
+    endOp.inputs.d.addConnection('begin-to-end', beginOp.outputs.d)
+    endOp.addUpstreamDependency(beginOp)
+    beginOp.addDownstreamDependent(endOp)
+
+    // Subscribe to track index/total changes
+    beginOp.outputs.index.subscribe(idx => seenIndices.push(idx))
+    beginOp.outputs.total.subscribe(t => seenTotals.push(t))
+
+    // Set up the chain
+    endOp.createForLoopListeners([beginOp, endOp])
+
+    await endOp.pull()
+
+    // Should have seen indices 0, 1, 2 during iteration
+    expect(seenIndices).toContain(0)
+    expect(seenIndices).toContain(1)
+    expect(seenIndices).toContain(2)
+
+    // Total should always be 3
+    expect(seenTotals.every(t => t === 3 || t === 0)).toBe(true) // 0 is initial value
+  })
+
+  it('should work with multiple operators in loop body', async () => {
+    // Setup: [10, 20, 30] -> ForLoopBegin -> MathOp(multiply by 2) -> MathOp(add 5) -> ForLoopEnd
+    // Expected: [25, 45, 65] (10*2+5=25, 20*2+5=45, 30*2+5=65)
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const multiplyOp = new MathOp('/multiply')
+    const addOp = new MathOp('/add')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    // Set input data
+    beginOp.inputs.data.setValue([10, 20, 30])
+
+    // Connect beginOp.d -> multiplyOp.a
+    multiplyOp.inputs.a.addConnection('begin-to-mult', beginOp.outputs.d)
+    multiplyOp.addUpstreamDependency(beginOp)
+    beginOp.addDownstreamDependent(multiplyOp)
+
+    // Set multiplyOp to multiply by 2
+    multiplyOp.inputs.b.setValue(2)
+    multiplyOp.inputs.operator.setValue('multiply')
+
+    // Connect multiplyOp.result -> addOp.a
+    addOp.inputs.a.addConnection('mult-to-add', multiplyOp.outputs.result)
+    addOp.addUpstreamDependency(multiplyOp)
+    multiplyOp.addDownstreamDependent(addOp)
+
+    // Set addOp to add 5
+    addOp.inputs.b.setValue(5)
+    addOp.inputs.operator.setValue('add')
+
+    // Connect addOp.result -> endOp.d
+    endOp.inputs.d.addConnection('add-to-end', addOp.outputs.result)
+    endOp.addUpstreamDependency(addOp)
+    addOp.addDownstreamDependent(endOp)
+
+    // Set up the chain (in correct order for iteration)
+    endOp.createForLoopListeners([beginOp, multiplyOp, addOp, endOp])
+
+    const result = await endOp.pull()
+
+    expect(result.data).toEqual([25, 45, 65])
+  })
+
+  it('should handle object data in loop', async () => {
+    // Test that complex objects are properly iterated
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    const inputData = [{ name: 'Alice' }, { name: 'Bob' }, { name: 'Charlie' }]
+    beginOp.inputs.data.setValue(inputData)
+
+    // Direct passthrough: beginOp.d -> endOp.d
+    endOp.inputs.d.addConnection('begin-to-end', beginOp.outputs.d)
+    endOp.addUpstreamDependency(beginOp)
+    beginOp.addDownstreamDependent(endOp)
+
+    endOp.createForLoopListeners([beginOp, endOp])
+
+    const result = await endOp.pull()
+
+    expect(result.data).toEqual(inputData)
+  })
+})
+
 describe('Operator dirty flag', () => {
   it('should initialize with dirty = true', () => {
     const op = new NumberOp('/number-1')

@@ -124,7 +124,7 @@ import {
 } from 'd3'
 import * as deck from 'deck.gl'
 import { BehaviorSubject, combineLatest, type Subscription } from 'rxjs'
-import { debounceTime, filter, mergeMap } from 'rxjs/operators'
+import { filter, mergeMap } from 'rxjs/operators'
 import { Temporal } from 'temporal-polyfill'
 import vega from 'vega-embed'
 import type z from 'zod/v4'
@@ -179,7 +179,7 @@ import {
   WidgetField,
 } from './fields'
 import { DEFAULT_LATITUDE, DEFAULT_LONGITUDE, safeMode } from './globals'
-import { getAllOps, getOp, hasOp } from './store'
+import { getAllOps, getOp } from './store'
 import { composeAccessor, isAccessor } from './utils/accessor-helpers'
 import type { ExtractProps } from './utils/extract-props'
 import { projectScheme } from './utils/filesystem'
@@ -2354,63 +2354,98 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
   // the downstream operators
   createForLoopListeners(chain: Operator<IOperator>[] = []) {
     this.chain = chain
-
-    const beginOp = chain.find(op => op instanceof ForLoopBeginOp)! as ForLoopBeginOp
-    // biome-ignore lint/complexity/noUselessThisAlias: Provides clarity
-    const endOp = this
-    let running = false
-
-    // Debounce the loop to prevent it from running too frequently when the data changes
-    const runForLoop = () => {
-      if (running) return
-      running = true
-      const data = beginOp.inputs.data.getValue()
-      const collection: unknown[] = []
-      let i = 0
-
-      // For the first run, when data is empty just pass along the empty array
-      if (data.length === 0) {
-        endOp.outputs['data'].next(collection)
-        running = false
-        return
-      }
-
-      let firstRun = true
-      const sub = endOp.inputs['d'].subscribe(values => {
-        if (data.length === 0 || i === data.length) {
-          endOp.outputs['data'].next(collection)
-          running = false
-          if (i === data.length) {
-            sub.unsubscribe()
-          }
-        } else if (i < data.length && !firstRun) {
-          collection.push(values)
-          i++
-        }
-      })
-
-      firstRun = false
-      for (const d of data) {
-        beginOp.outputs['d'].next(d)
-      }
-    }
-
-    for (const sub of this._subs) {
-      sub.unsubscribe()
-    }
-
-    for (const chainOp of chain) {
-      const sub = combineLatest(chainOp.inputs)
-        .pipe(debounceTime(200))
-        .subscribe(() => {
-          // Only run if the operator is still mounted
-          if (hasOp(beginOp.id)) {
-            runForLoop()
-          }
-        })
-      this._subs.push(sub)
-    }
   }
+
+  // Override pull() to iterate through input data and collect results
+  async pull(): Promise<ExtractProps<typeof this.outputs>> {
+    // If no chain or no begin op, fall back to default
+    const beginOp = this.chain.find(op => op instanceof ForLoopBeginOp) as
+      | ForLoopBeginOp
+      | undefined
+    if (!beginOp || this.chain.length === 0) {
+      return super.pull()
+    }
+
+    // Return cached if clean
+    if (this._pullExecutionStatus === PullExecutionStatus.CLEAN && this._cachedOutput !== null) {
+      return this._cachedOutput as ExtractProps<typeof this.outputs>
+    }
+
+    // First pull the beginOp to get the input data
+    await beginOp.pull()
+
+    const data = beginOp.inputs.data.value
+    if (!Array.isArray(data) || data.length === 0) {
+      const result = { data: [] as unknown[] }
+      this._cachedOutput = result
+      this._pullExecutionStatus = PullExecutionStatus.CLEAN
+      this.outputs.data.next(result.data)
+      return result
+    }
+
+    const total = data.length
+    const results: unknown[] = []
+
+    // Chain is in reverse order (EndOp inputs first), get proper execution order
+    const executionOrder = [...this.chain].reverse()
+
+    // Find ForLoopMetaOp if present
+    const metaOp = this.chain.find(op => op instanceof ForLoopMetaOp) as ForLoopMetaOp | undefined
+    let accumulator: unknown = metaOp?.inputs.initialValue.value ?? null
+
+    for (let index = 0; index < total; index++) {
+      const item = data[index]
+      const isFirst = index === 0
+      const isLast = index === total - 1
+
+      // Set iteration values on ForLoopBeginOp
+      beginOp.outputs.d.next(item)
+      beginOp.outputs.index.next(index)
+      beginOp.outputs.total.next(total)
+
+      // Set iteration metadata on ForLoopMetaOp if present
+      if (metaOp) {
+        metaOp.outputs.accumulator.next(accumulator)
+        metaOp.outputs.index.next(index)
+        metaOp.outputs.total.next(total)
+        metaOp.outputs.isFirst.next(isFirst)
+        metaOp.outputs.isLast.next(isLast)
+      }
+
+      // Mark all chain operators dirty (except beginOp and this)
+      for (const op of executionOrder) {
+        if (op !== beginOp && op !== this) {
+          op.markDirty()
+        }
+      }
+
+      // Execute chain in topological order by pulling each
+      for (const op of executionOrder) {
+        if (op !== beginOp && op !== this) {
+          await op.pull()
+        }
+      }
+
+      // Collect result - the input field should now have the value from upstream
+      results.push(this.inputs.d.value)
+
+      // Update accumulator from meta op for next iteration
+      if (metaOp) {
+        accumulator = metaOp.inputs.currentValue.value
+      }
+    }
+
+    const result = { data: results }
+    this._cachedOutput = result
+    this._pullExecutionStatus = PullExecutionStatus.CLEAN
+    this.dirty = false
+
+    // Update output field
+    this.outputs.data.next(results)
+
+    return result
+  }
+
   execute({ d }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     return { data: d }
   }
