@@ -670,6 +670,7 @@ export class Point3DField extends Field<
   }
 
   createSchema({ returnType }: PointFieldOptions = { returnType: 'object' }) {
+    const noop = (val: unknown) => val
     return z.union([
       z
         .looseObject({
@@ -677,21 +678,23 @@ export class Point3DField extends Field<
           lat: z.number(),
           alt: z.number(),
         })
-        .transform(val => (returnType === 'tuple' ? [val.lng, val.lat, val.alt] : val)),
+        .transform(returnType === 'tuple' ? val => [val.lng, val.lat, val.alt] : noop),
       z
         .looseObject({
           lng: z.number(),
           lat: z.number(),
         })
-        .transform(val => (returnType === 'tuple' ? [val.lng, val.lat, 0] : { ...val, alt: 0 })),
+        .transform(
+          returnType === 'tuple' ? val => [val.lng, val.lat, 0] : val => ({ ...val, alt: 0 })
+        ),
       z
         .tuple([z.number(), z.number(), z.number()])
-        .transform(val =>
-          returnType === 'object' ? { lng: val[0], lat: val[1], alt: val[2] } : val
+        .transform(
+          returnType === 'object' ? val => ({ lng: val[0], lat: val[1], alt: val[2] }) : noop
         ),
       z
         .tuple([z.number(), z.number()])
-        .transform(val => (returnType === 'object' ? { lng: val[0], lat: val[1], alt: 0 } : val)),
+        .transform(returnType === 'object' ? val => ({ lng: val[0], lat: val[1], alt: 0 }) : noop),
     ])
   }
 }
