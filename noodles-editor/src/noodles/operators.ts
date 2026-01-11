@@ -2398,10 +2398,17 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
       const isFirst = index === 0
       const isLast = index === total - 1
 
-      // Set iteration values on ForLoopBeginOp
+      // Set iteration values on ForLoopBeginOp outputs
       beginOp.outputs.d.next(item)
       beginOp.outputs.index.next(index)
       beginOp.outputs.total.next(total)
+
+      // CRITICAL: Mark BeginOp as CLEAN with cached output so that when downstream
+      // operators pull their dependencies, BeginOp returns these iteration values
+      // instead of re-executing (which would always return arr[0])
+      beginOp._cachedOutput = { d: item, index, total }
+      beginOp._pullExecutionStatus = PullExecutionStatus.CLEAN
+      beginOp.dirty = false
 
       // Set iteration metadata on ForLoopMetaOp if present
       if (metaOp) {
@@ -2410,18 +2417,29 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
         metaOp.outputs.total.next(total)
         metaOp.outputs.isFirst.next(isFirst)
         metaOp.outputs.isLast.next(isLast)
+
+        // Also cache metaOp so it doesn't re-execute
+        metaOp._cachedOutput = {
+          accumulator,
+          index,
+          total,
+          isFirst,
+          isLast,
+        }
+        metaOp._pullExecutionStatus = PullExecutionStatus.CLEAN
+        metaOp.dirty = false
       }
 
-      // Mark all chain operators dirty (except beginOp and this)
+      // Mark all chain operators dirty (except beginOp, metaOp, and this)
       for (const op of executionOrder) {
-        if (op !== beginOp && op !== this) {
+        if (op !== beginOp && op !== metaOp && op !== this) {
           op.markDirty()
         }
       }
 
       // Execute chain in topological order by pulling each
       for (const op of executionOrder) {
-        if (op !== beginOp && op !== this) {
+        if (op !== beginOp && op !== metaOp && op !== this) {
           await op.pull()
         }
       }
