@@ -560,6 +560,110 @@ describe('ForLoop execution - result collection', () => {
 
     expect(result.data).toEqual(inputData)
   })
+
+  it('should re-run loop when intermediate node input changes (like keyframe animation)', async () => {
+    // Simulates: [1, 2, 3] -> ForLoopBegin -> MathOp(add b) -> ForLoopEnd
+    // where b changes over time (like a keyframed value)
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const mathOp = new MathOp('/math')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    // Set input data
+    beginOp.inputs.data.setValue([1, 2, 3])
+
+    // Connect beginOp.d -> mathOp.a
+    mathOp.inputs.a.addConnection('begin-to-math', beginOp.outputs.d)
+    mathOp.addUpstreamDependency(beginOp)
+    beginOp.addDownstreamDependent(mathOp)
+
+    // Set initial b value (like keyframe at t=0)
+    mathOp.inputs.b.setValue(0)
+    mathOp.inputs.operator.setValue('add')
+
+    // Connect mathOp.result -> endOp.d
+    endOp.inputs.d.addConnection('math-to-end', mathOp.outputs.result)
+    endOp.addUpstreamDependency(mathOp)
+    mathOp.addDownstreamDependent(endOp)
+
+    // Set up the chain
+    endOp.createForLoopListeners([beginOp, mathOp, endOp])
+
+    // First pull - b=0, so output is [1+0, 2+0, 3+0] = [1, 2, 3]
+    const result1 = await endOp.pull()
+    expect(result1.data).toEqual([1, 2, 3])
+
+    // Simulate keyframe update: change b from 0 to 10
+    mathOp.inputs.b.setValue(10)
+
+    // Second pull - b=10, so output should be [1+10, 2+10, 3+10] = [11, 12, 13]
+    const result2 = await endOp.pull()
+    expect(result2.data).toEqual([11, 12, 13])
+  })
+
+  it('should re-run loop when input data changes', async () => {
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const mathOp = new MathOp('/math')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    // Initial data
+    beginOp.inputs.data.setValue([1, 2])
+
+    // Connect beginOp.d -> mathOp.a
+    mathOp.inputs.a.addConnection('begin-to-math', beginOp.outputs.d)
+    mathOp.addUpstreamDependency(beginOp)
+    beginOp.addDownstreamDependent(mathOp)
+
+    mathOp.inputs.b.setValue(1)
+    mathOp.inputs.operator.setValue('add')
+
+    // Connect mathOp.result -> endOp.d
+    endOp.inputs.d.addConnection('math-to-end', mathOp.outputs.result)
+    endOp.addUpstreamDependency(mathOp)
+    mathOp.addDownstreamDependent(endOp)
+
+    endOp.createForLoopListeners([beginOp, mathOp, endOp])
+
+    // First pull with [1, 2]
+    const result1 = await endOp.pull()
+    expect(result1.data).toEqual([2, 3])
+
+    // Change input data to [10, 20, 30]
+    beginOp.inputs.data.setValue([10, 20, 30])
+
+    // Second pull should use new data
+    const result2 = await endOp.pull()
+    expect(result2.data).toEqual([11, 21, 31])
+  })
+
+  it('should use cached result when nothing in loop changes', async () => {
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const mathOp = new MathOp('/math')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    beginOp.inputs.data.setValue([1, 2, 3])
+
+    mathOp.inputs.a.addConnection('begin-to-math', beginOp.outputs.d)
+    mathOp.addUpstreamDependency(beginOp)
+    beginOp.addDownstreamDependent(mathOp)
+
+    mathOp.inputs.b.setValue(1)
+    mathOp.inputs.operator.setValue('add')
+
+    endOp.inputs.d.addConnection('math-to-end', mathOp.outputs.result)
+    endOp.addUpstreamDependency(mathOp)
+    mathOp.addDownstreamDependent(endOp)
+
+    endOp.createForLoopListeners([beginOp, mathOp, endOp])
+
+    // First pull
+    const result1 = await endOp.pull()
+    expect(result1.data).toEqual([2, 3, 4])
+
+    // Second pull without changes - should return same cached result
+    const result2 = await endOp.pull()
+    expect(result2.data).toEqual([2, 3, 4])
+    expect(result1).toBe(result2) // Same object reference (cached)
+  })
 })
 
 describe('Operator dirty flag', () => {
