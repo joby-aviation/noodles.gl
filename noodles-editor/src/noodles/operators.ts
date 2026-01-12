@@ -2506,10 +2506,11 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
           metaOp.setCachedOutput({ accumulator, index, total, isFirst, isLast })
         }
 
-        // Mark intermediate operators dirty
+        // Clear cache on intermediate operators so pull() re-executes them
+        // NOTE: We use clearCache() not markDirty() because pull() checks _pullExecutionStatus, not dirty
         for (const op of executionOrder) {
           if (op !== beginOp && op !== metaOp && op !== this) {
-            op.markDirty()
+            op.clearCache()
           }
         }
 
@@ -2632,10 +2633,11 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
           metaOp.setCachedOutput({ accumulator, index, total, isFirst, isLast })
         }
 
-        // Mark all chain operators dirty (except beginOp, metaOp, and this)
+        // Clear cache on intermediate operators so pull() re-executes them
+        // NOTE: We use clearCache() not markDirty() because pull() checks _pullExecutionStatus, not dirty
         for (const op of executionOrder) {
           if (op !== beginOp && op !== metaOp && op !== this) {
-            op.markDirty()
+            op.clearCache()
           }
         }
 
