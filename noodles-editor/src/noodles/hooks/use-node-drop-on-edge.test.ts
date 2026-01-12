@@ -1,7 +1,7 @@
 import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { NumberOp, SliceOp, CodeOp } from '../operators'
-import { setOp, clearOps } from '../store'
+import { CodeOp, NumberOp, SliceOp } from '../operators'
+import { clearOps, setOp } from '../store'
 
 // Test the utility functions and logic directly, not the React hook
 // The hook itself is tested through integration tests

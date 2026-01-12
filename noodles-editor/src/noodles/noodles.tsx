@@ -628,6 +628,10 @@ export function getNoodles(): Visualization {
     (project: NoodlesProjectJSON, name?: string) => {
       const { nodes, edges, viewport, timeline, editorSettings, apiKeys } = project
 
+      // Mark that we've programmatically loading this project BEFORE any state changes
+      // This prevents the useEffect from trying to reload it from storage when the URL changes
+      isProgrammaticLoadRef.current = true
+
       // Update current project ref for undo/redo
       currentProjectRef.current = project
 
@@ -663,10 +667,6 @@ export function getNoodles(): Visualization {
 
       // Clear unsaved changes flag when loading a project
       setHasUnsavedChanges(false)
-
-      // Mark that we've programmatically loaded this project
-      // This prevents the useEffect from trying to reload it from storage
-      isProgrammaticLoadRef.current = true
     },
     [setNodes, setEdges, setProjectName, setTheatreProject, navigate, routePrefix]
   )

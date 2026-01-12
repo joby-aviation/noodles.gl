@@ -971,8 +971,8 @@ describe('Node Operations Integration Tests', () => {
       const edge = edges[0]
       expect(edge.source).toBe(beginNode.id)
       expect(edge.target).toBe(endNode.id)
-      expect(edge.sourceHandle).toBe('out.d')
-      expect(edge.targetHandle).toBe('par.d')
+      expect(edge.sourceHandle).toBe('out.item')
+      expect(edge.targetHandle).toBe('par.item')
     })
 
     it('creates operators in store via transformGraph', () => {
@@ -1055,8 +1055,8 @@ describe('Node Operations Integration Tests', () => {
       const endOp = getOp(endNode.id)
       expect(endOp).toBeDefined()
 
-      // The 'd' input on ForLoopEndOp should have a connection
-      expect(endOp?.inputs.d.subscriptions.size).toBe(1)
+      // The 'item' input on ForLoopEndOp should have a connection
+      expect(endOp?.inputs.item.subscriptions.size).toBe(1)
     })
   })
 })
