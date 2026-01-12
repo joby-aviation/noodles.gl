@@ -20,9 +20,7 @@ const DEFAULT_NODE_HEIGHT = 100
 interface UseNodeDropOnEdgeOptions {
   getNodes: () => ReactFlowNode[]
   getEdges: () => ReactFlowEdge[]
-  setEdges: (
-    edges: ReactFlowEdge[] | ((edges: ReactFlowEdge[]) => ReactFlowEdge[])
-  ) => void
+  setEdges: (edges: ReactFlowEdge[] | ((edges: ReactFlowEdge[]) => ReactFlowEdge[])) => void
 }
 
 interface NodeDropResult {
@@ -179,10 +177,7 @@ export function useNodeDropOnEdge(options: UseNodeDropOnEdgeOptions) {
 
   // Find the edge closest to the dropped node, if within threshold
   const findEdgeAtPosition = useCallback(
-    (
-      nodeId: string,
-      nodeCenter: XYPosition
-    ): ReactFlowEdge | null => {
+    (nodeId: string, nodeCenter: XYPosition): ReactFlowEdge | null => {
       const nodes = getNodes()
       const edges = getEdges()
 
@@ -231,10 +226,7 @@ export function useNodeDropOnEdge(options: UseNodeDropOnEdgeOptions) {
       }
 
       // Check if we can insert this node into the edge
-      const { canInsert, sourceToDropped, droppedToTarget } = canInsertNode(
-        edge,
-        node.id
-      )
+      const { canInsert, sourceToDropped, droppedToTarget } = canInsertNode(edge, node.id)
 
       if (!canInsert || !sourceToDropped || !droppedToTarget) {
         return null
