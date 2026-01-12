@@ -200,36 +200,6 @@
   fill: var(--tooltip-background-color);
 }
 
-.errorTooltipContent {
-  background: var(--node-execution-error-color, #ef4444);
-  color: white;
-  padding: 8px 12px;
-  border-radius: 4px;
-  font-size: 12px;
-  max-width: 300px;
-  z-index: var(--z-index-menu);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  animation-duration: 200ms;
-  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
-  will-change: transform, opacity;
-}
-
-.errorTooltipContent[data-state='delayed-open'][data-side='top'],
-.errorTooltipContent[data-state='instant-open'][data-side='top'] {
-  animation-name: slideDownAndFade;
-}
-
-@keyframes slideDownAndFade {
-  from {
-    opacity: 0;
-    transform: translateY(-2px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 .headerActions {
   display: flex;
   gap: 5px;

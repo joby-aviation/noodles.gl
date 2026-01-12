@@ -362,6 +362,62 @@ describe('ExpressionOp', () => {
     })
     expect(val2).toEqual({ data: expect.any(Function) })
   })
+
+  it('throws SyntaxError for invalid expressions and logs warning', () => {
+    const operator = new ExpressionOp('/expression-syntax-error')
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    expect(() => {
+      operator.execute({
+        data: [],
+        expression: 'return }', // Invalid syntax
+      })
+    }).toThrow(SyntaxError)
+
+    // Verify the warning was logged with helpful formatting
+    expect(warnSpy).toHaveBeenCalledTimes(1)
+    expect(warnSpy.mock.calls[0][0]).toContain('Syntax error')
+    expect(warnSpy.mock.calls[0][0]).toContain('/expression-syntax-error')
+
+    warnSpy.mockRestore()
+  })
+
+  describe('friendly error messages', () => {
+    const testCases = [
+      { expression: '[1, 2', expectedMessage: "Missing 1 closing ']'" },
+      { expression: 'foo(', expectedMessage: "Missing 1 closing ')'" },
+      { expression: '{a: 1', expectedMessage: "Missing 1 closing '}'" },
+      { expression: '[[1, 2]', expectedMessage: "Missing 1 closing ']'" },
+      {
+        expression: 'd +',
+        expectedMessage: 'Expression incomplete - missing value after operator',
+      },
+      {
+        expression: 'd.',
+        expectedMessage: 'Expression incomplete - missing property name after "."',
+      },
+      // Note: trailing comma with unclosed bracket reports the bracket issue (more important)
+      { expression: '[1, 2,', expectedMessage: "Missing 1 closing ']'" },
+    ]
+
+    testCases.forEach(({ expression, expectedMessage }) => {
+      it(`shows "${expectedMessage}" for "${expression}"`, () => {
+        const operator = new ExpressionOp('/test-expr')
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+        // Verify the thrown error has the friendly message
+        expect(() => {
+          operator.execute({ data: [], expression })
+        }).toThrow(expectedMessage)
+
+        // Verify console.warn also has the friendly message
+        expect(warnSpy).toHaveBeenCalledTimes(1)
+        expect(warnSpy.mock.calls[0][0]).toContain(expectedMessage)
+
+        warnSpy.mockRestore()
+      })
+    })
+  })
 })
 
 describe('AccessorOp', () => {

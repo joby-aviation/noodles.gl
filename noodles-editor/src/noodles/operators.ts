@@ -1861,7 +1861,7 @@ export class TableEditorOp extends Operator<TableEditorOp> {
 
 export class ScatterOp extends Operator<ScatterOp> {
   static displayName = 'Scatter'
-  static description = 'Scatter points within a bounding box'
+  static description = 'Scatter points randomly within a bounding box'
   createInputs() {
     return {
       bounds: new ArrayField(new Point2DField([0, 0], { returnType: 'tuple' })),
@@ -4531,6 +4531,89 @@ type FunctionWithSource = ((...args: unknown[]) => unknown | Promise<unknown>) &
 // biome-ignore lint/complexity/useArrowFunction: This is a function declaration
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 
+// Count occurrences of a character in a string (for bracket matching)
+function countChar(str: string, char: string): number {
+  return (str.match(new RegExp(`\\${char}`, 'g')) || []).length
+}
+
+// Convert cryptic JS errors to actionable messages based on code analysis
+function getFriendlyErrorMessage(jsError: string, userCode: string): string {
+  // Count unmatched delimiters - used for multiple error types
+  const brackets = countChar(userCode, '[') - countChar(userCode, ']')
+  const parens = countChar(userCode, '(') - countChar(userCode, ')')
+  const braces = countChar(userCode, '{') - countChar(userCode, '}')
+
+  // Handle "Unexpected end of input" or "Unexpected token '}'" or "Unexpected token ')'"
+  // These typically mean something is unclosed
+  if (
+    jsError.includes('Unexpected end of input') ||
+    jsError.includes("Unexpected token '}'") ||
+    jsError.includes("Unexpected token ')'")
+  ) {
+    if (brackets > 0) return `Missing ${brackets} closing ']'`
+    if (parens > 0) return `Missing ${parens} closing ')'`
+    if (braces > 0) return `Missing ${braces} closing '}'`
+
+    // Check for trailing operators
+    if (/[+\-*/%&|^=!<>]+\s*$/.test(userCode)) {
+      return 'Expression incomplete - missing value after operator'
+    }
+
+    // Check for trailing dot (property access)
+    if (/\.\s*$/.test(userCode)) {
+      return 'Expression incomplete - missing property name after "."'
+    }
+
+    // Check for trailing comma
+    if (/,\s*$/.test(userCode)) {
+      return 'Expression incomplete - trailing comma'
+    }
+  }
+
+  // Handle unterminated strings
+  if (jsError.includes('Unterminated string')) {
+    const singleQuotes = countChar(userCode, "'") % 2
+    const doubleQuotes = countChar(userCode, '"') % 2
+    const backticks = countChar(userCode, '`') % 2
+
+    if (singleQuotes) return "Missing closing ' (single quote)"
+    if (doubleQuotes) return 'Missing closing " (double quote)'
+    if (backticks) return 'Missing closing ` (backtick)'
+    return 'Unclosed string literal'
+  }
+
+  // Handle unexpected tokens - check if we have unclosed delimiters anyway
+  if (jsError.includes('Unexpected token')) {
+    if (brackets > 0) return `Missing ${brackets} closing ']'`
+    if (parens > 0) return `Missing ${parens} closing ')'`
+    if (braces > 0) return `Missing ${braces} closing '}'`
+    return jsError
+  }
+
+  // Fallback to original error
+  return jsError
+}
+
+// Format a syntax error message to be more helpful
+function formatSyntaxError(error: Error, id: string, body: string): string {
+  const errorType = error.name === 'SyntaxError' ? 'Syntax error' : error.name
+
+  // Strip "return " prefix if present (added by ExpressionOp/AccessorOp)
+  const userCode = body.startsWith('return ') ? body.slice(7) : body
+
+  // Try to provide actionable message based on code analysis
+  const friendly = getFriendlyErrorMessage(error.message, userCode)
+
+  let message = `${errorType} in ${id}: ${friendly}`
+
+  // For single-line code, show the code inline
+  if (body.split('\n').length === 1 && userCode.length < 60) {
+    message += `\n  Code: ${userCode}`
+  }
+
+  return message
+}
+
 // Create a function with a source property for debugging
 function fnWithSource(args: string[], body: string, id: string): FunctionWithSource {
   try {
@@ -4545,8 +4628,17 @@ function fnWithSource(args: string[], body: string, id: string): FunctionWithSou
     })
     return func
   } catch (e) {
-    console.error(id, e)
-    throw e
+    const error = e instanceof Error ? e : new Error(String(e))
+    // Use console.warn since syntax errors during editing are expected
+    console.warn(formatSyntaxError(error, id, body))
+
+    // Strip "return " prefix for user code analysis
+    const userCode = body.startsWith('return ') ? body.slice(7) : body
+
+    // Throw error with friendly message for UI display
+    const friendlyMessage = getFriendlyErrorMessage(error.message, userCode)
+    const FriendlyError = error.constructor as ErrorConstructor
+    throw new FriendlyError(friendlyMessage)
   }
 }
 
