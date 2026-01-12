@@ -356,9 +356,6 @@ export class GraphExecutor {
 
   // Execute a single frame - uses pull-based execution from root operators
   async executeFrame(_time: number): Promise<Map<string, ComputeResult>> {
-    // DIAGNOSTIC: This logs when GraphExecutor.executeFrame() is called
-    console.log('[GraphExecutor.executeFrame] Called - nodes:', this.nodes.size, 'edges:', this.edges.length)
-
     const frameStart = performance.now()
     const results = new Map<string, ComputeResult>()
 
@@ -375,7 +372,6 @@ export class GraphExecutor {
     // Find and execute ForLoop scopes first
     // ForLoop scopes need to complete their iterations before downstream operators can pull their results
     const forLoopScopes = this.findForLoopScopes()
-    console.log('[GraphExecutor.executeFrame] Found ForLoop scopes:', forLoopScopes.length)
 
     for (const scope of forLoopScopes) {
       try {
@@ -617,14 +613,10 @@ export class GraphExecutor {
     scopeNodeIds: string[],
     metaOp?: ForLoopMetaOp
   ): Promise<unknown[]> {
-    // DIAGNOSTIC: This logs when GraphExecutor handles a ForLoop scope
-    console.log('[GraphExecutor.executeForLoopScope] Called for', beginOp.id, '->', endOp.id, '- scope nodes:', scopeNodeIds.length)
-
     // First pull beginOp to get the input data
     await beginOp.pull()
 
     const data = beginOp.inputs.data.value
-    console.log('[GraphExecutor.executeForLoopScope] Input data length:', Array.isArray(data) ? data.length : 'not array')
     if (!Array.isArray(data) || data.length === 0) {
       endOp.outputs.data.next([])
       endOp.setCachedOutput({ data: [] })
