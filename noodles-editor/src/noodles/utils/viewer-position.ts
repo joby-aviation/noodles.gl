@@ -8,8 +8,10 @@ export const DEFAULT_NODE_WIDTH = 200
 
 // Get the width of a React Flow node.
 // Prefers the measured width, falls back to the width property, then to a default.
+// Returns DEFAULT_NODE_WIDTH for zero/unmeasured widths to prevent viewer overlap.
 export function getNodeWidth(node: ReactFlowNode): number {
-  return node.measured?.width ?? node.width ?? DEFAULT_NODE_WIDTH
+  const width = node.measured?.width ?? node.width ?? DEFAULT_NODE_WIDTH
+  return width > 0 ? width : DEFAULT_NODE_WIDTH
 }
 
 // Calculate the position for a new Viewer operator based on a source node.

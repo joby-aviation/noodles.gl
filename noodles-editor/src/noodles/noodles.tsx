@@ -463,27 +463,22 @@ export function getNoodles(): Visualization {
         return currentNodes
       }
 
+      // Find the rightmost selected node as default
+      const rightmostNode = selectedNodes.reduce((rightmost, node) => {
+        return node.position.x > rightmost.position.x ? node : rightmost
+      }, selectedNodes[0])
+
       // Determine which node to use for positioning and connection
-      let sourceNode: (typeof selectedNodes)[0]
+      let sourceNode = rightmostNode
       let sourceHandle: string | null = null
 
       // Check if a handle is hovered on a selected node
-      if (hoveredHandle && selectedNodes.some(n => n.id === hoveredHandle.nodeId)) {
-        // Use hovered handle if it's on a selected node
-        if (hoveredHandle.handleId.startsWith('out.')) {
-          sourceNode = selectedNodes.find(n => n.id === hoveredHandle.nodeId)!
+      if (hoveredHandle?.handleId.startsWith('out.')) {
+        const hoveredNode = selectedNodes.find(n => n.id === hoveredHandle.nodeId)
+        if (hoveredNode) {
+          sourceNode = hoveredNode
           sourceHandle = hoveredHandle.handleId
-        } else {
-          // Fall back to rightmost node if hovered handle is not an output
-          sourceNode = selectedNodes.reduce((rightmost, node) => {
-            return node.position.x > rightmost.position.x ? node : rightmost
-          }, selectedNodes[0])
         }
-      } else {
-        // No hovered handle, use the rightmost selected node
-        sourceNode = selectedNodes.reduce((rightmost, node) => {
-          return node.position.x > rightmost.position.x ? node : rightmost
-        }, selectedNodes[0])
       }
 
       // If no hovered handle, use the first output handle of the source node

@@ -49,15 +49,15 @@ describe('viewer-position', () => {
       expect(getNodeWidth(node)).toBe(DEFAULT_NODE_WIDTH)
     })
 
-    it('handles measured with zero width', () => {
+    it('returns default width for zero measured width to prevent overlap', () => {
       const node = {
         id: '/test',
         position: { x: 100, y: 200 },
         measured: { width: 0, height: 150 },
       } as ReactFlowNode
 
-      // Zero is a valid measured width
-      expect(getNodeWidth(node)).toBe(0)
+      // Zero width falls back to default to prevent viewer overlap
+      expect(getNodeWidth(node)).toBe(DEFAULT_NODE_WIDTH)
     })
   })
 
