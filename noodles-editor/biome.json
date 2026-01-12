@@ -81,6 +81,19 @@
           }
         }
       }
+    },
+    {
+      "includes": [
+        "src/noodles/fields.ts",
+        "src/noodles/operators.ts"
+      ],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noExplicitAny": "off"
+          }
+        }
+      }
     }
   ]
 }

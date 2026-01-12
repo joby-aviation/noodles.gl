@@ -5,7 +5,6 @@ import { Temporal } from 'temporal-polyfill'
 import { isHexColor } from 'validator'
 import z from 'zod/v4'
 import { colorToHex } from '../utils/color'
-import type { BetterDeckProps, BetterMapProps } from '../visualizations'
 import type { inputComponents } from './components/field-components'
 import type { IOperator, Operator } from './operators'
 import type { ExtractProps } from './utils/extract-props'
@@ -13,7 +12,8 @@ import type { ExtractProps } from './utils/extract-props'
 import { resolvePath } from './utils/path-utils'
 
 export interface IField<
-  S extends z.ZodType = z.ZodType,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  S extends z.ZodType = any,
   O extends BaseFieldOptions = BaseFieldOptions,
 > extends BehaviorSubject<z.output<S>> {
   createSchema(options: Partial<O>): S
@@ -23,9 +23,10 @@ export interface IField<
   accessor?: boolean
   op?: Operator<IOperator>
   setValue(value: z.input<S>): void
-  addConnection<F extends Field>(id: string, field: F): void
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  addConnection<F extends Field<any, any>>(id: string, field: F, connectionType?: 'reference' | 'value'): void
   removeConnection(id: string, connectionType: 'reference' | 'value'): void
-  serialize(): z.infer<S>
+  serialize(): unknown
 }
 
 type BaseFieldOptions = {
@@ -128,7 +129,9 @@ export abstract class Field<
     this.schema = this.enhanceSchema(actualOptions)
 
     const ctor = this.constructor as typeof Field
-    this.defaultValue = actualValue !== undefined || optional ? actualValue : ctor.defaultValue
+    this.defaultValue = (actualValue !== undefined || optional ? actualValue : ctor.defaultValue) as
+      | z.output<S>
+      | undefined
     // When field is required, only set default value if its explicitly defined (e.g. don't set ExtensionField's default if it wasn't defined)
     // If the field is optional, always set the default value
     if (this.defaultValue !== undefined || optional) {
@@ -138,7 +141,7 @@ export abstract class Field<
 
   // Wrap schema in additional functionality like optional, transform, accessor etc.
   enhanceSchema({ accessor, optional, transform }: Partial<O>) {
-    let schema = this.schema
+    let schema: z.ZodType = this.schema
 
     if (accessor) {
       this.accessor = true
@@ -171,7 +174,7 @@ export abstract class Field<
       schema = schema.optional() as unknown as S
     }
 
-    return schema
+    return schema as S
   }
 
   setValue(value: z.input<S>): void {
@@ -190,7 +193,8 @@ export abstract class Field<
     }
   }
 
-  addConnection<F extends Field>(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  addConnection<F extends Field<any, any>>(
     id: string,
     field: F,
     connectionType: 'reference' | 'value' = 'value'
@@ -201,7 +205,7 @@ export abstract class Field<
 
     const subscription = field.subscribe(value => {
       if (connectionType === 'value') {
-        this.setValue(value)
+        this.setValue(value as z.input<S>)
       } else {
         this.next(this.value)
         // For reference connections, also mark dirty
@@ -217,7 +221,7 @@ export abstract class Field<
       connectionType === 'value' &&
       (this instanceof DataField || this instanceof ExpressionField || this instanceof CodeField)
     ) {
-      this.setValue(this.defaultValue)
+      this.setValue(this.defaultValue as z.input<S>)
     }
     const subscription = this.subscriptions.get(id)
     subscription?.unsubscribe()
@@ -227,7 +231,7 @@ export abstract class Field<
   // This is used to serialize the field for project files.
   // Override when the field's value is not the same as the serialized value.
   // e.g. CodeField should serialize the template string with handlebar references, not the resolved value.
-  serialize() {
+  serialize(): unknown {
     return this.value
   }
 
@@ -239,7 +243,8 @@ export abstract class Field<
   }
 }
 
-export class StringField extends Field<z.ZodString> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export class StringField extends Field<any> {
   static type = 'string'
   static defaultValue = ''
   createSchema() {
@@ -247,17 +252,8 @@ export class StringField extends Field<z.ZodString> {
   }
 }
 
-export class FileField extends Field<
-  z.ZodUnion<
-    readonly [
-      z.ZodString,
-      z.ZodPipe<
-        z.ZodObject<{ id: z.ZodString; type: z.ZodLiteral<'file'> }, z.core.$strict>,
-        z.ZodTransform<string, { id: string; type: 'file' }>
-      >,
-    ]
-  >
-> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export class FileField extends Field<any> {
   static type = 'file'
   static defaultValue = ''
   createSchema() {
@@ -334,15 +330,8 @@ export function getFieldReferences(text: string, thisOpId?: string) {
   return Array.from(fieldReferences.values())
 }
 
-export class CodeField extends Field<
-  z.ZodUnion<
-    [
-      z.ZodEffects<z.ZodString, string, string>,
-      z.ZodEffects<z.ZodArray<z.ZodUnknown, 'many'>, string, unknown[]>,
-    ]
-  >,
-  CodeFieldOptions
-> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export class CodeField extends Field<any, CodeFieldOptions> {
   static type = 'code'
   static defaultValue = ''
   language: 'javascript' | 'sql' | 'json' = 'javascript'
@@ -354,7 +343,7 @@ export class CodeField extends Field<
   }
 
   // Make it easier to diff code fields in project files
-  serialize(): string[] {
+  serialize(): string | string[] {
     return this.value.split('\n')
   }
 
@@ -368,7 +357,8 @@ export class CodeField extends Field<
   }
 }
 
-export class ExpressionField extends Field<z.ZodString> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export class ExpressionField extends Field<any> {
   static type = 'expression'
   static defaultValue = ''
   createSchema() {
@@ -376,9 +366,8 @@ export class ExpressionField extends Field<z.ZodString> {
   }
 }
 
-export class FunctionField extends Field<
-  z.ZodFunction<z.ZodTuple<[], z.ZodUnknown>, z.ZodUnknown>
-> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export class FunctionField extends Field<z.ZodFunction<any, any>> {
   static type = 'function'
   static defaultValue = (d: unknown) => d
   createSchema() {
@@ -422,10 +411,8 @@ export const parseChoices = (
   return choices
 }
 
-export class StringLiteralField extends Field<
-  z.ZodUnion<[z.ZodLiteral<string>, ...z.ZodLiteral<string>[]]> | z.ZodString,
-  StringLiteralFieldOptions
-> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export class StringLiteralField extends Field<any, StringLiteralFieldOptions> {
   static type = 'string-literal'
   static defaultValue = ''
   choices: StringLiteralOption[] = []
@@ -455,7 +442,8 @@ export class StringLiteralField extends Field<
   }
 }
 
-export class NumberField extends Field<z.ZodNumber, NumberFieldOptions> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export class NumberField extends Field<any, NumberFieldOptions> {
   static type = 'number'
   static defaultValue = 0
 
@@ -492,7 +480,8 @@ export class NumberField extends Field<z.ZodNumber, NumberFieldOptions> {
 
 // TODO: decide on storage and serialization format
 // How to convert to and from hex, rgb, hsl, deck [r,g,b,a] etc.
-export class ColorField extends Field<z.ZodString> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export class ColorField extends Field<any> {
   static type = 'color'
   static defaultValue = '#0000ffff' // Include alpha channel
   createSchema() {
@@ -505,35 +494,36 @@ export class ColorField extends Field<z.ZodString> {
       })
   }
   serialize(): string {
-    return Array.isArray(this.value) ? colorToHex(this.value) : this.value
+    return Array.isArray(this.value)
+      ? colorToHex(this.value as [number, number, number, number])
+      : this.value
   }
   static deserialize(value: string | [number, number, number, number]) {
     return Array.isArray(value) ? colorToHex(value) : value
   }
 }
 
-export class ColorRampField extends Field<
-  z.ZodFunction<z.ZodTuple<[z.ZodNumber], z.ZodUnknown>, z.ZodString>
-> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export class ColorRampField extends Field<any> {
   static type = 'color-ramp'
   static defaultValue = interpolateLab('#0000ff', '#ff0000')
   createSchema() {
-    return z.function(z.tuple([z.number()]), z.string())
+    return z.function().input(z.tuple([z.number()])).output(z.string())
   }
 }
 
-export class CategoricalColorRampField extends Field<
-  z.ZodFunction<z.ZodTuple<[z.ZodString], z.ZodUnknown>, z.ZodString>
-> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export class CategoricalColorRampField extends Field<any> {
   static type = 'category-color-ramp'
   static defaultValue = scaleOrdinal(schemeAccent)
   count = 7 // number of categories. Set by the Operator on change
   createSchema() {
-    return z.function(z.tuple([z.string()]), z.string())
+    return z.function().input(z.tuple([z.string()])).output(z.string())
   }
 }
 
-export class BooleanField extends Field<z.ZodBoolean> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export class BooleanField extends Field<any> {
   static type = 'boolean'
   static defaultValue = false
   createSchema() {
@@ -541,15 +531,8 @@ export class BooleanField extends Field<z.ZodBoolean> {
   }
 }
 
-export class DateField extends Field<
-  z.ZodUnion<
-    readonly [
-      z.ZodCustom<Temporal.PlainDateTime, Temporal.PlainDateTime>,
-      z.ZodPipe<z.ZodDate, z.ZodTransform<Temporal.PlainDateTime, Date>>,
-      z.ZodPipe<z.ZodISODateTime, z.ZodTransform<Temporal.PlainDateTime, string>>,
-    ]
-  >
-> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export class DateField extends Field<any> {
   static type = 'date'
   static defaultValue = Temporal.Now.plainDateTimeISO()
   createSchema() {
@@ -588,10 +571,8 @@ export class DateField extends Field<
 // DataField represents an array of data items with optional subfield for schema validation
 // The TElement type parameter allows type inference in ExtractProps
 // Usage: new DataField() for untyped data, new DataField(new SomeField()) for schema validation
-export class DataField<D extends Field = Field, TElement = unknown> extends Field<
-  z.ZodType<unknown, unknown, z.core.$ZodTypeInternals<unknown, unknown>> | z.ZodUnknown,
-  SubSchemaOptions<D['schema']>
-> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export class DataField<D extends Field<any, any> = Field<any, any>, TElement = unknown> extends Field<any, any> {
   static type = 'data'
   static defaultValue = []
 
@@ -611,10 +592,8 @@ export class DataField<D extends Field = Field, TElement = unknown> extends Fiel
 
 // GeoJSON field type with lime color to distinguish from regular data fields
 // The TElement type parameter allows type inference in ExtractProps
-export class GeoJsonField<D extends Field = Field, TElement = unknown> extends Field<
-  z.ZodType<unknown, unknown, z.core.$ZodTypeInternals<unknown, unknown>> | z.ZodUnknown,
-  SubSchemaOptions<D['schema']>
-> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export class GeoJsonField<D extends Field<any, any> = Field<any, any>, TElement = unknown> extends Field<any, any> {
   static type = 'geojson'
   static defaultValue = { type: 'FeatureCollection', features: [] }
 
@@ -635,7 +614,8 @@ export class GeoJsonField<D extends Field = Field, TElement = unknown> extends F
   }
 }
 
-export class JSONUrlField extends Field<z.ZodUnion<readonly [z.ZodURL, z.ZodJSONSchema]>> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export class JSONUrlField extends Field<any> {
   static type = 'json-url'
   static defaultValue = ''
   createSchema(_options?: Partial<BaseFieldOptions>) {
@@ -648,17 +628,8 @@ type Point3DFieldValue =
   | [number, number, number]
 
 // Should this just be a Vec2? Should it be a GeoJSON Point Or does it need to be a special case
-export class Point3DField extends Field<
-  z.ZodUnion<
-    [
-      z.ZodTuple<[z.ZodNumber, z.ZodNumber, z.ZodNumber]>,
-      z.ZodTuple<[z.ZodNumber, z.ZodNumber]>,
-      z.ZodObject<{ lng: z.ZodNumber; lat: z.ZodNumber; alt: z.ZodNumber }>,
-      z.ZodObject<{ lng: z.ZodNumber; lat: z.ZodNumber }>,
-    ]
-  >,
-  PointFieldOptions
-> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export class Point3DField extends Field<any, PointFieldOptions> {
   static type = 'geopoint-3d'
   static defaultValue = { lng: 0, lat: 0, alt: 0 }
 
@@ -684,9 +655,8 @@ export class Point3DField extends Field<
           lng: z.number(),
           lat: z.number(),
         })
-        .transform(
-          returnType === 'tuple' ? val => [val.lng, val.lat, 0] : val => ({ ...val, alt: 0 })
-        ),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .transform((returnType === 'tuple' ? (val: { lng: number; lat: number }) => [val.lng, val.lat, 0] : (val: { lng: number; lat: number }) => ({ ...val, alt: 0 })) as any),
       z
         .tuple([z.number(), z.number(), z.number()])
         .transform(
@@ -702,25 +672,8 @@ export class Point3DField extends Field<
 type Point2DFieldValue = { lng: number; lat: number; [key: string]: unknown } | [number, number]
 
 // Should this just be a Vec2? Should it be a GeoJSON Point Or does it need to be a special case
-export class Point2DField extends Field<
-  z.ZodUnion<
-    [
-      z.ZodObject<
-        { lng: z.ZodNumber; lat: z.ZodNumber },
-        'passthrough',
-        z.ZodTypeAny,
-        Point2DFieldValue
-      >,
-      z.ZodEffects<
-        z.ZodTuple<[z.ZodNumber, z.ZodNumber, z.ZodNumber]>,
-        Point2DFieldValue,
-        [number, number, number]
-      >,
-      z.ZodEffects<z.ZodTuple<[z.ZodNumber, z.ZodNumber]>, Point2DFieldValue, [number, number]>,
-    ]
-  >,
-  PointFieldOptions
-> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export class Point2DField extends Field<any, PointFieldOptions> {
   static type = 'geopoint-2d'
   static defaultValue = { lng: 0, lat: 0 }
 
@@ -752,16 +705,8 @@ export class Point2DField extends Field<
 
 type Vec2FieldOverride = { x: number; y: number } | [number, number]
 
-export class Vec2Field extends Field<
-  z.ZodObject<
-    { x: z.ZodNumber; y: z.ZodNumber },
-    'strip',
-    z.ZodTypeAny,
-    { x: number; y: number },
-    { x: number; y: number }
-  >,
-  Vec2FieldOptions
-> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export class Vec2Field extends Field<any, Vec2FieldOptions> {
   static type = 'vec2'
   static defaultValue = { x: 0, y: 0 }
   returnType: 'object' | 'tuple' = 'object'
@@ -787,16 +732,8 @@ export class Vec2Field extends Field<
 
 type Vec3FieldOverride = { x: number; y: number; z: number } | [number, number, number]
 
-export class Vec3Field extends Field<
-  z.ZodObject<
-    { x: z.ZodNumber; y: z.ZodNumber; z: z.ZodNumber },
-    'strip',
-    z.ZodTypeAny,
-    { x: number; y: number; z: number },
-    { x: number; y: number; z: number }
-  >,
-  Vec2FieldOptions
-> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export class Vec3Field extends Field<any, Vec2FieldOptions> {
   static type = 'vec3'
   static defaultValue = { x: 0, y: 0, z: 0 }
   returnType: 'object' | 'tuple' = 'object'
@@ -821,15 +758,8 @@ export class Vec3Field extends Field<
   }
 }
 
-export class Vec4Field extends Field<
-  z.ZodObject<
-    { x: z.ZodNumber; y: z.ZodNumber; z: z.ZodNumber; w: z.ZodNumber },
-    'strip',
-    z.ZodTypeAny,
-    { x: number; y: number; z: number; w: number },
-    { x: number; y: number; z: number; w: number }
-  >
-> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export class Vec4Field extends Field<any> {
   static type = 'vec4'
   static defaultValue = { x: 0, y: 0, z: 0, w: 0 }
   createSchema() {
@@ -842,39 +772,34 @@ export class Vec4Field extends Field<
   }
 }
 
-export class CompoundPropsField extends Field<
-  z.ZodObject<
-    z.ZodRawShape,
-    'strip',
-    z.ZodUnknown,
-    { [x: string]: unknown },
-    { [x: string]: unknown }
-  >,
-  CompoundPropsFieldOptions
-> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export class CompoundPropsField extends Field<any, CompoundPropsFieldOptions> {
   static type = 'compound'
   static defaultValue = {}
-  fields: Record<string, Field<z.ZodTypeAny>> = {}
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  fields: Record<string, Field<any, any>> = {}
 
   createSchema({ subschema = {} }: CompoundPropsFieldOptions) {
     return z.looseObject(subschema).readonly()
   }
 
   get value() {
-    const data = { ...this._value }
+    const data = { ...this.getValue() }
     for (const [key, field] of Object.entries(this.fields || {})) {
       data[key] = field.value
     }
     return data
   }
 
-  constructor(fields: Record<string, Field<z.ZodTypeAny>>, options?: CompoundPropsFieldOptions) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  constructor(fields: Record<string, Field<any, any>>, options?: CompoundPropsFieldOptions) {
     const defaults = {} as Record<string, z.ZodType>
     for (const [key, field] of Object.entries(fields)) {
       defaults[key] = field.defaultValue
     }
 
-    const subschema = {} as z.ZodRawShape
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const subschema: Record<string, any> = {}
     for (const [key, field] of Object.entries(fields)) {
       subschema[key] = field.schema
     }
@@ -910,7 +835,8 @@ export class CompoundPropsField extends Field<
     }
   }
 
-  addConnection<F extends IField<z.ZodType<unknown, z.ZodTypeDef, unknown>>>(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  addConnection<F extends IField<any>>(
     id: string,
     field: F,
     connectionType: 'reference' | 'value' = 'value'
@@ -919,9 +845,9 @@ export class CompoundPropsField extends Field<
       return
     }
 
-    const subscription = field.subscribe(_value => {
+    const subscription = field.subscribe(() => {
       if (connectionType === 'value') {
-        this.next(field.value)
+        this.next(field.value as ExtractProps<typeof this.fields>)
       } else {
         this.next(this.value)
       }
@@ -932,10 +858,8 @@ export class CompoundPropsField extends Field<
 }
 
 // TODO: Should this be flag like `multiple`? Or should it be a separate class?
-export class ListField<F extends Field> extends Field<
-  z.ZodArray<F['schema']>,
-  SubSchemaOptions<F['schema']>
-> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export class ListField<F extends Field<any, any>> extends Field<any, any> {
   static type = 'list'
   static defaultValue = []
 
@@ -952,14 +876,19 @@ export class ListField<F extends Field> extends Field<
 
   // Overrides the default setValue to handle a list of fields
   // TODO: Do we need to handle reference connections?
-  addConnection(id: string, field: F, _connectionType: 'reference' | 'value' = 'value') {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  addConnection<T extends Field<any, any>>(
+    id: string,
+    field: T,
+    _connectionType: 'reference' | 'value' = 'value'
+  ) {
     if (this.subscriptions.has(id)) {
       return
     }
 
-    this.fields.set(id, field)
+    this.fields.set(id, field as unknown as F)
 
-    const subscription = field.subscribe(_value => {
+    const subscription = field.subscribe(() => {
       this.setValue(Array.from(this.fields.values()).map(f => f.value) as F[])
     })
     this.subscriptions.set(id, subscription)
@@ -988,10 +917,8 @@ export class ListField<F extends Field> extends Field<
   }
 }
 
-export class ArrayField<F extends Field> extends Field<
-  z.ZodArray<F['schema']>,
-  SubSchemaOptions<F['schema']>
-> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export class ArrayField<F extends Field<any, any>> extends Field<any, any> {
   static type = 'array'
   static defaultValue = []
 
@@ -1007,7 +934,8 @@ export class ArrayField<F extends Field> extends Field<
   }
 }
 
-export class UnknownField extends Field<z.ZodUnknown> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export class UnknownField extends Field<any> {
   static type = 'unknown'
   static defaultValue = null
   createSchema() {
@@ -1017,7 +945,8 @@ export class UnknownField extends Field<z.ZodUnknown> {
 
 // Should this be generic? Base class? Special case?
 // Most objects in the system are POJOs, but some return class instances
-export class LayerField<P extends LayerProps> extends Field<z.ZodType<P & { type: string }>> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export class LayerField<_P extends LayerProps = LayerProps> extends Field<any> {
   static type = 'layer'
   static defaultValue = undefined
 
@@ -1026,7 +955,8 @@ export class LayerField<P extends LayerProps> extends Field<z.ZodType<P & { type
   }
 }
 
-export class EffectField extends Field<z.ZodTypeAny> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export class EffectField extends Field<any> {
   static type = 'effect'
   static defaultValue = undefined
   createSchema() {
@@ -1034,7 +964,8 @@ export class EffectField extends Field<z.ZodTypeAny> {
   }
 }
 
-export class WidgetField extends Field<z.ZodTypeAny> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export class WidgetField extends Field<any> {
   static type = 'widget'
   static defaultValue = undefined
   createSchema() {
@@ -1042,7 +973,8 @@ export class WidgetField extends Field<z.ZodTypeAny> {
   }
 }
 
-export class ExtensionField extends Field<z.ZodTypeAny> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export class ExtensionField extends Field<any> {
   static type = 'extension'
   static defaultValue = undefined
   createSchema() {
@@ -1053,9 +985,8 @@ export class ExtensionField extends Field<z.ZodTypeAny> {
   }
 }
 
-export class ViewField extends Field<
-  z.ZodType<InstanceType<View>, z.ZodTypeDef, InstanceType<View>>
-> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export class ViewField extends Field<any> {
   static type = 'view'
   static defaultValue = undefined
   createSchema() {
@@ -1063,12 +994,8 @@ export class ViewField extends Field<
   }
 }
 
-export class VisualizationField extends Field<
-  z.ZodType<{
-    deckProps: { layers: (LayerProps & { type: string })[] } & BetterDeckProps
-    mapProps?: BetterMapProps
-  }>
-> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export class VisualizationField extends Field<any> {
   static type = 'visualization'
   static defaultValue = { deckProps: {}, mapProps: undefined }
   createSchema() {
@@ -1117,7 +1044,8 @@ type BezierCurveData = {
   }>
 }
 
-export class BezierCurveField extends Field<z.ZodType<BezierCurveData>> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export class BezierCurveField extends Field<any> {
   static type = 'bezier-curve'
   static defaultValue: BezierCurveData = {
     points: [
@@ -1232,7 +1160,7 @@ export class BezierCurveField extends Field<z.ZodType<BezierCurveData>> {
     const { points } = this.value
     if (points.length <= 2 || index < 0 || index >= points.length) return
 
-    const newPoints = points.filter((_, i) => i !== index)
+    const newPoints = points.filter((_: BezierPoint, i: number) => i !== index)
 
     this.setValue({
       ...this.value,

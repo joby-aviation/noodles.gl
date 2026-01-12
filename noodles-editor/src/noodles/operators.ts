@@ -127,8 +127,6 @@ import { BehaviorSubject, combineLatest, type Subscription } from 'rxjs'
 import { debounceTime, filter, mergeMap } from 'rxjs/operators'
 import { Temporal } from 'temporal-polyfill'
 import vega from 'vega-embed'
-import type z from 'zod/v4'
-
 import './utils/bigint-fix' // BigInt JSON polyfill for DuckDB
 import * as duckdb from '@duckdb/duckdb-wasm'
 import { getTransformScaleFactor } from '../render/transform-scale'
@@ -190,9 +188,10 @@ import { pick } from './utils/pick'
 import { validateViewState } from './utils/viewstate-helpers'
 
 // https://stackoverflow.com/questions/66044717/typescript-infer-type-of-abstract-methods-implementation
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export interface IOperator {
-  createInputs(): Record<string, Field<z.ZodType>>
-  createOutputs(): Record<string, Field<z.ZodType>>
+  createInputs(): Record<string, Field<any, any>>
+  createOutputs(): Record<string, Field<any, any>>
 }
 
 // Pull-based execution status
@@ -217,11 +216,10 @@ export abstract class Operator<OP extends IOperator> {
   out = proxyFields(this, 'outputs')
 
   // If the operator allows its data to be downloaded, override this method
-  asDownload?: () => Blob | string | ArrayBuffer
+  asDownload?: () => Blob | string | ArrayBuffer | unknown
 
   // Should the execute function be memoized? Ops that store state elsewhere might not want to be cached.
   static cacheable = true
-  public containerId?: string
 
   abstract createInputs(): ReturnType<OP['createInputs']>
   abstract createOutputs(): ReturnType<OP['createOutputs']>
@@ -269,8 +267,8 @@ export abstract class Operator<OP extends IOperator> {
       field.op = this
 
       // ListField, DataField, ArrayField - Fields that wrap fields
-      if (field.field !== undefined) {
-        field.field.pathToProps = currentPath
+      if ('field' in field && field.field !== undefined) {
+        ;(field.field as Field).pathToProps = currentPath
       }
       if (field instanceof CompoundPropsField) {
         for (const [k, f] of Object.entries(field.fields)) {
@@ -288,10 +286,10 @@ export abstract class Operator<OP extends IOperator> {
     }
 
     if (data) {
-      for (const [key, value] of Object.entries(data)) {
+      for (const [key, value] of Object.entries(data) as [string, unknown][]) {
         if (key in this.inputs) {
-          const field = this.inputs[key]
-          const parsed = field.constructor.deserialize(value)
+          const field = this.inputs[key as keyof typeof this.inputs]
+          const parsed = (field.constructor as typeof Field).deserialize(value)
           field.setValue(parsed)
         }
       }
@@ -303,7 +301,7 @@ export abstract class Operator<OP extends IOperator> {
   }
 
   get data() {
-    const data = {} as { [key: string]: z.ZodType }
+    const data = {} as { [key: string]: unknown }
     for (const [key, field] of Object.entries(this.inputs)) {
       data[key] = field.value
     }
@@ -311,7 +309,7 @@ export abstract class Operator<OP extends IOperator> {
   }
 
   get outputData() {
-    const outputData = {} as { [key: string]: z.ZodType }
+    const outputData = {} as { [key: string]: unknown }
     for (const [key, field] of Object.entries(this.outputs)) {
       outputData[key] = field.value
     }
@@ -1117,8 +1115,6 @@ export class SplitRGBAOp extends Operator<SplitRGBAOp> {
   execute({ color }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const parseColor = (c: string) => {
       const [r, g, b, a] = hexToColor(c)
-        .split(',')
-        .map((v: string) => parseInt(v, 10))
       return { r, g, b, a }
     }
 
@@ -1531,7 +1527,7 @@ export class FileOp extends Operator<FileOp> {
     data: string | ArrayBuffer | DSVRowArray<string> | unknown,
     format: string,
     autoType: boolean
-  ): ExtractProps<typeof this.outputs> {
+  ): { data: unknown } {
     if (format === 'csv' && typeof data === 'string') {
       const parseFn = autoType ? d3.autoType : null
       return { data: csvParse(data, parseFn) }
@@ -1547,7 +1543,7 @@ export class FileOp extends Operator<FileOp> {
     text: string,
     format: string,
     autoType: boolean
-  ): ExtractProps<typeof this.outputs> {
+  ): { data: unknown } {
     switch (format) {
       case 'csv': {
         const parseFn = autoType ? d3.autoType : null
@@ -1568,7 +1564,7 @@ export class FileOp extends Operator<FileOp> {
   }
 
   // Helper method to get empty result based on format
-  private getEmptyResult(format: string): ExtractProps<typeof this.outputs> {
+  private getEmptyResult(format: string): { data: unknown } {
     switch (format) {
       case 'csv':
         return { data: [] }
@@ -1588,7 +1584,7 @@ export class FileOp extends Operator<FileOp> {
     url,
     text,
     autoType,
-  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  }: ExtractProps<typeof this.inputs>): Promise<ExtractProps<typeof this.outputs>> {
     try {
       // Try reading from project asset first
       if (url) {
@@ -1719,12 +1715,12 @@ export class DuckDbOp extends Operator<DuckDbOp> {
 
   async execute({
     query: queryString = '',
-  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> | null {
+  }: ExtractProps<typeof this.inputs>): Promise<ExtractProps<typeof this.outputs>> {
     const queries = queryString
       .split(';')
-      .map(s => s.trim())
+      .map((s: string) => s.trim())
       .filter(Boolean)
-      .map(s => `${s};`)
+      .map((s: string) => `${s};`)
     if (!queries?.length) {
       return { data: [] }
     }
@@ -1743,12 +1739,21 @@ export class DuckDbOp extends Operator<DuckDbOp> {
 
         // Parse the query and extract references
         const references: FieldReference[] = []
-        const parameterizedQuery = query.replace(mustacheRe, (raw, opId, inOut, fieldPath) => {
-          // If the opId is a relative path (doesn't start with /), make it relative to current context
-          const resolvedOpId = opId.startsWith('/') ? opId : `./${opId}`
-          references.push({ opId: resolvedOpId, inOut, fieldPath, raw })
-          return `$${references.length}` // $1, $2, etc.
-        })
+        const parameterizedQuery = query.replace(
+          mustacheRe,
+          (_match: string, opId: string, inOut: InOut, fieldPath: string) => {
+            // If the opId is a relative path (doesn't start with /), make it relative to current context
+            const resolvedOpId = opId.startsWith('/') ? opId : `./${opId}`
+            references.push({
+              opId: resolvedOpId,
+              inOut,
+              fieldPath,
+              fieldName: fieldPath.split('.')[0],
+              handleId: `${inOut}.${fieldPath.split('.')[0]}`,
+            })
+            return `$${references.length}` // $1, $2, etc.
+          }
+        )
 
         // Resolve reference values
         const positionalParams = references.map(({ opId, inOut, fieldPath }) => {
@@ -1778,7 +1783,7 @@ export class DuckDbOp extends Operator<DuckDbOp> {
       if (e instanceof Error) {
         throw e
       }
-      return null
+      throw new Error('Unknown error executing query')
     }
   }
 }
@@ -1797,7 +1802,7 @@ export class JSONOp extends Operator<JSONOp> {
     }
   }
   execute({ text }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const json = text.replace(mustacheRe, (_, opId: string, inOut: InOut, fieldPath: string) => {
+    const json = text.replace(mustacheRe, (_match: string, opId: string, inOut: InOut, fieldPath: string) => {
       // If the opId is a relative path (doesn't start with /), make it relative to current context
       const resolvedOpId = opId.startsWith('/') ? opId : `./${opId}`
       const op = getOp(resolvedOpId, this.id)
@@ -1875,11 +1880,12 @@ export class ScatterOp extends Operator<ScatterOp> {
     }
   }
   execute({
-    bounds,
+    bounds: inputBounds,
     count,
     seed,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    if (bounds.length !== 2) {
+    let bounds = inputBounds as [number, number][]
+    if (!bounds || bounds.length !== 2) {
       bounds = [
         [-180, -90],
         [180, 90],
@@ -1898,7 +1904,7 @@ export class ScatterOp extends Operator<ScatterOp> {
       lat: south + rng() * (north - south),
     }))
 
-    return { points }
+    return { points } as ExtractProps<typeof this.outputs>
   }
 }
 
@@ -2020,7 +2026,9 @@ export class GeocoderOp extends Operator<GeocoderOp> {
       location: new Point2DField(),
     }
   }
-  async execute(_: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  async execute(
+    _props: ExtractProps<typeof this.inputs>
+  ): Promise<ExtractProps<typeof this.outputs> | null> {
     // This is a special-case because it's essentially a pass-through. The Geocoder component will handle the API call
     return null
 
@@ -2064,7 +2072,7 @@ export class DirectionsOp extends Operator<DirectionsOp> {
     origin,
     destination,
     mode,
-  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  }: ExtractProps<typeof this.inputs>): Promise<ExtractProps<typeof this.outputs>> {
     // Guard on default values
     if (
       (origin.lng === 0 && origin.lat === 0) ||
@@ -2461,10 +2469,10 @@ export class ForLoopMetaOp extends Operator<ForLoopMetaOp> {
 
   createInputs() {
     return {
-      initialValue: new DataField(new UnknownField(), { description: 'Initial accumulator value' }),
-      currentValue: new DataField(new UnknownField(), {
-        description: 'Value to pass to next iteration',
-      }),
+      // Initial accumulator value
+      initialValue: new DataField(new UnknownField()),
+      // Value to pass to next iteration
+      currentValue: new DataField(new UnknownField()),
     }
   }
 
@@ -3427,7 +3435,8 @@ export class LayerPropsOp extends Operator<LayerPropsOp> {
 }
 
 function gatherTriggers(
-  inputs: Record<string, Field<z.ZodType>>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  inputs: Record<string, Field<any, any>>,
   props: ExtractProps<typeof inputs>
 ) {
   const triggers = {} as Record<string, ((...args: unknown[]) => unknown)[]>
