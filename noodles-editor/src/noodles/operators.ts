@@ -2446,9 +2446,15 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
     if (this._iterating) return
     this._iterating = true
 
+    console.log('[ForLoopEndOp.executeIteration] Starting with data:', data)
+    console.log('[ForLoopEndOp.executeIteration] Chain:', this.chain.map(op => `${op.id} (${op.constructor.name})`))
+
     try {
       const beginOp = this.chain.find(op => op instanceof ForLoopBeginOp) as ForLoopBeginOp | undefined
-      if (!beginOp) return
+      if (!beginOp) {
+        console.log('[ForLoopEndOp.executeIteration] No beginOp found in chain!')
+        return
+      }
 
       // Skip if not array or empty
       if (!Array.isArray(data) || data.length === 0) {
@@ -2461,6 +2467,7 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
 
       // Get proper execution order (chain is reverse order from EndOp)
       const executionOrder = [...this.chain].reverse()
+      console.log('[ForLoopEndOp.executeIteration] Execution order:', executionOrder.map(op => `${op.id} (${op.constructor.name})`))
 
       // Find metaOp if present
       const metaOp = this.chain.find(op => op instanceof ForLoopMetaOp) as ForLoopMetaOp | undefined
@@ -2470,6 +2477,8 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
         const item = data[index]
         const isFirst = index === 0
         const isLast = index === total - 1
+
+        console.log(`[ForLoopEndOp.executeIteration] Iteration ${index}: item =`, item)
 
         // Set iteration values on BeginOp outputs
         beginOp.outputs.item.next(item)
@@ -2499,12 +2508,21 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
         // Execute chain by pulling each intermediate operator
         for (const op of executionOrder) {
           if (op !== beginOp && op !== metaOp && op !== this) {
+            console.log(`[ForLoopEndOp.executeIteration] Pulling ${op.id} (${op.constructor.name})`)
             await op.pull()
+            // Log the outputs after pulling
+            const outputs: Record<string, unknown> = {}
+            for (const [key, field] of Object.entries(op.outputs)) {
+              outputs[key] = field.value
+            }
+            console.log(`[ForLoopEndOp.executeIteration] After pull, ${op.id} outputs:`, outputs)
           }
         }
 
         // Collect result - the input field should now have the value from upstream
-        results.push(this.inputs.item.value)
+        const collectedValue = this.inputs.item.value
+        console.log(`[ForLoopEndOp.executeIteration] Iteration ${index}: collecting this.inputs.item.value =`, collectedValue)
+        results.push(collectedValue)
 
         // Update accumulator from meta op for next iteration
         if (metaOp) {
@@ -2512,6 +2530,7 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
         }
       }
 
+      console.log('[ForLoopEndOp.executeIteration] Final results:', results)
       // Update output with collected results
       this.outputs.data.next(results)
     } finally {
