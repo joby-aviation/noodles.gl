@@ -2421,23 +2421,37 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
       return // No begin op found, can't set up iteration
     }
 
-    // Subscribe to the BeginOp's data input - this triggers iteration for the reactive UI path.
-    // We debounce with setTimeout(0) to allow synchronous pull() calls to complete first.
-    // This prevents race conditions between reactive execution and pull-based execution.
-    const sub = beginOp.inputs.data
-      .pipe(filter(() => !safeMode && !this.locked.value))
-      .subscribe((data: unknown) => {
-        // Debounce with microtask to allow synchronous operations to complete first
-        Promise.resolve().then(() => {
-          // Don't run if already iterating (pull() is in progress)
-          if (this._iterating) {
-            return
-          }
-          this.executeIteration(data)
-        })
+    // Helper to trigger re-execution
+    const triggerIteration = () => {
+      // Debounce with microtask to allow synchronous operations to complete first
+      Promise.resolve().then(() => {
+        // Don't run if already iterating (pull() is in progress)
+        if (this._iterating) {
+          return
+        }
+        this.executeIteration(beginOp.inputs.data.value)
       })
+    }
 
-    this._subs.push(sub)
+    // Subscribe to the BeginOp's data input - this triggers iteration when data changes
+    const dataSub = beginOp.inputs.data
+      .pipe(filter(() => !safeMode && !this.locked.value))
+      .subscribe(() => triggerIteration())
+    this._subs.push(dataSub)
+
+    // Also subscribe to ALL inputs of intermediate operators (excluding beginOp and this)
+    // This ensures the loop re-runs when e.g. MathOp.b changes from 10 to 0
+    for (const op of chain) {
+      if (op === beginOp || op === this) continue
+      if (op instanceof ForLoopMetaOp) continue
+
+      for (const [_key, field] of Object.entries(op.inputs)) {
+        const inputSub = field
+          .pipe(filter(() => !safeMode && !this.locked.value))
+          .subscribe(() => triggerIteration())
+        this._subs.push(inputSub)
+      }
+    }
   }
 
   // Perform the iteration and collect results
