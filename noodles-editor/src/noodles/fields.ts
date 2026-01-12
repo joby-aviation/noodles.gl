@@ -311,10 +311,7 @@ export const fnRe = new RegExp(
 )
 
 // Self-reference shorthand: {{par.fieldPath}} (references current operator's own parameter)
-export const selfParMustacheRe = new RegExp(
-  `{{(?<inOut>par)\\.(?<fieldPath>[\\w-.]+)}}`,
-  'g'
-)
+export const selfParMustacheRe = /{{(?<inOut>par)\.(?<fieldPath>[\w-.]+)}}/g
 
 export function getFieldReferences(text: string, thisOpId?: string) {
   const fieldReferences = new Map<string, FieldReference>()
