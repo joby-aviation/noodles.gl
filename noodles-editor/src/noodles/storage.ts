@@ -573,10 +573,7 @@ export async function writeAsset(
 // ============================================================================
 
 // Check if a project has a data directory with files
-export async function hasDataDirectory(
-  type: StorageType,
-  projectName: string
-): Promise<boolean> {
+export async function hasDataDirectory(type: StorageType, projectName: string): Promise<boolean> {
   // For public folder projects, check if any data files exist in URL map
   if (type === 'publicFolder') {
     const prefix = `../examples/${projectName}/data/`

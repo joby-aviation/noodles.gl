@@ -60,13 +60,7 @@ import { useKeyboardShortcut } from './hooks/use-keyboard-shortcut'
 import { useProjectModifications } from './hooks/use-project-modifications'
 import type { IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
-import {
-  copyDataDirectory,
-  copyPublicFolderData,
-  hasDataDirectory,
-  load,
-  save,
-} from './storage'
+import { copyDataDirectory, copyPublicFolderData, hasDataDirectory, load, save } from './storage'
 import { getOpStore, getUIStore, useNestingStore } from './store'
 import { bindOperatorToTheatre, cleanupRemovedOperators } from './theatre-bindings'
 import { transformGraph } from './transform-graph'
