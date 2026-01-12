@@ -56,6 +56,7 @@ import { UndoRedoHandler, type UndoRedoHandlerRef } from './components/UndoRedoH
 import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
 import { IS_PROD } from './globals'
 import { useKeyboardShortcut } from './hooks/use-keyboard-shortcut'
+import { useNodeDropOnEdge } from './hooks/use-node-drop-on-edge'
 import { useProjectModifications } from './hooks/use-project-modifications'
 import type { IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
@@ -225,9 +226,12 @@ export function getNoodles(): Visualization {
         analytics.track('node_selected', { count: selectedChanges.length })
       }
 
-      // Mark as unsaved if there are non-selection changes
-      const hasNonSelectionChanges = changes.some(change => change.type !== 'select')
-      if (hasNonSelectionChanges) {
+      // Mark as unsaved if there are user-initiated changes
+      // (exclude 'select' and 'dimensions' - dimensions are fired when React Flow measures nodes)
+      const hasUserChanges = changes.some(
+        change => change.type !== 'select' && change.type !== 'dimensions'
+      )
+      if (hasUserChanges) {
         setHasUnsavedChanges(true)
       }
 
@@ -371,6 +375,32 @@ export function getNoodles(): Visualization {
     [setEdges]
   )
 
+  const reactFlowRef = useRef<HTMLDivElement>(null)
+  const reactFlowInstanceRef = useRef<ReactFlowInstance | null>(null)
+
+  // Hook for dropping nodes onto edges to insert them
+  const { onNodeDragStop: onNodeDragStopBase } = useNodeDropOnEdge({
+    getNodes: useCallback(() => nodes, [nodes]),
+    getEdges: useCallback(() => edges, [edges]),
+    setEdges,
+    getViewport: useCallback(
+      () => reactFlowInstanceRef.current?.getViewport() || { x: 0, y: 0, zoom: 1 },
+      []
+    ),
+  })
+
+  // Wrap onNodeDragStop to mark unsaved changes when a node is inserted
+  const onNodeDragStop = useCallback(
+    (event: React.MouseEvent, node: ReactFlowNode) => {
+      const result = onNodeDragStopBase(event, node)
+      // Mark as unsaved if a node was inserted into an edge
+      if (result) {
+        setHasUnsavedChanges(true)
+      }
+    },
+    [onNodeDragStopBase]
+  )
+
   const onNodeClick = useCallback((_e: React.MouseEvent, node: ReactFlowNode<unknown>) => {
     const store = getOpStore()
     const obj = store.getSheetObject(node.id)
@@ -391,9 +421,6 @@ export function getNoodles(): Visualization {
     },
     []
   )
-
-  const reactFlowRef = useRef<HTMLDivElement>(null)
-  const reactFlowInstanceRef = useRef<ReactFlowInstance | null>(null)
   const blockLibraryRef = useRef<BlockLibraryRef>(null)
 
   // Avoid circular dependency
@@ -1013,6 +1040,7 @@ export function getNoodles(): Visualization {
               onNodeClick={onNodeClick}
               onNodeContextMenu={onNodeContextMenu}
               onNodesDelete={onNodesDelete}
+              onNodeDragStop={onNodeDragStop}
               onPaneContextMenu={onPaneContextMenu}
               onPaneClick={onPaneClick}
               minZoom={0.2}
