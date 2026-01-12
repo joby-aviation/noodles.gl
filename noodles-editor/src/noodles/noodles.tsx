@@ -430,7 +430,7 @@ export function getNoodles(): Visualization {
         if (hoveredHandle) {
           const hoveredNode = currentNodes.find(n => n.id === hoveredHandle.nodeId)
           if (hoveredNode) {
-            const newViewerPosition = calculateViewerPosition(hoveredNode)
+            const newViewerPosition = calculateViewerPosition(hoveredNode, currentNodes)
 
             const viewerId = nodeId('viewer', currentContainerId)
 
@@ -493,7 +493,7 @@ export function getNoodles(): Visualization {
       }
 
       // Calculate position for new ViewerOp (to the right of the source node)
-      const newViewerPosition = calculateViewerPosition(sourceNode)
+      const newViewerPosition = calculateViewerPosition(sourceNode, currentNodes)
 
       const viewerId = nodeId('viewer', currentContainerId)
 

@@ -14,12 +14,38 @@ export function getNodeWidth(node: ReactFlowNode): number {
   return width > 0 ? width : DEFAULT_NODE_WIDTH
 }
 
+// Calculate the absolute position of a node by summing up parent positions.
+// For nodes without parentId, returns their position directly.
+export function getAbsolutePosition(
+  node: ReactFlowNode,
+  nodes: ReactFlowNode[]
+): { x: number; y: number } {
+  let x = node.position.x
+  let y = node.position.y
+  let currentNode = node
+
+  while (currentNode.parentId) {
+    const parent = nodes.find(n => n.id === currentNode.parentId)
+    if (!parent) break
+    x += parent.position.x
+    y += parent.position.y
+    currentNode = parent
+  }
+
+  return { x, y }
+}
+
 // Calculate the position for a new Viewer operator based on a source node.
 // Places the viewer to the right of the source node with a small gap.
-export function calculateViewerPosition(sourceNode: ReactFlowNode): { x: number; y: number } {
+// Uses absolute position to handle nodes inside containers (with parentId).
+export function calculateViewerPosition(
+  sourceNode: ReactFlowNode,
+  nodes: ReactFlowNode[]
+): { x: number; y: number } {
   const nodeWidth = getNodeWidth(sourceNode)
+  const absolutePosition = getAbsolutePosition(sourceNode, nodes)
   return {
-    x: sourceNode.position.x + nodeWidth + VIEWER_GAP,
-    y: sourceNode.position.y,
+    x: absolutePosition.x + nodeWidth + VIEWER_GAP,
+    y: absolutePosition.y,
   }
 }
