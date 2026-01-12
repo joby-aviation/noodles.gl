@@ -222,9 +222,12 @@ export function getNoodles(): Visualization {
         analytics.track('node_selected', { count: selectedChanges.length })
       }
 
-      // Mark as unsaved if there are non-selection changes
-      const hasNonSelectionChanges = changes.some(change => change.type !== 'select')
-      if (hasNonSelectionChanges) {
+      // Mark as unsaved if there are user-initiated changes
+      // (exclude 'select' and 'dimensions' - dimensions are fired when React Flow measures nodes)
+      const hasUserChanges = changes.some(
+        change => change.type !== 'select' && change.type !== 'dimensions'
+      )
+      if (hasUserChanges) {
         setHasUnsavedChanges(true)
       }
 
