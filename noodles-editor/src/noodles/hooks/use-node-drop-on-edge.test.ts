@@ -1,6 +1,5 @@
 import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { DataField, NumberField } from '../fields'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { NumberOp, SliceOp, CodeOp } from '../operators'
 import { setOp, clearOps } from '../store'
 
@@ -25,7 +24,7 @@ function createMockNode(
 }
 
 // Helper to create a mock edge
-function createMockEdge(
+function _createMockEdge(
   source: string,
   target: string,
   sourceHandle: string,
@@ -89,9 +88,9 @@ describe('node drop on edge utilities', () => {
 
       const dot = A * C + B * D // 15000
       const lenSq = C * C + D * D // 10000
-      const param = dot / lenSq // 1.5
+      const _param = dot / lenSq // 1.5
 
-      // param > 1, so closest point is the end of the line
+      // _param > 1, so closest point is the end of the line
       const xx = lineEnd.x // 100
       const yy = lineEnd.y // 0
 
@@ -223,9 +222,7 @@ describe('node drop on edge utilities', () => {
       const xx = sourceCenter.x + param * C
       const yy = sourceCenter.y + param * D
 
-      const distance = Math.sqrt(
-        (droppedCenter.x - xx) ** 2 + (droppedCenter.y - yy) ** 2
-      )
+      const distance = Math.sqrt((droppedCenter.x - xx) ** 2 + (droppedCenter.y - yy) ** 2)
 
       // Distance should be close to 10 (the vertical offset)
       expect(distance).toBe(10)
@@ -233,9 +230,10 @@ describe('node drop on edge utilities', () => {
     })
 
     it('should not detect nodes that are far from the edge', () => {
-      const sourceNode = createMockNode('/source', 'NumberOp', { x: 0, y: 0 })
-      const targetNode = createMockNode('/target', 'SliceOp', { x: 400, y: 0 })
-      const droppedNode = createMockNode('/dropped', 'CodeOp', { x: 200, y: 200 })
+      // Create nodes for context (not used directly in distance calculation)
+      createMockNode('/source', 'NumberOp', { x: 0, y: 0 })
+      createMockNode('/target', 'SliceOp', { x: 400, y: 0 })
+      createMockNode('/dropped', 'CodeOp', { x: 200, y: 200 })
 
       const sourceCenter = { x: 100, y: 50 }
       const targetCenter = { x: 500, y: 50 }
@@ -254,9 +252,7 @@ describe('node drop on edge utilities', () => {
       const xx = sourceCenter.x + param * C
       const yy = sourceCenter.y + param * D
 
-      const distance = Math.sqrt(
-        (droppedCenter.x - xx) ** 2 + (droppedCenter.y - yy) ** 2
-      )
+      const distance = Math.sqrt((droppedCenter.x - xx) ** 2 + (droppedCenter.y - yy) ** 2)
 
       // Distance should be 200 pixels (far from the edge)
       expect(distance).toBe(200)
