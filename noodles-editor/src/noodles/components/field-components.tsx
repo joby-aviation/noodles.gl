@@ -1,4 +1,5 @@
 import { CodeiumEditor } from '@codeium/react-code-editor'
+import type { OnMount } from '@monaco-editor/react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
 import { Handle, Position, useEdges, useNodeId, useReactFlow } from '@xyflow/react'
@@ -358,7 +359,7 @@ export function CodeFieldComponent({
 }) {
   const [value, setValue] = useState(guardAccessorFallback(field.value))
   const { setEdges, getNode } = useReactFlow()
-  const editorRef = useRef<unknown>(null)
+  const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
   const nodeId = useNodeId() as string
@@ -379,7 +380,7 @@ export function CodeFieldComponent({
     [field, disabled]
   )
 
-  const handleEditorDidMount = useCallback((editor: unknown) => {
+  const handleEditorDidMount: OnMount = useCallback((editor, _monaco) => {
     editorRef.current = editor
     editor.layout()
   }, [])

@@ -60,7 +60,7 @@ import { useProjectModifications } from './hooks/use-project-modifications'
 import type { IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
 import { load, save } from './storage'
-import { getOp, getOpStore, useNestingStore } from './store'
+import { getOp, getOpStore, getUIStore, useNestingStore } from './store'
 import { bindOperatorToTheatre, cleanupRemovedOperators } from './theatre-bindings'
 import { transformGraph } from './transform-graph'
 import { directoryHandleCache } from './utils/directory-handle-cache'
@@ -78,6 +78,7 @@ import {
   serializeEdges,
   serializeNodes,
 } from './utils/serialization'
+import { calculateViewerPosition } from './utils/viewer-position'
 
 /*
  * CSS Architecture:
@@ -105,9 +106,6 @@ const fitViewOptions: FitViewOptions = {
 const defaultEdgeOptions: DefaultEdgeOptions = {
   animated: false,
 }
-
-// Offset to position new ViewerOps to the right of the source node when created via 'v' keypress
-const VIEWER_OFFSET_X = 400
 
 // TheatreJS is used by the Noodles framework to provide a timeline and keyframe animation for Op fields.
 // Naturally, the Noodles framework will load a new theatre state when a Noodles project is loaded.
@@ -442,115 +440,90 @@ export function getNoodles(): Visualization {
 
     setNodes(currentNodes => {
       const selectedNodes = currentNodes.filter(n => n.selected)
-      const store = getOpStore()
-      const hoveredHandle = store.hoveredOutputHandle
-      if (selectedNodes.length === 0) {
-        if (hoveredHandle) {
-          const hoveredNode = currentNodes.find(n => n.id === hoveredHandle.nodeId)
-          if (hoveredNode) {
-            const newViewerPosition = {
-              x: hoveredNode.position.x + VIEWER_OFFSET_X,
-              y: hoveredNode.position.y,
-            }
+      const opStore = getOpStore()
+      const uiStore = getUIStore()
+      const hoveredHandle = uiStore.hoveredOutputHandle
 
-            const viewerId = nodeId('viewer', currentContainerId)
+      // Priority 1: If hovering over ANY output handle, use that
+      if (hoveredHandle?.handleId.startsWith('out.')) {
+        const hoveredNode = currentNodes.find(n => n.id === hoveredHandle.nodeId)
+        if (hoveredNode) {
+          const newViewerPosition = calculateViewerPosition(hoveredNode, currentNodes)
+          const viewerId = nodeId('viewer', currentContainerId)
 
-            const viewerNode: AnyNodeJSON = {
-              id: viewerId,
-              type: 'ViewerOp',
-              position: newViewerPosition,
-              data: undefined,
-            }
+          const viewerNode: AnyNodeJSON = {
+            id: viewerId,
+            type: 'ViewerOp',
+            position: newViewerPosition,
+            data: undefined,
+          }
 
-            const sourceHandle = hoveredHandle.handleId
-            const targetHandle = 'par.data'
-            const newEdge = {
-              id: edgeId({
-                source: hoveredHandle.nodeId,
-                sourceHandle,
-                target: viewerId,
-                targetHandle,
-              }),
+          const sourceHandle = hoveredHandle.handleId
+          const targetHandle = 'par.data'
+          const newEdge = {
+            id: edgeId({
               source: hoveredHandle.nodeId,
               sourceHandle,
               target: viewerId,
               targetHandle,
-            }
-
-            setEdges(currentEdges => [...currentEdges, newEdge])
-            return [...currentNodes, viewerNode]
+            }),
+            source: hoveredHandle.nodeId,
+            sourceHandle,
+            target: viewerId,
+            targetHandle,
           }
-        }
-        return currentNodes
-      }
 
-      // Find the rightmost selected node
-      const rightmostNode = selectedNodes.reduce((rightmost, node) => {
-        return node.position.x > rightmost.position.x ? node : rightmost
-      }, selectedNodes[0])
-
-      // Calculate position for new ViewerOp (to the right of the rightmost node)
-      const newViewerPosition = {
-        x: rightmostNode.position.x + VIEWER_OFFSET_X,
-        y: rightmostNode.position.y,
-      }
-
-      const viewerId = nodeId('viewer', currentContainerId)
-
-      // Create the ViewerOp node
-      const viewerNode: AnyNodeJSON = {
-        id: viewerId,
-        type: 'ViewerOp',
-        position: newViewerPosition,
-        data: undefined,
-      }
-
-      // Determine sourceHandle to use
-      let sourceNodeId = rightmostNode.id
-      let sourceHandle: string | null = null
-
-      // Check if a handle is hovered (from shared store)
-      if (hoveredHandle && selectedNodes.some(n => n.id === hoveredHandle.nodeId)) {
-        // Use hovered handle if it's on a selected node
-        // Handle ID is already in the format "out.fieldName"
-        if (hoveredHandle.handleId.startsWith('out.')) {
-          sourceNodeId = hoveredHandle.nodeId
-          sourceHandle = hoveredHandle.handleId
+          setEdges(currentEdges => [...currentEdges, newEdge])
+          return [...currentNodes, viewerNode]
         }
       }
 
-      // If no hovered handle, use the first output handle of the rightmost node
-      if (!sourceHandle) {
-        const sourceOp = store.getOp(sourceNodeId)
+      // Priority 2: If nodes are selected, use rightmost selected node
+      if (selectedNodes.length > 0) {
+        const rightmostNode = selectedNodes.reduce((rightmost, node) => {
+          return node.position.x > rightmost.position.x ? node : rightmost
+        }, selectedNodes[0])
+
+        const sourceOp = opStore.getOp(rightmostNode.id)
+        let sourceHandle: string | null = null
         if (sourceOp) {
           const firstOutputKey = Object.keys(sourceOp.outputs)[0]
           if (firstOutputKey) {
             sourceHandle = `out.${firstOutputKey}`
           }
         }
-      }
 
-      // Create edge if we have a valid source handle
-      if (sourceHandle) {
-        const targetHandle = 'par.data'
-        const newEdge = {
-          id: edgeId({
-            source: sourceNodeId,
+        const newViewerPosition = calculateViewerPosition(rightmostNode, currentNodes)
+        const viewerId = nodeId('viewer', currentContainerId)
+
+        const viewerNode: AnyNodeJSON = {
+          id: viewerId,
+          type: 'ViewerOp',
+          position: newViewerPosition,
+          data: undefined,
+        }
+
+        if (sourceHandle) {
+          const targetHandle = 'par.data'
+          const newEdge = {
+            id: edgeId({
+              source: rightmostNode.id,
+              sourceHandle,
+              target: viewerId,
+              targetHandle,
+            }),
+            source: rightmostNode.id,
             sourceHandle,
             target: viewerId,
             targetHandle,
-          }),
-          source: sourceNodeId,
-          sourceHandle,
-          target: viewerId,
-          targetHandle,
+          }
+          setEdges(currentEdges => [...currentEdges, newEdge])
         }
 
-        // Add edge
-        setEdges(currentEdges => [...currentEdges, newEdge])
+        return [...currentNodes, viewerNode]
       }
 
-      return [...currentNodes, viewerNode]
+      return currentNodes
     })
   }, [setNodes, setEdges, currentContainerId])
 

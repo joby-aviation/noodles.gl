@@ -340,7 +340,7 @@ export abstract class Operator<OP extends IOperator> {
   }
 
   // Left open for sub-classes to override
-  onError(_err: unknown) {}
+  onError(_err: Error) {}
 
   // === Connection error methods ===
 
