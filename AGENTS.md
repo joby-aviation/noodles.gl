@@ -607,6 +607,7 @@ Any field can be keyframed via Theatre.js. Changes in timeline propagate through
 8. **Testing is expected** - Add tests for new features and changes to critical components
 9. **Document edge cases** - Users may not expect implementation-specific behavior
 10. **Keep PRs focused** - Split large changes into reviewable chunks when possible
+11. **Use inline comments** - Prefer `//` style comments over JSDoc-style `/** */` block comments
 
 ---
 
