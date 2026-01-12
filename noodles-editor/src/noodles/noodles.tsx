@@ -57,14 +57,15 @@ import { UndoRedoHandler, type UndoRedoHandlerRef } from './components/UndoRedoH
 import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
 import { IS_PROD } from './globals'
 import { useKeyboardShortcut } from './hooks/use-keyboard-shortcut'
+import { useNodeDropOnEdge } from './hooks/use-node-drop-on-edge'
 import { useProjectModifications } from './hooks/use-project-modifications'
 import type { IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
 import { load, save } from './storage'
 import { getOp, getOpStore, getUIStore, useNestingStore, useUIStore } from './store'
-import { canConnect } from './utils/can-connect'
 import { bindOperatorToTheatre, cleanupRemovedOperators } from './theatre-bindings'
 import { transformGraph } from './transform-graph'
+import { canConnect } from './utils/can-connect'
 import { directoryHandleCache } from './utils/directory-handle-cache'
 import { requestPermission, selectDirectory, writeFileToDirectory } from './utils/filesystem'
 import { edgeId, nodeId } from './utils/id-utils'
@@ -423,6 +424,25 @@ export function getNoodles(): Visualization {
   const onConnectEnd: OnConnectEnd = useCallback(() => {
     setConnectionDragState(null)
   }, [setConnectionDragState])
+
+  // Hook for dropping nodes onto edges to insert them
+  const { onNodeDragStop: onNodeDragStopBase } = useNodeDropOnEdge({
+    getNodes: useCallback(() => nodes, [nodes]),
+    getEdges: useCallback(() => edges, [edges]),
+    setEdges,
+  })
+
+  // Wrap onNodeDragStop to mark unsaved changes when a node is inserted
+  const onNodeDragStop = useCallback(
+    (event: React.MouseEvent, node: ReactFlowNode) => {
+      const result = onNodeDragStopBase(event, node)
+      // Mark as unsaved if a node was inserted into an edge
+      if (result) {
+        setHasUnsavedChanges(true)
+      }
+    },
+    [onNodeDragStopBase]
+  )
 
   const onNodeClick = useCallback((_e: React.MouseEvent, node: ReactFlowNode<unknown>) => {
     const store = getOpStore()
@@ -1056,6 +1076,7 @@ export function getNoodles(): Visualization {
               onReconnect={onReconnect}
               onNodeClick={onNodeClick}
               onNodesDelete={onNodesDelete}
+              onNodeDragStop={onNodeDragStop}
               onPaneContextMenu={onPaneContextMenu}
               onPaneClick={onPaneClick}
               minZoom={0.2}
