@@ -1118,4 +1118,49 @@ describe('ForLoop execution via GraphExecutor.executeFrame()', () => {
     const result = await endOp.pull()
     expect(result).toEqual({ data: [1, 2, 3] })
   })
+
+  it('should work without ForLoopMetaOp (meta is optional)', async () => {
+    // This test ensures that the ForLoop works correctly when no ForLoopMetaOp
+    // is present. The meta op is optional and users can delete it without
+    // breaking the loop execution.
+    const executor = new GraphExecutor()
+
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const mathOp = new MathOp('/math')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    // Set input data
+    beginOp.inputs.data.setValue([10, 20, 30])
+
+    // beginOp.item -> mathOp.a (no meta op in the chain)
+    mathOp.inputs.a.addConnection('begin-to-math', beginOp.outputs.item)
+    mathOp.inputs.b.setValue(5)
+    mathOp.inputs.operator.setValue('add')
+    mathOp.addUpstreamDependency(beginOp)
+    beginOp.addDownstreamDependent(mathOp)
+
+    // mathOp.result -> endOp.item
+    endOp.inputs.item.addConnection('math-to-end', mathOp.outputs.result)
+    endOp.addUpstreamDependency(mathOp)
+    mathOp.addDownstreamDependent(endOp)
+
+    executor.addNode(beginOp)
+    executor.addNode(mathOp)
+    executor.addNode(endOp)
+    executor.addEdge(beginOp.id, mathOp.id)
+    executor.addEdge(mathOp.id, endOp.id)
+
+    // Execute - should work without metaOp
+    await executor.executeFrame(performance.now())
+
+    // Results should be [15, 25, 35] (10+5, 20+5, 30+5)
+    expect(endOp.outputs.data.value).toEqual([15, 25, 35])
+
+    // Verify findForLoopScopes doesn't require metaOp
+    const scopes = executor.findForLoopScopes()
+    expect(scopes).toHaveLength(1)
+    expect(scopes[0].metaOp).toBeUndefined()
+    expect(scopes[0].beginOp).toBe(beginOp)
+    expect(scopes[0].endOp).toBe(endOp)
+  })
 })

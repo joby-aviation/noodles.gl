@@ -2374,8 +2374,12 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
   // This is used when chain is set up (legacy tests) or GraphExecutor hasn't already
   // executed this scope. When GraphExecutor runs, it sets the cached output directly.
   async pull(): Promise<ExtractProps<typeof this.outputs>> {
+    // DIAGNOSTIC: This logs when pull() is called (should happen via GraphExecutor or tests)
+    console.log('[ForLoopEndOp.pull] Called - chain length:', this.chain.length, '- pullStatus:', this._pullExecutionStatus)
+
     // Return cached if clean (set by GraphExecutor after loop completes)
     if (this._pullExecutionStatus === PullExecutionStatus.CLEAN && this._cachedOutput !== null) {
+      console.log('[ForLoopEndOp.pull] Returning cached output:', this._cachedOutput)
       return this._cachedOutput as ExtractProps<typeof this.outputs>
     }
 
@@ -2384,6 +2388,7 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
       | ForLoopBeginOp
       | undefined
     if (!beginOp || this.chain.length === 0) {
+      console.log('[ForLoopEndOp.pull] No chain or beginOp - falling back to super.pull()')
       return super.pull()
     }
 
@@ -2466,6 +2471,8 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
   }
 
   execute({ item }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    // DIAGNOSTIC: This logs when the reactive system (createListeners) calls execute directly
+    console.log('[ForLoopEndOp.execute] Called with item:', item, '- returning single value (reactive path)')
     return { data: item }
   }
 }
