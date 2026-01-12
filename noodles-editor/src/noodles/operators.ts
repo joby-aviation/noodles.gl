@@ -1861,7 +1861,7 @@ export class TableEditorOp extends Operator<TableEditorOp> {
 
 export class ScatterOp extends Operator<ScatterOp> {
   static displayName = 'Scatter'
-  static description = 'Scatter points within a bounding box'
+  static description = 'Scatter points randomly within a bounding box'
   createInputs() {
     return {
       bounds: new ArrayField(new Point2DField([0, 0], { returnType: 'tuple' })),
