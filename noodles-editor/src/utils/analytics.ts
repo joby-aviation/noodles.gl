@@ -36,6 +36,7 @@ export class AnalyticsManager {
         disable_session_recording: true, // Privacy: no session recording
         capture_pageview: false, // Manual tracking
         capture_pageleave: true,
+        capture_exceptions: true, // Capture unhandled exceptions
         loaded: posthog => {
           if (import.meta.env.DEV) {
             posthog.debug(false) // Set to true for verbose logging in dev
@@ -131,6 +132,25 @@ export class AnalyticsManager {
       // Silently fail if PostHog is blocked
       if (import.meta.env.DEV) {
         console.warn('Analytics reset failed:', error)
+      }
+    }
+  }
+
+  captureException(
+    error: Error,
+    properties?: Record<string, unknown> & { source?: string; componentStack?: string }
+  ) {
+    // No consent check needed for error tracking - we only require consent for user action tracking
+    if (!this.initialized) {
+      return
+    }
+
+    try {
+      posthog.captureException(error, properties)
+    } catch (err) {
+      // Silently fail if PostHog is blocked
+      if (import.meta.env.DEV) {
+        console.warn('Analytics exception capture failed:', err)
       }
     }
   }

@@ -36,6 +36,8 @@ export class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('Node graph error:', error, errorInfo)
 
+    // Error is captured by React 19's onCaughtError hook in index.tsx
+
     // Increment reset count if error occurs within timeout period
     const now = Date.now()
     const { lastResetTime, resetCount } = this.state
