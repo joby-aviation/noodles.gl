@@ -886,7 +886,18 @@
   opacity: 0.35;
   filter: grayscale(0.5);
   pointer-events: none;
-  transition: opacity 0.15s ease-out, filter 0.15s ease-out;
+  transition:
+    opacity 0.15s ease-out,
+    filter 0.15s ease-out;
+}
+
+.handleDimmed {
+  opacity: 0.25;
+  filter: grayscale(0.8);
+  pointer-events: none;
+  transition:
+    opacity 0.15s ease-out,
+    filter 0.15s ease-out;
 }
 
 .outputHandleContainer {
