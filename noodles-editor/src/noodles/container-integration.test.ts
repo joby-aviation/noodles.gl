@@ -349,9 +349,7 @@ describe('Container Integration with Transform Graph', () => {
           position: { x: 0, y: 0 },
           data: {
             inputs: {},
-            customInputs: [
-              { id: '1', name: 'count', type: 'number', order: 0, defaultValue: 0 },
-            ],
+            customInputs: [{ id: '1', name: 'count', type: 'number', order: 0, defaultValue: 0 }],
           },
         },
         {

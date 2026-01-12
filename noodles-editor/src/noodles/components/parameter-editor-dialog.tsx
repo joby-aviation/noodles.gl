@@ -347,9 +347,7 @@ interface FieldEditorProps {
 function FieldEditor({ definition, onUpdate, onValidate, error }: FieldEditorProps) {
   const [localName, setLocalName] = useState(definition.name)
   const [localError, setLocalError] = useState<string | null>(error || null)
-  const [showEnableExpression, setShowEnableExpression] = useState(
-    !!definition.enableExpression
-  )
+  const [showEnableExpression, setShowEnableExpression] = useState(!!definition.enableExpression)
 
   const handleNameChange = (newName: string) => {
     setLocalName(newName)
@@ -420,7 +418,11 @@ function FieldEditor({ definition, onUpdate, onValidate, error }: FieldEditorPro
             type="button"
             className={`${s.conditionalShowToggle} ${showEnableExpression ? s.active : ''}`}
             onClick={handleToggleConditionalShow}
-            title={showEnableExpression ? 'Disable conditional visibility' : 'Enable conditional visibility'}
+            title={
+              showEnableExpression
+                ? 'Disable conditional visibility'
+                : 'Enable conditional visibility'
+            }
           >
             <EyeOpenIcon />
           </button>
@@ -437,7 +439,9 @@ function FieldEditor({ definition, onUpdate, onValidate, error }: FieldEditorPro
               className={s.input}
               placeholder="par.showAdvanced === true"
             />
-            <span className={s.hintText}>JavaScript expression to conditionally show this field</span>
+            <span className={s.hintText}>
+              JavaScript expression to conditionally show this field
+            </span>
           </>
         )}
       </div>
