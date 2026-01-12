@@ -17,21 +17,21 @@ const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement,
   onCaughtError: (error, errorInfo) => {
     analytics.captureException(error, {
       source: 'react_error_boundary',
-      componentStack: errorInfo.componentStack ?? undefined,
+      componentStack: errorInfo.componentStack,
     })
   },
   // Called when an error is thrown and not caught by an Error Boundary
   onUncaughtError: (error, errorInfo) => {
     analytics.captureException(error, {
       source: 'react_uncaught',
-      componentStack: errorInfo.componentStack ?? undefined,
+      componentStack: errorInfo.componentStack,
     })
   },
   // Called when React automatically recovers from errors
   onRecoverableError: (error, errorInfo) => {
     analytics.captureException(error, {
       source: 'react_recoverable',
-      componentStack: errorInfo.componentStack ?? undefined,
+      componentStack: errorInfo.componentStack,
     })
   },
 })

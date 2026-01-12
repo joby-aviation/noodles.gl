@@ -11,6 +11,7 @@ Noodles.gl uses PostHog for product analytics with a privacy-first approach:
 - **Manual events only**: No automatic capture or session recording
 - **Easy opt-out**: Users can disable anytime in Settings
 - **Ad-blocker resilient**: Gracefully handles blocking without breaking the app
+- **Error tracking for all users**: Exceptions are logged regardless of consent to maintain application stability
 
 ## Setup
 
@@ -53,6 +54,7 @@ VITE_POSTHOG_HOST=https://app.posthog.com  # Optional
    - `autocapture: false`
    - `disable_session_recording: true`
    - `capture_pageview: false`
+   - `capture_exceptions: true`
 
 ## Currently Tracked Events
 
@@ -89,6 +91,19 @@ VITE_POSTHOG_HOST=https://app.posthog.com  # Optional
 | Event | Properties | Location |
 |-------|-----------|----------|
 | `web_vital_measured` | `name, value, rating` | reportWebVitals.ts |
+
+### Error Tracking
+
+Errors are tracked for all users regardless of consent to maintain application stability.
+
+| Event | Properties | Location |
+|-------|-----------|----------|
+| `$exception` | `source, componentStack` | index.tsx (React 19 error hooks) |
+
+Error sources:
+- `react_error_boundary` - Errors caught by an Error Boundary
+- `react_uncaught` - Errors not caught by any Error Boundary
+- `react_recoverable` - Errors React automatically recovered from
 
 ## Adding New Tracking
 
