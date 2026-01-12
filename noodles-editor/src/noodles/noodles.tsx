@@ -6,6 +6,8 @@ import type {
   Connection,
   DefaultEdgeOptions,
   FitViewOptions,
+  OnConnectEnd,
+  OnConnectStart,
   Edge as ReactFlowEdge,
   Node as ReactFlowNode,
 } from '@xyflow/react'
@@ -59,7 +61,8 @@ import { useProjectModifications } from './hooks/use-project-modifications'
 import type { IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
 import { load, save } from './storage'
-import { getOpStore, getUIStore, useNestingStore } from './store'
+import { getOp, getOpStore, getUIStore, useNestingStore, useUIStore } from './store'
+import { canConnect } from './utils/can-connect'
 import { bindOperatorToTheatre, cleanupRemovedOperators } from './theatre-bindings'
 import { transformGraph } from './transform-graph'
 import { directoryHandleCache } from './utils/directory-handle-cache'
@@ -368,6 +371,58 @@ export function getNoodles(): Visualization {
     },
     [setEdges]
   )
+
+  // Track connection drag state for dimming unconnectable nodes
+  const setConnectionDragState = useUIStore(state => state.setConnectionDragState)
+
+  const onConnectStart: OnConnectStart = useCallback(
+    (_event, params) => {
+      if (!params.nodeId || !params.handleId) return
+
+      const sourceOp = getOp(params.nodeId)
+      if (!sourceOp) return
+
+      // Parse handle ID to get namespace and field name (e.g., "out.data" -> ["out", "data"])
+      const [namespace, fieldName] = params.handleId.split('.')
+      if (!namespace || !fieldName) return
+
+      // Determine the source field based on handle type
+      const isOutput = params.handleType === 'source'
+      const sourceField = isOutput ? sourceOp.outputs[fieldName] : sourceOp.inputs[fieldName]
+      if (!sourceField) return
+
+      // Calculate which nodes have compatible handles
+      const compatibleNodeIds = new Set<string>()
+      const store = getOpStore()
+
+      for (const [nodeId, op] of store.operators) {
+        if (nodeId === params.nodeId) continue
+
+        // Check target handles (inputs if dragging from output, outputs if dragging from input)
+        const targetFields = isOutput ? op.inputs : op.outputs
+        for (const targetField of Object.values(targetFields)) {
+          const compatible = isOutput
+            ? canConnect(sourceField, targetField)
+            : canConnect(targetField, sourceField)
+          if (compatible) {
+            compatibleNodeIds.add(nodeId)
+            break
+          }
+        }
+      }
+
+      setConnectionDragState({
+        sourceNodeId: params.nodeId,
+        sourceHandleId: params.handleId,
+        compatibleNodeIds,
+      })
+    },
+    [setConnectionDragState]
+  )
+
+  const onConnectEnd: OnConnectEnd = useCallback(() => {
+    setConnectionDragState(null)
+  }, [setConnectionDragState])
 
   const onNodeClick = useCallback((_e: React.MouseEvent, node: ReactFlowNode<unknown>) => {
     const store = getOpStore()
@@ -996,6 +1051,8 @@ export function getNoodles(): Visualization {
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
               onConnect={onConnect}
+              onConnectStart={onConnectStart}
+              onConnectEnd={onConnectEnd}
               onReconnect={onReconnect}
               onNodeClick={onNodeClick}
               onNodesDelete={onNodesDelete}

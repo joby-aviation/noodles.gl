@@ -53,6 +53,7 @@ import {
   updateOperatorId,
   useNestingStore,
   useOperatorStore,
+  useUIStore,
 } from '../store'
 import type { NodeDataJSON } from '../transform-graph'
 import type { NodeType } from '../utils/node-creation-utils'
@@ -96,6 +97,16 @@ function useConnectionErrors(op: Operator<IOperator>): Map<string, string> {
   }, [op])
 
   return connectionErrors
+}
+
+// Hook to check if a node should be dimmed during connection drag
+function useNodeDimmed(nodeId: string): boolean {
+  return useUIStore(state => {
+    const drag = state.connectionDragState
+    if (!drag) return false
+    if (drag.sourceNodeId === nodeId) return false
+    return !drag.compatibleNodeIds.has(nodeId)
+  })
 }
 
 const defaultNodeComponents = {} as Record<OpType, typeof NodeComponent>
@@ -427,12 +438,14 @@ function NodeComponent({
   const executionState = useExecutionState(op)
   const connectionErrors = useConnectionErrors(op)
   const hasConnectionErrors = connectionErrors.size > 0
+  const isDimmed = useNodeDimmed(id)
 
   return (
     <div
       className={cx(s.wrapper, {
         [s.wrapperError]: executionState.status === 'error' || hasConnectionErrors,
         [s.wrapperExecuting]: executionState.status === 'executing',
+        [s.wrapperDimmed]: isDimmed,
       })}
     >
       <NodeHeader id={id} type={type} op={op} connectionErrors={connectionErrors} />
@@ -717,6 +730,7 @@ function GeocoderOpComponent({
   const containerRef = useRef<HTMLDivElement>(null)
   const geocoderRef = useRef<MapboxGeocoder>()
   const [error, setError] = useState<string | null>(null)
+  const isDimmed = useNodeDimmed(id)
 
   // Get API key directly from store (reactive)
   const apiKey = useKeysStore(state => state.getKey('mapbox'))
@@ -789,7 +803,7 @@ function GeocoderOpComponent({
   }, [locked])
 
   return (
-    <>
+    <div className={cx(s.wrapper, { [s.wrapperDimmed]: isDimmed })}>
       <NodeHeader id={id} type={type} op={op} />
       <div className={s.content}>
         {Object.entries(op.inputs).map(([key, field]) => (
@@ -818,7 +832,7 @@ function GeocoderOpComponent({
           ))}
         </div>
       </div>
-    </>
+    </div>
   )
 }
 
@@ -868,6 +882,7 @@ function MouseOpComponent({
   }
 
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
+  const isDimmed = useNodeDimmed(id)
 
   // Inject the container element into the operator
   useEffect(() => {
@@ -886,7 +901,7 @@ function MouseOpComponent({
   }, [op])
 
   return (
-    <>
+    <div className={cx(s.wrapper, { [s.wrapperDimmed]: isDimmed })}>
       <NodeHeader id={id} type={type} op={op} />
       <div className={s.content}>
         <div className={s.fieldWrapper}>
@@ -903,7 +918,7 @@ function MouseOpComponent({
           ))}
         </div>
       </div>
-    </>
+    </div>
   )
 }
 
@@ -917,6 +932,7 @@ function TableEditorOpComponent({
     throw new Error(`Operator with id ${id} not found`)
   }
 
+  const isDimmed = useNodeDimmed(id)
   const [dataArray, setDataArray] = useState(op.inputs.data.value as unknown[])
   useEffect(() => {
     const sub = op.inputs.data.subscribe(newVal => {
@@ -977,7 +993,7 @@ function TableEditorOpComponent({
   const locked = useLocked(op)
 
   return (
-    <>
+    <div className={cx(s.wrapper, { [s.wrapperDimmed]: isDimmed })}>
       <NodeHeader id={id} type={type} op={op} />
       <NodeResizer isVisible={selected} minWidth={400} minHeight={200} />
       <div className={s.content}>
@@ -1037,7 +1053,7 @@ function TableEditorOpComponent({
           ))}
         </div>
       </div>
-    </>
+    </div>
   )
 }
 
@@ -1096,6 +1112,8 @@ function ViewerOpComponent({
     throw new Error(`Operator with id ${id} not found`)
   }
 
+  const isDimmed = useNodeDimmed(id)
+
   // TODO: use react-flow helpers
   const [viewerData, setViewerData] = useState(viewerFormatter(op.inputs.data.value))
 
@@ -1150,7 +1168,7 @@ function ViewerOpComponent({
   const locked = useLocked(op)
 
   return (
-    <>
+    <div className={cx(s.wrapper, { [s.wrapperDimmed]: isDimmed })}>
       <NodeHeader id={id} type={type} op={op} />
       <NodeResizer isVisible={selected} minWidth={400} minHeight={200} />
       <div className={s.content}>
@@ -1170,7 +1188,7 @@ function ViewerOpComponent({
           ))}
         </div>
       </div>
-    </>
+    </div>
   )
 }
 
@@ -1184,6 +1202,7 @@ function ContainerOpComponent({
     throw new Error(`Operator with id ${id} not found`)
   }
 
+  const isDimmed = useNodeDimmed(id)
   const setCurrentContainerId = useNestingStore(state => state.setCurrentContainerId)
   const reactFlow = useReactFlow()
 
@@ -1195,9 +1214,9 @@ function ContainerOpComponent({
   const locked = useLocked(op)
 
   return (
-    // Add a specific class for styling the container
     <div
       role="tree"
+      className={cx(s.wrapper, { [s.wrapperDimmed]: isDimmed })}
       onDoubleClick={() => {
         // Clear selection when changing levels
         reactFlow.setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
@@ -1239,6 +1258,7 @@ function TimeOpComponent({
     throw new Error(`Operator with id ${id} not found`)
   }
   const sheet = useContext(SheetContext) as ISheet
+  const isDimmed = useNodeDimmed(id)
 
   const [now, setNow] = useState(0)
   const [sequenceTime, setSequenceTime] = useState(0)
@@ -1266,7 +1286,7 @@ function TimeOpComponent({
   }, [op])
 
   return (
-    <>
+    <div className={cx(s.wrapper, { [s.wrapperDimmed]: isDimmed })}>
       <NodeHeader id={id} type={type} op={op} />
       <div className={s.content}>
         <div>
@@ -1282,6 +1302,6 @@ function TimeOpComponent({
           ))}
         </div>
       </div>
-    </>
+    </div>
   )
 }
