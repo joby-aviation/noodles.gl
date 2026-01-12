@@ -59,7 +59,7 @@ import { useProjectModifications } from './hooks/use-project-modifications'
 import type { IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
 import { load, save } from './storage'
-import { getOpStore, useNestingStore } from './store'
+import { getOpStore, getUIStore, useNestingStore } from './store'
 import { bindOperatorToTheatre, cleanupRemovedOperators } from './theatre-bindings'
 import { transformGraph } from './transform-graph'
 import { directoryHandleCache } from './utils/directory-handle-cache'
@@ -424,108 +424,90 @@ export function getNoodles(): Visualization {
 
     setNodes(currentNodes => {
       const selectedNodes = currentNodes.filter(n => n.selected)
-      const store = getOpStore()
-      const hoveredHandle = store.hoveredOutputHandle
-      if (selectedNodes.length === 0) {
-        if (hoveredHandle) {
-          const hoveredNode = currentNodes.find(n => n.id === hoveredHandle.nodeId)
-          if (hoveredNode) {
-            const newViewerPosition = calculateViewerPosition(hoveredNode, currentNodes)
+      const opStore = getOpStore()
+      const uiStore = getUIStore()
+      const hoveredHandle = uiStore.hoveredOutputHandle
 
-            const viewerId = nodeId('viewer', currentContainerId)
+      // Priority 1: If hovering over ANY output handle, use that
+      if (hoveredHandle?.handleId.startsWith('out.')) {
+        const hoveredNode = currentNodes.find(n => n.id === hoveredHandle.nodeId)
+        if (hoveredNode) {
+          const newViewerPosition = calculateViewerPosition(hoveredNode, currentNodes)
+          const viewerId = nodeId('viewer', currentContainerId)
 
-            const viewerNode: AnyNodeJSON = {
-              id: viewerId,
-              type: 'ViewerOp',
-              position: newViewerPosition,
-              data: undefined,
-            }
+          const viewerNode: AnyNodeJSON = {
+            id: viewerId,
+            type: 'ViewerOp',
+            position: newViewerPosition,
+            data: undefined,
+          }
 
-            const sourceHandle = hoveredHandle.handleId
-            const targetHandle = 'par.data'
-            const newEdge = {
-              id: edgeId({
-                source: hoveredHandle.nodeId,
-                sourceHandle,
-                target: viewerId,
-                targetHandle,
-              }),
+          const sourceHandle = hoveredHandle.handleId
+          const targetHandle = 'par.data'
+          const newEdge = {
+            id: edgeId({
               source: hoveredHandle.nodeId,
               sourceHandle,
               target: viewerId,
               targetHandle,
-            }
-
-            setEdges(currentEdges => [...currentEdges, newEdge])
-            return [...currentNodes, viewerNode]
+            }),
+            source: hoveredHandle.nodeId,
+            sourceHandle,
+            target: viewerId,
+            targetHandle,
           }
-        }
-        return currentNodes
-      }
 
-      // Find the rightmost selected node as default
-      const rightmostNode = selectedNodes.reduce((rightmost, node) => {
-        return node.position.x > rightmost.position.x ? node : rightmost
-      }, selectedNodes[0])
-
-      // Determine which node to use for positioning and connection
-      let sourceNode = rightmostNode
-      let sourceHandle: string | null = null
-
-      // Check if a handle is hovered on a selected node
-      if (hoveredHandle?.handleId.startsWith('out.')) {
-        const hoveredNode = selectedNodes.find(n => n.id === hoveredHandle.nodeId)
-        if (hoveredNode) {
-          sourceNode = hoveredNode
-          sourceHandle = hoveredHandle.handleId
+          setEdges(currentEdges => [...currentEdges, newEdge])
+          return [...currentNodes, viewerNode]
         }
       }
 
-      // If no hovered handle, use the first output handle of the source node
-      if (!sourceHandle) {
-        const sourceOp = store.getOp(sourceNode.id)
+      // Priority 2: If nodes are selected, use rightmost selected node
+      if (selectedNodes.length > 0) {
+        const rightmostNode = selectedNodes.reduce((rightmost, node) => {
+          return node.position.x > rightmost.position.x ? node : rightmost
+        }, selectedNodes[0])
+
+        const sourceOp = opStore.getOp(rightmostNode.id)
+        let sourceHandle: string | null = null
         if (sourceOp) {
           const firstOutputKey = Object.keys(sourceOp.outputs)[0]
           if (firstOutputKey) {
             sourceHandle = `out.${firstOutputKey}`
           }
         }
-      }
 
-      // Calculate position for new ViewerOp (to the right of the source node)
-      const newViewerPosition = calculateViewerPosition(sourceNode, currentNodes)
+        const newViewerPosition = calculateViewerPosition(rightmostNode, currentNodes)
+        const viewerId = nodeId('viewer', currentContainerId)
 
-      const viewerId = nodeId('viewer', currentContainerId)
+        const viewerNode: AnyNodeJSON = {
+          id: viewerId,
+          type: 'ViewerOp',
+          position: newViewerPosition,
+          data: undefined,
+        }
 
-      // Create the ViewerOp node
-      const viewerNode: AnyNodeJSON = {
-        id: viewerId,
-        type: 'ViewerOp',
-        position: newViewerPosition,
-        data: undefined,
-      }
-
-      // Create edge if we have a valid source handle
-      if (sourceHandle) {
-        const targetHandle = 'par.data'
-        const newEdge = {
-          id: edgeId({
-            source: sourceNode.id,
+        if (sourceHandle) {
+          const targetHandle = 'par.data'
+          const newEdge = {
+            id: edgeId({
+              source: rightmostNode.id,
+              sourceHandle,
+              target: viewerId,
+              targetHandle,
+            }),
+            source: rightmostNode.id,
             sourceHandle,
             target: viewerId,
             targetHandle,
-          }),
-          source: sourceNode.id,
-          sourceHandle,
-          target: viewerId,
-          targetHandle,
+          }
+          setEdges(currentEdges => [...currentEdges, newEdge])
         }
 
-        // Add edge
-        setEdges(currentEdges => [...currentEdges, newEdge])
+        return [...currentNodes, viewerNode]
       }
 
-      return [...currentNodes, viewerNode]
+      return currentNodes
     })
   }, [setNodes, setEdges, currentContainerId])
 
