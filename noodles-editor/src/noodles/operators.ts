@@ -3381,8 +3381,6 @@ export class GraphInputOp extends Operator<GraphInputOp> {
       this._containerSub = null
     }
 
-    this._parentContainerOp = containerOp
-
     if (containerOp) {
       // Initial sync
       this.rebuildFromContainer(containerOp)
