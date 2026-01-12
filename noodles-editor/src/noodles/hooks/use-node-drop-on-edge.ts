@@ -23,6 +23,7 @@ interface UseNodeDropOnEdgeOptions {
   setEdges: (
     edges: ReactFlowEdge[] | ((edges: ReactFlowEdge[]) => ReactFlowEdge[])
   ) => void
+  getViewport: () => { zoom: number }
 }
 
 interface NodeDropResult {
@@ -131,30 +132,55 @@ function canInsertNode(
     return { canInsert: false, sourceToDropped: null, droppedToTarget: null }
   }
 
-  // Strategy 1: Try to match the exact field types from the original edge
-  // Look for an input on the dropped node that can accept the source field's type
+  // Strategy 1: Try to match fields semantically by name, then by type compatibility
   let sourceToDropped: { sourceHandle: string; targetHandle: string } | null = null
   let droppedToTarget: { sourceHandle: string; targetHandle: string } | null = null
 
   // Find an input on the dropped node that's compatible with the original source
-  for (const [inputKey, inputField] of Object.entries(droppedOp.inputs)) {
-    if (canConnect(originalSourceField, inputField)) {
-      sourceToDropped = {
-        sourceHandle: edge.sourceHandle!,
-        targetHandle: `par.${inputKey}`,
+  // First, try semantic match: look for input with same name as the original target field
+  const targetFieldName = targetHandleInfo.fieldName
+  if (
+    droppedOp.inputs[targetFieldName] &&
+    canConnect(originalSourceField, droppedOp.inputs[targetFieldName])
+  ) {
+    sourceToDropped = {
+      sourceHandle: edge.sourceHandle!,
+      targetHandle: `par.${targetFieldName}`,
+    }
+  } else {
+    // Fall back to finding first compatible input
+    for (const [inputKey, inputField] of Object.entries(droppedOp.inputs)) {
+      if (canConnect(originalSourceField, inputField)) {
+        sourceToDropped = {
+          sourceHandle: edge.sourceHandle!,
+          targetHandle: `par.${inputKey}`,
+        }
+        break
       }
-      break
     }
   }
 
   // Find an output on the dropped node that's compatible with the original target
-  for (const [outputKey, outputField] of Object.entries(droppedOp.outputs)) {
-    if (canConnect(outputField, originalTargetField)) {
-      droppedToTarget = {
-        sourceHandle: `out.${outputKey}`,
-        targetHandle: edge.targetHandle!,
+  // First, try semantic match: look for output with same name as the original source field
+  const sourceFieldName = sourceHandleInfo.fieldName
+  if (
+    droppedOp.outputs[sourceFieldName] &&
+    canConnect(droppedOp.outputs[sourceFieldName], originalTargetField)
+  ) {
+    droppedToTarget = {
+      sourceHandle: `out.${sourceFieldName}`,
+      targetHandle: edge.targetHandle!,
+    }
+  } else {
+    // Fall back to finding first compatible output
+    for (const [outputKey, outputField] of Object.entries(droppedOp.outputs)) {
+      if (canConnect(outputField, originalTargetField)) {
+        droppedToTarget = {
+          sourceHandle: `out.${outputKey}`,
+          targetHandle: edge.targetHandle!,
+        }
+        break
       }
-      break
     }
   }
 
@@ -175,7 +201,7 @@ function canInsertNode(
 }
 
 export function useNodeDropOnEdge(options: UseNodeDropOnEdgeOptions) {
-  const { getNodes, getEdges, setEdges } = options
+  const { getNodes, getEdges, setEdges, getViewport } = options
 
   // Find the edge closest to the dropped node, if within threshold
   const findEdgeAtPosition = useCallback(
@@ -185,9 +211,13 @@ export function useNodeDropOnEdge(options: UseNodeDropOnEdgeOptions) {
     ): ReactFlowEdge | null => {
       const nodes = getNodes()
       const edges = getEdges()
+      const viewport = getViewport()
+
+      // Adjust threshold by zoom level so it represents consistent screen-space distance
+      const adjustedThreshold = EDGE_DROP_THRESHOLD / viewport.zoom
 
       let closestEdge: ReactFlowEdge | null = null
-      let closestDistance = EDGE_DROP_THRESHOLD
+      let closestDistance = adjustedThreshold
 
       for (const edge of edges) {
         // Skip edges that are already connected to this node
@@ -217,7 +247,7 @@ export function useNodeDropOnEdge(options: UseNodeDropOnEdgeOptions) {
 
       return closestEdge
     },
-    [getNodes, getEdges]
+    [getNodes, getEdges, getViewport]
   )
 
   // Handle the node drop and potentially insert it into an edge

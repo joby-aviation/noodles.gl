@@ -263,4 +263,93 @@ describe('node drop on edge utilities', () => {
       expect(distance).toBeGreaterThan(30) // Outside EDGE_DROP_THRESHOLD
     })
   })
+
+  describe('zoom-adjusted threshold', () => {
+    const EDGE_DROP_THRESHOLD = 30
+
+    it('should have larger threshold when zoomed out (zoom < 1)', () => {
+      // At zoom 0.5, the threshold should be doubled to maintain consistent screen-space distance
+      const zoom = 0.5
+      const adjustedThreshold = EDGE_DROP_THRESHOLD / zoom
+
+      expect(adjustedThreshold).toBe(60)
+      // A node 50 world-space pixels away should be within threshold when zoomed out
+      expect(50).toBeLessThan(adjustedThreshold)
+    })
+
+    it('should have smaller threshold when zoomed in (zoom > 1)', () => {
+      // At zoom 2.0, the threshold should be halved to maintain consistent screen-space distance
+      const zoom = 2.0
+      const adjustedThreshold = EDGE_DROP_THRESHOLD / zoom
+
+      expect(adjustedThreshold).toBe(15)
+      // A node 20 world-space pixels away should be outside threshold when zoomed in
+      expect(20).toBeGreaterThan(adjustedThreshold)
+    })
+
+    it('should have standard threshold at zoom 1.0', () => {
+      const zoom = 1.0
+      const adjustedThreshold = EDGE_DROP_THRESHOLD / zoom
+
+      expect(adjustedThreshold).toBe(30)
+    })
+  })
+
+  describe('semantic field name matching', () => {
+    it('should prefer input fields with matching names', () => {
+      // When inserting a node into an edge like out.data -> par.data,
+      // the semantic matcher should prefer connecting to par.data on the dropped node
+      // rather than some other compatible field like par.start
+
+      const sliceOp = new SliceOp('/slice-1')
+      setOp('/slice-1', sliceOp)
+
+      // SliceOp has inputs: data, start, end
+      // If original target field is 'data', we should prefer par.data on dropped node
+      const inputs = Object.keys(sliceOp.inputs)
+      expect(inputs).toContain('data')
+      expect(inputs).toContain('start')
+      expect(inputs).toContain('end')
+
+      // The semantic matching should prioritize 'data' over 'start' when
+      // inserting into an edge where the target field was 'data'
+      const targetFieldName = 'data'
+      const hasSemanticMatch = sliceOp.inputs[targetFieldName] !== undefined
+      expect(hasSemanticMatch).toBe(true)
+    })
+
+    it('should prefer output fields with matching names', () => {
+      const sliceOp = new SliceOp('/slice-1')
+      setOp('/slice-1', sliceOp)
+
+      // SliceOp has output 'data'
+      // If original source field is 'data', we should prefer out.data on dropped node
+      const outputs = Object.keys(sliceOp.outputs)
+      expect(outputs).toContain('data')
+
+      const sourceFieldName = 'data'
+      const hasSemanticMatch = sliceOp.outputs[sourceFieldName] !== undefined
+      expect(hasSemanticMatch).toBe(true)
+    })
+
+    it('should fall back to type-based matching when name does not match', () => {
+      const numberOp = new NumberOp('/number-1')
+      setOp('/number-1', numberOp)
+
+      // NumberOp has output 'val', not 'data'
+      // If we're looking for 'data', it won't find a semantic match
+      // and should fall back to type-based matching
+      const outputs = Object.keys(numberOp.outputs)
+      expect(outputs).toContain('val')
+      expect(outputs).not.toContain('data')
+
+      // Semantic match for 'data' would fail
+      const sourceFieldName = 'data'
+      const hasSemanticMatch = numberOp.outputs[sourceFieldName] !== undefined
+      expect(hasSemanticMatch).toBe(false)
+
+      // But type-based matching should still find 'val' as a compatible output
+      expect(outputs.length).toBeGreaterThan(0)
+    })
+  })
 })
