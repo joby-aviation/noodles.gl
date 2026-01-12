@@ -1539,11 +1539,7 @@ export class FileOp extends Operator<FileOp> {
   }
 
   // Helper method to process text input
-  private processText(
-    text: string,
-    format: string,
-    autoType: boolean
-  ): { data: unknown } {
+  private processText(text: string, format: string, autoType: boolean): { data: unknown } {
     switch (format) {
       case 'csv': {
         const parseFn = autoType ? d3.autoType : null
@@ -1802,20 +1798,23 @@ export class JSONOp extends Operator<JSONOp> {
     }
   }
   execute({ text }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const json = text.replace(mustacheRe, (_match: string, opId: string, inOut: InOut, fieldPath: string) => {
-      // If the opId is a relative path (doesn't start with /), make it relative to current context
-      const resolvedOpId = opId.startsWith('/') ? opId : `./${opId}`
-      const op = getOp(resolvedOpId, this.id)
-      const [fieldName, ...propKeys] = fieldPath.split('.')
+    const json = text.replace(
+      mustacheRe,
+      (_match: string, opId: string, inOut: InOut, fieldPath: string) => {
+        // If the opId is a relative path (doesn't start with /), make it relative to current context
+        const resolvedOpId = opId.startsWith('/') ? opId : `./${opId}`
+        const op = getOp(resolvedOpId, this.id)
+        const [fieldName, ...propKeys] = fieldPath.split('.')
 
-      const field = op?.[inOut === 'par' ? 'inputs' : 'outputs']?.[fieldName]
-      if (!field) {
-        throw new Error(`Field ${fieldName} not found on ${resolvedOpId}`)
+        const field = op?.[inOut === 'par' ? 'inputs' : 'outputs']?.[fieldName]
+        if (!field) {
+          throw new Error(`Field ${fieldName} not found on ${resolvedOpId}`)
+        }
+
+        const val = propKeys.reduce((d, prop) => d[prop], field.value)
+        return JSON.stringify(val)
       }
-
-      const val = propKeys.reduce((d, prop) => d[prop], field.value)
-      return JSON.stringify(val)
-    })
+    )
 
     const data = JSON.parse(json)
     return { data }

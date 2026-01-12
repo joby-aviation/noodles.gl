@@ -24,7 +24,11 @@ export interface IField<
   op?: Operator<IOperator>
   setValue(value: z.input<S>): void
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  addConnection<F extends Field<any, any>>(id: string, field: F, connectionType?: 'reference' | 'value'): void
+  addConnection<F extends Field<any, any>>(
+    id: string,
+    field: F,
+    connectionType?: 'reference' | 'value'
+  ): void
   removeConnection(id: string, connectionType: 'reference' | 'value'): void
   serialize(): unknown
 }
@@ -508,7 +512,10 @@ export class ColorRampField extends Field<any> {
   static type = 'color-ramp'
   static defaultValue = interpolateLab('#0000ff', '#ff0000')
   createSchema() {
-    return z.function().input(z.tuple([z.number()])).output(z.string())
+    return z
+      .function()
+      .input(z.tuple([z.number()]))
+      .output(z.string())
   }
 }
 
@@ -518,7 +525,10 @@ export class CategoricalColorRampField extends Field<any> {
   static defaultValue = scaleOrdinal(schemeAccent)
   count = 7 // number of categories. Set by the Operator on change
   createSchema() {
-    return z.function().input(z.tuple([z.string()])).output(z.string())
+    return z
+      .function()
+      .input(z.tuple([z.string()]))
+      .output(z.string())
   }
 }
 
@@ -572,7 +582,10 @@ export class DateField extends Field<any> {
 // The TElement type parameter allows type inference in ExtractProps
 // Usage: new DataField() for untyped data, new DataField(new SomeField()) for schema validation
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export class DataField<D extends Field<any, any> = Field<any, any>, TElement = unknown> extends Field<any, any> {
+export class DataField<
+  D extends Field<any, any> = Field<any, any>,
+  TElement = unknown,
+> extends Field<any, any> {
   static type = 'data'
   static defaultValue = []
 
@@ -593,7 +606,10 @@ export class DataField<D extends Field<any, any> = Field<any, any>, TElement = u
 // GeoJSON field type with lime color to distinguish from regular data fields
 // The TElement type parameter allows type inference in ExtractProps
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export class GeoJsonField<D extends Field<any, any> = Field<any, any>, TElement = unknown> extends Field<any, any> {
+export class GeoJsonField<
+  D extends Field<any, any> = Field<any, any>,
+  TElement = unknown,
+> extends Field<any, any> {
   static type = 'geojson'
   static defaultValue = { type: 'FeatureCollection', features: [] }
 
@@ -656,7 +672,11 @@ export class Point3DField extends Field<any, PointFieldOptions> {
           lat: z.number(),
         })
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .transform((returnType === 'tuple' ? (val: { lng: number; lat: number }) => [val.lng, val.lat, 0] : (val: { lng: number; lat: number }) => ({ ...val, alt: 0 })) as any),
+        .transform(
+          (returnType === 'tuple'
+            ? (val: { lng: number; lat: number }) => [val.lng, val.lat, 0]
+            : (val: { lng: number; lat: number }) => ({ ...val, alt: 0 })) as any
+        ),
       z
         .tuple([z.number(), z.number(), z.number()])
         .transform(
