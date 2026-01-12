@@ -50,6 +50,11 @@ export const RenameDialog = ({ open, onClose, onConfirm, currentName }: RenameDi
       await onConfirm(trimmedName)
       onClose()
     } catch (err) {
+      // If user cancelled directory selection, just stay on the dialog without showing error
+      if (err instanceof Error && err.message === 'Directory selection was cancelled') {
+        setIsRenaming(false)
+        return
+      }
       console.error('Failed to rename project:', err)
       setError(err instanceof Error ? err.message : 'Failed to rename project')
     } finally {

@@ -254,6 +254,7 @@ export function TopMenuBar({
                         disabled={!onRename}
                       >
                         Rename Project...
+                        <span className={s.shortcut}>{mod}+Shift+A</span>
                       </DropdownMenu.Item>
                       <DropdownMenu.Item
                         className={s.dropdownItem}

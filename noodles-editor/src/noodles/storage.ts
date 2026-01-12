@@ -717,6 +717,8 @@ export async function copyPublicFolderData(
       create: true,
     })
 
+    const failedFiles: string[] = []
+
     for (const [key, url] of dataFiles) {
       const relativePath = key.replace(prefix, '')
       const pathParts = relativePath.split('/')
@@ -732,10 +734,22 @@ export async function copyPublicFolderData(
       const response = await fetch(url)
       if (!response.ok) {
         console.warn(`Failed to fetch ${url}`)
+        failedFiles.push(relativePath)
         continue
       }
       const contents = await response.arrayBuffer()
       await writeFileToDirectory(currentDir, fileName, contents)
+    }
+
+    if (failedFiles.length > 0) {
+      return {
+        success: false,
+        error: {
+          type: 'unknown',
+          message: `Failed to copy ${failedFiles.length} data file(s)`,
+          details: `Failed files: ${failedFiles.join(', ')}`,
+        },
+      }
     }
 
     return { success: true, data: undefined }

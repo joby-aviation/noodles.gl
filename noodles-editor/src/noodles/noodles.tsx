@@ -542,6 +542,21 @@ export function getNoodles(): Visualization {
     blockLibraryRef.current?.openModal(centerX, centerY)
   }, [])
 
+  // Handle mod+shift+a for Rename Project
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Check for mod+shift+a (Cmd+Shift+A on Mac, Ctrl+Shift+A on Windows/Linux)
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'a') {
+        e.preventDefault()
+        if (projectName && storageType !== 'publicFolder') {
+          setShowRenameDialog(true)
+        }
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [projectName, storageType])
+
   // Editor settings state (moved from Theatre.js to project-level settings)
   const [showOverlay, setShowOverlay] = useState(!IS_PROD)
   const [layoutMode, setLayoutMode] = useState<'split' | 'noodles-on-top' | 'output-on-top'>(
@@ -807,6 +822,9 @@ export function getNoodles(): Visualization {
       // Update store with directory handle
       setCurrentDirectory(directoryHandle, directoryName)
 
+      // Update storage type to fileSystemAccess since we used File System Access API
+      setActiveStorageType('fileSystemAccess')
+
       // Update the URL to reflect the new project name
       navigate(`/projects/${directoryName}`, { replace: true })
 
@@ -827,6 +845,7 @@ export function getNoodles(): Visualization {
       storageType,
       currentDirectory,
       setCurrentDirectory,
+      setActiveStorageType,
       navigate,
     ]
   )
@@ -844,8 +863,8 @@ export function getNoodles(): Visualization {
         // Prompt user to select/create a directory with the new name
         const directoryHandle = await selectDirectory()
 
-        // Verify the directory name matches what user entered
-        if (directoryHandle.name !== newName) {
+        // Verify the directory name matches what user entered (case-insensitive for macOS/Windows)
+        if (directoryHandle.name.toLowerCase() !== newName.toLowerCase()) {
           throw new Error(
             `Selected folder name "${directoryHandle.name}" does not match the entered name "${newName}". Please select or create a folder with the name "${newName}".`
           )
@@ -878,6 +897,9 @@ export function getNoodles(): Visualization {
         // Update store with directory handle
         setCurrentDirectory(directoryHandle, newName)
 
+        // Update storage type to fileSystemAccess since we used File System Access API
+        setActiveStorageType('fileSystemAccess')
+
         // Update the URL to reflect the new project name
         navigate(`/projects/${newName}`, { replace: true })
 
@@ -890,8 +912,8 @@ export function getNoodles(): Visualization {
         })
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {
-          // User cancelled the picker
-          return
+          // User cancelled the picker - throw to keep dialog open
+          throw new Error('Directory selection was cancelled')
         }
         throw error // Re-throw to be handled by the dialog
       }
@@ -902,6 +924,7 @@ export function getNoodles(): Visualization {
       storageType,
       currentDirectory,
       setCurrentDirectory,
+      setActiveStorageType,
       navigate,
     ]
   )
