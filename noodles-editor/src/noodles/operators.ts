@@ -2447,10 +2447,15 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
     this._iterating = true
 
     console.log('[ForLoopEndOp.executeIteration] Starting with data:', data)
-    console.log('[ForLoopEndOp.executeIteration] Chain:', this.chain.map(op => `${op.id} (${op.constructor.name})`))
+    console.log(
+      '[ForLoopEndOp.executeIteration] Chain:',
+      this.chain.map(op => `${op.id} (${op.constructor.name})`)
+    )
 
     try {
-      const beginOp = this.chain.find(op => op instanceof ForLoopBeginOp) as ForLoopBeginOp | undefined
+      const beginOp = this.chain.find(op => op instanceof ForLoopBeginOp) as
+        | ForLoopBeginOp
+        | undefined
       if (!beginOp) {
         console.log('[ForLoopEndOp.executeIteration] No beginOp found in chain!')
         return
@@ -2467,7 +2472,10 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
 
       // Get proper execution order (chain is reverse order from EndOp)
       const executionOrder = [...this.chain].reverse()
-      console.log('[ForLoopEndOp.executeIteration] Execution order:', executionOrder.map(op => `${op.id} (${op.constructor.name})`))
+      console.log(
+        '[ForLoopEndOp.executeIteration] Execution order:',
+        executionOrder.map(op => `${op.id} (${op.constructor.name})`)
+      )
 
       // Find metaOp if present
       const metaOp = this.chain.find(op => op instanceof ForLoopMetaOp) as ForLoopMetaOp | undefined
@@ -2521,7 +2529,10 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
 
         // Collect result - the input field should now have the value from upstream
         const collectedValue = this.inputs.item.value
-        console.log(`[ForLoopEndOp.executeIteration] Iteration ${index}: collecting this.inputs.item.value =`, collectedValue)
+        console.log(
+          `[ForLoopEndOp.executeIteration] Iteration ${index}: collecting this.inputs.item.value =`,
+          collectedValue
+        )
         results.push(collectedValue)
 
         // Update accumulator from meta op for next iteration
@@ -2556,7 +2567,11 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
     // Check if beginOp is dirty - if so, we need to re-run the iteration
     // Also check if any operator in the chain is dirty
     const anyDirty = this.chain.some(op => op.dirty)
-    if (!anyDirty && this._pullExecutionStatus === PullExecutionStatus.CLEAN && this._cachedOutput !== null) {
+    if (
+      !anyDirty &&
+      this._pullExecutionStatus === PullExecutionStatus.CLEAN &&
+      this._cachedOutput !== null
+    ) {
       return this._cachedOutput as ExtractProps<typeof this.outputs>
     }
 

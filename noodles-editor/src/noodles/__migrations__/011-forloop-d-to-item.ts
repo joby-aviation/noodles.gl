@@ -1,5 +1,5 @@
-import type { NoodlesProjectJSON } from '../utils/serialization'
 import { renameHandle } from '../utils/migrate-schema'
+import type { NoodlesProjectJSON } from '../utils/serialization'
 
 // Migration to rename 'd' field to 'item' for ForLoop operators
 //

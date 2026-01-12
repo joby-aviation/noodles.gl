@@ -434,41 +434,6 @@ export class GraphExecutor {
     return results
   }
 
-  // Execute a single node
-  private async executeNode(node: Operator<IOperator>): Promise<ComputeResult> {
-    try {
-      // Get input values
-      const inputs = {}
-      for (const [key, field] of Object.entries(node.inputs)) {
-        inputs[key] = field.value
-      }
-
-      // Execute the operator
-      const outputs = await node.execute(inputs)
-
-      // Update output fields
-      if (outputs) {
-        for (const [key, value] of Object.entries(outputs)) {
-          if (key in node.outputs) {
-            node.outputs[key].setValue(value)
-          }
-        }
-      }
-
-      return {
-        value: outputs,
-        changed: true,
-      }
-    } catch (error) {
-      console.error(`Error executing node ${node.id}:`, error)
-      return {
-        value: null,
-        changed: false,
-        error: error instanceof Error ? error : new Error(String(error)),
-      }
-    }
-  }
-
   // Mark specific nodes as dirty
   markDirty(nodeIds: string[]): void {
     if (this.options.batchDelay && this.options.batchDelay > 0) {
@@ -637,9 +602,7 @@ export class GraphExecutor {
         .map(id => [id, this.nodes.get(id)] as const)
         .filter((entry): entry is [string, Operator<IOperator>] => entry[1] !== undefined)
     )
-    const scopeEdges = this.edges.filter(
-      e => scopeNodes.has(e.source) && scopeNodes.has(e.target)
-    )
+    const scopeEdges = this.edges.filter(e => scopeNodes.has(e.source) && scopeNodes.has(e.target))
     const { sorted } = topologicalSort(scopeNodes, scopeEdges)
     const executionOrder = sorted.map(id => this.nodes.get(id)!).filter(Boolean)
 
