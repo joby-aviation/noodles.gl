@@ -1,4 +1,4 @@
-import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react'
+import type { Node as ReactFlowNode } from '@xyflow/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { CodeOp, NumberOp, SliceOp } from '../operators'
 import { clearOps, setOp } from '../store'
@@ -20,22 +20,6 @@ function createMockNode(
     position,
     data: {},
     measured: { width, height },
-  }
-}
-
-// Helper to create a mock edge
-function _createMockEdge(
-  source: string,
-  target: string,
-  sourceHandle: string,
-  targetHandle: string
-): ReactFlowEdge {
-  return {
-    id: `${source}.${sourceHandle}->${target}.${targetHandle}`,
-    source,
-    target,
-    sourceHandle,
-    targetHandle,
   }
 }
 
@@ -77,25 +61,13 @@ describe('node drop on edge utilities', () => {
     it('should calculate distance to line endpoint when past the line', () => {
       // A horizontal line from (0,0) to (100,0)
       // A point at (150, 0) should be 50 pixels from the end
-      const lineStart = { x: 0, y: 0 }
+      // When param > 1 (point is past the line), the closest point is the line end
       const lineEnd = { x: 100, y: 0 }
       const point = { x: 150, y: 0 }
 
-      const A = point.x - lineStart.x // 150
-      const B = point.y - lineStart.y // 0
-      const C = lineEnd.x - lineStart.x // 100
-      const D = lineEnd.y - lineStart.y // 0
-
-      const dot = A * C + B * D // 15000
-      const lenSq = C * C + D * D // 10000
-      const _param = dot / lenSq // 1.5
-
-      // param > 1, so closest point is the end of the line
-      const xx = lineEnd.x // 100
-      const yy = lineEnd.y // 0
-
-      const dx = point.x - xx // 50
-      const dy = point.y - yy // 0
+      // Distance from point to line endpoint
+      const dx = point.x - lineEnd.x // 50
+      const dy = point.y - lineEnd.y // 0
 
       const distance = Math.sqrt(dx * dx + dy * dy) // 50
       expect(distance).toBe(50)
@@ -230,10 +202,8 @@ describe('node drop on edge utilities', () => {
     })
 
     it('should not detect nodes that are far from the edge', () => {
-      const _sourceNode = createMockNode('/source', 'NumberOp', { x: 0, y: 0 })
-      const _targetNode = createMockNode('/target', 'SliceOp', { x: 400, y: 0 })
-      const _droppedNode = createMockNode('/dropped', 'CodeOp', { x: 200, y: 200 })
-
+      // Using hardcoded centers for nodes at positions:
+      // source: { x: 0, y: 0 }, target: { x: 400, y: 0 }, dropped: { x: 200, y: 200 }
       const sourceCenter = { x: 100, y: 50 }
       const targetCenter = { x: 500, y: 50 }
       const droppedCenter = { x: 300, y: 250 }
