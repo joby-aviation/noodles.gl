@@ -239,12 +239,7 @@ describe('viewer-position', () => {
       ]
 
       // Position that would overlap with existing node
-      const collides = positionCollidesWithNodes(
-        { x: 350, y: 150 },
-        200,
-        100,
-        nodes
-      )
+      const collides = positionCollidesWithNodes({ x: 350, y: 150 }, 200, 100, nodes)
       expect(collides).toBe(true)
     })
 
@@ -257,12 +252,7 @@ describe('viewer-position', () => {
         } as ReactFlowNode,
       ]
 
-      const collides = positionCollidesWithNodes(
-        { x: 500, y: 0 },
-        200,
-        100,
-        nodes
-      )
+      const collides = positionCollidesWithNodes({ x: 500, y: 0 }, 200, 100, nodes)
       expect(collides).toBe(false)
     })
 
@@ -276,13 +266,7 @@ describe('viewer-position', () => {
       ]
 
       // Position overlaps, but we exclude the node
-      const collides = positionCollidesWithNodes(
-        { x: 50, y: 50 },
-        200,
-        100,
-        nodes,
-        '/source'
-      )
+      const collides = positionCollidesWithNodes({ x: 50, y: 50 }, 200, 100, nodes, '/source')
       expect(collides).toBe(false)
     })
 
@@ -296,12 +280,7 @@ describe('viewer-position', () => {
         } as ReactFlowNode,
       ]
 
-      const collides = positionCollidesWithNodes(
-        { x: 100, y: 100 },
-        200,
-        100,
-        nodes
-      )
+      const collides = positionCollidesWithNodes({ x: 100, y: 100 }, 200, 100, nodes)
       expect(collides).toBe(false)
     })
 
@@ -322,31 +301,16 @@ describe('viewer-position', () => {
       const nodes = [parentNode, childNode]
 
       // Should collide because child's absolute position is (500, 300)
-      const collides = positionCollidesWithNodes(
-        { x: 450, y: 250 },
-        200,
-        100,
-        nodes
-      )
+      const collides = positionCollidesWithNodes({ x: 450, y: 250 }, 200, 100, nodes)
       expect(collides).toBe(true)
 
       // Should not collide - far from absolute position
-      const doesNotCollide = positionCollidesWithNodes(
-        { x: 0, y: 0 },
-        200,
-        100,
-        nodes
-      )
+      const doesNotCollide = positionCollidesWithNodes({ x: 0, y: 0 }, 200, 100, nodes)
       expect(doesNotCollide).toBe(false)
     })
 
     it('returns false for empty nodes array', () => {
-      const collides = positionCollidesWithNodes(
-        { x: 100, y: 100 },
-        200,
-        100,
-        []
-      )
+      const collides = positionCollidesWithNodes({ x: 100, y: 100 }, 200, 100, [])
       expect(collides).toBe(false)
     })
   })

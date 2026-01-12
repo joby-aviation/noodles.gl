@@ -180,13 +180,13 @@ import {
 } from './fields'
 import { DEFAULT_LATITUDE, DEFAULT_LONGITUDE, safeMode } from './globals'
 import { getAllOps, getOp, hasOp } from './store'
+import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
 import { composeAccessor, isAccessor } from './utils/accessor-helpers'
 import type { ExtractProps } from './utils/extract-props'
 import { projectScheme } from './utils/filesystem'
 import type { OpId } from './utils/id-utils'
 import { isDirectChild } from './utils/path-utils'
 import { pick } from './utils/pick'
-import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
 import { validateViewState } from './utils/viewstate-helpers'
 
 // https://stackoverflow.com/questions/66044717/typescript-infer-type-of-abstract-methods-implementation

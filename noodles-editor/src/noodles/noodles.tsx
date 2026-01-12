@@ -68,7 +68,6 @@ import { edgeId, nodeId } from './utils/id-utils'
 import { migrateProject } from './utils/migrate-schema'
 import { getParentPath } from './utils/path-utils'
 import { pick } from './utils/pick'
-import { calculateViewerPosition } from './utils/viewer-position'
 import {
   EMPTY_PROJECT,
   NOODLES_VERSION,
@@ -78,6 +77,7 @@ import {
   serializeEdges,
   serializeNodes,
 } from './utils/serialization'
+import { calculateViewerPosition } from './utils/viewer-position'
 
 /*
  * CSS Architecture:
