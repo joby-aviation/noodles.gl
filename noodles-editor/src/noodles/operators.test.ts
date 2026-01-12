@@ -285,6 +285,123 @@ describe('CodeOp', () => {
   })
 })
 
+describe('CodeOp self-parameter references', () => {
+  it('should allow CodeOp to reference its own custom parameter with shorthand syntax', async () => {
+    const codeOp = new CodeOp('/code-self')
+    setOp('/code-self', codeOp)
+
+    codeOp.addCustomInput({
+      id: 'val-id',
+      name: 'val',
+      type: 'number',
+      order: 0,
+      defaultValue: 5,
+    })
+
+    codeOp.inputs.val.setValue(10)
+
+    const result = await codeOp.execute({
+      data: [[1, 2, 3]],
+      code: 'return d.map(x => x * {{par.val}})',
+    })
+    expect(result.data).toEqual([10, 20, 30])
+  })
+
+  it('should allow CodeOp to reference its own custom parameter with simple relative syntax', async () => {
+    const codeOp = new CodeOp('/code-self-rel')
+    setOp('/code-self-rel', codeOp)
+
+    codeOp.addCustomInput({
+      id: 'multiplier-id',
+      name: 'multiplier',
+      type: 'number',
+      order: 0,
+      defaultValue: 1,
+    })
+
+    codeOp.inputs.multiplier.setValue(5)
+
+    // Using the operator ID directly (simple relative syntax, equivalent to ./code-self-rel)
+    const result = await codeOp.execute({
+      data: [[2, 4, 6]],
+      code: 'return d.map(x => x * {{code-self-rel.par.multiplier}})',
+    })
+    expect(result.data).toEqual([10, 20, 30])
+  })
+
+  it('should allow CodeOp to reference its own custom parameter with absolute syntax', async () => {
+    const codeOp = new CodeOp('/code-self-abs')
+    setOp('/code-self-abs', codeOp)
+
+    codeOp.addCustomInput({
+      id: 'offset-id',
+      name: 'offset',
+      type: 'number',
+      order: 0,
+      defaultValue: 0,
+    })
+
+    codeOp.inputs.offset.setValue(100)
+
+    const result = await codeOp.execute({
+      data: [[1, 2, 3]],
+      code: 'return d.map(x => x + {{/code-self-abs.par.offset}})',
+    })
+    expect(result.data).toEqual([101, 102, 103])
+  })
+
+  it('should work with multiple self-parameter references', async () => {
+    const codeOp = new CodeOp('/code-multi')
+    setOp('/code-multi', codeOp)
+
+    codeOp.addCustomInput({
+      id: 'scale-id',
+      name: 'scale',
+      type: 'number',
+      order: 0,
+      defaultValue: 1,
+    })
+
+    codeOp.addCustomInput({
+      id: 'offset-id',
+      name: 'offset',
+      type: 'number',
+      order: 1,
+      defaultValue: 0,
+    })
+
+    codeOp.inputs.scale.setValue(2)
+    codeOp.inputs.offset.setValue(10)
+
+    const result = await codeOp.execute({
+      data: [[1, 2, 3]],
+      code: 'return d.map(x => x * {{par.scale}} + {{par.offset}})',
+    })
+    expect(result.data).toEqual([12, 14, 16])
+  })
+
+  it('should work with string custom parameters', async () => {
+    const codeOp = new CodeOp('/code-string')
+    setOp('/code-string', codeOp)
+
+    codeOp.addCustomInput({
+      id: 'prefix-id',
+      name: 'prefix',
+      type: 'string',
+      order: 0,
+      defaultValue: '',
+    })
+
+    codeOp.inputs.prefix.setValue('item_')
+
+    const result = await codeOp.execute({
+      data: [['a', 'b', 'c']],
+      code: "return d.map(x => {{par.prefix}} + x)",
+    })
+    expect(result.data).toEqual(['item_a', 'item_b', 'item_c'])
+  })
+})
+
 describe('JSONOp', () => {
   it('executes a JSONOp', () => {
     const text = '{"a": 1}'

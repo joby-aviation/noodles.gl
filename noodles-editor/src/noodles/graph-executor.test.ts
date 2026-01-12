@@ -646,3 +646,77 @@ describe('Graph execution', () => {
     await expect(executor.executeFrame(performance.now())).resolves.not.toThrow()
   })
 })
+
+describe('buildFromEdges self-parameter filtering', () => {
+  it('should skip self-referencing parameter edges in buildFromEdges', () => {
+    const executor = new GraphExecutor()
+    const op = new NumberOp('/code')
+    executor.addNode(op)
+
+    // Build from edges that include a self-referencing parameter edge
+    executor.buildFromEdges([
+      {
+        id: '/code.par.val->/code.par.code',
+        source: '/code',
+        target: '/code',
+        sourceHandle: 'par.val',
+        targetHandle: 'par.code',
+      },
+    ])
+
+    // Self-referencing parameter edges should be filtered out
+    expect(executor.getEdges()).toHaveLength(0)
+    expect(executor.getStats().edgeCount).toBe(0)
+  })
+
+  it('should keep self-referencing output edges in buildFromEdges', () => {
+    const executor = new GraphExecutor()
+    const op = new NumberOp('/code')
+    executor.addNode(op)
+
+    // Build from edges that include a self-referencing OUTPUT edge (true cycle)
+    executor.buildFromEdges([
+      {
+        id: '/code.out.data->/code.par.data',
+        source: '/code',
+        target: '/code',
+        sourceHandle: 'out.data',
+        targetHandle: 'par.data',
+      },
+    ])
+
+    // Self-referencing output edges should NOT be filtered (they are true cycles)
+    expect(executor.getEdges()).toHaveLength(1)
+    expect(executor.getStats().edgeCount).toBe(1)
+  })
+
+  it('should filter self-parameter edges but keep normal edges', () => {
+    const executor = new GraphExecutor()
+    const op1 = new NumberOp('/op1')
+    const op2 = new NumberOp('/op2')
+    executor.addNode(op1)
+    executor.addNode(op2)
+
+    // Mix of edges: one normal, one self-parameter
+    executor.buildFromEdges([
+      {
+        id: '/op1.out.val->/op2.par.val',
+        source: '/op1',
+        target: '/op2',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.val',
+      },
+      {
+        id: '/op2.par.custom->/op2.par.code',
+        source: '/op2',
+        target: '/op2',
+        sourceHandle: 'par.custom',
+        targetHandle: 'par.code',
+      },
+    ])
+
+    // Only the normal edge should remain
+    expect(executor.getEdges()).toHaveLength(1)
+    expect(executor.getEdges()[0]).toEqual({ source: '/op1', target: '/op2' })
+  })
+})

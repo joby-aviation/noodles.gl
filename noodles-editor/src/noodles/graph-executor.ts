@@ -267,6 +267,14 @@ export class GraphExecutor {
     this.downstream.clear()
 
     for (const edge of edges) {
+      // Skip self-referencing parameter edges (not true cycles - output depends on input value)
+      const isSelfParameterReference =
+        edge.source === edge.target && edge.sourceHandle?.startsWith('par.')
+
+      if (isSelfParameterReference) {
+        continue
+      }
+
       this.edges.push({ source: edge.source, target: edge.target })
 
       if (!this.downstream.has(edge.source)) this.downstream.set(edge.source, new Set())

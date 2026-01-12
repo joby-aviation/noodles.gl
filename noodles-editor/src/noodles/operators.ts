@@ -167,6 +167,7 @@ import {
   ListField,
   mustacheRe,
   NumberField,
+  selfParMustacheRe,
   OUT_NS,
   Point2DField,
   Point3DField,
@@ -4895,12 +4896,18 @@ export class CodeOp extends Operator<CodeOp> {
     data,
     code: codeString,
   }: ExtractProps<typeof this.inputs>): Promise<ExtractProps<typeof this.outputs>> {
-    // Replace mustache references with op() calls, handling relative paths
-    const processedCode = codeString
+    // Replace self-parameter shorthand {{par.field}} with op() calls referencing this operator
+    let processedCode = codeString
       .trim()
-      .replace(mustacheRe, (_match, opId, inOut, fieldPath) => {
-        return `op('${opId}').${inOut}.${fieldPath}`
+      .replace(selfParMustacheRe, (_match, _inOut, fieldPath) => {
+        return `op('${this.id}').par.${fieldPath}`
       })
+
+    // Replace standard mustache references with op() calls, handling relative paths
+    processedCode = processedCode.replace(mustacheRe, (_match, opId, inOut, fieldPath) => {
+      return `op('${opId}').${inOut}.${fieldPath}`
+    })
+
     // Create a context-aware getOp function for the code execution
     const contextualGetOp = (path: string) => getOp(path, this.id)
     const fn = fnWithSource(

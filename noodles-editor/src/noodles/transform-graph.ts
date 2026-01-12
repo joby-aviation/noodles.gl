@@ -203,8 +203,14 @@ export function transformGraph<
       }
 
       // Update operator dependencies for pull-based execution
-      sourceOp.addDownstreamDependent(targetOp)
-      targetOp.addUpstreamDependency(sourceOp)
+      // Skip self-references to parameters (not true cycles - output depends on input value)
+      const isSelfParameterReference =
+        edge.source === edge.target && sourceNamespace === 'par'
+
+      if (!isSelfParameterReference) {
+        sourceOp.addDownstreamDependent(targetOp)
+        targetOp.addUpstreamDependency(sourceOp)
+      }
     }
   }
 
