@@ -28,6 +28,7 @@ export type Visualization = {
   getTimelineJson?: () => Record<string, unknown>
   onSaveProject?: () => Promise<void>
   onSaveAs?: () => Promise<void>
+  onRename?: () => void
   onDownload?: () => Promise<void>
   onNewProject?: () => Promise<void>
   onImport?: () => Promise<void>

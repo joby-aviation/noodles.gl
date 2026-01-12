@@ -22,6 +22,7 @@ interface TopMenuBarProps {
   projectName?: string
   onSaveProject: () => void
   onSaveAs?: () => Promise<void>
+  onRename?: () => void
   onDownload?: () => Promise<void>
   onNewProject: () => void
   onImport: () => void
@@ -46,6 +47,7 @@ export function TopMenuBar({
   projectName,
   onSaveProject,
   onSaveAs,
+  onRename,
   onDownload,
   onNewProject,
   onImport,
@@ -245,6 +247,13 @@ export function TopMenuBar({
                         disabled={!onSaveAs}
                       >
                         Save As...
+                      </DropdownMenu.Item>
+                      <DropdownMenu.Item
+                        className={s.dropdownItem}
+                        onSelect={onRename}
+                        disabled={!onRename}
+                      >
+                        Rename Project...
                       </DropdownMenu.Item>
                       <DropdownMenu.Item
                         className={s.dropdownItem}

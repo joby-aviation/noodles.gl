@@ -389,6 +389,7 @@ export default function TimelineEditor() {
       projectName={noodles.projectName}
       onSaveProject={noodles.onSaveProject!}
       onSaveAs={noodles.onSaveAs}
+      onRename={noodles.onRename}
       onDownload={noodles.onDownload}
       onNewProject={noodles.onNewProject!}
       onImport={noodles.onImport!}
