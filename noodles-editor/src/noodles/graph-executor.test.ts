@@ -272,7 +272,7 @@ describe('ForLoopBeginOp', () => {
     expect(op).toBeDefined()
     expect(op.id).toBe('/forloop-begin')
     expect(op.inputs.data).toBeDefined()
-    expect(op.outputs.d).toBeDefined()
+    expect(op.outputs.item).toBeDefined()
     expect(op.outputs.index).toBeDefined()
     expect(op.outputs.total).toBeDefined()
   })
@@ -281,7 +281,7 @@ describe('ForLoopBeginOp', () => {
     const op = new ForLoopBeginOp('/forloop-begin')
     const result = op.execute({ data: [1, 2, 3] })
 
-    expect(result.d).toBe(1)
+    expect(result.item).toBe(1)
     expect(result.index).toBe(0)
     expect(result.total).toBe(3)
   })
@@ -290,7 +290,7 @@ describe('ForLoopBeginOp', () => {
     const op = new ForLoopBeginOp('/forloop-begin')
     const result = op.execute({ data: [] })
 
-    expect(result.d).toBeNull()
+    expect(result.item).toBeNull()
     expect(result.index).toBe(0)
     expect(result.total).toBe(0)
   })
@@ -317,20 +317,20 @@ describe('ForLoopEndOp - execute', () => {
   it('should have correct inputs and outputs', () => {
     const op = new ForLoopEndOp('/forloop-end')
     expect(op).toBeDefined()
-    expect(op.inputs.d).toBeDefined()
+    expect(op.inputs.item).toBeDefined()
     expect(op.outputs.data).toBeDefined()
   })
 
   it('should pass through single value', () => {
     const op = new ForLoopEndOp('/forloop-end')
-    const result = op.execute({ d: 'test-value' })
+    const result = op.execute({ item: 'test-value' })
 
     expect(result.data).toBe('test-value')
   })
 
   it('should handle null input', () => {
     const op = new ForLoopEndOp('/forloop-end')
-    const result = op.execute({ d: null })
+    const result = op.execute({ item: null })
 
     expect(result.data).toBeNull()
   })
@@ -338,7 +338,7 @@ describe('ForLoopEndOp - execute', () => {
   it('should handle object input', () => {
     const op = new ForLoopEndOp('/forloop-end')
     const obj = { key: 'value' }
-    const result = op.execute({ d: obj })
+    const result = op.execute({ item: obj })
 
     expect(result.data).toEqual(obj)
   })
@@ -422,8 +422,8 @@ describe('ForLoop execution - result collection', () => {
     // Set input data on beginOp
     beginOp.inputs.data.setValue([1, 2, 3])
 
-    // Connect beginOp.d -> mathOp.a
-    mathOp.inputs.a.addConnection('begin-to-math', beginOp.outputs.d)
+    // Connect beginOp.item -> mathOp.a
+    mathOp.inputs.a.addConnection('begin-to-math', beginOp.outputs.item)
     mathOp.addUpstreamDependency(beginOp)
     beginOp.addDownstreamDependent(mathOp)
 
@@ -431,8 +431,8 @@ describe('ForLoop execution - result collection', () => {
     mathOp.inputs.b.setValue(1)
     mathOp.inputs.operator.setValue('add')
 
-    // Connect mathOp.result -> endOp.d
-    endOp.inputs.d.addConnection('math-to-end', mathOp.outputs.result)
+    // Connect mathOp.result -> endOp.item
+    endOp.inputs.item.addConnection('math-to-end', mathOp.outputs.result)
     endOp.addUpstreamDependency(mathOp)
     mathOp.addDownstreamDependent(endOp)
 
@@ -452,8 +452,8 @@ describe('ForLoop execution - result collection', () => {
     // Set empty input data
     beginOp.inputs.data.setValue([])
 
-    // Connect beginOp.d -> endOp.d (direct passthrough)
-    endOp.inputs.d.addConnection('begin-to-end', beginOp.outputs.d)
+    // Connect beginOp.item -> endOp.item (direct passthrough)
+    endOp.inputs.item.addConnection('begin-to-end', beginOp.outputs.item)
     endOp.addUpstreamDependency(beginOp)
     beginOp.addDownstreamDependent(endOp)
 
@@ -476,8 +476,8 @@ describe('ForLoop execution - result collection', () => {
     // Set input data
     beginOp.inputs.data.setValue(['a', 'b', 'c'])
 
-    // Connect beginOp.d -> endOp.d
-    endOp.inputs.d.addConnection('begin-to-end', beginOp.outputs.d)
+    // Connect beginOp.item -> endOp.item
+    endOp.inputs.item.addConnection('begin-to-end', beginOp.outputs.item)
     endOp.addUpstreamDependency(beginOp)
     beginOp.addDownstreamDependent(endOp)
 
@@ -510,8 +510,8 @@ describe('ForLoop execution - result collection', () => {
     // Set input data
     beginOp.inputs.data.setValue([10, 20, 30])
 
-    // Connect beginOp.d -> multiplyOp.a
-    multiplyOp.inputs.a.addConnection('begin-to-mult', beginOp.outputs.d)
+    // Connect beginOp.item -> multiplyOp.a
+    multiplyOp.inputs.a.addConnection('begin-to-mult', beginOp.outputs.item)
     multiplyOp.addUpstreamDependency(beginOp)
     beginOp.addDownstreamDependent(multiplyOp)
 
@@ -528,8 +528,8 @@ describe('ForLoop execution - result collection', () => {
     addOp.inputs.b.setValue(5)
     addOp.inputs.operator.setValue('add')
 
-    // Connect addOp.result -> endOp.d
-    endOp.inputs.d.addConnection('add-to-end', addOp.outputs.result)
+    // Connect addOp.result -> endOp.item
+    endOp.inputs.item.addConnection('add-to-end', addOp.outputs.result)
     endOp.addUpstreamDependency(addOp)
     addOp.addDownstreamDependent(endOp)
 
@@ -549,8 +549,8 @@ describe('ForLoop execution - result collection', () => {
     const inputData = [{ name: 'Alice' }, { name: 'Bob' }, { name: 'Charlie' }]
     beginOp.inputs.data.setValue(inputData)
 
-    // Direct passthrough: beginOp.d -> endOp.d
-    endOp.inputs.d.addConnection('begin-to-end', beginOp.outputs.d)
+    // Direct passthrough: beginOp.item -> endOp.item
+    endOp.inputs.item.addConnection('begin-to-end', beginOp.outputs.item)
     endOp.addUpstreamDependency(beginOp)
     beginOp.addDownstreamDependent(endOp)
 
@@ -561,8 +561,8 @@ describe('ForLoop execution - result collection', () => {
     expect(result.data).toEqual(inputData)
   })
 
-  it('should collect all values when d output connects directly to d input (no intermediate ops)', async () => {
-    // This tests the simplest ForLoop case: BeginOp.d -> EndOp.d
+  it('should collect all values when item output connects directly to item input (no intermediate ops)', async () => {
+    // This tests the simplest ForLoop case: BeginOp.item -> EndOp.item
     // Verifies that field subscription propagation correctly updates EndOp's input
     // during each iteration, allowing proper result collection
     const beginOp = new ForLoopBeginOp('/forloop-begin')
@@ -571,8 +571,8 @@ describe('ForLoop execution - result collection', () => {
     // Simple numeric array
     beginOp.inputs.data.setValue([10, 20, 30, 40, 50])
 
-    // Direct connection: beginOp.d -> endOp.d (no intermediate operators)
-    endOp.inputs.d.addConnection('begin-to-end', beginOp.outputs.d)
+    // Direct connection: beginOp.item -> endOp.item (no intermediate operators)
+    endOp.inputs.item.addConnection('begin-to-end', beginOp.outputs.item)
     endOp.addUpstreamDependency(beginOp)
     beginOp.addDownstreamDependent(endOp)
 
@@ -596,8 +596,8 @@ describe('ForLoop execution - result collection', () => {
     // Set input data
     beginOp.inputs.data.setValue([1, 2, 3])
 
-    // Connect beginOp.d -> mathOp.a
-    mathOp.inputs.a.addConnection('begin-to-math', beginOp.outputs.d)
+    // Connect beginOp.item -> mathOp.a
+    mathOp.inputs.a.addConnection('begin-to-math', beginOp.outputs.item)
     mathOp.addUpstreamDependency(beginOp)
     beginOp.addDownstreamDependent(mathOp)
 
@@ -605,8 +605,8 @@ describe('ForLoop execution - result collection', () => {
     mathOp.inputs.b.setValue(0)
     mathOp.inputs.operator.setValue('add')
 
-    // Connect mathOp.result -> endOp.d
-    endOp.inputs.d.addConnection('math-to-end', mathOp.outputs.result)
+    // Connect mathOp.result -> endOp.item
+    endOp.inputs.item.addConnection('math-to-end', mathOp.outputs.result)
     endOp.addUpstreamDependency(mathOp)
     mathOp.addDownstreamDependent(endOp)
 
@@ -633,16 +633,16 @@ describe('ForLoop execution - result collection', () => {
     // Initial data
     beginOp.inputs.data.setValue([1, 2])
 
-    // Connect beginOp.d -> mathOp.a
-    mathOp.inputs.a.addConnection('begin-to-math', beginOp.outputs.d)
+    // Connect beginOp.item -> mathOp.a
+    mathOp.inputs.a.addConnection('begin-to-math', beginOp.outputs.item)
     mathOp.addUpstreamDependency(beginOp)
     beginOp.addDownstreamDependent(mathOp)
 
     mathOp.inputs.b.setValue(1)
     mathOp.inputs.operator.setValue('add')
 
-    // Connect mathOp.result -> endOp.d
-    endOp.inputs.d.addConnection('math-to-end', mathOp.outputs.result)
+    // Connect mathOp.result -> endOp.item
+    endOp.inputs.item.addConnection('math-to-end', mathOp.outputs.result)
     endOp.addUpstreamDependency(mathOp)
     mathOp.addDownstreamDependent(endOp)
 
@@ -667,14 +667,14 @@ describe('ForLoop execution - result collection', () => {
 
     beginOp.inputs.data.setValue([1, 2, 3])
 
-    mathOp.inputs.a.addConnection('begin-to-math', beginOp.outputs.d)
+    mathOp.inputs.a.addConnection('begin-to-math', beginOp.outputs.item)
     mathOp.addUpstreamDependency(beginOp)
     beginOp.addDownstreamDependent(mathOp)
 
     mathOp.inputs.b.setValue(1)
     mathOp.inputs.operator.setValue('add')
 
-    endOp.inputs.d.addConnection('math-to-end', mathOp.outputs.result)
+    endOp.inputs.item.addConnection('math-to-end', mathOp.outputs.result)
     endOp.addUpstreamDependency(mathOp)
     mathOp.addDownstreamDependent(endOp)
 

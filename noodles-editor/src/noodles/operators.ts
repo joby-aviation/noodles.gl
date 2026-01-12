@@ -2308,7 +2308,7 @@ export class ForLoopBeginOp extends Operator<ForLoopBeginOp> {
 
   createOutputs() {
     return {
-      d: new DataField(new UnknownField()),
+      item: new DataField(new UnknownField()),
       index: new NumberField(0), // Current iteration index
       total: new NumberField(0), // Total number of items
     }
@@ -2318,7 +2318,7 @@ export class ForLoopBeginOp extends Operator<ForLoopBeginOp> {
     // GraphExecutor sets these values during iteration
     const arr = Array.isArray(data) ? data : []
     return {
-      d: arr.length > 0 ? arr[0] : null,
+      item: arr.length > 0 ? arr[0] : null,
       index: 0,
       total: arr.length,
     }
@@ -2337,7 +2337,7 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
 
   createInputs() {
     return {
-      d: new DataField(new UnknownField()),
+      item: new DataField(new UnknownField()),
     }
   }
   createOutputs() {
@@ -2399,14 +2399,14 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
       const isLast = index === total - 1
 
       // Set iteration values on ForLoopBeginOp outputs
-      beginOp.outputs.d.next(item)
+      beginOp.outputs.item.next(item)
       beginOp.outputs.index.next(index)
       beginOp.outputs.total.next(total)
 
       // CRITICAL: Mark BeginOp as CLEAN with cached output so that when downstream
       // operators pull their dependencies, BeginOp returns these iteration values
       // instead of re-executing (which would always return arr[0])
-      beginOp._cachedOutput = { d: item, index, total }
+      beginOp._cachedOutput = { item, index, total }
       beginOp._pullExecutionStatus = PullExecutionStatus.CLEAN
       beginOp.dirty = false
 
@@ -2445,7 +2445,7 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
       }
 
       // Collect result - the input field should now have the value from upstream
-      results.push(this.inputs.d.value)
+      results.push(this.inputs.item.value)
 
       // Update accumulator from meta op for next iteration
       if (metaOp) {
@@ -2464,8 +2464,8 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
     return result
   }
 
-  execute({ d }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    return { data: d }
+  execute({ item }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    return { data: item }
   }
 }
 

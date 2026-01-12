@@ -602,7 +602,7 @@ export class GraphExecutor {
       const isLast = index === total - 1
 
       // Set iteration values on ForLoopBeginOp
-      beginOp.outputs.d.next(item)
+      beginOp.outputs.item.next(item)
       beginOp.outputs.index.next(index)
       beginOp.outputs.total.next(total)
 
@@ -646,7 +646,7 @@ export class GraphExecutor {
       }
 
       // Collect result from this iteration
-      const iterationResult = endOp.inputs.d.value
+      const iterationResult = endOp.inputs.item.value
       results.push(iterationResult)
 
       // Update accumulator from meta op's currentValue input for next iteration
