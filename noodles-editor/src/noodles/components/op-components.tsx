@@ -459,6 +459,110 @@ function NodeComponent({
   )
 }
 
+const ERROR_SHOW_DELAY_MS = 5000 // Wait 5s before showing error popover
+const ERROR_AUTO_DISMISS_MS = 4000 // Auto-dismiss after 4s
+
+// Error indicator with delayed popover.
+// Shows error icon immediately, but popover only auto-shows if error persists for 5s.
+// Hovering immediately shows the popover and disables all timeouts.
+// Popover auto-dismisses after 4s when not hovered.
+function ErrorIndicator({ error }: { error?: string }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [shownError, setShownError] = useState<string | null>(null)
+  const [isHovered, setIsHovered] = useState(false)
+  const showDelayRef = useRef<number | null>(null)
+  const dismissRef = useRef<number | null>(null)
+
+  const clearTimers = useCallback(() => {
+    if (showDelayRef.current) {
+      clearTimeout(showDelayRef.current)
+      showDelayRef.current = null
+    }
+    if (dismissRef.current) {
+      clearTimeout(dismissRef.current)
+      dismissRef.current = null
+    }
+  }, [])
+
+  const startDismissTimer = useCallback(() => {
+    if (dismissRef.current) clearTimeout(dismissRef.current)
+    dismissRef.current = window.setTimeout(() => setIsOpen(false), ERROR_AUTO_DISMISS_MS)
+  }, [])
+
+  // Handle error state changes - delayed auto-show
+  useEffect(() => {
+    if (error) {
+      // New/different error - start delay timer (only if not hovered)
+      if (error !== shownError && !isHovered) {
+        clearTimers()
+        setIsOpen(false)
+        showDelayRef.current = window.setTimeout(() => {
+          setShownError(error)
+          setIsOpen(true)
+        }, ERROR_SHOW_DELAY_MS)
+      }
+    } else {
+      // Error resolved - cancel any pending show and close if open
+      clearTimers()
+      setIsOpen(false)
+      setShownError(null)
+    }
+
+    return clearTimers
+  }, [error, shownError, isHovered, clearTimers])
+
+  // Start dismiss timer when popover opens (only if not hovered)
+  useEffect(() => {
+    if (isOpen && !isHovered) {
+      startDismissTimer()
+    }
+  }, [isOpen, isHovered, startDismissTimer])
+
+  const onMouseEnter = useCallback(() => {
+    setIsHovered(true)
+    clearTimers() // Cancel any pending show delay or dismiss
+    if (error) {
+      setShownError(error)
+      setIsOpen(true) // Immediately show on hover
+    }
+  }, [error, clearTimers])
+
+  const onMouseLeave = useCallback(() => {
+    setIsHovered(false)
+    if (isOpen) {
+      startDismissTimer() // Start dismiss countdown when mouse leaves
+    }
+  }, [isOpen, startDismissTimer])
+
+  return (
+    <Tooltip.Provider>
+      <Tooltip.Root open={isOpen}>
+        <Tooltip.Trigger asChild>
+          {/* biome-ignore lint/a11y/noStaticElementInteractions: Hover to show tooltip */}
+          <div
+            className={cx(s.executionIndicator, s.executionIndicatorError)}
+            onMouseEnter={onMouseEnter}
+            onMouseLeave={onMouseLeave}
+          >
+            <i className="pi pi-exclamation-triangle" />
+          </div>
+        </Tooltip.Trigger>
+        <Tooltip.Portal>
+          <Tooltip.Content
+            side="top"
+            className={s.errorTooltipContent}
+            onMouseEnter={onMouseEnter}
+            onMouseLeave={onMouseLeave}
+          >
+            {error}
+            <Tooltip.Arrow className={s.tooltipArrow} />
+          </Tooltip.Content>
+        </Tooltip.Portal>
+      </Tooltip.Root>
+    </Tooltip.Provider>
+  )
+}
+
 const ExecutionIndicator = ({ status, error, executionTime }: ExecutionState) => {
   switch (status) {
     case 'executing':
@@ -471,14 +575,7 @@ const ExecutionIndicator = ({ status, error, executionTime }: ExecutionState) =>
         </div>
       )
     case 'error':
-      return (
-        <div
-          className={cx(s.executionIndicator, s.executionIndicatorError)}
-          title={`Error: ${error}`}
-        >
-          <i className="pi pi-exclamation-triangle" />
-        </div>
-      )
+      return <ErrorIndicator error={error} />
     case 'success':
       return executionTime && executionTime > SLOW_EXECUTION_THRESHOLD_MS ? (
         <div
