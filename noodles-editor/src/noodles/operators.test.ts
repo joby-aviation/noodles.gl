@@ -405,10 +405,12 @@ describe('ExpressionOp', () => {
         const operator = new ExpressionOp('/test-expr')
         const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
+        // Verify the thrown error has the friendly message
         expect(() => {
           operator.execute({ data: [], expression })
-        }).toThrow(SyntaxError)
+        }).toThrow(expectedMessage)
 
+        // Verify console.warn also has the friendly message
         expect(warnSpy).toHaveBeenCalledTimes(1)
         expect(warnSpy.mock.calls[0][0]).toContain(expectedMessage)
 

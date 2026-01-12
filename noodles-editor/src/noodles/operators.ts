@@ -4631,7 +4631,14 @@ function fnWithSource(args: string[], body: string, id: string): FunctionWithSou
     const error = e instanceof Error ? e : new Error(String(e))
     // Use console.warn since syntax errors during editing are expected
     console.warn(formatSyntaxError(error, id, body))
-    throw e
+
+    // Strip "return " prefix for user code analysis
+    const userCode = body.startsWith('return ') ? body.slice(7) : body
+
+    // Throw error with friendly message for UI display
+    const friendlyMessage = getFriendlyErrorMessage(error.message, userCode)
+    const FriendlyError = error.constructor as ErrorConstructor
+    throw new FriendlyError(friendlyMessage)
   }
 }
 
