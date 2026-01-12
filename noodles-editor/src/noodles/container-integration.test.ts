@@ -222,7 +222,7 @@ describe('Container Integration with Transform Graph', () => {
       expect(graphInput.outputs.enabled).toBeDefined() // Custom output
     })
 
-    it('GraphInputOp outputs are wired to container custom inputs', () => {
+    it('GraphInputOp inputs are wired to container custom inputs', () => {
       const nodes: NodeJSON<OpType>[] = [
         {
           id: '/analysis',
@@ -249,19 +249,172 @@ describe('Container Integration with Transform Graph', () => {
       transformGraph({ nodes, edges })
 
       // Get the operators
-      const container = getOp('/analysis') as ContainerOp
       const graphInput = getOp('/analysis/input') as GraphInputOp
 
-      // Set a value on the container's custom input
-      container.inputs.multiplier.setValue(10)
-
-      // The GraphInputOp output should be connected to the container input
-      const multiplierOutput = graphInput.outputs.multiplier
-      expect(multiplierOutput.subscriptions.size).toBe(1)
+      // The GraphInputOp input should be connected to the container input
+      const multiplierInput = graphInput.inputs.multiplier
+      expect(multiplierInput).toBeDefined()
+      expect(multiplierInput.subscriptions.size).toBe(1)
 
       // Verify the connection exists
       const connectionId = `container_custom_multiplier_to_child_${graphInput.id}`
-      expect(multiplierOutput.subscriptions.has(connectionId)).toBe(true)
+      expect(multiplierInput.subscriptions.has(connectionId)).toBe(true)
+    })
+
+    it('custom parameter values propagate from container to GraphInputOp outputs', () => {
+      const nodes: NodeJSON<OpType>[] = [
+        {
+          id: '/analysis',
+          type: 'ContainerOp',
+          position: { x: 0, y: 0 },
+          data: {
+            inputs: {},
+            customInputs: [
+              { id: '1', name: 'multiplier', type: 'number', order: 0, defaultValue: 2 },
+            ],
+          },
+        },
+        {
+          id: '/analysis/input',
+          type: 'GraphInputOp',
+          position: { x: 100, y: 100 },
+          data: { inputs: {} },
+        },
+      ]
+
+      // Transform the graph
+      transformGraph({ nodes, edges: [] })
+
+      const container = getOp('/analysis') as ContainerOp
+      const graphInput = getOp('/analysis/input') as GraphInputOp
+
+      // Set value on container
+      container.inputs.multiplier.setValue(10)
+
+      // Execute GraphInputOp to propagate values
+      const result = graphInput.execute(graphInput.data)
+
+      // Verify output has the value
+      expect(result.multiplier).toBe(10)
+    })
+
+    it('multiple custom fields propagate correctly', () => {
+      const nodes: NodeJSON<OpType>[] = [
+        {
+          id: '/analysis',
+          type: 'ContainerOp',
+          position: { x: 0, y: 0 },
+          data: {
+            inputs: {},
+            customInputs: [
+              { id: '1', name: 'threshold', type: 'number', order: 0, defaultValue: 50 },
+              { id: '2', name: 'enabled', type: 'boolean', order: 1, defaultValue: true },
+              { id: '3', name: 'label', type: 'string', order: 2, defaultValue: 'test' },
+            ],
+          },
+        },
+        {
+          id: '/analysis/input',
+          type: 'GraphInputOp',
+          position: { x: 100, y: 100 },
+          data: { inputs: {} },
+        },
+      ]
+
+      // Transform the graph
+      transformGraph({ nodes, edges: [] })
+
+      const container = getOp('/analysis') as ContainerOp
+      const graphInput = getOp('/analysis/input') as GraphInputOp
+
+      // Set values on container
+      container.inputs.threshold.setValue(75)
+      container.inputs.enabled.setValue(false)
+      container.inputs.label.setValue('updated')
+
+      // Execute GraphInputOp to propagate values
+      const result = graphInput.execute(graphInput.data)
+
+      // Verify all outputs have their values
+      expect(result.threshold).toBe(75)
+      expect(result.enabled).toBe(false)
+      expect(result.label).toBe('updated')
+    })
+
+    it('value changes propagate reactively', () => {
+      const nodes: NodeJSON<OpType>[] = [
+        {
+          id: '/analysis',
+          type: 'ContainerOp',
+          position: { x: 0, y: 0 },
+          data: {
+            inputs: {},
+            customInputs: [
+              { id: '1', name: 'count', type: 'number', order: 0, defaultValue: 0 },
+            ],
+          },
+        },
+        {
+          id: '/analysis/input',
+          type: 'GraphInputOp',
+          position: { x: 100, y: 100 },
+          data: { inputs: {} },
+        },
+      ]
+
+      // Transform the graph
+      transformGraph({ nodes, edges: [] })
+
+      const container = getOp('/analysis') as ContainerOp
+      const graphInput = getOp('/analysis/input') as GraphInputOp
+
+      // Initial value
+      container.inputs.count.setValue(5)
+      let result = graphInput.execute(graphInput.data)
+      expect(result.count).toBe(5)
+
+      // Change value
+      container.inputs.count.setValue(10)
+      result = graphInput.execute(graphInput.data)
+      expect(result.count).toBe(10)
+
+      // Change again
+      container.inputs.count.setValue(100)
+      result = graphInput.execute(graphInput.data)
+      expect(result.count).toBe(100)
+    })
+
+    it('default values are available before explicit setValue', () => {
+      const nodes: NodeJSON<OpType>[] = [
+        {
+          id: '/analysis',
+          type: 'ContainerOp',
+          position: { x: 0, y: 0 },
+          data: {
+            inputs: {},
+            customInputs: [
+              { id: '1', name: 'threshold', type: 'number', order: 0, defaultValue: 42 },
+            ],
+          },
+        },
+        {
+          id: '/analysis/input',
+          type: 'GraphInputOp',
+          position: { x: 100, y: 100 },
+          data: { inputs: {} },
+        },
+      ]
+
+      // Transform the graph
+      transformGraph({ nodes, edges: [] })
+
+      const graphInput = getOp('/analysis/input') as GraphInputOp
+
+      // Execute GraphInputOp - should get default value from subscription
+      const result = graphInput.execute(graphInput.data)
+
+      // Default value should be propagated
+      expect(result.threshold).toBe(42)
     })
 
     it('GraphInputOp updates when container custom fields change', () => {

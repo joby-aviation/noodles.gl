@@ -616,7 +616,7 @@ export abstract class Operator<OP extends IOperator> {
   }
 
   // Create a Field instance from a custom field definition
-  private createFieldFromDefinition(def: CustomFieldDefinition): Field {
+  protected createFieldFromDefinition(def: CustomFieldDefinition): Field {
     const FieldClass = fieldTypeToClass[def.type]
     if (!FieldClass) {
       throw new Error(`Unknown field type: ${def.type}`)
@@ -3358,8 +3358,15 @@ export class GraphInputOp extends Operator<GraphInputOp> {
     return { value: new UnknownField(null, { optional: true }) }
   }
 
-  execute({ parentValue }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    return { value: parentValue }
+  execute(inputs: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const result: Record<string, unknown> = { value: inputs.parentValue }
+    // Pass through all custom field values from inputs to outputs
+    for (const key of Object.keys(this.outputs)) {
+      if (key !== 'value' && key in inputs) {
+        result[key] = inputs[key]
+      }
+    }
+    return result as ExtractProps<typeof this.outputs>
   }
 
   /**
@@ -3377,48 +3384,77 @@ export class GraphInputOp extends Operator<GraphInputOp> {
 
     if (containerOp) {
       // Initial sync
-      this.rebuildOutputsFromContainer(containerOp)
+      this.rebuildFromContainer(containerOp)
 
       // Subscribe to future changes
       this._containerSub = containerOp.customFieldsChanged.subscribe(() => {
-        this.rebuildOutputsFromContainer(containerOp)
+        this.rebuildFromContainer(containerOp)
       })
     }
   }
 
   /**
-   * Rebuild outputs to mirror the parent ContainerOp's custom input fields.
-   * Creates an output for each custom field on the container.
+   * Rebuild both inputs and outputs to mirror the parent ContainerOp's custom input fields.
+   * Creates an input and output for each custom field on the container.
+   * This allows values to flow: container input → GraphInputOp input → execute() → GraphInputOp output
    */
-  rebuildOutputsFromContainer(containerOp: ContainerOp) {
-    // Preserve old output values where possible
-    const oldValues = new Map<string, unknown>()
+  rebuildFromContainer(containerOp: ContainerOp) {
+    // Preserve old values where possible
+    const oldInputValues = new Map<string, unknown>()
+    for (const [name, field] of Object.entries(this.inputs)) {
+      oldInputValues.set(name, field.value)
+    }
+    const oldOutputValues = new Map<string, unknown>()
     for (const [name, field] of Object.entries(this.outputs)) {
-      oldValues.set(name, field.value)
+      oldOutputValues.set(name, field.value)
     }
 
-    // Start with the base output
+    // Rebuild inputs: parentValue + custom fields
+    const newInputs: Record<string, Field> = {
+      parentValue: new UnknownField(null, { optional: true }),
+    }
+    for (const def of containerOp.customInputDefinitions) {
+      const field = this.createFieldFromDefinition(def)
+      newInputs[def.name] = field
+    }
+    this.inputs = newInputs as ReturnType<GraphInputOp['createInputs']>
+
+    // Rebuild outputs: value + custom fields
     const newOutputs: Record<string, Field> = {
       value: new UnknownField(null, { optional: true }),
     }
-
-    // Add outputs for each container custom input
     for (const def of containerOp.customInputDefinitions) {
       const field = this.createFieldFromDefinition(def)
       newOutputs[def.name] = field
     }
-
     this.outputs = newOutputs as ReturnType<GraphInputOp['createOutputs']>
 
-    // Restore values where field names match
-    for (const [name, field] of Object.entries(this.outputs)) {
-      if (oldValues.has(name)) {
+    // Restore input values where field names match
+    for (const [name, field] of Object.entries(this.inputs)) {
+      if (oldInputValues.has(name)) {
         try {
-          field.setValue(oldValues.get(name))
+          field.setValue(oldInputValues.get(name))
         } catch (_err) {
           // Type mismatch, skip
         }
       }
+    }
+
+    // Restore output values where field names match
+    for (const [name, field] of Object.entries(this.outputs)) {
+      if (oldOutputValues.has(name)) {
+        try {
+          field.setValue(oldOutputValues.get(name))
+        } catch (_err) {
+          // Type mismatch, skip
+        }
+      }
+    }
+
+    // Re-assign pathToProps for inputs
+    for (const [key, field] of Object.entries(this.inputs)) {
+      field.pathToProps = [this.id, IN_NS, key]
+      field.op = this
     }
 
     // Re-assign pathToProps for outputs
@@ -3427,7 +3463,7 @@ export class GraphInputOp extends Operator<GraphInputOp> {
       field.op = this
     }
 
-    // Notify that outputs changed
+    // Notify that fields changed
     this.markDirty()
   }
 

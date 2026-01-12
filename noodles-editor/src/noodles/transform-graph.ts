@@ -255,14 +255,14 @@ export function transformGraph<
           const connectionId = `container_in_to_child_${childOp.id}`
           parentValueField.addConnection(connectionId, containerInField, 'value')
 
-          // Wire container's custom inputs to GraphInputOp's dynamic outputs
-          // This allows child operators to access container's custom parameters via GraphInputOp
+          // Wire container's custom inputs to GraphInputOp's dynamic inputs
+          // This allows values to flow: container input → GraphInputOp input → execute() → GraphInputOp output
           for (const def of containerOp.customInputDefinitions) {
             const containerCustomField = containerOp.inputs[def.name]
-            const graphInputOutputField = childOp.outputs[def.name]
-            if (containerCustomField && graphInputOutputField) {
+            const graphInputInputField = childOp.inputs[def.name]
+            if (containerCustomField && graphInputInputField) {
               const customConnectionId = `container_custom_${def.name}_to_child_${childOp.id}`
-              graphInputOutputField.addConnection(customConnectionId, containerCustomField, 'value')
+              graphInputInputField.addConnection(customConnectionId, containerCustomField, 'value')
             }
           }
         }
