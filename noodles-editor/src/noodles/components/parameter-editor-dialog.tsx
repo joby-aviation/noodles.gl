@@ -195,9 +195,14 @@ export function ParameterEditorDialog({
 
             {/* Custom fields (editable) */}
             <div className={s.section}>
-              <h3 className={s.sectionTitle}>Custom Parameters</h3>
+              <div className={s.sectionHeader}>
+                <h3 className={s.sectionTitle}>Custom Parameters</h3>
+                <button type="button" className={s.addFieldButtonSmall} onClick={handleAddField}>
+                  <PlusIcon /> Add
+                </button>
+              </div>
               {definitions.length === 0 && (
-                <p className={s.emptyMessage}>No custom parameters yet. Add one below.</p>
+                <p className={s.emptyMessage}>No custom parameters yet.</p>
               )}
               {definitions.map((def, index) => (
                 <CustomFieldRow
@@ -208,7 +213,7 @@ export function ParameterEditorDialog({
                   isLast={index === definitions.length - 1}
                   isEditing={editingField === def.id}
                   error={errors.get(def.id)}
-                  onEdit={() => setEditingField(def.id)}
+                  onEdit={() => setEditingField(editingField === def.id ? null : def.id)}
                   onDelete={() => handleDeleteField(def.id)}
                   onUpdate={updates => handleUpdateField(def.id, updates)}
                   onMoveUp={() => handleMoveUp(index)}
@@ -216,10 +221,6 @@ export function ParameterEditorDialog({
                   onValidate={name => validateFieldName(name, def.id)}
                 />
               ))}
-
-              <button type="button" className={s.addFieldButton} onClick={handleAddField}>
-                <PlusIcon /> Add Parameter
-              </button>
             </div>
 
             {/* Quick add templates */}
