@@ -1,7 +1,8 @@
 import type { Deck, DeckProps } from '@deck.gl/core'
 import { MapboxOverlay, type MapboxOverlayProps } from '@deck.gl/mapbox'
 import { DeckGL } from '@deck.gl/react'
-import { type ISheetObject, types, val } from '@theatre/core'
+import { type ISheetObject, types } from '@theatre/core'
+import { useVal } from '@theatre/react'
 import studio from '@theatre/studio'
 import { ReactFlowProvider } from '@xyflow/react'
 import type { Map as MapLibre } from 'maplibre-gl'
@@ -177,6 +178,7 @@ export default function TimelineEditor() {
   }, [rendererSheet])
 
   const renderer = useSheetValue(rendererSheet)
+  const sequenceLength = useVal(sequence.pointer.length)
 
   const { framerate, bitrateMbps, bitrateMode, codec, resolution, lod, waitForData, captureDelay } =
     renderer
@@ -414,11 +416,9 @@ export default function TimelineEditor() {
       {isRendering && (
         <div className={s.actionButtons}>
           <progress
-            max={val(sequence.pointer.length) * renderer.framerate}
+            max={sequenceLength * renderer.framerate}
             value={currentFrame}
-            title={`Rendered ${currentFrame} / ${
-              val(sequence.pointer.length) * renderer.framerate
-            }`}
+            title={`Rendered ${currentFrame} / ${sequenceLength * renderer.framerate}`}
           />
         </div>
       )}

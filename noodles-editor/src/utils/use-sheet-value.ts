@@ -1,23 +1,13 @@
 import type { ISheetObject, UnknownShorthandCompoundProps } from '@theatre/core'
-import { useEffect, useState } from 'react'
+import { useVal } from '@theatre/react'
 
-// TODO make SheetProvider / useCurrentSheet agnostic to r3f - maybe use @theatre/react?
+// Uses @theatre/react's useVal to properly subscribe to sheet object changes,
+// keeping the underlying prisms "hot" and avoiding cold prism warnings.
 export default function useSheetValue<T extends UnknownShorthandCompoundProps>(
   sheet: ISheetObject<T>
-) {
-  const [_, setValue] = useState(0)
-
-  useEffect(() => {
-    const unsubscribe = sheet?.onValuesChange(_ => {
-      setValue(Math.random())
-    })
-
-    return () => {
-      unsubscribe()
-    }
-  }, [sheet])
-
-  return sheet.value
+): ISheetObject<T>['value'] {
+  // Cast needed because useVal's conditional return type doesn't resolve to PropsValue<T>
+  return useVal(sheet.props) as ISheetObject<T>['value']
 }
 
 export type PropsValue<T extends UnknownShorthandCompoundProps> = ReturnType<
