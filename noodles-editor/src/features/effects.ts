@@ -2,11 +2,11 @@ import type { Effect } from '@deck.gl/core'
 
 import { _SunLight, AmbientLight, LightingEffect, PostProcessEffect } from '@deck.gl/core'
 import { tiltShift, vignette } from '@luma.gl/shadertools'
-import { type ISheet, types } from '@theatre/core'
+import { type ISheet, type ISheetObject, types } from '@theatre/core'
+import { useVal } from '@theatre/react'
 import { useEffect, useMemo, useState } from 'react'
 import SunCalc from 'suncalc'
 import { rgbaToClearColor, rgbaToColor } from '../utils/color'
-import useSheetValue, { type PropsValue } from '../utils/use-sheet-value'
 
 const INITIAL_AMBIENT_STATE = {
   color: types.rgba({ r: 1, g: 1, b: 1, a: 1 }),
@@ -48,7 +48,7 @@ const INITIAL_TILT_SHIFT_STATE = {
   }),
 }
 
-function getTimestamp(sun: PropsValue<typeof INITIAL_SUNLIGHT_STATE>) {
+function getTimestamp(sun: ISheetObject<typeof INITIAL_SUNLIGHT_STATE>['value']) {
   const {
     timeOfDay,
     date: { year, month, day },
@@ -88,10 +88,10 @@ export function useEffects({
     }
   }, [sheet])
 
-  const ambient = useSheetValue(ambientSheet)
-  const sun = useSheetValue(sunSheet)
-  const vignetteProps = useSheetValue(vignetteSheet)
-  const tiltShiftProps = useSheetValue(tiltShiftSheet)
+  const ambient = useVal(ambientSheet.props)
+  const sun = useVal(sunSheet.props)
+  const vignetteProps = useVal(vignetteSheet.props)
+  const tiltShiftProps = useVal(tiltShiftSheet.props)
 
   const [ambientLight, setAmbientLight] = useState(
     new AmbientLight({

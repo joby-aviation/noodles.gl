@@ -17,7 +17,6 @@ import { captureScreenshot, rafDriver, useRenderer } from './render/renderer'
 import { TransformScale } from './render/transform-scale'
 import s from './timeline-editor.module.css'
 import setRef from './utils/set-ref'
-import useSheetValue, { type PropsValue } from './utils/use-sheet-value'
 
 // https://www.theatrejs.com/docs/latest/manual/advanced#rafdrivers
 // the rafDriver breaks things like spacebar playback
@@ -100,7 +99,7 @@ const INITIAL_RENDER_STATE = {
 const DeckGLOverlay = forwardRef<
   Deck,
   MapboxOverlayProps & {
-    renderer: PropsValue<typeof INITIAL_RENDER_STATE>
+    renderer: ISheetObject<typeof INITIAL_RENDER_STATE>['value']
     isRendering: boolean
   }
 >(({ renderer, isRendering, ...props }, ref) => {
@@ -177,7 +176,7 @@ export default function TimelineEditor() {
     }
   }, [rendererSheet])
 
-  const renderer = useSheetValue(rendererSheet)
+  const renderer = useVal(rendererSheet.props)
   const sequenceLength = useVal(sequence.pointer.length)
 
   const { framerate, bitrateMbps, bitrateMode, codec, resolution, lod, waitForData, captureDelay } =

@@ -272,11 +272,11 @@ Note: This path-based syntax is only used within CodeField expressions for progr
 ### Theatre.js Timeline
 
 ```typescript
-// Keyframe field values over time
-const animatedValue = useSheetValue(
-  sheet.object('/node', nodeId).props.fieldName,
-  defaultValue
-)
+import { useVal } from '@theatre/react'
+
+// Subscribe to keyframed field values
+const sheetObject = sheet.object('myObject', { value: types.number(0) })
+const animatedValue = useVal(sheetObject.props.value)
 ```
 
 ### Deck.gl Rendering
