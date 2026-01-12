@@ -861,10 +861,7 @@ describe('getFieldReferences self-parameter shorthand', () => {
 
   it('should not conflict with standard mustache syntax', () => {
     // Self-parameter shorthand + sibling reference + absolute path
-    const refs = getFieldReferences(
-      '{{par.a}} + {{sibling.par.b}} + {{/other.par.c}}',
-      '/code'
-    )
+    const refs = getFieldReferences('{{par.a}} + {{sibling.par.b}} + {{/other.par.c}}', '/code')
     expect(refs).toHaveLength(3)
     // All should resolve to their correct opIds
     const aRef = refs.find(r => r.fieldPath === 'a')

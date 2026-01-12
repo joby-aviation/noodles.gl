@@ -204,8 +204,7 @@ export function transformGraph<
 
       // Update operator dependencies for pull-based execution
       // Skip self-references to parameters (not true cycles - output depends on input value)
-      const isSelfParameterReference =
-        edge.source === edge.target && sourceNamespace === 'par'
+      const isSelfParameterReference = edge.source === edge.target && sourceNamespace === 'par'
 
       if (!isSelfParameterReference) {
         sourceOp.addDownstreamDependent(targetOp)

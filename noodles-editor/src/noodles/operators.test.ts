@@ -396,7 +396,7 @@ describe('CodeOp self-parameter references', () => {
 
     const result = await codeOp.execute({
       data: [['a', 'b', 'c']],
-      code: "return d.map(x => {{par.prefix}} + x)",
+      code: 'return d.map(x => {{par.prefix}} + x)',
     })
     expect(result.data).toEqual(['item_a', 'item_b', 'item_c'])
   })
