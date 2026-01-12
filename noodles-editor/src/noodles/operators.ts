@@ -4531,18 +4531,84 @@ type FunctionWithSource = ((...args: unknown[]) => unknown | Promise<unknown>) &
 // biome-ignore lint/complexity/useArrowFunction: This is a function declaration
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 
+// Count occurrences of a character in a string (for bracket matching)
+function countChar(str: string, char: string): number {
+  return (str.match(new RegExp(`\\${char}`, 'g')) || []).length
+}
+
+// Convert cryptic JS errors to actionable messages based on code analysis
+function getFriendlyErrorMessage(jsError: string, userCode: string): string {
+  // Count unmatched delimiters - used for multiple error types
+  const brackets = countChar(userCode, '[') - countChar(userCode, ']')
+  const parens = countChar(userCode, '(') - countChar(userCode, ')')
+  const braces = countChar(userCode, '{') - countChar(userCode, '}')
+
+  // Handle "Unexpected end of input" or "Unexpected token '}'" or "Unexpected token ')'"
+  // These typically mean something is unclosed
+  if (
+    jsError.includes('Unexpected end of input') ||
+    jsError.includes("Unexpected token '}'") ||
+    jsError.includes("Unexpected token ')'")
+  ) {
+    if (brackets > 0) return `Missing ${brackets} closing ']'`
+    if (parens > 0) return `Missing ${parens} closing ')'`
+    if (braces > 0) return `Missing ${braces} closing '}'`
+
+    // Check for trailing operators
+    if (/[+\-*/%&|^=!<>]+\s*$/.test(userCode)) {
+      return 'Expression incomplete - missing value after operator'
+    }
+
+    // Check for trailing dot (property access)
+    if (/\.\s*$/.test(userCode)) {
+      return 'Expression incomplete - missing property name after "."'
+    }
+
+    // Check for trailing comma
+    if (/,\s*$/.test(userCode)) {
+      return 'Expression incomplete - trailing comma'
+    }
+  }
+
+  // Handle unterminated strings
+  if (jsError.includes('Unterminated string')) {
+    const singleQuotes = countChar(userCode, "'") % 2
+    const doubleQuotes = countChar(userCode, '"') % 2
+    const backticks = countChar(userCode, '`') % 2
+
+    if (singleQuotes) return "Missing closing ' (single quote)"
+    if (doubleQuotes) return 'Missing closing " (double quote)'
+    if (backticks) return 'Missing closing ` (backtick)'
+    return 'Unclosed string literal'
+  }
+
+  // Handle unexpected tokens - check if we have unclosed delimiters anyway
+  if (jsError.includes('Unexpected token')) {
+    if (brackets > 0) return `Missing ${brackets} closing ']'`
+    if (parens > 0) return `Missing ${parens} closing ')'`
+    if (braces > 0) return `Missing ${braces} closing '}'`
+    return jsError
+  }
+
+  // Fallback to original error
+  return jsError
+}
+
 // Format a syntax error message to be more helpful
 function formatSyntaxError(error: Error, id: string, body: string): string {
   const errorType = error.name === 'SyntaxError' ? 'Syntax error' : error.name
-  const lines = body.split('\n')
-  const lineCount = lines.length
 
-  // Build a helpful message
-  let message = `${errorType} in ${id}: ${error.message}`
+  // Strip "return " prefix if present (added by ExpressionOp/AccessorOp)
+  const userCode = body.startsWith('return ') ? body.slice(7) : body
+
+  // Try to provide actionable message based on code analysis
+  const friendly = getFriendlyErrorMessage(error.message, userCode)
+
+  let message = `${errorType} in ${id}: ${friendly}`
 
   // For single-line code, show the code inline
-  if (lineCount === 1 && body.length < 60) {
-    message += `\n  Code: ${body}`
+  if (body.split('\n').length === 1 && userCode.length < 60) {
+    message += `\n  Code: ${userCode}`
   }
 
   return message
