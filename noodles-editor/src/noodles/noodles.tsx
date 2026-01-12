@@ -68,6 +68,7 @@ import { edgeId, nodeId } from './utils/id-utils'
 import { migrateProject } from './utils/migrate-schema'
 import { getParentPath } from './utils/path-utils'
 import { pick } from './utils/pick'
+import { calculateViewerPosition } from './utils/viewer-position'
 import {
   EMPTY_PROJECT,
   NOODLES_VERSION,
@@ -104,9 +105,6 @@ const fitViewOptions: FitViewOptions = {
 const defaultEdgeOptions: DefaultEdgeOptions = {
   animated: false,
 }
-
-// Offset to position new ViewerOps to the right of the source node when created via 'v' keypress
-const VIEWER_OFFSET_X = 400
 
 // TheatreJS is used by the Noodles framework to provide a timeline and keyframe animation for Op fields.
 // Naturally, the Noodles framework will load a new theatre state when a Noodles project is loaded.
@@ -432,10 +430,7 @@ export function getNoodles(): Visualization {
         if (hoveredHandle) {
           const hoveredNode = currentNodes.find(n => n.id === hoveredHandle.nodeId)
           if (hoveredNode) {
-            const newViewerPosition = {
-              x: hoveredNode.position.x + VIEWER_OFFSET_X,
-              y: hoveredNode.position.y,
-            }
+            const newViewerPosition = calculateViewerPosition(hoveredNode)
 
             const viewerId = nodeId('viewer', currentContainerId)
 
@@ -468,16 +463,42 @@ export function getNoodles(): Visualization {
         return currentNodes
       }
 
-      // Find the rightmost selected node
-      const rightmostNode = selectedNodes.reduce((rightmost, node) => {
-        return node.position.x > rightmost.position.x ? node : rightmost
-      }, selectedNodes[0])
+      // Determine which node to use for positioning and connection
+      let sourceNode: (typeof selectedNodes)[0]
+      let sourceHandle: string | null = null
 
-      // Calculate position for new ViewerOp (to the right of the rightmost node)
-      const newViewerPosition = {
-        x: rightmostNode.position.x + VIEWER_OFFSET_X,
-        y: rightmostNode.position.y,
+      // Check if a handle is hovered on a selected node
+      if (hoveredHandle && selectedNodes.some(n => n.id === hoveredHandle.nodeId)) {
+        // Use hovered handle if it's on a selected node
+        if (hoveredHandle.handleId.startsWith('out.')) {
+          sourceNode = selectedNodes.find(n => n.id === hoveredHandle.nodeId)!
+          sourceHandle = hoveredHandle.handleId
+        } else {
+          // Fall back to rightmost node if hovered handle is not an output
+          sourceNode = selectedNodes.reduce((rightmost, node) => {
+            return node.position.x > rightmost.position.x ? node : rightmost
+          }, selectedNodes[0])
+        }
+      } else {
+        // No hovered handle, use the rightmost selected node
+        sourceNode = selectedNodes.reduce((rightmost, node) => {
+          return node.position.x > rightmost.position.x ? node : rightmost
+        }, selectedNodes[0])
       }
+
+      // If no hovered handle, use the first output handle of the source node
+      if (!sourceHandle) {
+        const sourceOp = store.getOp(sourceNode.id)
+        if (sourceOp) {
+          const firstOutputKey = Object.keys(sourceOp.outputs)[0]
+          if (firstOutputKey) {
+            sourceHandle = `out.${firstOutputKey}`
+          }
+        }
+      }
+
+      // Calculate position for new ViewerOp (to the right of the source node)
+      const newViewerPosition = calculateViewerPosition(sourceNode)
 
       const viewerId = nodeId('viewer', currentContainerId)
 
@@ -489,42 +510,17 @@ export function getNoodles(): Visualization {
         data: undefined,
       }
 
-      // Determine sourceHandle to use
-      let sourceNodeId = rightmostNode.id
-      let sourceHandle: string | null = null
-
-      // Check if a handle is hovered (from shared store)
-      if (hoveredHandle && selectedNodes.some(n => n.id === hoveredHandle.nodeId)) {
-        // Use hovered handle if it's on a selected node
-        // Handle ID is already in the format "out.fieldName"
-        if (hoveredHandle.handleId.startsWith('out.')) {
-          sourceNodeId = hoveredHandle.nodeId
-          sourceHandle = hoveredHandle.handleId
-        }
-      }
-
-      // If no hovered handle, use the first output handle of the rightmost node
-      if (!sourceHandle) {
-        const sourceOp = store.getOp(sourceNodeId)
-        if (sourceOp) {
-          const firstOutputKey = Object.keys(sourceOp.outputs)[0]
-          if (firstOutputKey) {
-            sourceHandle = `out.${firstOutputKey}`
-          }
-        }
-      }
-
       // Create edge if we have a valid source handle
       if (sourceHandle) {
         const targetHandle = 'par.data'
         const newEdge = {
           id: edgeId({
-            source: sourceNodeId,
+            source: sourceNode.id,
             sourceHandle,
             target: viewerId,
             targetHandle,
           }),
-          source: sourceNodeId,
+          source: sourceNode.id,
           sourceHandle,
           target: viewerId,
           targetHandle,
