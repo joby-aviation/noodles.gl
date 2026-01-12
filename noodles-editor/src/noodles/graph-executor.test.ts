@@ -561,6 +561,31 @@ describe('ForLoop execution - result collection', () => {
     expect(result.data).toEqual(inputData)
   })
 
+  it('should collect all values when d output connects directly to d input (no intermediate ops)', async () => {
+    // This tests the simplest ForLoop case: BeginOp.d -> EndOp.d
+    // Verifies that field subscription propagation correctly updates EndOp's input
+    // during each iteration, allowing proper result collection
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    // Simple numeric array
+    beginOp.inputs.data.setValue([10, 20, 30, 40, 50])
+
+    // Direct connection: beginOp.d -> endOp.d (no intermediate operators)
+    endOp.inputs.d.addConnection('begin-to-end', beginOp.outputs.d)
+    endOp.addUpstreamDependency(beginOp)
+    beginOp.addDownstreamDependent(endOp)
+
+    // Chain only contains begin and end - no intermediate operators
+    endOp.createForLoopListeners([beginOp, endOp])
+
+    const result = await endOp.pull()
+
+    // Should collect ALL values, not just the first or last
+    expect(result.data).toEqual([10, 20, 30, 40, 50])
+    expect(result.data).toHaveLength(5)
+  })
+
   it('should re-run loop when intermediate node input changes (like keyframe animation)', async () => {
     // Simulates: [1, 2, 3] -> ForLoopBegin -> MathOp(add b) -> ForLoopEnd
     // where b changes over time (like a keyframed value)
