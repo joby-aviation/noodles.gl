@@ -2,7 +2,14 @@
 import { describe, expect, it } from 'vitest'
 import { GraphExecutor, GraphScope, topologicalSort } from './graph-executor'
 import type { IOperator, Operator } from './operators'
-import { ForLoopBeginOp, ForLoopEndOp, ForLoopMetaOp, MathOp, NumberOp } from './operators'
+import {
+  ForLoopBeginOp,
+  ForLoopEndOp,
+  ForLoopMetaOp,
+  MathOp,
+  NumberOp,
+  PullExecutionStatus,
+} from './operators'
 
 describe('topologicalSort', () => {
   it('should sort a linear chain correctly', () => {
@@ -924,5 +931,191 @@ describe('Graph execution', () => {
     // If executeNode was being called with 2 parameters, TypeScript would error
     // or the function would throw at runtime
     await expect(executor.executeFrame(performance.now())).resolves.not.toThrow()
+  })
+})
+
+describe('ForLoop execution via GraphExecutor.executeFrame()', () => {
+  it('should execute ForLoop scope and collect results', async () => {
+    const executor = new GraphExecutor()
+
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const mathOp = new MathOp('/math')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    // Set input data on beginOp
+    beginOp.inputs.data.setValue([1, 2, 3])
+
+    // Connect beginOp.item -> mathOp.a
+    mathOp.inputs.a.addConnection('begin-to-math', beginOp.outputs.item)
+    mathOp.addUpstreamDependency(beginOp)
+    beginOp.addDownstreamDependent(mathOp)
+
+    // Set mathOp to add 1
+    mathOp.inputs.b.setValue(1)
+    mathOp.inputs.operator.setValue('add')
+
+    // Connect mathOp.result -> endOp.item
+    endOp.inputs.item.addConnection('math-to-end', mathOp.outputs.result)
+    endOp.addUpstreamDependency(mathOp)
+    mathOp.addDownstreamDependent(endOp)
+
+    // Add nodes to executor
+    executor.addNode(beginOp)
+    executor.addNode(mathOp)
+    executor.addNode(endOp)
+    executor.addEdge(beginOp.id, mathOp.id)
+    executor.addEdge(mathOp.id, endOp.id)
+
+    // Execute frame - should find and execute ForLoop scope
+    await executor.executeFrame(performance.now())
+
+    // Verify ForLoop results
+    expect(endOp.outputs.data.value).toEqual([2, 3, 4])
+  })
+
+  it('should handle direct passthrough (begin.item -> end.item)', async () => {
+    const executor = new GraphExecutor()
+
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    // Set input data
+    beginOp.inputs.data.setValue(['a', 'b', 'c'])
+
+    // Direct passthrough: beginOp.item -> endOp.item
+    endOp.inputs.item.addConnection('begin-to-end', beginOp.outputs.item)
+    endOp.addUpstreamDependency(beginOp)
+    beginOp.addDownstreamDependent(endOp)
+
+    executor.addNode(beginOp)
+    executor.addNode(endOp)
+    executor.addEdge(beginOp.id, endOp.id)
+
+    await executor.executeFrame(performance.now())
+
+    expect(endOp.outputs.data.value).toEqual(['a', 'b', 'c'])
+  })
+
+  it('should handle empty input arrays', async () => {
+    const executor = new GraphExecutor()
+
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    // Set empty input data
+    beginOp.inputs.data.setValue([])
+
+    endOp.inputs.item.addConnection('begin-to-end', beginOp.outputs.item)
+    endOp.addUpstreamDependency(beginOp)
+    beginOp.addDownstreamDependent(endOp)
+
+    executor.addNode(beginOp)
+    executor.addNode(endOp)
+    executor.addEdge(beginOp.id, endOp.id)
+
+    await executor.executeFrame(performance.now())
+
+    expect(endOp.outputs.data.value).toEqual([])
+  })
+
+  it('should re-execute ForLoop when input data changes', async () => {
+    const executor = new GraphExecutor()
+
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    beginOp.inputs.data.setValue([1, 2])
+
+    endOp.inputs.item.addConnection('begin-to-end', beginOp.outputs.item)
+    endOp.addUpstreamDependency(beginOp)
+    beginOp.addDownstreamDependent(endOp)
+
+    executor.addNode(beginOp)
+    executor.addNode(endOp)
+    executor.addEdge(beginOp.id, endOp.id)
+
+    // First execution
+    await executor.executeFrame(performance.now())
+    expect(endOp.outputs.data.value).toEqual([1, 2])
+
+    // Change input data and mark dirty
+    beginOp.inputs.data.setValue([10, 20, 30])
+    beginOp.markDirty()
+    endOp.markDirty()
+
+    // Second execution
+    await executor.executeFrame(performance.now())
+    expect(endOp.outputs.data.value).toEqual([10, 20, 30])
+  })
+
+  it('should work with multiple operators in loop body', async () => {
+    const executor = new GraphExecutor()
+
+    // [10, 20, 30] -> ForLoopBegin -> multiply by 2 -> add 5 -> ForLoopEnd
+    // Expected: [25, 45, 65] (10*2+5=25, 20*2+5=45, 30*2+5=65)
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const multiplyOp = new MathOp('/multiply')
+    const addOp = new MathOp('/add')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    beginOp.inputs.data.setValue([10, 20, 30])
+
+    // beginOp.item -> multiplyOp.a
+    multiplyOp.inputs.a.addConnection('begin-to-mult', beginOp.outputs.item)
+    multiplyOp.inputs.b.setValue(2)
+    multiplyOp.inputs.operator.setValue('multiply')
+    multiplyOp.addUpstreamDependency(beginOp)
+    beginOp.addDownstreamDependent(multiplyOp)
+
+    // multiplyOp.result -> addOp.a
+    addOp.inputs.a.addConnection('mult-to-add', multiplyOp.outputs.result)
+    addOp.inputs.b.setValue(5)
+    addOp.inputs.operator.setValue('add')
+    addOp.addUpstreamDependency(multiplyOp)
+    multiplyOp.addDownstreamDependent(addOp)
+
+    // addOp.result -> endOp.item
+    endOp.inputs.item.addConnection('add-to-end', addOp.outputs.result)
+    endOp.addUpstreamDependency(addOp)
+    addOp.addDownstreamDependent(endOp)
+
+    executor.addNode(beginOp)
+    executor.addNode(multiplyOp)
+    executor.addNode(addOp)
+    executor.addNode(endOp)
+    executor.addEdge(beginOp.id, multiplyOp.id)
+    executor.addEdge(multiplyOp.id, addOp.id)
+    executor.addEdge(addOp.id, endOp.id)
+
+    await executor.executeFrame(performance.now())
+
+    expect(endOp.outputs.data.value).toEqual([25, 45, 65])
+  })
+
+  it('should cache ForLoopEndOp results for downstream operators', async () => {
+    const executor = new GraphExecutor()
+
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    beginOp.inputs.data.setValue([1, 2, 3])
+
+    endOp.inputs.item.addConnection('begin-to-end', beginOp.outputs.item)
+    endOp.addUpstreamDependency(beginOp)
+    beginOp.addDownstreamDependent(endOp)
+
+    executor.addNode(beginOp)
+    executor.addNode(endOp)
+    executor.addEdge(beginOp.id, endOp.id)
+
+    await executor.executeFrame(performance.now())
+
+    // After execution, endOp should have cached output
+    expect(endOp.pullExecutionStatus).toBe(PullExecutionStatus.CLEAN)
+    expect(endOp.cachedOutput).toEqual({ data: [1, 2, 3] })
+
+    // Pulling from endOp should return cached result
+    const result = await endOp.pull()
+    expect(result).toEqual({ data: [1, 2, 3] })
   })
 })

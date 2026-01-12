@@ -478,6 +478,20 @@ export abstract class Operator<OP extends IOperator> {
     return this._cachedOutput
   }
 
+  // Set cached output and mark clean (for use by GraphExecutor ForLoop handling)
+  setCachedOutput(output: ExtractProps<(typeof this)['outputs']>): void {
+    this._cachedOutput = output
+    this._pullExecutionStatus = PullExecutionStatus.CLEAN
+    this.dirty = false
+  }
+
+  // Clear cached output and mark dirty
+  clearCache(): void {
+    this._cachedOutput = null
+    this._pullExecutionStatus = PullExecutionStatus.DIRTY
+    this.dirty = true
+  }
+
   // Needs to be called after sub-classes have created their inputs and outputs
   createListeners() {
     const sub = combineLatest(this.inputs)
@@ -2357,8 +2371,15 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
   }
 
   // Override pull() to iterate through input data and collect results
+  // This is used when chain is set up (legacy tests) or GraphExecutor hasn't already
+  // executed this scope. When GraphExecutor runs, it sets the cached output directly.
   async pull(): Promise<ExtractProps<typeof this.outputs>> {
-    // If no chain or no begin op, fall back to default
+    // Return cached if clean (set by GraphExecutor after loop completes)
+    if (this._pullExecutionStatus === PullExecutionStatus.CLEAN && this._cachedOutput !== null) {
+      return this._cachedOutput as ExtractProps<typeof this.outputs>
+    }
+
+    // If no chain or no begin op, fall back to default pull
     const beginOp = this.chain.find(op => op instanceof ForLoopBeginOp) as
       | ForLoopBeginOp
       | undefined
@@ -2366,19 +2387,14 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
       return super.pull()
     }
 
-    // Return cached if clean
-    if (this._pullExecutionStatus === PullExecutionStatus.CLEAN && this._cachedOutput !== null) {
-      return this._cachedOutput as ExtractProps<typeof this.outputs>
-    }
-
+    // Legacy/test mode: chain is set, do iteration here
     // First pull the beginOp to get the input data
     await beginOp.pull()
 
     const data = beginOp.inputs.data.value
     if (!Array.isArray(data) || data.length === 0) {
       const result = { data: [] as unknown[] }
-      this._cachedOutput = result
-      this._pullExecutionStatus = PullExecutionStatus.CLEAN
+      this.setCachedOutput(result)
       this.outputs.data.next(result.data)
       return result
     }
@@ -2403,12 +2419,9 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
       beginOp.outputs.index.next(index)
       beginOp.outputs.total.next(total)
 
-      // CRITICAL: Mark BeginOp as CLEAN with cached output so that when downstream
-      // operators pull their dependencies, BeginOp returns these iteration values
-      // instead of re-executing (which would always return arr[0])
-      beginOp._cachedOutput = { item, index, total }
-      beginOp._pullExecutionStatus = PullExecutionStatus.CLEAN
-      beginOp.dirty = false
+      // CRITICAL: Cache BeginOp so downstream pulls return iteration values
+      // Without this, pulling intermediate ops re-executes BeginOp and gets arr[0]
+      beginOp.setCachedOutput({ item, index, total })
 
       // Set iteration metadata on ForLoopMetaOp if present
       if (metaOp) {
@@ -2417,17 +2430,7 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
         metaOp.outputs.total.next(total)
         metaOp.outputs.isFirst.next(isFirst)
         metaOp.outputs.isLast.next(isLast)
-
-        // Also cache metaOp so it doesn't re-execute
-        metaOp._cachedOutput = {
-          accumulator,
-          index,
-          total,
-          isFirst,
-          isLast,
-        }
-        metaOp._pullExecutionStatus = PullExecutionStatus.CLEAN
-        metaOp.dirty = false
+        metaOp.setCachedOutput({ accumulator, index, total, isFirst, isLast })
       }
 
       // Mark all chain operators dirty (except beginOp, metaOp, and this)
@@ -2454,9 +2457,7 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
     }
 
     const result = { data: results }
-    this._cachedOutput = result
-    this._pullExecutionStatus = PullExecutionStatus.CLEAN
-    this.dirty = false
+    this.setCachedOutput(result)
 
     // Update output field
     this.outputs.data.next(results)
