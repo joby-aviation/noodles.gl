@@ -1,6 +1,7 @@
 import posthog from 'posthog-js'
 
 const ANALYTICS_CONSENT_KEY = 'noodles-analytics-consent'
+const ERROR_CAPTURE_CONSENT_KEY = 'noodles-error-capture-consent'
 const POSTHOG_API_KEY = import.meta.env.VITE_POSTHOG_API_KEY
 const POSTHOG_HOST = import.meta.env.VITE_POSTHOG_HOST || 'https://app.posthog.com'
 
@@ -8,6 +9,11 @@ export interface AnalyticsConsent {
   enabled: boolean
   timestamp: string
   version: number
+}
+
+interface ErrorCaptureConsent {
+  enabled: boolean
+  timestamp: string
 }
 
 export class AnalyticsManager {
@@ -84,6 +90,30 @@ export class AnalyticsManager {
     }
   }
 
+  setErrorCaptureConsent(enabled: boolean) {
+    const consent: ErrorCaptureConsent = {
+      enabled,
+      timestamp: new Date().toISOString(),
+    }
+
+    try {
+      localStorage.setItem(ERROR_CAPTURE_CONSENT_KEY, JSON.stringify(consent))
+    } catch (error) {
+      console.warn('Failed to save error capture consent:', error)
+    }
+  }
+
+  getErrorCaptureEnabled(): boolean {
+    try {
+      const stored = localStorage.getItem(ERROR_CAPTURE_CONSENT_KEY)
+      if (!stored) return true // Default to enabled
+      const consent: ErrorCaptureConsent = JSON.parse(stored)
+      return consent.enabled
+    } catch {
+      return true // Default to enabled on error
+    }
+  }
+
   hasSeenConsentPrompt(): boolean {
     return this.getConsent() !== null
   }
@@ -140,8 +170,8 @@ export class AnalyticsManager {
     error: Error,
     properties?: Record<string, unknown> & { source?: string; componentStack?: string }
   ) {
-    // No consent check needed for error tracking - we only require consent for user action tracking
-    if (!this.initialized) {
+    // Check if user has disabled error capture
+    if (!this.initialized || !this.getErrorCaptureEnabled()) {
       return
     }
 
