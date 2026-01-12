@@ -187,9 +187,13 @@ function canInsertNode(
     return { canInsert: true, sourceToDropped, droppedToTarget }
   }
 
-  // Strategy 2: Fall back to finding any matching fields
-  sourceToDropped = findMatchingFields(sourceOp, droppedOp)
-  droppedToTarget = findMatchingFields(droppedOp, targetOp)
+  // Strategy 2: Fall back to finding any matching fields (only if not already found)
+  if (!sourceToDropped) {
+    sourceToDropped = findMatchingFields(sourceOp, droppedOp)
+  }
+  if (!droppedToTarget) {
+    droppedToTarget = findMatchingFields(droppedOp, targetOp)
+  }
 
   return {
     canInsert: Boolean(sourceToDropped && droppedToTarget),
