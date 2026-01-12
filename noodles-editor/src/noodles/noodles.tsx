@@ -425,7 +425,6 @@ export function getNoodles(): Visualization {
     setConnectionDragState(null)
   }, [setConnectionDragState])
 
-
   // Hook for dropping nodes onto edges to insert them
   const { onNodeDragStop: onNodeDragStopBase } = useNodeDropOnEdge({
     getNodes: useCallback(() => nodes, [nodes]),
