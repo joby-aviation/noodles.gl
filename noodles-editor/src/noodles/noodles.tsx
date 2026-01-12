@@ -375,18 +375,11 @@ export function getNoodles(): Visualization {
     [setEdges]
   )
 
-  const reactFlowRef = useRef<HTMLDivElement>(null)
-  const reactFlowInstanceRef = useRef<ReactFlowInstance | null>(null)
-
   // Hook for dropping nodes onto edges to insert them
   const { onNodeDragStop: onNodeDragStopBase } = useNodeDropOnEdge({
     getNodes: useCallback(() => nodes, [nodes]),
     getEdges: useCallback(() => edges, [edges]),
     setEdges,
-    getViewport: useCallback(
-      () => reactFlowInstanceRef.current?.getViewport() || { x: 0, y: 0, zoom: 1 },
-      []
-    ),
   })
 
   // Wrap onNodeDragStop to mark unsaved changes when a node is inserted
@@ -421,6 +414,9 @@ export function getNoodles(): Visualization {
     },
     []
   )
+
+  const reactFlowRef = useRef<HTMLDivElement>(null)
+  const reactFlowInstanceRef = useRef<ReactFlowInstance | null>(null)
   const blockLibraryRef = useRef<BlockLibraryRef>(null)
 
   // Avoid circular dependency

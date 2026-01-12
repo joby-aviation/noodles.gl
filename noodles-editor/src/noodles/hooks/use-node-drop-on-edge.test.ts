@@ -1,7 +1,7 @@
-import type { Node as ReactFlowNode } from '@xyflow/react'
+import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { CodeOp, NumberOp, SliceOp } from '../operators'
-import { clearOps, setOp } from '../store'
+import { NumberOp, SliceOp, CodeOp } from '../operators'
+import { setOp, clearOps } from '../store'
 
 // Test the utility functions and logic directly, not the React hook
 // The hook itself is tested through integration tests
@@ -20,6 +20,22 @@ function createMockNode(
     position,
     data: {},
     measured: { width, height },
+  }
+}
+
+// Helper to create a mock edge
+function _createMockEdge(
+  source: string,
+  target: string,
+  sourceHandle: string,
+  targetHandle: string
+): ReactFlowEdge {
+  return {
+    id: `${source}.${sourceHandle}->${target}.${targetHandle}`,
+    source,
+    target,
+    sourceHandle,
+    targetHandle,
   }
 }
 
@@ -61,13 +77,25 @@ describe('node drop on edge utilities', () => {
     it('should calculate distance to line endpoint when past the line', () => {
       // A horizontal line from (0,0) to (100,0)
       // A point at (150, 0) should be 50 pixels from the end
-      // When param > 1 (point is past the line), the closest point is the line end
+      const lineStart = { x: 0, y: 0 }
       const lineEnd = { x: 100, y: 0 }
       const point = { x: 150, y: 0 }
 
-      // Distance from point to line endpoint
-      const dx = point.x - lineEnd.x // 50
-      const dy = point.y - lineEnd.y // 0
+      const A = point.x - lineStart.x // 150
+      const B = point.y - lineStart.y // 0
+      const C = lineEnd.x - lineStart.x // 100
+      const D = lineEnd.y - lineStart.y // 0
+
+      const dot = A * C + B * D // 15000
+      const lenSq = C * C + D * D // 10000
+      const _param = dot / lenSq // 1.5
+
+      // _param > 1, so closest point is the end of the line
+      const xx = lineEnd.x // 100
+      const yy = lineEnd.y // 0
+
+      const dx = point.x - xx // 50
+      const dy = point.y - yy // 0
 
       const distance = Math.sqrt(dx * dx + dy * dy) // 50
       expect(distance).toBe(50)
@@ -202,8 +230,11 @@ describe('node drop on edge utilities', () => {
     })
 
     it('should not detect nodes that are far from the edge', () => {
-      // Using hardcoded centers for nodes at positions:
-      // source: { x: 0, y: 0 }, target: { x: 400, y: 0 }, dropped: { x: 200, y: 200 }
+      // Create nodes for context (not used directly in distance calculation)
+      createMockNode('/source', 'NumberOp', { x: 0, y: 0 })
+      createMockNode('/target', 'SliceOp', { x: 400, y: 0 })
+      createMockNode('/dropped', 'CodeOp', { x: 200, y: 200 })
+
       const sourceCenter = { x: 100, y: 50 }
       const targetCenter = { x: 500, y: 50 }
       const droppedCenter = { x: 300, y: 250 }
@@ -226,95 +257,6 @@ describe('node drop on edge utilities', () => {
       // Distance should be 200 pixels (far from the edge)
       expect(distance).toBe(200)
       expect(distance).toBeGreaterThan(30) // Outside EDGE_DROP_THRESHOLD
-    })
-  })
-
-  describe('zoom-adjusted threshold', () => {
-    const EDGE_DROP_THRESHOLD = 30
-
-    it('should have larger threshold when zoomed out (zoom < 1)', () => {
-      // At zoom 0.5, the threshold should be doubled to maintain consistent screen-space distance
-      const zoom = 0.5
-      const adjustedThreshold = EDGE_DROP_THRESHOLD / zoom
-
-      expect(adjustedThreshold).toBe(60)
-      // A node 50 world-space pixels away should be within threshold when zoomed out
-      expect(50).toBeLessThan(adjustedThreshold)
-    })
-
-    it('should have smaller threshold when zoomed in (zoom > 1)', () => {
-      // At zoom 2.0, the threshold should be halved to maintain consistent screen-space distance
-      const zoom = 2.0
-      const adjustedThreshold = EDGE_DROP_THRESHOLD / zoom
-
-      expect(adjustedThreshold).toBe(15)
-      // A node 20 world-space pixels away should be outside threshold when zoomed in
-      expect(20).toBeGreaterThan(adjustedThreshold)
-    })
-
-    it('should have standard threshold at zoom 1.0', () => {
-      const zoom = 1.0
-      const adjustedThreshold = EDGE_DROP_THRESHOLD / zoom
-
-      expect(adjustedThreshold).toBe(30)
-    })
-  })
-
-  describe('semantic field name matching', () => {
-    it('should prefer input fields with matching names', () => {
-      // When inserting a node into an edge like out.data -> par.data,
-      // the semantic matcher should prefer connecting to par.data on the dropped node
-      // rather than some other compatible field like par.start
-
-      const sliceOp = new SliceOp('/slice-1')
-      setOp('/slice-1', sliceOp)
-
-      // SliceOp has inputs: data, start, end
-      // If original target field is 'data', we should prefer par.data on dropped node
-      const inputs = Object.keys(sliceOp.inputs)
-      expect(inputs).toContain('data')
-      expect(inputs).toContain('start')
-      expect(inputs).toContain('end')
-
-      // The semantic matching should prioritize 'data' over 'start' when
-      // inserting into an edge where the target field was 'data'
-      const targetFieldName = 'data'
-      const hasSemanticMatch = sliceOp.inputs[targetFieldName] !== undefined
-      expect(hasSemanticMatch).toBe(true)
-    })
-
-    it('should prefer output fields with matching names', () => {
-      const sliceOp = new SliceOp('/slice-1')
-      setOp('/slice-1', sliceOp)
-
-      // SliceOp has output 'data'
-      // If original source field is 'data', we should prefer out.data on dropped node
-      const outputs = Object.keys(sliceOp.outputs)
-      expect(outputs).toContain('data')
-
-      const sourceFieldName = 'data'
-      const hasSemanticMatch = sliceOp.outputs[sourceFieldName] !== undefined
-      expect(hasSemanticMatch).toBe(true)
-    })
-
-    it('should fall back to type-based matching when name does not match', () => {
-      const numberOp = new NumberOp('/number-1')
-      setOp('/number-1', numberOp)
-
-      // NumberOp has output 'val', not 'data'
-      // If we're looking for 'data', it won't find a semantic match
-      // and should fall back to type-based matching
-      const outputs = Object.keys(numberOp.outputs)
-      expect(outputs).toContain('val')
-      expect(outputs).not.toContain('data')
-
-      // Semantic match for 'data' would fail
-      const sourceFieldName = 'data'
-      const hasSemanticMatch = numberOp.outputs[sourceFieldName] !== undefined
-      expect(hasSemanticMatch).toBe(false)
-
-      // But type-based matching should still find 'val' as a compatible output
-      expect(outputs.length).toBeGreaterThan(0)
     })
   })
 })
