@@ -172,4 +172,47 @@ describe('ValidateConnection', () => {
     expect(result.error).toBeDefined()
     expect(result.error).toContain('Type mismatch')
   })
+
+  it('returns constraint violation error for number exceeding max', () => {
+    const source = new NumberField(100) // Value is 100
+    const target = new NumberField(0, { max: 50 }) // Max is 50
+
+    const result = validateConnection(source, target)
+    expect(result.valid).toBe(false)
+    expect(result.error).toContain('Constraint violation')
+    expect(result.error).not.toContain('Type mismatch')
+    expect(result.error).toContain('50') // Should mention the constraint
+  })
+
+  it('returns constraint violation error for number below min', () => {
+    const source = new NumberField(-10)
+    const target = new NumberField(0, { min: 0 })
+
+    const result = validateConnection(source, target)
+    expect(result.valid).toBe(false)
+    expect(result.error).toContain('Constraint violation')
+    expect(result.error).not.toContain('Type mismatch')
+  })
+
+  it('returns type mismatch for different types even when values could parse', () => {
+    const source = new StringField('test')
+    const target = new NumberField(0)
+
+    const result = validateConnection(source, target)
+    expect(result.valid).toBe(false)
+    expect(result.error).toContain('Type mismatch')
+    expect(result.error).toContain('string')
+    expect(result.error).toContain('number')
+  })
+
+  it('returns type mismatch for nested type errors in arrays', () => {
+    const source = new ArrayField(new StringField())
+    source.setValue(['a', 'b'])
+    const target = new ArrayField(new NumberField())
+
+    const result = validateConnection(source, target)
+    expect(result.valid).toBe(false)
+    expect(result.error).toContain('Type mismatch')
+    expect(result.error).not.toContain('Constraint violation')
+  })
 })
