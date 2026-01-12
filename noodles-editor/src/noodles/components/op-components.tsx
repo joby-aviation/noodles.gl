@@ -53,8 +53,10 @@ import {
   updateOperatorId,
   useNestingStore,
   useOperatorStore,
+  useUIStore,
 } from '../store'
 import type { NodeDataJSON } from '../transform-graph'
+import { canConnect } from '../utils/can-connect'
 import type { NodeType } from '../utils/node-creation-utils'
 import { generateQualifiedPath, getBaseName, getParentPath } from '../utils/path-utils'
 import { categories as baseCategories, nodeTypeToDisplayName } from './categories'
@@ -84,6 +86,74 @@ function useExecutionState(op: Operator<IOperator>): ExecutionState {
   }, [op])
 
   return executionState
+}
+
+// Hook to subscribe to operator connection errors
+function useConnectionErrors(op: Operator<IOperator>): Map<string, string> {
+  const [connectionErrors, setConnectionErrors] = useState<Map<string, string>>(new Map())
+
+  useEffect(() => {
+    const subscription = op.connectionErrors.subscribe(setConnectionErrors)
+    return () => subscription.unsubscribe()
+  }, [op])
+
+  return connectionErrors
+}
+
+// Hook to check if a node should be dimmed during connection drag
+function useNodeDimmed(nodeId: string): boolean {
+  return useUIStore(state => {
+    const drag = state.connectionDragState
+    if (!drag) return false
+    if (drag.sourceNodeId === nodeId) return false
+    return !drag.compatibleNodeIds.has(nodeId)
+  })
+}
+
+// Hook to check if a handle should be dimmed during connection drag
+export function useHandleDimmed(nodeId: string, handleId: string): boolean {
+  const drag = useUIStore(state => state.connectionDragState)
+
+  if (!drag) return false
+  // Don't dim handles on the source node
+  if (drag.sourceNodeId === nodeId) return false
+  // If the node is not compatible, handles are already dimmed via node dimming
+  if (!drag.compatibleNodeIds.has(nodeId)) return false
+
+  // Parse handle IDs to get namespace (par/out) and field name
+  const sourceHandleParts = drag.sourceHandleId.split('.')
+  const sourceNamespace = sourceHandleParts[0] as 'par' | 'out'
+  const sourceFieldName = sourceHandleParts.slice(1).join('.')
+
+  const targetHandleParts = handleId.split('.')
+  const targetNamespace = targetHandleParts[0] as 'par' | 'out'
+  const targetFieldName = targetHandleParts.slice(1).join('.')
+
+  // Can only connect output to input (out -> par or par -> out)
+  const canPotentiallyConnect =
+    (sourceNamespace === 'out' && targetNamespace === 'par') ||
+    (sourceNamespace === 'par' && targetNamespace === 'out')
+
+  if (!canPotentiallyConnect) return true
+
+  // Get operators and fields
+  const sourceOp = getOp(drag.sourceNodeId)
+  const targetOp = getOp(nodeId)
+  if (!sourceOp || !targetOp) return true
+
+  const sourceField =
+    sourceNamespace === 'out' ? sourceOp.outputs[sourceFieldName] : sourceOp.inputs[sourceFieldName]
+
+  const targetField =
+    targetNamespace === 'out' ? targetOp.outputs[targetFieldName] : targetOp.inputs[targetFieldName]
+
+  if (!sourceField || !targetField) return true
+
+  // canConnect(from, to) where from is output field, to is input field
+  if (sourceNamespace === 'out') {
+    return !canConnect(sourceField, targetField)
+  }
+  return !canConnect(targetField, sourceField)
 }
 
 const defaultNodeComponents = {} as Record<OpType, typeof NodeComponent>
@@ -327,6 +397,7 @@ function HandlePreviewContent({ data, name, type }: { data: unknown; name: strin
 function OutputHandle({ id, field }: { id: string; field: Field<IField> }) {
   const nid = useNodeId()
   const qualifiedFieldId = `${OUT_NAMESPACE}.${id}`
+  const isHandleDimmed = useHandleDimmed(nid ?? '', qualifiedFieldId)
 
   // Handle preview state
   const [previewData, setPreviewData] = useState<unknown>(null)
@@ -378,7 +449,7 @@ function OutputHandle({ id, field }: { id: string; field: Field<IField> }) {
     <div style={{ position: 'relative', flex: 1, pointerEvents: 'auto' }}>
       <Handle
         id={qualifiedFieldId}
-        className={handleClass(field)}
+        className={cx(handleClass(field), { [s.handleDimmed]: isHandleDimmed })}
         style={{ transform: 'translate(4px, -50%)' }}
         type="source"
         position={Position.Right}
@@ -413,15 +484,19 @@ function NodeComponent({
   }
   const locked = useLocked(op)
   const executionState = useExecutionState(op)
+  const connectionErrors = useConnectionErrors(op)
+  const hasConnectionErrors = connectionErrors.size > 0
+  const isDimmed = useNodeDimmed(id)
 
   return (
     <div
       className={cx(s.wrapper, {
-        [s.wrapperError]: executionState.status === 'error',
+        [s.wrapperError]: executionState.status === 'error' || hasConnectionErrors,
         [s.wrapperExecuting]: executionState.status === 'executing',
+        [s.wrapperDimmed]: isDimmed,
       })}
     >
-      <NodeHeader id={id} type={type} op={op} />
+      <NodeHeader id={id} type={type} op={op} connectionErrors={connectionErrors} />
       {resizeableNodes.includes(type) && (
         <NodeResizer isVisible={selected} minWidth={200} minHeight={100} />
       )}
@@ -479,9 +554,20 @@ const ExecutionIndicator = ({ status, error, executionTime }: ExecutionState) =>
   }
 }
 
-function NodeHeader({ id, type, op }: { id: string; type: OpType; op: Operator<IOperator> }) {
+function NodeHeader({
+  id,
+  type,
+  op,
+  connectionErrors,
+}: {
+  id: string
+  type: OpType
+  op: Operator<IOperator>
+  connectionErrors?: Map<string, string>
+}) {
   const [locked, setLocked] = useState(op.locked.value)
   const executionState = useExecutionState(op)
+  const hasConnectionErrors = connectionErrors && connectionErrors.size > 0
 
   const toggleLock = () => {
     op.locked.next(!op.locked.value)
@@ -635,12 +721,25 @@ function NodeHeader({ id, type, op }: { id: string; type: OpType; op: Operator<I
 
   const { displayName } = op.constructor as typeof Operator
 
+  // Format connection error tooltip
+  const connectionErrorTooltip = hasConnectionErrors
+    ? Array.from(connectionErrors!.values()).join('\n')
+    : ''
+
   return (
     <div className={cx(s.header, headerClass(type))}>
       <div className={s.headerTitle} title={`${id} (${displayName})`}>
         {editableId} ({displayName})
       </div>
       <ExecutionIndicator {...executionState} />
+      {hasConnectionErrors && (
+        <div
+          className={cx(s.executionIndicator, s.executionIndicatorError)}
+          title={connectionErrorTooltip}
+        >
+          <i className="pi pi-link" />
+        </div>
+      )}
       <div className={s.headerActions}>
         {downloadable && (
           <Button
@@ -679,6 +778,7 @@ function GeocoderOpComponent({
   const containerRef = useRef<HTMLDivElement>(null)
   const geocoderRef = useRef<MapboxGeocoder>()
   const [error, setError] = useState<string | null>(null)
+  const isDimmed = useNodeDimmed(id)
 
   // Get API key directly from store (reactive)
   const apiKey = useKeysStore(state => state.getKey('mapbox'))
@@ -751,7 +851,7 @@ function GeocoderOpComponent({
   }, [locked])
 
   return (
-    <>
+    <div className={cx(s.wrapper, { [s.wrapperDimmed]: isDimmed })}>
       <NodeHeader id={id} type={type} op={op} />
       <div className={s.content}>
         {Object.entries(op.inputs).map(([key, field]) => (
@@ -780,7 +880,7 @@ function GeocoderOpComponent({
           ))}
         </div>
       </div>
-    </>
+    </div>
   )
 }
 
@@ -830,6 +930,7 @@ function MouseOpComponent({
   }
 
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
+  const isDimmed = useNodeDimmed(id)
 
   // Inject the container element into the operator
   useEffect(() => {
@@ -848,7 +949,7 @@ function MouseOpComponent({
   }, [op])
 
   return (
-    <>
+    <div className={cx(s.wrapper, { [s.wrapperDimmed]: isDimmed })}>
       <NodeHeader id={id} type={type} op={op} />
       <div className={s.content}>
         <div className={s.fieldWrapper}>
@@ -865,7 +966,7 @@ function MouseOpComponent({
           ))}
         </div>
       </div>
-    </>
+    </div>
   )
 }
 
@@ -879,6 +980,7 @@ function TableEditorOpComponent({
     throw new Error(`Operator with id ${id} not found`)
   }
 
+  const isDimmed = useNodeDimmed(id)
   const [dataArray, setDataArray] = useState(op.inputs.data.value as unknown[])
   useEffect(() => {
     const sub = op.inputs.data.subscribe(newVal => {
@@ -939,7 +1041,7 @@ function TableEditorOpComponent({
   const locked = useLocked(op)
 
   return (
-    <>
+    <div className={cx(s.wrapper, { [s.wrapperDimmed]: isDimmed })}>
       <NodeHeader id={id} type={type} op={op} />
       <NodeResizer isVisible={selected} minWidth={400} minHeight={200} />
       <div className={s.content}>
@@ -999,7 +1101,7 @@ function TableEditorOpComponent({
           ))}
         </div>
       </div>
-    </>
+    </div>
   )
 }
 
@@ -1058,6 +1160,8 @@ function ViewerOpComponent({
     throw new Error(`Operator with id ${id} not found`)
   }
 
+  const isDimmed = useNodeDimmed(id)
+
   // TODO: use react-flow helpers
   const [viewerData, setViewerData] = useState(viewerFormatter(op.inputs.data.value))
 
@@ -1112,7 +1216,7 @@ function ViewerOpComponent({
   const locked = useLocked(op)
 
   return (
-    <>
+    <div className={cx(s.wrapper, { [s.wrapperDimmed]: isDimmed })}>
       <NodeHeader id={id} type={type} op={op} />
       <NodeResizer isVisible={selected} minWidth={400} minHeight={200} />
       <div className={s.content}>
@@ -1132,7 +1236,7 @@ function ViewerOpComponent({
           ))}
         </div>
       </div>
-    </>
+    </div>
   )
 }
 
@@ -1146,6 +1250,7 @@ function ContainerOpComponent({
     throw new Error(`Operator with id ${id} not found`)
   }
 
+  const isDimmed = useNodeDimmed(id)
   const setCurrentContainerId = useNestingStore(state => state.setCurrentContainerId)
   const reactFlow = useReactFlow()
 
@@ -1157,9 +1262,9 @@ function ContainerOpComponent({
   const locked = useLocked(op)
 
   return (
-    // Add a specific class for styling the container
     <div
       role="tree"
+      className={cx(s.wrapper, { [s.wrapperDimmed]: isDimmed })}
       onDoubleClick={() => {
         // Clear selection when changing levels
         reactFlow.setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
@@ -1201,6 +1306,7 @@ function TimeOpComponent({
     throw new Error(`Operator with id ${id} not found`)
   }
   const sheet = useContext(SheetContext) as ISheet
+  const isDimmed = useNodeDimmed(id)
 
   const [now, setNow] = useState(0)
   const [sequenceTime, setSequenceTime] = useState(0)
@@ -1228,7 +1334,7 @@ function TimeOpComponent({
   }, [op])
 
   return (
-    <>
+    <div className={cx(s.wrapper, { [s.wrapperDimmed]: isDimmed })}>
       <NodeHeader id={id} type={type} op={op} />
       <div className={s.content}>
         <div>
@@ -1244,6 +1350,6 @@ function TimeOpComponent({
           ))}
         </div>
       </div>
-    </>
+    </div>
   )
 }

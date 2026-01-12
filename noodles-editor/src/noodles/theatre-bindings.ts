@@ -3,6 +3,7 @@
 
 import type { ISheet } from '@theatre/core'
 import { onChange, types, val } from '@theatre/core'
+import type { Pointer } from '@theatre/dataverse'
 import studio from '@theatre/studio'
 import { Temporal } from 'temporal-polyfill'
 import { isHexColor } from 'validator'
@@ -184,10 +185,11 @@ export function bindOperatorToTheatre(
   for (const [key, field] of fields) {
     const pathToProps = field.pathToProps?.slice(2) || [key] // Skip object id and par/out keys
     let updating = false
-    // biome-ignore lint/suspicious/noExplicitAny: Theatre.js props are dynamically accessed
-    let pointer: any = sheetObj.props
+    // Theatre.js props are dynamically traversed via arbitrary keys,
+    // so we use Pointer<unknown> and cast at usage sites
+    let pointer: Pointer<unknown> = sheetObj.props as Pointer<unknown>
     for (const p of pathToProps) {
-      pointer = pointer[p]
+      pointer = (pointer as Record<string, Pointer<unknown>>)[p]
     }
 
     // Field -> Theatre binding

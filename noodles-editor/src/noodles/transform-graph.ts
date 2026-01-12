@@ -4,6 +4,7 @@ import type { Edge } from './noodles'
 import type { IOperator, Operator, OpType } from './operators'
 import { ContainerOp, ForLoopEndOp, GraphInputOp, opTypes } from './operators'
 import { getOpStore } from './store'
+import { validateConnection } from './utils/can-connect'
 import { memoize } from './utils/memoize'
 import { getParentPath, isDirectChild, parseHandleId } from './utils/path-utils'
 
@@ -124,12 +125,15 @@ export function transformGraph<
   updateGraph(edges as unknown as ExecutorEdge[])
 
   // Remove any connections that are not in the edges array
+  // Also clear connection errors for removed edges
   for (const op of instances) {
     for (const [_key, field] of Object.entries(op.inputs)) {
       for (const [id] of field.subscriptions) {
         const edge = edges.find(edge => edge.id === id)
         if (!edge) {
           field.removeConnection(id, 'reference')
+          // Also remove any connection error for this edge
+          op.removeConnectionError(id)
         }
       }
     }
@@ -173,6 +177,15 @@ export function transformGraph<
       const connectionType =
         (edge as Edge<OP, OP> & { type?: string }).type === 'ReferenceEdge' ? 'reference' : 'value'
       targetField.addConnection(edge.id, sourceField, connectionType)
+
+      // Validate connection and track errors - allow connection even if types mismatch
+      const validation = validateConnection(sourceField, targetField)
+      if (!validation.valid && validation.error) {
+        targetOp.addConnectionError(edge.id, validation.error)
+      } else {
+        // Clear any existing error for this edge if it's now valid
+        targetOp.removeConnectionError(edge.id)
+      }
 
       // Update operator dependencies for pull-based execution
       sourceOp.addDownstreamDependent(targetOp)

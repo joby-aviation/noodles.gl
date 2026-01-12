@@ -29,28 +29,50 @@ export function AnalyticsConsentBanner() {
     <div
       style={{
         position: 'fixed',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.95)',
-        color: 'white',
-        padding: '1rem 1.5rem',
-        borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+        top: 52,
+        left: 12,
+        backgroundColor: 'var(--color-bg-base, #1a1a1a)',
+        color: 'var(--color-text-primary, white)',
+        padding: '12px 14px',
+        borderRadius: 8,
+        border: '1px solid var(--color-border, rgba(255, 255, 255, 0.1))',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
         zIndex: 10000,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: '1rem',
-        flexWrap: 'wrap',
+        maxWidth: 260,
+        fontSize: 12,
       }}
     >
-      <div style={{ flex: 1, minWidth: '300px' }}>
-        <p style={{ margin: 0, fontSize: '0.9rem', lineHeight: '1.5' }}>
-          <strong>Help improve Noodles.gl</strong>
-          <br />
-          We use privacy-preserving analytics to understand which features are most useful. We never
-          collect your project data, node content, or personal information. You can change this
-          anytime in settings.{' '}
+      {/* Speech bubble arrow pointing up toward logo */}
+      <div
+        style={{
+          position: 'absolute',
+          top: -6,
+          left: 20,
+          width: 0,
+          height: 0,
+          borderLeft: '6px solid transparent',
+          borderRight: '6px solid transparent',
+          borderBottom: '6px solid var(--color-border, rgba(255, 255, 255, 0.1))',
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute',
+          top: -5,
+          left: 20,
+          width: 0,
+          height: 0,
+          borderLeft: '6px solid transparent',
+          borderRight: '6px solid transparent',
+          borderBottom: '6px solid var(--color-bg-base, #1a1a1a)',
+        }}
+      />
+
+      <p style={{ margin: '0 0 10px 0', lineHeight: 1.4 }}>
+        <strong>Help improve Noodles</strong>
+        <br />
+        <span style={{ color: 'var(--color-text-secondary, #999)', fontSize: 11 }}>
+          We use privacy-preserving analytics. No personal data collected.{' '}
           <a
             href="https://noodles.gl/privacy"
             target="_blank"
@@ -62,27 +84,20 @@ export function AnalyticsConsentBanner() {
           >
             Learn more
           </a>
-        </p>
-      </div>
-      <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+        </span>
+      </p>
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
         <button
           type="button"
           onClick={handleDecline}
           style={{
-            padding: '0.5rem 1rem',
+            padding: '5px 10px',
             backgroundColor: 'transparent',
-            color: 'white',
-            border: '1px solid rgba(255, 255, 255, 0.3)',
-            borderRadius: '4px',
+            color: 'var(--color-text-secondary, #999)',
+            border: '1px solid var(--color-border, rgba(255, 255, 255, 0.2))',
+            borderRadius: 4,
             cursor: 'pointer',
-            fontSize: '0.9rem',
-            transition: 'all 0.2s',
-          }}
-          onMouseEnter={e => {
-            e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.backgroundColor = 'transparent'
+            fontSize: 11,
           }}
         >
           Decline
@@ -91,20 +106,13 @@ export function AnalyticsConsentBanner() {
           type="button"
           onClick={handleAccept}
           style={{
-            padding: '0.5rem 1rem',
+            padding: '5px 10px',
             backgroundColor: '#4f46e5',
             color: 'white',
             border: 'none',
-            borderRadius: '4px',
+            borderRadius: 4,
             cursor: 'pointer',
-            fontSize: '0.9rem',
-            transition: 'all 0.2s',
-          }}
-          onMouseEnter={e => {
-            e.currentTarget.style.backgroundColor = '#4338ca'
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.backgroundColor = '#4f46e5'
+            fontSize: 11,
           }}
         >
           Accept
