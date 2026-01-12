@@ -826,4 +826,66 @@ describe('theatre-bindings', () => {
       cleanup?.()
     })
   })
+
+  describe('cold prism fix', () => {
+    it('should not produce cold prism warnings during field updates', () => {
+      const consoleWarnSpy = vi.spyOn(console, 'warn')
+
+      const numberField = createField(
+        NumberField,
+        10,
+        { min: 0, max: 100, step: 1 },
+        '/test-op',
+        'value'
+      )
+
+      const mockOp = {
+        id: '/test-op',
+        inputs: { value: numberField },
+        outputs: {},
+        locked: { value: false },
+      } as any
+
+      const cleanup = bindOperatorToTheatre(mockOp, testSheet)
+
+      numberField.setValue(50)
+      numberField.setValue(75)
+      numberField.setValue(100)
+
+      const coldPrismWarnings = consoleWarnSpy.mock.calls.filter(call =>
+        String(call[0]).includes('cold prism')
+      )
+      expect(coldPrismWarnings).toHaveLength(0)
+
+      cleanup?.()
+      consoleWarnSpy.mockRestore()
+    })
+
+    it('should not produce cold prism warnings with color field conversions', () => {
+      const consoleWarnSpy = vi.spyOn(console, 'warn')
+
+      const colorField = new ColorField('#00ff00')
+      colorField.pathToProps = ['/test-op', 'par', 'color']
+
+      const mockOp = {
+        id: '/test-op',
+        inputs: { color: colorField },
+        outputs: {},
+        locked: { value: false },
+      } as any
+
+      const cleanup = bindOperatorToTheatre(mockOp, testSheet)
+
+      colorField.setValue('#ff0000')
+      colorField.setValue('#0000ff')
+
+      const coldPrismWarnings = consoleWarnSpy.mock.calls.filter(call =>
+        String(call[0]).includes('cold prism')
+      )
+      expect(coldPrismWarnings).toHaveLength(0)
+
+      cleanup?.()
+      consoleWarnSpy.mockRestore()
+    })
+  })
 })
