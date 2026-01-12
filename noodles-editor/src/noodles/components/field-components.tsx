@@ -39,7 +39,7 @@ import { edgeId, type OpId } from '../utils/id-utils'
 import { ColorSwatch } from './color-swatch'
 import { GeocodingDialog } from './geocoding-dialog'
 import menuStyles from './menu.module.css'
-import { handleClass } from './op-components'
+import { handleClass, useHandleDimmed } from './op-components'
 
 type InputComponent = React.ComponentType<{
   id: OpId
@@ -1896,6 +1896,7 @@ export function FieldComponent({
   const nid = useNodeId()
   const edges = useEdges()
   const qualifiedFieldId = handle ? `${handle.namespace}.${fieldId}` : `par.${fieldId}`
+  const isHandleDimmed = useHandleDimmed(nid ?? '', qualifiedFieldId)
   const incomers = edges.filter(
     edge =>
       edge.target === nid && edge.targetHandle === qualifiedFieldId && edge.type !== 'ReferenceEdge'
@@ -1914,7 +1915,7 @@ export function FieldComponent({
       {handle && (
         <Handle
           id={qualifiedFieldId}
-          className={handleClass(field)}
+          className={cx(handleClass(field), { [s.handleDimmed]: isHandleDimmed })}
           style={handleStyle}
           type={handle.type}
           position={Position.Left}

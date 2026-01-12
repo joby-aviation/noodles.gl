@@ -97,9 +97,17 @@ export const useOperatorStore = create<OperatorStoreState>((set, get) => ({
 // UI Store (Zustand) - Separate slice for UI state
 // ============================================================================
 
+interface ConnectionDragState {
+  sourceNodeId: string
+  sourceHandleId: string
+  compatibleNodeIds: Set<string>
+}
+
 interface UIStoreState {
   hoveredOutputHandle: { nodeId: string; handleId: string } | null
   setHoveredOutputHandle: (handle: { nodeId: string; handleId: string } | null) => void
+  connectionDragState: ConnectionDragState | null
+  setConnectionDragState: (state: ConnectionDragState | null) => void
   sidebarVisible: boolean
   setSidebarVisible: (visible: boolean) => void
   settingsDialogOpen: boolean
@@ -109,6 +117,8 @@ interface UIStoreState {
 export const useUIStore = create<UIStoreState>(set => ({
   hoveredOutputHandle: null,
   setHoveredOutputHandle: handle => set({ hoveredOutputHandle: handle }),
+  connectionDragState: null,
+  setConnectionDragState: state => set({ connectionDragState: state }),
   sidebarVisible: true,
   setSidebarVisible: visible => set({ sidebarVisible: visible }),
   settingsDialogOpen: false,

@@ -882,6 +882,24 @@
   box-shadow: 0 0 0 1px var(--node-execution-executing-color);
 }
 
+.wrapperDimmed {
+  opacity: 0.35;
+  filter: grayscale(0.5);
+  pointer-events: none;
+  transition:
+    opacity 0.15s ease-out,
+    filter 0.15s ease-out;
+}
+
+.handleDimmed {
+  opacity: 0.25;
+  filter: grayscale(0.8);
+  pointer-events: none;
+  transition:
+    opacity 0.15s ease-out,
+    filter 0.15s ease-out;
+}
+
 .outputHandleContainer {
   position: absolute;
   top: 0;
