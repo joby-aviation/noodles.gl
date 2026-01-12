@@ -180,13 +180,13 @@ import {
 } from './fields'
 import { DEFAULT_LATITUDE, DEFAULT_LONGITUDE, safeMode } from './globals'
 import { getAllOps, getOp, hasOp } from './store'
+import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
 import { composeAccessor, isAccessor } from './utils/accessor-helpers'
 import type { ExtractProps } from './utils/extract-props'
 import { projectScheme } from './utils/filesystem'
 import type { OpId } from './utils/id-utils'
 import { isDirectChild } from './utils/path-utils'
 import { pick } from './utils/pick'
-import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
 import { validateViewState } from './utils/viewstate-helpers'
 
 // https://stackoverflow.com/questions/66044717/typescript-infer-type-of-abstract-methods-implementation
@@ -4531,6 +4531,23 @@ type FunctionWithSource = ((...args: unknown[]) => unknown | Promise<unknown>) &
 // biome-ignore lint/complexity/useArrowFunction: This is a function declaration
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 
+// Format a syntax error message to be more helpful
+function formatSyntaxError(error: Error, id: string, body: string): string {
+  const errorType = error.name === 'SyntaxError' ? 'Syntax error' : error.name
+  const lines = body.split('\n')
+  const lineCount = lines.length
+
+  // Build a helpful message
+  let message = `${errorType} in ${id}: ${error.message}`
+
+  // For single-line code, show the code inline
+  if (lineCount === 1 && body.length < 60) {
+    message += `\n  Code: ${body}`
+  }
+
+  return message
+}
+
 // Create a function with a source property for debugging
 function fnWithSource(args: string[], body: string, id: string): FunctionWithSource {
   try {
@@ -4545,7 +4562,9 @@ function fnWithSource(args: string[], body: string, id: string): FunctionWithSou
     })
     return func
   } catch (e) {
-    console.error(id, e)
+    const error = e instanceof Error ? e : new Error(String(e))
+    // Use console.warn since syntax errors during editing are expected
+    console.warn(formatSyntaxError(error, id, body))
     throw e
   }
 }

@@ -485,6 +485,57 @@
   inset: 0;
 }
 
+.codeFieldError {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 4px 8px;
+  background: rgba(220, 53, 69, 0.9);
+  color: white;
+  font-size: 11px;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  max-height: 40px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.codeFieldError i {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.codeFieldError span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.expressionFieldError {
+  padding: 2px 6px;
+  background: rgba(220, 53, 69, 0.9);
+  color: white;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 2px;
+  margin-top: 2px;
+}
+
+.expressionFieldError i {
+  flex-shrink: 0;
+  font-size: 9px;
+}
+
+.expressionFieldError span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .fieldInputNumber {
   margin-right: -12px;
   cursor: ew-resize;

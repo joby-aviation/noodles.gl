@@ -75,7 +75,7 @@ const categories: Record<string, string[]> = Object.fromEntries(
 const SLOW_EXECUTION_THRESHOLD_MS = 100
 
 // Hook to subscribe to operator execution state
-function useExecutionState(op: Operator<IOperator>): ExecutionState {
+export function useExecutionState(op: Operator<IOperator>): ExecutionState {
   const [executionState, setExecutionState] = useState<ExecutionState>({ status: 'idle' })
 
   useEffect(() => {

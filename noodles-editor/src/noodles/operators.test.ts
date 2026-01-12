@@ -362,6 +362,25 @@ describe('ExpressionOp', () => {
     })
     expect(val2).toEqual({ data: expect.any(Function) })
   })
+
+  it('throws SyntaxError for invalid expressions and logs warning', () => {
+    const operator = new ExpressionOp('/expression-syntax-error')
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    expect(() => {
+      operator.execute({
+        data: [],
+        expression: 'return }', // Invalid syntax
+      })
+    }).toThrow(SyntaxError)
+
+    // Verify the warning was logged with helpful formatting
+    expect(warnSpy).toHaveBeenCalledTimes(1)
+    expect(warnSpy.mock.calls[0][0]).toContain('Syntax error')
+    expect(warnSpy.mock.calls[0][0]).toContain('/expression-syntax-error')
+
+    warnSpy.mockRestore()
+  })
 })
 
 describe('AccessorOp', () => {

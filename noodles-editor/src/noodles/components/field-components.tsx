@@ -18,6 +18,7 @@ import {
   type ColorRampField,
   type CompoundPropsField,
   type DateField,
+  ExpressionField,
   type Field,
   type FileField,
   getFieldReferences,
@@ -39,7 +40,7 @@ import { edgeId, type OpId } from '../utils/id-utils'
 import { ColorSwatch } from './color-swatch'
 import { GeocodingDialog } from './geocoding-dialog'
 import menuStyles from './menu.module.css'
-import { handleClass } from './op-components'
+import { handleClass, useExecutionState } from './op-components'
 
 type InputComponent = React.ComponentType<{
   id: OpId
@@ -97,6 +98,18 @@ const formatText = (val: unknown) =>
       ? val
       : JSON.stringify(val, null, 2)
 
+// Shows execution errors inline for expression fields
+function ExpressionErrorIndicator({ op }: { op: Operator<IOperator> }) {
+  const executionState = useExecutionState(op)
+  if (executionState.status !== 'error' || !executionState.error) return null
+  return (
+    <div className={s.expressionFieldError} title={executionState.error}>
+      <i className="pi pi-exclamation-triangle" />
+      <span>{executionState.error}</span>
+    </div>
+  )
+}
+
 export function TextFieldComponent({
   id,
   field,
@@ -107,6 +120,7 @@ export function TextFieldComponent({
   disabled: boolean
 }) {
   const [value, setValue] = useState(formatText(field.value))
+  const isExpression = field instanceof ExpressionField && field.op
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
@@ -146,7 +160,7 @@ export function TextFieldComponent({
     input = (
       <input
         id={id}
-        className={s.fieldInput}
+        className={cx(s.fieldInput, { [s.fieldInputExpression]: isExpression })}
         title={value}
         value={value}
         onBlur={onChange}
@@ -162,6 +176,7 @@ export function TextFieldComponent({
         {id}
       </label>
       <div className={s.fieldInputWrapper}>{input}</div>
+      {isExpression && <ExpressionErrorIndicator op={field.op} />}
     </div>
   )
 }
@@ -361,6 +376,7 @@ export function CodeFieldComponent({
   const { setEdges, getNode } = useReactFlow()
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const executionState = useExecutionState(field.op)
 
   const nodeId = useNodeId() as string
   const node = getNode(nodeId)
@@ -462,6 +478,8 @@ export function CodeFieldComponent({
     })
   }, [fieldReferences, thisOpId, thisFieldId, nodeId, setEdges])
 
+  const hasError = executionState.status === 'error' && executionState.error
+
   return (
     <div className={cx(s.fieldWrapper, s.fieldWrapperCode)} ref={containerRef}>
       <div className={s.fieldInputWrapperCodeEditor}>
@@ -480,12 +498,18 @@ export function CodeFieldComponent({
           }}
           theme="vs-dark"
           width="100%"
-          height={nodeHeight - 80}
+          height={nodeHeight - (hasError ? 100 : 80)}
           defaultValue={field.value}
           onChange={handleEditorChange}
           onMount={handleEditorDidMount}
         />
       </div>
+      {hasError && (
+        <div className={s.codeFieldError} title={executionState.error}>
+          <i className="pi pi-exclamation-triangle" />
+          <span>{executionState.error}</span>
+        </div>
+      )}
     </div>
   )
 }
