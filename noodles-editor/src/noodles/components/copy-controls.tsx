@@ -2,9 +2,9 @@ import { useReactFlow } from '@xyflow/react'
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 'react'
 
 import { useProjectModifications } from '../hooks/use-project-modifications'
-import { getOpStore, useNestingStore } from '../store'
+import { getOpStore, hasOp, useNestingStore } from '../store'
 import { edgeId, nodeId } from '../utils/id-utils'
-import { getBaseName } from '../utils/path-utils'
+import { getBaseName, generateQualifiedPath } from '../utils/path-utils'
 import { type CopiedNodesJSON, safeStringify, serializeNodes } from '../utils/serialization'
 
 export interface CopyControlsRef {
@@ -21,6 +21,32 @@ function copy(text: string) {
   })
   const data = [new ClipboardItem({ [type]: blob })]
   navigator.clipboard.write(data)
+}
+
+// Generate a unique node ID, checking both operators and existing React Flow nodes
+// This is necessary because group nodes (e.g., ForLoop body) aren't operators
+function uniqueNodeId(
+  baseName: string,
+  containerId: string | undefined,
+  existingNodeIds: Set<string>
+): string {
+  // First try the standard nodeId function
+  const newId = nodeId(baseName, containerId)
+
+  // If nodeId returned a unique ID that doesn't conflict with existing nodes, use it
+  if (!existingNodeIds.has(newId)) {
+    return newId
+  }
+
+  // Otherwise, find a unique variant by appending numbers
+  for (let i = 1; i < 100_000; i++) {
+    const candidatePath = generateQualifiedPath(`${baseName}-${i}`, containerId)
+    if (!existingNodeIds.has(candidatePath) && !hasOp(candidatePath)) {
+      return candidatePath
+    }
+  }
+
+  return newId // Fallback
 }
 
 export const CopyControls = forwardRef<CopyControlsRef>((_, ref) => {
@@ -72,6 +98,34 @@ export const CopyControls = forwardRef<CopyControlsRef>((_, ref) => {
       }
     }
 
+    // Auto-include parent group nodes for children being copied (e.g., ForLoop body)
+    let addedParent = true
+    while (addedParent) {
+      addedParent = false
+      for (const node of nodesToCopySet) {
+        if (node.parentId) {
+          const parent = allGraphNodes.find(n => n.id === node.parentId)
+          if (parent && parent.type === 'group' && !nodesToCopySet.has(parent)) {
+            nodesToCopySet.add(parent)
+            addedParent = true
+          }
+        }
+      }
+    }
+
+    // Add edges for included group nodes (e.g., edges between ForLoop begin/end)
+    for (const node of nodesToCopySet) {
+      if (node.type === 'group') {
+        const children = allGraphNodes.filter(childNode => childNode.parentId === node.id)
+        const groupAndChildrenIds = new Set([node.id, ...children.map(c => c.id)])
+        for (const edge of allGraphEdges) {
+          if (groupAndChildrenIds.has(edge.source) && groupAndChildrenIds.has(edge.target)) {
+            edgesToCopySet.add(edge)
+          }
+        }
+      }
+    }
+
     const nodesToCopy = Array.from(nodesToCopySet)
     const edgesToCopy = Array.from(edgesToCopySet)
 
@@ -90,14 +144,45 @@ export const CopyControls = forwardRef<CopyControlsRef>((_, ref) => {
 
     const { nodes, edges } = JSON.parse(data) as CopiedNodesJSON
 
-    // update node ids to not conflict, and then remap edges to new node ids
+    // Sort nodes so parents come before children (ensures parent IDs are in idMap first)
+    const sortedNodes = [...nodes].sort((a, b) => {
+      // Group nodes (parents) should come first
+      if (a.type === 'group' && b.type !== 'group') return -1
+      if (b.type === 'group' && a.type !== 'group') return 1
+      // If one is the parent of the other, parent comes first
+      if (a.parentId === b.id) return 1
+      if (b.parentId === a.id) return -1
+      return 0
+    })
+
+    // Build set of existing node IDs (both operators and React Flow nodes like groups)
+    const existingNodeIds = new Set(getNodes().map(n => n.id))
+
+    // First pass: generate new IDs and populate idMap
+    // Use remapped parent ID as container for children
     const idMap = new Map<string, string>()
-    for (const node of nodes) {
+    for (const node of sortedNodes) {
       const baseName = getBaseName(node.id).replace(/-\d+$/, '') // scatter-1 -> scatter
-      const newId = nodeId(baseName, currentContainerId)
+
+      // If this node has a parentId, use the remapped parent as the container
+      // Otherwise use the currentContainerId (defaults to root '/')
+      let containerId = currentContainerId
+      if (node.parentId && idMap.has(node.parentId)) {
+        containerId = idMap.get(node.parentId)!
+      }
+
+      const newId = uniqueNodeId(baseName, containerId, existingNodeIds)
       idMap.set(node.id, newId)
-      node.id = newId
+      // Add new ID to existing set to avoid conflicts with subsequent nodes
+      existingNodeIds.add(newId)
     }
+
+    // Second pass: create nodes with remapped IDs and parentIds
+    const pastedNodes = sortedNodes.map(node => {
+      const newId = idMap.get(node.id)!
+      const newParentId = node.parentId ? idMap.get(node.parentId) : undefined
+      return { ...node, id: newId, parentId: newParentId }
+    })
 
     const deconflictedEdges = edges.map(edge => {
       const source = idMap.get(edge.source) || edge.source
@@ -110,8 +195,9 @@ export const CopyControls = forwardRef<CopyControlsRef>((_, ref) => {
       }
     })
 
-    // Calculate the bounding box of copied nodes
-    const [minX, minY] = nodes.reduce(
+    // Calculate the bounding box of copied nodes (only top-level nodes for positioning)
+    const topLevelNodes = pastedNodes.filter(n => !n.parentId)
+    const [minX, minY] = topLevelNodes.reduce(
       ([minX, minY], { position }) => [Math.min(minX, position.x), Math.min(minY, position.y)],
       [Infinity, Infinity]
     )
@@ -119,16 +205,19 @@ export const CopyControls = forwardRef<CopyControlsRef>((_, ref) => {
     // Convert mouse position to flow coordinates
     const flowPosition = screenToFlowPosition(mousePositionRef.current)
 
-    // Position nodes relative to cursor, maintaining their relative positions
-    for (const node of nodes) {
-      node.position.x = flowPosition.x + (node.position.x - minX)
-      node.position.y = flowPosition.y + (node.position.y - minY)
+    // Position top-level nodes relative to cursor, maintaining their relative positions
+    // Child nodes keep their positions relative to their parent
+    for (const node of pastedNodes) {
+      if (!node.parentId) {
+        node.position.x = flowPosition.x + (node.position.x - minX)
+        node.position.y = flowPosition.y + (node.position.y - minY)
+      }
     }
 
     // Use applyModifications to add nodes and edges atomically
     // This ensures nodes are in the array before edges are validated
     const modifications = [
-      ...nodes.map(node => ({ type: 'add_node' as const, data: node })),
+      ...pastedNodes.map(node => ({ type: 'add_node' as const, data: node })),
       ...deconflictedEdges.map(edge => ({ type: 'add_edge' as const, data: edge })),
     ]
 
@@ -139,7 +228,7 @@ export const CopyControls = forwardRef<CopyControlsRef>((_, ref) => {
     if (result.warnings) {
       console.warn('Paste warnings:', result.warnings)
     }
-  }, [currentContainerId, screenToFlowPosition, applyModifications])
+  }, [currentContainerId, screenToFlowPosition, applyModifications, getNodes])
 
   useImperativeHandle(
     ref,
