@@ -610,7 +610,15 @@ export function getNoodles(): Visualization {
 
   const loadProjectFile = useCallback(
     (project: NoodlesProjectJSON, name?: string) => {
-      const { nodes, edges, viewport, timeline, editorSettings, renderSettings: projectRenderSettings, apiKeys } = project
+      const {
+        nodes,
+        edges,
+        viewport,
+        timeline,
+        editorSettings,
+        renderSettings: projectRenderSettings,
+        apiKeys,
+      } = project
 
       // Mark that we've programmatically loading this project BEFORE any state changes
       // This prevents the useEffect from trying to reload it from storage when the URL changes

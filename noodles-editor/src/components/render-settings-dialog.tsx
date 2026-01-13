@@ -1,9 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
-import {
-  DEFAULT_RENDER_SETTINGS,
-  type RenderSettings,
-} from '../noodles/utils/serialization'
+import { DEFAULT_RENDER_SETTINGS, type RenderSettings } from '../noodles/utils/serialization'
 import s from './render-settings-dialog.module.css'
 
 interface RenderSettingsDialogProps {
