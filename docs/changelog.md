@@ -5,24 +5,22 @@ All notable changes to Noodles.gl are documented here.
 ## January 2026
 
 ### Added
-- Save As keyboard shortcut (Cmd/Ctrl+Shift+S)
 - Dim unconnectable nodes during connection drag ([#250](https://github.com/joby-aviation/noodles.gl/pull/250))
 
 ### Changed
 - ForLoop now returns array of all iteration results ([#240](https://github.com/joby-aviation/noodles.gl/pull/240))
-- ForLoop field renamed from 'd' to 'item' for clarity
+- ForLoop field renamed from 'd' to 'item' for clarity ([#240](https://github.com/joby-aviation/noodles.gl/pull/240))
 
 ### Fixed
 - Theatre.js cold prism warning ([#258](https://github.com/joby-aviation/noodles.gl/pull/258))
 - "Project not found" dialog after File > Import then Save ([#188](https://github.com/joby-aviation/noodles.gl/pull/188))
-- Parent group node included when copying ForLoop nodes
+- Parent group node included when copying ForLoop nodes ([#222](https://github.com/joby-aviation/noodles.gl/pull/222))
 - Syntax error messaging for ExpressionOp and CodeOp ([#244](https://github.com/joby-aviation/noodles.gl/pull/244))
 - Connection constraint violation error messages ([#255](https://github.com/joby-aviation/noodles.gl/pull/255))
 
 ## December 2025
 
 ### Added
-- Expression autocomplete with Monaco editor overlay
 - Tools shelf with PointOp wizard and CSV importer ([#192](https://github.com/joby-aviation/noodles.gl/pull/192))
 - Collapsible sidebar with node renaming ([#193](https://github.com/joby-aviation/noodles.gl/pull/193))
 - OrthographicView operator ([#179](https://github.com/joby-aviation/noodles.gl/pull/179))
@@ -45,7 +43,6 @@ All notable changes to Noodles.gl are documented here.
 - Projection switching in MaplibreBasemapOp ([#187](https://github.com/joby-aviation/noodles.gl/pull/187))
 
 ### Changed
-- Theatre.js field type conversions use adapter pattern
 - ReactFlow upgraded from v11 to v12 ([#221](https://github.com/joby-aviation/noodles.gl/pull/221))
 - Migrated from Volta to Corepack ([#174](https://github.com/joby-aviation/noodles.gl/pull/174))
 
