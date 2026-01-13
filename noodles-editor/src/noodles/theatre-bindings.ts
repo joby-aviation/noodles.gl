@@ -37,7 +37,6 @@ export interface TheatreAdapter<F, T> {
 }
 
 // Color Adapter: hex string <-> RGBA object
-const colorAdapter: TheatreAdapter<string, Rgba> = {
   toTheatre(fieldValue: string): Rgba {
     if (typeof fieldValue === 'string' && isHexColor(fieldValue)) {
       return hexToRgba(fieldValue)
@@ -45,6 +44,7 @@ const colorAdapter: TheatreAdapter<string, Rgba> = {
     if (Array.isArray(fieldValue)) {
       return colorToRgba(fieldValue as number[])
     }
+    console.warn('Unexpected color value format:', fieldValue)
     return fieldValue as unknown as Rgba
   },
 
