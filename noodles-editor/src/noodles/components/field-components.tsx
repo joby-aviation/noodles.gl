@@ -177,8 +177,22 @@ function validateExpression(expression: string): string | null {
 
   try {
     // Try to parse as a function body (wrapping with return like the operators do)
+    // Match the actual parameters available in AccessorOp.execute() and ExpressionOp.execute()
     // eslint-disable-next-line no-new-func
-    new Function('d', 'i', 'data', 'op', `return ${expression}`)
+    new Function(
+      'd',
+      'i',
+      'data',
+      'op',
+      'utils',
+      'd3',
+      'turf',
+      'deck',
+      'Plot',
+      'vega',
+      'Temporal',
+      `return ${expression}`
+    )
     return null
   } catch (e) {
     if (e instanceof SyntaxError) {
@@ -197,7 +211,7 @@ export function ExpressionFieldComponent({
   field: ExpressionField
   disabled: boolean
 }) {
-  const [value, setValue] = useState(field.value || '')
+  const [value, setValue] = useState(field.value ?? '')
   const [overlayOpen, setOverlayOpen] = useState(false)
   const [validationError, setValidationError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -228,9 +242,9 @@ export function ExpressionFieldComponent({
   useEffect(() => {
     const sub = field.subscribe(newVal => {
       if (typeof newVal === 'function') return
-      setValue(newVal || '')
+      setValue(newVal ?? '')
       // Validate on external changes
-      setValidationError(validateExpression(newVal || ''))
+      setValidationError(validateExpression(newVal ?? ''))
     })
     return () => sub.unsubscribe()
   }, [field])

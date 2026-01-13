@@ -110,12 +110,8 @@ export function ExpressionEditorOverlay({
         onClose()
       })
 
-      // Handle Tab to confirm (common pattern)
-      editor.addCommand(monaco.KeyCode.Tab, () => {
-        const currentValue = editor.getValue()
-        onChange(currentValue)
-        onClose()
-      })
+      // Note: Tab key is NOT overridden here to allow Monaco's autocomplete to work
+      // Users can accept autocomplete suggestions with Tab (standard IDE behavior)
     },
     [onChange, onClose]
   )
@@ -193,7 +189,7 @@ export function ExpressionEditorOverlay({
       </div>
       {validationError && <div className={s.expressionEditorError}>{validationError}</div>}
       <div className={s.expressionEditorHint}>
-        Enter to confirm • Escape to cancel • Tab for completion
+        Enter to confirm • Escape to cancel • Tab to accept suggestion
       </div>
     </div>,
     document.body

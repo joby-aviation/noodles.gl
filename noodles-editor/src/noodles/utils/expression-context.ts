@@ -108,7 +108,15 @@ function isLayerOperator(op: Operator<IOperator>): boolean {
 
 // Find downstream layer operator that consumes an accessor
 // This traces through the graph to find where an AccessorOp's output ends up
-function findDownstreamLayerData(opId: OpId, edges: Edge[]): unknown | null {
+function findDownstreamLayerData(
+  opId: OpId,
+  edges: Edge[],
+  visited: Set<OpId> = new Set()
+): unknown | null {
+  // Prevent infinite recursion on cycles
+  if (visited.has(opId)) return null
+  visited.add(opId)
+
   // Find edges where this operator is the source
   const downstreamEdges = edges.filter(e => e.source === opId)
 
@@ -125,7 +133,7 @@ function findDownstreamLayerData(opId: OpId, edges: Edge[]): unknown | null {
     }
 
     // Otherwise, trace further downstream (accessor may go through MapRange, ColorRamp, etc.)
-    const result = findDownstreamLayerData(edge.target, edges)
+    const result = findDownstreamLayerData(edge.target, edges, visited)
     if (result !== null) return result
   }
 

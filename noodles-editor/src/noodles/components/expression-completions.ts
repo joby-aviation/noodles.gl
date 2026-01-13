@@ -141,12 +141,12 @@ export function createExpressionCompletionProvider(
 
       const suggestions: CompletionItem[] = []
 
-      // Check for op(' or op(" - suggest operator paths
-      const opPathMatch = textUntilPosition.match(/op\(['"]([^'"]*)$/)
+      // Check for op(' or op(" or op(` - suggest operator paths
+      const opPathMatch = textUntilPosition.match(/op\((['"`])([^'"`]*)$/)
       if (opPathMatch) {
-        const partialPath = opPathMatch[1]
+        const partialPath = opPathMatch[2]
         const filteredPaths = operatorPaths.filter(p =>
-          p.toLowerCase().includes(partialPath.toLowerCase())
+          p.toLowerCase().startsWith(partialPath.toLowerCase())
         )
         suggestions.push(
           ...createOperatorPathCompletions(filteredPaths, range, monaco.languages.CompletionItemKind)
