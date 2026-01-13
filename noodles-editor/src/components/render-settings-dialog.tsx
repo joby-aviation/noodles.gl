@@ -3,11 +3,27 @@ import { Cross2Icon } from '@radix-ui/react-icons'
 import { DEFAULT_RENDER_SETTINGS, type RenderSettings } from '../noodles/utils/serialization'
 import s from './render-settings-dialog.module.css'
 
+const RESOLUTION_PRESETS = [
+  { label: '1080p 16:9 - 1920×1080', width: 1920, height: 1080 },
+  { label: '1080p 9:16 - 1080×1920', width: 1080, height: 1920 },
+  { label: '1080p 1:1 - 1080×1080', width: 1080, height: 1080 },
+  { label: '1080p 4:5 - 1080×1350', width: 1080, height: 1350 },
+  { label: '1080p 3:4 - 1080×1440', width: 1080, height: 1440 },
+  { label: '720p 16:9 - 1280×720', width: 1280, height: 720 },
+  { label: '4K 16:9 - 3840×2160', width: 3840, height: 2160 },
+  { label: '4K 1:1 - 2160×2160', width: 2160, height: 2160 },
+] as const
+
 interface RenderSettingsDialogProps {
   open: boolean
   setOpen: (open: boolean) => void
   settings: RenderSettings
   onSettingsChange: (settings: RenderSettings) => void
+}
+
+function getResolutionPresetValue(width: number, height: number): string {
+  const preset = RESOLUTION_PRESETS.find(p => p.width === width && p.height === height)
+  return preset ? `${preset.width}x${preset.height}` : 'custom'
 }
 
 export function RenderSettingsDialog({
@@ -22,6 +38,31 @@ export function RenderSettingsDialog({
 
   const handleResetToDefaults = () => {
     onSettingsChange({ ...DEFAULT_RENDER_SETTINGS })
+  }
+
+  const handleResolutionPresetChange = (value: string) => {
+    if (value === 'custom') return
+    const [width, height] = value.split('x').map(Number)
+    updateSetting('resolution', { width, height })
+  }
+
+  const handleResolutionBlur = (field: 'width' | 'height', value: number) => {
+    if (Number.isNaN(value) || value < 1) {
+      updateSetting('resolution', {
+        ...settings.resolution,
+        [field]: DEFAULT_RENDER_SETTINGS.resolution[field],
+      })
+    }
+  }
+
+  const handleNumberBlur = <K extends keyof RenderSettings>(
+    key: K,
+    value: number,
+    min?: number
+  ) => {
+    if (Number.isNaN(value) || (min !== undefined && value < min)) {
+      updateSetting(key, DEFAULT_RENDER_SETTINGS[key])
+    }
   }
 
   return (
@@ -53,8 +94,33 @@ export function RenderSettingsDialog({
             {settings.display === 'fixed' && (
               <>
                 <div className={s.settingRow}>
-                  <label htmlFor="render-resolution-width" className={s.label}>
+                  <label htmlFor="render-resolution-preset" className={s.label}>
                     Resolution
+                  </label>
+                  <select
+                    id="render-resolution-preset"
+                    className={s.select}
+                    value={getResolutionPresetValue(
+                      settings.resolution.width,
+                      settings.resolution.height
+                    )}
+                    onChange={e => handleResolutionPresetChange(e.target.value)}
+                  >
+                    {RESOLUTION_PRESETS.map(preset => (
+                      <option
+                        key={`${preset.width}x${preset.height}`}
+                        value={`${preset.width}x${preset.height}`}
+                      >
+                        {preset.label}
+                      </option>
+                    ))}
+                    <option value="custom">Custom</option>
+                  </select>
+                </div>
+
+                <div className={s.settingRow}>
+                  <label htmlFor="render-resolution-width" className={s.label}>
+                    Custom Size
                   </label>
                   <div className={s.resolutionInputs}>
                     <input
@@ -62,12 +128,15 @@ export function RenderSettingsDialog({
                       type="number"
                       className={s.numberInput}
                       value={settings.resolution.width}
+                      min="1"
+                      max="7680"
                       onChange={e =>
                         updateSetting('resolution', {
                           ...settings.resolution,
                           width: Number(e.target.value),
                         })
                       }
+                      onBlur={e => handleResolutionBlur('width', Number(e.target.value))}
                     />
                     <span className={s.separator}>x</span>
                     <input
@@ -75,12 +144,15 @@ export function RenderSettingsDialog({
                       type="number"
                       className={s.numberInput}
                       value={settings.resolution.height}
+                      min="1"
+                      max="4320"
                       onChange={e =>
                         updateSetting('resolution', {
                           ...settings.resolution,
                           height: Number(e.target.value),
                         })
                       }
+                      onBlur={e => handleResolutionBlur('height', Number(e.target.value))}
                     />
                   </div>
                 </div>
@@ -155,6 +227,7 @@ export function RenderSettingsDialog({
                 min="1"
                 max="120"
                 onChange={e => updateSetting('framerate', Number(e.target.value))}
+                onBlur={e => handleNumberBlur('framerate', Number(e.target.value), 1)}
               />
               <span className={s.unit}>fps</span>
             </div>
@@ -168,9 +241,10 @@ export function RenderSettingsDialog({
                 type="number"
                 className={s.numberInput}
                 value={settings.bitrateMbps}
-                min="5"
+                min="1"
                 max="60"
                 onChange={e => updateSetting('bitrateMbps', Number(e.target.value))}
+                onBlur={e => handleNumberBlur('bitrateMbps', Number(e.target.value), 1)}
               />
               <span className={s.unit}>Mbps</span>
             </div>
@@ -222,6 +296,7 @@ export function RenderSettingsDialog({
                 max="2000"
                 step="50"
                 onChange={e => updateSetting('captureDelay', Number(e.target.value))}
+                onBlur={e => handleNumberBlur('captureDelay', Number(e.target.value), 0)}
               />
               <span className={s.unit}>ms</span>
             </div>
