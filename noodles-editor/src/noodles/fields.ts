@@ -1,10 +1,12 @@
+import type { types as TheatreTypes } from '@theatre/core'
+import { types } from '@theatre/core'
 import { assert, type LayerProps, View } from '@deck.gl/core'
 import { interpolateLab, scaleOrdinal, schemeAccent } from 'd3'
 import { BehaviorSubject, combineLatest, type Subscription } from 'rxjs'
 import { Temporal } from 'temporal-polyfill'
 import { isHexColor } from 'validator'
 import z from 'zod/v4'
-import { colorToHex } from '../utils/color'
+import { colorToHex, colorToRgba, hexToRgba, type Rgba, rgbaToHex } from '../utils/color'
 import type { BetterDeckProps, BetterMapProps } from '../visualizations'
 import type { inputComponents } from './components/field-components'
 import type { IOperator, Operator } from './operators'
@@ -237,6 +239,23 @@ export abstract class Field<
   static deserialize(value: unknown) {
     return value
   }
+
+  // Theatre.js integration methods - override in subclasses for Theatre-compatible fields
+  // Returns the Theatre.js prop config for this field, or undefined if not Theatre-compatible
+  toTheatreProp(): TheatreTypes.PropTypeConfig | undefined {
+    return undefined
+  }
+
+  // Converts field value to Theatre.js value format (for Field → Theatre sync)
+  toTheatreValue(): unknown {
+    return this.value
+  }
+
+  // Converts Theatre.js value to field value format (for Theatre → Field sync)
+  // Return null to skip sync (used by CompoundPropsField)
+  fromTheatreValue(theatreValue: unknown): unknown | null {
+    return theatreValue
+  }
 }
 
 export class StringField extends Field<z.ZodString> {
@@ -244,6 +263,10 @@ export class StringField extends Field<z.ZodString> {
   static defaultValue = ''
   createSchema() {
     return z.string()
+  }
+
+  toTheatreProp(): TheatreTypes.PropTypeConfig {
+    return types.string(this.value)
   }
 }
 
@@ -453,6 +476,13 @@ export class StringLiteralField extends Field<
     this.schema = this.createSchema(mergedOpts)
     this.schema = this.enhanceSchema(mergedOpts)
   }
+
+  toTheatreProp(): TheatreTypes.PropTypeConfig {
+    return types.stringLiteral(
+      this.value,
+      Object.fromEntries(this.choices.map(({ label, value }) => [label, value]))
+    )
+  }
 }
 
 export class NumberField extends Field<z.ZodNumber, NumberFieldOptions> {
@@ -488,6 +518,13 @@ export class NumberField extends Field<z.ZodNumber, NumberFieldOptions> {
     this.softMax = opts.softMax
     this.step = opts.step
   }
+
+  toTheatreProp(): TheatreTypes.PropTypeConfig {
+    return types.number(this.value, {
+      range: [this.min, this.max],
+      nudgeMultiplier: this.step,
+    })
+  }
 }
 
 // TODO: decide on storage and serialization format
@@ -509,6 +546,26 @@ export class ColorField extends Field<z.ZodString> {
   }
   static deserialize(value: string | [number, number, number, number]) {
     return Array.isArray(value) ? colorToHex(value) : value
+  }
+
+  toTheatreProp(): TheatreTypes.PropTypeConfig {
+    return types.rgba(this.toTheatreValue())
+  }
+
+  toTheatreValue(): Rgba {
+    const fieldValue = this.value
+    if (typeof fieldValue === 'string' && isHexColor(fieldValue)) {
+      return hexToRgba(fieldValue)
+    }
+    if (Array.isArray(fieldValue)) {
+      return colorToRgba(fieldValue as number[])
+    }
+    console.warn('Unexpected color value format:', fieldValue)
+    return fieldValue as unknown as Rgba
+  }
+
+  fromTheatreValue(theatreValue: Rgba): string {
+    return rgbaToHex(theatreValue)
   }
 }
 
@@ -538,6 +595,10 @@ export class BooleanField extends Field<z.ZodBoolean> {
   static defaultValue = false
   createSchema() {
     return z.boolean()
+  }
+
+  toTheatreProp(): TheatreTypes.PropTypeConfig {
+    return types.boolean(this.value)
   }
 }
 
@@ -582,6 +643,23 @@ export class DateField extends Field<
   serialize(): string {
     // Serialize Temporal.PlainDateTime to ISO string
     return this.value.toString()
+  }
+
+  // Theatre stores dates as epoch milliseconds
+  toTheatreProp(): TheatreTypes.PropTypeConfig {
+    return types.number(this.toTheatreValue(), { nudgeMultiplier: 1 })
+  }
+
+  toTheatreValue(): number {
+    const instant = (this.value as Temporal.PlainDateTime).toZonedDateTime('UTC').toInstant()
+    return instant.epochMilliseconds
+  }
+
+  fromTheatreValue(theatreValue: number): Temporal.PlainDateTime {
+    const epochMs = Math.round(theatreValue)
+    return Temporal.Instant.fromEpochMilliseconds(epochMs)
+      .toZonedDateTimeISO('UTC')
+      .toPlainDateTime()
   }
 }
 
@@ -697,6 +775,34 @@ export class Point3DField extends Field<
         .transform(returnType === 'object' ? val => ({ lng: val[0], lat: val[1], alt: 0 }) : noop),
     ])
   }
+
+  toTheatreProp(): TheatreTypes.PropTypeConfig {
+    const defaultValue = this.toTheatreValue()
+    return types.compound({
+      lng: types.number(defaultValue.lng),
+      lat: types.number(defaultValue.lat),
+      alt: types.number(defaultValue.alt),
+    })
+  }
+
+  toTheatreValue(): { lng: number; lat: number; alt: number } {
+    const fieldValue = this.value
+    if (fieldValue && 'lng' in fieldValue) {
+      return { lng: fieldValue.lng, lat: fieldValue.lat, alt: fieldValue.alt }
+    }
+    return {
+      lng: (fieldValue as [number, number, number])[0],
+      lat: (fieldValue as [number, number, number])[1],
+      alt: (fieldValue as [number, number, number])[2],
+    }
+  }
+
+  fromTheatreValue(theatreValue: { lng: number; lat: number; alt: number }): Point3DFieldValue {
+    if (this.returnType === 'tuple') {
+      return [theatreValue.lng, theatreValue.lat, theatreValue.alt]
+    }
+    return theatreValue
+  }
 }
 
 type Point2DFieldValue = { lng: number; lat: number; [key: string]: unknown } | [number, number]
@@ -748,6 +854,29 @@ export class Point2DField extends Field<
         .transform(returnType === 'object' ? val => ({ lng: val[0], lat: val[1] }) : noop),
     ])
   }
+
+  toTheatreProp(): TheatreTypes.PropTypeConfig {
+    const defaultValue = this.toTheatreValue()
+    return types.compound({
+      lng: types.number(defaultValue.lng),
+      lat: types.number(defaultValue.lat),
+    })
+  }
+
+  toTheatreValue(): { lng: number; lat: number } {
+    const fieldValue = this.value
+    if (fieldValue && 'lng' in fieldValue) {
+      return { lng: fieldValue.lng, lat: fieldValue.lat }
+    }
+    return { lng: (fieldValue as [number, number])[0], lat: (fieldValue as [number, number])[1] }
+  }
+
+  fromTheatreValue(theatreValue: { lng: number; lat: number }): Point2DFieldValue {
+    if (this.returnType === 'tuple') {
+      return [theatreValue.lng, theatreValue.lat]
+    }
+    return theatreValue
+  }
 }
 
 type Vec2FieldOverride = { x: number; y: number } | [number, number]
@@ -782,6 +911,29 @@ export class Vec2Field extends Field<
         .tuple([z.number(), z.number()])
         .transform(returnType === 'object' ? val => ({ x: val[0], y: val[1] }) : noop),
     ])
+  }
+
+  toTheatreProp(): TheatreTypes.PropTypeConfig {
+    const defaultValue = this.toTheatreValue()
+    return types.compound({
+      x: types.number(defaultValue.x),
+      y: types.number(defaultValue.y),
+    })
+  }
+
+  toTheatreValue(): { x: number; y: number } {
+    const fieldValue = this.value
+    if (fieldValue && 'x' in fieldValue) {
+      return { x: fieldValue.x, y: fieldValue.y }
+    }
+    return { x: (fieldValue as [number, number])[0], y: (fieldValue as [number, number])[1] }
+  }
+
+  fromTheatreValue(theatreValue: { x: number; y: number }): Vec2FieldOverride {
+    if (this.returnType === 'tuple') {
+      return [theatreValue.x, theatreValue.y]
+    }
+    return theatreValue
   }
 }
 
@@ -818,6 +970,34 @@ export class Vec3Field extends Field<
         .tuple([z.number(), z.number(), z.number()])
         .transform(returnType === 'object' ? val => ({ x: val[0], y: val[1], z: val[2] }) : noop),
     ])
+  }
+
+  toTheatreProp(): TheatreTypes.PropTypeConfig {
+    const defaultValue = this.toTheatreValue()
+    return types.compound({
+      x: types.number(defaultValue.x),
+      y: types.number(defaultValue.y),
+      z: types.number(defaultValue.z),
+    })
+  }
+
+  toTheatreValue(): { x: number; y: number; z: number } {
+    const fieldValue = this.value
+    if (fieldValue && 'x' in fieldValue) {
+      return { x: fieldValue.x, y: fieldValue.y, z: fieldValue.z }
+    }
+    return {
+      x: (fieldValue as [number, number, number])[0],
+      y: (fieldValue as [number, number, number])[1],
+      z: (fieldValue as [number, number, number])[2],
+    }
+  }
+
+  fromTheatreValue(theatreValue: { x: number; y: number; z: number }): Vec3FieldOverride {
+    if (this.returnType === 'tuple') {
+      return [theatreValue.x, theatreValue.y, theatreValue.z]
+    }
+    return theatreValue
   }
 }
 
@@ -928,6 +1108,22 @@ export class CompoundPropsField extends Field<
     })
     this.subscriptions.set(id, subscription)
     return subscription
+  }
+
+  toTheatreProp(): TheatreTypes.PropTypeConfig {
+    const props: Record<string, TheatreTypes.PropTypeConfig> = {}
+    for (const [key, field] of Object.entries(this.fields)) {
+      const prop = field.toTheatreProp()
+      if (prop) {
+        props[key] = prop
+      }
+    }
+    return types.compound(props)
+  }
+
+  // Return null to skip Theatre → Field sync for compound props
+  fromTheatreValue(): null {
+    return null
   }
 }
 
