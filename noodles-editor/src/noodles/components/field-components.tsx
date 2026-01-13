@@ -270,13 +270,10 @@ export function ExpressionFieldComponent({
     setOverlayOpen(false)
   }, [])
 
-  const handleInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const newValue = e.currentTarget.value
-      setValue(newValue)
-    },
-    []
-  )
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.currentTarget.value
+    setValue(newValue)
+  }, [])
 
   const handleInputBlur = useCallback(
     (e: React.FocusEvent<HTMLInputElement>) => {

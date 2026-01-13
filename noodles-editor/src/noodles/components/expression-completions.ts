@@ -149,7 +149,11 @@ export function createExpressionCompletionProvider(
           p.toLowerCase().startsWith(partialPath.toLowerCase())
         )
         suggestions.push(
-          ...createOperatorPathCompletions(filteredPaths, range, monaco.languages.CompletionItemKind)
+          ...createOperatorPathCompletions(
+            filteredPaths,
+            range,
+            monaco.languages.CompletionItemKind
+          )
         )
         return { suggestions }
       }

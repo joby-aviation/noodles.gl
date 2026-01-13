@@ -30,7 +30,11 @@ export interface ExpressionContext {
 
 // Global variables available in expressions
 const EXPRESSION_GLOBALS: GlobalDefinition[] = [
-  { name: 'd', description: 'Current data item (first element for ExpressionOp)', type: 'variable' },
+  {
+    name: 'd',
+    description: 'Current data item (first element for ExpressionOp)',
+    type: 'variable',
+  },
   { name: 'data', description: 'Full data array', type: 'variable' },
   { name: 'op', description: 'Access other operators by path', type: 'function' },
   {
@@ -142,10 +146,7 @@ function findDownstreamLayerData(
 
 // Get expression context for an operator
 // Returns available data keys, globals, and operator paths for autocomplete
-export function getExpressionContext(
-  operatorId: OpId,
-  edges: Edge[]
-): ExpressionContext {
+export function getExpressionContext(operatorId: OpId, edges: Edge[]): ExpressionContext {
   const op = getOp(operatorId)
   if (!op) {
     return {
@@ -194,10 +195,7 @@ export function getExpressionContext(
 
 // React hook version that can be used in components
 // Re-exports the context with stable references
-export function useExpressionContext(
-  operatorId: OpId,
-  edges: Edge[]
-): ExpressionContext {
+export function useExpressionContext(operatorId: OpId, edges: Edge[]): ExpressionContext {
   // In a real implementation, this would use useMemo and possibly subscribe to changes
   // For now, we compute on demand
   return getExpressionContext(operatorId, edges)
