@@ -158,17 +158,26 @@ export const CopyControls = forwardRef<CopyControlsRef>((_, ref) => {
     // Build set of existing node IDs (both operators and React Flow nodes like groups)
     const existingNodeIds = new Set(getNodes().map(n => n.id))
 
+    // Build a map of node types for looking up parent types
+    const nodeTypeMap = new Map(sortedNodes.map(n => [n.id, n.type]))
+
     // First pass: generate new IDs and populate idMap
-    // Use remapped parent ID as container for children
+    // ContainerOp children use the container ID as namespace
+    // Group (ForLoop body) children stay as siblings (same namespace as group)
     const idMap = new Map<string, string>()
     for (const node of sortedNodes) {
       const baseName = getBaseName(node.id).replace(/-\d+$/, '') // scatter-1 -> scatter
 
-      // If this node has a parentId, use the remapped parent as the container
-      // Otherwise use the currentContainerId (defaults to root '/')
+      // Determine the containerId for generating the new ID
+      // - ContainerOp: children are namespaced under the container
+      // - group (ForLoop body): children are siblings, NOT namespaced under the group
       let containerId = currentContainerId
       if (node.parentId && idMap.has(node.parentId)) {
-        containerId = idMap.get(node.parentId)!
+        const parentType = nodeTypeMap.get(node.parentId)
+        // Only use parent as containerId for ContainerOp, not for group nodes
+        if (parentType === 'ContainerOp') {
+          containerId = idMap.get(node.parentId)!
+        }
       }
 
       const newId = uniqueNodeId(baseName, containerId, existingNodeIds)

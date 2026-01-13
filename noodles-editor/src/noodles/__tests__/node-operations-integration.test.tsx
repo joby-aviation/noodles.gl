@@ -193,7 +193,8 @@ function verifyGraphConsistency(nodes: ReactFlowNode[], edges: ReactFlowEdge[]) 
     if (node.parentId) {
       const parent = nodes.find(n => n.id === node.parentId)
       expect(parent).toBeDefined()
-      expect(parent?.type).toBe('ContainerOp')
+      // Parent can be either ContainerOp or group (ForLoop body)
+      expect(['ContainerOp', 'group']).toContain(parent?.type)
     }
   }
 }
@@ -332,19 +333,28 @@ function copyPasteNodes(
   // Build set of existing node IDs (both operators and React Flow nodes like groups)
   const existingNodeIds = new Set(allNodes.map(n => n.id))
 
+  // Build a map of node types for looking up parent types
+  const nodeTypeMap = new Map(sortedNodes.map(n => [n.id, n.type]))
+
   // Deserialize and deconflict IDs
   const idMap = new Map<string, string>()
 
   // First pass: generate new IDs and populate idMap
-  // Process nodes in order, using remapped parent IDs as container context
+  // ContainerOp children use the container ID as namespace
+  // Group (ForLoop body) children stay as siblings (same namespace as group)
   for (const node of sortedNodes) {
     const baseName = getBaseName(node.id).replace(/-\d+$/, '')
 
-    // If this node has a parentId, use the remapped parent as the container
-    // Otherwise use the currentContainerId parameter (defaults to root '/')
+    // Determine the containerId for generating the new ID
+    // - ContainerOp: children are namespaced under the container
+    // - group (ForLoop body): children are siblings, NOT namespaced under the group
     let containerId = currentContainerId
     if (node.parentId && idMap.has(node.parentId)) {
-      containerId = idMap.get(node.parentId)
+      const parentType = nodeTypeMap.get(node.parentId)
+      // Only use parent as containerId for ContainerOp, not for group nodes
+      if (parentType === 'ContainerOp') {
+        containerId = idMap.get(node.parentId)
+      }
     }
 
     const newId = uniqueNodeId(baseName, containerId, existingNodeIds)
