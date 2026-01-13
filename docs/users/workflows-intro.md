@@ -60,9 +60,20 @@ Fields are the individual parameters on each operator. They come in two types:
 
 Connections are the wires between operators that carry data.
 
-To create a connection, click and drag from an output handle and drop onto an input handle. The connection is created and data starts flowing
+To create a connection, click and drag from an output handle and drop onto an input handle. The connection is created and data starts flowing.
 
-**Type Safety**: Noodles.gl uses typed connections - you can only connect compatible data types (e.g., number to number, array to array).
+#### Inserting Nodes into Connections
+
+Drag a node onto an existing edge (connection wire) to insert it between the connected operators. The system automatically finds compatible input/output field pairs and rewires the connections. This works like node insertion in Houdini, Blender, or TouchDesigner.
+
+#### Connection Validation
+
+Noodles.gl allows connections between any fields, but warns about type mismatches:
+
+- **Compatible connections**: Created normally with no warnings
+- **Incompatible connections**: Allowed but display a warning icon on the node header
+
+Hover over the warning icon to see which connections have type mismatches. This permissive approach lets you experiment while still alerting you to potential issues.
 
 ## Reactive Execution
 
@@ -131,6 +142,18 @@ For complex workflows, use **Container** operators to organize related nodes:
 - Keep your workflow clean and modular
 - Collapse containers to hide complexity
 - Navigate using breadcrumbs or press `u` to go up one level
+
+### Node Tree Sidebar
+
+The left sidebar shows a hierarchical view of all operators in your workflow:
+
+- **Toggle visibility**: Click the chevron button on the sidebar edge to collapse or expand
+- **Select nodes**: Click a node name to select and highlight it on the canvas
+- **Navigate to node**: Click the compass icon to zoom the canvas to that node
+- **Navigate into containers**: Click the arrow icon on container nodes to enter them
+- **Rename operators**: Double-click any node name to edit it inline (press Enter to confirm, Escape to cancel)
+
+Color-coded borders indicate operator categories (Data, Visualization, Transform, etc.).
 
 ### Best Practices
 
@@ -255,3 +278,6 @@ Now that you understand workflows, explore:
 | Go up one container | `u` |
 | Search operators | Start typing after pressing `a` |
 | Play animation | `Space` (in timeline mode) |
+| Toggle sidebar | Click sidebar chevron |
+| Rename node | Double-click name in sidebar |
+| Insert node into edge | Drag node onto connection wire |

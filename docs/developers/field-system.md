@@ -25,11 +25,20 @@ const numberField = new NumberField(50, {
 #### NumberField
 ```typescript
 new NumberField(50, {
-  min: 0,           // Minimum value
-  max: 100,         // Maximum value
+  min: 0,           // Hard minimum (validation enforced)
+  max: 100,         // Hard maximum (validation enforced)
+  softMin: 10,      // UI hint for slider minimum (not enforced)
+  softMax: 90,      // UI hint for slider maximum (not enforced)
   step: 1,          // Increment step
 })
 ```
+
+**Soft vs Hard Limits:**
+- `min`/`max`: Validation is enforced - values outside this range will fail schema validation
+- `softMin`/`softMax`: UI hints only - sliders use these bounds but values outside are allowed
+- Defaults: `softMin: -Infinity`, `softMax: Infinity`
+
+Use soft limits when you want to guide users toward reasonable values while still allowing edge cases (e.g., a radius that's usually 0-100 but could be larger).
 
 #### BooleanField
 ```typescript
