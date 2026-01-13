@@ -910,3 +910,80 @@
   justify-content: space-evenly;
   pointer-events: none;
 }
+
+/* Expression Editor Overlay */
+.expressionEditorOverlay {
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-hover);
+  border-radius: 6px;
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+}
+
+.expressionEditorContent {
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.expressionEditorError {
+  padding: 4px 8px;
+  font-size: 11px;
+  color: #ef4444;
+  background-color: rgba(239, 68, 68, 0.1);
+  border-top: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.expressionEditorHint {
+  padding: 4px 8px;
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  background-color: var(--color-bg-base);
+  border-top: 1px solid var(--color-border);
+}
+
+/* Expression field with edit button */
+.expressionFieldWrapper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.expressionFieldInput {
+  flex: 1;
+  cursor: pointer;
+}
+
+.expressionFieldInput:hover {
+  background-color: var(--color-input-hover);
+}
+
+.expressionFieldEditButton {
+  padding: 2px 6px;
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  background-color: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.expressionFieldEditButton:hover {
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-hover);
+  border-color: var(--color-border-hover);
+}
+
+/* Error state for expression input */
+.expressionFieldError {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.3);
+}
+
+.expressionFieldErrorIcon {
+  color: #ef4444;
+  font-size: 12px;
+  margin-left: 4px;
+}
