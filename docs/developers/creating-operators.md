@@ -45,17 +45,18 @@ export class SliceOp extends Operator<SliceOp> {
 
 ### Data Operators
 
-- **JSONOp**: Load and parse JSON data
+- **FileOp**: Load JSON, CSV, text, or binary files from URL or text
+- **JSONOp**: Parse JSON from text with templating support
 - **DuckDbOp**: SQL queries with reactive references
-- **CSVOp**: Parse CSV files and data
 - **GeocoderOp**: Convert addresses to coordinates
 
 ### Processing Operators
 
 - **FilterOp**: Filter data based on conditions
-- **MapOp**: Transform data arrays
-- **GroupByOp**: Group and aggregate data
-- **JoinOp**: Combine multiple datasets
+- **SliceOp**: Select a subset of array elements
+- **SortOp**: Sort data by field
+- **MergeOp**: Combine multiple datasets
+- **ConcatOp**: Concatenate arrays
 
 ### Math Operators
 
