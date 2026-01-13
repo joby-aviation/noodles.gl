@@ -3,10 +3,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import createFetchMock from 'vitest-fetch-mock'
-import {
-  useActiveStorageType,
-  useFileSystemStore,
-} from '../filesystem-store'
+import { useActiveStorageType, useFileSystemStore } from '../filesystem-store'
 
 const fetchMock = createFetchMock(vi)
 
@@ -111,7 +108,10 @@ describe('Project Loading', () => {
         edges: [],
         viewport: { x: 0, y: 0, zoom: 1 },
       }
-      const mockDirectoryHandle = { name: 'test-project', kind: 'directory' } as FileSystemDirectoryHandle
+      const mockDirectoryHandle = {
+        name: 'test-project',
+        kind: 'directory',
+      } as FileSystemDirectoryHandle
 
       vi.mocked(load).mockResolvedValue({
         success: true,
@@ -140,7 +140,9 @@ describe('Project Loading', () => {
       // (this is what the fix added - setActiveStorageType call)
       if (result.success) {
         act(() => {
-          useFileSystemStore.getState().setCurrentDirectory(result.data.directoryHandle, projectName)
+          useFileSystemStore
+            .getState()
+            .setCurrentDirectory(result.data.directoryHandle, projectName)
           useFileSystemStore.getState().setActiveStorageType(storageType)
         })
       }
@@ -157,7 +159,10 @@ describe('Project Loading', () => {
         edges: [],
         viewport: { x: 0, y: 0, zoom: 1 },
       }
-      const mockDirectoryHandle = { name: 'test-project', kind: 'directory' } as FileSystemDirectoryHandle
+      const mockDirectoryHandle = {
+        name: 'test-project',
+        kind: 'directory',
+      } as FileSystemDirectoryHandle
 
       vi.mocked(load).mockResolvedValue({
         success: true,
@@ -176,7 +181,9 @@ describe('Project Loading', () => {
 
       if (result.success) {
         act(() => {
-          useFileSystemStore.getState().setCurrentDirectory(result.data.directoryHandle, projectName)
+          useFileSystemStore
+            .getState()
+            .setCurrentDirectory(result.data.directoryHandle, projectName)
           useFileSystemStore.getState().setActiveStorageType(storageType)
         })
       }

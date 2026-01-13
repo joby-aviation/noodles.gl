@@ -27,8 +27,8 @@ export const ExampleNotFoundDialog = ({
           <Dialog.Description className={s.dialogDescription}>
             The example "{projectName}" is not available.
             <br />
-            It may have been removed or renamed. Would you like to browse available examples or check
-            your saved projects?
+            It may have been removed or renamed. Would you like to browse available examples or
+            check your saved projects?
           </Dialog.Description>
           <div className={s.dialogRightSlot}>
             <button
