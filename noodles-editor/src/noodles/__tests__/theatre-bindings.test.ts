@@ -9,6 +9,8 @@ import {
   DateField,
   type Field,
   NumberField,
+  Point2DField,
+  Point3DField,
   StringField,
   Vec2Field,
   Vec3Field,
@@ -18,6 +20,7 @@ import {
   bindAllOperatorsToTheatre,
   bindOperatorToTheatre,
   cleanupRemovedOperators,
+  convertTheatreToField,
   unbindOperatorFromTheatre,
 } from '../theatre-bindings'
 
@@ -824,6 +827,255 @@ describe('theatre-bindings', () => {
       expect(sheetObj?.props.padding.left).toBeDefined()
 
       cleanup?.()
+    })
+  })
+
+  describe('returnType handling for vector and point fields', () => {
+    it('should return tuple for Vec2Field with returnType: tuple', () => {
+      const vec2Field = new Vec2Field([1, 2], { returnType: 'tuple' })
+      vec2Field.pathToProps = ['/test-op', 'par', 'position']
+
+      const mockOp = {
+        id: '/test-op',
+        inputs: {
+          position: vec2Field,
+        },
+        outputs: {},
+        locked: { value: false },
+      } as any
+
+      const cleanup = bindOperatorToTheatre(mockOp, testSheet)
+      expect(hasSheetObject('/test-op')).toBe(true)
+
+      // Verify the field's returnType is set correctly
+      expect(vec2Field.returnType).toBe('tuple')
+
+      // The Theatre value should be stored as an object { x, y }
+      const sheetObj = getSheetObject('/test-op')
+      expect(sheetObj?.value.position).toEqual({ x: 1, y: 2 })
+
+      cleanup?.()
+    })
+
+    it('should return object for Vec2Field with default returnType', () => {
+      const vec2Field = new Vec2Field([3, 4])
+      vec2Field.pathToProps = ['/test-op', 'par', 'position']
+
+      const mockOp = {
+        id: '/test-op',
+        inputs: {
+          position: vec2Field,
+        },
+        outputs: {},
+        locked: { value: false },
+      } as any
+
+      const cleanup = bindOperatorToTheatre(mockOp, testSheet)
+
+      // Default returnType should be 'object'
+      expect(vec2Field.returnType).toBe('object')
+
+      cleanup?.()
+    })
+
+    it('should return tuple for Vec3Field with returnType: tuple', () => {
+      const vec3Field = new Vec3Field([1, 2, 3], { returnType: 'tuple' })
+      vec3Field.pathToProps = ['/test-op', 'par', 'scale']
+
+      const mockOp = {
+        id: '/test-op',
+        inputs: {
+          scale: vec3Field,
+        },
+        outputs: {},
+        locked: { value: false },
+      } as any
+
+      const cleanup = bindOperatorToTheatre(mockOp, testSheet)
+      expect(hasSheetObject('/test-op')).toBe(true)
+      expect(vec3Field.returnType).toBe('tuple')
+
+      const sheetObj = getSheetObject('/test-op')
+      expect(sheetObj?.value.scale).toEqual({ x: 1, y: 2, z: 3 })
+
+      cleanup?.()
+    })
+
+    it('should return tuple for Point2DField with returnType: tuple', () => {
+      const point2DField = new Point2DField([10, 20], { returnType: 'tuple' })
+      point2DField.pathToProps = ['/test-op', 'par', 'location']
+
+      const mockOp = {
+        id: '/test-op',
+        inputs: {
+          location: point2DField,
+        },
+        outputs: {},
+        locked: { value: false },
+      } as any
+
+      const cleanup = bindOperatorToTheatre(mockOp, testSheet)
+      expect(hasSheetObject('/test-op')).toBe(true)
+      expect(point2DField.returnType).toBe('tuple')
+
+      const sheetObj = getSheetObject('/test-op')
+      expect(sheetObj?.value.location).toEqual({ lng: 10, lat: 20 })
+
+      cleanup?.()
+    })
+
+    it('should return tuple for Point3DField with returnType: tuple', () => {
+      const point3DField = new Point3DField([100, 200, 300], { returnType: 'tuple' })
+      point3DField.pathToProps = ['/test-op', 'par', 'position3d']
+
+      const mockOp = {
+        id: '/test-op',
+        inputs: {
+          position3d: point3DField,
+        },
+        outputs: {},
+        locked: { value: false },
+      } as any
+
+      const cleanup = bindOperatorToTheatre(mockOp, testSheet)
+      expect(hasSheetObject('/test-op')).toBe(true)
+      expect(point3DField.returnType).toBe('tuple')
+
+      const sheetObj = getSheetObject('/test-op')
+      expect(sheetObj?.value.position3d).toEqual({ lng: 100, lat: 200, alt: 300 })
+
+      cleanup?.()
+    })
+
+    it('should handle Vec2Field with object input and tuple returnType', () => {
+      const vec2Field = new Vec2Field({ x: 5, y: 6 }, { returnType: 'tuple' })
+      vec2Field.pathToProps = ['/test-op', 'par', 'offset']
+
+      const mockOp = {
+        id: '/test-op',
+        inputs: {
+          offset: vec2Field,
+        },
+        outputs: {},
+        locked: { value: false },
+      } as any
+
+      const cleanup = bindOperatorToTheatre(mockOp, testSheet)
+
+      // Theatre should store as object regardless of input format
+      const sheetObj = getSheetObject('/test-op')
+      expect(sheetObj?.value.offset).toEqual({ x: 5, y: 6 })
+
+      cleanup?.()
+    })
+
+    it('should handle Point2DField with object input and tuple returnType', () => {
+      const point2DField = new Point2DField({ lng: -122.4, lat: 37.8 }, { returnType: 'tuple' })
+      point2DField.pathToProps = ['/test-op', 'par', 'center']
+
+      const mockOp = {
+        id: '/test-op',
+        inputs: {
+          center: point2DField,
+        },
+        outputs: {},
+        locked: { value: false },
+      } as any
+
+      const cleanup = bindOperatorToTheatre(mockOp, testSheet)
+
+      const sheetObj = getSheetObject('/test-op')
+      expect(sheetObj?.value.center).toEqual({ lng: -122.4, lat: 37.8 })
+
+      cleanup?.()
+    })
+  })
+
+  describe('convertTheatreToField adapter conversion', () => {
+    it('should convert Vec2 Theatre value to tuple when returnType is tuple', () => {
+      const vec2Field = new Vec2Field([0, 0], { returnType: 'tuple' })
+      const theatreValue = { x: 10, y: 20 }
+
+      const result = convertTheatreToField(vec2Field, theatreValue)
+
+      expect(result).toEqual([10, 20])
+      expect(Array.isArray(result)).toBe(true)
+    })
+
+    it('should convert Vec2 Theatre value to object when returnType is object', () => {
+      const vec2Field = new Vec2Field([0, 0], { returnType: 'object' })
+      const theatreValue = { x: 10, y: 20 }
+
+      const result = convertTheatreToField(vec2Field, theatreValue)
+
+      expect(result).toEqual({ x: 10, y: 20 })
+      expect(Array.isArray(result)).toBe(false)
+    })
+
+    it('should convert Vec2 Theatre value to object when returnType is default', () => {
+      const vec2Field = new Vec2Field([0, 0])
+      const theatreValue = { x: 10, y: 20 }
+
+      const result = convertTheatreToField(vec2Field, theatreValue)
+
+      expect(result).toEqual({ x: 10, y: 20 })
+    })
+
+    it('should convert Vec3 Theatre value to tuple when returnType is tuple', () => {
+      const vec3Field = new Vec3Field([0, 0, 0], { returnType: 'tuple' })
+      const theatreValue = { x: 1, y: 2, z: 3 }
+
+      const result = convertTheatreToField(vec3Field, theatreValue)
+
+      expect(result).toEqual([1, 2, 3])
+      expect(Array.isArray(result)).toBe(true)
+    })
+
+    it('should convert Vec3 Theatre value to object when returnType is object', () => {
+      const vec3Field = new Vec3Field([0, 0, 0], { returnType: 'object' })
+      const theatreValue = { x: 1, y: 2, z: 3 }
+
+      const result = convertTheatreToField(vec3Field, theatreValue)
+
+      expect(result).toEqual({ x: 1, y: 2, z: 3 })
+    })
+
+    it('should convert Point2D Theatre value to tuple when returnType is tuple', () => {
+      const point2DField = new Point2DField([0, 0], { returnType: 'tuple' })
+      const theatreValue = { lng: -122.4, lat: 37.8 }
+
+      const result = convertTheatreToField(point2DField, theatreValue)
+
+      expect(result).toEqual([-122.4, 37.8])
+      expect(Array.isArray(result)).toBe(true)
+    })
+
+    it('should convert Point2D Theatre value to object when returnType is object', () => {
+      const point2DField = new Point2DField([0, 0], { returnType: 'object' })
+      const theatreValue = { lng: -122.4, lat: 37.8 }
+
+      const result = convertTheatreToField(point2DField, theatreValue)
+
+      expect(result).toEqual({ lng: -122.4, lat: 37.8 })
+    })
+
+    it('should convert Point3D Theatre value to tuple when returnType is tuple', () => {
+      const point3DField = new Point3DField([0, 0, 0], { returnType: 'tuple' })
+      const theatreValue = { lng: -122.4, lat: 37.8, alt: 100 }
+
+      const result = convertTheatreToField(point3DField, theatreValue)
+
+      expect(result).toEqual([-122.4, 37.8, 100])
+      expect(Array.isArray(result)).toBe(true)
+    })
+
+    it('should convert Point3D Theatre value to object when returnType is object', () => {
+      const point3DField = new Point3DField([0, 0, 0], { returnType: 'object' })
+      const theatreValue = { lng: -122.4, lat: 37.8, alt: 100 }
+
+      const result = convertTheatreToField(point3DField, theatreValue)
+
+      expect(result).toEqual({ lng: -122.4, lat: 37.8, alt: 100 })
     })
   })
 })

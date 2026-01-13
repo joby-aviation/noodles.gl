@@ -32,11 +32,12 @@ import { getOpStore } from './store'
 // F = field value type, T = Theatre.js value type
 export interface TheatreAdapter<F, T> {
   toTheatre(fieldValue: F): T
-  fromTheatre(theatreValue: T): F
+  fromTheatre(theatreValue: T, field?: Field<IField>): F
   theatreType: (defaultValue: T, field?: Field<IField>) => IShorthandProp<T>
 }
 
 // Color Adapter: hex string <-> RGBA object
+const colorAdapter: TheatreAdapter<string, Rgba> = {
   toTheatre(fieldValue: string): Rgba {
     if (typeof fieldValue === 'string' && isHexColor(fieldValue)) {
       return hexToRgba(fieldValue)
@@ -88,7 +89,11 @@ const vec2Adapter: TheatreAdapter<Vec2Input, Vec2Object> = {
     return { x: fieldValue[0], y: fieldValue[1] }
   },
 
-  fromTheatre(theatreValue: Vec2Object): Vec2Object {
+  fromTheatre(theatreValue: Vec2Object, field?: Field<IField>): Vec2Input {
+    const returnType = (field as Vec2Field | undefined)?.returnType
+    if (returnType === 'tuple') {
+      return [theatreValue.x, theatreValue.y]
+    }
     return theatreValue
   },
 
@@ -112,7 +117,11 @@ const vec3Adapter: TheatreAdapter<Vec3Input, Vec3Object> = {
     return { x: fieldValue[0], y: fieldValue[1], z: fieldValue[2] }
   },
 
-  fromTheatre(theatreValue: Vec3Object): Vec3Object {
+  fromTheatre(theatreValue: Vec3Object, field?: Field<IField>): Vec3Input {
+    const returnType = (field as Vec3Field | undefined)?.returnType
+    if (returnType === 'tuple') {
+      return [theatreValue.x, theatreValue.y, theatreValue.z]
+    }
     return theatreValue
   },
 
@@ -137,7 +146,11 @@ const point2DAdapter: TheatreAdapter<Point2DInput, Point2DObject> = {
     return { lng: fieldValue[0], lat: fieldValue[1] }
   },
 
-  fromTheatre(theatreValue: Point2DObject): Point2DObject {
+  fromTheatre(theatreValue: Point2DObject, field?: Field<IField>): Point2DInput {
+    const returnType = (field as Point2DField | undefined)?.returnType
+    if (returnType === 'tuple') {
+      return [theatreValue.lng, theatreValue.lat]
+    }
     return theatreValue
   },
 
@@ -161,7 +174,11 @@ const point3DAdapter: TheatreAdapter<Point3DInput, Point3DObject> = {
     return { lng: fieldValue[0], lat: fieldValue[1], alt: fieldValue[2] }
   },
 
-  fromTheatre(theatreValue: Point3DObject): Point3DObject {
+  fromTheatre(theatreValue: Point3DObject, field?: Field<IField>): Point3DInput {
+    const returnType = (field as Point3DField | undefined)?.returnType
+    if (returnType === 'tuple') {
+      return [theatreValue.lng, theatreValue.lat, theatreValue.alt]
+    }
     return theatreValue
   },
 
@@ -400,8 +417,8 @@ export function bindOperatorToTheatre(
       if (op.locked.value || updating) return
       updating = true
       try {
-        // Use adapter to convert Theatre value to Field value
-        const fieldValue = adapter ? adapter.fromTheatre(theatreValue) : theatreValue
+        // Use adapter to convert Theatre value to Field value (pass field for returnType handling)
+        const fieldValue = adapter ? adapter.fromTheatre(theatreValue, field) : theatreValue
 
         if (field.value !== fieldValue && fieldValue !== undefined) {
           field.setValue(fieldValue)
@@ -486,4 +503,11 @@ export function cleanupRemovedOperators(currentOperatorIds: Set<string>, sheet: 
       unbindOperatorFromTheatre(op.id, sheet)
     }
   }
+}
+
+// Test helper: convert Theatre value to Field value using the appropriate adapter
+export function convertTheatreToField(field: Field<IField>, theatreValue: unknown): unknown {
+  const adapterResult = getAdapterForField(field)
+  if (!adapterResult) return theatreValue
+  return adapterResult.adapter.fromTheatre(theatreValue, field)
 }
