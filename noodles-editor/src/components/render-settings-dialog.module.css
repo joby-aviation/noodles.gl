@@ -106,11 +106,13 @@
   align-items: center;
   gap: 0.5rem;
   flex: 1;
+  min-width: 0;
 }
 
 .resolutionInputs .numberInput {
   flex: 1;
   width: auto;
+  min-width: 0;
 }
 
 .separator {
