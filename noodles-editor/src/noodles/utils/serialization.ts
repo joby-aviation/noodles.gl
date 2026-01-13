@@ -19,10 +19,55 @@ export type EditorSettings = {
   showOverlay?: boolean
 }
 
+export type RenderSettings = {
+  display: 'fixed' | 'responsive'
+  resolution: { width: number; height: number }
+  lod: number
+  waitForData: boolean
+  codec: 'avc' | 'hevc' | 'vp9' | 'av1'
+  bitrateMbps: number
+  bitrateMode: 'constant' | 'variable'
+  scaleControl: number
+  framerate: number
+  captureDelay: number
+}
+
+export const DEFAULT_RENDER_SETTINGS: RenderSettings = {
+  display: 'fixed',
+  resolution: { width: 1920, height: 1080 },
+  lod: 2,
+  waitForData: true,
+  codec: 'avc',
+  bitrateMbps: 10,
+  bitrateMode: 'constant',
+  scaleControl: 0.3,
+  framerate: 30,
+  captureDelay: 200,
+}
+
+// Serialize render settings, only including values that differ from defaults
+export function serializeRenderSettings(
+  settings: RenderSettings
+): Partial<RenderSettings> | undefined {
+  const nonDefaults: Partial<RenderSettings> = {}
+
+  for (const key of Object.keys(DEFAULT_RENDER_SETTINGS) as (keyof RenderSettings)[]) {
+    const value = settings[key]
+    const defaultValue = DEFAULT_RENDER_SETTINGS[key]
+    if (!isEqual(value, defaultValue)) {
+      // TypeScript needs help with the union type assignment
+      ;(nonDefaults as Record<string, unknown>)[key] = value
+    }
+  }
+
+  return Object.keys(nonDefaults).length > 0 ? nonDefaults : undefined
+}
+
 export type NoodlesProjectJSON = ReactFlowJsonObject & {
   version: number
   timeline: Record<string, unknown>
   editorSettings?: EditorSettings
+  renderSettings?: Partial<RenderSettings>
   apiKeys?: {
     mapbox?: string
     googleMaps?: string

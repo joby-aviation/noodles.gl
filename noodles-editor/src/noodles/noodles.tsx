@@ -71,15 +71,17 @@ import { requestPermission, selectDirectory, writeFileToDirectory } from './util
 import { edgeId, nodeId } from './utils/id-utils'
 import { migrateProject } from './utils/migrate-schema'
 import { getParentPath } from './utils/path-utils'
-import { pick } from './utils/pick'
 import {
+  DEFAULT_RENDER_SETTINGS,
   EMPTY_PROJECT,
   NOODLES_VERSION,
   type NoodlesProjectJSON,
+  type RenderSettings,
   safeStringify,
   saveProjectLocally,
   serializeEdges,
   serializeNodes,
+  serializeRenderSettings,
 } from './utils/serialization'
 import { calculateViewerPosition } from './utils/viewer-position'
 
@@ -137,13 +139,7 @@ function useTheatreJs(projectName?: string) {
 
   const setTheatreProject = useCallback(
     (theatreConfig: IProjectConfig, incomingProjectName?: string) => {
-      // Theatre stores too much state if you don't reset it properly.
-      // We need to detach special objects (render) before forgetting the sheet.
-
-      // Detach the special Theatre objects that persist across the app
-      theatreSheet.detachObject('render')
-
-      // Then forget the sheet to clean up the Theatre.js UI
+      // Forget the sheet to clean up the Theatre.js UI
       studio.transaction(api => {
         try {
           api.__experimental_forgetSheet(theatreSheet)
@@ -163,8 +159,7 @@ function useTheatreJs(projectName?: string) {
   const getTimelineJson = useCallback(() => {
     const timeline = studio.createContentOfSaveFile(theatreState.name)
 
-    // Clear staticOverrides to prevent them from being saved, only preserve render
-    // object since we're storing that state in Theatre
+    // Clear staticOverrides - render settings are now stored at project level
     const sheetsById = Object.fromEntries(
       Object.entries(
         timeline.sheetsById as Record<string, { staticOverrides?: { byObject?: unknown } }>
@@ -173,7 +168,7 @@ function useTheatreJs(projectName?: string) {
         {
           ...sheet,
           staticOverrides: {
-            byObject: pick(sheet.staticOverrides?.byObject || {}, ['render']),
+            byObject: {},
           },
         },
       ])
@@ -608,9 +603,14 @@ export function getNoodles(): Visualization {
     'noodles-on-top'
   )
 
+  // Render settings state (moved from Theatre.js sheet to project-level settings)
+  const [renderSettings, setRenderSettings] = useState<RenderSettings>({
+    ...DEFAULT_RENDER_SETTINGS,
+  })
+
   const loadProjectFile = useCallback(
     (project: NoodlesProjectJSON, name?: string) => {
-      const { nodes, edges, viewport, timeline, editorSettings, apiKeys } = project
+      const { nodes, edges, viewport, timeline, editorSettings, renderSettings: projectRenderSettings, apiKeys } = project
 
       // Mark that we've programmatically loading this project BEFORE any state changes
       // This prevents the useEffect from trying to reload it from storage when the URL changes
@@ -631,6 +631,33 @@ export function getNoodles(): Visualization {
       // Load editor settings from project with defaults
       setLayoutMode(editorSettings?.layoutMode ?? 'noodles-on-top')
       setShowOverlay(editorSettings?.showOverlay ?? !IS_PROD)
+
+      // Load render settings with backwards compatibility
+      // First try the new format (renderSettings at project root)
+      // Then fall back to the legacy Theatre.js location
+      let loadedRenderSettings: RenderSettings = { ...DEFAULT_RENDER_SETTINGS }
+      if (projectRenderSettings) {
+        loadedRenderSettings = { ...DEFAULT_RENDER_SETTINGS, ...projectRenderSettings }
+      } else {
+        // Backwards compatibility: try to load from Theatre.js staticOverrides
+        const legacyRender = (
+          timeline as {
+            sheetsById?: {
+              Noodles?: {
+                staticOverrides?: {
+                  byObject?: {
+                    render?: Partial<RenderSettings>
+                  }
+                }
+              }
+            }
+          }
+        )?.sheetsById?.Noodles?.staticOverrides?.byObject?.render
+        if (legacyRender) {
+          loadedRenderSettings = { ...DEFAULT_RENDER_SETTINGS, ...legacyRender }
+        }
+      }
+      setRenderSettings(loadedRenderSettings)
 
       // Load API keys from project file if present
       getKeysStore().setProjectKeys(apiKeys)
@@ -769,6 +796,7 @@ export function getNoodles(): Visualization {
     const timeline = getTimelineJson()
     const viewport = reactFlowInstanceRef.current?.getViewport() || { x: 0, y: 0, zoom: 1 }
     const projectKeys = getKeysForProject()
+    const serializedRenderSettings = serializeRenderSettings(renderSettings)
 
     return {
       version: NOODLES_VERSION,
@@ -780,9 +808,10 @@ export function getNoodles(): Visualization {
         layoutMode,
         showOverlay,
       },
+      ...(serializedRenderSettings ? { renderSettings: serializedRenderSettings } : {}),
       ...(projectKeys ? { apiKeys: projectKeys } : {}),
     }
-  }, [nodes, edges, getTimelineJson, layoutMode, showOverlay])
+  }, [nodes, edges, getTimelineJson, layoutMode, showOverlay, renderSettings])
 
   const onMenuSave = useCallback(async () => {
     if (!projectName) return
@@ -1232,6 +1261,8 @@ export function getNoodles(): Visualization {
     setLayoutMode,
     showOverlay,
     setShowOverlay,
+    renderSettings,
+    setRenderSettings,
     // Export these so timeline-editor can create the menu with render actions
     projectName,
     getTimelineJson,

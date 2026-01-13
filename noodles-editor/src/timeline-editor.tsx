@@ -1,17 +1,16 @@
 import type { Deck, DeckProps } from '@deck.gl/core'
 import { MapboxOverlay, type MapboxOverlayProps } from '@deck.gl/mapbox'
 import { DeckGL } from '@deck.gl/react'
-import { type ISheetObject, types } from '@theatre/core'
 import { useVal } from '@theatre/react'
 import studio from '@theatre/studio'
 import { ReactFlowProvider } from '@xyflow/react'
 import type { Map as MapLibre } from 'maplibre-gl'
-import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { forwardRef, useCallback, useEffect, useRef, useState } from 'react'
 import ReactMapGL, { type MapProps, useControl } from 'react-map-gl/maplibre'
 import { Layout } from './layout'
 import { TopMenuBar } from './noodles/components/top-menu-bar'
 import { getNoodles } from './noodles/noodles'
-import { deleteSheetObject, setSheetObject } from './noodles/store'
+import type { RenderSettings } from './noodles/utils/serialization'
 import { useDeckDrawLoop } from './render/draw-loop'
 import { captureScreenshot, rafDriver, useRenderer } from './render/renderer'
 import { TransformScale } from './render/transform-scale'
@@ -68,38 +67,10 @@ observer.observe(document.body, { childList: true, subtree: true })
 // Also try injecting immediately in case everything is already loaded
 injectTheatreStyles()
 
-const INITIAL_RENDER_STATE = {
-  display: types.stringLiteral('fixed', {
-    fixed: 'fixed',
-    responsive: 'responsive',
-  }),
-  resolution: types.compound({
-    width: types.number(1920),
-    height: types.number(1080),
-  }),
-  lod: types.number(2, { range: [1, 2] }),
-  waitForData: types.boolean(true),
-  codec: types.stringLiteral('avc', {
-    hevc: 'hevc', // h265
-    vp9: 'vp9',
-    av1: 'av1',
-    avc: 'avc', // h264
-  }),
-  bitrateMbps: types.number(10, { range: [5, 60] }),
-  bitrateMode: types.stringLiteral('constant', {
-    constant: 'constant',
-    variable: 'variable',
-  }),
-  scaleControl: types.number(0.3, { range: [0, 1] }),
-  framerate: types.number(30, { range: [0.001, 1000] }),
-  // TODO: fix render jitter and remove this frame capture delay
-  captureDelay: types.number(200, { range: [0, 2000] }),
-}
-
 const DeckGLOverlay = forwardRef<
   Deck,
   MapboxOverlayProps & {
-    renderer: ISheetObject<typeof INITIAL_RENDER_STATE>['value']
+    renderer: RenderSettings
     isRendering: boolean
   }
 >(({ renderer, isRendering, ...props }, ref) => {
@@ -150,37 +121,30 @@ export default function TimelineEditor() {
   }, [])
 
   const noodles = getNoodles()
-  const { project, sheet, flowGraph, nodeSidebar, propertiesPanel, layoutMode, ...visualization } =
-    noodles
+  const {
+    project,
+    sheet,
+    flowGraph,
+    nodeSidebar,
+    propertiesPanel,
+    layoutMode,
+    renderSettings,
+    setRenderSettings,
+    ...visualization
+  } = noodles
   const sequence = sheet.sequence
 
   useEffect(() => {
     project?.ready.then(() => setReady(true))
   }, [project])
 
-  const { rendererSheet } = useMemo(() => {
-    const rendererSheet = sheet?.object('render', INITIAL_RENDER_STATE)
-
-    return {
-      rendererSheet,
-    }
-  }, [sheet])
-
-  // Register render sheet object in store for menu access
-  useEffect(() => {
-    if (rendererSheet) {
-      setSheetObject('render', rendererSheet as unknown as ISheetObject)
-    }
-    return () => {
-      deleteSheetObject('render')
-    }
-  }, [rendererSheet])
-
-  const renderer = useVal(rendererSheet.props)
   const sequenceLength = useVal(sequence.pointer.length)
 
+  // Render settings dialog state
+  const [renderSettingsDialogOpen, setRenderSettingsDialogOpen] = useState(false)
+
   const { framerate, bitrateMbps, bitrateMode, codec, resolution, lod, waitForData, captureDelay } =
-    renderer
+    renderSettings
 
   const { startCapture, captureFrame, currentFrame, isRendering } = useRenderer({
     project,
@@ -355,7 +319,7 @@ export default function TimelineEditor() {
   }
 
   // Use fixed resolution for 'fixed' display mode, undefined for 'responsive' mode to use natural dimensions
-  const isFixedMode = renderer.display === 'fixed'
+  const isFixedMode = renderSettings.display === 'fixed'
   const displayResolution = isFixedMode ? lodResolution : undefined
 
   if (!ready) {
@@ -369,7 +333,7 @@ export default function TimelineEditor() {
         <ReactMapGL style={displayResolution} {...mapProps}>
           <DeckGLOverlay
             ref={deckRef}
-            renderer={renderer}
+            renderer={renderSettings}
             isRendering={isRendering}
             {...deckProps}
           />
@@ -407,6 +371,10 @@ export default function TimelineEditor() {
       setShowOverlay={noodles.setShowOverlay}
       layoutMode={noodles.layoutMode}
       setLayoutMode={noodles.setLayoutMode}
+      renderSettings={renderSettings}
+      setRenderSettings={setRenderSettings}
+      renderSettingsDialogOpen={renderSettingsDialogOpen}
+      setRenderSettingsDialogOpen={setRenderSettingsDialogOpen}
     />
   )
 
@@ -415,9 +383,9 @@ export default function TimelineEditor() {
       {isRendering && (
         <div className={s.actionButtons}>
           <progress
-            max={sequenceLength * renderer.framerate}
+            max={sequenceLength * renderSettings.framerate}
             value={currentFrame}
-            title={`Rendered ${currentFrame} / ${sequenceLength * renderer.framerate}`}
+            title={`Rendered ${currentFrame} / ${sequenceLength * renderSettings.framerate}`}
           />
         </div>
       )}
@@ -430,7 +398,7 @@ export default function TimelineEditor() {
           layoutMode={layoutMode}
         >
           {isFixedMode ? (
-            <TransformScale scale={renderer.scaleControl}>{renderContent()}</TransformScale>
+            <TransformScale scale={renderSettings.scaleControl}>{renderContent()}</TransformScale>
           ) : (
             renderContent()
           )}
