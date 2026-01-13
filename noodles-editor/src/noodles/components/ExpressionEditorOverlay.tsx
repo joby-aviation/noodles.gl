@@ -3,6 +3,7 @@
 
 import Editor, { type OnMount } from '@monaco-editor/react'
 import { useCallback, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import s from '../noodles.module.css'
 import type { ExpressionContext } from '../utils/expression-context'
 import { registerExpressionCompletions } from './expression-completions'
@@ -149,7 +150,9 @@ export function ExpressionEditorOverlay({
     }
   }, [])
 
-  return (
+  // Use createPortal to render outside of ReactFlow's transformed container
+  // This ensures position: fixed works correctly relative to the viewport
+  return createPortal(
     <div ref={containerRef} className={s.expressionEditorOverlay} style={overlayStyle()}>
       <div className={s.expressionEditorContent}>
         <Editor
@@ -192,6 +195,7 @@ export function ExpressionEditorOverlay({
       <div className={s.expressionEditorHint}>
         Enter to confirm • Escape to cancel • Tab for completion
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

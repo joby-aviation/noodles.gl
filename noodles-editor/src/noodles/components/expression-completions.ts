@@ -22,9 +22,7 @@ interface CompletionItem {
   range: CompletionRange
 }
 
-/**
- * Create completion items for data keys (d.lat, d.lng, etc.)
- */
+// Create completion items for data keys (d.lat, d.lng, etc.)
 function createDataKeyCompletions(
   dataKeys: string[],
   range: CompletionRange,
@@ -39,9 +37,7 @@ function createDataKeyCompletions(
   }))
 }
 
-/**
- * Create completion items for global variables and libraries
- */
+// Create completion items for global variables and libraries
 function createGlobalCompletions(
   globals: GlobalDefinition[],
   range: CompletionRange,
@@ -61,9 +57,7 @@ function createGlobalCompletions(
   }))
 }
 
-/**
- * Create completion items for library properties (utils.getArc, d3.scaleLinear, etc.)
- */
+// Create completion items for library properties (utils.getArc, d3.scaleLinear, etc.)
 function createLibraryPropertyCompletions(
   properties: string[],
   range: CompletionRange,
@@ -78,9 +72,7 @@ function createLibraryPropertyCompletions(
   }))
 }
 
-/**
- * Create completion items for operator paths (for op() function)
- */
+// Create completion items for operator paths (for op() function)
 function createOperatorPathCompletions(
   paths: string[],
   range: CompletionRange,
@@ -95,9 +87,7 @@ function createOperatorPathCompletions(
   }))
 }
 
-/**
- * Array method completions for data variable
- */
+// Array method completions for data variable
 const ARRAY_METHODS = [
   'map',
   'filter',
@@ -118,9 +108,7 @@ const ARRAY_METHODS = [
   'length',
 ]
 
-/**
- * Create Monaco completion provider for expression fields
- */
+// Create Monaco completion provider for expression fields
 export function createExpressionCompletionProvider(
   monaco: MonacoInstance,
   getContext: () => ExpressionContext
@@ -239,10 +227,8 @@ export function createExpressionCompletionProvider(
   }
 }
 
-/**
- * Register the completion provider with Monaco
- * Returns a disposable that can be used to unregister
- */
+// Register the completion provider with Monaco
+// Returns a disposable that can be used to unregister
 export function registerExpressionCompletions(
   monaco: MonacoInstance,
   getContext: () => ExpressionContext

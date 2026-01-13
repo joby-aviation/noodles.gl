@@ -1,10 +1,19 @@
 // Expression Context - Utilities for determining available variables and data keys
 // for autocomplete in ExpressionOp and AccessorOp
 
+import * as d3 from 'd3'
+import * as deck from 'deck.gl'
+import * as turf from '@turf/turf'
+import * as utils from '../../utils'
 import type { Edge } from '../graph-executor'
 import type { IOperator, Operator } from '../operators'
 import { getOp, getAllOps } from '../store'
 import type { OpId } from './id-utils'
+
+// Helper to get function/property names from an object, filtering out internals
+function getLibraryProperties(obj: object): string[] {
+  return Object.keys(obj).filter(key => !key.startsWith('_'))
+}
 
 export interface GlobalDefinition {
   name: string
@@ -28,39 +37,25 @@ const EXPRESSION_GLOBALS: GlobalDefinition[] = [
     name: 'utils',
     description: 'Utility functions',
     type: 'library',
-    properties: [
-      'getArc',
-      'hexToColor',
-      'colorToHex',
-      'rgbaToColor',
-      'getDirections',
-      'interpolate',
-      'cross',
-      'binarySearchClosest',
-      'FEET_TO_METERS',
-      'MILES_TO_METERS',
-      'CARTO_DARK',
-      'MAP_STYLES',
-      'mulberry32',
-    ],
+    properties: getLibraryProperties(utils),
   },
   {
     name: 'd3',
     description: 'D3.js data manipulation library',
     type: 'library',
-    properties: ['scaleLinear', 'scaleOrdinal', 'extent', 'min', 'max', 'mean', 'sum', 'group', 'rollup'],
+    properties: getLibraryProperties(d3),
   },
   {
     name: 'turf',
     description: 'Turf.js geospatial analysis',
     type: 'library',
-    properties: ['distance', 'point', 'lineString', 'polygon', 'buffer', 'center', 'bbox', 'area'],
+    properties: getLibraryProperties(turf),
   },
   {
     name: 'deck',
     description: 'Deck.gl utilities',
     type: 'library',
-    properties: ['COORDINATE_SYSTEM', 'OrthographicView', 'MapView'],
+    properties: getLibraryProperties(deck),
   },
   { name: 'Plot', description: 'Observable Plot', type: 'library' },
   { name: 'vega', description: 'Vega visualization grammar', type: 'library' },
@@ -76,9 +71,7 @@ const ACCESSOR_GLOBALS: GlobalDefinition[] = [
   ...EXPRESSION_GLOBALS.filter(g => !['d', 'data', 'op'].includes(g.name)),
 ]
 
-/**
- * Extract keys from a data object/array
- */
+// Extract keys from a data object/array
 function extractDataKeys(data: unknown): string[] {
   if (!data) return []
 
@@ -102,25 +95,19 @@ function extractDataKeys(data: unknown): string[] {
   return keys
 }
 
-/**
- * Get all available operator paths for op() autocomplete
- */
+// Get all available operator paths for op() autocomplete
 export function getOperatorPaths(): string[] {
   return getAllOps().map(op => op.id)
 }
 
-/**
- * Check if an operator is a layer operator (has 'data' input and layer-like outputs)
- */
+// Check if an operator is a layer operator (has 'data' input and layer-like outputs)
 function isLayerOperator(op: Operator<IOperator>): boolean {
   const displayName = (op.constructor as { displayName?: string }).displayName || ''
-  return displayName.includes('Layer') && 'data' in op.inputs
+  return displayName.includes('Layer') && op.inputs.data !== undefined
 }
 
-/**
- * Find downstream layer operator that consumes an accessor
- * This traces through the graph to find where an AccessorOp's output ends up
- */
+// Find downstream layer operator that consumes an accessor
+// This traces through the graph to find where an AccessorOp's output ends up
 function findDownstreamLayerData(opId: OpId, edges: Edge[]): unknown | null {
   // Find edges where this operator is the source
   const downstreamEdges = edges.filter(e => e.source === opId)
@@ -145,10 +132,8 @@ function findDownstreamLayerData(opId: OpId, edges: Edge[]): unknown | null {
   return null
 }
 
-/**
- * Get expression context for an operator
- * Returns available data keys, globals, and operator paths for autocomplete
- */
+// Get expression context for an operator
+// Returns available data keys, globals, and operator paths for autocomplete
 export function getExpressionContext(
   operatorId: OpId,
   edges: Edge[]
@@ -180,11 +165,14 @@ export function getExpressionContext(
       if (Array.isArray(data) && data.length > 0) {
         // Try the first item - if it's an array, use it; otherwise use data as-is
         const firstItem = data[0]
-        if (Array.isArray(firstItem)) {
+        if (Array.isArray(firstItem) && firstItem.length > 0) {
           dataKeys = extractDataKeys(firstItem)
         } else {
           dataKeys = extractDataKeys(data)
         }
+      } else if (data !== null && data !== undefined) {
+        // Handle non-array data
+        dataKeys = extractDataKeys(data)
       }
     }
   }
@@ -196,10 +184,8 @@ export function getExpressionContext(
   }
 }
 
-/**
- * React hook version that can be used in components
- * Re-exports the context with stable references
- */
+// React hook version that can be used in components
+// Re-exports the context with stable references
 export function useExpressionContext(
   operatorId: OpId,
   edges: Edge[]

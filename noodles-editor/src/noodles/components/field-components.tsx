@@ -18,7 +18,7 @@ import {
   type ColorRampField,
   type CompoundPropsField,
   type DateField,
-  ExpressionField,
+  type ExpressionField,
   type Field,
   type FileField,
   getFieldReferences,
@@ -170,10 +170,8 @@ export function TextFieldComponent({
   )
 }
 
-/**
- * Validates an expression by attempting to parse it
- * Returns an error message if invalid, null if valid
- */
+// Validates an expression by attempting to parse it
+// Returns an error message if invalid, null if valid
 function validateExpression(expression: string): string | null {
   if (!expression.trim()) return null
 
