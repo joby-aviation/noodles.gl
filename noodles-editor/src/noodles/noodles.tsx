@@ -617,21 +617,6 @@ export function getNoodles(): Visualization {
     blockLibraryRef.current?.openModal(centerX, centerY)
   }, [])
 
-  // Handle mod+shift+a for Rename Project
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Check for mod+shift+a (Cmd+Shift+A on Mac, Ctrl+Shift+A on Windows/Linux)
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'a') {
-        e.preventDefault()
-        if (projectName && storageType !== 'publicFolder') {
-          setShowRenameDialog(true)
-        }
-      }
-    }
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [projectName, storageType])
-
   // Editor settings state (moved from Theatre.js to project-level settings)
   const [showOverlay, setShowOverlay] = useState(!IS_PROD)
   const [layoutMode, setLayoutMode] = useState<'split' | 'noodles-on-top' | 'output-on-top'>(
@@ -1003,6 +988,30 @@ export function getNoodles(): Visualization {
       navigate,
     ]
   )
+
+  // Handle mod+shift+s for Save As and mod+shift+a for Rename Project
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase()
+      const isMod = e.metaKey || e.ctrlKey
+      const isShift = e.shiftKey
+
+      // mod+shift+s for Save As
+      if (isMod && isShift && key === 's') {
+        e.preventDefault()
+        onSaveAs()
+      }
+      // mod+shift+a for Rename Project
+      if (isMod && isShift && key === 'a') {
+        e.preventDefault()
+        if (projectName && storageType !== 'publicFolder') {
+          setShowRenameDialog(true)
+        }
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [projectName, storageType, onSaveAs])
 
   const onDownload = useCallback(async () => {
     const noodlesProjectJson = getNoodlesProjectJson()

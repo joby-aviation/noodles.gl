@@ -246,7 +246,8 @@ export function TopMenuBar({
                         onSelect={onSaveAs}
                         disabled={!onSaveAs}
                       >
-                        Save As...
+                        <span>Save As...</span>
+                        <span className={s.shortcut}>{mod}+Shift+S</span>
                       </DropdownMenu.Item>
                       <DropdownMenu.Item
                         className={s.dropdownItem}
