@@ -126,44 +126,49 @@ export function RenderSettingsDialog({
                     </select>
                   </div>
 
-                  <div className={s.settingRow}>
-                    <label htmlFor="render-resolution-width" className={s.label}>
-                      Custom Size
-                    </label>
-                    <div className={s.resolutionInputs}>
-                      <input
-                        id="render-resolution-width"
-                        type="number"
-                        className={s.numberInput}
-                        value={settings.resolution.width}
-                        min="1"
-                        max="7680"
-                        onChange={e =>
-                          updateSetting('resolution', {
-                            ...settings.resolution,
-                            width: Number(e.target.value),
-                          })
-                        }
-                        onBlur={e => handleResolutionBlur('width', Number(e.target.value))}
-                      />
-                      <span className={s.separator}>x</span>
-                      <input
-                        id="render-resolution-height"
-                        type="number"
-                        className={s.numberInput}
-                        value={settings.resolution.height}
-                        min="1"
-                        max="4320"
-                        onChange={e =>
-                          updateSetting('resolution', {
-                            ...settings.resolution,
-                            height: Number(e.target.value),
-                          })
-                        }
-                        onBlur={e => handleResolutionBlur('height', Number(e.target.value))}
-                      />
+                  {getResolutionPresetValue(
+                    settings.resolution.width,
+                    settings.resolution.height
+                  ) === 'custom' && (
+                    <div className={s.settingRow}>
+                      <label htmlFor="render-resolution-width" className={s.label}>
+                        Custom Size
+                      </label>
+                      <div className={s.resolutionInputs}>
+                        <input
+                          id="render-resolution-width"
+                          type="number"
+                          className={s.numberInput}
+                          value={settings.resolution.width}
+                          min="1"
+                          max="7680"
+                          onChange={e =>
+                            updateSetting('resolution', {
+                              ...settings.resolution,
+                              width: Number(e.target.value),
+                            })
+                          }
+                          onBlur={e => handleResolutionBlur('width', Number(e.target.value))}
+                        />
+                        <span className={s.separator}>x</span>
+                        <input
+                          id="render-resolution-height"
+                          type="number"
+                          className={s.numberInput}
+                          value={settings.resolution.height}
+                          min="1"
+                          max="4320"
+                          onChange={e =>
+                            updateSetting('resolution', {
+                              ...settings.resolution,
+                              height: Number(e.target.value),
+                            })
+                          }
+                          onBlur={e => handleResolutionBlur('height', Number(e.target.value))}
+                        />
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   <div className={s.settingRow}>
                     <label htmlFor="render-scale-control" className={s.label}>
