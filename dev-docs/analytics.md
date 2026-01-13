@@ -21,7 +21,7 @@ Add to `.env.local` (see `.env.local.example`):
 
 ```env
 VITE_POSTHOG_API_KEY=phc_your_key_here
-VITE_POSTHOG_HOST=https://app.posthog.com  # Optional
+VITE_POSTHOG_HOST=https://us.i.posthog.com  # Optional
 ```
 
 ### Getting a PostHog API Key
