@@ -1022,7 +1022,7 @@ describe('Node Operations Integration Tests', () => {
         forLoopNodes as any
       )
 
-      // Should have one edge (begin.d -> end.d)
+      // Should have one edge (begin.item -> end.item)
       expect(pastedEdges.length).toBe(1)
 
       // Edge should connect the new begin to the new end
@@ -1032,8 +1032,8 @@ describe('Node Operations Integration Tests', () => {
 
       expect(edge.source).toBe(newBegin.id)
       expect(edge.target).toBe(newEnd.id)
-      expect(edge.sourceHandle).toBe('out.d')
-      expect(edge.targetHandle).toBe('par.d')
+      expect(edge.sourceHandle).toBe('out.item')
+      expect(edge.targetHandle).toBe('par.item')
     })
 
     it('generates unique IDs when pasting ForLoop multiple times', () => {
@@ -1203,8 +1203,8 @@ describe('Node Operations Integration Tests', () => {
       const edge = edges[0]
       expect(edge.source).toBe(beginNode.id)
       expect(edge.target).toBe(endNode.id)
-      expect(edge.sourceHandle).toBe('out.d')
-      expect(edge.targetHandle).toBe('par.d')
+      expect(edge.sourceHandle).toBe('out.item')
+      expect(edge.targetHandle).toBe('par.item')
     })
 
     it('creates operators in store via transformGraph', () => {
@@ -1287,8 +1287,8 @@ describe('Node Operations Integration Tests', () => {
       const endOp = getOp(endNode.id)
       expect(endOp).toBeDefined()
 
-      // The 'd' input on ForLoopEndOp should have a connection
-      expect(endOp?.inputs.d.subscriptions.size).toBe(1)
+      // The 'item' input on ForLoopEndOp should have a connection
+      expect(endOp?.inputs.item.subscriptions.size).toBe(1)
     })
   })
 })
