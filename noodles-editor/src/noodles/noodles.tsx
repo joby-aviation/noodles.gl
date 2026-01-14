@@ -741,7 +741,7 @@ export function getNoodles(): Visualization {
         }
       }
     })()
-  }, [projectName])
+  }, [projectName, isExamplesRoute])
 
   const displayedNodes = useMemo(() => {
     const dragHandle = `.${s.header}`
