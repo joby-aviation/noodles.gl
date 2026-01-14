@@ -43,8 +43,8 @@ function useSequenceLength(theatreSequence: import('@theatre/core').ISequence | 
 
   // Always call useVal if available to maintain consistent hook order
   // When Theatre.js is disabled, useVal is null and we skip the call
-  // biome-ignore lint/correctness/useHookAtTopLevel: USE_THEATRE is constant (module load), hook order is stable
   const theatreLength =
+    // biome-ignore lint/correctness/useHookAtTopLevel: USE_THEATRE is constant (module load), hook order is stable
     USE_THEATRE && useVal && theatreSequence ? useVal(theatreSequence.pointer.length) : null
 
   return theatreLength ?? nativeLength
