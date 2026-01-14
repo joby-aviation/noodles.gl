@@ -115,6 +115,17 @@ export {
 // UI Components
 // ============================================================================
 
+export type {
+  CurveEditorProps,
+  KeyframeIndicatorProps,
+  KeyframeTrackProps,
+  PlayheadProps,
+  ScrubbableInputProps,
+  TimelinePanelProps,
+  TimeRulerProps,
+  TrackListProps,
+  WithKeyframeIndicatorProps,
+} from './components'
 export {
   CurveEditor,
   KeyframeIndicator,
@@ -129,22 +140,11 @@ export {
   WithKeyframeIndicator,
 } from './components'
 
-export type {
-  CurveEditorProps,
-  KeyframeIndicatorProps,
-  KeyframeTrackProps,
-  PlayheadProps,
-  ScrubbableInputProps,
-  TimelinePanelProps,
-  TimeRulerProps,
-  TrackListProps,
-  WithKeyframeIndicatorProps,
-} from './components'
-
 // ============================================================================
 // Timeline Context (React)
 // ============================================================================
 
+export type { TimelineProviderProps } from './timeline-context'
 export {
   TimelineProvider,
   useHasKeyframes,
@@ -155,16 +155,15 @@ export {
   useTimelinePlaying,
   useTimelinePosition,
   useTimelineSequence,
-  useTrackValue,
   useTracks,
+  useTrackValue,
 } from './timeline-context'
-
-export type { TimelineProviderProps } from './timeline-context'
 
 // ============================================================================
 // Migration Utilities
 // ============================================================================
 
+export type { NativeTimelineData, ValidationResult } from './migrate-timeline'
 export {
   bezierHandlesToTheatreHandles,
   exportToTheatreFormat,
@@ -178,5 +177,3 @@ export {
   theatreValueToKeyframeValue,
   validateTheatreData,
 } from './migrate-timeline'
-
-export type { NativeTimelineData, ValidationResult } from './migrate-timeline'

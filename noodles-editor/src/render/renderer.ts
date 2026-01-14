@@ -8,8 +8,8 @@ import {
   StreamTarget,
 } from 'mediabunny'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { USE_THEATRE } from '../utils/timeline-flag'
 import { useTimelineStore } from '../timeline/timeline-store'
+import { USE_THEATRE } from '../utils/timeline-flag'
 
 export const rafDriver = createRafDriver({ name: 'WorldView' })
 
@@ -18,6 +18,21 @@ let useVal: typeof import('@theatre/react').useVal | null = null
 if (USE_THEATRE) {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   useVal = require('@theatre/react').useVal
+}
+
+// Custom hook to get sequence length from either Theatre.js or native timeline
+// Safely handles the conditional hook by ensuring consistent call order
+function useSequenceLength(sequence: ISequence | null) {
+  const nativeLength = useTimelineStore(state => state.sequence.length)
+
+  // When Theatre.js is enabled and we have a sequence, use Theatre.js
+  // Since USE_THEATRE is a constant (determined at module load), this is safe
+  if (USE_THEATRE && useVal && sequence) {
+    // biome-ignore lint/correctness/useHookAtTopLevel: USE_THEATRE is constant (module load), hook order is stable
+    return useVal(sequence.pointer.length)
+  }
+
+  return nativeLength
 }
 
 export const useRenderer = ({
@@ -35,15 +50,8 @@ export const useRenderer = ({
   bitrateMode: 'variable' | 'constant'
   redraw: () => void
 }) => {
-  // Get sequence length from Theatre.js when available, otherwise from native timeline
-  const nativeSequenceLength = useTimelineStore(state => state.sequence.length)
-  // useVal keeps the prism "hot" and avoids cold prism warnings (only when Theatre.js is enabled)
-  // Note: useVal is only defined when USE_THEATRE is true, and USE_THEATRE is constant
-  // biome-ignore lint/correctness/useHookAtTopLevel: USE_THEATRE is a constant that never changes during component lifecycle
-  const theatreSequenceLength = USE_THEATRE && useVal && sequence
-    ? useVal(sequence.pointer.length)
-    : null
-  const sequenceLength = theatreSequenceLength ?? nativeSequenceLength
+  // Get sequence length from the appropriate timeline system
+  const sequenceLength = useSequenceLength(sequence)
 
   const canvasRenderDone = useRef<(result?: { error?: Error }) => void>(() => {})
   const canvasFrameReady = useCallback(

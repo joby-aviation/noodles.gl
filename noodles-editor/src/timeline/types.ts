@@ -12,10 +12,20 @@ export type Point2D = { lng: number; lat: number }
 export type Point3D = { lng: number; lat: number; alt: number }
 
 // Primitive keyframe values
-export type PrimitiveKeyframeValue = number | boolean | string | RGBA | Vec2 | Vec3 | Point2D | Point3D
+export type PrimitiveKeyframeValue =
+  | number
+  | boolean
+  | string
+  | RGBA
+  | Vec2
+  | Vec3
+  | Point2D
+  | Point3D
 
 // Compound keyframe value (for nested objects)
-export type CompoundKeyframeValue = { [key: string]: PrimitiveKeyframeValue | CompoundKeyframeValue }
+export type CompoundKeyframeValue = {
+  [key: string]: PrimitiveKeyframeValue | CompoundKeyframeValue
+}
 
 // Union of all animatable value types
 export type KeyframeValue = PrimitiveKeyframeValue | CompoundKeyframeValue

@@ -40,7 +40,15 @@ const exampleProjectUrls = import.meta.glob('../examples/**/noodles.json', {
   import: 'default',
 })
 
+import {
+  bindOperatorToTimeline,
+  cleanupRemovedOperators as cleanupRemovedOperatorsNative,
+  clearAllBindings,
+} from '../timeline/field-bindings'
+import { TimelineProvider } from '../timeline/timeline-context'
+import { getTimelineStore } from '../timeline/timeline-store'
 import { SheetProvider } from '../utils/sheet-context'
+import { USE_THEATRE } from '../utils/timeline-flag'
 import type { Visualization } from '../visualizations'
 import { BlockLibrary, type BlockLibraryRef } from './components/block-library'
 import { categories, nodeTypeToDisplayName } from './components/categories'
@@ -65,11 +73,10 @@ import type { IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
 import { copyDataDirectory, copyPublicFolderData, hasDataDirectory, load, save } from './storage'
 import { getOp, getOpStore, getUIStore, useNestingStore, useUIStore } from './store'
-import { bindOperatorToTheatre, cleanupRemovedOperators as cleanupRemovedOperatorsTheatre } from './theatre-bindings'
-import { bindOperatorToTimeline, cleanupRemovedOperators as cleanupRemovedOperatorsNative, clearAllBindings } from '../timeline/field-bindings'
-import { getTimelineStore } from '../timeline/timeline-store'
-import { TimelineProvider } from '../timeline/timeline-context'
-import { USE_THEATRE } from '../utils/timeline-flag'
+import {
+  bindOperatorToTheatre,
+  cleanupRemovedOperators as cleanupRemovedOperatorsTheatre,
+} from './theatre-bindings'
 import { transformGraph } from './transform-graph'
 import { canConnect } from './utils/can-connect'
 import { directoryHandleCache } from './utils/directory-handle-cache'
@@ -184,7 +191,10 @@ function useTheatreJs(projectName: string | null): UseTheatreJsReturn {
       if (!USE_THEATRE || !studio || !theatreSheet) {
         // When not using Theatre.js, just update the counter for project name tracking
         _projectCounterRef.current += 1
-        setTheatreState({ name: `${incomingProjectName || UNSAVED_PROJECT_NAME}-${_projectCounterRef.current}`, config: theatreConfig })
+        setTheatreState({
+          name: `${incomingProjectName || UNSAVED_PROJECT_NAME}-${_projectCounterRef.current}`,
+          config: theatreConfig,
+        })
         return
       }
 
@@ -766,7 +776,9 @@ export function getNoodles(): Visualization {
         if (hasTimeline) {
           try {
             // Timeline data is stored in Theatre.js format for compatibility
-            getTimelineStore().fromTheatreJSON(timeline as unknown as import('../timeline/types').TheatreTimelineData)
+            getTimelineStore().fromTheatreJSON(
+              timeline as unknown as import('../timeline/types').TheatreTimelineData
+            )
           } catch (error) {
             console.error('Failed to load timeline data into native store:', error)
           }
@@ -1414,7 +1426,9 @@ export function getNoodles(): Visualization {
 
   // Wrap content with appropriate timeline provider based on mode
   const TimelineWrapper = USE_THEATRE
-    ? ({ children }: { children: React.ReactNode }) => <SheetProvider value={theatreSheet}>{children}</SheetProvider>
+    ? ({ children }: { children: React.ReactNode }) => (
+        <SheetProvider value={theatreSheet}>{children}</SheetProvider>
+      )
     : TimelineProvider
 
   const flowGraph = theatreReady && (

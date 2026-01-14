@@ -1,20 +1,20 @@
 // Tests for Theatre.js timeline migration
 
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
-  theatreObjectNameToFieldPath,
-  fieldPathToTheatreObjectName,
-  theatreHandlesToBezierHandles,
   bezierHandlesToTheatreHandles,
-  theatreValueToKeyframeValue,
-  theatreKeyframeToKeyframe,
-  keyframeToTheatreKeyframe,
-  theatreTrackDataToTrack,
-  migrateTheatreTimeline,
   exportToTheatreFormat,
+  fieldPathToTheatreObjectName,
+  keyframeToTheatreKeyframe,
+  migrateTheatreTimeline,
+  theatreHandlesToBezierHandles,
+  theatreKeyframeToKeyframe,
+  theatreObjectNameToFieldPath,
+  theatreTrackDataToTrack,
+  theatreValueToKeyframeValue,
   validateTheatreData,
 } from '../migrate-timeline'
-import type { TheatreTimelineData, TheatreKeyframe, TheatreTrackData } from '../types'
+import type { TheatreKeyframe, TheatreTimelineData, TheatreTrackData } from '../types'
 
 describe('Object Name Conversion', () => {
   describe('theatreObjectNameToFieldPath', () => {
@@ -327,8 +327,20 @@ describe('Full Timeline Migration', () => {
                   track1: {
                     type: 'number',
                     keyframes: [
-                      { id: 'kf1', position: 0, connectedRight: true, handles: [0, 0, 1, 1], value: 0 },
-                      { id: 'kf2', position: 5, connectedRight: true, handles: [0.42, 0, 0.58, 1], value: 100 },
+                      {
+                        id: 'kf1',
+                        position: 0,
+                        connectedRight: true,
+                        handles: [0, 0, 1, 1],
+                        value: 0,
+                      },
+                      {
+                        id: 'kf2',
+                        position: 5,
+                        connectedRight: true,
+                        handles: [0.42, 0, 0.58, 1],
+                        value: 100,
+                      },
                     ],
                   },
                 },
@@ -388,13 +400,19 @@ describe('Full Timeline Migration', () => {
             length: 10,
             subUnitsPerUnit: 30,
             tracksByObject: {
-              'op1': {
+              op1: {
                 trackIdByPropPath: { value: 't1' },
                 trackData: {
                   t1: {
                     type: 'number',
                     keyframes: [
-                      { id: 'k1', position: 0, connectedRight: true, handles: [0, 0, 1, 1], value: 0 },
+                      {
+                        id: 'k1',
+                        position: 0,
+                        connectedRight: true,
+                        handles: [0, 0, 1, 1],
+                        value: 0,
+                      },
                     ],
                   },
                 },
@@ -405,7 +423,13 @@ describe('Full Timeline Migration', () => {
                   t2: {
                     type: 'number',
                     keyframes: [
-                      { id: 'k2', position: 1, connectedRight: true, handles: [0, 0, 1, 1], value: 50 },
+                      {
+                        id: 'k2',
+                        position: 1,
+                        connectedRight: true,
+                        handles: [0, 0, 1, 1],
+                        value: 50,
+                      },
                     ],
                   },
                 },
@@ -440,7 +464,11 @@ describe('Export to Theatre Format', () => {
               position: 5,
               value: 100,
               interpolation: 'bezier' as const,
-              handles: { left: [0.42, 0] as [number, number], right: [0.58, 1] as [number, number], type: 'aligned' as const },
+              handles: {
+                left: [0.42, 0] as [number, number],
+                right: [0.58, 1] as [number, number],
+                type: 'aligned' as const,
+              },
             },
           ],
         },
@@ -503,7 +531,7 @@ describe('Validation', () => {
 
     const result = validateTheatreData(theatreData)
     expect(result.valid).toBe(true)
-    expect(result.warnings.some((w) => w.includes('Invalid sequence length'))).toBe(true)
+    expect(result.warnings.some(w => w.includes('Invalid sequence length'))).toBe(true)
   })
 
   it('reports error for keyframe with invalid position', () => {
@@ -519,7 +547,15 @@ describe('Validation', () => {
                 trackData: {
                   t1: {
                     type: 'number',
-                    keyframes: [{ id: 'k1', position: 'invalid', connectedRight: true, handles: [0, 0, 1, 1], value: 0 }],
+                    keyframes: [
+                      {
+                        id: 'k1',
+                        position: 'invalid',
+                        connectedRight: true,
+                        handles: [0, 0, 1, 1],
+                        value: 0,
+                      },
+                    ],
                   },
                 },
               },
@@ -531,6 +567,6 @@ describe('Validation', () => {
 
     const result = validateTheatreData(theatreData)
     expect(result.valid).toBe(false)
-    expect(result.errors.some((e) => e.includes('invalid position'))).toBe(true)
+    expect(result.errors.some(e => e.includes('invalid position'))).toBe(true)
   })
 })

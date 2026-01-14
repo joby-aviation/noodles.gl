@@ -1,9 +1,10 @@
 // Keyframe indicator component for animatable fields
 // Shows diamond icon indicating keyframe state and allows add/delete
 
-import React, { useCallback } from 'react'
-import { useTimelineStore, getTimelineStore } from '../timeline-store'
+import type React from 'react'
+import { useCallback } from 'react'
 import { getFieldPath } from '../field-bindings'
+import { getTimelineStore, useTimelineStore } from '../timeline-store'
 import type { KeyframeValue } from '../types'
 
 export interface KeyframeIndicatorProps {
@@ -35,12 +36,7 @@ function DiamondIcon({
   const strokeWidth = size === 'small' ? 1.5 : 2
 
   return (
-    <svg
-      width={dimensions}
-      height={dimensions}
-      viewBox="0 0 10 10"
-      style={{ display: 'block' }}
-    >
+    <svg width={dimensions} height={dimensions} viewBox="0 0 10 10" style={{ display: 'block' }} aria-hidden="true">
       <path
         d="M5 1 L9 5 L5 9 L1 5 Z"
         fill={filled ? 'currentColor' : 'none'}
@@ -48,9 +44,7 @@ function DiamondIcon({
         strokeWidth={strokeWidth}
         strokeLinejoin="round"
       />
-      {animated && !filled && (
-        <circle cx="5" cy="5" r="1.5" fill="currentColor" opacity="0.5" />
-      )}
+      {animated && !filled && <circle cx="5" cy="5" r="1.5" fill="currentColor" opacity="0.5" />}
     </svg>
   )
 }
@@ -66,17 +60,17 @@ export function KeyframeIndicator({
   const fieldPath = getFieldPath(opId, fieldName, subPath)
 
   // Check if track has keyframes
-  const hasKeyframes = useTimelineStore((state) => {
+  const hasKeyframes = useTimelineStore(state => {
     const track = state.tracks.get(fieldPath)
     return track ? track.keyframes.length > 0 : false
   })
 
   // Check if playhead is at a keyframe
-  const isAtKeyframe = useTimelineStore((state) => {
+  const isAtKeyframe = useTimelineStore(state => {
     const track = state.tracks.get(fieldPath)
     if (!track) return false
     const epsilon = 0.001
-    return track.keyframes.some((kf) => Math.abs(kf.position - state.position) < epsilon)
+    return track.keyframes.some(kf => Math.abs(kf.position - state.position) < epsilon)
   })
 
   // Add keyframe at current position
@@ -91,9 +85,7 @@ export function KeyframeIndicator({
 
     // Check if keyframe already exists at this position
     const epsilon = 0.001
-    const existingKf = track.keyframes.find(
-      (kf) => Math.abs(kf.position - position) < epsilon
-    )
+    const existingKf = track.keyframes.find(kf => Math.abs(kf.position - position) < epsilon)
 
     if (!existingKf) {
       store.addKeyframe(fieldPath, {
@@ -115,9 +107,7 @@ export function KeyframeIndicator({
     if (!track) return
 
     const epsilon = 0.001
-    const keyframeToDelete = track.keyframes.find(
-      (kf) => Math.abs(kf.position - position) < epsilon
-    )
+    const keyframeToDelete = track.keyframes.find(kf => Math.abs(kf.position - position) < epsilon)
 
     if (keyframeToDelete) {
       store.deleteKeyframe(fieldPath, keyframeToDelete.id)

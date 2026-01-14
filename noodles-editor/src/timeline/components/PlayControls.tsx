@@ -19,17 +19,18 @@ export function PlayControls() {
   return (
     <div className="timeline-play-controls">
       {/* Go to start */}
-      <button onClick={goToStart} title="Go to start (Home)">
+      <button type="button" onClick={goToStart} title="Go to start (Home)">
         ⏮
       </button>
 
       {/* Step backward */}
-      <button onClick={() => stepBackward(1)} title="Step backward (←)">
+      <button type="button" onClick={() => stepBackward(1)} title="Step backward (←)">
         ◀
       </button>
 
       {/* Play/Pause */}
       <button
+        type="button"
         onClick={playing ? pause : play}
         className={playing ? 'active' : ''}
         title={playing ? 'Pause (Space)' : 'Play (Space)'}
@@ -38,17 +39,18 @@ export function PlayControls() {
       </button>
 
       {/* Step forward */}
-      <button onClick={() => stepForward(1)} title="Step forward (→)">
+      <button type="button" onClick={() => stepForward(1)} title="Step forward (→)">
         ▶
       </button>
 
       {/* Go to end */}
-      <button onClick={goToEnd} title="Go to end (End)">
+      <button type="button" onClick={goToEnd} title="Go to end (End)">
         ⏭
       </button>
 
       {/* Loop toggle */}
       <button
+        type="button"
         onClick={toggleLoop}
         className={loop ? 'active' : ''}
         title={loop ? 'Loop on' : 'Loop off'}

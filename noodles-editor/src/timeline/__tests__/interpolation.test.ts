@@ -69,11 +69,15 @@ describe('findTForX', () => {
 
 describe('evaluateBezierEasing', () => {
   it('returns 0 at x=0', () => {
-    expect(evaluateBezierEasing(0, { left: [0.25, 0.1], right: [0.25, 1], type: 'aligned' })).toBe(0)
+    expect(evaluateBezierEasing(0, { left: [0.25, 0.1], right: [0.25, 1], type: 'aligned' })).toBe(
+      0
+    )
   })
 
   it('returns 1 at x=1', () => {
-    expect(evaluateBezierEasing(1, { left: [0.25, 0.1], right: [0.25, 1], type: 'aligned' })).toBe(1)
+    expect(evaluateBezierEasing(1, { left: [0.25, 0.1], right: [0.25, 1], type: 'aligned' })).toBe(
+      1
+    )
   })
 
   it('returns 0.5 at x=0.5 for linear curve', () => {
@@ -85,7 +89,11 @@ describe('evaluateBezierEasing', () => {
 
   it('returns values between 0 and 1 for standard curves', () => {
     // ease: cubic-bezier(0.25, 0.1, 0.25, 1)
-    const result = evaluateBezierEasing(0.5, { left: [0.25, 0.1], right: [0.25, 1], type: 'aligned' })
+    const result = evaluateBezierEasing(0.5, {
+      left: [0.25, 0.1],
+      right: [0.25, 1],
+      type: 'aligned',
+    })
     expect(result).toBeGreaterThanOrEqual(0)
     expect(result).toBeLessThanOrEqual(1)
   })

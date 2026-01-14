@@ -1,10 +1,11 @@
 // Bezier curve editor for keyframe easing visualization and editing
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { BezierHandles, Keyframe, Track } from '../types'
-import { evaluateCubicBezier, findTForX } from '../interpolation'
+import type React from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { EASING_PRESETS, findMatchingPreset } from '../easing-presets'
+import { evaluateCubicBezier } from '../interpolation'
 import { useTimelineStore } from '../timeline-store'
+import type { BezierHandles } from '../types'
 
 export interface CurveEditorProps {
   trackId: string
@@ -28,7 +29,7 @@ function toPixel(point: Point, width: number, height: number, padding: number): 
 }
 
 // Convert pixel coordinates to normalized coordinates
-function toNormalized(pixel: Point, width: number, height: number, padding: number): Point {
+function _toNormalized(pixel: Point, width: number, height: number, padding: number): Point {
   return {
     x: (pixel.x - padding) / (width - padding * 2),
     y: (height - padding - pixel.y) / (height - padding * 2),
@@ -36,7 +37,7 @@ function toNormalized(pixel: Point, width: number, height: number, padding: numb
 }
 
 // Generate bezier curve path for SVG
-function generateCurvePath(
+function _generateCurvePath(
   handles: BezierHandles,
   width: number,
   height: number,
@@ -56,7 +57,7 @@ function generatePreviewPath(
   width: number,
   height: number,
   padding: number,
-  steps: number = 50
+  steps = 50
 ): string {
   const points: Point[] = []
 
@@ -178,12 +179,18 @@ function PresetButton({ name, handles, isSelected, onClick }: PresetButtonProps)
 
   return (
     <button
+      type="button"
       className={`curve-editor-preset ${isSelected ? 'selected' : ''}`}
       onClick={onClick}
       title={name}
     >
-      <svg width={40} height={30}>
-        <path d={previewPath} fill="none" stroke={isSelected ? '#4a9eff' : '#666'} strokeWidth={1.5} />
+      <svg width={40} height={30} aria-hidden="true">
+        <path
+          d={previewPath}
+          fill="none"
+          stroke={isSelected ? '#4a9eff' : '#666'}
+          strokeWidth={1.5}
+        />
       </svg>
     </button>
   )
@@ -202,14 +209,14 @@ export function CurveEditor({
   const [activeHandle, setActiveHandle] = useState<'left' | 'right' | null>(null)
   const [dragStartHandles, setDragStartHandles] = useState<BezierHandles | null>(null)
 
-  const track = useTimelineStore((state) => state.tracks.get(trackId))
-  const selectedKeyframeIds = useTimelineStore((state) => state.selectedKeyframeIds)
-  const setKeyframeHandles = useTimelineStore((state) => state.setKeyframeHandles)
+  const track = useTimelineStore(state => state.tracks.get(trackId))
+  const selectedKeyframeIds = useTimelineStore(state => state.selectedKeyframeIds)
+  const setKeyframeHandles = useTimelineStore(state => state.setKeyframeHandles)
 
   // Find selected keyframe in this track
   const selectedKeyframe = useMemo(() => {
     if (!track) return null
-    return track.keyframes.find((kf) => selectedKeyframeIds.has(kf.id)) ?? null
+    return track.keyframes.find(kf => selectedKeyframeIds.has(kf.id)) ?? null
   }, [track, selectedKeyframeIds])
 
   // Current handles to display
@@ -255,7 +262,7 @@ export function CurveEditor({
         y: -delta.y / (height - padding * 2),
       }
 
-      let newLeft: [number, number] = [
+      const newLeft: [number, number] = [
         Math.max(0, Math.min(1, dragStartHandles.left[0] + pixelToNormalDelta.x)),
         dragStartHandles.left[1] + pixelToNormalDelta.y,
       ]
@@ -280,7 +287,7 @@ export function CurveEditor({
         type: handles.type,
       })
     },
-    [selectedKeyframe, dragStartHandles, width, height, padding, handles.type, trackId, setKeyframeHandles]
+    [selectedKeyframe, dragStartHandles, width, height, handles.type, trackId, setKeyframeHandles]
   )
 
   // Handle drag for right control point
@@ -293,7 +300,7 @@ export function CurveEditor({
         y: -delta.y / (height - padding * 2),
       }
 
-      let newRight: [number, number] = [
+      const newRight: [number, number] = [
         Math.max(0, Math.min(1, dragStartHandles.right[0] + pixelToNormalDelta.x)),
         dragStartHandles.right[1] + pixelToNormalDelta.y,
       ]
@@ -316,7 +323,7 @@ export function CurveEditor({
         type: handles.type,
       })
     },
-    [selectedKeyframe, dragStartHandles, width, height, padding, handles.type, trackId, setKeyframeHandles]
+    [selectedKeyframe, dragStartHandles, width, height, handles.type, trackId, setKeyframeHandles]
   )
 
   const handleDragStart = useCallback(
@@ -359,7 +366,7 @@ export function CurveEditor({
 
   return (
     <div className="curve-editor" style={{ width }}>
-      <svg ref={svgRef} width={width} height={height} className="curve-editor-canvas">
+      <svg ref={svgRef} width={width} height={height} className="curve-editor-canvas" role="img" aria-label="Bezier curve editor">
         {/* Background */}
         <rect x={0} y={0} width={width} height={height} fill="#1a1a1a" />
 
@@ -415,7 +422,7 @@ export function CurveEditor({
       {/* Preset selector */}
       {showPresets && (
         <div className="curve-editor-presets">
-          {EASING_PRESETS.slice(0, 10).map((preset) => (
+          {EASING_PRESETS.slice(0, 10).map(preset => (
             <PresetButton
               key={preset.name}
               name={preset.name}

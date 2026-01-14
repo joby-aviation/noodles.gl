@@ -1,12 +1,12 @@
 // Tests for easing presets - standard CSS bezier curves
 
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
   EASING_PRESETS,
-  getPresetByName,
-  getDefaultPreset,
-  getPresetNames,
   findMatchingPreset,
+  getDefaultPreset,
+  getPresetByName,
+  getPresetNames,
 } from '../easing-presets'
 
 describe('EASING_PRESETS', () => {
@@ -120,7 +120,11 @@ describe('getPresetNames', () => {
 
 describe('findMatchingPreset', () => {
   it('finds exact match for linear', () => {
-    const handles = { left: [0, 0] as [number, number], right: [1, 1] as [number, number], type: 'aligned' as const }
+    const handles = {
+      left: [0, 0] as [number, number],
+      right: [1, 1] as [number, number],
+      type: 'aligned' as const,
+    }
     const match = findMatchingPreset(handles)
     expect(match).toBeDefined()
     expect(match!.name).toBe('Linear')
@@ -196,10 +200,7 @@ describe('preset handle values', () => {
     // At least one Y value should be outside [0, 1]
     const hasOvershoot = (handles: { left: [number, number]; right: [number, number] }) => {
       return (
-        handles.left[1] < 0 ||
-        handles.left[1] > 1 ||
-        handles.right[1] < 0 ||
-        handles.right[1] > 1
+        handles.left[1] < 0 || handles.left[1] > 1 || handles.right[1] < 0 || handles.right[1] > 1
       )
     }
 

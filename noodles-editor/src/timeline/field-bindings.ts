@@ -20,7 +20,7 @@ import {
   Vec3Field,
 } from '../noodles/fields'
 import type { IOperator, Operator } from '../noodles/operators'
-import { colorToRgba, hexToRgba, rgbaToHex, type RGBA as ColorRGBA } from '../utils/color'
+import { type RGBA as ColorRGBA, colorToRgba, hexToRgba, rgbaToHex } from '../utils/color'
 import type { TimelineStore } from './timeline-store'
 import { useTimelineStore } from './timeline-store'
 import type { KeyframeValue, Point2D, Point3D, RGBA, Vec2, Vec3 } from './types'
@@ -89,10 +89,11 @@ export function fieldValueToKeyframeValue(
 
   // Date field - Temporal to epoch milliseconds
   if (field instanceof DateField) {
-    if (value instanceof Temporal.PlainDateTime || (value && typeof value.toZonedDateTime === 'function')) {
-      const instant = (value as Temporal.PlainDateTime)
-        .toZonedDateTime('UTC')
-        .toInstant()
+    if (
+      value instanceof Temporal.PlainDateTime ||
+      (value && typeof value.toZonedDateTime === 'function')
+    ) {
+      const instant = (value as Temporal.PlainDateTime).toZonedDateTime('UTC').toInstant()
       return instant.epochMilliseconds
     }
     return value as number
@@ -267,7 +268,10 @@ export function bindFieldToTimeline(
       if (value === undefined) return
 
       // Skip if value hasn't changed
-      if (lastKeyframeValue !== undefined && JSON.stringify(value) === JSON.stringify(lastKeyframeValue)) {
+      if (
+        lastKeyframeValue !== undefined &&
+        JSON.stringify(value) === JSON.stringify(lastKeyframeValue)
+      ) {
         return
       }
       lastKeyframeValue = value
@@ -329,10 +333,7 @@ export function bindFieldToTimeline(
 }
 
 // Bind all animatable fields for an operator to the timeline, returns cleanup function
-export function bindOperatorToTimeline(
-  op: Operator<IOperator>,
-  store?: TimelineStore
-): () => void {
+export function bindOperatorToTimeline(op: Operator<IOperator>, store?: TimelineStore): () => void {
   const cleanupFns: Array<() => void> = []
 
   for (const [fieldName, field] of Object.entries(op.inputs)) {

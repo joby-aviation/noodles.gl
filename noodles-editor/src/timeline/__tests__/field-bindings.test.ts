@@ -1,23 +1,23 @@
 // Tests for field bindings - two-way synchronization between fields and timeline tracks
 
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
-  fieldValueToKeyframeValue,
-  keyframeValueToFieldValue,
-  getFieldDefaultKeyframeValue,
-  opIdToObjectName,
-  getFieldPath,
-} from '../field-bindings'
-import {
-  NumberField,
   BooleanField,
-  StringField,
   ColorField,
-  Vec2Field,
-  Vec3Field,
+  NumberField,
   Point2DField,
   Point3DField,
+  StringField,
+  Vec2Field,
+  Vec3Field,
 } from '../../noodles/fields'
+import {
+  fieldValueToKeyframeValue,
+  getFieldDefaultKeyframeValue,
+  getFieldPath,
+  keyframeValueToFieldValue,
+  opIdToObjectName,
+} from '../field-bindings'
 
 describe('opIdToObjectName', () => {
   it('converts simple operator ID', () => {
@@ -142,7 +142,10 @@ describe('fieldValueToKeyframeValue', () => {
 
     it('normalizes object format', () => {
       const field = new Point2DField({ lng: 0, lat: 0 })
-      expect(fieldValueToKeyframeValue(field, { lng: -74, lat: 40.7 })).toEqual({ lng: -74, lat: 40.7 })
+      expect(fieldValueToKeyframeValue(field, { lng: -74, lat: 40.7 })).toEqual({
+        lng: -74,
+        lat: 40.7,
+      })
     })
   })
 
@@ -223,7 +226,10 @@ describe('keyframeValueToFieldValue', () => {
   describe('Point2DField', () => {
     it('returns Point2D object as-is', () => {
       const field = new Point2DField({ lng: 0, lat: 0 })
-      expect(keyframeValueToFieldValue(field, { lng: -122, lat: 37 })).toEqual({ lng: -122, lat: 37 })
+      expect(keyframeValueToFieldValue(field, { lng: -122, lat: 37 })).toEqual({
+        lng: -122,
+        lat: 37,
+      })
     })
   })
 

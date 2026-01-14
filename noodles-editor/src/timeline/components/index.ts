@@ -1,29 +1,21 @@
 // Timeline UI Components - Public Exports
 
-export { TimelinePanel } from './TimelinePanel'
-export type { TimelinePanelProps } from './TimelinePanel'
-
-export { TimeRuler } from './TimeRuler'
-export type { TimeRulerProps } from './TimeRuler'
-
-export { Playhead } from './Playhead'
-export type { PlayheadProps } from './Playhead'
+export type { CurveEditorProps } from './CurveEditor'
+export { CurveEditor } from './CurveEditor'
+export type { KeyframeIndicatorProps, WithKeyframeIndicatorProps } from './KeyframeIndicator'
+export { KeyframeIndicator, WithKeyframeIndicator } from './KeyframeIndicator'
+export type { KeyframeTrackProps } from './KeyframeTrack'
+export { KeyframeTrack } from './KeyframeTrack'
 
 export { PlayControls } from './PlayControls'
-
-export { TimeDisplay } from './TimeDisplay'
-
-export { TrackList } from './TrackList'
-export type { TrackListProps } from './TrackList'
-
-export { KeyframeTrack } from './KeyframeTrack'
-export type { KeyframeTrackProps } from './KeyframeTrack'
-
-export { CurveEditor } from './CurveEditor'
-export type { CurveEditorProps } from './CurveEditor'
-
-export { ScrubbableInput } from './ScrubbableInput'
+export type { PlayheadProps } from './Playhead'
+export { Playhead } from './Playhead'
 export type { ScrubbableInputProps } from './ScrubbableInput'
-
-export { KeyframeIndicator, WithKeyframeIndicator } from './KeyframeIndicator'
-export type { KeyframeIndicatorProps, WithKeyframeIndicatorProps } from './KeyframeIndicator'
+export { ScrubbableInput } from './ScrubbableInput'
+export { TimeDisplay } from './TimeDisplay'
+export type { TimelinePanelProps } from './TimelinePanel'
+export { TimelinePanel } from './TimelinePanel'
+export type { TimeRulerProps } from './TimeRuler'
+export { TimeRuler } from './TimeRuler'
+export type { TrackListProps } from './TrackList'
+export { TrackList } from './TrackList'

@@ -1,8 +1,9 @@
 // Timeline React context for providing timeline state to components
 
-import React, { createContext, useContext, useEffect, useMemo, useRef } from 'react'
-import { useTimelineStore, getTimelineStore } from './timeline-store'
-import { playbackDriver, connectPlaybackToTimeline } from './playback'
+import type React from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef } from 'react'
+import { connectPlaybackToTimeline, playbackDriver } from './playback'
+import { getTimelineStore, useTimelineStore } from './timeline-store'
 import type { TheatreTimelineData } from './types'
 
 // Context value type
@@ -45,7 +46,7 @@ export function TimelineProvider({ children, initialData }: TimelineProviderProp
     return () => {
       disconnectPlayback()
     }
-  }, []) // Only run on mount, ignore initialData changes
+  }, [initialData]) // Only run on mount, ignore initialData changes
 
   const contextValue = useMemo<TimelineContextValue>(
     () => ({
@@ -70,38 +71,38 @@ export function useTimeline() {
 
 // Hook for timeline position with subscription
 export function useTimelinePosition() {
-  return useTimelineStore((state) => state.position)
+  return useTimelineStore(state => state.position)
 }
 
 // Hook for playing state with subscription
 export function useTimelinePlaying() {
-  return useTimelineStore((state) => state.playing)
+  return useTimelineStore(state => state.playing)
 }
 
 // Hook for sequence info
 export function useTimelineSequence() {
-  return useTimelineStore((state) => state.sequence)
+  return useTimelineStore(state => state.sequence)
 }
 
 // Hook for selected track
 export function useSelectedTrack(trackId: string | null) {
-  return useTimelineStore((state) => (trackId ? state.tracks.get(trackId) : null))
+  return useTimelineStore(state => (trackId ? state.tracks.get(trackId) : null))
 }
 
 // Hook for all tracks
 export function useTracks() {
-  return useTimelineStore((state) => state.tracks)
+  return useTimelineStore(state => state.tracks)
 }
 
 // Hook for selected keyframes
 export function useSelectedKeyframes() {
-  return useTimelineStore((state) => state.selectedKeyframeIds)
+  return useTimelineStore(state => state.selectedKeyframeIds)
 }
 
 // Hook for track evaluation at current position
 export function useTrackValue(trackId: string | null) {
-  const position = useTimelineStore((state) => state.position)
-  const track = useTimelineStore((state) => (trackId ? state.tracks.get(trackId) : null))
+  const position = useTimelineStore(state => state.position)
+  const track = useTimelineStore(state => (trackId ? state.tracks.get(trackId) : null))
 
   return useMemo(() => {
     if (!track || !trackId) return null
@@ -111,7 +112,7 @@ export function useTrackValue(trackId: string | null) {
 
 // Hook for checking if a field has keyframes
 export function useHasKeyframes(fieldPath: string) {
-  return useTimelineStore((state) => {
+  return useTimelineStore(state => {
     const track = state.tracks.get(fieldPath)
     return track ? track.keyframes.length > 0 : false
   })
@@ -119,10 +120,10 @@ export function useHasKeyframes(fieldPath: string) {
 
 // Hook for checking if playhead is at a keyframe for a field
 export function useIsAtKeyframe(fieldPath: string) {
-  return useTimelineStore((state) => {
+  return useTimelineStore(state => {
     const track = state.tracks.get(fieldPath)
     if (!track) return false
     const epsilon = 0.001
-    return track.keyframes.some((kf) => Math.abs(kf.position - state.position) < epsilon)
+    return track.keyframes.some(kf => Math.abs(kf.position - state.position) < epsilon)
   })
 }

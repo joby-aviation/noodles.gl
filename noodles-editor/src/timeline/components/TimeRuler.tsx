@@ -1,6 +1,7 @@
 // Time ruler component showing time markers based on zoom level
 
-import React, { useMemo } from 'react'
+import type React from 'react'
+import { useMemo } from 'react'
 
 export interface TimeRulerProps {
   width: number
@@ -44,7 +45,7 @@ function getTickInterval(pixelsPerSecond: number): { major: number; minor: numbe
   return { major, minor }
 }
 
-export function TimeRuler({ width, pixelsPerSecond, scrollLeft }: TimeRulerProps) {
+export function TimeRuler({ width, pixelsPerSecond, scrollLeft: _scrollLeft }: TimeRulerProps) {
   const { ticks, labels } = useMemo(() => {
     const { major, minor } = getTickInterval(pixelsPerSecond)
     const duration = width / pixelsPerSecond
@@ -71,11 +72,7 @@ export function TimeRuler({ width, pixelsPerSecond, scrollLeft }: TimeRulerProps
       // Add label for major ticks
       if (isMajor) {
         labelElements.push(
-          <div
-            key={`label-${time}`}
-            className="timeline-ruler-label"
-            style={{ left: x }}
-          >
+          <div key={`label-${time}`} className="timeline-ruler-label" style={{ left: x }}>
             {formatTime(time)}
           </div>
         )

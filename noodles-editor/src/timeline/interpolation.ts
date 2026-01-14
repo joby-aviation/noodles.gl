@@ -33,7 +33,12 @@ export function evaluateCubicBezier(
   const tSquared = t * t
   const tCubed = tSquared * t
 
-  return oneMinusTCubed * p0 + 3 * oneMinusTSquared * t * p1 + 3 * oneMinusT * tSquared * p2 + tCubed * p3
+  return (
+    oneMinusTCubed * p0 +
+    3 * oneMinusTSquared * t * p1 +
+    3 * oneMinusT * tSquared * p2 +
+    tCubed * p3
+  )
 }
 
 // Evaluate the derivative of a cubic bezier curve at parameter t
@@ -49,11 +54,7 @@ function evaluateCubicBezierDerivative(
   const oneMinusTSquared = oneMinusT * oneMinusT
   const tSquared = t * t
 
-  return (
-    3 * oneMinusTSquared * (p1 - p0) +
-    6 * oneMinusT * t * (p2 - p1) +
-    3 * tSquared * (p3 - p2)
-  )
+  return 3 * oneMinusTSquared * (p1 - p0) + 6 * oneMinusT * t * (p2 - p1) + 3 * tSquared * (p3 - p2)
 }
 
 // Find the parameter t for a given x value using Newton-Raphson iteration
@@ -402,6 +403,10 @@ export function trackHasKeyframes(track: Track): boolean {
 }
 
 // Get the value at a specific keyframe time, or undefined if no keyframe exists there
-export function getKeyframeAtTime(track: Track, time: number, epsilon = 0.001): Keyframe | undefined {
+export function getKeyframeAtTime(
+  track: Track,
+  time: number,
+  epsilon = 0.001
+): Keyframe | undefined {
   return track.keyframes.find(kf => Math.abs(kf.position - time) < epsilon)
 }

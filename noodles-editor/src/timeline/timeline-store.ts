@@ -8,7 +8,6 @@ import { subscribeWithSelector } from 'zustand/middleware'
 import { evaluateTrack } from './interpolation'
 import type {
   BezierHandles,
-  InterpolationType,
   Keyframe,
   KeyframeValue,
   SequenceState,
@@ -61,10 +60,7 @@ export interface TimelineStore {
   hasKeyframesForField: (fieldPath: string) => boolean
 
   // === Keyframe Actions ===
-  addKeyframe: (
-    trackId: string,
-    keyframe: Omit<Keyframe, 'id'> & { id?: string }
-  ) => string
+  addKeyframe: (trackId: string, keyframe: Omit<Keyframe, 'id'> & { id?: string }) => string
   updateKeyframe: (
     trackId: string,
     keyframeId: string,
@@ -72,11 +68,7 @@ export interface TimelineStore {
   ) => void
   deleteKeyframe: (trackId: string, keyframeId: string) => void
   moveKeyframe: (trackId: string, keyframeId: string, newPosition: number) => void
-  setKeyframeHandles: (
-    trackId: string,
-    keyframeId: string,
-    handles: BezierHandles
-  ) => void
+  setKeyframeHandles: (trackId: string, keyframeId: string, handles: BezierHandles) => void
 
   // === Selection Actions ===
   selectKeyframe: (keyframeId: string, addToSelection?: boolean) => void
@@ -409,9 +401,7 @@ export const useTimelineStore = create<TimelineStore>()(
 
         const trackData: TheatreTrackData = {
           type: detectValueType(track.defaultValue),
-          keyframes: track.keyframes.map((kf, i, arr) =>
-            keyframeToTheatre(kf, i, arr.length)
-          ),
+          keyframes: track.keyframes.map((kf, i, arr) => keyframeToTheatre(kf, i, arr.length)),
         }
         tracksByObject[objectName].trackData[trackDataId] = trackData
       }
@@ -500,15 +490,9 @@ export function getTimelineStore() {
 }
 
 export function subscribeToPosition(callback: (position: number) => void) {
-  return useTimelineStore.subscribe(
-    state => state.position,
-    callback
-  )
+  return useTimelineStore.subscribe(state => state.position, callback)
 }
 
 export function subscribeToPlaying(callback: (playing: boolean) => void) {
-  return useTimelineStore.subscribe(
-    state => state.playing,
-    callback
-  )
+  return useTimelineStore.subscribe(state => state.playing, callback)
 }

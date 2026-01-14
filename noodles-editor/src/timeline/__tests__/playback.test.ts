@@ -1,6 +1,6 @@
 // Tests for the playback driver - RAF-based playback with manual mode support
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PlaybackDriver } from '../playback'
 
 describe('PlaybackDriver', () => {

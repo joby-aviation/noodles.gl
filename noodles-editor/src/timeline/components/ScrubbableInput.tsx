@@ -1,6 +1,7 @@
 // Scrubbable number input with Theatre.js-style drag behavior
 
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import type React from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 export interface ScrubbableInputProps {
   value: number
@@ -55,12 +56,8 @@ function evaluateExpression(input: string): number | null {
 // Diamond icon component
 function DiamondIcon({ filled }: { filled: boolean }) {
   return (
-    <svg viewBox="0 0 10 10">
-      <path
-        className="diamond"
-        d="M5 1 L9 5 L5 9 L1 5 Z"
-        fill={filled ? 'currentColor' : 'none'}
-      />
+    <svg viewBox="0 0 10 10" aria-hidden="true">
+      <path className="diamond" d="M5 1 L9 5 L5 9 L1 5 Z" fill={filled ? 'currentColor' : 'none'} />
     </svg>
   )
 }
@@ -143,16 +140,13 @@ export function ScrubbableInput({
   )
 
   // Handle pointer up to end drag
-  const handlePointerUp = useCallback(
-    (e: React.PointerEvent) => {
-      if (dragState.current) {
-        inputRef.current?.releasePointerCapture(e.pointerId)
-        dragState.current = null
-        setIsDragging(false)
-      }
-    },
-    []
-  )
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    if (dragState.current) {
+      inputRef.current?.releasePointerCapture(e.pointerId)
+      dragState.current = null
+      setIsDragging(false)
+    }
+  }, [])
 
   // Handle double-click to enter edit mode
   const handleDoubleClick = useCallback(() => {
@@ -213,7 +207,18 @@ export function ScrubbableInput({
         }
       }
     },
-    [isEditing, isDragging, disabled, value, step, getModifierScale, clampValue, onChange, commitEdit, cancelEdit]
+    [
+      isEditing,
+      isDragging,
+      disabled,
+      value,
+      step,
+      getModifierScale,
+      clampValue,
+      onChange,
+      commitEdit,
+      cancelEdit,
+    ]
   )
 
   // Handle blur to commit edit

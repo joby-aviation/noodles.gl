@@ -9,7 +9,11 @@ export interface TrackListProps {
   timelineWidth?: number
 }
 
-export function TrackList({ showLabelsOnly = false, pixelsPerSecond, timelineWidth }: TrackListProps) {
+export function TrackList({
+  showLabelsOnly = false,
+  pixelsPerSecond,
+  timelineWidth,
+}: TrackListProps) {
   const tracks = useTimelineStore(state => state.tracks)
 
   // Convert tracks Map to array and sort by fieldPath

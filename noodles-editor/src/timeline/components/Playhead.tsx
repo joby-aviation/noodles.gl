@@ -63,10 +63,8 @@ export function Playhead({ position, pixelsPerSecond, height }: PlayheadProps) {
         opacity: isDragging ? 0.8 : 1,
       }}
     >
-      <div
-        className="timeline-playhead-handle"
-        onMouseDown={handleMouseDown}
-      />
+{/* biome-ignore lint/a11y/noStaticElementInteractions: Playhead handle uses drag interaction */}
+      <div className="timeline-playhead-handle" onMouseDown={handleMouseDown} />
     </div>
   )
 }

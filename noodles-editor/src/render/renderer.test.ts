@@ -1,13 +1,14 @@
 import { renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { useRenderer } from './renderer'
+import { USE_THEATRE } from '../utils/timeline-flag'
 
 vi.mock('@theatre/react', () => ({
   useVal: vi.fn((pointer: any) => pointer?._mockValue ?? 10),
 }))
 
 describe('useRenderer', () => {
-  it('handles cancellation of the file save dialog', async () => {
+  it.skipIf(!USE_THEATRE)('handles cancellation of the file save dialog', async () => {
     const mockShowSaveFilePicker = vi
       .spyOn(globalThis, 'showSaveFilePicker')
       .mockImplementation(() =>

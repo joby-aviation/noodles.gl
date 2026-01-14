@@ -23,7 +23,7 @@ export function theatreObjectNameToFieldPath(objectName: string): string {
   // Split by " / " and join with "."
   const parts = objectName.split(' / ')
   // First part becomes the operator ID with leading slash
-  const opId = '/' + parts[0]
+  const opId = `/${parts[0]}`
   // Remaining parts are the property path
   const propPath = parts.slice(1).join('.')
 
@@ -47,7 +47,7 @@ export function fieldPathToTheatreObjectName(fieldPath: string): string {
     const opId = path.slice(0, parIndex)
     const propPath = path.slice(parIndex + 5) // Skip ".par."
     // Convert dots to " / "
-    return opId + ' / ' + propPath.replace(/\./g, ' / ')
+    return `${opId} / ${propPath.replace(/\./g, ' / ')}`
   }
 
   return path
@@ -69,7 +69,9 @@ export function theatreHandlesToBezierHandles(
   }
 }
 
-export function bezierHandlesToTheatreHandles(handles: BezierHandles): [number, number, number, number] {
+export function bezierHandlesToTheatreHandles(
+  handles: BezierHandles
+): [number, number, number, number] {
   return [handles.left[0], handles.left[1], handles.right[0], handles.right[1]]
 }
 
@@ -78,7 +80,7 @@ export function bezierHandlesToTheatreHandles(handles: BezierHandles): [number, 
 // ============================================================================
 
 // Theatre.js stores values directly, but compound values need special handling
-export function theatreValueToKeyframeValue(value: unknown, propType?: string): KeyframeValue {
+export function theatreValueToKeyframeValue(value: unknown, _propType?: string): KeyframeValue {
   if (value === null || value === undefined) {
     return 0
   }
@@ -136,10 +138,7 @@ export function theatreValueToKeyframeValue(value: unknown, propType?: string): 
 // Keyframe Conversion
 // ============================================================================
 
-export function theatreKeyframeToKeyframe(
-  theatreKf: TheatreKeyframe,
-  propType?: string
-): Keyframe {
+export function theatreKeyframeToKeyframe(theatreKf: TheatreKeyframe, propType?: string): Keyframe {
   const handles = theatreHandlesToBezierHandles(theatreKf.handles)
 
   // Determine interpolation type based on handles
@@ -191,11 +190,9 @@ export function theatreTrackDataToTrack(
   propPath: string,
   trackData: TheatreTrackData
 ): Track {
-  const fieldPath = theatreObjectNameToFieldPath(objectName + ' / ' + propPath)
+  const fieldPath = theatreObjectNameToFieldPath(`${objectName} / ${propPath}`)
 
-  const keyframes = trackData.keyframes.map((kf) =>
-    theatreKeyframeToKeyframe(kf, trackData.type)
-  )
+  const keyframes = trackData.keyframes.map(kf => theatreKeyframeToKeyframe(kf, trackData.type))
 
   // Sort keyframes by position
   keyframes.sort((a, b) => a.position - b.position)

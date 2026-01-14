@@ -2,7 +2,7 @@
 
 import { useCallback } from 'react'
 import { useTimelineStore } from '../timeline-store'
-import type { Track, Keyframe } from '../types'
+import type { Keyframe, Track } from '../types'
 
 export interface KeyframeTrackProps {
   track: Track
@@ -33,7 +33,7 @@ export function KeyframeTrack({
 }: KeyframeTrackProps) {
   const selectedKeyframeIds = useTimelineStore(state => state.selectedKeyframeIds)
   const selectKeyframe = useTimelineStore(state => state.selectKeyframe)
-  const position = useTimelineStore(state => state.position)
+  const _position = useTimelineStore(state => state.position)
   const addKeyframe = useTimelineStore(state => state.addKeyframe)
 
   const displayName = getDisplayName(track.fieldPath)
@@ -82,6 +82,7 @@ export function KeyframeTrack({
 
   // Render keyframe row
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: Timeline track row uses double-click for adding keyframes
     <div
       className="timeline-track-row"
       style={{ width: timelineWidth }}
@@ -112,6 +113,7 @@ function KeyframeDiamond({ keyframe, pixelsPerSecond, isSelected, onClick }: Key
   const x = keyframe.position * pixelsPerSecond
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: Keyframe diamond is styled as a diamond shape
     <div
       className={`timeline-keyframe ${isSelected ? 'selected' : ''}`}
       style={{ left: x }}

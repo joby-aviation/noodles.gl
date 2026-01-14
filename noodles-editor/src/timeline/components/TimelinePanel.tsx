@@ -4,9 +4,9 @@
 import { useCallback, useRef, useState } from 'react'
 import { useTimelineStore } from '../timeline-store'
 import { PlayControls } from './PlayControls'
+import { Playhead } from './Playhead'
 import { TimeDisplay } from './TimeDisplay'
 import { TimeRuler } from './TimeRuler'
-import { Playhead } from './Playhead'
 import { TrackList } from './TrackList'
 import './TimelinePanel.css'
 
@@ -36,30 +36,21 @@ export function TimelinePanel({ height = 300 }: TimelinePanelProps) {
   const timelineWidth = sequence.length * pixelsPerSecond
 
   // Convert time to pixels
-  const timeToPixels = useCallback(
-    (time: number) => time * pixelsPerSecond,
-    [pixelsPerSecond]
-  )
+  const _timeToPixels = useCallback((time: number) => time * pixelsPerSecond, [pixelsPerSecond])
 
   // Convert pixels to time
-  const pixelsToTime = useCallback(
-    (pixels: number) => pixels / pixelsPerSecond,
-    [pixelsPerSecond]
-  )
+  const pixelsToTime = useCallback((pixels: number) => pixels / pixelsPerSecond, [pixelsPerSecond])
 
   // Handle zoom with mouse wheel
-  const handleWheel = useCallback(
-    (e: React.WheelEvent) => {
-      if (e.ctrlKey || e.metaKey) {
-        e.preventDefault()
-        const delta = e.deltaY > 0 ? 0.9 : 1.1
-        setPixelsPerSecond(prev =>
-          Math.max(MIN_PIXELS_PER_SECOND, Math.min(MAX_PIXELS_PER_SECOND, prev * delta))
-        )
-      }
-    },
-    []
-  )
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault()
+      const delta = e.deltaY > 0 ? 0.9 : 1.1
+      setPixelsPerSecond(prev =>
+        Math.max(MIN_PIXELS_PER_SECOND, Math.min(MAX_PIXELS_PER_SECOND, prev * delta))
+      )
+    }
+  }, [])
 
   // Handle scroll
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
@@ -80,18 +71,14 @@ export function TimelinePanel({ height = 300 }: TimelinePanelProps) {
   )
 
   return (
-    <div
-      ref={containerRef}
-      className="timeline-panel"
-      style={{ height }}
-      onWheel={handleWheel}
-    >
+    <div ref={containerRef} className="timeline-panel" style={{ height }} onWheel={handleWheel}>
       {/* Header with controls */}
       <div className="timeline-header">
         <PlayControls />
         <TimeDisplay />
         <div className="timeline-zoom">
           <button
+            type="button"
             onClick={() => setPixelsPerSecond(prev => Math.max(MIN_PIXELS_PER_SECOND, prev * 0.8))}
             title="Zoom out"
           >
@@ -99,6 +86,7 @@ export function TimelinePanel({ height = 300 }: TimelinePanelProps) {
           </button>
           <span>{Math.round(pixelsPerSecond)}px/s</span>
           <button
+            type="button"
             onClick={() => setPixelsPerSecond(prev => Math.min(MAX_PIXELS_PER_SECOND, prev * 1.25))}
             title="Zoom in"
           >
@@ -116,10 +104,7 @@ export function TimelinePanel({ height = 300 }: TimelinePanelProps) {
         </div>
 
         {/* Scrollable timeline area */}
-        <div
-          className="timeline-scroll-area"
-          onScroll={handleScroll}
-        >
+        <div className="timeline-scroll-area" onScroll={handleScroll}>
           {/* Time ruler */}
           <TimeRuler
             width={timelineWidth}
@@ -128,23 +113,17 @@ export function TimelinePanel({ height = 300 }: TimelinePanelProps) {
           />
 
           {/* Keyframe area */}
+          {/* biome-ignore lint/a11y/noStaticElementInteractions: Timeline area uses click to set playhead position */}
           <div
             ref={timelineAreaRef}
             className="timeline-keyframe-area"
             style={{ width: timelineWidth }}
             onClick={handleTimelineClick}
           >
-            <TrackList
-              pixelsPerSecond={pixelsPerSecond}
-              timelineWidth={timelineWidth}
-            />
+            <TrackList pixelsPerSecond={pixelsPerSecond} timelineWidth={timelineWidth} />
 
             {/* Playhead */}
-            <Playhead
-              position={position}
-              pixelsPerSecond={pixelsPerSecond}
-              height={height - 80}
-            />
+            <Playhead position={position} pixelsPerSecond={pixelsPerSecond} height={height - 80} />
           </div>
         </div>
       </div>

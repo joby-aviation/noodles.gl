@@ -11,8 +11,8 @@ export type PlaybackCallback = (deltaMs: number) => void
 
 export class PlaybackDriver {
   private rafId: number | null = null
-  private lastTimestamp: number = 0
-  private manualMode: boolean = false
+  private lastTimestamp = 0
+  private manualMode = false
   private subscribers: Set<PlaybackCallback> = new Set()
 
   // Start the playback loop (uses requestAnimationFrame for smooth ~60fps updates)

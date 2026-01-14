@@ -12,8 +12,8 @@ import { DEFAULT_RENDER_SETTINGS, type RenderSettings } from './noodles/utils/se
 import { useDeckDrawLoop } from './render/draw-loop'
 import { captureScreenshot, rafDriver, useRenderer } from './render/renderer'
 import { TransformScale } from './render/transform-scale'
-import s from './timeline-editor.module.css'
 import { useTimelineStore } from './timeline/timeline-store'
+import s from './timeline-editor.module.css'
 import setRef from './utils/set-ref'
 import { USE_THEATRE } from './utils/timeline-flag'
 
@@ -37,18 +37,16 @@ if (USE_THEATRE) {
 }
 
 // Custom hook to get sequence length from either Theatre.js or native timeline
-// Safely handles the conditional hook by ensuring consistent call order
+// Since USE_THEATRE is a constant determined at module load, the hook call order is stable
 function useSequenceLength(theatreSequence: import('@theatre/core').ISequence | null) {
   const nativeLength = useTimelineStore(state => state.sequence.length)
 
-  // When Theatre.js is enabled and we have a sequence, use Theatre.js
-  // Since USE_THEATRE is a constant (determined at module load), this is safe
-  if (USE_THEATRE && useVal && theatreSequence) {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    return useVal(theatreSequence.pointer.length)
-  }
+  // Always call useVal if available to maintain consistent hook order
+  // When Theatre.js is disabled, useVal is null and we skip the call
+  // biome-ignore lint/correctness/useHookAtTopLevel: USE_THEATRE is constant (module load), hook order is stable
+  const theatreLength = USE_THEATRE && useVal && theatreSequence ? useVal(theatreSequence.pointer.length) : null
 
-  return nativeLength
+  return theatreLength ?? nativeLength
 }
 
 // Inject styles into TheatreJS shadow DOM to hide export button
@@ -165,7 +163,6 @@ export default function TimelineEditor() {
 
   // Get sequence based on which timeline system is active
   const theatreSequence = USE_THEATRE && sheet ? sheet.sequence : null
-  const nativeSequenceLength = useTimelineStore(state => state.sequence.length)
 
   useEffect(() => {
     if (USE_THEATRE && project) {
@@ -177,13 +174,7 @@ export default function TimelineEditor() {
   }, [project])
 
   // Get sequence length from the appropriate timeline system
-  // Note: useVal is only defined when USE_THEATRE is true, and USE_THEATRE is constant
-  // (determined at module load from URL params), so the hook call order is stable
-  // biome-ignore lint/correctness/useHookAtTopLevel: USE_THEATRE is a constant that never changes during component lifecycle
-  const theatreSequenceLength = USE_THEATRE && useVal && theatreSequence
-    ? useVal(theatreSequence.pointer.length)
-    : null
-  const sequenceLength = theatreSequenceLength ?? nativeSequenceLength
+  const sequenceLength = useSequenceLength(theatreSequence)
 
   // Render settings dialog state
   const [renderSettingsDialogOpen, setRenderSettingsDialogOpen] = useState(false)
@@ -449,7 +440,9 @@ export default function TimelineEditor() {
           layoutMode={layoutMode}
         >
           {isFixedMode ? (
-            <TransformScale scale={effectiveRenderSettings.scaleControl}>{renderContent()}</TransformScale>
+            <TransformScale scale={effectiveRenderSettings.scaleControl}>
+              {renderContent()}
+            </TransformScale>
           ) : (
             renderContent()
           )}
