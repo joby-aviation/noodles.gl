@@ -399,3 +399,69 @@
 .scrubbable-input-keyframe-indicator:hover .diamond {
   stroke: #6ab0ff;
 }
+
+/* ============================================================================
+   Keyframe Indicator (standalone)
+   ============================================================================ */
+
+.keyframe-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+  color: #666;
+  transition: color 0.15s ease;
+}
+
+.keyframe-indicator-small {
+  width: 14px;
+  height: 14px;
+}
+
+.keyframe-indicator:hover:not(:disabled) {
+  color: #888;
+}
+
+.keyframe-indicator.has-keyframes {
+  color: #4a9eff;
+}
+
+.keyframe-indicator.has-keyframes:hover:not(:disabled) {
+  color: #6ab0ff;
+}
+
+.keyframe-indicator.at-keyframe {
+  color: #ffaa00;
+}
+
+.keyframe-indicator.at-keyframe:hover:not(:disabled) {
+  color: #ffcc44;
+}
+
+.keyframe-indicator.animated {
+  color: #4a9eff;
+}
+
+.keyframe-indicator:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Field wrapper with keyframe indicator */
+.field-with-keyframe-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.field-with-keyframe-indicator > *:first-child {
+  flex: 1;
+  min-width: 0;
+}

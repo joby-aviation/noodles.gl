@@ -117,6 +117,7 @@ export {
 
 export {
   CurveEditor,
+  KeyframeIndicator,
   KeyframeTrack,
   PlayControls,
   Playhead,
@@ -125,16 +126,19 @@ export {
   TimelinePanel,
   TimeRuler,
   TrackList,
+  WithKeyframeIndicator,
 } from './components'
 
 export type {
   CurveEditorProps,
+  KeyframeIndicatorProps,
   KeyframeTrackProps,
   PlayheadProps,
   ScrubbableInputProps,
   TimelinePanelProps,
   TimeRulerProps,
   TrackListProps,
+  WithKeyframeIndicatorProps,
 } from './components'
 
 // ============================================================================

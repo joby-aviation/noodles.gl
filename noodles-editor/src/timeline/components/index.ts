@@ -24,3 +24,6 @@ export type { CurveEditorProps } from './CurveEditor'
 
 export { ScrubbableInput } from './ScrubbableInput'
 export type { ScrubbableInputProps } from './ScrubbableInput'
+
+export { KeyframeIndicator, WithKeyframeIndicator } from './KeyframeIndicator'
+export type { KeyframeIndicatorProps, WithKeyframeIndicatorProps } from './KeyframeIndicator'
