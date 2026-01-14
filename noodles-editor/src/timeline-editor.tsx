@@ -1,8 +1,6 @@
 import type { Deck, DeckProps } from '@deck.gl/core'
 import { MapboxOverlay, type MapboxOverlayProps } from '@deck.gl/mapbox'
 import { DeckGL } from '@deck.gl/react'
-import { useVal } from '@theatre/react'
-import studio from '@theatre/studio'
 import { ReactFlowProvider } from '@xyflow/react'
 import type { Map as MapLibre } from 'maplibre-gl'
 import { forwardRef, useCallback, useEffect, useRef, useState } from 'react'
@@ -10,19 +8,48 @@ import ReactMapGL, { type MapProps, useControl } from 'react-map-gl/maplibre'
 import { Layout } from './layout'
 import { TopMenuBar } from './noodles/components/top-menu-bar'
 import { getNoodles } from './noodles/noodles'
-import type { RenderSettings } from './noodles/utils/serialization'
+import { DEFAULT_RENDER_SETTINGS, type RenderSettings } from './noodles/utils/serialization'
 import { useDeckDrawLoop } from './render/draw-loop'
 import { captureScreenshot, rafDriver, useRenderer } from './render/renderer'
 import { TransformScale } from './render/transform-scale'
 import s from './timeline-editor.module.css'
+import { useTimelineStore } from './timeline/timeline-store'
 import setRef from './utils/set-ref'
+import { USE_THEATRE } from './utils/timeline-flag'
 
-// https://www.theatrejs.com/docs/latest/manual/advanced#rafdrivers
-// the rafDriver breaks things like spacebar playback
-studio.initialize({
-  __experimental_rafDriver: rafDriver,
-  usePersistentStorage: false,
-})
+// Conditionally import and initialize Theatre.js based on feature flag
+// Only load Theatre.js when use_theatre=true in URL params
+let useVal: typeof import('@theatre/react').useVal | null = null
+
+if (USE_THEATRE) {
+  // Dynamic imports would be cleaner but require async, so we use require-like pattern
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const theatreStudio = require('@theatre/studio').default
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  useVal = require('@theatre/react').useVal
+
+  // https://www.theatrejs.com/docs/latest/manual/advanced#rafdrivers
+  // the rafDriver breaks things like spacebar playback
+  theatreStudio.initialize({
+    __experimental_rafDriver: rafDriver,
+    usePersistentStorage: false,
+  })
+}
+
+// Custom hook to get sequence length from either Theatre.js or native timeline
+// Safely handles the conditional hook by ensuring consistent call order
+function useSequenceLength(theatreSequence: import('@theatre/core').ISequence | null) {
+  const nativeLength = useTimelineStore(state => state.sequence.length)
+
+  // When Theatre.js is enabled and we have a sequence, use Theatre.js
+  // Since USE_THEATRE is a constant (determined at module load), this is safe
+  if (USE_THEATRE && useVal && theatreSequence) {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    return useVal(theatreSequence.pointer.length)
+  }
+
+  return nativeLength
+}
 
 // Inject styles into TheatreJS shadow DOM to hide export button
 // Using the generated class name is brittle but more reliable than trying to
@@ -55,17 +82,20 @@ const injectTheatreStyles = () => {
   return false
 }
 
-// Use a single MutationObserver to watch for both the theatre root being added
-// and its shadowRoot being attached
-const observer = new MutationObserver(() => {
-  if (injectTheatreStyles()) {
-    observer.disconnect()
-  }
-})
-observer.observe(document.body, { childList: true, subtree: true })
+// Only set up Theatre.js style injection when Theatre.js is enabled
+if (USE_THEATRE) {
+  // Use a single MutationObserver to watch for both the theatre root being added
+  // and its shadowRoot being attached
+  const observer = new MutationObserver(() => {
+    if (injectTheatreStyles()) {
+      observer.disconnect()
+    }
+  })
+  observer.observe(document.body, { childList: true, subtree: true })
 
-// Also try injecting immediately in case everything is already loaded
-injectTheatreStyles()
+  // Also try injecting immediately in case everything is already loaded
+  injectTheatreStyles()
+}
 
 const DeckGLOverlay = forwardRef<
   Deck,
@@ -132,23 +162,42 @@ export default function TimelineEditor() {
     setRenderSettings,
     ...visualization
   } = noodles
-  const sequence = sheet.sequence
+
+  // Get sequence based on which timeline system is active
+  const theatreSequence = USE_THEATRE && sheet ? sheet.sequence : null
+  const nativeSequenceLength = useTimelineStore(state => state.sequence.length)
 
   useEffect(() => {
-    project?.ready.then(() => setReady(true))
+    if (USE_THEATRE && project) {
+      project.ready.then(() => setReady(true))
+    } else {
+      // Native timeline is ready immediately
+      setReady(true)
+    }
   }, [project])
 
-  const sequenceLength = useVal(sequence.pointer.length)
+  // Get sequence length from the appropriate timeline system
+  // Note: useVal is only defined when USE_THEATRE is true, and USE_THEATRE is constant
+  // (determined at module load from URL params), so the hook call order is stable
+  // biome-ignore lint/correctness/useHookAtTopLevel: USE_THEATRE is a constant that never changes during component lifecycle
+  const theatreSequenceLength = USE_THEATRE && useVal && theatreSequence
+    ? useVal(theatreSequence.pointer.length)
+    : null
+  const sequenceLength = theatreSequenceLength ?? nativeSequenceLength
 
   // Render settings dialog state
   const [renderSettingsDialogOpen, setRenderSettingsDialogOpen] = useState(false)
 
+  // Use provided renderSettings or fall back to defaults
+  const effectiveRenderSettings = renderSettings ?? DEFAULT_RENDER_SETTINGS
   const { framerate, bitrateMbps, bitrateMode, codec, resolution, lod, waitForData, captureDelay } =
-    renderSettings
+    effectiveRenderSettings
 
+  // Renderer requires Theatre.js for video capture (uses sequence.position for scrubbing)
+  // When Theatre.js is disabled, rendering features are disabled
   const { startCapture, captureFrame, currentFrame, isRendering } = useRenderer({
-    project,
-    sequence: sequence,
+    project: USE_THEATRE ? project : null,
+    sequence: theatreSequence,
     fps: framerate,
     bitrate: bitrateMbps * 1_000_000,
     bitrateMode,
@@ -303,13 +352,13 @@ export default function TimelineEditor() {
       return
     }
 
-    const suggestedName = project.address.projectId
+    const suggestedName = project?.address.projectId ?? 'screenshot'
     await captureScreenshot(suggestedName, () => {
       redraw()
       // @ts-expect-error canvas is protected
       return deckRef.current.canvas!
     })
-  }, [project.address.projectId, redraw, basemapEnabled])
+  }, [project?.address.projectId, redraw, basemapEnabled])
 
   // Increase the render target resolution to increase map tile detail.
   // To convert viewport bounds back to their original size, add about 1 to the zoom value.
@@ -319,7 +368,7 @@ export default function TimelineEditor() {
   }
 
   // Use fixed resolution for 'fixed' display mode, undefined for 'responsive' mode to use natural dimensions
-  const isFixedMode = renderSettings.display === 'fixed'
+  const isFixedMode = effectiveRenderSettings.display === 'fixed'
   const displayResolution = isFixedMode ? lodResolution : undefined
 
   if (!ready) {
@@ -333,7 +382,7 @@ export default function TimelineEditor() {
         <ReactMapGL style={displayResolution} {...mapProps}>
           <DeckGLOverlay
             ref={deckRef}
-            renderer={renderSettings}
+            renderer={effectiveRenderSettings}
             isRendering={isRendering}
             {...deckProps}
           />
@@ -385,9 +434,9 @@ export default function TimelineEditor() {
       {isRendering && (
         <div className={s.actionButtons}>
           <progress
-            max={sequenceLength * renderSettings.framerate}
+            max={sequenceLength * effectiveRenderSettings.framerate}
             value={currentFrame}
-            title={`Rendered ${currentFrame} / ${sequenceLength * renderSettings.framerate}`}
+            title={`Rendered ${currentFrame} / ${sequenceLength * effectiveRenderSettings.framerate}`}
           />
         </div>
       )}
@@ -400,7 +449,7 @@ export default function TimelineEditor() {
           layoutMode={layoutMode}
         >
           {isFixedMode ? (
-            <TransformScale scale={renderSettings.scaleControl}>{renderContent()}</TransformScale>
+            <TransformScale scale={effectiveRenderSettings.scaleControl}>{renderContent()}</TransformScale>
           ) : (
             renderContent()
           )}

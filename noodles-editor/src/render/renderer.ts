@@ -1,6 +1,5 @@
 import { assert } from '@deck.gl/core'
 import { createRafDriver, type IProject, type ISequence } from '@theatre/core'
-import { useVal } from '@theatre/react'
 import {
   EncodedPacket,
   EncodedVideoPacketSource,
@@ -9,8 +8,17 @@ import {
   StreamTarget,
 } from 'mediabunny'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { USE_THEATRE } from '../utils/timeline-flag'
+import { useTimelineStore } from '../timeline/timeline-store'
 
 export const rafDriver = createRafDriver({ name: 'WorldView' })
+
+// Conditionally import useVal only when Theatre.js is enabled
+let useVal: typeof import('@theatre/react').useVal | null = null
+if (USE_THEATRE) {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  useVal = require('@theatre/react').useVal
+}
 
 export const useRenderer = ({
   project,
@@ -20,15 +28,22 @@ export const useRenderer = ({
   bitrateMode,
   redraw,
 }: {
-  project: IProject
-  sequence: ISequence
+  project: IProject | null
+  sequence: ISequence | null
   fps?: number
   bitrate?: number
   bitrateMode: 'variable' | 'constant'
   redraw: () => void
 }) => {
-  // useVal keeps the prism "hot" and avoids cold prism warnings
-  const sequenceLength = useVal(sequence.pointer.length)
+  // Get sequence length from Theatre.js when available, otherwise from native timeline
+  const nativeSequenceLength = useTimelineStore(state => state.sequence.length)
+  // useVal keeps the prism "hot" and avoids cold prism warnings (only when Theatre.js is enabled)
+  // Note: useVal is only defined when USE_THEATRE is true, and USE_THEATRE is constant
+  // biome-ignore lint/correctness/useHookAtTopLevel: USE_THEATRE is a constant that never changes during component lifecycle
+  const theatreSequenceLength = USE_THEATRE && useVal && sequence
+    ? useVal(sequence.pointer.length)
+    : null
+  const sequenceLength = theatreSequenceLength ?? nativeSequenceLength
 
   const canvasRenderDone = useRef<(result?: { error?: Error }) => void>(() => {})
   const canvasFrameReady = useCallback(
@@ -61,6 +76,12 @@ export const useRenderer = ({
       startFrame?: number
       endFrame?: number
     }) => {
+      // Video rendering requires Theatre.js for timeline scrubbing
+      if (!USE_THEATRE || !project || !sequence) {
+        console.error('Video rendering requires Theatre.js. Enable with ?use_theatre=true')
+        return
+      }
+
       assert(canvas, 'canvas is required')
 
       let i = startFrame

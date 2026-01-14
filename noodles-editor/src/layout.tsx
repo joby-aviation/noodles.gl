@@ -2,10 +2,13 @@ import cx from 'classnames'
 import { type PropsWithChildren, useEffect, useState } from 'react'
 import s from './layout.module.css'
 import { useUIStore } from './noodles/store'
+import { USE_THEATRE } from './utils/timeline-flag'
 
-const TheatrePropPanel = ({ width, height }: { width: number; height: number }) => (
-  <div style={{ width: `${width + 16}px`, height: `${height + 8}px` }} />
-)
+// Spacer component to reserve space for Theatre.js properties panel (only when Theatre.js is enabled)
+const TheatrePropPanel = ({ width, height }: { width: number; height: number }) => {
+  if (!USE_THEATRE) return null
+  return <div style={{ width: `${width + 16}px`, height: `${height + 8}px` }} />
+}
 
 const LAYOUT_CLASSES = {
   split: s.layoutSplit,
@@ -35,7 +38,10 @@ export function Layout({
 
   const layoutClass = LAYOUT_CLASSES[layoutMode]
 
+  // Only observe Theatre.js panel dimensions when Theatre.js is enabled
   useEffect(() => {
+    if (!USE_THEATRE) return
+
     const theatreRoot = document.getElementById('theatrejs-studio-root') as HTMLDivElement
     if (!theatreRoot) return
     // hacky, but worst case it just falls back to defaults
