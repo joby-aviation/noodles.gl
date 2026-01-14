@@ -112,6 +112,8 @@ interface UIStoreState {
   setSidebarVisible: (visible: boolean) => void
   settingsDialogOpen: boolean
   setSettingsDialogOpen: (open: boolean) => void
+  quickStartModalOpen: boolean
+  setQuickStartModalOpen: (open: boolean) => void
 }
 
 export const useUIStore = create<UIStoreState>(set => ({
@@ -123,6 +125,8 @@ export const useUIStore = create<UIStoreState>(set => ({
   setSidebarVisible: visible => set({ sidebarVisible: visible }),
   settingsDialogOpen: false,
   setSettingsDialogOpen: open => set({ settingsDialogOpen: open }),
+  quickStartModalOpen: true,
+  setQuickStartModalOpen: open => set({ quickStartModalOpen: open }),
 }))
 
 // ============================================================================

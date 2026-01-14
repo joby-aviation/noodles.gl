@@ -30,6 +30,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useParams } from 'wouter'
 import { ChatPanel } from '../ai-chat/chat-panel'
 import { globalContextManager } from '../ai-chat/global-context-manager'
+import { getPendingQuickStartAction } from '../components/quick-start-modal'
 import { analytics } from '../utils/analytics'
 import { getKeysForProject, getKeysStore } from './keys-store'
 import newProjectJSON from './new.json'
@@ -226,6 +227,7 @@ export function getNoodles(): Visualization {
   const [edges, setEdges, onEdgesChangeBase] = useEdgesState<ReactFlowEdge<unknown>>([])
   const [defaultViewport, setDefaultViewport] = useState({ x: 0, y: 0, zoom: 1 })
   const [showChatPanel, setShowChatPanel] = useState(false)
+  const [chatInitialMessage, setChatInitialMessage] = useState<string | undefined>(undefined)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
   // Wrap onNodesChange to track node selection and mark unsaved changes
@@ -792,6 +794,34 @@ export function getNoodles(): Visualization {
       }
     })()
   }, [projectName, isExamplesRoute])
+
+  // Handle pending quick start actions (file upload or LLM question from quick start modal)
+  const pendingActionHandledRef = useRef(false)
+  useEffect(() => {
+    // Only run once after project is loaded (nodes are populated)
+    if (nodes.length === 0 || pendingActionHandledRef.current) return
+
+    const pendingAction = getPendingQuickStartAction()
+    if (!pendingAction) return
+
+    pendingActionHandledRef.current = true
+
+    if (pendingAction.type === 'llm' && pendingAction.question) {
+      // Open AI chat panel with the question pre-filled
+      setChatInitialMessage(pendingAction.question)
+      setShowChatPanel(true)
+      analytics.track('quick_start_llm_action_handled')
+    } else if (pendingAction.type === 'file' && pendingAction.file) {
+      // For file uploads, we'll open the chat panel and suggest using the AI to visualize
+      // The file can be referenced in the message
+      const fileName = pendingAction.file.name
+      setChatInitialMessage(
+        `I just uploaded a file called "${fileName}". Please help me create a visualization from this data. First, I'll need to import it using the Data Importer (click the upload icon in the toolbar). Can you guide me through the process?`
+      )
+      setShowChatPanel(true)
+      analytics.track('quick_start_file_action_handled', { fileName })
+    }
+  }, [nodes.length])
 
   const displayedNodes = useMemo(() => {
     const dragHandle = `.${s.header}`
@@ -1366,8 +1396,12 @@ export function getNoodles(): Visualization {
               <UndoRedoHandler ref={undoRedoRef} />
               <ChatPanel
                 project={{ nodes, edges }}
-                onClose={() => setShowChatPanel(false)}
+                onClose={() => {
+                  setShowChatPanel(false)
+                  setChatInitialMessage(undefined)
+                }}
                 isVisible={showChatPanel}
+                initialMessage={chatInitialMessage}
               />
             </ReactFlow>
           </SheetProvider>

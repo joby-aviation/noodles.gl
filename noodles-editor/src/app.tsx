@@ -1,7 +1,9 @@
 import { Component, lazy, type ReactNode, Suspense } from 'react'
 import { Redirect, Route, Router, Switch, useRoute, useSearchParams } from 'wouter'
 import { AnalyticsConsentBanner } from './components/analytics-consent-banner'
+import { QuickStartModal } from './components/quick-start-modal'
 import { ExternalControlProvider } from './external-control'
+import { useUIStore } from './noodles/store'
 import TimelineEditor from './timeline-editor'
 
 // Lazy-load ExamplesPage to reduce main bundle size
@@ -86,6 +88,8 @@ function App() {
 function FallbackRoute() {
   const [searchParams] = useSearchParams()
   const [match] = useRoute('/examples/:projectId')
+  const quickStartModalOpen = useUIStore(state => state.quickStartModalOpen)
+  const setQuickStartModalOpen = useUIStore(state => state.setQuickStartModalOpen)
 
   const redirect = searchParams.get('redirect')
   const projectParam = searchParams.get('project')
@@ -112,6 +116,19 @@ function FallbackRoute() {
     // Redirect from ?project=name to /examples/name
     console.log('Redirecting to project:', projectParam)
     return <Redirect to={`/examples/${projectParam}`} />
+  }
+
+  // Check if we're on the root path - show quick start modal
+  const currentPath = window.location.pathname
+  const isRootPath = currentPath === '/' || currentPath === baseUrl || currentPath === `${baseUrl}/`
+
+  if (isRootPath && quickStartModalOpen) {
+    return (
+      <QuickStartModal
+        open={quickStartModalOpen}
+        onOpenChange={setQuickStartModalOpen}
+      />
+    )
   }
 
   // Default: navigate to /examples

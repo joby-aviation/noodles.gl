@@ -20,9 +20,10 @@ interface ChatPanelProps {
   project: NoodlesProject
   onClose: () => void
   isVisible: boolean
+  initialMessage?: string
 }
 
-export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) => {
+export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, initialMessage }) => {
   // Get ReactFlow state for the modification hook
   const { getNodes, getEdges, setNodes, setEdges } = useReactFlow()
 
@@ -99,6 +100,13 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
       mcpTools.setProject(project)
     }
   }, [mcpTools, project])
+
+  // Handle initial message from quick start modal
+  useEffect(() => {
+    if (initialMessage && isVisible && messages.length === 0) {
+      setInput(initialMessage)
+    }
+  }, [initialMessage, isVisible, messages.length])
 
   // Auto-scroll to bottom
   useEffect(() => {
