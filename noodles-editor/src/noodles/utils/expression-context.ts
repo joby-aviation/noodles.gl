@@ -22,10 +22,18 @@ export interface GlobalDefinition {
   properties?: string[] // For libraries/objects, list of available properties
 }
 
+// Information about the target field an accessor is connected to
+export interface TargetFieldInfo {
+  name: string // e.g., "getPosition", "getFillColor", "getRadius"
+  fieldType: string // e.g., "geopoint-3d", "color", "number"
+  returnType?: 'object' | 'tuple' // For point/vec fields
+}
+
 export interface ExpressionContext {
   dataKeys: string[] // Keys from upstream data: ['lat', 'lng', 'count']
   globals: GlobalDefinition[] // d, data, op, utils, d3, turf, etc.
   operatorPaths: string[] // Available operator paths for op() autocomplete
+  targetField?: TargetFieldInfo // For AccessorOp: info about the field it connects to
 }
 
 // Global variables available in expressions
@@ -110,15 +118,38 @@ function isLayerOperator(op: Operator<IOperator>): boolean {
   return displayName.includes('Layer') && op.inputs.data !== undefined
 }
 
-// Find downstream layer operator that consumes an accessor
-// This traces through the graph to find where an AccessorOp's output ends up
-function findDownstreamLayerData(
+// Result from tracing downstream to find where an accessor connects
+interface DownstreamTarget {
+  layerData: unknown | null // The layer's data for extracting keys
+  targetField: TargetFieldInfo | null // Info about the field the accessor connects to
+}
+
+// Get field type info from a field instance
+function getFieldTypeInfo(field: unknown): { fieldType: string; returnType?: 'object' | 'tuple' } {
+  if (!field || typeof field !== 'object') {
+    return { fieldType: 'unknown' }
+  }
+
+  // Get static type from the field's constructor
+  const fieldConstructor = field.constructor as { type?: string }
+  const fieldType = fieldConstructor.type || 'unknown'
+
+  // Get returnType if it exists (for Point/Vec fields)
+  const returnType = 'returnType' in field ? (field as { returnType?: 'object' | 'tuple' }).returnType : undefined
+
+  return { fieldType, returnType }
+}
+
+// Find downstream target for an accessor
+// Returns both the layer data (for key extraction) and the target field info (for type-aware completions)
+function findDownstreamTarget(
   opId: OpId,
   edges: Edge[],
-  visited: Set<OpId> = new Set()
-): unknown | null {
+  visited: Set<OpId> = new Set(),
+  firstHopField: TargetFieldInfo | null = null
+): DownstreamTarget {
   // Prevent infinite recursion on cycles
-  if (visited.has(opId)) return null
+  if (visited.has(opId)) return { layerData: null, targetField: firstHopField }
   visited.add(opId)
 
   // Find edges where this operator is the source
@@ -128,20 +159,37 @@ function findDownstreamLayerData(
     const targetOp = getOp(edge.target)
     if (!targetOp) continue
 
-    // If target is a layer operator, get its data
-    if (isLayerOperator(targetOp)) {
-      const dataInput = targetOp.inputs.data
-      if (dataInput && 'value' in dataInput) {
-        return dataInput.value
+    // Parse targetHandle to get field name: "par.getPosition" -> "getPosition"
+    const handleParts = edge.targetHandle?.split('.') || []
+    let currentFieldInfo = firstHopField
+
+    // On first hop, capture the target field info
+    if (!firstHopField && handleParts.length >= 2 && handleParts[0] === 'par') {
+      const fieldName = handleParts[1]
+      const targetInput = targetOp.inputs[fieldName]
+
+      if (targetInput) {
+        const { fieldType, returnType } = getFieldTypeInfo(targetInput)
+        currentFieldInfo = { name: fieldName, fieldType, returnType }
       }
     }
 
+    // If target is a layer operator, get its data and return
+    if (isLayerOperator(targetOp)) {
+      const dataInput = targetOp.inputs.data
+      const layerData = dataInput && 'value' in dataInput ? dataInput.value : null
+      return { layerData, targetField: currentFieldInfo }
+    }
+
     // Otherwise, trace further downstream (accessor may go through MapRange, ColorRamp, etc.)
-    const result = findDownstreamLayerData(edge.target, edges, visited)
-    if (result !== null) return result
+    // Preserve the first-hop field info for type awareness
+    const result = findDownstreamTarget(edge.target, edges, visited, currentFieldInfo)
+    if (result.layerData !== null || result.targetField !== null) {
+      return result
+    }
   }
 
-  return null
+  return { layerData: null, targetField: firstHopField }
 }
 
 // Get expression context for an operator
@@ -160,11 +208,14 @@ export function getExpressionContext(operatorId: OpId, edges: Edge[]): Expressio
   let dataKeys: string[] = []
   let globals = EXPRESSION_GLOBALS
 
+  let targetField: TargetFieldInfo | undefined
+
   if (displayName === 'Accessor') {
-    // AccessorOp: trace downstream to find the layer's data
+    // AccessorOp: trace downstream to find the layer's data and target field
     globals = ACCESSOR_GLOBALS
-    const layerData = findDownstreamLayerData(operatorId, edges)
+    const { layerData, targetField: fieldInfo } = findDownstreamTarget(operatorId, edges)
     dataKeys = extractDataKeys(layerData)
+    targetField = fieldInfo || undefined
   } else if (displayName === 'Expression' || displayName === 'Code') {
     // ExpressionOp/CodeOp: look at the data input directly
     const dataInput = op.inputs.data
@@ -190,6 +241,7 @@ export function getExpressionContext(operatorId: OpId, edges: Edge[]): Expressio
     dataKeys,
     globals,
     operatorPaths: getOperatorPaths(),
+    targetField,
   }
 }
 

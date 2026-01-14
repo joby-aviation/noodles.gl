@@ -4780,7 +4780,7 @@ function countChar(str: string, char: string): number {
 }
 
 // Convert cryptic JS errors to actionable messages based on code analysis
-function getFriendlyErrorMessage(jsError: string, userCode: string): string {
+export function getFriendlyErrorMessage(jsError: string, userCode: string): string {
   // Count unmatched delimiters - used for multiple error types
   const brackets = countChar(userCode, '[') - countChar(userCode, ']')
   const parens = countChar(userCode, '(') - countChar(userCode, ')')

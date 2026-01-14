@@ -36,7 +36,7 @@ import type { Edge } from '../noodles'
 import s from '../noodles.module.css'
 import { getExpressionContext } from '../utils/expression-context'
 import { ExpressionEditorOverlay } from './ExpressionEditorOverlay'
-import type { IOperator, Operator } from '../operators'
+import { getFriendlyErrorMessage, type IOperator, type Operator } from '../operators'
 import { checkAssetExists, writeAsset } from '../storage'
 import { projectScheme } from '../utils/filesystem'
 import { edgeId, type OpId } from '../utils/id-utils'
@@ -196,7 +196,8 @@ function validateExpression(expression: string): string | null {
     return null
   } catch (e) {
     if (e instanceof SyntaxError) {
-      return e.message.replace(/^.*?:/, '').trim()
+      // Use the friendly error message from operators.ts for better user feedback
+      return getFriendlyErrorMessage(e.message, expression)
     }
     return 'Invalid expression'
   }
