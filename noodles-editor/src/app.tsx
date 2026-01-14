@@ -123,12 +123,7 @@ function FallbackRoute() {
   const isRootPath = currentPath === '/' || currentPath === baseUrl || currentPath === `${baseUrl}/`
 
   if (isRootPath && quickStartModalOpen) {
-    return (
-      <QuickStartModal
-        open={quickStartModalOpen}
-        onOpenChange={setQuickStartModalOpen}
-      />
-    )
+    return <QuickStartModal open={quickStartModalOpen} onOpenChange={setQuickStartModalOpen} />
   }
 
   // Default: navigate to /examples
