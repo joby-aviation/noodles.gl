@@ -183,7 +183,8 @@ function EditableFieldsSection({
         {animatableInputs.map(([name, field]) => {
           // Check if field is connected (has incoming edge)
           const isConnected = edges.some(
-            e => e.target === nodeId && e.targetHandle === `par.${name}` && e.type !== 'ReferenceEdge'
+            e =>
+              e.target === nodeId && e.targetHandle === `par.${name}` && e.type !== 'ReferenceEdge'
           )
 
           // Get current value for keyframe
@@ -197,11 +198,7 @@ function EditableFieldsSection({
           return (
             <div key={name} className={s.editableFieldRow}>
               <div className={s.editableFieldContent}>
-                <EditableFieldInput
-                  fieldName={name}
-                  field={field}
-                  disabled={isConnected}
-                />
+                <EditableFieldInput fieldName={name} field={field} disabled={isConnected} />
               </div>
               {!USE_THEATRE && (
                 <KeyframeIndicator
