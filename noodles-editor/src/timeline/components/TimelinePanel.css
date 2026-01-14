@@ -244,3 +244,158 @@
   color: #666;
   font-style: italic;
 }
+
+/* ============================================================================
+   Curve Editor
+   ============================================================================ */
+
+.curve-editor {
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.curve-editor-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #666;
+  font-style: italic;
+  font-size: 12px;
+}
+
+.curve-editor-canvas {
+  display: block;
+}
+
+.curve-editor-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px;
+  border-top: 1px solid #333;
+  background: #222;
+}
+
+.curve-editor-preset {
+  width: 44px;
+  height: 34px;
+  padding: 2px;
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.curve-editor-preset:hover {
+  background: #333;
+  border-color: #555;
+}
+
+.curve-editor-preset.selected {
+  background: #1a3a5c;
+  border-color: #4a9eff;
+}
+
+.curve-editor-preset svg {
+  display: block;
+}
+
+.curve-editor-preset-name {
+  padding: 4px 8px;
+  text-align: center;
+  font-size: 11px;
+  color: #888;
+  background: #222;
+  border-top: 1px solid #333;
+}
+
+/* ============================================================================
+   Scrubbable Input
+   ============================================================================ */
+
+.scrubbable-input {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-width: 80px;
+}
+
+.scrubbable-input-field {
+  width: 100%;
+  padding: 4px 8px;
+  padding-right: 24px;
+  background: #333;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #fff;
+  font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+  font-size: 12px;
+  text-align: right;
+  cursor: ew-resize;
+  user-select: none;
+}
+
+.scrubbable-input-field:hover {
+  background: #3a3a3a;
+  border-color: #555;
+}
+
+.scrubbable-input-field:focus {
+  outline: none;
+  border-color: #4a9eff;
+  cursor: text;
+  user-select: text;
+}
+
+.scrubbable-input-field.dragging {
+  background: #3a3a3a;
+  border-color: #4a9eff;
+}
+
+.scrubbable-input-field.has-keyframes {
+  border-left: 2px solid #4a9eff;
+}
+
+.scrubbable-input-field.at-keyframe {
+  border-left: 2px solid #ffaa00;
+}
+
+.scrubbable-input-keyframe-indicator {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 12px;
+  height: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.scrubbable-input-keyframe-indicator svg {
+  width: 10px;
+  height: 10px;
+}
+
+.scrubbable-input-keyframe-indicator .diamond {
+  fill: none;
+  stroke: #666;
+  stroke-width: 1.5;
+}
+
+.scrubbable-input-keyframe-indicator.has-keyframes .diamond {
+  stroke: #4a9eff;
+}
+
+.scrubbable-input-keyframe-indicator.at-keyframe .diamond {
+  fill: #ffaa00;
+  stroke: #ffaa00;
+}
+
+.scrubbable-input-keyframe-indicator:hover .diamond {
+  stroke: #6ab0ff;
+}

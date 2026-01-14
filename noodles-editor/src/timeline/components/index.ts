@@ -18,3 +18,9 @@ export type { TrackListProps } from './TrackList'
 
 export { KeyframeTrack } from './KeyframeTrack'
 export type { KeyframeTrackProps } from './KeyframeTrack'
+
+export { CurveEditor } from './CurveEditor'
+export type { CurveEditorProps } from './CurveEditor'
+
+export { ScrubbableInput } from './ScrubbableInput'
+export type { ScrubbableInputProps } from './ScrubbableInput'
