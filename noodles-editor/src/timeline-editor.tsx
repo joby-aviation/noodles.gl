@@ -8,6 +8,7 @@ import ReactMapGL, { type MapProps, useControl } from 'react-map-gl/maplibre'
 import { Layout } from './layout'
 import { TopMenuBar } from './noodles/components/top-menu-bar'
 import { getNoodles } from './noodles/noodles'
+import { CollapsibleTimelinePanel } from './timeline/components/CollapsibleTimelinePanel'
 import { DEFAULT_RENDER_SETTINGS, type RenderSettings } from './noodles/utils/serialization'
 import { useDeckDrawLoop } from './render/draw-loop'
 import { captureScreenshot, rafDriver, useRenderer } from './render/renderer'
@@ -437,6 +438,7 @@ export default function TimelineEditor() {
           top={topBar}
           left={nodeSidebar}
           right={propertiesPanel}
+          bottom={!USE_THEATRE ? <CollapsibleTimelinePanel /> : undefined}
           flowGraph={flowGraph}
           layoutMode={layoutMode}
         >

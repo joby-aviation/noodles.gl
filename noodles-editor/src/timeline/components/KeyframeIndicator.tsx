@@ -20,6 +20,8 @@ export interface KeyframeIndicatorProps {
   disabled?: boolean
   // Size variant
   size?: 'small' | 'medium'
+  // Callback when a keyframe is added (e.g., to auto-expand timeline)
+  onKeyframeAdded?: () => void
 }
 
 // Diamond SVG icon
@@ -62,6 +64,7 @@ export function KeyframeIndicator({
   currentValue,
   disabled = false,
   size = 'medium',
+  onKeyframeAdded,
 }: KeyframeIndicatorProps) {
   const fieldPath = getFieldPath(opId, fieldName, subPath)
 
@@ -99,8 +102,10 @@ export function KeyframeIndicator({
         value: currentValue,
         interpolation: 'bezier',
       })
+      // Notify parent that a keyframe was added (e.g., to auto-expand timeline)
+      onKeyframeAdded?.()
     }
-  }, [fieldPath, currentValue, disabled])
+  }, [fieldPath, currentValue, disabled, onKeyframeAdded])
 
   // Delete keyframe at current position
   const deleteKeyframe = useCallback(() => {
@@ -180,6 +185,7 @@ export interface WithKeyframeIndicatorProps {
   currentValue: KeyframeValue
   disabled?: boolean
   showIndicator?: boolean
+  onKeyframeAdded?: () => void
 }
 
 export function WithKeyframeIndicator({
@@ -190,6 +196,7 @@ export function WithKeyframeIndicator({
   currentValue,
   disabled = false,
   showIndicator = true,
+  onKeyframeAdded,
 }: WithKeyframeIndicatorProps) {
   if (!showIndicator) {
     return <>{children}</>
@@ -205,6 +212,7 @@ export function WithKeyframeIndicator({
         currentValue={currentValue}
         disabled={disabled}
         size="small"
+        onKeyframeAdded={onKeyframeAdded}
       />
     </div>
   )

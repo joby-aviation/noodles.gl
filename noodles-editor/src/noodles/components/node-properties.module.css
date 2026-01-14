@@ -401,3 +401,38 @@
   border: 1px solid rgba(255, 255, 255, 0.08);
   color: var(--color-text-primary);
 }
+
+/* Editable Fields Section */
+.editableFieldsList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.editableFieldRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.editableFieldContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.emptyState {
+  padding: 12px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 11px;
+  font-style: italic;
+}
+
+.fieldPlaceholder {
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+}

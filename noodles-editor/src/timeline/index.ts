@@ -116,6 +116,7 @@ export {
 // ============================================================================
 
 export type {
+  CollapsibleTimelinePanelProps,
   CurveEditorProps,
   KeyframeIndicatorProps,
   KeyframeTrackProps,
@@ -127,6 +128,7 @@ export type {
   WithKeyframeIndicatorProps,
 } from './components'
 export {
+  CollapsibleTimelinePanel,
   CurveEditor,
   KeyframeIndicator,
   KeyframeTrack,

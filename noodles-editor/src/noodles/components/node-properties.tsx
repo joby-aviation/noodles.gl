@@ -2,13 +2,26 @@ import type { NodeJSON } from 'SKIP-@xyflow/react'
 import type { Edge } from '@xyflow/react'
 import { useEdges, useNodes, useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { isAnimatableField, fieldValueToKeyframeValue } from '../../timeline/field-bindings'
+import { KeyframeIndicator } from '../../timeline/components/KeyframeIndicator'
+import type { KeyframeValue } from '../../timeline/types'
+import { USE_THEATRE } from '../../utils/timeline-flag'
+import { useUIStore } from '../store'
 import { type Field, IN_NS, ListField, OUT_NS } from '../fields'
 import type { Operator } from '../operators'
 import { getOpStore } from '../store'
 import s from './node-properties.module.css'
 import { handleClass, headerClass, typeCategory } from './op-components'
+import {
+  NumberFieldComponent,
+  BooleanFieldComponent,
+  ColorFieldComponent,
+  TextFieldComponent,
+  DateFieldComponent,
+  VectorFieldComponent,
+} from './field-components'
 
 function copy(text: string) {
   navigator.clipboard.writeText(text)
@@ -84,6 +97,126 @@ function Tooltip({
     <div className={s.tooltipContainer}>
       {children}
       <span className={cx(s.tooltipText, s[position])}>{text}</span>
+    </div>
+  )
+}
+
+// Render an editable field input based on field type
+function EditableFieldInput({
+  fieldName,
+  field,
+  disabled,
+}: {
+  fieldName: string
+  field: Field
+  disabled: boolean
+}) {
+  const { type } = field.constructor as typeof Field
+
+  switch (type) {
+    case 'number':
+      // biome-ignore lint/suspicious/noExplicitAny: Type checked at runtime
+      return <NumberFieldComponent id={fieldName} field={field as any} disabled={disabled} />
+    case 'boolean':
+      // biome-ignore lint/suspicious/noExplicitAny: Type checked at runtime
+      return <BooleanFieldComponent id={fieldName} field={field as any} disabled={disabled} />
+    case 'color':
+      // biome-ignore lint/suspicious/noExplicitAny: Type checked at runtime
+      return <ColorFieldComponent id={fieldName} field={field as any} disabled={disabled} />
+    case 'string':
+    case 'string-literal':
+      // biome-ignore lint/suspicious/noExplicitAny: Type checked at runtime
+      return <TextFieldComponent id={fieldName} field={field as any} disabled={disabled} />
+    case 'date':
+      // biome-ignore lint/suspicious/noExplicitAny: Type checked at runtime
+      return <DateFieldComponent id={fieldName} field={field as any} disabled={disabled} />
+    case 'vec2':
+    case 'vec3':
+    case 'geopoint-2d':
+    case 'geopoint-3d':
+      // biome-ignore lint/suspicious/noExplicitAny: Type checked at runtime
+      return <VectorFieldComponent id={fieldName} field={field as any} disabled={disabled} />
+    default:
+      // For other animatable types that don't have specialized components, show a placeholder
+      return (
+        <div className={s.fieldPlaceholder}>
+          {fieldName}: {type}
+        </div>
+      )
+  }
+}
+
+// Section for editable keyframeable fields with keyframe indicators
+function EditableFieldsSection({
+  op,
+  edges,
+  nodeId,
+}: {
+  // biome-ignore lint/suspicious/noExplicitAny: Operator generic type not needed here
+  op: Operator<any>
+  edges: Edge[]
+  nodeId: string
+}) {
+  // Callback to auto-expand timeline when keyframe is added
+  const expandTimeline = useCallback(() => {
+    useUIStore.getState().setTimelineExpanded(true)
+  }, [])
+
+  // Filter to only animatable fields
+  const animatableInputs = Object.entries(op.inputs).filter(([_, field]) =>
+    isAnimatableField(field as Field)
+  ) as [string, Field][]
+
+  if (animatableInputs.length === 0) {
+    return (
+      <div className={s.section}>
+        <div className={s.sectionTitle}>Properties</div>
+        <div className={s.emptyState}>No animatable properties</div>
+      </div>
+    )
+  }
+
+  return (
+    <div className={s.section}>
+      <div className={s.sectionTitle}>Properties</div>
+      <div className={s.editableFieldsList}>
+        {animatableInputs.map(([name, field]) => {
+          // Check if field is connected (has incoming edge)
+          const isConnected = edges.some(
+            e => e.target === nodeId && e.targetHandle === `par.${name}` && e.type !== 'ReferenceEdge'
+          )
+
+          // Get current value for keyframe
+          let currentValue: KeyframeValue
+          try {
+            currentValue = fieldValueToKeyframeValue(field, field.value) as KeyframeValue
+          } catch {
+            currentValue = field.value as KeyframeValue
+          }
+
+          return (
+            <div key={name} className={s.editableFieldRow}>
+              <div className={s.editableFieldContent}>
+                <EditableFieldInput
+                  fieldName={name}
+                  field={field}
+                  disabled={isConnected}
+                />
+              </div>
+              {!USE_THEATRE && (
+                <KeyframeIndicator
+                  opId={op.id}
+                  fieldName={name}
+                  currentValue={currentValue}
+                  disabled={isConnected}
+                  size="small"
+                  onKeyframeAdded={expandTimeline}
+                />
+              )}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -242,6 +375,11 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
           )}
         </div>
       )}
+
+      {/* Editable keyframeable fields */}
+      <EditableFieldsSection op={op} edges={edges} nodeId={node.id} />
+
+      {/* Collapsible info section */}
       <div className={s.section}>
         <label className={s.input}>
           <span>ID</span>
