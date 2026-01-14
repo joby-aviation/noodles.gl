@@ -1,0 +1,246 @@
+/* Timeline Panel Styles */
+
+.timeline-panel {
+  display: flex;
+  flex-direction: column;
+  background: #1a1a1a;
+  border-top: 1px solid #333;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 12px;
+  color: #ccc;
+  user-select: none;
+}
+
+/* Header */
+.timeline-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 12px;
+  background: #222;
+  border-bottom: 1px solid #333;
+  flex-shrink: 0;
+}
+
+.timeline-zoom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.timeline-zoom button {
+  width: 24px;
+  height: 24px;
+  background: #333;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #ccc;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.timeline-zoom button:hover {
+  background: #444;
+}
+
+.timeline-zoom span {
+  min-width: 60px;
+  text-align: center;
+  color: #888;
+  font-size: 11px;
+}
+
+/* Body */
+.timeline-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Track labels column */
+.timeline-track-labels {
+  width: 200px;
+  flex-shrink: 0;
+  background: #1e1e1e;
+  border-right: 1px solid #333;
+  overflow-y: auto;
+}
+
+.timeline-track-labels-header {
+  height: 30px;
+  background: #252525;
+  border-bottom: 1px solid #333;
+}
+
+/* Scroll area */
+.timeline-scroll-area {
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* Keyframe area */
+.timeline-keyframe-area {
+  position: relative;
+  min-height: 100%;
+  background:
+    linear-gradient(90deg, #2a2a2a 1px, transparent 1px),
+    linear-gradient(#2a2a2a 1px, transparent 1px);
+  background-size: 50px 30px;
+  background-position: -1px -1px;
+}
+
+/* Track row */
+.timeline-track-row {
+  height: 30px;
+  border-bottom: 1px solid #2a2a2a;
+  position: relative;
+}
+
+.timeline-track-label {
+  height: 30px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid #2a2a2a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.timeline-track-label:hover {
+  background: #2a2a2a;
+}
+
+/* Keyframe diamond */
+.timeline-keyframe {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: #4a9eff;
+  transform: translate(-50%, -50%) rotate(45deg);
+  top: 50%;
+  cursor: pointer;
+  border: 1px solid #6ab0ff;
+}
+
+.timeline-keyframe:hover {
+  background: #6ab0ff;
+  border-color: #8ac4ff;
+}
+
+.timeline-keyframe.selected {
+  background: #ffaa00;
+  border-color: #ffcc44;
+}
+
+/* Playhead */
+.timeline-playhead {
+  position: absolute;
+  top: 0;
+  width: 1px;
+  background: #ff4444;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.timeline-playhead-handle {
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  width: 12px;
+  height: 12px;
+  background: #ff4444;
+  border-radius: 2px;
+  cursor: ew-resize;
+  pointer-events: auto;
+}
+
+/* Time ruler */
+.timeline-ruler {
+  height: 30px;
+  background: #252525;
+  border-bottom: 1px solid #333;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.timeline-ruler-tick {
+  position: absolute;
+  bottom: 0;
+  width: 1px;
+  background: #444;
+}
+
+.timeline-ruler-tick.major {
+  background: #555;
+}
+
+.timeline-ruler-label {
+  position: absolute;
+  bottom: 8px;
+  font-size: 10px;
+  color: #888;
+  transform: translateX(-50%);
+}
+
+/* Play controls */
+.timeline-play-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.timeline-play-controls button {
+  width: 28px;
+  height: 28px;
+  background: #333;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #ccc;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+
+.timeline-play-controls button:hover {
+  background: #444;
+}
+
+.timeline-play-controls button.active {
+  background: #4a9eff;
+  border-color: #6ab0ff;
+  color: #fff;
+}
+
+/* Time display */
+.timeline-time-display {
+  font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+  font-size: 12px;
+  color: #fff;
+  background: #333;
+  padding: 4px 8px;
+  border-radius: 4px;
+  min-width: 100px;
+  text-align: center;
+}
+
+.timeline-time-display-separator {
+  color: #666;
+  margin: 0 4px;
+}
+
+/* Empty state */
+.timeline-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #666;
+  font-style: italic;
+}

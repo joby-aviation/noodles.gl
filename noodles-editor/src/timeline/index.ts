@@ -110,3 +110,25 @@ export {
   opIdToObjectName,
   unbindOperatorFromTimeline,
 } from './field-bindings'
+
+// ============================================================================
+// UI Components
+// ============================================================================
+
+export {
+  KeyframeTrack,
+  PlayControls,
+  Playhead,
+  TimeDisplay,
+  TimelinePanel,
+  TimeRuler,
+  TrackList,
+} from './components'
+
+export type {
+  KeyframeTrackProps,
+  PlayheadProps,
+  TimelinePanelProps,
+  TimeRulerProps,
+  TrackListProps,
+} from './components'
