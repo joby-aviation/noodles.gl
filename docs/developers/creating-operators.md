@@ -45,17 +45,18 @@ export class SliceOp extends Operator<SliceOp> {
 
 ### Data Operators
 
-- **JSONOp**: Load and parse JSON data
+- **FileOp**: Load JSON, CSV, text, or binary files from URL or text
+- **JSONOp**: Parse JSON from text with templating support
 - **DuckDbOp**: SQL queries with reactive references
-- **CSVOp**: Parse CSV files and data
 - **GeocoderOp**: Convert addresses to coordinates
 
 ### Processing Operators
 
 - **FilterOp**: Filter data based on conditions
-- **MapOp**: Transform data arrays
-- **GroupByOp**: Group and aggregate data
-- **JoinOp**: Combine multiple datasets
+- **SliceOp**: Select a subset of array elements
+- **SortOp**: Sort data by field
+- **MergeOp**: Combine multiple datasets
+- **ConcatOp**: Concatenate arrays
 
 ### Math Operators
 
@@ -252,6 +253,53 @@ Operators can be organized into containers to create logical groupings and avoid
 - **Moving Operators**: Drag operators between containers to reorganize
 - **Path Updates**: References automatically update when operators move
 - **Nested Containers**: Create containers within containers for complex organization
+
+## ForLoop Patterns
+
+ForLoop operators enable map-like iteration over arrays, where each iteration's result is collected into an output array.
+
+### Basic Structure
+
+```
+[Input Array] → ForLoopBegin → [Processing] → ForLoopEnd → [Output Array]
+```
+
+**ForLoopBeginOp** outputs:
+- `item` - Current array element being processed
+- `index` - Current iteration index (0-based)
+- `total` - Total number of elements in the array
+
+**ForLoopEndOp**:
+- Input: `item` - The result to collect from this iteration
+- Output: `data` - Array containing ALL collected results
+
+### Example: Transform Array Elements
+
+To double each number in an array `[1, 2, 3]`:
+
+```
+FileOp (data: [1, 2, 3])
+    ↓
+ForLoopBegin
+    ↓ item (outputs: 1, then 2, then 3)
+ExpressionOp (code: `item * 2`)
+    ↓
+ForLoopEnd (item input)
+    ↓ data
+Result: [2, 4, 6]
+```
+
+### When to Use ForLoop vs CodeOp
+
+**Use ForLoop when:**
+- Each iteration needs multiple operators (complex transformations)
+- You want visual debugging of each step
+- The transformation involves other graph nodes
+
+**Use CodeOp when:**
+- Simple `Array.map()` suffices
+- All logic fits in one code block
+- Performance is critical (ForLoop has per-iteration overhead)
 
 ## Custom Operators
 

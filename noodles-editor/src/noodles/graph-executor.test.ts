@@ -2,7 +2,14 @@
 import { describe, expect, it } from 'vitest'
 import { GraphExecutor, GraphScope, topologicalSort } from './graph-executor'
 import type { IOperator, Operator } from './operators'
-import { ForLoopBeginOp, ForLoopEndOp, ForLoopMetaOp, MathOp, NumberOp } from './operators'
+import {
+  ForLoopBeginOp,
+  ForLoopEndOp,
+  ForLoopMetaOp,
+  MathOp,
+  NumberOp,
+  PullExecutionStatus,
+} from './operators'
 
 describe('topologicalSort', () => {
   it('should sort a linear chain correctly', () => {
@@ -272,7 +279,7 @@ describe('ForLoopBeginOp', () => {
     expect(op).toBeDefined()
     expect(op.id).toBe('/forloop-begin')
     expect(op.inputs.data).toBeDefined()
-    expect(op.outputs.d).toBeDefined()
+    expect(op.outputs.item).toBeDefined()
     expect(op.outputs.index).toBeDefined()
     expect(op.outputs.total).toBeDefined()
   })
@@ -281,7 +288,7 @@ describe('ForLoopBeginOp', () => {
     const op = new ForLoopBeginOp('/forloop-begin')
     const result = op.execute({ data: [1, 2, 3] })
 
-    expect(result.d).toBe(1)
+    expect(result.item).toBe(1)
     expect(result.index).toBe(0)
     expect(result.total).toBe(3)
   })
@@ -290,7 +297,7 @@ describe('ForLoopBeginOp', () => {
     const op = new ForLoopBeginOp('/forloop-begin')
     const result = op.execute({ data: [] })
 
-    expect(result.d).toBeNull()
+    expect(result.item).toBeNull()
     expect(result.index).toBe(0)
     expect(result.total).toBe(0)
   })
@@ -317,20 +324,20 @@ describe('ForLoopEndOp - execute', () => {
   it('should have correct inputs and outputs', () => {
     const op = new ForLoopEndOp('/forloop-end')
     expect(op).toBeDefined()
-    expect(op.inputs.d).toBeDefined()
+    expect(op.inputs.item).toBeDefined()
     expect(op.outputs.data).toBeDefined()
   })
 
   it('should pass through single value', () => {
     const op = new ForLoopEndOp('/forloop-end')
-    const result = op.execute({ d: 'test-value' })
+    const result = op.execute({ item: 'test-value' })
 
     expect(result.data).toBe('test-value')
   })
 
   it('should handle null input', () => {
     const op = new ForLoopEndOp('/forloop-end')
-    const result = op.execute({ d: null })
+    const result = op.execute({ item: null })
 
     expect(result.data).toBeNull()
   })
@@ -338,7 +345,7 @@ describe('ForLoopEndOp - execute', () => {
   it('should handle object input', () => {
     const op = new ForLoopEndOp('/forloop-end')
     const obj = { key: 'value' }
-    const result = op.execute({ d: obj })
+    const result = op.execute({ item: obj })
 
     expect(result.data).toEqual(obj)
   })
@@ -408,6 +415,286 @@ describe('ForLoopMetaOp', () => {
     })
 
     expect(result.accumulator).toEqual([1, 2, 3])
+  })
+})
+
+describe('ForLoop execution - result collection', () => {
+  it('should return array of all iteration results with map-like behavior', async () => {
+    // Setup: [1, 2, 3] -> ForLoopBegin -> MathOp(add 1) -> ForLoopEnd
+    // Expected output: [2, 3, 4]
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const mathOp = new MathOp('/math')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    // Set input data on beginOp
+    beginOp.inputs.data.setValue([1, 2, 3])
+
+    // Connect beginOp.item -> mathOp.a
+    mathOp.inputs.a.addConnection('begin-to-math', beginOp.outputs.item)
+    mathOp.addUpstreamDependency(beginOp)
+    beginOp.addDownstreamDependent(mathOp)
+
+    // Set mathOp to add 1
+    mathOp.inputs.b.setValue(1)
+    mathOp.inputs.operator.setValue('add')
+
+    // Connect mathOp.result -> endOp.item
+    endOp.inputs.item.addConnection('math-to-end', mathOp.outputs.result)
+    endOp.addUpstreamDependency(mathOp)
+    mathOp.addDownstreamDependent(endOp)
+
+    // Set up the chain for ForLoopEndOp
+    endOp.createForLoopListeners([beginOp, mathOp, endOp])
+
+    // Pull from endOp - should execute the loop and collect all results
+    const result = await endOp.pull()
+
+    expect(result.data).toEqual([2, 3, 4])
+  })
+
+  it('should handle empty array input', async () => {
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    // Set empty input data
+    beginOp.inputs.data.setValue([])
+
+    // Connect beginOp.item -> endOp.item (direct passthrough)
+    endOp.inputs.item.addConnection('begin-to-end', beginOp.outputs.item)
+    endOp.addUpstreamDependency(beginOp)
+    beginOp.addDownstreamDependent(endOp)
+
+    // Set up the chain
+    endOp.createForLoopListeners([beginOp, endOp])
+
+    const result = await endOp.pull()
+
+    expect(result.data).toEqual([])
+  })
+
+  it('should provide correct index and total during iteration', async () => {
+    // Track what index/total values were seen during iteration
+    const seenIndices: number[] = []
+    const seenTotals: number[] = []
+
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    // Set input data
+    beginOp.inputs.data.setValue(['a', 'b', 'c'])
+
+    // Connect beginOp.item -> endOp.item
+    endOp.inputs.item.addConnection('begin-to-end', beginOp.outputs.item)
+    endOp.addUpstreamDependency(beginOp)
+    beginOp.addDownstreamDependent(endOp)
+
+    // Subscribe to track index/total changes
+    beginOp.outputs.index.subscribe(idx => seenIndices.push(idx))
+    beginOp.outputs.total.subscribe(t => seenTotals.push(t))
+
+    // Set up the chain
+    endOp.createForLoopListeners([beginOp, endOp])
+
+    await endOp.pull()
+
+    // Should have seen indices 0, 1, 2 during iteration
+    expect(seenIndices).toContain(0)
+    expect(seenIndices).toContain(1)
+    expect(seenIndices).toContain(2)
+
+    // Total should always be 3
+    expect(seenTotals.every(t => t === 3 || t === 0)).toBe(true) // 0 is initial value
+  })
+
+  it('should work with multiple operators in loop body', async () => {
+    // Setup: [10, 20, 30] -> ForLoopBegin -> MathOp(multiply by 2) -> MathOp(add 5) -> ForLoopEnd
+    // Expected: [25, 45, 65] (10*2+5=25, 20*2+5=45, 30*2+5=65)
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const multiplyOp = new MathOp('/multiply')
+    const addOp = new MathOp('/add')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    // Set input data
+    beginOp.inputs.data.setValue([10, 20, 30])
+
+    // Connect beginOp.item -> multiplyOp.a
+    multiplyOp.inputs.a.addConnection('begin-to-mult', beginOp.outputs.item)
+    multiplyOp.addUpstreamDependency(beginOp)
+    beginOp.addDownstreamDependent(multiplyOp)
+
+    // Set multiplyOp to multiply by 2
+    multiplyOp.inputs.b.setValue(2)
+    multiplyOp.inputs.operator.setValue('multiply')
+
+    // Connect multiplyOp.result -> addOp.a
+    addOp.inputs.a.addConnection('mult-to-add', multiplyOp.outputs.result)
+    addOp.addUpstreamDependency(multiplyOp)
+    multiplyOp.addDownstreamDependent(addOp)
+
+    // Set addOp to add 5
+    addOp.inputs.b.setValue(5)
+    addOp.inputs.operator.setValue('add')
+
+    // Connect addOp.result -> endOp.item
+    endOp.inputs.item.addConnection('add-to-end', addOp.outputs.result)
+    endOp.addUpstreamDependency(addOp)
+    addOp.addDownstreamDependent(endOp)
+
+    // Set up the chain (in correct order for iteration)
+    endOp.createForLoopListeners([beginOp, multiplyOp, addOp, endOp])
+
+    const result = await endOp.pull()
+
+    expect(result.data).toEqual([25, 45, 65])
+  })
+
+  it('should handle object data in loop', async () => {
+    // Test that complex objects are properly iterated
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    const inputData = [{ name: 'Alice' }, { name: 'Bob' }, { name: 'Charlie' }]
+    beginOp.inputs.data.setValue(inputData)
+
+    // Direct passthrough: beginOp.item -> endOp.item
+    endOp.inputs.item.addConnection('begin-to-end', beginOp.outputs.item)
+    endOp.addUpstreamDependency(beginOp)
+    beginOp.addDownstreamDependent(endOp)
+
+    endOp.createForLoopListeners([beginOp, endOp])
+
+    const result = await endOp.pull()
+
+    expect(result.data).toEqual(inputData)
+  })
+
+  it('should collect all values when item output connects directly to item input (no intermediate ops)', async () => {
+    // This tests the simplest ForLoop case: BeginOp.item -> EndOp.item
+    // Verifies that field subscription propagation correctly updates EndOp's input
+    // during each iteration, allowing proper result collection
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    // Simple numeric array
+    beginOp.inputs.data.setValue([10, 20, 30, 40, 50])
+
+    // Direct connection: beginOp.item -> endOp.item (no intermediate operators)
+    endOp.inputs.item.addConnection('begin-to-end', beginOp.outputs.item)
+    endOp.addUpstreamDependency(beginOp)
+    beginOp.addDownstreamDependent(endOp)
+
+    // Chain only contains begin and end - no intermediate operators
+    endOp.createForLoopListeners([beginOp, endOp])
+
+    const result = await endOp.pull()
+
+    // Should collect ALL values, not just the first or last
+    expect(result.data).toEqual([10, 20, 30, 40, 50])
+    expect(result.data).toHaveLength(5)
+  })
+
+  it('should re-run loop when intermediate node input changes (like keyframe animation)', async () => {
+    // Simulates: [1, 2, 3] -> ForLoopBegin -> MathOp(add b) -> ForLoopEnd
+    // where b changes over time (like a keyframed value)
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const mathOp = new MathOp('/math')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    // Set input data
+    beginOp.inputs.data.setValue([1, 2, 3])
+
+    // Connect beginOp.item -> mathOp.a
+    mathOp.inputs.a.addConnection('begin-to-math', beginOp.outputs.item)
+    mathOp.addUpstreamDependency(beginOp)
+    beginOp.addDownstreamDependent(mathOp)
+
+    // Set initial b value (like keyframe at t=0)
+    mathOp.inputs.b.setValue(0)
+    mathOp.inputs.operator.setValue('add')
+
+    // Connect mathOp.result -> endOp.item
+    endOp.inputs.item.addConnection('math-to-end', mathOp.outputs.result)
+    endOp.addUpstreamDependency(mathOp)
+    mathOp.addDownstreamDependent(endOp)
+
+    // Set up the chain
+    endOp.createForLoopListeners([beginOp, mathOp, endOp])
+
+    // First pull - b=0, so output is [1+0, 2+0, 3+0] = [1, 2, 3]
+    const result1 = await endOp.pull()
+    expect(result1.data).toEqual([1, 2, 3])
+
+    // Simulate keyframe update: change b from 0 to 10
+    mathOp.inputs.b.setValue(10)
+
+    // Second pull - b=10, so output should be [1+10, 2+10, 3+10] = [11, 12, 13]
+    const result2 = await endOp.pull()
+    expect(result2.data).toEqual([11, 12, 13])
+  })
+
+  it('should re-run loop when input data changes', async () => {
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const mathOp = new MathOp('/math')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    // Initial data
+    beginOp.inputs.data.setValue([1, 2])
+
+    // Connect beginOp.item -> mathOp.a
+    mathOp.inputs.a.addConnection('begin-to-math', beginOp.outputs.item)
+    mathOp.addUpstreamDependency(beginOp)
+    beginOp.addDownstreamDependent(mathOp)
+
+    mathOp.inputs.b.setValue(1)
+    mathOp.inputs.operator.setValue('add')
+
+    // Connect mathOp.result -> endOp.item
+    endOp.inputs.item.addConnection('math-to-end', mathOp.outputs.result)
+    endOp.addUpstreamDependency(mathOp)
+    mathOp.addDownstreamDependent(endOp)
+
+    endOp.createForLoopListeners([beginOp, mathOp, endOp])
+
+    // First pull with [1, 2]
+    const result1 = await endOp.pull()
+    expect(result1.data).toEqual([2, 3])
+
+    // Change input data to [10, 20, 30]
+    beginOp.inputs.data.setValue([10, 20, 30])
+
+    // Second pull should use new data
+    const result2 = await endOp.pull()
+    expect(result2.data).toEqual([11, 21, 31])
+  })
+
+  it('should use cached result when nothing in loop changes', async () => {
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const mathOp = new MathOp('/math')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    beginOp.inputs.data.setValue([1, 2, 3])
+
+    mathOp.inputs.a.addConnection('begin-to-math', beginOp.outputs.item)
+    mathOp.addUpstreamDependency(beginOp)
+    beginOp.addDownstreamDependent(mathOp)
+
+    mathOp.inputs.b.setValue(1)
+    mathOp.inputs.operator.setValue('add')
+
+    endOp.inputs.item.addConnection('math-to-end', mathOp.outputs.result)
+    endOp.addUpstreamDependency(mathOp)
+    mathOp.addDownstreamDependent(endOp)
+
+    endOp.createForLoopListeners([beginOp, mathOp, endOp])
+
+    // First pull
+    const result1 = await endOp.pull()
+    expect(result1.data).toEqual([2, 3, 4])
+
+    // Second pull without changes - should return same cached result
+    const result2 = await endOp.pull()
+    expect(result2.data).toEqual([2, 3, 4])
+    expect(result1).toBe(result2) // Same object reference (cached)
   })
 })
 
@@ -644,5 +931,236 @@ describe('Graph execution', () => {
     // If executeNode was being called with 2 parameters, TypeScript would error
     // or the function would throw at runtime
     await expect(executor.executeFrame(performance.now())).resolves.not.toThrow()
+  })
+})
+
+describe('ForLoop execution via GraphExecutor.executeFrame()', () => {
+  it('should execute ForLoop scope and collect results', async () => {
+    const executor = new GraphExecutor()
+
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const mathOp = new MathOp('/math')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    // Set input data on beginOp
+    beginOp.inputs.data.setValue([1, 2, 3])
+
+    // Connect beginOp.item -> mathOp.a
+    mathOp.inputs.a.addConnection('begin-to-math', beginOp.outputs.item)
+    mathOp.addUpstreamDependency(beginOp)
+    beginOp.addDownstreamDependent(mathOp)
+
+    // Set mathOp to add 1
+    mathOp.inputs.b.setValue(1)
+    mathOp.inputs.operator.setValue('add')
+
+    // Connect mathOp.result -> endOp.item
+    endOp.inputs.item.addConnection('math-to-end', mathOp.outputs.result)
+    endOp.addUpstreamDependency(mathOp)
+    mathOp.addDownstreamDependent(endOp)
+
+    // Add nodes to executor
+    executor.addNode(beginOp)
+    executor.addNode(mathOp)
+    executor.addNode(endOp)
+    executor.addEdge(beginOp.id, mathOp.id)
+    executor.addEdge(mathOp.id, endOp.id)
+
+    // Execute frame - should find and execute ForLoop scope
+    await executor.executeFrame(performance.now())
+
+    // Verify ForLoop results
+    expect(endOp.outputs.data.value).toEqual([2, 3, 4])
+  })
+
+  it('should handle direct passthrough (begin.item -> end.item)', async () => {
+    const executor = new GraphExecutor()
+
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    // Set input data
+    beginOp.inputs.data.setValue(['a', 'b', 'c'])
+
+    // Direct passthrough: beginOp.item -> endOp.item
+    endOp.inputs.item.addConnection('begin-to-end', beginOp.outputs.item)
+    endOp.addUpstreamDependency(beginOp)
+    beginOp.addDownstreamDependent(endOp)
+
+    executor.addNode(beginOp)
+    executor.addNode(endOp)
+    executor.addEdge(beginOp.id, endOp.id)
+
+    await executor.executeFrame(performance.now())
+
+    expect(endOp.outputs.data.value).toEqual(['a', 'b', 'c'])
+  })
+
+  it('should handle empty input arrays', async () => {
+    const executor = new GraphExecutor()
+
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    // Set empty input data
+    beginOp.inputs.data.setValue([])
+
+    endOp.inputs.item.addConnection('begin-to-end', beginOp.outputs.item)
+    endOp.addUpstreamDependency(beginOp)
+    beginOp.addDownstreamDependent(endOp)
+
+    executor.addNode(beginOp)
+    executor.addNode(endOp)
+    executor.addEdge(beginOp.id, endOp.id)
+
+    await executor.executeFrame(performance.now())
+
+    expect(endOp.outputs.data.value).toEqual([])
+  })
+
+  it('should re-execute ForLoop when input data changes', async () => {
+    const executor = new GraphExecutor()
+
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    beginOp.inputs.data.setValue([1, 2])
+
+    endOp.inputs.item.addConnection('begin-to-end', beginOp.outputs.item)
+    endOp.addUpstreamDependency(beginOp)
+    beginOp.addDownstreamDependent(endOp)
+
+    executor.addNode(beginOp)
+    executor.addNode(endOp)
+    executor.addEdge(beginOp.id, endOp.id)
+
+    // First execution
+    await executor.executeFrame(performance.now())
+    expect(endOp.outputs.data.value).toEqual([1, 2])
+
+    // Change input data and mark dirty
+    beginOp.inputs.data.setValue([10, 20, 30])
+    beginOp.markDirty()
+    endOp.markDirty()
+
+    // Second execution
+    await executor.executeFrame(performance.now())
+    expect(endOp.outputs.data.value).toEqual([10, 20, 30])
+  })
+
+  it('should work with multiple operators in loop body', async () => {
+    const executor = new GraphExecutor()
+
+    // [10, 20, 30] -> ForLoopBegin -> multiply by 2 -> add 5 -> ForLoopEnd
+    // Expected: [25, 45, 65] (10*2+5=25, 20*2+5=45, 30*2+5=65)
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const multiplyOp = new MathOp('/multiply')
+    const addOp = new MathOp('/add')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    beginOp.inputs.data.setValue([10, 20, 30])
+
+    // beginOp.item -> multiplyOp.a
+    multiplyOp.inputs.a.addConnection('begin-to-mult', beginOp.outputs.item)
+    multiplyOp.inputs.b.setValue(2)
+    multiplyOp.inputs.operator.setValue('multiply')
+    multiplyOp.addUpstreamDependency(beginOp)
+    beginOp.addDownstreamDependent(multiplyOp)
+
+    // multiplyOp.result -> addOp.a
+    addOp.inputs.a.addConnection('mult-to-add', multiplyOp.outputs.result)
+    addOp.inputs.b.setValue(5)
+    addOp.inputs.operator.setValue('add')
+    addOp.addUpstreamDependency(multiplyOp)
+    multiplyOp.addDownstreamDependent(addOp)
+
+    // addOp.result -> endOp.item
+    endOp.inputs.item.addConnection('add-to-end', addOp.outputs.result)
+    endOp.addUpstreamDependency(addOp)
+    addOp.addDownstreamDependent(endOp)
+
+    executor.addNode(beginOp)
+    executor.addNode(multiplyOp)
+    executor.addNode(addOp)
+    executor.addNode(endOp)
+    executor.addEdge(beginOp.id, multiplyOp.id)
+    executor.addEdge(multiplyOp.id, addOp.id)
+    executor.addEdge(addOp.id, endOp.id)
+
+    await executor.executeFrame(performance.now())
+
+    expect(endOp.outputs.data.value).toEqual([25, 45, 65])
+  })
+
+  it('should cache ForLoopEndOp results for downstream operators', async () => {
+    const executor = new GraphExecutor()
+
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    beginOp.inputs.data.setValue([1, 2, 3])
+
+    endOp.inputs.item.addConnection('begin-to-end', beginOp.outputs.item)
+    endOp.addUpstreamDependency(beginOp)
+    beginOp.addDownstreamDependent(endOp)
+
+    executor.addNode(beginOp)
+    executor.addNode(endOp)
+    executor.addEdge(beginOp.id, endOp.id)
+
+    await executor.executeFrame(performance.now())
+
+    // After execution, endOp should have cached output
+    expect(endOp.pullExecutionStatus).toBe(PullExecutionStatus.CLEAN)
+    expect(endOp.cachedOutput).toEqual({ data: [1, 2, 3] })
+
+    // Pulling from endOp should return cached result
+    const result = await endOp.pull()
+    expect(result).toEqual({ data: [1, 2, 3] })
+  })
+
+  it('should work without ForLoopMetaOp (meta is optional)', async () => {
+    // This test ensures that the ForLoop works correctly when no ForLoopMetaOp
+    // is present. The meta op is optional and users can delete it without
+    // breaking the loop execution.
+    const executor = new GraphExecutor()
+
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const mathOp = new MathOp('/math')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    // Set input data
+    beginOp.inputs.data.setValue([10, 20, 30])
+
+    // beginOp.item -> mathOp.a (no meta op in the chain)
+    mathOp.inputs.a.addConnection('begin-to-math', beginOp.outputs.item)
+    mathOp.inputs.b.setValue(5)
+    mathOp.inputs.operator.setValue('add')
+    mathOp.addUpstreamDependency(beginOp)
+    beginOp.addDownstreamDependent(mathOp)
+
+    // mathOp.result -> endOp.item
+    endOp.inputs.item.addConnection('math-to-end', mathOp.outputs.result)
+    endOp.addUpstreamDependency(mathOp)
+    mathOp.addDownstreamDependent(endOp)
+
+    executor.addNode(beginOp)
+    executor.addNode(mathOp)
+    executor.addNode(endOp)
+    executor.addEdge(beginOp.id, mathOp.id)
+    executor.addEdge(mathOp.id, endOp.id)
+
+    // Execute - should work without metaOp
+    await executor.executeFrame(performance.now())
+
+    // Results should be [15, 25, 35] (10+5, 20+5, 30+5)
+    expect(endOp.outputs.data.value).toEqual([15, 25, 35])
+
+    // Verify findForLoopScopes doesn't require metaOp
+    const scopes = executor.findForLoopScopes()
+    expect(scopes).toHaveLength(1)
+    expect(scopes[0].metaOp).toBeUndefined()
+    expect(scopes[0].beginOp).toBe(beginOp)
+    expect(scopes[0].endOp).toBe(endOp)
   })
 })

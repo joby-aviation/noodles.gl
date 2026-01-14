@@ -141,6 +141,8 @@ export class GraphExecutor {
   private executionLevels: string[][] = []
   private isDirty = true
   private options: Required<ExecutorOptions>
+  // Track nodes added directly via addNode() (not from store sync)
+  private manuallyAddedNodes: Set<string> = new Set()
 
   // RAF loop state
   private rafId: number | null = null
@@ -216,12 +218,14 @@ export class GraphExecutor {
   // Add a node to the graph
   addNode(node: Operator<IOperator>): void {
     this.nodes.set(node.id, node)
+    this.manuallyAddedNodes.add(node.id) // Track manually added nodes
     this.isDirty = true
   }
 
   // Remove a node and all its connections
   removeNode(nodeId: string): void {
     this.nodes.delete(nodeId)
+    this.manuallyAddedNodes.delete(nodeId) // Also remove from tracking
     this.edges = this.edges.filter(edge => edge.source !== nodeId && edge.target !== nodeId)
     this.upstream.delete(nodeId)
     this.downstream.delete(nodeId)
@@ -365,7 +369,30 @@ export class GraphExecutor {
       this.metrics.dirtyCount = this.dirtyNodes.size
     }
 
+    // Find and execute ForLoop scopes first
+    // ForLoop scopes need to complete their iterations before downstream operators can pull their results
+    const forLoopScopes = this.findForLoopScopes()
+
+    for (const scope of forLoopScopes) {
+      try {
+        const loopResults = await this.executeForLoopScope(
+          scope.beginOp,
+          scope.endOp,
+          scope.scopeNodeIds,
+          scope.metaOp
+        )
+        results.set(scope.endOp.id, { value: { data: loopResults }, changed: true })
+      } catch (error) {
+        results.set(scope.endOp.id, {
+          value: null,
+          changed: false,
+          error: error instanceof Error ? error : new Error(String(error)),
+        })
+      }
+    }
+
     // Find root operators to pull from (sinks like DeckRenderer, Viewer, etc.)
+    // ForLoopEndOp may have downstream roots that will pull from its cached results
     const roots = this.findRootOperators()
 
     // Pull from roots - this recursively executes all upstream dependencies
@@ -405,41 +432,6 @@ export class GraphExecutor {
     this.metrics.totalOperators = this.nodes.size
 
     return results
-  }
-
-  // Execute a single node
-  private async executeNode(node: Operator<IOperator>): Promise<ComputeResult> {
-    try {
-      // Get input values
-      const inputs = {}
-      for (const [key, field] of Object.entries(node.inputs)) {
-        inputs[key] = field.value
-      }
-
-      // Execute the operator
-      const outputs = await node.execute(inputs)
-
-      // Update output fields
-      if (outputs) {
-        for (const [key, value] of Object.entries(outputs)) {
-          if (key in node.outputs) {
-            node.outputs[key].setValue(value)
-          }
-        }
-      }
-
-      return {
-        value: outputs,
-        changed: true,
-      }
-    } catch (error) {
-      console.error(`Error executing node ${node.id}:`, error)
-      return {
-        value: null,
-        changed: false,
-        error: error instanceof Error ? error : new Error(String(error)),
-      }
-    }
   }
 
   // Mark specific nodes as dirty
@@ -527,9 +519,10 @@ export class GraphExecutor {
   syncNodesFromStore(): void {
     const ops = getAllOps()
 
-    // Remove nodes that no longer exist in store
+    // Remove nodes that no longer exist in store (but preserve manually added nodes)
     for (const [id] of this.nodes) {
-      if (!ops.find(op => op.id === id)) {
+      // Don't remove nodes that were manually added via addNode()
+      if (!this.manuallyAddedNodes.has(id) && !ops.find(op => op.id === id)) {
         this.nodes.delete(id)
       }
     }
@@ -578,20 +571,40 @@ export class GraphExecutor {
   }
 
   // Execute a ForLoop scope - handles iteration with accumulator (reduce-like semantics)
-  // The scope body is defined by nodes with parentNode pointing to the group node
+  // Uses pull-based execution with caching to ensure correct iteration values propagate
   async executeForLoopScope(
     beginOp: ForLoopBeginOp,
     endOp: ForLoopEndOp,
     scopeNodeIds: string[],
     metaOp?: ForLoopMetaOp
   ): Promise<unknown[]> {
+    // First pull beginOp to get the input data
+    await beginOp.pull()
+
     const data = beginOp.inputs.data.value
-    if (!Array.isArray(data)) {
+    if (!Array.isArray(data) || data.length === 0) {
+      endOp.outputs.data.next([])
+      endOp.setCachedOutput({ data: [] })
       return []
     }
 
     const total = data.length
     const results: unknown[] = []
+
+    // Get intermediate nodes (excluding begin, meta, end)
+    const intermediateNodeIds = scopeNodeIds.filter(
+      id => id !== beginOp.id && id !== endOp.id && id !== metaOp?.id
+    )
+
+    // Sort intermediate nodes topologically for execution order
+    const scopeNodes = new Map(
+      intermediateNodeIds
+        .map(id => [id, this.nodes.get(id)] as const)
+        .filter((entry): entry is [string, Operator<IOperator>] => entry[1] !== undefined)
+    )
+    const scopeEdges = this.edges.filter(e => scopeNodes.has(e.source) && scopeNodes.has(e.target))
+    const { sorted } = topologicalSort(scopeNodes, scopeEdges)
+    const executionOrder = sorted.map(id => this.nodes.get(id)!).filter(Boolean)
 
     // Get initial accumulator value if meta op exists
     let accumulator: unknown = metaOp?.inputs.initialValue.value ?? null
@@ -601,10 +614,14 @@ export class GraphExecutor {
       const isFirst = index === 0
       const isLast = index === total - 1
 
-      // Set iteration values on ForLoopBeginOp
-      beginOp.outputs.d.next(item)
+      // Set iteration values on ForLoopBeginOp outputs
+      beginOp.outputs.item.next(item)
       beginOp.outputs.index.next(index)
       beginOp.outputs.total.next(total)
+
+      // CRITICAL: Cache BeginOp so downstream pulls return iteration values
+      // Without this, pulling intermediate ops re-executes BeginOp and gets arr[0]
+      beginOp.setCachedOutput({ item, index, total })
 
       // Set iteration metadata on ForLoopMetaOp if present
       if (metaOp) {
@@ -613,41 +630,21 @@ export class GraphExecutor {
         metaOp.outputs.total.next(total)
         metaOp.outputs.isFirst.next(isFirst)
         metaOp.outputs.isLast.next(isLast)
+        metaOp.setCachedOutput({ accumulator, index, total, isFirst, isLast })
       }
 
-      // Mark all scope nodes as dirty for this iteration
-      for (const nodeId of scopeNodeIds) {
-        const node = this.nodes.get(nodeId)
-        if (node) {
-          node.dirty = true
-          this.dirtyNodes.add(nodeId)
-        }
+      // Mark intermediate operators dirty for this iteration
+      for (const op of executionOrder) {
+        op.markDirty()
       }
 
-      // Execute scope body nodes in topological order
-      const scopeNodes = new Map(
-        scopeNodeIds
-          .map(id => [id, this.nodes.get(id)] as const)
-          .filter((entry): entry is [string, Operator<IOperator>] => entry[1] !== undefined)
-      )
-      const scopeEdges = this.edges.filter(
-        e => scopeNodeIds.includes(e.source) && scopeNodeIds.includes(e.target)
-      )
-      const { sorted } = topologicalSort(scopeNodes, scopeEdges)
-
-      for (const nodeId of sorted) {
-        const node = this.nodes.get(nodeId)
-        if (node && this.dirtyNodes.has(nodeId)) {
-          // Execute node - iteration context is already set via ForLoopBeginOp and ForLoopMetaOp outputs
-          await this.executeNode(node)
-          this.dirtyNodes.delete(nodeId)
-          node.dirty = false
-        }
+      // Pull each intermediate operator in order
+      for (const op of executionOrder) {
+        await op.pull()
       }
 
       // Collect result from this iteration
-      const iterationResult = endOp.inputs.d.value
-      results.push(iterationResult)
+      results.push(endOp.inputs.item.value)
 
       // Update accumulator from meta op's currentValue input for next iteration
       if (metaOp) {
@@ -657,6 +654,7 @@ export class GraphExecutor {
 
     // Set final results on ForLoopEndOp
     endOp.outputs.data.next(results)
+    endOp.setCachedOutput({ data: results })
 
     return results
   }

@@ -1,5 +1,6 @@
 import { assert } from '@deck.gl/core'
-import { createRafDriver, type IProject, type ISequence, onChange, val } from '@theatre/core'
+import { createRafDriver, type IProject, type ISequence } from '@theatre/core'
+import { useVal } from '@theatre/react'
 import {
   EncodedPacket,
   EncodedVideoPacketSource,
@@ -26,14 +27,8 @@ export const useRenderer = ({
   bitrateMode: 'variable' | 'constant'
   redraw: () => void
 }) => {
-  const [sequenceLength, setSequenceLength] = useState(() => val(sequence.pointer.length))
-
-  useEffect(() => {
-    const unsubscribe = onChange(sequence.pointer.length, length => {
-      setSequenceLength(length)
-    })
-    return unsubscribe
-  }, [sequence])
+  // useVal keeps the prism "hot" and avoids cold prism warnings
+  const sequenceLength = useVal(sequence.pointer.length)
 
   const canvasRenderDone = useRef<(result?: { error?: Error }) => void>(() => {})
   const canvasFrameReady = useCallback(

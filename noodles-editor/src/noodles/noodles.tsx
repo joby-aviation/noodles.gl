@@ -47,6 +47,7 @@ import { BlockLibrary, type BlockLibraryRef } from './components/block-library'
 import { categories, nodeTypeToDisplayName } from './components/categories'
 import { CopyControls, type CopyControlsRef } from './components/copy-controls'
 import { ErrorBoundary } from './components/error-boundary'
+import { ExampleNotFoundDialog } from './components/example-not-found-dialog'
 import { PropertyPanel } from './components/node-properties'
 import { NodeTreeSidebar } from './components/node-tree-sidebar'
 import { edgeComponents, nodeComponents } from './components/op-components'
@@ -210,6 +211,7 @@ export function getNoodles(): Visualization {
 
   // Detect if we're on /projects or /examples route to preserve it when navigating
   const routePrefix = location.startsWith('/projects/') ? '/projects' : '/examples'
+  const isExamplesRoute = routePrefix === '/examples'
 
   const [showProjectNotFoundDialog, setShowProjectNotFoundDialog] = useState(false)
   const [showSaveAsDialog, setShowSaveAsDialog] = useState(false)
@@ -219,6 +221,7 @@ export function getNoodles(): Visualization {
     hasExistingProject: boolean
     hasDataFiles: boolean
   } | null>(null)
+  const [showExampleNotFoundDialog, setShowExampleNotFoundDialog] = useState(false)
   const storageType = useActiveStorageType()
   const { currentDirectory, setCurrentDirectory, setActiveStorageType, setError } =
     useFileSystemStore()
@@ -627,6 +630,10 @@ export function getNoodles(): Visualization {
     (project: NoodlesProjectJSON, name?: string) => {
       const { nodes, edges, viewport, timeline, editorSettings, apiKeys } = project
 
+      // Mark that we've programmatically loading this project BEFORE any state changes
+      // This prevents the useEffect from trying to reload it from storage when the URL changes
+      isProgrammaticLoadRef.current = true
+
       // Update current project ref for undo/redo
       currentProjectRef.current = project
 
@@ -662,10 +669,6 @@ export function getNoodles(): Visualization {
 
       // Clear unsaved changes flag when loading a project
       setHasUnsavedChanges(false)
-
-      // Mark that we've programmatically loaded this project
-      // This prevents the useEffect from trying to reload it from storage
-      isProgrammaticLoadRef.current = true
     },
     [setNodes, setEdges, setProjectName, setTheatreProject, navigate, routePrefix]
   )
@@ -696,61 +699,64 @@ export function getNoodles(): Visualization {
         return
       }
 
-      // First try to load from static files (for built-in examples)
-      const projectKey = `../examples/${projectName}/noodles.json`
-      const projectUrl = exampleProjectUrls[projectKey] as string | undefined
+      // Route-based loading: /examples only loads static examples, /projects only loads from storage
+      if (isExamplesRoute) {
+        // For /examples route: ONLY load from static bundled examples
+        const projectKey = `../examples/${projectName}/noodles.json`
+        const projectUrl = exampleProjectUrls[projectKey] as string | undefined
 
-      if (projectUrl) {
+        if (projectUrl) {
+          try {
+            const response = await fetch(projectUrl)
+            if (!response.ok) {
+              throw new Error(`Failed to fetch example project: ${response.statusText}`)
+            }
+            const noodlesFile = (await response.json()) as Partial<NoodlesProjectJSON>
+            const project = await migrateProject({
+              ...EMPTY_PROJECT,
+              ...noodlesFile,
+            } as NoodlesProjectJSON)
+            // Set project name and storage type for public projects so @/ asset paths work
+            setCurrentDirectory(null, projectName)
+            setActiveStorageType('publicFolder')
+            loadProjectFile(project, projectName)
+            return
+          } catch (error) {
+            console.error('Failed to load example project:', error)
+          }
+        }
+
+        // Example not found - show dialog with navigation options
+        setShowExampleNotFoundDialog(true)
+      } else {
+        // For /projects route: ONLY load from user storage (OPFS or File System Access API)
         try {
-          const response = await fetch(projectUrl)
-          if (!response.ok) {
-            throw new Error(`Failed to fetch example project: ${response.statusText}`)
-          }
-          const noodlesFile = (await response.json()) as Partial<NoodlesProjectJSON>
-          const project = await migrateProject({
-            ...EMPTY_PROJECT,
-            ...noodlesFile,
-          } as NoodlesProjectJSON)
-          // Set project name and storage type for public projects so @/ asset paths work
-          setCurrentDirectory(null, projectName)
-          setActiveStorageType('publicFolder')
-          loadProjectFile(project, projectName)
-          return
-        } catch (error) {
-          console.error('Failed to load example project:', error)
-          // Fall through to try storage
-        }
-      }
-
-      console.log('Static project file not found, trying storage...')
-
-      // Try to load from storage (OPFS or File System Access API)
-      try {
-        const result = await load(storageType, projectName)
-        if (result.success) {
-          const project = await migrateProject(result.data.projectData)
-          // Update store with directory handle, project name, and storage type
-          setCurrentDirectory(result.data.directoryHandle, projectName)
-          // storageType here is already correct (opfs or fileSystemAccess)
-          loadProjectFile(project, projectName)
-        } else {
-          // Project not found in storage - show dialog
-          if (result.error.type === 'not-found') {
-            setShowProjectNotFoundDialog(true)
+          const result = await load(storageType, projectName)
+          if (result.success) {
+            const project = await migrateProject(result.data.projectData)
+            // Update store with directory handle, project name, and storage type
+            setCurrentDirectory(result.data.directoryHandle, projectName)
+            setActiveStorageType(storageType)
+            loadProjectFile(project, projectName)
           } else {
-            setError(result.error)
+            // Project not found in storage - show dialog
+            if (result.error.type === 'not-found') {
+              setShowProjectNotFoundDialog(true)
+            } else {
+              setError(result.error)
+            }
           }
+        } catch (error) {
+          setError({
+            type: 'unknown',
+            message: 'Error loading project',
+            details: error instanceof Error ? error.message : 'Unknown error',
+            originalError: error,
+          })
         }
-      } catch (error) {
-        setError({
-          type: 'unknown',
-          message: 'Error loading project',
-          details: error instanceof Error ? error.message : 'Unknown error',
-          originalError: error,
-        })
       }
     })()
-  }, [projectName])
+  }, [projectName, isExamplesRoute])
 
   const displayedNodes = useMemo(() => {
     const dragHandle = `.${s.header}`
@@ -1214,6 +1220,19 @@ export function getNoodles(): Visualization {
     }
   }, [setCurrentDirectory, loadProjectFile])
 
+  // Handlers for ExampleNotFoundDialog
+  const onBrowseExamples = useCallback(() => {
+    setShowExampleNotFoundDialog(false)
+    navigate('/examples')
+  }, [navigate])
+
+  const onCheckMyProjects = useCallback(() => {
+    setShowExampleNotFoundDialog(false)
+    if (projectName) {
+      navigate(`/projects/${projectName}`)
+    }
+  }, [navigate, projectName])
+
   const onOpen = useCallback(
     async (projectName?: string) => {
       try {
@@ -1343,6 +1362,13 @@ export function getNoodles(): Visualization {
           onClose={() => setShowRenameDialog(false)}
           onConfirm={onRenameConfirm}
           currentName={projectName || ''}
+        />
+        <ExampleNotFoundDialog
+          projectName={projectName || ''}
+          open={showExampleNotFoundDialog}
+          onBrowseExamples={onBrowseExamples}
+          onCheckMyProjects={onCheckMyProjects}
+          onClose={() => setShowExampleNotFoundDialog(false)}
         />
         <StorageErrorHandler />
       </div>
