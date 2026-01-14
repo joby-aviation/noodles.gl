@@ -179,6 +179,7 @@ export function ExpressionEditorOverlay({
             contextmenu: false,
             quickSuggestions: true,
             suggestOnTriggerCharacters: true,
+            fixedOverflowWidgets: true,
             acceptSuggestionOnEnter: 'on',
             tabCompletion: 'on',
             fontSize: 13,
