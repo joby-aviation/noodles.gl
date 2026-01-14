@@ -1,13 +1,13 @@
 // Expression Context - Utilities for determining available variables and data keys
 // for autocomplete in ExpressionOp and AccessorOp
 
+import * as turf from '@turf/turf'
 import * as d3 from 'd3'
 import * as deck from 'deck.gl'
-import * as turf from '@turf/turf'
 import * as utils from '../../utils'
 import type { Edge } from '../graph-executor'
 import type { IOperator, Operator } from '../operators'
-import { getOp, getAllOps } from '../store'
+import { getAllOps, getOp } from '../store'
 import type { OpId } from './id-utils'
 
 // Helper to get function/property names from an object, filtering out internals
@@ -135,7 +135,8 @@ function getFieldTypeInfo(field: unknown): { fieldType: string; returnType?: 'ob
   const fieldType = fieldConstructor.type || 'unknown'
 
   // Get returnType if it exists (for Point/Vec fields)
-  const returnType = 'returnType' in field ? (field as { returnType?: 'object' | 'tuple' }).returnType : undefined
+  const returnType =
+    'returnType' in field ? (field as { returnType?: 'object' | 'tuple' }).returnType : undefined
 
   return { fieldType, returnType }
 }

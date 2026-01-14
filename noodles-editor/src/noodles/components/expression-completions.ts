@@ -1,7 +1,11 @@
 // Monaco Completion Provider for Expression/Accessor fields
 // Provides autocomplete suggestions for data keys, globals, and operator paths
 
-import type { ExpressionContext, GlobalDefinition, TargetFieldInfo } from '../utils/expression-context'
+import type {
+  ExpressionContext,
+  GlobalDefinition,
+  TargetFieldInfo,
+} from '../utils/expression-context'
 
 // Monaco types - we get the actual monaco instance at runtime from @monaco-editor/react
 // biome-ignore lint/suspicious/noExplicitAny: Monaco types come from runtime, not available at compile time
@@ -33,16 +37,42 @@ const SCALAR_FIELD_TYPES = ['number']
 
 // Keys that commonly represent coordinates (case-insensitive matching)
 const COORDINATE_KEY_PATTERNS = [
-  'lng', 'lat', 'longitude', 'latitude', 'lon',
-  'x', 'y', 'z', 'alt', 'altitude', 'elevation',
-  'start_lng', 'start_lat', 'end_lng', 'end_lat',
-  'source_lng', 'source_lat', 'target_lng', 'target_lat',
+  'lng',
+  'lat',
+  'longitude',
+  'latitude',
+  'lon',
+  'x',
+  'y',
+  'z',
+  'alt',
+  'altitude',
+  'elevation',
+  'start_lng',
+  'start_lat',
+  'end_lng',
+  'end_lat',
+  'source_lng',
+  'source_lat',
+  'target_lng',
+  'target_lat',
 ]
 
 // Keys that commonly represent numeric values
 const SCALAR_KEY_PATTERNS = [
-  'count', 'value', 'amount', 'size', 'weight', 'radius',
-  'population', 'total', 'sum', 'avg', 'average', 'width', 'height',
+  'count',
+  'value',
+  'amount',
+  'size',
+  'weight',
+  'radius',
+  'population',
+  'total',
+  'sum',
+  'avg',
+  'average',
+  'width',
+  'height',
 ]
 
 // Keys that commonly represent color values
@@ -69,9 +99,7 @@ function prioritizeDataKeys(
 
   const prioritized = dataKeys.filter(key => {
     const baseKey = key.split('.').pop() || key
-    return priorityPatterns.some(pattern =>
-      baseKey.toLowerCase().includes(pattern.toLowerCase())
-    )
+    return priorityPatterns.some(pattern => baseKey.toLowerCase().includes(pattern.toLowerCase()))
   })
   const other = dataKeys.filter(key => !prioritized.includes(key))
 
@@ -98,9 +126,7 @@ function createTemplateCompletions(
       )
     )
     const latKey = prioritized.find(k =>
-      ['lat', 'latitude', 'y', 'start_lat', 'source_lat'].some(p =>
-        k.toLowerCase().endsWith(p)
-      )
+      ['lat', 'latitude', 'y', 'start_lat', 'source_lat'].some(p => k.toLowerCase().endsWith(p))
     )
 
     // Suggest a concrete template if we found coordinate keys
@@ -180,8 +206,11 @@ function createBracketCompletions(
 
   // Check if we're in what looks like a position array: [d.lng, d.lat
   const positionArrayPattern = /\[d\.\w+\s*,\s*d\.\w+\s*$/
-  if (positionArrayPattern.test(textUntilPosition) && targetField &&
-      POSITION_FIELD_TYPES.includes(targetField.fieldType)) {
+  if (
+    positionArrayPattern.test(textUntilPosition) &&
+    targetField &&
+    POSITION_FIELD_TYPES.includes(targetField.fieldType)
+  ) {
     suggestions.push({
       label: ']',
       kind: CompletionItemKind.Text,
@@ -449,7 +478,9 @@ export function createExpressionCompletionProvider(
           suggestions.push({
             label: `d.${key}`,
             kind: monaco.languages.CompletionItemKind.Property,
-            detail: prioritized.includes(key) ? 'Data property (suggested)' : 'Data property shortcut',
+            detail: prioritized.includes(key)
+              ? 'Data property (suggested)'
+              : 'Data property shortcut',
             insertText: `d.${key}`,
             range,
           })
