@@ -136,3 +136,43 @@ export type {
   TimeRulerProps,
   TrackListProps,
 } from './components'
+
+// ============================================================================
+// Timeline Context (React)
+// ============================================================================
+
+export {
+  TimelineProvider,
+  useHasKeyframes,
+  useIsAtKeyframe,
+  useSelectedKeyframes,
+  useSelectedTrack,
+  useTimeline,
+  useTimelinePlaying,
+  useTimelinePosition,
+  useTimelineSequence,
+  useTrackValue,
+  useTracks,
+} from './timeline-context'
+
+export type { TimelineProviderProps } from './timeline-context'
+
+// ============================================================================
+// Migration Utilities
+// ============================================================================
+
+export {
+  bezierHandlesToTheatreHandles,
+  exportToTheatreFormat,
+  fieldPathToTheatreObjectName,
+  keyframeToTheatreKeyframe,
+  migrateTheatreTimeline,
+  theatreHandlesToBezierHandles,
+  theatreKeyframeToKeyframe,
+  theatreObjectNameToFieldPath,
+  theatreTrackDataToTrack,
+  theatreValueToKeyframeValue,
+  validateTheatreData,
+} from './migrate-timeline'
+
+export type { NativeTimelineData, ValidationResult } from './migrate-timeline'
