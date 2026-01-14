@@ -190,17 +190,19 @@ describe('keyframeValueToFieldValue', () => {
   })
 
   describe('ColorField', () => {
-    it('converts RGBA to hex', () => {
+    it('converts RGBA to hex (with alpha)', () => {
       const field = new ColorField('#000000')
       const result = keyframeValueToFieldValue(field, { r: 1, g: 0, b: 0, a: 1 })
-      expect(result).toBe('#ff0000')
+      // rgbaToHex returns 8-character hex with alpha (#rrggbbaa)
+      expect(result).toBe('#ff0000ff')
     })
 
     it('handles fractional RGBA values', () => {
       const field = new ColorField('#000000')
       const result = keyframeValueToFieldValue(field, { r: 0.5, g: 0.5, b: 0.5, a: 1 })
       expect(typeof result).toBe('string')
-      expect(result).toMatch(/^#[0-9a-f]{6}$/i)
+      // rgbaToHex returns 8-character hex with alpha (#rrggbbaa)
+      expect(result).toMatch(/^#[0-9a-f]{8}$/i)
     })
   })
 
