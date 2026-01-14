@@ -36,7 +36,13 @@ function DiamondIcon({
   const strokeWidth = size === 'small' ? 1.5 : 2
 
   return (
-    <svg width={dimensions} height={dimensions} viewBox="0 0 10 10" style={{ display: 'block' }} aria-hidden="true">
+    <svg
+      width={dimensions}
+      height={dimensions}
+      viewBox="0 0 10 10"
+      style={{ display: 'block' }}
+      aria-hidden="true"
+    >
       <path
         d="M5 1 L9 5 L5 9 L1 5 Z"
         fill={filled ? 'currentColor' : 'none'}

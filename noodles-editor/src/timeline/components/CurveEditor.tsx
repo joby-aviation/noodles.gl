@@ -366,7 +366,14 @@ export function CurveEditor({
 
   return (
     <div className="curve-editor" style={{ width }}>
-      <svg ref={svgRef} width={width} height={height} className="curve-editor-canvas" role="img" aria-label="Bezier curve editor">
+      <svg
+        ref={svgRef}
+        width={width}
+        height={height}
+        className="curve-editor-canvas"
+        role="img"
+        aria-label="Bezier curve editor"
+      >
         {/* Background */}
         <rect x={0} y={0} width={width} height={height} fill="#1a1a1a" />
 

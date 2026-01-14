@@ -1,7 +1,7 @@
 import { renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { useRenderer } from './renderer'
 import { USE_THEATRE } from '../utils/timeline-flag'
+import { useRenderer } from './renderer'
 
 vi.mock('@theatre/react', () => ({
   useVal: vi.fn((pointer: any) => pointer?._mockValue ?? 10),
