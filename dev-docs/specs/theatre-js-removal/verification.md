@@ -159,7 +159,404 @@ describe('Interpolation accuracy', () => {
 - Overshoot curves correctly exceed 0-1 range
 - Hold/step interpolation returns exact previous keyframe value
 
-## 5. Performance Benchmarks
+## 5. Theatre.js-Derived Test Cases
+
+These test cases are derived from analyzing Theatre.js's implementation to ensure our native system handles the same edge cases correctly.
+
+### 5.1 UnitBezier Solver Tests
+
+Theatre.js uses the `timing-function` library's UnitBezier class. Our implementation must match its behavior.
+
+```typescript
+// unit-bezier.test.ts
+describe('UnitBezier solver', () => {
+  // Core algorithm: Newton-Raphson with 8 iterations, fallback to binary search
+  const EPSILON = 1e-6
+
+  describe('Newton-Raphson convergence', () => {
+    test('converges within 8 iterations for standard curves', () => {
+      // ease-in-out: should converge quickly
+      const bezier = new UnitBezier(0.42, 0, 0.58, 1)
+      const iterationCount = countIterations(bezier, 0.5)
+      expect(iterationCount).toBeLessThanOrEqual(8)
+    })
+
+    test('falls back to binary search for difficult curves', () => {
+      // Very steep curve that may not converge via Newton-Raphson
+      const bezier = new UnitBezier(0.99, 0.01, 0.01, 0.99)
+      expect(() => bezier.solve(0.5, EPSILON)).not.toThrow()
+    })
+
+    test('handles curves with near-zero derivative', () => {
+      // Curve where derivative approaches zero (causes Newton-Raphson issues)
+      const bezier = new UnitBezier(0.5, 0, 0.5, 1)
+      expect(bezier.solve(0.5, EPSILON)).toBeCloseTo(0.5, 5)
+    })
+  })
+
+  describe('boundary conditions', () => {
+    test('solve(0) returns exactly 0', () => {
+      const bezier = new UnitBezier(0.42, 0, 0.58, 1)
+      expect(bezier.solve(0, EPSILON)).toBe(0)
+    })
+
+    test('solve(1) returns exactly 1', () => {
+      const bezier = new UnitBezier(0.42, 0, 0.58, 1)
+      expect(bezier.solve(1, EPSILON)).toBe(1)
+    })
+
+    test('clamps x < 0 to 0', () => {
+      const bezier = new UnitBezier(0.42, 0, 0.58, 1)
+      expect(bezier.solve(-0.1, EPSILON)).toBe(0)
+    })
+
+    test('clamps x > 1 to 1', () => {
+      const bezier = new UnitBezier(0.42, 0, 0.58, 1)
+      expect(bezier.solve(1.1, EPSILON)).toBe(1)
+    })
+  })
+
+  describe('precision', () => {
+    test('matches Theatre.js epsilon of 1e-6', () => {
+      const bezier = new UnitBezier(0.25, 0.1, 0.25, 1)
+      const result = bezier.solve(0.5, 1e-6)
+      // Re-evaluate to verify precision
+      const x = bezier.sampleCurveX(bezier.solveCurveX(0.5, 1e-6))
+      expect(Math.abs(x - 0.5)).toBeLessThan(1e-6)
+    })
+  })
+})
+```
+
+### 5.2 Keyframe State Machine Tests
+
+Theatre.js uses a state machine for keyframe interpolation. Test all state transitions.
+
+```typescript
+// keyframe-states.test.ts
+describe('Keyframe state machine', () => {
+  describe('beforeFirstKeyframe state', () => {
+    test('time < first keyframe returns first keyframe value', () => {
+      const track = createTrack([
+        { position: 1.0, value: 100 },
+        { position: 2.0, value: 200 },
+      ])
+      expect(evaluateTrack(track, 0)).toBe(100)
+      expect(evaluateTrack(track, 0.5)).toBe(100)
+      expect(evaluateTrack(track, 0.999)).toBe(100)
+    })
+
+    test('validity range is (-Infinity, firstKeyframe.position)', () => {
+      const track = createTrack([{ position: 1.0, value: 100 }])
+      const state = getTrackState(track, 0)
+      expect(state.validFrom).toBe(-Infinity)
+      expect(state.validTo).toBe(1.0)
+    })
+  })
+
+  describe('lastKeyframe state', () => {
+    test('time > last keyframe returns last keyframe value', () => {
+      const track = createTrack([
+        { position: 1.0, value: 100 },
+        { position: 2.0, value: 200 },
+      ])
+      expect(evaluateTrack(track, 2.0)).toBe(200)
+      expect(evaluateTrack(track, 2.5)).toBe(200)
+      expect(evaluateTrack(track, 100)).toBe(200)
+    })
+
+    test('validity range is (lastKeyframe.position, Infinity)', () => {
+      const track = createTrack([{ position: 2.0, value: 200 }])
+      const state = getTrackState(track, 3.0)
+      expect(state.validFrom).toBe(2.0)
+      expect(state.validTo).toBe(Infinity)
+    })
+  })
+
+  describe('between keyframes state', () => {
+    test('exact keyframe position returns keyframe value', () => {
+      const track = createTrack([
+        { position: 1.0, value: 100 },
+        { position: 2.0, value: 200 },
+      ])
+      expect(evaluateTrack(track, 1.0)).toBe(100)
+      expect(evaluateTrack(track, 2.0)).toBe(200)
+    })
+
+    test('validity range is bounded by surrounding keyframes', () => {
+      const track = createTrack([
+        { position: 1.0, value: 100 },
+        { position: 2.0, value: 200 },
+        { position: 3.0, value: 300 },
+      ])
+      const state = getTrackState(track, 1.5)
+      expect(state.validFrom).toBe(1.0)
+      expect(state.validTo).toBe(2.0)
+    })
+  })
+
+  describe('empty track', () => {
+    test('returns undefined for empty track', () => {
+      const track = createTrack([])
+      expect(evaluateTrack(track, 0)).toBeUndefined()
+      expect(evaluateTrack(track, 1)).toBeUndefined()
+    })
+
+    test('validity range is (-Infinity, Infinity)', () => {
+      const track = createTrack([])
+      const state = getTrackState(track, 0)
+      expect(state.validFrom).toBe(-Infinity)
+      expect(state.validTo).toBe(Infinity)
+    })
+  })
+
+  describe('single keyframe', () => {
+    test('always returns single keyframe value', () => {
+      const track = createTrack([{ position: 1.0, value: 100 }])
+      expect(evaluateTrack(track, 0)).toBe(100)
+      expect(evaluateTrack(track, 1.0)).toBe(100)
+      expect(evaluateTrack(track, 2.0)).toBe(100)
+    })
+  })
+})
+```
+
+### 5.3 Hold/Disconnected Keyframe Tests
+
+Theatre.js supports "hold" interpolation where values step rather than interpolate.
+
+```typescript
+// hold-interpolation.test.ts
+describe('Hold interpolation', () => {
+  test('connectedRight=false causes step behavior', () => {
+    const track = createTrack([
+      { position: 0, value: 0, connectedRight: false },
+      { position: 1, value: 100 },
+    ])
+    // Should hold at 0 until exactly position 1
+    expect(evaluateTrack(track, 0)).toBe(0)
+    expect(evaluateTrack(track, 0.5)).toBe(0)
+    expect(evaluateTrack(track, 0.99)).toBe(0)
+    expect(evaluateTrack(track, 1.0)).toBe(100)
+  })
+
+  test('type="hold" uses floor function', () => {
+    const track = createTrack([
+      { position: 0, value: 0, type: 'hold' },
+      { position: 1, value: 100 },
+    ])
+    // Theatre.js uses Math.floor(progression) for hold type
+    expect(evaluateTrack(track, 0)).toBe(0)
+    expect(evaluateTrack(track, 0.999)).toBe(0)
+    expect(evaluateTrack(track, 1.0)).toBe(100)
+  })
+
+  test('mixed hold and bezier keyframes', () => {
+    const track = createTrack([
+      { position: 0, value: 0, type: 'bezier', connectedRight: true },
+      { position: 1, value: 100, type: 'hold', connectedRight: false },
+      { position: 2, value: 200 },
+    ])
+    // First segment: bezier interpolation
+    expect(evaluateTrack(track, 0.5)).toBeGreaterThan(0)
+    expect(evaluateTrack(track, 0.5)).toBeLessThan(100)
+    // Second segment: hold at 100
+    expect(evaluateTrack(track, 1.5)).toBe(100)
+  })
+})
+```
+
+### 5.4 Bezier Handle Format Tests
+
+Theatre.js stores handles as `[leftX, leftY, rightX, rightY]` and uses right handle of left keyframe + left handle of right keyframe.
+
+```typescript
+// bezier-handles.test.ts
+describe('Bezier handle format', () => {
+  test('handles array format [leftX, leftY, rightX, rightY]', () => {
+    const keyframe = {
+      position: 0,
+      value: 0,
+      handles: [0.5, 1, 0.5, 0], // Theatre.js format
+      connectedRight: true,
+    }
+    // Parse handles correctly
+    const parsed = parseHandles(keyframe.handles)
+    expect(parsed.left).toEqual([0.5, 1])
+    expect(parsed.right).toEqual([0.5, 0])
+  })
+
+  test('bezier uses right handle of left kf + left handle of right kf', () => {
+    // This is how Theatre.js constructs the bezier:
+    // new UnitBezier(left.handles[2], left.handles[3], right.handles[0], right.handles[1])
+    const leftKf = { handles: [0.5, 1, 0.42, 0] }
+    const rightKf = { handles: [0.58, 1, 0.5, 0] }
+
+    // The bezier is constructed from:
+    // p1x = leftKf.handles[2] = 0.42
+    // p1y = leftKf.handles[3] = 0
+    // p2x = rightKf.handles[0] = 0.58
+    // p2y = rightKf.handles[1] = 1
+    const bezier = constructBezierBetween(leftKf, rightKf)
+    expect(bezier.p1x).toBe(0.42)
+    expect(bezier.p1y).toBe(0)
+    expect(bezier.p2x).toBe(0.58)
+    expect(bezier.p2y).toBe(1)
+  })
+})
+```
+
+### 5.5 Color Interpolation Tests (OKLAB)
+
+Theatre.js interpolates colors in OKLAB color space for perceptual uniformity.
+
+```typescript
+// color-interpolation.test.ts
+describe('Color interpolation (OKLAB)', () => {
+  test('interpolates in OKLAB space, not RGB', () => {
+    const red = { r: 1, g: 0, b: 0, a: 1 }
+    const blue = { r: 0, g: 0, b: 1, a: 1 }
+
+    const midpoint = interpolateColor(red, blue, 0.5)
+
+    // OKLAB interpolation produces different results than RGB lerp
+    // RGB lerp would give { r: 0.5, g: 0, b: 0.5 } (purple)
+    // OKLAB produces a more perceptually uniform result
+    expect(midpoint.r).not.toBe(0.5)
+    expect(midpoint.b).not.toBe(0.5)
+  })
+
+  test('preserves exact values at t=0 and t=1', () => {
+    const c1 = { r: 0.2, g: 0.4, b: 0.6, a: 0.8 }
+    const c2 = { r: 0.8, g: 0.6, b: 0.4, a: 1.0 }
+
+    expect(interpolateColor(c1, c2, 0)).toEqual(c1)
+    expect(interpolateColor(c1, c2, 1)).toEqual(c2)
+  })
+
+  test('alpha channel interpolates linearly', () => {
+    const c1 = { r: 1, g: 0, b: 0, a: 0 }
+    const c2 = { r: 1, g: 0, b: 0, a: 1 }
+
+    const mid = interpolateColor(c1, c2, 0.5)
+    expect(mid.a).toBeCloseTo(0.5, 5)
+  })
+
+  test('clamps output to 0-1 range', () => {
+    const c1 = { r: 0, g: 0, b: 0, a: 1 }
+    const c2 = { r: 1, g: 1, b: 1, a: 1 }
+
+    for (let t = 0; t <= 1; t += 0.1) {
+      const result = interpolateColor(c1, c2, t)
+      expect(result.r).toBeGreaterThanOrEqual(0)
+      expect(result.r).toBeLessThanOrEqual(1)
+      expect(result.g).toBeGreaterThanOrEqual(0)
+      expect(result.g).toBeLessThanOrEqual(1)
+      expect(result.b).toBeGreaterThanOrEqual(0)
+      expect(result.b).toBeLessThanOrEqual(1)
+    }
+  })
+})
+```
+
+### 5.6 Number Deserialization Tests
+
+Theatre.js sanitizes number inputs with range clamping and NaN/Infinity handling.
+
+```typescript
+// number-validation.test.ts
+describe('Number validation', () => {
+  test('clamps to range if specified', () => {
+    const config = { range: [0, 100] as [number, number] }
+    expect(deserializeNumber(-10, config)).toBe(0)
+    expect(deserializeNumber(150, config)).toBe(100)
+    expect(deserializeNumber(50, config)).toBe(50)
+  })
+
+  test('rejects NaN', () => {
+    expect(deserializeNumber(NaN)).toBeUndefined()
+  })
+
+  test('rejects Infinity', () => {
+    expect(deserializeNumber(Infinity)).toBeUndefined()
+    expect(deserializeNumber(-Infinity)).toBeUndefined()
+  })
+
+  test('accepts valid numbers without range', () => {
+    expect(deserializeNumber(0)).toBe(0)
+    expect(deserializeNumber(-1000)).toBe(-1000)
+    expect(deserializeNumber(1000)).toBe(1000)
+  })
+})
+```
+
+### 5.7 Progression Calculation Tests
+
+Theatre.js calculates local progression between keyframes.
+
+```typescript
+// progression.test.ts
+describe('Progression calculation', () => {
+  test('calculates local progression correctly', () => {
+    // globalProgressionToLocalProgression formula:
+    // (globalProgression - left.position) / (right.position - left.position)
+    const left = { position: 2.0 }
+    const right = { position: 4.0 }
+
+    expect(calculateLocalProgression(2.0, left, right)).toBe(0)
+    expect(calculateLocalProgression(3.0, left, right)).toBe(0.5)
+    expect(calculateLocalProgression(4.0, left, right)).toBe(1)
+  })
+
+  test('handles keyframes at same position', () => {
+    const left = { position: 1.0 }
+    const right = { position: 1.0 }
+
+    // Avoid division by zero
+    expect(() => calculateLocalProgression(1.0, left, right)).not.toThrow()
+  })
+})
+```
+
+### 5.8 Field Binding Edge Cases (from existing Noodles tests)
+
+These patterns are already tested in `theatre-bindings.test.ts` and must be preserved.
+
+```typescript
+// field-bindings.test.ts - Edge cases to preserve
+describe('Field binding edge cases', () => {
+  test('skips /out operator binding', () => {
+    // /out is special and should never be bound to timeline
+  })
+
+  test('skips already bound operators', () => {
+    // Prevent duplicate bindings
+  })
+
+  test('handles nested CompoundPropsField', () => {
+    // Recursive binding for viewState.latitude, etc.
+  })
+
+  test('no cold prism warnings during rapid updates', () => {
+    // Theatre.js Dataverse can warn about cold prisms
+    // Our implementation should not produce similar warnings
+  })
+
+  test('DateField converts to/from epoch milliseconds', () => {
+    // Temporal.PlainDateTime ↔ number
+  })
+
+  test('ColorField converts hex to RGBA and back', () => {
+    // #RRGGBB ↔ { r, g, b, a }
+  })
+
+  test('Vec2Field converts array to object and back', () => {
+    // [x, y] ↔ { x, y }
+  })
+})
+```
+
+## 6. Performance Benchmarks
 
 ### Target Metrics
 
@@ -226,7 +623,7 @@ describe('Performance', () => {
 - [ ] DOM node count stable during timeline operations
 - [ ] Canvas/WebGL memory usage reasonable (<100MB)
 
-## 6. Unit Tests
+## 7. Unit Tests
 
 ### Interpolation Tests (`interpolation.test.ts`)
 
@@ -282,7 +679,7 @@ describe('Performance', () => {
 - [ ] Malformed data handling
 - [ ] All example projects migrate successfully
 
-## 7. Integration Tests
+## 8. Integration Tests
 
 ### Project Lifecycle Tests
 
@@ -316,7 +713,7 @@ Test each example project individually:
 - [ ] `us-airports` - loads, animates, renders correctly
 - [ ] All other example projects in `/public/examples/`
 
-## 8. Manual Testing Protocol
+## 9. Manual Testing Protocol
 
 ### Pre-Release Checklist
 
@@ -365,7 +762,7 @@ Before full rollout:
 4. Gather feedback on specific interactions
 5. Iterate until parity achieved
 
-## 9. Rollback Plan
+## 10. Rollback Plan
 
 If critical issues are discovered after Theatre.js removal:
 
