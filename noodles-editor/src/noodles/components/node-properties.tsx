@@ -2,13 +2,17 @@ import type { NodeJSON } from 'SKIP-@xyflow/react'
 import type { Edge } from '@xyflow/react'
 import { useEdges, useNodes, useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { type Field, IN_NS, ListField, OUT_NS } from '../fields'
-import type { Operator } from '../operators'
-import { getOpStore } from '../store'
+import type { OpType, Operator } from '../operators'
+import { getOpStore, useNestingStore } from '../store'
+import type { ConnectionPlan } from '../utils/auto-connect'
+import { edgeId } from '../utils/id-utils'
+import { type NodeType, createNodesForType } from '../utils/node-creation-utils'
 import s from './node-properties.module.css'
 import { handleClass, headerClass, typeCategory } from './op-components'
+import { SuggestedNodesSection } from './SuggestedNodes'
 
 function copy(text: string) {
   navigator.clipboard.writeText(text)
@@ -89,8 +93,9 @@ function Tooltip({
 }
 
 function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
-  const { setEdges } = useReactFlow()
+  const { setEdges, addNodes, addEdges } = useReactFlow()
   const edges = useEdges()
+  const currentContainerId = useNestingStore(state => state.currentContainerId)
   const dragDataRef = useRef<{ inputName: string; index: number } | null>(null)
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
   const [isTruncated, setIsTruncated] = useState(false)
@@ -110,6 +115,46 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
       setIsTruncated(isTruncated)
     }
   }, [description])
+
+  // Handler to add a suggested node and connect it
+  const handleAddNode = useCallback(
+    (opType: OpType, connection: ConnectionPlan) => {
+      // Calculate position to the right of current node
+      const newPosition = {
+        x: node.position.x + 300,
+        y: node.position.y,
+      }
+
+      // Create new node
+      const { nodes: newNodes, edges: newEdges } = createNodesForType(
+        opType as NodeType,
+        newPosition,
+        currentContainerId
+      )
+
+      if (newNodes.length === 0) return
+
+      const newNodeId = newNodes[0].id
+
+      // Create connection edge
+      const connectionEdge = {
+        id: edgeId({
+          source: node.id,
+          sourceHandle: `out.${connection.sourceOutput}`,
+          target: newNodeId,
+          targetHandle: `par.${connection.targetInput}`,
+        }),
+        source: node.id,
+        target: newNodeId,
+        sourceHandle: `out.${connection.sourceOutput}`,
+        targetHandle: `par.${connection.targetInput}`,
+      }
+
+      addNodes(newNodes)
+      addEdges([...newEdges, connectionEdge])
+    },
+    [node.id, node.position.x, node.position.y, currentContainerId, addNodes, addEdges]
+  )
 
   // Early return after all hooks
   if (!op) return null
@@ -320,6 +365,7 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
           ))}
         </div>
       </div>
+      <SuggestedNodesSection operator={op} node={node} onAddNode={handleAddNode} />
     </>
   )
 }
