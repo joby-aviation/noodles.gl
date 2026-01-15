@@ -3,7 +3,6 @@ import { ChevronDownIcon, ExternalLinkIcon } from '@radix-ui/react-icons'
 import { useReactFlow } from '@xyflow/react'
 import { type RefObject, useCallback, useEffect, useMemo, useState } from 'react'
 import logoSvg from '/noodles-favicon.svg'
-import { RenderSettingsDialog } from '../../components/render-settings-dialog'
 import { SettingsDialog } from '../../components/settings-dialog'
 import { ExternalControlButton } from '../../external-control/components/external-control-button'
 import { analytics } from '../../utils/analytics'
@@ -43,9 +42,6 @@ interface TopMenuBarProps {
   setLayoutMode?: (mode: 'split' | 'noodles-on-top' | 'output-on-top') => void
   reactFlowRef?: RefObject<HTMLDivElement>
   renderSettings?: RenderSettings
-  setRenderSettings?: (settings: RenderSettings) => void
-  renderSettingsDialogOpen?: boolean
-  setRenderSettingsDialogOpen?: (open: boolean) => void
 }
 
 export function TopMenuBar({
@@ -72,9 +68,6 @@ export function TopMenuBar({
   setLayoutMode,
   reactFlowRef,
   renderSettings,
-  setRenderSettings,
-  renderSettingsDialogOpen,
-  setRenderSettingsDialogOpen,
 }: TopMenuBarProps) {
   const settingsDialogOpen = useUIStore(state => state.settingsDialogOpen)
   const setSettingsDialogOpen = useUIStore(state => state.setSettingsDialogOpen)
@@ -172,9 +165,16 @@ export function TopMenuBar({
     }
   }, [selectedContainer, setCurrentContainerId, reactFlow])
 
+  // Select the OutOp node to show render settings in properties panel
   const onSelectRenderSettings = useCallback(() => {
-    setRenderSettingsDialogOpen?.(true)
-  }, [setRenderSettingsDialogOpen])
+    reactFlow.setNodes(nodes =>
+      nodes.map(node => ({
+        ...node,
+        selected: node.id === '/out',
+      }))
+    )
+    analytics.track('render_settings_opened', { source: 'menu' })
+  }, [reactFlow])
 
   const handleStartRender = useCallback(async () => {
     if (startRender) {
@@ -592,15 +592,6 @@ export function TopMenuBar({
       )}
 
       <SettingsDialog open={settingsDialogOpen} setOpen={setSettingsDialogOpen} />
-
-      {renderSettings && setRenderSettings && (
-        <RenderSettingsDialog
-          open={renderSettingsDialogOpen ?? false}
-          setOpen={setRenderSettingsDialogOpen ?? (() => {})}
-          settings={renderSettings}
-          onSettingsChange={setRenderSettings}
-        />
-      )}
     </>
   )
 }

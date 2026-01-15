@@ -45,23 +45,8 @@ export const DEFAULT_RENDER_SETTINGS: RenderSettings = {
   captureDelay: 200,
 }
 
-// Serialize render settings, only including values that differ from defaults
-export function serializeRenderSettings(
-  settings: RenderSettings
-): Partial<RenderSettings> | undefined {
-  const nonDefaults: Partial<RenderSettings> = {}
-
-  for (const key of Object.keys(DEFAULT_RENDER_SETTINGS) as (keyof RenderSettings)[]) {
-    const value = settings[key]
-    const defaultValue = DEFAULT_RENDER_SETTINGS[key]
-    if (!isEqual(value, defaultValue)) {
-      // TypeScript needs help with the union type assignment
-      ;(nonDefaults as Record<string, unknown>)[key] = value
-    }
-  }
-
-  return Object.keys(nonDefaults).length > 0 ? nonDefaults : undefined
-}
+// Note: serializeRenderSettings was removed in migration 012
+// Render settings are now stored as OutOp node inputs
 
 export type NoodlesProjectJSON = ReactFlowJsonObject & {
   version: number

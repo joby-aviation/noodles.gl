@@ -3609,6 +3609,18 @@ export class OutOp extends Operator<OutOp> {
   createInputs() {
     return {
       vis: new VisualizationField(),
+      // Render settings (not keyframable since OutOp is excluded from Theatre.js)
+      display: new StringLiteralField('fixed', ['fixed', 'responsive']),
+      width: new NumberField(1920, { min: 1, max: 8192, step: 1 }),
+      height: new NumberField(1080, { min: 1, max: 8192, step: 1 }),
+      lod: new NumberField(2, { min: 0.1, max: 4, step: 0.1 }),
+      waitForData: new BooleanField(true),
+      codec: new StringLiteralField('avc', ['avc', 'hevc', 'vp9', 'av1']),
+      bitrateMbps: new NumberField(10, { min: 1, max: 100, step: 1 }),
+      bitrateMode: new StringLiteralField('constant', ['constant', 'variable']),
+      scaleControl: new NumberField(0.3, { min: 0.1, max: 1, step: 0.05 }),
+      framerate: new NumberField(30, { min: 1, max: 120, step: 1 }),
+      captureDelay: new NumberField(200, { min: 0, max: 10000, step: 10 }),
     }
   }
   createOutputs() {

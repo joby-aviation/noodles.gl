@@ -9,6 +9,7 @@ import { forwardRef, useCallback, useEffect, useRef, useState } from 'react'
 import ReactMapGL, { type MapProps, useControl } from 'react-map-gl/maplibre'
 import { Layout } from './layout'
 import { TopMenuBar } from './noodles/components/top-menu-bar'
+import { useRenderSettings } from './noodles/hooks/use-render-settings'
 import { getNoodles } from './noodles/noodles'
 import type { RenderSettings } from './noodles/utils/serialization'
 import { useDeckDrawLoop } from './render/draw-loop'
@@ -128,20 +129,18 @@ export default function TimelineEditor() {
     nodeSidebar,
     propertiesPanel,
     layoutMode,
-    renderSettings,
-    setRenderSettings,
     ...visualization
   } = noodles
   const sequence = sheet.sequence
+
+  // Render settings are now stored as OutOp inputs
+  const renderSettings = useRenderSettings()
 
   useEffect(() => {
     project?.ready.then(() => setReady(true))
   }, [project])
 
   const sequenceLength = useVal(sequence.pointer.length)
-
-  // Render settings dialog state
-  const [renderSettingsDialogOpen, setRenderSettingsDialogOpen] = useState(false)
 
   const { framerate, bitrateMbps, bitrateMode, codec, resolution, lod, waitForData, captureDelay } =
     renderSettings
@@ -374,9 +373,6 @@ export default function TimelineEditor() {
       layoutMode={noodles.layoutMode}
       setLayoutMode={noodles.setLayoutMode}
       renderSettings={renderSettings}
-      setRenderSettings={setRenderSettings}
-      renderSettingsDialogOpen={renderSettingsDialogOpen}
-      setRenderSettingsDialogOpen={setRenderSettingsDialogOpen}
     />
   )
 
