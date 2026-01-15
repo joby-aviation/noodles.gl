@@ -45,9 +45,6 @@ export const DEFAULT_RENDER_SETTINGS: RenderSettings = {
   captureDelay: 200,
 }
 
-// Note: serializeRenderSettings was removed in migration 012
-// Render settings are now stored as OutOp node inputs
-
 export type NoodlesProjectJSON = ReactFlowJsonObject & {
   version: number
   timeline: Record<string, unknown>
