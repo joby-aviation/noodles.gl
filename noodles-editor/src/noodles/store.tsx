@@ -126,6 +126,36 @@ export const useUIStore = create<UIStoreState>(set => ({
 }))
 
 // ============================================================================
+// Export Actions Store (Zustand) - For screenshot/render callbacks
+// ============================================================================
+
+interface ExportActionsState {
+  startRender: (() => Promise<void>) | null
+  takeScreenshot: (() => Promise<void>) | null
+  isRendering: boolean
+  setExportActions: (actions: {
+    startRender?: () => Promise<void>
+    takeScreenshot?: () => Promise<void>
+  }) => void
+  setIsRendering: (value: boolean) => void
+}
+
+export const useExportActionsStore = create<ExportActionsState>(set => ({
+  startRender: null,
+  takeScreenshot: null,
+  isRendering: false,
+  setExportActions: actions =>
+    set(state => ({
+      startRender: actions.startRender ?? state.startRender,
+      takeScreenshot: actions.takeScreenshot ?? state.takeScreenshot,
+    })),
+  setIsRendering: value => set({ isRendering: value }),
+}))
+
+// Get the export actions store instance for use outside React components
+export const getExportActionsStore = () => useExportActionsStore.getState()
+
+// ============================================================================
 // Helper functions for non-React contexts
 // ============================================================================
 

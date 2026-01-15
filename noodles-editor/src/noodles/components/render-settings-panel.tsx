@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { OutOp } from '../operators'
+import { useExportActionsStore } from '../store'
 import { DEFAULT_RENDER_SETTINGS } from '../utils/serialization'
 import s from './render-settings-panel.module.css'
 
@@ -22,6 +23,11 @@ interface RenderSettingsPanelProps {
 }
 
 export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
+  // Subscribe to export actions from the store
+  const startRender = useExportActionsStore(state => state.startRender)
+  const takeScreenshot = useExportActionsStore(state => state.takeScreenshot)
+  const isRendering = useExportActionsStore(state => state.isRendering)
+
   // Subscribe to field changes
   const [display, setDisplay] = useState(op.inputs.display.value)
   const [width, setWidth] = useState(op.inputs.width.value)
@@ -297,6 +303,28 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
       <button type="button" className={s.resetButton} onClick={handleResetToDefaults}>
         Reset to Defaults
       </button>
+
+      {/* Export Section */}
+      <div className={s.exportSection}>
+        <button
+          type="button"
+          className={s.exportButton}
+          onClick={() => takeScreenshot?.()}
+          disabled={!takeScreenshot}
+        >
+          <i className="pi pi-image" />
+          Export Photo
+        </button>
+        <button
+          type="button"
+          className={s.exportButton}
+          onClick={() => startRender?.()}
+          disabled={!startRender || isRendering}
+        >
+          <i className="pi pi-video" />
+          {isRendering ? 'Rendering...' : 'Export Video'}
+        </button>
+      </div>
     </div>
   )
 }

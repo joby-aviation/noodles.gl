@@ -11,6 +11,7 @@ import { Layout } from './layout'
 import { TopMenuBar } from './noodles/components/top-menu-bar'
 import { useRenderSettings } from './noodles/hooks/use-render-settings'
 import { getNoodles } from './noodles/noodles'
+import { useExportActionsStore } from './noodles/store'
 import type { RenderSettings } from './noodles/utils/serialization'
 import { useDeckDrawLoop } from './render/draw-loop'
 import { captureScreenshot, rafDriver, useRenderer } from './render/renderer'
@@ -303,6 +304,18 @@ export default function TimelineEditor() {
     })
   }, [project.address.projectId, redraw, basemapEnabled])
 
+  // Sync export actions to the store so RenderSettingsPanel can access them
+  const setExportActions = useExportActionsStore(state => state.setExportActions)
+  const setIsRendering = useExportActionsStore(state => state.setIsRendering)
+
+  useEffect(() => {
+    setExportActions({ startRender, takeScreenshot })
+  }, [startRender, takeScreenshot, setExportActions])
+
+  useEffect(() => {
+    setIsRendering(isRendering)
+  }, [isRendering, setIsRendering])
+
   // Increase the render target resolution to increase map tile detail.
   // To convert viewport bounds back to their original size, add about 1 to the zoom value.
   const lodResolution = {
@@ -365,7 +378,6 @@ export default function TimelineEditor() {
       setShowOverlay={noodles.setShowOverlay}
       layoutMode={noodles.layoutMode}
       setLayoutMode={noodles.setLayoutMode}
-      renderSettings={renderSettings}
     />
   )
 

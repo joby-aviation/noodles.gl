@@ -73,8 +73,8 @@ export function getRenderSettingsFromOutOp(outOp: OutOp): RenderSettings {
   }
 }
 
-// Update render settings on the OutOp node.
-// This is used when loading projects with legacy render settings.
+// Helper function to programmatically update render settings on the OutOp node.
+// Primarily useful for external scripts or testing.
 export function setRenderSettingsOnOutOp(outOp: OutOp, settings: Partial<RenderSettings>): void {
   if (settings.display !== undefined) {
     outOp.inputs.display.setValue(settings.display)
