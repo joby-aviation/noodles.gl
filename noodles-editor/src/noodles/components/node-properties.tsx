@@ -5,10 +5,11 @@ import cx from 'classnames'
 import { useEffect, useRef, useState } from 'react'
 
 import { type Field, IN_NS, ListField, OUT_NS } from '../fields'
-import type { Operator } from '../operators'
+import { type Operator, OutOp } from '../operators'
 import { getOpStore } from '../store'
 import s from './node-properties.module.css'
 import { handleClass, headerClass, typeCategory } from './op-components'
+import { RenderSettingsPanel } from './render-settings-panel'
 
 function copy(text: string) {
   navigator.clipboard.writeText(text)
@@ -303,6 +304,12 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
           })}
         </div>
       </div>
+      {op instanceof OutOp && (
+        <div className={s.section}>
+          <div className={s.sectionTitle}>Render Settings</div>
+          <RenderSettingsPanel op={op} />
+        </div>
+      )}
       <div className={s.section}>
         <div className={s.sectionTitle}>Outputs</div>
         <div className={s.propertyList}>

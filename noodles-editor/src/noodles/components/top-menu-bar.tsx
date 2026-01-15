@@ -162,17 +162,6 @@ export function TopMenuBar({
     }
   }, [selectedContainer, setCurrentContainerId, reactFlow])
 
-  // Select the OutOp node to show render settings in properties panel
-  const onSelectRenderSettings = useCallback(() => {
-    reactFlow.setNodes(nodes =>
-      nodes.map(node => ({
-        ...node,
-        selected: node.id === '/out',
-      }))
-    )
-    analytics.track('render_settings_opened', { source: 'menu' })
-  }, [reactFlow])
-
   const handleStartRender = useCallback(async () => {
     if (startRender) {
       await startRender()
@@ -466,9 +455,6 @@ export function TopMenuBar({
                   disabled={!takeScreenshot || isRendering}
                 >
                   Take Screenshot
-                </DropdownMenu.Item>
-                <DropdownMenu.Item className={s.dropdownItem} onSelect={onSelectRenderSettings}>
-                  Render Settings
                 </DropdownMenu.Item>
 
                 <DropdownMenu.Separator className={s.dropdownSeparator} />
