@@ -9,9 +9,10 @@ import { forwardRef, useCallback, useEffect, useRef, useState } from 'react'
 import ReactMapGL, { type MapProps, useControl } from 'react-map-gl/maplibre'
 import { Layout } from './layout'
 import { TopMenuBar } from './noodles/components/top-menu-bar'
-import { useRenderSettings } from './noodles/hooks/use-render-settings'
+import { getRenderSettingsFromOutOp, useRenderSettings } from './noodles/hooks/use-render-settings'
 import { getNoodles } from './noodles/noodles'
-import { useExportActionsStore } from './noodles/store'
+import { OutOp } from './noodles/operators'
+import { getOpStore, useExportActionsStore } from './noodles/store'
 import type { RenderSettings } from './noodles/utils/serialization'
 import { useDeckDrawLoop } from './render/draw-loop'
 import { captureScreenshot, rafDriver, useRenderer } from './render/renderer'
@@ -254,55 +255,74 @@ export default function TimelineEditor() {
     props: deckProps,
   })
 
-  const startRender = useCallback(async () => {
-    let canvas: HTMLCanvasElement | null = null
+  const startRender = useCallback(
+    async (outOpId?: string) => {
+      let canvas: HTMLCanvasElement | null = null
 
-    if (basemapEnabled) {
-      if (!mapRef.current) {
-        console.error('Start Render: maplibre is not defined (when basemapEnabled is true)')
+      if (basemapEnabled) {
+        if (!mapRef.current) {
+          console.error('Start Render: maplibre is not defined (when basemapEnabled is true)')
+          return
+        }
+        canvas = mapRef.current.getCanvas()
+      } else {
+        // Pure Deck.gl mode
+        if (!deckRef.current) {
+          console.error('Start Render: deckRef is not defined (when basemapEnabled is false)')
+          return
+        }
+        // @ts-expect-error canvas is protected but accessible
+        canvas = deckRef.current.canvas
+      }
+
+      if (!canvas) {
+        console.error('Start Render: Failed to get canvas element')
         return
       }
-      canvas = mapRef.current.getCanvas()
-    } else {
-      // Pure Deck.gl mode
+
+      // Get settings from specified OutOp, or use defaults from useRenderSettings
+      let targetCodec = codec
+      let targetResolution = resolution
+      if (outOpId) {
+        const outOp = getOpStore().getOp(outOpId)
+        if (outOp instanceof OutOp) {
+          const settings = getRenderSettingsFromOutOp(outOp)
+          targetCodec = settings.codec
+          targetResolution = settings.resolution
+        }
+      }
+
+      await startCapture({
+        canvas,
+        codec: targetCodec,
+        // This always scales the video to the specified value, regardless of `canvas` size
+        ...targetResolution,
+      })
+    },
+    [startCapture, codec, resolution, basemapEnabled]
+  )
+
+  const takeScreenshot = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    async (_outOpId?: string) => {
       if (!deckRef.current) {
-        console.error('Start Render: deckRef is not defined (when basemapEnabled is false)')
+        console.error('Take Screenshot: deck is not defined')
         return
       }
-      // @ts-expect-error canvas is protected but accessible
-      canvas = deckRef.current.canvas
-    }
+      if (basemapEnabled && !mapRef.current) {
+        console.error('Take Screenshot: maplibre is not defined')
+        return
+      }
 
-    if (!canvas) {
-      console.error('Start Render: Failed to get canvas element')
-      return
-    }
-
-    await startCapture({
-      canvas,
-      codec,
-      // This always scales the video to the specified value, regardless of `canvas` size
-      ...resolution,
-    })
-  }, [startCapture, codec, resolution, basemapEnabled])
-
-  const takeScreenshot = useCallback(async () => {
-    if (!deckRef.current) {
-      console.error('Take Screenshot: deck is not defined')
-      return
-    }
-    if (basemapEnabled && !mapRef.current) {
-      console.error('Take Screenshot: maplibre is not defined')
-      return
-    }
-
-    const suggestedName = project.address.projectId
-    await captureScreenshot(suggestedName, () => {
-      redraw()
-      // @ts-expect-error canvas is protected
-      return deckRef.current.canvas!
-    })
-  }, [project.address.projectId, redraw, basemapEnabled])
+      const suggestedName = project.address.projectId
+      await captureScreenshot(suggestedName, () => {
+        redraw()
+        // @ts-expect-error canvas is protected
+        return deckRef.current.canvas!
+      })
+    },
+    [project.address.projectId, redraw, basemapEnabled]
+  )
 
   // Sync export actions to the store so RenderSettingsPanel can access them
   const setExportActions = useExportActionsStore(state => state.setExportActions)

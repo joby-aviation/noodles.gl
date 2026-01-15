@@ -6,8 +6,8 @@ import logoSvg from '/noodles-favicon.svg'
 import { SettingsDialog } from '../../components/settings-dialog'
 import { ExternalControlButton } from '../../external-control/components/external-control-button'
 import { analytics } from '../../utils/analytics'
-import { ContainerOp } from '../operators'
-import { getOpStore, useNestingStore, useUIStore } from '../store'
+import { ContainerOp, OutOp } from '../operators'
+import { getOpStore, useNestingStore, useOperatorStore, useUIStore } from '../store'
 import { directoryHandleCache } from '../utils/directory-handle-cache'
 import { getParentPath, splitPath } from '../utils/path-utils'
 import { Breadcrumbs } from './breadcrumbs'
@@ -31,8 +31,8 @@ interface TopMenuBarProps {
   setShowChatPanel?: (show: boolean) => void
   undoRedoRef: RefObject<UndoRedoHandlerRef | null>
   copyControlsRef: RefObject<CopyControlsRef | null>
-  startRender?: () => Promise<void>
-  takeScreenshot?: () => Promise<void>
+  startRender?: (outOpId?: string) => Promise<void>
+  takeScreenshot?: (outOpId?: string) => Promise<void>
   isRendering?: boolean
   hasUnsavedChanges?: boolean
   showOverlay?: boolean
@@ -162,19 +162,60 @@ export function TopMenuBar({
     }
   }, [selectedContainer, setCurrentContainerId, reactFlow])
 
-  const handleStartRender = useCallback(async () => {
-    if (startRender) {
-      await startRender()
-      analytics.track('render_started', { source: 'menu' })
+  // Get all OutOps from the store
+  const operators = useOperatorStore(state => state.operators)
+  const outOps = useMemo(() => {
+    return Array.from(operators.values()).filter((op): op is OutOp => op instanceof OutOp)
+  }, [operators])
+
+  // Get the target OutOp ID for export operations
+  const getTargetOutOpId = useCallback((): string | null => {
+    if (outOps.length === 0) {
+      return null
     }
-  }, [startRender])
+    if (outOps.length === 1) {
+      // Single OutOp - use it directly
+      return outOps[0].id
+    }
+    // Multiple OutOps - check if exactly one is selected
+    const selectedNodes = reactFlow.getNodes().filter(n => n.selected)
+    const selectedOutOps = selectedNodes.filter(n => {
+      const op = getOpStore().getOp(n.id)
+      return op instanceof OutOp
+    })
+    if (selectedOutOps.length === 1) {
+      return selectedOutOps[0].id
+    }
+    return null
+  }, [outOps, reactFlow])
+
+  const handleStartRender = useCallback(async () => {
+    if (!startRender) return
+
+    const targetId = getTargetOutOpId()
+    if (outOps.length > 1 && !targetId) {
+      alert('Multiple Output nodes found. Please select exactly one Output node to use for rendering.')
+      return
+    }
+
+    await startRender(targetId ?? undefined)
+    analytics.track('render_started', { source: 'menu' })
+  }, [startRender, outOps.length, getTargetOutOpId])
 
   const handleTakeScreenshot = useCallback(async () => {
-    if (takeScreenshot) {
-      await takeScreenshot()
-      analytics.track('screenshot_taken', { source: 'menu' })
+    if (!takeScreenshot) return
+
+    const targetId = getTargetOutOpId()
+    if (outOps.length > 1 && !targetId) {
+      alert(
+        'Multiple Output nodes found. Please select exactly one Output node to use for screenshot.'
+      )
+      return
     }
-  }, [takeScreenshot])
+
+    await takeScreenshot(targetId ?? undefined)
+    analytics.track('screenshot_taken', { source: 'menu' })
+  }, [takeScreenshot, outOps.length, getTargetOutOpId])
 
   return (
     <>

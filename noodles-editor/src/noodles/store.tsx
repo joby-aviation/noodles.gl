@@ -130,12 +130,13 @@ export const useUIStore = create<UIStoreState>(set => ({
 // ============================================================================
 
 interface ExportActionsState {
-  startRender: (() => Promise<void>) | null
-  takeScreenshot: (() => Promise<void>) | null
+  // Export functions that accept an optional OutOp ID to use for settings
+  startRender: ((outOpId?: string) => Promise<void>) | null
+  takeScreenshot: ((outOpId?: string) => Promise<void>) | null
   isRendering: boolean
   setExportActions: (actions: {
-    startRender?: () => Promise<void>
-    takeScreenshot?: () => Promise<void>
+    startRender?: (outOpId?: string) => Promise<void>
+    takeScreenshot?: (outOpId?: string) => Promise<void>
   }) => void
   setIsRendering: (value: boolean) => void
 }

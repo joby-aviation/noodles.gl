@@ -309,7 +309,7 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
         <button
           type="button"
           className={s.exportButton}
-          onClick={() => takeScreenshot?.()}
+          onClick={() => takeScreenshot?.(op.id)}
           disabled={!takeScreenshot}
         >
           <i className="pi pi-image" />
@@ -318,7 +318,7 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
         <button
           type="button"
           className={s.exportButton}
-          onClick={() => startRender?.()}
+          onClick={() => startRender?.(op.id)}
           disabled={!startRender || isRendering}
         >
           <i className="pi pi-video" />
