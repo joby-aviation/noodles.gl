@@ -243,6 +243,12 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
           )}
         </div>
       )}
+      {op instanceof OutOp && (
+        <div className={s.section}>
+          <div className={s.sectionTitle}>Render Settings</div>
+          <RenderSettingsPanel op={op} />
+        </div>
+      )}
       <div className={s.section}>
         <label className={s.input}>
           <span>ID</span>
@@ -304,12 +310,6 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
           })}
         </div>
       </div>
-      {op instanceof OutOp && (
-        <div className={s.section}>
-          <div className={s.sectionTitle}>Render Settings</div>
-          <RenderSettingsPanel op={op} />
-        </div>
-      )}
       <div className={s.section}>
         <div className={s.sectionTitle}>Outputs</div>
         <div className={s.propertyList}>
