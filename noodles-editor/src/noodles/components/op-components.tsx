@@ -38,6 +38,7 @@ import {
   type DirectionsOp,
   type GeocoderOp,
   type MouseOp,
+  type OutOp,
   mathOpDescriptions,
   mathOps,
   Operator,
@@ -166,6 +167,7 @@ export const nodeComponents = {
   GeocoderOp: GeocoderOpComponent,
   DirectionsOp: DirectionsOpComponent,
   MouseOp: MouseOpComponent,
+  OutOp: OutOpComponent,
   TableEditorOp: TableEditorOpComponent,
   TimeOp: TimeOpComponent,
   ViewerOp: ViewerOpComponent,
@@ -1344,6 +1346,54 @@ function TimeOpComponent({
           <br />
           Tick: {tick}
         </div>
+        <div className={s.outputHandleContainer}>
+          {Object.entries(op.outputs).map(([key, field]) => (
+            <OutputHandle key={key} id={key} field={field} />
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// OutOp component that only shows the vis input.
+// Render settings are hidden from the node UI and shown in the properties panel instead.
+function OutOpComponent({
+  id,
+  type,
+}: ReactFlowNodeProps<NodeDataJSON<OutOp>> & { type: 'OutOp' }) {
+  const op = getOp(id as string)
+  if (!op) {
+    throw new Error(`Operator with id ${id} not found`)
+  }
+  const locked = useLocked(op)
+  const executionState = useExecutionState(op)
+  const connectionErrors = useConnectionErrors(op)
+  const hasConnectionErrors = connectionErrors.size > 0
+  const isDimmed = useNodeDimmed(id)
+
+  // Only show the 'vis' input, hide render settings
+  const visibleInputs = { vis: op.inputs.vis }
+
+  return (
+    <div
+      className={cx(s.wrapper, {
+        [s.wrapperError]: executionState.status === 'error' || hasConnectionErrors,
+        [s.wrapperExecuting]: executionState.status === 'executing',
+        [s.wrapperDimmed]: isDimmed,
+      })}
+    >
+      <NodeHeader id={id} type={type} op={op} connectionErrors={connectionErrors} />
+      <div className={s.content}>
+        {Object.entries(visibleInputs).map(([key, field]) => (
+          <FieldComponent
+            key={key}
+            id={key}
+            field={field}
+            disabled={locked}
+            handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
+          />
+        ))}
         <div className={s.outputHandleContainer}>
           {Object.entries(op.outputs).map(([key, field]) => (
             <OutputHandle key={key} id={key} field={field} />

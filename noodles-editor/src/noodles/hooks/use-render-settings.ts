@@ -4,11 +4,9 @@ import { useOperatorStore } from '../store'
 import type { RenderSettings } from '../utils/serialization'
 import { DEFAULT_RENDER_SETTINGS } from '../utils/serialization'
 
-/**
- * Hook to read render settings from the OutOp node.
- * Render settings are stored as OutOp input fields (not keyframable).
- * This hook subscribes to changes in those fields and returns the current values.
- */
+// Hook to read render settings from the OutOp node.
+// Render settings are stored as OutOp input fields (not keyframable).
+// This hook subscribes to changes in those fields and returns the current values.
 export function useRenderSettings(): RenderSettings {
   const outOp = useOperatorStore(state => state.operators.get('/out')) as OutOp | undefined
 
@@ -55,10 +53,8 @@ export function useRenderSettings(): RenderSettings {
   return settings
 }
 
-/**
- * Get render settings from an OutOp instance.
- * Combines width/height fields into a resolution object for compatibility.
- */
+// Get render settings from an OutOp instance.
+// Combines width/height fields into a resolution object for compatibility.
 export function getRenderSettingsFromOutOp(outOp: OutOp): RenderSettings {
   return {
     display: outOp.inputs.display.value as RenderSettings['display'],
@@ -77,10 +73,8 @@ export function getRenderSettingsFromOutOp(outOp: OutOp): RenderSettings {
   }
 }
 
-/**
- * Update render settings on the OutOp node.
- * This is used when loading projects with legacy render settings.
- */
+// Update render settings on the OutOp node.
+// This is used when loading projects with legacy render settings.
 export function setRenderSettingsOnOutOp(
   outOp: OutOp,
   settings: Partial<RenderSettings>
