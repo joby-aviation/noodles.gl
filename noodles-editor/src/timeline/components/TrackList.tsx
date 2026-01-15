@@ -16,10 +16,10 @@ export function TrackList({
 }: TrackListProps) {
   const tracks = useTimelineStore(state => state.tracks)
 
-  // Convert tracks Map to array and sort by fieldPath
-  const trackArray = Array.from(tracks.values()).sort((a, b) =>
-    a.fieldPath.localeCompare(b.fieldPath)
-  )
+  // Convert tracks Map to array, filter to only tracks with keyframes, and sort by fieldPath
+  const trackArray = Array.from(tracks.values())
+    .filter(track => track.keyframes.length > 0)
+    .sort((a, b) => a.fieldPath.localeCompare(b.fieldPath))
 
   if (trackArray.length === 0) {
     if (showLabelsOnly) {

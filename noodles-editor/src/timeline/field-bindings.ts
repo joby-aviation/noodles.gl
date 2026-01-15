@@ -289,7 +289,7 @@ export function bindFieldToTimeline(
     }
   )
 
-  // Subscribe to field value changes -> update keyframe
+  // Subscribe to field value changes -> update or create keyframe
   const fieldSub = field.subscribe((value_: unknown) => {
     if (op.locked?.value || updating) return
 
@@ -314,9 +314,18 @@ export function bindFieldToTimeline(
         if (JSON.stringify(existingKf.value) !== JSON.stringify(kfValue)) {
           timelineStore.updateKeyframe(fieldPath, existingKf.id, { value: kfValue })
         }
+      } else if (track && track.keyframes.length > 0) {
+        // If track already has keyframes, create a new keyframe at current position
+        // This enables animation editing workflow - once a field is animated,
+        // changing values automatically creates keyframes
+        timelineStore.addKeyframe(fieldPath, {
+          position,
+          value: kfValue,
+          interpolation: 'bezier',
+        })
       }
-      // Note: We don't auto-create keyframes on field changes
-      // That should be an explicit user action
+      // Note: If track has no keyframes, we don't auto-create
+      // User should explicitly click the keyframe indicator to start animating
 
       lastKeyframeValue = kfValue
     } catch (e) {

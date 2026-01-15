@@ -89,21 +89,30 @@ export function KeyframeIndicator({
     const store = getTimelineStore()
     const position = store.position
 
-    // Get or create track
-    const track = store.getOrCreateTrack(fieldPath, currentValue)
+    // Get or create track - this ensures track exists in the store
+    store.getOrCreateTrack(fieldPath, currentValue)
+
+    // Re-fetch track from store to get the latest state after potential creation
+    const track = store.getTrack(fieldPath)
+    if (!track) {
+      console.warn(`Failed to create/get track for ${fieldPath}`)
+      return
+    }
 
     // Check if keyframe already exists at this position
     const epsilon = 0.001
     const existingKf = track.keyframes.find(kf => Math.abs(kf.position - position) < epsilon)
 
     if (!existingKf) {
-      store.addKeyframe(fieldPath, {
+      const keyframeId = store.addKeyframe(fieldPath, {
         position,
         value: currentValue,
         interpolation: 'bezier',
       })
-      // Notify parent that a keyframe was added (e.g., to auto-expand timeline)
-      onKeyframeAdded?.()
+      if (keyframeId) {
+        // Notify parent that a keyframe was added (e.g., to auto-expand timeline)
+        onKeyframeAdded?.()
+      }
     }
   }, [fieldPath, currentValue, disabled, onKeyframeAdded])
 

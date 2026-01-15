@@ -1,7 +1,7 @@
 // Main Timeline Panel container component
 // Provides the overall layout and state management for the timeline UI
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTimelineStore } from '../timeline-store'
 import { PlayControls } from './PlayControls'
 import { Playhead } from './Playhead'
@@ -17,15 +17,18 @@ const DEFAULT_PIXELS_PER_SECOND = 100
 
 export interface TimelinePanelProps {
   height?: number
+  onCollapse?: () => void
 }
 
-export function TimelinePanel({ height = 300 }: TimelinePanelProps) {
+export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const timelineAreaRef = useRef<HTMLDivElement>(null)
+  const scrollAreaRef = useRef<HTMLDivElement>(null)
 
   // Local UI state
   const [pixelsPerSecond, setPixelsPerSecond] = useState(DEFAULT_PIXELS_PER_SECOND)
   const [scrollLeft, setScrollLeft] = useState(0)
+  const [isScrubbing, setIsScrubbing] = useState(false)
 
   // Timeline store state
   const sequence = useTimelineStore(state => state.sequence)
@@ -57,40 +60,90 @@ export function TimelinePanel({ height = 300 }: TimelinePanelProps) {
     setScrollLeft(e.currentTarget.scrollLeft)
   }, [])
 
-  // Handle click on timeline area to set position
-  const handleTimelineClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (!timelineAreaRef.current) return
-
+  // Calculate time from mouse event
+  const getTimeFromMouseEvent = useCallback(
+    (e: MouseEvent | React.MouseEvent) => {
+      if (!timelineAreaRef.current) return null
       const rect = timelineAreaRef.current.getBoundingClientRect()
-      const x = e.clientX - rect.left + scrollLeft
-      const time = Math.max(0, Math.min(pixelsToTime(x), sequence.length))
-      setPosition(time)
+      const currentScrollLeft = scrollAreaRef.current?.scrollLeft ?? 0
+      const x = e.clientX - rect.left + currentScrollLeft
+      return Math.max(0, Math.min(pixelsToTime(x), sequence.length))
     },
-    [pixelsToTime, scrollLeft, sequence.length, setPosition]
+    [pixelsToTime, sequence.length]
   )
+
+  // Handle mousedown on timeline area to start scrubbing
+  const handleTimelineMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      // Only handle left mouse button
+      if (e.button !== 0) return
+
+      const time = getTimeFromMouseEvent(e)
+      if (time !== null) {
+        setPosition(time)
+        setIsScrubbing(true)
+      }
+    },
+    [getTimeFromMouseEvent, setPosition]
+  )
+
+  // Handle mousemove while scrubbing (attached to document)
+  useEffect(() => {
+    if (!isScrubbing) return
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const time = getTimeFromMouseEvent(e)
+      if (time !== null) {
+        setPosition(time)
+      }
+    }
+
+    const handleMouseUp = () => {
+      setIsScrubbing(false)
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [isScrubbing, getTimeFromMouseEvent, setPosition])
 
   return (
     <div ref={containerRef} className="timeline-panel" style={{ height }} onWheel={handleWheel}>
       {/* Header with controls */}
       <div className="timeline-header">
+        {onCollapse && (
+          <button
+            type="button"
+            className="timeline-collapse-btn"
+            onClick={onCollapse}
+            title="Collapse Timeline"
+          >
+            <ChevronDownIcon />
+          </button>
+        )}
         <PlayControls />
         <TimeDisplay />
         <div className="timeline-zoom">
           <button
             type="button"
+            className="timeline-zoom-btn"
             onClick={() => setPixelsPerSecond(prev => Math.max(MIN_PIXELS_PER_SECOND, prev * 0.8))}
             title="Zoom out"
           >
-            -
+            <span className="timeline-zoom-btn-text">&minus;</span>
           </button>
-          <span>{Math.round(pixelsPerSecond)}px/s</span>
+          <ZoomIcon />
           <button
             type="button"
+            className="timeline-zoom-btn"
             onClick={() => setPixelsPerSecond(prev => Math.min(MAX_PIXELS_PER_SECOND, prev * 1.25))}
             title="Zoom in"
           >
-            +
+            <span className="timeline-zoom-btn-text">+</span>
           </button>
         </div>
       </div>
@@ -104,7 +157,7 @@ export function TimelinePanel({ height = 300 }: TimelinePanelProps) {
         </div>
 
         {/* Scrollable timeline area */}
-        <div className="timeline-scroll-area" onScroll={handleScroll}>
+        <div ref={scrollAreaRef} className="timeline-scroll-area" onScroll={handleScroll}>
           {/* Time ruler */}
           <TimeRuler
             width={timelineWidth}
@@ -113,12 +166,12 @@ export function TimelinePanel({ height = 300 }: TimelinePanelProps) {
           />
 
           {/* Keyframe area */}
-          {/* biome-ignore lint/a11y/noStaticElementInteractions: Timeline area uses click to set playhead position */}
+          {/* biome-ignore lint/a11y/noStaticElementInteractions: Timeline area uses mousedown for scrubbing playhead */}
           <div
             ref={timelineAreaRef}
-            className="timeline-keyframe-area"
+            className={`timeline-keyframe-area ${isScrubbing ? 'scrubbing' : ''}`}
             style={{ width: timelineWidth }}
-            onClick={handleTimelineClick}
+            onMouseDown={handleTimelineMouseDown}
           >
             <TrackList pixelsPerSecond={pixelsPerSecond} timelineWidth={timelineWidth} />
 
@@ -128,5 +181,23 @@ export function TimelinePanel({ height = 300 }: TimelinePanelProps) {
         </div>
       </div>
     </div>
+  )
+}
+
+// Icon components
+function ChevronDownIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+      <path d="M3 4L6 7L9 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function ZoomIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true" className="timeline-zoom-icon">
+      <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.5" fill="none" />
+      <path d="M9.5 9.5L12.5 12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
   )
 }

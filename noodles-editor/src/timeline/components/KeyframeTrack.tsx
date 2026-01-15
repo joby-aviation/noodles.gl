@@ -80,6 +80,20 @@ export function KeyframeTrack({
     )
   }
 
+  // Generate bar segments between consecutive keyframes
+  const barSegments = []
+  for (let i = 0; i < track.keyframes.length - 1; i++) {
+    const startKf = track.keyframes[i]
+    const endKf = track.keyframes[i + 1]
+    const startX = startKf.position * pixelsPerSecond
+    const endX = endKf.position * pixelsPerSecond
+    barSegments.push({
+      id: `bar-${startKf.id}-${endKf.id}`,
+      left: startX,
+      width: endX - startX,
+    })
+  }
+
   // Render keyframe row
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: Timeline track row uses double-click for adding keyframes
@@ -88,6 +102,15 @@ export function KeyframeTrack({
       style={{ width: timelineWidth }}
       onDoubleClick={handleDoubleClick}
     >
+      {/* Bar segments between keyframes */}
+      {barSegments.map(bar => (
+        <div
+          key={bar.id}
+          className="timeline-keyframe-bar"
+          style={{ left: bar.left, width: bar.width }}
+        />
+      ))}
+      {/* Keyframe diamonds */}
       {track.keyframes.map(keyframe => (
         <KeyframeDiamond
           key={keyframe.id}

@@ -29,35 +29,16 @@ export function CollapsibleTimelinePanel({ height = 250 }: CollapsibleTimelinePa
 
   return (
     <div className="timeline-collapsible-container" style={{ height }}>
-      <div className="timeline-collapse-header">
-        <span className="timeline-collapse-title">Timeline</span>
-        <button
-          type="button"
-          className="timeline-collapse-button"
-          onClick={() => setExpanded(false)}
-          title="Collapse Timeline"
-        >
-          <ChevronDownIcon />
-        </button>
-      </div>
-      <TimelinePanel height={height - 28} />
+      <TimelinePanel height={height} onCollapse={() => setExpanded(false)} />
     </div>
   )
 }
 
-// Simple chevron icons
+// Simple chevron icon for collapsed state
 function ChevronUpIcon() {
   return (
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
       <path d="M3 8L6 5L9 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  )
-}
-
-function ChevronDownIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-      <path d="M3 4L6 7L9 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   )
 }
