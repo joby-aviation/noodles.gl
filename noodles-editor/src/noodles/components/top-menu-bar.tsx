@@ -194,7 +194,9 @@ export function TopMenuBar({
 
     const targetId = getTargetOutOpId()
     if (outOps.length > 1 && !targetId) {
-      alert('Multiple Output nodes found. Please select exactly one Output node to use for rendering.')
+      alert(
+        'Multiple Output nodes found. Please select exactly one Output node to use for rendering.'
+      )
       return
     }
 
