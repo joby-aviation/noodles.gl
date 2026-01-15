@@ -1358,10 +1358,7 @@ function TimeOpComponent({
 
 // OutOp component that only shows the vis input.
 // Render settings are hidden from the node UI and shown in the properties panel instead.
-function OutOpComponent({
-  id,
-  type,
-}: ReactFlowNodeProps<NodeDataJSON<OutOp>> & { type: 'OutOp' }) {
+function OutOpComponent({ id, type }: ReactFlowNodeProps<NodeDataJSON<OutOp>> & { type: 'OutOp' }) {
   const op = getOp(id as string)
   if (!op) {
     throw new Error(`Operator with id ${id} not found`)

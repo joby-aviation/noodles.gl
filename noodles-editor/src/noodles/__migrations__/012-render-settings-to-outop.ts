@@ -23,9 +23,7 @@ function getLegacyTheatreSettings(
 }
 
 // Remove render settings from Theatre.js staticOverrides
-function clearTheatreRenderSettings(
-  timeline: Record<string, unknown>
-): Record<string, unknown> {
+function clearTheatreRenderSettings(timeline: Record<string, unknown>): Record<string, unknown> {
   const sheetsById = (timeline as { sheetsById?: Record<string, unknown> })?.sheetsById || {}
   const noodlesSheet = (sheetsById.Noodles ?? {}) as {
     staticOverrides?: { byObject?: Record<string, unknown> }

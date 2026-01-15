@@ -250,7 +250,9 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
             id="render-bitrate-mode"
             className={s.select}
             value={bitrateMode}
-            onChange={e => op.inputs.bitrateMode.setValue(e.target.value as 'constant' | 'variable')}
+            onChange={e =>
+              op.inputs.bitrateMode.setValue(e.target.value as 'constant' | 'variable')
+            }
           >
             <option value="constant">Constant</option>
             <option value="variable">Variable</option>
