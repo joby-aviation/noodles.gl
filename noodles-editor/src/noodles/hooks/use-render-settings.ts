@@ -46,7 +46,9 @@ export function useRenderSettings(): RenderSettings {
     updateSettings()
 
     return () => {
-      subscriptions.forEach(sub => sub.unsubscribe())
+      for (const sub of subscriptions) {
+        sub.unsubscribe()
+      }
     }
   }, [outOp])
 

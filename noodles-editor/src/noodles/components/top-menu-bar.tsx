@@ -41,7 +41,6 @@ interface TopMenuBarProps {
   layoutMode?: 'split' | 'noodles-on-top' | 'output-on-top'
   setLayoutMode?: (mode: 'split' | 'noodles-on-top' | 'output-on-top') => void
   reactFlowRef?: RefObject<HTMLDivElement>
-  renderSettings?: RenderSettings
 }
 
 export function TopMenuBar({
@@ -67,7 +66,6 @@ export function TopMenuBar({
   layoutMode,
   setLayoutMode,
   reactFlowRef,
-  renderSettings,
 }: TopMenuBarProps) {
   const settingsDialogOpen = useUIStore(state => state.settingsDialogOpen)
   const setSettingsDialogOpen = useUIStore(state => state.setSettingsDialogOpen)
