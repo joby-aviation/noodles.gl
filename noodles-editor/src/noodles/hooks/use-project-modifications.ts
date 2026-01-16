@@ -222,6 +222,16 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         return { success: false, error: `No nodes found with IDs: ${nodeIds.join(', ')}` }
       }
 
+      // Prevent deletion of the last OutOp
+      const allOutOps = nodes.filter(n => n.type === 'OutOp')
+      const deletingOutOps = nodesToDelete.filter(n => n.type === 'OutOp')
+      if (deletingOutOps.length > 0 && deletingOutOps.length >= allOutOps.length) {
+        return {
+          success: false,
+          error: 'Cannot delete the last Output node. At least one Output node is required.',
+        }
+      }
+
       // First handle edge reconnection (needs nodes to still exist)
       const result = handleNodesDeleted(nodesToDelete)
       // Then delete the nodes
@@ -416,6 +426,16 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
         if (nodeObjectsToDelete.length === 0) {
           return { success: false, error: `No nodes found with IDs: ${nodesToDelete.join(', ')}` }
+        }
+
+        // Prevent deletion of the last OutOp
+        const allOutOps = nodes.filter(n => n.type === 'OutOp')
+        const deletingOutOps = nodeObjectsToDelete.filter(n => n.type === 'OutOp')
+        if (deletingOutOps.length > 0 && deletingOutOps.length >= allOutOps.length) {
+          return {
+            success: false,
+            error: 'Cannot delete the last Output node. At least one Output node is required.',
+          }
         }
 
         // Handle edge reconnection BEFORE deleting nodes
@@ -781,11 +801,26 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
   // ReactFlow-compatible onNodesDelete callback
   // Handles edge reconnection after ReactFlow deletes nodes
+  // Note: This is called AFTER ReactFlow has already deleted the nodes,
+  // so we restore OutOps if the user tried to delete the last one
   const onNodesDelete = useCallback(
     (deleted: ReactFlowNode[]) => {
+      // Check if we're trying to delete the last OutOp
+      const currentNodes = getNodes()
+      const remainingOutOps = currentNodes.filter(n => n.type === 'OutOp')
+      const deletedOutOps = deleted.filter(n => n.type === 'OutOp')
+
+      // If all remaining OutOps were deleted, restore them
+      if (deletedOutOps.length > 0 && remainingOutOps.length === 0) {
+        // Restore the deleted OutOps
+        setNodes(nodes => [...nodes, ...deletedOutOps])
+        console.warn('Cannot delete the last Output node. At least one Output node is required.')
+        return
+      }
+
       handleNodesDeleted(deleted)
     },
-    [handleNodesDeleted]
+    [getNodes, setNodes, handleNodesDeleted]
   )
 
   // Update operator ID and all references to it (nodes, edges, children)

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { OutOp } from '../operators'
-import { useExportActionsStore } from '../store'
+import { useActiveOutOpStore, useExportActionsStore } from '../store'
 import { DEFAULT_RENDER_SETTINGS } from '../utils/serialization'
 import s from './render-settings-panel.module.css'
 
@@ -23,6 +23,11 @@ interface RenderSettingsPanelProps {
 }
 
 export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
+  // Subscribe to active OutOp state
+  const activeOutOpId = useActiveOutOpStore(state => state.activeOutOpId)
+  const setActiveOutOpId = useActiveOutOpStore(state => state.setActiveOutOpId)
+  const isActive = activeOutOpId === op.id
+
   // Subscribe to export actions from the store
   const startRender = useExportActionsStore(state => state.startRender)
   const takeScreenshot = useExportActionsStore(state => state.takeScreenshot)
@@ -86,6 +91,22 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
 
   return (
     <div className={s.panel}>
+      {/* Active Output Indicator */}
+      {isActive ? (
+        <div className={s.activeIndicator}>
+          <i className="pi pi-check-circle" />
+          Active Output
+        </div>
+      ) : (
+        <button
+          type="button"
+          className={s.setActiveButton}
+          onClick={() => setActiveOutOpId(op.id)}
+        >
+          Set as Active Output
+        </button>
+      )}
+
       {/* Display Section */}
       <div className={s.section}>
         <h3 className={s.sectionTitle}>Display</h3>
@@ -309,7 +330,11 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
         <button
           type="button"
           className={s.exportButton}
-          onClick={() => takeScreenshot?.(op.id)}
+          onClick={() => {
+            // Ensure this OutOp is active before exporting
+            setActiveOutOpId(op.id)
+            takeScreenshot?.()
+          }}
           disabled={!takeScreenshot}
         >
           <i className="pi pi-image" />
@@ -318,7 +343,11 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
         <button
           type="button"
           className={s.exportButton}
-          onClick={() => startRender?.(op.id)}
+          onClick={() => {
+            // Ensure this OutOp is active before exporting
+            setActiveOutOpId(op.id)
+            startRender?.()
+          }}
           disabled={!startRender || isRendering}
         >
           <i className="pi pi-video" />

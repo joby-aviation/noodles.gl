@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react'
 import type { OutOp } from '../operators'
-import { useOperatorStore } from '../store'
 import type { RenderSettings } from '../utils/serialization'
 import { DEFAULT_RENDER_SETTINGS } from '../utils/serialization'
+import { useActiveOutOp } from './use-active-outop'
 
-// Hook to read render settings from the OutOp node.
+// Hook to read render settings from the active OutOp node.
 // Render settings are stored as OutOp input fields (not keyframable).
 // This hook subscribes to changes in those fields and returns the current values.
+// Uses the "active OutOp" system - similar to Blender's active camera concept.
 export function useRenderSettings(): RenderSettings {
-  const outOp = useOperatorStore(state => state.operators.get('/out')) as OutOp | undefined
+  const outOp = useActiveOutOp()
 
   const [settings, setSettings] = useState<RenderSettings>(() => {
     if (!outOp) return { ...DEFAULT_RENDER_SETTINGS }

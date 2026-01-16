@@ -130,13 +130,13 @@ export const useUIStore = create<UIStoreState>(set => ({
 // ============================================================================
 
 interface ExportActionsState {
-  // Export functions that accept an optional OutOp ID to use for settings
-  startRender: ((outOpId?: string) => Promise<void>) | null
-  takeScreenshot: ((outOpId?: string) => Promise<void>) | null
+  // Export functions always use the active OutOp's settings
+  startRender: (() => Promise<void>) | null
+  takeScreenshot: (() => Promise<void>) | null
   isRendering: boolean
   setExportActions: (actions: {
-    startRender?: (outOpId?: string) => Promise<void>
-    takeScreenshot?: (outOpId?: string) => Promise<void>
+    startRender?: () => Promise<void>
+    takeScreenshot?: () => Promise<void>
   }) => void
   setIsRendering: (value: boolean) => void
 }
@@ -155,6 +155,25 @@ export const useExportActionsStore = create<ExportActionsState>(set => ({
 
 // Get the export actions store instance for use outside React components
 export const getExportActionsStore = () => useExportActionsStore.getState()
+
+// ============================================================================
+// Active OutOp Store (Zustand) - Tracks which OutOp is the "active" one
+// Similar to Blender's active camera concept - sticky selection independent
+// of node selection that drives render settings
+// ============================================================================
+
+interface ActiveOutOpState {
+  activeOutOpId: string | null
+  setActiveOutOpId: (id: string | null) => void
+}
+
+export const useActiveOutOpStore = create<ActiveOutOpState>(set => ({
+  activeOutOpId: null,
+  setActiveOutOpId: id => set({ activeOutOpId: id }),
+}))
+
+// Get the active OutOp store instance for use outside React components
+export const getActiveOutOpStore = () => useActiveOutOpStore.getState()
 
 // ============================================================================
 // Helper functions for non-React contexts
