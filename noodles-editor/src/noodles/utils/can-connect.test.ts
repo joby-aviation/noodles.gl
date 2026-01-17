@@ -4,6 +4,7 @@ import {
   ArrayField,
   CompoundPropsField,
   DataField,
+  LayerField,
   ListField,
   NumberField,
   Point2DField,
@@ -129,6 +130,44 @@ describe('CanConnect', () => {
     expect(canConnect(field6, field1), 'ArrayField with String can connect to UnknownField').toBe(
       true
     )
+  })
+
+  it('fast-rejects heavy types connecting to incompatible types', () => {
+    const layerField = new LayerField()
+    const numberField = new NumberField(5)
+    const stringField = new StringField('test')
+
+    // Heavy types should be rejected fast without running expensive Zod validation
+    expect(canConnect(layerField, numberField), 'LayerField cannot connect to NumberField').toBe(
+      false
+    )
+    expect(canConnect(layerField, stringField), 'LayerField cannot connect to StringField').toBe(
+      false
+    )
+  })
+
+  it('allows heavy types to connect to flexible targets', () => {
+    const layerField = new LayerField()
+    const dataField = new DataField()
+    const unknownField = new UnknownField()
+
+    // Heavy types can connect to DataField (accepts anything)
+    expect(canConnect(layerField, dataField), 'LayerField can connect to DataField').toBe(true)
+
+    // Heavy types can connect to UnknownField
+    expect(canConnect(layerField, unknownField), 'LayerField can connect to UnknownField').toBe(
+      true
+    )
+  })
+
+  it('allows heavy types to connect to same type', () => {
+    const layerField1 = new LayerField()
+    const layerField2 = new LayerField()
+
+    // Give the source field a valid value that matches LayerField schema
+    layerField1.next({ type: 'ScatterplotLayer', data: [] })
+
+    expect(canConnect(layerField1, layerField2), 'LayerField can connect to LayerField').toBe(true)
   })
 })
 

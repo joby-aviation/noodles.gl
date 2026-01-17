@@ -1,10 +1,14 @@
 import type z from 'zod/v4'
-import { type Field, ListField, UnknownField } from '../fields'
+import { DataField, type Field, ListField, UnknownField } from '../fields'
 
 export type ConnectionValidationResult = {
   valid: boolean
   error?: string
 }
+
+// Field types that contain large/complex objects and can only connect to themselves or flexible types
+// These are expensive to validate with Zod, so we short-circuit obvious mismatches
+const HEAVY_TYPES = new Set(['layer', 'visualization', 'view', 'effect', 'widget', 'extension'])
 
 // Format a Zod issue into a human-readable message
 // The error callback in safeParse overrides issue.message, so we construct messages from properties
@@ -64,7 +68,26 @@ export function validateConnection(from: Field, to: Field): ConnectionValidation
   return { valid: true }
 }
 
-// Legacy function for backward compatibility - returns boolean only
+// Fast compatibility check for dimming UI - avoids expensive Zod validation for obvious mismatches
 export function canConnect(from: Field, to: Field): boolean {
-  return validateConnection(from, to).valid
+  // UnknownField can connect to anything
+  if (from instanceof UnknownField) {
+    return true
+  }
+
+  const fromType = (from.constructor as typeof Field).type
+  const toType = (to.constructor as typeof Field).type
+
+  // Fast path: heavy types (layer, visualization, etc.) can only connect to same type or flexible types
+  // This avoids running Zod validation on large objects when the result is obviously false
+  if (HEAVY_TYPES.has(fromType)) {
+    const isFlexibleTarget = to instanceof UnknownField || to instanceof DataField
+    if (fromType !== toType && !isFlexibleTarget) {
+      return false
+    }
+  }
+
+  // Run Zod validation for all other cases
+  const schema = to instanceof ListField ? to.schema.unwrap() : to.schema
+  return schema.safeParse(from.value).success
 }
