@@ -622,7 +622,7 @@ export function getNoodles(): Visualization {
   // Use useRenderSettings() hook to read them
 
   const loadProjectFile = useCallback(
-    (project: NoodlesProjectJSON, name?: string) => {
+    (project: NoodlesProjectJSON, name?: string, targetRoutePrefix?: string) => {
       const { nodes, edges, viewport, timeline, editorSettings, apiKeys } = project
 
       // Mark that we've programmatically loading this project BEFORE any state changes
@@ -661,7 +661,8 @@ export function getNoodles(): Visualization {
 
       // Update URL query parameter with project name
       if (name) {
-        navigate(`${routePrefix}/${name ?? ''}`, { replace: true })
+        const effectiveRoutePrefix = targetRoutePrefix ?? routePrefix
+        navigate(`${effectiveRoutePrefix}/${name}`, { replace: true })
       }
 
       // Clear unsaved changes flag when loading a project
@@ -1054,11 +1055,13 @@ export function getNoodles(): Visualization {
       // Cache the directory handle
       await directoryHandleCache.cacheHandle(directoryName, directoryHandle, directoryHandle.name)
 
-      // Update store with directory handle
+      // Update store with directory handle and storage type
       setCurrentDirectory(directoryHandle, directoryName)
+      setActiveStorageType('fileSystemAccess')
 
       // Load the project directly (already in memory, no need to reload from disk)
-      loadProjectFile(starterProject, directoryName)
+      // Always navigate to /projects since this is a user project
+      loadProjectFile(starterProject, directoryName, '/projects')
 
       analytics.track('project_created', { method: 'new' })
     } catch (error) {
@@ -1068,7 +1071,7 @@ export function getNoodles(): Visualization {
       }
       console.error('Failed to create new project:', error)
     }
-  }, [setCurrentDirectory, loadProjectFile])
+  }, [setCurrentDirectory, setActiveStorageType, loadProjectFile])
 
   const onImport = useCallback(async () => {
     try {
@@ -1202,11 +1205,13 @@ export function getNoodles(): Visualization {
       // Cache the directory handle
       await directoryHandleCache.cacheHandle(directoryName, directoryHandle, directoryHandle.name)
 
-      // Update store with directory handle
+      // Update store with directory handle and storage type
       setCurrentDirectory(directoryHandle, directoryName)
+      setActiveStorageType('fileSystemAccess')
 
       // Load the project directly (already in memory, no need to reload from disk)
-      loadProjectFile(projectData, directoryName)
+      // Always navigate to /projects since this is a user project
+      loadProjectFile(projectData, directoryName, '/projects')
 
       analytics.track('project_imported', { format: isZip ? 'zip' : 'json' })
     } catch (error) {
@@ -1216,7 +1221,7 @@ export function getNoodles(): Visualization {
       }
       console.error('Failed to import project:', error)
     }
-  }, [setCurrentDirectory, loadProjectFile])
+  }, [setCurrentDirectory, setActiveStorageType, loadProjectFile])
 
   // Handlers for ExampleNotFoundDialog
   const onBrowseExamples = useCallback(() => {
@@ -1238,12 +1243,12 @@ export function getNoodles(): Visualization {
         let finalProjectName: string
 
         if (projectName) {
-          // Load project by name (for recent projects and OPFS list)
-          // Cache-aware: load will prompt user if project directory not cached for fileSystemAccess
+          // Load project by name (for recent projects)
+          // Recent projects from directoryHandleCache are always fileSystemAccess
           finalProjectName = projectName
-          result = await load(storageType, projectName)
+          result = await load('fileSystemAccess', projectName)
         } else {
-          // Show the native folder picker
+          // Show the native folder picker (File System Access API)
           const projectDirectory = await selectDirectory()
           finalProjectName = projectDirectory.name
 
@@ -1255,18 +1260,24 @@ export function getNoodles(): Visualization {
           )
 
           // Load project from the selected directory
-          result = await load(storageType, projectDirectory)
+          result = await load('fileSystemAccess', projectDirectory)
         }
 
         if (result.success) {
           const project = await migrateProject(result.data.projectData)
-          loadProjectFile(project, finalProjectName)
+          // Always navigate to /projects since this is a user project
+          loadProjectFile(project, finalProjectName, '/projects')
           // Update store with directory handle returned from load
           setCurrentDirectory(result.data.directoryHandle, finalProjectName)
-          analytics.track('project_opened', { storageType })
+          // Set storage type to fileSystemAccess since we used File System Access API
+          setActiveStorageType('fileSystemAccess')
+          analytics.track('project_opened', { storageType: 'fileSystemAccess' })
         } else {
           setError(result.error)
-          analytics.track('project_open_failed', { storageType, error: 'load_error' })
+          analytics.track('project_open_failed', {
+            storageType: 'fileSystemAccess',
+            error: 'load_error',
+          })
         }
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {
@@ -1284,12 +1295,12 @@ export function getNoodles(): Visualization {
           originalError: error,
         })
         analytics.track('project_open_failed', {
-          storageType,
+          storageType: 'fileSystemAccess',
           error: projectName ? 'migration_error' : 'unknown',
         })
       }
     },
-    [storageType, loadProjectFile, setCurrentDirectory, setError]
+    [loadProjectFile, setCurrentDirectory, setActiveStorageType, setError]
   )
 
   const flowGraph = theatreReady && (
@@ -1337,7 +1348,8 @@ export function getNoodles(): Visualization {
           projectName={projectName || ''}
           open={showProjectNotFoundDialog}
           onProjectLoaded={(project, name) => {
-            loadProjectFile(project, name)
+            // Always navigate to /projects since this is a user project
+            loadProjectFile(project, name, '/projects')
             setShowProjectNotFoundDialog(false)
           }}
           onNewProject={onNewProject}
