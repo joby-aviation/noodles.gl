@@ -132,12 +132,19 @@ describe('CanConnect', () => {
     )
   })
 
-  it('fast-rejects heavy types connecting to incompatible types', () => {
+  it('fast-rejects heavy values connecting to incompatible types', () => {
     const layerField = new LayerField()
     const numberField = new NumberField(5)
     const stringField = new StringField('test')
 
-    // Heavy types should be rejected fast without running expensive Zod validation
+    // Set a value with accessor functions (like real layer props)
+    layerField.next({
+      type: 'ScatterplotLayer',
+      data: [],
+      getPosition: (_d: unknown) => [0, 0], // Accessor function makes it "heavy"
+    })
+
+    // Heavy values should be rejected fast without running expensive Zod validation
     expect(canConnect(layerField, numberField), 'LayerField cannot connect to NumberField').toBe(
       false
     )
@@ -146,28 +153,90 @@ describe('CanConnect', () => {
     )
   })
 
-  it('allows heavy types to connect to flexible targets', () => {
+  it('allows heavy values to connect to flexible targets', () => {
     const layerField = new LayerField()
     const dataField = new DataField()
     const unknownField = new UnknownField()
 
-    // Heavy types can connect to DataField (accepts anything)
+    // Set a value with accessor functions
+    layerField.next({
+      type: 'ScatterplotLayer',
+      getPosition: (_d: unknown) => [0, 0],
+    })
+
+    // Heavy values can connect to DataField (accepts anything)
     expect(canConnect(layerField, dataField), 'LayerField can connect to DataField').toBe(true)
 
-    // Heavy types can connect to UnknownField
+    // Heavy values can connect to UnknownField
     expect(canConnect(layerField, unknownField), 'LayerField can connect to UnknownField').toBe(
       true
     )
   })
 
-  it('allows heavy types to connect to same type', () => {
+  it('allows heavy values to connect to same type', () => {
     const layerField1 = new LayerField()
     const layerField2 = new LayerField()
 
-    // Give the source field a valid value that matches LayerField schema
-    layerField1.next({ type: 'ScatterplotLayer', data: [] })
+    // Give the source field a valid value with accessor functions
+    layerField1.next({
+      type: 'ScatterplotLayer',
+      data: [],
+      getPosition: (_d: unknown) => [0, 0],
+    })
 
     expect(canConnect(layerField1, layerField2), 'LayerField can connect to LayerField').toBe(true)
+  })
+
+  it('does not fast-reject non-heavy values', () => {
+    const layerField = new LayerField()
+    const numberField = new NumberField(5)
+
+    // Set a value WITHOUT functions - should go through normal Zod validation
+    layerField.next({ type: 'ScatterplotLayer', data: [] })
+
+    // This will fail Zod validation (not fast path) because the value doesn't have functions
+    // but the schema mismatch will still cause rejection
+    expect(canConnect(layerField, numberField), 'Non-heavy LayerField rejected by Zod').toBe(false)
+  })
+
+  it('fast-rejects values with large nested arrays', () => {
+    const layerField = new LayerField()
+    const numberField = new NumberField(5)
+
+    // Create a value with large nested data array (like visualization with 100k+ rows)
+    const largeData = Array.from({ length: 2000 }, (_, i) => ({ id: i, value: i * 2 }))
+    layerField.next({
+      type: 'ScatterplotLayer',
+      data: largeData, // Large array makes it heavy
+    })
+
+    // Should be rejected fast without running expensive Zod validation
+    expect(canConnect(layerField, numberField), 'LayerField with large data cannot connect').toBe(
+      false
+    )
+  })
+
+  it('fast-rejects values with nested functions', () => {
+    const dataField = new DataField()
+    const numberField = new NumberField(5)
+
+    // Nested structure like visualization: { deckProps: { layers: [{ getPosition: ... }] } }
+    dataField.next({
+      deckProps: {
+        layers: [
+          {
+            type: 'ScatterplotLayer',
+            getPosition: (_d: unknown) => [0, 0], // Nested function
+          },
+        ],
+      },
+    })
+
+    // Should be rejected fast by detecting nested function
+    expect(
+      canConnect(dataField, numberField),
+      'DataField with nested functions cannot connect'
+    ).toBe(false)
   })
 })
 

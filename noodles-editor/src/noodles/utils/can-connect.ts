@@ -6,9 +6,36 @@ export type ConnectionValidationResult = {
   error?: string
 }
 
-// Field types that contain large/complex objects and can only connect to themselves or flexible types
-// These are expensive to validate with Zod, so we short-circuit obvious mismatches
-const HEAVY_TYPES = new Set(['layer', 'visualization', 'view', 'effect', 'widget', 'extension'])
+// Detect values that are expensive to validate with Zod (large objects with functions or class instances)
+// These values would cause performance issues if passed through safeParse for every connection check
+function isHeavyValue(value: unknown, depth = 0): boolean {
+  if (value == null || typeof value !== 'object') return false
+
+  // Class instance check (e.g., View instances have custom prototypes)
+  const proto = Object.getPrototypeOf(value)
+  if (proto !== Object.prototype && proto !== Array.prototype && proto !== null) {
+    return true
+  }
+
+  // Check for large arrays (e.g., visualization with 100k+ data rows)
+  if (Array.isArray(value) && value.length > 1000) {
+    return true
+  }
+
+  // Only check one level deep to avoid expensive traversal
+  if (depth === 0) {
+    for (const val of Object.values(value as object)) {
+      // Has function properties (e.g., Layer props have accessor functions)
+      if (typeof val === 'function') return true
+      // Check nested objects/arrays one level deep
+      if (typeof val === 'object' && val !== null && isHeavyValue(val, depth + 1)) {
+        return true
+      }
+    }
+  }
+
+  return false
+}
 
 // Format a Zod issue into a human-readable message
 // The error callback in safeParse overrides issue.message, so we construct messages from properties
@@ -75,12 +102,11 @@ export function canConnect(from: Field, to: Field): boolean {
     return true
   }
 
-  const fromType = (from.constructor as typeof Field).type
-  const toType = (to.constructor as typeof Field).type
-
-  // Fast path: heavy types (layer, visualization, etc.) can only connect to same type or flexible types
-  // This avoids running Zod validation on large objects when the result is obviously false
-  if (HEAVY_TYPES.has(fromType)) {
+  // Fast path: skip Zod for heavy values (objects with functions or class instances)
+  // These are expensive to validate and can only connect to same type or flexible types
+  if (isHeavyValue(from.value)) {
+    const fromType = (from.constructor as typeof Field).type
+    const toType = (to.constructor as typeof Field).type
     const isFlexibleTarget = to instanceof UnknownField || to instanceof DataField
     if (fromType !== toType && !isFlexibleTarget) {
       return false
