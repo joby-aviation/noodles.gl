@@ -76,7 +76,9 @@ const DeckGLOverlay = forwardRef<
 >(({ renderer, isRendering, ...props }, ref) => {
   // MapboxOverlay handles a variety of props differently than the Deck class.
   // https://deck.gl/docs/api-reference/mapbox/mapbox-overlay#constructor
-  const deck = useControl<MapboxOverlay>(() => new MapboxOverlay({ ...props, interleaved: true }))
+  const deck = useControl<MapboxOverlay>(
+    () => new MapboxOverlay({ ...props, interleaved: true, _renderLayersInGroups: true })
+  )
 
   if (!isRendering) {
     deck.setProps({

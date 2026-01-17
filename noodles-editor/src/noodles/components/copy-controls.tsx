@@ -4,7 +4,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 
 import { useProjectModifications } from '../hooks/use-project-modifications'
 import { getOpStore, hasOp, useNestingStore } from '../store'
 import { edgeId, nodeId } from '../utils/id-utils'
-import { getBaseName, generateQualifiedPath } from '../utils/path-utils'
+import { generateQualifiedPath, getBaseName } from '../utils/path-utils'
 import { type CopiedNodesJSON, safeStringify, serializeNodes } from '../utils/serialization'
 
 export interface CopyControlsRef {
