@@ -305,7 +305,6 @@ export default function TimelineEditor() {
     })
   }, [project.address.projectId, redraw, basemapEnabled])
 
-
   // Increase the render target resolution to increase map tile detail.
   // To convert viewport bounds back to their original size, add about 1 to the zoom value.
   const lodResolution = {
