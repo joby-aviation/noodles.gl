@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useExportActions } from '../contexts/export-actions-context'
 import type { OutOp } from '../operators'
-import { useActiveOutOpStore, useExportActionsStore } from '../store'
+import { useActiveOutOpStore } from '../store'
 import { DEFAULT_RENDER_SETTINGS } from '../utils/serialization'
 import s from './render-settings-panel.module.css'
 
@@ -28,10 +29,8 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
   const setActiveOutOpId = useActiveOutOpStore(state => state.setActiveOutOpId)
   const isActive = activeOutOpId === op.id
 
-  // Subscribe to export actions from the store
-  const startRender = useExportActionsStore(state => state.startRender)
-  const takeScreenshot = useExportActionsStore(state => state.takeScreenshot)
-  const isRendering = useExportActionsStore(state => state.isRendering)
+  // Get export actions from context (provided by TimelineEditor)
+  const { startRender, takeScreenshot, isRendering } = useExportActions()
 
   // Subscribe to field changes
   const [display, setDisplay] = useState(op.inputs.display.value)
@@ -98,11 +97,7 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
           Active Output
         </div>
       ) : (
-        <button
-          type="button"
-          className={s.setActiveButton}
-          onClick={() => setActiveOutOpId(op.id)}
-        >
+        <button type="button" className={s.setActiveButton} onClick={() => setActiveOutOpId(op.id)}>
           Set as Active Output
         </button>
       )}
