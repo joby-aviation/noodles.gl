@@ -3305,7 +3305,7 @@ export class TextLayerOp extends Operator<TextLayerOp> {
       }),
       extensions: new ListField(new ExtensionField()),
       parameters: new CompoundPropsField({
-        cullMode: new StringLiteralField('back', {
+        cullMode: new StringLiteralField('none', {
           values: ['none', 'back', 'front'],
         }),
       }),
@@ -3612,7 +3612,7 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
       _full3d: new BooleanField(false),
       extensions: new ListField(new ExtensionField()),
       parameters: new CompoundPropsField({
-        cullMode: new StringLiteralField('back', {
+        cullMode: new StringLiteralField('none', {
           values: ['none', 'back', 'front'],
         }),
       }),
