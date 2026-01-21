@@ -1234,6 +1234,19 @@ export class ColorRampOp extends Operator<ColorRampOp> {
       oranges: interpolateOranges,
       purples: interpolatePurples,
 
+      joby: d3.interpolateRgbBasis([
+        '#FFB300', // Joby Yellow
+        '#EB6110', // Joby Orange
+        '#E64839', // Joby Red
+        '#00994C', // Joby Green
+        '#883DF2', // Joby Purple
+        '#7CC3FF', // Joby Light Blue
+        '#3EC26A', // Joby Light Green
+        '#FF9058', // Joby Light Orange
+        '#FFCC54', // Joby Light Yellow
+        '#B580FF', // Joby Light Purple
+      ]),
+
       PinkYellowGreen: interpolatePiYG,
       PurpleOrange: interpolatePuOr,
       RedBlue: interpolateRdBu,
