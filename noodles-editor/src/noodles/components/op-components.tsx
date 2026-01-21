@@ -357,7 +357,16 @@ function HandlePreviewContent({ data, name, type }: { data: unknown; name: strin
           isPlainObject(data[0]) &&
           Object.keys(data[0]).length < 10 ? (
           (() => {
-            const keys = Object.keys(data[0] || {})
+            // Derive union of all keys across rows to avoid silently dropping columns
+            const allKeys = new Set<string>()
+            for (const row of data) {
+              if (isPlainObject(row)) {
+                for (const key of Object.keys(row)) {
+                  allKeys.add(key)
+                }
+              }
+            }
+            const keys = Array.from(allKeys)
             return (
               <table className={previewStyles.handlePreviewTable}>
                 <thead>
@@ -372,7 +381,11 @@ function HandlePreviewContent({ data, name, type }: { data: unknown; name: strin
                     <tr key={`row-${i}-${JSON.stringify(row).slice(0, 50)}`}>
                       {keys.map(key => (
                         <td key={key}>
-                          {typeof row[key] === 'string' ? row[key] : JSON.stringify(row[key])}
+                          {key in (row as Record<string, unknown>)
+                            ? typeof row[key] === 'string'
+                              ? row[key]
+                              : JSON.stringify(row[key])
+                            : ''}
                         </td>
                       ))}
                     </tr>
@@ -1186,7 +1199,16 @@ function ViewerOpComponent({
     isPlainObject(viewerData[0]) &&
     Object.keys(viewerData[0]).length < 20
   ) {
-    const keys = Object.keys(viewerData[0] || {})
+    // Derive union of all keys across rows to avoid silently dropping columns
+    const allKeys = new Set<string>()
+    for (const row of viewerData) {
+      if (isPlainObject(row)) {
+        for (const key of Object.keys(row)) {
+          allKeys.add(key)
+        }
+      }
+    }
+    const keys = Array.from(allKeys)
     content = (
       <table>
         <thead>
@@ -1197,7 +1219,11 @@ function ViewerOpComponent({
             <tr key={`${JSON.stringify(row)}`}>
               {keys.map((key, _j) => (
                 <td key={key}>
-                  {typeof row[key] === 'string' ? row[key] : JSON.stringify(row[key])}
+                  {key in row
+                    ? typeof row[key] === 'string'
+                      ? row[key]
+                      : JSON.stringify(row[key])
+                    : ''}
                 </td>
               ))}
             </tr>
