@@ -1205,6 +1205,19 @@ export class HSLOp extends Operator<HSLOp> {
   }
 }
 
+const JOBY_COLORS = [
+  '#FFB300', // Joby Yellow
+  '#EB6110', // Joby Orange
+  '#E64839', // Joby Red
+  '#00994C', // Joby Green
+  '#883DF2', // Joby Purple
+  '#7CC3FF', // Joby Light Blue
+  '#3EC26A', // Joby Light Green
+  '#FF9058', // Joby Light Orange
+  '#FFCC54', // Joby Light Yellow
+  '#B580FF', // Joby Light Purple
+]
+
 export class ColorRampOp extends Operator<ColorRampOp> {
   static displayName = 'ColorRamp'
   static description = 'Interpolate a color from a color ramp, value range 0-1'
@@ -1234,18 +1247,7 @@ export class ColorRampOp extends Operator<ColorRampOp> {
       oranges: interpolateOranges,
       purples: interpolatePurples,
 
-      joby: d3.interpolateRgbBasis([
-        '#FFB300', // Joby Yellow
-        '#EB6110', // Joby Orange
-        '#E64839', // Joby Red
-        '#00994C', // Joby Green
-        '#883DF2', // Joby Purple
-        '#7CC3FF', // Joby Light Blue
-        '#3EC26A', // Joby Light Green
-        '#FF9058', // Joby Light Orange
-        '#FFCC54', // Joby Light Yellow
-        '#B580FF', // Joby Light Purple
-      ]),
+      joby: d3.interpolateRgbBasis(JOBY_COLORS),
 
       PinkYellowGreen: interpolatePiYG,
       PurpleOrange: interpolatePuOr,
@@ -1313,18 +1315,7 @@ export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
       set2: schemeSet2,
       set3: schemeSet3,
       tableau10: schemeTableau10,
-      joby: [
-        '#FFB300', // Joby Yellow
-        '#EB6110', // Joby Orange
-        '#E64839', // Joby Red
-        '#00994C', // Joby Green
-        '#883DF2', // Joby Purple
-        '#7CC3FF', // Joby Light Blue
-        '#3EC26A', // Joby Light Green
-        '#FF9058', // Joby Light Orange
-        '#FFCC54', // Joby Light Yellow
-        '#B580FF', // Joby Light Purple
-      ],
+      joby: JOBY_COLORS,
 
       // These schemes are arrays of arrays, ordered by number of stops. In the future we should
       // allow the user to select the number of stops
