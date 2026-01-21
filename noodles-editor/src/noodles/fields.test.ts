@@ -245,6 +245,88 @@ describe('NumberField', () => {
       expect.arrayContaining([expect.objectContaining({ code: 'too_big' })])
     )
   })
+
+  it('sets softMin and softMax on the instance', () => {
+    const field1 = new NumberField()
+    expect(field1.softMin, 'softMin default').toEqual(-Infinity)
+    expect(field1.softMax, 'softMax default').toEqual(Infinity)
+
+    const field2 = new NumberField(50, { softMin: 0, softMax: 100 })
+    expect(field2.softMin, 'softMin').toEqual(0)
+    expect(field2.softMax, 'softMax').toEqual(100)
+  })
+
+  it('allows values outside softMin/softMax (soft limits are UI hints only)', () => {
+    const field = new NumberField(50, { softMin: 0, softMax: 100 })
+
+    // Values outside soft limits should be accepted
+    field.setValue(150)
+    expect(field.value).toEqual(150)
+
+    field.setValue(-50)
+    expect(field.value).toEqual(-50)
+  })
+
+  it('enforces hard min/max while allowing soft limits to differ', () => {
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const field = new NumberField(50, {
+      min: 0,
+      max: 200,
+      softMin: 10,
+      softMax: 100,
+    })
+
+    // Values within hard limits but outside soft limits should be accepted
+    field.setValue(5)
+    expect(field.value).toEqual(5)
+
+    field.setValue(150)
+    expect(field.value).toEqual(150)
+
+    // Values outside hard limits should be rejected
+    field.setValue(-10)
+    expect(field.value).toEqual(150) // unchanged
+    expect(consoleWarn).toHaveBeenCalledWith(
+      'Parse error',
+      expect.arrayContaining([expect.objectContaining({ code: 'too_small' })])
+    )
+
+    consoleWarn.mockClear()
+    field.setValue(250)
+    expect(field.value).toEqual(150) // unchanged
+    expect(consoleWarn).toHaveBeenCalledWith(
+      'Parse error',
+      expect.arrayContaining([expect.objectContaining({ code: 'too_big' })])
+    )
+  })
+
+  it('supports softMax without softMin and vice versa', () => {
+    const field1 = new NumberField(50, { softMax: 100 })
+    expect(field1.softMin).toEqual(-Infinity)
+    expect(field1.softMax).toEqual(100)
+
+    const field2 = new NumberField(50, { softMin: 0 })
+    expect(field2.softMin).toEqual(0)
+    expect(field2.softMax).toEqual(Infinity)
+  })
+
+  it('supports combining hard min with soft max', () => {
+    const field = new NumberField(50, { min: 0, softMax: 100 })
+    expect(field.min).toEqual(0)
+    expect(field.max).toEqual(Infinity)
+    expect(field.softMin).toEqual(-Infinity)
+    expect(field.softMax).toEqual(100)
+
+    // Can exceed soft max
+    field.setValue(200)
+    expect(field.value).toEqual(200)
+
+    // Cannot go below hard min
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    field.setValue(-10)
+    expect(field.value).toEqual(200) // unchanged
+    expect(consoleWarn).toHaveBeenCalled()
+  })
 })
 
 describe('StringLiteralField', () => {

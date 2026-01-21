@@ -22,13 +22,9 @@ import {
 } from '../theatre-bindings'
 
 // Helper to create properly initialized fields
-// biome-ignore lint/suspicious/noExplicitAny: generic test helper for any field constructor
 function createField<T extends Field>(
-  // biome-ignore lint/suspicious/noExplicitAny: accepts any field constructor signature
   FieldType: new (...args: any[]) => T,
-  // biome-ignore lint/suspicious/noExplicitAny: accepts any field value for testing
   value: any,
-  // biome-ignore lint/suspicious/noExplicitAny: accepts any field options for testing
   options: any,
   opId: string,
   fieldName: string
@@ -79,7 +75,6 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
-        // biome-ignore lint/suspicious/noExplicitAny: mock operator for test
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
@@ -102,7 +97,6 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
-        // biome-ignore lint/suspicious/noExplicitAny: mock operator for test
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
@@ -123,7 +117,6 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
-        // biome-ignore lint/suspicious/noExplicitAny: mock operator for test
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
@@ -168,7 +161,6 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
-        // biome-ignore lint/suspicious/noExplicitAny: mock operator for test
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
@@ -188,7 +180,6 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
-        // biome-ignore lint/suspicious/noExplicitAny: mock operator for test
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
@@ -215,7 +206,6 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
-        // biome-ignore lint/suspicious/noExplicitAny: mock operator for test
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
@@ -232,7 +222,6 @@ describe('theatre-bindings', () => {
       cleanup?.()
     })
 
-
     it('should handle vector fields', () => {
       const vec2Field = new Vec2Field([1, 2])
       vec2Field.pathToProps = ['/test-op', 'par', 'vec2']
@@ -248,7 +237,6 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
-        // biome-ignore lint/suspicious/noExplicitAny: mock operator for test
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
@@ -273,7 +261,6 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
-        // biome-ignore lint/suspicious/noExplicitAny: mock operator for test
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
@@ -685,7 +672,6 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
-        // biome-ignore lint/suspicious/noExplicitAny: mock operator for test
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
@@ -721,7 +707,6 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
-        // biome-ignore lint/suspicious/noExplicitAny: mock operator for test
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
@@ -756,7 +741,6 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
-        // biome-ignore lint/suspicious/noExplicitAny: mock operator for test
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
@@ -789,7 +773,6 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
-        // biome-ignore lint/suspicious/noExplicitAny: mock operator for test
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
@@ -827,7 +810,6 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
-        // biome-ignore lint/suspicious/noExplicitAny: mock operator for test
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
@@ -842,6 +824,68 @@ describe('theatre-bindings', () => {
       expect(sheetObj?.props.padding.left).toBeDefined()
 
       cleanup?.()
+    })
+  })
+
+  describe('cold prism fix', () => {
+    it('should not produce cold prism warnings during field updates', () => {
+      const consoleWarnSpy = vi.spyOn(console, 'warn')
+
+      const numberField = createField(
+        NumberField,
+        10,
+        { min: 0, max: 100, step: 1 },
+        '/test-op',
+        'value'
+      )
+
+      const mockOp = {
+        id: '/test-op',
+        inputs: { value: numberField },
+        outputs: {},
+        locked: { value: false },
+      } as any
+
+      const cleanup = bindOperatorToTheatre(mockOp, testSheet)
+
+      numberField.setValue(50)
+      numberField.setValue(75)
+      numberField.setValue(100)
+
+      const coldPrismWarnings = consoleWarnSpy.mock.calls.filter(call =>
+        String(call[0]).includes('cold prism')
+      )
+      expect(coldPrismWarnings).toHaveLength(0)
+
+      cleanup?.()
+      consoleWarnSpy.mockRestore()
+    })
+
+    it('should not produce cold prism warnings with color field conversions', () => {
+      const consoleWarnSpy = vi.spyOn(console, 'warn')
+
+      const colorField = new ColorField('#00ff00')
+      colorField.pathToProps = ['/test-op', 'par', 'color']
+
+      const mockOp = {
+        id: '/test-op',
+        inputs: { color: colorField },
+        outputs: {},
+        locked: { value: false },
+      } as any
+
+      const cleanup = bindOperatorToTheatre(mockOp, testSheet)
+
+      colorField.setValue('#ff0000')
+      colorField.setValue('#0000ff')
+
+      const coldPrismWarnings = consoleWarnSpy.mock.calls.filter(call =>
+        String(call[0]).includes('cold prism')
+      )
+      expect(coldPrismWarnings).toHaveLength(0)
+
+      cleanup?.()
+      consoleWarnSpy.mockRestore()
     })
   })
 })

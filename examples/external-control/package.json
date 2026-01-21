@@ -1,0 +1,17 @@
+{
+  "name": "noodles-external-control-examples",
+  "version": "1.0.0",
+  "description": "Examples for controlling Noodles externally via WebSocket and MCP",
+  "private": true,
+  "scripts": {
+    "server": "node server-example.js",
+    "mcp-proxy": "node mcp-proxy.js",
+    "example": "node create-pipeline.js"
+  },
+  "dependencies": {
+    "ws": "^8.14.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

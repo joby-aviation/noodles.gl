@@ -1,0 +1,55 @@
+/* Recipe shelf - full width bar at top of graph area with center-aligned tools */
+.toolsShelf {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 12px;
+  background-color: var(--color-bg-primary);
+  backdrop-filter: blur(8px);
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--color-border);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  z-index: 10;
+  pointer-events: auto;
+}
+
+.toolButton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background-color: transparent;
+  color: var(--color-text-primary);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 64px;
+}
+
+.toolButton:hover {
+  background-color: var(--color-bg-hover);
+}
+
+.toolButton:active {
+  background-color: var(--color-bg-active);
+}
+
+.toolButton i {
+  font-size: 16px;
+}
+
+.toolLabel {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  text-align: center;
+  white-space: nowrap;
+}

@@ -1,16 +1,17 @@
 #!/usr/bin/env tsx
+
 // Parse operator classes from operators.ts using TypeScript Compiler API
 // Extracts: displayName, description, inputs (with types), outputs (with types)
 
+import * as fs from 'node:fs'
+import * as path from 'node:path'
 import * as ts from 'typescript'
-import * as fs from 'fs'
-import * as path from 'path'
 
 interface OperatorInput {
   name: string
   fieldType: string
-  defaultValue?: any
-  options?: Record<string, any>
+  defaultValue?: unknown
+  options?: Record<string, unknown>
 }
 
 interface OperatorOutput {
@@ -28,12 +29,7 @@ interface OperatorMetadata {
 
 export function parseOperatorsFile(filePath: string): Map<string, OperatorMetadata> {
   const sourceText = fs.readFileSync(filePath, 'utf-8')
-  const sourceFile = ts.createSourceFile(
-    filePath,
-    sourceText,
-    ts.ScriptTarget.Latest,
-    true
-  )
+  const sourceFile = ts.createSourceFile(filePath, sourceText, ts.ScriptTarget.Latest, true)
 
   const operators = new Map<string, OperatorMetadata>()
 
@@ -61,8 +57,10 @@ export function parseOperatorsFile(filePath: string): Map<string, OperatorMetada
       let description = `${className} operator`
 
       for (const member of node.members) {
-        if (ts.isPropertyDeclaration(member) &&
-          member.modifiers?.some(m => m.kind === ts.SyntaxKind.StaticKeyword)) {
+        if (
+          ts.isPropertyDeclaration(member) &&
+          member.modifiers?.some(m => m.kind === ts.SyntaxKind.StaticKeyword)
+        ) {
           const propName = member.name.getText(sourceFile)
           const initializer = member.initializer
 
@@ -140,8 +138,8 @@ function parseFieldsFromReturnExpression(
     const fieldType = initializer.expression.getText(sourceFile)
 
     // Parse arguments
-    let defaultValue: any = undefined
-    let options: Record<string, any> = {}
+    let defaultValue: unknown
+    let options: Record<string, unknown> = {}
 
     if (initializer.arguments) {
       if (initializer.arguments.length > 0) {
@@ -168,7 +166,7 @@ function parseFieldsFromReturnExpression(
   return fields
 }
 
-function getConstantValue(expr: ts.Expression, sourceFile: ts.SourceFile): any {
+function getConstantValue(expr: ts.Expression, sourceFile: ts.SourceFile): unknown {
   if (ts.isNumericLiteral(expr)) {
     return parseFloat(expr.text)
   }
@@ -193,8 +191,8 @@ function getConstantValue(expr: ts.Expression, sourceFile: ts.SourceFile): any {
 function parseObjectLiteral(
   obj: ts.ObjectLiteralExpression,
   sourceFile: ts.SourceFile
-): Record<string, any> {
-  const result: Record<string, any> = {}
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {}
 
   for (const prop of obj.properties) {
     if (ts.isPropertyAssignment(prop)) {
@@ -222,8 +220,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     console.log(`${name}:`)
     console.log(`  Display: ${meta.displayName}`)
     console.log(`  Description: ${meta.description}`)
-    console.log(`  Inputs:`, meta.inputs.map(i => `${i.name}: ${i.fieldType}`).join(', '))
-    console.log(`  Outputs:`, meta.outputs.map(o => `${o.name}: ${o.fieldType}`).join(', '))
+    console.log('  Inputs:', meta.inputs.map(i => `${i.name}: ${i.fieldType}`).join(', '))
+    console.log('  Outputs:', meta.outputs.map(o => `${o.name}: ${o.fieldType}`).join(', '))
     console.log()
   }
 }

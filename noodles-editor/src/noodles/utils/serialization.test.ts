@@ -4,33 +4,49 @@ import { CodeField, ColorField, NumberField } from '../fields'
 import { NumberOp, ScenegraphLayerOp, TableEditorOp } from '../operators'
 import { clearOps, getOpStore, setOp } from '../store'
 import { edgeId } from './id-utils'
-import { NOODLES_VERSION, safeStringify, saveProjectLocally, serializeEdges, serializeNodes } from './serialization'
+import {
+  DEFAULT_RENDER_SETTINGS,
+  NOODLES_VERSION,
+  type RenderSettings,
+  safeStringify,
+  saveProjectLocally,
+  serializeEdges,
+  serializeNodes,
+  serializeRenderSettings,
+} from './serialization'
 
 describe('safeStringify', () => {
   it('serializes a basic object correctly', () => {
     const obj = { a: 1, b: 'text', c: true }
     const result = safeStringify(obj)
-    expect(result).toEqual(JSON.stringify(obj, null, 2))
+    expect(result).toEqual(`${JSON.stringify(obj, null, 2)}\n`)
+  })
+
+  it('ensures output ends with a newline', () => {
+    const obj = { test: 'value' }
+    const result = safeStringify(obj)
+    expect(result.endsWith('\n')).toBe(true)
+    expect(result).toEqual(`${JSON.stringify(obj, null, 2)}\n`)
   })
 
   it('removes circular references', () => {
     const obj = { name: 'A' } as Record<string, unknown>
     obj.self = obj
     const result = safeStringify(obj)
-    expect(result).toEqual('{\n  "name": "A"\n}')
+    expect(result).toEqual('{\n  "name": "A"\n}\n')
   })
 
   it('removes functions', () => {
     const obj = { a: 1, fn: () => {} }
     const result = safeStringify(obj)
-    expect(result).toEqual('{\n  "a": 1\n}')
+    expect(result).toEqual('{\n  "a": 1\n}\n')
   })
 
   it('handles nested objects with circular references', () => {
     const obj = { a: { b: {} } } as Record<string, unknown>
     obj.a.b.c = obj.a
     const result = safeStringify(obj)
-    expect(result).toEqual('{\n  "a": {\n    "b": {}\n  }\n}')
+    expect(result).toEqual('{\n  "a": {\n    "b": {}\n  }\n}\n')
   })
 
   it('handles arrays with circular references', () => {
@@ -403,8 +419,12 @@ describe('saveProjectLocally', () => {
 
     // Mock DOM APIs
     createElementSpy = vi.spyOn(document, 'createElement').mockReturnValue(mockAnchorElement)
-    appendChildSpy = vi.spyOn(document.body, 'appendChild').mockImplementation(() => mockAnchorElement)
-    removeChildSpy = vi.spyOn(document.body, 'removeChild').mockImplementation(() => mockAnchorElement)
+    appendChildSpy = vi
+      .spyOn(document.body, 'appendChild')
+      .mockImplementation(() => mockAnchorElement)
+    removeChildSpy = vi
+      .spyOn(document.body, 'removeChild')
+      .mockImplementation(() => mockAnchorElement)
 
     // Mock URL APIs
     vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock-url')
@@ -498,5 +518,95 @@ describe('saveProjectLocally', () => {
     await saveProjectLocally('test', projectJson, 'publicFolder')
 
     expect(revokeObjectURLSpy).toHaveBeenCalledWith('blob:mock-url')
+  })
+})
+
+describe('serializeRenderSettings', () => {
+  it('returns undefined when all settings match defaults', () => {
+    const result = serializeRenderSettings({ ...DEFAULT_RENDER_SETTINGS })
+    expect(result).toBeUndefined()
+  })
+
+  it('only serializes non-default primitive values', () => {
+    const settings: RenderSettings = {
+      ...DEFAULT_RENDER_SETTINGS,
+      framerate: 60,
+    }
+    const result = serializeRenderSettings(settings)
+    expect(result).toEqual({ framerate: 60 })
+  })
+
+  it('serializes multiple changed values', () => {
+    const settings: RenderSettings = {
+      ...DEFAULT_RENDER_SETTINGS,
+      framerate: 60,
+      codec: 'hevc',
+      waitForData: false,
+    }
+    const result = serializeRenderSettings(settings)
+    expect(result).toEqual({
+      framerate: 60,
+      codec: 'hevc',
+      waitForData: false,
+    })
+  })
+
+  it('correctly compares nested resolution object', () => {
+    const settings: RenderSettings = {
+      ...DEFAULT_RENDER_SETTINGS,
+      resolution: { width: 3840, height: 2160 },
+    }
+    const result = serializeRenderSettings(settings)
+    expect(result).toEqual({
+      resolution: { width: 3840, height: 2160 },
+    })
+  })
+
+  it('does not serialize resolution when it matches default', () => {
+    const settings: RenderSettings = {
+      ...DEFAULT_RENDER_SETTINGS,
+      resolution: { width: 1920, height: 1080 },
+    }
+    const result = serializeRenderSettings(settings)
+    expect(result).toBeUndefined()
+  })
+
+  it('serializes partial resolution changes correctly', () => {
+    const settings: RenderSettings = {
+      ...DEFAULT_RENDER_SETTINGS,
+      resolution: { width: 1920, height: 1920 },
+    }
+    const result = serializeRenderSettings(settings)
+    expect(result).toEqual({
+      resolution: { width: 1920, height: 1920 },
+    })
+  })
+
+  it('handles all fields being changed', () => {
+    const settings: RenderSettings = {
+      display: 'responsive',
+      resolution: { width: 3840, height: 2160 },
+      lod: 1,
+      waitForData: false,
+      codec: 'av1',
+      bitrateMbps: 30,
+      bitrateMode: 'variable',
+      scaleControl: 1,
+      framerate: 120,
+      captureDelay: 500,
+    }
+    const result = serializeRenderSettings(settings)
+    expect(result).toEqual({
+      display: 'responsive',
+      resolution: { width: 3840, height: 2160 },
+      lod: 1,
+      waitForData: false,
+      codec: 'av1',
+      bitrateMbps: 30,
+      bitrateMode: 'variable',
+      scaleControl: 1,
+      framerate: 120,
+      captureDelay: 500,
+    })
   })
 })

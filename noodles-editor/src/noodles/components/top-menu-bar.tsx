@@ -1,23 +1,29 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { ChevronDownIcon, ExternalLinkIcon } from '@radix-ui/react-icons'
-import studio from '@theatre/studio'
 import { useReactFlow } from '@xyflow/react'
 import { type RefObject, useCallback, useEffect, useMemo, useState } from 'react'
 import logoSvg from '/noodles-favicon.svg'
+import { RenderSettingsDialog } from '../../components/render-settings-dialog'
 import { SettingsDialog } from '../../components/settings-dialog'
+import { ExternalControlButton } from '../../external-control/components/external-control-button'
 import { analytics } from '../../utils/analytics'
 import { ContainerOp } from '../operators'
-import { getOpStore, useNestingStore } from '../store'
+import { getOpStore, useNestingStore, useUIStore } from '../store'
 import { directoryHandleCache } from '../utils/directory-handle-cache'
 import { getParentPath, splitPath } from '../utils/path-utils'
+import type { RenderSettings } from '../utils/serialization'
 import { Breadcrumbs } from './breadcrumbs'
 import type { CopyControlsRef } from './copy-controls'
+import { DataImporterTool } from './tools/data-importer-tool'
+import { PointWizardTool } from './tools/point-wizard-tool'
 import s from './top-menu-bar.module.css'
 import type { UndoRedoHandlerRef } from './UndoRedoHandler'
 
 interface TopMenuBarProps {
   projectName?: string
   onSaveProject: () => void
+  onSaveAs?: () => Promise<void>
+  onRename?: () => void
   onDownload?: () => Promise<void>
   onNewProject: () => void
   onImport: () => void
@@ -35,11 +41,18 @@ interface TopMenuBarProps {
   setShowOverlay?: (show: boolean) => void
   layoutMode?: 'split' | 'noodles-on-top' | 'output-on-top'
   setLayoutMode?: (mode: 'split' | 'noodles-on-top' | 'output-on-top') => void
+  reactFlowRef?: RefObject<HTMLDivElement>
+  renderSettings?: RenderSettings
+  setRenderSettings?: (settings: RenderSettings) => void
+  renderSettingsDialogOpen?: boolean
+  setRenderSettingsDialogOpen?: (open: boolean) => void
 }
 
 export function TopMenuBar({
   projectName,
   onSaveProject,
+  onSaveAs,
+  onRename,
   onDownload,
   onNewProject,
   onImport,
@@ -57,9 +70,17 @@ export function TopMenuBar({
   setShowOverlay,
   layoutMode,
   setLayoutMode,
+  reactFlowRef,
+  renderSettings,
+  setRenderSettings,
+  renderSettingsDialogOpen,
+  setRenderSettingsDialogOpen,
 }: TopMenuBarProps) {
-  const [settingsDialogOpen, setSettingsDialogOpen] = useState(false)
+  const settingsDialogOpen = useUIStore(state => state.settingsDialogOpen)
+  const setSettingsDialogOpen = useUIStore(state => state.setSettingsDialogOpen)
   const [recentProjects, setRecentProjects] = useState<string[]>([])
+  const [showPointWizard, setShowPointWizard] = useState(false)
+  const [showDataImporter, setShowDataImporter] = useState(false)
   const currentContainerId = useNestingStore(state => state.currentContainerId)
   const setCurrentContainerId = useNestingStore(state => state.setCurrentContainerId)
   const reactFlow = useReactFlow()
@@ -152,12 +173,8 @@ export function TopMenuBar({
   }, [selectedContainer, setCurrentContainerId, reactFlow])
 
   const onSelectRenderSettings = useCallback(() => {
-    const store = getOpStore()
-    const obj = store.getSheetObject('render')
-    if (obj) {
-      studio.setSelection([obj])
-    }
-  }, [])
+    setRenderSettingsDialogOpen?.(true)
+  }, [setRenderSettingsDialogOpen])
 
   const handleStartRender = useCallback(async () => {
     if (startRender) {
@@ -194,7 +211,7 @@ export function TopMenuBar({
                   onSelect={onOpenAddNode}
                   disabled={!onOpenAddNode}
                 >
-                  <span>Add Node</span>
+                  <span>Add Operator</span>
                   <span className={s.shortcut}>A</span>
                 </DropdownMenu.Item>
 
@@ -228,6 +245,22 @@ export function TopMenuBar({
                       <DropdownMenu.Item className={s.dropdownItem} onSelect={onSaveProject}>
                         <span>Save</span>
                         <span className={s.shortcut}>{mod}+S</span>
+                      </DropdownMenu.Item>
+                      <DropdownMenu.Item
+                        className={s.dropdownItem}
+                        onSelect={onSaveAs}
+                        disabled={!onSaveAs}
+                      >
+                        <span>Save As...</span>
+                        <span className={s.shortcut}>{mod}+Shift+S</span>
+                      </DropdownMenu.Item>
+                      <DropdownMenu.Item
+                        className={s.dropdownItem}
+                        onSelect={onRename}
+                        disabled={!onRename}
+                      >
+                        Rename Project...
+                        <span className={s.shortcut}>{mod}+Shift+A</span>
                       </DropdownMenu.Item>
                       <DropdownMenu.Item
                         className={s.dropdownItem}
@@ -384,13 +417,12 @@ export function TopMenuBar({
                             <DropdownMenu.RadioGroup
                               value={layoutMode}
                               onValueChange={value =>
-                                setLayoutMode?.(value as 'split' | 'noodles-on-top' | 'output-on-top')
+                                setLayoutMode?.(
+                                  value as 'split' | 'noodles-on-top' | 'output-on-top'
+                                )
                               }
                             >
-                              <DropdownMenu.RadioItem
-                                className={s.dropdownItem}
-                                value="split"
-                              >
+                              <DropdownMenu.RadioItem className={s.dropdownItem} value="split">
                                 <DropdownMenu.ItemIndicator className={s.itemIndicator}>
                                   <i className="pi pi-check" style={{ fontSize: '12px' }} />
                                 </DropdownMenu.ItemIndicator>
@@ -493,7 +525,42 @@ export function TopMenuBar({
           </div>
         </div>
 
+        <div className={s.centerSection}>
+          {reactFlowRef && (
+            <>
+              <button
+                type="button"
+                className={s.toolButton}
+                onClick={onOpenAddNode}
+                disabled={!onOpenAddNode}
+              >
+                <i className="pi pi-plus-circle" />
+                <span className={s.toolLabel}>Add Op</span>
+              </button>
+
+              <button
+                type="button"
+                className={s.toolButton}
+                onClick={() => setShowPointWizard(true)}
+              >
+                <i className="pi pi-map-marker" />
+                <span className={s.toolLabel}>Create Point</span>
+              </button>
+
+              <button
+                type="button"
+                className={s.toolButton}
+                onClick={() => setShowDataImporter(true)}
+              >
+                <i className="pi pi-file-import" />
+                <span className={s.toolLabel}>Import Data</span>
+              </button>
+            </>
+          )}
+        </div>
+
         <div className={s.rightSection}>
+          <ExternalControlButton />
           {setShowChatPanel && (
             <button
               type="button"
@@ -508,7 +575,32 @@ export function TopMenuBar({
         </div>
       </div>
 
+      {reactFlowRef && (
+        <>
+          <PointWizardTool
+            open={showPointWizard}
+            onOpenChange={setShowPointWizard}
+            reactFlowRef={reactFlowRef}
+          />
+
+          <DataImporterTool
+            open={showDataImporter}
+            onOpenChange={setShowDataImporter}
+            reactFlowRef={reactFlowRef}
+          />
+        </>
+      )}
+
       <SettingsDialog open={settingsDialogOpen} setOpen={setSettingsDialogOpen} />
+
+      {renderSettings && setRenderSettings && (
+        <RenderSettingsDialog
+          open={renderSettingsDialogOpen ?? false}
+          setOpen={setRenderSettingsDialogOpen ?? (() => {})}
+          settings={renderSettings}
+          onSettingsChange={setRenderSettings}
+        />
+      )}
     </>
   )
 }

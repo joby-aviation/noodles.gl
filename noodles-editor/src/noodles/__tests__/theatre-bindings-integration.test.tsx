@@ -95,7 +95,6 @@ describe('Theatre bindings integration', () => {
       },
     ]
 
-    // biome-ignore lint/suspicious/noExplicitAny: Edge generic types for mixed operator test fixtures
     let edges: Edge<any, any>[] = []
 
     // Create initial operators
@@ -169,7 +168,6 @@ describe('Theatre bindings integration', () => {
       },
     ]
 
-    // biome-ignore lint/suspicious/noExplicitAny: Edge generic types for mixed operator test fixtures
     const edges: Edge<any, any>[] = []
 
     const operators = transformGraph({ nodes, edges })
@@ -214,14 +212,11 @@ describe('Theatre bindings integration', () => {
     expect(numberOp).toBeDefined()
 
     // Find any number field in the operator's inputs
-    // biome-ignore lint/suspicious/noExplicitAny: dynamic operator introspection in test
     const numberFields = Object.values((numberOp as any).inputs || {}).filter(
-      // biome-ignore lint/suspicious/noExplicitAny: filtering fields by dynamic value property
       (field: any) => field && typeof field.value === 'number'
     )
 
     if (numberFields.length > 0) {
-      // biome-ignore lint/suspicious/noExplicitAny: accessing dynamic field properties in test
       const valueField = numberFields[0] as any
       const initialValue = valueField.value
 
@@ -330,9 +325,7 @@ describe('Theatre bindings integration', () => {
 
     // Verify that operators can still access their inputs after binding
     for (const op of operators) {
-      // biome-ignore lint/suspicious/noExplicitAny: dynamic operator introspection in test
       if ((op as any).inputs) {
-        // biome-ignore lint/suspicious/noExplicitAny: accessing dynamic inputs property in test
         const inputs = (op as any).inputs
         // Just verify inputs are still accessible
         expect(inputs).toBeDefined()
@@ -382,7 +375,6 @@ describe('Theatre bindings integration', () => {
       },
     ]
 
-    // biome-ignore lint/suspicious/noExplicitAny: Edge generic types for mixed operator test fixtures
     const edges: Edge<any, any>[] = []
 
     const operators = transformGraph({ nodes, edges })

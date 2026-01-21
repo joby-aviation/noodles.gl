@@ -85,9 +85,81 @@ noodles-editor/
 - URL parameters determine visualization project
 - Projects can have associated state files and data
 - Real-time updates through Theatre.js timeline
-- Reactive data processing with RxJS where needed
 - Node-based operators for modular data transformations
 - Type system using zod for validation, parsing, and transformation
+
+## Pull-Based Execution Model
+
+The application uses a **pull-based execution model** where operators only execute when their outputs are requested and their inputs have changed. This is similar to how Blender Geometry Nodes and Houdini work.
+
+### Key Concepts
+
+**Dirty Flag System**: Each operator maintains a dirty flag that indicates whether it needs re-execution:
+- When an input field value changes, the operator is marked dirty
+- Dirty flags propagate downstream automatically
+- Clean operators return cached results instantly
+
+**Pull Execution**: When an operator's output is needed:
+1. Check if operator is clean (cached result available)
+2. If dirty, pull upstream dependencies first
+3. Execute the operator with current input values
+4. Cache the result and mark as clean
+5. Return the result
+
+### GraphExecutor
+
+The `GraphExecutor` class (`graph-executor.ts`) manages operator execution:
+
+```typescript
+import { GraphExecutor } from './graph-executor'
+
+const executor = new GraphExecutor({
+  targetFPS: 60,        // Target frame rate
+  parallel: true,       // Execute independent nodes in parallel
+  batchDelay: 16,       // Batch dirty marks (ms)
+  enableProfiling: true // Enable performance monitoring
+})
+
+// Add operators to the graph
+executor.addNode(operator)
+
+// Add edges (connections between operators)
+executor.addEdge(sourceId, targetId)
+
+// Start the execution loop
+executor.start()
+```
+
+### Topological Sorting
+
+The executor maintains a topologically sorted execution order:
+- Cycle detection prevents infinite loops
+- Parallel execution levels allow independent operators to run concurrently
+- Changes only re-execute affected downstream operators
+
+### Operator Dirty Tracking
+
+Operators track their execution status:
+
+```typescript
+// Mark an operator as needing re-execution
+operator.markDirty()
+
+// Pull results from an operator (executes if dirty)
+const result = await operator.pull()
+
+// Check if operator has cached results
+if (operator.pullExecutionStatus === PullExecutionStatus.CLEAN) {
+  // Use cached result
+}
+```
+
+### Performance Benefits
+
+- **Selective execution**: Only execute operators needed for current frame
+- **Cache efficiency**: Clean operators return instantly without computation
+- **Parallel execution**: Independent operators execute concurrently
+- **Reduced overhead**: No subscription management overhead
 
 ## State Management with Zustand
 

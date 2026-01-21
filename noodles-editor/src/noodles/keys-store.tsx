@@ -54,7 +54,7 @@ export const useKeysStore = create<KeysStore>()(
         set({ browserKeys })
       },
 
-      setBrowserKeys: (keys) => {
+      setBrowserKeys: keys => {
         const cleaned: KeysConfig = {}
         if (keys.mapbox?.trim()) cleaned.mapbox = keys.mapbox.trim()
         if (keys.googleMaps?.trim()) cleaned.googleMaps = keys.googleMaps.trim()
@@ -62,22 +62,22 @@ export const useKeysStore = create<KeysStore>()(
         set({ browserKeys: cleaned })
       },
 
-      clearBrowserKey: (key) => {
+      clearBrowserKey: key => {
         const browserKeys = { ...get().browserKeys }
         delete browserKeys[key]
         set({ browserKeys })
       },
 
-      setSaveInProject: (enabled) => {
+      setSaveInProject: enabled => {
         set({ saveInProject: enabled })
       },
 
-      setProjectKeys: (keys) => {
+      setProjectKeys: keys => {
         set({ projectKeys: keys })
       },
 
       // Computed getters (priority: browser > project > env)
-      getKey: (key) => {
+      getKey: key => {
         const state = get()
         if (state.browserKeys[key]) return state.browserKeys[key]
         if (state.projectKeys?.[key]) return state.projectKeys[key]
@@ -85,11 +85,11 @@ export const useKeysStore = create<KeysStore>()(
         return envKeys[key]
       },
 
-      hasKey: (key) => {
+      hasKey: key => {
         return !!get().getKey(key)
       },
 
-      getActiveSource: (key) => {
+      getActiveSource: key => {
         const state = get()
         if (state.browserKeys[key]) return 'browser'
         if (state.projectKeys?.[key]) return 'project'
@@ -100,7 +100,7 @@ export const useKeysStore = create<KeysStore>()(
     }),
     {
       name: 'noodles-keys',
-      partialize: (state) => ({
+      partialize: state => ({
         browserKeys: state.browserKeys,
         saveInProject: state.saveInProject,
         // Don't persist projectKeys - comes from project file

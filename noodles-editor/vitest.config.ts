@@ -13,10 +13,8 @@ export default defineConfig({
       enabled: true,
       headless: true,
       screenshotFailures: false,
-      instances: [
-        { browser: 'chromium' },
-      ],
-    }
+      instances: [{ browser: 'chromium' }],
+    },
   },
   optimizeDeps: {
     include: [

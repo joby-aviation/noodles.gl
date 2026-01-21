@@ -49,6 +49,8 @@ type SubSchemaOptions<S extends z.ZodType = z.ZodType> = BaseFieldOptions & {
 type NumberFieldOptions = BaseFieldOptions & {
   min: number
   max: number
+  softMin: number
+  softMax: number
   step: number
 }
 
@@ -179,6 +181,9 @@ export abstract class Field<
     })
     if (parsed.success) {
       this.next(parsed.data)
+
+      // Mark the owning operator as dirty
+      this.op?.markDirty()
     } else {
       console.warn('Parse error', parsed.error.issues)
       // console.trace()
@@ -199,6 +204,8 @@ export abstract class Field<
         this.setValue(value)
       } else {
         this.next(this.value)
+        // For reference connections, also mark dirty
+        this.op?.markDirty()
       }
     })
     this.subscriptions.set(id, subscription)
@@ -454,6 +461,8 @@ export class NumberField extends Field<z.ZodNumber, NumberFieldOptions> {
 
   min: number
   max: number
+  softMin: number
+  softMax: number
   step: number
 
   createSchema(options: NumberFieldOptions) {
@@ -464,10 +473,19 @@ export class NumberField extends Field<z.ZodNumber, NumberFieldOptions> {
   }
 
   constructor(override?: number, options?: Partial<NumberFieldOptions>) {
-    const opts = { min: -Infinity, max: Infinity, step: 0.1, ...options }
+    const opts = {
+      min: -Infinity,
+      max: Infinity,
+      softMin: -Infinity,
+      softMax: Infinity,
+      step: 0.1,
+      ...options,
+    }
     super(override, opts)
     this.min = opts.min
     this.max = opts.max
+    this.softMin = opts.softMin
+    this.softMax = opts.softMax
     this.step = opts.step
   }
 }
@@ -567,40 +585,53 @@ export class DateField extends Field<
   }
 }
 
-// Mostly serves as a hint to the UI to render the correct colors, but could be used to validate schemas in the future
-export class DataField<D extends Field> extends Field<
+// DataField represents an array of data items with optional subfield for schema validation
+// The TElement type parameter allows type inference in ExtractProps
+// Usage: new DataField() for untyped data, new DataField(new SomeField()) for schema validation
+export class DataField<D extends Field = Field, TElement = unknown> extends Field<
   z.ZodType<unknown, unknown, z.core.$ZodTypeInternals<unknown, unknown>> | z.ZodUnknown,
   SubSchemaOptions<D['schema']>
 > {
   static type = 'data'
   static defaultValue = []
+
+  // Phantom type for ExtractProps inference
+  declare readonly _elementType: TElement
+
   createSchema({ subschema }: { subschema: z.Schema<D['schema']> }) {
     return subschema.readonly()
   }
+
   constructor(public field?: D) {
     const subschema = field?.schema || z.unknown()
     const defaultValue = typeof field?.defaultValue !== 'undefined' ? field.defaultValue : []
-    super(defaultValue, { subschema })
+    super(defaultValue, { subschema } as SubSchemaOptions<D['schema']>)
   }
 }
 
 // GeoJSON field type with lime color to distinguish from regular data fields
-export class GeoJsonField<D extends Field> extends Field<
+// The TElement type parameter allows type inference in ExtractProps
+export class GeoJsonField<D extends Field = Field, TElement = unknown> extends Field<
   z.ZodType<unknown, unknown, z.core.$ZodTypeInternals<unknown, unknown>> | z.ZodUnknown,
   SubSchemaOptions<D['schema']>
 > {
   static type = 'geojson'
   static defaultValue = { type: 'FeatureCollection', features: [] }
+
+  // Phantom type for ExtractProps inference
+  declare readonly _elementType: TElement
+
   createSchema({ subschema }: { subschema: z.Schema<D['schema']> }) {
     return subschema.readonly()
   }
+
   constructor(public field?: D) {
     const subschema = field?.schema || z.unknown()
     const defaultValue =
       typeof field?.defaultValue !== 'undefined'
         ? field.defaultValue
         : { type: 'FeatureCollection', features: [] }
-    super(defaultValue, { subschema })
+    super(defaultValue, { subschema } as SubSchemaOptions<D['schema']>)
   }
 }
 
@@ -1134,16 +1165,16 @@ export class BezierCurveField extends Field<z.ZodType<BezierCurveData>> {
     if (points.length === 1) return points[0].y
 
     // Clamp x to [0, 1]
-    x = Math.max(0, Math.min(1, x))
+    const clampedX = Math.max(0, Math.min(1, x))
 
     // Find the segment containing this x
     for (let i = 0; i < points.length - 1; i++) {
       const p0 = points[i]
       const p1 = points[i + 1]
 
-      if (x >= p0.x && x <= p1.x) {
+      if (clampedX >= p0.x && clampedX <= p1.x) {
         // Cubic bezier interpolation
-        const t = (x - p0.x) / (p1.x - p0.x)
+        const t = (clampedX - p0.x) / (p1.x - p0.x)
 
         const _cp0x = p0.x
         const cp0y = p0.y
@@ -1166,7 +1197,7 @@ export class BezierCurveField extends Field<z.ZodType<BezierCurveData>> {
     }
 
     // If x is outside the curve range, return the nearest endpoint
-    return x <= points[0].x ? points[0].y : points[points.length - 1].y
+    return clampedX <= points[0].x ? points[0].y : points[points.length - 1].y
   }
 
   // Add a new point to the curve

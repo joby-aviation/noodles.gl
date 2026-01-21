@@ -116,7 +116,7 @@
 }
 
 .deleteBtn:hover {
-  opacity: 1 !important;
+  opacity: 1;
 }
 
 .conversationPreview {

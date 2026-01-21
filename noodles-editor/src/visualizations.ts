@@ -27,6 +27,8 @@ export type Visualization = {
   projectName?: string
   getTimelineJson?: () => Record<string, unknown>
   onSaveProject?: () => Promise<void>
+  onSaveAs?: () => Promise<void>
+  onRename?: () => void
   onDownload?: () => Promise<void>
   onNewProject?: () => Promise<void>
   onImport?: () => Promise<void>
@@ -34,6 +36,7 @@ export type Visualization = {
   onOpenAddNode?: () => void
   undoRedoRef?: RefObject<UndoRedoHandlerRef | null>
   copyControlsRef?: RefObject<CopyControlsRef | null>
+  reactFlowRef?: RefObject<HTMLDivElement>
   showChatPanel?: boolean
   setShowChatPanel?: (show: boolean) => void
   hasUnsavedChanges?: boolean

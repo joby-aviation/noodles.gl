@@ -1,17 +1,13 @@
 /* Base panel */
 .panel {
   width: var(--property-panel-width);
-  margin: 8px;
   padding: 16px;
-  background-color: var(--color-bg-primary);
-  border: 1px solid rgba(255, 255, 255, 0.08);
   font-size: 11px;
   display: flex;
   flex-direction: column;
   gap: 0;
-  flex: 0;
-  border-radius: 12px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  flex: 1;
+  min-height: 0;
 }
 
 /* Header */
@@ -290,7 +286,9 @@
   font-weight: 500;
   font-size: 11px;
   opacity: 0;
-  transition: opacity 0.2s, transform 0.2s;
+  transition:
+    opacity 0.2s,
+    transform 0.2s;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   /* Position above the tooltip icon by default */
   bottom: 125%;
@@ -339,8 +337,8 @@
   will-change: transform, opacity;
 }
 
-.tooltipContent[data-state='delayed-open'][data-side='bottom'],
-.tooltipContent[data-state='instant-open'][data-side='bottom'] {
+.tooltipContent[data-state="delayed-open"][data-side="bottom"],
+.tooltipContent[data-state="instant-open"][data-side="bottom"] {
   animation-name: slideUpAndFade;
 }
 

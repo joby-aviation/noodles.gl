@@ -7,6 +7,7 @@ import {
   useProjectModifications,
 } from '../noodles/hooks/use-project-modifications'
 import { useKeysStore } from '../noodles/keys-store'
+import { useUIStore } from '../noodles/store'
 import styles from './chat-panel.module.css'
 import { ClaudeClient } from './claude-client'
 import { loadConversation, saveConversation } from './conversation-history'
@@ -45,6 +46,9 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
 
   // Get API key directly from store (reactive)
   const apiKey = useKeysStore(state => state.getKey('anthropic'))
+
+  // Get the function to open settings dialog
+  const setSettingsDialogOpen = useUIStore(state => state.setSettingsDialogOpen)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -173,7 +177,8 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
           ...prev,
           {
             role: 'assistant',
-            content: 'Authentication Error: Your API key is invalid. Please check your API key in Settings > API Keys.',
+            content:
+              'Authentication Error: Your API key is invalid. Please check your API key in Settings > API Keys.',
           },
         ])
       } else {
@@ -264,7 +269,14 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
         <div className={styles.chatPanelLoading}>
           <h3>Anthropic API Key Required</h3>
           <p>
-            To use the Noodles assistant, you need to configure your Claude API key in Settings
+            To use the Noodles assistant, you need to configure your Claude API key in{' '}
+            <button
+              type="button"
+              onClick={() => setSettingsDialogOpen(true)}
+              className={styles.linkButton}
+            >
+              Settings
+            </button>{' '}
             (top menu).
           </p>
           <p>
@@ -274,12 +286,10 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
             </a>
             , then add it in <strong>Settings → API Keys</strong>.
           </p>
-          <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-            <button
-              type="button"
-              onClick={onClose}
-              className={styles.chatSendBtn}
-            >
+          <div
+            style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', justifyContent: 'center' }}
+          >
+            <button type="button" onClick={onClose} className={styles.chatSendBtn}>
               Close
             </button>
           </div>

@@ -25,27 +25,27 @@
    ======================================================================== */
 
 /* React Flow - Node-based editor */
-@import '@xyflow/react/dist/style.css' layer(vendors);
+@import "@xyflow/react/dist/style.css" layer(vendors);
 
 /* Deck.gl - WebGL visualization widgets */
-@import '@deck.gl/widgets/stylesheet.css' layer(vendors);
+@import "@deck.gl/widgets/stylesheet.css" layer(vendors);
 
 /* Mapbox Geocoder */
-@import '@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css' layer(vendors);
+@import "@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css" layer(vendors);
 
 /* PrimeReact - UI component library */
-@import 'primereact/resources/themes/md-dark-indigo/theme.css' layer(vendors);
-@import 'primeicons/primeicons.css' layer(vendors);
+@import "primereact/resources/themes/md-dark-indigo/theme.css" layer(vendors);
+@import "primeicons/primeicons.css" layer(vendors);
 
 /* MapLibre GL - Map rendering */
-@import 'maplibre-gl/dist/maplibre-gl.css' layer(vendors);
+@import "maplibre-gl/dist/maplibre-gl.css" layer(vendors);
 
 /* Radix UI Colors - Design system colors (CSS custom properties) */
-@import '@radix-ui/colors/black-alpha.css' layer(vendors);
-@import '@radix-ui/colors/mauve.css' layer(vendors);
-@import '@radix-ui/colors/violet.css' layer(vendors);
-@import '@radix-ui/colors/green.css' layer(vendors);
-@import '@radix-ui/colors/red.css' layer(vendors);
+@import "@radix-ui/colors/black-alpha.css" layer(vendors);
+@import "@radix-ui/colors/mauve.css" layer(vendors);
+@import "@radix-ui/colors/violet.css" layer(vendors);
+@import "@radix-ui/colors/green.css" layer(vendors);
+@import "@radix-ui/colors/red.css" layer(vendors);
 
 /* ========================================================================
    RESET LAYER - CSS resets and normalizations
@@ -67,16 +67,15 @@
 @layer base {
   body {
     margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-      'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-      sans-serif;
+    font-family:
+      -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell",
+      "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
   code {
-    font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-      monospace;
+    font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
   }
 
   #root {

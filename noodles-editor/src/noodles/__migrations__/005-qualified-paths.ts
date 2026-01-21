@@ -95,12 +95,15 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
       return node
     }
 
-    let parentId = node.parentId
+    // Support both parentId (v12+) and parentNode (v11) for backwards compatibility
+    let parentId = node.parentId || (node as any).parentNode
     if (parentId) {
       parentId = idMapping.get(parentId) || parentId
     }
 
     delete node.containerId
+    // Remove deprecated parentNode property if present
+    delete (node as any).parentNode
 
     return {
       ...node,

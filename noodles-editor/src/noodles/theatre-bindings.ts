@@ -2,7 +2,8 @@
 // Handles two-way synchronization between operator inputs and Theatre timeline
 
 import type { ISheet } from '@theatre/core'
-import { onChange, types, val } from '@theatre/core'
+import { onChange, types } from '@theatre/core'
+import type { Pointer } from '@theatre/dataverse'
 import studio from '@theatre/studio'
 import { Temporal } from 'temporal-polyfill'
 import { isHexColor } from 'validator'
@@ -29,6 +30,7 @@ import { getOpStore } from './store'
 
 // Helper to recursively convert fields to Theatre props
 function fieldsToTheatreProps(
+  // biome-ignore lint/suspicious/noExplicitAny: Field type requires generic parameter
   fields: Record<string, Field<any>>
 ): Record<string, types.PropTypeConfig> {
   const props: Record<string, types.PropTypeConfig> = {}
@@ -183,12 +185,46 @@ export function bindOperatorToTheatre(
   for (const [key, field] of fields) {
     const pathToProps = field.pathToProps?.slice(2) || [key] // Skip object id and par/out keys
     let updating = false
-    let pointer: any = sheetObj.props
+    // Theatre.js props are dynamically traversed via arbitrary keys,
+    // so we use Pointer<unknown> and cast at usage sites
+    let pointer: Pointer<unknown> = sheetObj.props as Pointer<unknown>
     for (const p of pathToProps) {
-      pointer = pointer[p]
+      pointer = (pointer as Record<string, Pointer<unknown>>)[p]
     }
 
+    // Cache for the current Theatre pointer value, updated by the subscription below.
+    // This keeps the prism "hot" and avoids cold prism warnings from val() calls.
+    let lastPointerValue: unknown
+
+    // Theatre -> Field binding (set up first to cache pointer value and keep prism hot)
+    // biome-ignore lint/suspicious/noExplicitAny: Theatre.js values can be any type
+    const theatreSub = onChange(pointer, (value_: any) => {
+      lastPointerValue = value_
+      if (op.locked.value || updating) return
+      updating = true
+      try {
+        let value = value_
+        if (field instanceof ColorField) {
+          value = rgbaToHex(value_)
+        } else if (field instanceof DateField) {
+          const epochMs = Math.round(value_ as unknown as number)
+          value = Temporal.Instant.fromEpochMilliseconds(epochMs)
+            .toZonedDateTimeISO('UTC')
+            .toPlainDateTime()
+        }
+
+        if (field.value !== value && value !== undefined) {
+          field.setValue(value)
+        }
+      } catch (e) {
+        console.warn(`Error syncing Theatre to field for ${op.id}.${key}:`, e)
+      }
+      updating = false
+    })
+    untapFns.push(theatreSub)
+
     // Field -> Theatre binding
+    // biome-ignore lint/suspicious/noExplicitAny: Field values can be any type
     const fieldSub = field.subscribe((value_: any) => {
       if (op.locked.value || updating) return
       updating = true
@@ -215,7 +251,7 @@ export function bindOperatorToTheatre(
             return
           }
 
-          if (val(pointer) !== value) {
+          if (lastPointerValue !== value) {
             set(pointer, value)
           }
         } catch (e) {
@@ -225,31 +261,6 @@ export function bindOperatorToTheatre(
       })
     })
     untapFns.push(() => fieldSub.unsubscribe())
-
-    // Theatre -> Field binding
-    const theatreSub = onChange(pointer, (value_: any) => {
-      if (op.locked.value || updating) return
-      updating = true
-      try {
-        let value = value_
-        if (field instanceof ColorField) {
-          value = rgbaToHex(value_)
-        } else if (field instanceof DateField) {
-          const epochMs = Math.round(value_ as unknown as number)
-          value = Temporal.Instant.fromEpochMilliseconds(epochMs)
-            .toZonedDateTimeISO('UTC')
-            .toPlainDateTime()
-        }
-
-        if (field.value !== value && value !== undefined) {
-          field.setValue(value)
-        }
-      } catch (e) {
-        console.warn(`Error syncing Theatre to field for ${op.id}.${key}:`, e)
-      }
-      updating = false
-    })
-    untapFns.push(theatreSub)
   }
 
   // Return cleanup function
