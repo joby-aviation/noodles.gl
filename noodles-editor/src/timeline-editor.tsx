@@ -214,10 +214,39 @@ export default function TimelineEditor() {
       redraw()
     },
     ...visualization.mapProps,
-    ...(visualization.mapProps?.maxPitch
-      ? { maxPitch: Math.min(visualization.mapProps?.maxPitch, 85) }
-      : {}),
+    maxPitch: Math.min(visualization.mapProps?.maxPitch ?? 85, 85),
   }
+
+  // Apply light and sky settings imperatively to avoid style reloading
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !map.isStyleLoaded()) return
+
+    const light = visualization.mapProps?.light
+    const sky = visualization.mapProps?.sky
+
+    // Note: light settings only apply to globe projection
+    if (light) {
+      map.setLight({
+        anchor: light.anchor,
+        position: [1.15, light.azimuthal, light.polar],
+      })
+    }
+
+    if (sky?.enabled) {
+      // Note: skyColor, horizonColor, skyHorizonBlend only apply to mercator projection
+      // Note: atmosphereBlend only applies to globe projection
+      map.setSky({
+        'sky-color': sky.skyColor,
+        'horizon-color': sky.horizonColor,
+        'sky-horizon-blend': sky.skyHorizonBlend,
+        'atmosphere-blend': sky.atmosphereBlend,
+      })
+    } else {
+      // Disable sky - requires MapLibre GL JS 4.6.0+
+      map.setSky(undefined)
+    }
+  }, [visualization.mapProps?.light, visualization.mapProps?.sky])
 
   // Expose deck.gl canvas and instance for Claude AI visual debugging
   useEffect(() => {

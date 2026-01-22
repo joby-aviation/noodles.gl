@@ -3164,7 +3164,7 @@ export class MapViewStateOp extends Operator<MapViewStateOp> {
       longitude: new NumberField(DEFAULT_LONGITUDE, { min: -180, max: 180, step: 0.001 }),
       latitude: new NumberField(DEFAULT_LATITUDE, { min: -90, max: 90, step: 0.001 }),
       zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
-      pitch: new NumberField(0, { min: 0, max: 60, optional: true }),
+      pitch: new NumberField(0, { min: 0, max: 85, optional: true }),
       bearing: new NumberField(0, { optional: true }),
     }
   }
@@ -3201,7 +3201,7 @@ export class SplitMapViewStateOp extends Operator<SplitMapViewStateOp> {
         longitude: new NumberField(DEFAULT_LONGITUDE, { min: -180, max: 180, step: 0.001 }),
         latitude: new NumberField(DEFAULT_LATITUDE, { min: -90, max: 90, step: 0.001 }),
         zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
-        pitch: new NumberField(0, { min: 0, max: 60, optional: true }),
+        pitch: new NumberField(0, { min: 0, max: 85, optional: true }),
         bearing: new NumberField(0, { optional: true }),
       }),
     }
@@ -3223,7 +3223,8 @@ export class SplitMapViewStateOp extends Operator<SplitMapViewStateOp> {
 
 export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
   static displayName = 'MaplibreBasemap'
-  static description = 'A Maplibre basemap.'
+  static description =
+    'A MapLibre basemap with sky and lighting settings. Sky colors apply to mercator projection; light and atmosphere apply to globe projection.'
 
   createInputs() {
     return {
@@ -3233,8 +3234,20 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
         latitude: new NumberField(DEFAULT_LATITUDE, { min: -90, max: 90, step: 0.001 }),
         longitude: new NumberField(DEFAULT_LONGITUDE, { min: -180, max: 180, step: 0.001 }),
         zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
-        pitch: new NumberField(0, { min: 0, max: 60, optional: true }),
+        pitch: new NumberField(0, { min: 0, max: 85, optional: true }),
         bearing: new NumberField(0, { optional: true }),
+      }),
+      sky: new CompoundPropsField({
+        enabled: new BooleanField(false),
+        skyColor: new ColorField('#88C6FC'),
+        horizonColor: new ColorField('#ffffff'),
+        skyHorizonBlend: new NumberField(0.8, { min: 0, max: 1, step: 0.01 }),
+        atmosphereBlend: new NumberField(0.5, { min: 0, max: 1, step: 0.01 }),
+      }),
+      light: new CompoundPropsField({
+        anchor: new StringLiteralField('viewport', ['map', 'viewport']),
+        azimuthal: new NumberField(210, { step: 1 }),
+        polar: new NumberField(30, { step: 1 }),
       }),
     }
   }
@@ -3249,6 +3262,8 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
         zoom: new NumberField(),
         pitch: new NumberField(),
         bearing: new NumberField(),
+        light: new UnknownField(),
+        sky: new UnknownField(),
       }),
     }
   }
@@ -3256,6 +3271,8 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
     mapStyle,
     projection,
     viewState,
+    light,
+    sky,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     validateViewState(viewState)
 
@@ -3264,6 +3281,8 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
         mapStyle,
         projection,
         ...viewState,
+        light,
+        sky,
       },
     }
   }
