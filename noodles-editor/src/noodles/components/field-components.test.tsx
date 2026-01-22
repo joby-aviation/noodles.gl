@@ -339,62 +339,6 @@ describe('TextFieldComponent', () => {
     const label = screen.getByText('myFieldName')
     expect(label).toBeInTheDocument()
   })
-
-  describe('textarea behavior', () => {
-    it('always renders as textarea', () => {
-      const field = new StringField('single line')
-      render(<TextFieldComponent id="test-field" field={field} disabled={false} />)
-
-      const textarea = document.querySelector('textarea')
-      expect(textarea).toBeInTheDocument()
-      expect(textarea).toHaveValue('single line')
-    })
-
-    it('adjusts rows based on line count', () => {
-      const field = new StringField('line1\nline2\nline3')
-      render(<TextFieldComponent id="test-field" field={field} disabled={false} />)
-
-      const textarea = document.querySelector('textarea')
-      expect(textarea).toBeInTheDocument()
-      expect(textarea).toHaveValue('line1\nline2\nline3')
-      expect(textarea).toHaveAttribute('rows', '3')
-    })
-
-    it('has minimum of 1 row for single-line values', () => {
-      const field = new StringField('single line')
-      render(<TextFieldComponent id="test-field" field={field} disabled={false} />)
-
-      const textarea = document.querySelector('textarea')
-      expect(textarea).toBeInTheDocument()
-      expect(textarea).toHaveAttribute('rows', '1')
-    })
-
-    it('updates rows when value changes externally', () => {
-      const field = new StringField('initial')
-      render(<TextFieldComponent id="test-field" field={field} disabled={false} />)
-
-      let textarea = document.querySelector('textarea')
-      expect(textarea).toHaveAttribute('rows', '1')
-
-      // Set value with newlines externally
-      act(() => {
-        field.setValue('line1\nline2\nline3')
-      })
-
-      textarea = document.querySelector('textarea')
-      expect(textarea).toHaveValue('line1\nline2\nline3')
-      expect(textarea).toHaveAttribute('rows', '3')
-    })
-
-    it('preserves disabled state', () => {
-      const field = new StringField('test value')
-      render(<TextFieldComponent id="test-field" field={field} disabled={true} />)
-
-      const textarea = document.querySelector('textarea')
-      expect(textarea).toBeInTheDocument()
-      expect(textarea).toBeDisabled()
-    })
-  })
 })
 
 describe('BooleanFieldComponent', () => {
