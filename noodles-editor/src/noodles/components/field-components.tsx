@@ -158,7 +158,7 @@ export function TextFieldComponent({
         onBlur={onChange}
         onChange={onChange}
         disabled={disabled}
-        rows={Math.min(Math.max(lineCount, 1), 10)}
+        rows={lineCount}
       />
     )
   }
