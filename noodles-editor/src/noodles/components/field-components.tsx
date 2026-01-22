@@ -111,14 +111,50 @@ export function TextFieldComponent({
   disabled: boolean
 }) {
   const [value, setValue] = useState(formatText(field.value))
+  // Auto-detect multiline: true when value contains newlines
+  const [isMultiline, setIsMultiline] = useState(() => {
+    const formatted = formatText(field.value)
+    return typeof formatted === 'string' && formatted.includes('\n')
+  })
+  // Track cursor position to restore after switching between input/textarea
+  const pendingCursorRef = useRef<number | null>(null)
+  const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null)
+
+  // Restore focus and cursor position after switching between input/textarea
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally runs when isMultiline changes
+  useEffect(() => {
+    if (pendingCursorRef.current !== null && inputRef.current) {
+      const pos = pendingCursorRef.current
+      inputRef.current.focus()
+      inputRef.current.setSelectionRange(pos, pos)
+      pendingCursorRef.current = null
+    }
+  }, [isMultiline])
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
       if (typeof newVal === 'function') return
-      setValue(formatText(newVal))
+      const formatted = formatText(newVal)
+      setValue(formatted)
+      // Auto-switch between single-line and multiline based on newlines
+      if (typeof formatted === 'string') {
+        const shouldBeMultiline = formatted.includes('\n')
+        // Preserve focus when switching between input/textarea
+        // Only capture cursor if not already set by onKeyDown/onPaste
+        if (
+          shouldBeMultiline !== isMultiline &&
+          inputRef.current === document.activeElement &&
+          pendingCursorRef.current === null
+        ) {
+          // Capture cursor position, clamped to new value length
+          const cursorPos = inputRef.current.selectionStart ?? formatted.length
+          pendingCursorRef.current = Math.min(cursorPos, formatted.length)
+        }
+        setIsMultiline(shouldBeMultiline)
+      }
     })
     return () => sub.unsubscribe()
-  }, [field])
+  }, [field, isMultiline])
 
   const onChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -128,6 +164,41 @@ export function TextFieldComponent({
       field.setValue(val)
     }
   }
+
+  // Handle Enter key to insert newline (subscription handles multiline switch)
+  const onKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter' && !disabled) {
+        e.preventDefault()
+        const input = e.currentTarget
+        const start = input.selectionStart ?? value.length
+        const end = input.selectionEnd ?? value.length
+        const newValue = `${value.slice(0, start)}\n${value.slice(end)}`
+        // Set cursor position to after the newline
+        pendingCursorRef.current = start + 1
+        field.setValue(newValue)
+      }
+    },
+    [value, field, disabled]
+  )
+
+  // Handle paste to preserve newlines (input elements strip them by default)
+  const onPaste = useCallback(
+    (e: React.ClipboardEvent<HTMLInputElement>) => {
+      const pastedText = e.clipboardData.getData('text')
+      if (pastedText.includes('\n')) {
+        e.preventDefault()
+        const input = e.currentTarget
+        const start = input.selectionStart ?? value.length
+        const end = input.selectionEnd ?? value.length
+        const newValue = `${value.slice(0, start)}${pastedText}${value.slice(end)}`
+        // Set cursor position to after the pasted text
+        pendingCursorRef.current = start + pastedText.length
+        field.setValue(newValue)
+      }
+    },
+    [value, field]
+  )
 
   let input = null
   if (field instanceof StringLiteralField) {
@@ -146,15 +217,32 @@ export function TextFieldComponent({
         ))}
       </select>
     )
+  } else if (isMultiline) {
+    input = (
+      <textarea
+        ref={inputRef as React.RefObject<HTMLTextAreaElement>}
+        id={id}
+        className={cx(s.fieldInput, s.fieldTextarea)}
+        title={value}
+        value={value}
+        onBlur={onChange}
+        onChange={onChange}
+        disabled={disabled}
+        rows={Math.min(Math.max(value.split('\n').length, 2), 10)}
+      />
+    )
   } else {
     input = (
       <input
+        ref={inputRef as React.RefObject<HTMLInputElement>}
         id={id}
         className={s.fieldInput}
         title={value}
         value={value}
         onBlur={onChange}
         onChange={onChange}
+        onKeyDown={onKeyDown}
+        onPaste={onPaste}
         disabled={disabled}
       />
     )
