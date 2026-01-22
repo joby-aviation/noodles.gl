@@ -340,8 +340,17 @@ describe('TextFieldComponent', () => {
     expect(label).toBeInTheDocument()
   })
 
-  describe('multiline support', () => {
-    it('renders as textarea when initial value contains newlines', () => {
+  describe('textarea behavior', () => {
+    it('always renders as textarea', () => {
+      const field = new StringField('single line')
+      render(<TextFieldComponent id="test-field" field={field} disabled={false} />)
+
+      const textarea = document.querySelector('textarea')
+      expect(textarea).toBeInTheDocument()
+      expect(textarea).toHaveValue('single line')
+    })
+
+    it('adjusts rows based on line count', () => {
       const field = new StringField('line1\nline2\nline3')
       render(<TextFieldComponent id="test-field" field={field} disabled={false} />)
 
@@ -351,92 +360,34 @@ describe('TextFieldComponent', () => {
       expect(textarea).toHaveAttribute('rows', '3')
     })
 
-    it('renders as input when initial value has no newlines', () => {
+    it('has minimum of 1 row for single-line values', () => {
       const field = new StringField('single line')
       render(<TextFieldComponent id="test-field" field={field} disabled={false} />)
 
-      const input = screen.getByRole('textbox')
-      expect(input.tagName).toBe('INPUT')
-    })
-
-    it('switches to textarea when Enter key is pressed', () => {
-      const field = new StringField('initial')
-      render(<TextFieldComponent id="test-field" field={field} disabled={false} />)
-
-      const input = screen.getByRole('textbox')
-      expect(input.tagName).toBe('INPUT')
-
-      // Press Enter key
-      fireEvent.keyDown(input, { key: 'Enter' })
-
-      // Should now be a textarea
       const textarea = document.querySelector('textarea')
       expect(textarea).toBeInTheDocument()
-      expect(textarea).toHaveValue('initial\n')
+      expect(textarea).toHaveAttribute('rows', '1')
     })
 
-    it('switches to textarea when value with newlines is set externally', () => {
+    it('updates rows when value changes externally', () => {
       const field = new StringField('initial')
       render(<TextFieldComponent id="test-field" field={field} disabled={false} />)
 
-      const input = screen.getByRole('textbox')
-      expect(input.tagName).toBe('INPUT')
+      let textarea = document.querySelector('textarea')
+      expect(textarea).toHaveAttribute('rows', '1')
 
       // Set value with newlines externally
       act(() => {
-        field.setValue('line1\nline2')
+        field.setValue('line1\nline2\nline3')
       })
 
-      // Should now be a textarea
-      const textarea = document.querySelector('textarea')
-      expect(textarea).toBeInTheDocument()
-      expect(textarea).toHaveValue('line1\nline2')
+      textarea = document.querySelector('textarea')
+      expect(textarea).toHaveValue('line1\nline2\nline3')
+      expect(textarea).toHaveAttribute('rows', '3')
     })
 
-    it('reverts to input when newlines are removed', () => {
-      const field = new StringField('line1\nline2')
-      render(<TextFieldComponent id="test-field" field={field} disabled={false} />)
-
-      // Should start as textarea
-      expect(document.querySelector('textarea')).toBeInTheDocument()
-
-      // Remove newlines externally
-      act(() => {
-        field.setValue('single line')
-      })
-
-      // Should revert to input
-      const input = screen.getByRole('textbox')
-      expect(input.tagName).toBe('INPUT')
-      expect(input).toHaveValue('single line')
-    })
-
-    it('has minimum of 2 rows for textarea', () => {
-      const field = new StringField('single\n')
-      render(<TextFieldComponent id="test-field" field={field} disabled={false} />)
-
-      const textarea = document.querySelector('textarea')
-      expect(textarea).toBeInTheDocument()
-      expect(textarea).toHaveAttribute('rows', '2')
-    })
-
-    it('does not switch to multiline on Enter when disabled', () => {
-      const field = new StringField('initial')
-      render(<TextFieldComponent id="test-field" field={field} disabled={true} />)
-
-      const input = screen.getByRole('textbox')
-      expect(input.tagName).toBe('INPUT')
-
-      // Press Enter key while disabled
-      fireEvent.keyDown(input, { key: 'Enter' })
-
-      // Should still be an input, not a textarea
-      expect(document.querySelector('textarea')).not.toBeInTheDocument()
-      expect(input.tagName).toBe('INPUT')
-    })
-
-    it('preserves textarea disabled state', () => {
-      const field = new StringField('line1\nline2')
+    it('preserves disabled state', () => {
+      const field = new StringField('test value')
       render(<TextFieldComponent id="test-field" field={field} disabled={true} />)
 
       const textarea = document.querySelector('textarea')

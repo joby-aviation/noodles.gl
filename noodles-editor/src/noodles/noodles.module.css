@@ -439,10 +439,11 @@
 
 .fieldTextarea {
   resize: vertical;
-  min-height: 2.5em;
+  min-height: 1.8em;
   font-family: inherit;
   font-size: inherit;
   line-height: 1.4;
+  padding: 4px 6px;
 }
 
 .fieldInputGroup {
