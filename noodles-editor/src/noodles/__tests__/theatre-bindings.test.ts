@@ -34,21 +34,6 @@ function createField<T extends Field>(
   return field
 }
 
-// Helper to create mock operator with required methods
-function createMockOp(
-  id: string,
-  inputs: Record<string, any>,
-  outputs: Record<string, any> = {}
-): any {
-  return {
-    id,
-    inputs,
-    outputs,
-    locked: { value: false },
-    isFieldVisible: () => true,
-  }
-}
-
 describe('theatre-bindings', () => {
   let testProject: ReturnType<typeof getProject>
   let testSheet: ReturnType<ReturnType<typeof getProject>['sheet']>
