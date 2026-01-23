@@ -170,9 +170,11 @@
   opacity: 0;
 }
 
-.removeBtn:hover {
+.removeBtn:hover,
+.removeBtn:focus-visible {
   background: rgba(239, 68, 68, 0.3);
   color: #f87171;
+  opacity: 1;
 }
 
 .removeBtn:disabled,
