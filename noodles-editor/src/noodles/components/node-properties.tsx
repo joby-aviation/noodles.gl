@@ -229,6 +229,11 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
     ? (op.constructor as typeof Operator)
     : { displayName: '', description: '' }
 
+  // Exit edit mode when switching to a different node
+  useEffect(() => {
+    setIsEditMode(false)
+  }, [node.id])
+
   // Check if description is truncated
   useEffect(() => {
     if (descriptionRef.current && description) {
