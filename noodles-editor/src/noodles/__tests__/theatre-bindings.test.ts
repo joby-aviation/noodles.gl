@@ -34,6 +34,21 @@ function createField<T extends Field>(
   return field
 }
 
+// Helper to create mock operator with required methods
+function createMockOp(
+  id: string,
+  inputs: Record<string, any>,
+  outputs: Record<string, any> = {}
+): any {
+  return {
+    id,
+    inputs,
+    outputs,
+    locked: { value: false },
+    isFieldVisible: () => true,
+  }
+}
+
 describe('theatre-bindings', () => {
   let testProject: ReturnType<typeof getProject>
   let testSheet: ReturnType<ReturnType<typeof getProject>['sheet']>
@@ -75,6 +90,7 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
+        isFieldVisible: () => true,
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
@@ -97,6 +113,7 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
+        isFieldVisible: () => true,
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
@@ -117,6 +134,7 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
+        isFieldVisible: () => true,
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
@@ -137,6 +155,7 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
+        isFieldVisible: () => true,
       } as any
 
       // Bind first time
@@ -161,6 +180,7 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
+        isFieldVisible: () => true,
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
@@ -180,6 +200,7 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
+        isFieldVisible: () => true,
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
@@ -206,6 +227,7 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
+        isFieldVisible: () => true,
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
@@ -237,6 +259,7 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
+        isFieldVisible: () => true,
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
@@ -261,6 +284,7 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
+        isFieldVisible: () => true,
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
@@ -295,6 +319,7 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
+        isFieldVisible: () => true,
       } as any
 
       // Bind
@@ -326,6 +351,7 @@ describe('theatre-bindings', () => {
           },
           outputs: {},
           locked: { value: false },
+          isFieldVisible: () => true,
         },
         {
           id: '/op2',
@@ -334,6 +360,7 @@ describe('theatre-bindings', () => {
           },
           outputs: {},
           locked: { value: false },
+          isFieldVisible: () => true,
         },
         {
           id: '/op3',
@@ -342,6 +369,7 @@ describe('theatre-bindings', () => {
           },
           outputs: {},
           locked: { value: false },
+          isFieldVisible: () => true,
         },
       ] as any[]
 
@@ -370,12 +398,14 @@ describe('theatre-bindings', () => {
           },
           outputs: {},
           locked: { value: false },
+          isFieldVisible: () => true,
         },
         {
           id: '/op2',
           inputs: { fn: { value: () => {}, subscribe: vi.fn() } },
           outputs: {},
           locked: { value: false },
+          isFieldVisible: () => true,
         },
       ] as any[]
 
@@ -401,6 +431,7 @@ describe('theatre-bindings', () => {
           },
           outputs: {},
           locked: { value: false },
+          isFieldVisible: () => true,
         },
         {
           id: '/op1',
@@ -409,6 +440,7 @@ describe('theatre-bindings', () => {
           },
           outputs: {},
           locked: { value: false },
+          isFieldVisible: () => true,
         },
       ] as any[]
 
@@ -437,6 +469,7 @@ describe('theatre-bindings', () => {
           },
           outputs: {},
           locked: { value: false },
+          isFieldVisible: () => true,
         },
         {
           id: '/op2',
@@ -445,6 +478,7 @@ describe('theatre-bindings', () => {
           },
           outputs: {},
           locked: { value: false },
+          isFieldVisible: () => true,
         },
         {
           id: '/op3',
@@ -453,6 +487,7 @@ describe('theatre-bindings', () => {
           },
           outputs: {},
           locked: { value: false },
+          isFieldVisible: () => true,
         },
       ] as any[]
 
@@ -486,6 +521,7 @@ describe('theatre-bindings', () => {
           },
           outputs: {},
           locked: { value: false },
+          isFieldVisible: () => true,
         },
       ] as any[]
 
@@ -511,6 +547,7 @@ describe('theatre-bindings', () => {
           },
           outputs: {},
           locked: { value: false },
+          isFieldVisible: () => true,
         },
         {
           id: '/op2',
@@ -519,6 +556,7 @@ describe('theatre-bindings', () => {
           },
           outputs: {},
           locked: { value: false },
+          isFieldVisible: () => true,
         },
       ] as any[]
 
@@ -551,6 +589,7 @@ describe('theatre-bindings', () => {
           },
           outputs: {},
           locked: { value: false },
+          isFieldVisible: () => true,
         },
         {
           id: '/op2',
@@ -559,6 +598,7 @@ describe('theatre-bindings', () => {
           },
           outputs: {},
           locked: { value: false },
+          isFieldVisible: () => true,
         },
       ] as any[]
 
@@ -579,6 +619,7 @@ describe('theatre-bindings', () => {
           },
           outputs: {},
           locked: { value: false },
+          isFieldVisible: () => true,
         },
         {
           id: '/op3',
@@ -587,6 +628,7 @@ describe('theatre-bindings', () => {
           },
           outputs: {},
           locked: { value: false },
+          isFieldVisible: () => true,
         },
       ] as any[]
 
@@ -615,6 +657,7 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
+        isFieldVisible: () => true,
       } as any
 
       // Create a child operator inside the container
@@ -631,6 +674,7 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
+        isFieldVisible: () => true,
       } as any
 
       // Bind both container and child
@@ -672,6 +716,7 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
+        isFieldVisible: () => true,
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
@@ -707,6 +752,7 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
+        isFieldVisible: () => true,
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
@@ -741,6 +787,7 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
+        isFieldVisible: () => true,
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
@@ -773,6 +820,7 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
+        isFieldVisible: () => true,
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
@@ -810,6 +858,7 @@ describe('theatre-bindings', () => {
         },
         outputs: {},
         locked: { value: false },
+        isFieldVisible: () => true,
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
@@ -844,6 +893,7 @@ describe('theatre-bindings', () => {
         inputs: { value: numberField },
         outputs: {},
         locked: { value: false },
+        isFieldVisible: () => true,
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)
@@ -872,6 +922,7 @@ describe('theatre-bindings', () => {
         inputs: { color: colorField },
         outputs: {},
         locked: { value: false },
+        isFieldVisible: () => true,
       } as any
 
       const cleanup = bindOperatorToTheatre(mockOp, testSheet)

@@ -147,8 +147,8 @@ export function bindOperatorToTheatre(
     // Skip accessor functions
     if (typeof field.value === 'function') continue
 
-    // Skip fields that are not visible (fallback for mock operators without isFieldVisible)
-    if (op.isFieldVisible && !op.isFieldVisible(key)) continue
+    // Skip fields that are not visible
+    if (!op.isFieldVisible(key)) continue
 
     // Only bind Theatre-compatible field types
     const isCompatibleField =
