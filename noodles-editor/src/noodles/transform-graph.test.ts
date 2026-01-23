@@ -1,7 +1,8 @@
 import type { Node as ReactFlowNode } from '@xyflow/react'
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { Edge } from './noodles'
-import { type IOperator, MathOp, NumberOp, type Operator } from './operators'
+import { type GeoJsonLayerOp, type IOperator, MathOp, NumberOp, type Operator } from './operators'
+import { clearOps, getOpStore } from './store'
 import { transformGraph } from './transform-graph'
 import { edgeId } from './utils/id-utils'
 
@@ -307,5 +308,79 @@ describe('transform-graph', () => {
     // Connection errors should be cleared
     expect(add.hasConnectionErrors()).toBe(false)
     expect(add.connectionErrors.value.size).toBe(0)
+  })
+})
+
+describe('Field visibility restoration from saved data', () => {
+  beforeEach(() => {
+    clearOps()
+  })
+
+  afterEach(() => {
+    clearOps()
+  })
+
+  it('restores visibleFields from visibleInputs in saved data', () => {
+    const nodes = [
+      {
+        id: '/geojson-0',
+        type: 'GeoJsonLayerOp',
+        data: {
+          inputs: {},
+          visibleInputs: ['data', 'visible', 'extruded'],
+        },
+        position: { x: 0, y: 0 },
+      },
+    ]
+
+    transformGraph({ nodes, edges: [] })
+
+    const op = getOpStore().getOp('/geojson-0') as GeoJsonLayerOp
+    expect(op).toBeDefined()
+    expect(op.visibleFields).toBeInstanceOf(Set)
+    expect(op.visibleFields!.size).toBe(3)
+    expect(op.visibleFields!.has('data')).toBe(true)
+    expect(op.visibleFields!.has('visible')).toBe(true)
+    expect(op.visibleFields!.has('extruded')).toBe(true)
+  })
+
+  it('keeps visibleFields null when visibleInputs is not in saved data', () => {
+    const nodes = [
+      {
+        id: '/geojson-0',
+        type: 'GeoJsonLayerOp',
+        data: {
+          inputs: {},
+        },
+        position: { x: 0, y: 0 },
+      },
+    ]
+
+    transformGraph({ nodes, edges: [] })
+
+    const op = getOpStore().getOp('/geojson-0') as GeoJsonLayerOp
+    expect(op).toBeDefined()
+    expect(op.visibleFields).toBe(null)
+  })
+
+  it('restores empty visibleFields set from empty visibleInputs array', () => {
+    const nodes = [
+      {
+        id: '/geojson-0',
+        type: 'GeoJsonLayerOp',
+        data: {
+          inputs: {},
+          visibleInputs: [],
+        },
+        position: { x: 0, y: 0 },
+      },
+    ]
+
+    transformGraph({ nodes, edges: [] })
+
+    const op = getOpStore().getOp('/geojson-0') as GeoJsonLayerOp
+    expect(op).toBeDefined()
+    expect(op.visibleFields).toBeInstanceOf(Set)
+    expect(op.visibleFields!.size).toBe(0)
   })
 })

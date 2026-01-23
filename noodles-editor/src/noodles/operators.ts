@@ -243,6 +243,10 @@ export abstract class Operator<OP extends IOperator> {
   // Dirty flag for GraphExecutor
   dirty = true
 
+  // === Field visibility ===
+  // Per-instance visible fields (null = use defaults from field.showByDefault)
+  visibleFields: Set<string> | null = null
+
   // === Pull-based execution additions ===
   // Execution status for pull-based model
   private _pullExecutionStatus: PullExecutionStatus = PullExecutionStatus.DIRTY
@@ -346,6 +350,17 @@ export abstract class Operator<OP extends IOperator> {
   // Get all connection error messages
   getConnectionErrorMessages(): string[] {
     return Array.from(this.connectionErrors.value.values())
+  }
+
+  // === Field visibility methods ===
+
+  // Check if a field is visible (for UI rendering)
+  isFieldVisible(name: string): boolean {
+    if (this.visibleFields === null) {
+      // Use defaults: showByDefault defaults to true
+      return this.inputs[name]?.showByDefault ?? true
+    }
+    return this.visibleFields.has(name)
   }
 
   // === Pull-based execution methods ===
@@ -4230,74 +4245,119 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
   static cacheable = false
   createInputs() {
     return {
+      // Core fields (visible by default)
       data: new GeoJsonField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
 
+      // Point styling (hidden by default)
       pointType: new StringLiteralField('circle', {
         values: ['circle', 'icon', 'text', 'circle+text', 'icon+text', 'circle+icon'],
+        showByDefault: false,
       }),
-      getPointRadius: new NumberField(1, { min: 0, softMax: 100000, accessor: true }),
+      getPointRadius: new NumberField(1, {
+        min: 0,
+        softMax: 100000,
+        accessor: true,
+        showByDefault: false,
+      }),
       // pointType: circle
-      pointRadiusUnits: new StringLiteralField('meters', ['pixels', 'meters']),
-      pointRadiusScale: new NumberField(1, { min: 0, softMax: 100 }),
-      pointRadiusMinPixels: new NumberField(0, { min: 0, softMax: 100 }),
-      pointRadiusMaxPixels: new NumberField(100, { min: 0, softMax: 1000 }),
-      pointRadiusBillboard: new BooleanField(false),
+      pointRadiusUnits: new StringLiteralField('meters', {
+        values: ['pixels', 'meters'],
+        showByDefault: false,
+      }),
+      pointRadiusScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
+      pointRadiusMinPixels: new NumberField(0, { min: 0, softMax: 100, showByDefault: false }),
+      pointRadiusMaxPixels: new NumberField(100, { min: 0, softMax: 1000, showByDefault: false }),
+      pointRadiusBillboard: new BooleanField(false, { showByDefault: false }),
 
       // pointType: icon
 
-      // pointType: text
-      getText: new StringField('', { accessor: true }),
-      getTextSize: new NumberField(32, { min: 0, softMax: 200, accessor: true }),
-      getTextColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
-      getTextAngle: new NumberField(0, { softMin: 0, softMax: 360, accessor: true }),
+      // pointType: text (hidden by default)
+      getText: new StringField('', { accessor: true, showByDefault: false }),
+      getTextSize: new NumberField(32, {
+        min: 0,
+        softMax: 200,
+        accessor: true,
+        showByDefault: false,
+      }),
+      getTextColor: new ColorField('#000000', {
+        accessor: true,
+        transform: hexToColor,
+        showByDefault: false,
+      }),
+      getTextAngle: new NumberField(0, {
+        softMin: 0,
+        softMax: 360,
+        accessor: true,
+        showByDefault: false,
+      }),
       getTextAnchor: new StringLiteralField('middle', {
         values: ['start', 'middle', 'end'],
         accessor: true,
+        showByDefault: false,
       }),
       getTextAlignmentBaseline: new StringLiteralField('center', {
         values: ['top', 'center', 'bottom'],
         accessor: true,
+        showByDefault: false,
       }),
-      getTextPixelOffset: new Vec2Field({ x: 0, y: 0 }, { returnType: 'tuple', accessor: true }),
-      textSizeUnits: new StringLiteralField('pixels', ['pixels', 'meters']),
-      textSizeScale: new NumberField(1, { min: 0, softMax: 100 }),
-      textSizeMinPixels: new NumberField(0, { min: 0, softMax: 100 }),
-      textSizeMaxPixels: new NumberField(100, { min: 0 }),
-      textBillboard: new BooleanField(true),
-      textFontFamily: new StringField('Monaco, monospace'),
-      textFontWeight: new NumberField(400, { min: 100, max: 900, step: 100 }),
+      getTextPixelOffset: new Vec2Field(
+        { x: 0, y: 0 },
+        { returnType: 'tuple', accessor: true, showByDefault: false }
+      ),
+      textSizeUnits: new StringLiteralField('pixels', {
+        values: ['pixels', 'meters'],
+        showByDefault: false,
+      }),
+      textSizeScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
+      textSizeMinPixels: new NumberField(0, { min: 0, softMax: 100, showByDefault: false }),
+      textSizeMaxPixels: new NumberField(100, { min: 0, showByDefault: false }),
+      textBillboard: new BooleanField(true, { showByDefault: false }),
+      textFontFamily: new StringField('Monaco, monospace', { showByDefault: false }),
+      textFontWeight: new NumberField(400, { min: 100, max: 900, step: 100, showByDefault: false }),
 
-      // polygon
+      // polygon (core fields visible by default)
       filled: new BooleanField(true),
       getFillColor: new ColorField('#006ac6', { accessor: true, transform: hexToColor }),
 
-      // line
+      // line (core fields visible by default)
       stroked: new BooleanField(true),
       getLineColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getLineWidth: new NumberField(1, { min: 0, softMax: 100, accessor: true }),
-      lineWidthUnits: new StringLiteralField('meters', ['pixels', 'meters']),
-      lineWidthScale: new NumberField(1, { min: 0, softMax: 100 }),
-      lineWidthMinPixels: new NumberField(0, { min: 0, softMax: 100 }),
-      lineWidthMaxPixels: new NumberField(100, { min: 0, softMax: 1000 }),
-      lineCapRounded: new BooleanField(false),
-      lineJointRounded: new BooleanField(false),
-      lineMiterLimit: new NumberField(4, { min: 0, softMax: 10 }),
-      lineBillboard: new BooleanField(false),
-
-      // 3d
-      extruded: new BooleanField(false),
-      wireframe: new BooleanField(false),
-      getElevation: new NumberField(1000, { min: 0, softMax: 100000, accessor: true }),
-      elevationScale: new NumberField(1, { min: 0, softMax: 100 }),
-      _full3d: new BooleanField(false),
-      extensions: new ListField(new ExtensionField()),
-      parameters: new CompoundPropsField({
-        cullMode: new StringLiteralField('none', {
-          values: ['none', 'back', 'front'],
-        }),
+      // line (advanced fields hidden by default)
+      lineWidthUnits: new StringLiteralField('meters', {
+        values: ['pixels', 'meters'],
+        showByDefault: false,
       }),
+      lineWidthScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
+      lineWidthMinPixels: new NumberField(0, { min: 0, softMax: 100, showByDefault: false }),
+      lineWidthMaxPixels: new NumberField(100, { min: 0, softMax: 1000, showByDefault: false }),
+      lineCapRounded: new BooleanField(false, { showByDefault: false }),
+      lineJointRounded: new BooleanField(false, { showByDefault: false }),
+      lineMiterLimit: new NumberField(4, { min: 0, softMax: 10, showByDefault: false }),
+      lineBillboard: new BooleanField(false, { showByDefault: false }),
+
+      // 3d (hidden by default)
+      extruded: new BooleanField(false, { showByDefault: false }),
+      wireframe: new BooleanField(false, { showByDefault: false }),
+      getElevation: new NumberField(1000, {
+        min: 0,
+        softMax: 100000,
+        accessor: true,
+        showByDefault: false,
+      }),
+      elevationScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
+      _full3d: new BooleanField(false, { showByDefault: false }),
+      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
+      parameters: new CompoundPropsField(
+        {
+          cullMode: new StringLiteralField('none', {
+            values: ['none', 'back', 'front'],
+          }),
+        },
+        { showByDefault: false }
+      ),
     }
   }
   createOutputs() {

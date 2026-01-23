@@ -11,6 +11,7 @@ import {
   ExpressionOp,
   FileOp,
   FilterOp,
+  GeoJsonLayerOp,
   GeoJsonTransformOp,
   JSONOp,
   KmlToGeoJsonOp,
@@ -27,7 +28,7 @@ import {
   SwitchOp,
   TimeSeriesOp,
 } from './operators'
-import { setOp } from './store'
+import { clearOps, setOp } from './store'
 import { isAccessor } from './utils/accessor-helpers'
 
 describe('basic Operators', () => {
@@ -2001,6 +2002,72 @@ describe('FileOp', () => {
           pulse: 0,
         })
       ).rejects.toThrow('Unsupported format: unsupported')
+    })
+  })
+})
+
+describe('Operator field visibility', () => {
+  beforeEach(() => {
+    clearOps()
+  })
+
+  afterEach(() => {
+    clearOps()
+  })
+
+  describe('isFieldVisible', () => {
+    it('returns true by default when visibleFields is null', () => {
+      const op = new NumberOp('/num-0')
+      expect(op.visibleFields).toBe(null)
+      expect(op.isFieldVisible('val')).toBe(true)
+    })
+
+    it('returns field.showByDefault when visibleFields is null', () => {
+      const op = new GeoJsonLayerOp('/geojson-0')
+      expect(op.visibleFields).toBe(null)
+      // Core fields should be visible by default
+      expect(op.isFieldVisible('data')).toBe(true)
+      expect(op.isFieldVisible('visible')).toBe(true)
+      // Hidden by default fields
+      expect(op.isFieldVisible('extruded')).toBe(false)
+      expect(op.isFieldVisible('extensions')).toBe(false)
+    })
+
+    it('returns true for fields in visibleFields set', () => {
+      const op = new GeoJsonLayerOp('/geojson-0')
+      op.visibleFields = new Set(['data', 'visible', 'extruded'])
+      expect(op.isFieldVisible('data')).toBe(true)
+      expect(op.isFieldVisible('visible')).toBe(true)
+      expect(op.isFieldVisible('extruded')).toBe(true)
+      expect(op.isFieldVisible('opacity')).toBe(false)
+    })
+
+    it('returns true for unknown fields when visibleFields is null', () => {
+      const op = new NumberOp('/num-0')
+      expect(op.isFieldVisible('nonexistent')).toBe(true)
+    })
+  })
+
+  describe('visibleFields property', () => {
+    it('starts as null', () => {
+      const op = new NumberOp('/num-0')
+      expect(op.visibleFields).toBe(null)
+    })
+
+    it('can be set to a Set of field names', () => {
+      const op = new GeoJsonLayerOp('/geojson-0')
+      op.visibleFields = new Set(['data', 'visible'])
+      expect(op.visibleFields).toBeInstanceOf(Set)
+      expect(op.visibleFields.size).toBe(2)
+      expect(op.visibleFields.has('data')).toBe(true)
+      expect(op.visibleFields.has('visible')).toBe(true)
+    })
+
+    it('can be reset to null', () => {
+      const op = new GeoJsonLayerOp('/geojson-0')
+      op.visibleFields = new Set(['data', 'visible'])
+      op.visibleFields = null
+      expect(op.visibleFields).toBe(null)
     })
   })
 })

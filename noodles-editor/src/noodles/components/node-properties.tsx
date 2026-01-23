@@ -5,11 +5,80 @@ import cx from 'classnames'
 import { useEffect, useRef, useState } from 'react'
 
 import { type Field, IN_NS, ListField, OUT_NS } from '../fields'
-import { type Operator, OutOp } from '../operators'
+import type { IOperator, Operator } from '../operators'
+import { OutOp } from '../operators'
 import { getOpStore } from '../store'
 import s from './node-properties.module.css'
 import { handleClass, headerClass, typeCategory } from './op-components'
 import { RenderSettingsPanel } from './render-settings-panel'
+
+// === Field Visibility Helper Functions ===
+
+// Get the default visible fields based on field.showByDefault
+function getDefaultVisibleFields(op: Operator<IOperator>): Set<string> {
+  return new Set(
+    Object.entries(op.inputs)
+      .filter(([_, field]) => field.showByDefault)
+      .map(([name]) => name)
+  )
+}
+
+// Check if a field can be hidden (can't hide fields with connections)
+function canHideField(
+  op: Operator<IOperator>,
+  name: string,
+  edges: Edge[]
+): { canHide: boolean; reason?: string } {
+  const hasConnection = edges.some(
+    e => e.target === op.id && (e.targetHandle === name || e.targetHandle === `par.${name}`)
+  )
+  if (hasConnection) {
+    return { canHide: false, reason: 'Disconnect this field first' }
+  }
+  return { canHide: true }
+}
+
+// Show a field (add to visible set)
+function showField(op: Operator<IOperator>, name: string) {
+  if (op.visibleFields === null) {
+    op.visibleFields = new Set(getDefaultVisibleFields(op))
+  }
+  op.visibleFields.add(name)
+}
+
+// Hide a field (remove from visible set and reset to default value)
+function hideField(op: Operator<IOperator>, name: string) {
+  if (op.visibleFields === null) {
+    op.visibleFields = new Set(getDefaultVisibleFields(op))
+  }
+  op.visibleFields.delete(name)
+
+  // Reset the field to its default value so it executes with defaults
+  const field = op.inputs[name]
+  if (field && field.defaultValue !== undefined) {
+    field.setValue(field.defaultValue)
+  }
+}
+
+// Reset to default visibility (and reset all newly-hidden fields to defaults)
+function resetToDefaults(op: Operator<IOperator>) {
+  // Get current visible fields before reset
+  const currentVisible = op.visibleFields ?? getDefaultVisibleFields(op)
+  const defaultVisible = getDefaultVisibleFields(op)
+
+  // Reset visibility
+  op.visibleFields = null
+
+  // Reset any fields that were visible but are now hidden by default
+  for (const name of currentVisible) {
+    if (!defaultVisible.has(name)) {
+      const field = op.inputs[name]
+      if (field && field.defaultValue !== undefined) {
+        field.setValue(field.defaultValue)
+      }
+    }
+  }
+}
 
 function copy(text: string) {
   navigator.clipboard.writeText(text)
@@ -89,12 +158,61 @@ function Tooltip({
   )
 }
 
+function PencilIcon({ onClick, isActive }: { onClick: () => void; isActive: boolean }) {
+  return (
+    <svg
+      className={cx(s.editIcon, { [s.editIconActive]: isActive })}
+      onClick={onClick}
+      viewBox="0 0 24 24"
+      width="14"
+      height="14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <title>{isActive ? 'Exit edit mode' : 'Edit fields'}</title>
+      <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+      <path d="m15 5 4 4" />
+    </svg>
+  )
+}
+
+function AddRemoveButton({
+  type,
+  onClick,
+  disabled = false,
+}: {
+  type: 'add' | 'remove'
+  onClick: () => void
+  disabled?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      className={cx(s.addRemoveBtn, type === 'add' ? s.addBtn : s.removeBtn)}
+      onClick={disabled ? undefined : onClick}
+      aria-disabled={disabled}
+    >
+      {type === 'add' ? '+' : '−'}
+    </button>
+  )
+}
+
 function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
-  const { setEdges } = useReactFlow()
+  const { setEdges, setNodes } = useReactFlow()
   const edges = useEdges()
   const dragDataRef = useRef<{ inputName: string; index: number } | null>(null)
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
   const [isTruncated, setIsTruncated] = useState(false)
+  const [isEditMode, setIsEditMode] = useState(false)
+  const [, forceUpdate] = useState({}) // Force re-render when visibility changes
+
+  // Trigger React Flow node re-render (for op-component to pick up visibility changes)
+  const triggerNodeUpdate = () => {
+    setNodes(nodes => nodes.map(n => (n.id === node.id ? { ...n } : n)))
+  }
   const descriptionRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef<HTMLElement | null>(null)
   const store = getOpStore()
@@ -269,45 +387,131 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
         </div>
       </div>
       <div className={s.section}>
-        <div className={s.sectionTitle}>Inputs</div>
+        <div className={s.sectionHeader}>
+          <div className={s.sectionTitle}>Inputs</div>
+          {Object.keys(op.inputs).length > 0 && (
+            <PencilIcon onClick={() => setIsEditMode(!isEditMode)} isActive={isEditMode} />
+          )}
+        </div>
         <div className={s.propertyList}>
-          {inputs.map(input => {
-            const incomers = edges.filter(
-              e => e.target === node.id && e.targetHandle === input.name
-            )
-            return (
-              <div key={input.name} className={s.property} title={input.codeRef}>
-                <div className={s.propertyHeader}>
-                  <div>{input.name}</div>
-                  <div className={s.propertyDetails}>
-                    <div>{input.type}</div>
-                    <div className={cx(s.port, input.handleClass)} />
-                    <ReferenceIcon codeReference={input.codeRef} altReference={input.mustacheRef} />
+          {(() => {
+            // Filter inputs by visibility
+            const visibleInputs = inputs.filter(input => op.isFieldVisible(input.name))
+            const hiddenInputs = inputs.filter(input => !op.isFieldVisible(input.name))
+
+            const handleShowField = (fieldName: string) => {
+              showField(op, fieldName)
+              triggerNodeUpdate()
+              forceUpdate({})
+            }
+
+            const handleHideField = (fieldName: string) => {
+              hideField(op, fieldName)
+              triggerNodeUpdate()
+              forceUpdate({})
+            }
+
+            const handleResetToDefaults = () => {
+              if (window.confirm('Reset field visibility to defaults?')) {
+                resetToDefaults(op)
+                triggerNodeUpdate()
+                forceUpdate({})
+              }
+            }
+
+            const renderInput = (input: (typeof inputs)[0], isVisible: boolean) => {
+              const incomers = edges.filter(
+                e =>
+                  e.target === node.id &&
+                  (e.targetHandle === input.name || e.targetHandle === `par.${input.name}`)
+              )
+              const hideCheck = canHideField(op, input.name, edges)
+              const canHide = hideCheck.canHide
+
+              return (
+                <div
+                  key={input.name}
+                  className={cx(s.property, { [s.propertyWithAction]: isEditMode })}
+                  title={input.codeRef}
+                >
+                  <div className={s.propertyHeader}>
+                    <div className={s.propertyName}>
+                      {isEditMode && isVisible && (
+                        <Tooltip
+                          text={canHide ? 'Hide field' : hideCheck.reason || 'Cannot hide'}
+                          position="right"
+                        >
+                          <span>
+                            <AddRemoveButton
+                              type="remove"
+                              onClick={() => handleHideField(input.name)}
+                              disabled={!canHide}
+                            />
+                          </span>
+                        </Tooltip>
+                      )}
+                      {isEditMode && !isVisible && (
+                        <AddRemoveButton type="add" onClick={() => handleShowField(input.name)} />
+                      )}
+                      <span>{input.name}</span>
+                    </div>
+                    <div className={s.propertyDetails}>
+                      <div>{input.type}</div>
+                      <div className={cx(s.port, input.handleClass)} />
+                      <ReferenceIcon
+                        codeReference={input.codeRef}
+                        altReference={input.mustacheRef}
+                      />
+                    </div>
                   </div>
+                  {input.field instanceof ListField && incomers.length > 0 && (
+                    // biome-ignore lint/a11y/useSemanticElements: Drag-and-drop list requires div with role
+                    <div className={s.connections} role="list" onDragOver={handleDragOver}>
+                      {incomers.map((edge, index) => (
+                        // biome-ignore lint/a11y/useSemanticElements: Draggable list item requires div with role
+                        <div
+                          key={edge.id}
+                          className={s.connection}
+                          role="listitem"
+                          tabIndex={incomers.length > 1 ? 0 : -1}
+                          draggable={incomers.length > 1}
+                          onDragStart={e => handleDragStart(e, input.name, index)}
+                          onDragEnd={e => handleDragEnd(e, input.name, incomers)}
+                        >
+                          {incomers.length > 1 && <div className={s.dragHandle} />}
+                          <div className={s.connectionSource}>{edge.sourceHandle}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                {input.field instanceof ListField && incomers.length > 0 && (
-                  // biome-ignore lint/a11y/useSemanticElements: Drag-and-drop list requires div with role
-                  <div className={s.connections} role="list" onDragOver={handleDragOver}>
-                    {incomers.map((edge, index) => (
-                      // biome-ignore lint/a11y/useSemanticElements: Draggable list item requires div with role
-                      <div
-                        key={edge.id}
-                        className={s.connection}
-                        role="listitem"
-                        tabIndex={incomers.length > 1 ? 0 : -1}
-                        draggable={incomers.length > 1}
-                        onDragStart={e => handleDragStart(e, input.name, index)}
-                        onDragEnd={e => handleDragEnd(e, input.name, incomers)}
-                      >
-                        {incomers.length > 1 && <div className={s.dragHandle} />}
-                        <div className={s.connectionSource}>{edge.sourceHandle}</div>
-                      </div>
-                    ))}
-                  </div>
+              )
+            }
+
+            return (
+              <>
+                {/* Visible fields (with hide button in edit mode) */}
+                {visibleInputs.map(input => renderInput(input, true))}
+
+                {/* Divider and hidden fields (only in edit mode) */}
+                {isEditMode && hiddenInputs.length > 0 && (
+                  <>
+                    <div className={s.fieldDivider}>
+                      <span>Hidden fields</span>
+                    </div>
+                    {hiddenInputs.map(input => renderInput(input, false))}
+                  </>
                 )}
-              </div>
+
+                {/* Reset to defaults button (only in edit mode when customized) */}
+                {isEditMode && op.visibleFields !== null && (
+                  <button type="button" className={s.resetButton} onClick={handleResetToDefaults}>
+                    Reset to defaults
+                  </button>
+                )}
+              </>
             )
-          })}
+          })()}
         </div>
       </div>
       <div className={s.section}>

@@ -4,6 +4,7 @@ import z from 'zod/v4'
 import { hexToColor } from '../utils/color'
 import {
   ArrayField,
+  BooleanField,
   ColorField,
   CompoundPropsField,
   DataField,
@@ -1025,6 +1026,38 @@ describe('DateField', () => {
     const deserialized = DateField.deserialize(serialized)
 
     expect(Temporal.PlainDateTime.compare(originalDate, deserialized)).toBe(0)
+  })
+})
+
+describe('Field showByDefault option', () => {
+  it('defaults showByDefault to true', () => {
+    const field = new NumberField(0)
+    expect(field.showByDefault).toBe(true)
+  })
+
+  it('respects showByDefault: false option', () => {
+    const field = new NumberField(0, { showByDefault: false })
+    expect(field.showByDefault).toBe(false)
+  })
+
+  it('respects showByDefault: true option explicitly', () => {
+    const field = new NumberField(0, { showByDefault: true })
+    expect(field.showByDefault).toBe(true)
+  })
+
+  it('works with BooleanField', () => {
+    const field = new BooleanField(false, { showByDefault: false })
+    expect(field.showByDefault).toBe(false)
+  })
+
+  it('works with StringField', () => {
+    const field = new StringField('test', { showByDefault: false })
+    expect(field.showByDefault).toBe(false)
+  })
+
+  it('works with ListField', () => {
+    const field = new ListField(new NumberField(), { showByDefault: false })
+    expect(field.showByDefault).toBe(false)
   })
 })
 

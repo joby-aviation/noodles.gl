@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { hexToColor } from '../../utils/color'
 import { CodeField, ColorField, NumberField } from '../fields'
-import { NumberOp, ScenegraphLayerOp, TableEditorOp } from '../operators'
+import { GeoJsonLayerOp, NumberOp, ScenegraphLayerOp, TableEditorOp } from '../operators'
 import { clearOps, getOpStore, setOp } from '../store'
 import { edgeId } from './id-utils'
 import {
@@ -58,12 +58,14 @@ type MockInput = { serialize: () => unknown }
 type MockOp = {
   inputs: Record<string, MockInput>
   locked: { value: boolean }
+  visibleFields: Set<string> | null
   createInputs: () => unknown
 }
 
 const makeOp = (inputs: Record<string, unknown>, locked = false): MockOp => ({
   inputs: Object.fromEntries(Object.entries(inputs).map(([k, v]) => [k, { serialize: () => v }])),
   locked: { value: locked },
+  visibleFields: null,
   createInputs: () => ({}),
 })
 
@@ -520,3 +522,50 @@ describe('saveProjectLocally', () => {
 
 // Note: serializeRenderSettings tests removed - function was removed in migration 012
 // Render settings are now stored as OutOp node inputs
+
+describe('Field visibility serialization', () => {
+  beforeEach(() => {
+    clearOps()
+  })
+
+  afterEach(() => {
+    clearOps()
+  })
+
+  it('does not serialize visibleInputs when visibleFields is null', () => {
+    const op = new GeoJsonLayerOp('/geojson-0')
+    setOp('/geojson-0', op)
+
+    const nodes = [{ id: '/geojson-0', type: 'GeoJsonLayerOp', data: {}, position: { x: 0, y: 0 } }]
+    const result = serializeNodes(getOpStore(), nodes, [])
+
+    expect(result[0].data).not.toHaveProperty('visibleInputs')
+  })
+
+  it('serializes visibleInputs when visibleFields is set', () => {
+    const op = new GeoJsonLayerOp('/geojson-0')
+    op.visibleFields = new Set(['data', 'visible', 'extruded'])
+    setOp('/geojson-0', op)
+
+    const nodes = [{ id: '/geojson-0', type: 'GeoJsonLayerOp', data: {}, position: { x: 0, y: 0 } }]
+    const result = serializeNodes(getOpStore(), nodes, [])
+
+    expect(result[0].data).toHaveProperty('visibleInputs')
+    expect(result[0].data.visibleInputs).toEqual(
+      expect.arrayContaining(['data', 'visible', 'extruded'])
+    )
+    expect(result[0].data.visibleInputs.length).toBe(3)
+  })
+
+  it('serializes empty visibleInputs array when visibleFields is empty set', () => {
+    const op = new GeoJsonLayerOp('/geojson-0')
+    op.visibleFields = new Set()
+    setOp('/geojson-0', op)
+
+    const nodes = [{ id: '/geojson-0', type: 'GeoJsonLayerOp', data: {}, position: { x: 0, y: 0 } }]
+    const result = serializeNodes(getOpStore(), nodes, [])
+
+    expect(result[0].data).toHaveProperty('visibleInputs')
+    expect(result[0].data.visibleInputs).toEqual([])
+  })
+})

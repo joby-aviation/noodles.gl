@@ -111,6 +111,12 @@ export function transformGraph<
         created.push(op)
         // Store operator in store using fully qualified path
         store.setOp(id, op)
+
+        // Restore field visibility from saved data
+        const visibleInputs = (data as { visibleInputs?: string[] })?.visibleInputs
+        if (visibleInputs && Array.isArray(visibleInputs)) {
+          op.visibleFields = new Set(visibleInputs)
+        }
       }
 
       return op
