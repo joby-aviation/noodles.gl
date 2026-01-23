@@ -211,8 +211,8 @@ function AddRemoveButton({
     <button
       type="button"
       className={cx(s.addRemoveBtn, type === 'add' ? s.addBtn : s.removeBtn)}
-      onClick={disabled ? undefined : onClick}
-      aria-disabled={disabled}
+      onClick={onClick}
+      disabled={disabled}
     >
       {type === 'add' ? '+' : '−'}
     </button>
