@@ -1,3 +1,5 @@
+import * as Dialog from '@radix-ui/react-dialog'
+import { Cross2Icon } from '@radix-ui/react-icons'
 import type { NodeJSON } from 'SKIP-@xyflow/react'
 import type { Edge } from '@xyflow/react'
 import { useEdges, useNodes, useReactFlow } from '@xyflow/react'
@@ -8,6 +10,7 @@ import { type Field, IN_NS, ListField, OUT_NS } from '../fields'
 import type { IOperator, Operator } from '../operators'
 import { OutOp } from '../operators'
 import { getOpStore } from '../store'
+import menuStyles from './menu.module.css'
 import s from './node-properties.module.css'
 import { handleClass, headerClass, typeCategory } from './op-components'
 import { RenderSettingsPanel } from './render-settings-panel'
@@ -207,6 +210,7 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
   const [isTruncated, setIsTruncated] = useState(false)
   const [isEditMode, setIsEditMode] = useState(false)
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false)
   const [, forceUpdate] = useState({}) // Force re-render when visibility changes
 
   // Trigger React Flow node re-render (for op-component to pick up visibility changes)
@@ -331,9 +335,14 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
   }
 
   const handleResetToDefaults = () => {
+    setIsResetDialogOpen(true)
+  }
+
+  const confirmResetToDefaults = () => {
     resetToDefaults(op)
     triggerNodeUpdate()
     forceUpdate({})
+    setIsResetDialogOpen(false)
   }
 
   return (
@@ -529,6 +538,43 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
           ))}
         </div>
       </div>
+
+      {/* Reset to defaults confirmation dialog */}
+      <Dialog.Root open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className={menuStyles.dialogOverlay} />
+          <Dialog.Content className={menuStyles.dialogContent}>
+            <Dialog.Title className={menuStyles.dialogTitle}>Reset Field Visibility</Dialog.Title>
+            <Dialog.Description className={menuStyles.dialogDescription}>
+              This will reset field visibility to the operator defaults. Any hidden fields will be
+              shown, and any custom visibility settings will be cleared.
+            </Dialog.Description>
+
+            <div className={menuStyles.dialogRightSlot}>
+              <button
+                type="button"
+                className={cx(menuStyles.dialogButton, menuStyles.violet)}
+                onClick={() => setIsResetDialogOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={cx(menuStyles.dialogButton, menuStyles.green)}
+                onClick={confirmResetToDefaults}
+              >
+                Reset
+              </button>
+            </div>
+
+            <Dialog.Close asChild>
+              <button type="button" className={menuStyles.dialogIconButton} aria-label="Close">
+                <Cross2Icon />
+              </button>
+            </Dialog.Close>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </>
   )
 }
