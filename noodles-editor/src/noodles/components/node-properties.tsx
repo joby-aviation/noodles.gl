@@ -4,12 +4,14 @@ import type { NodeJSON } from 'SKIP-@xyflow/react'
 import type { Edge } from '@xyflow/react'
 import { useEdges, useNodes, useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
-import { useEffect, useRef, useState } from 'react'
+import { useContext, useEffect, useRef, useState } from 'react'
 
+import { SheetContext } from '../../utils/sheet-context'
 import { type Field, IN_NS, ListField, OUT_NS } from '../fields'
 import type { IOperator, Operator } from '../operators'
 import { OutOp } from '../operators'
 import { getOpStore } from '../store'
+import { rebindOperatorToTheatre } from '../theatre-bindings'
 import menuStyles from './menu.module.css'
 import s from './node-properties.module.css'
 import { handleClass, headerClass, typeCategory } from './op-components'
@@ -206,6 +208,7 @@ function AddRemoveButton({
 function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
   const { setEdges, setNodes } = useReactFlow()
   const edges = useEdges()
+  const sheet = useContext(SheetContext)
   const dragDataRef = useRef<{ inputName: string; index: number } | null>(null)
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
   const [isTruncated, setIsTruncated] = useState(false)
@@ -340,6 +343,9 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
 
   const confirmResetToDefaults = () => {
     resetToDefaults(op)
+    if (sheet) {
+      rebindOperatorToTheatre(op, sheet)
+    }
     triggerNodeUpdate()
     forceUpdate({})
     setIsResetDialogOpen(false)
@@ -423,12 +429,18 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
 
             const handleShowField = (fieldName: string) => {
               showField(op, fieldName)
+              if (sheet) {
+                rebindOperatorToTheatre(op, sheet)
+              }
               triggerNodeUpdate()
               forceUpdate({})
             }
 
             const handleHideField = (fieldName: string) => {
               hideField(op, fieldName)
+              if (sheet) {
+                rebindOperatorToTheatre(op, sheet)
+              }
               triggerNodeUpdate()
               forceUpdate({})
             }
