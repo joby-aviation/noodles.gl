@@ -536,7 +536,11 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
                         </Tooltip>
                       )}
                       {isEditMode && !isVisible && (
-                        <AddRemoveButton type="add" onClick={() => handleShowField(input.name)} />
+                        <Tooltip text="Show field" position="right">
+                          <span>
+                            <AddRemoveButton type="add" onClick={() => handleShowField(input.name)} />
+                          </span>
+                        </Tooltip>
                       )}
                       <span>{input.name}</span>
                     </div>
@@ -583,6 +587,20 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
                   <>
                     <div className={s.fieldDivider}>
                       <span>Hidden fields</span>
+                      <button
+                        type="button"
+                        className={s.showAllButton}
+                        onClick={() => {
+                          for (const input of hiddenInputs) {
+                            showField(op, input.name)
+                          }
+                          if (sheet) {
+                            rebindOperatorToTheatre(op, sheet)
+                          }
+                        }}
+                      >
+                        Show all
+                      </button>
                     </div>
                     {hiddenInputs.map(input => renderInput(input, false))}
                   </>
