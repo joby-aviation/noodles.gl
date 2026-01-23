@@ -2007,10 +2007,6 @@ describe('FileOp', () => {
 })
 
 describe('Operator field visibility', () => {
-  afterEach(() => {
-    clearOps()
-  })
-
   describe('isFieldVisible', () => {
     it('returns true by default when visibleFields is null', () => {
       const op = new NumberOp('/num-0')

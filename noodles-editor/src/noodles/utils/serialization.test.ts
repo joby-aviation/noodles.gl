@@ -524,10 +524,6 @@ describe('saveProjectLocally', () => {
 // Render settings are now stored as OutOp node inputs
 
 describe('Field visibility serialization', () => {
-  afterEach(() => {
-    clearOps()
-  })
-
   it('does not serialize visibleInputs when visibleFields is null', () => {
     const op = new GeoJsonLayerOp('/geojson-0')
     setOp('/geojson-0', op)

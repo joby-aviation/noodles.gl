@@ -330,6 +330,12 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
     draggingRef.current = null
   }
 
+  const handleResetToDefaults = () => {
+    resetToDefaults(op)
+    triggerNodeUpdate()
+    forceUpdate({})
+  }
+
   return (
     <>
       <div className={s.header}>
@@ -390,7 +396,14 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
         <div className={s.sectionHeader}>
           <div className={s.sectionTitle}>Inputs</div>
           {Object.keys(op.inputs).length > 0 && (
-            <PencilIcon onClick={() => setIsEditMode(!isEditMode)} isActive={isEditMode} />
+            <>
+              {isEditMode && op.visibleFields !== null && (
+                <button type="button" className={s.resetButton} onClick={handleResetToDefaults}>
+                  Reset
+                </button>
+              )}
+              <PencilIcon onClick={() => setIsEditMode(!isEditMode)} isActive={isEditMode} />
+            </>
           )}
         </div>
         <div className={s.propertyList}>
@@ -409,14 +422,6 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
               hideField(op, fieldName)
               triggerNodeUpdate()
               forceUpdate({})
-            }
-
-            const handleResetToDefaults = () => {
-              if (window.confirm('Reset field visibility to defaults?')) {
-                resetToDefaults(op)
-                triggerNodeUpdate()
-                forceUpdate({})
-              }
             }
 
             const renderInput = (input: (typeof inputs)[0], isVisible: boolean) => {
@@ -501,13 +506,6 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
                     </div>
                     {hiddenInputs.map(input => renderInput(input, false))}
                   </>
-                )}
-
-                {/* Reset to defaults button (only in edit mode when customized) */}
-                {isEditMode && op.visibleFields !== null && (
-                  <button type="button" className={s.resetButton} onClick={handleResetToDefaults}>
-                    Reset to defaults
-                  </button>
                 )}
               </>
             )
