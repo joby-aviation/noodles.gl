@@ -28,7 +28,7 @@ import {
   SwitchOp,
   TimeSeriesOp,
 } from './operators'
-import { clearOps, setOp } from './store'
+import { setOp } from './store'
 import { isAccessor } from './utils/accessor-helpers'
 
 describe('basic Operators', () => {

@@ -4,7 +4,6 @@ import z from 'zod/v4'
 import { hexToColor } from '../utils/color'
 import {
   ArrayField,
-  BooleanField,
   ColorField,
   CompoundPropsField,
   DataField,

@@ -1,5 +1,5 @@
 import type { Node as ReactFlowNode } from '@xyflow/react'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import type { Edge } from './noodles'
 import { type GeoJsonLayerOp, type IOperator, MathOp, NumberOp, type Operator } from './operators'
 import { clearOps, getOpStore } from './store'

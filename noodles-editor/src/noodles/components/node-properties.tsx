@@ -230,6 +230,7 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
     : { displayName: '', description: '' }
 
   // Exit edit mode when switching to a different node
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally run when node.id changes
   useEffect(() => {
     setIsEditMode(false)
   }, [node.id])
