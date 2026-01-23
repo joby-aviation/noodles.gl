@@ -405,14 +405,14 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
         <div className={s.sectionHeader}>
           <div className={s.sectionTitle}>Inputs</div>
           {Object.keys(op.inputs).length > 0 && (
-            <>
+            <div className={s.sectionActions}>
               {isEditMode && op.visibleFields !== null && (
                 <button type="button" className={s.resetButton} onClick={handleResetToDefaults}>
                   Reset
                 </button>
               )}
               <PencilIcon onClick={() => setIsEditMode(!isEditMode)} isActive={isEditMode} />
-            </>
+            </div>
           )}
         </div>
         <div className={s.propertyList}>
