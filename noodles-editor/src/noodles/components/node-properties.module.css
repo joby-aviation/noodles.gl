@@ -221,24 +221,21 @@
   white-space: nowrap;
 }
 
-/* Reset to defaults button */
+/* Reset to defaults link button */
 .resetButton {
-  width: 100%;
-  margin-top: 12px;
-  padding: 8px 12px;
-  border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(255, 255, 255, 0.6);
+  margin-top: 8px;
+  padding: 4px 0;
+  border: none;
+  background: none;
+  color: rgba(255, 255, 255, 0.5);
   font-size: 11px;
   cursor: pointer;
-  transition: all 0.2s;
+  text-decoration: none;
 }
 
 .resetButton:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.2);
   color: rgba(255, 255, 255, 0.8);
+  text-decoration: underline;
 }
 
 /* Input */
