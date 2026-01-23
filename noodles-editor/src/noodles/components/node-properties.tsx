@@ -538,7 +538,10 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
                       {isEditMode && !isVisible && (
                         <Tooltip text="Show field" position="right">
                           <span>
-                            <AddRemoveButton type="add" onClick={() => handleShowField(input.name)} />
+                            <AddRemoveButton
+                              type="add"
+                              onClick={() => handleShowField(input.name)}
+                            />
                           </span>
                         </Tooltip>
                       )}
@@ -693,7 +696,10 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
       </Dialog.Root>
 
       {/* Hide field with non-default value warning dialog */}
-      <Dialog.Root open={pendingHideField !== null} onOpenChange={open => !open && setPendingHideField(null)}>
+      <Dialog.Root
+        open={pendingHideField !== null}
+        onOpenChange={open => !open && setPendingHideField(null)}
+      >
         <Dialog.Portal>
           <Dialog.Overlay className={menuStyles.dialogOverlay} />
           <Dialog.Content className={menuStyles.dialogContent}>
