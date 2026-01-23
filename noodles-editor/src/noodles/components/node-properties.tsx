@@ -1,6 +1,6 @@
+import type { NodeJSON } from 'SKIP-@xyflow/react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
-import type { NodeJSON } from 'SKIP-@xyflow/react'
 import type { Edge } from '@xyflow/react'
 import { useEdges, useNodes, useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
