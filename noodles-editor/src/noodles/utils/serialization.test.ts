@@ -524,10 +524,6 @@ describe('saveProjectLocally', () => {
 // Render settings are now stored as OutOp node inputs
 
 describe('Field visibility serialization', () => {
-  beforeEach(() => {
-    clearOps()
-  })
-
   afterEach(() => {
     clearOps()
   })

@@ -885,7 +885,7 @@ function GeocoderOpComponent({
           ))}
         {error && (
           <div className={s.fieldWrapper} style={{ padding: '8px', color: '#ff6b6b' }}>
-            {error}
+            ⚠️ {error}
           </div>
         )}
         <div

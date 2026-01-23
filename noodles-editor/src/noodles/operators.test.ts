@@ -2007,10 +2007,6 @@ describe('FileOp', () => {
 })
 
 describe('Operator field visibility', () => {
-  beforeEach(() => {
-    clearOps()
-  })
-
   afterEach(() => {
     clearOps()
   })

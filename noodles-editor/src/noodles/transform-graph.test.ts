@@ -312,10 +312,6 @@ describe('transform-graph', () => {
 })
 
 describe('Field visibility restoration from saved data', () => {
-  beforeEach(() => {
-    clearOps()
-  })
-
   afterEach(() => {
     clearOps()
   })

@@ -1045,13 +1045,11 @@ describe('Field showByDefault option', () => {
     expect(field.showByDefault).toBe(true)
   })
 
-  it('works with BooleanField', () => {
-    const field = new BooleanField(false, { showByDefault: false })
-    expect(field.showByDefault).toBe(false)
-  })
-
-  it('works with StringField', () => {
-    const field = new StringField('test', { showByDefault: false })
+  it('works with CompoundPropsField', () => {
+    const field = new CompoundPropsField(
+      { x: new NumberField(0), y: new NumberField(0) },
+      { showByDefault: false }
+    )
     expect(field.showByDefault).toBe(false)
   })
 
