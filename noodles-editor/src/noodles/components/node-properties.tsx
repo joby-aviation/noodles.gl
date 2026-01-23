@@ -79,6 +79,31 @@ function hasNonDefaultValue(field: IField): boolean {
   }
 }
 
+// Calculate what would change when resetting to defaults
+function getVisibilityChanges(op: Operator<IOperator>): { toHide: string[]; toShow: string[] } {
+  const currentVisible = op.visibleFields.value ?? getDefaultVisibleFields(op)
+  const defaultVisible = getDefaultVisibleFields(op)
+
+  const toHide: string[] = []
+  const toShow: string[] = []
+
+  // Fields currently visible but not in defaults → will be hidden
+  for (const name of currentVisible) {
+    if (!defaultVisible.has(name)) {
+      toHide.push(name)
+    }
+  }
+
+  // Fields currently hidden but in defaults → will be shown
+  for (const name of defaultVisible) {
+    if (!currentVisible.has(name)) {
+      toShow.push(name)
+    }
+  }
+
+  return { toHide, toShow }
+}
+
 // Reset to default visibility (and reset all newly-hidden fields to defaults)
 function resetToDefaults(op: Operator<IOperator>) {
   // Get current visible fields before reset
@@ -592,9 +617,36 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
           <Dialog.Content className={menuStyles.dialogContent}>
             <Dialog.Title className={menuStyles.dialogTitle}>Reset Field Visibility</Dialog.Title>
             <Dialog.Description className={menuStyles.dialogDescription}>
-              This will reset field visibility to the operator defaults. Any hidden fields will be
-              shown, and any custom visibility settings will be cleared.
+              This will reset field visibility to the operator defaults.
             </Dialog.Description>
+
+            {(() => {
+              const { toHide, toShow } = getVisibilityChanges(op)
+              return (
+                <div className={s.dialogFieldLists}>
+                  {toHide.length > 0 && (
+                    <div className={s.dialogFieldList}>
+                      <div className={s.dialogFieldListTitle}>Will be hidden:</div>
+                      <ul>
+                        {toHide.map(name => (
+                          <li key={name}>{name}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {toShow.length > 0 && (
+                    <div className={s.dialogFieldList}>
+                      <div className={s.dialogFieldListTitle}>Will be shown:</div>
+                      <ul>
+                        {toShow.map(name => (
+                          <li key={name}>{name}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
 
             <div className={menuStyles.dialogRightSlot}>
               <button
