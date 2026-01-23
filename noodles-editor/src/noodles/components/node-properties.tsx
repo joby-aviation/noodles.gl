@@ -7,7 +7,7 @@ import cx from 'classnames'
 import { useContext, useEffect, useRef, useState } from 'react'
 
 import { SheetContext } from '../../utils/sheet-context'
-import { type Field, IN_NS, ListField, OUT_NS } from '../fields'
+import { type Field, type IField, IN_NS, ListField, OUT_NS } from '../fields'
 import type { IOperator, Operator } from '../operators'
 import { OutOp } from '../operators'
 import { getOpStore } from '../store'
@@ -62,6 +62,20 @@ function hideField(op: Operator<IOperator>, name: string) {
   const field = op.inputs[name]
   if (field?.defaultValue !== undefined) {
     field.setValue(field.defaultValue)
+  }
+}
+
+// Check if a field's current value differs from its default value
+function hasNonDefaultValue(field: IField): boolean {
+  if (field.defaultValue === undefined) {
+    return false
+  }
+  // Use JSON.stringify for deep comparison of objects/arrays
+  try {
+    return JSON.stringify(field.value) !== JSON.stringify(field.defaultValue)
+  } catch {
+    // If serialization fails, fall back to reference equality
+    return field.value !== field.defaultValue
   }
 }
 
@@ -214,6 +228,7 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
   const [isTruncated, setIsTruncated] = useState(false)
   const [isEditMode, setIsEditMode] = useState(false)
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false)
+  const [pendingHideField, setPendingHideField] = useState<string | null>(null)
   const descriptionRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef<HTMLElement | null>(null)
   const store = getOpStore()
@@ -358,6 +373,16 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
     setIsResetDialogOpen(false)
   }
 
+  const confirmHideField = () => {
+    if (pendingHideField) {
+      hideField(op, pendingHideField)
+      if (sheet) {
+        rebindOperatorToTheatre(op, sheet)
+      }
+      setPendingHideField(null)
+    }
+  }
+
   return (
     <>
       <div className={s.header}>
@@ -442,6 +467,12 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
             }
 
             const handleHideField = (fieldName: string) => {
+              const field = op.inputs[fieldName]
+              // Check if field has a non-default value - warn before losing data
+              if (field && hasNonDefaultValue(field)) {
+                setPendingHideField(fieldName)
+                return
+              }
               hideField(op, fieldName)
               if (sheet) {
                 rebindOperatorToTheatre(op, sheet)
@@ -579,6 +610,43 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
                 onClick={confirmResetToDefaults}
               >
                 Reset
+              </button>
+            </div>
+
+            <Dialog.Close asChild>
+              <button type="button" className={menuStyles.dialogIconButton} aria-label="Close">
+                <Cross2Icon />
+              </button>
+            </Dialog.Close>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
+      {/* Hide field with non-default value warning dialog */}
+      <Dialog.Root open={pendingHideField !== null} onOpenChange={open => !open && setPendingHideField(null)}>
+        <Dialog.Portal>
+          <Dialog.Overlay className={menuStyles.dialogOverlay} />
+          <Dialog.Content className={menuStyles.dialogContent}>
+            <Dialog.Title className={menuStyles.dialogTitle}>Hide Field?</Dialog.Title>
+            <Dialog.Description className={menuStyles.dialogDescription}>
+              The field "{pendingHideField}" has a custom value that will be reset to its default
+              when hidden. Are you sure you want to continue?
+            </Dialog.Description>
+
+            <div className={menuStyles.dialogRightSlot}>
+              <button
+                type="button"
+                className={cx(menuStyles.dialogButton, menuStyles.violet)}
+                onClick={() => setPendingHideField(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={cx(menuStyles.dialogButton, menuStyles.green)}
+                onClick={confirmHideField}
+              >
+                Hide Field
               </button>
             </div>
 
