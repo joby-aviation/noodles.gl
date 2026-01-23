@@ -245,7 +245,7 @@ export abstract class Operator<OP extends IOperator> {
 
   // === Field visibility ===
   // Per-instance visible fields (null = use defaults from field.showByDefault)
-  visibleFields: Set<string> | null = null
+  visibleFields = new BehaviorSubject<Set<string> | null>(null)
 
   // === Pull-based execution additions ===
   // Execution status for pull-based model
@@ -356,11 +356,12 @@ export abstract class Operator<OP extends IOperator> {
 
   // Check if a field is visible (for UI rendering)
   isFieldVisible(name: string): boolean {
-    if (this.visibleFields === null) {
+    const visible = this.visibleFields.value
+    if (visible === null) {
       // Use defaults: showByDefault defaults to true
       return this.inputs[name]?.showByDefault ?? true
     }
-    return this.visibleFields.has(name)
+    return visible.has(name)
   }
 
   // === Pull-based execution methods ===

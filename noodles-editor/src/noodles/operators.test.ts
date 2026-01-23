@@ -2008,15 +2008,15 @@ describe('FileOp', () => {
 
 describe('Operator field visibility', () => {
   describe('isFieldVisible', () => {
-    it('returns true by default when visibleFields is null', () => {
+    it('returns true by default when visibleFields.value is null', () => {
       const op = new NumberOp('/num-0')
-      expect(op.visibleFields).toBe(null)
+      expect(op.visibleFields.value).toBe(null)
       expect(op.isFieldVisible('val')).toBe(true)
     })
 
-    it('returns field.showByDefault when visibleFields is null', () => {
+    it('returns field.showByDefault when visibleFields.value is null', () => {
       const op = new GeoJsonLayerOp('/geojson-0')
-      expect(op.visibleFields).toBe(null)
+      expect(op.visibleFields.value).toBe(null)
       // Core fields should be visible by default
       expect(op.isFieldVisible('data')).toBe(true)
       expect(op.isFieldVisible('visible')).toBe(true)
@@ -2027,39 +2027,57 @@ describe('Operator field visibility', () => {
 
     it('returns true for fields in visibleFields set', () => {
       const op = new GeoJsonLayerOp('/geojson-0')
-      op.visibleFields = new Set(['data', 'visible', 'extruded'])
+      op.visibleFields.next(new Set(['data', 'visible', 'extruded']))
       expect(op.isFieldVisible('data')).toBe(true)
       expect(op.isFieldVisible('visible')).toBe(true)
       expect(op.isFieldVisible('extruded')).toBe(true)
       expect(op.isFieldVisible('opacity')).toBe(false)
     })
 
-    it('returns true for unknown fields when visibleFields is null', () => {
+    it('returns true for unknown fields when visibleFields.value is null', () => {
       const op = new NumberOp('/num-0')
       expect(op.isFieldVisible('nonexistent')).toBe(true)
     })
   })
 
-  describe('visibleFields property', () => {
-    it('starts as null', () => {
+  describe('visibleFields BehaviorSubject', () => {
+    it('starts with null value', () => {
       const op = new NumberOp('/num-0')
-      expect(op.visibleFields).toBe(null)
+      expect(op.visibleFields.value).toBe(null)
     })
 
-    it('can be set to a Set of field names', () => {
+    it('can be updated to a Set of field names via next()', () => {
       const op = new GeoJsonLayerOp('/geojson-0')
-      op.visibleFields = new Set(['data', 'visible'])
-      expect(op.visibleFields).toBeInstanceOf(Set)
-      expect(op.visibleFields.size).toBe(2)
-      expect(op.visibleFields.has('data')).toBe(true)
-      expect(op.visibleFields.has('visible')).toBe(true)
+      op.visibleFields.next(new Set(['data', 'visible']))
+      expect(op.visibleFields.value).toBeInstanceOf(Set)
+      expect(op.visibleFields.value!.size).toBe(2)
+      expect(op.visibleFields.value!.has('data')).toBe(true)
+      expect(op.visibleFields.value!.has('visible')).toBe(true)
     })
 
-    it('can be reset to null', () => {
+    it('can be reset to null via next()', () => {
       const op = new GeoJsonLayerOp('/geojson-0')
-      op.visibleFields = new Set(['data', 'visible'])
-      op.visibleFields = null
-      expect(op.visibleFields).toBe(null)
+      op.visibleFields.next(new Set(['data', 'visible']))
+      op.visibleFields.next(null)
+      expect(op.visibleFields.value).toBe(null)
+    })
+
+    it('notifies subscribers when value changes', () => {
+      const op = new GeoJsonLayerOp('/geojson-0')
+      const values: (Set<string> | null)[] = []
+      const subscription = op.visibleFields.subscribe(v => values.push(v))
+
+      op.visibleFields.next(new Set(['data']))
+      op.visibleFields.next(new Set(['data', 'visible']))
+      op.visibleFields.next(null)
+
+      subscription.unsubscribe()
+
+      expect(values).toHaveLength(4) // Initial null + 3 updates
+      expect(values[0]).toBe(null)
+      expect(values[1]!.has('data')).toBe(true)
+      expect(values[2]!.has('visible')).toBe(true)
+      expect(values[3]).toBe(null)
     })
   })
 })

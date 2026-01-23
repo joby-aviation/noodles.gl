@@ -58,14 +58,14 @@ type MockInput = { serialize: () => unknown }
 type MockOp = {
   inputs: Record<string, MockInput>
   locked: { value: boolean }
-  visibleFields: Set<string> | null
+  visibleFields: { value: Set<string> | null }
   createInputs: () => unknown
 }
 
 const makeOp = (inputs: Record<string, unknown>, locked = false): MockOp => ({
   inputs: Object.fromEntries(Object.entries(inputs).map(([k, v]) => [k, { serialize: () => v }])),
   locked: { value: locked },
-  visibleFields: null,
+  visibleFields: { value: null },
   createInputs: () => ({}),
 })
 
@@ -524,7 +524,7 @@ describe('saveProjectLocally', () => {
 // Render settings are now stored as OutOp node inputs
 
 describe('Field visibility serialization', () => {
-  it('does not serialize visibleInputs when visibleFields is null', () => {
+  it('does not serialize visibleInputs when visibleFields.value is null', () => {
     const op = new GeoJsonLayerOp('/geojson-0')
     setOp('/geojson-0', op)
 
@@ -536,7 +536,7 @@ describe('Field visibility serialization', () => {
 
   it('serializes visibleInputs when visibleFields is set', () => {
     const op = new GeoJsonLayerOp('/geojson-0')
-    op.visibleFields = new Set(['data', 'visible', 'extruded'])
+    op.visibleFields.next(new Set(['data', 'visible', 'extruded']))
     setOp('/geojson-0', op)
 
     const nodes = [{ id: '/geojson-0', type: 'GeoJsonLayerOp', data: {}, position: { x: 0, y: 0 } }]
@@ -551,7 +551,7 @@ describe('Field visibility serialization', () => {
 
   it('serializes empty visibleInputs array when visibleFields is empty set', () => {
     const op = new GeoJsonLayerOp('/geojson-0')
-    op.visibleFields = new Set()
+    op.visibleFields.next(new Set())
     setOp('/geojson-0', op)
 
     const nodes = [{ id: '/geojson-0', type: 'GeoJsonLayerOp', data: {}, position: { x: 0, y: 0 } }]

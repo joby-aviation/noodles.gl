@@ -334,9 +334,19 @@ export const OUT_NAMESPACE = 'out'
 function useLocked(op: Operator<IOperator>) {
   const [locked, setLocked] = useState(op.locked.value)
   useEffect(() => {
-    op.locked.subscribe(setLocked)
+    const subscription = op.locked.subscribe(setLocked)
+    return () => subscription.unsubscribe()
   }, [op])
   return locked
+}
+
+// Hook to subscribe to field visibility changes and trigger re-render
+function useFieldVisibility(op: Operator<IOperator>) {
+  const [, setVisibility] = useState(op.visibleFields.value)
+  useEffect(() => {
+    const subscription = op.visibleFields.subscribe(setVisibility)
+    return () => subscription.unsubscribe()
+  }, [op])
 }
 
 function HandlePreviewContent({ data, name, type }: { data: unknown; name: string; type: string }) {
@@ -502,6 +512,7 @@ function NodeComponent({
   const connectionErrors = useConnectionErrors(op)
   const hasConnectionErrors = connectionErrors.size > 0
   const isDimmed = useNodeDimmed(id)
+  useFieldVisibility(op)
 
   return (
     <div
@@ -860,6 +871,7 @@ function GeocoderOpComponent({
   }, [op, apiKey])
 
   const locked = useLocked(op)
+  useFieldVisibility(op)
   useEffect(() => {
     const inputEl = geocoderRef.current?._inputEl
     if (inputEl) {
@@ -1058,6 +1070,7 @@ function TableEditorOpComponent({
   }
 
   const locked = useLocked(op)
+  useFieldVisibility(op)
 
   return (
     <div className={cx(s.wrapper, { [s.wrapperDimmed]: isDimmed })}>
@@ -1248,6 +1261,7 @@ function ViewerOpComponent({
   }
 
   const locked = useLocked(op)
+  useFieldVisibility(op)
 
   return (
     <div className={cx(s.wrapper, { [s.wrapperDimmed]: isDimmed })}>
@@ -1296,6 +1310,7 @@ function ContainerOpComponent({
   })
 
   const locked = useLocked(op)
+  useFieldVisibility(op)
 
   return (
     <div

@@ -115,7 +115,7 @@ export function transformGraph<
         // Restore field visibility from saved data
         const visibleInputs = (data as { visibleInputs?: string[] })?.visibleInputs
         if (visibleInputs && Array.isArray(visibleInputs)) {
-          op.visibleFields = new Set(visibleInputs)
+          op.visibleFields.next(new Set(visibleInputs))
         }
       }
 

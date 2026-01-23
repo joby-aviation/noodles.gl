@@ -45,22 +45,22 @@ function canHideField(
 
 // Show a field (add to visible set)
 function showField(op: Operator<IOperator>, name: string) {
-  if (op.visibleFields === null) {
-    op.visibleFields = new Set(getDefaultVisibleFields(op))
-  }
-  op.visibleFields.add(name)
+  const current = op.visibleFields.value
+  const newSet = new Set(current ?? getDefaultVisibleFields(op))
+  newSet.add(name)
+  op.visibleFields.next(newSet)
 }
 
 // Hide a field (remove from visible set and reset to default value)
 function hideField(op: Operator<IOperator>, name: string) {
-  if (op.visibleFields === null) {
-    op.visibleFields = new Set(getDefaultVisibleFields(op))
-  }
-  op.visibleFields.delete(name)
+  const current = op.visibleFields.value
+  const newSet = new Set(current ?? getDefaultVisibleFields(op))
+  newSet.delete(name)
+  op.visibleFields.next(newSet)
 
   // Reset the field to its default value so it executes with defaults
   const field = op.inputs[name]
-  if (field && field.defaultValue !== undefined) {
+  if (field?.defaultValue !== undefined) {
     field.setValue(field.defaultValue)
   }
 }
@@ -68,21 +68,21 @@ function hideField(op: Operator<IOperator>, name: string) {
 // Reset to default visibility (and reset all newly-hidden fields to defaults)
 function resetToDefaults(op: Operator<IOperator>) {
   // Get current visible fields before reset
-  const currentVisible = op.visibleFields ?? getDefaultVisibleFields(op)
+  const currentVisible = op.visibleFields.value ?? getDefaultVisibleFields(op)
   const defaultVisible = getDefaultVisibleFields(op)
-
-  // Reset visibility
-  op.visibleFields = null
 
   // Reset any fields that were visible but are now hidden by default
   for (const name of currentVisible) {
     if (!defaultVisible.has(name)) {
       const field = op.inputs[name]
-      if (field && field.defaultValue !== undefined) {
+      if (field?.defaultValue !== undefined) {
         field.setValue(field.defaultValue)
       }
     }
   }
+
+  // Reset visibility
+  op.visibleFields.next(null)
 }
 
 function copy(text: string) {
@@ -206,7 +206,7 @@ function AddRemoveButton({
 }
 
 function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
-  const { setEdges, setNodes } = useReactFlow()
+  const { setEdges } = useReactFlow()
   const edges = useEdges()
   const sheet = useContext(SheetContext)
   const dragDataRef = useRef<{ inputName: string; index: number } | null>(null)
@@ -214,12 +214,6 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
   const [isTruncated, setIsTruncated] = useState(false)
   const [isEditMode, setIsEditMode] = useState(false)
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false)
-  const [, forceUpdate] = useState({}) // Force re-render when visibility changes
-
-  // Trigger React Flow node re-render (for op-component to pick up visibility changes)
-  const triggerNodeUpdate = () => {
-    setNodes(nodes => nodes.map(n => (n.id === node.id ? { ...n } : n)))
-  }
   const descriptionRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef<HTMLElement | null>(null)
   const store = getOpStore()
@@ -228,6 +222,15 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
   const { displayName, description } = op
     ? (op.constructor as typeof Operator)
     : { displayName: '', description: '' }
+
+  // Subscribe to visibility changes to re-render this panel
+  // (op-components handle their own subscriptions for node UI updates)
+  const [, setVisibility] = useState(op?.visibleFields.value)
+  useEffect(() => {
+    if (!op) return
+    const subscription = op.visibleFields.subscribe(setVisibility)
+    return () => subscription.unsubscribe()
+  }, [op])
 
   // Exit edit mode when switching to a different node
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally run when node.id changes
@@ -352,8 +355,6 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
     if (sheet) {
       rebindOperatorToTheatre(op, sheet)
     }
-    triggerNodeUpdate()
-    forceUpdate({})
     setIsResetDialogOpen(false)
   }
 
@@ -418,7 +419,7 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
           <div className={s.sectionTitle}>Inputs</div>
           {Object.keys(op.inputs).length > 0 && (
             <div className={s.sectionActions}>
-              {isEditMode && op.visibleFields !== null && (
+              {isEditMode && op.visibleFields.value !== null && (
                 <button type="button" className={s.resetButton} onClick={handleResetToDefaults}>
                   Reset
                 </button>
@@ -438,8 +439,6 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
               if (sheet) {
                 rebindOperatorToTheatre(op, sheet)
               }
-              triggerNodeUpdate()
-              forceUpdate({})
             }
 
             const handleHideField = (fieldName: string) => {
@@ -447,8 +446,6 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
               if (sheet) {
                 rebindOperatorToTheatre(op, sheet)
               }
-              triggerNodeUpdate()
-              forceUpdate({})
             }
 
             const renderInput = (input: (typeof inputs)[0], isVisible: boolean) => {

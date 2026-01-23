@@ -142,7 +142,9 @@ export function serializeNodes(
         inputs,
         locked: op.locked.value,
         // Only serialize visibleInputs if user has customized visibility
-        ...(op.visibleFields !== null ? { visibleInputs: Array.from(op.visibleFields) } : {}),
+        ...(op.visibleFields.value !== null
+          ? { visibleInputs: Array.from(op.visibleFields.value) }
+          : {}),
       },
     })
   }

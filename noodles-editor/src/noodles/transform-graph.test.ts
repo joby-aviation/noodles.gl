@@ -333,14 +333,14 @@ describe('Field visibility restoration from saved data', () => {
 
     const op = getOpStore().getOp('/geojson-0') as GeoJsonLayerOp
     expect(op).toBeDefined()
-    expect(op.visibleFields).toBeInstanceOf(Set)
-    expect(op.visibleFields!.size).toBe(3)
-    expect(op.visibleFields!.has('data')).toBe(true)
-    expect(op.visibleFields!.has('visible')).toBe(true)
-    expect(op.visibleFields!.has('extruded')).toBe(true)
+    expect(op.visibleFields.value).toBeInstanceOf(Set)
+    expect(op.visibleFields.value!.size).toBe(3)
+    expect(op.visibleFields.value!.has('data')).toBe(true)
+    expect(op.visibleFields.value!.has('visible')).toBe(true)
+    expect(op.visibleFields.value!.has('extruded')).toBe(true)
   })
 
-  it('keeps visibleFields null when visibleInputs is not in saved data', () => {
+  it('keeps visibleFields.value null when visibleInputs is not in saved data', () => {
     const nodes = [
       {
         id: '/geojson-0',
@@ -356,7 +356,7 @@ describe('Field visibility restoration from saved data', () => {
 
     const op = getOpStore().getOp('/geojson-0') as GeoJsonLayerOp
     expect(op).toBeDefined()
-    expect(op.visibleFields).toBe(null)
+    expect(op.visibleFields.value).toBe(null)
   })
 
   it('restores empty visibleFields set from empty visibleInputs array', () => {
@@ -376,7 +376,7 @@ describe('Field visibility restoration from saved data', () => {
 
     const op = getOpStore().getOp('/geojson-0') as GeoJsonLayerOp
     expect(op).toBeDefined()
-    expect(op.visibleFields).toBeInstanceOf(Set)
-    expect(op.visibleFields!.size).toBe(0)
+    expect(op.visibleFields.value).toBeInstanceOf(Set)
+    expect(op.visibleFields.value!.size).toBe(0)
   })
 })
