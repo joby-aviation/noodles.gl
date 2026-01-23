@@ -254,6 +254,7 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
   const [isEditMode, setIsEditMode] = useState(false)
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false)
   const [pendingHideField, setPendingHideField] = useState<string | null>(null)
+  const [hiddenFieldSearch, setHiddenFieldSearch] = useState('')
   const descriptionRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef<HTMLElement | null>(null)
   const store = getOpStore()
@@ -272,10 +273,11 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
     return () => subscription.unsubscribe()
   }, [op])
 
-  // Exit edit mode when switching to a different node
+  // Exit edit mode and clear search when switching to a different node
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally run when node.id changes
   useEffect(() => {
     setIsEditMode(false)
+    setHiddenFieldSearch('')
   }, [node.id])
 
   // Check if description is truncated
@@ -594,18 +596,42 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
                         type="button"
                         className={s.showAllButton}
                         onClick={() => {
-                          for (const input of hiddenInputs) {
+                          const fieldsToShow = hiddenFieldSearch
+                            ? hiddenInputs.filter(
+                                input =>
+                                  input.name
+                                    .toLowerCase()
+                                    .includes(hiddenFieldSearch.toLowerCase()) ||
+                                  input.type.toLowerCase().includes(hiddenFieldSearch.toLowerCase())
+                              )
+                            : hiddenInputs
+                          for (const input of fieldsToShow) {
                             showField(op, input.name)
                           }
                           if (sheet) {
                             rebindOperatorToTheatre(op, sheet)
                           }
+                          setHiddenFieldSearch('')
                         }}
                       >
-                        Show all
+                        {hiddenFieldSearch ? 'Show matches' : 'Show all'}
                       </button>
                     </div>
-                    {hiddenInputs.map(input => renderInput(input, false))}
+                    <input
+                      type="text"
+                      className={s.fieldSearch}
+                      placeholder="Search fields..."
+                      value={hiddenFieldSearch}
+                      onChange={e => setHiddenFieldSearch(e.target.value)}
+                    />
+                    {hiddenInputs
+                      .filter(
+                        input =>
+                          !hiddenFieldSearch ||
+                          input.name.toLowerCase().includes(hiddenFieldSearch.toLowerCase()) ||
+                          input.type.toLowerCase().includes(hiddenFieldSearch.toLowerCase())
+                      )
+                      .map(input => renderInput(input, false))}
                   </>
                 )}
               </>

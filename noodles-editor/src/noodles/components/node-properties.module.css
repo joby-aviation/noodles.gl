@@ -245,6 +245,28 @@
   text-decoration: underline;
 }
 
+/* Field search input */
+.fieldSearch {
+  width: 100%;
+  padding: 6px 10px;
+  font-size: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--color-text-primary);
+  outline: none;
+  transition: border-color 0.2s;
+  margin-bottom: 8px;
+}
+
+.fieldSearch:focus {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.fieldSearch::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+
 /* Reset to defaults link button */
 .resetButton {
   padding: 0;
