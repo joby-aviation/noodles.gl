@@ -9,6 +9,8 @@ import {
   StreamTarget,
 } from 'mediabunny'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { ExrCompression, ImageFormat } from '../noodles/utils/serialization'
+import { captureExrFrame, captureJpegFrame, capturePngFrame } from './exr-export'
 
 export const rafDriver = createRafDriver({ name: 'WorldView' })
 
@@ -254,6 +256,113 @@ export const useRenderer = ({
     [project, sequence, sequenceLength, fps, bitrate, bitrateMode, canvasFrameReady, redraw]
   )
 
+  // Image sequence export - uses the same render loop as video capture but writes individual images
+  const startSequenceCapture = useCallback(
+    async ({
+      canvas,
+      getGLContext,
+      directoryHandle,
+      format = 'png',
+      exrCompression = 'zip',
+      includeDepth = false,
+      startFrame = 0,
+      endFrame = Math.floor(sequenceLength * fps),
+      onFrameStart,
+      onFrameComplete,
+      onError,
+    }: {
+      canvas: HTMLCanvasElement
+      getGLContext: () => WebGL2RenderingContext | null
+      directoryHandle: FileSystemDirectoryHandle
+      format?: ImageFormat
+      exrCompression?: ExrCompression
+      includeDepth?: boolean
+      startFrame?: number
+      endFrame?: number
+      onFrameStart?: (frame: number, total: number) => void
+      onFrameComplete?: (frame: number, total: number) => void
+      onError?: (error: Error, frame: number) => void
+    }) => {
+      assert(canvas, 'canvas is required')
+      assert(directoryHandle, 'directoryHandle is required')
+
+      setIsRendering(true)
+
+      const projectName = project.address.projectId
+      const totalFrames = endFrame - startFrame + 1
+      const padLength = Math.max(4, String(endFrame).length)
+      const extension = format === 'exr' ? 'exr' : format === 'jpeg' ? 'jpg' : 'png'
+
+      await project.ready
+
+      for (let i = startFrame; i < endFrame + 1; i++) {
+        onFrameStart?.(i - startFrame, totalFrames)
+
+        try {
+          // Set sequence position and render frame
+          const simTime = i / fps
+          sequence.position = simTime
+          rafDriver.tick(performance.now())
+          redraw()
+
+          currentFrame.current = i
+          console.log(`exporting frame ${i}/${endFrame} at simtime ${simTime}`)
+
+          // Wait for frame to be ready
+          const canvasResult = await canvasFrameReady()
+
+          if (canvasResult?.error) {
+            console.error('Error capturing canvas frame:', canvasResult.error)
+            onError?.(canvasResult.error, i)
+            continue
+          }
+
+          // Generate filename
+          const frameNumber = String(i).padStart(padLength, '0')
+          const filename = `${projectName}_${frameNumber}.${extension}`
+
+          // Capture and write frame
+          if (format === 'exr') {
+            const gl = getGLContext()
+            if (!gl) {
+              throw new Error('WebGL context not available for EXR export')
+            }
+
+            const exrData = await captureExrFrame(gl, canvas.width, canvas.height, {
+              compression: exrCompression,
+              includeDepth,
+            })
+
+            const fileHandle = await directoryHandle.getFileHandle(filename, { create: true })
+            const writable = await fileHandle.createWritable()
+            await writable.write(new Blob([exrData as unknown as BlobPart]))
+            await writable.close()
+          } else {
+            // PNG or JPEG export
+            const blob =
+              format === 'jpeg'
+                ? await captureJpegFrame(canvas, 0.92)
+                : await capturePngFrame(canvas, 1)
+
+            const fileHandle = await directoryHandle.getFileHandle(filename, { create: true })
+            const writable = await fileHandle.createWritable()
+            await writable.write(blob)
+            await writable.close()
+          }
+
+          onFrameComplete?.(i - startFrame + 1, totalFrames)
+        } catch (e) {
+          const error = e instanceof Error ? e : new Error(String(e))
+          onError?.(error, i)
+          console.error(`Error exporting frame ${i}:`, error)
+        }
+      }
+
+      setIsRendering(false)
+    },
+    [project, sequence, sequenceLength, fps, canvasFrameReady, redraw]
+  )
+
   const [isRendering, setIsRendering] = useState(false)
   useEffect(() => {
     if (isRendering) {
@@ -270,6 +379,7 @@ export const useRenderer = ({
 
   return {
     startCapture,
+    startSequenceCapture,
     captureFrame,
     currentFrame: currentFrame.current,
     isRendering,
@@ -278,37 +388,79 @@ export const useRenderer = ({
 
 export default useRenderer
 
+export interface ScreenshotOptions {
+  format?: ImageFormat
+  quality?: number
+  exrCompression?: ExrCompression
+  includeDepth?: boolean
+  getGLContext?: () => WebGL2RenderingContext | null
+}
+
 export const captureScreenshot = async (
   suggestedName: string,
   getBufferedCanvas: () => HTMLCanvasElement,
-  quality = 1
+  options: ScreenshotOptions = {}
 ) => {
-  const imageHandle = await window.showSaveFilePicker({
-    suggestedName,
-    types: [
-      {
-        description: 'PNG',
-        accept: { 'image/png': ['.png'] },
-      },
-      {
-        description: 'JPEG',
-        accept: { 'image/jpeg': ['.jpeg'] },
-      },
-    ],
-  })
+  const {
+    format = 'png',
+    quality = 1,
+    exrCompression = 'zip',
+    includeDepth = false,
+    getGLContext,
+  } = options
 
-  const file = await imageHandle.getFile()
+  if (format === 'exr') {
+    // EXR export path - requires GL context for float readPixels
+    if (!getGLContext) {
+      throw new Error('EXR export requires WebGL context accessor (getGLContext)')
+    }
 
-  const blob = await new Promise<Blob>((resolve, reject) => {
-    // canvas needs to redrawn immediately before capture or else buffer will be empty.
-    getBufferedCanvas().toBlob(
-      blob => (blob ? resolve(blob) : reject('canvas is empty')),
-      file.type,
-      quality
-    )
-  })
+    const gl = getGLContext()
+    if (!gl) {
+      throw new Error('WebGL context not available for EXR export')
+    }
 
-  const fileWritableStream = await imageHandle.createWritable()
-  await fileWritableStream.write(blob)
-  await fileWritableStream.close()
+    const imageHandle = await window.showSaveFilePicker({
+      suggestedName: `${suggestedName}.exr`,
+      types: [{ description: 'OpenEXR', accept: { 'image/x-exr': ['.exr'] } }],
+    })
+
+    // Redraw to ensure buffer is populated
+    const canvas = getBufferedCanvas()
+
+    const exrData = await captureExrFrame(gl, canvas.width, canvas.height, {
+      compression: exrCompression,
+      includeDepth,
+    })
+
+    const fileWritableStream = await imageHandle.createWritable()
+    await fileWritableStream.write(exrData)
+    await fileWritableStream.close()
+  } else {
+    // PNG/JPEG path - use existing canvas.toBlob approach
+    const extension = format === 'jpeg' ? '.jpeg' : '.png'
+    const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png'
+
+    const imageHandle = await window.showSaveFilePicker({
+      suggestedName: `${suggestedName}${extension}`,
+      types: [
+        {
+          description: format.toUpperCase(),
+          accept: { [mimeType]: [extension] },
+        },
+      ],
+    })
+
+    // Redraw to ensure buffer is populated
+    const canvas = getBufferedCanvas()
+
+    const blob =
+      format === 'jpeg'
+        ? await captureJpegFrame(canvas, quality)
+        : await capturePngFrame(canvas, quality)
+
+    const fileWritableStream = await imageHandle.createWritable()
+    await fileWritableStream.write(blob)
+    await fileWritableStream.close()
+  }
 }

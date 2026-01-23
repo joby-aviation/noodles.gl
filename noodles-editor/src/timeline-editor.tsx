@@ -10,6 +10,7 @@ import ReactMapGL, { type MapProps, useControl } from 'react-map-gl/maplibre'
 import { Layout } from './layout'
 import { TopMenuBar } from './noodles/components/top-menu-bar'
 import { ExportActionsProvider } from './noodles/contexts/export-actions-context'
+import { useActiveStorageType, useCurrentDirectory } from './noodles/filesystem-store'
 import { useRenderSettings } from './noodles/hooks/use-render-settings'
 import { getNoodles } from './noodles/noodles'
 import type { RenderSettings } from './noodles/utils/serialization'
@@ -113,6 +114,7 @@ export default function TimelineEditor() {
 
   const mapRef = useRef<MapLibre | null>(null)
   const deckRef = useRef<Deck>(null)
+  const glContextRef = useRef<WebGL2RenderingContext | null>(null)
 
   // Trigger a redraw of React, mapbox and deck when the renderer state changes,
   // to ensure that the VideoStreamReader in renderer.ts runs
@@ -132,23 +134,40 @@ export default function TimelineEditor() {
   // Render settings are now stored as OutOp inputs
   const renderSettings = useRenderSettings()
 
+  // File system state for image sequence export
+  const currentDirectory = useCurrentDirectory()
+  const activeStorageType = useActiveStorageType()
+
   useEffect(() => {
     project?.ready.then(() => setReady(true))
   }, [project])
 
   const sequenceLength = useVal(sequence.pointer.length)
 
-  const { framerate, bitrateMbps, bitrateMode, codec, resolution, lod, waitForData, captureDelay } =
-    renderSettings
-
-  const { startCapture, captureFrame, currentFrame, isRendering } = useRenderer({
-    project,
-    sequence: sequence,
-    fps: framerate,
-    bitrate: bitrateMbps * 1_000_000,
+  const {
+    framerate,
+    bitrateMbps,
     bitrateMode,
-    redraw,
-  })
+    codec,
+    resolution,
+    lod,
+    waitForData,
+    captureDelay,
+    imageFormat,
+    exrCompression,
+    includeDepth,
+    rendersDirectory,
+  } = renderSettings
+
+  const { startCapture, startSequenceCapture, captureFrame, currentFrame, isRendering } =
+    useRenderer({
+      project,
+      sequence: sequence,
+      fps: framerate,
+      bitrate: bitrateMbps * 1_000_000,
+      bitrateMode,
+      redraw,
+    })
 
   // If the visualization doesn't supply mapProps, disable basemap.
   // TODO: Detect if deck is in othorgraphic mode, and disable?
@@ -171,6 +190,12 @@ export default function TimelineEditor() {
     ...visualization.deckProps,
     onDeviceInitialized: device => {
       visualization.deckProps?.onDeviceInitialized?.(device)
+      // Store WebGL context for EXR export
+      // @ts-expect-error luma.gl device has gl property
+      if (device.gl) {
+        // @ts-expect-error luma.gl device has gl property
+        glContextRef.current = device.gl
+      }
       redraw()
     },
     onAfterRender: () => {
@@ -300,12 +325,105 @@ export default function TimelineEditor() {
     }
 
     const suggestedName = project.address.projectId
-    await captureScreenshot(suggestedName, () => {
-      redraw()
+    await captureScreenshot(
+      suggestedName,
+      () => {
+        redraw()
+        // @ts-expect-error canvas is protected
+        return deckRef.current.canvas!
+      },
+      {
+        format: imageFormat,
+        exrCompression,
+        includeDepth,
+        getGLContext: () => glContextRef.current,
+      }
+    )
+  }, [project.address.projectId, redraw, basemapEnabled, imageFormat, exrCompression, includeDepth])
+
+  const exportSequence = useCallback(async () => {
+    if (!deckRef.current) {
+      console.error('Export Sequence: deck is not defined')
+      return
+    }
+    if (basemapEnabled && !mapRef.current) {
+      console.error('Export Sequence: maplibre is not defined')
+      return
+    }
+
+    // Get or create the renders directory
+    let rendersDir: FileSystemDirectoryHandle
+
+    // For public folder projects or when no project directory available, prompt user
+    if (activeStorageType === 'publicFolder' || !currentDirectory) {
+      try {
+        rendersDir = await window.showDirectoryPicker({ mode: 'readwrite' })
+      } catch (e) {
+        if ((e as DOMException).name === 'AbortError') {
+          console.log('Export sequence cancelled by user')
+          return
+        }
+        throw e
+      }
+    } else {
+      // Create/get renders subdirectory in project folder
+      try {
+        rendersDir = await currentDirectory.getDirectoryHandle(rendersDirectory || 'renders', {
+          create: true,
+        })
+      } catch (e) {
+        console.error('Failed to create renders directory:', e)
+        // Fall back to prompting user
+        try {
+          rendersDir = await window.showDirectoryPicker({ mode: 'readwrite' })
+        } catch (err) {
+          if ((err as DOMException).name === 'AbortError') {
+            console.log('Export sequence cancelled by user')
+            return
+          }
+          throw err
+        }
+      }
+    }
+
+    const totalFrames = Math.floor(sequenceLength * framerate)
+
+    let canvas: HTMLCanvasElement
+    if (basemapEnabled) {
+      canvas = mapRef.current!.getCanvas()
+    } else {
       // @ts-expect-error canvas is protected
-      return deckRef.current.canvas!
+      canvas = deckRef.current.canvas!
+    }
+
+    await startSequenceCapture({
+      canvas,
+      getGLContext: () => glContextRef.current,
+      directoryHandle: rendersDir,
+      format: imageFormat,
+      exrCompression,
+      includeDepth,
+      startFrame: 0,
+      endFrame: totalFrames,
+      onFrameStart: (frame, total) => {
+        console.log(`Exporting frame ${frame + 1}/${total}`)
+      },
+      onFrameComplete: (frame, total) => {
+        console.log(`Completed frame ${frame}/${total}`)
+      },
     })
-  }, [project.address.projectId, redraw, basemapEnabled])
+  }, [
+    startSequenceCapture,
+    sequenceLength,
+    framerate,
+    imageFormat,
+    exrCompression,
+    includeDepth,
+    basemapEnabled,
+    currentDirectory,
+    activeStorageType,
+    rendersDirectory,
+  ])
 
   // Increase the render target resolution to increase map tile detail.
   // To convert viewport bounds back to their original size, add about 1 to the zoom value.
@@ -387,6 +505,7 @@ export default function TimelineEditor() {
         <ExportActionsProvider
           startRender={startRender}
           takeScreenshot={takeScreenshot}
+          exportSequence={exportSequence}
           isRendering={isRendering}
         >
           <Layout

@@ -26,6 +26,7 @@ export default defineConfig({
       'react/jsx-dev-runtime',
       'node:path',
     ],
+    exclude: ['exrjs'],
   },
   plugins: [
     nodePolyfills({

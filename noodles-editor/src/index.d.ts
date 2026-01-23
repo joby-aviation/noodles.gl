@@ -10,4 +10,15 @@ declare global {
   interface ObjectConstructor {
     entries<T extends object>(o: T): Entries<T>
   }
+
+  // File System Access API types
+  interface FileSystemDirectoryHandle {
+    getFileHandle(name: string, options?: { create?: boolean }): Promise<FileSystemFileHandle>
+  }
+
+  interface Window {
+    showDirectoryPicker(options?: {
+      mode?: 'read' | 'readwrite'
+    }): Promise<FileSystemDirectoryHandle>
+  }
 }

@@ -2,6 +2,21 @@ import { renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { useRenderer } from './renderer'
 
+// Mock exrjs to avoid dynamic import issues with fs/promises
+vi.mock('exrjs', () => {
+  const MockEXRWriter = vi.fn().mockImplementation(function (this: Record<string, unknown>) {
+    this.addLayer = vi.fn(() => this)
+    this.rgba = vi.fn(() => this)
+    this.r = vi.fn(() => this)
+    this.compression = vi.fn(() => this)
+    this.sampleType = vi.fn(() => this)
+    this.scanlines = vi.fn(() => this)
+    this.end = vi.fn(() => this)
+    this.write = vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]))
+  })
+  return { EXRWriter: MockEXRWriter }
+})
+
 vi.mock('@theatre/react', () => ({
   useVal: vi.fn((pointer: any) => pointer?._mockValue ?? 10),
 }))

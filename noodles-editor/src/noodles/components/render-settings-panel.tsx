@@ -30,7 +30,7 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
   const isActive = activeOutOpId === op.id
 
   // Get export actions from context (provided by TimelineEditor)
-  const { startRender, takeScreenshot, isRendering } = useExportActions()
+  const { startRender, takeScreenshot, exportSequence, isRendering } = useExportActions()
 
   // Subscribe to field changes
   const [display, setDisplay] = useState(op.inputs.display.value)
@@ -44,6 +44,11 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
   const [bitrateMode, setBitrateMode] = useState(op.inputs.bitrateMode.value)
   const [waitForData, setWaitForData] = useState(op.inputs.waitForData.value)
   const [captureDelay, setCaptureDelay] = useState(op.inputs.captureDelay.value)
+  // Image export settings
+  const [imageFormat, setImageFormat] = useState(op.inputs.imageFormat.value)
+  const [exrCompression, setExrCompression] = useState(op.inputs.exrCompression.value)
+  const [includeDepth, setIncludeDepth] = useState(op.inputs.includeDepth.value)
+  const [rendersDirectory, setRendersDirectory] = useState(op.inputs.rendersDirectory.value)
 
   useEffect(() => {
     const subscriptions = [
@@ -58,6 +63,10 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
       op.inputs.bitrateMode.subscribe(v => setBitrateMode(v)),
       op.inputs.waitForData.subscribe(v => setWaitForData(v)),
       op.inputs.captureDelay.subscribe(v => setCaptureDelay(v)),
+      op.inputs.imageFormat.subscribe(v => setImageFormat(v)),
+      op.inputs.exrCompression.subscribe(v => setExrCompression(v)),
+      op.inputs.includeDepth.subscribe(v => setIncludeDepth(v)),
+      op.inputs.rendersDirectory.subscribe(v => setRendersDirectory(v)),
     ]
     return () => {
       for (const sub of subscriptions) sub.unsubscribe()
@@ -86,6 +95,10 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
     op.inputs.bitrateMode.setValue(DEFAULT_RENDER_SETTINGS.bitrateMode)
     op.inputs.waitForData.setValue(DEFAULT_RENDER_SETTINGS.waitForData)
     op.inputs.captureDelay.setValue(DEFAULT_RENDER_SETTINGS.captureDelay)
+    op.inputs.imageFormat.setValue(DEFAULT_RENDER_SETTINGS.imageFormat)
+    op.inputs.exrCompression.setValue(DEFAULT_RENDER_SETTINGS.exrCompression)
+    op.inputs.includeDepth.setValue(DEFAULT_RENDER_SETTINGS.includeDepth)
+    op.inputs.rendersDirectory.setValue(DEFAULT_RENDER_SETTINGS.rendersDirectory)
   }, [op])
 
   return (
@@ -211,6 +224,73 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
         </div>
       </div>
 
+      {/* Image Export Section */}
+      <div className={s.section}>
+        <h3 className={s.sectionTitle}>Image Export</h3>
+
+        <div className={s.settingRow}>
+          <label htmlFor="render-image-format" className={s.label}>
+            Format
+          </label>
+          <select
+            id="render-image-format"
+            className={s.select}
+            value={imageFormat}
+            onChange={e => op.inputs.imageFormat.setValue(e.target.value)}
+          >
+            <option value="png">PNG</option>
+            <option value="jpeg">JPEG</option>
+            <option value="exr">EXR (HDR)</option>
+          </select>
+        </div>
+
+        {imageFormat === 'exr' && (
+          <>
+            <div className={s.settingRow}>
+              <label htmlFor="render-exr-compression" className={s.label}>
+                Compression
+              </label>
+              <select
+                id="render-exr-compression"
+                className={s.select}
+                value={exrCompression}
+                onChange={e => op.inputs.exrCompression.setValue(e.target.value)}
+              >
+                <option value="none">None</option>
+                <option value="zip">ZIP</option>
+                <option value="piz">PIZ</option>
+              </select>
+            </div>
+
+            <div className={s.settingRow}>
+              <label className={s.checkboxLabel}>
+                <input
+                  type="checkbox"
+                  checked={includeDepth}
+                  onChange={e => op.inputs.includeDepth.setValue(e.target.checked)}
+                  className={s.checkbox}
+                />
+                Include Depth
+              </label>
+            </div>
+          </>
+        )}
+
+        <div className={s.settingRow}>
+          <label htmlFor="render-renders-directory" className={s.label}>
+            Output Dir
+          </label>
+          <input
+            id="render-renders-directory"
+            type="text"
+            className={s.textInput}
+            value={rendersDirectory}
+            placeholder="renders"
+            onChange={e => op.inputs.rendersDirectory.setValue(e.target.value)}
+          />
+        </div>
+      </div>
+
       {/* Video Encoding Section */}
       <div className={s.section}>
         <h3 className={s.sectionTitle}>Video</h3>
@@ -333,7 +413,20 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
           disabled={!takeScreenshot}
         >
           <i className="pi pi-image" />
-          Export Photo
+          Export {imageFormat.toUpperCase()}
+        </button>
+        <button
+          type="button"
+          className={s.exportButton}
+          onClick={() => {
+            // Ensure this OutOp is active before exporting
+            setActiveOutOpId(op.id)
+            exportSequence?.()
+          }}
+          disabled={!exportSequence || isRendering}
+        >
+          <i className="pi pi-images" />
+          {isRendering ? 'Exporting...' : 'Export Sequence'}
         </button>
         <button
           type="button"

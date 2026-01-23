@@ -35,6 +35,10 @@ export function useRenderSettings(): RenderSettings {
       outOp.inputs.scaleControl.subscribe(() => updateSettings()),
       outOp.inputs.framerate.subscribe(() => updateSettings()),
       outOp.inputs.captureDelay.subscribe(() => updateSettings()),
+      outOp.inputs.imageFormat.subscribe(() => updateSettings()),
+      outOp.inputs.exrCompression.subscribe(() => updateSettings()),
+      outOp.inputs.includeDepth.subscribe(() => updateSettings()),
+      outOp.inputs.rendersDirectory.subscribe(() => updateSettings()),
     ]
 
     function updateSettings() {
@@ -71,6 +75,10 @@ export function getRenderSettingsFromOutOp(outOp: OutOp): RenderSettings {
     scaleControl: outOp.inputs.scaleControl.value,
     framerate: outOp.inputs.framerate.value,
     captureDelay: outOp.inputs.captureDelay.value,
+    imageFormat: outOp.inputs.imageFormat.value as RenderSettings['imageFormat'],
+    exrCompression: outOp.inputs.exrCompression.value as RenderSettings['exrCompression'],
+    includeDepth: outOp.inputs.includeDepth.value,
+    rendersDirectory: outOp.inputs.rendersDirectory.value,
   }
 }
 
@@ -107,5 +115,17 @@ export function setRenderSettingsOnOutOp(outOp: OutOp, settings: Partial<RenderS
   }
   if (settings.captureDelay !== undefined) {
     outOp.inputs.captureDelay.setValue(settings.captureDelay)
+  }
+  if (settings.imageFormat !== undefined) {
+    outOp.inputs.imageFormat.setValue(settings.imageFormat)
+  }
+  if (settings.exrCompression !== undefined) {
+    outOp.inputs.exrCompression.setValue(settings.exrCompression)
+  }
+  if (settings.includeDepth !== undefined) {
+    outOp.inputs.includeDepth.setValue(settings.includeDepth)
+  }
+  if (settings.rendersDirectory !== undefined) {
+    outOp.inputs.rendersDirectory.setValue(settings.rendersDirectory)
   }
 }
