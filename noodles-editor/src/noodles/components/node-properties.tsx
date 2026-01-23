@@ -45,16 +45,20 @@ function canHideField(
 
 // Show a field (add to visible set)
 function showField(op: Operator<IOperator>, name: string) {
-  const current = op.visibleFields.value
-  const newSet = new Set(current ?? getDefaultVisibleFields(op))
+  const current = op.visibleFields.value ?? getDefaultVisibleFields(op)
+  // Skip if already visible
+  if (current.has(name)) return
+  const newSet = new Set(current)
   newSet.add(name)
   op.visibleFields.next(newSet)
 }
 
 // Hide a field (remove from visible set and reset to default value)
 function hideField(op: Operator<IOperator>, name: string) {
-  const current = op.visibleFields.value
-  const newSet = new Set(current ?? getDefaultVisibleFields(op))
+  const current = op.visibleFields.value ?? getDefaultVisibleFields(op)
+  // Skip if already hidden
+  if (!current.has(name)) return
+  const newSet = new Set(current)
   newSet.delete(name)
   op.visibleFields.next(newSet)
 
