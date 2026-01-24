@@ -5,9 +5,9 @@ import type { IOperator, Operator, OpType } from './operators'
 import { ContainerOp, ForLoopEndOp, GraphInputOp, opTypes } from './operators'
 import { getOpStore } from './store'
 import { validateConnection } from './utils/can-connect'
-import { computeVisibilityHeuristic } from './utils/visibility-heuristic'
 import { memoize } from './utils/memoize'
 import { getParentPath, isDirectChild, parseHandleId } from './utils/path-utils'
+import { computeVisibilityHeuristic } from './utils/visibility-heuristic'
 
 // Re-export GraphExecutor and related types for use elsewhere
 export {

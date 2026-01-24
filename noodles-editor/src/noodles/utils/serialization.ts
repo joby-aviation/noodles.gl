@@ -135,11 +135,20 @@ export function serializeNodes(
     const inputs: ExtractProps<ReturnType<typeof op.createInputs>> = {}
     for (const [name, field] of Object.entries(op.inputs)) {
       const serialized = field.serialize()
-      if (
-        serialized !== undefined &&
-        !isEqual(serialized, field.defaultValue) &&
-        !incomers.has(name)
-      ) {
+      // Compare transformed values to properly detect non-default values
+      // This handles fields where serialize() returns a different format than stored value
+      // (e.g., ColorField with transform: hexToColor stores [R,G,B,A] but serializes to '#rrggbbaa')
+      let normalizedDefault = field.defaultValue
+      try {
+        if (normalizedDefault !== undefined) {
+          normalizedDefault = field.schema.parse(normalizedDefault)
+        }
+      } catch {
+        // If parsing fails, use the raw default value
+      }
+      const hasNonDefaultValue =
+        serialized !== undefined && !isEqual(field.value, normalizedDefault)
+      if (hasNonDefaultValue && !incomers.has(name)) {
         inputs[name] = serialized
       }
     }

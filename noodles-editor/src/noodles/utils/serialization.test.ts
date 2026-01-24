@@ -54,7 +54,13 @@ describe('safeStringify', () => {
   })
 })
 
-type MockInput = { serialize: () => unknown; showByDefault: boolean; defaultValue?: unknown }
+type MockInput = {
+  serialize: () => unknown
+  showByDefault: boolean
+  defaultValue?: unknown
+  value: unknown
+  schema: { parse: (v: unknown) => unknown }
+}
 type MockOp = {
   inputs: Record<string, MockInput>
   locked: { value: boolean }
@@ -75,6 +81,8 @@ const makeOp = (
         serialize: () => v,
         showByDefault: options?.showByDefault?.[k] ?? true,
         defaultValue: options?.defaultValues?.[k],
+        value: v, // Mock value matches what serialize() returns
+        schema: { parse: (val: unknown) => val }, // Identity transform for mocks
       },
     ])
   )
@@ -610,6 +618,114 @@ describe('Field visibility serialization (full set when differs from heuristic)'
       expect(result[0].data.visibleInputs).toContain('a')
       expect(result[0].data.visibleInputs).not.toContain('b')
     })
+  })
+
+  it('does not serialize visibleInputs for GeoJsonLayerOp when getPointRadius is connected', () => {
+    // This is the exact user scenario:
+    // 1. Add GeoJsonLayerOp
+    // 2. Show getPointRadius (which has showByDefault: false)
+    // 3. Connect NumberOp to getPointRadius
+    // 4. After connecting, visibleInputs should NOT be serialized
+    const geojsonOp = new GeoJsonLayerOp('/geojson-layer')
+    // Simulate user showing getPointRadius (which has showByDefault: false)
+    geojsonOp.showField('getPointRadius')
+    setOp('/geojson-layer', geojsonOp)
+
+    // Add source NumberOp
+    const numberOp = new NumberOp('/number-1', { val: 5 }, false)
+    setOp('/number-1', numberOp)
+
+    const nodes = [
+      { id: '/geojson-layer', type: 'GeoJsonLayerOp', data: {}, position: { x: 0, y: 0 } },
+    ]
+    // Connect NumberOp to getPointRadius
+    const edges = [
+      {
+        id: '/number-1.out.val->/geojson-layer.par.getPointRadius',
+        source: '/number-1',
+        target: '/geojson-layer',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.getPointRadius',
+      },
+    ]
+
+    const result = serializeNodes(getOpStore(), nodes, edges)
+
+    // After connecting, getPointRadius is visible via heuristic (hasConnection)
+    // so visibleInputs should NOT be serialized (visibility matches heuristic)
+    expect(result[0].data).not.toHaveProperty('visibleInputs')
+  })
+
+  it('does not serialize visibleInputs when field becomes visible via connection', () => {
+    // This tests the scenario: user shows a field (no value), then connects it
+    // After connecting, visibleInputs should NOT be serialized because
+    // the field is now visible via heuristic (hasConnection)
+    const op = makeOp({ defaultField: 1 }, false, {
+      showByDefault: { defaultField: true, connectedField: false },
+    })
+    // Add the connectedField input (has showByDefault: false)
+    op.inputs.connectedField = { serialize: () => undefined, showByDefault: false }
+
+    // User showed connectedField (which has showByDefault: false)
+    op.visibleFields.value = new Set(['defaultField', 'connectedField'])
+    setOp('targetNode', op as any)
+
+    // Add source operator with locked = false
+    const sourceOp = makeOp({ val: 42 }, false)
+    setOp('sourceNode', sourceOp as any)
+
+    const nodes = [{ id: 'targetNode', type: 'basic', data: {}, position: { x: 0, y: 0 } }]
+    // Create edge connecting source to connectedField
+    const edges = [
+      {
+        id: 'edge1',
+        source: 'sourceNode',
+        target: 'targetNode',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.connectedField',
+      },
+    ]
+
+    const result = serializeNodes(getOpStore(), nodes, edges)
+
+    // Visibility matches heuristic:
+    // - defaultField: showByDefault=true → visible
+    // - connectedField: hasConnection=true → visible
+    // Since current visibility matches heuristic, visibleInputs should NOT be serialized
+    expect(result[0].data).not.toHaveProperty('visibleInputs')
+  })
+
+  it('does not serialize visibleInputs when field has both custom value and connection', () => {
+    const op = makeOp({ defaultField: 1, connectedField: 999 }, false, {
+      showByDefault: { defaultField: true, connectedField: false },
+      defaultValues: { connectedField: 0 },
+    })
+    // User showed connectedField
+    op.visibleFields.value = new Set(['defaultField', 'connectedField'])
+    setOp('targetNode', op as any)
+
+    // Add source operator
+    const sourceOp = makeOp({ val: 42 }, false)
+    setOp('sourceNode', sourceOp as any)
+
+    const nodes = [{ id: 'targetNode', type: 'basic', data: {}, position: { x: 0, y: 0 } }]
+    const edges = [
+      {
+        id: 'edge1',
+        source: 'sourceNode',
+        target: 'targetNode',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.connectedField',
+      },
+    ]
+
+    const result = serializeNodes(getOpStore(), nodes, edges)
+
+    // connectedField is connected (from unlocked source), so:
+    // 1. Its value should NOT be serialized (connection provides value)
+    // 2. It's visible via heuristic (hasConnection), so visibleInputs shouldn't be serialized
+    expect(result[0].data.inputs).not.toHaveProperty('connectedField')
+    expect(result[0].data).not.toHaveProperty('visibleInputs')
   })
 
   describe('clipboard copy (forClipboard: true)', () => {

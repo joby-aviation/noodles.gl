@@ -8,6 +8,7 @@ import { useContext, useEffect, useRef, useState } from 'react'
 
 import { SheetContext } from '../../utils/sheet-context'
 import { type Field, type IField, IN_NS, ListField, OUT_NS } from '../fields'
+import { parseHandleId } from '../utils/path-utils'
 import type { IOperator, Operator } from '../operators'
 import { OutOp } from '../operators'
 import { getOpStore } from '../store'
@@ -74,16 +75,29 @@ function hasNonDefaultValue(field: IField): boolean {
 }
 
 // Calculate what would change when resetting to defaults
-function getVisibilityChanges(op: Operator<IOperator>): { toHide: string[]; toShow: string[] } {
+// Connected fields are excluded from toHide because they'll remain visible via heuristic
+function getVisibilityChanges(
+  op: Operator<IOperator>,
+  edges: Edge[]
+): { toHide: string[]; toShow: string[] } {
   const currentVisible = op.visibleFields.value ?? getDefaultVisibleFields(op)
   const defaultVisible = getDefaultVisibleFields(op)
+
+  // Get connected field names for this operator
+  const connectedFields = new Set(
+    edges
+      .filter(e => e.target === op.id)
+      .map(e => parseHandleId(e.targetHandle)?.fieldName)
+      .filter((name): name is string => name !== undefined)
+  )
 
   const toHide: string[] = []
   const toShow: string[] = []
 
   // Fields currently visible but not in defaults → will be hidden
+  // EXCEPT connected fields, which will remain visible via heuristic
   for (const name of currentVisible) {
-    if (!defaultVisible.has(name)) {
+    if (!defaultVisible.has(name) && !connectedFields.has(name)) {
       toHide.push(name)
     }
   }
@@ -99,14 +113,24 @@ function getVisibilityChanges(op: Operator<IOperator>): { toHide: string[]; toSh
 }
 
 // Reset to default visibility (and reset all newly-hidden fields to defaults)
-function resetToDefaults(op: Operator<IOperator>) {
+// Connected fields remain visible via heuristic, so their values aren't reset
+function resetToDefaults(op: Operator<IOperator>, edges: Edge[]) {
   // Get current visible fields before reset
   const currentVisible = op.visibleFields.value ?? getDefaultVisibleFields(op)
   const defaultVisible = getDefaultVisibleFields(op)
 
+  // Get connected field names for this operator
+  const connectedFields = new Set(
+    edges
+      .filter(e => e.target === op.id)
+      .map(e => parseHandleId(e.targetHandle)?.fieldName)
+      .filter((name): name is string => name !== undefined)
+  )
+
   // Reset any fields that were visible but are now hidden by default
+  // Skip connected fields since they'll remain visible via heuristic
   for (const name of currentVisible) {
-    if (!defaultVisible.has(name)) {
+    if (!defaultVisible.has(name) && !connectedFields.has(name)) {
       const field = op.inputs[name]
       if (field?.defaultValue !== undefined) {
         field.setValue(field.defaultValue)
@@ -387,7 +411,7 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
   }
 
   const confirmResetToDefaults = () => {
-    resetToDefaults(op)
+    resetToDefaults(op, edges)
     if (sheet) {
       rebindOperatorToTheatre(op, sheet)
     }
@@ -465,11 +489,15 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
           <div className={s.sectionTitle}>Inputs</div>
           {Object.keys(op.inputs).length > 0 && (
             <div className={s.sectionActions}>
-              {isEditMode && op.visibleFields.value !== null && (
-                <button type="button" className={s.resetButton} onClick={handleResetToDefaults}>
-                  Reset
-                </button>
-              )}
+              {isEditMode && op.visibleFields.value !== null && (() => {
+                const { toHide, toShow } = getVisibilityChanges(op, edges)
+                const hasChanges = toHide.length > 0 || toShow.length > 0
+                return hasChanges ? (
+                  <button type="button" className={s.resetButton} onClick={handleResetToDefaults}>
+                    Reset
+                  </button>
+                ) : null
+              })()}
               <PencilIcon onClick={() => setIsEditMode(!isEditMode)} isActive={isEditMode} />
             </div>
           )}
@@ -662,7 +690,7 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
             </Dialog.Description>
 
             {(() => {
-              const { toHide, toShow } = getVisibilityChanges(op)
+              const { toHide, toShow } = getVisibilityChanges(op, edges)
               return (
                 <div className={s.dialogFieldLists}>
                   {toHide.length > 0 && (
