@@ -53,6 +53,15 @@ export async function readFileFromDirectory(
   return await file.text()
 }
 
+export async function readFileFromDirectoryBinary(
+  directoryHandle: FileSystemDirectoryHandle,
+  fileName: string
+): Promise<ArrayBuffer> {
+  const fileHandle = await directoryHandle.getFileHandle(fileName)
+  const file = await fileHandle.getFile()
+  return await file.arrayBuffer()
+}
+
 export async function writeFileToDirectory(
   directoryHandle: FileSystemDirectoryHandle,
   fileName: string,

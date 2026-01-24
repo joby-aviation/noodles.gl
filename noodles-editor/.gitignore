@@ -12,6 +12,7 @@
 
 # AI Chat context (generated)
 /public/context
+/public/app/context/
 
 # testing
 /coverage

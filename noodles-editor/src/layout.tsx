@@ -1,7 +1,7 @@
 import cx from 'classnames'
-import { type PropsWithChildren, useEffect, useRef, useState } from 'react'
-import { useUIStore } from './noodles/store'
+import { type PropsWithChildren, useEffect, useState } from 'react'
 import s from './layout.module.css'
+import { useUIStore } from './noodles/store'
 
 const TheatrePropPanel = ({ width, height }: { width: number; height: number }) => (
   <div style={{ width: `${width + 16}px`, height: `${height + 8}px` }} />
@@ -89,7 +89,7 @@ export function Layout({
       >
         <i className={sidebarVisible ? 'pi pi-chevron-left' : 'pi pi-chevron-right'} />
       </button>
-      <div style={{ gridArea: 'right-widget', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      <div className={s.rightWidgetWrapper}>
         <TheatrePropPanel width={propPanelWidth} height={propPanelHeight} />
         <div style={{ flex: 1, minHeight: 0 }}>{right}</div>
       </div>

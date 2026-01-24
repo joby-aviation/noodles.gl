@@ -1,5 +1,5 @@
 import { Temporal } from 'temporal-polyfill'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NumberField } from './fields'
 import {
   AccessorOp,
@@ -9,7 +9,9 @@ import {
   DeckRendererOp,
   DuckDbOp,
   ExpressionOp,
+  FileOp,
   FilterOp,
+  GeoJsonLayerOp,
   GeoJsonTransformOp,
   JSONOp,
   KmlToGeoJsonOp,
@@ -90,7 +92,7 @@ describe('Operator pathToProps', () => {
 })
 
 describe('Error handling', () => {
-  it('fails gracefully if execute throws an error', () => {
+  it('fails gracefully if execute throws an error', async () => {
     class TestOp extends Operator<TestOp> {
       static displayName = 'TestOp'
       static description = 'Test operator for error handling'
@@ -120,7 +122,8 @@ describe('Error handling', () => {
     expect(consoleWarn).not.toHaveBeenCalled()
     expect(operator.outputData).toEqual({})
 
-    operator.createListeners()
+    // In pull-based model, pull() triggers execution and handles errors
+    await expect(operator.pull()).rejects.toThrow('Test error')
 
     expect(execute).toHaveBeenCalledTimes(1)
     expect(onError).toHaveBeenCalledTimes(1)
@@ -131,15 +134,17 @@ describe('Error handling', () => {
       num: 0,
     })
     expect(onError.mock.calls[0][0]).toEqual(new Error('Test error'))
-    expect(consoleWarn.mock.calls[0][0]).toEqual('Failure in [/test-0 (TestOp)]:')
+    expect(consoleWarn.mock.calls[0][0]).toEqual('Pull execution failure in [/test-0 (TestOp)]:')
     expect(consoleWarn.mock.calls[0][1]).toEqual('Test error')
-    expect(consoleWarn.mock.calls[0][2]).toMatch(/TestOp.execute/)
 
-    // Test that operation will continue listening without the subscription closing
+    // Test that pull can be called again after error
     operator.inputs.num.setValue(1)
 
     expect(operator.inputs.num.value).toEqual(1)
     expect(operator.outputData).toEqual({})
+
+    await expect(operator.pull()).rejects.toThrow('Test error')
+
     expect(execute).toHaveBeenCalledTimes(2)
     expect(onError).toHaveBeenCalledTimes(2)
     expect(consoleWarn).toHaveBeenCalledTimes(2)
@@ -148,8 +153,74 @@ describe('Error handling', () => {
       num: 1,
     })
     expect(onError.mock.calls[1][0]).toEqual(new Error('Test error'))
-    expect(consoleWarn.mock.calls[1][0]).toEqual('Failure in [/test-0 (TestOp)]:')
+    expect(consoleWarn.mock.calls[1][0]).toEqual('Pull execution failure in [/test-0 (TestOp)]:')
     expect(consoleWarn.mock.calls[1][1]).toEqual('Test error')
+  })
+})
+
+describe('Connection error tracking', () => {
+  it('tracks connection errors on operators', () => {
+    const operator = new NumberOp('/num-0')
+
+    // Initially no connection errors
+    expect(operator.hasConnectionErrors()).toBe(false)
+    expect(operator.connectionErrors.value.size).toBe(0)
+
+    // Add a connection error
+    const edgeId = '/source.out.val->/num-0.par.val'
+    operator.addConnectionError(edgeId, 'Type mismatch: string cannot connect to number')
+
+    expect(operator.hasConnectionErrors()).toBe(true)
+    expect(operator.connectionErrors.value.get(edgeId)).toBe(
+      'Type mismatch: string cannot connect to number'
+    )
+    expect(operator.getConnectionErrorMessages()).toEqual([
+      'Type mismatch: string cannot connect to number',
+    ])
+
+    // Remove the connection error
+    operator.removeConnectionError(edgeId)
+
+    expect(operator.hasConnectionErrors()).toBe(false)
+    expect(operator.connectionErrors.value.size).toBe(0)
+  })
+
+  it('tracks multiple connection errors', () => {
+    const operator = new MergeOp('/merge-0')
+
+    operator.addConnectionError('edge1', 'Error 1')
+    operator.addConnectionError('edge2', 'Error 2')
+
+    expect(operator.hasConnectionErrors()).toBe(true)
+    expect(operator.connectionErrors.value.size).toBe(2)
+    expect(operator.getConnectionErrorMessages()).toContain('Error 1')
+    expect(operator.getConnectionErrorMessages()).toContain('Error 2')
+
+    // Remove one error
+    operator.removeConnectionError('edge1')
+
+    expect(operator.hasConnectionErrors()).toBe(true)
+    expect(operator.connectionErrors.value.size).toBe(1)
+    expect(operator.getConnectionErrorMessages()).toEqual(['Error 2'])
+  })
+
+  it('is reactive via BehaviorSubject', () => {
+    const operator = new NumberOp('/num-0')
+    const errors: Map<string, string>[] = []
+
+    const subscription = operator.connectionErrors.subscribe(e => errors.push(new Map(e)))
+
+    operator.addConnectionError('edge1', 'Error 1')
+    operator.addConnectionError('edge2', 'Error 2')
+    operator.removeConnectionError('edge1')
+
+    subscription.unsubscribe()
+
+    expect(errors.length).toBe(4) // Initial + 3 updates
+    expect(errors[0].size).toBe(0) // Initial empty state
+    expect(errors[1].size).toBe(1) // After adding edge1
+    expect(errors[2].size).toBe(2) // After adding edge2
+    expect(errors[3].size).toBe(1) // After removing edge1
   })
 })
 
@@ -292,6 +363,62 @@ describe('ExpressionOp', () => {
     })
     expect(val2).toEqual({ data: expect.any(Function) })
   })
+
+  it('throws SyntaxError for invalid expressions and logs warning', () => {
+    const operator = new ExpressionOp('/expression-syntax-error')
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    expect(() => {
+      operator.execute({
+        data: [],
+        expression: 'return }', // Invalid syntax
+      })
+    }).toThrow(SyntaxError)
+
+    // Verify the warning was logged with helpful formatting
+    expect(warnSpy).toHaveBeenCalledTimes(1)
+    expect(warnSpy.mock.calls[0][0]).toContain('Syntax error')
+    expect(warnSpy.mock.calls[0][0]).toContain('/expression-syntax-error')
+
+    warnSpy.mockRestore()
+  })
+
+  describe('friendly error messages', () => {
+    const testCases = [
+      { expression: '[1, 2', expectedMessage: "Missing 1 closing ']'" },
+      { expression: 'foo(', expectedMessage: "Missing 1 closing ')'" },
+      { expression: '{a: 1', expectedMessage: "Missing 1 closing '}'" },
+      { expression: '[[1, 2]', expectedMessage: "Missing 1 closing ']'" },
+      {
+        expression: 'd +',
+        expectedMessage: 'Expression incomplete - missing value after operator',
+      },
+      {
+        expression: 'd.',
+        expectedMessage: 'Expression incomplete - missing property name after "."',
+      },
+      // Note: trailing comma with unclosed bracket reports the bracket issue (more important)
+      { expression: '[1, 2,', expectedMessage: "Missing 1 closing ']'" },
+    ]
+
+    testCases.forEach(({ expression, expectedMessage }) => {
+      it(`shows "${expectedMessage}" for "${expression}"`, () => {
+        const operator = new ExpressionOp('/test-expr')
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+        // Verify the thrown error has the friendly message
+        expect(() => {
+          operator.execute({ data: [], expression })
+        }).toThrow(expectedMessage)
+
+        // Verify console.warn also has the friendly message
+        expect(warnSpy).toHaveBeenCalledTimes(1)
+        expect(warnSpy.mock.calls[0][0]).toContain(expectedMessage)
+
+        warnSpy.mockRestore()
+      })
+    })
+  })
 })
 
 describe('AccessorOp', () => {
@@ -416,7 +543,7 @@ describe('DuckDbOp', () => {
     const ddb = new DuckDbOp('/duckdb-0', {}, false)
     const val = await ddb.execute({ query: 'SELECT {{num-0.par.val}}' })
 
-    // Wait for `mergeMap` in `createListeners` to run
+    // Wait for async operations to complete
     await Promise.resolve()
     expect(val).toEqual({ data: [expect.objectContaining({ $1: 1 })] })
   })
@@ -1059,7 +1186,6 @@ describe('Viral Accessor Tests', () => {
   describe('MathOp', () => {
     it('should handle static values', () => {
       const op = new MathOp('test-math-1')
-      op.createListeners()
 
       const result = op.execute({ operator: 'add', a: 5, b: 3 })
 
@@ -1069,55 +1195,54 @@ describe('Viral Accessor Tests', () => {
 
     it('should handle accessor function for a', () => {
       const op = new MathOp('test-math-2')
-      op.createListeners()
 
       const accessor = (d: { value: number }) => d.value
       const result = op.execute({ operator: 'add', a: accessor, b: 10 })
 
       expect(isAccessor(result.result)).toBe(true)
-      expect((result.result as Function)({ value: 5 })).toBe(15)
+      expect((result.result as unknown as (d: { value: number }) => number)({ value: 5 })).toBe(15)
     })
 
     it('should handle accessor function for b', () => {
       const op = new MathOp('test-math-3')
-      op.createListeners()
 
       const accessor = (d: { value: number }) => d.value
       const result = op.execute({ operator: 'multiply', a: 3, b: accessor })
 
       expect(isAccessor(result.result)).toBe(true)
-      expect((result.result as Function)({ value: 4 })).toBe(12)
+      expect((result.result as unknown as (d: { value: number }) => number)({ value: 4 })).toBe(12)
     })
 
     it('should handle accessor functions for both a and b', () => {
       const op = new MathOp('test-math-4')
-      op.createListeners()
 
       const accessorA = (d: { x: number }) => d.x
       const accessorB = (d: { y: number }) => d.y
       const result = op.execute({ operator: 'subtract', a: accessorA, b: accessorB })
 
       expect(isAccessor(result.result)).toBe(true)
-      expect((result.result as Function)({ x: 10, y: 3 })).toBe(7)
+      expect(
+        (result.result as unknown as (d: { x: number; y: number }) => number)({ x: 10, y: 3 })
+      ).toBe(7)
     })
 
     it('should handle unary operations with accessor', () => {
       const op = new MathOp('test-math-5')
-      op.createListeners()
 
       const accessor = (d: { angle: number }) => d.angle
       const result = op.execute({ operator: 'sine', a: accessor, b: 0 })
 
       expect(isAccessor(result.result)).toBe(true)
-      expect((result.result as Function)({ angle: 0 })).toBe(0)
-      expect((result.result as Function)({ angle: Math.PI / 2 })).toBeCloseTo(1, 5)
+      expect((result.result as unknown as (d: { angle: number }) => number)({ angle: 0 })).toBe(0)
+      expect(
+        (result.result as unknown as (d: { angle: number }) => number)({ angle: Math.PI / 2 })
+      ).toBeCloseTo(1, 5)
     })
   })
 
   describe('ExpressionOp', () => {
     it('should handle static values', () => {
       const op = new ExpressionOp('test-expr-1')
-      op.createListeners()
 
       const result = op.execute({ data: [10, 20, 30], expression: 'd * 2' })
 
@@ -1127,18 +1252,16 @@ describe('Viral Accessor Tests', () => {
 
     it('should handle accessor function in data', () => {
       const op = new ExpressionOp('test-expr-2')
-      op.createListeners()
 
       const accessor = (d: { count: number }) => d.count
       const result = op.execute({ data: [accessor, 10], expression: 'd + 5' })
 
       expect(isAccessor(result.data)).toBe(true)
-      expect((result.data as Function)({ count: 15 })).toBe(20)
+      expect((result.data as unknown as (d: { count: number }) => number)({ count: 15 })).toBe(20)
     })
 
     it('should handle multiple accessor functions in data', () => {
       const op = new ExpressionOp('test-expr-3')
-      op.createListeners()
 
       const accessor1 = (d: { x: number }) => d.x
       const accessor2 = (d: { y: number }) => d.y
@@ -1148,12 +1271,13 @@ describe('Viral Accessor Tests', () => {
       })
 
       expect(isAccessor(result.data)).toBe(true)
-      expect((result.data as Function)({ x: 5, y: 10 })).toBe(15)
+      expect(
+        (result.data as unknown as (d: { x: number; y: number }) => number)({ x: 5, y: 10 })
+      ).toBe(15)
     })
 
     it('should handle mixed static and accessor values', () => {
       const op = new ExpressionOp('test-expr-4')
-      op.createListeners()
 
       const accessor = (d: { value: number }) => d.value
       const result = op.execute({
@@ -1162,14 +1286,13 @@ describe('Viral Accessor Tests', () => {
       })
 
       expect(isAccessor(result.data)).toBe(true)
-      expect((result.data as Function)({ value: 10 })).toBe(20)
+      expect((result.data as unknown as (d: { value: number }) => number)({ value: 10 })).toBe(20)
     })
   })
 
   describe('ConcatOp', () => {
     it('should handle static arrays', () => {
       const op = new ConcatOp('test-concat-1')
-      op.createListeners()
 
       const result = op.execute({
         values: [
@@ -1185,37 +1308,41 @@ describe('Viral Accessor Tests', () => {
 
     it('should handle accessor function in values', () => {
       const op = new ConcatOp('test-concat-2')
-      op.createListeners()
 
       const accessor = (d: { items: number[] }) => d.items
       const result = op.execute({ values: [accessor, [7, 8]], depth: 1 })
 
       expect(isAccessor(result.data)).toBe(true)
-      expect((result.data as Function)({ items: [5, 6] })).toEqual([5, 6, 7, 8])
+      expect(
+        (result.data as unknown as (d: { items: number[] }) => number[])({ items: [5, 6] })
+      ).toEqual([5, 6, 7, 8])
     })
 
     it('should handle multiple accessor functions in values', () => {
       const op = new ConcatOp('test-concat-3')
-      op.createListeners()
 
       const accessor1 = (d: { first: number[] }) => d.first
       const accessor2 = (d: { second: number[] }) => d.second
       const result = op.execute({ values: [accessor1, accessor2], depth: 1 })
 
       expect(isAccessor(result.data)).toBe(true)
-      expect((result.data as Function)({ first: [1, 2], second: [3, 4] })).toEqual([1, 2, 3, 4])
+      expect(
+        (result.data as unknown as (d: { first: number[]; second: number[] }) => number[])({
+          first: [1, 2],
+          second: [3, 4],
+        })
+      ).toEqual([1, 2, 3, 4])
     })
 
     it('should handle depth parameter with accessors', () => {
       const op = new ConcatOp('test-concat-4')
-      op.createListeners()
 
       const accessor = (d: { nested: number[][] }) => d.nested
       const result = op.execute({ values: [accessor, [[7, 8]]], depth: 2 })
 
       expect(isAccessor(result.data)).toBe(true)
       expect(
-        (result.data as Function)({
+        (result.data as unknown as (d: { nested: number[][] }) => number[])({
           nested: [
             [1, 2],
             [3, 4],
@@ -1226,26 +1353,25 @@ describe('Viral Accessor Tests', () => {
 
     it('should handle mixed static and accessor values', () => {
       const op = new ConcatOp('test-concat-5')
-      op.createListeners()
 
       const accessor = (d: { dynamic: number[] }) => d.dynamic
       const result = op.execute({ values: [[1, 2], accessor, [5, 6]], depth: 1 })
 
       expect(isAccessor(result.data)).toBe(true)
-      expect((result.data as Function)({ dynamic: [3, 4] })).toEqual([1, 2, 3, 4, 5, 6])
+      expect(
+        (result.data as unknown as (d: { dynamic: number[] }) => number[])({ dynamic: [3, 4] })
+      ).toEqual([1, 2, 3, 4, 5, 6])
     })
   })
 
   describe('Chained Viral Accessors', () => {
     it('should chain MathOp with ExpressionOp', () => {
       const mathOp = new MathOp('test-chain-1')
-      mathOp.createListeners()
 
       const accessor = (d: { price: number }) => d.price
       const mathResult = mathOp.execute({ operator: 'multiply', a: accessor, b: 1.1 })
 
       const exprOp = new ExpressionOp('test-chain-2')
-      exprOp.createListeners()
 
       const exprResult = exprOp.execute({
         data: [mathResult.result],
@@ -1253,7 +1379,9 @@ describe('Viral Accessor Tests', () => {
       })
 
       expect(isAccessor(exprResult.data)).toBe(true)
-      expect((exprResult.data as Function)({ price: 100 })).toBe(110)
+      expect((exprResult.data as unknown as (d: { price: number }) => number)({ price: 100 })).toBe(
+        110
+      )
     })
 
     it('should chain accessor functions through ConcatOp', () => {
@@ -1261,7 +1389,6 @@ describe('Viral Accessor Tests', () => {
       const accessor2 = (d: { y: number }) => [d.y * 2]
 
       const concatOp = new ConcatOp('test-chain-5')
-      concatOp.createListeners()
 
       const concatResult = concatOp.execute({
         values: [accessor1, accessor2],
@@ -1269,14 +1396,15 @@ describe('Viral Accessor Tests', () => {
       })
 
       expect(isAccessor(concatResult.data)).toBe(true)
-      expect((concatResult.data as Function)({ x: 5, y: 10 })).toEqual([5, 6, 20])
+      expect(
+        (concatResult.data as unknown as (d: { x: number; y: number }) => number[])({ x: 5, y: 10 })
+      ).toEqual([5, 6, 20])
     })
   })
 
   describe('MergeOp', () => {
     it('should handle static objects', () => {
       const op = new MergeOp('test-merge-1')
-      op.createListeners()
 
       const result = op.execute({ objects: [{ a: 1 }, { b: 2 }] })
 
@@ -1286,49 +1414,61 @@ describe('Viral Accessor Tests', () => {
 
     it('should handle accessor function in objects', () => {
       const op = new MergeOp('test-merge-2')
-      op.createListeners()
 
       const accessor = (d: { x: number }) => ({ a: d.x })
       const result = op.execute({ objects: [accessor, { b: 2 }] })
 
       expect(isAccessor(result.object)).toBe(true)
-      expect((result.object as Function)({ x: 5 })).toEqual({ a: 5, b: 2 })
+      expect(
+        (result.object as unknown as (d: { x: number }) => Record<string, number>)({ x: 5 })
+      ).toEqual({ a: 5, b: 2 })
     })
 
     it('should handle multiple accessor functions in objects', () => {
       const op = new MergeOp('test-merge-3')
-      op.createListeners()
 
       const accessor1 = (d: { x: number }) => ({ a: d.x })
       const accessor2 = (d: { y: number }) => ({ b: d.y })
       const result = op.execute({ objects: [accessor1, accessor2] })
 
       expect(isAccessor(result.object)).toBe(true)
-      expect((result.object as Function)({ x: 5, y: 10 })).toEqual({ a: 5, b: 10 })
+      expect(
+        (result.object as unknown as (d: { x: number; y: number }) => Record<string, number>)({
+          x: 5,
+          y: 10,
+        })
+      ).toEqual({ a: 5, b: 10 })
     })
 
     it('should handle overlapping properties with accessors', () => {
       const op = new MergeOp('test-merge-4')
-      op.createListeners()
 
       const accessor = (d: { value: number }) => ({ a: d.value })
       const result = op.execute({ objects: [{ a: 1, b: 2 }, accessor] })
 
       expect(isAccessor(result.object)).toBe(true)
       // Later objects override earlier ones (Object.assign behavior)
-      expect((result.object as Function)({ value: 10 })).toEqual({ a: 10, b: 2 })
+      expect(
+        (result.object as unknown as (d: { value: number }) => Record<string, number>)({
+          value: 10,
+        })
+      ).toEqual({ a: 10, b: 2 })
     })
 
     it('should handle mixed static and accessor values', () => {
       const op = new MergeOp('test-merge-5')
-      op.createListeners()
 
       const accessor1 = (d: { x: number }) => ({ x: d.x })
       const accessor2 = (d: { y: number }) => ({ y: d.y })
       const result = op.execute({ objects: [accessor1, { z: 3 }, accessor2] })
 
       expect(isAccessor(result.object)).toBe(true)
-      expect((result.object as Function)({ x: 1, y: 2 })).toEqual({ x: 1, z: 3, y: 2 })
+      expect(
+        (result.object as unknown as (d: { x: number; y: number }) => Record<string, number>)({
+          x: 1,
+          y: 2,
+        })
+      ).toEqual({ x: 1, z: 3, y: 2 })
     })
   })
 })
@@ -1621,5 +1761,365 @@ describe('KmlToGeoJsonOp', () => {
     expect(result.geojson.features).toHaveLength(1)
     expect(result.geojson.features[0].geometry.type).toBe('Point')
     expect(result.geojson.features[0].properties?.name).toBe('Test Point')
+  })
+})
+
+describe('FileOp', () => {
+  // Mock fetch for testing
+  const originalFetch = global.fetch
+  beforeEach(() => {
+    vi.resetAllMocks()
+  })
+
+  afterEach(() => {
+    global.fetch = originalFetch
+  })
+
+  describe('JSON format', () => {
+    it('should parse JSON from text input', async () => {
+      const operator = new FileOp('/file-0')
+      const testData = { test: 'data', value: 123 }
+      const result = await operator.execute({
+        format: 'json',
+        url: '',
+        text: JSON.stringify(testData),
+        autoType: true,
+        pulse: 0,
+      })
+      expect(result.data).toEqual(testData)
+    })
+
+    it('should fetch and parse JSON from URL', async () => {
+      const operator = new FileOp('/file-1')
+      const testData = { test: 'remote', value: 456 }
+      global.fetch = vi.fn().mockResolvedValue({
+        json: () => Promise.resolve(testData),
+      })
+
+      const result = await operator.execute({
+        format: 'json',
+        url: 'https://example.com/data.json',
+        text: '',
+        autoType: true,
+        pulse: 0,
+      })
+      expect(result.data).toEqual(testData)
+      expect(global.fetch).toHaveBeenCalledWith('https://example.com/data.json')
+    })
+
+    it('should throw error for invalid JSON', async () => {
+      const operator = new FileOp('/file-2')
+      await expect(
+        operator.execute({
+          format: 'json',
+          url: '',
+          text: 'invalid json',
+          autoType: true,
+          pulse: 0,
+        })
+      ).rejects.toThrow()
+    })
+  })
+
+  describe('CSV format', () => {
+    it('should parse CSV from text input', async () => {
+      const operator = new FileOp('/file-3')
+      const csvText = 'name,value\nJohn,30\nJane,25'
+      const result = await operator.execute({
+        format: 'csv',
+        url: '',
+        text: csvText,
+        autoType: true,
+        pulse: 0,
+      })
+      // DSVRowArray is an array with extra properties, check the actual content
+      expect(result.data).toHaveLength(2)
+      expect(result.data[0]).toEqual({ name: 'John', value: 30 })
+      expect(result.data[1]).toEqual({ name: 'Jane', value: 25 })
+    })
+
+    it('should parse CSV without autoType', async () => {
+      const operator = new FileOp('/file-4')
+      const csvText = 'name,value\nJohn,30\nJane,25'
+      const result = await operator.execute({
+        format: 'csv',
+        url: '',
+        text: csvText,
+        autoType: false,
+        pulse: 0,
+      })
+      // DSVRowArray is an array with extra properties, check the actual content
+      expect(result.data).toHaveLength(2)
+      expect(result.data[0]).toEqual({ name: 'John', value: '30' })
+      expect(result.data[1]).toEqual({ name: 'Jane', value: '25' })
+    })
+  })
+
+  describe('Text format', () => {
+    it('should return text from text input', async () => {
+      const operator = new FileOp('/file-5')
+      const textContent = 'This is plain text content\nwith multiple lines'
+      const result = await operator.execute({
+        format: 'text',
+        url: '',
+        text: textContent,
+        autoType: true,
+        pulse: 0,
+      })
+      expect(result.data).toEqual(textContent)
+    })
+
+    it('should fetch text from URL', async () => {
+      const operator = new FileOp('/file-6')
+      const textContent = 'Remote text content'
+      global.fetch = vi.fn().mockResolvedValue({
+        text: () => Promise.resolve(textContent),
+      })
+
+      const result = await operator.execute({
+        format: 'text',
+        url: 'https://example.com/file.txt',
+        text: '',
+        autoType: true,
+        pulse: 0,
+      })
+      expect(result.data).toEqual(textContent)
+      expect(global.fetch).toHaveBeenCalledWith('https://example.com/file.txt')
+    })
+
+    it('should return empty string when no input provided', async () => {
+      const operator = new FileOp('/file-7')
+      const result = await operator.execute({
+        format: 'text',
+        url: '',
+        text: '',
+        autoType: true,
+        pulse: 0,
+      })
+      expect(result.data).toEqual('')
+    })
+  })
+
+  describe('Binary format', () => {
+    it('should convert text input to Uint8Array', async () => {
+      const operator = new FileOp('/file-8')
+      const textContent = 'Binary data as text'
+      const result = await operator.execute({
+        format: 'binary',
+        url: '',
+        text: textContent,
+        autoType: true,
+        pulse: 0,
+      })
+
+      // Result should be a Uint8Array
+      expect(result.data).toBeInstanceOf(Uint8Array)
+
+      // Convert back to string to verify
+      const decoder = new TextDecoder()
+      expect(decoder.decode(result.data as Uint8Array)).toEqual(textContent)
+    })
+
+    it('should fetch binary data from URL', async () => {
+      const operator = new FileOp('/file-9')
+      const binaryData = new ArrayBuffer(8)
+      const view = new Uint8Array(binaryData)
+      view.set([1, 2, 3, 4, 5, 6, 7, 8])
+
+      global.fetch = vi.fn().mockResolvedValue({
+        arrayBuffer: () => Promise.resolve(binaryData),
+      })
+
+      const result = await operator.execute({
+        format: 'binary',
+        url: 'https://example.com/file.bin',
+        text: '',
+        autoType: true,
+        pulse: 0,
+      })
+
+      expect(result.data).toEqual(binaryData)
+      expect(global.fetch).toHaveBeenCalledWith('https://example.com/file.bin')
+    })
+
+    it('should return empty Uint8Array when no input provided', async () => {
+      const operator = new FileOp('/file-10')
+      const result = await operator.execute({
+        format: 'binary',
+        url: '',
+        text: '',
+        autoType: true,
+        pulse: 0,
+      })
+
+      expect(result.data).toBeInstanceOf(Uint8Array)
+      expect((result.data as Uint8Array).length).toEqual(0)
+    })
+
+    it('should handle UTF-8 encoded text in binary format', async () => {
+      const operator = new FileOp('/file-11')
+      const textWithEmoji = 'Hello 👋 World'
+      const result = await operator.execute({
+        format: 'binary',
+        url: '',
+        text: textWithEmoji,
+        autoType: true,
+        pulse: 0,
+      })
+
+      expect(result.data).toBeInstanceOf(Uint8Array)
+
+      // Decode and verify
+      const decoder = new TextDecoder()
+      expect(decoder.decode(result.data as Uint8Array)).toEqual(textWithEmoji)
+    })
+  })
+
+  describe('Error handling', () => {
+    it('should throw error with descriptive message on fetch failure', async () => {
+      const operator = new FileOp('/file-12')
+      global.fetch = vi.fn().mockRejectedValue(new Error('Network error'))
+
+      await expect(
+        operator.execute({
+          format: 'json',
+          url: 'https://example.com/data.json',
+          text: '',
+          autoType: true,
+          pulse: 0,
+        })
+      ).rejects.toThrow('Unable to read file "https://example.com/data.json": Network error')
+    })
+
+    it('should throw error for unsupported format', async () => {
+      const operator = new FileOp('/file-13')
+      await expect(
+        operator.execute({
+          format: 'unsupported' as any,
+          url: '',
+          text: 'test',
+          autoType: true,
+          pulse: 0,
+        })
+      ).rejects.toThrow('Unsupported format: unsupported')
+    })
+  })
+})
+
+describe('Operator field visibility', () => {
+  describe('isFieldVisible', () => {
+    it('returns true by default when visibleFields.value is null', () => {
+      const op = new NumberOp('/num-0')
+      expect(op.visibleFields.value).toBe(null)
+      expect(op.isFieldVisible('val')).toBe(true)
+    })
+
+    it('returns field.showByDefault when visibleFields.value is null', () => {
+      const op = new GeoJsonLayerOp('/geojson-0')
+      expect(op.visibleFields.value).toBe(null)
+      // Core fields should be visible by default
+      expect(op.isFieldVisible('data')).toBe(true)
+      expect(op.isFieldVisible('visible')).toBe(true)
+      // Hidden by default fields
+      expect(op.isFieldVisible('extruded')).toBe(false)
+      expect(op.isFieldVisible('extensions')).toBe(false)
+    })
+
+    it('returns true for fields in visibleFields set', () => {
+      const op = new GeoJsonLayerOp('/geojson-0')
+      op.visibleFields.next(new Set(['data', 'visible', 'extruded']))
+      expect(op.isFieldVisible('data')).toBe(true)
+      expect(op.isFieldVisible('visible')).toBe(true)
+      expect(op.isFieldVisible('extruded')).toBe(true)
+      expect(op.isFieldVisible('opacity')).toBe(false)
+    })
+
+    it('returns true for unknown fields when visibleFields.value is null', () => {
+      const op = new NumberOp('/num-0')
+      expect(op.isFieldVisible('nonexistent')).toBe(true)
+    })
+  })
+
+  describe('visibleFields BehaviorSubject', () => {
+    it('starts with null value', () => {
+      const op = new NumberOp('/num-0')
+      expect(op.visibleFields.value).toBe(null)
+    })
+
+    it('can be updated to a Set of field names via next()', () => {
+      const op = new GeoJsonLayerOp('/geojson-0')
+      op.visibleFields.next(new Set(['data', 'visible']))
+      expect(op.visibleFields.value).toBeInstanceOf(Set)
+      expect(op.visibleFields.value!.size).toBe(2)
+      expect(op.visibleFields.value!.has('data')).toBe(true)
+      expect(op.visibleFields.value!.has('visible')).toBe(true)
+    })
+
+    it('can be reset to null via next()', () => {
+      const op = new GeoJsonLayerOp('/geojson-0')
+      op.visibleFields.next(new Set(['data', 'visible']))
+      op.visibleFields.next(null)
+      expect(op.visibleFields.value).toBe(null)
+    })
+
+    it('notifies subscribers when value changes', () => {
+      const op = new GeoJsonLayerOp('/geojson-0')
+      const values: (Set<string> | null)[] = []
+      const subscription = op.visibleFields.subscribe(v => values.push(v))
+
+      op.visibleFields.next(new Set(['data']))
+      op.visibleFields.next(new Set(['data', 'visible']))
+      op.visibleFields.next(null)
+
+      subscription.unsubscribe()
+
+      expect(values).toHaveLength(4) // Initial null + 3 updates
+      expect(values[0]).toBe(null)
+      expect(values[1]!.has('data')).toBe(true)
+      expect(values[2]!.has('visible')).toBe(true)
+      expect(values[3]).toBe(null)
+    })
+  })
+
+  describe('showField method', () => {
+    it('shows a hidden field and preserves existing visible fields', () => {
+      const op = new GeoJsonLayerOp('/geojson-0')
+      // Initially visibleFields is null (using showByDefault defaults)
+      expect(op.visibleFields.value).toBe(null)
+
+      // 'pointType' has showByDefault: false
+      expect(op.inputs.pointType.showByDefault).toBe(false)
+      expect(op.isFieldVisible('pointType')).toBe(false)
+
+      // Show the field
+      op.showField('pointType')
+
+      // Now visibleFields should be set with defaults + pointType
+      expect(op.visibleFields.value).toBeInstanceOf(Set)
+      expect(op.visibleFields.value!.has('pointType')).toBe(true)
+      expect(op.isFieldVisible('pointType')).toBe(true)
+      // Existing showByDefault fields should still be visible
+      expect(op.visibleFields.value!.has('data')).toBe(true)
+
+      // Show another hidden field - should preserve all existing visible fields
+      op.showField('getText')
+
+      // Should have all previously visible fields plus the new one
+      expect(op.visibleFields.value!.has('data')).toBe(true)
+      expect(op.visibleFields.value!.has('pointType')).toBe(true)
+      expect(op.visibleFields.value!.has('getText')).toBe(true)
+    })
+
+    it('does nothing if field is already visible', () => {
+      const op = new GeoJsonLayerOp('/geojson-0')
+      // 'data' has showByDefault: true, so it's already visible
+      expect(op.isFieldVisible('data')).toBe(true)
+
+      // showField should not create a new Set if field is already visible via defaults
+      op.showField('data')
+
+      // visibleFields stays null since no change was needed
+      expect(op.visibleFields.value).toBe(null)
+    })
   })
 })

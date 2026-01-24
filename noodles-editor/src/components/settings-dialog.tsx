@@ -109,6 +109,7 @@ const KeyGroup = ({
 
 export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
   const [analyticsEnabled, setAnalyticsEnabled] = useState(false)
+  const [errorCaptureEnabled, setErrorCaptureEnabled] = useState(true)
 
   // Store subscriptions
   const browserKeys = useKeysStore(state => state.browserKeys)
@@ -121,11 +122,12 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
   // Environment keys (static)
   const envKeys = getEnvKeys()
 
-  // Sync analytics setting when dialog opens
+  // Sync analytics settings when dialog opens
   useEffect(() => {
     if (open) {
       const consent = analytics.getConsent()
       setAnalyticsEnabled(consent?.enabled ?? false)
+      setErrorCaptureEnabled(analytics.getErrorCaptureEnabled())
     }
   }, [open])
 
@@ -135,6 +137,15 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
 
     if (enabled) {
       analytics.track('analytics_enabled_in_settings')
+    }
+  }
+
+  const handleErrorCaptureToggle = (enabled: boolean) => {
+    setErrorCaptureEnabled(enabled)
+    analytics.setErrorCaptureConsent(enabled)
+
+    if (enabled) {
+      analytics.track('error_capture_enabled_in_settings')
     }
   }
 
@@ -170,6 +181,24 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                   <div className={s.settingDescription}>
                     Help improve Noodles.gl by sharing anonymous feature usage data. We never
                     collect your project data, node content, API keys, or personal information.
+                  </div>
+                </div>
+              </label>
+            </div>
+
+            <div className={s.settingItem}>
+              <label className={s.settingLabel}>
+                <input
+                  type="checkbox"
+                  checked={errorCaptureEnabled}
+                  onChange={e => handleErrorCaptureToggle(e.target.checked)}
+                  className={s.checkbox}
+                />
+                <div className={s.settingContent}>
+                  <div className={s.settingName}>Send error reports (recommended)</div>
+                  <div className={s.settingDescription}>
+                    Automatically send error reports when something goes wrong. This helps us
+                    identify and fix bugs. No personal data is included in error reports.
                   </div>
                 </div>
               </label>

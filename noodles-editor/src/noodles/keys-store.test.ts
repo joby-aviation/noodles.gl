@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  type KeysConfig,
   getEnvKeys,
   getKeysForProject,
   getKeysStore,
+  type KeysConfig,
   useKeysStore,
 } from './keys-store'
 
@@ -381,4 +381,3 @@ describe('getKeysForProject', () => {
     expect(getKeysForProject()).toEqual({})
   })
 })
-

@@ -1,4 +1,9 @@
 import Anthropic from '@anthropic-ai/sdk'
+import {
+  compactConversation,
+  estimateConversationTokens,
+  shouldCompact,
+} from './conversation-compaction'
 import type { MCPTools } from './mcp-tools'
 import systemPromptTemplate from './system-prompt.md?raw'
 import type {
@@ -9,12 +14,16 @@ import type {
   ToolCall,
   ToolResult,
 } from './types'
+import { parseModifications } from './types'
 
 export class ClaudeClient {
   // Configuration constants
   private static readonly MODEL = 'claude-sonnet-4-5-20250929'
   private static readonly MAX_TOKENS = 8192
-  private static readonly MAX_CONVERSATION_HISTORY = 4 // Keep only last 2 exchanges (4 messages) to prevent token overflow
+  // Increased from 4 to 10 since we now support compaction for longer conversations
+  private static readonly MAX_CONVERSATION_HISTORY = 10
+  // Token threshold for triggering compaction (~50k tokens leaves room for response)
+  private static readonly COMPACTION_THRESHOLD = 50000
 
   private client: Anthropic
   private tools: MCPTools
@@ -63,8 +72,29 @@ export class ClaudeClient {
   }): Promise<ClaudeResponse> {
     const { message, conversationHistory = [] } = params
 
-    // Limit conversation history to prevent token overflow
-    const limitedHistory = conversationHistory.slice(-ClaudeClient.MAX_CONVERSATION_HISTORY)
+    // Limit conversation history
+    let limitedHistory = conversationHistory.slice(-ClaudeClient.MAX_CONVERSATION_HISTORY)
+
+    // Check if compaction is needed for long conversations
+    if (shouldCompact(limitedHistory, ClaudeClient.COMPACTION_THRESHOLD)) {
+      console.log(
+        '[Claude] Conversation history exceeds threshold, compacting...',
+        `(~${estimateConversationTokens(limitedHistory)} tokens)`
+      )
+      try {
+        limitedHistory = await compactConversation(
+          this.client,
+          limitedHistory,
+          ClaudeClient.MODEL,
+          2 // Keep last 2 exchanges intact
+        )
+        console.log('[Claude] Compaction complete, new history length:', limitedHistory.length)
+      } catch (error) {
+        console.error('[Claude] Compaction failed, using truncated history:', error)
+        // Fallback to more aggressive truncation
+        limitedHistory = conversationHistory.slice(-4)
+      }
+    }
 
     // Auto-capture is disabled by default - too large for context
     // AI should explicitly use capture_visualization tool when needed
@@ -485,20 +515,23 @@ export class ClaudeClient {
       try {
         const json = JSON.parse(match[1])
         console.log('[Claude] Parsed JSON block:', json)
-        if (json.modifications && Array.isArray(json.modifications)) {
+
+        // Use Zod schema for type-safe validation
+        const modifications = parseModifications(json)
+        if (modifications && modifications.length > 0) {
           console.log(
-            '[Claude] Found modifications array with',
-            json.modifications.length,
+            '[Claude] Validated modifications array with',
+            modifications.length,
             'modifications'
           )
-          return json.modifications
+          return modifications
         }
       } catch (e) {
         console.warn('[Claude] Failed to parse JSON block:', e)
       }
     }
 
-    console.log('[Claude] No modifications found in response')
+    console.log('[Claude] No valid modifications found in response')
     return []
   }
 }

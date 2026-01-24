@@ -1,13 +1,11 @@
-/**
- * Tests for the ExamplesPage component
- *
- * Note: The ExamplesPage uses Vite's import.meta.glob() which is a compile-time feature
- * that can't be easily mocked at runtime. Therefore, these tests focus on:
- * 1. The description extraction logic (unit tests)
- * 2. Smoke test that the page renders with real examples
- *
- * Full integration testing of project discovery should be done in E2E tests.
- */
+// Tests for the ExamplesPage component
+//
+// Note: The ExamplesPage uses Vite's import.meta.glob() which is a compile-time feature
+// that can't be easily mocked at runtime. Therefore, these tests focus on:
+// 1. The description extraction logic (unit tests)
+// 2. Smoke test that the page renders with real examples
+//
+// Full integration testing of project discovery should be done in E2E tests.
 
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'

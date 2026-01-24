@@ -1,5 +1,5 @@
 import type { ISheetObject } from '@theatre/core'
-import type { Node as ReactFlowNode, Edge as ReactFlowEdge } from '@xyflow/react'
+import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react'
 import { create } from 'zustand'
 import type { IOperator, Operator } from './operators'
 // only import types from noodles to avoid circular dependencies
@@ -97,18 +97,32 @@ export const useOperatorStore = create<OperatorStoreState>((set, get) => ({
 // UI Store (Zustand) - Separate slice for UI state
 // ============================================================================
 
+interface ConnectionDragState {
+  sourceNodeId: string
+  sourceHandleId: string
+  compatibleNodeIds: Set<string>
+}
+
 interface UIStoreState {
   hoveredOutputHandle: { nodeId: string; handleId: string } | null
   setHoveredOutputHandle: (handle: { nodeId: string; handleId: string } | null) => void
+  connectionDragState: ConnectionDragState | null
+  setConnectionDragState: (state: ConnectionDragState | null) => void
   sidebarVisible: boolean
   setSidebarVisible: (visible: boolean) => void
+  settingsDialogOpen: boolean
+  setSettingsDialogOpen: (open: boolean) => void
 }
 
 export const useUIStore = create<UIStoreState>(set => ({
   hoveredOutputHandle: null,
   setHoveredOutputHandle: handle => set({ hoveredOutputHandle: handle }),
+  connectionDragState: null,
+  setConnectionDragState: state => set({ connectionDragState: state }),
   sidebarVisible: true,
   setSidebarVisible: visible => set({ sidebarVisible: visible }),
+  settingsDialogOpen: false,
+  setSettingsDialogOpen: open => set({ settingsDialogOpen: open }),
 }))
 
 // ============================================================================
@@ -124,6 +138,25 @@ export const useEdgeStore = create<EdgeStoreState>(set => ({
   edges: [],
   setEdges: edges => set({ edges }),
 }))
+
+// ============================================================================
+// Active OutOp Store (Zustand) - Tracks which OutOp is the "active" one
+// Similar to Blender's active camera concept - sticky selection independent
+// of node selection that drives render settings
+// ============================================================================
+
+interface ActiveOutOpState {
+  activeOutOpId: string | null
+  setActiveOutOpId: (id: string | null) => void
+}
+
+export const useActiveOutOpStore = create<ActiveOutOpState>(set => ({
+  activeOutOpId: null,
+  setActiveOutOpId: id => set({ activeOutOpId: id }),
+}))
+
+// Get the active OutOp store instance for use outside React components
+export const getActiveOutOpStore = () => useActiveOutOpStore.getState()
 
 // ============================================================================
 // Helper functions for non-React contexts

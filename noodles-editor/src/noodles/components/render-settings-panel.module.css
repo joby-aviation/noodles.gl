@@ -1,0 +1,242 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.section {
+  margin-bottom: 8px;
+}
+
+.sectionTitle {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.4);
+  margin-bottom: 6px;
+  letter-spacing: 0.05em;
+}
+
+.settingRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.label {
+  flex: 0 0 70px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.select {
+  flex: 1;
+  padding: 4px 6px;
+  background-color: rgba(255, 255, 255, 0.05);
+  color: var(--color-text-primary);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.select:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.select:focus {
+  outline: none;
+  background-color: rgba(255, 255, 255, 0.08);
+  border-color: #3b82f6;
+}
+
+.numberInput {
+  width: 60px;
+  padding: 4px 6px;
+  background-color: rgba(255, 255, 255, 0.05);
+  color: var(--color-text-primary);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  font-size: 11px;
+  transition: all 0.2s;
+}
+
+.numberInput:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.numberInput:focus {
+  outline: none;
+  background-color: rgba(255, 255, 255, 0.08);
+  border-color: #3b82f6;
+}
+
+.resolutionInputs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.resolutionInputs .numberInput {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+}
+
+.separator {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 11px;
+}
+
+.slider {
+  flex: 1;
+  accent-color: #3b82f6;
+  height: 4px;
+  cursor: pointer;
+}
+
+.value,
+.unit {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+  min-width: 36px;
+  text-align: right;
+}
+
+.checkbox {
+  width: 14px;
+  height: 14px;
+  margin-right: 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  position: relative;
+  transition: all 0.2s;
+}
+
+.checkbox:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.checkbox:checked {
+  background-color: #3b82f6;
+  border-color: #3b82f6;
+}
+
+.checkbox:checked::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 7px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.checkboxLabel {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.resetButton {
+  padding: 6px 10px;
+  background-color: transparent;
+  color: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 10px;
+  transition: all 0.2s;
+  margin-top: 8px;
+}
+
+.resetButton:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.activeIndicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  background-color: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  border-radius: 4px;
+  color: rgb(74, 222, 128);
+  font-size: 11px;
+  margin-bottom: 12px;
+}
+
+.activeIndicator i {
+  font-size: 12px;
+}
+
+.setActiveButton {
+  width: 100%;
+  padding: 8px 10px;
+  background-color: transparent;
+  color: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.2s;
+  margin-bottom: 12px;
+}
+
+.setActiveButton:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.exportSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.exportButton {
+  padding: 8px 12px;
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+
+.exportButton:hover:not(:disabled) {
+  background-color: #2563eb;
+}
+
+.exportButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

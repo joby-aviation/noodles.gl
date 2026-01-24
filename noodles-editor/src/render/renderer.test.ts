@@ -2,21 +2,9 @@ import { renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { useRenderer } from './renderer'
 
-// Mock Theatre.js functions
-vi.mock('@theatre/core', async () => {
-  const actual = await vi.importActual('@theatre/core')
-  return {
-    ...actual,
-    val: vi.fn((pointer: any) => {
-      // Return the mocked value from the pointer
-      return pointer?._mockValue ?? 10
-    }),
-    onChange: vi.fn(() => {
-      // Return a no-op unsubscribe function
-      return () => {}
-    }),
-  }
-})
+vi.mock('@theatre/react', () => ({
+  useVal: vi.fn((pointer: any) => pointer?._mockValue ?? 10),
+}))
 
 describe('useRenderer', () => {
   it('handles cancellation of the file save dialog', async () => {

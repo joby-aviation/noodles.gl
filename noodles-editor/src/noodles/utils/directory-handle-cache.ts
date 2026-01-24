@@ -176,6 +176,17 @@ export class DirectoryHandleCache {
       request.onerror = () => reject(new Error('Failed to retrieve cached handles'))
     })
   }
+
+  // Rename a project (update cache entry with new name and handle)
+  async renameProject(
+    oldName: string,
+    newName: string,
+    newHandle: FileSystemDirectoryHandle
+  ): Promise<void> {
+    // Remove old entry and add new entry
+    await this.removeHandle(oldName)
+    await this.cacheHandle(newName, newHandle, newHandle.name)
+  }
 }
 
 // Singleton instance

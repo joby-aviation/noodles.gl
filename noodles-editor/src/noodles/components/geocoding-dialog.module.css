@@ -1,0 +1,253 @@
+.dialogOverlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  z-index: calc(var(--z-index-menu) - 1);
+  animation: overlayShow 150ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dialogContent {
+  position: fixed;
+  top: 10vh;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #1a1a1a;
+  color: var(--color-text-primary);
+  border-radius: 12px;
+  padding: 1.5rem;
+  max-width: 650px;
+  width: 90vw;
+  max-height: 85vh;
+  overflow-y: auto;
+  z-index: var(--z-index-menu);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  animation: contentShow 150ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dialogContent:focus {
+  outline: none;
+}
+
+.dialogTitle {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.dialogDescription {
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+  margin-bottom: 1rem;
+}
+
+.closeButton {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  border: none;
+  background-color: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.closeButton:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.closeButton:focus {
+  outline: none;
+}
+
+/* Smart Input Section */
+.inputSection {
+  position: relative;
+  margin-bottom: 1rem;
+}
+
+.smartInput {
+  width: 100%;
+  padding: 0.75rem;
+  font-size: 0.9rem;
+  color: var(--color-text-primary);
+  background-color: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.smartInput:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.smartInput:focus {
+  outline: none;
+  background-color: rgba(255, 255, 255, 0.08);
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.smartInput::placeholder {
+  color: var(--color-text-secondary);
+  opacity: 0.6;
+}
+
+/* Autocomplete Dropdown */
+.suggestionsDropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background-color: #1a1a1a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  margin-top: 0.25rem;
+  max-height: 200px;
+  overflow-y: auto;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+}
+
+.suggestionItem {
+  width: 100%;
+  padding: 0.75rem;
+  cursor: pointer;
+  color: var(--color-text-primary);
+  font-size: 0.875rem;
+  transition: background-color 0.15s;
+  display: flex;
+  align-items: center;
+  border: none;
+  background: none;
+  text-align: left;
+  font-family: inherit;
+}
+
+.suggestionItem:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.suggestionItem:active {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+.suggestionItemError {
+  color: #fbbf24;
+  cursor: not-allowed;
+  opacity: 0.9;
+}
+
+.suggestionItemError:hover {
+  background-color: rgba(251, 191, 36, 0.1);
+}
+
+/* Map Section */
+.mapContainer {
+  margin-bottom: 1rem;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Footer */
+.dialogFooter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.coordinateDisplay {
+  font-size: 0.875rem;
+  font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
+  color: var(--color-text-secondary);
+  padding: 0.5rem 0.75rem;
+  background-color: rgba(255, 255, 255, 0.03);
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.confirmButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  padding: 0.5rem 1.25rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  background-color: #3b82f6;
+  color: white;
+}
+
+.confirmButton:hover {
+  background-color: #2563eb;
+}
+
+.confirmButton:active {
+  background-color: #1d4ed8;
+}
+
+.confirmButton:disabled {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.3);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Animations */
+@keyframes overlayShow {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes contentShow {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .dialogContent {
+    top: 5vh;
+    max-width: 95vw;
+    padding: 1rem;
+    max-height: 90vh;
+  }
+
+  .mapContainer {
+    height: 300px;
+  }
+
+  .dialogFooter {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .confirmButton {
+    width: 100%;
+  }
+}

@@ -396,40 +396,40 @@ export const BlockLibrary = forwardRef<BlockLibraryRef, BlockLibraryProps>(
                       <div className={s.blockLibraryGrid}>
                         {group.types.map((type, indexInGroup) => {
                           const globalIndex = groupStartIndex + indexInGroup
-                        const description = getNodeDescription(type)
-                        const displayName = typeDisplayName(type)
-                        const category = typeCategory(type)
-                        const isSelected = globalIndex === selectedIndex
+                          const description = getNodeDescription(type)
+                          const displayName = typeDisplayName(type)
+                          const category = typeCategory(type)
+                          const isSelected = globalIndex === selectedIndex
 
-                        return (
-                          <button
-                            type="button"
-                            key={type}
-                            ref={el => {
-                              if (el) {
-                                cardRefs.current.set(globalIndex, el)
-                              } else {
-                                cardRefs.current.delete(globalIndex)
-                              }
-                            }}
-                            className={cx(s.blockLibraryCard, {
-                              [s.blockLibraryCardSelected]: isSelected,
-                            })}
-                            onClick={() => addNode(type)}
-                            onKeyDown={e => e.key === 'Enter' && addNode(type)}
-                            onMouseEnter={() => handleCardMouseEnter(globalIndex)}
-                          >
-                            <div className={s.blockLibraryCardHeader}>
-                              <div className={s.blockLibraryCardTitle}>{displayName}</div>
-                              <div className={cx(s.blockLibraryCardCategory, headerClass(type))}>
-                                {category}
+                          return (
+                            <button
+                              type="button"
+                              key={type}
+                              ref={el => {
+                                if (el) {
+                                  cardRefs.current.set(globalIndex, el)
+                                } else {
+                                  cardRefs.current.delete(globalIndex)
+                                }
+                              }}
+                              className={cx(s.blockLibraryCard, {
+                                [s.blockLibraryCardSelected]: isSelected,
+                              })}
+                              onClick={() => addNode(type)}
+                              onKeyDown={e => e.key === 'Enter' && addNode(type)}
+                              onMouseEnter={() => handleCardMouseEnter(globalIndex)}
+                            >
+                              <div className={s.blockLibraryCardHeader}>
+                                <div className={s.blockLibraryCardTitle}>{displayName}</div>
+                                <div className={cx(s.blockLibraryCardCategory, headerClass(type))}>
+                                  {category}
+                                </div>
                               </div>
-                            </div>
-                            {description && (
-                              <div className={s.blockLibraryCardDescription}>{description}</div>
-                            )}
-                          </button>
-                        )
+                              {description && (
+                                <div className={s.blockLibraryCardDescription}>{description}</div>
+                              )}
+                            </button>
+                          )
                         })}
                       </div>
                     </div>
