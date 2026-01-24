@@ -335,6 +335,8 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
           const input = operatorInputs?.[key]
           if (input && typeof input.setValue === 'function') {
             input.setValue(value)
+            // Auto-show field when value is set programmatically (AI tools)
+            operator.showField(key)
           } else {
             console.warn(`Input ${key} not found on operator ${nodeId} or doesn't have setValue`)
           }
@@ -537,6 +539,8 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
             const input = operatorInputs?.[key]
             if (input && typeof input.setValue === 'function') {
               input.setValue(value)
+              // Auto-show field when value is set programmatically (AI tools)
+              operator.showField(key)
             }
           }
         }

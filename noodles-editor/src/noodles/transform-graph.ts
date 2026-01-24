@@ -210,6 +210,12 @@ export function transformGraph<
         (edge as Edge<OP, OP> & { type?: string }).type === 'ReferenceEdge' ? 'reference' : 'value'
       targetField.addConnection(edge.id, sourceField, connectionType)
 
+      // Auto-show fields when they receive data connections (for programmatic/AI connections)
+      // ReferenceEdges are operator references in code, not data flow, so don't auto-show
+      if (connectionType === 'value') {
+        targetOp.showField(targetFieldName)
+      }
+
       // Validate connection and track errors - allow connection even if types mismatch
       const validation = validateConnection(sourceField, targetField)
       if (!validation.valid && validation.error) {

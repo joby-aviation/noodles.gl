@@ -43,16 +43,6 @@ function canHideField(
   return { canHide: true }
 }
 
-// Show a field (add to visible set)
-function showField(op: Operator<IOperator>, name: string) {
-  const current = op.visibleFields.value ?? getDefaultVisibleFields(op)
-  // Skip if already visible
-  if (current.has(name)) return
-  const newSet = new Set(current)
-  newSet.add(name)
-  op.visibleFields.next(newSet)
-}
-
 // Hide a field (remove from visible set and reset to default value)
 function hideField(op: Operator<IOperator>, name: string) {
   const current = op.visibleFields.value ?? getDefaultVisibleFields(op)
@@ -491,7 +481,7 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
             const hiddenInputs = inputs.filter(input => !op.isFieldVisible(input.name))
 
             const handleShowField = (fieldName: string) => {
-              showField(op, fieldName)
+              op.showField(fieldName)
               if (sheet) {
                 rebindOperatorToTheatre(op, sheet)
               }
@@ -610,7 +600,7 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
                               )
                             : hiddenInputs
                           for (const input of fieldsToShow) {
-                            showField(op, input.name)
+                            op.showField(input.name)
                           }
                           if (sheet) {
                             rebindOperatorToTheatre(op, sheet)

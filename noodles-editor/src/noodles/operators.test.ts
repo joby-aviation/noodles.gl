@@ -2080,4 +2080,46 @@ describe('Operator field visibility', () => {
       expect(values[3]).toBe(null)
     })
   })
+
+  describe('showField method', () => {
+    it('shows a hidden field and preserves existing visible fields', () => {
+      const op = new GeoJsonLayerOp('/geojson-0')
+      // Initially visibleFields is null (using showByDefault defaults)
+      expect(op.visibleFields.value).toBe(null)
+
+      // 'pointType' has showByDefault: false
+      expect(op.inputs.pointType.showByDefault).toBe(false)
+      expect(op.isFieldVisible('pointType')).toBe(false)
+
+      // Show the field
+      op.showField('pointType')
+
+      // Now visibleFields should be set with defaults + pointType
+      expect(op.visibleFields.value).toBeInstanceOf(Set)
+      expect(op.visibleFields.value!.has('pointType')).toBe(true)
+      expect(op.isFieldVisible('pointType')).toBe(true)
+      // Existing showByDefault fields should still be visible
+      expect(op.visibleFields.value!.has('data')).toBe(true)
+
+      // Show another hidden field - should preserve all existing visible fields
+      op.showField('getText')
+
+      // Should have all previously visible fields plus the new one
+      expect(op.visibleFields.value!.has('data')).toBe(true)
+      expect(op.visibleFields.value!.has('pointType')).toBe(true)
+      expect(op.visibleFields.value!.has('getText')).toBe(true)
+    })
+
+    it('does nothing if field is already visible', () => {
+      const op = new GeoJsonLayerOp('/geojson-0')
+      // 'data' has showByDefault: true, so it's already visible
+      expect(op.isFieldVisible('data')).toBe(true)
+
+      // showField should not create a new Set if field is already visible via defaults
+      op.showField('data')
+
+      // visibleFields stays null since no change was needed
+      expect(op.visibleFields.value).toBe(null)
+    })
+  })
 })

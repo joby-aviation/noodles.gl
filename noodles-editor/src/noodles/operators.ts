@@ -364,6 +364,28 @@ export abstract class Operator<OP extends IOperator> {
     return visible.has(name)
   }
 
+  // Show a field (add to visible set)
+  // Used for auto-showing fields when connections are established or values are set programmatically
+  showField(name: string): void {
+    // Skip if field doesn't exist
+    if (!(name in this.inputs)) return
+    // Skip if already visible
+    if (this.isFieldVisible(name)) return
+
+    // Get current visible fields, or compute defaults from showByDefault
+    const current =
+      this.visibleFields.value ??
+      new Set(
+        Object.entries(this.inputs)
+          .filter(([_, field]) => field.showByDefault)
+          .map(([fieldName]) => fieldName)
+      )
+
+    const newSet = new Set(current)
+    newSet.add(name)
+    this.visibleFields.next(newSet)
+  }
+
   // === Pull-based execution methods ===
 
   // Pull data from this operator, executing if needed (pull-based model)

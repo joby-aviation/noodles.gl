@@ -497,4 +497,90 @@ describe('Field visibility restoration from saved data', () => {
       expect(op!.visibleFields.value).toBe(null)
     })
   })
+
+  describe('auto-show fields on connection', () => {
+    it('auto-shows hidden field when it receives a data connection', () => {
+      // DeckRendererOp has 'effects' field with showByDefault: false
+      const nodes = [
+        {
+          id: '/source-0',
+          type: 'NumberOp',
+          data: { inputs: {} },
+          position: { x: 0, y: 0 },
+        },
+        {
+          id: '/deck-0',
+          type: 'DeckRendererOp',
+          data: { inputs: {} },
+          position: { x: 100, y: 0 },
+        },
+      ]
+
+      // First create without connection
+      transformGraph({ nodes, edges: [] })
+
+      const op = getOpStore().getOp('/deck-0')
+      expect(op).toBeDefined()
+      // 'effects' is hidden by default
+      expect(op!.inputs.effects.showByDefault).toBe(false)
+
+      // Now add a connection to the hidden 'effects' field
+      const edges = [
+        {
+          id: '/source-0.out.val->/deck-0.par.effects',
+          source: '/source-0',
+          target: '/deck-0',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.effects',
+        },
+      ]
+
+      transformGraph({ nodes, edges })
+
+      // Field should now be visible due to auto-show on connection
+      expect(op!.isFieldVisible('effects')).toBe(true)
+      expect(op!.visibleFields.value).toBeInstanceOf(Set)
+      expect(op!.visibleFields.value!.has('effects')).toBe(true)
+    })
+
+    it('does not auto-show for ReferenceEdge connections', () => {
+      const nodes = [
+        {
+          id: '/num',
+          type: 'NumberOp',
+          data: { inputs: { val: 5 } },
+          position: { x: 0, y: 0 },
+        },
+        {
+          id: '/deck-0',
+          type: 'DeckRendererOp',
+          data: { inputs: {} },
+          position: { x: 100, y: 0 },
+        },
+      ]
+
+      // Create with a ReferenceEdge to hidden field
+      const edges = [
+        {
+          id: '/num.out.val->/deck-0.par.effects',
+          source: '/num',
+          target: '/deck-0',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.effects',
+          type: 'ReferenceEdge',
+        },
+      ]
+
+      transformGraph({ nodes, edges })
+
+      const op = getOpStore().getOp('/deck-0')
+      expect(op).toBeDefined()
+
+      // ReferenceEdges should not trigger auto-show
+      // visibleFields should remain null (using defaults)
+      expect(op!.visibleFields.value).toBe(null)
+      // 'effects' should still be hidden
+      expect(op!.isFieldVisible('effects')).toBe(false)
+    })
+  })
 })
