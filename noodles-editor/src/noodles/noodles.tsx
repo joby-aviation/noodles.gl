@@ -80,16 +80,13 @@ import { edgeId, nodeId } from './utils/id-utils'
 import { migrateProject } from './utils/migrate-schema'
 import { getParentPath } from './utils/path-utils'
 import {
-  DEFAULT_RENDER_SETTINGS,
   EMPTY_PROJECT,
   NOODLES_VERSION,
   type NoodlesProjectJSON,
-  type RenderSettings,
   safeStringify,
   saveProjectLocally,
   serializeEdges,
   serializeNodes,
-  serializeRenderSettings,
 } from './utils/serialization'
 import { calculateViewerPosition } from './utils/viewer-position'
 
@@ -621,22 +618,12 @@ export function getNoodles(): Visualization {
     'noodles-on-top'
   )
 
-  // Render settings state (moved from Theatre.js sheet to project-level settings)
-  const [renderSettings, setRenderSettings] = useState<RenderSettings>({
-    ...DEFAULT_RENDER_SETTINGS,
-  })
+  // Render settings are now stored as OutOp inputs (see migration 012)
+  // Use useRenderSettings() hook to read them
 
   const loadProjectFile = useCallback(
     (project: NoodlesProjectJSON, name?: string) => {
-      const {
-        nodes,
-        edges,
-        viewport,
-        timeline,
-        editorSettings,
-        renderSettings: projectRenderSettings,
-        apiKeys,
-      } = project
+      const { nodes, edges, viewport, timeline, editorSettings, apiKeys } = project
 
       // Mark that we've programmatically loading this project BEFORE any state changes
       // This prevents the useEffect from trying to reload it from storage when the URL changes
@@ -658,32 +645,7 @@ export function getNoodles(): Visualization {
       setLayoutMode(editorSettings?.layoutMode ?? 'noodles-on-top')
       setShowOverlay(editorSettings?.showOverlay ?? !IS_PROD)
 
-      // Load render settings with backwards compatibility
-      // First try the new format (renderSettings at project root)
-      // Then fall back to the legacy Theatre.js location
-      let loadedRenderSettings: RenderSettings = { ...DEFAULT_RENDER_SETTINGS }
-      if (projectRenderSettings) {
-        loadedRenderSettings = { ...DEFAULT_RENDER_SETTINGS, ...projectRenderSettings }
-      } else {
-        // Backwards compatibility: try to load from Theatre.js staticOverrides
-        const legacyRender = (
-          timeline as {
-            sheetsById?: {
-              Noodles?: {
-                staticOverrides?: {
-                  byObject?: {
-                    render?: Partial<RenderSettings>
-                  }
-                }
-              }
-            }
-          }
-        )?.sheetsById?.Noodles?.staticOverrides?.byObject?.render
-        if (legacyRender) {
-          loadedRenderSettings = { ...DEFAULT_RENDER_SETTINGS, ...legacyRender }
-        }
-      }
-      setRenderSettings(loadedRenderSettings)
+      // Render settings are now stored as OutOp inputs (migration 012 handles conversion)
 
       // Load API keys from project file if present
       getKeysStore().setProjectKeys(apiKeys)
@@ -825,7 +787,7 @@ export function getNoodles(): Visualization {
     const timeline = getTimelineJson()
     const viewport = reactFlowInstanceRef.current?.getViewport() || { x: 0, y: 0, zoom: 1 }
     const projectKeys = getKeysForProject()
-    const serializedRenderSettings = serializeRenderSettings(renderSettings)
+    // Render settings are now stored as OutOp inputs, serialized with the node
 
     return {
       version: NOODLES_VERSION,
@@ -837,10 +799,9 @@ export function getNoodles(): Visualization {
         layoutMode,
         showOverlay,
       },
-      ...(serializedRenderSettings ? { renderSettings: serializedRenderSettings } : {}),
       ...(projectKeys ? { apiKeys: projectKeys } : {}),
     }
-  }, [nodes, edges, getTimelineJson, layoutMode, showOverlay, renderSettings])
+  }, [nodes, edges, getTimelineJson, layoutMode, showOverlay])
 
   const onMenuSave = useCallback(async () => {
     if (!projectName) return
@@ -1528,8 +1489,7 @@ export function getNoodles(): Visualization {
     setLayoutMode,
     showOverlay,
     setShowOverlay,
-    renderSettings,
-    setRenderSettings,
+    // Render settings are now read from OutOp via useRenderSettings() hook
     // Export these so timeline-editor can create the menu with render actions
     projectName,
     getTimelineJson,

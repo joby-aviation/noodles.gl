@@ -1028,6 +1028,36 @@ describe('DateField', () => {
   })
 })
 
+describe('Field showByDefault option', () => {
+  it('defaults showByDefault to true', () => {
+    const field = new NumberField(0)
+    expect(field.showByDefault).toBe(true)
+  })
+
+  it('respects showByDefault: false option', () => {
+    const field = new NumberField(0, { showByDefault: false })
+    expect(field.showByDefault).toBe(false)
+  })
+
+  it('respects showByDefault: true option explicitly', () => {
+    const field = new NumberField(0, { showByDefault: true })
+    expect(field.showByDefault).toBe(true)
+  })
+
+  it('works with CompoundPropsField', () => {
+    const field = new CompoundPropsField(
+      { x: new NumberField(0), y: new NumberField(0) },
+      { showByDefault: false }
+    )
+    expect(field.showByDefault).toBe(false)
+  })
+
+  it('works with ListField', () => {
+    const field = new ListField(new NumberField(), { showByDefault: false })
+    expect(field.showByDefault).toBe(false)
+  })
+})
+
 describe('GeoJsonField', () => {
   it('should have correct type', () => {
     const field = new GeoJsonField()

@@ -147,15 +147,18 @@ export function TextFieldComponent({
       </select>
     )
   } else {
+    // Always use textarea - handles both single-line and multiline naturally
+    const lineCount = typeof value === 'string' ? value.split('\n').length : 1
     input = (
-      <input
+      <textarea
         id={id}
-        className={s.fieldInput}
+        className={cx(s.fieldInput, s.fieldTextarea)}
         title={value}
         value={value}
         onBlur={onChange}
         onChange={onChange}
         disabled={disabled}
+        rows={lineCount}
       />
     )
   }

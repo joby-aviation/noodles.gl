@@ -437,6 +437,15 @@
   background: var(--node-input-disaabled-color);
 }
 
+.fieldTextarea {
+  resize: vertical;
+  min-height: 1.8em;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: 1.4;
+  padding: 4px 6px;
+}
+
 .fieldInputGroup {
   gap: 8px;
 }
