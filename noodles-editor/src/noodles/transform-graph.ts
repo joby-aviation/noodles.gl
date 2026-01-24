@@ -131,11 +131,8 @@ export function transformGraph<
               .filter((name): name is string => name !== undefined)
           )
 
-          const { visibleFields: heuristicVisible, differsFromDefaults } = computeVisibilityHeuristic(
-            op,
-            customValues,
-            connectedFields
-          )
+          const { visibleFields: heuristicVisible, differsFromDefaults } =
+            computeVisibilityHeuristic(op, customValues, connectedFields)
 
           if (differsFromDefaults) {
             // Heuristic differs from defaults, need to set explicitly
