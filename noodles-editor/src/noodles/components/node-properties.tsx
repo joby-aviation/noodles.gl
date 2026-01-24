@@ -8,11 +8,11 @@ import { useContext, useEffect, useRef, useState } from 'react'
 
 import { SheetContext } from '../../utils/sheet-context'
 import { type Field, type IField, IN_NS, ListField, OUT_NS } from '../fields'
-import { parseHandleId } from '../utils/path-utils'
 import type { IOperator, Operator } from '../operators'
 import { OutOp } from '../operators'
 import { getOpStore } from '../store'
 import { rebindOperatorToTheatre } from '../theatre-bindings'
+import { parseHandleId } from '../utils/path-utils'
 import menuStyles from './menu.module.css'
 import s from './node-properties.module.css'
 import { handleClass, headerClass, typeCategory } from './op-components'
@@ -262,7 +262,8 @@ function AddRemoveButton({
   )
 }
 
-function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
+// Exported for testing
+export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
   const { setEdges } = useReactFlow()
   const edges = useEdges()
   const sheet = useContext(SheetContext)
@@ -489,15 +490,17 @@ function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
           <div className={s.sectionTitle}>Inputs</div>
           {Object.keys(op.inputs).length > 0 && (
             <div className={s.sectionActions}>
-              {isEditMode && op.visibleFields.value !== null && (() => {
-                const { toHide, toShow } = getVisibilityChanges(op, edges)
-                const hasChanges = toHide.length > 0 || toShow.length > 0
-                return hasChanges ? (
-                  <button type="button" className={s.resetButton} onClick={handleResetToDefaults}>
-                    Reset
-                  </button>
-                ) : null
-              })()}
+              {isEditMode &&
+                op.visibleFields.value !== null &&
+                (() => {
+                  const { toHide, toShow } = getVisibilityChanges(op, edges)
+                  const hasChanges = toHide.length > 0 || toShow.length > 0
+                  return hasChanges ? (
+                    <button type="button" className={s.resetButton} onClick={handleResetToDefaults}>
+                      Reset
+                    </button>
+                  ) : null
+                })()}
               <PencilIcon onClick={() => setIsEditMode(!isEditMode)} isActive={isEditMode} />
             </div>
           )}
