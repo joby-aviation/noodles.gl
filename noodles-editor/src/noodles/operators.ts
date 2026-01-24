@@ -3278,18 +3278,24 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
         pitch: new NumberField(0, { min: 0, max: 85, optional: true }),
         bearing: new NumberField(0, { optional: true }),
       }),
-      sky: new CompoundPropsField({
-        enabled: new BooleanField(false),
-        skyColor: new ColorField('#88C6FC'),
-        horizonColor: new ColorField('#ffffff'),
-        skyHorizonBlend: new NumberField(0.8, { min: 0, max: 1, step: 0.01 }),
-        atmosphereBlend: new NumberField(0.5, { min: 0, max: 1, step: 0.01 }),
-      }),
-      light: new CompoundPropsField({
-        anchor: new StringLiteralField('viewport', ['map', 'viewport']),
-        azimuthal: new NumberField(210, { step: 1 }),
-        polar: new NumberField(30, { step: 1 }),
-      }),
+      sky: new CompoundPropsField(
+        {
+          enabled: new BooleanField(false),
+          skyColor: new ColorField('#88C6FC'),
+          horizonColor: new ColorField('#ffffff'),
+          skyHorizonBlend: new NumberField(0.8, { min: 0, max: 1, step: 0.01 }),
+          atmosphereBlend: new NumberField(0.5, { min: 0, max: 1, step: 0.01 }),
+        },
+        { showByDefault: false }
+      ),
+      light: new CompoundPropsField(
+        {
+          anchor: new StringLiteralField('viewport', ['map', 'viewport']),
+          azimuthal: new NumberField(210, { step: 1 }),
+          polar: new NumberField(30, { step: 1 }),
+        },
+        { showByDefault: false }
+      ),
     }
   }
 
