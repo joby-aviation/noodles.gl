@@ -131,7 +131,8 @@ export const CopyControls = forwardRef<CopyControlsRef>((_, ref) => {
 
     // sync op and node data
     const store = getOpStore()
-    const serializedNodes = serializeNodes(store, nodesToCopy, edgesToCopy)
+    // Use forClipboard: true to preserve exact visual state (including fields visible due to connections)
+    const serializedNodes = serializeNodes(store, nodesToCopy, edgesToCopy, { forClipboard: true })
     const data = safeStringify({ nodes: serializedNodes, edges: edgesToCopy })
 
     clipboardDataRef.current = data

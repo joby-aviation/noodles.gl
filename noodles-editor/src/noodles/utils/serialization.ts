@@ -87,11 +87,32 @@ export function safeStringify(obj: Record<string, unknown>) {
   return `${JSON.stringify(obj, getJsonSanitizer(), 2)}\n`
 }
 
+import { computeVisibilityHeuristic } from './visibility-heuristic'
+
+export type SerializeNodesOptions = {
+  // When true (clipboard), always serializes visible fields to preserve exact state on paste,
+  // even if visibility matches heuristic. This handles fields visible due to connections
+  // that won't exist after paste.
+  forClipboard?: boolean
+}
+
+// Check if two sets have the same elements
+function setsEqual(a: Set<string>, b: Set<string>): boolean {
+  if (a.size !== b.size) return false
+  for (const item of a) {
+    if (!b.has(item)) return false
+  }
+  return true
+}
+
 export function serializeNodes(
   store: ReturnType<typeof useOperatorStore.getState>,
   nodes: ReactFlowNode<Record<string, unknown>>[],
-  edges: ReactFlowEdge[]
+  edges: ReactFlowEdge[],
+  options?: SerializeNodesOptions
 ) {
+  const { forClipboard = false } = options ?? {}
+
   // Make a copy of the node to prepared for serialization.
   const preparedNodes: NodeJSON<unknown>[] = []
   for (const node of nodes) {
@@ -108,7 +129,7 @@ export function serializeNodes(
       .filter(edge => edge.target === node.id && edge.type !== 'ReferenceEdge')
       .filter(edge => store.getOp(edge.source)?.locked?.value === false)
       .map(edge => parseHandleId(edge.targetHandle)?.fieldName)
-      .reduce((acc, fieldName) => acc.add(fieldName), new Set())
+      .reduce((acc, fieldName) => acc.add(fieldName), new Set<string | undefined>())
 
     // Serialize fields
     const inputs: ExtractProps<ReturnType<typeof op.createInputs>> = {}
@@ -135,16 +156,41 @@ export function serializeNodes(
       ...cleanedNode
     } = node
 
+    // Determine visibleInputs serialization
+    // We serialize the full visible set when it differs from heuristic
+    const visibilityData: { visibleInputs?: string[] } = {}
+
+    // Only serialize visibleInputs if visibility has been explicitly configured
+    // (visibleFields.value is not null) AND differs from heuristic
+    // If visibleFields.value is null, we rely on heuristic during deserialization
+    const hasExplicitVisibility = op.visibleFields.value !== null
+
+    if (hasExplicitVisibility || forClipboard) {
+      // Get current visible fields
+      const currentVisible = new Set<string>()
+      for (const name of Object.keys(op.inputs)) {
+        if (op.isFieldVisible(name)) {
+          currentVisible.add(name)
+        }
+      }
+
+      // Compute heuristic visibility
+      const { visibleFields: heuristicVisible } = computeVisibilityHeuristic(op, inputs, incomers)
+
+      // For clipboard: always serialize to preserve exact state (connections may not survive paste)
+      // For project save: only serialize if visibility differs from heuristic
+      if (forClipboard || !setsEqual(currentVisible, heuristicVisible)) {
+        visibilityData.visibleInputs = Array.from(currentVisible)
+      }
+    }
+
     preparedNodes.push({
       ...cleanedNode,
       ...(resizeableNodes.includes(node.type) ? { width, height, measured } : {}),
       data: {
         inputs,
         locked: op.locked.value,
-        // Only serialize visibleInputs if user has customized visibility
-        ...(op.visibleFields.value !== null
-          ? { visibleInputs: Array.from(op.visibleFields.value) }
-          : {}),
+        ...visibilityData,
       },
     })
   }

@@ -54,20 +54,46 @@ describe('safeStringify', () => {
   })
 })
 
-type MockInput = { serialize: () => unknown }
+type MockInput = { serialize: () => unknown; showByDefault: boolean; defaultValue?: unknown }
 type MockOp = {
   inputs: Record<string, MockInput>
   locked: { value: boolean }
   visibleFields: { value: Set<string> | null }
   createInputs: () => unknown
+  isFieldVisible: (name: string) => boolean
 }
 
-const makeOp = (inputs: Record<string, unknown>, locked = false): MockOp => ({
-  inputs: Object.fromEntries(Object.entries(inputs).map(([k, v]) => [k, { serialize: () => v }])),
-  locked: { value: locked },
-  visibleFields: { value: null },
-  createInputs: () => ({}),
-})
+const makeOp = (
+  inputs: Record<string, unknown>,
+  locked = false,
+  options?: { showByDefault?: Record<string, boolean>; defaultValues?: Record<string, unknown> }
+): MockOp => {
+  const inputEntries = Object.fromEntries(
+    Object.entries(inputs).map(([k, v]) => [
+      k,
+      {
+        serialize: () => v,
+        showByDefault: options?.showByDefault?.[k] ?? true,
+        defaultValue: options?.defaultValues?.[k],
+      },
+    ])
+  )
+
+  const op: MockOp = {
+    inputs: inputEntries,
+    locked: { value: locked },
+    visibleFields: { value: null },
+    createInputs: () => ({}),
+    isFieldVisible(name: string) {
+      const visible = this.visibleFields.value
+      if (visible === null) {
+        return this.inputs[name]?.showByDefault ?? true
+      }
+      return visible.has(name)
+    },
+  }
+  return op
+}
 
 describe('serializeNodes', () => {
   afterEach(() => {
@@ -523,41 +549,110 @@ describe('saveProjectLocally', () => {
 // Note: serializeRenderSettings tests removed - function was removed in migration 012
 // Render settings are now stored as OutOp node inputs
 
-describe('Field visibility serialization', () => {
-  it('does not serialize visibleInputs when visibleFields.value is null', () => {
-    const op = new GeoJsonLayerOp('/geojson-0')
-    setOp('/geojson-0', op)
+describe('Field visibility serialization (full set when differs from heuristic)', () => {
+  describe('project save', () => {
+    it('does not serialize visibleInputs when visibility matches heuristic', () => {
+      const op = new GeoJsonLayerOp('/geojson-0')
+      setOp('/geojson-0', op)
 
-    const nodes = [{ id: '/geojson-0', type: 'GeoJsonLayerOp', data: {}, position: { x: 0, y: 0 } }]
-    const result = serializeNodes(getOpStore(), nodes, [])
+      const nodes = [
+        { id: '/geojson-0', type: 'GeoJsonLayerOp', data: {}, position: { x: 0, y: 0 } },
+      ]
+      const result = serializeNodes(getOpStore(), nodes, [])
 
-    expect(result[0].data).not.toHaveProperty('visibleInputs')
+      expect(result[0].data).not.toHaveProperty('visibleInputs')
+    })
+
+    it('does not serialize visibleInputs when visibility matches heuristic (with custom values)', () => {
+      // Mock op with showByDefault: false for 'hidden' field
+      const op = makeOp({ visible: true, hidden: 'custom' }, false, {
+        showByDefault: { visible: true, hidden: false },
+      })
+      // Set visibleFields to match what heuristic would derive (visible + hidden because hidden has value)
+      op.visibleFields.value = new Set(['visible', 'hidden'])
+      setOp('node1', op as any)
+
+      const nodes = [{ id: 'node1', type: 'basic', data: {}, position: { x: 0, y: 0 } }]
+      const result = serializeNodes(getOpStore(), nodes, [])
+
+      // Should NOT serialize because visibility matches heuristic
+      expect(result[0].data).not.toHaveProperty('visibleInputs')
+    })
+
+    it('serializes full visibleInputs when user showed a field heuristic would hide', () => {
+      const op = makeOp({ a: 1 }, false, { showByDefault: { a: true, b: false } })
+      // User showed field 'b' which has showByDefault: false and no value
+      op.visibleFields.value = new Set(['a', 'b'])
+      // Add 'b' to inputs for the mock (but it won't be in serialized inputs since it has no custom value)
+      op.inputs.b = { serialize: () => undefined, showByDefault: false }
+      setOp('node1', op as any)
+
+      const nodes = [{ id: 'node1', type: 'basic', data: {}, position: { x: 0, y: 0 } }]
+      const result = serializeNodes(getOpStore(), nodes, [])
+
+      // Full set should be serialized since visibility differs from heuristic
+      expect(result[0].data).toHaveProperty('visibleInputs')
+      expect(result[0].data.visibleInputs).toContain('a')
+      expect(result[0].data.visibleInputs).toContain('b')
+    })
+
+    it('serializes full visibleInputs when user hid a field heuristic would show', () => {
+      const op = makeOp({ a: 1, b: 2 }, false, { showByDefault: { a: true, b: true } })
+      // User hid field 'b' which has showByDefault: true
+      op.visibleFields.value = new Set(['a'])
+      setOp('node1', op as any)
+
+      const nodes = [{ id: 'node1', type: 'basic', data: {}, position: { x: 0, y: 0 } }]
+      const result = serializeNodes(getOpStore(), nodes, [])
+
+      // Full set should be serialized (only 'a' visible, 'b' hidden)
+      expect(result[0].data).toHaveProperty('visibleInputs')
+      expect(result[0].data.visibleInputs).toContain('a')
+      expect(result[0].data.visibleInputs).not.toContain('b')
+    })
   })
 
-  it('serializes visibleInputs when visibleFields is set', () => {
-    const op = new GeoJsonLayerOp('/geojson-0')
-    op.visibleFields.next(new Set(['data', 'visible', 'extruded']))
-    setOp('/geojson-0', op)
+  describe('clipboard copy (forClipboard: true)', () => {
+    it('always serializes visibleInputs for clipboard to preserve exact state', () => {
+      const op = new GeoJsonLayerOp('/geojson-0')
+      // Leave visibleFields as null (using defaults)
+      setOp('/geojson-0', op)
 
-    const nodes = [{ id: '/geojson-0', type: 'GeoJsonLayerOp', data: {}, position: { x: 0, y: 0 } }]
-    const result = serializeNodes(getOpStore(), nodes, [])
+      const nodes = [
+        { id: '/geojson-0', type: 'GeoJsonLayerOp', data: {}, position: { x: 0, y: 0 } },
+      ]
+      const result = serializeNodes(getOpStore(), nodes, [], { forClipboard: true })
 
-    expect(result[0].data).toHaveProperty('visibleInputs')
-    expect(result[0].data.visibleInputs).toEqual(
-      expect.arrayContaining(['data', 'visible', 'extruded'])
-    )
-    expect(result[0].data.visibleInputs.length).toBe(3)
-  })
+      // Clipboard always serializes to preserve exact state
+      expect(result[0].data).toHaveProperty('visibleInputs')
+      expect(result[0].data.visibleInputs).toContain('data')
+      expect(result[0].data.visibleInputs).toContain('visible')
+    })
 
-  it('serializes empty visibleInputs array when visibleFields is empty set', () => {
-    const op = new GeoJsonLayerOp('/geojson-0')
-    op.visibleFields.next(new Set())
-    setOp('/geojson-0', op)
+    it('preserves connection-visible fields for clipboard', () => {
+      const op = makeOp({ a: 1 }, false, { showByDefault: { a: true, connected: false } })
+      op.inputs.connected = { serialize: () => undefined, showByDefault: false }
+      // Simulate that 'connected' field is visible (due to connection)
+      op.visibleFields.value = new Set(['a', 'connected'])
+      setOp('node1', op as any)
 
-    const nodes = [{ id: '/geojson-0', type: 'GeoJsonLayerOp', data: {}, position: { x: 0, y: 0 } }]
-    const result = serializeNodes(getOpStore(), nodes, [])
+      const nodes = [{ id: 'node1', type: 'basic', data: {}, position: { x: 0, y: 0 } }]
+      // Simulate edge connection to 'connected' field
+      const edges = [
+        {
+          id: 'edge1',
+          source: 'other',
+          target: 'node1',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.connected',
+        },
+      ]
+      const result = serializeNodes(getOpStore(), nodes, edges, { forClipboard: true })
 
-    expect(result[0].data).toHaveProperty('visibleInputs')
-    expect(result[0].data.visibleInputs).toEqual([])
+      // Clipboard serializes full set, including connection-visible field
+      expect(result[0].data).toHaveProperty('visibleInputs')
+      expect(result[0].data.visibleInputs).toContain('a')
+      expect(result[0].data.visibleInputs).toContain('connected')
+    })
   })
 })
