@@ -1,6 +1,6 @@
 import type { NodeJSON } from 'SKIP-@xyflow/react'
 import cx from 'classnames'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import type { IOperator, OpType, Operator } from '../operators'
 import { type ConnectionPlan, findBestConnection } from '../utils/auto-connect'
@@ -108,6 +108,19 @@ function SuggestionPreviewDialog({
   onCancel,
 }: SuggestionPreviewDialogProps) {
   const displayName = typeDisplayName(suggestion.opType)
+
+  // Keyboard accessibility: Escape to cancel, Enter to confirm
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onCancel()
+      } else if (e.key === 'Enter') {
+        onConfirm()
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [onCancel, onConfirm])
 
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: Overlay click to close is standard modal UX

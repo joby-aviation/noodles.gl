@@ -119,6 +119,10 @@ function getOpCategory(opType: OpType): string | null {
   return null
 }
 
+// Display names that don't follow the standard `${displayName}Op` naming convention
+// ForLoop is a special composite type handled by node-creation-utils, not a regular operator
+const SPECIAL_DISPLAY_NAMES = new Set(['ForLoop'])
+
 // Get operators in the same category
 function getSameCategoryOps(opType: OpType): OpType[] {
   const category = getOpCategory(opType)
@@ -128,6 +132,7 @@ function getSameCategoryOps(opType: OpType): OpType[] {
   if (!categoryOps) return []
 
   return (categoryOps as readonly string[])
+    .filter(displayName => !SPECIAL_DISPLAY_NAMES.has(displayName))
     .map(displayName => `${displayName}Op` as OpType)
     .filter(type => type !== opType && type in opTypes)
 }
