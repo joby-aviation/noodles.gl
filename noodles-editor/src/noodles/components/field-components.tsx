@@ -192,7 +192,6 @@ function validateExpression(expression: string): string | null {
       'turf',
       'deck',
       'Plot',
-      'vega',
       'Temporal',
       `return ${expression}`
     )
