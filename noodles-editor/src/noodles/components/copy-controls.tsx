@@ -4,7 +4,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 
 import { useProjectModifications } from '../hooks/use-project-modifications'
 import { getOpStore, hasOp, useNestingStore } from '../store'
 import { edgeId, nodeId } from '../utils/id-utils'
-import { getBaseName, generateQualifiedPath } from '../utils/path-utils'
+import { generateQualifiedPath, getBaseName } from '../utils/path-utils'
 import { type CopiedNodesJSON, safeStringify, serializeNodes } from '../utils/serialization'
 
 export interface CopyControlsRef {
@@ -131,7 +131,8 @@ export const CopyControls = forwardRef<CopyControlsRef>((_, ref) => {
 
     // sync op and node data
     const store = getOpStore()
-    const serializedNodes = serializeNodes(store, nodesToCopy, edgesToCopy)
+    // Use forClipboard: true to preserve exact visual state (including fields visible due to connections)
+    const serializedNodes = serializeNodes(store, nodesToCopy, edgesToCopy, { forClipboard: true })
     const data = safeStringify({ nodes: serializedNodes, edges: edgesToCopy })
 
     clipboardDataRef.current = data

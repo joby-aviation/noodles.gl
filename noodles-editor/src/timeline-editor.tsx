@@ -9,6 +9,8 @@ import { forwardRef, useCallback, useEffect, useRef, useState } from 'react'
 import ReactMapGL, { type MapProps, useControl } from 'react-map-gl/maplibre'
 import { Layout } from './layout'
 import { TopMenuBar } from './noodles/components/top-menu-bar'
+import { ExportActionsProvider } from './noodles/contexts/export-actions-context'
+import { useRenderSettings } from './noodles/hooks/use-render-settings'
 import { getNoodles } from './noodles/noodles'
 import type { RenderSettings } from './noodles/utils/serialization'
 import { useDeckDrawLoop } from './render/draw-loop'
@@ -76,7 +78,9 @@ const DeckGLOverlay = forwardRef<
 >(({ renderer, isRendering, ...props }, ref) => {
   // MapboxOverlay handles a variety of props differently than the Deck class.
   // https://deck.gl/docs/api-reference/mapbox/mapbox-overlay#constructor
-  const deck = useControl<MapboxOverlay>(() => new MapboxOverlay({ ...props, interleaved: true }))
+  const deck = useControl<MapboxOverlay>(
+    () => new MapboxOverlay({ ...props, interleaved: true, _renderLayersInGroups: true })
+  )
 
   if (!isRendering) {
     deck.setProps({
@@ -121,27 +125,18 @@ export default function TimelineEditor() {
   }, [])
 
   const noodles = getNoodles()
-  const {
-    project,
-    sheet,
-    flowGraph,
-    nodeSidebar,
-    propertiesPanel,
-    layoutMode,
-    renderSettings,
-    setRenderSettings,
-    ...visualization
-  } = noodles
+  const { project, sheet, flowGraph, nodeSidebar, propertiesPanel, layoutMode, ...visualization } =
+    noodles
   const sequence = sheet.sequence
+
+  // Render settings are now stored as OutOp inputs
+  const renderSettings = useRenderSettings()
 
   useEffect(() => {
     project?.ready.then(() => setReady(true))
   }, [project])
 
   const sequenceLength = useVal(sequence.pointer.length)
-
-  // Render settings dialog state
-  const [renderSettingsDialogOpen, setRenderSettingsDialogOpen] = useState(false)
 
   const { framerate, bitrateMbps, bitrateMode, codec, resolution, lod, waitForData, captureDelay } =
     renderSettings
@@ -212,10 +207,39 @@ export default function TimelineEditor() {
       redraw()
     },
     ...visualization.mapProps,
-    ...(visualization.mapProps?.maxPitch
-      ? { maxPitch: Math.min(visualization.mapProps?.maxPitch, 85) }
-      : {}),
+    maxPitch: Math.min(visualization.mapProps?.maxPitch ?? 85, 85),
   }
+
+  // Apply light and sky settings imperatively to avoid style reloading
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !map.isStyleLoaded()) return
+
+    const light = visualization.mapProps?.light
+    const sky = visualization.mapProps?.sky
+
+    // Note: light settings only apply to globe projection
+    if (light) {
+      map.setLight({
+        anchor: light.anchor,
+        position: [1.15, light.azimuthal, light.polar],
+      })
+    }
+
+    if (sky?.enabled) {
+      // Note: skyColor, horizonColor, skyHorizonBlend only apply to mercator projection
+      // Note: atmosphereBlend only applies to globe projection
+      map.setSky({
+        'sky-color': sky.skyColor,
+        'horizon-color': sky.horizonColor,
+        'sky-horizon-blend': sky.skyHorizonBlend,
+        'atmosphere-blend': sky.atmosphereBlend,
+      })
+    } else {
+      // Disable sky - requires MapLibre GL JS 4.6.0+
+      map.setSky(undefined)
+    }
+  }, [visualization.mapProps?.light, visualization.mapProps?.sky])
 
   // Expose deck.gl canvas and instance for Claude AI visual debugging
   useEffect(() => {
@@ -261,6 +285,7 @@ export default function TimelineEditor() {
     props: deckProps,
   })
 
+  // Export functions always use the active OutOp's settings (via useRenderSettings)
   const startRender = useCallback(async () => {
     let canvas: HTMLCanvasElement | null = null
 
@@ -373,10 +398,6 @@ export default function TimelineEditor() {
       setShowOverlay={noodles.setShowOverlay}
       layoutMode={noodles.layoutMode}
       setLayoutMode={noodles.setLayoutMode}
-      renderSettings={renderSettings}
-      setRenderSettings={setRenderSettings}
-      renderSettingsDialogOpen={renderSettingsDialogOpen}
-      setRenderSettingsDialogOpen={setRenderSettingsDialogOpen}
     />
   )
 
@@ -392,19 +413,25 @@ export default function TimelineEditor() {
         </div>
       )}
       <ReactFlowProvider>
-        <Layout
-          top={topBar}
-          left={nodeSidebar}
-          right={propertiesPanel}
-          flowGraph={flowGraph}
-          layoutMode={layoutMode}
+        <ExportActionsProvider
+          startRender={startRender}
+          takeScreenshot={takeScreenshot}
+          isRendering={isRendering}
         >
-          {isFixedMode ? (
-            <TransformScale scale={renderSettings.scaleControl}>{renderContent()}</TransformScale>
-          ) : (
-            renderContent()
-          )}
-        </Layout>
+          <Layout
+            top={topBar}
+            left={nodeSidebar}
+            right={propertiesPanel}
+            flowGraph={flowGraph}
+            layoutMode={layoutMode}
+          >
+            {isFixedMode ? (
+              <TransformScale scale={renderSettings.scaleControl}>{renderContent()}</TransformScale>
+            ) : (
+              renderContent()
+            )}
+          </Layout>
+        </ExportActionsProvider>
       </ReactFlowProvider>
     </>
   )
