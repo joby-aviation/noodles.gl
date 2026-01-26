@@ -105,7 +105,7 @@ export default defineConfig(({ mode }) => {
       open: true,
     },
     resolve: {
-      conditions: ['import', 'module', 'default'],
+      conditions: ['browser', 'import', 'module', 'default'],
     },
     plugins: [
       react(),
