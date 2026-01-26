@@ -4,6 +4,7 @@ import { NumberField } from './fields'
 import {
   AccessorOp,
   BoundingBoxOp,
+  ChartOp,
   CodeOp,
   ConcatOp,
   DeckRendererOp,
@@ -524,6 +525,125 @@ describe('FilterOp', () => {
     ]
     operator.inputs.data.setValue(data)
     expect(operator.inputs.columnName.choices.map(c => c.value)).toEqual(['a', 'b'])
+  })
+})
+
+describe('ChartOp', () => {
+  it('generates a bar chart from data', () => {
+    const op = new ChartOp('/chart-1')
+    const result = op.execute({
+      data: [
+        { category: 'A', value: 10 },
+        { category: 'B', value: 20 },
+      ],
+      chartType: 'bar',
+      xField: 'category',
+      yField: 'value',
+      width: 640,
+      height: 400,
+      color: '#4269d0',
+      title: '',
+      xLabel: '',
+      yLabel: '',
+    })
+
+    expect(result.chart).toBeDefined()
+    expect(result.chart).toBeInstanceOf(HTMLElement)
+  })
+
+  it('generates a histogram from data', () => {
+    const op = new ChartOp('/chart-1')
+    const result = op.execute({
+      data: [
+        { value: 10 },
+        { value: 20 },
+        { value: 15 },
+        { value: 25 },
+      ],
+      chartType: 'histogram',
+      xField: 'value',
+      yField: '',
+      width: 640,
+      height: 400,
+      color: '#4269d0',
+      title: '',
+      xLabel: '',
+      yLabel: '',
+    })
+
+    expect(result.chart).toBeDefined()
+    expect(result.chart).toBeInstanceOf(HTMLElement)
+  })
+
+  it('generates a scatterplot from data', () => {
+    const op = new ChartOp('/chart-1')
+    const result = op.execute({
+      data: [
+        { x: 1, y: 2 },
+        { x: 2, y: 3 },
+        { x: 3, y: 5 },
+      ],
+      chartType: 'scatter',
+      xField: 'x',
+      yField: 'y',
+      width: 640,
+      height: 400,
+      color: '#4269d0',
+      title: '',
+      xLabel: '',
+      yLabel: '',
+    })
+
+    expect(result.chart).toBeDefined()
+    expect(result.chart).toBeInstanceOf(HTMLElement)
+  })
+
+  it('updates field choices when data changes', () => {
+    const op = new ChartOp('/chart-1', {}, false)
+    const data = [
+      { x: 1, y: 2, z: 3 },
+      { x: 4, y: 5, z: 6 },
+    ]
+    op.inputs.data.setValue(data)
+
+    expect(op.inputs.xField.choices.map(c => c.value)).toEqual(['x', 'y', 'z'])
+    expect(op.inputs.yField.choices.map(c => c.value)).toEqual(['x', 'y', 'z'])
+  })
+
+  it('handles empty data gracefully', () => {
+    const op = new ChartOp('/chart-1')
+    const result = op.execute({
+      data: [],
+      chartType: 'bar',
+      xField: 'x',
+      yField: 'y',
+      width: 640,
+      height: 400,
+      color: '#4269d0',
+      title: '',
+      xLabel: '',
+      yLabel: '',
+    })
+
+    expect(result.chart).toBeNull()
+  })
+
+  it('handles non-array data gracefully', () => {
+    const op = new ChartOp('/chart-1')
+    const result = op.execute({
+      data: { x: 1, y: 2 } as any,
+      chartType: 'bar',
+      xField: 'x',
+      yField: 'y',
+      width: 640,
+      height: 400,
+      color: '#4269d0',
+      title: '',
+      xLabel: '',
+      yLabel: '',
+    })
+
+    expect(result.chart).toBeNull()
   })
 })
 
