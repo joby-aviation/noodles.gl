@@ -104,6 +104,28 @@ export default defineConfig(({ mode }) => {
     build: {
       // Enable source maps for all production builds to improve debugging
       sourcemap: true,
+      rollupOptions: {
+        output: {
+          manualChunks: (id) => {
+            // Specialized visualization libraries (less frequently used)
+            // Separate chunk for Vega and Observable Plot
+            if (id.includes('node_modules/vega-') ||
+                id.includes('node_modules/vega/') ||
+                id.includes('node_modules/@observablehq/plot')) {
+              return 'charts'
+            }
+
+            // Core vendor chunk (always loaded)
+            // Includes: deck.gl, theatre, loaders, luma, UI components, and utilities
+            if (id.includes('node_modules/')) {
+              return 'vendor'
+            }
+
+            // Application code stays in main bundle
+            return undefined
+          },
+        },
+      },
     },
     server: {
       open: true,
