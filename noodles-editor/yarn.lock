@@ -7068,12 +7068,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"exrjs@npm:^0.1.0":
-  version: 0.1.0
-  resolution: "exrjs@npm:0.1.0"
+"exrjs@npm:^0.2.0":
+  version: 0.2.0
+  resolution: "exrjs@npm:0.2.0"
   dependencies:
     fflate: ^0.8.2
-  checksum: 5ea25f6f9bccee6491fb43690b2ed8d5b326d2608f32783aef820ab253271dfdbaffa9af5937b645c5fe3d8446861a3f236e4c3504d4ac60d7e2796203215c59
+  checksum: ba51fee2d2d71fa9411ee7f8b847f5cbbb6e9318e8d1c2edf1ae606f08e62f561ce317580aa10e7ebe6db5884a5b215014f12666a9b123fe290622eac7759c7a
   languageName: node
   linkType: hard
 
@@ -8668,7 +8668,7 @@ __metadata:
     classnames: ^2.5.1
     d3: ^7.9.0
     deck.gl: ^9.2.6
-    exrjs: ^0.1.0
+    exrjs: ^0.2.0
     geojson2h3: ^1.2.0
     gl-matrix: ^3.4.4
     h3-js: ^4.4.0
@@ -8679,7 +8679,6 @@ __metadata:
     mediabunny: ^1.27.4
     memoize-one: ^6.0.0
     nanoid: ^5.1.6
-    pako: ^2.1.0
     playwright: ^1.57.0
     posthog-js: ^1.316.1
     primeicons: ^7.0.0
@@ -8879,13 +8878,6 @@ __metadata:
   version: 1.0.11
   resolution: "pako@npm:1.0.11"
   checksum: 1be2bfa1f807608c7538afa15d6f25baa523c30ec870a3228a89579e474a4d992f4293859524e46d5d87fd30fa17c5edf34dbef0671251d9749820b488660b16
-  languageName: node
-  linkType: hard
-
-"pako@npm:^2.1.0":
-  version: 2.1.0
-  resolution: "pako@npm:2.1.0"
-  checksum: 71666548644c9a4d056bcaba849ca6fd7242c6cf1af0646d3346f3079a1c7f4a66ffec6f7369ee0dc88f61926c10d6ab05da3e1fca44b83551839e89edd75a3e
   languageName: node
   linkType: hard
 
