@@ -1,5 +1,7 @@
-import { EXRWriter } from 'exrjs'
+import * as exrjs from 'exrjs'
 import type { ExrCompression } from '../noodles/utils/serialization'
+
+const { EXRWriter, Compression } = exrjs
 
 export interface ExrCaptureOptions {
   compression: ExrCompression
@@ -7,16 +9,16 @@ export interface ExrCaptureOptions {
 }
 
 // Maps our compression type names to exrjs compression constants
-function mapCompression(compression: ExrCompression): string {
+function mapCompression(compression: ExrCompression): number {
   switch (compression) {
     case 'none':
-      return 'NONE'
+      return Compression.Uncompressed
     case 'zip':
-      return 'ZIP'
+      return Compression.ZIP16
     case 'piz':
-      return 'PIZ'
+      return Compression.PIZ
     default:
-      return 'ZIP'
+      return Compression.ZIP16
   }
 }
 
@@ -52,12 +54,12 @@ function _extractChannel(
 }
 
 // Captures pixel data from WebGL context and creates an EXR buffer
-export async function captureExrFrame(
+export function captureExrFrame(
   gl: WebGL2RenderingContext,
   width: number,
   height: number,
   options: ExrCaptureOptions
-): Promise<Uint8Array> {
+): Uint8Array {
   const { compression, includeDepth = false } = options
   const compressionType = mapCompression(compression)
 
@@ -119,10 +121,10 @@ export async function captureExrFrame(
     }
   }
 
-  // Write to buffer
-  const buffer = await writer.write()
-  // write() returns ArrayBuffer in browser
-  return new Uint8Array(buffer as ArrayBuffer)
+  // Encode to buffer
+  const buffer = writer.encode()
+  // encode() returns ArrayBuffer
+  return new Uint8Array(buffer)
 }
 
 // Captures a single PNG frame from the canvas

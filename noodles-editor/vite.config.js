@@ -104,6 +104,9 @@ export default defineConfig(({ mode }) => {
     server: {
       open: true,
     },
+    resolve: {
+      conditions: ['import', 'module', 'default'],
+    },
     plugins: [
       react(),
       nodePolyfills({

@@ -328,7 +328,7 @@ export const useRenderer = ({
               throw new Error('WebGL context not available for EXR export')
             }
 
-            const exrData = await captureExrFrame(gl, canvas.width, canvas.height, {
+            const exrData = captureExrFrame(gl, canvas.width, canvas.height, {
               compression: exrCompression,
               includeDepth,
             })
@@ -428,7 +428,7 @@ export const captureScreenshot = async (
     // Redraw to ensure buffer is populated
     const canvas = getBufferedCanvas()
 
-    const exrData = await captureExrFrame(gl, canvas.width, canvas.height, {
+    const exrData = captureExrFrame(gl, canvas.width, canvas.height, {
       compression: exrCompression,
       includeDepth,
     })

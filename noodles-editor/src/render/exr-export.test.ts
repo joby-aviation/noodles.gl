@@ -11,9 +11,19 @@ vi.mock('exrjs', () => {
     this.sampleType = vi.fn(() => this)
     this.scanlines = vi.fn(() => this)
     this.end = vi.fn(() => this)
-    this.write = vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]))
+    this.encode = vi.fn().mockReturnValue(new Uint8Array([1, 2, 3]))
   })
-  return { EXRWriter: MockEXRWriter }
+  const Compression = Object.freeze({
+    Uncompressed: 0,
+    RLE: 1,
+    ZIP1: 2,
+    ZIP16: 3,
+    PIZ: 4,
+    PXR24: 5,
+    B44: 6,
+    B44A: 7,
+  })
+  return { EXRWriter: MockEXRWriter, Compression }
 })
 
 describe('flipYFloat32', () => {
@@ -127,7 +137,7 @@ describe('captureExrFrame', () => {
     // Dynamic import to get the mocked version
     const { captureExrFrame } = await import('./exr-export')
 
-    await captureExrFrame(mockGL, 100, 100, {
+    captureExrFrame(mockGL, 100, 100, {
       compression: 'zip',
       includeDepth: false,
     })
