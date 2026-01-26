@@ -28,7 +28,7 @@ interface TopMenuBarProps {
   onOpen?: (projectName?: string) => Promise<void>
   onOpenAddNode?: () => void
   showChatPanel?: boolean
-  setShowChatPanel?: (show: boolean) => void
+  onChangeShowChatPanel?: (show: boolean) => void
   undoRedoRef: RefObject<UndoRedoHandlerRef | null>
   copyControlsRef: RefObject<CopyControlsRef | null>
   // Export functions always use the active OutOp's settings
@@ -37,9 +37,9 @@ interface TopMenuBarProps {
   isRendering?: boolean
   hasUnsavedChanges?: boolean
   showOverlay?: boolean
-  setShowOverlay?: (show: boolean) => void
+  onChangeShowOverlay?: (show: boolean) => void
   layoutMode?: 'split' | 'noodles-on-top' | 'output-on-top'
-  setLayoutMode?: (mode: 'split' | 'noodles-on-top' | 'output-on-top') => void
+  onChangeLayoutMode?: (mode: 'split' | 'noodles-on-top' | 'output-on-top') => void
   reactFlowRef?: RefObject<HTMLDivElement>
 }
 
@@ -54,7 +54,7 @@ export function TopMenuBar({
   onOpen,
   onOpenAddNode,
   showChatPanel,
-  setShowChatPanel,
+  onChangeShowChatPanel,
   undoRedoRef,
   copyControlsRef,
   startRender,
@@ -62,9 +62,9 @@ export function TopMenuBar({
   isRendering,
   hasUnsavedChanges,
   showOverlay,
-  setShowOverlay,
+  onChangeShowOverlay,
   layoutMode,
-  setLayoutMode,
+  onChangeLayoutMode,
   reactFlowRef,
 }: TopMenuBarProps) {
   const settingsDialogOpen = useUIStore(state => state.settingsDialogOpen)
@@ -380,7 +380,7 @@ export function TopMenuBar({
                       <DropdownMenu.CheckboxItem
                         className={s.dropdownItem}
                         checked={showOverlay}
-                        onCheckedChange={setShowOverlay}
+                        onCheckedChange={onChangeShowOverlay}
                       >
                         <DropdownMenu.ItemIndicator className={s.itemIndicator}>
                           <i className="pi pi-check" style={{ fontSize: '12px' }} />
@@ -403,7 +403,7 @@ export function TopMenuBar({
                             <DropdownMenu.RadioGroup
                               value={layoutMode}
                               onValueChange={value =>
-                                setLayoutMode?.(
+                                onChangeLayoutMode?.(
                                   value as 'split' | 'noodles-on-top' | 'output-on-top'
                                 )
                               }
@@ -544,10 +544,10 @@ export function TopMenuBar({
 
         <div className={s.rightSection}>
           <ExternalControlButton />
-          {setShowChatPanel && (
+          {onChangeShowChatPanel && (
             <button
               type="button"
-              onClick={() => setShowChatPanel(!showChatPanel)}
+              onClick={() => onChangeShowChatPanel(!showChatPanel)}
               className={s.assistantButton}
               title="Toggle Noodles AI Assistant"
             >

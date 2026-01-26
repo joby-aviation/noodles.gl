@@ -612,8 +612,8 @@ export function getNoodles(): Visualization {
     blockLibraryRef.current?.openModal(centerX, centerY)
   }, [])
 
-  // Editor settings state (moved from Theatre.js to project-level settings)
-  const [showOverlay, setShowOverlay] = useState(!IS_PROD)
+
+  const [showOverlay, setShowOverlay] = useState(true)
   const [layoutMode, setLayoutMode] = useState<'split' | 'noodles-on-top' | 'output-on-top'>(
     'noodles-on-top'
   )
@@ -643,7 +643,7 @@ export function getNoodles(): Visualization {
 
       // Load editor settings from project with defaults
       setLayoutMode(editorSettings?.layoutMode ?? 'noodles-on-top')
-      setShowOverlay(editorSettings?.showOverlay ?? !IS_PROD)
+      setShowOverlay(editorSettings?.showOverlay ?? true)
 
       // Render settings are now stored as OutOp inputs (migration 012 handles conversion)
 
@@ -1486,9 +1486,9 @@ export function getNoodles(): Visualization {
     nodeSidebar: <NodeTreeSidebar updateOperatorId={updateOperatorId} />,
     propertiesPanel,
     layoutMode,
-    setLayoutMode,
     showOverlay,
-    setShowOverlay,
+    onChangeLayoutMode: setLayoutMode,
+    onChangeShowOverlay: setShowOverlay,
     // Render settings are now read from OutOp via useRenderSettings() hook
     // Export these so timeline-editor can create the menu with render actions
     projectName,
@@ -1505,7 +1505,7 @@ export function getNoodles(): Visualization {
     copyControlsRef,
     reactFlowRef,
     showChatPanel,
-    setShowChatPanel,
+    onChangeShowChatPanel: setShowChatPanel,
     hasUnsavedChanges,
     ...visProps,
     project: theatreProject,

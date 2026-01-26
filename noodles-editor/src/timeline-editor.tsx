@@ -386,7 +386,7 @@ export default function TimelineEditor() {
       onOpen={noodles.onOpen}
       onOpenAddNode={noodles.onOpenAddNode}
       showChatPanel={noodles.showChatPanel}
-      setShowChatPanel={noodles.setShowChatPanel}
+      onChangeShowChatPanel={noodles.onChangeShowChatPanel}
       undoRedoRef={noodles.undoRedoRef!}
       copyControlsRef={noodles.copyControlsRef!}
       reactFlowRef={noodles.reactFlowRef}
@@ -395,9 +395,9 @@ export default function TimelineEditor() {
       isRendering={isRendering}
       hasUnsavedChanges={noodles.hasUnsavedChanges}
       showOverlay={noodles.showOverlay}
-      setShowOverlay={noodles.setShowOverlay}
+      onChangeShowOverlay={noodles.onChangeShowOverlay}
       layoutMode={noodles.layoutMode}
-      setLayoutMode={noodles.setLayoutMode}
+      onChangeLayoutMode={noodles.onChangeLayoutMode}
     />
   )
 
