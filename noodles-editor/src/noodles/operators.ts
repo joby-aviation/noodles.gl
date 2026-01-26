@@ -126,7 +126,6 @@ import * as deck from 'deck.gl'
 import { BehaviorSubject, combineLatest, type Subscription } from 'rxjs'
 import { filter, mergeMap } from 'rxjs/operators'
 import { Temporal } from 'temporal-polyfill'
-import vega from 'vega-embed'
 import type z from 'zod/v4'
 
 import './utils/bigint-fix' // BigInt JSON polyfill for DuckDB
@@ -6544,7 +6543,6 @@ const freeExports = {
   turf,
   deck,
   Plot,
-  vega,
   Temporal,
   // studio,
   ...opTypes,
