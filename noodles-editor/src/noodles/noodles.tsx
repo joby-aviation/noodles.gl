@@ -611,7 +611,6 @@ export function getNoodles(): Visualization {
     blockLibraryRef.current?.openModal(centerX, centerY)
   }, [])
 
-
   const [showOverlay, setShowOverlay] = useState(true)
   const [layoutMode, setLayoutMode] = useState<'split' | 'noodles-on-top' | 'output-on-top'>(
     'noodles-on-top'
