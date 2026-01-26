@@ -110,6 +110,12 @@ export default defineConfig(({ mode }) => {
         exrjs: path.resolve(__dirname, 'node_modules/exrjs/dist/exrjs.browser.js'),
       },
     },
+    optimizeDeps: {
+      include: ['exrjs'],
+      esbuildOptions: {
+        resolveExtensions: ['.browser.js', '.js'],
+      },
+    },
     plugins: [
       react(),
       nodePolyfills({
