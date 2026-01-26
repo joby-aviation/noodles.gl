@@ -385,6 +385,36 @@ export abstract class Operator<OP extends IOperator> {
     this.visibleFields.next(newSet)
   }
 
+  // Hide a field (remove from visible set)
+  hideField(name: string): void {
+    // Skip if field doesn't exist
+    if (!(name in this.inputs)) return
+    // Skip if already hidden
+    if (!this.isFieldVisible(name)) return
+
+    // Get current visible fields, or compute defaults from showByDefault
+    const current =
+      this.visibleFields.value ??
+      new Set(
+        Object.entries(this.inputs)
+          .filter(([_, field]) => field.showByDefault)
+          .map(([fieldName]) => fieldName)
+      )
+
+    const newSet = new Set(current)
+    newSet.delete(name)
+    this.visibleFields.next(newSet)
+  }
+
+  // Set field visibility (show or hide based on boolean)
+  setFieldVisibility(name: string, visible: boolean): void {
+    if (visible) {
+      this.showField(name)
+    } else {
+      this.hideField(name)
+    }
+  }
+
   // === Pull-based execution methods ===
 
   // Pull data from this operator, executing if needed (pull-based model)
@@ -1946,7 +1976,7 @@ export class ChartOp extends Operator<ChartOp> {
     })
 
     // Field visibility based on chart type
-    chartType.subscribe((type) => {
+    chartType.subscribe(type => {
       // Hide yField for histogram (only needs x-axis)
       this.setFieldVisibility('yField', type !== 'histogram')
     })

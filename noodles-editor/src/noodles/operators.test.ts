@@ -554,12 +554,7 @@ describe('ChartOp', () => {
   it('generates a histogram from data', () => {
     const op = new ChartOp('/chart-1')
     const result = op.execute({
-      data: [
-        { value: 10 },
-        { value: 20 },
-        { value: 15 },
-        { value: 25 },
-      ],
+      data: [{ value: 10 }, { value: 20 }, { value: 15 }, { value: 25 }],
       chartType: 'histogram',
       xField: 'value',
       yField: '',
