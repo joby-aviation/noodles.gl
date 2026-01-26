@@ -292,7 +292,6 @@ return distances
 - `turf` - Turf.js geospatial analysis functions
 - `deck` - Deck.gl utilities and components
 - `Plot` - Observable Plot for creating charts
-- `vega` - Vega visualization grammar
 - `Temporal` - TC39 Temporal API for dates and times
 - `utils` - Collection of utility functions (arc geometry, color conversion, geospatial operations, interpolation, etc.)
 - All Operator classes for instantiation

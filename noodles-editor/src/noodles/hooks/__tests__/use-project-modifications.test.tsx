@@ -4,7 +4,7 @@
 import { act, renderHook } from '@testing-library/react'
 import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { NumberOp } from '../../operators'
+import { DeckRendererOp, NumberOp } from '../../operators'
 import { clearOps, setOp } from '../../store'
 import { type ProjectModification, useProjectModifications } from '../use-project-modifications'
 
@@ -149,6 +149,45 @@ describe('useProjectModifications', () => {
         expect(updateResult.success).toBe(false)
         expect(updateResult.error).toContain('not found')
       })
+    })
+
+    it('should auto-show hidden field when setting value programmatically', () => {
+      // DeckRendererOp has 'effects' field with showByDefault: false
+      const op = new DeckRendererOp('/deck')
+      setOp('/deck', op)
+
+      // Verify effects is hidden by default
+      expect(op.inputs.effects.showByDefault).toBe(false)
+      expect(op.isFieldVisible('effects')).toBe(false)
+
+      const node: ReactFlowNode = {
+        id: '/deck',
+        type: 'DeckRendererOp',
+        position: { x: 0, y: 0 },
+        data: {},
+      }
+
+      nodes = [node]
+
+      const { result } = renderHook(() =>
+        useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
+      )
+
+      // Update the hidden 'effects' field programmatically
+      act(() => {
+        result.current.updateNode('/deck', {
+          data: {
+            inputs: {
+              effects: [{ type: 'lighting' }],
+            },
+          },
+        })
+      })
+
+      // Field should now be visible after programmatic update
+      expect(op.isFieldVisible('effects')).toBe(true)
+      expect(op.visibleFields.value).toBeInstanceOf(Set)
+      expect(op.visibleFields.value?.has('effects')).toBe(true)
     })
   })
 

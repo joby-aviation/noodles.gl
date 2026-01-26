@@ -7,12 +7,14 @@ import { forwardRef, useCallback, useEffect, useRef, useState } from 'react'
 import ReactMapGL, { type MapProps, useControl } from 'react-map-gl/maplibre'
 import { Layout } from './layout'
 import { TopMenuBar } from './noodles/components/top-menu-bar'
+import { ExportActionsProvider } from './noodles/contexts/export-actions-context'
+import { useRenderSettings } from './noodles/hooks/use-render-settings'
 import { getNoodles } from './noodles/noodles'
-import { CollapsibleTimelinePanel } from './timeline/components/CollapsibleTimelinePanel'
-import { DEFAULT_RENDER_SETTINGS, type RenderSettings } from './noodles/utils/serialization'
+import type { RenderSettings } from './noodles/utils/serialization'
 import { useDeckDrawLoop } from './render/draw-loop'
 import { captureScreenshot, rafDriver, useRenderer } from './render/renderer'
 import { TransformScale } from './render/transform-scale'
+import { CollapsibleTimelinePanel } from './timeline/components/CollapsibleTimelinePanel'
 import { useTimelineStore } from './timeline/timeline-store'
 import s from './timeline-editor.module.css'
 import setRef from './utils/set-ref'
@@ -151,20 +153,14 @@ export default function TimelineEditor() {
   }, [])
 
   const noodles = getNoodles()
-  const {
-    project,
-    sheet,
-    flowGraph,
-    nodeSidebar,
-    propertiesPanel,
-    layoutMode,
-    renderSettings,
-    setRenderSettings,
-    ...visualization
-  } = noodles
+  const { project, sheet, flowGraph, nodeSidebar, propertiesPanel, layoutMode, ...visualization } =
+    noodles
 
   // Get sequence based on which timeline system is active
   const theatreSequence = USE_THEATRE && sheet ? sheet.sequence : null
+
+  // Render settings are now stored as OutOp inputs
+  const renderSettings = useRenderSettings()
 
   useEffect(() => {
     if (USE_THEATRE && project) {
@@ -178,13 +174,8 @@ export default function TimelineEditor() {
   // Get sequence length from the appropriate timeline system
   const sequenceLength = useSequenceLength(theatreSequence)
 
-  // Render settings dialog state
-  const [renderSettingsDialogOpen, setRenderSettingsDialogOpen] = useState(false)
-
-  // Use provided renderSettings or fall back to defaults
-  const effectiveRenderSettings = renderSettings ?? DEFAULT_RENDER_SETTINGS
   const { framerate, bitrateMbps, bitrateMode, codec, resolution, lod, waitForData, captureDelay } =
-    effectiveRenderSettings
+    renderSettings
 
   // Renderer requires Theatre.js for video capture (uses sequence.position for scrubbing)
   // When Theatre.js is disabled, rendering features are disabled
@@ -361,7 +352,7 @@ export default function TimelineEditor() {
   }
 
   // Use fixed resolution for 'fixed' display mode, undefined for 'responsive' mode to use natural dimensions
-  const isFixedMode = effectiveRenderSettings.display === 'fixed'
+  const isFixedMode = renderSettings.display === 'fixed'
   const displayResolution = isFixedMode ? lodResolution : undefined
 
   if (!ready) {
@@ -375,7 +366,7 @@ export default function TimelineEditor() {
         <ReactMapGL style={displayResolution} {...mapProps}>
           <DeckGLOverlay
             ref={deckRef}
-            renderer={effectiveRenderSettings}
+            renderer={renderSettings}
             isRendering={isRendering}
             {...deckProps}
           />
@@ -415,10 +406,6 @@ export default function TimelineEditor() {
       setShowOverlay={noodles.setShowOverlay}
       layoutMode={noodles.layoutMode}
       setLayoutMode={noodles.setLayoutMode}
-      renderSettings={renderSettings}
-      setRenderSettings={setRenderSettings}
-      renderSettingsDialogOpen={renderSettingsDialogOpen}
-      setRenderSettingsDialogOpen={setRenderSettingsDialogOpen}
     />
   )
 
@@ -427,29 +414,33 @@ export default function TimelineEditor() {
       {isRendering && (
         <div className={s.actionButtons}>
           <progress
-            max={sequenceLength * effectiveRenderSettings.framerate}
+            max={sequenceLength * renderSettings.framerate}
             value={currentFrame}
-            title={`Rendered ${currentFrame} / ${sequenceLength * effectiveRenderSettings.framerate}`}
+            title={`Rendered ${currentFrame} / ${sequenceLength * renderSettings.framerate}`}
           />
         </div>
       )}
       <ReactFlowProvider>
-        <Layout
-          top={topBar}
-          left={nodeSidebar}
-          right={propertiesPanel}
-          bottom={!USE_THEATRE ? <CollapsibleTimelinePanel /> : undefined}
-          flowGraph={flowGraph}
-          layoutMode={layoutMode}
+        <ExportActionsProvider
+          startRender={startRender}
+          takeScreenshot={takeScreenshot}
+          isRendering={isRendering}
         >
-          {isFixedMode ? (
-            <TransformScale scale={effectiveRenderSettings.scaleControl}>
-              {renderContent()}
-            </TransformScale>
-          ) : (
-            renderContent()
-          )}
-        </Layout>
+          <Layout
+            top={topBar}
+            left={nodeSidebar}
+            right={propertiesPanel}
+            bottom={!USE_THEATRE ? <CollapsibleTimelinePanel /> : undefined}
+            flowGraph={flowGraph}
+            layoutMode={layoutMode}
+          >
+            {isFixedMode ? (
+              <TransformScale scale={renderSettings.scaleControl}>{renderContent()}</TransformScale>
+            ) : (
+              renderContent()
+            )}
+          </Layout>
+        </ExportActionsProvider>
       </ReactFlowProvider>
     </>
   )
