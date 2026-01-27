@@ -197,6 +197,8 @@ export default function TimelineEditor() {
     },
   }
 
+  // Destructure light and sky since they're applied imperatively via setLight/setSky
+  const { light, sky, ...basemapProps } = visualization.mapProps ?? {}
   const mapProps: MapProps = {
     interactive: false,
     antialias: true,
@@ -206,17 +208,14 @@ export default function TimelineEditor() {
       mapRef.current = map
       redraw()
     },
-    ...visualization.mapProps,
-    maxPitch: Math.min(visualization.mapProps?.maxPitch ?? 85, 85),
+    ...basemapProps,
+    maxPitch: Math.min(basemapProps?.maxPitch ?? 85, 85),
   }
 
   // Apply light and sky settings imperatively to avoid style reloading
   useEffect(() => {
     const map = mapRef.current
     if (!map || !map.isStyleLoaded()) return
-
-    const light = visualization.mapProps?.light
-    const sky = visualization.mapProps?.sky
 
     // Note: light settings only apply to globe projection
     if (light) {
@@ -239,7 +238,7 @@ export default function TimelineEditor() {
       // Disable sky - requires MapLibre GL JS 4.6.0+
       map.setSky(undefined)
     }
-  }, [visualization.mapProps?.light, visualization.mapProps?.sky])
+  }, [light, sky])
 
   // Expose deck.gl canvas and instance for Claude AI visual debugging
   useEffect(() => {
