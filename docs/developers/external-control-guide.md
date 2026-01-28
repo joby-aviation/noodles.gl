@@ -111,7 +111,7 @@ node server-example.js
 
 #### JavaScript/Node.js
 ```javascript
-import { NoodlesClient } from './client.js'
+import { NoodlesClient } from 'noodles-editor/src/external-control/client.js'
 
 const client = new NoodlesClient({
   host: 'localhost',
