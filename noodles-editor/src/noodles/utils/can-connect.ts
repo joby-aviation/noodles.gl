@@ -37,7 +37,6 @@ export function validateConnection(from: Field, to: Field): ConnectionValidation
   // rather than just the value
   const schema = to instanceof ListField ? to.schema.unwrap() : to.schema
   const result = schema.safeParse(from.value, {
-    reportInput: true,
     error: _iss => from.pathToProps.join('.'),
   })
   if (!result.success) {

@@ -126,6 +126,25 @@ export const useUIStore = create<UIStoreState>(set => ({
 }))
 
 // ============================================================================
+// Active OutOp Store (Zustand) - Tracks which OutOp is the "active" one
+// Similar to Blender's active camera concept - sticky selection independent
+// of node selection that drives render settings
+// ============================================================================
+
+interface ActiveOutOpState {
+  activeOutOpId: string | null
+  setActiveOutOpId: (id: string | null) => void
+}
+
+export const useActiveOutOpStore = create<ActiveOutOpState>(set => ({
+  activeOutOpId: null,
+  setActiveOutOpId: id => set({ activeOutOpId: id }),
+}))
+
+// Get the active OutOp store instance for use outside React components
+export const getActiveOutOpStore = () => useActiveOutOpStore.getState()
+
+// ============================================================================
 // Helper functions for non-React contexts
 // ============================================================================
 

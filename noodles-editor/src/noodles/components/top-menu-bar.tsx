@@ -1,6 +1,5 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { ChevronDownIcon, ExternalLinkIcon } from '@radix-ui/react-icons'
-import studio from '@theatre/studio'
 import { useReactFlow } from '@xyflow/react'
 import { type RefObject, useCallback, useEffect, useMemo, useState } from 'react'
 import logoSvg from '/noodles-favicon.svg'
@@ -21,36 +20,41 @@ import type { UndoRedoHandlerRef } from './UndoRedoHandler'
 interface TopMenuBarProps {
   projectName?: string
   onSaveProject: () => void
+  onSaveAs?: () => Promise<void>
+  onRename?: () => void
   onDownload?: () => Promise<void>
   onNewProject: () => void
   onImport: () => void
   onOpen?: (projectName?: string) => Promise<void>
   onOpenAddNode?: () => void
   showChatPanel?: boolean
-  setShowChatPanel?: (show: boolean) => void
+  onChangeShowChatPanel?: (show: boolean) => void
   undoRedoRef: RefObject<UndoRedoHandlerRef | null>
   copyControlsRef: RefObject<CopyControlsRef | null>
+  // Export functions always use the active OutOp's settings
   startRender?: () => Promise<void>
   takeScreenshot?: () => Promise<void>
   isRendering?: boolean
   hasUnsavedChanges?: boolean
   showOverlay?: boolean
-  setShowOverlay?: (show: boolean) => void
+  onChangeShowOverlay?: (show: boolean) => void
   layoutMode?: 'split' | 'noodles-on-top' | 'output-on-top'
-  setLayoutMode?: (mode: 'split' | 'noodles-on-top' | 'output-on-top') => void
+  onChangeLayoutMode?: (mode: 'split' | 'noodles-on-top' | 'output-on-top') => void
   reactFlowRef?: RefObject<HTMLDivElement>
 }
 
 export function TopMenuBar({
   projectName,
   onSaveProject,
+  onSaveAs,
+  onRename,
   onDownload,
   onNewProject,
   onImport,
   onOpen,
   onOpenAddNode,
   showChatPanel,
-  setShowChatPanel,
+  onChangeShowChatPanel,
   undoRedoRef,
   copyControlsRef,
   startRender,
@@ -58,9 +62,9 @@ export function TopMenuBar({
   isRendering,
   hasUnsavedChanges,
   showOverlay,
-  setShowOverlay,
+  onChangeShowOverlay,
   layoutMode,
-  setLayoutMode,
+  onChangeLayoutMode,
   reactFlowRef,
 }: TopMenuBarProps) {
   const settingsDialogOpen = useUIStore(state => state.settingsDialogOpen)
@@ -132,6 +136,19 @@ export function TopMenuBar({
 
   const canGoInto = selectedContainer !== null
 
+  // Simplified export handlers - always use active OutOp's settings
+  const handleStartRender = useCallback(async () => {
+    if (!startRender) return
+    await startRender()
+    analytics.track('render_started', { source: 'menu' })
+  }, [startRender])
+
+  const handleTakeScreenshot = useCallback(async () => {
+    if (!takeScreenshot) return
+    await takeScreenshot()
+    analytics.track('screenshot_taken', { source: 'menu' })
+  }, [takeScreenshot])
+
   const goUp = useCallback(() => {
     const parentPath = getParentPath(currentContainerId)
     if (parentPath && parentPath !== currentContainerId) {
@@ -158,28 +175,6 @@ export function TopMenuBar({
       }, 50)
     }
   }, [selectedContainer, setCurrentContainerId, reactFlow])
-
-  const onSelectRenderSettings = useCallback(() => {
-    const store = getOpStore()
-    const obj = store.getSheetObject('render')
-    if (obj) {
-      studio.setSelection([obj])
-    }
-  }, [])
-
-  const handleStartRender = useCallback(async () => {
-    if (startRender) {
-      await startRender()
-      analytics.track('render_started', { source: 'menu' })
-    }
-  }, [startRender])
-
-  const handleTakeScreenshot = useCallback(async () => {
-    if (takeScreenshot) {
-      await takeScreenshot()
-      analytics.track('screenshot_taken', { source: 'menu' })
-    }
-  }, [takeScreenshot])
 
   return (
     <>
@@ -236,6 +231,22 @@ export function TopMenuBar({
                       <DropdownMenu.Item className={s.dropdownItem} onSelect={onSaveProject}>
                         <span>Save</span>
                         <span className={s.shortcut}>{mod}+S</span>
+                      </DropdownMenu.Item>
+                      <DropdownMenu.Item
+                        className={s.dropdownItem}
+                        onSelect={onSaveAs}
+                        disabled={!onSaveAs}
+                      >
+                        <span>Save As...</span>
+                        <span className={s.shortcut}>{mod}+Shift+S</span>
+                      </DropdownMenu.Item>
+                      <DropdownMenu.Item
+                        className={s.dropdownItem}
+                        onSelect={onRename}
+                        disabled={!onRename}
+                      >
+                        Rename Project...
+                        <span className={s.shortcut}>{mod}+Shift+A</span>
                       </DropdownMenu.Item>
                       <DropdownMenu.Item
                         className={s.dropdownItem}
@@ -369,7 +380,7 @@ export function TopMenuBar({
                       <DropdownMenu.CheckboxItem
                         className={s.dropdownItem}
                         checked={showOverlay}
-                        onCheckedChange={setShowOverlay}
+                        onCheckedChange={onChangeShowOverlay}
                       >
                         <DropdownMenu.ItemIndicator className={s.itemIndicator}>
                           <i className="pi pi-check" style={{ fontSize: '12px' }} />
@@ -392,7 +403,7 @@ export function TopMenuBar({
                             <DropdownMenu.RadioGroup
                               value={layoutMode}
                               onValueChange={value =>
-                                setLayoutMode?.(
+                                onChangeLayoutMode?.(
                                   value as 'split' | 'noodles-on-top' | 'output-on-top'
                                 )
                               }
@@ -444,9 +455,6 @@ export function TopMenuBar({
                   disabled={!takeScreenshot || isRendering}
                 >
                   Take Screenshot
-                </DropdownMenu.Item>
-                <DropdownMenu.Item className={s.dropdownItem} onSelect={onSelectRenderSettings}>
-                  Render Settings
                 </DropdownMenu.Item>
 
                 <DropdownMenu.Separator className={s.dropdownSeparator} />
@@ -536,10 +544,10 @@ export function TopMenuBar({
 
         <div className={s.rightSection}>
           <ExternalControlButton />
-          {setShowChatPanel && (
+          {onChangeShowChatPanel && (
             <button
               type="button"
-              onClick={() => setShowChatPanel(!showChatPanel)}
+              onClick={() => onChangeShowChatPanel(!showChatPanel)}
               className={s.assistantButton}
               title="Toggle Noodles AI Assistant"
             >

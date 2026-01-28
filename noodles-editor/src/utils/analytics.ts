@@ -3,7 +3,7 @@ import posthog from 'posthog-js'
 const ANALYTICS_CONSENT_KEY = 'noodles-analytics-consent'
 const ERROR_CAPTURE_CONSENT_KEY = 'noodles-error-capture-consent'
 const POSTHOG_API_KEY = import.meta.env.VITE_POSTHOG_API_KEY
-const POSTHOG_HOST = import.meta.env.VITE_POSTHOG_HOST || 'https://app.posthog.com'
+const POSTHOG_HOST = import.meta.env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com'
 
 export interface AnalyticsConsent {
   enabled: boolean

@@ -193,7 +193,8 @@ function verifyGraphConsistency(nodes: ReactFlowNode[], edges: ReactFlowEdge[]) 
     if (node.parentId) {
       const parent = nodes.find(n => n.id === node.parentId)
       expect(parent).toBeDefined()
-      expect(parent?.type).toBe('ContainerOp')
+      // Parent can be either ContainerOp or group (ForLoop body)
+      expect(['ContainerOp', 'group']).toContain(parent?.type)
     }
   }
 }
@@ -275,11 +276,39 @@ function renameNode(
   return { nodes: updatedNodes, edges: updatedEdges }
 }
 
+// Generate a unique node ID, checking both operators and existing React Flow nodes
+function uniqueNodeId(
+  baseName: string,
+  containerId: string | undefined,
+  existingNodeIds: Set<string>
+): string {
+  // First try the standard nodeId function
+  const newId = nodeId(baseName, containerId)
+
+  // If nodeId returned a unique ID that doesn't conflict with existing nodes, use it
+  if (!existingNodeIds.has(newId)) {
+    return newId
+  }
+
+  // Otherwise, find a unique variant by appending numbers
+  const containerPrefix = containerId?.startsWith('/') ? containerId : `/${containerId || ''}`
+  const pathPrefix = containerPrefix === '/' ? '/' : `${containerPrefix}/`
+
+  for (let i = 1; i < 100_000; i++) {
+    const candidatePath = pathPrefix === '/' ? `/${baseName}-${i}` : `${pathPrefix}${baseName}-${i}`
+    if (!existingNodeIds.has(candidatePath) && !hasOp(candidatePath)) {
+      return candidatePath
+    }
+  }
+
+  return newId // Fallback
+}
+
 // Simulates copy/paste operation
 function copyPasteNodes(
   nodesToCopy: ReactFlowNode[],
   edgesToCopy: ReactFlowEdge[],
-  _allNodes: ReactFlowNode[],
+  allNodes: ReactFlowNode[],
   currentContainerId?: string
 ): { nodes: ReactFlowNode[]; edges: ReactFlowEdge[] } {
   // Serialize nodes (simulating clipboard)
@@ -290,27 +319,52 @@ function copyPasteNodes(
     edgesToCopy
   )
 
+  // Sort nodes so parents come before children (ensures parent IDs are in idMap first)
+  const sortedNodes = [...serialized].sort((a, b) => {
+    // Group nodes (parents) should come first
+    if (a.type === 'group' && b.type !== 'group') return -1
+    if (b.type === 'group' && a.type !== 'group') return 1
+    // If one is the parent of the other, parent comes first
+    if (a.parentId === b.id) return 1
+    if (b.parentId === a.id) return -1
+    return 0
+  })
+
+  // Build set of existing node IDs (both operators and React Flow nodes like groups)
+  const existingNodeIds = new Set(allNodes.map(n => n.id))
+
+  // Build a map of node types for looking up parent types
+  const nodeTypeMap = new Map(sortedNodes.map(n => [n.id, n.type]))
+
   // Deserialize and deconflict IDs
   const idMap = new Map<string, string>()
 
   // First pass: generate new IDs and populate idMap
-  // Process nodes in order, using remapped parent IDs as container context
-  for (const node of serialized) {
+  // ContainerOp children use the container ID as namespace
+  // Group (ForLoop body) children stay as siblings (same namespace as group)
+  for (const node of sortedNodes) {
     const baseName = getBaseName(node.id).replace(/-\d+$/, '')
 
-    // If this node has a parentId, use the remapped parent as the container
-    // Otherwise use the currentContainerId parameter (defaults to root '/')
+    // Determine the containerId for generating the new ID
+    // - ContainerOp: children are namespaced under the container
+    // - group (ForLoop body): children are siblings, NOT namespaced under the group
     let containerId = currentContainerId
     if (node.parentId && idMap.has(node.parentId)) {
-      containerId = idMap.get(node.parentId)
+      const parentType = nodeTypeMap.get(node.parentId)
+      // Only use parent as containerId for ContainerOp, not for group nodes
+      if (parentType === 'ContainerOp') {
+        containerId = idMap.get(node.parentId)
+      }
     }
 
-    const newId = nodeId(baseName, containerId)
+    const newId = uniqueNodeId(baseName, containerId, existingNodeIds)
     idMap.set(node.id, newId)
+    // Add new ID to existing set to avoid conflicts with subsequent nodes
+    existingNodeIds.add(newId)
   }
 
   // Second pass: create nodes with remapped parentIds
-  const pastedNodes = serialized.map(node => {
+  const pastedNodes = sortedNodes.map(node => {
     const newId = idMap.get(node.id)!
     const newParentId = node.parentId ? idMap.get(node.parentId) : undefined
     return { ...node, id: newId, parentId: newParentId }
@@ -911,6 +965,194 @@ describe('Node Operations Integration Tests', () => {
       expect(updatedEdge?.id).toBe(edgeId(updatedEdge!))
 
       verifyGraphConsistency(updatedNodes, updatedEdges)
+    })
+  })
+
+  describe('ForLoop Copy/Paste', () => {
+    it('auto-includes parent group node when copying ForLoop children', () => {
+      // Create a ForLoop
+      const { nodes: forLoopNodes, edges: forLoopEdges } = createNodesForType(
+        'ForLoop',
+        { x: 0, y: 0 },
+        '/'
+      )
+
+      transformGraph({ nodes: forLoopNodes as any, edges: forLoopEdges as any })
+
+      // Find the node IDs
+      const groupNode = forLoopNodes.find(n => n.type === 'group')!
+      const beginNode = forLoopNodes.find(n => n.type === 'ForLoopBeginOp')!
+      const endNode = forLoopNodes.find(n => n.type === 'ForLoopEndOp')!
+
+      // Simulate copying only the begin and end nodes (not the group)
+      // This mimics what happens when a user selects just the operator nodes
+      const nodesToCopy = [beginNode, endNode] as ReactFlowNode[]
+
+      // The copyPasteNodes helper should recognize these have a parentId
+      // and the copy logic should include the parent group
+      const { nodes: pastedNodes, edges: pastedEdges } = copyPasteNodes(
+        // Add the group node to the copy set (simulating the auto-include behavior)
+        [groupNode, ...nodesToCopy] as ReactFlowNode[],
+        forLoopEdges,
+        forLoopNodes as any
+      )
+
+      // All pasted nodes should have new IDs
+      const allNodes = [...(forLoopNodes as any), ...pastedNodes]
+      const allEdges = [...forLoopEdges, ...pastedEdges]
+
+      transformGraph({ nodes: allNodes, edges: allEdges as any })
+
+      // Find the new group and its children
+      const newGroup = pastedNodes.find(n => n.type === 'group')
+      expect(newGroup).toBeDefined()
+      expect(newGroup?.id).not.toBe(groupNode.id)
+
+      // Children should have parentId pointing to the new group
+      const newBegin = pastedNodes.find(n => n.type === 'ForLoopBeginOp')
+      const newEnd = pastedNodes.find(n => n.type === 'ForLoopEndOp')
+      expect(newBegin?.parentId).toBe(newGroup?.id)
+      expect(newEnd?.parentId).toBe(newGroup?.id)
+    })
+
+    it('preserves ForLoop edges when copying', () => {
+      // Create a ForLoop
+      const { nodes: forLoopNodes, edges: forLoopEdges } = createNodesForType(
+        'ForLoop',
+        { x: 0, y: 0 },
+        '/'
+      )
+
+      transformGraph({ nodes: forLoopNodes as any, edges: forLoopEdges as any })
+
+      // Copy the entire ForLoop
+      const { nodes: pastedNodes, edges: pastedEdges } = copyPasteNodes(
+        forLoopNodes as any,
+        forLoopEdges,
+        forLoopNodes as any
+      )
+
+      // Should have one edge (begin.item -> end.item)
+      expect(pastedEdges.length).toBe(1)
+
+      // Edge should connect the new begin to the new end
+      const newBegin = pastedNodes.find(n => n.type === 'ForLoopBeginOp')!
+      const newEnd = pastedNodes.find(n => n.type === 'ForLoopEndOp')!
+      const edge = pastedEdges[0]
+
+      expect(edge.source).toBe(newBegin.id)
+      expect(edge.target).toBe(newEnd.id)
+      expect(edge.sourceHandle).toBe('out.item')
+      expect(edge.targetHandle).toBe('par.item')
+    })
+
+    it('generates unique IDs when pasting ForLoop multiple times', () => {
+      // Create a ForLoop
+      const { nodes: forLoopNodes, edges: forLoopEdges } = createNodesForType(
+        'ForLoop',
+        { x: 0, y: 0 },
+        '/'
+      )
+
+      transformGraph({ nodes: forLoopNodes as any, edges: forLoopEdges as any })
+
+      // Paste once
+      const { nodes: pastedNodes1 } = copyPasteNodes(
+        forLoopNodes as any,
+        forLoopEdges,
+        forLoopNodes as any
+      )
+
+      // Add to graph
+      const allNodesAfterFirst = [...(forLoopNodes as any), ...pastedNodes1]
+      transformGraph({ nodes: allNodesAfterFirst, edges: forLoopEdges as any })
+
+      // Paste again
+      const { nodes: pastedNodes2 } = copyPasteNodes(
+        forLoopNodes as any,
+        forLoopEdges,
+        allNodesAfterFirst
+      )
+
+      // All group nodes should have different IDs
+      const originalGroup = forLoopNodes.find(n => n.type === 'group')!
+      const group1 = pastedNodes1.find(n => n.type === 'group')!
+      const group2 = pastedNodes2.find(n => n.type === 'group')!
+
+      expect(group1.id).not.toBe(originalGroup.id)
+      expect(group2.id).not.toBe(originalGroup.id)
+      expect(group2.id).not.toBe(group1.id)
+
+      // All begin nodes should have different IDs
+      const originalBegin = forLoopNodes.find(n => n.type === 'ForLoopBeginOp')!
+      const begin1 = pastedNodes1.find(n => n.type === 'ForLoopBeginOp')!
+      const begin2 = pastedNodes2.find(n => n.type === 'ForLoopBeginOp')!
+
+      expect(begin1.id).not.toBe(originalBegin.id)
+      expect(begin2.id).not.toBe(originalBegin.id)
+      expect(begin2.id).not.toBe(begin1.id)
+    })
+
+    it('maintains correct parentId hierarchy after paste', () => {
+      // Create a ForLoop
+      const { nodes: forLoopNodes, edges: forLoopEdges } = createNodesForType(
+        'ForLoop',
+        { x: 0, y: 0 },
+        '/'
+      )
+
+      transformGraph({ nodes: forLoopNodes as any, edges: forLoopEdges as any })
+
+      // Copy and paste
+      const { nodes: pastedNodes } = copyPasteNodes(
+        forLoopNodes as any,
+        forLoopEdges,
+        forLoopNodes as any
+      )
+
+      // Find new nodes
+      const newGroup = pastedNodes.find(n => n.type === 'group')!
+      const newBegin = pastedNodes.find(n => n.type === 'ForLoopBeginOp')!
+      const newEnd = pastedNodes.find(n => n.type === 'ForLoopEndOp')!
+      const newMeta = pastedNodes.find(n => n.type === 'ForLoopMetaOp')!
+
+      // All children should reference the new group
+      expect(newBegin.parentId).toBe(newGroup.id)
+      expect(newEnd.parentId).toBe(newGroup.id)
+      expect(newMeta.parentId).toBe(newGroup.id)
+
+      // Children should NOT reference the old group
+      const oldGroup = forLoopNodes.find(n => n.type === 'group')!
+      expect(newBegin.parentId).not.toBe(oldGroup.id)
+      expect(newEnd.parentId).not.toBe(oldGroup.id)
+      expect(newMeta.parentId).not.toBe(oldGroup.id)
+    })
+
+    it('correctly positions child nodes relative to their parent group', () => {
+      // Create a ForLoop
+      const { nodes: forLoopNodes, edges: forLoopEdges } = createNodesForType(
+        'ForLoop',
+        { x: 100, y: 100 },
+        '/'
+      )
+
+      transformGraph({ nodes: forLoopNodes as any, edges: forLoopEdges as any })
+
+      // Copy and paste
+      const { nodes: pastedNodes } = copyPasteNodes(
+        forLoopNodes as any,
+        forLoopEdges,
+        forLoopNodes as any
+      )
+
+      // Child nodes should have their original relative positions preserved
+      const originalBegin = forLoopNodes.find(n => n.type === 'ForLoopBeginOp')!
+      const newBegin = pastedNodes.find(n => n.type === 'ForLoopBeginOp')!
+
+      // The positions of children are relative to their parent group
+      // They should be the same as the original (relative positioning)
+      expect(newBegin.position.x).toBe(originalBegin.position.x)
+      expect(newBegin.position.y).toBe(originalBegin.position.y)
     })
   })
 

@@ -7,6 +7,7 @@ import { getOpStore } from './store'
 import { validateConnection } from './utils/can-connect'
 import { memoize } from './utils/memoize'
 import { getParentPath, isDirectChild, parseHandleId } from './utils/path-utils'
+import { computeVisibilityHeuristic } from './utils/visibility-heuristic'
 
 // Re-export GraphExecutor and related types for use elsewhere
 export {
@@ -111,6 +112,34 @@ export function transformGraph<
         created.push(op)
         // Store operator in store using fully qualified path
         store.setOp(id, op)
+
+        // Restore field visibility from saved data or derive from heuristic
+        const visibleInputs = (data as { visibleInputs?: string[] })?.visibleInputs
+
+        if (visibleInputs && Array.isArray(visibleInputs)) {
+          // Explicit visibility saved - use it directly as the full set
+          op.visibleFields.next(new Set(visibleInputs))
+        } else {
+          // No saved visibility - derive from heuristic
+          const customValues = data?.inputs ?? {}
+          // ReferenceEdges are filtered because they're operator references in code,
+          // not data connections that should affect field visibility
+          const connectedFields = new Set(
+            edges
+              .filter(edge => edge.target === id && edge.type !== 'ReferenceEdge')
+              .map(edge => parseHandleId(String(edge.targetHandle))?.fieldName)
+              .filter((name): name is string => name !== undefined)
+          )
+
+          const { visibleFields: heuristicVisible, differsFromDefaults } =
+            computeVisibilityHeuristic(op, customValues, connectedFields)
+
+          if (differsFromDefaults) {
+            // Heuristic differs from defaults, need to set explicitly
+            op.visibleFields.next(heuristicVisible)
+          }
+          // else: leave visibleFields as null, showByDefault defaults will work
+        }
       }
 
       return op
@@ -177,6 +206,12 @@ export function transformGraph<
       const connectionType =
         (edge as Edge<OP, OP> & { type?: string }).type === 'ReferenceEdge' ? 'reference' : 'value'
       targetField.addConnection(edge.id, sourceField, connectionType)
+
+      // Auto-show fields when they receive data connections (for programmatic/AI connections)
+      // ReferenceEdges are operator references in code, not data flow, so don't auto-show
+      if (connectionType === 'value') {
+        targetOp.showField(targetFieldName)
+      }
 
       // Validate connection and track errors - allow connection even if types mismatch
       const validation = validateConnection(sourceField, targetField)

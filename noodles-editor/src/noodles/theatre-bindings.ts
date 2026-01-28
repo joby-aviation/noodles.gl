@@ -68,6 +68,9 @@ export function bindOperatorToTheatre(
     // Skip accessor functions
     if (typeof field.value === 'function') continue
 
+    // Skip fields that are not visible
+    if (!op.isFieldVisible(key)) continue
+
     // Only bind Theatre-compatible field types
     if (!isTheatreCompatible(field)) continue
 
@@ -171,6 +174,19 @@ export function unbindOperatorFromTheatre(opId: string, sheet: ISheet): void {
   }
 }
 
+// Rebind an operator to Theatre (unbind and bind again)
+// Used when field visibility changes to update Theatre props
+export function rebindOperatorToTheatre(
+  op: Operator<IOperator>,
+  sheet: ISheet
+): (() => void) | undefined {
+  // First unbind the existing binding
+  unbindOperatorFromTheatre(op.id, sheet)
+  // Then create a new binding with current visibility
+  return bindOperatorToTheatre(op, sheet)
+}
+
+// Bind all operators in opMap to Theatre
 export function bindAllOperatorsToTheatre(
   operators: Operator<IOperator>[],
   sheet: ISheet
