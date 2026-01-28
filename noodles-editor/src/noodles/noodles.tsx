@@ -1095,16 +1095,25 @@ export function getNoodles(): Visualization {
         // Handle ZIP import
         const zip = await JSZip.loadAsync(await file.arrayBuffer())
 
-        // Find noodles.json in the ZIP (could be at root or in a subfolder)
+        // Find the shallowest noodles.json in the ZIP (could be at root or in a subfolder)
+        // We want the project root, not a noodles.json that might be in a data subfolder
         let noodlesJsonPath: string | null = null
         let projectFolder = ''
 
-        // Iterate over files in the ZIP to find noodles.json
+        // Iterate over files in the ZIP to find the shallowest noodles.json
         zip.forEach((relativePath, zipEntry) => {
           if (relativePath.endsWith('noodles.json') && !zipEntry.dir) {
-            noodlesJsonPath = relativePath
             // Extract the folder path (everything before noodles.json)
-            projectFolder = relativePath.substring(0, relativePath.lastIndexOf('noodles.json'))
+            const folder = relativePath.substring(0, relativePath.lastIndexOf('noodles.json'))
+            // Keep this one if it's the first found, or if it's shallower (fewer path segments)
+            const currentDepth = noodlesJsonPath
+              ? projectFolder.split('/').filter(Boolean).length
+              : Infinity
+            const newDepth = folder.split('/').filter(Boolean).length
+            if (newDepth < currentDepth) {
+              noodlesJsonPath = relativePath
+              projectFolder = folder
+            }
           }
         })
 
