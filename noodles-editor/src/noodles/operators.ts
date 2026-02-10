@@ -6628,6 +6628,7 @@ export const opTypes = {
   ArcLayerOp,
   BezierCurveOp,
   BitmapLayerOp,
+  BlendingOp,
   BooleanOp,
   BoundingBoxOp,
   BoundsOp,
