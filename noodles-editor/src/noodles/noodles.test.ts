@@ -250,10 +250,10 @@ describe('nodes', () => {
       ],
     }
 
-    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
 
     expect(() => transformGraph(graph)).not.toThrowError()
-    expect(consoleWarn).toHaveBeenCalledWith('Invalid connection')
+    expect(consoleError).toHaveBeenCalledWith('Invalid connection')
     expect(transformGraph(graph).length).toEqual(2)
   })
 })

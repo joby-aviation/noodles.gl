@@ -91,7 +91,7 @@ export default function ExamplesPage() {
             }
           }
         } catch (e) {
-          console.warn(`Failed to load README for ${projectName}`, e)
+          console.error(`Failed to load README for ${projectName}`, e)
         }
       }
 

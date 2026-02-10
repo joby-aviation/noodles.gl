@@ -750,7 +750,7 @@ export class WebSearchService {
             embedding
           }
         } catch (err) {
-          console.warn('Failed to fetch result:', topic.FirstURL, err)
+          console.error('Failed to fetch result:', topic.FirstURL, err)
           return null
         }
       })
