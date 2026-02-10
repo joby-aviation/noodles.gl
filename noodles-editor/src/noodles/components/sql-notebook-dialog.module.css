@@ -1,0 +1,362 @@
+.dialogOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  z-index: calc(var(--z-index-notebook) - 1);
+}
+
+.dialogContent {
+  position: fixed;
+  top: 5vh;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 90vw;
+  max-height: 90vh;
+  width: 1400px;
+  background: #1a1a1a;
+  border-radius: 12px;
+  padding: 1.5rem;
+  z-index: var(--z-index-notebook);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+}
+
+.dialogTitle {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #e2dede;
+  margin: 0;
+}
+
+.dialogDescription {
+  font-size: 0.875rem;
+  color: #888;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.closeButton {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: transparent;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.closeButton:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #e2dede;
+}
+
+/* Editor Section */
+.editorSection {
+  display: flex;
+  flex-direction: column;
+  height: 40%;
+  min-height: 300px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #1e1e1e;
+}
+
+.editorToolbar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.runButton {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.runButton:hover:not(:disabled) {
+  background: #2563eb;
+}
+
+.runButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.shortcutHint {
+  font-size: 0.75rem;
+  color: #666;
+  font-style: italic;
+}
+
+.editorContainer {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Results Section */
+.resultsSection {
+  flex: 1;
+  min-height: 400px;
+  overflow-y: auto;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #666;
+  gap: 1rem;
+}
+
+.emptyState p {
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+/* Accordion */
+.accordion {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.accordionItem {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.02);
+  overflow: hidden;
+}
+
+.accordionHeader {
+  margin: 0;
+}
+
+.accordionTrigger {
+  all: unset;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  width: 100%;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.accordionTrigger:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.accordionTrigger[data-state='open'] .chevron {
+  transform: rotate(180deg);
+}
+
+.statementBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 1.5rem;
+  background: rgba(59, 130, 246, 0.2);
+  color: #3b82f6;
+  border-radius: 4px;
+  padding: 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.statusIcon {
+  font-size: 1rem;
+  font-weight: bold;
+}
+
+.sqlPreviewText {
+  flex: 1;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.875rem;
+  color: #e2dede;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.statementStats {
+  font-size: 0.75rem;
+  color: #888;
+  white-space: nowrap;
+}
+
+.chevron {
+  width: 1rem;
+  height: 1rem;
+  color: #888;
+  transition: transform 0.2s;
+}
+
+.accordionContent {
+  padding: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.accordionContent[data-state='closed'] {
+  animation: slideUp 0.2s ease-out;
+}
+
+.accordionContent[data-state='open'] {
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    height: 0;
+    opacity: 0;
+  }
+  to {
+    height: var(--radix-accordion-content-height);
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    height: var(--radix-accordion-content-height);
+    opacity: 1;
+  }
+  to {
+    height: 0;
+    opacity: 0;
+  }
+}
+
+.sqlCodeBlock {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 0.75rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  overflow-x: auto;
+}
+
+.sqlCodeBlock code {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.875rem;
+  color: #a3e635;
+  white-space: pre-wrap;
+}
+
+.errorMessage {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 4px;
+  color: #ef4444;
+  font-size: 0.875rem;
+}
+
+.dataTableContainer {
+  margin-top: 0.5rem;
+}
+
+.truncationWarning {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem;
+  margin-top: 0.5rem;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 4px;
+  color: #f59e0b;
+  font-size: 0.75rem;
+}
+
+.emptyResult {
+  display: flex;
+  align-items: center;
+  padding: 1rem;
+  color: #888;
+  font-size: 0.875rem;
+  font-style: italic;
+}
+
+/* Footer */
+.footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.footerStats {
+  font-size: 0.875rem;
+  color: #888;
+}
+
+.buttonGroup {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.cancelButton {
+  padding: 0.5rem 1rem;
+  background: transparent;
+  color: #e2dede;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.cancelButton:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.commitButton {
+  padding: 0.5rem 1rem;
+  background: #22c55e;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.commitButton:hover:not(:disabled) {
+  background: #16a34a;
+}
+
+.commitButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
