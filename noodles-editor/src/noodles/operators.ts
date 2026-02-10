@@ -497,7 +497,7 @@ export abstract class Operator<OP extends IOperator> {
       return finalResult
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err))
-      console.error(
+      console.warn(
         `Pull execution failure in [${this.id} (${(this.constructor as typeof Operator).displayName})]:`,
         error.message
       )
@@ -617,7 +617,7 @@ export abstract class Operator<OP extends IOperator> {
             return finalResult
           } catch (err: unknown) {
             const error = err instanceof Error ? err : new Error(String(err))
-            console.error(
+            console.warn(
               `Failure in [${this.id} (${(this.constructor as typeof Operator).displayName})]:`,
               error.message,
               error.stack
