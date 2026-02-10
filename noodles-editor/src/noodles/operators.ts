@@ -3500,17 +3500,10 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
       views: new ListField(new ViewField()),
       widgets: new ListField(new WidgetField(), { showByDefault: false }),
       layerFilter: new FunctionField(() => true, { showByDefault: false }),
-      // Controller configuration for deck.gl interactivity
-      controller: new CompoundPropsField({
-        scrollZoom: new BooleanField(true),
-        dragPan: new BooleanField(true),
-        dragRotate: new BooleanField(true),
-        doubleClickZoom: new BooleanField(true),
-        touchZoom: new BooleanField(true),
-        touchRotate: new BooleanField(true),
-        keyboard: new BooleanField(true),
-        inertia: new BooleanField(true),
-      }, { optional: true, showByDefault: false }),
+      // Enable user interaction (pan, zoom, rotate, etc.)
+      // Omitted from deck props unless explicitly enabled to match deck.gl defaults and avoid overhead.
+      // See: https://deck.gl/docs/api-reference/core/deck#controller
+      controller: new BooleanField(false, { showByDefault: false }),
       // TODO: We need a nullable field. This should be a nullable (intentionally empty), or a compound object below.
       // TODO: Nullable fields need to be disable-able from the UI so their values can be cleared.
       basemap: new UnknownField(
@@ -3566,8 +3559,8 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
       viewState: { ...basemapViewState, ...viewState },
       layerFilter,
       widgets,
-      // Include controller config if provided - use true as default for interactivity
-      controller: controller && Object.keys(controller).length > 0 ? controller : true,
+      // Only include controller when explicitly enabled to avoid overhead
+      ...(controller ? { controller } : {}),
     }
 
     // Prefer viewState values when using a basemap
@@ -3597,8 +3590,9 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
 // Base view fields that apply to all view types
 function createBaseViewFields() {
   return {
-    // Controller enables user interaction (pan, zoom, rotate)
-    controller: new BooleanField(true),
+    // Enable user interaction (pan, zoom, rotate, etc.)
+    // Disabled by default to match deck.gl defaults and avoid overhead.
+    controller: new BooleanField(false, { showByDefault: false }),
     x: new NumberField(0, { showByDefault: false }),
     y: new NumberField(0, { showByDefault: false }),
     width: new StringField('100%'),
