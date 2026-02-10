@@ -123,7 +123,7 @@ function readFilesSafe(dir: string, extension: string, required = false): string
     if (required) {
       throw new Error(`Required directory not found: ${dir}`)
     }
-    console.warn(`Directory not found: ${dir}`)
+    console.error(`Directory not found: ${dir}`)
     return []
   }
 
@@ -445,7 +445,7 @@ function generateExamplesIndex(): ExamplesIndex {
         techniques: [],
       }
     } catch (err) {
-      console.warn(`Failed to parse example: ${exampleDir}`, err)
+      console.error(`Failed to parse example: ${exampleDir}`, err)
     }
   }
 
@@ -498,7 +498,7 @@ function generateCodeIndex(): CodeIndex {
         exports: [],
       }
     } catch (err) {
-      console.warn(`Failed to index file: ${file}`, err)
+      console.error(`Failed to index file: ${file}`, err)
     }
   }
 

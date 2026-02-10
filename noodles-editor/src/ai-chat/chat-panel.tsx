@@ -213,7 +213,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
         const id = saveConversation(messages)
         console.log('Auto-saved conversation:', id)
       } catch (error) {
-        console.warn('Failed to auto-save conversation:', error)
+        console.error('Failed to auto-save conversation:', error)
       }
     }
 
@@ -246,7 +246,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
       try {
         saveConversation(messages)
       } catch (error) {
-        console.warn('Failed to auto-save before loading:', error)
+        console.error('Failed to auto-save before loading:', error)
       }
     }
 
