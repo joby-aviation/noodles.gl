@@ -641,6 +641,7 @@ export function CodeFieldComponent({
 
   return (
     <>
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: only interactive for SQL to show notebook icon */}
       <div
         className={cx(s.fieldWrapper, s.fieldWrapperCode)}
         ref={containerRef}

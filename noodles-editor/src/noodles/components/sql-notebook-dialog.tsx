@@ -95,26 +95,6 @@ export function SqlNotebookDialog({
     }
   }, [open, initialSql])
 
-  const handleEditorDidMount: OnMount = useCallback((editor, monaco) => {
-    editorRef.current = editor
-
-    // Cmd+Enter to execute
-    editor.addCommand(
-      monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
-      () => {
-        executeAll()
-      }
-    )
-
-    // Escape to close
-    editor.addCommand(
-      monaco.KeyCode.Escape,
-      () => {
-        onOpenChange(false)
-      }
-    )
-  }, [])
-
   const executeAll = useCallback(async () => {
     const statements = parseSqlStatements(session.sqlContent)
 
@@ -177,6 +157,26 @@ export function SqlNotebookDialog({
       }))
     }
   }, [session.sqlContent, operatorId])
+
+  const handleEditorDidMount: OnMount = useCallback((editor, monaco) => {
+    editorRef.current = editor
+
+    // Cmd+Enter to execute
+    editor.addCommand(
+      monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
+      () => {
+        executeAll()
+      }
+    )
+
+    // Escape to close
+    editor.addCommand(
+      monaco.KeyCode.Escape,
+      () => {
+        onOpenChange(false)
+      }
+    )
+  }, [executeAll, onOpenChange])
 
   const handleCommit = useCallback(() => {
     onCommit(session.sqlContent)
@@ -260,7 +260,7 @@ export function SqlNotebookDialog({
             ) : (
               <Accordion.Root type="multiple" defaultValue={session.results.map((_, i) => `item-${i}`)} className={s.accordion}>
                 {session.results.map((result, index) => (
-                  <Accordion.Item key={index} value={`item-${index}`} className={s.accordionItem}>
+                  <Accordion.Item key={`${result.statementIndex}-${result.sql}`} value={`item-${index}`} className={s.accordionItem}>
                     <Accordion.Header className={s.accordionHeader}>
                       <Accordion.Trigger className={s.accordionTrigger}>
                         <span className={s.statementBadge}>{index + 1}</span>
