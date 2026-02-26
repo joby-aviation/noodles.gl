@@ -121,6 +121,8 @@ import {
   schemeSpectral,
   schemeTableau10,
   schemeYlGn,
+  tsv,
+  tsvParse,
 } from 'd3'
 import * as deck from 'deck.gl'
 import { BehaviorSubject, combineLatest, type Subscription } from 'rxjs'
@@ -1544,12 +1546,12 @@ export class BezierCurveOp extends Operator<BezierCurveOp> {
 export class FileOp extends Operator<FileOp> {
   static displayName = 'File'
   static description =
-    'Fetch a file from a URL or text. Supports csv, json, text, and binary formats'
+    'Fetch a file from a URL or text. Supports csv, tsv, json, text, and binary formats'
   asDownload = () => this.outputData
 
   createInputs() {
     return {
-      format: new StringLiteralField('json', { values: ['json', 'csv', 'text', 'binary'] }),
+      format: new StringLiteralField('json', { values: ['json', 'csv', 'tsv', 'text', 'binary'] }),
       url: new FileField(),
       text: new StringField(),
       autoType: new BooleanField(true), // TODO: Make this only available for csv
@@ -1602,11 +1604,15 @@ export class FileOp extends Operator<FileOp> {
   // Helper method to fetch from URL
   private async fetchFromUrl(
     url: string,
-    format: 'json' | 'csv' | 'text' | 'binary'
+    format: 'json' | 'csv' | 'tsv' | 'text' | 'binary'
   ): Promise<unknown> {
     if (format === 'csv') {
       const parseFn = this.inputs.autoType.value ? d3.autoType : null
       return await csv(url, parseFn)
+    }
+    if (format === 'tsv') {
+      const parseFn = this.inputs.autoType.value ? d3.autoType : null
+      return await tsv(url, parseFn)
     }
 
     const resp = await fetch(url)
@@ -1633,6 +1639,10 @@ export class FileOp extends Operator<FileOp> {
       const parseFn = autoType ? d3.autoType : null
       return { data: csvParse(data, parseFn) }
     }
+    if (format === 'tsv' && typeof data === 'string') {
+      const parseFn = autoType ? d3.autoType : null
+      return { data: tsvParse(data, parseFn) }
+    }
     if (format === 'json' && typeof data === 'string') {
       return { data: JSON.parse(data) }
     }
@@ -1649,6 +1659,10 @@ export class FileOp extends Operator<FileOp> {
       case 'csv': {
         const parseFn = autoType ? d3.autoType : null
         return { data: csvParse(text, parseFn) }
+      }
+      case 'tsv': {
+        const parseFn = autoType ? d3.autoType : null
+        return { data: tsvParse(text, parseFn) }
       }
       case 'json':
         return { data: JSON.parse(text) }
@@ -1668,6 +1682,7 @@ export class FileOp extends Operator<FileOp> {
   private getEmptyResult(format: string): ExtractProps<typeof this.outputs> {
     switch (format) {
       case 'csv':
+      case 'tsv':
         return { data: [] }
       case 'json':
         return { data: {} }
@@ -1695,7 +1710,10 @@ export class FileOp extends Operator<FileOp> {
         }
 
         // Not a project asset, fetch from URL
-        const data = await this.fetchFromUrl(url, format as 'json' | 'csv' | 'text' | 'binary')
+        const data = await this.fetchFromUrl(
+          url,
+          format as 'json' | 'csv' | 'tsv' | 'text' | 'binary'
+        )
         return this.processData(data, format, autoType)
       }
 
