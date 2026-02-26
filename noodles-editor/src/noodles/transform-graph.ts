@@ -211,10 +211,8 @@ export function transformGraph<
       // ReferenceEdges are operator references in code, not data flow, so don't auto-show
       if (connectionType === 'value') {
         targetOp.showField(targetFieldName)
-      }
 
-      // ReferenceEdges mark reactive dependencies only — type checking doesn't apply
-      if (connectionType !== 'reference') {
+        // ReferenceEdges mark reactive dependencies only — type checking doesn't apply
         const validation = validateConnection(sourceField, targetField)
         if (!validation.valid && validation.error) {
           targetOp.addConnectionError(edge.id, validation.error)
