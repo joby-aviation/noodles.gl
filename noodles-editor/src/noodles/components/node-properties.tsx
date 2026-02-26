@@ -12,7 +12,7 @@ import type { IOperator, Operator } from '../operators'
 import { OutOp } from '../operators'
 import { getOpStore } from '../store'
 import { rebindOperatorToTheatre } from '../theatre-bindings'
-import { parseHandleId } from '../utils/path-utils'
+import { getBaseName, parseHandleId } from '../utils/path-utils'
 import menuStyles from './menu.module.css'
 import s from './node-properties.module.css'
 import { handleClass, headerClass, typeCategory } from './op-components'
@@ -598,7 +598,9 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
                           onDragEnd={e => handleDragEnd(e, input.name, incomers)}
                         >
                           {incomers.length > 1 && <div className={s.dragHandle} />}
-                          <div className={s.connectionSource}>{edge.sourceHandle}</div>
+                          <div className={s.connectionSource}>
+                            {getBaseName(edge.source)}.{edge.sourceHandle}
+                          </div>
                         </div>
                       ))}
                     </div>
