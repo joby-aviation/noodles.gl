@@ -213,13 +213,15 @@ export function transformGraph<
         targetOp.showField(targetFieldName)
       }
 
-      // Validate connection and track errors - allow connection even if types mismatch
-      const validation = validateConnection(sourceField, targetField)
-      if (!validation.valid && validation.error) {
-        targetOp.addConnectionError(edge.id, validation.error)
-      } else {
-        // Clear any existing error for this edge if it's now valid
-        targetOp.removeConnectionError(edge.id)
+      // ReferenceEdges mark reactive dependencies only — type checking doesn't apply
+      if (connectionType !== 'reference') {
+        const validation = validateConnection(sourceField, targetField)
+        if (!validation.valid && validation.error) {
+          targetOp.addConnectionError(edge.id, validation.error)
+        } else {
+          // Clear any existing error for this edge if it's now valid
+          targetOp.removeConnectionError(edge.id)
+        }
       }
 
       // Update operator dependencies for pull-based execution
