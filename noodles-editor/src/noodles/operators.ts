@@ -4010,6 +4010,7 @@ export class PathLayerOp extends Operator<PathLayerOp> {
       widthMinPixels: new NumberField(2, { min: 0, softMax: 100, showByDefault: false }),
       parameters: new CompoundPropsField(
         {
+          depthTest: new BooleanField(true),
           depthWriteEnabled: new BooleanField(true),
         },
         { showByDefault: false }
@@ -4059,6 +4060,12 @@ export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
         values: ['pixels', 'meters'],
         showByDefault: false,
       }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
       extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
@@ -4111,6 +4118,12 @@ export class TripsLayerOp extends Operator<TripsLayerOp> {
       }),
       widthMinPixels: new NumberField(2, { min: 0, softMax: 100, showByDefault: false }),
       widthScale: new NumberField(20, { min: 0, softMax: 100, showByDefault: false }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
       extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
@@ -4143,6 +4156,12 @@ export class SolidPolygonLayerOp extends Operator<SolidPolygonLayerOp> {
       getFillColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
       getLineColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
       getLineWidth: new NumberField(0, { min: 0, accessor: true }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
       extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
@@ -4212,6 +4231,7 @@ export class TextLayerOp extends Operator<TextLayerOp> {
       extensions: new ListField(new ExtensionField(), { showByDefault: false }),
       parameters: new CompoundPropsField(
         {
+          depthTest: new BooleanField(true),
           cullMode: new StringLiteralField('none', {
             values: ['none', 'back', 'front'],
           }),
@@ -4270,6 +4290,12 @@ export class IconLayerOp extends Operator<IconLayerOp> {
       ),
       getColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
       getAngle: new NumberField(0, { accessor: true, showByDefault: false }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
       extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
@@ -4320,6 +4346,12 @@ export class ScenegraphLayerOp extends Operator<ScenegraphLayerOp> {
         accessor: true,
         showByDefault: false,
       }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
       extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
@@ -4364,6 +4396,12 @@ export class SimpleMeshLayerOp extends Operator<SimpleMeshLayerOp> {
         accessor: true,
         showByDefault: false,
       }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
       extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
@@ -4398,6 +4436,12 @@ export class H3HexagonLayerOp extends Operator<H3HexagonLayerOp> {
       getFillColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
       getRadius: new NumberField(1, { min: 0, accessor: true }),
       getLineWidth: new NumberField(1, { min: 0, accessor: true }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
       extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
@@ -4433,6 +4477,12 @@ export class A5LayerOp extends Operator<A5LayerOp> {
       elevationScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
       extruded: new BooleanField(false),
       pickable: new BooleanField(true, { showByDefault: false }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
       extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
@@ -4467,6 +4517,12 @@ export class HeatmapLayerOp extends Operator<HeatmapLayerOp> {
       radiusPixels: new NumberField(30, { min: 0, softMax: 10_000 }),
       intensity: new NumberField(1, { min: 0, max: 1, showByDefault: false }),
       threshold: new NumberField(0.05, { min: 0, max: 1, step: 0.01, showByDefault: false }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
       extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
@@ -4599,6 +4655,7 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
       extensions: new ListField(new ExtensionField(), { showByDefault: false }),
       parameters: new CompoundPropsField(
         {
+          depthTest: new BooleanField(true),
           cullMode: new StringLiteralField('none', {
             values: ['none', 'back', 'front'],
           }),
@@ -4641,6 +4698,12 @@ export class ArcLayerOp extends Operator<ArcLayerOp> {
         showByDefault: false,
       }),
       getWidth: new NumberField(1, { min: 0, softMax: 100, accessor: true }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
       extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
@@ -4727,6 +4790,12 @@ export class GridLayerOp extends Operator<GridLayerOp> {
 
       coverage: new NumberField(1, { min: 0, max: 1, step: 0.01, showByDefault: false }),
       gpuAggregation: new BooleanField(true, { showByDefault: false }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
       extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
@@ -4805,6 +4874,12 @@ export class HexagonLayerOp extends Operator<HexagonLayerOp> {
 
       coverage: new NumberField(1, { min: 0, max: 1, step: 0.01, showByDefault: false }),
       gpuAggregation: new BooleanField(true, { showByDefault: false }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
       extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
@@ -4843,6 +4918,12 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
       maxLodMetricValue: new NumberField(2, { min: 0, softMax: 10, showByDefault: false }),
       maxScreenSpaceError: new NumberField(50, { min: 0, softMax: 1_000, showByDefault: false }),
       maxMemoryUsage: new NumberField(2024, { min: 0, softMax: 10_000, showByDefault: false }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
       extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
@@ -5037,6 +5118,12 @@ class RasterTileLayerOp extends Operator<RasterTileLayerOp> {
       minZoom: new NumberField(0, { min: 0, max: 24 }),
       maxZoom: new NumberField(24, { min: 0, max: 24 }),
       tileSize: new NumberField(256, { min: 1, softMax: 1024 }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
       extensions: new ListField(new ExtensionField()),
     }
   }
@@ -5611,6 +5698,12 @@ export class BitmapLayerOp extends Operator<BitmapLayerOp> {
         transform: hexToColor,
         showByDefault: false,
       }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
       extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
@@ -5666,6 +5759,12 @@ export class ColumnLayerOp extends Operator<ColumnLayerOp> {
       }),
       getElevation: new NumberField(1000, { min: 0, accessor: true }),
       getLineWidth: new NumberField(1, { min: 0, accessor: true, showByDefault: false }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
       extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
@@ -5705,6 +5804,12 @@ export class GridCellLayerOp extends Operator<GridCellLayerOp> {
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
       getColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getElevation: new NumberField(1000, { min: 0, accessor: true }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
       extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
@@ -5744,6 +5849,12 @@ export class LineLayerOp extends Operator<LineLayerOp> {
       getTargetPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
       getColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getWidth: new NumberField(1, { min: 0, accessor: true }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
       extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
@@ -5784,6 +5895,12 @@ export class PointCloudLayerOp extends Operator<PointCloudLayerOp> {
         showByDefault: false,
       }),
       getColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
       extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
@@ -5831,6 +5948,12 @@ export class PolygonLayerOp extends Operator<PolygonLayerOp> {
       getLineColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getLineWidth: new NumberField(1, { min: 0, accessor: true }),
       getElevation: new NumberField(1000, { min: 0, accessor: true }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
       extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
@@ -5872,6 +5995,12 @@ export class ContourLayerOp extends Operator<ContourLayerOp> {
       zOffset: new NumberField(0.005, { min: 0, max: 1, step: 0.001, showByDefault: false }),
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
       getWeight: new NumberField(1, { min: 0, accessor: true }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
       extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
@@ -5907,6 +6036,12 @@ export class ScreenGridLayerOp extends Operator<ScreenGridLayerOp> {
       aggregation: new StringLiteralField('SUM', { values: ['SUM', 'MEAN', 'MIN', 'MAX'] }),
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
       getWeight: new NumberField(1, { min: 0, accessor: true }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
       extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
@@ -5950,6 +6085,12 @@ export class GreatCircleLayerOp extends Operator<GreatCircleLayerOp> {
       getSourceColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getTargetColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getWidth: new NumberField(1, { min: 0, accessor: true }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
       extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
@@ -5982,6 +6123,12 @@ export class H3ClusterLayerOp extends Operator<H3ClusterLayerOp> {
       getLineWidth: new NumberField(1, { min: 0, accessor: true }),
       getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getElevation: new NumberField(1000, { accessor: true }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
       extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
@@ -6019,6 +6166,12 @@ export class GeohashLayerOp extends Operator<GeohashLayerOp> {
       filled: new BooleanField(true),
       stroked: new BooleanField(false),
       extruded: new BooleanField(false),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
       extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
@@ -6056,6 +6209,12 @@ export class S2LayerOp extends Operator<S2LayerOp> {
       filled: new BooleanField(true),
       stroked: new BooleanField(false),
       extruded: new BooleanField(false),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
       extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
@@ -6093,6 +6252,12 @@ export class QuadkeyLayerOp extends Operator<QuadkeyLayerOp> {
       filled: new BooleanField(true),
       stroked: new BooleanField(false),
       extruded: new BooleanField(false),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
       extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
@@ -6134,6 +6299,12 @@ export class MVTLayerOp extends Operator<MVTLayerOp> {
         values: ['pixels', 'meters'],
         showByDefault: false,
       }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
       extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
@@ -6173,6 +6344,12 @@ export class TerrainLayerOp extends Operator<TerrainLayerOp> {
       bounds: new UnknownField(null, { optional: true }),
       color: new ColorField('#ffffff', { transform: hexToColor }),
       wireframe: new BooleanField(false, { showByDefault: false }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
       extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
@@ -6216,6 +6393,12 @@ export class TileLayerOp extends Operator<TileLayerOp> {
         showByDefault: false,
       }),
       renderSubLayers: new FunctionField(null, { optional: true, showByDefault: false }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
       extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
