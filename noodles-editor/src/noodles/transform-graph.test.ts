@@ -1,7 +1,14 @@
 import type { Node as ReactFlowNode } from '@xyflow/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Edge } from './noodles'
-import { type GeoJsonLayerOp, type IOperator, MathOp, NumberOp, type Operator } from './operators'
+import {
+  type CodeOp,
+  type GeoJsonLayerOp,
+  type IOperator,
+  MathOp,
+  NumberOp,
+  type Operator,
+} from './operators'
 import { clearOps, getOpStore } from './store'
 import { transformGraph } from './transform-graph'
 import { edgeId } from './utils/id-utils'
@@ -122,6 +129,71 @@ describe('transform-graph', () => {
     // Verify that the reference connection was established
     expect(add.inputs.a.subscriptions.size).toBe(1)
     expect(add.inputs.a.subscriptions.has('/num.out.val->/add.par.a')).toBe(true)
+  })
+
+  it('does not report type mismatch errors for ReferenceEdges', () => {
+    // NumberOp (number) referenced by CodeOp.par.code (CodeField/string) — should be error-free
+    const graph: {
+      nodes: ReactFlowNode<Record<string, unknown>>[]
+      edges: (Edge<Operator<IOperator>, Operator<IOperator>> & { type?: string })[]
+    } = {
+      nodes: [
+        { id: '/num', type: 'NumberOp', data: { inputs: { val: 5 } }, position: { x: 0, y: 0 } },
+        {
+          id: '/code',
+          type: 'CodeOp',
+          data: { inputs: { code: 'return op("/num").out.val' } },
+          position: { x: 0, y: 0 },
+        },
+      ],
+      edges: [
+        {
+          id: '/num.out.val->/code.par.code',
+          type: 'ReferenceEdge',
+          source: '/num',
+          target: '/code',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.code',
+        } as Edge<Operator<IOperator>, Operator<IOperator>> & { type: string },
+      ],
+    }
+
+    const instances = transformGraph(graph)
+    const code = instances.find(op => op.id === '/code') as CodeOp
+    expect(code.hasConnectionErrors()).toBe(false)
+  })
+
+  it('still reports type mismatch errors for regular value edges', () => {
+    // Same operators and fields, but as a plain value edge — should still produce an error
+    const graph: {
+      nodes: ReactFlowNode<Record<string, unknown>>[]
+      edges: Edge<Operator<IOperator>, Operator<IOperator>>[]
+    } = {
+      nodes: [
+        { id: '/num', type: 'NumberOp', data: { inputs: { val: 5 } }, position: { x: 0, y: 0 } },
+        {
+          id: '/code',
+          type: 'CodeOp',
+          data: { inputs: { code: '' } },
+          position: { x: 0, y: 0 },
+        },
+      ],
+      edges: [
+        {
+          id: '/num.out.val->/code.par.code',
+          source: '/num',
+          target: '/code',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.code',
+        },
+      ],
+    }
+
+    const instances = transformGraph(graph)
+    const code = instances.find(op => op.id === '/code') as CodeOp
+    expect(code.hasConnectionErrors()).toBe(true)
+    const errorMessage = code.connectionErrors.value.get('/num.out.val->/code.par.code')
+    expect(errorMessage).toContain('Type mismatch')
   })
 
   it('tracks connection errors for incompatible types', () => {
