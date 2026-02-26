@@ -598,7 +598,9 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
                           onDragEnd={e => handleDragEnd(e, input.name, incomers)}
                         >
                           {incomers.length > 1 && <div className={s.dragHandle} />}
-                          <div className={s.connectionSource}>{getBaseName(edge.source)}.{edge.sourceHandle}</div>
+                          <div className={s.connectionSource}>
+                            {getBaseName(edge.source)}.{edge.sourceHandle}
+                          </div>
                         </div>
                       ))}
                     </div>
