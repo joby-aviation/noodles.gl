@@ -340,7 +340,11 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
 
     setEdges(edges => {
       // Get all edges connected to this input
-      const relevantEdges = edges.filter(e => e.target === node.id && e.targetHandle === inputName)
+      const relevantEdges = edges.filter(
+        e =>
+          e.target === node.id &&
+          (e.targetHandle === inputName || e.targetHandle === `${IN_NS}.${inputName}`)
+      )
       if (relevantEdges.length < 2) return edges
 
       // Create new array with reordered edges
