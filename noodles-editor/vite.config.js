@@ -102,8 +102,9 @@ export default defineConfig(({ mode }) => {
   return {
     base: mode === 'development' ? '/' : '/app/',
     build: {
-      // Enable source maps for all production builds to improve debugging
-      sourcemap: true,
+      // CF_PAGES=1 is set automatically by Cloudflare Pages; disable sourcemaps there
+      // due to the 25 MiB per-file limit. GitHub Pages has no such limit.
+      sourcemap: !process.env.CF_PAGES,
     },
     server: {
       open: true,
