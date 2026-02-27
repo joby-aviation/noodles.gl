@@ -353,20 +353,27 @@ export default function TimelineEditor() {
     }
 
     const suggestedName = project.address.projectId
-    await captureScreenshot(
-      suggestedName,
-      () => {
-        redraw()
-        // @ts-expect-error canvas is protected
-        return deckRef.current.canvas!
-      },
-      {
-        format: imageFormat,
-        exrCompression,
-        includeDepth,
-        getGLContext: () => glContextRef.current,
+    try {
+      await captureScreenshot(
+        suggestedName,
+        () => {
+          redraw()
+          // @ts-expect-error canvas is protected
+          return deckRef.current.canvas!
+        },
+        {
+          format: imageFormat,
+          exrCompression,
+          includeDepth,
+          getGLContext: () => glContextRef.current,
+        }
+      )
+    } catch (e) {
+      if (e instanceof Error && e.name !== 'AbortError') {
+        console.error('Export failed:', e)
+        alert(`Export failed: ${e.message}`)
       }
-    )
+    }
   }, [project.address.projectId, redraw, basemapEnabled, imageFormat, exrCompression, includeDepth])
 
   const exportSequence = useCallback(async () => {

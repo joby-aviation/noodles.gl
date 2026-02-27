@@ -106,15 +106,6 @@ export default defineConfig(({ mode }) => {
     },
     resolve: {
       conditions: ['browser', 'import', 'module', 'default'],
-      alias: {
-        exrjs: path.resolve(__dirname, 'node_modules/exrjs/dist/exrjs.browser.js'),
-      },
-    },
-    optimizeDeps: {
-      include: ['exrjs'],
-      esbuildOptions: {
-        resolveExtensions: ['.browser.js', '.js'],
-      },
     },
     plugins: [
       react(),

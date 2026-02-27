@@ -7019,12 +7019,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"exrjs@npm:^0.2.3":
-  version: 0.2.3
-  resolution: "exrjs@npm:0.2.3"
+"exrjs@npm:^0.2.4":
+  version: 0.2.4
+  resolution: "exrjs@npm:0.2.4"
   dependencies:
     fflate: ^0.8.2
-  checksum: 571e67258f2de03cf58121264225821ad4fa43ebd9287d19142529b5e9450de3d6c0ce558790664856e00b54e32981ab3d8bb833f06260983b44fa5fcf2916e7
+  checksum: b2d60175da5547706765878d000f12e764eaaaceb8e759d541144a54d79c82fcd4ce122191b33d762a355a5b2b65fff946557e6714378711f65e2546f37f8eed
   languageName: node
   linkType: hard
 
@@ -8598,7 +8598,7 @@ __metadata:
     classnames: ^2.5.1
     d3: ^7.9.0
     deck.gl: ^9.2.6
-    exrjs: ^0.2.3
+    exrjs: ^0.2.4
     geojson2h3: ^1.2.0
     gl-matrix: ^3.4.4
     h3-js: ^4.4.0
