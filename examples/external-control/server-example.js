@@ -8,20 +8,20 @@
  * External Tool <-> This Server <-> Noodles Browser App
  *
  * Usage:
- * 1. Install dependencies: npm install ws
+ * 1. Install dependencies: yarn install
  * 2. Run server: node server-example.js
  * 3. Open Noodles with external control enabled
  * 4. Connect external tools to this server
  */
 
-const WebSocket = require('ws')
+import { WebSocketServer, WebSocket } from 'ws'
 
 const PORT = 8765
 const clients = new Set()
 const noodlesConnections = new Set()
 
 // Create WebSocket server
-const wss = new WebSocket.Server({
+const wss = new WebSocketServer({
   port: PORT,
   clientTracking: true,
 })

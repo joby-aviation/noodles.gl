@@ -170,6 +170,50 @@ describe('ListField', () => {
     field1.setValue(10)
     expect(listField.value).toEqual([10, 2])
   })
+
+  it('reorders inputs with reorderInputs', () => {
+    const field1 = new NumberField(1)
+    const field2 = new NumberField(2)
+    const field3 = new NumberField(3)
+    const listField = new ListField(new NumberField())
+
+    listField.addConnection('field-1', field1, 'value')
+    listField.addConnection('field-2', field2, 'value')
+    listField.addConnection('field-3', field3, 'value')
+
+    expect(listField.value).toEqual([1, 2, 3])
+
+    listField.reorderInputs(0, 2)
+    expect(listField.value).toEqual([2, 3, 1])
+
+    listField.reorderInputs(2, 0)
+    expect(listField.value).toEqual([1, 2, 3])
+
+    listField.reorderInputs(1, 2)
+    expect(listField.value).toEqual([1, 3, 2])
+  })
+
+  it('reorderInputs does nothing when fromIndex equals toIndex', () => {
+    const field1 = new NumberField(1)
+    const field2 = new NumberField(2)
+    const listField = new ListField(new NumberField())
+
+    listField.addConnection('field-1', field1, 'value')
+    listField.addConnection('field-2', field2, 'value')
+
+    listField.reorderInputs(0, 0)
+    expect(listField.value).toEqual([1, 2])
+  })
+
+  it('reorderInputs throws for out-of-bounds indices', () => {
+    const field1 = new NumberField(1)
+    const listField = new ListField(new NumberField())
+
+    listField.addConnection('field-1', field1, 'value')
+
+    expect(() => listField.reorderInputs(-1, 0)).toThrow()
+    expect(() => listField.reorderInputs(0, 5)).toThrow()
+  })
 })
 
 describe('JSONUrlField', () => {
