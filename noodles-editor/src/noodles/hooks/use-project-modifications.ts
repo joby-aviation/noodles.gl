@@ -335,8 +335,10 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
           const input = operatorInputs?.[key]
           if (input && typeof input.setValue === 'function') {
             input.setValue(value)
+            // Auto-show field when value is set programmatically (AI tools)
+            operator.showField(key)
           } else {
-            console.warn(`Input ${key} not found on operator ${nodeId} or doesn't have setValue`)
+            console.error(`Input ${key} not found on operator ${nodeId} or doesn't have setValue`)
           }
         })
       }
@@ -537,6 +539,8 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
             const input = operatorInputs?.[key]
             if (input && typeof input.setValue === 'function') {
               input.setValue(value)
+              // Auto-show field when value is set programmatically (AI tools)
+              operator.showField(key)
             }
           }
         }
@@ -558,7 +562,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
             if (!sourceExists || !targetExists) {
               const error = `Edge ${edge.id}: source or target node not in node list (source: ${edge.source}, target: ${edge.target})`
-              console.warn('⚠️', error)
+              console.error('⚠️', error)
               skippedEdges.push(error)
               return false
             }
@@ -704,13 +708,13 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
       const source = nodes.find(n => n.id === connection.source)
       if (!source) {
-        console.warn('Invalid source', connection)
+        console.error('Invalid source', connection)
         return
       }
       const targetIndex = nodes.findIndex(n => n.id === connection.target)
       const target = nodes[targetIndex]
       if (!target) {
-        console.warn('Invalid target', connection)
+        console.error('Invalid target', connection)
         return
       }
 
@@ -718,27 +722,27 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       const targetOp = getOp(target.id)
 
       if (!sourceOp || !targetOp) {
-        console.warn('Invalid source or target', connection)
+        console.error('Invalid source or target', connection)
         return
       }
 
       // Extract field names from qualified handle IDs
       if (!connection.sourceHandle || !connection.targetHandle) {
-        console.warn('Invalid handle IDs', connection)
+        console.error('Invalid handle IDs', connection)
         return
       }
       const sourceHandleInfo = parseHandleId(connection.sourceHandle)
       const targetHandleInfo = parseHandleId(connection.targetHandle)
 
       if (!sourceHandleInfo || !targetHandleInfo) {
-        console.warn('Invalid handle IDs', connection)
+        console.error('Invalid handle IDs', connection)
         return
       }
 
       const sourceField = sourceOp.outputs[sourceHandleInfo.fieldName]
       const targetField = targetOp.inputs[targetHandleInfo.fieldName]
       if (!sourceField || !targetField) {
-        console.warn('Invalid connection', connection)
+        console.error('Invalid connection', connection)
         return
       }
 

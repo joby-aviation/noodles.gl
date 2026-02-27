@@ -86,7 +86,7 @@ export class AnalyticsManager {
         }
       }
     } catch (error) {
-      console.warn('Failed to save analytics consent:', error)
+      console.error('Failed to save analytics consent:', error)
     }
   }
 
@@ -99,7 +99,7 @@ export class AnalyticsManager {
     try {
       localStorage.setItem(ERROR_CAPTURE_CONSENT_KEY, JSON.stringify(consent))
     } catch (error) {
-      console.warn('Failed to save error capture consent:', error)
+      console.error('Failed to save error capture consent:', error)
     }
   }
 
@@ -128,10 +128,7 @@ export class AnalyticsManager {
       const safeProperties = this.filterSensitiveData(properties || {})
       posthog.capture(event, safeProperties)
     } catch (error) {
-      // Silently fail if PostHog is blocked
-      if (import.meta.env.DEV) {
-        console.warn('Analytics tracking failed:', event, error)
-      }
+      console.error('Analytics tracking failed:', event, error)
     }
   }
 
@@ -144,10 +141,7 @@ export class AnalyticsManager {
       const safeProperties = this.filterSensitiveData(properties || {})
       posthog.identify(userId, safeProperties)
     } catch (error) {
-      // Silently fail if PostHog is blocked
-      if (import.meta.env.DEV) {
-        console.warn('Analytics identify failed:', error)
-      }
+      console.error('Analytics identify failed:', error)
     }
   }
 
@@ -159,10 +153,7 @@ export class AnalyticsManager {
     try {
       posthog.reset()
     } catch (error) {
-      // Silently fail if PostHog is blocked
-      if (import.meta.env.DEV) {
-        console.warn('Analytics reset failed:', error)
-      }
+      console.error('Analytics reset failed:', error)
     }
   }
 
@@ -178,10 +169,7 @@ export class AnalyticsManager {
     try {
       posthog.captureException(error, properties)
     } catch (err) {
-      // Silently fail if PostHog is blocked
-      if (import.meta.env.DEV) {
-        console.warn('Analytics exception capture failed:', err)
-      }
+      console.error('Analytics exception capture failed:', err)
     }
   }
 

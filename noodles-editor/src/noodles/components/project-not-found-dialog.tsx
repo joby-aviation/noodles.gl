@@ -29,7 +29,7 @@ export const ProjectNotFoundDialog = ({
   const [error, setError] = useState<string | null>(null)
   const [isLocating, setIsLocating] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
-  const { setCurrentDirectory } = useFileSystemStore()
+  const { setCurrentDirectory, setActiveStorageType } = useFileSystemStore()
 
   const onLocateFolder = useCallback(async () => {
     setIsLocating(true)
@@ -51,6 +51,7 @@ export const ProjectNotFoundDialog = ({
         try {
           const project = await migrateProject(result.data.projectData)
           setCurrentDirectory(result.data.directoryHandle, projectName)
+          setActiveStorageType('fileSystemAccess')
           onProjectLoaded(project, projectName)
           onClose()
         } catch (error) {
@@ -71,7 +72,7 @@ export const ProjectNotFoundDialog = ({
     } finally {
       setIsLocating(false)
     }
-  }, [projectName, onProjectLoaded, onClose, setCurrentDirectory])
+  }, [projectName, onProjectLoaded, onClose, setCurrentDirectory, setActiveStorageType])
 
   const onImport = useCallback(async () => {
     setIsImporting(true)

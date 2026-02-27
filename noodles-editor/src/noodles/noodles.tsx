@@ -58,7 +58,6 @@ import { SaveAsDialog } from './components/save-as-dialog'
 import { StorageErrorHandler } from './components/storage-error-handler'
 import { UndoRedoHandler, type UndoRedoHandlerRef } from './components/UndoRedoHandler'
 import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
-import { IS_PROD } from './globals'
 import { useKeyboardShortcut } from './hooks/use-keyboard-shortcut'
 import { useNodeDropOnEdge } from './hooks/use-node-drop-on-edge'
 import { useProjectModifications } from './hooks/use-project-modifications'
@@ -612,8 +611,7 @@ export function getNoodles(): Visualization {
     blockLibraryRef.current?.openModal(centerX, centerY)
   }, [])
 
-  // Editor settings state (moved from Theatre.js to project-level settings)
-  const [showOverlay, setShowOverlay] = useState(!IS_PROD)
+  const [showOverlay, setShowOverlay] = useState(true)
   const [layoutMode, setLayoutMode] = useState<'split' | 'noodles-on-top' | 'output-on-top'>(
     'noodles-on-top'
   )
@@ -622,7 +620,7 @@ export function getNoodles(): Visualization {
   // Use useRenderSettings() hook to read them
 
   const loadProjectFile = useCallback(
-    (project: NoodlesProjectJSON, name?: string) => {
+    (project: NoodlesProjectJSON, name?: string, targetRoutePrefix?: string) => {
       const { nodes, edges, viewport, timeline, editorSettings, apiKeys } = project
 
       // Mark that we've programmatically loading this project BEFORE any state changes
@@ -643,7 +641,7 @@ export function getNoodles(): Visualization {
 
       // Load editor settings from project with defaults
       setLayoutMode(editorSettings?.layoutMode ?? 'noodles-on-top')
-      setShowOverlay(editorSettings?.showOverlay ?? !IS_PROD)
+      setShowOverlay(editorSettings?.showOverlay ?? true)
 
       // Render settings are now stored as OutOp inputs (migration 012 handles conversion)
 
@@ -661,7 +659,8 @@ export function getNoodles(): Visualization {
 
       // Update URL query parameter with project name
       if (name) {
-        navigate(`${routePrefix}/${name ?? ''}`, { replace: true })
+        const effectiveRoutePrefix = targetRoutePrefix ?? routePrefix
+        navigate(`${effectiveRoutePrefix}/${name}`, { replace: true })
       }
 
       // Clear unsaved changes flag when loading a project
@@ -1054,11 +1053,13 @@ export function getNoodles(): Visualization {
       // Cache the directory handle
       await directoryHandleCache.cacheHandle(directoryName, directoryHandle, directoryHandle.name)
 
-      // Update store with directory handle
+      // Update store with directory handle and storage type
       setCurrentDirectory(directoryHandle, directoryName)
+      setActiveStorageType('fileSystemAccess')
 
       // Load the project directly (already in memory, no need to reload from disk)
-      loadProjectFile(starterProject, directoryName)
+      // Always navigate to /projects since this is a user project
+      loadProjectFile(starterProject, directoryName, '/projects')
 
       analytics.track('project_created', { method: 'new' })
     } catch (error) {
@@ -1068,7 +1069,7 @@ export function getNoodles(): Visualization {
       }
       console.error('Failed to create new project:', error)
     }
-  }, [setCurrentDirectory, loadProjectFile])
+  }, [setCurrentDirectory, setActiveStorageType, loadProjectFile])
 
   const onImport = useCallback(async () => {
     try {
@@ -1094,16 +1095,25 @@ export function getNoodles(): Visualization {
         // Handle ZIP import
         const zip = await JSZip.loadAsync(await file.arrayBuffer())
 
-        // Find noodles.json in the ZIP (could be at root or in a subfolder)
+        // Find the shallowest noodles.json in the ZIP (could be at root or in a subfolder)
+        // We want the project root, not a noodles.json that might be in a data subfolder
         let noodlesJsonPath: string | null = null
         let projectFolder = ''
 
-        // Iterate over files in the ZIP to find noodles.json
+        // Iterate over files in the ZIP to find the shallowest noodles.json
         zip.forEach((relativePath, zipEntry) => {
           if (relativePath.endsWith('noodles.json') && !zipEntry.dir) {
-            noodlesJsonPath = relativePath
             // Extract the folder path (everything before noodles.json)
-            projectFolder = relativePath.substring(0, relativePath.lastIndexOf('noodles.json'))
+            const folder = relativePath.substring(0, relativePath.lastIndexOf('noodles.json'))
+            // Keep this one if it's the first found, or if it's shallower (fewer path segments)
+            const currentDepth = noodlesJsonPath
+              ? projectFolder.split('/').filter(Boolean).length
+              : Infinity
+            const newDepth = folder.split('/').filter(Boolean).length
+            if (newDepth < currentDepth) {
+              noodlesJsonPath = relativePath
+              projectFolder = folder
+            }
           }
         })
 
@@ -1202,11 +1212,13 @@ export function getNoodles(): Visualization {
       // Cache the directory handle
       await directoryHandleCache.cacheHandle(directoryName, directoryHandle, directoryHandle.name)
 
-      // Update store with directory handle
+      // Update store with directory handle and storage type
       setCurrentDirectory(directoryHandle, directoryName)
+      setActiveStorageType('fileSystemAccess')
 
       // Load the project directly (already in memory, no need to reload from disk)
-      loadProjectFile(projectData, directoryName)
+      // Always navigate to /projects since this is a user project
+      loadProjectFile(projectData, directoryName, '/projects')
 
       analytics.track('project_imported', { format: isZip ? 'zip' : 'json' })
     } catch (error) {
@@ -1216,7 +1228,7 @@ export function getNoodles(): Visualization {
       }
       console.error('Failed to import project:', error)
     }
-  }, [setCurrentDirectory, loadProjectFile])
+  }, [setCurrentDirectory, setActiveStorageType, loadProjectFile])
 
   // Handlers for ExampleNotFoundDialog
   const onBrowseExamples = useCallback(() => {
@@ -1238,12 +1250,12 @@ export function getNoodles(): Visualization {
         let finalProjectName: string
 
         if (projectName) {
-          // Load project by name (for recent projects and OPFS list)
-          // Cache-aware: load will prompt user if project directory not cached for fileSystemAccess
+          // Load project by name (for recent projects)
+          // Recent projects from directoryHandleCache are always fileSystemAccess
           finalProjectName = projectName
-          result = await load(storageType, projectName)
+          result = await load('fileSystemAccess', projectName)
         } else {
-          // Show the native folder picker
+          // Show the native folder picker (File System Access API)
           const projectDirectory = await selectDirectory()
           finalProjectName = projectDirectory.name
 
@@ -1255,18 +1267,24 @@ export function getNoodles(): Visualization {
           )
 
           // Load project from the selected directory
-          result = await load(storageType, projectDirectory)
+          result = await load('fileSystemAccess', projectDirectory)
         }
 
         if (result.success) {
           const project = await migrateProject(result.data.projectData)
-          loadProjectFile(project, finalProjectName)
+          // Always navigate to /projects since this is a user project
+          loadProjectFile(project, finalProjectName, '/projects')
           // Update store with directory handle returned from load
           setCurrentDirectory(result.data.directoryHandle, finalProjectName)
-          analytics.track('project_opened', { storageType })
+          // Set storage type to fileSystemAccess since we used File System Access API
+          setActiveStorageType('fileSystemAccess')
+          analytics.track('project_opened', { storageType: 'fileSystemAccess' })
         } else {
           setError(result.error)
-          analytics.track('project_open_failed', { storageType, error: 'load_error' })
+          analytics.track('project_open_failed', {
+            storageType: 'fileSystemAccess',
+            error: 'load_error',
+          })
         }
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {
@@ -1284,12 +1302,12 @@ export function getNoodles(): Visualization {
           originalError: error,
         })
         analytics.track('project_open_failed', {
-          storageType,
+          storageType: 'fileSystemAccess',
           error: projectName ? 'migration_error' : 'unknown',
         })
       }
     },
-    [storageType, loadProjectFile, setCurrentDirectory, setError]
+    [loadProjectFile, setCurrentDirectory, setActiveStorageType, setError]
   )
 
   const flowGraph = theatreReady && (
@@ -1337,7 +1355,8 @@ export function getNoodles(): Visualization {
           projectName={projectName || ''}
           open={showProjectNotFoundDialog}
           onProjectLoaded={(project, name) => {
-            loadProjectFile(project, name)
+            // Always navigate to /projects since this is a user project
+            loadProjectFile(project, name, '/projects')
             setShowProjectNotFoundDialog(false)
           }}
           onNewProject={onNewProject}
@@ -1486,9 +1505,9 @@ export function getNoodles(): Visualization {
     nodeSidebar: <NodeTreeSidebar updateOperatorId={updateOperatorId} />,
     propertiesPanel,
     layoutMode,
-    setLayoutMode,
     showOverlay,
-    setShowOverlay,
+    onChangeLayoutMode: setLayoutMode,
+    onChangeShowOverlay: setShowOverlay,
     // Render settings are now read from OutOp via useRenderSettings() hook
     // Export these so timeline-editor can create the menu with render actions
     projectName,
@@ -1505,7 +1524,7 @@ export function getNoodles(): Visualization {
     copyControlsRef,
     reactFlowRef,
     showChatPanel,
-    setShowChatPanel,
+    onChangeShowChatPanel: setShowChatPanel,
     hasUnsavedChanges,
     ...visProps,
     project: theatreProject,

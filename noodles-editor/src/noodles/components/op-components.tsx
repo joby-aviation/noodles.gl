@@ -334,9 +334,19 @@ export const OUT_NAMESPACE = 'out'
 function useLocked(op: Operator<IOperator>) {
   const [locked, setLocked] = useState(op.locked.value)
   useEffect(() => {
-    op.locked.subscribe(setLocked)
+    const subscription = op.locked.subscribe(setLocked)
+    return () => subscription.unsubscribe()
   }, [op])
   return locked
+}
+
+// Hook to subscribe to field visibility changes and trigger re-render
+function useFieldVisibility(op: Operator<IOperator>) {
+  const [, setVisibility] = useState(op.visibleFields.value)
+  useEffect(() => {
+    const subscription = op.visibleFields.subscribe(setVisibility)
+    return () => subscription.unsubscribe()
+  }, [op])
 }
 
 function HandlePreviewContent({ data, name, type }: { data: unknown; name: string; type: string }) {
@@ -502,6 +512,7 @@ function NodeComponent({
   const connectionErrors = useConnectionErrors(op)
   const hasConnectionErrors = connectionErrors.size > 0
   const isDimmed = useNodeDimmed(id)
+  useFieldVisibility(op)
 
   return (
     <div
@@ -516,15 +527,17 @@ function NodeComponent({
         <NodeResizer isVisible={selected} minWidth={200} minHeight={100} />
       )}
       <div className={s.content}>
-        {Object.entries(op.inputs).map(([key, field]) => (
-          <FieldComponent
-            key={key}
-            id={key}
-            field={field}
-            disabled={locked}
-            handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
-          />
-        ))}
+        {Object.entries(op.inputs)
+          .filter(([key]) => op.isFieldVisible(key))
+          .map(([key, field]) => (
+            <FieldComponent
+              key={key}
+              id={key}
+              field={field}
+              disabled={locked}
+              handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
+            />
+          ))}
         <div className={s.outputHandleContainer}>
           {Object.entries(op.outputs).map(([key, field]) => (
             <OutputHandle key={key} id={key} field={field} />
@@ -858,6 +871,7 @@ function GeocoderOpComponent({
   }, [op, apiKey])
 
   const locked = useLocked(op)
+  useFieldVisibility(op)
   useEffect(() => {
     const inputEl = geocoderRef.current?._inputEl
     if (inputEl) {
@@ -869,16 +883,18 @@ function GeocoderOpComponent({
     <div className={cx(s.wrapper, { [s.wrapperDimmed]: isDimmed })}>
       <NodeHeader id={id} type={type} op={op} />
       <div className={s.content}>
-        {Object.entries(op.inputs).map(([key, field]) => (
-          <FieldComponent
-            key={key}
-            id={key}
-            field={field}
-            disabled={locked}
-            handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
-            renderInput={false}
-          />
-        ))}
+        {Object.entries(op.inputs)
+          .filter(([key]) => op.isFieldVisible(key))
+          .map(([key, field]) => (
+            <FieldComponent
+              key={key}
+              id={key}
+              field={field}
+              disabled={locked}
+              handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
+              renderInput={false}
+            />
+          ))}
         {error && (
           <div className={s.fieldWrapper} style={{ padding: '8px', color: '#ff6b6b' }}>
             ⚠️ {error}
@@ -1054,21 +1070,24 @@ function TableEditorOpComponent({
   }
 
   const locked = useLocked(op)
+  useFieldVisibility(op)
 
   return (
     <div className={cx(s.wrapper, { [s.wrapperDimmed]: isDimmed })}>
       <NodeHeader id={id} type={type} op={op} />
       <NodeResizer isVisible={selected} minWidth={400} minHeight={200} />
       <div className={s.content}>
-        {Object.entries(op.inputs).map(([key, field]) => (
-          <FieldComponent
-            key={key}
-            id={key}
-            field={field}
-            disabled={locked}
-            handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
-          />
-        ))}
+        {Object.entries(op.inputs)
+          .filter(([key]) => op.isFieldVisible(key))
+          .map(([key, field]) => (
+            <FieldComponent
+              key={key}
+              id={key}
+              field={field}
+              disabled={locked}
+              handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
+            />
+          ))}
         <div className="card p-fluid">
           <DataTable
             value={dataArray}
@@ -1242,21 +1261,24 @@ function ViewerOpComponent({
   }
 
   const locked = useLocked(op)
+  useFieldVisibility(op)
 
   return (
     <div className={cx(s.wrapper, { [s.wrapperDimmed]: isDimmed })}>
       <NodeHeader id={id} type={type} op={op} />
       <NodeResizer isVisible={selected} minWidth={400} minHeight={200} />
       <div className={s.content}>
-        {Object.entries(op.inputs).map(([key, field]) => (
-          <FieldComponent
-            key={key}
-            id={key}
-            field={field}
-            disabled={locked}
-            handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
-          />
-        ))}
+        {Object.entries(op.inputs)
+          .filter(([key]) => op.isFieldVisible(key))
+          .map(([key, field]) => (
+            <FieldComponent
+              key={key}
+              id={key}
+              field={field}
+              disabled={locked}
+              handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
+            />
+          ))}
         {content}
         <div className={s.outputHandleContainer}>
           {Object.entries(op.outputs).map(([key, field]) => (
@@ -1288,6 +1310,7 @@ function ContainerOpComponent({
   })
 
   const locked = useLocked(op)
+  useFieldVisibility(op)
 
   return (
     <div
@@ -1304,15 +1327,17 @@ function ContainerOpComponent({
       <NodeHeader id={id} type={type} op={op} />
       <NodeResizer isVisible={selected} minWidth={200} minHeight={50} />
       <div className={s.content}>
-        {Object.entries(op.inputs).map(([key, field]) => (
-          <FieldComponent
-            key={key}
-            id={key}
-            field={field}
-            disabled={locked}
-            handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
-          />
-        ))}
+        {Object.entries(op.inputs)
+          .filter(([key]) => op.isFieldVisible(key))
+          .map(([key, field]) => (
+            <FieldComponent
+              key={key}
+              id={key}
+              field={field}
+              disabled={locked}
+              handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
+            />
+          ))}
         <div>Children: {childrenCount}</div>
         {/* Children nodes are rendered by React Flow normally */}
         <div className={s.outputHandleContainer}>

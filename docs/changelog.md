@@ -5,6 +5,7 @@ All notable changes to Noodles.gl are documented here.
 ## January 2026
 
 ### Added
+- Editable field visibility with show/hide controls in Properties panel ([#283](https://github.com/joby-aviation/noodles.gl/pull/283))
 - Dim unconnectable nodes during connection drag ([#250](https://github.com/joby-aviation/noodles.gl/pull/250))
 
 ### Changed
