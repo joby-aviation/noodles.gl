@@ -12,6 +12,7 @@
   left: 50%;
   transform: translateX(-50%);
   max-width: 90vw;
+  height: 90vh;
   max-height: 90vh;
   width: 1400px;
   background: #1a1a1a;
