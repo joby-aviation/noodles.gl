@@ -1731,7 +1731,7 @@ export class FileOp extends Operator<FileOp> {
   }
 }
 
-const duckDbInstance = (async () => {
+export const duckDbInstance = (async () => {
   // Use CDN bundles for Cloudflare Pages (which has a 25 MiB file size limit)
   // Use local bundles for development and GitHub Actions (which can access local files)
   let bundles: duckdb.DuckDBBundles
@@ -1897,83 +1897,6 @@ export class DuckDbOp extends Operator<DuckDbOp> {
     }
   }
 
-  // Execute all statements and return results for each (for SQL notebook mode)
-  async executeAllStatements(
-    queryString: string,
-    contextOpId: string
-  ): Promise<Array<{ sql: string; data: unknown[]; executionTime: number; error?: string }>> {
-    const queries = queryString
-      .split(';')
-      .map(s => s.trim())
-      .filter(Boolean)
-      .map(s => `${s};`)
-
-    if (!queries?.length) {
-      return []
-    }
-
-    const db = await duckDbInstance
-    const conn = await db.connect()
-    const results: Array<{ sql: string; data: unknown[]; executionTime: number; error?: string }> = []
-
-    for (const query of queries) {
-      const startTime = performance.now()
-
-      try {
-        if (!mustacheRe.test(query)) {
-          const result = await conn.query(query)
-          results.push({
-            sql: query,
-            data: result.toArray(),
-            executionTime: performance.now() - startTime
-          })
-          continue
-        }
-
-        // Parse the query and extract references
-        const references: FieldReference[] = []
-        const parameterizedQuery = query.replace(mustacheRe, (raw, opId, inOut, fieldPath) => {
-          const resolvedOpId = opId.startsWith('/') ? opId : `./${opId}`
-          references.push({ opId: resolvedOpId, inOut, fieldPath, raw })
-          return `$${references.length}`
-        })
-
-        // Resolve reference values
-        const positionalParams = references.map(({ opId, inOut, fieldPath }) => {
-          const op = getOp(opId, contextOpId)
-          const [firstKey, ...rest] = fieldPath.split('.')
-
-          const field = op?.[inOut === 'par' ? 'inputs' : 'outputs']?.[firstKey]
-          if (!field) {
-            throw new Error(`Field ${firstKey} not found on ${opId}`)
-          }
-
-          return rest.reduce((d, prop) => d[prop], field.value)
-        })
-
-        const prepared = await conn.prepare(parameterizedQuery)
-        const result = await prepared.query(...positionalParams)
-
-        results.push({
-          sql: query,
-          data: result.toArray(),
-          executionTime: performance.now() - startTime
-        })
-      } catch (error) {
-        // Continue with remaining statements even if one fails
-        const errorMessage = error instanceof Error ? error.message : String(error)
-        results.push({
-          sql: query,
-          data: [],
-          executionTime: performance.now() - startTime,
-          error: errorMessage
-        })
-      }
-    }
-
-    await conn.close()
-    return results
-  }
 }
 
 export class JSONOp extends Operator<JSONOp> {

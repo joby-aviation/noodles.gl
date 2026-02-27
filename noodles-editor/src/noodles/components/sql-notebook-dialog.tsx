@@ -7,7 +7,8 @@ import { DataTable } from 'primereact/datatable'
 import { Column } from 'primereact/column'
 import { analytics } from '../../utils/analytics'
 import { getOp } from '../store'
-import type { DuckDbOp } from '../operators'
+import { duckDbInstance } from '../operators'
+import { mustacheRe } from '../fields'
 import s from './sql-notebook-dialog.module.css'
 
 interface StatementResult {
@@ -40,6 +41,57 @@ function parseSqlStatements(sql: string): string[] {
     .map(s => s.trim())
     .filter(Boolean)
     .map(s => `${s};`)
+}
+
+async function executeAllStatements(
+  queryString: string,
+  contextOpId: string,
+): Promise<Array<{ sql: string; data: unknown[]; executionTime: number; error?: string }>> {
+  const queries = parseSqlStatements(queryString)
+  if (!queries.length) return []
+
+  const db = await duckDbInstance
+  const conn = await db.connect()
+  const results: Array<{ sql: string; data: unknown[]; executionTime: number; error?: string }> = []
+
+  for (const query of queries) {
+    const startTime = performance.now()
+    try {
+      if (!mustacheRe.test(query)) {
+        const result = await conn.query(query)
+        results.push({ sql: query, data: result.toArray(), executionTime: performance.now() - startTime })
+        continue
+      }
+
+      const references: Array<{ opId: string; inOut: string; fieldPath: string }> = []
+      const parameterizedQuery = query.replace(mustacheRe, (_raw, opId, inOut, fieldPath) => {
+        references.push({ opId: opId.startsWith('/') ? opId : `./${opId}`, inOut, fieldPath })
+        return `$${references.length}`
+      })
+
+      const positionalParams = references.map(({ opId, inOut, fieldPath }) => {
+        const op = getOp(opId, contextOpId)
+        const [firstKey, ...rest] = fieldPath.split('.')
+        const field = op?.[inOut === 'par' ? 'inputs' : 'outputs']?.[firstKey]
+        if (!field) throw new Error(`Field ${firstKey} not found on ${opId}`)
+        return rest.reduce((d: any, prop: string) => d[prop], field.value)
+      })
+
+      const prepared = await conn.prepare(parameterizedQuery)
+      const result = await prepared.query(...positionalParams)
+      results.push({ sql: query, data: result.toArray(), executionTime: performance.now() - startTime })
+    } catch (error) {
+      results.push({
+        sql: query,
+        data: [],
+        executionTime: performance.now() - startTime,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
+  await conn.close()
+  return results
 }
 
 function getStatusIcon(status: StatementResult['status']): string {
@@ -115,14 +167,8 @@ export function SqlNotebookDialog({
       })),
     }))
 
-    const op = getOp(operatorId) as DuckDbOp
-    if (!op) {
-      console.error('Operator not found:', operatorId)
-      return
-    }
-
     try {
-      const results = await op.executeAllStatements(session.sqlContent, operatorId)
+      const results = await executeAllStatements(session.sqlContent, operatorId)
 
       // Update results with execution data
       setSession(prev => ({
