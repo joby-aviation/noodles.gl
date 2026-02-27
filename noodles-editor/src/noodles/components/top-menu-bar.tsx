@@ -2,6 +2,7 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { ChevronDownIcon, ExternalLinkIcon } from '@radix-ui/react-icons'
 import { useReactFlow } from '@xyflow/react'
 import { type RefObject, useCallback, useEffect, useMemo, useState } from 'react'
+import { useLocation } from 'wouter'
 import logoSvg from '/noodles-favicon.svg'
 import { SettingsDialog } from '../../components/settings-dialog'
 import { ExternalControlButton } from '../../external-control/components/external-control-button'
@@ -69,6 +70,7 @@ export function TopMenuBar({
 }: TopMenuBarProps) {
   const settingsDialogOpen = useUIStore(state => state.settingsDialogOpen)
   const setSettingsDialogOpen = useUIStore(state => state.setSettingsDialogOpen)
+  const [, navigate] = useLocation()
   const [recentProjects, setRecentProjects] = useState<string[]>([])
   const [showPointWizard, setShowPointWizard] = useState(false)
   const [showDataImporter, setShowDataImporter] = useState(false)
@@ -266,6 +268,13 @@ export function TopMenuBar({
                         </DropdownMenu.SubTrigger>
                         <DropdownMenu.Portal>
                           <DropdownMenu.SubContent className={s.dropdownContent} sideOffset={2}>
+                            <DropdownMenu.Item
+                              className={s.dropdownItem}
+                              onSelect={() => navigate('/projects')}
+                            >
+                              View Recent...
+                            </DropdownMenu.Item>
+                            <DropdownMenu.Separator className={s.dropdownSeparator} />
                             {recentProjects.length === 0 ? (
                               <DropdownMenu.Item className={s.dropdownItem} disabled>
                                 No recent projects
@@ -284,6 +293,13 @@ export function TopMenuBar({
                           </DropdownMenu.SubContent>
                         </DropdownMenu.Portal>
                       </DropdownMenu.Sub>
+                      <DropdownMenu.Separator className={s.dropdownSeparator} />
+                      <DropdownMenu.Item
+                        className={s.dropdownItem}
+                        onSelect={() => navigate('/examples')}
+                      >
+                        Examples
+                      </DropdownMenu.Item>
                     </DropdownMenu.SubContent>
                   </DropdownMenu.Portal>
                 </DropdownMenu.Sub>
