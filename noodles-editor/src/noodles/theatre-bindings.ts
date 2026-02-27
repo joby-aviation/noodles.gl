@@ -121,7 +121,7 @@ export function bindOperatorToTheatre(
           field.setValue(fieldValue)
         }
       } catch (e) {
-        console.warn(`Error syncing Theatre to field for ${op.id}.${key}:`, e)
+        console.error(`Error syncing Theatre to field for ${op.id}.${key}:`, e)
       }
       updating = false
     })
@@ -146,7 +146,7 @@ export function bindOperatorToTheatre(
             set(pointer, theatreValue)
           }
         } catch (e) {
-          console.warn(`Error syncing field to Theatre for ${op.id}.${key}:`, e)
+          console.error(`Error syncing field to Theatre for ${op.id}.${key}:`, e)
         }
         updating = false
       })

@@ -15,7 +15,7 @@
  */
 
 // Import the client (in a real scenario, this would be from npm package)
-const { NoodlesClient } = require('../../noodles-editor/src/external-control/client')
+import { NoodlesClient } from '../../noodles-editor/src/external-control/client.js'
 
 async function main() {
   // Create client instance

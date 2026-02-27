@@ -81,7 +81,7 @@ export function TopMenuBar({
     directoryHandleCache
       .getAllProjectNames()
       .then(names => setRecentProjects(names))
-      .catch(err => console.warn('Failed to load recent projects:', err))
+      .catch(err => console.error('Failed to load recent projects:', err))
   }, [])
 
   // Keyboard shortcuts

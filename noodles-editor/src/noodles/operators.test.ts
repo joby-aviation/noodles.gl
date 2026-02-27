@@ -1970,6 +1970,38 @@ describe('FileOp', () => {
     })
   })
 
+  describe('TSV format', () => {
+    it('should parse TSV from text input', async () => {
+      const operator = new FileOp('/file-tsv-0')
+      const tsvText = 'name\tvalue\nJohn\t30\nJane\t25'
+      const result = await operator.execute({
+        format: 'tsv',
+        url: '',
+        text: tsvText,
+        autoType: true,
+        pulse: 0,
+      })
+      expect(result.data).toHaveLength(2)
+      expect(result.data[0]).toEqual({ name: 'John', value: 30 })
+      expect(result.data[1]).toEqual({ name: 'Jane', value: 25 })
+    })
+
+    it('should parse TSV without autoType', async () => {
+      const operator = new FileOp('/file-tsv-1')
+      const tsvText = 'name\tvalue\nJohn\t30\nJane\t25'
+      const result = await operator.execute({
+        format: 'tsv',
+        url: '',
+        text: tsvText,
+        autoType: false,
+        pulse: 0,
+      })
+      expect(result.data).toHaveLength(2)
+      expect(result.data[0]).toEqual({ name: 'John', value: '30' })
+      expect(result.data[1]).toEqual({ name: 'Jane', value: '25' })
+    })
+  })
+
   describe('Text format', () => {
     it('should return text from text input', async () => {
       const operator = new FileOp('/file-5')
