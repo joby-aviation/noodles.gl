@@ -1,7 +1,7 @@
-import { describe, expect, it, beforeEach } from 'vitest'
-import { createProjectFromSQL } from '../utils/create-from-sql'
-import { transformGraph } from '../transform-graph'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { getOpStore } from '../store'
+import { transformGraph } from '../transform-graph'
+import { createProjectFromSQL } from '../utils/create-from-sql'
 
 describe('createFromSQL integration', () => {
   beforeEach(() => {
@@ -27,7 +27,7 @@ describe('createFromSQL integration', () => {
     const operators = transformGraph({ nodes: project.nodes, edges: project.edges })
 
     // Find DuckDBOp
-    const duckDbOp = operators.find((op) => op.constructor.name === 'DuckDbOp')
+    const duckDbOp = operators.find(op => op.constructor.name === 'DuckDbOp')
     expect(duckDbOp).toBeDefined()
 
     // Should have the SQL query
@@ -41,7 +41,7 @@ describe('createFromSQL integration', () => {
     const operators = transformGraph({ nodes: project.nodes, edges: project.edges })
 
     // Check for complete pipeline
-    const opTypes = operators.map((op) => op.constructor.name)
+    const opTypes = operators.map(op => op.constructor.name)
     expect(opTypes).toContain('DuckDbOp')
     expect(opTypes).toContain('ScatterplotLayerOp')
     expect(opTypes).toContain('AccessorOp')
@@ -56,7 +56,7 @@ describe('createFromSQL integration', () => {
     const operators = transformGraph({ nodes: project.nodes, edges: project.edges })
 
     // Find ScatterplotLayer
-    const scatterplotOp = operators.find((op) => op.constructor.name === 'ScatterplotLayerOp')
+    const scatterplotOp = operators.find(op => op.constructor.name === 'ScatterplotLayerOp')
     expect(scatterplotOp).toBeDefined()
 
     // Check that data input is connected
@@ -82,7 +82,7 @@ describe('createFromSQL integration', () => {
     const operators = transformGraph({ nodes: project.nodes, edges: project.edges })
 
     // Find DeckRenderer
-    const deckOp = operators.find((op) => op.constructor.name === 'DeckRendererOp')
+    const deckOp = operators.find(op => op.constructor.name === 'DeckRendererOp')
     expect(deckOp).toBeDefined()
 
     // Layers field should be connected
@@ -98,7 +98,7 @@ describe('createFromSQL integration', () => {
     const operators = transformGraph({ nodes: project.nodes, edges: project.edges })
 
     // Find OutOp
-    const outOp = operators.find((op) => op.constructor.name === 'OutOp')
+    const outOp = operators.find(op => op.constructor.name === 'OutOp')
     expect(outOp).toBeDefined()
 
     // Vis field should be connected
@@ -114,17 +114,17 @@ describe('createFromSQL integration', () => {
     const operators = transformGraph({ nodes: project.nodes, edges: project.edges })
 
     // Find accessor operators
-    const accessors = operators.filter((op) => op.constructor.name === 'AccessorOp')
+    const accessors = operators.filter(op => op.constructor.name === 'AccessorOp')
     expect(accessors.length).toBeGreaterThanOrEqual(2)
 
     // Check position accessor
-    const positionAccessor = accessors.find((op) => op.id === '/position')
+    const positionAccessor = accessors.find(op => op.id === '/position')
     expect(positionAccessor).toBeDefined()
     expect(positionAccessor?.inputs.expression.value).toContain('lng')
     expect(positionAccessor?.inputs.expression.value).toContain('lat')
 
     // Check color accessor
-    const colorAccessor = accessors.find((op) => op.id === '/color')
+    const colorAccessor = accessors.find(op => op.id === '/color')
     expect(colorAccessor).toBeDefined()
     expect(colorAccessor?.inputs.expression.value).toBe('[255, 100, 100]')
   })
@@ -136,10 +136,10 @@ describe('createFromSQL integration', () => {
     const operators = transformGraph({ nodes: project.nodes, edges: project.edges })
 
     // Find key operators by ID
-    const duckDbOp = operators.find((op) => op.id === '/query')
-    const scatterplotOp = operators.find((op) => op.id === '/points')
-    const positionAccessor = operators.find((op) => op.id === '/position')
-    const colorAccessor = operators.find((op) => op.id === '/color')
+    const duckDbOp = operators.find(op => op.id === '/query')
+    const scatterplotOp = operators.find(op => op.id === '/points')
+    const positionAccessor = operators.find(op => op.id === '/position')
+    const colorAccessor = operators.find(op => op.id === '/color')
 
     expect(duckDbOp).toBeDefined()
     expect(scatterplotOp).toBeDefined()
@@ -154,11 +154,11 @@ describe('createFromSQL integration', () => {
     const operators = transformGraph({ nodes: project.nodes, edges: project.edges })
 
     // Should include MaplibreBasemap from base template
-    const maplibreOp = operators.find((op) => op.constructor.name === 'MaplibreBasemapOp')
+    const maplibreOp = operators.find(op => op.constructor.name === 'MaplibreBasemapOp')
     expect(maplibreOp).toBeDefined()
 
     // Check basemap is connected to DeckRenderer
-    const deckOp = operators.find((op) => op.constructor.name === 'DeckRendererOp')
+    const deckOp = operators.find(op => op.constructor.name === 'DeckRendererOp')
     expect(deckOp).toBeDefined()
     expect(deckOp?.inputs.basemap.subscriptions.size).toBeGreaterThan(0)
   })

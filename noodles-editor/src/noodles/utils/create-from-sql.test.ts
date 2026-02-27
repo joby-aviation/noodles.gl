@@ -12,7 +12,7 @@ describe('createProjectFromSQL', () => {
     expect(project.edges).toBeDefined()
 
     // Check for required nodes
-    const nodeTypes = project.nodes.map((n) => n.type)
+    const nodeTypes = project.nodes.map(n => n.type)
     expect(nodeTypes).toContain('DuckDbOp')
     expect(nodeTypes).toContain('ScatterplotLayerOp')
     expect(nodeTypes).toContain('AccessorOp')
@@ -20,7 +20,7 @@ describe('createProjectFromSQL', () => {
     expect(nodeTypes).toContain('OutOp')
 
     // Check DuckDB node has SQL
-    const duckDbNode = project.nodes.find((n) => n.type === 'DuckDbOp')
+    const duckDbNode = project.nodes.find(n => n.type === 'DuckDbOp')
     expect(duckDbNode?.data.inputs.query).toBe(sql)
   })
 
@@ -29,7 +29,7 @@ describe('createProjectFromSQL', () => {
     const project = createProjectFromSQL({ sql })
 
     // Check key connections exist
-    const edgeIds = project.edges.map((e) => e.id)
+    const edgeIds = project.edges.map(e => e.id)
     expect(edgeIds).toContain('/query.out.data->/points.par.data')
     expect(edgeIds).toContain('/position.out.accessor->/points.par.getPosition')
     expect(edgeIds).toContain('/color.out.accessor->/points.par.getFillColor')
@@ -41,16 +41,16 @@ describe('createProjectFromSQL', () => {
     const sql = 'SELECT * FROM data'
     const project = createProjectFromSQL({ sql })
 
-    const accessorNodes = project.nodes.filter((n) => n.type === 'AccessorOp')
+    const accessorNodes = project.nodes.filter(n => n.type === 'AccessorOp')
     expect(accessorNodes.length).toBeGreaterThanOrEqual(2)
 
     // Check position accessor
-    const positionNode = accessorNodes.find((n) => n.id === '/position')
+    const positionNode = accessorNodes.find(n => n.id === '/position')
     expect(positionNode).toBeDefined()
     expect(positionNode?.data.inputs.expression).toContain('lng')
 
     // Check color accessor
-    const colorNode = accessorNodes.find((n) => n.id === '/color')
+    const colorNode = accessorNodes.find(n => n.id === '/color')
     expect(colorNode).toBeDefined()
     expect(colorNode?.data.inputs.expression).toBe('[255, 100, 100]')
   })
@@ -59,9 +59,9 @@ describe('createProjectFromSQL', () => {
     const sql = 'SELECT * FROM data'
     const project = createProjectFromSQL({ sql })
 
-    const duckDbNode = project.nodes.find((n) => n.type === 'DuckDbOp')
-    const scatterplotNode = project.nodes.find((n) => n.type === 'ScatterplotLayerOp')
-    const deckNode = project.nodes.find((n) => n.type === 'DeckRendererOp')
+    const duckDbNode = project.nodes.find(n => n.type === 'DuckDbOp')
+    const scatterplotNode = project.nodes.find(n => n.type === 'ScatterplotLayerOp')
+    const deckNode = project.nodes.find(n => n.type === 'DeckRendererOp')
 
     // Verify left-to-right positioning (x coordinates increase)
     expect(duckDbNode?.position.x).toBeLessThan(scatterplotNode?.position.x || 0)
@@ -73,11 +73,11 @@ describe('createProjectFromSQL', () => {
     const project = createProjectFromSQL({ sql })
 
     // Should have MaplibreBasemapOp from base template
-    const nodeTypes = project.nodes.map((n) => n.type)
+    const nodeTypes = project.nodes.map(n => n.type)
     expect(nodeTypes).toContain('MaplibreBasemapOp')
 
     // Should have base edge from maplibre to deck
-    const edgeIds = project.edges.map((e) => e.id)
+    const edgeIds = project.edges.map(e => e.id)
     expect(edgeIds).toContain('/maplibre-basemap.out.maplibre->/deck.par.basemap')
   })
 
@@ -85,7 +85,7 @@ describe('createProjectFromSQL', () => {
     const sql = 'SELECT * FROM data'
     const project = createProjectFromSQL({ sql })
 
-    const scatterplotNode = project.nodes.find((n) => n.type === 'ScatterplotLayerOp')
+    const scatterplotNode = project.nodes.find(n => n.type === 'ScatterplotLayerOp')
     expect(scatterplotNode).toBeDefined()
     expect(scatterplotNode?.data.inputs.opacity).toBe(0.8)
     expect(scatterplotNode?.data.inputs.getRadius).toBe(50)

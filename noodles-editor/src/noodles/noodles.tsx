@@ -68,6 +68,7 @@ import { getOp, getOpStore, getUIStore, useNestingStore, useUIStore } from './st
 import { bindOperatorToTheatre, cleanupRemovedOperators } from './theatre-bindings'
 import { transformGraph } from './transform-graph'
 import { canConnect } from './utils/can-connect'
+import { createProjectFromSQL, validateSQL } from './utils/create-from-sql'
 import { directoryHandleCache } from './utils/directory-handle-cache'
 import {
   fileExists,
@@ -88,7 +89,6 @@ import {
   serializeNodes,
 } from './utils/serialization'
 import { calculateViewerPosition } from './utils/viewer-position'
-import { createProjectFromSQL, validateSQL } from './utils/create-from-sql'
 
 /*
  * CSS Architecture:
@@ -1092,7 +1092,9 @@ export function getNoodles(): Visualization {
       // Always navigate to /projects since this is a user project
       loadProjectFile(projectToCreate, directoryName, '/projects')
 
-      analytics.track('project_created', { method: sqlParam && validateSQL(sqlParam).valid ? 'createFromSQL' : 'new' })
+      analytics.track('project_created', {
+        method: sqlParam && validateSQL(sqlParam).valid ? 'createFromSQL' : 'new',
+      })
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         // User cancelled the picker

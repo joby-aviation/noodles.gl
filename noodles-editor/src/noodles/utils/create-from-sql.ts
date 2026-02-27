@@ -1,6 +1,6 @@
+import newProjectJSON from '../new.json'
 import type { NoodlesProjectJSON } from './serialization'
 import { NOODLES_VERSION } from './serialization'
-import newProjectJSON from '../new.json'
 
 export interface CreateFromSQLOptions {
   sql: string
@@ -65,7 +65,7 @@ export function createProjectFromSQL({ sql }: CreateFromSQLOptions): NoodlesProj
   }
 
   // Update deck renderer position for better layout
-  const updatedNodes = baseProject.nodes.map((node) => {
+  const updatedNodes = baseProject.nodes.map(node => {
     if (node.type === 'DeckRendererOp') {
       return { ...node, position: { x: 1000, y: 200 } }
     }
@@ -76,7 +76,13 @@ export function createProjectFromSQL({ sql }: CreateFromSQLOptions): NoodlesProj
   })
 
   // Add new nodes
-  const nodes = [...updatedNodes, duckDbNode, positionAccessorNode, colorAccessorNode, scatterplotNode]
+  const nodes = [
+    ...updatedNodes,
+    duckDbNode,
+    positionAccessorNode,
+    colorAccessorNode,
+    scatterplotNode,
+  ]
 
   // Create edges connecting the graph
   const newEdges = [
