@@ -327,7 +327,7 @@ export function getFieldReferences(text: string, thisOpId?: string) {
     const inOut = groups?.inOut as InOut
 
     if (!groups || !opId || !fieldPath) {
-      console.warn(`Invalid operator ID or field path: ${opId}`)
+      console.error(`Invalid operator ID or field path: ${opId}`)
       continue
     }
 

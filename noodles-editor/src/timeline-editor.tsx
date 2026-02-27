@@ -235,6 +235,8 @@ export default function TimelineEditor() {
     },
   }
 
+  // Destructure light and sky since they're applied imperatively via setLight/setSky
+  const { light, sky, ...basemapProps } = visualization.mapProps ?? {}
   const mapProps: MapProps = {
     interactive: false,
     antialias: true,
@@ -244,12 +246,37 @@ export default function TimelineEditor() {
       mapRef.current = map
       redraw()
     },
-    ...visualization.mapProps,
-    ...(visualization.mapProps?.maxPitch
-      ? { maxPitch: Math.min(visualization.mapProps?.maxPitch, 85) }
-      : {}),
+    ...basemapProps,
+    maxPitch: Math.min(basemapProps?.maxPitch ?? 85, 85),
   }
 
+  // Apply light and sky settings imperatively to avoid style reloading
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !map.isStyleLoaded()) return
+
+    // Note: light settings only apply to globe projection
+    if (light) {
+      map.setLight({
+        anchor: light.anchor,
+        position: [1.15, light.azimuthal, light.polar],
+      })
+    }
+
+    if (sky?.enabled) {
+      // Note: skyColor, horizonColor, skyHorizonBlend only apply to mercator projection
+      // Note: atmosphereBlend only applies to globe projection
+      map.setSky({
+        'sky-color': sky.skyColor,
+        'horizon-color': sky.horizonColor,
+        'sky-horizon-blend': sky.skyHorizonBlend,
+        'atmosphere-blend': sky.atmosphereBlend,
+      })
+    } else {
+      // Disable sky - requires MapLibre GL JS 4.6.0+
+      map.setSky(undefined)
+    }
+  }, [light, sky])
   // Expose deck.gl canvas and instance for Claude AI visual debugging
   useEffect(() => {
     if (deckRef.current) {
@@ -394,7 +421,7 @@ export default function TimelineEditor() {
       onOpen={noodles.onOpen}
       onOpenAddNode={noodles.onOpenAddNode}
       showChatPanel={noodles.showChatPanel}
-      setShowChatPanel={noodles.setShowChatPanel}
+      onChangeShowChatPanel={noodles.onChangeShowChatPanel}
       undoRedoRef={noodles.undoRedoRef!}
       copyControlsRef={noodles.copyControlsRef!}
       reactFlowRef={noodles.reactFlowRef}
@@ -403,9 +430,9 @@ export default function TimelineEditor() {
       isRendering={isRendering}
       hasUnsavedChanges={noodles.hasUnsavedChanges}
       showOverlay={noodles.showOverlay}
-      setShowOverlay={noodles.setShowOverlay}
+      onChangeShowOverlay={noodles.onChangeShowOverlay}
       layoutMode={noodles.layoutMode}
-      setLayoutMode={noodles.setLayoutMode}
+      onChangeLayoutMode={noodles.onChangeLayoutMode}
     />
   )
 
