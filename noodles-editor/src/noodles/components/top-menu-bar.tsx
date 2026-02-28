@@ -70,6 +70,10 @@ export function TopMenuBar({
 }: TopMenuBarProps) {
   const settingsDialogOpen = useUIStore(state => state.settingsDialogOpen)
   const setSettingsDialogOpen = useUIStore(state => state.setSettingsDialogOpen)
+  const nodeInspectorVisible = useUIStore(state => state.nodeInspectorVisible)
+  const setNodeInspectorVisible = useUIStore(state => state.setNodeInspectorVisible)
+  const viewportLoggerVisible = useUIStore(state => state.viewportLoggerVisible)
+  const setViewportLoggerVisible = useUIStore(state => state.setViewportLoggerVisible)
   const [, navigate] = useLocation()
   const [recentProjects, setRecentProjects] = useState<string[]>([])
   const [showPointWizard, setShowPointWizard] = useState(false)
@@ -449,6 +453,42 @@ export function TopMenuBar({
                                 Output on Top
                               </DropdownMenu.RadioItem>
                             </DropdownMenu.RadioGroup>
+                          </DropdownMenu.SubContent>
+                        </DropdownMenu.Portal>
+                      </DropdownMenu.Sub>
+
+                      <DropdownMenu.Separator className={s.dropdownSeparator} />
+
+                      <DropdownMenu.Sub>
+                        <DropdownMenu.SubTrigger className={s.dropdownItem}>
+                          Developer
+                          <i
+                            className="pi pi-chevron-right"
+                            style={{ marginLeft: 'auto', fontSize: '10px' }}
+                          />
+                        </DropdownMenu.SubTrigger>
+                        <DropdownMenu.Portal>
+                          <DropdownMenu.SubContent className={s.dropdownContent} sideOffset={2}>
+                            <DropdownMenu.CheckboxItem
+                              className={s.dropdownItem}
+                              checked={nodeInspectorVisible}
+                              onCheckedChange={setNodeInspectorVisible}
+                            >
+                              <DropdownMenu.ItemIndicator className={s.itemIndicator}>
+                                <i className="pi pi-check" style={{ fontSize: '12px' }} />
+                              </DropdownMenu.ItemIndicator>
+                              Node Inspector
+                            </DropdownMenu.CheckboxItem>
+                            <DropdownMenu.CheckboxItem
+                              className={s.dropdownItem}
+                              checked={viewportLoggerVisible}
+                              onCheckedChange={setViewportLoggerVisible}
+                            >
+                              <DropdownMenu.ItemIndicator className={s.itemIndicator}>
+                                <i className="pi pi-check" style={{ fontSize: '12px' }} />
+                              </DropdownMenu.ItemIndicator>
+                              Viewport Logger
+                            </DropdownMenu.CheckboxItem>
                           </DropdownMenu.SubContent>
                         </DropdownMenu.Portal>
                       </DropdownMenu.Sub>

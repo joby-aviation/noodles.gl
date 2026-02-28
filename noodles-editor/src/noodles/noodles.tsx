@@ -56,6 +56,7 @@ import { ProjectNotFoundDialog } from './components/project-not-found-dialog'
 import { RenameDialog } from './components/rename-dialog'
 import { SaveAsDialog } from './components/save-as-dialog'
 import { StorageErrorHandler } from './components/storage-error-handler'
+import { NodeInspector, ViewportLogger } from './components/devtools'
 import { UndoRedoHandler, type UndoRedoHandlerRef } from './components/UndoRedoHandler'
 import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
 import { useKeyboardShortcut } from './hooks/use-keyboard-shortcut'
@@ -400,6 +401,8 @@ export function getNoodles(): Visualization {
 
   // Track connection drag state for dimming unconnectable nodes
   const setConnectionDragState = useUIStore(state => state.setConnectionDragState)
+  const nodeInspectorVisible = useUIStore(state => state.nodeInspectorVisible)
+  const viewportLoggerVisible = useUIStore(state => state.viewportLoggerVisible)
 
   const onConnectStart: OnConnectStart = useCallback(
     (_event, params) => {
@@ -1364,6 +1367,8 @@ export function getNoodles(): Visualization {
                 onClose={() => setShowChatPanel(false)}
                 isVisible={showChatPanel}
               />
+              {nodeInspectorVisible && <NodeInspector />}
+              {viewportLoggerVisible && <ViewportLogger />}
             </ReactFlow>
           </SheetProvider>
         </PrimeReactProvider>

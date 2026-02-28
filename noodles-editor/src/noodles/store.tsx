@@ -112,6 +112,10 @@ interface UIStoreState {
   setSidebarVisible: (visible: boolean) => void
   settingsDialogOpen: boolean
   setSettingsDialogOpen: (open: boolean) => void
+  nodeInspectorVisible: boolean
+  setNodeInspectorVisible: (visible: boolean) => void
+  viewportLoggerVisible: boolean
+  setViewportLoggerVisible: (visible: boolean) => void
 }
 
 export const useUIStore = create<UIStoreState>(set => ({
@@ -123,6 +127,10 @@ export const useUIStore = create<UIStoreState>(set => ({
   setSidebarVisible: visible => set({ sidebarVisible: visible }),
   settingsDialogOpen: false,
   setSettingsDialogOpen: open => set({ settingsDialogOpen: open }),
+  nodeInspectorVisible: false,
+  setNodeInspectorVisible: visible => set({ nodeInspectorVisible: visible }),
+  viewportLoggerVisible: false,
+  setViewportLoggerVisible: visible => set({ viewportLoggerVisible: visible }),
 }))
 
 // ============================================================================

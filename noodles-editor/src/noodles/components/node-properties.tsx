@@ -261,24 +261,6 @@ function AddRemoveButton({
   )
 }
 
-// Isolated position display — re-renders on drag without affecting the rest of NodeProperties
-function NodePosition({ nodeId }: { nodeId: string }) {
-  const x = useStore(s => Math.round(s.nodes.find(n => n.id === nodeId)?.position.x ?? 0))
-  const y = useStore(s => Math.round(s.nodes.find(n => n.id === nodeId)?.position.y ?? 0))
-  return (
-    <div className={s.position}>
-      <label className={s.input}>
-        <span>X</span>
-        <input type="text" value={x} readOnly />
-      </label>
-      <label className={s.input}>
-        <span>Y</span>
-        <input type="text" value={y} readOnly />
-      </label>
-    </div>
-  )
-}
-
 // Exported for testing
 export function NodeProperties({ nodeId }: { nodeId: string }) {
   const { setEdges } = useReactFlow()
@@ -498,10 +480,6 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
           <span>ID</span>
           <input type="text" value={op.id} readOnly />
         </label>
-      </div>
-      <div className={s.section}>
-        <div className={s.sectionTitle}>Position</div>
-        <NodePosition nodeId={nodeId} />
       </div>
       <div className={s.section}>
         <div className={s.sectionHeader}>

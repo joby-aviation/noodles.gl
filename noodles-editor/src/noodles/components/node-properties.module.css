@@ -537,11 +537,6 @@
   display: none;
 }
 
-.position {
-  display: flex;
-  gap: 8px;
-}
-
 .reorder {
   display: flex;
   gap: 2px;
