@@ -7,7 +7,7 @@
     "install:app": "(cd noodles-editor && yarn install)",
     "install:all": "yarn install:website && yarn install:app",
     "build:app": "(cd noodles-editor && yarn build)",
-    "build:app:cloudflare": "(cd noodles-editor && yarn generate:context && NODE_OPTIONS='--max-old-space-size=8192' VITE_USE_CDN_DUCKDB=true yarn build)",
+    "build:app:cloudflare": "(cd noodles-editor && yarn generate:context && VITE_USE_CDN_DUCKDB=true yarn build)",
     "build:website": "(cd website && yarn build)",
     "build:all": "yarn build:app && yarn build:website && mkdir -p website/build/app && cp -r noodles-editor/dist/* website/build/app/",
     "build:all:cloudflare": "yarn build:website && yarn build:app:cloudflare && mkdir -p website/build/app && cp -r noodles-editor/dist/* website/build/app/",
