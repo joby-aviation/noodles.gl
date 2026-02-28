@@ -303,13 +303,29 @@ export function getNoodles(): Visualization {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [hasUnsavedChanges, projectName])
 
+  // Only changes when graph structure changes (nodes added/removed/type changed, edges reconnected)
+  // Intentionally excludes node position so dragging does NOT re-run transformGraph
+  const graphStructureKey = useMemo(() => {
+    const nodeIds = nodes
+      .map(n => `${n.id}:${n.type}`)
+      .sort()
+      .join(',')
+    const edgeIds = edges
+      .map(e => e.id)
+      .sort()
+      .join(',')
+    return `${nodeIds}|${edgeIds}`
+  }, [nodes, edges])
+
   // `transformGraph` needs all nodes to build the opMap and resolve connections
   // Use useEffect instead of useMemo to avoid setState during render
   const [operators, setOperators] = useState<Operator<IOperator>[]>([])
+  // nodes/edges omitted from deps intentionally — only re-run on structural changes, not position updates during drag
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional - graphStructureKey gates this
   useEffect(() => {
     const ops = transformGraph({ nodes, edges })
     setOperators(ops)
-  }, [nodes, edges])
+  }, [graphStructureKey])
 
   // Bind Theatre.js objects for all operators (outside ReactFlow rendering pipeline)
   // This ensures containers and all other operators can be keyframed in the timeline
