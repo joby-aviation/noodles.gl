@@ -5,7 +5,7 @@ import { defineConfig } from 'vitest/config'
 export default defineConfig({
   resolve: {
     dedupe: ['react', 'react-dom'],
-    conditions: ['import', 'module', 'default'],
+    conditions: ['browser', 'import', 'module', 'default'],
   },
   test: {
     setupFiles: ['src/setupTests.ts'],
@@ -27,7 +27,6 @@ export default defineConfig({
       'react/jsx-dev-runtime',
       'node:path',
     ],
-    exclude: ['exrjs'],
   },
   plugins: [
     nodePolyfills({
