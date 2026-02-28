@@ -62,7 +62,7 @@ export const useOperatorStore = create<OperatorStoreState>((set, get) => ({
     const isStillReferenced = op && Array.from(operators.values()).some(o => o === op)
     set({ operators })
     if (op && !isStillReferenced) {
-      op.dispose()
+      op.dispose?.()
     }
   },
 
