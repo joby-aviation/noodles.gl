@@ -54,8 +54,16 @@ export const useOperatorStore = create<OperatorStoreState>((set, get) => ({
 
   deleteOp: id => {
     const operators = new Map(get().operators)
+    const op = operators.get(id)
     operators.delete(id)
+    // Dispose only if this op instance is no longer referenced at any id.
+    // During renames, setOp(newId, op) runs before deleteOp(oldId), so the
+    // same instance is still in the map and should NOT be disposed.
+    const isStillReferenced = op && Array.from(operators.values()).some(o => o === op)
     set({ operators })
+    if (op && !isStillReferenced) {
+      op.dispose()
+    }
   },
 
   hasOp: id => get().operators.has(id),
