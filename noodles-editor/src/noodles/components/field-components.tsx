@@ -2,7 +2,7 @@ import { CodeiumEditor } from '@codeium/react-code-editor'
 import type { OnMount } from '@monaco-editor/react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
-import { Handle, Position, useEdges, useNodeId, useReactFlow } from '@xyflow/react'
+import { Handle, Position, useEdges, useNodeId, useReactFlow, useStoreApi } from '@xyflow/react'
 import cx from 'classnames'
 import type { ScaleLinear, ScaleOrdinal } from 'd3'
 import { Button } from 'primereact/button'
@@ -2039,6 +2039,46 @@ export function BezierCurveFieldComponent({
   )
 }
 
+// Custom hook to check if a specific field has incoming connections
+// More efficient than useEdges() which re-renders on ANY edge change
+function useHasIncomingConnection(nodeId: string | null, handleId: string): boolean {
+  const store = useStoreApi()
+  const [hasConnection, setHasConnection] = useState(() => {
+    if (!nodeId) return false
+    const edges = store.getState().edges
+    return edges.some(
+      edge =>
+        edge.target === nodeId && edge.targetHandle === handleId && edge.type !== 'ReferenceEdge'
+    )
+  })
+
+  useEffect(() => {
+    if (!nodeId) return
+
+    // Subscribe to edge changes, but only update state when our specific connection changes
+    const unsubscribe = store.subscribe((state, prevState) => {
+      if (state.edges === prevState.edges) return
+
+      const hadConnection = prevState.edges.some(
+        edge =>
+          edge.target === nodeId && edge.targetHandle === handleId && edge.type !== 'ReferenceEdge'
+      )
+      const hasConnectionNow = state.edges.some(
+        edge =>
+          edge.target === nodeId && edge.targetHandle === handleId && edge.type !== 'ReferenceEdge'
+      )
+
+      if (hadConnection !== hasConnectionNow) {
+        setHasConnection(hasConnectionNow)
+      }
+    })
+
+    return unsubscribe
+  }, [nodeId, handleId, store])
+
+  return hasConnection
+}
+
 export function FieldComponent({
   id: fieldId,
   field,
@@ -2053,13 +2093,9 @@ export function FieldComponent({
   renderInput?: boolean
 }) {
   const nid = useNodeId()
-  const edges = useEdges()
   const qualifiedFieldId = handle ? `${handle.namespace}.${fieldId}` : `par.${fieldId}`
   const isHandleDimmed = useHandleDimmed(nid ?? '', qualifiedFieldId)
-  const incomers = edges.filter(
-    edge =>
-      edge.target === nid && edge.targetHandle === qualifiedFieldId && edge.type !== 'ReferenceEdge'
-  )
+  const hasIncomingConnection = useHasIncomingConnection(nid, qualifiedFieldId)
 
   const { type } = field.constructor as typeof Field
   const InputComp = inputComponents[type]
@@ -2081,7 +2117,7 @@ export function FieldComponent({
         />
       )}
       {renderInput &&
-        (incomers.length > 0 ? (
+        (hasIncomingConnection ? (
           <EmptyFieldComponent id={fieldId} field={field} />
         ) : (
           <InputComp id={fieldId} field={field} disabled={disabled} />
