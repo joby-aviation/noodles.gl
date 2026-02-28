@@ -169,7 +169,11 @@ export function useHandleDimmed(nodeId: string, handleId: string): boolean {
 // Custom comparison function for node components
 // During drag, React Flow passes new position/data objects but id/type/selected don't change
 // By only comparing these three props, we prevent re-renders during drag operations
-function nodePropsAreEqual(prevProps: ReactFlowNodeProps, nextProps: ReactFlowNodeProps): boolean {
+// Exported for testing
+export function nodePropsAreEqual(
+  prevProps: ReactFlowNodeProps,
+  nextProps: ReactFlowNodeProps
+): boolean {
   return (
     prevProps.id === nextProps.id &&
     prevProps.type === nextProps.type &&

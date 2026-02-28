@@ -12,7 +12,7 @@ import { NodeProperties } from '../node-properties'
 // Mock edges for tests - will be updated per test
 let mockEdges: Edge[] = []
 
-// Mock useReactFlow and useEdges
+// Mock useReactFlow and useStore
 vi.mock('@xyflow/react', async () => {
   const actual = await vi.importActual('@xyflow/react')
   return {
@@ -24,8 +24,9 @@ vi.mock('@xyflow/react', async () => {
       getNodes: vi.fn(() => []),
       getNode: vi.fn(),
     }),
-    useEdges: () => mockEdges,
-    useNodes: () => [],
+    // Provide a minimal store state — NodeProperties reads edges and nodeType from useStore
+    useStore: (selector: (state: { nodes: unknown[]; edges: Edge[] }) => unknown) =>
+      selector({ nodes: [], edges: mockEdges }),
   }
 })
 
@@ -92,16 +93,11 @@ describe('NodeProperties field visibility editing', () => {
   }
 
   // Helper to render NodeProperties with contexts
-  const renderNodeProperties = (node: {
-    id: string
-    type: string
-    position: { x: number; y: number }
-    data: unknown
-  }) => {
+  const renderNodeProperties = (node: { id: string }) => {
     return render(
       <SheetContext.Provider value={null}>
         <ReactFlowProvider>
-          <NodeProperties node={node as any} />
+          <NodeProperties nodeId={node.id} />
         </ReactFlowProvider>
       </SheetContext.Provider>
     )
