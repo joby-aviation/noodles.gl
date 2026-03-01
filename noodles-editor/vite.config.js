@@ -102,7 +102,8 @@ export default defineConfig(({ mode }) => {
   return {
     base: mode === 'development' ? '/' : '/app/',
     build: {
-      sourcemap: true,
+      // CF Pages runs its own build without the R2 upload step, so skip maps there
+      sourcemap: !env.CF_PAGES,
     },
     server: {
       open: true,

@@ -45,7 +45,7 @@ function listAllObjects(): S3Object[] {
 
   do {
     const tokenArg = continuationToken
-      ? `--starting-token "${continuationToken}"`
+      ? `--continuation-token "${continuationToken}"`
       : ''
     const raw = execSync(
       `aws s3api list-objects-v2 --bucket "${bucketName}"` +
