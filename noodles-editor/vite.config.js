@@ -101,6 +101,9 @@ export default defineConfig(({ mode }) => {
 
   return {
     base: mode === 'development' ? '/' : '/app/',
+    build: {
+      sourcemap: true,
+    },
     server: {
       open: true,
     },

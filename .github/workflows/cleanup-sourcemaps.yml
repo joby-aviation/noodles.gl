@@ -1,0 +1,41 @@
+name: Cleanup old sourcemaps from R2
+
+on:
+  schedule:
+    - cron: '0 3 * * 0' # Sundays at 03:00 UTC
+  workflow_dispatch:
+    inputs:
+      max_age_days:
+        description: 'Delete sourcemaps older than this many days (default: 60)'
+        required: false
+        default: '60'
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Delete expired sourcemaps
+        run: npm run cleanup-sourcemaps
+        working-directory: ./noodles-editor
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          MAX_AGE_DAYS: ${{ github.event.inputs.max_age_days || '60' }}
