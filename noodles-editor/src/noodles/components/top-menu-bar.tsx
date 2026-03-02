@@ -39,6 +39,8 @@ interface TopMenuBarProps {
   hasUnsavedChanges?: boolean
   showOverlay?: boolean
   onChangeShowOverlay?: (show: boolean) => void
+  showDebugInfo?: boolean
+  onChangeShowDebugInfo?: (show: boolean) => void
   layoutMode?: 'split' | 'noodles-on-top' | 'output-on-top'
   onChangeLayoutMode?: (mode: 'split' | 'noodles-on-top' | 'output-on-top') => void
   reactFlowRef?: RefObject<HTMLDivElement>
@@ -64,6 +66,8 @@ export function TopMenuBar({
   hasUnsavedChanges,
   showOverlay,
   onChangeShowOverlay,
+  showDebugInfo,
+  onChangeShowDebugInfo,
   layoutMode,
   onChangeLayoutMode,
   reactFlowRef,
@@ -401,7 +405,17 @@ export function TopMenuBar({
                         <DropdownMenu.ItemIndicator className={s.itemIndicator}>
                           <i className="pi pi-check" style={{ fontSize: '12px' }} />
                         </DropdownMenu.ItemIndicator>
-                        Show node graph overlay
+                        Show node graph
+                      </DropdownMenu.CheckboxItem>
+                      <DropdownMenu.CheckboxItem
+                        className={s.dropdownItem}
+                        checked={showDebugInfo}
+                        onCheckedChange={onChangeShowDebugInfo}
+                      >
+                        <DropdownMenu.ItemIndicator className={s.itemIndicator}>
+                          <i className="pi pi-check" style={{ fontSize: '12px' }} />
+                        </DropdownMenu.ItemIndicator>
+                        Show editor debug info
                       </DropdownMenu.CheckboxItem>
 
                       <DropdownMenu.Separator className={s.dropdownSeparator} />
