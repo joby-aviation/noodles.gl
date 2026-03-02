@@ -15,7 +15,7 @@ import { rebindOperatorToTheatre } from '../theatre-bindings'
 import type { ConnectionPlan } from '../utils/auto-connect'
 import { edgeId } from '../utils/id-utils'
 import { type NodeType, createNodesForType } from '../utils/node-creation-utils'
-import { parseHandleId } from '../utils/path-utils'
+import { getBaseName, parseHandleId } from '../utils/path-utils'
 import menuStyles from './menu.module.css'
 import s from './node-properties.module.css'
 import { handleClass, headerClass, typeCategory } from './op-components'
@@ -385,7 +385,11 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
 
     setEdges(edges => {
       // Get all edges connected to this input
-      const relevantEdges = edges.filter(e => e.target === node.id && e.targetHandle === inputName)
+      const relevantEdges = edges.filter(
+        e =>
+          e.target === node.id &&
+          (e.targetHandle === inputName || e.targetHandle === `${IN_NS}.${inputName}`)
+      )
       if (relevantEdges.length < 2) return edges
 
       // Create new array with reordered edges
@@ -478,58 +482,44 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
     <>
       <div className={s.header}>
         <div className={s.title}>
-          {displayName}
+          {getBaseName(op.id)}
           <div className={cx(s.capsule, headerClass(node.type))}>{typeCategory(node.type)}</div>
         </div>
       </div>
-      {description && (
-        <div
-          className={cx(s.descriptionSection, {
-            [s.descriptionSectionWithButton]: isTruncated || isDescriptionExpanded,
-          })}
-        >
-          <div
-            ref={descriptionRef}
-            className={cx(s.description, { [s.descriptionExpanded]: isDescriptionExpanded })}
-          >
-            {description}
-          </div>
-          {(isTruncated || isDescriptionExpanded) && (
-            <button
-              type="button"
-              className={s.readMoreButton}
-              onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
-            >
-              {isDescriptionExpanded ? 'Read less' : 'Read more'}
-            </button>
-          )}
-        </div>
-      )}
       {op instanceof OutOp && (
         <div className={s.section}>
           <div className={s.sectionTitle}>Render Settings</div>
           <RenderSettingsPanel op={op} />
         </div>
       )}
-      <div className={s.section}>
-        <label className={s.input}>
-          <span>ID</span>
-          <input type="text" value={op.id} readOnly />
-        </label>
-      </div>
-      <div className={s.section}>
-        <div className={s.sectionTitle}>Position</div>
-        <div className={s.position}>
-          <label className={s.input}>
-            <span>X</span>
-            <input type="text" value={Math.round(node.position.x)} readOnly />
-          </label>
-          <label className={s.input}>
-            <span>Y</span>
-            <input type="text" value={Math.round(node.position.y)} readOnly />
-          </label>
+      {(displayName || description) && (
+        <div className={s.opMeta}>
+          {displayName && <div className={s.opDisplayName}>{displayName}</div>}
+          {description && (
+            <div
+              className={cx(s.descriptionSection, {
+                [s.descriptionSectionWithButton]: isTruncated || isDescriptionExpanded,
+              })}
+            >
+              <div
+                ref={descriptionRef}
+                className={cx(s.description, { [s.descriptionExpanded]: isDescriptionExpanded })}
+              >
+                {description}
+              </div>
+              {(isTruncated || isDescriptionExpanded) && (
+                <button
+                  type="button"
+                  className={s.readMoreButton}
+                  onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                >
+                  {isDescriptionExpanded ? 'Read less' : 'Read more'}
+                </button>
+              )}
+            </div>
+          )}
         </div>
-      </div>
+      )}
       <div className={s.section}>
         <div className={s.sectionHeader}>
           <div className={s.sectionTitle}>Inputs</div>
@@ -643,7 +633,9 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
                           onDragEnd={e => handleDragEnd(e, input.name, incomers)}
                         >
                           {incomers.length > 1 && <div className={s.dragHandle} />}
-                          <div className={s.connectionSource}>{edge.sourceHandle}</div>
+                          <div className={s.connectionSource}>
+                            {getBaseName(edge.source)}.{edge.sourceHandle}
+                          </div>
                         </div>
                       ))}
                     </div>

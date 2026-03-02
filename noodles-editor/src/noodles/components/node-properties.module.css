@@ -90,6 +90,18 @@
   color: rgba(255, 255, 255, 0.6);
 }
 
+/* Op meta (displayName + description near Inputs) */
+.opMeta {
+  margin-bottom: 4px;
+}
+
+.opDisplayName {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 2px;
+}
+
 /* Section */
 .section {
   margin-top: 12px;
@@ -535,11 +547,6 @@
 .reorderButtons,
 .reorderBtn {
   display: none;
-}
-
-.position {
-  display: flex;
-  gap: 8px;
 }
 
 .reorder {

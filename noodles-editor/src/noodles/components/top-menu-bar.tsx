@@ -2,6 +2,7 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { ChevronDownIcon, ExternalLinkIcon } from '@radix-ui/react-icons'
 import { useReactFlow } from '@xyflow/react'
 import { type RefObject, useCallback, useEffect, useMemo, useState } from 'react'
+import { useLocation } from 'wouter'
 import logoSvg from '/noodles-favicon.svg'
 import { SettingsDialog } from '../../components/settings-dialog'
 import { ExternalControlButton } from '../../external-control/components/external-control-button'
@@ -28,7 +29,7 @@ interface TopMenuBarProps {
   onOpen?: (projectName?: string) => Promise<void>
   onOpenAddNode?: () => void
   showChatPanel?: boolean
-  setShowChatPanel?: (show: boolean) => void
+  onChangeShowChatPanel?: (show: boolean) => void
   undoRedoRef: RefObject<UndoRedoHandlerRef | null>
   copyControlsRef: RefObject<CopyControlsRef | null>
   // Export functions always use the active OutOp's settings
@@ -37,9 +38,11 @@ interface TopMenuBarProps {
   isRendering?: boolean
   hasUnsavedChanges?: boolean
   showOverlay?: boolean
-  setShowOverlay?: (show: boolean) => void
+  onChangeShowOverlay?: (show: boolean) => void
+  showDebugInfo?: boolean
+  onChangeShowDebugInfo?: (show: boolean) => void
   layoutMode?: 'split' | 'noodles-on-top' | 'output-on-top'
-  setLayoutMode?: (mode: 'split' | 'noodles-on-top' | 'output-on-top') => void
+  onChangeLayoutMode?: (mode: 'split' | 'noodles-on-top' | 'output-on-top') => void
   reactFlowRef?: RefObject<HTMLDivElement>
 }
 
@@ -54,7 +57,7 @@ export function TopMenuBar({
   onOpen,
   onOpenAddNode,
   showChatPanel,
-  setShowChatPanel,
+  onChangeShowChatPanel,
   undoRedoRef,
   copyControlsRef,
   startRender,
@@ -62,13 +65,18 @@ export function TopMenuBar({
   isRendering,
   hasUnsavedChanges,
   showOverlay,
-  setShowOverlay,
+  onChangeShowOverlay,
+  showDebugInfo,
+  onChangeShowDebugInfo,
   layoutMode,
-  setLayoutMode,
+  onChangeLayoutMode,
   reactFlowRef,
 }: TopMenuBarProps) {
   const settingsDialogOpen = useUIStore(state => state.settingsDialogOpen)
   const setSettingsDialogOpen = useUIStore(state => state.setSettingsDialogOpen)
+  const setSidebarVisible = useUIStore(state => state.setSidebarVisible)
+  const triggerSidebarSearch = useUIStore(state => state.triggerSidebarSearch)
+  const [, navigate] = useLocation()
   const [recentProjects, setRecentProjects] = useState<string[]>([])
   const [showPointWizard, setShowPointWizard] = useState(false)
   const [showDataImporter, setShowDataImporter] = useState(false)
@@ -81,7 +89,7 @@ export function TopMenuBar({
     directoryHandleCache
       .getAllProjectNames()
       .then(names => setRecentProjects(names))
-      .catch(err => console.warn('Failed to load recent projects:', err))
+      .catch(err => console.error('Failed to load recent projects:', err))
   }, [])
 
   // Keyboard shortcuts
@@ -105,12 +113,17 @@ export function TopMenuBar({
         e.preventDefault()
         onImport()
         analytics.track('keyboard_shortcut_used', { action: 'import' })
+      } else if (isMod && e.key === 'f') {
+        e.preventDefault()
+        setSidebarVisible(true)
+        triggerSidebarSearch()
+        analytics.track('keyboard_shortcut_used', { action: 'find' })
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onSaveProject, onNewProject, onOpen, onImport])
+  }, [onSaveProject, onNewProject, onOpen, onImport, setSidebarVisible, triggerSidebarSearch])
 
   // Detect platform for keyboard shortcuts
   const isMac = useMemo(() => navigator.platform.toUpperCase().indexOf('MAC') >= 0, [])
@@ -266,6 +279,13 @@ export function TopMenuBar({
                         </DropdownMenu.SubTrigger>
                         <DropdownMenu.Portal>
                           <DropdownMenu.SubContent className={s.dropdownContent} sideOffset={2}>
+                            <DropdownMenu.Item
+                              className={s.dropdownItem}
+                              onSelect={() => navigate('/projects')}
+                            >
+                              View Recent...
+                            </DropdownMenu.Item>
+                            <DropdownMenu.Separator className={s.dropdownSeparator} />
                             {recentProjects.length === 0 ? (
                               <DropdownMenu.Item className={s.dropdownItem} disabled>
                                 No recent projects
@@ -284,6 +304,13 @@ export function TopMenuBar({
                           </DropdownMenu.SubContent>
                         </DropdownMenu.Portal>
                       </DropdownMenu.Sub>
+                      <DropdownMenu.Separator className={s.dropdownSeparator} />
+                      <DropdownMenu.Item
+                        className={s.dropdownItem}
+                        onSelect={() => navigate('/examples')}
+                      >
+                        Examples
+                      </DropdownMenu.Item>
                     </DropdownMenu.SubContent>
                   </DropdownMenu.Portal>
                 </DropdownMenu.Sub>
@@ -333,6 +360,18 @@ export function TopMenuBar({
                         <span>Paste</span>
                         <span className={s.shortcut}>{mod}+V</span>
                       </DropdownMenu.Item>
+                      <DropdownMenu.Separator className={s.dropdownSeparator} />
+                      <DropdownMenu.Item
+                        className={s.dropdownItem}
+                        onSelect={() => {
+                          setSidebarVisible(true)
+                          triggerSidebarSearch()
+                          analytics.track('keyboard_shortcut_used', { action: 'find' })
+                        }}
+                      >
+                        <span>Find</span>
+                        <span className={s.shortcut}>{mod}+F</span>
+                      </DropdownMenu.Item>
                     </DropdownMenu.SubContent>
                   </DropdownMenu.Portal>
                 </DropdownMenu.Sub>
@@ -380,12 +419,22 @@ export function TopMenuBar({
                       <DropdownMenu.CheckboxItem
                         className={s.dropdownItem}
                         checked={showOverlay}
-                        onCheckedChange={setShowOverlay}
+                        onCheckedChange={onChangeShowOverlay}
                       >
                         <DropdownMenu.ItemIndicator className={s.itemIndicator}>
                           <i className="pi pi-check" style={{ fontSize: '12px' }} />
                         </DropdownMenu.ItemIndicator>
-                        Show node graph overlay
+                        Show node graph
+                      </DropdownMenu.CheckboxItem>
+                      <DropdownMenu.CheckboxItem
+                        className={s.dropdownItem}
+                        checked={showDebugInfo}
+                        onCheckedChange={onChangeShowDebugInfo}
+                      >
+                        <DropdownMenu.ItemIndicator className={s.itemIndicator}>
+                          <i className="pi pi-check" style={{ fontSize: '12px' }} />
+                        </DropdownMenu.ItemIndicator>
+                        Show editor debug info
                       </DropdownMenu.CheckboxItem>
 
                       <DropdownMenu.Separator className={s.dropdownSeparator} />
@@ -403,7 +452,7 @@ export function TopMenuBar({
                             <DropdownMenu.RadioGroup
                               value={layoutMode}
                               onValueChange={value =>
-                                setLayoutMode?.(
+                                onChangeLayoutMode?.(
                                   value as 'split' | 'noodles-on-top' | 'output-on-top'
                                 )
                               }
@@ -544,10 +593,10 @@ export function TopMenuBar({
 
         <div className={s.rightSection}>
           <ExternalControlButton />
-          {setShowChatPanel && (
+          {onChangeShowChatPanel && (
             <button
               type="button"
-              onClick={() => setShowChatPanel(!showChatPanel)}
+              onClick={() => onChangeShowChatPanel(!showChatPanel)}
               className={s.assistantButton}
               title="Toggle Noodles AI Assistant"
             >

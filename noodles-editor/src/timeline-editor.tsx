@@ -113,15 +113,17 @@ export default function TimelineEditor() {
 
   const mapRef = useRef<MapLibre | null>(null)
   const deckRef = useRef<Deck>(null)
+  const isRenderingRef = useRef(false)
 
   // Trigger a redraw of React, mapbox and deck when the renderer state changes,
   // to ensure that the VideoStreamReader in renderer.ts runs
   const [_, setRand] = useState(0)
   const redraw = useCallback(() => {
-    console.warn('redraw', mapRef.current, deckRef.current)
     mapRef.current?.redraw()
     deckRef.current?.redraw()
-    setRand(Math.random())
+    // Only trigger React re-renders outside of the render loop — during export this
+    // runs every frame and causes CSSStyleRule/DOM churn from React re-renders.
+    if (!isRenderingRef.current) setRand(Math.random())
   }, [])
 
   const noodles = getNoodles()
@@ -149,6 +151,7 @@ export default function TimelineEditor() {
     bitrateMode,
     redraw,
   })
+  isRenderingRef.current = isRendering
 
   // If the visualization doesn't supply mapProps, disable basemap.
   // TODO: Detect if deck is in othorgraphic mode, and disable?
@@ -197,6 +200,8 @@ export default function TimelineEditor() {
     },
   }
 
+  // Destructure light and sky since they're applied imperatively via setLight/setSky
+  const { light, sky, ...basemapProps } = visualization.mapProps ?? {}
   const mapProps: MapProps = {
     interactive: false,
     antialias: true,
@@ -206,17 +211,14 @@ export default function TimelineEditor() {
       mapRef.current = map
       redraw()
     },
-    ...visualization.mapProps,
-    maxPitch: Math.min(visualization.mapProps?.maxPitch ?? 85, 85),
+    ...basemapProps,
+    maxPitch: Math.min(basemapProps?.maxPitch ?? 85, 85),
   }
 
   // Apply light and sky settings imperatively to avoid style reloading
   useEffect(() => {
     const map = mapRef.current
     if (!map || !map.isStyleLoaded()) return
-
-    const light = visualization.mapProps?.light
-    const sky = visualization.mapProps?.sky
 
     // Note: light settings only apply to globe projection
     if (light) {
@@ -239,7 +241,7 @@ export default function TimelineEditor() {
       // Disable sky - requires MapLibre GL JS 4.6.0+
       map.setSky(undefined)
     }
-  }, [visualization.mapProps?.light, visualization.mapProps?.sky])
+  }, [light, sky])
 
   // Expose deck.gl canvas and instance for Claude AI visual debugging
   useEffect(() => {
@@ -386,7 +388,7 @@ export default function TimelineEditor() {
       onOpen={noodles.onOpen}
       onOpenAddNode={noodles.onOpenAddNode}
       showChatPanel={noodles.showChatPanel}
-      setShowChatPanel={noodles.setShowChatPanel}
+      onChangeShowChatPanel={noodles.onChangeShowChatPanel}
       undoRedoRef={noodles.undoRedoRef!}
       copyControlsRef={noodles.copyControlsRef!}
       reactFlowRef={noodles.reactFlowRef}
@@ -395,9 +397,11 @@ export default function TimelineEditor() {
       isRendering={isRendering}
       hasUnsavedChanges={noodles.hasUnsavedChanges}
       showOverlay={noodles.showOverlay}
-      setShowOverlay={noodles.setShowOverlay}
+      onChangeShowOverlay={noodles.onChangeShowOverlay}
+      showDebugInfo={noodles.showDebugInfo}
+      onChangeShowDebugInfo={noodles.onChangeShowDebugInfo}
       layoutMode={noodles.layoutMode}
-      setLayoutMode={noodles.setLayoutMode}
+      onChangeLayoutMode={noodles.onChangeLayoutMode}
     />
   )
 

@@ -192,7 +192,6 @@ function validateExpression(expression: string): string | null {
       'turf',
       'deck',
       'Plot',
-      'vega',
       'Temporal',
       `return ${expression}`
     )
@@ -1087,7 +1086,7 @@ function DraggableNumberInput({
     (e: React.FormEvent<HTMLInputElement>) => {
       const newValue = e.currentTarget.value
       setDisplayValue(newValue)
-      if (newValue !== '') {
+      if (!(+newValue === 0 && newValue.length !== 1)) {
         onChange(+newValue)
       }
     },

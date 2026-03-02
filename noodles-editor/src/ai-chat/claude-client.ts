@@ -527,7 +527,7 @@ export class ClaudeClient {
           return modifications
         }
       } catch (e) {
-        console.warn('[Claude] Failed to parse JSON block:', e)
+        console.error('[Claude] Failed to parse JSON block:', e)
       }
     }
 
