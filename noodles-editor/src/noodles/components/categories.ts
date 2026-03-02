@@ -7,6 +7,7 @@ export const categories = {
     'Arc',
     'BoundingBox',
     'Bounds',
+    'Chart',
     'Concat',
     'DateTime',
     'DeckRenderer',

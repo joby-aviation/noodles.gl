@@ -4,10 +4,12 @@ import { AnalyticsConsentBanner } from './components/analytics-consent-banner'
 import { QuickStartModal } from './components/quick-start-modal'
 import { ExternalControlProvider } from './external-control'
 import { useUIStore } from './noodles/store'
+import { PageModal } from './page-modal'
 import TimelineEditor from './timeline-editor'
 
-// Lazy-load ExamplesPage to reduce main bundle size
+// Lazy-load page components to reduce main bundle size
 const ExamplesPage = lazy(() => import('./examples-page'))
+const ProjectsPage = lazy(() => import('./projects-page'))
 
 // Error boundary to catch analytics failures
 class AnalyticsErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
@@ -68,9 +70,20 @@ function App() {
 
         {/* Examples list page */}
         <Route path="/examples">
-          <Suspense fallback={<div>Loading...</div>}>
-            <ExamplesPage />
-          </Suspense>
+          <PageModal>
+            <Suspense fallback={<div>Loading...</div>}>
+              <ExamplesPage />
+            </Suspense>
+          </PageModal>
+        </Route>
+
+        {/* Projects list page */}
+        <Route path="/projects">
+          <PageModal>
+            <Suspense fallback={<div>Loading...</div>}>
+              <ProjectsPage />
+            </Suspense>
+          </PageModal>
         </Route>
 
         {/* Catch-all for root path, 404s, and redirects */}
@@ -126,9 +139,10 @@ function FallbackRoute() {
     return <QuickStartModal open={quickStartModalOpen} onOpenChange={setQuickStartModalOpen} />
   }
 
-  // Default: navigate to /examples
-  console.log('Default redirect to /examples')
-  return <Redirect to="/examples" />
+  // Default: navigate to /projects in dev, /examples in prod
+  const defaultRoute = import.meta.env.DEV ? '/projects' : '/examples'
+  console.log('Default redirect to', defaultRoute)
+  return <Redirect to={defaultRoute} />
 }
 
 export default App

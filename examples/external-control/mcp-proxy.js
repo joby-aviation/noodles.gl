@@ -21,8 +21,8 @@
 //    http://localhost:5173/examples/nyc-taxis?externalControl=true
 // 3. The proxy will connect automatically when Claude Desktop starts
 
-const WebSocket = require('ws')
-const readline = require('readline')
+import { WebSocketServer, WebSocket } from 'ws'
+import readline from 'readline'
 
 // Configuration
 const CONFIG = {
@@ -453,7 +453,7 @@ function handleBrowserMessage(data) {
 
 // Start WebSocket server for browser connections
 function startWebSocketServer() {
-  wsServer = new WebSocket.Server({ port: CONFIG.wsPort })
+  wsServer = new WebSocketServer({ port: CONFIG.wsPort })
 
   wsServer.on('listening', () => {
     log(`WebSocket server listening on ws://${CONFIG.wsHost}:${CONFIG.wsPort}`)

@@ -147,6 +147,9 @@ export function bindOperatorToTheatre(
     // Skip accessor functions
     if (typeof field.value === 'function') continue
 
+    // Skip fields that are not visible
+    if (!op.isFieldVisible(key)) continue
+
     // Only bind Theatre-compatible field types
     const isCompatibleField =
       field instanceof NumberField ||
@@ -217,7 +220,7 @@ export function bindOperatorToTheatre(
           field.setValue(value)
         }
       } catch (e) {
-        console.warn(`Error syncing Theatre to field for ${op.id}.${key}:`, e)
+        console.error(`Error syncing Theatre to field for ${op.id}.${key}:`, e)
       }
       updating = false
     })
@@ -255,7 +258,7 @@ export function bindOperatorToTheatre(
             set(pointer, value)
           }
         } catch (e) {
-          console.warn(`Error syncing field to Theatre for ${op.id}.${key}:`, e)
+          console.error(`Error syncing field to Theatre for ${op.id}.${key}:`, e)
         }
         updating = false
       })
@@ -282,6 +285,18 @@ export function unbindOperatorFromTheatre(opId: string, sheet: ISheet): void {
     sheet.detachObject(theatreObjectName)
     store.deleteSheetObject(opId)
   }
+}
+
+// Rebind an operator to Theatre (unbind and bind again)
+// Used when field visibility changes to update Theatre props
+export function rebindOperatorToTheatre(
+  op: Operator<IOperator>,
+  sheet: ISheet
+): (() => void) | undefined {
+  // First unbind the existing binding
+  unbindOperatorFromTheatre(op.id, sheet)
+  // Then create a new binding with current visibility
+  return bindOperatorToTheatre(op, sheet)
 }
 
 // Bind all operators in opMap to Theatre

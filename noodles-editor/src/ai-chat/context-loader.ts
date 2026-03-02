@@ -33,10 +33,10 @@ export class ContextLoader {
     try {
       this.manifest = await this.fetchJSON<Manifest>(`${this.baseUrl}/manifest.json`)
     } catch (_error) {
-      console.warn(
+      console.error(
         'Context bundles not available. Advanced features (code search, operator schemas) will be disabled.'
       )
-      console.warn('To enable these features, run: yarn generate:context')
+      console.error('To enable these features, run: yarn generate:context')
       // Continue without context - basic chat will still work
       onProgress?.({
         stage: 'complete',
@@ -181,7 +181,7 @@ export class ContextLoader {
         request.onerror = () => reject(request.error)
       })
     } catch (err) {
-      console.warn('Failed to cache bundle:', err)
+      console.error('Failed to cache bundle:', err)
     }
   }
 

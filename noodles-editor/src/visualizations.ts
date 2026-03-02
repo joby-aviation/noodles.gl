@@ -20,9 +20,9 @@ export type Visualization = {
   nodeSidebar?: React.ReactNode
   propertiesPanel?: React.ReactNode
   layoutMode?: 'split' | 'noodles-on-top' | 'output-on-top'
-  setLayoutMode?: (mode: 'split' | 'noodles-on-top' | 'output-on-top') => void
+  onChangeLayoutMode?: (mode: 'split' | 'noodles-on-top' | 'output-on-top') => void
   showOverlay?: boolean
-  setShowOverlay?: (show: boolean) => void
+  onChangeShowOverlay?: (show: boolean) => void
   // Noodles props for creating menu in timeline-editor
   projectName?: string
   getTimelineJson?: () => Record<string, unknown>
@@ -38,7 +38,7 @@ export type Visualization = {
   copyControlsRef?: RefObject<CopyControlsRef | null>
   reactFlowRef?: RefObject<HTMLDivElement>
   showChatPanel?: boolean
-  setShowChatPanel?: (show: boolean) => void
+  onChangeShowChatPanel?: (show: boolean) => void
   hasUnsavedChanges?: boolean
   // Visualization props
   mapProps?: BetterMapProps

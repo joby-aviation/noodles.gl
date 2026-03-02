@@ -54,8 +54,16 @@ export const useOperatorStore = create<OperatorStoreState>((set, get) => ({
 
   deleteOp: id => {
     const operators = new Map(get().operators)
+    const op = operators.get(id)
     operators.delete(id)
+    // Dispose only if this op instance is no longer referenced at any id.
+    // During renames, setOp(newId, op) runs before deleteOp(oldId), so the
+    // same instance is still in the map and should NOT be disposed.
+    const isStillReferenced = op && Array.from(operators.values()).some(o => o === op)
     set({ operators })
+    if (op && !isStillReferenced) {
+      op.dispose?.()
+    }
   },
 
   hasOp: id => get().operators.has(id),
@@ -128,6 +136,25 @@ export const useUIStore = create<UIStoreState>(set => ({
   quickStartModalOpen: true,
   setQuickStartModalOpen: open => set({ quickStartModalOpen: open }),
 }))
+
+// ============================================================================
+// Active OutOp Store (Zustand) - Tracks which OutOp is the "active" one
+// Similar to Blender's active camera concept - sticky selection independent
+// of node selection that drives render settings
+// ============================================================================
+
+interface ActiveOutOpState {
+  activeOutOpId: string | null
+  setActiveOutOpId: (id: string | null) => void
+}
+
+export const useActiveOutOpStore = create<ActiveOutOpState>(set => ({
+  activeOutOpId: null,
+  setActiveOutOpId: id => set({ activeOutOpId: id }),
+}))
+
+// Get the active OutOp store instance for use outside React components
+export const getActiveOutOpStore = () => useActiveOutOpStore.getState()
 
 // ============================================================================
 // Helper functions for non-React contexts

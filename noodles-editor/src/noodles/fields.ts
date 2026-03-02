@@ -32,6 +32,7 @@ type BaseFieldOptions = {
   optional?: boolean
   transform?: (val: unknown, ...args: unknown[]) => unknown
   accessor?: boolean
+  showByDefault?: boolean // Defaults to true. Set to false to hide field by default in UI.
 }
 
 type PointFieldOptions = BaseFieldOptions & {
@@ -95,6 +96,9 @@ export abstract class Field<
   // as a callback function. For example, `getPosition`, `getLineColor`, `getFillColor` etc.
   accessor = false
 
+  // Should this field be shown by default in the UI? Defaults to true.
+  showByDefault = true
+
   // Hold a reference to the operator that owns this field. Only used for debugging at the moment.
   op!: Operator<IOperator>
 
@@ -137,8 +141,13 @@ export abstract class Field<
   }
 
   // Wrap schema in additional functionality like optional, transform, accessor etc.
-  enhanceSchema({ accessor, optional, transform }: Partial<O>) {
+  enhanceSchema({ accessor, optional, transform, showByDefault }: Partial<O>) {
     let schema = this.schema
+
+    // Set showByDefault (defaults to true if not specified)
+    if (showByDefault !== undefined) {
+      this.showByDefault = showByDefault
+    }
 
     if (accessor) {
       this.accessor = true
@@ -318,7 +327,7 @@ export function getFieldReferences(text: string, thisOpId?: string) {
     const inOut = groups?.inOut as InOut
 
     if (!groups || !opId || !fieldPath) {
-      console.warn(`Invalid operator ID or field path: ${opId}`)
+      console.error(`Invalid operator ID or field path: ${opId}`)
       continue
     }
 
@@ -883,21 +892,23 @@ export class CompoundPropsField extends Field<
     super(defaults, { subschema, ...options, passthrough })
     this.fields = fields
 
-    this.subscribe(value => {
+    const parentToChild = this.subscribe(value => {
       for (const [key, field] of Object.entries(fields)) {
         if (Object.hasOwn(value || {}, key)) {
           field.next(value[key])
         }
       }
     })
+    this.subscriptions.set('__parentToChild', parentToChild)
 
     let updating = false
-    combineLatest(fields).subscribe(values => {
+    const childToParent = combineLatest(fields).subscribe(values => {
       if (updating) return
       updating = true
       this.next(values)
       updating = false
     })
+    this.subscriptions.set('__childToParent', childToParent)
   }
 
   next(parsed: ExtractProps<typeof this.fields>) {
@@ -945,9 +956,12 @@ export class ListField<F extends Field> extends Field<
     return z.array(subschema)
   }
 
-  constructor(public field?: F) {
+  constructor(
+    public field?: F,
+    options?: Partial<SubSchemaOptions<F['schema']> & BaseFieldOptions>
+  ) {
     const subschema = field?.schema || z.unknown()
-    super([], { subschema })
+    super([], { subschema, ...options })
   }
 
   // Overrides the default setValue to handle a list of fields
