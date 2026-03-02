@@ -75,10 +75,17 @@ const connect = (url: string) => {
       }, CONFIG.pingInterval) as unknown as number
     }
 
-    ws.onmessage = event => {
-      const message = parseMessage(event.data)
+    ws.onmessage = async event => {
+      let data = event.data
+
+      // Handle Blob data (WebSocket may return Blob)
+      if (data instanceof Blob) {
+        data = await data.text()
+      }
+
+      const message = parseMessage(data)
       if (!message) {
-        console.error('[Worker] Invalid message received:', event.data)
+        console.error('[Worker] Invalid message received:', data)
         return
       }
 

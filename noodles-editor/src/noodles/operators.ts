@@ -464,9 +464,6 @@ export abstract class Operator<OP extends IOperator> {
       // Get current input values
       const inputValues = this.data
 
-      // Set executing state for UI
-      this.executionState.next({ status: 'executing' })
-
       // Execute the operator
       const result = this.execute(inputValues)
       const finalResult = result instanceof Promise ? await result : result
@@ -484,7 +481,7 @@ export abstract class Operator<OP extends IOperator> {
       // Update execution state for UI
       this.executionState.next({
         status: 'success',
-        lastExecuted: new Date(),
+        lastExecuted: Date.now(),
         executionTime: this._lastExecutionTime,
       })
 
@@ -510,7 +507,7 @@ export abstract class Operator<OP extends IOperator> {
       // Update execution state for UI
       this.executionState.next({
         status: 'error',
-        lastExecuted: new Date(),
+        lastExecuted: Date.now(),
         executionTime: performance.now() - startTime,
         error: error.message,
       })
@@ -612,7 +609,7 @@ export abstract class Operator<OP extends IOperator> {
             const executionTime = performance.now() - startTime
             this.executionState.next({
               status: 'success',
-              lastExecuted: new Date(),
+              lastExecuted: Date.now(),
               executionTime,
             })
 
@@ -630,7 +627,7 @@ export abstract class Operator<OP extends IOperator> {
             const executionTime = performance.now() - startTime
             this.executionState.next({
               status: 'error',
-              lastExecuted: new Date(),
+              lastExecuted: Date.now(),
               executionTime,
               error: error.message,
             })
@@ -6833,12 +6830,12 @@ export type ExecutionState =
     }
   | {
       status: 'success'
-      lastExecuted: Date
+      lastExecuted: number
       executionTime: number
     }
   | {
       status: 'error'
-      lastExecuted?: Date
+      lastExecuted?: number
       executionTime?: number
       error?: string
     }

@@ -249,7 +249,7 @@ export const useRenderer = ({
         redraw()
 
         currentFrame.current = i
-        console.log(`capturing frame ${i}/${endFrame} at simtime ${simTime}`)
+        if (i % 10 === 0) console.log(`capturing frame ${i}/${endFrame} at simtime ${simTime}`)
 
         const canvasResult = await canvasFrameReady()
 
@@ -264,10 +264,8 @@ export const useRenderer = ({
         ) => {
           // @ts-expect-error - typescript types not updated yet
           recorder.track.requestFrame()
-          console.log('requesting frame')
           const result = await recorder.reader.read()
           const frame = result.value
-          console.log('got frame', frame)
 
           assert(frame, 'frame is required - might be a problem with the browser')
 

@@ -141,15 +141,17 @@ export default function TimelineEditor() {
 
   const mapRef = useRef<MapLibre | null>(null)
   const deckRef = useRef<Deck>(null)
+  const isRenderingRef = useRef(false)
 
   // Trigger a redraw of React, mapbox and deck when the renderer state changes,
   // to ensure that the VideoStreamReader in renderer.ts runs
   const [_, setRand] = useState(0)
   const redraw = useCallback(() => {
-    console.warn('redraw', mapRef.current, deckRef.current)
     mapRef.current?.redraw()
     deckRef.current?.redraw()
-    setRand(Math.random())
+    // Only trigger React re-renders outside of the render loop — during export this
+    // runs every frame and causes CSSStyleRule/DOM churn from React re-renders.
+    if (!isRenderingRef.current) setRand(Math.random())
   }, [])
 
   const noodles = getNoodles()
@@ -187,6 +189,7 @@ export default function TimelineEditor() {
     bitrateMode,
     redraw,
   })
+  isRenderingRef.current = isRendering
 
   // If the visualization doesn't supply mapProps, disable basemap.
   // TODO: Detect if deck is in othorgraphic mode, and disable?
