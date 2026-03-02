@@ -17,6 +17,7 @@ export { NOODLES_VERSION } from './migrate-schema'
 export type EditorSettings = {
   layoutMode?: 'split' | 'noodles-on-top' | 'output-on-top'
   showOverlay?: boolean
+  showDebugInfo?: boolean
 }
 
 export type ImageFormat = 'png' | 'jpeg' | 'exr'

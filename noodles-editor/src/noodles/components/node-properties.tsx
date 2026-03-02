@@ -437,58 +437,44 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
     <>
       <div className={s.header}>
         <div className={s.title}>
-          {displayName}
+          {getBaseName(op.id)}
           <div className={cx(s.capsule, headerClass(node.type))}>{typeCategory(node.type)}</div>
         </div>
       </div>
-      {description && (
-        <div
-          className={cx(s.descriptionSection, {
-            [s.descriptionSectionWithButton]: isTruncated || isDescriptionExpanded,
-          })}
-        >
-          <div
-            ref={descriptionRef}
-            className={cx(s.description, { [s.descriptionExpanded]: isDescriptionExpanded })}
-          >
-            {description}
-          </div>
-          {(isTruncated || isDescriptionExpanded) && (
-            <button
-              type="button"
-              className={s.readMoreButton}
-              onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
-            >
-              {isDescriptionExpanded ? 'Read less' : 'Read more'}
-            </button>
-          )}
-        </div>
-      )}
       {op instanceof OutOp && (
         <div className={s.section}>
           <div className={s.sectionTitle}>Render Settings</div>
           <RenderSettingsPanel op={op} />
         </div>
       )}
-      <div className={s.section}>
-        <label className={s.input}>
-          <span>ID</span>
-          <input type="text" value={op.id} readOnly />
-        </label>
-      </div>
-      <div className={s.section}>
-        <div className={s.sectionTitle}>Position</div>
-        <div className={s.position}>
-          <label className={s.input}>
-            <span>X</span>
-            <input type="text" value={Math.round(node.position.x)} readOnly />
-          </label>
-          <label className={s.input}>
-            <span>Y</span>
-            <input type="text" value={Math.round(node.position.y)} readOnly />
-          </label>
+      {(displayName || description) && (
+        <div className={s.opMeta}>
+          {displayName && <div className={s.opDisplayName}>{displayName}</div>}
+          {description && (
+            <div
+              className={cx(s.descriptionSection, {
+                [s.descriptionSectionWithButton]: isTruncated || isDescriptionExpanded,
+              })}
+            >
+              <div
+                ref={descriptionRef}
+                className={cx(s.description, { [s.descriptionExpanded]: isDescriptionExpanded })}
+              >
+                {description}
+              </div>
+              {(isTruncated || isDescriptionExpanded) && (
+                <button
+                  type="button"
+                  className={s.readMoreButton}
+                  onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                >
+                  {isDescriptionExpanded ? 'Read less' : 'Read more'}
+                </button>
+              )}
+            </div>
+          )}
         </div>
-      </div>
+      )}
       <div className={s.section}>
         <div className={s.sectionHeader}>
           <div className={s.sectionTitle}>Inputs</div>
