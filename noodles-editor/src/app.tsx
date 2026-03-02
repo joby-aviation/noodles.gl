@@ -63,17 +63,15 @@ function App() {
           <TimelineEditor />
         </Route>
 
-        {/* Examples list page - rendered in QuickStartModal */}
+        {/* Redirect list pages to root (modal handles internal navigation) */}
         <Route path="/examples">
-          <QuickStartModalRoute />
+          <Redirect to="/" />
         </Route>
-
-        {/* Projects list page - rendered in QuickStartModal */}
         <Route path="/projects">
-          <QuickStartModalRoute />
+          <Redirect to="/" />
         </Route>
 
-        {/* Root path - QuickStartModal home view */}
+        {/* Root path - only place modal shows */}
         <Route path="/">
           <QuickStartModalRoute />
         </Route>

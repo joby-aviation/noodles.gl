@@ -136,19 +136,15 @@ interface QuickStartModalProps {
 }
 
 export function QuickStartModal({ open, onOpenChange }: QuickStartModalProps) {
-  const [location, navigate] = useLocation()
+  const [, navigate] = useLocation()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [llmQuestion, setLlmQuestion] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  // View state derived from URL
-  const view: ModalView = useMemo(() => {
-    if (location === '/projects') return 'projects'
-    if (location === '/examples') return 'examples'
-    return 'home'
-  }, [location])
+  // View state managed locally (not derived from URL)
+  const [view, setView] = useState<ModalView>('home')
 
   // Recent projects state (for home view)
   const [recentProjects, setRecentProjects] = useState<CachedHandleEntry[]>([])
@@ -376,17 +372,17 @@ export function QuickStartModal({ open, onOpenChange }: QuickStartModalProps) {
 
   const handleBrowseAll = useCallback(() => {
     analytics.track('quick_start_browse_all')
-    navigate('/examples')
-  }, [navigate])
+    setView('examples')
+  }, [])
 
   const handleViewAllProjects = useCallback(() => {
     analytics.track('quick_start_view_all_projects')
-    navigate('/projects')
-  }, [navigate])
+    setView('projects')
+  }, [])
 
   const handleBack = useCallback(() => {
-    navigate('/')
-  }, [navigate])
+    setView('home')
+  }, [])
 
   const handleClose = useCallback(() => {
     onOpenChange(false)
