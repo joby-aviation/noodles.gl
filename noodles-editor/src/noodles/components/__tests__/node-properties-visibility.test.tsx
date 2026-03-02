@@ -3,7 +3,6 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import type { Edge } from '@xyflow/react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { SheetContext } from '../../../utils/sheet-context'
 import type { DeckRendererOp, GeoJsonLayerOp } from '../../operators'
 import { clearOps, getOp } from '../../store'
 import { transformGraph } from '../../transform-graph'
@@ -28,11 +27,6 @@ vi.mock('@xyflow/react', async () => {
     useNodes: () => [],
   }
 })
-
-// Mock rebindOperatorToTheatre
-vi.mock('../../theatre-bindings', () => ({
-  rebindOperatorToTheatre: vi.fn(),
-}))
 
 // Mock CSS modules
 vi.mock('../node-properties.module.css', () => ({
@@ -99,11 +93,9 @@ describe('NodeProperties field visibility editing', () => {
     data: unknown
   }) => {
     return render(
-      <SheetContext.Provider value={null}>
-        <ReactFlowProvider>
-          <NodeProperties node={node as any} />
-        </ReactFlowProvider>
-      </SheetContext.Provider>
+      <ReactFlowProvider>
+        <NodeProperties node={node as any} />
+      </ReactFlowProvider>
     )
   }
 

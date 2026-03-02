@@ -136,6 +136,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
           >
             <span className="timeline-zoom-btn-text">&minus;</span>
           </button>
+          <span className="timeline-zoom-readout">{Math.round(pixelsPerSecond)} px/s</span>
           <ZoomIcon />
           <button
             type="button"
@@ -152,7 +153,9 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
       <div className="timeline-body">
         {/* Track labels column */}
         <div className="timeline-track-labels">
-          <div className="timeline-track-labels-header" />
+          <div className="timeline-track-labels-header">
+            <span className="timeline-track-labels-title">Properties</span>
+          </div>
           <TrackList showLabelsOnly />
         </div>
 

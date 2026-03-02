@@ -1,5 +1,4 @@
 import type { DeckProps, FirstPersonViewState, MapViewState } from '@deck.gl/core'
-import type { IProject, ISheet } from '@theatre/core'
 import type { RefObject } from 'react'
 
 import type { MapProps } from 'react-map-gl/maplibre'
@@ -47,7 +46,4 @@ export type Visualization = {
   // Visualization props
   mapProps?: BetterMapProps
   deckProps: BetterDeckProps
-  // Theatre.js project and sheet (null when using native timeline)
-  project: IProject | null
-  sheet: ISheet | null
 }

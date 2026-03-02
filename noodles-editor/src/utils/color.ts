@@ -1,9 +1,8 @@
 import type { Color } from '@deck.gl/core'
-import type { types } from '@theatre/core'
 
 export type RGBA = { r: number; g: number; b: number; a: number }
 export type RGBX = { r: number; g: number; b: number; a?: number }
-export type Rgba = Parameters<typeof types.rgba>[0] | RGBA
+export type Rgba = RGBA
 
 export function colorToRgba([r, g, b, a = 255]: number[] | Color): Rgba {
   return {

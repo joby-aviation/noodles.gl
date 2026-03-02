@@ -1,6 +1,3 @@
-/* Collapsible Timeline Panel Styles */
-
-/* Collapsed state - thin tab at bottom */
 .timeline-collapse-tab {
   display: flex;
   align-items: center;
@@ -8,74 +5,28 @@
   gap: 6px;
   width: 100%;
   height: 24px;
-  background: #222;
+  background: linear-gradient(180deg, #1b2230 0%, #151b27 100%);
   border: none;
-  border-top: 1px solid #333;
-  color: #888;
+  border-top: 1px solid #2f3b4c;
+  color: #748095;
   cursor: pointer;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: Inter, 'Segoe UI', 'SF Pro Text', system-ui, sans-serif;
   font-size: 11px;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background 0.12s ease, color 0.12s ease;
 }
 
 .timeline-collapse-tab:hover {
-  background: #2a2a2a;
-  color: #ccc;
+  background: linear-gradient(180deg, #212a39 0%, #1a2231 100%);
+  color: #b9c3cf;
 }
 
 .timeline-collapse-tab svg {
-  opacity: 0.7;
+  opacity: 0.85;
 }
 
-.timeline-collapse-tab:hover svg {
-  opacity: 1;
-}
-
-/* Expanded container */
 .timeline-collapsible-container {
   display: flex;
   flex-direction: column;
-  background: #1a1a1a;
-  border-top: 1px solid #333;
-}
-
-/* Header with collapse button */
-.timeline-collapse-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 8px;
-  height: 28px;
-  background: #222;
-  border-bottom: 1px solid #333;
-  flex-shrink: 0;
-}
-
-.timeline-collapse-title {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  font-size: 11px;
-  font-weight: 500;
-  color: #888;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.timeline-collapse-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  background: transparent;
-  border: none;
-  border-radius: 3px;
-  color: #888;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
-}
-
-.timeline-collapse-button:hover {
-  background: #333;
-  color: #ccc;
+  background: #11161e;
+  border-top: 1px solid #2f3b4c;
 }

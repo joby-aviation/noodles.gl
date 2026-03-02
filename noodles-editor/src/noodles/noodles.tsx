@@ -1,6 +1,5 @@
 import type { AnyNodeJSON } from 'SKIP-@xyflow/react'
 import * as deckWidgets from '@deck.gl/widgets'
-import type { IProjectConfig } from '@theatre/core'
 import type {
   Connection,
   DefaultEdgeOptions,
@@ -47,8 +46,6 @@ import {
 } from '../timeline/field-bindings'
 import { TimelineProvider } from '../timeline/timeline-context'
 import { getTimelineStore } from '../timeline/timeline-store'
-import { SheetProvider } from '../utils/sheet-context'
-import { USE_THEATRE } from '../utils/timeline-flag'
 import type { Visualization } from '../visualizations'
 import { BlockLibrary, type BlockLibraryRef } from './components/block-library'
 import { categories, nodeTypeToDisplayName } from './components/categories'
@@ -58,7 +55,6 @@ import { ExampleNotFoundDialog } from './components/example-not-found-dialog'
 import { PropertyPanel } from './components/node-properties'
 import { NodeTreeSidebar } from './components/node-tree-sidebar'
 import { edgeComponents, nodeComponents } from './components/op-components'
-import { UNSAVED_PROJECT_NAME } from './components/project-name-bar'
 import { ProjectNotFoundDialog } from './components/project-not-found-dialog'
 import { RenameDialog } from './components/rename-dialog'
 import { SaveAsDialog } from './components/save-as-dialog'
@@ -72,10 +68,6 @@ import type { IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
 import { copyDataDirectory, copyPublicFolderData, hasDataDirectory, load, save } from './storage'
 import { getOp, getOpStore, getUIStore, useNestingStore, useUIStore } from './store'
-import {
-  bindOperatorToTheatre,
-  cleanupRemovedOperators as cleanupRemovedOperatorsTheatre,
-} from './theatre-bindings'
 import { transformGraph } from './transform-graph'
 import { canConnect } from './utils/can-connect'
 import { directoryHandleCache } from './utils/directory-handle-cache'
@@ -110,17 +102,6 @@ import { calculateViewerPosition } from './utils/viewer-position'
 import './layers.css'
 import s from './noodles.module.css'
 
-// Conditionally import Theatre.js modules based on feature flag
-let getProject: typeof import('@theatre/core').getProject | null = null
-let studio: typeof import('@theatre/studio').default | null = null
-
-if (USE_THEATRE) {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  getProject = require('@theatre/core').getProject
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  studio = require('@theatre/studio').default
-}
-
 export type Edge<N1 extends Operator<IOperator>, N2 extends Operator<IOperator>> = {
   id: `${N1['id']}.${'par' | 'out'}.${keyof N1['outputs']}->${N2['id']}.${'par' | 'out'}.${keyof N2['inputs']}`
   source: N1['id']
@@ -137,117 +118,21 @@ const defaultEdgeOptions: DefaultEdgeOptions = {
   animated: false,
 }
 
-// TheatreJS is used by the Noodles framework to provide a timeline and keyframe animation for Op fields.
-// Naturally, the Noodles framework will load a new theatre state when a Noodles project is loaded.
-// TheatreJS doesn't support loading projects with the same ID more than once, so a new theatre project name is generated when a new Noodles project is loaded.
-// Currently a UUID is used, but a more human-readable name could be generated instead as long as its unique to the page session.
-//
-// TheatreJS project names are not included in the Noodles project file.
-// TheatreJS sheet names are included, so they should be the same for every project.
-const THEATRE_SHEET_ID = 'Noodles'
-
-// Return type for useTheatreJs hook (Theatre.js types are nullable when USE_THEATRE is false)
-type UseTheatreJsReturn = {
-  theatreReady: boolean
-  theatreProject: import('@theatre/core').IProject | null
-  theatreSheet: import('@theatre/core').ISheet | null
-  setTheatreProject: (theatreConfig: IProjectConfig, incomingProjectName?: string) => void
+type UseTimelineStateReturn = {
+  timelineReady: boolean
   getTimelineJson: () => Record<string, unknown>
 }
 
-function useTheatreJs(projectName: string | null): UseTheatreJsReturn {
-  // Increment whenever a new theatre project is created to keep the project name unique *within theatre*.
-  const _projectCounterRef = useRef(1)
-  const name = `${projectName || UNSAVED_PROJECT_NAME}-${_projectCounterRef.current}`
-  const config = {} as IProjectConfig
-  const [theatreState, setTheatreState] = useState({ name, config })
-  const [theatreReady, setTheatreReady] = useState(!USE_THEATRE) // Ready immediately when not using Theatre
-
-  // Only create Theatre.js project/sheet when enabled
-  const theatreProject = useMemo(() => {
-    if (!USE_THEATRE || !getProject) return null
-    const { name, config } = theatreState
-    setTheatreReady(false)
-    return getProject(name, config)
-  }, [theatreState])
-
-  const theatreSheet = useMemo(() => {
-    if (!theatreProject) return null
-    return theatreProject.sheet(THEATRE_SHEET_ID)
-  }, [theatreProject])
-
-  useEffect(() => {
-    if (theatreProject) {
-      theatreProject.ready.then(() => setTheatreReady(true))
-    }
-  }, [theatreProject])
-
-  const setTheatreProject = useCallback(
-    (theatreConfig: IProjectConfig, incomingProjectName?: string) => {
-      if (!USE_THEATRE || !studio || !theatreSheet) {
-        // When not using Theatre.js, just update the counter for project name tracking
-        _projectCounterRef.current += 1
-        setTheatreState({
-          name: `${incomingProjectName || UNSAVED_PROJECT_NAME}-${_projectCounterRef.current}`,
-          config: theatreConfig,
-        })
-        return
-      }
-
-      // Forget the sheet to clean up the Theatre.js UI
-      studio.transaction(api => {
-        try {
-          api.__experimental_forgetSheet(theatreSheet)
-        } catch (error) {
-          console.warn('Error forgetting Theatre sheet:', error)
-        }
-      })
-
-      // Increment the project counter to keep the project name unique
-      _projectCounterRef.current += 1
-      const newProjectName = `${incomingProjectName || UNSAVED_PROJECT_NAME}-${_projectCounterRef.current}`
-      setTheatreState({ name: newProjectName, config: theatreConfig })
-    },
-    [theatreSheet]
-  )
-
+function useTimelineState(): UseTimelineStateReturn {
   const getTimelineJson = useCallback((): Record<string, unknown> => {
-    if (!USE_THEATRE || !studio) {
-      // When not using Theatre.js, return native timeline data
-      return getTimelineStore().toTheatreJSON() as unknown as Record<string, unknown>
-    }
-
-    const timeline = studio.createContentOfSaveFile(theatreState.name)
-
-    // Clear staticOverrides - render settings are now stored at project level
-    const sheetsById = Object.fromEntries(
-      Object.entries(
-        timeline.sheetsById as Record<string, { staticOverrides?: { byObject?: unknown } }>
-      ).map(([sheetId, sheet]) => [
-        sheetId,
-        {
-          ...sheet,
-          staticOverrides: {
-            byObject: {},
-          },
-        },
-      ])
-    )
-
-    return { ...timeline, sheetsById }
-  }, [theatreState.name])
+    return getTimelineStore().toTheatreJSON() as unknown as Record<string, unknown>
+  }, [])
 
   return {
-    theatreReady,
-    theatreProject,
-    theatreSheet,
-    setTheatreProject,
+    timelineReady: true,
     getTimelineJson,
   }
 }
-
-// Not using the top-level sheet since a Noodles theatre sheet and project are dynamically created.
-// Also, the top-level sheet is used for theatre-managed project files, whereas a Noodles project file is managed within this visType.
 
 export function getNoodles(): Visualization {
   const [location, navigate] = useLocation()
@@ -272,8 +157,7 @@ export function getNoodles(): Visualization {
   const storageType = useActiveStorageType()
   const { currentDirectory, setCurrentDirectory, setActiveStorageType, setError } =
     useFileSystemStore()
-  const { theatreReady, theatreProject, theatreSheet, setTheatreProject, getTimelineJson } =
-    useTheatreJs(projectName)
+  const { timelineReady, getTimelineJson } = useTimelineState()
   const [nodes, setNodes, onNodesChangeBase] = useNodesState<AnyNodeJSON>([])
   const [edges, setEdges, onEdgesChangeBase] = useEdgesState<ReactFlowEdge<unknown>>([])
   const [defaultViewport, setDefaultViewport] = useState({ x: 0, y: 0, zoom: 1 })
@@ -367,41 +251,22 @@ export function getNoodles(): Visualization {
     setOperators(ops)
   }, [nodes, edges])
 
-  // Bind timeline objects for all operators (outside ReactFlow rendering pipeline)
-  // This ensures containers and all other operators can be keyframed in the timeline
-  // Uses Theatre.js when enabled via ?use_theatre=true, otherwise uses native timeline
+  // Bind timeline tracks for all operators (outside ReactFlow rendering pipeline).
   useEffect(() => {
-    if (!theatreReady) return
+    if (!timelineReady) return
 
     // Track cleanup functions for newly bound operators
     const newCleanupFns = new Map<string, () => void>()
     const currentOperatorIds = new Set(operators.map(op => op.id))
 
-    if (USE_THEATRE && theatreSheet) {
-      // Theatre.js mode: bind to Theatre.js sheet objects
-      const store = getOpStore()
-      for (const op of operators) {
-        if (!store.hasSheetObject(op.id)) {
-          const cleanup = bindOperatorToTheatre(op, theatreSheet)
-          if (cleanup) {
-            newCleanupFns.set(op.id, cleanup)
-          }
-        }
+    for (const op of operators) {
+      if (op.id === '/out') continue // Skip special operators
+      const cleanup = bindOperatorToTimeline(op)
+      if (cleanup) {
+        newCleanupFns.set(op.id, cleanup)
       }
-      // Cleanup operators that are no longer in the graph
-      cleanupRemovedOperatorsTheatre(currentOperatorIds, theatreSheet)
-    } else {
-      // Native timeline mode: bind to native timeline tracks
-      for (const op of operators) {
-        if (op.id === '/out') continue // Skip special operators
-        const cleanup = bindOperatorToTimeline(op)
-        if (cleanup) {
-          newCleanupFns.set(op.id, cleanup)
-        }
-      }
-      // Cleanup operators that are no longer in the graph
-      cleanupRemovedOperatorsNative(currentOperatorIds)
     }
+    cleanupRemovedOperatorsNative(currentOperatorIds)
 
     // Return cleanup function only for newly bound operators
     return () => {
@@ -410,7 +275,7 @@ export function getNoodles(): Visualization {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [theatreReady, theatreSheet, operators])
+  }, [timelineReady, operators])
 
   // Use shared hook for project modifications
   const {
@@ -521,20 +386,6 @@ export function getNoodles(): Visualization {
     },
     [onNodeDragStopBase]
   )
-
-  const onNodeClick = useCallback((_e: React.MouseEvent, node: ReactFlowNode<unknown>) => {
-    // Only use Theatre.js selection when enabled
-    if (USE_THEATRE && studio) {
-      const store = getOpStore()
-      const obj = store.getSheetObject(node.id)
-      if (obj) {
-        studio.setSelection([obj])
-      } else {
-        studio.setSelection([])
-      }
-    }
-    // For native timeline, node selection is handled by ReactFlow
-  }, [])
 
   const reactFlowRef = useRef<HTMLDivElement>(null)
   const reactFlowInstanceRef = useRef<ReactFlowInstance | null>(null)
@@ -726,29 +577,21 @@ export function getNoodles(): Visualization {
         setDefaultViewport(viewport)
       }
 
-      // Load timeline data based on which timeline system is active
+      // Load timeline data.
       const hasTimeline = timeline && Object.keys(timeline).length > 0
-      if (USE_THEATRE) {
-        // Theatre.js mode: pass timeline state to Theatre.js project
-        setTheatreProject(name && hasTimeline ? { state: timeline } : {}, name)
-      } else {
-        // Native timeline mode: load into native timeline store
-        if (hasTimeline) {
-          try {
-            // Timeline data is stored in Theatre.js format for compatibility
-            getTimelineStore().fromTheatreJSON(
-              timeline as unknown as import('../timeline/types').TheatreTimelineData
-            )
-          } catch (error) {
-            console.error('Failed to load timeline data into native store:', error)
-          }
-        } else {
-          // Reset native timeline to defaults
-          getTimelineStore().reset()
+      if (hasTimeline) {
+        try {
+          // Timeline data is stored in Theatre.js-compatible format for compatibility.
+          getTimelineStore().fromTheatreJSON(
+            timeline as unknown as import('../timeline/types').TheatreTimelineData
+          )
+        } catch (error) {
+          console.error('Failed to load timeline data into native store:', error)
         }
-        // Clear any existing bindings when loading new project
-        clearAllBindings()
+      } else {
+        getTimelineStore().reset()
       }
+      clearAllBindings()
 
       // Update URL query parameter with project name
       if (name) {
@@ -759,7 +602,7 @@ export function getNoodles(): Visualization {
       // Clear unsaved changes flag when loading a project
       setHasUnsavedChanges(false)
     },
-    [setNodes, setEdges, setProjectName, setTheatreProject, navigate, routePrefix]
+    [setNodes, setEdges, setProjectName, navigate, routePrefix]
   )
 
   // Assign to ref for undo/redo system
@@ -1403,18 +1246,11 @@ export function getNoodles(): Visualization {
     [loadProjectFile, setCurrentDirectory, setActiveStorageType, setError]
   )
 
-  // Wrap content with appropriate timeline provider based on mode
-  const TimelineWrapper = USE_THEATRE
-    ? ({ children }: { children: React.ReactNode }) => (
-        <SheetProvider value={theatreSheet}>{children}</SheetProvider>
-      )
-    : TimelineProvider
-
-  const flowGraph = theatreReady && (
+  const flowGraph = timelineReady && (
     <ErrorBoundary>
       <div className={cx('react-flow-wrapper', !showOverlay && 'react-flow-wrapper-hidden')}>
         <PrimeReactProvider>
-          <TimelineWrapper>
+          <TimelineProvider>
             <ReactFlow
               ref={reactFlowRef}
               nodes={displayedNodes}
@@ -1425,7 +1261,6 @@ export function getNoodles(): Visualization {
               onConnectStart={onConnectStart}
               onConnectEnd={onConnectEnd}
               onReconnect={onReconnect}
-              onNodeClick={onNodeClick}
               onNodesDelete={onNodesDelete}
               onNodeDragStop={onNodeDragStop}
               onPaneContextMenu={onPaneContextMenu}
@@ -1449,7 +1284,7 @@ export function getNoodles(): Visualization {
                 isVisible={showChatPanel}
               />
             </ReactFlow>
-          </TimelineWrapper>
+          </TimelineProvider>
         </PrimeReactProvider>
         <ProjectNotFoundDialog
           projectName={projectName || ''}
@@ -1627,7 +1462,5 @@ export function getNoodles(): Visualization {
     onChangeShowChatPanel: setShowChatPanel,
     hasUnsavedChanges,
     ...visProps,
-    project: theatreProject,
-    sheet: theatreSheet,
   }
 }

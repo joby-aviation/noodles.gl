@@ -4,17 +4,14 @@ import { Cross2Icon } from '@radix-ui/react-icons'
 import type { Edge } from '@xyflow/react'
 import { useEdges, useNodes, useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
-import { useCallback, useContext, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { KeyframeIndicator } from '../../timeline/components/KeyframeIndicator'
 import { fieldValueToKeyframeValue, isAnimatableField } from '../../timeline/field-bindings'
 import type { KeyframeValue } from '../../timeline/types'
-import { SheetContext } from '../../utils/sheet-context'
-import { USE_THEATRE } from '../../utils/timeline-flag'
 import { type Field, type IField, IN_NS, ListField, OUT_NS } from '../fields'
 import type { IOperator, Operator } from '../operators'
 import { OutOp } from '../operators'
 import { getOpStore, useUIStore } from '../store'
-import { rebindOperatorToTheatre } from '../theatre-bindings'
 import { getBaseName, parseHandleId } from '../utils/path-utils'
 import {
   BooleanFieldComponent,
@@ -372,16 +369,14 @@ function EditableFieldsSection({
               <div className={s.editableFieldContent}>
                 <EditableFieldInput fieldName={name} field={field} disabled={isConnected} />
               </div>
-              {!USE_THEATRE && (
-                <KeyframeIndicator
-                  opId={op.id}
-                  fieldName={name}
-                  currentValue={currentValue}
-                  disabled={isConnected}
-                  size="small"
-                  onKeyframeAdded={expandTimeline}
-                />
-              )}
+              <KeyframeIndicator
+                opId={op.id}
+                fieldName={name}
+                currentValue={currentValue}
+                disabled={isConnected}
+                size="small"
+                onKeyframeAdded={expandTimeline}
+              />
             </div>
           )
         })}
@@ -394,7 +389,6 @@ function EditableFieldsSection({
 export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
   const { setEdges } = useReactFlow()
   const edges = useEdges()
-  const sheet = useContext(SheetContext)
   const dragDataRef = useRef<{ inputName: string; index: number } | null>(null)
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
   const [isTruncated, setIsTruncated] = useState(false)
@@ -545,18 +539,12 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
 
   const confirmResetToDefaults = () => {
     resetToDefaults(op, edges)
-    if (sheet) {
-      rebindOperatorToTheatre(op, sheet)
-    }
     setIsResetDialogOpen(false)
   }
 
   const confirmHideField = () => {
     if (pendingHideField) {
       hideField(op, pendingHideField)
-      if (sheet) {
-        rebindOperatorToTheatre(op, sheet)
-      }
       setPendingHideField(null)
     }
   }
@@ -646,9 +634,6 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
 
             const handleShowField = (fieldName: string) => {
               op.showField(fieldName)
-              if (sheet) {
-                rebindOperatorToTheatre(op, sheet)
-              }
             }
 
             const handleHideField = (fieldName: string) => {
@@ -659,9 +644,6 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
                 return
               }
               hideField(op, fieldName)
-              if (sheet) {
-                rebindOperatorToTheatre(op, sheet)
-              }
             }
 
             const renderInput = (input: (typeof inputs)[0], isVisible: boolean) => {
@@ -767,9 +749,6 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
                             : hiddenInputs
                           for (const input of fieldsToShow) {
                             op.showField(input.name)
-                          }
-                          if (sheet) {
-                            rebindOperatorToTheatre(op, sheet)
                           }
                           setHiddenFieldSearch('')
                         }}

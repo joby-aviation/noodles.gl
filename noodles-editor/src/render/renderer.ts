@@ -1,5 +1,4 @@
 import { assert } from '@deck.gl/core'
-import { createRafDriver, type IProject, type ISequence } from '@theatre/core'
 import {
   EncodedPacket,
   EncodedVideoPacketSource,
@@ -7,51 +6,32 @@ import {
   Output,
   StreamTarget,
 } from 'mediabunny'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useTimelineStore } from '../timeline/timeline-store'
-import { USE_THEATRE } from '../utils/timeline-flag'
+import { useCallback, useRef, useState } from 'react'
+import { getTimelineStore, useTimelineStore } from '../timeline/timeline-store'
 
-export const rafDriver = createRafDriver({ name: 'WorldView' })
-
-// Conditionally import useVal only when Theatre.js is enabled
-let useVal: typeof import('@theatre/react').useVal | null = null
-if (USE_THEATRE) {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  useVal = require('@theatre/react').useVal
+export const rafDriver = {
+  tick: (_timestamp: number) => {},
 }
 
-// Custom hook to get sequence length from either Theatre.js or native timeline
-// Safely handles the conditional hook by ensuring consistent call order
-function useSequenceLength(sequence: ISequence | null) {
-  const nativeLength = useTimelineStore(state => state.sequence.length)
-
-  // When Theatre.js is enabled and we have a sequence, use Theatre.js
-  // Since USE_THEATRE is a constant (determined at module load), this is safe
-  if (USE_THEATRE && useVal && sequence) {
-    // biome-ignore lint/correctness/useHookAtTopLevel: USE_THEATRE is constant (module load), hook order is stable
-    return useVal(sequence.pointer.length)
-  }
-
-  return nativeLength
+function useSequenceLength() {
+  return useTimelineStore(state => state.sequence.length)
 }
 
 export const useRenderer = ({
-  project,
-  sequence,
+  projectName = 'render',
   fps = 30,
   bitrate = 10_000_000, // 10mbps
   bitrateMode,
   redraw,
 }: {
-  project: IProject | null
-  sequence: ISequence | null
+  projectName?: string
   fps?: number
   bitrate?: number
   bitrateMode: 'variable' | 'constant'
   redraw: () => void
 }) => {
   // Get sequence length from the appropriate timeline system
-  const sequenceLength = useSequenceLength(sequence)
+  const sequenceLength = useSequenceLength()
 
   const canvasRenderDone = useRef<(result?: { error?: Error }) => void>(() => {})
   const canvasFrameReady = useCallback(
@@ -84,19 +64,11 @@ export const useRenderer = ({
       startFrame?: number
       endFrame?: number
     }) => {
-      // Video rendering requires Theatre.js for timeline scrubbing
-      if (!USE_THEATRE || !project || !sequence) {
-        console.error('Video rendering requires Theatre.js. Enable with ?use_theatre=true')
-        return
-      }
-
       assert(canvas, 'canvas is required')
 
       let i = startFrame
 
       setIsRendering(true)
-
-      const projectName = project.address.projectId
 
       const getContainer = async (name: string) => {
         const fileHandle = await window
@@ -214,8 +186,6 @@ export const useRenderer = ({
         }
       }
 
-      await project.ready
-
       function getCanvasRecorder(canvas: HTMLCanvasElement) {
         const track = canvas.captureStream(0).getVideoTracks()[0]
         const mediaProcessor = new MediaStreamTrackProcessor({ track })
@@ -242,10 +212,7 @@ export const useRenderer = ({
 
       for (; i < endFrame + 1; i++) {
         const simTime = i / fps
-        sequence.position = simTime
-        rafDriver.tick(performance.now())
-        // redraw in case nothing changes due to theatre raf driver
-        // TODO: Where should this go so that the first frame captures?
+        getTimelineStore().setPosition(simTime)
         redraw()
 
         currentFrame.current = i
@@ -278,22 +245,10 @@ export const useRenderer = ({
       finishEncoding()
       setIsRendering(false)
     },
-    [project, sequence, sequenceLength, fps, bitrate, bitrateMode, canvasFrameReady, redraw]
+    [projectName, sequenceLength, fps, bitrate, bitrateMode, canvasFrameReady, redraw]
   )
 
   const [isRendering, setIsRendering] = useState(false)
-  useEffect(() => {
-    if (isRendering) {
-      return
-    }
-    let tick: number
-    const cb = () => {
-      rafDriver.tick(performance.now())
-      tick = requestAnimationFrame(cb)
-    }
-    tick = requestAnimationFrame(cb)
-    return () => cancelAnimationFrame(tick)
-  }, [isRendering])
 
   return {
     startCapture,

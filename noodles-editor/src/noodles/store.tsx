@@ -1,4 +1,3 @@
-import type { ISheetObject } from '@theatre/core'
 import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react'
 import { create } from 'zustand'
 import type { IOperator, Operator } from './operators'
@@ -14,7 +13,7 @@ import { generateQualifiedPath, isAbsolutePath, resolvePath } from './utils/path
 interface OperatorStoreState {
   // The actual maps
   operators: Map<OpId, Operator<IOperator>>
-  sheetObjects: Map<OpId, ISheetObject>
+  sheetObjects: Map<OpId, unknown>
 
   // Batching state
   _batching: boolean
@@ -29,8 +28,8 @@ interface OperatorStoreState {
   getOpEntries: () => [OpId, Operator<IOperator>][]
 
   // Sheet object actions
-  getSheetObject: (id: OpId) => ISheetObject | undefined
-  setSheetObject: (id: OpId, sheetObj: ISheetObject) => void
+  getSheetObject: (id: OpId) => unknown
+  setSheetObject: (id: OpId, sheetObj: unknown) => void
   deleteSheetObject: (id: OpId) => void
   hasSheetObject: (id: OpId) => boolean
 
@@ -201,7 +200,7 @@ export const getOpEntries = () => getOpStore().getOpEntries()
 
 // Sheet object helpers
 export const getSheetObject = (id: OpId) => getOpStore().getSheetObject(id)
-export const setSheetObject = (id: OpId, sheetObj: ISheetObject) =>
+export const setSheetObject = (id: OpId, sheetObj: unknown) =>
   getOpStore().setSheetObject(id, sheetObj)
 export const deleteSheetObject = (id: OpId) => getOpStore().deleteSheetObject(id)
 export const hasSheetObject = (id: OpId) => getOpStore().hasSheetObject(id)

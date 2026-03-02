@@ -74,8 +74,8 @@ export function KeyframeTrack({
   if (showLabelOnly) {
     return (
       <div className="timeline-track-label" title={track.fieldPath}>
-        <span style={{ opacity: 0.5, marginRight: 4 }}>{parentPath && '└'}</span>
-        {displayName}
+        <span className={`timeline-track-branch ${parentPath ? 'visible' : ''}`}>└</span>
+        <span className="timeline-track-name">{displayName}</span>
       </div>
     )
   }

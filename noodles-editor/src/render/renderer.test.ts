@@ -1,14 +1,9 @@
 import { renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { USE_THEATRE } from '../utils/timeline-flag'
 import { useRenderer } from './renderer'
 
-vi.mock('@theatre/react', () => ({
-  useVal: vi.fn((pointer: any) => pointer?._mockValue ?? 10),
-}))
-
 describe('useRenderer', () => {
-  it.skipIf(!USE_THEATRE)('handles cancellation of the file save dialog', async () => {
+  it('handles cancellation of the file save dialog', async () => {
     const mockShowSaveFilePicker = vi
       .spyOn(globalThis, 'showSaveFilePicker')
       .mockImplementation(() =>
@@ -18,21 +13,9 @@ describe('useRenderer', () => {
 
     // Setup useRenderer
     const mockRedraw = vi.fn()
-    const mockSequence = {
-      // Mock sequence.pointer.length to be a Theatre.js-like pointer for the hook
-      pointer: {
-        length: { _mockValue: 10 },
-      },
-    }
-    const mockProject = {
-      // Mock project.address.projectId to be a Theatre.js-like project for the id
-      address: { projectId: 'test-project-id' },
-      ready: Promise.resolve(),
-    }
     const { result } = renderHook(() =>
       useRenderer({
-        project: mockProject,
-        sequence: mockSequence,
+        projectName: 'test-project-id',
         fps: 30,
         bitrate: 1_000_000,
         bitrateMode: 'constant',

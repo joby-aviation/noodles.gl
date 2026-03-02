@@ -1,11 +1,10 @@
 import * as Tooltip from '@radix-ui/react-tooltip'
-import studio from '@theatre/studio'
 import { useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { analytics } from '../../utils/analytics'
 import type { IOperator, Operator } from '../operators'
-import { getOpStore, hasOp, useNestingStore, useOperatorStore } from '../store'
+import { hasOp, useNestingStore, useOperatorStore } from '../store'
 import { generateQualifiedPath, getBaseName } from '../utils/path-utils'
 import { categories } from './categories'
 import s from './node-tree-sidebar.module.css'
@@ -345,15 +344,6 @@ export function NodeTreeSidebar({ updateOperatorId }: NodeTreeSidebarProps) {
           selected: node.id === id,
         }))
       )
-
-      // Select in Theatre.js using the same method as onNodeClick
-      const store = getOpStore()
-      const obj = store.getSheetObject(id)
-      if (obj) {
-        studio.setSelection([obj])
-      } else {
-        studio.setSelection([])
-      }
     },
     [reactFlow]
   )

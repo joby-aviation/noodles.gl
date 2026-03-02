@@ -12,91 +12,15 @@ import { useRenderSettings } from './noodles/hooks/use-render-settings'
 import { getNoodles } from './noodles/noodles'
 import type { RenderSettings } from './noodles/utils/serialization'
 import { useDeckDrawLoop } from './render/draw-loop'
-import { captureScreenshot, rafDriver, useRenderer } from './render/renderer'
+import { captureScreenshot, useRenderer } from './render/renderer'
 import { TransformScale } from './render/transform-scale'
 import { CollapsibleTimelinePanel } from './timeline/components/CollapsibleTimelinePanel'
 import { useTimelineStore } from './timeline/timeline-store'
 import s from './timeline-editor.module.css'
 import setRef from './utils/set-ref'
-import { USE_THEATRE } from './utils/timeline-flag'
 
-// Conditionally import and initialize Theatre.js based on feature flag
-// Only load Theatre.js when use_theatre=true in URL params
-let useVal: typeof import('@theatre/react').useVal | null = null
-
-if (USE_THEATRE) {
-  // Dynamic imports would be cleaner but require async, so we use require-like pattern
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const theatreStudio = require('@theatre/studio').default
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  useVal = require('@theatre/react').useVal
-
-  // https://www.theatrejs.com/docs/latest/manual/advanced#rafdrivers
-  // the rafDriver breaks things like spacebar playback
-  theatreStudio.initialize({
-    __experimental_rafDriver: rafDriver,
-    usePersistentStorage: false,
-  })
-}
-
-// Custom hook to get sequence length from either Theatre.js or native timeline
-// Since USE_THEATRE is a constant determined at module load, the hook call order is stable
-function useSequenceLength(theatreSequence: import('@theatre/core').ISequence | null) {
-  const nativeLength = useTimelineStore(state => state.sequence.length)
-
-  // Always call useVal if available to maintain consistent hook order
-  // When Theatre.js is disabled, useVal is null and we skip the call
-  const theatreLength =
-    // biome-ignore lint/correctness/useHookAtTopLevel: USE_THEATRE is constant (module load), hook order is stable
-    USE_THEATRE && useVal && theatreSequence ? useVal(theatreSequence.pointer.length) : null
-
-  return theatreLength ?? nativeLength
-}
-
-// Inject styles into TheatreJS shadow DOM to hide export button
-// Using the generated class name is brittle but more reliable than trying to
-// target dynamically rendered buttons. This may break if Theatre.js updates.
-const injectTheatreStyles = () => {
-  const theatreRoot = document.querySelector('#theatrejs-studio-root')
-  if (theatreRoot?.shadowRoot && !theatreRoot.shadowRoot.querySelector('#hide-export-style')) {
-    const style = document.createElement('style')
-    style.id = 'hide-export-style'
-    style.textContent = `
-      /* Hide all panels except properties (export button, sheet name) */
-      .sc-dPZUQH:not([data-testid="DetailPanel-Object"]) {
-        display: none !important;
-      }
-
-      /* Hide the left sidebar (sheet tree panel) */
-      [data-testid="SequenceEditorPanel-tree"],
-      .sc-djVXDX.fXnbPU {
-        display: none !important;
-      }
-
-      /* Hide the sidebar top bar */
-      .sc-cHMHOW.dGwDVq {
-        display: none !important;
-      }
-    `
-    theatreRoot.shadowRoot.appendChild(style)
-    return true
-  }
-  return false
-}
-
-// Only set up Theatre.js style injection when Theatre.js is enabled
-if (USE_THEATRE) {
-  // Use a single MutationObserver to watch for both the theatre root being added
-  // and its shadowRoot being attached
-  const observer = new MutationObserver(() => {
-    if (injectTheatreStyles()) {
-      observer.disconnect()
-    }
-  })
-  observer.observe(document.body, { childList: true, subtree: true })
-
-  // Also try injecting immediately in case everything is already loaded
-  injectTheatreStyles()
+function useSequenceLength() {
+  return useTimelineStore(state => state.sequence.length)
 }
 
 const DeckGLOverlay = forwardRef<
@@ -137,8 +61,6 @@ const DeckGLOverlay = forwardRef<
 const isMapReady = (map: MapLibre | null) => !map || (map.isStyleLoaded() && map.areTilesLoaded())
 
 export default function TimelineEditor() {
-  const [ready, setReady] = useState(false)
-
   const mapRef = useRef<MapLibre | null>(null)
   const deckRef = useRef<Deck>(null)
   const isRenderingRef = useRef(false)
@@ -155,35 +77,18 @@ export default function TimelineEditor() {
   }, [])
 
   const noodles = getNoodles()
-  const { project, sheet, flowGraph, nodeSidebar, propertiesPanel, layoutMode, ...visualization } =
-    noodles
-
-  // Get sequence based on which timeline system is active
-  const theatreSequence = USE_THEATRE && sheet ? sheet.sequence : null
+  const { flowGraph, nodeSidebar, propertiesPanel, layoutMode, ...visualization } = noodles
 
   // Render settings are now stored as OutOp inputs
   const renderSettings = useRenderSettings()
 
-  useEffect(() => {
-    if (USE_THEATRE && project) {
-      project.ready.then(() => setReady(true))
-    } else {
-      // Native timeline is ready immediately
-      setReady(true)
-    }
-  }, [project])
-
-  // Get sequence length from the appropriate timeline system
-  const sequenceLength = useSequenceLength(theatreSequence)
+  const sequenceLength = useSequenceLength()
 
   const { framerate, bitrateMbps, bitrateMode, codec, resolution, lod, waitForData, captureDelay } =
     renderSettings
 
-  // Renderer requires Theatre.js for video capture (uses sequence.position for scrubbing)
-  // When Theatre.js is disabled, rendering features are disabled
   const { startCapture, captureFrame, currentFrame, isRendering } = useRenderer({
-    project: USE_THEATRE ? project : null,
-    sequence: theatreSequence,
+    projectName: noodles.projectName ?? 'render',
     fps: framerate,
     bitrate: bitrateMbps * 1_000_000,
     bitrateMode,
@@ -309,9 +214,6 @@ export default function TimelineEditor() {
     setTimeout(() => captureFrame(), captureDelay)
   }
 
-  // TODO: Move to a TheatreJS extension:
-  // https://www.theatrejs.com/docs/latest/manual/authoring-extensions
-
   const pureDeckInstance = !basemapEnabled ? deckRef.current : null
   useDeckDrawLoop({
     deck: pureDeckInstance,
@@ -366,13 +268,13 @@ export default function TimelineEditor() {
       return
     }
 
-    const suggestedName = project?.address.projectId ?? 'screenshot'
+    const suggestedName = noodles.projectName ?? 'screenshot'
     await captureScreenshot(suggestedName, () => {
       redraw()
       // @ts-expect-error canvas is protected
       return deckRef.current.canvas!
     })
-  }, [project?.address.projectId, redraw, basemapEnabled])
+  }, [noodles.projectName, redraw, basemapEnabled])
 
   // Increase the render target resolution to increase map tile detail.
   // To convert viewport bounds back to their original size, add about 1 to the zoom value.
@@ -384,11 +286,6 @@ export default function TimelineEditor() {
   // Use fixed resolution for 'fixed' display mode, undefined for 'responsive' mode to use natural dimensions
   const isFixedMode = renderSettings.display === 'fixed'
   const displayResolution = isFixedMode ? lodResolution : undefined
-
-  if (!ready) {
-    // don't call project.getAssetUrl until Theatre project is ready
-    return <div>loading project...</div>
-  }
 
   const renderContent = () => {
     if (basemapEnabled) {
@@ -460,7 +357,7 @@ export default function TimelineEditor() {
             top={topBar}
             left={nodeSidebar}
             right={propertiesPanel}
-            bottom={!USE_THEATRE ? <CollapsibleTimelinePanel /> : undefined}
+            bottom={<CollapsibleTimelinePanel />}
             flowGraph={flowGraph}
             layoutMode={layoutMode}
           >

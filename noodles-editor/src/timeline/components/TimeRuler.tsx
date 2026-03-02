@@ -15,7 +15,12 @@ function formatTime(seconds: number): string {
   const secs = seconds % 60
 
   if (mins > 0) {
-    return `${mins}:${secs.toFixed(1).padStart(4, '0')}`
+    const wholeSecs = Math.floor(secs)
+    return `${mins}:${wholeSecs.toString().padStart(2, '0')}`
+  }
+  const rounded = Math.round(seconds)
+  if (Math.abs(seconds - rounded) < 0.001) {
+    return `${rounded}s`
   }
   return `${secs.toFixed(1)}s`
 }
