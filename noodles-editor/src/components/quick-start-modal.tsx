@@ -542,11 +542,7 @@ export function QuickStartModal({ open, onOpenChange }: QuickStartModalProps) {
           <div className={s.recentProjectsSection}>
             <div className={s.recentProjectsHeader}>
               <h3 className={s.sectionTitle}>Recent projects</h3>
-              <button
-                type="button"
-                className={s.viewAllLink}
-                onClick={handleViewAllProjects}
-              >
+              <button type="button" className={s.viewAllLink} onClick={handleViewAllProjects}>
                 View all →
               </button>
             </div>
