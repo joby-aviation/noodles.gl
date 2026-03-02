@@ -596,19 +596,6 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
         </label>
       </div>
       <div className={s.section}>
-        <div className={s.sectionTitle}>Position</div>
-        <div className={s.position}>
-          <label className={s.input}>
-            <span>X</span>
-            <input type="text" value={Math.round(node.position.x)} readOnly />
-          </label>
-          <label className={s.input}>
-            <span>Y</span>
-            <input type="text" value={Math.round(node.position.y)} readOnly />
-          </label>
-        </div>
-      </div>
-      <div className={s.section}>
         <div className={s.sectionHeader}>
           <div className={s.sectionTitle}>Inputs</div>
           {Object.keys(op.inputs).length > 0 && (
