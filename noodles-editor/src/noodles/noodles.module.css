@@ -39,15 +39,6 @@
 
   --color-selected: #3367d9;
 
-  /* Accent colors */
-  --color-accent: #3b82f6;
-  --color-accent-hover: #2563eb;
-  --color-accent-purple: rgb(124, 58, 237);
-  --color-error: #ff4444;
-
-  /* Overlay */
-  --color-overlay: rgba(0, 0, 0, 0.8);
-
   /* Node type colors */
   --node-string-color: #1299be;
   --node-number-color: #bc1212;
@@ -82,6 +73,8 @@
   --z-index-menu: 10000;
   --z-index-viewer-preview: 9999;
   --z-index-step-ladder: 10001;
+  --z-index-modal-overlay: 9999;
+  --z-index-modal-content: 10000;
 }
 
 /**

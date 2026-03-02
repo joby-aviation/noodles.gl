@@ -1,9 +1,9 @@
 .overlay {
   position: fixed;
   inset: 0;
-  background-color: var(--color-overlay);
+  background-color: rgba(0, 0, 0, 0.8);
   backdrop-filter: blur(8px);
-  z-index: 9999;
+  z-index: var(--z-index-modal-overlay);
   animation: overlayShow 150ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -12,7 +12,7 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  background-color: var(--color-bg-base);
+  background-color: #1a1a1a;
   color: var(--color-text-primary);
   border-radius: 16px;
   max-width: 700px;
@@ -21,8 +21,8 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  z-index: 10000;
-  box-shadow: 0 25px 80px var(--color-overlay);
+  z-index: var(--z-index-modal-content);
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.6);
   animation: contentShow 200ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -79,29 +79,29 @@
   font-size: 0.7rem;
   font-weight: 600;
   text-transform: uppercase;
-  color: var(--color-text-secondary);
+  color: rgba(255, 255, 255, 0.45);
   margin-bottom: 0.75rem;
   letter-spacing: 0.05em;
 }
 
 /* Upload Zone */
 .uploadZone {
-  border: 2px dashed var(--color-border);
+  border: 2px dashed rgba(255, 255, 255, 0.12);
   border-radius: 12px;
   padding: 1.75rem 1.25rem;
   text-align: center;
   transition: all 0.2s;
-  background-color: var(--color-bg-hover);
+  background-color: rgba(255, 255, 255, 0.02);
   cursor: pointer;
 }
 
 .uploadZone:hover {
-  border-color: var(--color-border-focus);
-  background-color: var(--color-bg-active);
+  border-color: rgba(255, 255, 255, 0.2);
+  background-color: rgba(255, 255, 255, 0.04);
 }
 
 .uploadZoneDragging {
-  border-color: var(--color-accent);
+  border-color: #3b82f6;
   background-color: rgba(59, 130, 246, 0.1);
 }
 
@@ -120,7 +120,7 @@
 
 .uploadHint {
   font-size: 0.8rem;
-  color: var(--color-text-secondary);
+  color: rgba(255, 255, 255, 0.4);
 }
 
 /* Uploaded file state */
@@ -147,7 +147,7 @@
   font-size: 0.875rem;
   font-weight: 500;
   color: white;
-  background-color: var(--color-accent);
+  background-color: #3b82f6;
   border: none;
   border-radius: 6px;
   cursor: pointer;
@@ -155,12 +155,12 @@
 }
 
 .createButton:hover {
-  background-color: var(--color-accent-hover);
+  background-color: #2563eb;
 }
 
 .createButton:disabled {
-  background-color: var(--color-bg-hover);
-  color: var(--color-text-disabled);
+  background-color: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.3);
   cursor: not-allowed;
 }
 
@@ -174,8 +174,8 @@
 .llmTextarea {
   flex: 1;
   padding: 0.75rem 1rem;
-  background-color: var(--color-bg-hover);
-  border: 1px solid var(--color-border);
+  background-color: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   color: var(--color-text-primary);
   font-size: 0.9rem;
@@ -186,24 +186,24 @@
 }
 
 .llmTextarea:hover {
-  background-color: var(--color-bg-active);
-  border-color: var(--color-border-hover);
+  background-color: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
 }
 
 .llmTextarea:focus {
   outline: none;
-  background-color: var(--color-bg-active);
-  border-color: var(--color-accent);
+  background-color: rgba(255, 255, 255, 0.06);
+  border-color: #3b82f6;
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
 }
 
 .llmTextarea::placeholder {
-  color: var(--color-text-secondary);
+  color: rgba(255, 255, 255, 0.35);
 }
 
 .llmSubmitButton {
   padding: 0.75rem 1.25rem;
-  background-color: var(--color-accent);
+  background-color: #3b82f6;
   color: white;
   border: none;
   border-radius: 8px;
@@ -215,12 +215,12 @@
 }
 
 .llmSubmitButton:hover {
-  background-color: var(--color-accent-hover);
+  background-color: #2563eb;
 }
 
 .llmSubmitButton:disabled {
-  background-color: var(--color-bg-hover);
-  color: var(--color-text-disabled);
+  background-color: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.3);
   cursor: not-allowed;
 }
 
@@ -242,8 +242,8 @@
   align-items: center;
   gap: 0.875rem;
   padding: 0.875rem 1rem;
-  background-color: var(--color-bg-hover);
-  border: 1px solid var(--color-border);
+  background-color: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 10px;
   cursor: pointer;
   transition: all 0.2s;
@@ -252,14 +252,14 @@
 }
 
 .exampleCard:hover {
-  background-color: var(--color-bg-active);
-  border-color: var(--color-border-hover);
+  background-color: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
   transform: translateY(-1px);
 }
 
 .exampleIcon {
   font-size: 1.25rem;
-  color: var(--color-accent);
+  color: #3b82f6;
   flex-shrink: 0;
   width: 24px;
   text-align: center;
@@ -293,7 +293,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 1rem 2rem 1.5rem;
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
   flex-shrink: 0;
 }
 
@@ -315,7 +315,7 @@
   padding: 0.5rem 1rem;
   background-color: transparent;
   color: var(--color-text-secondary);
-  border: 1px solid var(--color-border);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 6px;
   cursor: pointer;
   font-size: 0.85rem;
@@ -323,8 +323,8 @@
 }
 
 .browseAllButton:hover {
-  background-color: var(--color-bg-hover);
-  border-color: var(--color-border-focus);
+  background-color: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.2);
   color: var(--color-text-primary);
 }
 
@@ -347,7 +347,7 @@
 }
 
 .closeButton:hover {
-  background-color: var(--color-bg-hover);
+  background-color: rgba(255, 255, 255, 0.1);
   color: var(--color-text-primary);
 }
 
@@ -357,13 +357,13 @@
 
 /* Error */
 .error {
-  color: var(--color-error);
+  color: #ff4444;
   font-size: 0.8rem;
   margin-top: 0.75rem;
   background-color: rgba(255, 68, 68, 0.1);
   padding: 0.75rem;
   border-radius: 6px;
-  border-left: 3px solid var(--color-error);
+  border-left: 3px solid #ff4444;
 }
 
 /* Back Button */
@@ -385,7 +385,7 @@
 }
 
 .backButton:hover {
-  background-color: var(--color-bg-hover);
+  background-color: rgba(255, 255, 255, 0.1);
   color: var(--color-text-primary);
 }
 
@@ -413,7 +413,7 @@
 .recentProjectsSection {
   margin-top: 1.5rem;
   padding-top: 1.5rem;
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .recentProjectsHeader {
@@ -436,7 +436,7 @@
 
 .viewAllLink:hover {
   color: var(--color-text-primary);
-  background-color: var(--color-bg-hover);
+  background-color: rgba(255, 255, 255, 0.05);
 }
 
 /* Open Folder Section */
@@ -451,17 +451,17 @@
   gap: 0.5rem;
   padding: 0.5rem 1.25rem;
   border-radius: 6px;
-  border: 1px solid color-mix(in srgb, var(--color-accent-purple) 50%, transparent);
-  background: color-mix(in srgb, var(--color-accent-purple) 10%, transparent);
-  color: color-mix(in srgb, var(--color-accent-purple) 100%, white 30%);
+  border: 1px solid rgba(124, 58, 237, 0.5);
+  background: rgba(124, 58, 237, 0.1);
+  color: rgb(167, 139, 250);
   cursor: pointer;
   font-size: 0.9rem;
   transition: all 0.2s;
 }
 
 .openFolderButton:hover {
-  background: color-mix(in srgb, var(--color-accent-purple) 20%, transparent);
-  border-color: color-mix(in srgb, var(--color-accent-purple) 70%, transparent);
+  background: rgba(124, 58, 237, 0.2);
+  border-color: rgba(124, 58, 237, 0.7);
 }
 
 /* Full Grid (for Projects/Examples list views) */
@@ -475,8 +475,8 @@
 .projectCard {
   display: block;
   padding: 1.25rem;
-  background-color: var(--color-bg-hover);
-  border: 1px solid var(--color-border);
+  background-color: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 10px;
   cursor: pointer;
   transition: all 0.2s;
@@ -485,8 +485,8 @@
 }
 
 .projectCard:hover {
-  background-color: var(--color-bg-active);
-  border-color: var(--color-border-hover);
+  background-color: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
   transform: translateY(-1px);
 }
 
@@ -511,7 +511,7 @@
   font-size: 0.7rem;
   padding: 0.1rem 0.4rem;
   border-radius: 3px;
-  background: var(--color-bg-hover);
+  background: rgba(255, 255, 255, 0.08);
   color: var(--color-text-secondary);
 }
 
