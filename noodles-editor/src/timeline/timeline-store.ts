@@ -423,24 +423,44 @@ export const useTimelineStore = create<TimelineStore>()(
     },
 
     fromTheatreJSON: json => {
-      if (!json?.sheetsById?.Noodles?.sequence) {
+      const emptyTimelineState = {
+        sequence: { ...DEFAULT_SEQUENCE_STATE },
+        tracks: new Map<string, Track>(),
+        position: 0,
+        playing: false,
+        selectedKeyframeIds: new Set<string>(),
+        selectedTrackIds: new Set<string>(),
+      }
+
+      if (!json || typeof json !== 'object' || !json.sheetsById?.Noodles) {
         console.warn('Invalid Theatre.js timeline data')
+        set(emptyTimelineState)
         return
       }
 
       const theatreSeq = json.sheetsById.Noodles.sequence
+      if (!theatreSeq) {
+        // Some legacy projects only persist static overrides without a sequence.
+        // Treat this as "no animated timeline" instead of an invalid project.
+        set(emptyTimelineState)
+        return
+      }
+
       const newTracks = new Map<string, Track>()
 
       // Parse each object's tracks
-      for (const [objectName, objectData] of Object.entries(theatreSeq.tracksByObject)) {
-        for (const [propPath, trackDataId] of Object.entries(objectData.trackIdByPropPath)) {
-          const trackData = objectData.trackData[trackDataId]
+      for (const [objectName, objectData] of Object.entries(theatreSeq.tracksByObject ?? {})) {
+        const trackIdByPropPath = objectData?.trackIdByPropPath ?? {}
+        const trackDataById = objectData?.trackData ?? {}
+
+        for (const [propPath, trackDataId] of Object.entries(trackIdByPropPath)) {
+          const trackData = trackDataById[trackDataId]
           if (!trackData) continue
 
           // Reconstruct field path: "operator-name / prop / subprop"
           const fieldPath = [objectName, ...propPath.split('.')].join(' / ')
 
-          const keyframes = trackData.keyframes.map(theatreToKeyframe)
+          const keyframes = (trackData.keyframes ?? []).map(theatreToKeyframe)
           const defaultValue = keyframes[0]?.value ?? 0
 
           const track: Track = {
@@ -455,8 +475,14 @@ export const useTimelineStore = create<TimelineStore>()(
 
       set({
         sequence: {
-          length: theatreSeq.length,
-          fps: theatreSeq.subUnitsPerUnit,
+          length:
+            typeof theatreSeq.length === 'number' && theatreSeq.length > 0
+              ? theatreSeq.length
+              : DEFAULT_SEQUENCE_STATE.length,
+          fps:
+            typeof theatreSeq.subUnitsPerUnit === 'number' && theatreSeq.subUnitsPerUnit > 0
+              ? Math.round(theatreSeq.subUnitsPerUnit)
+              : DEFAULT_SEQUENCE_STATE.fps,
         },
         tracks: newTracks,
         position: 0,

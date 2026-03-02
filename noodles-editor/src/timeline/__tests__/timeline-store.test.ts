@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { useTimelineStore } from '../timeline-store'
+import { DEFAULT_SEQUENCE_STATE } from '../types'
 import type { TheatreTimelineData } from '../types'
 
 describe('TimelineStore', () => {
@@ -526,6 +527,41 @@ describe('TimelineStore', () => {
 
       const track = state.tracks.get('op / value')
       expect(track?.keyframes).toHaveLength(2)
+    })
+
+    it('treats a sheet without sequence as an empty timeline', () => {
+      useTimelineStore.getState().setLength(20)
+      useTimelineStore.getState().getOrCreateTrack('op / value', 0)
+      useTimelineStore.getState().addKeyframe('op / value', {
+        position: 1,
+        value: 10,
+        interpolation: 'linear',
+      })
+
+      const theatreData = {
+        sheetsById: {
+          Noodles: {
+            staticOverrides: {
+              byObject: {
+                editor: {
+                  layoutMode: 'noodles-on-top',
+                },
+              },
+            },
+          },
+        },
+        definitionVersion: '0.4.0',
+        revisionHistory: [],
+      } as unknown as TheatreTimelineData
+
+      expect(() => useTimelineStore.getState().fromTheatreJSON(theatreData)).not.toThrow()
+
+      const state = useTimelineStore.getState()
+      expect(state.sequence.length).toBe(DEFAULT_SEQUENCE_STATE.length)
+      expect(state.sequence.fps).toBe(DEFAULT_SEQUENCE_STATE.fps)
+      expect(state.tracks.size).toBe(0)
+      expect(state.position).toBe(0)
+      expect(state.playing).toBe(false)
     })
   })
 
