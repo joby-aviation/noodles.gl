@@ -639,13 +639,6 @@
   gap: 6px;
 }
 
-.compoundSubFieldLabel {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.5);
-  min-width: 60px;
-  flex-shrink: 0;
-}
-
 /* Dialog field lists */
 .dialogFieldLists {
   display: flex;

@@ -359,7 +359,6 @@ function CompoundSubFields({
         }
         return (
           <div key={subName} className={s.compoundSubField}>
-            <span className={s.compoundSubFieldLabel}>{subName}</span>
             <div className={s.editableFieldContent}>
               {/* biome-ignore lint/suspicious/noExplicitAny: Field type validated via isValueField */}
               <EditableFieldInput fieldName={subName} field={subField as any} disabled={false} />
