@@ -23,6 +23,10 @@ export type Visualization = {
   onChangeLayoutMode?: (mode: 'split' | 'noodles-on-top' | 'output-on-top') => void
   showOverlay?: boolean
   onChangeShowOverlay?: (show: boolean) => void
+  showNodeInfo?: boolean
+  onChangeShowNodeInfo?: (show: boolean) => void
+  showViewportInfo?: boolean
+  onChangeShowViewportInfo?: (show: boolean) => void
   // Noodles props for creating menu in timeline-editor
   projectName?: string
   getTimelineJson?: () => Record<string, unknown>

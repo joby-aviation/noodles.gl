@@ -17,6 +17,8 @@ export { NOODLES_VERSION } from './migrate-schema'
 export type EditorSettings = {
   layoutMode?: 'split' | 'noodles-on-top' | 'output-on-top'
   showOverlay?: boolean
+  showNodeInfo?: boolean
+  showViewportInfo?: boolean
 }
 
 export type RenderSettings = {
