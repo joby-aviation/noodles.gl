@@ -19,4 +19,9 @@ You can adjust parameters like framerate, codec and resolution before exporting.
 ## Procedural animation
 All values are reactive and can be driven by any other property.
 
-Combining a Time operator with a Sine op is a good way to create a simple animation, say an oscillating camera move based on the current time.
+Combining a TimeOp with an ExpressionOp using `Math.sin()` is a good way to create a simple animation, say an oscillating camera move based on the current time:
+
+```javascript
+// In an ExpressionOp connected to TimeOp output
+Math.sin(d * 0.001) * 10  // Oscillate between -10 and 10
+```

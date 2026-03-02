@@ -54,8 +54,16 @@ export const useOperatorStore = create<OperatorStoreState>((set, get) => ({
 
   deleteOp: id => {
     const operators = new Map(get().operators)
+    const op = operators.get(id)
     operators.delete(id)
+    // Dispose only if this op instance is no longer referenced at any id.
+    // During renames, setOp(newId, op) runs before deleteOp(oldId), so the
+    // same instance is still in the map and should NOT be disposed.
+    const isStillReferenced = op && Array.from(operators.values()).some(o => o === op)
     set({ operators })
+    if (op && !isStillReferenced) {
+      op.dispose?.()
+    }
   },
 
   hasOp: id => get().operators.has(id),
@@ -110,6 +118,8 @@ interface UIStoreState {
   setConnectionDragState: (state: ConnectionDragState | null) => void
   sidebarVisible: boolean
   setSidebarVisible: (visible: boolean) => void
+  sidebarSearchFocusTrigger: number
+  triggerSidebarSearch: () => void
   settingsDialogOpen: boolean
   setSettingsDialogOpen: (open: boolean) => void
 }
@@ -119,11 +129,33 @@ export const useUIStore = create<UIStoreState>(set => ({
   setHoveredOutputHandle: handle => set({ hoveredOutputHandle: handle }),
   connectionDragState: null,
   setConnectionDragState: state => set({ connectionDragState: state }),
-  sidebarVisible: true,
+  sidebarVisible: false,
   setSidebarVisible: visible => set({ sidebarVisible: visible }),
+  sidebarSearchFocusTrigger: 0,
+  triggerSidebarSearch: () =>
+    set(state => ({ sidebarSearchFocusTrigger: state.sidebarSearchFocusTrigger + 1 })),
   settingsDialogOpen: false,
   setSettingsDialogOpen: open => set({ settingsDialogOpen: open }),
 }))
+
+// ============================================================================
+// Active OutOp Store (Zustand) - Tracks which OutOp is the "active" one
+// Similar to Blender's active camera concept - sticky selection independent
+// of node selection that drives render settings
+// ============================================================================
+
+interface ActiveOutOpState {
+  activeOutOpId: string | null
+  setActiveOutOpId: (id: string | null) => void
+}
+
+export const useActiveOutOpStore = create<ActiveOutOpState>(set => ({
+  activeOutOpId: null,
+  setActiveOutOpId: id => set({ activeOutOpId: id }),
+}))
+
+// Get the active OutOp store instance for use outside React components
+export const getActiveOutOpStore = () => useActiveOutOpStore.getState()
 
 // ============================================================================
 // Helper functions for non-React contexts

@@ -4,7 +4,16 @@ Learn how to load, process, and transform data in Noodles.gl for your visualizat
 
 ## Data Sources
 
-Use a `FileOp` to read a file from a URL or text. Supports csv and json, such as:
+Use a `FileOp` to read a file from a URL or text. Supported formats:
+
+| Format | Output Type | Use Case |
+|--------|-------------|----------|
+| `json` | Parsed object/array | JSON data files |
+| `csv` | Array of row objects | Tabular data |
+| `text` | Raw string | Plain text files, custom parsing |
+| `binary` | ArrayBuffer/Uint8Array | Images, binary files |
+
+### Common Data Formats
 
 ### JSON Data
 ```javascript
@@ -43,6 +52,37 @@ SFO,LAX,150,"[-122.4194, 37.7749]"
     }
   ]
 }
+```
+
+### Text Format
+
+Use `text` format to load raw file contents as a string, useful for custom parsing:
+
+```javascript
+// FileOp with format: 'text'
+// Output is the raw file contents as a string
+
+// Then in a CodeOp, parse however you need:
+const lines = data.split('\n')
+const parsed = lines.map(line => {
+  const [name, value] = line.split(':')
+  return { name: name.trim(), value: parseFloat(value) }
+})
+return parsed
+```
+
+### Binary Format
+
+Use `binary` format for non-text files like images or custom binary data:
+
+```javascript
+// FileOp with format: 'binary'
+// Output is ArrayBuffer (from URL) or Uint8Array (from text input)
+
+// Example: Process binary data in a CodeOp
+const buffer = data  // ArrayBuffer from FileOp
+const view = new DataView(buffer)
+const header = view.getUint32(0, true)  // Read 4-byte header
 ```
 
 ## Data Processing

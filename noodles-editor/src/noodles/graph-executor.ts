@@ -315,7 +315,7 @@ export class GraphExecutor {
     const { sorted, cycles } = topologicalSort(this.nodes, this.edges)
 
     if (cycles.length > 0) {
-      console.warn('Cycles detected in graph:', cycles)
+      console.error('Cycles detected in graph:', cycles)
     }
 
     this.sortedOrder = sorted

@@ -2,10 +2,10 @@ import * as Tooltip from '@radix-ui/react-tooltip'
 import studio from '@theatre/studio'
 import { useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { analytics } from '../../utils/analytics'
 import type { IOperator, Operator } from '../operators'
-import { getOpStore, hasOp, useNestingStore, useOperatorStore } from '../store'
+import { getOpStore, hasOp, useNestingStore, useOperatorStore, useUIStore } from '../store'
 import { generateQualifiedPath, getBaseName } from '../utils/path-utils'
 import { categories } from './categories'
 import s from './node-tree-sidebar.module.css'
@@ -326,9 +326,40 @@ export function NodeTreeSidebar({ updateOperatorId }: NodeTreeSidebarProps) {
   const operators = useOperatorStore(state => state.operators)
   const reactFlow = useReactFlow()
   const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set())
+  const [searchQuery, setSearchQuery] = useState('')
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const focusTrigger = useUIStore(state => state.sidebarSearchFocusTrigger)
+
+  // Focus search input whenever the trigger increments
+  useEffect(() => {
+    if (focusTrigger > 0) searchInputRef.current?.focus()
+  }, [focusTrigger])
 
   // Build tree from operators
   const tree = useMemo(() => buildTree(operators), [operators])
+
+  // Flat filtered list when searching
+  const filteredNodes = useMemo(() => {
+    if (!searchQuery.trim()) return null
+    const q = searchQuery.toLowerCase()
+    return Array.from(operators.values())
+      .filter(op => {
+        const name = getBaseName(op.id) ?? ''
+        const displayName = (op.constructor as typeof Operator).displayName
+        return name.toLowerCase().includes(q) || displayName.toLowerCase().includes(q)
+      })
+      .map(op => {
+        const displayName = (op.constructor as typeof Operator).displayName
+        return {
+          id: op.id,
+          name: getBaseName(op.id) ?? op.id,
+          displayName,
+          children: [],
+          depth: 1,
+        } satisfies TreeNode
+      })
+      .sort((a, b) => a.id.localeCompare(b.id))
+  }, [searchQuery, operators])
 
   // Get selected node IDs from React Flow (reactive)
   const nodes = reactFlow.getNodes()
@@ -427,21 +458,45 @@ export function NodeTreeSidebar({ updateOperatorId }: NodeTreeSidebarProps) {
     })
   }, [])
 
+  const renderNodes = filteredNodes ?? tree
+
   return (
     <div className={s.treeContainer}>
-      {tree.map(node => (
-        <TreeItem
-          key={node.id}
-          node={node}
-          selectedNodeIds={selectedNodeIds}
-          onSelect={handleSelect}
-          onNavigate={handleNavigate}
-          onNavigateInto={handleNavigateInto}
-          collapsedNodes={collapsedNodes}
-          onToggleCollapse={handleToggleCollapse}
-          updateOperatorId={updateOperatorId}
+      <div className={s.searchContainer}>
+        <input
+          ref={searchInputRef}
+          className={s.searchInput}
+          placeholder="Find node…"
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Escape') {
+              setSearchQuery('')
+              searchInputRef.current?.blur()
+            }
+          }}
         />
-      ))}
+        {searchQuery && (
+          <button type="button" className={s.searchClear} onClick={() => setSearchQuery('')}>
+            <i className="pi pi-times" />
+          </button>
+        )}
+      </div>
+      <div className={s.treeList}>
+        {renderNodes.map(node => (
+          <TreeItem
+            key={node.id}
+            node={node}
+            selectedNodeIds={selectedNodeIds}
+            onSelect={handleSelect}
+            onNavigate={handleNavigate}
+            onNavigateInto={handleNavigateInto}
+            collapsedNodes={collapsedNodes}
+            onToggleCollapse={handleToggleCollapse}
+            updateOperatorId={updateOperatorId}
+          />
+        ))}
+      </div>
     </div>
   )
 }

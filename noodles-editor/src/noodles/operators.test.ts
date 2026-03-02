@@ -4,6 +4,7 @@ import { NumberField } from './fields'
 import {
   AccessorOp,
   BoundingBoxOp,
+  ChartOp,
   CodeOp,
   ConcatOp,
   DeckRendererOp,
@@ -11,6 +12,7 @@ import {
   ExpressionOp,
   FileOp,
   FilterOp,
+  GeoJsonLayerOp,
   GeoJsonTransformOp,
   JSONOp,
   KmlToGeoJsonOp,
@@ -640,6 +642,120 @@ describe('FilterOp', () => {
     ]
     operator.inputs.data.setValue(data)
     expect(operator.inputs.columnName.choices.map(c => c.value)).toEqual(['a', 'b'])
+  })
+})
+
+describe('ChartOp', () => {
+  it('generates a bar chart from data', () => {
+    const op = new ChartOp('/chart-1')
+    const result = op.execute({
+      data: [
+        { category: 'A', value: 10 },
+        { category: 'B', value: 20 },
+      ],
+      chartType: 'bar',
+      xField: 'category',
+      yField: 'value',
+      width: 640,
+      height: 400,
+      color: '#4269d0',
+      title: '',
+      xLabel: '',
+      yLabel: '',
+    })
+
+    expect(result.chart).toBeDefined()
+    expect(result.chart).toBeInstanceOf(HTMLElement)
+  })
+
+  it('generates a histogram from data', () => {
+    const op = new ChartOp('/chart-1')
+    const result = op.execute({
+      data: [{ value: 10 }, { value: 20 }, { value: 15 }, { value: 25 }],
+      chartType: 'histogram',
+      xField: 'value',
+      yField: '',
+      width: 640,
+      height: 400,
+      color: '#4269d0',
+      title: '',
+      xLabel: '',
+      yLabel: '',
+    })
+
+    expect(result.chart).toBeDefined()
+    expect(result.chart).toBeInstanceOf(HTMLElement)
+  })
+
+  it('generates a scatterplot from data', () => {
+    const op = new ChartOp('/chart-1')
+    const result = op.execute({
+      data: [
+        { x: 1, y: 2 },
+        { x: 2, y: 3 },
+        { x: 3, y: 5 },
+      ],
+      chartType: 'scatter',
+      xField: 'x',
+      yField: 'y',
+      width: 640,
+      height: 400,
+      color: '#4269d0',
+      title: '',
+      xLabel: '',
+      yLabel: '',
+    })
+
+    expect(result.chart).toBeDefined()
+    expect(result.chart).toBeInstanceOf(HTMLElement)
+  })
+
+  it('updates field choices when data changes', () => {
+    const op = new ChartOp('/chart-1', {}, false)
+    const data = [
+      { x: 1, y: 2, z: 3 },
+      { x: 4, y: 5, z: 6 },
+    ]
+    op.inputs.data.setValue(data)
+
+    expect(op.inputs.xField.choices.map(c => c.value)).toEqual(['x', 'y', 'z'])
+    expect(op.inputs.yField.choices.map(c => c.value)).toEqual(['x', 'y', 'z'])
+  })
+
+  it('handles empty data gracefully', () => {
+    const op = new ChartOp('/chart-1')
+    const result = op.execute({
+      data: [],
+      chartType: 'bar',
+      xField: 'x',
+      yField: 'y',
+      width: 640,
+      height: 400,
+      color: '#4269d0',
+      title: '',
+      xLabel: '',
+      yLabel: '',
+    })
+
+    expect(result.chart).toBeNull()
+  })
+
+  it('handles non-array data gracefully', () => {
+    const op = new ChartOp('/chart-1')
+    const result = op.execute({
+      data: { x: 1, y: 2 } as any,
+      chartType: 'bar',
+      xField: 'x',
+      yField: 'y',
+      width: 640,
+      height: 400,
+      color: '#4269d0',
+      title: '',
+      xLabel: '',
+      yLabel: '',
+    })
+
+    expect(result.chart).toBeNull()
   })
 })
 
@@ -1971,6 +2087,38 @@ describe('FileOp', () => {
     })
   })
 
+  describe('TSV format', () => {
+    it('should parse TSV from text input', async () => {
+      const operator = new FileOp('/file-tsv-0')
+      const tsvText = 'name\tvalue\nJohn\t30\nJane\t25'
+      const result = await operator.execute({
+        format: 'tsv',
+        url: '',
+        text: tsvText,
+        autoType: true,
+        pulse: 0,
+      })
+      expect(result.data).toHaveLength(2)
+      expect(result.data[0]).toEqual({ name: 'John', value: 30 })
+      expect(result.data[1]).toEqual({ name: 'Jane', value: 25 })
+    })
+
+    it('should parse TSV without autoType', async () => {
+      const operator = new FileOp('/file-tsv-1')
+      const tsvText = 'name\tvalue\nJohn\t30\nJane\t25'
+      const result = await operator.execute({
+        format: 'tsv',
+        url: '',
+        text: tsvText,
+        autoType: false,
+        pulse: 0,
+      })
+      expect(result.data).toHaveLength(2)
+      expect(result.data[0]).toEqual({ name: 'John', value: '30' })
+      expect(result.data[1]).toEqual({ name: 'Jane', value: '25' })
+    })
+  })
+
   describe('Text format', () => {
     it('should return text from text input', async () => {
       const operator = new FileOp('/file-5')
@@ -2299,5 +2447,123 @@ describe('Custom Fields', () => {
     })
 
     expect(operator.customInputDefinitions[1].enableExpression).toBe("par.mode === 'advanced'")
+  })
+})
+
+describe('Operator field visibility', () => {
+  describe('isFieldVisible', () => {
+    it('returns true by default when visibleFields.value is null', () => {
+      const op = new NumberOp('/num-0')
+      expect(op.visibleFields.value).toBe(null)
+      expect(op.isFieldVisible('val')).toBe(true)
+    })
+
+    it('returns field.showByDefault when visibleFields.value is null', () => {
+      const op = new GeoJsonLayerOp('/geojson-0')
+      expect(op.visibleFields.value).toBe(null)
+      // Core fields should be visible by default
+      expect(op.isFieldVisible('data')).toBe(true)
+      expect(op.isFieldVisible('visible')).toBe(true)
+      // Hidden by default fields
+      expect(op.isFieldVisible('extruded')).toBe(false)
+      expect(op.isFieldVisible('extensions')).toBe(false)
+    })
+
+    it('returns true for fields in visibleFields set', () => {
+      const op = new GeoJsonLayerOp('/geojson-0')
+      op.visibleFields.next(new Set(['data', 'visible', 'extruded']))
+      expect(op.isFieldVisible('data')).toBe(true)
+      expect(op.isFieldVisible('visible')).toBe(true)
+      expect(op.isFieldVisible('extruded')).toBe(true)
+      expect(op.isFieldVisible('opacity')).toBe(false)
+    })
+
+    it('returns true for unknown fields when visibleFields.value is null', () => {
+      const op = new NumberOp('/num-0')
+      expect(op.isFieldVisible('nonexistent')).toBe(true)
+    })
+  })
+
+  describe('visibleFields BehaviorSubject', () => {
+    it('starts with null value', () => {
+      const op = new NumberOp('/num-0')
+      expect(op.visibleFields.value).toBe(null)
+    })
+
+    it('can be updated to a Set of field names via next()', () => {
+      const op = new GeoJsonLayerOp('/geojson-0')
+      op.visibleFields.next(new Set(['data', 'visible']))
+      expect(op.visibleFields.value).toBeInstanceOf(Set)
+      expect(op.visibleFields.value!.size).toBe(2)
+      expect(op.visibleFields.value!.has('data')).toBe(true)
+      expect(op.visibleFields.value!.has('visible')).toBe(true)
+    })
+
+    it('can be reset to null via next()', () => {
+      const op = new GeoJsonLayerOp('/geojson-0')
+      op.visibleFields.next(new Set(['data', 'visible']))
+      op.visibleFields.next(null)
+      expect(op.visibleFields.value).toBe(null)
+    })
+
+    it('notifies subscribers when value changes', () => {
+      const op = new GeoJsonLayerOp('/geojson-0')
+      const values: (Set<string> | null)[] = []
+      const subscription = op.visibleFields.subscribe(v => values.push(v))
+
+      op.visibleFields.next(new Set(['data']))
+      op.visibleFields.next(new Set(['data', 'visible']))
+      op.visibleFields.next(null)
+
+      subscription.unsubscribe()
+
+      expect(values).toHaveLength(4) // Initial null + 3 updates
+      expect(values[0]).toBe(null)
+      expect(values[1]!.has('data')).toBe(true)
+      expect(values[2]!.has('visible')).toBe(true)
+      expect(values[3]).toBe(null)
+    })
+  })
+
+  describe('showField method', () => {
+    it('shows a hidden field and preserves existing visible fields', () => {
+      const op = new GeoJsonLayerOp('/geojson-0')
+      // Initially visibleFields is null (using showByDefault defaults)
+      expect(op.visibleFields.value).toBe(null)
+
+      // 'pointType' has showByDefault: false
+      expect(op.inputs.pointType.showByDefault).toBe(false)
+      expect(op.isFieldVisible('pointType')).toBe(false)
+
+      // Show the field
+      op.showField('pointType')
+
+      // Now visibleFields should be set with defaults + pointType
+      expect(op.visibleFields.value).toBeInstanceOf(Set)
+      expect(op.visibleFields.value!.has('pointType')).toBe(true)
+      expect(op.isFieldVisible('pointType')).toBe(true)
+      // Existing showByDefault fields should still be visible
+      expect(op.visibleFields.value!.has('data')).toBe(true)
+
+      // Show another hidden field - should preserve all existing visible fields
+      op.showField('getText')
+
+      // Should have all previously visible fields plus the new one
+      expect(op.visibleFields.value!.has('data')).toBe(true)
+      expect(op.visibleFields.value!.has('pointType')).toBe(true)
+      expect(op.visibleFields.value!.has('getText')).toBe(true)
+    })
+
+    it('does nothing if field is already visible', () => {
+      const op = new GeoJsonLayerOp('/geojson-0')
+      // 'data' has showByDefault: true, so it's already visible
+      expect(op.isFieldVisible('data')).toBe(true)
+
+      // showField should not create a new Set if field is already visible via defaults
+      op.showField('data')
+
+      // visibleFields stays null since no change was needed
+      expect(op.visibleFields.value).toBe(null)
+    })
   })
 })

@@ -18,6 +18,7 @@ import {
   type ColorRampField,
   type CompoundPropsField,
   type DateField,
+  type ExpressionField,
   type Field,
   type FileField,
   getFieldReferences,
@@ -30,13 +31,16 @@ import {
   Vec3Field,
 } from '../fields'
 import { useFileSystemStore } from '../filesystem-store'
+import type { Edge as GraphEdge } from '../graph-executor'
 import type { Edge } from '../noodles'
 import s from '../noodles.module.css'
-import type { IOperator, Operator } from '../operators'
+import { getFriendlyErrorMessage, type IOperator, type Operator } from '../operators'
 import { checkAssetExists, writeAsset } from '../storage'
+import { getExpressionContext } from '../utils/expression-context'
 import { projectScheme } from '../utils/filesystem'
 import { edgeId, type OpId } from '../utils/id-utils'
 import { ColorSwatch } from './color-swatch'
+import { ExpressionEditorOverlay } from './ExpressionEditorOverlay'
 import { GeocodingDialog } from './geocoding-dialog'
 import menuStyles from './menu.module.css'
 import { handleClass, useHandleDimmed } from './op-components'
@@ -64,7 +68,7 @@ export const inputComponents = {
   data: EmptyFieldComponent,
   date: DateFieldComponent,
   effect: EmptyFieldComponent,
-  expression: TextFieldComponent,
+  expression: ExpressionFieldComponent,
   file: FileFieldComponent,
   function: EmptyFieldComponent,
   geojson: EmptyFieldComponent,
@@ -143,15 +147,18 @@ export function TextFieldComponent({
       </select>
     )
   } else {
+    // Always use textarea - handles both single-line and multiline naturally
+    const lineCount = typeof value === 'string' ? value.split('\n').length : 1
     input = (
-      <input
+      <textarea
         id={id}
-        className={s.fieldInput}
+        className={cx(s.fieldInput, s.fieldTextarea)}
         title={value}
         value={value}
         onBlur={onChange}
         onChange={onChange}
         disabled={disabled}
+        rows={lineCount}
       />
     )
   }
@@ -162,6 +169,158 @@ export function TextFieldComponent({
         {id}
       </label>
       <div className={s.fieldInputWrapper}>{input}</div>
+    </div>
+  )
+}
+
+// Validates an expression by attempting to parse it
+// Returns an error message if invalid, null if valid
+function validateExpression(expression: string): string | null {
+  if (!expression.trim()) return null
+
+  try {
+    // Try to parse as a function body (wrapping with return like the operators do)
+    // Match the actual parameters available in AccessorOp.execute() and ExpressionOp.execute()
+    // eslint-disable-next-line no-new-func
+    new Function(
+      'd',
+      'i',
+      'data',
+      'op',
+      'utils',
+      'd3',
+      'turf',
+      'deck',
+      'Plot',
+      'Temporal',
+      `return ${expression}`
+    )
+    return null
+  } catch (e) {
+    if (e instanceof SyntaxError) {
+      // Use the friendly error message from operators.ts for better user feedback
+      return getFriendlyErrorMessage(e.message, expression)
+    }
+    return 'Invalid expression'
+  }
+}
+
+export function ExpressionFieldComponent({
+  id,
+  field,
+  disabled,
+}: {
+  id: OpId
+  field: ExpressionField
+  disabled: boolean
+}) {
+  const [value, setValue] = useState(field.value ?? '')
+  const [overlayOpen, setOverlayOpen] = useState(false)
+  const [validationError, setValidationError] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
+
+  const nodeId = useNodeId() as string
+  const edges = useEdges()
+
+  // Convert edges to GraphEdge format for context
+  const graphEdges = useMemo(
+    () =>
+      edges.map(e => ({
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        sourceHandle: e.sourceHandle || '',
+        targetHandle: e.targetHandle || '',
+      })) as GraphEdge[],
+    [edges]
+  )
+
+  // Get expression context for autocomplete
+  const expressionContext = useMemo(
+    () => getExpressionContext(nodeId, graphEdges),
+    [nodeId, graphEdges]
+  )
+
+  useEffect(() => {
+    const sub = field.subscribe(newVal => {
+      if (typeof newVal === 'function') return
+      setValue(newVal ?? '')
+      // Validate on external changes
+      setValidationError(validateExpression(newVal ?? ''))
+    })
+    return () => sub.unsubscribe()
+  }, [field])
+
+  const handleInputClick = useCallback(() => {
+    if (disabled) return
+    if (inputRef.current) {
+      setAnchorRect(inputRef.current.getBoundingClientRect())
+    }
+    setOverlayOpen(true)
+  }, [disabled])
+
+  const handleOverlayChange = useCallback(
+    (newValue: string) => {
+      setValue(newValue)
+      field.setValue(newValue)
+      setValidationError(validateExpression(newValue))
+    },
+    [field]
+  )
+
+  const handleOverlayClose = useCallback(() => {
+    setOverlayOpen(false)
+  }, [])
+
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.currentTarget.value
+    setValue(newValue)
+  }, [])
+
+  const handleInputBlur = useCallback(
+    (e: React.FocusEvent<HTMLInputElement>) => {
+      const newValue = e.currentTarget.value
+      if (newValue !== field.value) {
+        field.setValue(newValue)
+        setValidationError(validateExpression(newValue))
+      }
+    },
+    [field]
+  )
+
+  return (
+    <div className={s.fieldWrapper}>
+      <label className={s.fieldLabel} htmlFor={id}>
+        {id}
+      </label>
+      <div className={cx(s.fieldInputWrapper, s.expressionFieldWrapper)}>
+        <input
+          ref={inputRef}
+          id={id}
+          className={cx(s.fieldInput, s.expressionFieldInput, {
+            [s.expressionFieldError]: validationError,
+          })}
+          title={validationError || value}
+          value={value}
+          onChange={handleInputChange}
+          onBlur={handleInputBlur}
+          onClick={handleInputClick}
+          disabled={disabled}
+          placeholder="Click to edit expression..."
+        />
+        {validationError && <span className={s.expressionFieldErrorIcon}>⚠</span>}
+      </div>
+      {overlayOpen && (
+        <ExpressionEditorOverlay
+          value={value}
+          onChange={handleOverlayChange}
+          onClose={handleOverlayClose}
+          context={expressionContext}
+          anchorRect={anchorRect}
+          validationError={validationError}
+        />
+      )}
     </div>
   )
 }
@@ -927,7 +1086,7 @@ function DraggableNumberInput({
     (e: React.FormEvent<HTMLInputElement>) => {
       const newValue = e.currentTarget.value
       setDisplayValue(newValue)
-      if (newValue !== '') {
+      if (!(+newValue === 0 && newValue.length !== 1)) {
         onChange(+newValue)
       }
     },
