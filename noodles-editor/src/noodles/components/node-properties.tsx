@@ -685,7 +685,9 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
                       <span>{input.name}</span>
                     </div>
                     <div className={s.propertyDetails}>
-                      <div>{input.type}</div>
+                      <div className={s.inputTypeWrapper}>
+                        <span className={s.inputType}>{input.type}</span>
+                      </div>
                       <div className={cx(s.port, input.handleClass)} />
                       <ReferenceIcon
                         codeReference={input.codeRef}
@@ -811,7 +813,9 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
               <div className={s.propertyHeader}>
                 <div>{output.name}</div>
                 <div className={s.propertyDetails}>
-                  <div>{output.type}</div>
+                  <div className={s.inputTypeWrapper}>
+                    <span className={s.inputType}>{output.type}</span>
+                  </div>
                   <div className={cx(s.port, output.handleClass)} />
                   <ReferenceIcon codeReference={output.codeRef} altReference={output.mustacheRef} />
                 </div>

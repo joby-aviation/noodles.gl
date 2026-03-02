@@ -350,6 +350,22 @@
   color: rgba(255, 255, 255, 0.5);
 }
 
+/* Wrapper clips the type label while it's translated off-screen */
+.inputTypeWrapper {
+  overflow: hidden;
+}
+
+.inputType {
+  display: block;
+  white-space: nowrap;
+  transform: translateX(100%);
+  transition: transform 0.15s ease-out;
+}
+
+.propertyDetails:hover .inputType {
+  transform: translateX(0%);
+}
+
 /* Port */
 .port {
   width: 8px;
