@@ -336,7 +336,15 @@ function EditableFieldsSection({
     isAnimatableField(field as Field)
   ) as [string, Field][]
 
-  if (animatableInputs.length === 0) {
+  const connectedInputs = new Set(
+    edges
+      .filter(edge => edge.target === nodeId && edge.type !== 'ReferenceEdge')
+      .map(edge => parseHandleId(edge.targetHandle)?.fieldName ?? edge.targetHandle)
+  )
+
+  const editableInputs = animatableInputs.filter(([name]) => !connectedInputs.has(name))
+
+  if (editableInputs.length === 0) {
     return (
       <div className={s.section}>
         <div className={s.sectionTitle}>Properties</div>
@@ -349,13 +357,7 @@ function EditableFieldsSection({
     <div className={s.section}>
       <div className={s.sectionTitle}>Properties</div>
       <div className={s.editableFieldsList}>
-        {animatableInputs.map(([name, field]) => {
-          // Check if field is connected (has incoming edge)
-          const isConnected = edges.some(
-            e =>
-              e.target === nodeId && e.targetHandle === `par.${name}` && e.type !== 'ReferenceEdge'
-          )
-
+        {editableInputs.map(([name, field]) => {
           // Get current value for keyframe
           let currentValue: KeyframeValue
           try {
@@ -367,13 +369,13 @@ function EditableFieldsSection({
           return (
             <div key={name} className={s.editableFieldRow}>
               <div className={s.editableFieldContent}>
-                <EditableFieldInput fieldName={name} field={field} disabled={isConnected} />
+                <EditableFieldInput fieldName={name} field={field} disabled={false} />
               </div>
               <KeyframeIndicator
                 opId={op.id}
                 fieldName={name}
                 currentValue={currentValue}
-                disabled={isConnected}
+                disabled={false}
                 size="small"
                 onKeyframeAdded={expandTimeline}
               />

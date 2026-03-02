@@ -247,6 +247,55 @@ describe('NodeProperties field visibility editing', () => {
     })
   })
 
+  describe('Properties section timeline controls', () => {
+    it('shows field editor and keyframe button for unconnected animatable fields', () => {
+      const node = setupOperator('NumberOp', '/num')
+      renderNodeProperties(node)
+
+      expect(screen.getByLabelText('val')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /keyframe/i })).toBeInTheDocument()
+    })
+
+    it('does not render field editor or keyframe button when field has upstream connection', () => {
+      const nodes = [
+        {
+          id: '/source',
+          type: 'NumberOp',
+          position: { x: 0, y: 0 },
+          data: { inputs: { val: 1 } },
+        },
+        {
+          id: '/target',
+          type: 'NumberOp',
+          position: { x: 100, y: 0 },
+          data: { inputs: {} },
+        },
+      ]
+      const edges: Edge[] = [
+        {
+          id: '/source.out.val->/target.par.val',
+          source: '/source',
+          target: '/target',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.val',
+        },
+      ]
+
+      transformGraph({ nodes, edges })
+      mockEdges = edges
+
+      renderNodeProperties({
+        id: '/target',
+        type: 'NumberOp',
+        position: { x: 100, y: 0 },
+        data: { inputs: {} },
+      })
+
+      expect(screen.queryByLabelText('val')).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /keyframe/i })).not.toBeInTheDocument()
+    })
+  })
+
   describe('Hiding visible fields', () => {
     it('clicking − button hides a field without custom value', () => {
       // Start with 'effects' explicitly visible
