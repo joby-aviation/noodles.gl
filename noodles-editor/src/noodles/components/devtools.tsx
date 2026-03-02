@@ -10,7 +10,9 @@ export function NodeInfoOverlay() {
   return (
     <div
       className={s.overlay}
-      style={{ transform: `translate(${transform[0]}px, ${transform[1]}px) scale(${transform[2]})` }}
+      style={{
+        transform: `translate(${transform[0]}px, ${transform[1]}px) scale(${transform[2]})`,
+      }}
     >
       {nodes.map(node => {
         const internalNode = getInternalNode(node.id)
@@ -24,7 +26,7 @@ export function NodeInfoOverlay() {
             className={s.nodeLabel}
             style={{ top: absPos.y + h + 4, left: absPos.x }}
           >
-            x: {Math.round(node.position.x)}  y: {Math.round(node.position.y)}  {w}×{h}
+            x: {Math.round(node.position.x)} y: {Math.round(node.position.y)} {w}×{h}
           </div>
         )
       })}
@@ -38,7 +40,7 @@ export function ViewportInfoPanel() {
   return (
     <Panel position="bottom-left">
       <div className={s.viewportInfo}>
-        x: {x.toFixed(1)}  y: {y.toFixed(1)}  zoom: {zoom.toFixed(2)}
+        x: {x.toFixed(1)} y: {y.toFixed(1)} zoom: {zoom.toFixed(2)}
       </div>
     </Panel>
   )
