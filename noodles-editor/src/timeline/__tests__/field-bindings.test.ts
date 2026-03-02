@@ -30,12 +30,12 @@ function makeOp(id: string): Operator<IOperator> {
 }
 
 // Operator mock with a single NumberField input — for bindOperatorToTimeline
-function makeOpWithInputs(
-  id: string,
-  fieldName: string,
-  field: NumberField
-): Operator<IOperator> {
-  return { id, locked: { value: false }, inputs: { [fieldName]: field } } as unknown as Operator<IOperator>
+function makeOpWithInputs(id: string, fieldName: string, field: NumberField): Operator<IOperator> {
+  return {
+    id,
+    locked: { value: false },
+    inputs: { [fieldName]: field },
+  } as unknown as Operator<IOperator>
 }
 
 describe('opIdToObjectName', () => {
