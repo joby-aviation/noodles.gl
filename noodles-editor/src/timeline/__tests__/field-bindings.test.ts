@@ -14,6 +14,8 @@ import {
 import type { IOperator, Operator } from '../../noodles/operators'
 import {
   bindFieldToTimeline,
+  bindOperatorToTimeline,
+  cleanupRemovedOperators,
   fieldValueToKeyframeValue,
   getFieldDefaultKeyframeValue,
   getFieldPath,
@@ -25,6 +27,15 @@ import { getTimelineStore, useTimelineStore } from '../timeline-store'
 // Minimal operator mock — only needs id and locked for bindFieldToTimeline
 function makeOp(id: string): Operator<IOperator> {
   return { id, locked: { value: false } } as unknown as Operator<IOperator>
+}
+
+// Operator mock with a single NumberField input — for bindOperatorToTimeline
+function makeOpWithInputs(
+  id: string,
+  fieldName: string,
+  field: NumberField
+): Operator<IOperator> {
+  return { id, locked: { value: false }, inputs: { [fieldName]: field } } as unknown as Operator<IOperator>
 }
 
 describe('opIdToObjectName', () => {
@@ -499,5 +510,84 @@ describe('bindFieldToTimeline - integration', () => {
 
       cleanup()
     })
+  })
+})
+
+describe('cleanupRemovedOperators', () => {
+  beforeEach(() => {
+    useTimelineStore.getState().reset()
+  })
+
+  afterEach(() => {
+    useTimelineStore.getState().reset()
+  })
+
+  it('does not clean up bindings for operators still in the current set', () => {
+    const field = new NumberField(0)
+    const op = makeOpWithInputs('/my-op', 'val', field)
+    const store = getTimelineStore()
+    const fieldPath = 'my-op / val'
+
+    store.getOrCreateTrack(fieldPath, 0)
+    store.addKeyframe(fieldPath, { position: 0, value: 0, interpolation: 'linear' })
+    store.addKeyframe(fieldPath, { position: 10, value: 100, interpolation: 'linear' })
+
+    const cleanup = bindOperatorToTimeline(op)
+
+    // op is still active — should NOT be cleaned up
+    cleanupRemovedOperators(new Set(['/my-op']))
+
+    // binding should still work: scrubbing should update field
+    store.setPosition(5)
+    expect(field.value).toBeCloseTo(50, 0)
+
+    cleanup()
+  })
+
+  it('cleans up bindings for operators removed from the graph', () => {
+    const field = new NumberField(0)
+    const op = makeOpWithInputs('/removed-op', 'val', field)
+    const store = getTimelineStore()
+    const fieldPath = 'removed-op / val'
+
+    store.getOrCreateTrack(fieldPath, 0)
+    store.addKeyframe(fieldPath, { position: 0, value: 0, interpolation: 'linear' })
+    store.addKeyframe(fieldPath, { position: 10, value: 100, interpolation: 'linear' })
+
+    bindOperatorToTimeline(op)
+
+    // simulate operator being removed — pass empty set
+    cleanupRemovedOperators(new Set())
+
+    // binding is gone — reset field to verify scrubbing no longer updates it
+    field.next(0)
+    store.setPosition(5)
+    expect(field.value).toBe(0) // not updated to 50
+  })
+
+  it('bindings survive a rebind cycle (simulates operators useEffect re-run)', () => {
+    const field = new NumberField(0)
+    const op = makeOpWithInputs('/my-op', 'val', field)
+    const store = getTimelineStore()
+    const fieldPath = 'my-op / val'
+
+    store.getOrCreateTrack(fieldPath, 0)
+    store.addKeyframe(fieldPath, { position: 0, value: 0, interpolation: 'linear' })
+    store.addKeyframe(fieldPath, { position: 10, value: 100, interpolation: 'linear' })
+
+    // First bind (simulates initial effect run)
+    const cleanup1 = bindOperatorToTimeline(op)
+    cleanupRemovedOperators(new Set(['/my-op']))
+
+    // Simulate effect cleanup + re-run (e.g., user moved a node in the graph)
+    cleanup1()
+    const cleanup2 = bindOperatorToTimeline(op)
+    cleanupRemovedOperators(new Set(['/my-op']))
+
+    // Binding should still work after the rebind cycle
+    store.setPosition(5)
+    expect(field.value).toBeCloseTo(50, 0)
+
+    cleanup2()
   })
 })

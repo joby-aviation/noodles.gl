@@ -429,8 +429,10 @@ export function cleanupRemovedOperators(
   const keysToRemove: string[] = []
 
   for (const [key, cleanup] of activeBindings) {
+    // key format is "${op.id}.${fieldName}" where op.id already starts with "/"
+    // e.g. "/my-op.value" -> opId = "/my-op"
     const opId = key.split('.')[0]
-    if (!currentOperatorIds.has(`/${opId}`)) {
+    if (!currentOperatorIds.has(opId)) {
       cleanup()
       keysToRemove.push(key)
     }
