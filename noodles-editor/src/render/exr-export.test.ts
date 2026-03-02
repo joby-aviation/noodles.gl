@@ -123,18 +123,15 @@ describe('flipYFloat32', () => {
 })
 
 describe('captureExrFrame', () => {
-  it('should call gl.readPixels with FLOAT type', async () => {
-    // Mock WebGL2RenderingContext
+  it('should call gl.readPixels with UNSIGNED_BYTE type', async () => {
     const mockGL = {
       RGBA: 0x1908,
       FLOAT: 0x1406,
       UNSIGNED_BYTE: 0x1401,
       DEPTH_COMPONENT: 0x1902,
       readPixels: vi.fn(),
-      getExtension: vi.fn().mockReturnValue({}),
     } as unknown as WebGL2RenderingContext
 
-    // Dynamic import to get the mocked version
     const { captureExrFrame } = await import('./exr-export')
 
     captureExrFrame(mockGL, 100, 100, {
@@ -142,15 +139,14 @@ describe('captureExrFrame', () => {
       includeDepth: false,
     })
 
-    expect(mockGL.getExtension).toHaveBeenCalledWith('EXT_color_buffer_float')
     expect(mockGL.readPixels).toHaveBeenCalledWith(
       0,
       0,
       100,
       100,
       mockGL.RGBA,
-      mockGL.FLOAT,
-      expect.any(Float32Array)
+      mockGL.UNSIGNED_BYTE,
+      expect.any(Uint8Array)
     )
   })
 })
