@@ -6844,7 +6844,15 @@ export type SpecialNodeType = 'group'
 function proxyFields(op: Operator<IOperator>, fields: 'inputs' | 'outputs') {
   return new Proxy(op, {
     get(target, prop: string | symbol) {
-      return target[fields][prop as string].value
+      // Proxy is used for convenient field access (e.g. `op('/x').par.foo`).
+      // Missing or symbol keys should behave like normal JS property access
+      // and return undefined rather than throwing on `.value`.
+      if (typeof prop !== 'string') {
+        return undefined
+      }
+
+      const field = target[fields][prop]
+      return field?.value
     },
     set(_target, _prop: string | symbol, _value) {
       throw new Error('Cannot set value on par or out')
