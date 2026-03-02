@@ -1,12 +1,15 @@
 import type { NodeJSON } from 'SKIP-@xyflow/react'
+import * as Dialog from '@radix-ui/react-dialog'
+import { Cross2Icon } from '@radix-ui/react-icons'
 import cx from 'classnames'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import type { IOperator, OpType, Operator } from '../operators'
 import { type ConnectionPlan, findBestConnection } from '../utils/auto-connect'
 import { type SuggestedNode, getSuggestedNodes } from '../utils/suggested-nodes'
-import { getNodeDescription, headerClass, typeCategory, typeDisplayName } from './op-components'
+import menuStyles from './menu.module.css'
 import s from './node-properties.module.css'
+import { getNodeDescription, headerClass, typeCategory, typeDisplayName } from './op-components'
 
 interface SuggestedNodesSectionProps {
   operator: Operator<IOperator>
@@ -36,12 +39,14 @@ export function SuggestedNodesSection({ operator, node, onAddNode }: SuggestedNo
     }
   }
 
-  const handleCancel = () => {
+  const handleClose = () => {
     setPreviewSuggestion(null)
     setConnectionPlan(null)
   }
 
   if (suggestions.length === 0) return null
+
+  const isDialogOpen = previewSuggestion !== null && connectionPlan !== null
 
   return (
     <div className={s.section}>
@@ -56,15 +61,26 @@ export function SuggestedNodesSection({ operator, node, onAddNode }: SuggestedNo
         ))}
       </div>
 
-      {previewSuggestion && connectionPlan && (
-        <SuggestionPreviewDialog
-          sourceNode={node}
-          suggestion={previewSuggestion}
-          connectionPlan={connectionPlan}
-          onConfirm={handleConfirm}
-          onCancel={handleCancel}
-        />
-      )}
+      <Dialog.Root open={isDialogOpen} onOpenChange={open => !open && handleClose()}>
+        <Dialog.Portal>
+          <Dialog.Overlay className={menuStyles.dialogOverlay} />
+          <Dialog.Content className={menuStyles.dialogContent}>
+            {previewSuggestion && connectionPlan && (
+              <SuggestionPreviewContent
+                sourceNodeId={node.id}
+                suggestion={previewSuggestion}
+                connectionPlan={connectionPlan}
+                onConfirm={handleConfirm}
+              />
+            )}
+            <Dialog.Close asChild>
+              <button type="button" className={menuStyles.dialogIconButton} aria-label="Close">
+                <Cross2Icon />
+              </button>
+            </Dialog.Close>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </div>
   )
 }
@@ -92,58 +108,48 @@ function SuggestedNodeItem({ suggestion, onClick }: SuggestedNodeItemProps) {
   )
 }
 
-interface SuggestionPreviewDialogProps {
-  sourceNode: NodeJSON<unknown>
+interface SuggestionPreviewContentProps {
+  sourceNodeId: string
   suggestion: SuggestedNode
   connectionPlan: ConnectionPlan
   onConfirm: () => void
-  onCancel: () => void
 }
 
-function SuggestionPreviewDialog({
-  sourceNode,
+function SuggestionPreviewContent({
+  sourceNodeId,
   suggestion,
   connectionPlan,
   onConfirm,
-  onCancel,
-}: SuggestionPreviewDialogProps) {
+}: SuggestionPreviewContentProps) {
   const displayName = typeDisplayName(suggestion.opType)
 
-  // Keyboard accessibility: Escape to cancel, Enter to confirm
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onCancel()
-      } else if (e.key === 'Enter') {
-        onConfirm()
-      }
-    }
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [onCancel, onConfirm])
-
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: Overlay click to close is standard modal UX
-    <div className={s.suggestionPreviewOverlay} onClick={onCancel}>
-      {/* biome-ignore lint/a11y/noStaticElementInteractions: Prevent close when clicking card content */}
-      <div className={s.suggestionPreviewCard} onClick={e => e.stopPropagation()}>
-        <div className={s.suggestionPreviewTitle}>Add {displayName}?</div>
-        <div className={s.suggestionPreviewConnection}>
-          <span className={s.suggestionPreviewPath}>
-            {sourceNode.id}.out.{connectionPlan.sourceOutput}
-          </span>
-          <span className={s.suggestionPreviewArrow}>→</span>
-          <span className={s.suggestionPreviewPath}>par.{connectionPlan.targetInput}</span>
-        </div>
-        <div className={s.suggestionPreviewActions}>
-          <button type="button" className={s.suggestionPreviewCancel} onClick={onCancel}>
+    <>
+      <Dialog.Title className={menuStyles.dialogTitle}>Add {displayName}?</Dialog.Title>
+      <Dialog.Description className={menuStyles.dialogDescription}>
+        This will create a new {displayName} node and connect it to the selected node.
+      </Dialog.Description>
+      <div className={s.suggestionPreviewConnection}>
+        <span className={s.suggestionPreviewPath}>
+          {sourceNodeId}.out.{connectionPlan.sourceOutput}
+        </span>
+        <span className={s.suggestionPreviewArrow}>→</span>
+        <span className={s.suggestionPreviewPath}>par.{connectionPlan.targetInput}</span>
+      </div>
+      <div className={menuStyles.dialogRightSlot}>
+        <Dialog.Close asChild>
+          <button type="button" className={cx(menuStyles.dialogButton, menuStyles.violet)}>
             Cancel
           </button>
-          <button type="button" className={s.suggestionPreviewConfirm} onClick={onConfirm}>
-            Add Node
-          </button>
-        </div>
+        </Dialog.Close>
+        <button
+          type="button"
+          className={cx(menuStyles.dialogButton, menuStyles.green)}
+          onClick={onConfirm}
+        >
+          Add Node
+        </button>
       </div>
-    </div>
+    </>
   )
 }

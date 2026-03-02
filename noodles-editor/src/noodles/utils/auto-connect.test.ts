@@ -48,14 +48,18 @@ describe('findBestConnection', () => {
     // Note: Due to flexible type matching, this may connect to various ListField inputs
   })
 
-  it('finds some connection even for loosely typed operators', () => {
+  it('handles loosely typed operators via UnknownField', () => {
     const numberOp = new NumberOp('/number-1')
-    // NumberOp outputs a number, DeckRendererOp has flexible UnknownField inputs
+    // NumberOp outputs a number via 'val'. DeckRendererOp has UnknownField inputs
+    // that accept any type, so a connection may be found.
     const connection = findBestConnection(numberOp, 'DeckRendererOp')
 
-    // Due to UnknownField and flexible type matching, a connection may be found
-    // The important thing is that the function doesn't throw
-    expect(connection === null || connection?.sourceOutput === 'val').toBe(true)
+    // Document actual behavior: connection found via flexible UnknownField matching
+    // If this test fails, it means type matching behavior changed
+    if (connection !== null) {
+      expect(connection.sourceOutput).toBe('val')
+      expect(typeof connection.targetInput).toBe('string')
+    }
   })
 
   it('prefers priority inputs like "data" over other inputs', () => {

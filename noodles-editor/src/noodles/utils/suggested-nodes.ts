@@ -63,6 +63,8 @@ const curatedSuggestions: Partial<Record<OpType, OpType[]>> = {
 
 // Build type compatibility index at module load time
 // Maps output field types to operators that can consume them as inputs
+// Cache built lazily on first access. In dev with HMR, new operator types
+// won't be picked up without a page reload - acceptable trade-off for perf.
 let typeToConsumers: Map<string, Set<OpType>> | null = null
 
 function buildTypeIndex(): Map<string, Set<OpType>> {
