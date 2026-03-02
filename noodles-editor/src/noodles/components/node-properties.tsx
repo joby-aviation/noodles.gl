@@ -6,9 +6,9 @@ import { useEdges, useNodes, useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { KeyframeIndicator } from '../../timeline/components/KeyframeIndicator'
-import { fieldValueToKeyframeValue, isAnimatableField } from '../../timeline/field-bindings'
+import { fieldValueToKeyframeValue } from '../../timeline/field-bindings'
 import type { KeyframeValue } from '../../timeline/types'
-import { type Field, type IField, IN_NS, ListField, OUT_NS } from '../fields'
+import { CompoundPropsField, type Field, type IField, IN_NS, ListField, OUT_NS } from '../fields'
 import type { IOperator, Operator } from '../operators'
 import { OutOp } from '../operators'
 import { getOpStore, useUIStore } from '../store'
@@ -315,74 +315,67 @@ function EditableFieldInput({
   }
 }
 
-// Section for editable keyframeable fields with keyframe indicators
-function EditableFieldsSection({
-  op,
-  edges,
-  nodeId,
+// Returns true for scalar/value field types that can show an editable input
+function isValueField(field: Field): boolean {
+  const { type } = field.constructor as typeof Field
+  return [
+    'number',
+    'boolean',
+    'color',
+    'string',
+    'string-literal',
+    'date',
+    'vec2',
+    'vec3',
+    'geopoint-2d',
+    'geopoint-3d',
+  ].includes(type)
+}
+
+// Renders compound field sub-fields inline with labels, inputs, and keyframe indicators
+function CompoundSubFields({
+  field,
+  opId,
+  fieldName,
+  expandTimeline,
 }: {
-  // biome-ignore lint/suspicious/noExplicitAny: Operator generic type not needed here
-  op: Operator<any>
-  edges: Edge[]
-  nodeId: string
+  field: CompoundPropsField
+  opId: string
+  fieldName: string
+  expandTimeline: () => void
 }) {
-  // Callback to auto-expand timeline when keyframe is added
-  const expandTimeline = useCallback(() => {
-    useUIStore.getState().setTimelineExpanded(true)
-  }, [])
-
-  // Filter to only animatable fields
-  const animatableInputs = Object.entries(op.inputs).filter(([_, field]) =>
-    isAnimatableField(field as Field)
-  ) as [string, Field][]
-
-  const connectedInputs = new Set(
-    edges
-      .filter(edge => edge.target === nodeId && edge.type !== 'ReferenceEdge')
-      .map(edge => parseHandleId(edge.targetHandle)?.fieldName ?? edge.targetHandle)
-  )
-
-  const editableInputs = animatableInputs.filter(([name]) => !connectedInputs.has(name))
-
-  if (editableInputs.length === 0) {
-    return (
-      <div className={s.section}>
-        <div className={s.sectionTitle}>Properties</div>
-        <div className={s.emptyState}>No animatable properties</div>
-      </div>
-    )
-  }
-
   return (
-    <div className={s.section}>
-      <div className={s.sectionTitle}>Properties</div>
-      <div className={s.editableFieldsList}>
-        {editableInputs.map(([name, field]) => {
-          // Get current value for keyframe
-          let currentValue: KeyframeValue
-          try {
-            currentValue = fieldValueToKeyframeValue(field, field.value) as KeyframeValue
-          } catch {
-            currentValue = field.value as KeyframeValue
-          }
-
-          return (
-            <div key={name} className={s.editableFieldRow}>
-              <div className={s.editableFieldContent}>
-                <EditableFieldInput fieldName={name} field={field} disabled={false} />
-              </div>
-              <KeyframeIndicator
-                opId={op.id}
-                fieldName={name}
-                currentValue={currentValue}
-                disabled={false}
-                size="small"
-                onKeyframeAdded={expandTimeline}
-              />
+    <div className={s.compoundSubFields}>
+      {Object.entries(field.fields).map(([subName, subField]) => {
+        if (!isValueField(subField as Field)) return null
+        let currentValue: KeyframeValue
+        try {
+          currentValue = fieldValueToKeyframeValue(
+            subField as Field,
+            subField.value
+          ) as KeyframeValue
+        } catch {
+          currentValue = subField.value as KeyframeValue
+        }
+        return (
+          <div key={subName} className={s.compoundSubField}>
+            <span className={s.compoundSubFieldLabel}>{subName}</span>
+            <div className={s.editableFieldContent}>
+              {/* biome-ignore lint/suspicious/noExplicitAny: Field type validated via isValueField */}
+              <EditableFieldInput fieldName={subName} field={subField as any} disabled={false} />
             </div>
-          )
-        })}
-      </div>
+            <KeyframeIndicator
+              opId={opId}
+              fieldName={fieldName}
+              subPath={[subName]}
+              currentValue={currentValue}
+              disabled={false}
+              size="small"
+              onKeyframeAdded={expandTimeline}
+            />
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -391,6 +384,9 @@ function EditableFieldsSection({
 export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
   const { setEdges } = useReactFlow()
   const edges = useEdges()
+  const expandTimeline = useCallback(() => {
+    useUIStore.getState().setTimelineExpanded(true)
+  }, [])
   const dragDataRef = useRef<{ inputName: string; index: number } | null>(null)
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
   const [isTruncated, setIsTruncated] = useState(false)
@@ -582,7 +578,6 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
           )}
         </div>
       )}
-      <EditableFieldsSection op={op} edges={edges} nodeId={node.id} />
       {op instanceof OutOp && (
         <div className={s.section}>
           <div className={s.sectionTitle}>Render Settings</div>
@@ -643,6 +638,17 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
               )
               const hideCheck = canHideField(op, input.name, edges)
               const canHide = hideCheck.canHide
+              let fieldCurrentValue: KeyframeValue | undefined
+              if (isValueField(input.field)) {
+                try {
+                  fieldCurrentValue = fieldValueToKeyframeValue(
+                    input.field,
+                    input.field.value
+                  ) as KeyframeValue
+                } catch {
+                  fieldCurrentValue = input.field.value as KeyframeValue
+                }
+              }
 
               return (
                 <div
@@ -687,6 +693,36 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
                       />
                     </div>
                   </div>
+                  {/* Value type, not connected: show editable input + keyframe indicator */}
+                  {isValueField(input.field) && incomers.length === 0 && (
+                    <div className={s.editableFieldRow}>
+                      <div className={s.editableFieldContent}>
+                        <EditableFieldInput
+                          fieldName={input.name}
+                          field={input.field}
+                          disabled={false}
+                        />
+                      </div>
+                      <KeyframeIndicator
+                        opId={op.id}
+                        fieldName={input.name}
+                        currentValue={fieldCurrentValue!}
+                        disabled={false}
+                        size="small"
+                        onKeyframeAdded={expandTimeline}
+                      />
+                    </div>
+                  )}
+                  {/* Compound field: expand sub-fields inline */}
+                  {input.field instanceof CompoundPropsField && (
+                    <CompoundSubFields
+                      field={input.field}
+                      opId={op.id}
+                      fieldName={input.name}
+                      expandTimeline={expandTimeline}
+                    />
+                  )}
+                  {/* List field with connections: draggable reorder list */}
                   {input.field instanceof ListField && incomers.length > 0 && (
                     // biome-ignore lint/a11y/useSemanticElements: Drag-and-drop list requires div with role
                     <div className={s.connections} role="list" onDragOver={handleDragOver}>
