@@ -232,40 +232,70 @@ This document outlines the phased implementation plan for replacing Theatre.js w
    ```
 
 3. **Two-Way Binding Pattern**
+
+   Order matters: position subscription → initial evaluation → field subscription.
+   The initial evaluation fires before the field subscription is registered, so no
+   `updating` guard is strictly needed there, but it's included defensively.
+
    ```typescript
    function bindFieldToTimeline(op, fieldName, field, store) {
      let updating = false  // CRITICAL: Prevents infinite loops
+     let lastKeyframeValue = undefined
 
-     // Field → Timeline
+     // Timeline → Field (fires on every position change)
+     const timelineSub = store.subscribe(
+       (state) => state.position,
+       () => {
+         if (updating || op.locked.value) return
+         const value = store.evaluateTrack(fieldPath)
+         if (value === undefined) return
+         // Skip if value hasn't changed (optimization)
+         if (lastKeyframeValue !== undefined &&
+             JSON.stringify(value) === JSON.stringify(lastKeyframeValue)) return
+         lastKeyframeValue = value
+         updating = true
+         try { field.setValue(keyframeValueToFieldValue(field, value)) }
+         finally { updating = false }
+       }
+     )
+
+     // Initial evaluation — sync field to current position on bind.
+     // Runs before field subscription is set up, so no spurious keyframes are created.
+     const initialValue = store.evaluateTrack(fieldPath)
+     if (initialValue !== undefined) {
+       updating = true
+       try {
+         const fieldValue = keyframeValueToFieldValue(field, initialValue)
+         if (fieldValue !== undefined) {
+           field.setValue(fieldValue)
+           lastKeyframeValue = initialValue
+         }
+       } finally { updating = false }
+     }
+
+     // Field → Timeline (fires when user edits a value manually)
      const fieldSub = field.subscribe((value) => {
        if (updating || op.locked.value) return
        updating = true
        try {
          const kfValue = fieldValueToKeyframeValue(field, value)
-         // Update or create keyframe at current position
-         updateKeyframeAtPosition(store, fieldPath, kfValue)
-       } finally {
-         updating = false
-       }
-     })
+         const existingKf = track?.keyframes.find(kf => Math.abs(kf.position - position) < 0.001)
 
-     // Timeline → Field
-     const timelineSub = store.subscribe(
-       (state) => state.position,
-       (position) => {
-         if (updating || op.locked.value) return
-         updating = true
-         try {
-           const kfValue = store.evaluateTrack(trackId, position)
-           if (kfValue !== undefined) {
-             const fieldValue = keyframeValueToFieldValue(field, kfValue)
-             field.setValue(fieldValue)
+         if (existingKf) {
+           // Update keyframe in place
+           store.updateKeyframe(fieldPath, existingKf.id, { value: kfValue })
+         } else if (track && track.keyframes.length > 0) {
+           // Only insert if value differs from currently interpolated.
+           // Prevents redundant keyframes when the user sets the same value the
+           // animation already produces at this position.
+           const interpolated = store.evaluateTrack(fieldPath)
+           if (JSON.stringify(kfValue) !== JSON.stringify(interpolated)) {
+             store.addKeyframe(fieldPath, { position, value: kfValue, interpolation: 'bezier' })
            }
-         } finally {
-           updating = false
          }
-       }
-     )
+         // No keyframes yet: user must click the keyframe indicator to start animating
+       } finally { updating = false }
+     })
 
      return () => {
        fieldSub.unsubscribe()
@@ -278,37 +308,42 @@ This document outlines the phased implementation plan for replacing Theatre.js w
    - Iterate all fields in `op.inputs` (parameters)
    - Skip non-animatable fields
    - Skip fields with active edge connections (value comes from upstream)
-   - Create fieldPath: `/${opId}.par.${fieldName}` or nested for compound
+   - Create fieldPath: `opName / fieldName` (e.g. `my-op / value`)
    - Return combined cleanup function
 
 5. **Edge Cases**
    - Locked operators: Skip all binding updates
-   - Missing tracks: Create on first keyframe add
-   - Compound fields: Recursive binding for each sub-field
+   - Missing tracks: Create on first keyframe add (`getOrCreateTrack`)
+   - Compound fields: Skipped in field→timeline path to avoid infinite loops
    - Operator deletion: Must call cleanup to prevent memory leaks
 
 **Tasks:**
-- [ ] Implement `isAnimatableField(field)` detection
-- [ ] Implement type conversion functions:
+- [x] Implement `isAnimatableField(field)` detection
+- [x] Implement type conversion functions:
   - `fieldValueToKeyframeValue(field, value)`
   - `keyframeValueToFieldValue(field, value)`
-- [ ] Handle hex ↔ RGBA color conversion
-- [ ] Handle Temporal.PlainDateTime ↔ epoch milliseconds
-- [ ] Handle array ↔ object format for vectors/points
-- [ ] Implement `bindFieldToTimeline(op, fieldName, field, store)`:
-  - Subscribe to field changes → update timeline
-  - Subscribe to timeline position → update field
+- [x] Handle hex ↔ RGBA color conversion
+- [x] Handle Temporal.PlainDateTime ↔ epoch milliseconds
+- [x] Handle array ↔ object format for vectors/points
+- [x] Implement `bindFieldToTimeline(op, fieldName, field, store)`:
+  - Subscribe to timeline position → update field value (interpolated)
+  - Initial evaluation on bind → sync field to current position immediately
+  - Subscribe to field changes → update or create keyframe
+  - Only insert keyframe when new value differs from currently interpolated
   - Use `updating` flag to prevent infinite loops
   - Respect `op.locked` state
-- [ ] Implement `bindOperatorToTimeline(op, store)` for all fields
-- [ ] Implement cleanup/unbind functions
+- [x] Implement `bindOperatorToTimeline(op, store)` for all fields
+- [x] Implement cleanup/unbind functions
 
 **Test file:** `field-bindings.test.ts`
-- Test type conversions (each field type)
-- Test two-way sync behavior
-- Test infinite loop prevention
-- Test locked operator handling
-- Test cleanup prevents memory leaks
+- [x] Test type conversions (each field type)
+- [x] Test initial evaluation on bind — field set to keyframe value immediately
+- [x] Test scrubbing updates field value when keyframes exist
+- [x] Test scrubbing does nothing when no keyframes exist
+- [x] Test keyframe inserted when value differs from interpolated
+- [x] Test no keyframe inserted when value matches interpolated
+- [x] Test existing keyframe updated in place (not duplicated)
+- [x] Test no keyframe inserted when track has no keyframes
 
 ### 1.4 Playback RAF Driver
 

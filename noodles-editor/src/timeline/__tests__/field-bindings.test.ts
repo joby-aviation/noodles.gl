@@ -1,6 +1,6 @@
 // Tests for field bindings - two-way synchronization between fields and timeline tracks
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   BooleanField,
   ColorField,
@@ -11,13 +11,21 @@ import {
   Vec2Field,
   Vec3Field,
 } from '../../noodles/fields'
+import type { IOperator, Operator } from '../../noodles/operators'
 import {
+  bindFieldToTimeline,
   fieldValueToKeyframeValue,
   getFieldDefaultKeyframeValue,
   getFieldPath,
   keyframeValueToFieldValue,
   opIdToObjectName,
 } from '../field-bindings'
+import { getTimelineStore, useTimelineStore } from '../timeline-store'
+
+// Minimal operator mock — only needs id and locked for bindFieldToTimeline
+function makeOp(id: string): Operator<IOperator> {
+  return { id, locked: { value: false } } as unknown as Operator<IOperator>
+}
 
 describe('opIdToObjectName', () => {
   it('converts simple operator ID', () => {
@@ -302,5 +310,194 @@ describe('round-trip conversion', () => {
     const kfValue = fieldValueToKeyframeValue(field, original)
     const restored = keyframeValueToFieldValue(field, kfValue)
     expect(restored).toEqual(original)
+  })
+})
+
+describe('bindFieldToTimeline - integration', () => {
+  beforeEach(() => {
+    useTimelineStore.getState().reset()
+  })
+
+  afterEach(() => {
+    useTimelineStore.getState().reset()
+  })
+
+  describe('initial evaluation on bind', () => {
+    it('syncs field to keyframe value at current position when track has keyframes', () => {
+      const op = makeOp('/test-op')
+      const field = new NumberField(0)
+      const store = getTimelineStore()
+      const fieldPath = 'test-op / val'
+
+      store.getOrCreateTrack(fieldPath, 0)
+      store.addKeyframe(fieldPath, { position: 0, value: 100, interpolation: 'linear' })
+
+      const cleanup = bindFieldToTimeline(op, 'val', field)
+
+      expect(field.value).toBe(100)
+
+      cleanup()
+    })
+
+    it('syncs to interpolated value when position is between keyframes', () => {
+      const op = makeOp('/test-op')
+      const field = new NumberField(0)
+      const store = getTimelineStore()
+      const fieldPath = 'test-op / val'
+
+      store.getOrCreateTrack(fieldPath, 0)
+      store.addKeyframe(fieldPath, { position: 0, value: 0, interpolation: 'linear' })
+      store.addKeyframe(fieldPath, { position: 10, value: 100, interpolation: 'linear' })
+      store.setPosition(5)
+
+      const cleanup = bindFieldToTimeline(op, 'val', field)
+
+      expect(field.value).toBeCloseTo(50, 0)
+
+      cleanup()
+    })
+
+    it('leaves field value unchanged when track has no keyframes', () => {
+      const op = makeOp('/test-op')
+      const field = new NumberField(42)
+      const store = getTimelineStore()
+      const fieldPath = 'test-op / val'
+
+      store.getOrCreateTrack(fieldPath, 0)
+
+      const cleanup = bindFieldToTimeline(op, 'val', field)
+
+      expect(field.value).toBe(42)
+
+      cleanup()
+    })
+  })
+
+  describe('scrubbing updates field value', () => {
+    it('updates field as position changes', () => {
+      const op = makeOp('/test-op')
+      const field = new NumberField(0)
+      const store = getTimelineStore()
+      const fieldPath = 'test-op / val'
+
+      store.getOrCreateTrack(fieldPath, 0)
+      store.addKeyframe(fieldPath, { position: 0, value: 0, interpolation: 'linear' })
+      store.addKeyframe(fieldPath, { position: 10, value: 100, interpolation: 'linear' })
+
+      const cleanup = bindFieldToTimeline(op, 'val', field)
+
+      store.setPosition(5)
+      expect(field.value).toBeCloseTo(50, 0)
+
+      store.setPosition(10)
+      expect(field.value).toBe(100)
+
+      cleanup()
+    })
+
+    it('does not update field when no keyframes exist', () => {
+      const op = makeOp('/test-op')
+      const field = new NumberField(42)
+      const store = getTimelineStore()
+      const fieldPath = 'test-op / val'
+
+      store.getOrCreateTrack(fieldPath, 0)
+
+      const cleanup = bindFieldToTimeline(op, 'val', field)
+
+      store.setPosition(5)
+      expect(field.value).toBe(42)
+
+      cleanup()
+    })
+  })
+
+  describe('auto-keyframe insertion on value change', () => {
+    it('inserts keyframe when new value differs from interpolated', () => {
+      const op = makeOp('/test-op')
+      const field = new NumberField(0)
+      const store = getTimelineStore()
+      const fieldPath = 'test-op / val'
+
+      store.getOrCreateTrack(fieldPath, 0)
+      store.addKeyframe(fieldPath, { position: 0, value: 0, interpolation: 'linear' })
+
+      const cleanup = bindFieldToTimeline(op, 'val', field)
+      store.setPosition(5)
+
+      // interpolated value at T=5 with one keyframe (value=0) is still 0
+      // setting to 50 should create a new keyframe
+      field.setValue(50)
+
+      const track = store.getTrack(fieldPath)
+      expect(track?.keyframes).toHaveLength(2)
+      const newKf = track?.keyframes.find(kf => Math.abs(kf.position - 5) < 0.001)
+      expect(newKf?.value).toBe(50)
+
+      cleanup()
+    })
+
+    it('does not insert keyframe when new value matches interpolated', () => {
+      const op = makeOp('/test-op')
+      const field = new NumberField(0)
+      const store = getTimelineStore()
+      const fieldPath = 'test-op / val'
+
+      store.getOrCreateTrack(fieldPath, 0)
+      store.addKeyframe(fieldPath, { position: 0, value: 0, interpolation: 'linear' })
+
+      const cleanup = bindFieldToTimeline(op, 'val', field)
+      store.setPosition(5)
+
+      // interpolated value at T=5 is 0 (only one keyframe) — setting same value is a no-op
+      field.setValue(0)
+
+      const track = store.getTrack(fieldPath)
+      expect(track?.keyframes).toHaveLength(1)
+
+      cleanup()
+    })
+
+    it('does not insert keyframe when track has no keyframes', () => {
+      const op = makeOp('/test-op')
+      const field = new NumberField(0)
+      const store = getTimelineStore()
+      const fieldPath = 'test-op / val'
+
+      store.getOrCreateTrack(fieldPath, 0)
+
+      const cleanup = bindFieldToTimeline(op, 'val', field)
+
+      field.setValue(42)
+
+      const track = store.getTrack(fieldPath)
+      expect(track?.keyframes).toHaveLength(0)
+
+      cleanup()
+    })
+
+    it('updates existing keyframe at current position instead of inserting', () => {
+      const op = makeOp('/test-op')
+      const field = new NumberField(0)
+      const store = getTimelineStore()
+      const fieldPath = 'test-op / val'
+
+      store.getOrCreateTrack(fieldPath, 0)
+      store.addKeyframe(fieldPath, { position: 0, value: 0, interpolation: 'linear' })
+      store.addKeyframe(fieldPath, { position: 5, value: 50, interpolation: 'linear' })
+
+      const cleanup = bindFieldToTimeline(op, 'val', field)
+      store.setPosition(5)
+
+      // at T=5 there IS a keyframe — changing value should update it, not add another
+      field.setValue(75)
+
+      const track = store.getTrack(fieldPath)
+      expect(track?.keyframes).toHaveLength(2)
+      const kfAt5 = track?.keyframes.find(kf => Math.abs(kf.position - 5) < 0.001)
+      expect(kfAt5?.value).toBe(75)
+
+      cleanup()
+    })
   })
 })

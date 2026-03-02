@@ -22,7 +22,7 @@ import {
 import type { IOperator, Operator } from '../noodles/operators'
 import { type RGBA as ColorRGBA, colorToRgba, hexToRgba, rgbaToHex } from '../utils/color'
 import type { TimelineStore } from './timeline-store'
-import { useTimelineStore } from './timeline-store'
+import { getTimelineStore, useTimelineStore } from './timeline-store'
 import type { KeyframeValue, Point2D, Point3D, RGBA, Vec2, Vec3 } from './types'
 
 // Use a type alias to simplify field typing
@@ -289,6 +289,22 @@ export function bindFieldToTimeline(
     }
   )
 
+  // Initial evaluation — sync field to current position when binding is established
+  const initialValue = timelineStore.evaluateTrack(fieldPath)
+  if (initialValue !== undefined) {
+    updating = true
+    try {
+      const fieldValue = keyframeValueToFieldValue(field, initialValue)
+      if (fieldValue !== undefined) {
+        field.setValue(fieldValue)
+        lastKeyframeValue = initialValue
+      }
+    } catch (e) {
+      console.warn(`Error in initial field sync for ${op.id}.${fieldName}:`, e)
+    }
+    updating = false
+  }
+
   // Subscribe to field value changes -> update or create keyframe
   const fieldSub = field.subscribe((value_: unknown) => {
     if (op.locked?.value || updating) return
@@ -304,7 +320,9 @@ export function bindFieldToTimeline(
 
       // Check if there's a keyframe at the current position
       const track = timelineStore.getTrack(fieldPath)
-      const position = timelineStore.position
+      // Read position from the live store — timelineStore is a snapshot and its
+      // .position property would be stale if the playhead moved after bind
+      const position = getTimelineStore().position
       const epsilon = 0.001
 
       const existingKf = track?.keyframes.find(kf => Math.abs(kf.position - position) < epsilon)
@@ -315,14 +333,16 @@ export function bindFieldToTimeline(
           timelineStore.updateKeyframe(fieldPath, existingKf.id, { value: kfValue })
         }
       } else if (track && track.keyframes.length > 0) {
-        // If track already has keyframes, create a new keyframe at current position
-        // This enables animation editing workflow - once a field is animated,
-        // changing values automatically creates keyframes
-        timelineStore.addKeyframe(fieldPath, {
-          position,
-          value: kfValue,
-          interpolation: 'bezier',
-        })
+        // Only insert keyframe if value differs from what's currently interpolated —
+        // this prevents redundant keyframes when the user sets the same value
+        const currentInterpolated = timelineStore.evaluateTrack(fieldPath)
+        if (JSON.stringify(kfValue) !== JSON.stringify(currentInterpolated)) {
+          timelineStore.addKeyframe(fieldPath, {
+            position,
+            value: kfValue,
+            interpolation: 'bezier',
+          })
+        }
       }
       // Note: If track has no keyframes, we don't auto-create
       // User should explicitly click the keyframe indicator to start animating
