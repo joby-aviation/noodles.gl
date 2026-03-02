@@ -616,8 +616,7 @@ export function getNoodles(): Visualization {
   const [layoutMode, setLayoutMode] = useState<'split' | 'noodles-on-top' | 'output-on-top'>(
     'noodles-on-top'
   )
-  const [showNodeInfo, setShowNodeInfo] = useState(false)
-  const [showViewportInfo, setShowViewportInfo] = useState(false)
+  const [showDebugInfo, setShowDebugInfo] = useState(false)
 
   // Render settings are now stored as OutOp inputs (see migration 012)
   // Use useRenderSettings() hook to read them
@@ -645,8 +644,7 @@ export function getNoodles(): Visualization {
       // Load editor settings from project with defaults
       setLayoutMode(editorSettings?.layoutMode ?? 'noodles-on-top')
       setShowOverlay(editorSettings?.showOverlay ?? true)
-      setShowNodeInfo(editorSettings?.showNodeInfo ?? false)
-      setShowViewportInfo(editorSettings?.showViewportInfo ?? false)
+      setShowDebugInfo(editorSettings?.showDebugInfo ?? false)
 
       // Render settings are now stored as OutOp inputs (migration 012 handles conversion)
 
@@ -802,12 +800,11 @@ export function getNoodles(): Visualization {
       editorSettings: {
         layoutMode,
         showOverlay,
-        showNodeInfo,
-        showViewportInfo,
+        showDebugInfo,
       },
       ...(projectKeys ? { apiKeys: projectKeys } : {}),
     }
-  }, [nodes, edges, getTimelineJson, layoutMode, showOverlay, showNodeInfo, showViewportInfo])
+  }, [nodes, edges, getTimelineJson, layoutMode, showOverlay, showDebugInfo])
 
   const onMenuSave = useCallback(async () => {
     if (!projectName) return
@@ -1347,8 +1344,8 @@ export function getNoodles(): Visualization {
               <ReactFlowInstanceCapture />
               <Background />
               <Controls position="bottom-right" />
-              {showNodeInfo && <NodeInfoOverlay />}
-              {showViewportInfo && <ViewportInfoPanel />}
+              {showDebugInfo && <NodeInfoOverlay />}
+              {showDebugInfo && <ViewportInfoPanel />}
               <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />
               <CopyControls ref={copyControlsRef} />
               <UndoRedoHandler ref={undoRedoRef} />
@@ -1517,10 +1514,8 @@ export function getNoodles(): Visualization {
     showOverlay,
     onChangeLayoutMode: setLayoutMode,
     onChangeShowOverlay: setShowOverlay,
-    showNodeInfo,
-    onChangeShowNodeInfo: setShowNodeInfo,
-    showViewportInfo,
-    onChangeShowViewportInfo: setShowViewportInfo,
+    showDebugInfo,
+    onChangeShowDebugInfo: setShowDebugInfo,
     // Render settings are now read from OutOp via useRenderSettings() hook
     // Export these so timeline-editor can create the menu with render actions
     projectName,

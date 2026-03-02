@@ -398,10 +398,8 @@ export default function TimelineEditor() {
       hasUnsavedChanges={noodles.hasUnsavedChanges}
       showOverlay={noodles.showOverlay}
       onChangeShowOverlay={noodles.onChangeShowOverlay}
-      showNodeInfo={noodles.showNodeInfo}
-      onChangeShowNodeInfo={noodles.onChangeShowNodeInfo}
-      showViewportInfo={noodles.showViewportInfo}
-      onChangeShowViewportInfo={noodles.onChangeShowViewportInfo}
+      showDebugInfo={noodles.showDebugInfo}
+      onChangeShowDebugInfo={noodles.onChangeShowDebugInfo}
       layoutMode={noodles.layoutMode}
       onChangeLayoutMode={noodles.onChangeLayoutMode}
     />

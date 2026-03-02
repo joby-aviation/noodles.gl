@@ -39,10 +39,8 @@ interface TopMenuBarProps {
   hasUnsavedChanges?: boolean
   showOverlay?: boolean
   onChangeShowOverlay?: (show: boolean) => void
-  showNodeInfo?: boolean
-  onChangeShowNodeInfo?: (show: boolean) => void
-  showViewportInfo?: boolean
-  onChangeShowViewportInfo?: (show: boolean) => void
+  showDebugInfo?: boolean
+  onChangeShowDebugInfo?: (show: boolean) => void
   layoutMode?: 'split' | 'noodles-on-top' | 'output-on-top'
   onChangeLayoutMode?: (mode: 'split' | 'noodles-on-top' | 'output-on-top') => void
   reactFlowRef?: RefObject<HTMLDivElement>
@@ -68,10 +66,8 @@ export function TopMenuBar({
   hasUnsavedChanges,
   showOverlay,
   onChangeShowOverlay,
-  showNodeInfo,
-  onChangeShowNodeInfo,
-  showViewportInfo,
-  onChangeShowViewportInfo,
+  showDebugInfo,
+  onChangeShowDebugInfo,
   layoutMode,
   onChangeLayoutMode,
   reactFlowRef,
@@ -413,23 +409,13 @@ export function TopMenuBar({
                       </DropdownMenu.CheckboxItem>
                       <DropdownMenu.CheckboxItem
                         className={s.dropdownItem}
-                        checked={showNodeInfo}
-                        onCheckedChange={onChangeShowNodeInfo}
+                        checked={showDebugInfo}
+                        onCheckedChange={onChangeShowDebugInfo}
                       >
                         <DropdownMenu.ItemIndicator className={s.itemIndicator}>
                           <i className="pi pi-check" style={{ fontSize: '12px' }} />
                         </DropdownMenu.ItemIndicator>
-                        Show node info
-                      </DropdownMenu.CheckboxItem>
-                      <DropdownMenu.CheckboxItem
-                        className={s.dropdownItem}
-                        checked={showViewportInfo}
-                        onCheckedChange={onChangeShowViewportInfo}
-                      >
-                        <DropdownMenu.ItemIndicator className={s.itemIndicator}>
-                          <i className="pi pi-check" style={{ fontSize: '12px' }} />
-                        </DropdownMenu.ItemIndicator>
-                        Show viewport info
+                        Show editor debug info
                       </DropdownMenu.CheckboxItem>
 
                       <DropdownMenu.Separator className={s.dropdownSeparator} />
