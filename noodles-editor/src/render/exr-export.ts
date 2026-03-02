@@ -95,7 +95,7 @@ export function captureExrFrame(
     .addLayer('Beauty')
     .rgba(flippedRgba)
     .compression(compressionType)
-    .sampleType('F32')
+    .sampleType('f32')
     .scanlines()
     .end()
 
@@ -114,7 +114,7 @@ export function captureExrFrame(
         .addLayer('Depth')
         .channel('Z', 'f32', flippedDepth)
         .compression(compressionType)
-        .sampleType('F32')
+        .sampleType('f32')
         .end()
     } catch (e) {
       console.warn('Failed to read depth buffer:', e)
