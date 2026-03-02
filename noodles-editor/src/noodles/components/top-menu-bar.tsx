@@ -74,6 +74,8 @@ export function TopMenuBar({
 }: TopMenuBarProps) {
   const settingsDialogOpen = useUIStore(state => state.settingsDialogOpen)
   const setSettingsDialogOpen = useUIStore(state => state.setSettingsDialogOpen)
+  const setSidebarVisible = useUIStore(state => state.setSidebarVisible)
+  const triggerSidebarSearch = useUIStore(state => state.triggerSidebarSearch)
   const [, navigate] = useLocation()
   const [recentProjects, setRecentProjects] = useState<string[]>([])
   const [showPointWizard, setShowPointWizard] = useState(false)
@@ -111,12 +113,17 @@ export function TopMenuBar({
         e.preventDefault()
         onImport()
         analytics.track('keyboard_shortcut_used', { action: 'import' })
+      } else if (isMod && e.key === 'f') {
+        e.preventDefault()
+        setSidebarVisible(true)
+        triggerSidebarSearch()
+        analytics.track('keyboard_shortcut_used', { action: 'find' })
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onSaveProject, onNewProject, onOpen, onImport])
+  }, [onSaveProject, onNewProject, onOpen, onImport, setSidebarVisible, triggerSidebarSearch])
 
   // Detect platform for keyboard shortcuts
   const isMac = useMemo(() => navigator.platform.toUpperCase().indexOf('MAC') >= 0, [])
@@ -352,6 +359,18 @@ export function TopMenuBar({
                       >
                         <span>Paste</span>
                         <span className={s.shortcut}>{mod}+V</span>
+                      </DropdownMenu.Item>
+                      <DropdownMenu.Separator className={s.dropdownSeparator} />
+                      <DropdownMenu.Item
+                        className={s.dropdownItem}
+                        onSelect={() => {
+                          setSidebarVisible(true)
+                          triggerSidebarSearch()
+                          analytics.track('keyboard_shortcut_used', { action: 'find' })
+                        }}
+                      >
+                        <span>Find</span>
+                        <span className={s.shortcut}>{mod}+F</span>
                       </DropdownMenu.Item>
                     </DropdownMenu.SubContent>
                   </DropdownMenu.Portal>
