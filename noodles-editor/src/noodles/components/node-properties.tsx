@@ -437,7 +437,7 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
     <>
       <div className={s.header}>
         <div className={s.title}>
-          {op.id}
+          {getBaseName(op.id)}
           <div className={cx(s.capsule, headerClass(node.type))}>{typeCategory(node.type)}</div>
         </div>
       </div>
