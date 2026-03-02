@@ -90,13 +90,26 @@ function App() {
 
 // Component to render QuickStartModal for /projects, /examples, and / routes
 function QuickStartModalRoute() {
+  const [searchParams] = useSearchParams()
   const quickStartModalOpen = useUIStore(state => state.quickStartModalOpen)
   const setQuickStartModalOpen = useUIStore(state => state.setQuickStartModalOpen)
 
-  // Ensure modal is open when navigating to these routes
+  // Handle redirect query param from Cloudflare Pages 404 handler
+  const redirect = searchParams.get('redirect')
+  const validRedirect = redirect?.startsWith('/') && !redirect.startsWith('//') ? redirect : null
+  const redirectPath = validRedirect?.replace(/^\/app\//, '/') // Remove /app/ base if present
+
+  // Ensure modal is open when navigating to these routes (only if not redirecting)
   useEffect(() => {
-    setQuickStartModalOpen(true)
-  }, [setQuickStartModalOpen])
+    if (!redirectPath) {
+      setQuickStartModalOpen(true)
+    }
+  }, [setQuickStartModalOpen, redirectPath])
+
+  if (redirectPath) {
+    console.log('QuickStartModalRoute: Redirecting to:', redirectPath)
+    return <Redirect to={redirectPath} />
+  }
 
   return <QuickStartModal open={quickStartModalOpen} onOpenChange={setQuickStartModalOpen} />
 }
