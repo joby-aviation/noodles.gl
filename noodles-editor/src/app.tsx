@@ -1,15 +1,10 @@
-import { Component, lazy, type ReactNode, Suspense } from 'react'
+import { Component, type ReactNode, useEffect } from 'react'
 import { Redirect, Route, Router, Switch, useRoute, useSearchParams } from 'wouter'
 import { AnalyticsConsentBanner } from './components/analytics-consent-banner'
 import { QuickStartModal } from './components/quick-start-modal'
 import { ExternalControlProvider } from './external-control'
 import { useUIStore } from './noodles/store'
-import { PageModal } from './page-modal'
 import TimelineEditor from './timeline-editor'
-
-// Lazy-load page components to reduce main bundle size
-const ExamplesPage = lazy(() => import('./examples-page'))
-const ProjectsPage = lazy(() => import('./projects-page'))
 
 // Error boundary to catch analytics failures
 class AnalyticsErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
@@ -68,25 +63,22 @@ function App() {
           <TimelineEditor />
         </Route>
 
-        {/* Examples list page */}
+        {/* Examples list page - rendered in QuickStartModal */}
         <Route path="/examples">
-          <PageModal>
-            <Suspense fallback={<div>Loading...</div>}>
-              <ExamplesPage />
-            </Suspense>
-          </PageModal>
+          <QuickStartModalRoute />
         </Route>
 
-        {/* Projects list page */}
+        {/* Projects list page - rendered in QuickStartModal */}
         <Route path="/projects">
-          <PageModal>
-            <Suspense fallback={<div>Loading...</div>}>
-              <ProjectsPage />
-            </Suspense>
-          </PageModal>
+          <QuickStartModalRoute />
         </Route>
 
-        {/* Catch-all for root path, 404s, and redirects */}
+        {/* Root path - QuickStartModal home view */}
+        <Route path="/">
+          <QuickStartModalRoute />
+        </Route>
+
+        {/* Catch-all for 404s and redirects */}
         <Route path="*">
           <FallbackRoute />
         </Route>
@@ -96,6 +88,19 @@ function App() {
       </AnalyticsErrorBoundary>
     </Router>
   )
+}
+
+// Component to render QuickStartModal for /projects, /examples, and / routes
+function QuickStartModalRoute() {
+  const quickStartModalOpen = useUIStore(state => state.quickStartModalOpen)
+  const setQuickStartModalOpen = useUIStore(state => state.setQuickStartModalOpen)
+
+  // Ensure modal is open when navigating to these routes
+  useEffect(() => {
+    setQuickStartModalOpen(true)
+  }, [setQuickStartModalOpen])
+
+  return <QuickStartModal open={quickStartModalOpen} onOpenChange={setQuickStartModalOpen} />
 }
 
 function FallbackRoute() {
@@ -139,10 +144,9 @@ function FallbackRoute() {
     return <QuickStartModal open={quickStartModalOpen} onOpenChange={setQuickStartModalOpen} />
   }
 
-  // Default: navigate to /projects in dev, /examples in prod
-  const defaultRoute = import.meta.env.DEV ? '/projects' : '/examples'
-  console.log('Default redirect to', defaultRoute)
-  return <Redirect to={defaultRoute} />
+  // Default: redirect to root to show the modal
+  console.log('Default redirect to /')
+  return <Redirect to="/" />
 }
 
 export default App

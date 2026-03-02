@@ -6,7 +6,7 @@ const DB_VERSION = 1
 const STORE_NAME = 'handles'
 
 // Cache entry stored in IndexedDB (serializable version)
-interface CachedHandleEntry {
+export interface CachedHandleEntry {
   projectName: string
   handle: FileSystemDirectoryHandle
   path: string
