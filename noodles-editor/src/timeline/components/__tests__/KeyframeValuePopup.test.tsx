@@ -290,6 +290,33 @@ describe('KeyframeValuePopup', () => {
 
       expect(mockOnClose).toHaveBeenCalledTimes(1)
     })
+
+    it('stops Delete from bubbling out of popup inputs', () => {
+      const keyframe = createKeyframe('hello')
+      setupTrack(keyframe)
+      const parentKeyDown = vi.fn()
+      document.addEventListener('keydown', parentKeyDown)
+
+      try {
+        render(
+          <KeyframeValuePopup
+            trackId={trackId}
+            keyframe={keyframe}
+            anchorX={100}
+            anchorY={100}
+            onClose={mockOnClose}
+          />
+        )
+
+        const textInput = screen.getByRole('textbox')
+        fireEvent.keyDown(textInput, { key: 'Delete' })
+        fireEvent.keyDown(textInput, { key: 'Backspace' })
+
+        expect(parentKeyDown).not.toHaveBeenCalled()
+      } finally {
+        document.removeEventListener('keydown', parentKeyDown)
+      }
+    })
   })
 
   describe('positioning', () => {

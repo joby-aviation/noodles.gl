@@ -268,6 +268,13 @@ export function KeyframeValuePopup({
     [trackId, keyframe.id]
   )
 
+  const handlePopupKeyDownCapture = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    // Keep timeline-level keyframe deletion shortcuts from firing while editing popup values.
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      e.stopPropagation()
+    }
+  }, [])
+
   const renderEditor = () => {
     const v = liveKeyframe.value
     switch (valueType) {
@@ -352,7 +359,12 @@ export function KeyframeValuePopup({
   }
 
   return createPortal(
-    <div ref={popupRef} className={s.keyframeValuePopup} style={style}>
+    <div
+      ref={popupRef}
+      className={s.keyframeValuePopup}
+      style={style}
+      onKeyDownCapture={handlePopupKeyDownCapture}
+    >
       <div className={s.kfPopupHeader}>
         <span className={s.kfPopupTimecode}>{timeCode}</span>
         <button type="button" className={s.kfPopupClose} onClick={handleClose} aria-label="Close">
