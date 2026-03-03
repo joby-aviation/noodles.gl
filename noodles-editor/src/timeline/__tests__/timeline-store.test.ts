@@ -502,6 +502,58 @@ describe('TimelineStore', () => {
       expect(track?.keyframes[1].interpolation).toBe('hold')
     })
 
+    it('fromTheatreJSON parses Theatre.js JSON array prop path format', () => {
+      const theatreData: TheatreTimelineData = {
+        sheetsById: {
+          Noodles: {
+            sequence: {
+              length: 2.25,
+              subUnitsPerUnit: 30,
+              tracksByObject: {
+                'map-view-state': {
+                  trackIdByPropPath: {
+                    '["pitch"]': 'track-pitch',
+                    '["bearing"]': 'track-bearing',
+                  },
+                  trackData: {
+                    'track-pitch': {
+                      type: 'BasicKeyframedTrack',
+                      keyframes: [
+                        { id: 'kf1', position: 0, connectedRight: true, handles: [0.5, 1, 0.5, 0], value: 0 },
+                        { id: 'kf2', position: 2.233, connectedRight: true, handles: [0.5, 1, 0.5, 0], value: 60 },
+                      ],
+                    },
+                    'track-bearing': {
+                      type: 'BasicKeyframedTrack',
+                      keyframes: [
+                        { id: 'kf3', position: 0, connectedRight: true, handles: [0.5, 1, 0.5, 0], value: 0 },
+                        { id: 'kf4', position: 2.233, connectedRight: true, handles: [0.5, 1, 0.5, 0], value: 60 },
+                      ],
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      }
+
+      useTimelineStore.getState().fromTheatreJSON(theatreData)
+      const state = useTimelineStore.getState()
+
+      // Track keys must use plain field name, not JSON array syntax
+      const pitchTrack = state.tracks.get('map-view-state / pitch')
+      expect(pitchTrack).toBeDefined()
+      expect(pitchTrack?.keyframes).toHaveLength(2)
+
+      const bearingTrack = state.tracks.get('map-view-state / bearing')
+      expect(bearingTrack).toBeDefined()
+      expect(bearingTrack?.keyframes).toHaveLength(2)
+
+      // Must NOT create a track with bracket syntax
+      expect(state.tracks.get('map-view-state / ["pitch"]')).toBeUndefined()
+    })
+
     it('round-trips through Theatre.js format', () => {
       useTimelineStore.getState().setLength(12)
       useTimelineStore.getState().setFps(30)

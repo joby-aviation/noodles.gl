@@ -151,7 +151,6 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
   }, [isScrubbing, getTimeFromMouseEvent, setPosition])
 
   // Persistent document listeners for box selection — uses refs to avoid stale closures
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally empty deps; all mutable state accessed via refs
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!boxSelectActive.current) return
@@ -171,7 +170,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
       })
     }
 
-    const handleMouseUp = (e: MouseEvent) => {
+    const handleMouseUp = (_e: MouseEvent) => {
       if (!boxSelectActive.current) return
       boxSelectActive.current = false
       const start = boxSelectStartTL.current

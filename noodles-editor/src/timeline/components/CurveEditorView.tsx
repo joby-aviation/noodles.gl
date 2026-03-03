@@ -9,7 +9,7 @@ import {
   getTimelineStore,
   useTimelineStore,
 } from '../timeline-store'
-import type { BezierHandles, Keyframe, KeyframeValue, Track } from '../types'
+import type { Keyframe, KeyframeValue, Track } from '../types'
 import { DEFAULT_BEZIER_HANDLES } from '../types'
 import s from './TimelinePanel.module.css'
 
@@ -35,7 +35,7 @@ function isNumericTrack(track: Track): boolean {
 
 // Round to a "nice" step given a range and target number of grid lines
 function niceGridStep(range: number, targetCount: number): number {
-  if (range === 0 || !isFinite(range)) return 1
+  if (range === 0 || !Number.isFinite(range)) return 1
   const rough = range / targetCount
   const magnitude = Math.pow(10, Math.floor(Math.log10(Math.abs(rough) || 1)))
   for (const factor of [1, 2, 5, 10]) {
@@ -97,7 +97,7 @@ export function CurveEditorView({
     let lo = Math.min(...pts)
     let hi = Math.max(...pts)
 
-    if (!isFinite(lo) || !isFinite(hi)) { lo = -1; hi = 1 }
+    if (!Number.isFinite(lo) || !Number.isFinite(hi)) { lo = -1; hi = 1 }
     if (lo === hi) { lo -= 1; hi += 1 }
 
     const pad = (hi - lo) * 0.12
@@ -134,7 +134,7 @@ export function CurveEditorView({
 
   const gridValues = useMemo(() => {
     const range = maxVal - minVal
-    if (!isFinite(range) || range === 0) return []
+    if (!Number.isFinite(range) || range === 0) return []
     const step = niceGridStep(range, 4)
     const first = Math.ceil(minVal / step) * step
     const values: number[] = []
@@ -180,7 +180,6 @@ export function CurveEditorView({
 
   return (
     <div className={s.timelineCurveView} style={{ width: timelineWidth, height }}>
-      {/* biome-ignore lint/a11y/noStaticElementInteractions: SVG uses mousedown for seeking */}
       <svg
         width={timelineWidth}
         height={height}

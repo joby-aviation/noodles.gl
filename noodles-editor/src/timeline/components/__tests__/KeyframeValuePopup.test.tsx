@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTimelineStore } from '../../timeline-store'
 import type { Keyframe } from '../../types'
@@ -23,6 +23,7 @@ describe('KeyframeValuePopup', () => {
   })
 
   afterEach(() => {
+    cleanup()
     useTimelineStore.getState().reset()
   })
 
@@ -63,7 +64,7 @@ describe('KeyframeValuePopup', () => {
       )
 
       // Number values show a scrub input (div with scrub class)
-      const scrubInput = document.querySelector('.kf-value-input.scrub')
+      const scrubInput = document.querySelector('[class*="kfValueInput"][class*="scrub"]')
       expect(scrubInput).toBeTruthy()
       expect(scrubInput?.textContent).toContain('42')
     })
@@ -334,7 +335,7 @@ describe('KeyframeValuePopup', () => {
         />
       )
 
-      const popup = container.querySelector('.keyframe-value-popup')
+      const popup = container.querySelector('[class*="keyframeValuePopup"]')
       expect(popup).toBeTruthy()
 
       // Popup should have inline style with positioning
@@ -360,7 +361,7 @@ describe('KeyframeValuePopup', () => {
       )
 
       // At 30fps, 2.5 seconds = 75 frames = 00:02:15
-      const header = document.querySelector('.kf-popup-header')
+      const header = document.querySelector('[class*="kfPopupHeader"]')
       expect(header?.textContent).toContain('00:02:15')
     })
   })

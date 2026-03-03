@@ -1,7 +1,7 @@
 // Popup for editing bezier easing between two keyframes
 // Shows preset library with hover preview and inline bezier handle editor
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { EASING_PRESETS, findMatchingPreset } from '../easing-presets'
 import { evaluateCubicBezier } from '../interpolation'

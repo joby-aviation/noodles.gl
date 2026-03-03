@@ -509,8 +509,16 @@ export const useTimelineStore = create<TimelineStore>()(
           const trackData = trackDataById[trackDataId]
           if (!trackData) continue
 
-          // Reconstruct field path: "operator-name / prop / subprop"
-          const fieldPath = [objectName, ...propPath.split('.')].join(' / ')
+          // Theatre.js stores prop paths as JSON arrays: '["pitch"]' or '["viewState","zoom"]'
+          // Fall back to dot-splitting for native-format paths like "viewState.zoom"
+          let propPathParts: string[]
+          try {
+            const parsed = JSON.parse(propPath)
+            propPathParts = Array.isArray(parsed) ? parsed.map(String) : propPath.split('.')
+          } catch {
+            propPathParts = propPath.split('.')
+          }
+          const fieldPath = [objectName, ...propPathParts].join(' / ')
 
           const keyframes = (trackData.keyframes ?? []).map(theatreToKeyframe)
           const defaultValue = keyframes[0]?.value ?? 0

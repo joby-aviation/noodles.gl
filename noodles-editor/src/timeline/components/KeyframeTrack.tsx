@@ -330,7 +330,7 @@ interface KeyframeDiamondProps {
 
 function KeyframeDiamond({
   keyframe,
-  trackId,
+  _trackId,
   pixelsPerSecond,
   sequenceLength,
   fps,
