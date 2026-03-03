@@ -46,7 +46,11 @@ interface QuickStartModalProps {
   initialView?: ModalView
 }
 
-export function QuickStartModal({ open, onOpenChange, initialView = 'home' }: QuickStartModalProps) {
+export function QuickStartModal({
+  open,
+  onOpenChange,
+  initialView = 'home',
+}: QuickStartModalProps) {
   const [, navigate] = useLocation()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isDragging, setIsDragging] = useState(false)
