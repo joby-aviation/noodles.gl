@@ -227,8 +227,9 @@ export function CurveEditorView({
         style={{ display: 'block' }}
         onMouseDown={handleMouseDown}
       >
+        <title>Timeline curve editor</title>
         {/* Horizontal grid lines */}
-        {gridValues.map((v, idx) => {
+        {gridValues.map(v => {
           const y = valToY(v)
           const isZero = Math.abs(v) < Math.abs(maxVal - minVal) * 0.001
           const label =
@@ -238,7 +239,7 @@ export function CurveEditorView({
                 ? v.toFixed(0)
                 : v.toPrecision(2)
           return (
-            <g key={idx}>
+            <g key={`grid-${v}`}>
               <line
                 x1={0}
                 y1={y}
@@ -629,7 +630,7 @@ interface CurveKeyframeDotProps {
   xToTime: (x: number) => number
   yToVal: (y: number) => number
   onSelect: (id: string, add?: boolean) => void
-  onContextMenu: (e: React.MouseEvent, kf: Keyframe) => void
+  onContextMenu: (e: React.PointerEvent<SVGCircleElement>, kf: Keyframe) => void
 }
 
 function CurveKeyframeDot({
@@ -649,6 +650,12 @@ function CurveKeyframeDot({
   const beforeRef = useRef('')
 
   const handlePointerDown = (e: React.PointerEvent<SVGCircleElement>) => {
+    if (e.button === 2 || (e.button === 0 && e.ctrlKey)) {
+      e.preventDefault()
+      e.stopPropagation()
+      onContextMenu(e, kf)
+      return
+    }
     if (e.button !== 0) return
     e.stopPropagation()
     e.preventDefault()
@@ -703,10 +710,6 @@ function CurveKeyframeDot({
       strokeWidth={isSelected ? 2 : 1.5}
       style={{ cursor: 'move' }}
       onPointerDown={handlePointerDown}
-      onContextMenu={e => {
-        e.preventDefault()
-        onContextMenu(e, kf)
-      }}
     />
   )
 }

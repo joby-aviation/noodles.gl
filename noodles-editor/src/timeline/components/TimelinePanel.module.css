@@ -498,6 +498,11 @@
 }
 
 .timelineDurationClickable {
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
+  padding: 0;
   cursor: text;
   border-bottom: 1px solid transparent;
   transition: border-color 0.12s;

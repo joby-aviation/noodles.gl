@@ -73,18 +73,15 @@ export function TimeDisplay() {
           aria-label="Sequence duration in seconds"
         />
       ) : (
-        // biome-ignore lint/a11y/useButtonType: span used for inline display
-        <span
+        <button
+          type="button"
           className={s.timelineDurationClickable}
           onClick={startEditing}
           title="Click to edit sequence duration"
-          role="button"
-          tabIndex={0}
-          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') startEditing() }}
           style={{ opacity: 0.6, cursor: 'text' }}
         >
           {totalTime}
-        </span>
+        </button>
       )}
     </div>
   )

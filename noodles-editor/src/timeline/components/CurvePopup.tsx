@@ -107,14 +107,15 @@ function InlineCurveEditor({
     return { x: pad + nx * (w - pad * 2), y: h - pad - ny * (h - pad * 2) }
   }
 
-  function toNorm(px: number, py: number) {
-    return {
+  const toNorm = useCallback(
+    (px: number, py: number) => ({
       x: (px - pad) / (w - pad * 2),
       y: (h - pad - py) / (h - pad * 2),
-    }
-  }
+    }),
+    [h, w]
+  )
 
-  const curvePath = useMemo(() => generatePath(handles, w, h, pad), [handles])
+  const curvePath = useMemo(() => generatePath(handles, w, h, pad), [handles, h, w])
   const start = toPixel(0, 0)
   const end = toPixel(1, 1)
   const lh = toPixel(handles.left[0], handles.left[1])
@@ -158,7 +159,7 @@ function InlineCurveEditor({
       document.addEventListener('pointermove', handleMove)
       document.addEventListener('pointerup', handleUp)
     },
-    [handles, onHandlesChange, onHandlesCommit]
+    [handles, onHandlesChange, onHandlesCommit, toNorm]
   )
 
   return (
@@ -168,6 +169,7 @@ function InlineCurveEditor({
       style={{ display: 'block', background: '#171d27', borderRadius: 4 }}
       aria-label="Bezier curve editor"
     >
+      <title>Bezier curve editor</title>
       {/* Grid */}
       {[0, 0.25, 0.5, 0.75, 1].map(v => {
         const xp = pad + v * (w - pad * 2)

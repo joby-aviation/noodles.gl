@@ -37,26 +37,32 @@ describe('KeyframeValuePopup', () => {
     }
   }
 
-  function setupTrack(keyframe: Keyframe) {
+  function setupTrack(keyframe: Keyframe): Keyframe {
     const store = useTimelineStore.getState()
     store.getOrCreateTrack(trackId, keyframe.value)
-    store.addKeyframe(trackId, {
+    const keyframeId = store.addKeyframe(trackId, {
       position: keyframe.position,
       value: keyframe.value,
       handles: keyframe.handles,
       interpolation: keyframe.interpolation,
     })
+    const track = useTimelineStore.getState().tracks.get(trackId)
+    const storeKeyframe = track?.keyframes.find(kf => kf.id === keyframeId)
+    if (!storeKeyframe) {
+      throw new Error(`Failed to find keyframe ${keyframeId} in test setup`)
+    }
+    return storeKeyframe
   }
 
   describe('value type detection', () => {
     it('renders number input for number values', () => {
       const keyframe = createKeyframe(42)
-      setupTrack(keyframe)
+      const storeKeyframe = setupTrack(keyframe)
 
       render(
         <KeyframeValuePopup
           trackId={trackId}
-          keyframe={keyframe}
+          keyframe={storeKeyframe}
           anchorX={100}
           anchorY={100}
           onClose={mockOnClose}
@@ -71,12 +77,12 @@ describe('KeyframeValuePopup', () => {
 
     it('renders checkbox for boolean values', () => {
       const keyframe = createKeyframe(true)
-      setupTrack(keyframe)
+      const storeKeyframe = setupTrack(keyframe)
 
       render(
         <KeyframeValuePopup
           trackId={trackId}
-          keyframe={keyframe}
+          keyframe={storeKeyframe}
           anchorX={100}
           anchorY={100}
           onClose={mockOnClose}
@@ -90,12 +96,12 @@ describe('KeyframeValuePopup', () => {
 
     it('renders text input for string values', () => {
       const keyframe = createKeyframe('hello')
-      setupTrack(keyframe)
+      const storeKeyframe = setupTrack(keyframe)
 
       render(
         <KeyframeValuePopup
           trackId={trackId}
-          keyframe={keyframe}
+          keyframe={storeKeyframe}
           anchorX={100}
           anchorY={100}
           onClose={mockOnClose}
@@ -109,12 +115,12 @@ describe('KeyframeValuePopup', () => {
 
     it('renders color picker for RGBA values', () => {
       const keyframe = createKeyframe({ r: 1, g: 0, b: 0, a: 1 })
-      setupTrack(keyframe)
+      const storeKeyframe = setupTrack(keyframe)
 
       render(
         <KeyframeValuePopup
           trackId={trackId}
-          keyframe={keyframe}
+          keyframe={storeKeyframe}
           anchorX={100}
           anchorY={100}
           onClose={mockOnClose}
@@ -129,12 +135,12 @@ describe('KeyframeValuePopup', () => {
 
     it('renders Vec2 component inputs', () => {
       const keyframe = createKeyframe({ x: 10, y: 20 })
-      setupTrack(keyframe)
+      const storeKeyframe = setupTrack(keyframe)
 
       render(
         <KeyframeValuePopup
           trackId={trackId}
-          keyframe={keyframe}
+          keyframe={storeKeyframe}
           anchorX={100}
           anchorY={100}
           onClose={mockOnClose}
@@ -148,12 +154,12 @@ describe('KeyframeValuePopup', () => {
 
     it('renders Vec3 component inputs', () => {
       const keyframe = createKeyframe({ x: 10, y: 20, z: 30 })
-      setupTrack(keyframe)
+      const storeKeyframe = setupTrack(keyframe)
 
       render(
         <KeyframeValuePopup
           trackId={trackId}
-          keyframe={keyframe}
+          keyframe={storeKeyframe}
           anchorX={100}
           anchorY={100}
           onClose={mockOnClose}
@@ -167,12 +173,12 @@ describe('KeyframeValuePopup', () => {
 
     it('renders Point2D component inputs', () => {
       const keyframe = createKeyframe({ lng: -122.4, lat: 37.8 })
-      setupTrack(keyframe)
+      const storeKeyframe = setupTrack(keyframe)
 
       render(
         <KeyframeValuePopup
           trackId={trackId}
-          keyframe={keyframe}
+          keyframe={storeKeyframe}
           anchorX={100}
           anchorY={100}
           onClose={mockOnClose}
@@ -185,12 +191,12 @@ describe('KeyframeValuePopup', () => {
 
     it('renders Point3D component inputs', () => {
       const keyframe = createKeyframe({ lng: -122.4, lat: 37.8, alt: 1000 })
-      setupTrack(keyframe)
+      const storeKeyframe = setupTrack(keyframe)
 
       render(
         <KeyframeValuePopup
           trackId={trackId}
-          keyframe={keyframe}
+          keyframe={storeKeyframe}
           anchorX={100}
           anchorY={100}
           onClose={mockOnClose}
@@ -206,12 +212,12 @@ describe('KeyframeValuePopup', () => {
   describe('value editing', () => {
     it('updates boolean value on checkbox change', () => {
       const keyframe = createKeyframe(false)
-      setupTrack(keyframe)
+      const storeKeyframe = setupTrack(keyframe)
 
       render(
         <KeyframeValuePopup
           trackId={trackId}
-          keyframe={keyframe}
+          keyframe={storeKeyframe}
           anchorX={100}
           anchorY={100}
           onClose={mockOnClose}
@@ -223,18 +229,18 @@ describe('KeyframeValuePopup', () => {
 
       // Check that the store was updated
       const track = useTimelineStore.getState().tracks.get(trackId)
-      const updatedKf = track?.keyframes[0]
+      const updatedKf = track?.keyframes.find(kf => kf.id === storeKeyframe.id)
       expect(updatedKf?.value).toBe(true)
     })
 
     it('updates string value on text input change', () => {
       const keyframe = createKeyframe('hello')
-      setupTrack(keyframe)
+      const storeKeyframe = setupTrack(keyframe)
 
       render(
         <KeyframeValuePopup
           trackId={trackId}
-          keyframe={keyframe}
+          keyframe={storeKeyframe}
           anchorX={100}
           anchorY={100}
           onClose={mockOnClose}
@@ -245,7 +251,7 @@ describe('KeyframeValuePopup', () => {
       fireEvent.change(textInput, { target: { value: 'world' } })
 
       const track = useTimelineStore.getState().tracks.get(trackId)
-      const updatedKf = track?.keyframes[0]
+      const updatedKf = track?.keyframes.find(kf => kf.id === storeKeyframe.id)
       expect(updatedKf?.value).toBe('world')
     })
   })
@@ -253,12 +259,12 @@ describe('KeyframeValuePopup', () => {
   describe('closing behavior', () => {
     it('calls onClose when close button is clicked', () => {
       const keyframe = createKeyframe(42)
-      setupTrack(keyframe)
+      const storeKeyframe = setupTrack(keyframe)
 
       render(
         <KeyframeValuePopup
           trackId={trackId}
-          keyframe={keyframe}
+          keyframe={storeKeyframe}
           anchorX={100}
           anchorY={100}
           onClose={mockOnClose}
@@ -273,12 +279,12 @@ describe('KeyframeValuePopup', () => {
 
     it('calls onClose when Escape key is pressed', () => {
       const keyframe = createKeyframe(42)
-      setupTrack(keyframe)
+      const storeKeyframe = setupTrack(keyframe)
 
       render(
         <KeyframeValuePopup
           trackId={trackId}
-          keyframe={keyframe}
+          keyframe={storeKeyframe}
           anchorX={100}
           anchorY={100}
           onClose={mockOnClose}
@@ -294,7 +300,7 @@ describe('KeyframeValuePopup', () => {
 
     it('stops Delete from bubbling out of popup inputs', () => {
       const keyframe = createKeyframe('hello')
-      setupTrack(keyframe)
+      const storeKeyframe = setupTrack(keyframe)
       const parentKeyDown = vi.fn()
       document.addEventListener('keydown', parentKeyDown)
 
@@ -302,7 +308,7 @@ describe('KeyframeValuePopup', () => {
         render(
           <KeyframeValuePopup
             trackId={trackId}
-            keyframe={keyframe}
+            keyframe={storeKeyframe}
             anchorX={100}
             anchorY={100}
             onClose={mockOnClose}
@@ -323,12 +329,12 @@ describe('KeyframeValuePopup', () => {
   describe('positioning', () => {
     it('positions popup above anchor point', () => {
       const keyframe = createKeyframe(42)
-      setupTrack(keyframe)
+      const storeKeyframe = setupTrack(keyframe)
 
       const { container } = render(
         <KeyframeValuePopup
           trackId={trackId}
-          keyframe={keyframe}
+          keyframe={storeKeyframe}
           anchorX={200}
           anchorY={300}
           onClose={mockOnClose}
@@ -348,12 +354,12 @@ describe('KeyframeValuePopup', () => {
   describe('timecode display', () => {
     it('shows timecode in header', () => {
       const keyframe = createKeyframe(42, 2.5) // 2.5 seconds
-      setupTrack(keyframe)
+      const storeKeyframe = setupTrack(keyframe)
 
       render(
         <KeyframeValuePopup
           trackId={trackId}
-          keyframe={keyframe}
+          keyframe={storeKeyframe}
           anchorX={100}
           anchorY={100}
           onClose={mockOnClose}

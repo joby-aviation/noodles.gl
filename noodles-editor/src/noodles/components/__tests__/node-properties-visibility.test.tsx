@@ -109,6 +109,13 @@ describe('NodeProperties field visibility editing', () => {
     return svgs[0] as HTMLElement
   }
 
+  const findFieldActionButton = (fieldName: string) => {
+    const fieldLabel = screen.getByText(fieldName)
+    const propertyItem = fieldLabel.closest('[role="listitem"]')
+    expect(propertyItem).toBeInTheDocument()
+    return propertyItem?.querySelector('button')
+  }
+
   describe('Edit mode toggle', () => {
     it('shows edit (pencil) button in inputs section', () => {
       const node = setupOperator('DeckRendererOp', '/deck')
@@ -174,13 +181,7 @@ describe('NodeProperties field visibility editing', () => {
       // Enter edit mode
       fireEvent.click(findEditButton())
 
-      // Find the 'effects' text element
-      const effectsText = screen.getByText('effects')
-      // Navigate up to find the property container and then find the + button
-      const propertyContainer = effectsText.closest('[class*="property"]')
-      expect(propertyContainer).toBeInTheDocument()
-
-      const addButton = propertyContainer?.querySelector('button')
+      const addButton = findFieldActionButton('effects')
       expect(addButton?.textContent).toBe('+')
       fireEvent.click(addButton!)
 
@@ -314,9 +315,7 @@ describe('NodeProperties field visibility editing', () => {
       fireEvent.click(findEditButton())
 
       // Find the effects field - it should be in visible fields section (has − button)
-      const effectsText = screen.getByText('effects')
-      const propertyContainer = effectsText.closest('[class*="property"]')
-      const hideButton = propertyContainer?.querySelector('button')
+      const hideButton = findFieldActionButton('effects')
       expect(hideButton?.textContent).toBe('−')
       fireEvent.click(hideButton!)
 
@@ -364,9 +363,7 @@ describe('NodeProperties field visibility editing', () => {
       fireEvent.click(findEditButton())
 
       // Find the layers field and its − button
-      const layersText = screen.getByText('layers')
-      const propertyContainer = layersText.closest('[class*="property"]')
-      const hideButton = propertyContainer?.querySelector('button')
+      const hideButton = findFieldActionButton('layers')
       expect(hideButton?.textContent).toBe('−')
 
       // Button should be disabled
@@ -502,9 +499,7 @@ describe('NodeProperties field visibility editing', () => {
       fireEvent.click(findEditButton())
 
       // Show the effects field
-      const effectsText = screen.getByText('effects')
-      const propertyContainer = effectsText.closest('[class*="property"]')
-      const addButton = propertyContainer?.querySelector('button')
+      const addButton = findFieldActionButton('effects')
       fireEvent.click(addButton!)
 
       // Verify the operator's visibility state was updated
