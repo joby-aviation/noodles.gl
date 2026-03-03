@@ -3977,6 +3977,96 @@ function parseLayerProps<P extends LayerProps>({
   return result
 }
 
+export class BlendingOp extends Operator<BlendingOp> {
+  static displayName = 'Blending'
+  static description = 'Configure WebGL blending mode for layers (additive, normal, subtractive)'
+  createInputs() {
+    return {
+      mode: new StringLiteralField('normal', {
+        values: ['normal', 'additive', 'subtractive', 'custom'],
+      }),
+      // Custom mode fields (only used when mode='custom')
+      blendColorSrcFactor: new StringLiteralField('src-alpha', {
+        values: [
+          'src-alpha',
+          'one',
+          'zero',
+          'dst-alpha',
+          'one-minus-src-alpha',
+          'one-minus-dst-alpha',
+          'one-minus-dst-color',
+        ],
+        optional: true,
+        showByDefault: false,
+      }),
+      blendColorDstFactor: new StringLiteralField('one-minus-src-alpha', {
+        values: [
+          'src-alpha',
+          'one',
+          'zero',
+          'dst-alpha',
+          'one-minus-src-alpha',
+          'one-minus-dst-alpha',
+          'one-minus-dst-color',
+        ],
+        optional: true,
+        showByDefault: false,
+      }),
+    }
+  }
+  createOutputs() {
+    return {
+      parameters: new UnknownField({}),
+    }
+  }
+  execute({
+    mode,
+    blendColorSrcFactor,
+    blendColorDstFactor,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    // Kepler-style presets using luma.gl v9 parameter names
+    const presets = {
+      normal: {
+        blend: true,
+        blendColorSrcFactor: 'src-alpha',
+        blendColorDstFactor: 'one-minus-src-alpha',
+        blendAlphaSrcFactor: 'one',
+        blendAlphaDstFactor: 'one-minus-src-alpha',
+        blendColorOperation: 'add',
+        blendAlphaOperation: 'add',
+      },
+      additive: {
+        blend: true,
+        blendColorSrcFactor: 'src-alpha',
+        blendColorDstFactor: 'dst-alpha',
+        blendColorOperation: 'add',
+      },
+      subtractive: {
+        blend: true,
+        blendColorSrcFactor: 'one',
+        blendColorDstFactor: 'one-minus-dst-color',
+        blendAlphaSrcFactor: 'src-alpha',
+        blendAlphaDstFactor: 'dst-alpha',
+        blendColorOperation: 'reverse-subtract',
+        blendAlphaOperation: 'add',
+      },
+    }
+
+    if (mode === 'custom' && blendColorSrcFactor && blendColorDstFactor) {
+      return {
+        parameters: {
+          blend: true,
+          blendColorSrcFactor,
+          blendColorDstFactor,
+          blendColorOperation: 'add',
+        },
+      }
+    }
+
+    return { parameters: presets[mode as keyof typeof presets] || presets.normal }
+  }
+}
+
 export class PathLayerOp extends Operator<PathLayerOp> {
   static displayName = 'PathLayer'
   static description = 'Render a path on the map'
@@ -4221,7 +4311,6 @@ export class TextLayerOp extends Operator<TextLayerOp> {
         cutoff: new NumberField(0.25, { min: 0, max: 1, step: 0.01 }),
         smoothing: new NumberField(0.1, { min: 0, max: 1, step: 0.01 }),
       }),
-      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -4231,6 +4320,7 @@ export class TextLayerOp extends Operator<TextLayerOp> {
         },
         { showByDefault: false }
       ),
+      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
   createOutputs() {
@@ -4645,7 +4735,6 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
       }),
       elevationScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
       _full3d: new BooleanField(false, { showByDefault: false }),
-      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -4655,6 +4744,7 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
         },
         { showByDefault: false }
       ),
+      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
   createOutputs() {
@@ -6703,6 +6793,7 @@ export const opTypes = {
   ArcLayerOp,
   BezierCurveOp,
   BitmapLayerOp,
+  BlendingOp,
   BooleanOp,
   BoundingBoxOp,
   BoundsOp,
