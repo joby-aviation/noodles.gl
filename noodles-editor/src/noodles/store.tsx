@@ -117,10 +117,14 @@ interface UIStoreState {
   setConnectionDragState: (state: ConnectionDragState | null) => void
   sidebarVisible: boolean
   setSidebarVisible: (visible: boolean) => void
+  sidebarSearchFocusTrigger: number
+  triggerSidebarSearch: () => void
   settingsDialogOpen: boolean
   setSettingsDialogOpen: (open: boolean) => void
   timelineExpanded: boolean
   setTimelineExpanded: (expanded: boolean) => void
+  quickStartModalOpen: boolean
+  setQuickStartModalOpen: (open: boolean) => void
 }
 
 export const useUIStore = create<UIStoreState>(set => ({
@@ -128,12 +132,17 @@ export const useUIStore = create<UIStoreState>(set => ({
   setHoveredOutputHandle: handle => set({ hoveredOutputHandle: handle }),
   connectionDragState: null,
   setConnectionDragState: state => set({ connectionDragState: state }),
-  sidebarVisible: true,
+  sidebarVisible: false,
   setSidebarVisible: visible => set({ sidebarVisible: visible }),
+  sidebarSearchFocusTrigger: 0,
+  triggerSidebarSearch: () =>
+    set(state => ({ sidebarSearchFocusTrigger: state.sidebarSearchFocusTrigger + 1 })),
   settingsDialogOpen: false,
   setSettingsDialogOpen: open => set({ settingsDialogOpen: open }),
   timelineExpanded: false,
   setTimelineExpanded: expanded => set({ timelineExpanded: expanded }),
+  quickStartModalOpen: false,
+  setQuickStartModalOpen: open => set({ quickStartModalOpen: open }),
 }))
 
 // ============================================================================
