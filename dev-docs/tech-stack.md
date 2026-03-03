@@ -11,8 +11,8 @@
 
 ### Animation & Timeline
 
-- **Theatre.js** - Animation timeline editor and runtime
-- **@theatre/core**, **@theatre/react**, **@theatre/studio** - Core animation system
+- **Native Timeline System** - Custom animation timeline with bezier interpolation
+- Located in `src/timeline/` - Zustand store, interpolation engine, React UI components
 
 ### Visualization & Mapping
 
