@@ -336,6 +336,46 @@ export function CurveEditorView({
                       ...prevH,
                       right: [newRx, newRy],
                     })
+
+                    // Mirror to opposite handle if aligned or uneven
+                    const curKf = getTimelineStore()
+                      .tracks.get(track.id)
+                      ?.keyframes.find(k => k.id === kf.id)
+                    const curHandles = curKf?.handles ?? DEFAULT_BEZIER_HANDLES
+                    if (curHandles.type === 'aligned' || curHandles.type === 'uneven') {
+                      // Calculate pixel offset from keyframe
+                      const offsetX = svgX - kx
+                      const offsetY = svgY - ky
+                      // Mirror: negate the offset
+                      const mirrorX = -offsetX
+                      const mirrorY = -offsetY
+
+                      if (nextKf && isNumericValue(nextKf.value)) {
+                        const ΔtN = nextKf.position - kf.position
+                        const ΔvN = (nextKf.value as number) - (kf.value as number)
+                        // Convert mirrored pixel offset to normalized coords for handles.left
+                        let mirrorLx = xToTime(kx + mirrorX) - kf.position
+                        mirrorLx = Math.max(0, Math.min(1, mirrorLx / (ΔtN || 1)))
+                        let mirrorLy = (yToVal(ky + mirrorY) - (kf.value as number)) / (ΔvN || 1)
+
+                        if (curHandles.type === 'uneven') {
+                          // Preserve original length, just change angle
+                          const origLen = Math.sqrt(
+                            curHandles.left[0] ** 2 + curHandles.left[1] ** 2
+                          )
+                          const newLen = Math.sqrt(mirrorLx ** 2 + mirrorLy ** 2)
+                          if (newLen > 0.001) {
+                            mirrorLx = (mirrorLx / newLen) * origLen
+                            mirrorLy = (mirrorLy / newLen) * origLen
+                          }
+                        }
+
+                        getTimelineStore().setKeyframeHandles(track.id, kf.id, {
+                          ...curHandles,
+                          left: [Math.max(0, Math.min(1, mirrorLx)), mirrorLy],
+                        })
+                      }
+                    }
                   }}
                   onDragEnd={before => fireTimelineMutation('Adjust bezier handles', before)}
                 />
@@ -394,6 +434,47 @@ export function CurveEditorView({
                       ...curHandles,
                       left: [newLx, newLy],
                     })
+
+                    // Mirror to opposite handle if aligned or uneven
+                    if (curHandles.type === 'aligned' || curHandles.type === 'uneven') {
+                      // Calculate pixel offset from keyframe
+                      const offsetX = svgX - kx
+                      const offsetY = svgY - ky
+                      // Mirror: negate the offset
+                      const mirrorX = -offsetX
+                      const mirrorY = -offsetY
+
+                      if (prevKf && isNumericValue(prevKf.value)) {
+                        const ΔtP = kf.position - prevKf.position
+                        const ΔvP = (kf.value as number) - (prevKf.value as number)
+                        const prevH =
+                          getTimelineStore()
+                            .tracks.get(track.id)
+                            ?.keyframes.find(k => k.id === prevKf.id)?.handles ??
+                          DEFAULT_BEZIER_HANDLES
+                        // Convert mirrored pixel offset to normalized coords for handles.right
+                        // handles.right is relative to prevKf, so we need to translate
+                        let mirrorRx = xToTime(kx + mirrorX) - prevKf.position
+                        mirrorRx = Math.max(0, Math.min(1, mirrorRx / (ΔtP || 1)))
+                        let mirrorRy =
+                          (yToVal(ky + mirrorY) - (prevKf.value as number)) / (ΔvP || 1)
+
+                        if (curHandles.type === 'uneven') {
+                          // Preserve original length, just change angle
+                          const origLen = Math.sqrt(prevH.right[0] ** 2 + prevH.right[1] ** 2)
+                          const newLen = Math.sqrt(mirrorRx ** 2 + mirrorRy ** 2)
+                          if (newLen > 0.001) {
+                            mirrorRx = (mirrorRx / newLen) * origLen
+                            mirrorRy = (mirrorRy / newLen) * origLen
+                          }
+                        }
+
+                        getTimelineStore().setKeyframeHandles(track.id, prevKf.id, {
+                          ...prevH,
+                          right: [Math.max(0, Math.min(1, mirrorRx)), mirrorRy],
+                        })
+                      }
+                    }
                   }}
                   onDragEnd={before => fireTimelineMutation('Adjust bezier handles', before)}
                 />
