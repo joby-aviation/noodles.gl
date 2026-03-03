@@ -1,8 +1,6 @@
 import type { Deck, DeckProps } from '@deck.gl/core'
 import { MapboxOverlay, type MapboxOverlayProps } from '@deck.gl/mapbox'
 import { DeckGL } from '@deck.gl/react'
-import { useVal } from '@theatre/react'
-import studio from '@theatre/studio'
 import { ReactFlowProvider } from '@xyflow/react'
 import type { Map as MapLibre } from 'maplibre-gl'
 import { forwardRef, useCallback, useEffect, useRef, useState } from 'react'
@@ -14,60 +12,16 @@ import { useRenderSettings } from './noodles/hooks/use-render-settings'
 import { getNoodles } from './noodles/noodles'
 import type { RenderSettings } from './noodles/utils/serialization'
 import { useDeckDrawLoop } from './render/draw-loop'
-import { captureScreenshot, rafDriver, useRenderer } from './render/renderer'
+import { captureScreenshot, useRenderer } from './render/renderer'
 import { TransformScale } from './render/transform-scale'
+import { CollapsibleTimelinePanel } from './timeline/components/CollapsibleTimelinePanel'
+import { useTimelineStore } from './timeline/timeline-store'
 import s from './timeline-editor.module.css'
 import setRef from './utils/set-ref'
 
-// https://www.theatrejs.com/docs/latest/manual/advanced#rafdrivers
-// the rafDriver breaks things like spacebar playback
-studio.initialize({
-  __experimental_rafDriver: rafDriver,
-  usePersistentStorage: false,
-})
-
-// Inject styles into TheatreJS shadow DOM to hide export button
-// Using the generated class name is brittle but more reliable than trying to
-// target dynamically rendered buttons. This may break if Theatre.js updates.
-const injectTheatreStyles = () => {
-  const theatreRoot = document.querySelector('#theatrejs-studio-root')
-  if (theatreRoot?.shadowRoot && !theatreRoot.shadowRoot.querySelector('#hide-export-style')) {
-    const style = document.createElement('style')
-    style.id = 'hide-export-style'
-    style.textContent = `
-      /* Hide all panels except properties (export button, sheet name) */
-      .sc-dPZUQH:not([data-testid="DetailPanel-Object"]) {
-        display: none !important;
-      }
-
-      /* Hide the left sidebar (sheet tree panel) */
-      [data-testid="SequenceEditorPanel-tree"],
-      .sc-djVXDX.fXnbPU {
-        display: none !important;
-      }
-
-      /* Hide the sidebar top bar */
-      .sc-cHMHOW.dGwDVq {
-        display: none !important;
-      }
-    `
-    theatreRoot.shadowRoot.appendChild(style)
-    return true
-  }
-  return false
+function useSequenceLength() {
+  return useTimelineStore(state => state.sequence.length)
 }
-
-// Use a single MutationObserver to watch for both the theatre root being added
-// and its shadowRoot being attached
-const observer = new MutationObserver(() => {
-  if (injectTheatreStyles()) {
-    observer.disconnect()
-  }
-})
-observer.observe(document.body, { childList: true, subtree: true })
-
-// Also try injecting immediately in case everything is already loaded
-injectTheatreStyles()
 
 const DeckGLOverlay = forwardRef<
   Deck,
@@ -78,9 +32,7 @@ const DeckGLOverlay = forwardRef<
 >(({ renderer, isRendering, ...props }, ref) => {
   // MapboxOverlay handles a variety of props differently than the Deck class.
   // https://deck.gl/docs/api-reference/mapbox/mapbox-overlay#constructor
-  const deck = useControl<MapboxOverlay>(
-    () => new MapboxOverlay({ ...props, interleaved: true, _renderLayersInGroups: true })
-  )
+  const deck = useControl<MapboxOverlay>(() => new MapboxOverlay({ ...props, interleaved: true }))
 
   if (!isRendering) {
     deck.setProps({
@@ -109,46 +61,40 @@ const DeckGLOverlay = forwardRef<
 const isMapReady = (map: MapLibre | null) => !map || (map.isStyleLoaded() && map.areTilesLoaded())
 
 export default function TimelineEditor() {
-  const [ready, setReady] = useState(false)
-
   const mapRef = useRef<MapLibre | null>(null)
   const deckRef = useRef<Deck>(null)
+  const isRenderingRef = useRef(false)
 
   // Trigger a redraw of React, mapbox and deck when the renderer state changes,
   // to ensure that the VideoStreamReader in renderer.ts runs
   const [_, setRand] = useState(0)
   const redraw = useCallback(() => {
-    console.warn('redraw', mapRef.current, deckRef.current)
     mapRef.current?.redraw()
     deckRef.current?.redraw()
-    setRand(Math.random())
+    // Only trigger React re-renders outside of the render loop — during export this
+    // runs every frame and causes CSSStyleRule/DOM churn from React re-renders.
+    if (!isRenderingRef.current) setRand(Math.random())
   }, [])
 
   const noodles = getNoodles()
-  const { project, sheet, flowGraph, nodeSidebar, propertiesPanel, layoutMode, ...visualization } =
-    noodles
-  const sequence = sheet.sequence
+  const { flowGraph, nodeSidebar, propertiesPanel, layoutMode, ...visualization } = noodles
 
   // Render settings are now stored as OutOp inputs
   const renderSettings = useRenderSettings()
 
-  useEffect(() => {
-    project?.ready.then(() => setReady(true))
-  }, [project])
-
-  const sequenceLength = useVal(sequence.pointer.length)
+  const sequenceLength = useSequenceLength()
 
   const { framerate, bitrateMbps, bitrateMode, codec, resolution, lod, waitForData, captureDelay } =
     renderSettings
 
   const { startCapture, captureFrame, currentFrame, isRendering } = useRenderer({
-    project,
-    sequence: sequence,
+    projectName: noodles.projectName ?? 'render',
     fps: framerate,
     bitrate: bitrateMbps * 1_000_000,
     bitrateMode,
     redraw,
   })
+  isRenderingRef.current = isRendering
 
   // If the visualization doesn't supply mapProps, disable basemap.
   // TODO: Detect if deck is in othorgraphic mode, and disable?
@@ -239,7 +185,6 @@ export default function TimelineEditor() {
       map.setSky(undefined)
     }
   }, [light, sky])
-
   // Expose deck.gl canvas and instance for Claude AI visual debugging
   useEffect(() => {
     if (deckRef.current) {
@@ -269,9 +214,6 @@ export default function TimelineEditor() {
     setTimeout(() => captureFrame(), captureDelay)
   }
 
-  // TODO: Move to a TheatreJS extension:
-  // https://www.theatrejs.com/docs/latest/manual/authoring-extensions
-
   const pureDeckInstance = !basemapEnabled ? deckRef.current : null
   useDeckDrawLoop({
     deck: pureDeckInstance,
@@ -284,7 +226,6 @@ export default function TimelineEditor() {
     props: deckProps,
   })
 
-  // Export functions always use the active OutOp's settings (via useRenderSettings)
   const startRender = useCallback(async () => {
     let canvas: HTMLCanvasElement | null = null
 
@@ -327,13 +268,13 @@ export default function TimelineEditor() {
       return
     }
 
-    const suggestedName = project.address.projectId
+    const suggestedName = noodles.projectName ?? 'screenshot'
     await captureScreenshot(suggestedName, () => {
       redraw()
       // @ts-expect-error canvas is protected
       return deckRef.current.canvas!
     })
-  }, [project.address.projectId, redraw, basemapEnabled])
+  }, [noodles.projectName, redraw, basemapEnabled])
 
   // Increase the render target resolution to increase map tile detail.
   // To convert viewport bounds back to their original size, add about 1 to the zoom value.
@@ -345,11 +286,6 @@ export default function TimelineEditor() {
   // Use fixed resolution for 'fixed' display mode, undefined for 'responsive' mode to use natural dimensions
   const isFixedMode = renderSettings.display === 'fixed'
   const displayResolution = isFixedMode ? lodResolution : undefined
-
-  if (!ready) {
-    // don't call project.getAssetUrl until Theatre project is ready
-    return <div>loading project...</div>
-  }
 
   const renderContent = () => {
     if (basemapEnabled) {
@@ -395,6 +331,8 @@ export default function TimelineEditor() {
       hasUnsavedChanges={noodles.hasUnsavedChanges}
       showOverlay={noodles.showOverlay}
       onChangeShowOverlay={noodles.onChangeShowOverlay}
+      showDebugInfo={noodles.showDebugInfo}
+      onChangeShowDebugInfo={noodles.onChangeShowDebugInfo}
       layoutMode={noodles.layoutMode}
       onChangeLayoutMode={noodles.onChangeLayoutMode}
     />
@@ -421,6 +359,7 @@ export default function TimelineEditor() {
             top={topBar}
             left={nodeSidebar}
             right={propertiesPanel}
+            bottom={<CollapsibleTimelinePanel />}
             flowGraph={flowGraph}
             layoutMode={layoutMode}
           >

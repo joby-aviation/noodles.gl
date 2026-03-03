@@ -327,7 +327,7 @@ export function getFieldReferences(text: string, thisOpId?: string) {
     const inOut = groups?.inOut as InOut
 
     if (!groups || !opId || !fieldPath) {
-      console.warn(`Invalid operator ID or field path: ${opId}`)
+      console.error(`Invalid operator ID or field path: ${opId}`)
       continue
     }
 
@@ -892,21 +892,23 @@ export class CompoundPropsField extends Field<
     super(defaults, { subschema, ...options, passthrough })
     this.fields = fields
 
-    this.subscribe(value => {
+    const parentToChild = this.subscribe(value => {
       for (const [key, field] of Object.entries(fields)) {
         if (Object.hasOwn(value || {}, key)) {
           field.next(value[key])
         }
       }
     })
+    this.subscriptions.set('__parentToChild', parentToChild)
 
     let updating = false
-    combineLatest(fields).subscribe(values => {
+    const childToParent = combineLatest(fields).subscribe(values => {
       if (updating) return
       updating = true
       this.next(values)
       updating = false
     })
+    this.subscriptions.set('__childToParent', childToParent)
   }
 
   next(parsed: ExtractProps<typeof this.fields>) {

@@ -73,6 +73,9 @@
   --z-index-menu: 10000;
   --z-index-viewer-preview: 9999;
   --z-index-step-ladder: 10001;
+  --z-index-modal-overlay: 9999;
+  --z-index-modal-content: 10000;
+  --z-index-analytics-consent: 9998;
 }
 
 /**
