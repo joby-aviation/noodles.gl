@@ -122,6 +122,8 @@ interface UIStoreState {
   triggerSidebarSearch: () => void
   settingsDialogOpen: boolean
   setSettingsDialogOpen: (open: boolean) => void
+  quickStartModalOpen: boolean
+  setQuickStartModalOpen: (open: boolean) => void
 }
 
 export const useUIStore = create<UIStoreState>(set => ({
@@ -136,6 +138,8 @@ export const useUIStore = create<UIStoreState>(set => ({
     set(state => ({ sidebarSearchFocusTrigger: state.sidebarSearchFocusTrigger + 1 })),
   settingsDialogOpen: false,
   setSettingsDialogOpen: open => set({ settingsDialogOpen: open }),
+  quickStartModalOpen: false,
+  setQuickStartModalOpen: open => set({ quickStartModalOpen: open }),
 }))
 
 // ============================================================================
