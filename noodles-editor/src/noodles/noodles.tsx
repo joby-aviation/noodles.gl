@@ -384,6 +384,9 @@ export function getNoodles(): Visualization {
 
   const currentProjectRef = useRef<NoodlesProjectJSON>(newProjectJSON)
 
+  // Track when we're programmatically loading a project to prevent useEffect from trying to reload
+  const isProgrammaticLoadRef = useRef(false)
+
   // Ref to access undo/redo and copy/paste functionality from inside ReactFlow context
   const undoRedoRef = useRef<UndoRedoHandlerRef>(null)
   const copyControlsRef = useRef<CopyControlsRef>(null)
@@ -587,6 +590,10 @@ export function getNoodles(): Visualization {
 
       // Clear unsaved changes flag when loading a project
       setHasUnsavedChanges(false)
+
+      // Mark that we've programmatically loaded this project
+      // This prevents the useEffect from trying to reload it from storage
+      isProgrammaticLoadRef.current = true
     },
     [setNodes, setEdges, setProjectName, setTheatreProject, navigate, routePrefix]
   )
@@ -599,6 +606,13 @@ export function getNoodles(): Visualization {
   // biome-ignore lint/correctness/useExhaustiveDependencies: loadProjectFile would cause infinite loop
   useEffect(() => {
     ;(async () => {
+      // If this is a programmatic load (from onNewProject, onImport, etc.),
+      // skip loading from storage to avoid showing the "Project Not Found" dialog
+      if (isProgrammaticLoadRef.current) {
+        isProgrammaticLoadRef.current = false
+        return
+      }
+
       // If no projectName, load the default new project
       if (!projectName || projectName === 'new') {
         try {

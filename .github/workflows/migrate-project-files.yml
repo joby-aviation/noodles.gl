@@ -39,17 +39,29 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./animations/timeline-editor
+        working-directory: ./noodles-editor
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
-          node-version: '18'
-          cache: 'yarn'
-          cache-dependency-path: './animations/timeline-editor/yarn.lock'
+          node-version-file: '.nvmrc'
+
+      - name: Enable Corepack
+        run: corepack enable yarn
+
+      - name: Cache yarn dependencies
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        with:
+          path: |
+            noodles-editor/.yarn/cache
+            noodles-editor/.yarn/unplugged
+            noodles-editor/.yarn/install-state.gz
+          key: ${{ runner.os }}-yarn-${{ hashFiles('noodles-editor/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
 
       - name: Install dependencies
         run: yarn install --frozen-lockfile
