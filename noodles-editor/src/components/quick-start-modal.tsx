@@ -180,13 +180,13 @@ export function QuickStartModal({ open, onOpenChange, initialView = 'home' }: Qu
 
   const handleBrowseAll = useCallback(() => {
     analytics.track('quick_start_browse_all')
-    setView('examples')
-  }, [])
+    navigate('/examples')
+  }, [navigate])
 
   const handleViewAllProjects = useCallback(() => {
     analytics.track('quick_start_view_all_projects')
-    setView('projects')
-  }, [])
+    navigate('/projects')
+  }, [navigate])
 
   const handleBack = useCallback(() => {
     setView('home')
