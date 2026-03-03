@@ -1,114 +1,15 @@
 import * as Dialog from '@radix-ui/react-dialog'
-import { ChevronLeftIcon, Cross2Icon } from '@radix-ui/react-icons'
-import { basename, dirname } from 'node:path'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Cross2Icon } from '@radix-ui/react-icons'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation } from 'wouter'
 import logoSvg from '/noodles-favicon.svg'
-import type { CachedHandleEntry } from '../noodles/utils/directory-handle-cache'
-import { directoryHandleCache } from '../noodles/utils/directory-handle-cache'
-import { checkFileSystemSupport, getOPFSRoot, selectDirectory } from '../noodles/utils/filesystem'
 import { analytics } from '../utils/analytics'
+import { CURATED_EXAMPLES } from './examples-view'
+import { ExamplesView } from './examples-view'
+import { ProjectsView, useRecentProjects } from './projects-view'
 import s from './quick-start-modal.module.css'
 
-type ModalView = 'home' | 'projects' | 'examples'
-
-// Vite glob imports for examples
-const exampleProjects = import.meta.glob('../examples/**/noodles.json', {
-  eager: true,
-  import: 'default',
-})
-const exampleReadmes = import.meta.glob('../examples/**/README.md', {
-  eager: true,
-  query: '?raw',
-  import: 'default',
-})
-
-interface ExampleProject {
-  id: string
-  name: string
-  path: string
-  description?: string
-}
-
-interface UserProject {
-  name: string
-  path: string
-  storageType: 'fileSystemAccess' | 'opfs'
-  cachedAt?: number
-}
-
-const ACRONYMS: Record<string, string> = {
-  nyc: 'NYC',
-  usa: 'USA',
-  uk: 'UK',
-  api: 'API',
-  json: 'JSON',
-  csv: 'CSV',
-}
-
-function extractDescription(readme?: string): string {
-  if (!readme) return ''
-  const lines = readme.split('\n')
-  let foundTitle = false
-  for (const line of lines) {
-    const trimmed = line.trim()
-    if (trimmed.startsWith('#')) {
-      foundTitle = true
-      continue
-    }
-    if (!trimmed) continue
-    if (foundTitle) {
-      if (trimmed.startsWith('_')) continue
-      return trimmed
-    }
-  }
-  return ''
-}
-
-function formatProjectName(name: string): string {
-  return name
-    .replace(/-/g, ' ')
-    .replace(
-      /\b\w+\b/g,
-      word => ACRONYMS[word.toLowerCase()] || word.charAt(0).toUpperCase() + word.slice(1)
-    )
-}
-
-function formatDate(timestamp?: number): string | null {
-  if (!timestamp) return null
-  return new Date(timestamp).toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
-}
-
-const CURATED_EXAMPLES = [
-  {
-    id: 'world-flights',
-    title: 'World Flights',
-    description: 'Animated flight trajectories across the globe',
-    icon: 'pi-globe',
-  },
-  {
-    id: 'california-earthquakes',
-    title: 'California Earthquakes',
-    description: 'Seismic activity with magnitude-driven styling',
-    icon: 'pi-chart-scatter',
-  },
-  {
-    id: 'nyc-taxis',
-    title: 'NYC Taxis',
-    description: 'Taxi trips showing pickup to dropoff flows',
-    icon: 'pi-car',
-  },
-  {
-    id: 'sf-street-trees',
-    title: 'SF Street Trees',
-    description: 'Urban forest inventory across San Francisco',
-    icon: 'pi-sitemap',
-  },
-]
+export type ModalView = 'home' | 'projects' | 'examples'
 
 // Store for pending quick start actions (file upload or LLM question)
 // These can be picked up by the main app after navigating to a project
@@ -130,12 +31,22 @@ export function setPendingQuickStartAction(action: PendingQuickStartAction | nul
   pendingAction = action
 }
 
+function formatDate(timestamp?: number): string | null {
+  if (!timestamp) return null
+  return new Date(timestamp).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
 interface QuickStartModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  initialView?: ModalView
 }
 
-export function QuickStartModal({ open, onOpenChange }: QuickStartModalProps) {
+export function QuickStartModal({ open, onOpenChange, initialView = 'home' }: QuickStartModalProps) {
   const [, navigate] = useLocation()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -143,119 +54,16 @@ export function QuickStartModal({ open, onOpenChange }: QuickStartModalProps) {
   const [llmQuestion, setLlmQuestion] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  // View state managed locally (not derived from URL)
-  const [view, setView] = useState<ModalView>('home')
+  // View state managed locally, initialized from prop
+  const [view, setView] = useState<ModalView>(initialView)
+
+  // Update view when initialView prop changes
+  useEffect(() => {
+    setView(initialView)
+  }, [initialView])
 
   // Recent projects state (for home view)
-  const [recentProjects, setRecentProjects] = useState<CachedHandleEntry[]>([])
-
-  // All projects state (for projects view)
-  const [allProjects, setAllProjects] = useState<UserProject[]>([])
-  const [projectsLoading, setProjectsLoading] = useState(false)
-  const fileSystemSupport = checkFileSystemSupport()
-
-  // All examples (for examples view)
-  const allExamples = useMemo<ExampleProject[]>(() => {
-    const list: ExampleProject[] = []
-    for (const path of Object.keys(exampleProjects)) {
-      const projectId = basename(dirname(path))
-      const readmePath = path.replace('noodles.json', 'README.md')
-      let projectName = projectId
-      let description = ''
-
-      const readme = exampleReadmes[readmePath] as string | undefined
-      if (readme) {
-        const firstLine = readme.split('\n')[0]
-        const match = firstLine.match(/^#\s+(.*)/)
-        if (match?.[1]) {
-          projectName = match[1].trim()
-        }
-        description = extractDescription(readme)
-      }
-
-      list.push({
-        id: projectId,
-        name: projectName,
-        path: `/examples/${projectId}`,
-        description,
-      })
-    }
-    list.sort((a, b) => a.name.localeCompare(b.name))
-    return list
-  }, [])
-
-  // Load recent projects for home view
-  useEffect(() => {
-    async function loadRecent() {
-      try {
-        const handles = await directoryHandleCache.getAllCachedHandles()
-        setRecentProjects(handles.slice(0, 3))
-      } catch (err) {
-        console.error('Failed to load recent projects', err)
-      }
-    }
-    loadRecent()
-  }, [])
-
-  // Load all projects when viewing projects page
-  useEffect(() => {
-    if (view !== 'projects') return
-
-    async function loadAllProjects() {
-      setProjectsLoading(true)
-      const result: UserProject[] = []
-
-      // Load fileSystemAccess handles from IndexedDB cache
-      if (fileSystemSupport.fileSystemAccess) {
-        try {
-          const handles = await directoryHandleCache.getAllCachedHandles()
-          for (const entry of handles) {
-            result.push({
-              name: entry.handle.name,
-              path: `/projects/${entry.projectName}`,
-              storageType: 'fileSystemAccess',
-              cachedAt: entry.cachedAt,
-            })
-          }
-        } catch (err) {
-          console.error('Failed to load cached directory handles', err)
-        }
-      }
-
-      // Load OPFS projects
-      if (fileSystemSupport.opfs) {
-        try {
-          const root = await getOPFSRoot()
-          // @ts-expect-error - TS doesn't include async iterator types for FileSystemDirectoryHandle
-          for await (const entry of root.values()) {
-            if (entry.kind === 'directory') {
-              const alreadyListed = result.some(p => p.name === entry.name)
-              if (!alreadyListed) {
-                try {
-                  const dir = await root.getDirectoryHandle(entry.name)
-                  await dir.getFileHandle('noodles.json')
-                  result.push({
-                    name: entry.name,
-                    path: `/projects/${entry.name}`,
-                    storageType: 'opfs',
-                  })
-                } catch {
-                  // No noodles.json — skip
-                }
-              }
-            }
-          }
-        } catch (err) {
-          console.error('Failed to enumerate OPFS projects', err)
-        }
-      }
-
-      setAllProjects(result)
-      setProjectsLoading(false)
-    }
-
-    loadAllProjects()
-  }, [view, fileSystemSupport.fileSystemAccess, fileSystemSupport.opfs])
+  const recentProjects = useRecentProjects(3)
 
   const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
 
@@ -389,17 +197,6 @@ export function QuickStartModal({ open, onOpenChange }: QuickStartModalProps) {
     // Default behavior when closing without action: go to examples
     navigate('/examples/world-flights')
   }, [onOpenChange, navigate])
-
-  const handleOpenFolder = useCallback(async () => {
-    try {
-      const handle = await selectDirectory()
-      await directoryHandleCache.cacheHandle(handle.name, handle, handle.name)
-      onOpenChange(false)
-      navigate(`/projects/${handle.name}`)
-    } catch {
-      // User cancelled or permission denied
-    }
-  }, [navigate, onOpenChange])
 
   const handleProjectClick = useCallback(
     (path: string) => {
@@ -580,111 +377,26 @@ export function QuickStartModal({ open, onOpenChange }: QuickStartModalProps) {
     </>
   )
 
-  // Render projects view content
-  const renderProjectsView = () => (
-    <>
-      {/* Header with back button */}
-      <div className={s.viewHeader}>
-        <button type="button" className={s.backButton} onClick={handleBack}>
-          <ChevronLeftIcon width={16} height={16} />
-          Back
-        </button>
-        <Dialog.Title className={s.viewTitle}>Projects</Dialog.Title>
-        <Dialog.Description className={s.viewSubtitle}>
-          Your saved projects from local folders and browser storage
-        </Dialog.Description>
-      </div>
-
-      <div className={s.body}>
-        {fileSystemSupport.fileSystemAccess && (
-          <div className={s.openFolderSection}>
-            <button type="button" className={s.openFolderButton} onClick={handleOpenFolder}>
-              <i className="pi pi-folder-open" />
-              Open folder…
-            </button>
-          </div>
-        )}
-
-        {projectsLoading ? (
-          <p className={s.loadingText}>Loading projects…</p>
-        ) : allProjects.length === 0 ? (
-          <div className={s.emptyState}>
-            <p>No projects found.</p>
-            {fileSystemSupport.fileSystemAccess && (
-              <p>Use "Open folder…" to open a project from your file system.</p>
-            )}
-          </div>
-        ) : (
-          <div className={s.fullGrid}>
-            {allProjects.map(project => (
-              <button
-                key={project.path}
-                type="button"
-                className={s.projectCard}
-                onClick={() => handleProjectClick(project.path)}
-              >
-                <div className={s.projectInfo}>
-                  <h4>{project.name}</h4>
-                  <p>
-                    <span className={s.storageBadge}>
-                      {project.storageType === 'opfs' ? 'OPFS' : 'Local folder'}
-                    </span>
-                    {project.cachedAt && (
-                      <span className={s.projectDate}>{formatDate(project.cachedAt)}</span>
-                    )}
-                  </p>
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-    </>
-  )
-
-  // Render examples view content
-  const renderExamplesView = () => (
-    <>
-      {/* Header with back button */}
-      <div className={s.viewHeader}>
-        <button type="button" className={s.backButton} onClick={handleBack}>
-          <ChevronLeftIcon width={16} height={16} />
-          Back
-        </button>
-        <Dialog.Title className={s.viewTitle}>Examples</Dialog.Title>
-        <Dialog.Description className={s.viewSubtitle}>
-          Explore example projects showcasing different visualizations
-        </Dialog.Description>
-      </div>
-
-      <div className={s.body}>
-        <div className={s.fullGrid}>
-          {allExamples.map(example => (
-            <button
-              key={example.id}
-              type="button"
-              className={s.projectCard}
-              onClick={() => handleExampleClick(example.id)}
-            >
-              <div className={s.projectInfo}>
-                <h4>{formatProjectName(example.name)}</h4>
-                {example.description && <p>{example.description}</p>}
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-    </>
-  )
-
   return (
     <Dialog.Root open={open} onOpenChange={handleClose}>
       <Dialog.Portal>
         <Dialog.Overlay className={s.overlay} />
         <Dialog.Content className={s.content}>
           {view === 'home' && renderHomeView()}
-          {view === 'projects' && renderProjectsView()}
-          {view === 'examples' && renderExamplesView()}
+          {view === 'projects' && (
+            <ProjectsView
+              onBack={handleBack}
+              onClose={() => onOpenChange(false)}
+              showBackButton={initialView === 'home'}
+            />
+          )}
+          {view === 'examples' && (
+            <ExamplesView
+              onBack={handleBack}
+              onClose={() => onOpenChange(false)}
+              showBackButton={initialView === 'home'}
+            />
+          )}
 
           {/* Close button */}
           <Dialog.Close asChild>

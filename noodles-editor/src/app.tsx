@@ -1,7 +1,7 @@
 import { Component, type ReactNode, useEffect } from 'react'
 import { Redirect, Route, Router, Switch, useRoute, useSearchParams } from 'wouter'
 import { AnalyticsConsentBanner } from './components/analytics-consent-banner'
-import { QuickStartModal } from './components/quick-start-modal'
+import { type ModalView, QuickStartModal } from './components/quick-start-modal'
 import { ExternalControlProvider } from './external-control'
 import { useUIStore } from './noodles/store'
 import TimelineEditor from './timeline-editor'
@@ -63,17 +63,17 @@ function App() {
           <TimelineEditor />
         </Route>
 
-        {/* Redirect list pages to root (modal handles internal navigation) */}
+        {/* List pages show modal with appropriate view */}
         <Route path="/examples">
-          <Redirect to="/" />
+          <QuickStartModalRoute initialView="examples" />
         </Route>
         <Route path="/projects">
-          <Redirect to="/" />
+          <QuickStartModalRoute initialView="projects" />
         </Route>
 
-        {/* Root path - only place modal shows */}
+        {/* Root path - show modal with home view */}
         <Route path="/">
-          <QuickStartModalRoute />
+          <QuickStartModalRoute initialView="home" />
         </Route>
 
         {/* Catch-all for 404s and redirects */}
@@ -89,7 +89,7 @@ function App() {
 }
 
 // Component to render QuickStartModal for /projects, /examples, and / routes
-function QuickStartModalRoute() {
+function QuickStartModalRoute({ initialView = 'home' }: { initialView?: ModalView }) {
   const [searchParams] = useSearchParams()
   const quickStartModalOpen = useUIStore(state => state.quickStartModalOpen)
   const setQuickStartModalOpen = useUIStore(state => state.setQuickStartModalOpen)
@@ -111,7 +111,13 @@ function QuickStartModalRoute() {
     return <Redirect to={redirectPath} />
   }
 
-  return <QuickStartModal open={quickStartModalOpen} onOpenChange={setQuickStartModalOpen} />
+  return (
+    <QuickStartModal
+      open={quickStartModalOpen}
+      onOpenChange={setQuickStartModalOpen}
+      initialView={initialView}
+    />
+  )
 }
 
 function FallbackRoute() {
