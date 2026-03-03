@@ -593,6 +593,11 @@
   max-width: 120px;
 }
 
+/* hide the duplicate label rendered by field components; the panel renders its own label */
+.editableFieldContent label {
+  display: none;
+}
+
 .fieldPlaceholder {
   padding: 6px 8px;
   background: rgba(255, 255, 255, 0.03);
@@ -615,6 +620,13 @@
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.compoundSubFieldLabel {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  min-width: 60px;
+  flex-shrink: 0;
 }
 
 /* Dialog field lists */
