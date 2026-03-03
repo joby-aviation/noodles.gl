@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from 'react'
 import { captureTimelineState, fireTimelineMutation, getTimelineStore, useTimelineStore } from '../timeline-store'
 import type { Keyframe, Track } from '../types'
 import { CurvePopup } from './CurvePopup'
+import { KeyframeValuePopup } from './KeyframeValuePopup'
 
 export interface KeyframeTrackProps {
   track: Track
@@ -47,6 +48,12 @@ export function KeyframeTrack({
     y: number
   } | null>(null)
 
+  const [openValuePopup, setOpenValuePopup] = useState<{
+    keyframe: Keyframe
+    x: number
+    y: number
+  } | null>(null)
+
   const displayName = getDisplayName(track.fieldPath)
   const parentPath = getParentPath(track.fieldPath)
 
@@ -74,7 +81,16 @@ export function KeyframeTrack({
   const handleBarClick = useCallback(
     (e: React.MouseEvent, k1: Keyframe, k2: Keyframe) => {
       e.stopPropagation()
+      setOpenValuePopup(null)
       setOpenPopup({ k1, k2, x: e.clientX, y: e.clientY })
+    },
+    []
+  )
+
+  const handleOpenValuePopup = useCallback(
+    (kf: Keyframe, x: number, y: number) => {
+      setOpenPopup(null)
+      setOpenValuePopup({ keyframe: kf, x, y })
     },
     []
   )
@@ -141,6 +157,7 @@ export function KeyframeTrack({
             isSelected={selectedKeyframeIds.has(keyframe.id)}
             selectedKeyframeIds={selectedKeyframeIds}
             onSelect={selectKeyframe}
+            onOpenValuePopup={handleOpenValuePopup}
           />
         ))}
       </div>
@@ -152,6 +169,15 @@ export function KeyframeTrack({
           anchorX={openPopup.x}
           anchorY={openPopup.y}
           onClose={() => setOpenPopup(null)}
+        />
+      )}
+      {openValuePopup && (
+        <KeyframeValuePopup
+          trackId={track.id}
+          keyframe={openValuePopup.keyframe}
+          anchorX={openValuePopup.x}
+          anchorY={openValuePopup.y}
+          onClose={() => setOpenValuePopup(null)}
         />
       )}
     </>
@@ -167,6 +193,7 @@ interface KeyframeDiamondProps {
   isSelected: boolean
   selectedKeyframeIds: Set<string>
   onSelect: (keyframeId: string, addToSelection?: boolean) => void
+  onOpenValuePopup?: (keyframe: Keyframe, x: number, y: number) => void
 }
 
 function KeyframeDiamond({
@@ -177,6 +204,7 @@ function KeyframeDiamond({
   isSelected,
   selectedKeyframeIds,
   onSelect,
+  onOpenValuePopup,
 }: KeyframeDiamondProps) {
   const x = keyframe.position * pixelsPerSecond
   const isDraggingRef = useRef(false)
@@ -241,8 +269,9 @@ function KeyframeDiamond({
         if (isDraggingRef.current) {
           // Fire one history entry for the whole drag gesture
           fireTimelineMutation('Move keyframe', beforeStateRef.current)
+          // Note: isDraggingRef stays true so handleClick can skip popup/reselect.
+          // It gets reset to false at the start of the next handlePointerDown.
         }
-        isDraggingRef.current = false
         document.removeEventListener('pointermove', handlePointerMove)
         document.removeEventListener('pointerup', handlePointerUp)
       }
@@ -260,8 +289,13 @@ function KeyframeDiamond({
       e.stopPropagation()
       const addToSelection = e.shiftKey || e.metaKey || e.ctrlKey
       onSelect(keyframe.id, addToSelection)
+      // Open value editor on plain click (not modifier-augmented multi-select)
+      if (!addToSelection && onOpenValuePopup) {
+        const rect = e.currentTarget.getBoundingClientRect()
+        onOpenValuePopup(keyframe, rect.left + rect.width / 2, rect.top)
+      }
     },
-    [keyframe.id, onSelect]
+    [keyframe, onSelect, onOpenValuePopup]
   )
 
   return (

@@ -835,3 +835,179 @@
   overflow: hidden;
   background: linear-gradient(180deg, rgb(20 27 37 / 0.95) 0%, rgb(15 20 29 / 0.95) 100%);
 }
+
+/* ============================================================ */
+/* Keyframe value popup                                          */
+/* ============================================================ */
+
+.keyframe-value-popup {
+  position: fixed;
+  z-index: 1000;
+  background: linear-gradient(180deg, #1e2634 0%, #171d27 100%);
+  border: 1px solid #2f3b4c;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgb(0 0 0 / 0.55), 0 2px 8px rgb(0 0 0 / 0.3);
+  overflow: hidden;
+  font-family: Inter, 'Segoe UI', system-ui, sans-serif;
+  font-size: 12px;
+  color: #b9c3cf;
+}
+
+.kf-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px 5px;
+  border-bottom: 1px solid #2f3b4c;
+  background: rgb(27 34 46 / 0.8);
+}
+
+.kf-popup-timecode {
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: #748095;
+  letter-spacing: 0.03em;
+}
+
+.kf-popup-close {
+  background: none;
+  border: none;
+  color: #556070;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+  border-radius: 3px;
+  transition: color 0.1s;
+}
+
+.kf-popup-close:hover {
+  color: #b9c3cf;
+}
+
+.kf-popup-body {
+  padding: 6px 8px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+/* Shared row layout: label + input */
+.kf-value-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+}
+
+.kf-value-label {
+  font-size: 10px;
+  color: #748095;
+  width: 28px;
+  flex-shrink: 0;
+  text-align: right;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Shared number input style */
+.kf-value-input {
+  flex: 1;
+  height: 22px;
+  background: #252d3a;
+  border: 1px solid #3a475a;
+  border-radius: 4px;
+  color: #d9e3f0;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  padding: 0 6px;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+/* Scrubbing variant — shows cursor */
+.kf-value-input.scrub {
+  cursor: ew-resize;
+  user-select: none;
+}
+
+.kf-value-input.scrub:hover {
+  border-color: #4a5a70;
+  background: #2b3445;
+}
+
+/* Editing variant (actual <input>) */
+.kf-value-input.editing {
+  width: 100%;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.kf-value-input.editing:focus {
+  border-color: #48c6cf;
+  background: #1e2d3d;
+}
+
+/* Remove browser number input spinners */
+.kf-value-input.editing::-webkit-inner-spin-button,
+.kf-value-input.editing::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.kf-value-input.editing[type='number'] {
+  -moz-appearance: textfield;
+}
+
+/* RGBA colour swatch row */
+.kf-rgba-swatch-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  margin-bottom: 2px;
+}
+
+.kf-color-input {
+  width: 32px;
+  height: 22px;
+  border: 1px solid #3a475a;
+  border-radius: 4px;
+  padding: 1px;
+  background: #252d3a;
+  cursor: pointer;
+}
+
+.kf-color-input::-webkit-color-swatch-wrapper {
+  padding: 0;
+  border-radius: 3px;
+}
+
+.kf-color-input::-webkit-color-swatch {
+  border: none;
+  border-radius: 3px;
+}
+
+/* Boolean toggle */
+.kf-boolean-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 11px;
+  color: #b9c3cf;
+}
+
+.kf-boolean-label {
+  color: #8a96ad;
+}
+
+/* Fallback for unsupported types */
+.kf-value-unknown {
+  font-size: 11px;
+  color: #556070;
+  font-style: italic;
+  padding: 4px 0;
+}
