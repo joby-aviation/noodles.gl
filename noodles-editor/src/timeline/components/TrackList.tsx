@@ -2,6 +2,7 @@
 
 import { useTimelineStore } from '../timeline-store'
 import { KeyframeTrack } from './KeyframeTrack'
+import s from './TimelinePanel.module.css'
 
 export interface TrackListProps {
   showLabelsOnly?: boolean
@@ -26,8 +27,8 @@ export function TrackList({
   if (trackArray.length === 0) {
     if (showLabelsOnly) {
       return (
-        <div className="timeline-track-labels-empty">
-          <div className="timeline-empty">No animated properties</div>
+        <div className={s.timelineTrackLabelsEmpty}>
+          <div className={s.timelineEmpty}>No animated properties</div>
         </div>
       )
     }

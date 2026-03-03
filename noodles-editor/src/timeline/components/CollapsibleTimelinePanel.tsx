@@ -3,7 +3,7 @@
 
 import { useUIStore } from '../../noodles/store'
 import { TimelinePanel } from './TimelinePanel'
-import './CollapsibleTimelinePanel.css'
+import s from './CollapsibleTimelinePanel.module.css'
 
 export interface CollapsibleTimelinePanelProps {
   height?: number
@@ -17,7 +17,7 @@ export function CollapsibleTimelinePanel({ height = 250 }: CollapsibleTimelinePa
     return (
       <button
         type="button"
-        className="timeline-collapse-tab"
+        className={s.timelineCollapseTab}
         onClick={() => setExpanded(true)}
         title="Expand Timeline (click to open)"
       >
@@ -28,7 +28,7 @@ export function CollapsibleTimelinePanel({ height = 250 }: CollapsibleTimelinePa
   }
 
   return (
-    <div className="timeline-collapsible-container" style={{ height }}>
+    <div className={s.timelineCollapsibleContainer} style={{ height }}>
       <TimelinePanel height={height} onCollapse={() => setExpanded(false)} />
     </div>
   )

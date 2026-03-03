@@ -7,6 +7,7 @@ import { EASING_PRESETS, findMatchingPreset } from '../easing-presets'
 import { evaluateCubicBezier } from '../interpolation'
 import { captureTimelineState, fireTimelineMutation, useTimelineStore } from '../timeline-store'
 import type { BezierHandles, InterpolationType, Keyframe } from '../types'
+import s from './TimelinePanel.module.css'
 
 export interface CurvePopupProps {
   trackId: string
@@ -332,15 +333,15 @@ export function CurvePopup({ trackId, k1, k2: _k2, anchorX, anchorY, onClose }: 
   }, [])
 
   return createPortal(
-    <div ref={popupRef} className="curve-popup" style={style}>
-      <div className="curve-popup-body">
+    <div ref={popupRef} className={s.curvePopup} style={style}>
+      <div className={s.curvePopupBody}>
         {/* Left: preset list */}
-        <div className="curve-popup-presets">
+        <div className={s.curvePopupPresets}>
           {ALL_PRESETS.map(preset => (
             <button
               key={preset.name}
               type="button"
-              className={`curve-popup-preset-item ${matchingPreset?.name === preset.name ? 'active' : ''}`}
+              className={`${s.curvePopupPresetItem} ${matchingPreset?.name === preset.name ? s.active : ''}`}
               onMouseEnter={() => handlePresetHover(preset)}
               onMouseLeave={handlePresetLeave}
               onClick={() => handlePresetClick(preset)}
@@ -350,19 +351,19 @@ export function CurvePopup({ trackId, k1, k2: _k2, anchorX, anchorY, onClose }: 
                 preset={preset}
                 isSelected={matchingPreset?.name === preset.name}
               />
-              <span className="curve-popup-preset-name">{preset.name}</span>
+              <span className={s.curvePopupPresetName}>{preset.name}</span>
             </button>
           ))}
         </div>
 
         {/* Right: bezier curve editor */}
-        <div className="curve-popup-editor">
+        <div className={s.curvePopupEditor}>
           <InlineCurveEditor
             handles={activeHandles}
             onHandlesChange={handleHandlesChange}
             onHandlesCommit={handleHandlesCommit}
           />
-          <div className="curve-popup-preset-label">
+          <div className={s.curvePopupPresetLabel}>
             {currentK1.interpolation === 'hold'
               ? 'Hold'
               : matchingPreset

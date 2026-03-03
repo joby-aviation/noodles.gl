@@ -6,6 +6,7 @@ import { EASING_PRESETS, findMatchingPreset } from '../easing-presets'
 import { evaluateCubicBezier } from '../interpolation'
 import { useTimelineStore } from '../timeline-store'
 import type { BezierHandles } from '../types'
+import s from './TimelinePanel.module.css'
 
 export interface CurveEditorProps {
   trackId: string
@@ -180,7 +181,7 @@ function PresetButton({ name, handles, isSelected, onClick }: PresetButtonProps)
   return (
     <button
       type="button"
-      className={`curve-editor-preset ${isSelected ? 'selected' : ''}`}
+      className={`${s.curveEditorPreset} ${isSelected ? s.selected : ''}`}
       onClick={onClick}
       title={name}
     >
@@ -350,7 +351,7 @@ export function CurveEditor({
 
   if (!track) {
     return (
-      <div className="curve-editor curve-editor-empty" style={{ width, height }}>
+      <div className={`${s.curveEditor} ${s.curveEditorEmpty}`} style={{ width, height }}>
         <span>No track selected</span>
       </div>
     )
@@ -358,19 +359,19 @@ export function CurveEditor({
 
   if (!selectedKeyframe) {
     return (
-      <div className="curve-editor curve-editor-empty" style={{ width, height }}>
+      <div className={`${s.curveEditor} ${s.curveEditorEmpty}`} style={{ width, height }}>
         <span>Select a keyframe to edit its curve</span>
       </div>
     )
   }
 
   return (
-    <div className="curve-editor" style={{ width }}>
+    <div className={s.curveEditor} style={{ width }}>
       <svg
         ref={svgRef}
         width={width}
         height={height}
-        className="curve-editor-canvas"
+        className={s.curveEditorCanvas}
         role="img"
         aria-label="Bezier curve editor"
       >
@@ -428,7 +429,7 @@ export function CurveEditor({
 
       {/* Preset selector */}
       {showPresets && (
-        <div className="curve-editor-presets">
+        <div className={s.curveEditorPresets}>
           {EASING_PRESETS.slice(0, 10).map(preset => (
             <PresetButton
               key={preset.name}
@@ -442,7 +443,7 @@ export function CurveEditor({
       )}
 
       {/* Current preset name */}
-      <div className="curve-editor-preset-name">
+      <div className={s.curveEditorPresetName}>
         {matchingPreset ? matchingPreset.name : 'Custom'}
       </div>
     </div>

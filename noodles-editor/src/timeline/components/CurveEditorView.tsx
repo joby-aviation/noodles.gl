@@ -11,6 +11,7 @@ import {
 } from '../timeline-store'
 import type { BezierHandles, Keyframe, KeyframeValue, Track } from '../types'
 import { DEFAULT_BEZIER_HANDLES } from '../types'
+import s from './TimelinePanel.module.css'
 
 export interface CurveEditorViewProps {
   pixelsPerSecond: number
@@ -161,16 +162,16 @@ export function CurveEditorView({
 
   if (!track) {
     return (
-      <div className="timeline-curve-view" style={{ width: timelineWidth, height }}>
-        <div className="timeline-empty">Select a property to edit its curve</div>
+      <div className={s.timelineCurveView} style={{ width: timelineWidth, height }}>
+        <div className={s.timelineEmpty}>Select a property to edit its curve</div>
       </div>
     )
   }
 
   if (!isNumericTrack(track)) {
     return (
-      <div className="timeline-curve-view" style={{ width: timelineWidth, height }}>
-        <div className="timeline-empty">Only numeric properties can be shown in curve view</div>
+      <div className={s.timelineCurveView} style={{ width: timelineWidth, height }}>
+        <div className={s.timelineEmpty}>Only numeric properties can be shown in curve view</div>
       </div>
     )
   }
@@ -178,7 +179,7 @@ export function CurveEditorView({
   const playX = timeToX(position)
 
   return (
-    <div className="timeline-curve-view" style={{ width: timelineWidth, height }}>
+    <div className={s.timelineCurveView} style={{ width: timelineWidth, height }}>
       {/* biome-ignore lint/a11y/noStaticElementInteractions: SVG uses mousedown for seeking */}
       <svg
         width={timelineWidth}

@@ -9,7 +9,7 @@ import { Playhead } from './Playhead'
 import { TimeDisplay } from './TimeDisplay'
 import { TimeRuler } from './TimeRuler'
 import { TrackList } from './TrackList'
-import './TimelinePanel.css'
+import s from './TimelinePanel.module.css'
 
 type ViewMode = 'keyframes' | 'value' | 'speed'
 
@@ -155,13 +155,13 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
   return (
     // biome-ignore lint/a11y/noNoninteractiveTabindex: Timeline panel needs focus to receive keyboard events
     // biome-ignore lint/a11y/noStaticElementInteractions: Timeline panel handles wheel and keyboard shortcuts
-    <div ref={containerRef} className="timeline-panel" style={{ height }} onWheel={handleWheel} onKeyDown={handleKeyDown} tabIndex={0}>
+    <div ref={containerRef} className={s.timelinePanel} style={{ height }} onWheel={handleWheel} onKeyDown={handleKeyDown} tabIndex={0}>
       {/* Header with controls */}
-      <div className="timeline-header">
+      <div className={s.timelineHeader}>
         {onCollapse && (
           <button
             type="button"
-            className="timeline-collapse-btn"
+            className={s.timelineCollapseBtn}
             onClick={onCollapse}
             title="Collapse Timeline"
           >
@@ -173,7 +173,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
         {/* Curve view toggle */}
         <button
           type="button"
-          className={`timeline-view-mode-btn ${viewMode !== 'keyframes' ? 'active' : ''}`}
+          className={`${s.timelineViewModeBtn} ${viewMode !== 'keyframes' ? s.active : ''}`}
           onClick={() => setViewMode(v => v === 'keyframes' ? 'value' : 'keyframes')}
           title={viewMode === 'keyframes' ? 'Switch to curve editor' : 'Switch to keyframe view'}
         >
@@ -182,25 +182,25 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
         {viewMode !== 'keyframes' && (
           <button
             type="button"
-            className="timeline-view-mode-btn active"
+            className={`${s.timelineViewModeBtn} ${s.active}`}
             onClick={() => setViewMode(v => v === 'value' ? 'speed' : 'value')}
             title={viewMode === 'value' ? 'Switch to speed graph' : 'Switch to value graph'}
           >
             {viewMode === 'value' ? 'Value' : 'Speed'}
           </button>
         )}
-        <div className="timeline-zoom">
+        <div className={s.timelineZoom}>
           <button
             type="button"
-            className="timeline-zoom-btn"
+            className={s.timelineZoomBtn}
             onClick={() => setPixelsPerSecond(prev => Math.max(MIN_PIXELS_PER_SECOND, prev * 0.8))}
             title="Zoom out"
           >
-            <span className="timeline-zoom-btn-text">&minus;</span>
+            <span className={s.timelineZoomBtnText}>&minus;</span>
           </button>
           <button
             type="button"
-            className="timeline-zoom-btn timeline-fit-btn"
+            className={`${s.timelineZoomBtn} ${s.timelineFitBtn}`}
             onClick={() => {
               const containerWidth = scrollAreaRef.current?.clientWidth ?? 800
               setPixelsPerSecond(
@@ -216,7 +216,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
           </button>
           <input
             type="range"
-            className="timeline-zoom-slider"
+            className={s.timelineZoomSlider}
             min={LOG_MIN}
             max={LOG_MAX}
             step={0.01}
@@ -226,27 +226,27 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
           />
           <button
             type="button"
-            className="timeline-zoom-btn"
+            className={s.timelineZoomBtn}
             onClick={() => setPixelsPerSecond(prev => Math.min(MAX_PIXELS_PER_SECOND, prev * 1.25))}
             title="Zoom in"
           >
-            <span className="timeline-zoom-btn-text">+</span>
+            <span className={s.timelineZoomBtnText}>+</span>
           </button>
         </div>
       </div>
 
       {/* Main timeline area */}
-      <div className="timeline-body">
+      <div className={s.timelineBody}>
         {/* Track labels column */}
-        <div className="timeline-track-labels">
-          <div className="timeline-track-labels-header">
-            <span className="timeline-track-labels-title">Properties</span>
+        <div className={s.timelineTrackLabels}>
+          <div className={s.timelineTrackLabelsHeader}>
+            <span className={s.timelineTrackLabelsTitle}>Properties</span>
           </div>
           <TrackList showLabelsOnly />
         </div>
 
         {/* Scrollable timeline area */}
-        <div ref={scrollAreaRef} className="timeline-scroll-area" onScroll={handleScroll}>
+        <div ref={scrollAreaRef} className={s.timelineScrollArea} onScroll={handleScroll}>
           {/* Time ruler */}
           <TimeRuler
             width={timelineWidth}
@@ -262,7 +262,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
             // biome-ignore lint/a11y/noStaticElementInteractions: Timeline area uses mousedown for scrubbing playhead
             <div
               ref={timelineAreaRef}
-              className={`timeline-keyframe-area ${isScrubbing ? 'scrubbing' : ''}`}
+              className={`${s.timelineKeyframeArea} ${isScrubbing ? s.scrubbing : ''}`}
               style={{ width: timelineWidth }}
               onMouseDown={handleTimelineMouseDown}
             >

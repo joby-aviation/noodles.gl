@@ -3,6 +3,7 @@
 
 import type React from 'react'
 import { useCallback } from 'react'
+import s from './TimelinePanel.module.css'
 import { getFieldPath } from '../field-bindings'
 import { getTimelineStore, useTimelineStore } from '../timeline-store'
 import type { KeyframeValue } from '../types'
@@ -154,11 +155,11 @@ export function KeyframeIndicator({
 
   // Build class names
   const className = [
-    'keyframe-indicator',
-    size === 'small' ? 'keyframe-indicator-small' : '',
-    hasKeyframes ? 'has-keyframes' : '',
-    isAtKeyframe ? 'at-keyframe' : '',
-    isAnimated ? 'animated' : '',
+    s.keyframeIndicator,
+    size === 'small' ? s.keyframeIndicatorSmall : '',
+    hasKeyframes ? s.hasKeyframes : '',
+    isAtKeyframe ? s.atKeyframe : '',
+    isAnimated ? s.animated : '',
     disabled ? 'disabled' : '',
   ]
     .filter(Boolean)
@@ -212,7 +213,7 @@ export function WithKeyframeIndicator({
   }
 
   return (
-    <div className="field-with-keyframe-indicator">
+    <div className={s.fieldWithKeyframeIndicator}>
       {children}
       <KeyframeIndicator
         opId={opId}

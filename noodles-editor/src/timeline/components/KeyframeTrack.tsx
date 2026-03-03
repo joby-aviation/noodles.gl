@@ -5,6 +5,7 @@ import { captureTimelineState, fireTimelineMutation, getTimelineStore, useTimeli
 import type { Keyframe, Track } from '../types'
 import { CurvePopup } from './CurvePopup'
 import { KeyframeValuePopup } from './KeyframeValuePopup'
+import s from './TimelinePanel.module.css'
 
 export interface KeyframeTrackProps {
   track: Track
@@ -101,12 +102,12 @@ export function KeyframeTrack({
     return (
       // biome-ignore lint/a11y/noStaticElementInteractions: Track label selects track for curve editor
       <div
-        className={`timeline-track-label ${isTrackSelected ? 'selected' : ''}`}
+        className={`${s.timelineTrackLabel} ${isTrackSelected ? s.selected : ''}`}
         title={track.fieldPath}
         onClick={() => selectTrack(track.id)}
       >
-        <span className={`timeline-track-branch ${parentPath ? 'visible' : ''}`}>└</span>
-        <span className="timeline-track-name">{displayName}</span>
+        <span className={`${s.timelineTrackBranch} ${parentPath ? s.visible : ''}`}>└</span>
+        <span className={s.timelineTrackName}>{displayName}</span>
       </div>
     )
   }
@@ -132,7 +133,7 @@ export function KeyframeTrack({
     <>
       {/* biome-ignore lint/a11y/noStaticElementInteractions: Timeline track row uses double-click for adding keyframes */}
       <div
-        className="timeline-track-row"
+        className={s.timelineTrackRow}
         style={{ width: timelineWidth }}
         onDoubleClick={handleDoubleClick}
       >
@@ -141,7 +142,7 @@ export function KeyframeTrack({
           // biome-ignore lint/a11y/noStaticElementInteractions: Bar segment opens curve popup on click
           <div
             key={bar.id}
-            className="timeline-keyframe-bar"
+            className={s.timelineKeyframeBar}
             style={{ left: bar.left, width: bar.width }}
             onClick={e => handleBarClick(e, bar.k1, bar.k2)}
           />
@@ -301,7 +302,7 @@ function KeyframeDiamond({
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: Keyframe diamond is a drag handle
     <div
-      className={`timeline-keyframe ${isSelected ? 'selected' : ''}`}
+      className={`${s.timelineKeyframe} ${isSelected ? s.selected : ''}`}
       style={{ left: x }}
       onPointerDown={handlePointerDown}
       onClick={handleClick}

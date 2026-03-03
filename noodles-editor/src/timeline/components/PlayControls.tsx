@@ -1,5 +1,6 @@
 // Play controls component - play/pause/loop/speed controls
 
+import s from './TimelinePanel.module.css'
 import { useTimelineStore } from '../timeline-store'
 
 export function PlayControls() {
@@ -15,7 +16,7 @@ export function PlayControls() {
   const stepForward = useTimelineStore(state => state.stepForward)
 
   return (
-    <div className="timeline-play-controls">
+    <div className={s.timelinePlayControls}>
       <button type="button" onClick={goToStart} title="Go to start (Home)">
         <StartIcon />
       </button>
@@ -27,7 +28,7 @@ export function PlayControls() {
       <button
         type="button"
         onClick={playing ? pause : play}
-        className={playing ? 'active' : ''}
+        className={playing ? s.active : ''}
         title={playing ? 'Pause (Space)' : 'Play (Space)'}
       >
         {playing ? <PauseIcon /> : <PlayIcon />}
@@ -44,7 +45,7 @@ export function PlayControls() {
       <button
         type="button"
         onClick={toggleLoop}
-        className={loop ? 'active' : ''}
+        className={loop ? s.active : ''}
         title={loop ? 'Loop on' : 'Loop off'}
       >
         <LoopIcon />

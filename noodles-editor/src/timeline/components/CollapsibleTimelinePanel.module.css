@@ -1,4 +1,4 @@
-.timeline-collapse-tab {
+.timelineCollapseTab {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -15,16 +15,16 @@
   transition: background 0.12s ease, color 0.12s ease;
 }
 
-.timeline-collapse-tab:hover {
+.timelineCollapseTab:hover {
   background: linear-gradient(180deg, #212a39 0%, #1a2231 100%);
   color: #b9c3cf;
 }
 
-.timeline-collapse-tab svg {
+.timelineCollapseTab svg {
   opacity: 0.85;
 }
 
-.timeline-collapsible-container {
+.timelineCollapsibleContainer {
   display: flex;
   flex-direction: column;
   background: #11161e;

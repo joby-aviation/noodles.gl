@@ -2,6 +2,7 @@
 
 import type React from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import s from './TimelinePanel.module.css'
 
 export interface ScrubbableInputProps {
   value: number
@@ -252,24 +253,24 @@ export function ScrubbableInput({
   const displayValue = isEditing ? editValue : formatValue(value, precision)
 
   const inputClassName = [
-    'scrubbable-input-field',
-    isDragging && 'dragging',
-    hasKeyframes && 'has-keyframes',
-    isAtKeyframe && 'at-keyframe',
+    s.scrubbableInputField,
+    isDragging && s.dragging,
+    hasKeyframes && s.hasKeyframes,
+    isAtKeyframe && s.atKeyframe,
   ]
     .filter(Boolean)
     .join(' ')
 
   const indicatorClassName = [
-    'scrubbable-input-keyframe-indicator',
-    hasKeyframes && 'has-keyframes',
-    isAtKeyframe && 'at-keyframe',
+    s.scrubbableInputKeyframeIndicator,
+    hasKeyframes && s.hasKeyframes,
+    isAtKeyframe && s.atKeyframe,
   ]
     .filter(Boolean)
     .join(' ')
 
   return (
-    <div className="scrubbable-input">
+    <div className={s.scrubbableInput}>
       <input
         ref={inputRef}
         type="text"

@@ -3,6 +3,7 @@
 import type React from 'react'
 import { useCallback, useRef, useState } from 'react'
 import { useMemo } from 'react'
+import s from './TimelinePanel.module.css'
 import { captureTimelineState, fireTimelineMutation } from '../timeline-store'
 
 export interface TimeRulerProps {
@@ -62,6 +63,7 @@ export function TimeRuler({
   const inputRef = useRef<HTMLInputElement>(null)
   const beforeStateRef = useRef<string>('')
   const dragStateRef = useRef<{ startX: number; startLength: number; before: string } | null>(null)
+  const isScrubbingRef = useRef(false)
 
   const { ticks, labels } = useMemo(() => {
     const { major, minor } = getTickInterval(pixelsPerSecond)
@@ -77,14 +79,14 @@ export function TimeRuler({
       tickElements.push(
         <div
           key={`tick-${time}`}
-          className={`timeline-ruler-tick ${isMajor ? 'major' : ''}`}
+          className={`${s.timelineRulerTick} ${isMajor ? s.major : ''}`}
           style={{ left: x, height: isMajor ? 12 : 6 }}
         />
       )
 
       if (isMajor) {
         labelElements.push(
-          <div key={`label-${time}`} className="timeline-ruler-label" style={{ left: x }}>
+          <div key={`label-${time}`} className={s.timelineRulerLabel} style={{ left: x }}>
             {formatTime(time)}
           </div>
         )
@@ -164,35 +166,59 @@ export function TimeRuler({
   const handleRulerMouseDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (e.button !== 0) return
-      const rect = e.currentTarget.getBoundingClientRect()
-      const x = e.clientX - rect.left
-      const nextPosition = Math.max(0, Math.min(sequenceLength, x / pixelsPerSecond))
-      onSetPosition(nextPosition)
+
+      const target = e.target as HTMLElement
+      if (target.closest('.timeline-sequence-end-marker')) return
+      const rulerElement = e.currentTarget
+
+      const updatePosition = (event: MouseEvent | React.MouseEvent<HTMLDivElement>) => {
+        const rect = rulerElement.getBoundingClientRect()
+        const x = event.clientX - rect.left
+        const nextPosition = Math.max(0, Math.min(sequenceLength, x / pixelsPerSecond))
+        onSetPosition(nextPosition)
+      }
+
+      updatePosition(e)
+      isScrubbingRef.current = true
+
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+        if (!isScrubbingRef.current) return
+        updatePosition(moveEvent)
+      }
+
+      const handleMouseUp = () => {
+        isScrubbingRef.current = false
+        document.removeEventListener('mousemove', handleMouseMove)
+        document.removeEventListener('mouseup', handleMouseUp)
+      }
+
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
     },
     [onSetPosition, pixelsPerSecond, sequenceLength]
   )
 
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: Timeline ruler supports direct click-to-seek
-    <div className="timeline-ruler" style={{ width }} onMouseDown={handleRulerMouseDown}>
+    <div className={s.timelineRuler} style={{ width }} onMouseDown={handleRulerMouseDown}>
       {ticks}
       {labels}
 
       {/* End-of-sequence marker */}
       {/* biome-ignore lint/a11y/noStaticElementInteractions: Marker supports pointer drag and double-click editing */}
       <div
-        className="timeline-sequence-end-marker"
+        className={s.timelineSequenceEndMarker}
         style={{ left: endX }}
         onPointerDown={handleEndMarkerPointerDown}
         onDoubleClick={handleEndMarkerDoubleClick}
         title="Drag to set sequence length, double-click to edit"
       >
-        <div className="timeline-sequence-end-line" />
-        <div className="timeline-sequence-end-handle" />
+        <div className={s.timelineSequenceEndLine} />
+        <div className={s.timelineSequenceEndHandle} />
         {editingLength && (
           <input
             ref={inputRef}
-            className="timeline-sequence-end-input"
+            className={s.timelineSequenceEndInput}
             type="text"
             value={inputValue}
             onChange={e => setInputValue(e.target.value)}

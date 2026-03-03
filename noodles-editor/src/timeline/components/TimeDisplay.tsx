@@ -2,6 +2,7 @@
 // The total duration is clickable to edit the sequence length
 
 import { useCallback, useRef, useState } from 'react'
+import s from './TimelinePanel.module.css'
 import { captureTimelineState, fireTimelineMutation, useTimelineStore } from '../timeline-store'
 
 // Format time as MM:SS:FF (minutes:seconds:frames)
@@ -57,13 +58,13 @@ export function TimeDisplay() {
   )
 
   return (
-    <div className="timeline-time-display">
+    <div className={s.timelineTimeDisplay}>
       <span>{currentTime}</span>
-      <span className="timeline-time-display-separator">/</span>
+      <span className={s.timelineTimeDisplaySeparator}>/</span>
       {editing ? (
         <input
           ref={inputRef}
-          className="timeline-duration-input"
+          className={s.timelineDurationInput}
           type="text"
           value={inputValue}
           onChange={e => setInputValue(e.target.value)}
@@ -74,7 +75,7 @@ export function TimeDisplay() {
       ) : (
         // biome-ignore lint/a11y/useButtonType: span used for inline display
         <span
-          className="timeline-duration-clickable"
+          className={s.timelineDurationClickable}
           onClick={startEditing}
           title="Click to edit sequence duration"
           role="button"

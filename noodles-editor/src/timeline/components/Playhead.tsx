@@ -1,6 +1,7 @@
 // Playhead component - draggable position indicator
 
 import { useCallback, useRef, useState } from 'react'
+import s from './TimelinePanel.module.css'
 import { useTimelineStore } from '../timeline-store'
 
 export interface PlayheadProps {
@@ -56,7 +57,7 @@ export function Playhead({ position, pixelsPerSecond, height }: PlayheadProps) {
 
   return (
     <div
-      className="timeline-playhead"
+      className={s.timelinePlayhead}
       style={{
         left: x,
         height,
@@ -64,7 +65,7 @@ export function Playhead({ position, pixelsPerSecond, height }: PlayheadProps) {
       }}
     >
       {/* biome-ignore lint/a11y/noStaticElementInteractions: Playhead handle uses drag interaction */}
-      <div className="timeline-playhead-handle" onMouseDown={handleMouseDown} />
+      <div className={s.timelinePlayheadHandle} onMouseDown={handleMouseDown} />
     </div>
   )
 }

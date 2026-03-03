@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { captureTimelineState, fireTimelineMutation, useTimelineStore } from '../timeline-store'
 import type { Keyframe, KeyframeValue, Point2D, Point3D, RGBA, Vec2, Vec3 } from '../types'
+import s from './TimelinePanel.module.css'
 
 export interface KeyframeValuePopupProps {
   trackId: string
@@ -130,13 +131,13 @@ function ScrubInput({
   )
 
   return (
-    <div className="kf-value-row">
-      {label && <span className="kf-value-label">{label}</span>}
+    <div className={s.kfValueRow}>
+      {label && <span className={s.kfValueLabel}>{label}</span>}
       {isEditing ? (
         <input
           ref={inputRef}
           type="number"
-          className="kf-value-input editing"
+          className={`${s.kfValueInput} ${s.editing}`}
           value={text}
           onChange={e => setText(e.target.value)}
           onBlur={commit}
@@ -146,7 +147,7 @@ function ScrubInput({
       ) : (
         // biome-ignore lint/a11y/noStaticElementInteractions: scrub input uses pointer drag
         <div
-          className="kf-value-input scrub"
+          className={`${s.kfValueInput} ${s.scrub}`}
           onPointerDown={handlePointerDown}
           onClick={handleClick}
           title="Drag to scrub · click to type"
@@ -185,15 +186,15 @@ function RGBAEditor({
 
   return (
     <>
-      <div className="kf-rgba-swatch-row">
+      <div className={s.kfRgbaSwatchRow}>
         <input
           type="color"
-          className="kf-color-input"
+          className={s.kfColorInput}
           value={hexColor}
           onChange={handleColorInput}
           title="Pick colour"
         />
-        <span className="kf-value-label" style={{ flex: 1 }}>Colour</span>
+        <span className={s.kfValueLabel} style={{ flex: 1 }}>Colour</span>
       </div>
       <ScrubInput label="R" value={value.r} min={0} max={1} step={0.004} onChange={r => onChange({ ...value, r })} />
       <ScrubInput label="G" value={value.g} min={0} max={1} step={0.004} onChange={g => onChange({ ...value, g })} />
@@ -281,25 +282,25 @@ export function KeyframeValuePopup({
         )
       case 'boolean':
         return (
-          <div className="kf-value-row">
-            <span className="kf-value-label">Value</span>
-            <label className="kf-boolean-toggle">
+          <div className={s.kfValueRow}>
+            <span className={s.kfValueLabel}>Value</span>
+            <label className={s.kfBooleanToggle}>
               <input
                 type="checkbox"
                 checked={v as boolean}
                 onChange={e => handleValueChange(e.target.checked)}
               />
-              <span className="kf-boolean-label">{(v as boolean) ? 'True' : 'False'}</span>
+              <span className={s.kfBooleanLabel}>{(v as boolean) ? 'True' : 'False'}</span>
             </label>
           </div>
         )
       case 'string':
         return (
-          <div className="kf-value-row">
-            <span className="kf-value-label">Value</span>
+          <div className={s.kfValueRow}>
+            <span className={s.kfValueLabel}>Value</span>
             <input
               type="text"
-              className="kf-value-input editing"
+              className={`${s.kfValueInput} ${s.editing}`}
               value={v as string}
               onChange={e => handleValueChange(e.target.value)}
             />
@@ -346,19 +347,19 @@ export function KeyframeValuePopup({
         )
       }
       default:
-        return <div className="kf-value-unknown">No editor for this value type</div>
+        return <div className={s.kfValueUnknown}>No editor for this value type</div>
     }
   }
 
   return createPortal(
-    <div ref={popupRef} className="keyframe-value-popup" style={style}>
-      <div className="kf-popup-header">
-        <span className="kf-popup-timecode">{timeCode}</span>
-        <button type="button" className="kf-popup-close" onClick={handleClose} aria-label="Close">
+    <div ref={popupRef} className={s.keyframeValuePopup} style={style}>
+      <div className={s.kfPopupHeader}>
+        <span className={s.kfPopupTimecode}>{timeCode}</span>
+        <button type="button" className={s.kfPopupClose} onClick={handleClose} aria-label="Close">
           ×
         </button>
       </div>
-      <div className="kf-popup-body">{renderEditor()}</div>
+      <div className={s.kfPopupBody}>{renderEditor()}</div>
     </div>,
     document.body
   )
