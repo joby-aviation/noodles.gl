@@ -27,6 +27,9 @@ export interface TimelinePanelProps {
   onCollapse?: () => void
 }
 
+// Row height must match .timeline-track-row height in CSS
+const TRACK_ROW_HEIGHT = 28
+
 export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const timelineAreaRef = useRef<HTMLDivElement>(null)
@@ -37,6 +40,17 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
   const [scrollLeft, setScrollLeft] = useState(0)
   const [isScrubbing, setIsScrubbing] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('keyframes')
+
+  // Box selection — use refs to avoid stale closure in the persistent document listener
+  const boxSelectActive = useRef(false)
+  const boxSelectStartTL = useRef({ x: 0, y: 0 }) // timeline-area-local coords
+  const boxSelectCurrentTL = useRef({ x: 0, y: 0 })
+  const pixelsPerSecondRef = useRef(pixelsPerSecond)
+  pixelsPerSecondRef.current = pixelsPerSecond
+  // Overlay rect state is only used for rendering
+  const [boxSelectOverlay, setBoxSelectOverlay] = useState<{
+    left: number; top: number; width: number; height: number
+  } | null>(null)
 
   // Timeline store state
   const sequence = useTimelineStore(state => state.sequence)
@@ -82,11 +96,22 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
     [pixelsToTime, sequence.length]
   )
 
-  // Handle mousedown on timeline area to start scrubbing
+  // Handle mousedown on timeline area — shift+drag starts box selection, plain drag scrubs
   const handleTimelineMouseDown = useCallback(
     (e: React.MouseEvent) => {
-      // Only handle left mouse button
       if (e.button !== 0) return
+
+      if (e.shiftKey) {
+        const rect = timelineAreaRef.current?.getBoundingClientRect()
+        if (!rect) return
+        const sl = scrollAreaRef.current?.scrollLeft ?? 0
+        const coords = { x: e.clientX - rect.left + sl, y: e.clientY - rect.top }
+        boxSelectActive.current = true
+        boxSelectStartTL.current = coords
+        boxSelectCurrentTL.current = coords
+        setBoxSelectOverlay({ left: coords.x, top: coords.y, width: 0, height: 0 })
+        return
+      }
 
       const time = getTimeFromMouseEvent(e)
       if (time !== null) {
@@ -120,6 +145,71 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
       document.removeEventListener('mouseup', handleMouseUp)
     }
   }, [isScrubbing, getTimeFromMouseEvent, setPosition])
+
+  // Persistent document listeners for box selection — uses refs to avoid stale closures
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally empty deps; all mutable state accessed via refs
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!boxSelectActive.current) return
+      const rect = timelineAreaRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const sl = scrollAreaRef.current?.scrollLeft ?? 0
+      const x = e.clientX - rect.left + sl
+      const y = e.clientY - rect.top
+      boxSelectCurrentTL.current = { x, y }
+      const sx = boxSelectStartTL.current.x
+      const sy = boxSelectStartTL.current.y
+      setBoxSelectOverlay({
+        left: Math.min(sx, x),
+        top: Math.min(sy, y),
+        width: Math.abs(x - sx),
+        height: Math.abs(y - sy),
+      })
+    }
+
+    const handleMouseUp = (e: MouseEvent) => {
+      if (!boxSelectActive.current) return
+      boxSelectActive.current = false
+      const start = boxSelectStartTL.current
+      const end = boxSelectCurrentTL.current
+      setBoxSelectOverlay(null)
+
+      // Ignore micro-drags (plain shift-clicks with no movement)
+      if (Math.abs(end.x - start.x) < 3 && Math.abs(end.y - start.y) < 3) return
+
+      const minX = Math.min(start.x, end.x)
+      const maxX = Math.max(start.x, end.x)
+      const minY = Math.min(start.y, end.y)
+      const maxY = Math.max(start.y, end.y)
+
+      const pps = pixelsPerSecondRef.current
+      const store = getTimelineStore()
+
+      // Use the same sort order as TrackList so track Y positions match
+      const trackArray = Array.from(store.tracks.values())
+        .filter(t => t.keyframes.length > 0)
+        .sort((a, b) => a.fieldPath.localeCompare(b.fieldPath))
+
+      const ids: string[] = []
+      for (let i = 0; i < trackArray.length; i++) {
+        const cy = i * TRACK_ROW_HEIGHT + TRACK_ROW_HEIGHT / 2
+        if (cy < minY || cy > maxY) continue
+        for (const kf of trackArray[i].keyframes) {
+          const kfX = kf.position * pps
+          if (kfX >= minX && kfX <= maxX) ids.push(kf.id)
+        }
+      }
+
+      store.setSelectedKeyframes(ids)
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [])
 
   // Delete selected keyframes on Delete/Backspace key
   const handleKeyDown = useCallback(
@@ -259,15 +349,18 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
 
           {/* Keyframe area or curve editor view */}
           {viewMode === 'keyframes' ? (
-            // biome-ignore lint/a11y/noStaticElementInteractions: Timeline area uses mousedown for scrubbing playhead
+            // biome-ignore lint/a11y/noStaticElementInteractions: Timeline area uses mousedown for scrubbing playhead and box selection
             <div
               ref={timelineAreaRef}
-              className={`${s.timelineKeyframeArea} ${isScrubbing ? s.scrubbing : ''}`}
+              className={`${s.timelineKeyframeArea} ${isScrubbing ? s.scrubbing : ''} ${boxSelectOverlay ? s.boxSelecting : ''}`}
               style={{ width: timelineWidth }}
               onMouseDown={handleTimelineMouseDown}
             >
               <TrackList pixelsPerSecond={pixelsPerSecond} timelineWidth={timelineWidth} sequenceLength={sequence.length} />
               <Playhead position={position} pixelsPerSecond={pixelsPerSecond} height={height - 80} />
+              {boxSelectOverlay && (
+                <div className={s.timelineBoxSelect} style={boxSelectOverlay} />
+              )}
             </div>
           ) : (
             <CurveEditorView

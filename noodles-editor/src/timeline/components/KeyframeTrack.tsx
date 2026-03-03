@@ -40,6 +40,7 @@ export function KeyframeTrack({
   const selectedTrackIds = useTimelineStore(state => state.selectedTrackIds)
   const selectKeyframe = useTimelineStore(state => state.selectKeyframe)
   const selectTrack = useTimelineStore(state => state.selectTrack)
+  const toggleTrackKeyframes = useTimelineStore(state => state.toggleTrackKeyframes)
   const addKeyframe = useTimelineStore(state => state.addKeyframe)
 
   const [openPopup, setOpenPopup] = useState<{
@@ -78,12 +79,11 @@ export function KeyframeTrack({
     [track.id, track.defaultValue, pixelsPerSecond, addKeyframe, showLabelOnly]
   )
 
-  // Handle bar segment click to open curve popup
+  // Handle bar segment popup open (called by KeyframeBar after confirming no drag)
   const handleBarClick = useCallback(
-    (e: React.MouseEvent, k1: Keyframe, k2: Keyframe) => {
-      e.stopPropagation()
+    (k1: Keyframe, k2: Keyframe, x: number, y: number) => {
       setOpenValuePopup(null)
-      setOpenPopup({ k1, k2, x: e.clientX, y: e.clientY })
+      setOpenPopup({ k1, k2, x, y })
     },
     []
   )
@@ -100,11 +100,17 @@ export function KeyframeTrack({
   if (showLabelOnly) {
     const isTrackSelected = selectedTrackIds.has(track.id)
     return (
-      // biome-ignore lint/a11y/noStaticElementInteractions: Track label selects track for curve editor
+      // biome-ignore lint/a11y/noStaticElementInteractions: Track label selects track for curve editor; shift-click toggles keyframe selection
       <div
         className={`${s.timelineTrackLabel} ${isTrackSelected ? s.selected : ''}`}
         title={track.fieldPath}
-        onClick={() => selectTrack(track.id)}
+        onClick={e => {
+          if (e.shiftKey) {
+            toggleTrackKeyframes(track.id)
+          } else {
+            selectTrack(track.id)
+          }
+        }}
       >
         <span className={`${s.timelineTrackBranch} ${parentPath ? s.visible : ''}`}>└</span>
         <span className={s.timelineTrackName}>{displayName}</span>
@@ -137,14 +143,18 @@ export function KeyframeTrack({
         style={{ width: timelineWidth }}
         onDoubleClick={handleDoubleClick}
       >
-        {/* Bar segments between keyframes — clickable to edit easing */}
+        {/* Bar segments between keyframes — draggable to move selected kfs; clickable to edit easing */}
         {barSegments.map(bar => (
-          // biome-ignore lint/a11y/noStaticElementInteractions: Bar segment opens curve popup on click
-          <div
+          <KeyframeBar
             key={bar.id}
-            className={s.timelineKeyframeBar}
-            style={{ left: bar.left, width: bar.width }}
-            onClick={e => handleBarClick(e, bar.k1, bar.k2)}
+            k1={bar.k1}
+            k2={bar.k2}
+            left={bar.left}
+            width={bar.width}
+            pixelsPerSecond={pixelsPerSecond}
+            sequenceLength={sequenceLength}
+            selectedKeyframeIds={selectedKeyframeIds}
+            onOpenPopup={handleBarClick}
           />
         ))}
         {/* Keyframe diamonds */}
@@ -182,6 +192,108 @@ export function KeyframeTrack({
         />
       )}
     </>
+  )
+}
+
+// Bar segment between two keyframes — drag moves all selected keyframes; click opens curve popup
+interface KeyframeBarProps {
+  k1: Keyframe
+  k2: Keyframe
+  left: number
+  width: number
+  pixelsPerSecond: number
+  sequenceLength: number
+  selectedKeyframeIds: Set<string>
+  onOpenPopup: (k1: Keyframe, k2: Keyframe, x: number, y: number) => void
+}
+
+function KeyframeBar({
+  k1,
+  k2,
+  left,
+  width,
+  pixelsPerSecond,
+  sequenceLength,
+  selectedKeyframeIds,
+  onOpenPopup,
+}: KeyframeBarProps) {
+  const isDraggingRef = useRef(false)
+  const beforeStateRef = useRef('')
+
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (e.button !== 0) return
+      // Always reset so click handler sees fresh state
+      isDraggingRef.current = false
+
+      // No selected keyframes — let click fall through to the popup
+      if (selectedKeyframeIds.size === 0) return
+
+      e.stopPropagation()
+      e.currentTarget.setPointerCapture(e.pointerId)
+
+      const startX = e.clientX
+      beforeStateRef.current = captureTimelineState()
+
+      const store = getTimelineStore()
+      const startPositions = new Map<string, number>()
+      for (const [, track] of store.tracks) {
+        for (const kf of track.keyframes) {
+          if (selectedKeyframeIds.has(kf.id)) {
+            startPositions.set(kf.id, kf.position)
+          }
+        }
+      }
+
+      const handlePointerMove = (moveEvent: PointerEvent) => {
+        const deltaX = moveEvent.clientX - startX
+        if (Math.abs(deltaX) < 2 && !isDraggingRef.current) return
+        isDraggingRef.current = true
+
+        const deltaTime = deltaX / pixelsPerSecond
+        for (const [tid, track] of store.tracks) {
+          for (const kf of track.keyframes) {
+            if (startPositions.has(kf.id)) {
+              const origPos = startPositions.get(kf.id) ?? kf.position
+              store.updateKeyframe(tid, kf.id, {
+                position: Math.max(0, Math.min(sequenceLength, origPos + deltaTime)),
+              })
+            }
+          }
+        }
+      }
+
+      const handlePointerUp = () => {
+        if (isDraggingRef.current) {
+          fireTimelineMutation('Move keyframes', beforeStateRef.current)
+        }
+        document.removeEventListener('pointermove', handlePointerMove)
+        document.removeEventListener('pointerup', handlePointerUp)
+      }
+
+      document.addEventListener('pointermove', handlePointerMove)
+      document.addEventListener('pointerup', handlePointerUp)
+    },
+    [pixelsPerSecond, sequenceLength, selectedKeyframeIds]
+  )
+
+  const handleClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (isDraggingRef.current) return
+      e.stopPropagation()
+      onOpenPopup(k1, k2, e.clientX, e.clientY)
+    },
+    [k1, k2, onOpenPopup]
+  )
+
+  return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: Bar is a drag handle for selected keyframes and click target for curve popup
+    <div
+      className={s.timelineKeyframeBar}
+      style={{ left, width }}
+      onPointerDown={handlePointerDown}
+      onClick={handleClick}
+    />
   )
 }
 

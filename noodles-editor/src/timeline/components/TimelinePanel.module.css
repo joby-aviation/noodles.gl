@@ -194,6 +194,19 @@
   cursor: ew-resize;
 }
 
+.timelineKeyframeArea.boxSelecting {
+  cursor: crosshair;
+}
+
+.timelineBoxSelect {
+  position: absolute;
+  z-index: 20;
+  background: rgb(72 198 207 / 0.08);
+  border: 1px solid rgb(72 198 207 / 0.45);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
 .timelineTrackRow {
   height: 28px;
   border-bottom: 1px solid rgb(38 51 67 / 0.7);

@@ -79,6 +79,10 @@ export interface TimelineStore {
   clearSelection: () => void
   selectAllInTrack: (trackId: string) => void
   selectTrack: (trackId: string) => void
+  // Replace entire selection atomically (used by box select)
+  setSelectedKeyframes: (ids: string[]) => void
+  // Shift-click on track label: add all kfs if not all selected, remove all if all selected
+  toggleTrackKeyframes: (trackId: string) => void
 
   // === Evaluation ===
   evaluateTrack: (trackId: string, time?: number) => KeyframeValue | undefined
@@ -380,6 +384,22 @@ export const useTimelineStore = create<TimelineStore>()(
 
     selectTrack: trackId => {
       set({ selectedTrackIds: new Set([trackId]) })
+    },
+
+    setSelectedKeyframes: ids => {
+      set({ selectedKeyframeIds: new Set(ids) })
+    },
+
+    toggleTrackKeyframes: trackId => {
+      const { tracks, selectedKeyframeIds } = get()
+      const track = tracks.get(trackId)
+      if (!track || track.keyframes.length === 0) return
+      const allSelected = track.keyframes.every(kf => selectedKeyframeIds.has(kf.id))
+      const next = new Set(selectedKeyframeIds)
+      for (const kf of track.keyframes) {
+        allSelected ? next.delete(kf.id) : next.add(kf.id)
+      }
+      set({ selectedKeyframeIds: next })
     },
 
     // === Evaluation ===
