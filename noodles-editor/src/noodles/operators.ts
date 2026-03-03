@@ -64,7 +64,6 @@ import type { Tileset3D } from '@loaders.gl/tiles'
 import { brightnessContrast, hueSaturation, vibrance } from '@luma.gl/effects'
 import { fitBounds } from '@math.gl/web-mercator'
 import * as Plot from '@observablehq/plot'
-import { onChange } from '@theatre/core'
 import * as turf from '@turf/turf'
 import * as d3 from 'd3'
 import {
@@ -139,6 +138,7 @@ import { colorToHex, hexToColor } from '../utils/color'
 import { getDirections } from '../utils/directions'
 import { CARTO_DARK, MAP_STYLES } from '../utils/map-styles'
 import { mulberry32 } from '../utils/random'
+import { subscribeToPosition } from '../timeline/timeline-store'
 import { FilterColorExtension } from './extensions/filter-color-extension'
 import { Mask3DExtension } from './extensions/mask-3d-extension'
 import {
@@ -1445,7 +1445,7 @@ export class TimeOp extends Operator<TimeOp> {
 
   private timeState$ = new BehaviorSubject({ now: Date.now(), tick: 0, sequenceTime: 0 })
   private rafId?: number
-  private theatreUnsub?: () => void
+  private positionUnsub?: () => void
 
   constructor(id: OpId, inputs?: unknown, locked?: boolean) {
     super(id, inputs, locked)
@@ -1474,6 +1474,11 @@ export class TimeOp extends Operator<TimeOp> {
     })
     this.subs.push(sub)
 
+    this.positionUnsub = subscribeToPosition((pos: number) => {
+      const current = this.timeState$.value
+      this.timeState$.next({ ...current, sequenceTime: pos })
+    })
+
     // Start RAF loop after outputs are fully initialized
     this.startRAF()
   }
@@ -1491,20 +1496,11 @@ export class TimeOp extends Operator<TimeOp> {
     update()
   }
 
-  // Called by the component to inject Theatre sheet
-  setTheatreSheet(sheet: { sequence: { pointer: { position: unknown } } }) {
-    this.theatreUnsub?.()
-    this.theatreUnsub = onChange(sheet.sequence.pointer.position, (pos: number) => {
-      const current = this.timeState$.value
-      this.timeState$.next({ ...current, sequenceTime: pos })
-    })
-  }
-
   dispose() {
     if (this.rafId !== undefined) {
       cancelAnimationFrame(this.rafId)
     }
-    this.theatreUnsub?.()
+    this.positionUnsub?.()
     this.timeState$.complete()
     super.dispose()
   }
@@ -6848,7 +6844,15 @@ export type SpecialNodeType = 'group'
 function proxyFields(op: Operator<IOperator>, fields: 'inputs' | 'outputs') {
   return new Proxy(op, {
     get(target, prop: string | symbol) {
-      return target[fields][prop as string].value
+      // Proxy is used for convenient field access (e.g. `op('/x').par.foo`).
+      // Missing or symbol keys should behave like normal JS property access
+      // and return undefined rather than throwing on `.value`.
+      if (typeof prop !== 'string') {
+        return undefined
+      }
+
+      const field = target[fields][prop]
+      return field?.value
     },
     set(_target, _prop: string | symbol, _value) {
       throw new Error('Cannot set value on par or out')

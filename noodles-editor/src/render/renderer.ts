@@ -1,6 +1,4 @@
 import { assert } from '@deck.gl/core'
-import { createRafDriver, type IProject, type ISequence } from '@theatre/core'
-import { useVal } from '@theatre/react'
 import {
   EncodedPacket,
   EncodedVideoPacketSource,
@@ -10,27 +8,32 @@ import {
   StreamTarget,
   WebMOutputFormat,
 } from 'mediabunny'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
+import { getTimelineStore, useTimelineStore } from '../timeline/timeline-store'
 
-export const rafDriver = createRafDriver({ name: 'WorldView' })
+export const rafDriver = {
+  tick: (_timestamp: number) => {},
+}
+
+function useSequenceLength() {
+  return useTimelineStore(state => state.sequence.length)
+}
 
 export const useRenderer = ({
-  project,
-  sequence,
+  projectName = 'render',
   fps = 30,
   bitrate = 10_000_000, // 10mbps
   bitrateMode,
   redraw,
 }: {
-  project: IProject
-  sequence: ISequence
+  projectName?: string
   fps?: number
   bitrate?: number
   bitrateMode: 'variable' | 'constant'
   redraw: () => void
 }) => {
-  // useVal keeps the prism "hot" and avoids cold prism warnings
-  const sequenceLength = useVal(sequence.pointer.length)
+  // Get sequence length from the appropriate timeline system
+  const sequenceLength = useSequenceLength()
 
   const canvasRenderDone = useRef<(result?: { error?: Error }) => void>(() => {})
   const canvasFrameReady = useCallback(
@@ -71,8 +74,6 @@ export const useRenderer = ({
 
       setIsRendering(true)
 
-      const projectName = project.address.projectId
-
       // Warn if alpha export is requested with incompatible codec
       if (exportAlpha && (codec === 'avc' || codec === 'hevc')) {
         console.warn(
@@ -82,6 +83,7 @@ export const useRenderer = ({
           `Warning: H.264 and H.265 codecs don't support transparency.\n\nSwitch to VP9 or AV1 codec to export with alpha channel.`
         )
       }
+
 
       const getContainer = async (name: string) => {
         // Determine file extension and container format based on codec and alpha
@@ -217,8 +219,6 @@ export const useRenderer = ({
         }
       }
 
-      await project.ready
-
       function getCanvasRecorder(canvas: HTMLCanvasElement) {
         const track = canvas.captureStream(0).getVideoTracks()[0]
         const mediaProcessor = new MediaStreamTrackProcessor({ track })
@@ -245,10 +245,7 @@ export const useRenderer = ({
 
       for (; i < endFrame + 1; i++) {
         const simTime = i / fps
-        sequence.position = simTime
-        rafDriver.tick(performance.now())
-        // redraw in case nothing changes due to theatre raf driver
-        // TODO: Where should this go so that the first frame captures?
+        getTimelineStore().setPosition(simTime)
         redraw()
 
         currentFrame.current = i
@@ -281,22 +278,10 @@ export const useRenderer = ({
       finishEncoding()
       setIsRendering(false)
     },
-    [project, sequence, sequenceLength, fps, bitrate, bitrateMode, canvasFrameReady, redraw]
+    [projectName, sequenceLength, fps, bitrate, bitrateMode, canvasFrameReady, redraw]
   )
 
   const [isRendering, setIsRendering] = useState(false)
-  useEffect(() => {
-    if (isRendering) {
-      return
-    }
-    let tick: number
-    const cb = () => {
-      rafDriver.tick(performance.now())
-      tick = requestAnimationFrame(cb)
-    }
-    tick = requestAnimationFrame(cb)
-    return () => cancelAnimationFrame(tick)
-  }, [isRendering])
 
   return {
     startCapture,

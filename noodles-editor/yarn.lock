@@ -2692,49 +2692,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@theatre/core@npm:0.7.2":
-  version: 0.7.2
-  resolution: "@theatre/core@npm:0.7.2"
-  dependencies:
-    "@theatre/dataverse": 0.7.2
-  checksum: a9a1b05ae23f8a4be54ae77320c3dbd445bc3c07cb16ec7e14ea5bc7a5e50aac8a5f6cf0fabfb7b60d0522adc26ec344da3a1edfa2842e106afc3ef1a283e29c
-  languageName: node
-  linkType: hard
-
-"@theatre/dataverse@npm:0.7.2":
-  version: 0.7.2
-  resolution: "@theatre/dataverse@npm:0.7.2"
-  dependencies:
-    lodash-es: ^4.17.21
-  checksum: dc954e7b6a12fc86a650561afae20294e00ceaae24f673a669bba35107dc827a79d1ec14a1bfb996f169fadad6adf4b5d8b15dbae8ae939ab173a6d23395af94
-  languageName: node
-  linkType: hard
-
-"@theatre/react@npm:0.7.2":
-  version: 0.7.2
-  resolution: "@theatre/react@npm:0.7.2"
-  dependencies:
-    "@theatre/dataverse": 0.7.2
-    lodash-es: ^4.17.21
-    queue-microtask: ^1.2.3
-  peerDependencies:
-    react: "*"
-    react-dom: "*"
-  checksum: c28dfb1c2871382d41e28dbd930ac13f5541b9dc5d965a6ee2b02a53d1c99ba5d5414c8a138d50f14b3d48b79718297fcce50d147edbc4f6dc20d7fe80133e44
-  languageName: node
-  linkType: hard
-
-"@theatre/studio@npm:0.7.2":
-  version: 0.7.2
-  resolution: "@theatre/studio@npm:0.7.2"
-  dependencies:
-    "@theatre/dataverse": 0.7.2
-  peerDependencies:
-    "@theatre/core": "*"
-  checksum: e635bc21a08866a90d6d17de8b7c46a84208c0459bdc8919b04f4e215dbbb4cb166203b64748095257792aad8cd82bf1e668e5e78e9c7acd73f5cdf640c0f030
-  languageName: node
-  linkType: hard
-
 "@tmcw/togeojson@npm:^7.1.2":
   version: 7.1.2
   resolution: "@tmcw/togeojson@npm:7.1.2"
@@ -7964,7 +7921,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"lodash-es@npm:^4.17.15, lodash-es@npm:^4.17.21":
+"lodash-es@npm:^4.17.15":
   version: 4.17.22
   resolution: "lodash-es@npm:4.17.22"
   checksum: 1da119f40e54822fb5d69eeb9d2c7ec46ac541cc73e6250748838abd7dd51ecf613592e07a5476f56bcbbeb27838697a4347d68cd98f131cad8c4665f9bb2a16
@@ -8557,9 +8514,6 @@ __metadata:
     "@testing-library/jest-dom": ^6.9.1
     "@testing-library/react": ^16.3.1
     "@testing-library/user-event": ^14.6.1
-    "@theatre/core": 0.7.2
-    "@theatre/react": 0.7.2
-    "@theatre/studio": 0.7.2
     "@tmcw/togeojson": ^7.1.2
     "@turf/turf": ^7.3.1
     "@types/d3": ^7.4.3
@@ -9172,13 +9126,6 @@ __metadata:
   version: 0.2.1
   resolution: "querystring-es3@npm:0.2.1"
   checksum: 691e8d6b8b157e7cd49ae8e83fcf86de39ab3ba948c25abaa94fba84c0986c641aa2f597770848c64abce290ed17a39c9df6df737dfa7e87c3b63acc7d225d61
-  languageName: node
-  linkType: hard
-
-"queue-microtask@npm:^1.2.3":
-  version: 1.2.3
-  resolution: "queue-microtask@npm:1.2.3"
-  checksum: b676f8c040cdc5b12723ad2f91414d267605b26419d5c821ff03befa817ddd10e238d22b25d604920340fd73efd8ba795465a0377c4adf45a4a41e4234e42dc4
   languageName: node
   linkType: hard
 
