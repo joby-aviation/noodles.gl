@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTimelineStore } from '../../timeline-store'
 import type { Keyframe } from '../../types'
@@ -49,6 +49,7 @@ describe('CurvePopup', () => {
   })
 
   afterEach(() => {
+    cleanup()
     useTimelineStore.getState().reset()
   })
 
@@ -301,6 +302,124 @@ describe('CurvePopup', () => {
 
       const presetLabel = document.querySelector('.curve-popup-preset-label')
       expect(presetLabel?.textContent).toBe('Hold')
+    })
+  })
+
+  describe('multi-keyframe apply', () => {
+    it('renders multi-apply indicator when applyToSelected=true and multiple keyframes are selected', () => {
+      const store = useTimelineStore.getState()
+      const secondTrack = 'second-track'
+      store.getOrCreateTrack(secondTrack, 0)
+      const id1 = store.addKeyframe(trackId, { position: 0.5, value: 50, interpolation: 'linear' })
+      const id2 = store.addKeyframe(secondTrack, { position: 0.5, value: 50, interpolation: 'linear' })
+      store.selectKeyframe(id1)
+      store.selectKeyframe(id2, true)
+
+      const k1 = createKeyframe(0)
+      const k2 = createKeyframe(2)
+
+      render(
+        <CurvePopup
+          trackId={trackId}
+          k1={k1}
+          k2={k2}
+          anchorX={100}
+          anchorY={100}
+          applyToSelected={true}
+          onClose={mockOnClose}
+        />
+      )
+
+      expect(screen.getByText(/Applying to \d+ keyframes/)).toBeTruthy()
+    })
+
+    it('does not render multi-apply indicator when applyToSelected=false', () => {
+      const k1 = createKeyframe(0)
+      const k2 = createKeyframe(2)
+
+      render(
+        <CurvePopup
+          trackId={trackId}
+          k1={k1}
+          k2={k2}
+          anchorX={100}
+          anchorY={100}
+          applyToSelected={false}
+          onClose={mockOnClose}
+        />
+      )
+
+      expect(screen.queryByText(/Applying to \d+ keyframes/)).toBeNull()
+    })
+
+    it('applies easing to all selected keyframes when applyToSelected=true', () => {
+      const store = useTimelineStore.getState()
+      const secondTrack = 'second-track-easing'
+      store.getOrCreateTrack(secondTrack, 0)
+      const id1 = store.addKeyframe(trackId, { position: 0.5, value: 50, interpolation: 'linear' })
+      const id2 = store.addKeyframe(secondTrack, { position: 0.5, value: 50, interpolation: 'linear' })
+      store.selectKeyframe(id1)
+      store.selectKeyframe(id2, true)
+
+      const k1 = createKeyframe(0)
+      const k2 = createKeyframe(2)
+
+      const { container } = render(
+        <CurvePopup
+          trackId={trackId}
+          k1={k1}
+          k2={k2}
+          anchorX={100}
+          anchorY={100}
+          applyToSelected={true}
+          onClose={mockOnClose}
+        />
+      )
+
+      fireEvent.click(within(container).getByTitle('Hold'))
+
+      // Both selected keyframes should now have hold interpolation
+      const kf1 = useTimelineStore.getState().tracks.get(trackId)?.keyframes.find(kf => kf.id === id1)
+      const kf2 = useTimelineStore.getState().tracks.get(secondTrack)?.keyframes.find(kf => kf.id === id2)
+      expect(kf1?.interpolation).toBe('hold')
+      expect(kf2?.interpolation).toBe('hold')
+      expect(mockOnClose).toHaveBeenCalled()
+    })
+
+    it('applies easing only to k1 when applyToSelected=false', () => {
+      const store = useTimelineStore.getState()
+      const secondTrack = 'second-track-single'
+      store.getOrCreateTrack(secondTrack, 0)
+      const id1 = store.addKeyframe(trackId, { position: 0.5, value: 50, interpolation: 'linear' })
+      const id2 = store.addKeyframe(secondTrack, { position: 0.5, value: 50, interpolation: 'linear' })
+      store.selectKeyframe(id1)
+      store.selectKeyframe(id2, true)
+
+      // Use the actual k1 from the store so the update applies correctly
+      const actualK1 = store.tracks.get(trackId)?.keyframes[0]!
+      const k2 = createKeyframe(2)
+
+      const { container } = render(
+        <CurvePopup
+          trackId={trackId}
+          k1={actualK1}
+          k2={k2}
+          anchorX={100}
+          anchorY={100}
+          applyToSelected={false}
+          onClose={mockOnClose}
+        />
+      )
+
+      fireEvent.click(within(container).getByTitle('Hold'))
+
+      // Only k1 (in trackId at position 0) should change to hold
+      const k1After = useTimelineStore.getState().tracks.get(trackId)?.keyframes[0]
+      expect(k1After?.interpolation).toBe('hold')
+      // id2 in secondTrack should be unchanged
+      const kf2 = useTimelineStore.getState().tracks.get(secondTrack)?.keyframes.find(kf => kf.id === id2)
+      expect(kf2?.interpolation).toBe('linear')
+      expect(mockOnClose).toHaveBeenCalled()
     })
   })
 

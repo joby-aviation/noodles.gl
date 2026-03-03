@@ -8,6 +8,7 @@ import { subscribeWithSelector } from 'zustand/middleware'
 import { evaluateTrack } from './interpolation'
 import type {
   BezierHandles,
+  InterpolationType,
   Keyframe,
   KeyframeValue,
   SequenceState,
@@ -83,6 +84,10 @@ export interface TimelineStore {
   setSelectedKeyframes: (ids: string[]) => void
   // Shift-click on track label: add all kfs if not all selected, remove all if all selected
   toggleTrackKeyframes: (trackId: string) => void
+  // Select every keyframe across all tracks
+  selectAllKeyframes: () => void
+  // Apply easing to all currently selected keyframes (callers must fire history)
+  applyEasingToSelectedKeyframes: (interpolation: InterpolationType, handles?: BezierHandles) => void
 
   // === Evaluation ===
   evaluateTrack: (trackId: string, time?: number) => KeyframeValue | undefined
@@ -400,6 +405,30 @@ export const useTimelineStore = create<TimelineStore>()(
         allSelected ? next.delete(kf.id) : next.add(kf.id)
       }
       set({ selectedKeyframeIds: next })
+    },
+
+    selectAllKeyframes: () => {
+      const allIds: string[] = []
+      for (const [, track] of get().tracks) {
+        for (const kf of track.keyframes) {
+          allIds.push(kf.id)
+        }
+      }
+      set({ selectedKeyframeIds: new Set(allIds) })
+    },
+
+    applyEasingToSelectedKeyframes: (interpolation, handles) => {
+      const { tracks, selectedKeyframeIds } = get()
+      for (const [trackId, track] of tracks) {
+        for (const kf of track.keyframes) {
+          if (selectedKeyframeIds.has(kf.id)) {
+            get().updateKeyframe(trackId, kf.id, { interpolation })
+            if (handles && interpolation === 'bezier') {
+              get().setKeyframeHandles(trackId, kf.id, handles)
+            }
+          }
+        }
+      }
     },
 
     // === Evaluation ===

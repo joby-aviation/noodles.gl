@@ -51,6 +51,7 @@ export function KeyframeTrack({
     k2: Keyframe
     x: number
     y: number
+    applyToSelected: boolean
   } | null>(null)
 
   const [openValuePopup, setOpenValuePopup] = useState<{
@@ -85,9 +86,11 @@ export function KeyframeTrack({
   const handleBarClick = useCallback(
     (k1: Keyframe, k2: Keyframe, x: number, y: number) => {
       setOpenValuePopup(null)
-      setOpenPopup({ k1, k2, x, y })
+      // Apply to all selected keyframes when k1 is part of a multi-selection
+      const applyToSelected = selectedKeyframeIds.size > 1 && selectedKeyframeIds.has(k1.id)
+      setOpenPopup({ k1, k2, x, y, applyToSelected })
     },
-    []
+    [selectedKeyframeIds]
   )
 
   const handleOpenValuePopup = useCallback(
@@ -193,6 +196,7 @@ export function KeyframeTrack({
           k2={openPopup.k2}
           anchorX={openPopup.x}
           anchorY={openPopup.y}
+          applyToSelected={openPopup.applyToSelected}
           onClose={() => setOpenPopup(null)}
         />
       )}

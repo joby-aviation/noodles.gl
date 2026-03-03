@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { EASING_PRESETS, findMatchingPreset } from '../easing-presets'
 import { evaluateCubicBezier } from '../interpolation'
-import { captureTimelineState, fireTimelineMutation, useTimelineStore } from '../timeline-store'
+import { captureTimelineState, fireTimelineMutation, getTimelineStore, useTimelineStore } from '../timeline-store'
 import type { BezierHandles, InterpolationType, Keyframe } from '../types'
 import s from './TimelinePanel.module.css'
 
@@ -16,6 +16,8 @@ export interface CurvePopupProps {
   anchorX: number
   anchorY: number
   onClose: () => void
+  // When true, applying a curve updates all selected keyframes instead of just k1
+  applyToSelected?: boolean
 }
 
 const POPUP_WIDTH = 420
@@ -206,10 +208,11 @@ function InlineCurveEditor({
   )
 }
 
-export function CurvePopup({ trackId, k1, k2: _k2, anchorX, anchorY, onClose }: CurvePopupProps) {
+export function CurvePopup({ trackId, k1, k2: _k2, anchorX, anchorY, onClose, applyToSelected = false }: CurvePopupProps) {
   const updateKeyframe = useTimelineStore(state => state.updateKeyframe)
   const setKeyframeHandles = useTimelineStore(state => state.setKeyframeHandles)
   const track = useTimelineStore(state => state.tracks.get(trackId))
+  const selectedCount = useTimelineStore(state => applyToSelected ? state.selectedKeyframeIds.size : 0)
 
   // Get current k1 from store (may have been updated)
   const currentK1 = track?.keyframes.find(kf => kf.id === k1.id) ?? k1
@@ -302,17 +305,23 @@ export function CurvePopup({ trackId, k1, k2: _k2, anchorX, anchorY, onClose }: 
   // Click: commit preset with history
   const handlePresetClick = useCallback(
     (preset: PresetItem) => {
-      // Apply the preset
-      updateKeyframe(trackId, k1.id, { interpolation: preset.interpolation })
-      if (preset.interpolation === 'bezier') {
-        setKeyframeHandles(trackId, k1.id, preset.handles)
+      if (applyToSelected) {
+        // Apply to all selected keyframes across all tracks
+        getTimelineStore().applyEasingToSelectedKeyframes(
+          preset.interpolation,
+          preset.interpolation === 'bezier' ? preset.handles : undefined
+        )
+      } else {
+        updateKeyframe(trackId, k1.id, { interpolation: preset.interpolation })
+        if (preset.interpolation === 'bezier') {
+          setKeyframeHandles(trackId, k1.id, preset.handles)
+        }
       }
-      // Fire history
       fireTimelineMutation('Set easing curve', originalStateRef.current)
       committedRef.current = true
       onClose()
     },
-    [trackId, k1.id, updateKeyframe, setKeyframeHandles, onClose]
+    [applyToSelected, trackId, k1.id, updateKeyframe, setKeyframeHandles, onClose]
   )
 
   // Handle editor: live update (ephemeral)
@@ -326,14 +335,23 @@ export function CurvePopup({ trackId, k1, k2: _k2, anchorX, anchorY, onClose }: 
 
   // Handle editor commit: fire history
   const handleHandlesCommit = useCallback(() => {
+    if (applyToSelected) {
+      // Propagate the edited k1 handles to all selected keyframes
+      const currentHandles = getTimelineStore().tracks.get(trackId)?.keyframes.find(kf => kf.id === k1.id)?.handles
+      if (currentHandles) {
+        getTimelineStore().applyEasingToSelectedKeyframes('bezier', currentHandles)
+      }
+    }
     fireTimelineMutation('Adjust bezier handles', originalStateRef.current)
-    // Update the "original" to current so further edits are relative
     originalStateRef.current = captureTimelineState()
     committedRef.current = true
-  }, [])
+  }, [applyToSelected, trackId, k1.id])
 
   return createPortal(
     <div ref={popupRef} className={s.curvePopup} style={style}>
+      {applyToSelected && selectedCount > 1 && (
+        <div className={s.curvePopupMultiHint}>Applying to {selectedCount} keyframes</div>
+      )}
       <div className={s.curvePopupBody}>
         {/* Left: preset list */}
         <div className={s.curvePopupPresets}>

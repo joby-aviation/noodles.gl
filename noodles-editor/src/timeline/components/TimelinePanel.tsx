@@ -224,6 +224,12 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
         getTimelineStore().deleteSelectedKeyframes()
       }
 
+      // Cmd/Ctrl+A to select all keyframes
+      if ((e.key === 'a' || e.key === 'A') && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
+        getTimelineStore().selectAllKeyframes()
+      }
+
       // T to cycle handle type for selected keyframes
       if ((e.key === 't' || e.key === 'T') && selectedKeyframeIds.size > 0) {
         e.preventDefault()

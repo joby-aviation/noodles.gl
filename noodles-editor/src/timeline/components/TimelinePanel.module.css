@@ -742,6 +742,14 @@
   color: #b9c3cf;
 }
 
+.curvePopupMultiHint {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-style: italic;
+  color: #6b7f96;
+  border-bottom: 1px solid #2a3544;
+}
+
 .curvePopupBody {
   display: flex;
   height: 248px;

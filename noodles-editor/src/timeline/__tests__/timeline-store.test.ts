@@ -617,6 +617,112 @@ describe('TimelineStore', () => {
     })
   })
 
+  describe('selectAllKeyframes', () => {
+    beforeEach(() => {
+      useTimelineStore.getState().getOrCreateTrack('track-a / value', 0)
+      useTimelineStore.getState().getOrCreateTrack('track-b / value', 0)
+    })
+
+    it('selects all keyframes across all tracks', () => {
+      useTimelineStore.getState().addKeyframe('track-a / value', { position: 0, value: 0, interpolation: 'linear' })
+      useTimelineStore.getState().addKeyframe('track-a / value', { position: 1, value: 1, interpolation: 'linear' })
+      useTimelineStore.getState().addKeyframe('track-b / value', { position: 0.5, value: 5, interpolation: 'linear' })
+
+      useTimelineStore.getState().selectAllKeyframes()
+
+      expect(useTimelineStore.getState().selectedKeyframeIds.size).toBe(3)
+    })
+
+    it('replaces any existing selection', () => {
+      const id = useTimelineStore.getState().addKeyframe('track-a / value', { position: 0, value: 0, interpolation: 'linear' })
+      useTimelineStore.getState().addKeyframe('track-b / value', { position: 0, value: 0, interpolation: 'linear' })
+      useTimelineStore.getState().selectKeyframe(id)
+      expect(useTimelineStore.getState().selectedKeyframeIds.size).toBe(1)
+
+      useTimelineStore.getState().selectAllKeyframes()
+
+      expect(useTimelineStore.getState().selectedKeyframeIds.size).toBe(2)
+    })
+
+    it('is a no-op when there are no tracks', () => {
+      useTimelineStore.getState().reset()
+      useTimelineStore.getState().selectAllKeyframes()
+      expect(useTimelineStore.getState().selectedKeyframeIds.size).toBe(0)
+    })
+
+    it('is a no-op when all tracks have no keyframes', () => {
+      useTimelineStore.getState().selectAllKeyframes()
+      expect(useTimelineStore.getState().selectedKeyframeIds.size).toBe(0)
+    })
+  })
+
+  describe('applyEasingToSelectedKeyframes', () => {
+    let kfAId: string
+    let kfBId: string
+    let kfCId: string
+
+    beforeEach(() => {
+      useTimelineStore.getState().getOrCreateTrack('track-a / value', 0)
+      useTimelineStore.getState().getOrCreateTrack('track-b / value', 0)
+      kfAId = useTimelineStore.getState().addKeyframe('track-a / value', { position: 0, value: 0, interpolation: 'linear' })
+      kfBId = useTimelineStore.getState().addKeyframe('track-a / value', { position: 1, value: 1, interpolation: 'linear' })
+      kfCId = useTimelineStore.getState().addKeyframe('track-b / value', { position: 0, value: 5, interpolation: 'linear' })
+    })
+
+    it('applies interpolation to all selected keyframes', () => {
+      useTimelineStore.getState().selectKeyframe(kfAId)
+      useTimelineStore.getState().selectKeyframe(kfBId, true)
+
+      useTimelineStore.getState().applyEasingToSelectedKeyframes('hold')
+
+      const track = useTimelineStore.getState().tracks.get('track-a / value')
+      expect(track?.keyframes.find(kf => kf.id === kfAId)?.interpolation).toBe('hold')
+      expect(track?.keyframes.find(kf => kf.id === kfBId)?.interpolation).toBe('hold')
+    })
+
+    it('sets handles when interpolation is bezier', () => {
+      const handles = { left: [0.25, 0.1] as [number, number], right: [0.75, 0.9] as [number, number], type: 'aligned' as const }
+      useTimelineStore.getState().selectKeyframe(kfAId)
+
+      useTimelineStore.getState().applyEasingToSelectedKeyframes('bezier', handles)
+
+      const track = useTimelineStore.getState().tracks.get('track-a / value')
+      const kf = track?.keyframes.find(kf => kf.id === kfAId)
+      expect(kf?.interpolation).toBe('bezier')
+      expect(kf?.handles).toEqual(handles)
+    })
+
+    it('does not modify unselected keyframes', () => {
+      useTimelineStore.getState().selectKeyframe(kfAId)
+      useTimelineStore.getState().applyEasingToSelectedKeyframes('hold')
+
+      const track = useTimelineStore.getState().tracks.get('track-a / value')
+      expect(track?.keyframes.find(kf => kf.id === kfBId)?.interpolation).toBe('linear')
+    })
+
+    it('does nothing when no keyframes are selected', () => {
+      useTimelineStore.getState().applyEasingToSelectedKeyframes('hold')
+
+      const track = useTimelineStore.getState().tracks.get('track-a / value')
+      expect(track?.keyframes.find(kf => kf.id === kfAId)?.interpolation).toBe('linear')
+      expect(track?.keyframes.find(kf => kf.id === kfBId)?.interpolation).toBe('linear')
+    })
+
+    it('applies to selected keyframes across multiple tracks', () => {
+      useTimelineStore.getState().selectKeyframe(kfAId)
+      useTimelineStore.getState().selectKeyframe(kfCId, true)
+
+      useTimelineStore.getState().applyEasingToSelectedKeyframes('hold')
+
+      const trackA = useTimelineStore.getState().tracks.get('track-a / value')
+      const trackB = useTimelineStore.getState().tracks.get('track-b / value')
+      expect(trackA?.keyframes.find(kf => kf.id === kfAId)?.interpolation).toBe('hold')
+      expect(trackB?.keyframes.find(kf => kf.id === kfCId)?.interpolation).toBe('hold')
+      // Unselected kfB should be unchanged
+      expect(trackA?.keyframes.find(kf => kf.id === kfBId)?.interpolation).toBe('linear')
+    })
+  })
+
   describe('reset', () => {
     it('resets all state to defaults', () => {
       useTimelineStore.getState().setLength(20)
