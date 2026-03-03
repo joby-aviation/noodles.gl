@@ -2618,7 +2618,6 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
     viewState,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     validateViewState(viewState)
-
     return {
       maplibre: {
         mapStyle,

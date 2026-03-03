@@ -107,7 +107,9 @@
         "y": 528.0057551897594
       },
       "data": {
-        "inputs": {},
+        "inputs": {
+          "projection": "globe"
+        },
         "locked": false
       }
     }
