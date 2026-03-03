@@ -1,7 +1,8 @@
 // Curve editor view — shows the value or speed graph for the selected track
 // Replaces the keyframe-dot area when curve editor mode is active
 
-import { useCallback, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { evaluateTrack } from '../interpolation'
 import {
   captureTimelineState,
@@ -9,7 +10,7 @@ import {
   getTimelineStore,
   useTimelineStore,
 } from '../timeline-store'
-import type { Keyframe, KeyframeValue, Track } from '../types'
+import type { HandleType, Keyframe, KeyframeValue, Track } from '../types'
 import { DEFAULT_BEZIER_HANDLES } from '../types'
 import s from './TimelinePanel.module.css'
 
@@ -62,6 +63,40 @@ export function CurveEditorView({
   const track = selectedTrackId ? tracks.get(selectedTrackId) : null
 
   const plotHeight = height - PAD_V * 2
+
+  // ── Handle type context menu ────────────────────────────────────────────────
+
+  const [contextMenu, setContextMenu] = useState<{
+    x: number
+    y: number
+    trackId: string
+    keyframeId: string
+  } | null>(null)
+
+  // Close context menu on outside click or Escape
+  useEffect(() => {
+    if (!contextMenu) return
+    const close = () => setContextMenu(null)
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close()
+    }
+    document.addEventListener('pointerdown', close)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('pointerdown', close)
+      document.removeEventListener('keydown', handleKey)
+    }
+  }, [contextMenu])
+
+  const setHandleType = useCallback((trackId: string, keyframeId: string, type: HandleType) => {
+    const before = captureTimelineState()
+    const kf = getTimelineStore().tracks.get(trackId)?.keyframes.find(k => k.id === keyframeId)
+    if (!kf) return
+    const handles = kf.handles ?? DEFAULT_BEZIER_HANDLES
+    getTimelineStore().setKeyframeHandles(trackId, keyframeId, { ...handles, type })
+    fireTimelineMutation('Change handle type', before)
+    setContextMenu(null)
+  }, [])
 
   // ── Sample curve ──────────────────────────────────────────────────────────
 
@@ -357,6 +392,14 @@ export function CurveEditorView({
               xToTime={xToTime}
               yToVal={yToVal}
               onSelect={selectKeyframe}
+              onContextMenu={(e, keyframe) => {
+                setContextMenu({
+                  x: e.clientX,
+                  y: e.clientY,
+                  trackId: track.id,
+                  keyframeId: keyframe.id,
+                })
+              }}
             />
           )
         })}
@@ -373,6 +416,35 @@ export function CurveEditorView({
           style={{ pointerEvents: 'none' }}
         />
       </svg>
+
+      {/* Handle type context menu */}
+      {contextMenu && createPortal(
+        <div
+          className={s.handleTypeMenu}
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+          onPointerDown={e => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            onClick={() => setHandleType(contextMenu.trackId, contextMenu.keyframeId, 'aligned')}
+          >
+            Aligned (Smooth)
+          </button>
+          <button
+            type="button"
+            onClick={() => setHandleType(contextMenu.trackId, contextMenu.keyframeId, 'uneven')}
+          >
+            Uneven
+          </button>
+          <button
+            type="button"
+            onClick={() => setHandleType(contextMenu.trackId, contextMenu.keyframeId, 'free')}
+          >
+            Free (Broken)
+          </button>
+        </div>,
+        document.body
+      )}
     </div>
   )
 }
@@ -442,6 +514,7 @@ interface CurveKeyframeDotProps {
   xToTime: (x: number) => number
   yToVal: (y: number) => number
   onSelect: (id: string, add?: boolean) => void
+  onContextMenu: (e: React.MouseEvent, kf: Keyframe) => void
 }
 
 function CurveKeyframeDot({
@@ -455,6 +528,7 @@ function CurveKeyframeDot({
   xToTime,
   yToVal,
   onSelect,
+  onContextMenu,
 }: CurveKeyframeDotProps) {
   const isDraggingRef = useRef(false)
   const beforeRef = useRef('')
@@ -514,6 +588,10 @@ function CurveKeyframeDot({
       strokeWidth={isSelected ? 2 : 1.5}
       style={{ cursor: 'move' }}
       onPointerDown={handlePointerDown}
+      onContextMenu={e => {
+        e.preventDefault()
+        onContextMenu(e, kf)
+      }}
     />
   )
 }

@@ -2,7 +2,9 @@
 // Provides the overall layout and state management for the timeline UI
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { getTimelineStore, useTimelineStore } from '../timeline-store'
+import { captureTimelineState, fireTimelineMutation, getTimelineStore, useTimelineStore } from '../timeline-store'
+import type { HandleType } from '../types'
+import { DEFAULT_BEZIER_HANDLES } from '../types'
 import { CurveEditorView } from './CurveEditorView'
 import { PlayControls } from './PlayControls'
 import { Playhead } from './Playhead'
@@ -214,12 +216,32 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
     }
   }, [])
 
-  // Delete selected keyframes on Delete/Backspace key
+  // Delete selected keyframes on Delete/Backspace key, T to cycle handle type
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedKeyframeIds.size > 0) {
         e.preventDefault()
         getTimelineStore().deleteSelectedKeyframes()
+      }
+
+      // T to cycle handle type for selected keyframes
+      if ((e.key === 't' || e.key === 'T') && selectedKeyframeIds.size > 0) {
+        e.preventDefault()
+        const before = captureTimelineState()
+        const store = getTimelineStore()
+        const handleTypes: HandleType[] = ['aligned', 'uneven', 'free']
+
+        for (const [trackId, track] of store.tracks) {
+          for (const kf of track.keyframes) {
+            if (selectedKeyframeIds.has(kf.id)) {
+              const handles = kf.handles ?? DEFAULT_BEZIER_HANDLES
+              const currentIdx = handleTypes.indexOf(handles.type)
+              const nextType = handleTypes[(currentIdx + 1) % handleTypes.length]
+              store.setKeyframeHandles(trackId, kf.id, { ...handles, type: nextType })
+            }
+          }
+        }
+        fireTimelineMutation('Cycle handle type', before)
       }
     },
     [selectedKeyframeIds]

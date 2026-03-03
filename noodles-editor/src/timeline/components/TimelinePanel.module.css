@@ -1035,3 +1035,40 @@
   font-style: italic;
   padding: 4px 0;
 }
+
+/* ============================================================ */
+/* Handle type context menu */
+/* ============================================================ */
+
+.handleTypeMenu {
+  position: fixed;
+  z-index: 1000;
+  background: linear-gradient(180deg, #1e2634 0%, #171d27 100%);
+  border: 1px solid #2f3b4c;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.5);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 140px;
+}
+
+.handleTypeMenu button {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: #b9c3cf;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.handleTypeMenu button:hover {
+  background: rgb(72 198 207 / 0.15);
+  color: #d9fdff;
+}
