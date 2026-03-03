@@ -260,13 +260,17 @@ export default function TimelineEditor() {
       return
     }
 
-    await startCapture({
-      canvas,
-      codec,
-      exportAlpha,
-      // This always scales the video to the specified value, regardless of `canvas` size
-      ...resolution,
-    })
+    try {
+      await startCapture({
+        canvas,
+        codec,
+        exportAlpha,
+        // This always scales the video to the specified value, regardless of `canvas` size
+        ...resolution,
+      })
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Export failed. See console for details.')
+    }
   }, [startCapture, codec, exportAlpha, resolution, basemapEnabled])
 
   const takeScreenshot = useCallback(async () => {

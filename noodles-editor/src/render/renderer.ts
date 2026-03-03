@@ -74,6 +74,7 @@ export const useRenderer = ({
 
       setIsRendering(true)
 
+      try {
       // Warn if alpha export is requested with incompatible codec
       if (exportAlpha && (codec === 'avc' || codec === 'hevc')) {
         console.warn(
@@ -190,8 +191,11 @@ export const useRenderer = ({
         const { supported } = await VideoEncoder.isConfigSupported(config)
 
         if (!supported) {
-          console.error('Unsupported codec configuration', config)
-          debugger
+          const reason = exportAlpha
+            ? `Alpha (transparency) export is not supported in this browser for the ${codec.toUpperCase()} codec.\n\nTry switching to VP9 or AV1, or disable "Export with transparency".`
+            : `The ${codec.toUpperCase()} codec is not supported in this browser.\n\nTry switching to a different codec.`
+          videoEncoder.close()
+          throw new Error(reason)
         }
 
         videoEncoder.configure(config)
@@ -227,7 +231,6 @@ export const useRenderer = ({
 
       const mapContainer = await getContainer(`${projectName}-map`)
       if (!mapContainer) {
-        setIsRendering(false)
         console.log('Render setup cancelled by user (map container).')
         return
       }
@@ -275,7 +278,9 @@ export const useRenderer = ({
         await addRecorderFrame(mapRecorder, mapContainer)
       }
       finishEncoding()
-      setIsRendering(false)
+      } finally {
+        setIsRendering(false)
+      }
     },
     [projectName, sequenceLength, fps, bitrate, bitrateMode, canvasFrameReady, redraw]
   )
