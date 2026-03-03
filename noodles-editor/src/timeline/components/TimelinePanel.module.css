@@ -256,6 +256,18 @@
   opacity: 0.9;
 }
 
+.timelineTrackOpId {
+  color: #8c9ab0;
+  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.timelineTrackSep {
+  color: #8c9ab0;
+  flex-shrink: 0;
+}
+
 .timelineTrackName {
   overflow: hidden;
   text-overflow: ellipsis;

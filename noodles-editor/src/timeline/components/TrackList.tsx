@@ -35,9 +35,16 @@ export function TrackList({
     return null
   }
 
+  // Annotate each track with its op id and whether it's the first in its op group
+  const tracksWithMeta = trackArray.map((track, i) => {
+    const opId = track.fieldPath.split(' / ')[0]
+    const prevOpId = i > 0 ? trackArray[i - 1].fieldPath.split(' / ')[0] : null
+    return { track, opId, isFirstInGroup: opId !== prevOpId }
+  })
+
   return (
     <div className="timeline-track-list">
-      {trackArray.map(track => (
+      {tracksWithMeta.map(({ track, opId, isFirstInGroup }) => (
         <KeyframeTrack
           key={track.id}
           track={track}
@@ -45,6 +52,8 @@ export function TrackList({
           pixelsPerSecond={pixelsPerSecond}
           timelineWidth={timelineWidth}
           sequenceLength={sequenceLength}
+          opId={opId}
+          isFirstInGroup={isFirstInGroup}
         />
       ))}
     </div>

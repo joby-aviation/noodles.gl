@@ -13,6 +13,8 @@ export interface KeyframeTrackProps {
   pixelsPerSecond?: number
   timelineWidth?: number
   sequenceLength?: number
+  opId?: string
+  isFirstInGroup?: boolean
 }
 
 // Extract display name from field path
@@ -22,19 +24,14 @@ function getDisplayName(fieldPath: string): string {
   return parts[parts.length - 1]
 }
 
-// Get parent path for grouping
-// "maplibre-basemap / viewState / zoom" -> "maplibre-basemap / viewState"
-function getParentPath(fieldPath: string): string {
-  const parts = fieldPath.split(' / ')
-  return parts.slice(0, -1).join(' / ')
-}
-
 export function KeyframeTrack({
   track,
   showLabelOnly = false,
   pixelsPerSecond = 100,
   timelineWidth = 1000,
   sequenceLength = 10,
+  opId,
+  isFirstInGroup,
 }: KeyframeTrackProps) {
   const selectedKeyframeIds = useTimelineStore(state => state.selectedKeyframeIds)
   const selectedTrackIds = useTimelineStore(state => state.selectedTrackIds)
@@ -57,7 +54,6 @@ export function KeyframeTrack({
   } | null>(null)
 
   const displayName = getDisplayName(track.fieldPath)
-  const parentPath = getParentPath(track.fieldPath)
 
   // Handle double-click to add keyframe
   const handleDoubleClick = useCallback(
@@ -112,8 +108,18 @@ export function KeyframeTrack({
           }
         }}
       >
-        <span className={`${s.timelineTrackBranch} ${parentPath ? s.visible : ''}`}>└</span>
-        <span className={s.timelineTrackName}>{displayName}</span>
+        {isFirstInGroup ? (
+          <>
+            <span className={s.timelineTrackOpId}>{opId}</span>
+            <span className={s.timelineTrackSep}> - </span>
+            <span className={s.timelineTrackName}>{displayName}</span>
+          </>
+        ) : (
+          <>
+            <span className={`${s.timelineTrackBranch} ${s.visible}`}>└</span>
+            <span className={s.timelineTrackName}>{displayName}</span>
+          </>
+        )}
       </div>
     )
   }
