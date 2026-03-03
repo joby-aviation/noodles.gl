@@ -4,18 +4,27 @@ import { Cross2Icon } from '@radix-ui/react-icons'
 import type { Edge } from '@xyflow/react'
 import { useEdges, useNodes, useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
-import { useCallback, useContext, useEffect, useRef, useState } from 'react'
-
-import { SheetContext } from '../../utils/sheet-context'
-import { type Field, type IField, IN_NS, ListField, OUT_NS } from '../fields'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { KeyframeIndicator } from '../../timeline/components/KeyframeIndicator'
+import { fieldValueToKeyframeValue } from '../../timeline/field-bindings'
+import type { KeyframeValue } from '../../timeline/types'
+import { CompoundPropsField, type Field, type IField, IN_NS, ListField, OUT_NS } from '../fields'
 import type { IOperator, OpType, Operator } from '../operators'
 import { OutOp } from '../operators'
-import { getOpStore, useNestingStore } from '../store'
-import { rebindOperatorToTheatre } from '../theatre-bindings'
+import { getOpStore, useNestingStore, useUIStore } from '../store'
 import type { ConnectionPlan } from '../utils/auto-connect'
 import { edgeId } from '../utils/id-utils'
 import { type NodeType, createNodesForType } from '../utils/node-creation-utils'
 import { getBaseName, parseHandleId } from '../utils/path-utils'
+import {
+  BooleanFieldComponent,
+  ColorFieldComponent,
+  DateFieldComponent,
+  NumberFieldComponent,
+  TextFieldComponent,
+  VectorFieldComponent,
+} from './field-components'
 import menuStyles from './menu.module.css'
 import s from './node-properties.module.css'
 import { handleClass, headerClass, typeCategory } from './op-components'
@@ -150,63 +159,6 @@ function copy(text: string) {
   navigator.clipboard.writeText(text)
 }
 
-function ReferenceIcon({
-  codeReference,
-  altReference,
-}: {
-  codeReference: string
-  altReference: string
-}) {
-  const [isShiftHeld, setIsShiftHeld] = useState(false)
-  const [isHovering, setIsHovering] = useState(false)
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Shift' && isHovering) {
-        setIsShiftHeld(true)
-      }
-    }
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.key === 'Shift') {
-        setIsShiftHeld(false)
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    window.addEventListener('keyup', handleKeyUp)
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-      window.removeEventListener('keyup', handleKeyUp)
-    }
-  }, [isHovering])
-
-  return (
-    <Tooltip text={isShiftHeld ? 'Copy Mustache Format' : 'Copy Code Format'} position="left">
-      <svg
-        className={s.referenceIcon}
-        role="img"
-        aria-label="Copy reference"
-        onClick={e => {
-          const reference = e.shiftKey ? altReference : codeReference
-          copy(reference)
-        }}
-        onMouseEnter={e => {
-          setIsHovering(true)
-          setIsShiftHeld(e.shiftKey)
-        }}
-        onMouseLeave={() => {
-          setIsHovering(false)
-          setIsShiftHeld(false)
-        }}
-        viewBox="0 -960 960 960"
-      >
-        <title>{isShiftHeld ? 'Copy Mustache Format' : 'Copy Code Format'}</title>
-        <path d="M360-240q-29.7 0-50.85-21.15Q288-282.3 288-312v-480q0-29.7 21.15-50.85Q330.3-864 360-864h384q29.7 0 50.85 21.15Q816-821.7 816-792v480q0 29.7-21.15 50.85Q773.7-240 744-240H360Zm0-72h384v-480H360v480ZM216-96q-29.7 0-50.85-21.15Q144-138.3 144-168v-552h72v552h456v72H216Zm144-216v-480 480Z" />
-      </svg>
-    </Tooltip>
-  )
-}
-
 function Tooltip({
   text,
   position = 'top',
@@ -266,12 +218,124 @@ function AddRemoveButton({
   )
 }
 
+// Render an editable field input based on field type
+function EditableFieldInput({
+  fieldName,
+  field,
+  disabled,
+}: {
+  fieldName: string
+  field: Field
+  disabled: boolean
+}) {
+  const { type } = field.constructor as typeof Field
+
+  switch (type) {
+    case 'number':
+      // biome-ignore lint/suspicious/noExplicitAny: Type checked at runtime
+      return <NumberFieldComponent id={fieldName} field={field as any} disabled={disabled} />
+    case 'boolean':
+      // biome-ignore lint/suspicious/noExplicitAny: Type checked at runtime
+      return <BooleanFieldComponent id={fieldName} field={field as any} disabled={disabled} />
+    case 'color':
+      // biome-ignore lint/suspicious/noExplicitAny: Type checked at runtime
+      return <ColorFieldComponent id={fieldName} field={field as any} disabled={disabled} />
+    case 'string':
+    case 'string-literal':
+      // biome-ignore lint/suspicious/noExplicitAny: Type checked at runtime
+      return <TextFieldComponent id={fieldName} field={field as any} disabled={disabled} />
+    case 'date':
+      // biome-ignore lint/suspicious/noExplicitAny: Type checked at runtime
+      return <DateFieldComponent id={fieldName} field={field as any} disabled={disabled} />
+    case 'vec2':
+    case 'vec3':
+    case 'geopoint-2d':
+    case 'geopoint-3d':
+      // biome-ignore lint/suspicious/noExplicitAny: Type checked at runtime
+      return <VectorFieldComponent id={fieldName} field={field as any} disabled={disabled} />
+    default:
+      // For other animatable types that don't have specialized components, show a placeholder
+      return (
+        <div className={s.fieldPlaceholder}>
+          {fieldName}: {type}
+        </div>
+      )
+  }
+}
+
+// Returns true for scalar/value field types that can show an editable input
+function isValueField(field: Field): boolean {
+  const { type } = field.constructor as typeof Field
+  return [
+    'number',
+    'boolean',
+    'color',
+    'string',
+    'string-literal',
+    'date',
+    'vec2',
+    'vec3',
+    'geopoint-2d',
+    'geopoint-3d',
+  ].includes(type)
+}
+
+// Renders compound field sub-fields inline with labels, inputs, and keyframe indicators
+function CompoundSubFields({
+  field,
+  opId,
+  fieldName,
+  expandTimeline,
+}: {
+  field: CompoundPropsField
+  opId: string
+  fieldName: string
+  expandTimeline: () => void
+}) {
+  return (
+    <div className={s.compoundSubFields}>
+      {Object.entries(field.fields).map(([subName, subField]) => {
+        if (!isValueField(subField as Field)) return null
+        let currentValue: KeyframeValue
+        try {
+          currentValue = fieldValueToKeyframeValue(
+            subField as Field,
+            subField.value
+          ) as KeyframeValue
+        } catch {
+          currentValue = subField.value as KeyframeValue
+        }
+        return (
+          <div key={subName} className={s.compoundSubField}>
+            <span className={s.compoundSubFieldLabel}>{subName}</span>
+            <div className={s.editableFieldContent}>
+              {/* biome-ignore lint/suspicious/noExplicitAny: Field type validated via isValueField */}
+              <EditableFieldInput fieldName={subName} field={subField as any} disabled={false} />
+            </div>
+            <KeyframeIndicator
+              opId={opId}
+              fieldName={fieldName}
+              subPath={[subName]}
+              currentValue={currentValue}
+              disabled={false}
+              size="small"
+              onKeyframeAdded={expandTimeline}
+            />
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 // Exported for testing
 export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
   const { setEdges, addNodes, addEdges } = useReactFlow()
   const edges = useEdges()
-  const sheet = useContext(SheetContext)
   const currentContainerId = useNestingStore(state => state.currentContainerId)
+  const expandTimeline = useCallback(() => {
+    useUIStore.getState().setTimelineExpanded(true)
+  }, [])
   const dragDataRef = useRef<{ inputName: string; index: number } | null>(null)
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
   const [isTruncated, setIsTruncated] = useState(false)
@@ -279,6 +343,12 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false)
   const [pendingHideField, setPendingHideField] = useState<string | null>(null)
   const [hiddenFieldSearch, setHiddenFieldSearch] = useState('')
+  const [contextMenu, setContextMenu] = useState<{
+    x: number
+    y: number
+    codeRef: string
+    mustacheRef: string
+  } | null>(null)
   const descriptionRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef<HTMLElement | null>(null)
   const store = getOpStore()
@@ -303,6 +373,21 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
     setIsEditMode(false)
     setHiddenFieldSearch('')
   }, [node.id])
+
+  // Close context menu on outside click or Escape
+  useEffect(() => {
+    if (!contextMenu) return
+    const close = () => setContextMenu(null)
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close()
+    }
+    document.addEventListener('pointerdown', close)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('pointerdown', close)
+      document.removeEventListener('keydown', handleKey)
+    }
+  }, [contextMenu])
 
   // Check if description is truncated
   useEffect(() => {
@@ -462,18 +547,12 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
 
   const confirmResetToDefaults = () => {
     resetToDefaults(op, edges)
-    if (sheet) {
-      rebindOperatorToTheatre(op, sheet)
-    }
     setIsResetDialogOpen(false)
   }
 
   const confirmHideField = () => {
     if (pendingHideField) {
       hideField(op, pendingHideField)
-      if (sheet) {
-        rebindOperatorToTheatre(op, sheet)
-      }
       setPendingHideField(null)
     }
   }
@@ -548,9 +627,6 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
 
             const handleShowField = (fieldName: string) => {
               op.showField(fieldName)
-              if (sheet) {
-                rebindOperatorToTheatre(op, sheet)
-              }
             }
 
             const handleHideField = (fieldName: string) => {
@@ -561,9 +637,6 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
                 return
               }
               hideField(op, fieldName)
-              if (sheet) {
-                rebindOperatorToTheatre(op, sheet)
-              }
             }
 
             const renderInput = (input: (typeof inputs)[0], isVisible: boolean) => {
@@ -574,50 +647,89 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
               )
               const hideCheck = canHideField(op, input.name, edges)
               const canHide = hideCheck.canHide
+              let fieldCurrentValue: KeyframeValue | undefined
+              if (isValueField(input.field)) {
+                try {
+                  fieldCurrentValue = fieldValueToKeyframeValue(
+                    input.field,
+                    input.field.value
+                  ) as KeyframeValue
+                } catch {
+                  fieldCurrentValue = input.field.value as KeyframeValue
+                }
+              }
 
               return (
+                // biome-ignore lint/a11y/useSemanticElements: property list uses div containers for flex layout
                 <div
                   key={input.name}
+                  role="listitem"
                   className={cx(s.property, { [s.propertyWithAction]: isEditMode })}
-                  title={input.codeRef}
+                  onContextMenu={e => {
+                    e.preventDefault()
+                    setContextMenu({
+                      x: e.clientX,
+                      y: e.clientY,
+                      codeRef: input.codeRef,
+                      mustacheRef: input.mustacheRef,
+                    })
+                  }}
                 >
-                  <div className={s.propertyHeader}>
-                    <div className={s.propertyName}>
-                      {isEditMode && isVisible && (
-                        <Tooltip
-                          text={canHide ? 'Hide field' : hideCheck.reason || 'Cannot hide'}
-                          position="right"
-                        >
-                          <span>
-                            <AddRemoveButton
-                              type="remove"
-                              onClick={() => handleHideField(input.name)}
-                              disabled={!canHide}
-                            />
-                          </span>
-                        </Tooltip>
-                      )}
-                      {isEditMode && !isVisible && (
-                        <Tooltip text="Show field" position="right">
-                          <span>
-                            <AddRemoveButton
-                              type="add"
-                              onClick={() => handleShowField(input.name)}
-                            />
-                          </span>
-                        </Tooltip>
-                      )}
-                      <span>{input.name}</span>
-                    </div>
-                    <div className={s.propertyDetails}>
-                      <div>{input.type}</div>
-                      <div className={cx(s.port, input.handleClass)} />
-                      <ReferenceIcon
-                        codeReference={input.codeRef}
-                        altReference={input.mustacheRef}
-                      />
-                    </div>
+                  <div className={s.propertyRow}>
+                    {isEditMode && isVisible && (
+                      <Tooltip
+                        text={canHide ? 'Hide field' : hideCheck.reason || 'Cannot hide'}
+                        position="right"
+                      >
+                        <span>
+                          <AddRemoveButton
+                            type="remove"
+                            onClick={() => handleHideField(input.name)}
+                            disabled={!canHide}
+                          />
+                        </span>
+                      </Tooltip>
+                    )}
+                    {isEditMode && !isVisible && (
+                      <Tooltip text="Show field" position="right">
+                        <span>
+                          <AddRemoveButton type="add" onClick={() => handleShowField(input.name)} />
+                        </span>
+                      </Tooltip>
+                    )}
+                    <div className={cx(s.port, input.handleClass)} />
+                    <span className={s.propertyLabel}>{input.name}</span>
+                    {/* Value type, not connected: editable input + keyframe indicator */}
+                    {isValueField(input.field) && incomers.length === 0 && (
+                      <>
+                        <div className={s.editableFieldContent}>
+                          <EditableFieldInput
+                            fieldName={input.name}
+                            field={input.field}
+                            disabled={false}
+                          />
+                        </div>
+                        <KeyframeIndicator
+                          opId={op.id}
+                          fieldName={input.name}
+                          currentValue={fieldCurrentValue!}
+                          disabled={false}
+                          size="small"
+                          onKeyframeAdded={expandTimeline}
+                        />
+                      </>
+                    )}
                   </div>
+                  {/* Compound field: expand sub-fields inline */}
+                  {input.field instanceof CompoundPropsField && (
+                    <CompoundSubFields
+                      field={input.field}
+                      opId={op.id}
+                      fieldName={input.name}
+                      expandTimeline={expandTimeline}
+                    />
+                  )}
+                  {/* List field with connections: draggable reorder list */}
                   {input.field instanceof ListField && incomers.length > 0 && (
                     // biome-ignore lint/a11y/useSemanticElements: Drag-and-drop list requires div with role
                     <div className={s.connections} role="list" onDragOver={handleDragOver}>
@@ -670,9 +782,6 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
                           for (const input of fieldsToShow) {
                             op.showField(input.name)
                           }
-                          if (sheet) {
-                            rebindOperatorToTheatre(op, sheet)
-                          }
                           setHiddenFieldSearch('')
                         }}
                       >
@@ -705,14 +814,24 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
         <div className={s.sectionTitle}>Outputs</div>
         <div className={s.propertyList}>
           {outputs.map(output => (
-            <div key={output.name} className={s.property} title={output.codeRef}>
-              <div className={s.propertyHeader}>
-                <div>{output.name}</div>
-                <div className={s.propertyDetails}>
-                  <div>{output.type}</div>
-                  <div className={cx(s.port, output.handleClass)} />
-                  <ReferenceIcon codeReference={output.codeRef} altReference={output.mustacheRef} />
-                </div>
+            // biome-ignore lint/a11y/useSemanticElements: property list uses div containers for flex layout
+            <div
+              key={output.name}
+              role="listitem"
+              className={s.property}
+              onContextMenu={e => {
+                e.preventDefault()
+                setContextMenu({
+                  x: e.clientX,
+                  y: e.clientY,
+                  codeRef: output.codeRef,
+                  mustacheRef: output.mustacheRef,
+                })
+              }}
+            >
+              <div className={s.propertyRow}>
+                <div className={cx(s.port, output.handleClass)} />
+                <span className={s.propertyLabel}>{output.name}</span>
               </div>
             </div>
           ))}
@@ -823,6 +942,38 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
+
+      {/* Right-click context menu */}
+      {contextMenu &&
+        createPortal(
+          <div
+            className={s.contextMenu}
+            style={{ top: contextMenu.y, left: contextMenu.x }}
+            onPointerDown={e => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              className={s.contextMenuItem}
+              onClick={() => {
+                copy(contextMenu.codeRef)
+                setContextMenu(null)
+              }}
+            >
+              Copy path to property
+            </button>
+            <button
+              type="button"
+              className={s.contextMenuItem}
+              onClick={() => {
+                copy(contextMenu.mustacheRef)
+                setContextMenu(null)
+              }}
+            >
+              Copy mustache path
+            </button>
+          </div>,
+          document.body
+        )}
     </>
   )
 }
