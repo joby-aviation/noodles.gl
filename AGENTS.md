@@ -56,7 +56,7 @@ This document provides essential context for Large Language Models (LLMs) workin
 
 **Core:** React 18, TypeScript, Vite, Yarn
 
-**Animation:** Theatre.js (timeline editor, all parameters can be keyframed)
+**Animation:** Native timeline system (bezier interpolation, keyframeable parameters)
 
 **Visualization:** Deck.gl (WebGL data visualization), MapLibre GL (mapping), luma.gl (rendering), D3.js (data)
 
@@ -64,7 +64,7 @@ This document provides essential context for Large Language Models (LLMs) workin
 
 **UI:** @xyflow/react (node editor), Radix UI, PrimeReact
 
-**State:** Zustand (global state), RxJS (reactive data flow), Theatre.js (animation state)
+**State:** Zustand (global state, timeline state), RxJS (reactive data flow)
 
 **Dev Tools:** Biome (linting/formatting), TypeScript, Vitest, Playwright
 
@@ -127,7 +127,7 @@ noodles-gl-public/
 - **`noodles-editor/src/noodles/components/op-components.tsx`** - React components for rendering operator nodes. Most use default renderer, some have custom components.
 - **`noodles-editor/src/noodles/components/field-components.tsx`** - React components for rendering field inputs.
 - **`noodles-editor/src/noodles/noodles.tsx`** - Main visualization component that loads projects and manages state, orchestrates nodes with React Flow.
-- **`noodles-editor/src/timeline-editor.tsx`** - Timeline editor interface for Theatre.js integration.
+- **`noodles-editor/src/timeline-editor.tsx`** - Timeline editor interface with native timeline components.
 
 ### Utilities
 
@@ -548,7 +548,7 @@ return {
 
 ### Timeline Animation
 
-Any field can be keyframed via Theatre.js. Changes in timeline propagate through reactive system with smooth interpolation between keyframes.
+Any field can be keyframed via the native timeline system. Changes in timeline propagate through the reactive system with smooth bezier interpolation between keyframes.
 
 ## Common Tasks for LLMs
 
@@ -601,7 +601,7 @@ Any field can be keyframed via Theatre.js. Changes in timeline propagate through
 3. **Fields are observables** - Use `field.setValue()` to update, `field.value` to read
 4. **Memoization is automatic** - Don't worry about caching, the framework handles it
 5. **Type safety is critical** - Always use Zod schemas for validation
-6. **Timeline integration** - Any parameter can be animated via Theatre.js
+6. **Timeline integration** - Any parameter can be animated via the native timeline
 7. **Project files are JSON** - Easy to parse and modify programmatically
 8. **Testing is expected** - Add tests for new features and changes to critical components
 9. **Document edge cases** - Users may not expect implementation-specific behavior

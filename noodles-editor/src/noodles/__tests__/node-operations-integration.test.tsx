@@ -11,19 +11,6 @@ import { serializeNodes } from '../utils/serialization'
 // Import operators to ensure they're registered before tests run
 import '../operators'
 
-// Mock Theatre.js studio to avoid side effects
-vi.mock('@theatre/studio', () => ({
-  default: {
-    transaction: vi.fn(fn =>
-      fn({
-        __experimental_forgetSheet: vi.fn(),
-      })
-    ),
-    setSelection: vi.fn(),
-    createContentOfSaveFile: vi.fn(() => ({ sheetsById: {} })),
-  },
-}))
-
 // Mock globals to avoid window dependency
 vi.mock('../globals', () => ({
   projectId: 'test-project',

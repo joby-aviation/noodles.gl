@@ -9,7 +9,6 @@ import {
   MathOp,
   NumberOp,
   type Operator,
-  type ScatterplotLayerOp,
 } from './operators'
 import { clearOps, getOpStore } from './store'
 import { transformGraph } from './transform-graph'

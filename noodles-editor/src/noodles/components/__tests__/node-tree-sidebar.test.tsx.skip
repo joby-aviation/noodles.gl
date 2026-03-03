@@ -43,19 +43,6 @@ vi.mock('@xyflow/react', async () => {
   }
 })
 
-// Mock Theatre.js to avoid side effects
-vi.mock('@theatre/studio', () => ({
-  default: {
-    transaction: vi.fn(fn =>
-      fn({
-        __experimental_forgetSheet: vi.fn(),
-      })
-    ),
-    setSelection: vi.fn(),
-    createContentOfSaveFile: vi.fn(() => ({ sheetsById: {} })),
-  },
-}))
-
 // Mock the nesting store
 const mockSetCurrentContainerId = vi.fn()
 const mockCurrentContainerId = '/'

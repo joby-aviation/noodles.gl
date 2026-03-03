@@ -3,7 +3,6 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import type { Edge } from '@xyflow/react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { SheetContext } from '../../../utils/sheet-context'
 import type { DeckRendererOp, GeoJsonLayerOp } from '../../operators'
 import { clearOps, getOp } from '../../store'
 import { transformGraph } from '../../transform-graph'
@@ -29,11 +28,6 @@ vi.mock('@xyflow/react', async () => {
       selector({ nodes: [], edges: mockEdges }),
   }
 })
-
-// Mock rebindOperatorToTheatre
-vi.mock('../../theatre-bindings', () => ({
-  rebindOperatorToTheatre: vi.fn(),
-}))
 
 // Mock CSS modules
 vi.mock('../node-properties.module.css', () => ({
@@ -95,11 +89,9 @@ describe('NodeProperties field visibility editing', () => {
   // Helper to render NodeProperties with contexts
   const renderNodeProperties = (node: { id: string }) => {
     return render(
-      <SheetContext.Provider value={null}>
-        <ReactFlowProvider>
-          <NodeProperties nodeId={node.id} />
-        </ReactFlowProvider>
-      </SheetContext.Provider>
+      <ReactFlowProvider>
+        <NodeProperties nodeId={node.id} />
+      </ReactFlowProvider>
     )
   }
 
@@ -111,6 +103,13 @@ describe('NodeProperties field visibility editing', () => {
       throw new Error('Edit button not found')
     }
     return svgs[0] as HTMLElement
+  }
+
+  const findFieldActionButton = (fieldName: string) => {
+    const fieldLabel = screen.getByText(fieldName)
+    const propertyItem = fieldLabel.closest('[role="listitem"]')
+    expect(propertyItem).toBeInTheDocument()
+    return propertyItem?.querySelector('button')
   }
 
   describe('Edit mode toggle', () => {
@@ -178,13 +177,7 @@ describe('NodeProperties field visibility editing', () => {
       // Enter edit mode
       fireEvent.click(findEditButton())
 
-      // Find the 'effects' text element
-      const effectsText = screen.getByText('effects')
-      // Navigate up to find the property container and then find the + button
-      const propertyContainer = effectsText.closest('[class*="property"]')
-      expect(propertyContainer).toBeInTheDocument()
-
-      const addButton = propertyContainer?.querySelector('button')
+      const addButton = findFieldActionButton('effects')
       expect(addButton?.textContent).toBe('+')
       fireEvent.click(addButton!)
 
@@ -251,6 +244,55 @@ describe('NodeProperties field visibility editing', () => {
     })
   })
 
+  describe('Properties section timeline controls', () => {
+    it('shows field editor and keyframe button for unconnected animatable fields', () => {
+      const node = setupOperator('NumberOp', '/num')
+      renderNodeProperties(node)
+
+      expect(screen.getByLabelText('val')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /keyframe/i })).toBeInTheDocument()
+    })
+
+    it('does not render field editor or keyframe button when field has upstream connection', () => {
+      const nodes = [
+        {
+          id: '/source',
+          type: 'NumberOp',
+          position: { x: 0, y: 0 },
+          data: { inputs: { val: 1 } },
+        },
+        {
+          id: '/target',
+          type: 'NumberOp',
+          position: { x: 100, y: 0 },
+          data: { inputs: {} },
+        },
+      ]
+      const edges: Edge[] = [
+        {
+          id: '/source.out.val->/target.par.val',
+          source: '/source',
+          target: '/target',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.val',
+        },
+      ]
+
+      transformGraph({ nodes, edges })
+      mockEdges = edges
+
+      renderNodeProperties({
+        id: '/target',
+        type: 'NumberOp',
+        position: { x: 100, y: 0 },
+        data: { inputs: {} },
+      })
+
+      expect(screen.queryByLabelText('val')).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /keyframe/i })).not.toBeInTheDocument()
+    })
+  })
+
   describe('Hiding visible fields', () => {
     it('clicking − button hides a field without custom value', () => {
       // Start with 'effects' explicitly visible
@@ -269,9 +311,7 @@ describe('NodeProperties field visibility editing', () => {
       fireEvent.click(findEditButton())
 
       // Find the effects field - it should be in visible fields section (has − button)
-      const effectsText = screen.getByText('effects')
-      const propertyContainer = effectsText.closest('[class*="property"]')
-      const hideButton = propertyContainer?.querySelector('button')
+      const hideButton = findFieldActionButton('effects')
       expect(hideButton?.textContent).toBe('−')
       fireEvent.click(hideButton!)
 
@@ -319,9 +359,7 @@ describe('NodeProperties field visibility editing', () => {
       fireEvent.click(findEditButton())
 
       // Find the layers field and its − button
-      const layersText = screen.getByText('layers')
-      const propertyContainer = layersText.closest('[class*="property"]')
-      const hideButton = propertyContainer?.querySelector('button')
+      const hideButton = findFieldActionButton('layers')
       expect(hideButton?.textContent).toBe('−')
 
       // Button should be disabled
@@ -457,9 +495,7 @@ describe('NodeProperties field visibility editing', () => {
       fireEvent.click(findEditButton())
 
       // Show the effects field
-      const effectsText = screen.getByText('effects')
-      const propertyContainer = effectsText.closest('[class*="property"]')
-      const addButton = propertyContainer?.querySelector('button')
+      const addButton = findFieldActionButton('effects')
       fireEvent.click(addButton!)
 
       // Verify the operator's visibility state was updated

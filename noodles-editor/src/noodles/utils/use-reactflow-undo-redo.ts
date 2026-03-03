@@ -9,6 +9,7 @@ import type {
 import { useStore, useStoreApi } from '@xyflow/react'
 import createDebug from 'debug'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { captureTimelineState, getTimelineStore } from '../../timeline/timeline-store'
 
 // Enable with: localStorage.debug = 'noodles:undo-redo'
 const debugLog = createDebug('noodles:undo-redo')
@@ -24,6 +25,9 @@ interface HistoryEntry {
   edgesBefore: ReactFlowEdge[]
   nodesAfter: ReactFlowNode[]
   edgesAfter: ReactFlowEdge[]
+  // Timeline state snapshots for unified undo/redo
+  timelineStateBefore?: string
+  timelineStateAfter?: string
 }
 
 interface UndoRedoState {
@@ -92,6 +96,7 @@ export function useUndoRedo() {
 
       // Only capture state when there are significant changes to record
       const { nodes: nodesBefore, edges: edgesBefore } = store.getState()
+      const timelineStateBefore = captureTimelineState()
 
       userOnNodesChange(changes)
 
@@ -108,6 +113,7 @@ export function useUndoRedo() {
       // Capture state after changes (need to use setTimeout to get updated state from store)
       setTimeout(() => {
         const { nodes: nodesAfter, edges: edgesAfter } = store.getState()
+        const timelineStateAfter = captureTimelineState()
 
         debugLog('Captured after state counts:', {
           nodesAfterCount: nodesAfter.length,
@@ -124,6 +130,8 @@ export function useUndoRedo() {
           edgesBefore: [...edgesBefore],
           nodesAfter: [...nodesAfter],
           edgesAfter: [...edgesAfter],
+          timelineStateBefore,
+          timelineStateAfter,
         }
 
         setUndoRedoState(prev => {
@@ -182,6 +190,7 @@ export function useUndoRedo() {
 
       // Only capture state when there are changes to record
       const { nodes: nodesBefore, edges: edgesBefore } = store.getState()
+      const timelineStateBefore = captureTimelineState()
 
       userOnEdgesChange(changes)
 
@@ -193,6 +202,7 @@ export function useUndoRedo() {
       // Capture state after changes (need to use setTimeout to get updated state from store)
       setTimeout(() => {
         const { nodes: nodesAfter, edges: edgesAfter } = store.getState()
+        const timelineStateAfter = captureTimelineState()
 
         const entry: HistoryEntry = {
           id: crypto.randomUUID(),
@@ -204,6 +214,8 @@ export function useUndoRedo() {
           edgesBefore,
           nodesAfter: [...nodesAfter],
           edgesAfter: [...edgesAfter],
+          timelineStateBefore,
+          timelineStateAfter,
         }
 
         setUndoRedoState(prev => {
@@ -332,6 +344,15 @@ export function useUndoRedo() {
       originalOnEdgesChangeRef.current(allEdgeChanges)
     }
 
+    // Restore timeline state if the entry has a snapshot
+    if (entry.timelineStateBefore) {
+      try {
+        getTimelineStore().fromTheatreJSON(JSON.parse(entry.timelineStateBefore))
+      } catch (e) {
+        console.warn('Failed to restore timeline state during undo', e)
+      }
+    }
+
     setUndoRedoState(prev => ({
       ...prev,
       currentIndex: prev.currentIndex - 1,
@@ -418,6 +439,15 @@ export function useUndoRedo() {
       originalOnEdgesChangeRef.current(allEdgeChanges)
     }
 
+    // Restore timeline state if the entry has a snapshot
+    if (entry.timelineStateAfter) {
+      try {
+        getTimelineStore().fromTheatreJSON(JSON.parse(entry.timelineStateAfter))
+      } catch (e) {
+        console.warn('Failed to restore timeline state during redo', e)
+      }
+    }
+
     setUndoRedoState(prev => ({
       ...prev,
       currentIndex: prev.currentIndex + 1,
@@ -444,6 +474,39 @@ export function useUndoRedo() {
     redoDescription: canRedo ? history[currentIndex + 1]?.description : undefined,
   }
 
+  // Record a pure timeline change (no node/edge changes) into the unified history
+  const recordTimelineChange = useCallback(
+    (desc: string, timelineStateBefore: string, timelineStateAfter: string) => {
+      if (isRestoringRef.current) return
+      const { nodes, edges } = store.getState()
+      const entry: HistoryEntry = {
+        id: crypto.randomUUID(),
+        timestamp: Date.now(),
+        description: desc,
+        nodeChanges: [],
+        edgeChanges: [],
+        nodesBefore: [...nodes],
+        edgesBefore: [...edges],
+        nodesAfter: [...nodes],
+        edgesAfter: [...edges],
+        timelineStateBefore,
+        timelineStateAfter,
+      }
+      setUndoRedoState(prev => {
+        const newHistory = prev.history.slice(0, prev.currentIndex + 1)
+        newHistory.push(entry)
+        let finalHistory = newHistory
+        let newIndex = prev.currentIndex + 1
+        if (newHistory.length > maxHistorySize) {
+          finalHistory = newHistory.slice(-maxHistorySize)
+          newIndex = finalHistory.length - 1
+        }
+        return { history: finalHistory, currentIndex: newIndex }
+      })
+    },
+    [store]
+  )
+
   return {
     undo,
     redo,
@@ -451,6 +514,7 @@ export function useUndoRedo() {
     canRedo: () => canRedo,
     getState: () => state,
     isRestoring: () => isRestoringRef.current,
+    recordTimelineChange,
     history,
     clear: () => {
       setUndoRedoState({

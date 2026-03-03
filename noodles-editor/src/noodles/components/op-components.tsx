@@ -1,7 +1,6 @@
 import MapboxGeocoder from '@mapbox/mapbox-gl-geocoder'
 import ReactJson from '@microlink/react-json-view'
 import * as Tooltip from '@radix-ui/react-tooltip'
-import type { ISheet } from '@theatre/core'
 import {
   BaseEdge,
   type EdgeProps,
@@ -27,7 +26,6 @@ import {
   type ComponentType,
   memo,
   useCallback,
-  useContext,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -37,7 +35,6 @@ import { createPortal } from 'react-dom'
 import { Temporal } from 'temporal-polyfill'
 
 import { analytics } from '../../utils/analytics'
-import { SheetContext } from '../../utils/sheet-context'
 import { ArrayField, type Field, type IField, ListField } from '../fields'
 import { useKeysStore } from '../keys-store'
 import s from '../noodles.module.css'
@@ -1388,19 +1385,11 @@ function TimeOpComponent({
   if (!op) {
     throw new Error(`Operator with id ${id} not found`)
   }
-  const sheet = useContext(SheetContext) as ISheet
   const isDimmed = useNodeDimmed(id)
 
   const [now, setNow] = useState(0)
   const [sequenceTime, setSequenceTime] = useState(0)
   const [tick, setTick] = useState(0)
-
-  // Inject Theatre sheet into operator on mount
-  useEffect(() => {
-    if (sheet) {
-      op.setTheatreSheet(sheet)
-    }
-  }, [sheet, op])
 
   // Subscribe to outputs for display
   useEffect(() => {

@@ -53,19 +53,6 @@ vi.mock('@codeium/react-code-editor', () => ({
   },
 }))
 
-// Mock Theatre.js to avoid side effects
-vi.mock('@theatre/studio', () => ({
-  default: {
-    transaction: vi.fn(fn =>
-      fn({
-        __experimental_forgetSheet: vi.fn(),
-      })
-    ),
-    setSelection: vi.fn(),
-    createContentOfSaveFile: vi.fn(() => ({ sheetsById: {} })),
-  },
-}))
-
 describe('CodeFieldComponent edge management', () => {
   beforeEach(() => {
     clearOps()

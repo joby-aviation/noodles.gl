@@ -1,6 +1,4 @@
 import { assert } from '@deck.gl/core'
-import { createRafDriver, type IProject, type ISequence } from '@theatre/core'
-import { useVal } from '@theatre/react'
 import {
   EncodedPacket,
   EncodedVideoPacketSource,
@@ -8,27 +6,32 @@ import {
   Output,
   StreamTarget,
 } from 'mediabunny'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
+import { getTimelineStore, useTimelineStore } from '../timeline/timeline-store'
 
-export const rafDriver = createRafDriver({ name: 'WorldView' })
+export const rafDriver = {
+  tick: (_timestamp: number) => {},
+}
+
+function useSequenceLength() {
+  return useTimelineStore(state => state.sequence.length)
+}
 
 export const useRenderer = ({
-  project,
-  sequence,
+  projectName = 'render',
   fps = 30,
   bitrate = 10_000_000, // 10mbps
   bitrateMode,
   redraw,
 }: {
-  project: IProject
-  sequence: ISequence
+  projectName?: string
   fps?: number
   bitrate?: number
   bitrateMode: 'variable' | 'constant'
   redraw: () => void
 }) => {
-  // useVal keeps the prism "hot" and avoids cold prism warnings
-  const sequenceLength = useVal(sequence.pointer.length)
+  // Get sequence length from the appropriate timeline system
+  const sequenceLength = useSequenceLength()
 
   const canvasRenderDone = useRef<(result?: { error?: Error }) => void>(() => {})
   const canvasFrameReady = useCallback(
@@ -66,8 +69,6 @@ export const useRenderer = ({
       let i = startFrame
 
       setIsRendering(true)
-
-      const projectName = project.address.projectId
 
       const getContainer = async (name: string) => {
         const fileHandle = await window
@@ -185,8 +186,6 @@ export const useRenderer = ({
         }
       }
 
-      await project.ready
-
       function getCanvasRecorder(canvas: HTMLCanvasElement) {
         const track = canvas.captureStream(0).getVideoTracks()[0]
         const mediaProcessor = new MediaStreamTrackProcessor({ track })
@@ -213,14 +212,11 @@ export const useRenderer = ({
 
       for (; i < endFrame + 1; i++) {
         const simTime = i / fps
-        sequence.position = simTime
-        rafDriver.tick(performance.now())
-        // redraw in case nothing changes due to theatre raf driver
-        // TODO: Where should this go so that the first frame captures?
+        getTimelineStore().setPosition(simTime)
         redraw()
 
         currentFrame.current = i
-        console.log(`capturing frame ${i}/${endFrame} at simtime ${simTime}`)
+        if (i % 10 === 0) console.log(`capturing frame ${i}/${endFrame} at simtime ${simTime}`)
 
         const canvasResult = await canvasFrameReady()
 
@@ -235,10 +231,8 @@ export const useRenderer = ({
         ) => {
           // @ts-expect-error - typescript types not updated yet
           recorder.track.requestFrame()
-          console.log('requesting frame')
           const result = await recorder.reader.read()
           const frame = result.value
-          console.log('got frame', frame)
 
           assert(frame, 'frame is required - might be a problem with the browser')
 
@@ -251,22 +245,10 @@ export const useRenderer = ({
       finishEncoding()
       setIsRendering(false)
     },
-    [project, sequence, sequenceLength, fps, bitrate, bitrateMode, canvasFrameReady, redraw]
+    [projectName, sequenceLength, fps, bitrate, bitrateMode, canvasFrameReady, redraw]
   )
 
   const [isRendering, setIsRendering] = useState(false)
-  useEffect(() => {
-    if (isRendering) {
-      return
-    }
-    let tick: number
-    const cb = () => {
-      rafDriver.tick(performance.now())
-      tick = requestAnimationFrame(cb)
-    }
-    tick = requestAnimationFrame(cb)
-    return () => cancelAnimationFrame(tick)
-  }, [isRendering])
 
   return {
     startCapture,

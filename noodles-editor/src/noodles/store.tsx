@@ -1,4 +1,3 @@
-import type { ISheetObject } from '@theatre/core'
 import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react'
 import { create } from 'zustand'
 import type { IOperator, Operator } from './operators'
@@ -14,7 +13,7 @@ import { generateQualifiedPath, isAbsolutePath, resolvePath } from './utils/path
 interface OperatorStoreState {
   // The actual maps
   operators: Map<OpId, Operator<IOperator>>
-  sheetObjects: Map<OpId, ISheetObject>
+  sheetObjects: Map<OpId, unknown>
 
   // Batching state
   _batching: boolean
@@ -29,8 +28,8 @@ interface OperatorStoreState {
   getOpEntries: () => [OpId, Operator<IOperator>][]
 
   // Sheet object actions
-  getSheetObject: (id: OpId) => ISheetObject | undefined
-  setSheetObject: (id: OpId, sheetObj: ISheetObject) => void
+  getSheetObject: (id: OpId) => unknown
+  setSheetObject: (id: OpId, sheetObj: unknown) => void
   deleteSheetObject: (id: OpId) => void
   hasSheetObject: (id: OpId) => boolean
 
@@ -54,8 +53,16 @@ export const useOperatorStore = create<OperatorStoreState>((set, get) => ({
 
   deleteOp: id => {
     const operators = new Map(get().operators)
+    const op = operators.get(id)
     operators.delete(id)
+    // Dispose only if this op instance is no longer referenced at any id.
+    // During renames, setOp(newId, op) runs before deleteOp(oldId), so the
+    // same instance is still in the map and should NOT be disposed.
+    const isStillReferenced = op && Array.from(operators.values()).some(o => o === op)
     set({ operators })
+    if (op && !isStillReferenced) {
+      op.dispose?.()
+    }
   },
 
   hasOp: id => get().operators.has(id),
@@ -110,12 +117,18 @@ interface UIStoreState {
   setConnectionDragState: (state: ConnectionDragState | null) => void
   sidebarVisible: boolean
   setSidebarVisible: (visible: boolean) => void
+  sidebarSearchFocusTrigger: number
+  triggerSidebarSearch: () => void
   settingsDialogOpen: boolean
   setSettingsDialogOpen: (open: boolean) => void
   nodeInspectorVisible: boolean
   setNodeInspectorVisible: (visible: boolean) => void
   viewportLoggerVisible: boolean
   setViewportLoggerVisible: (visible: boolean) => void
+  timelineExpanded: boolean
+  setTimelineExpanded: (expanded: boolean) => void
+  quickStartModalOpen: boolean
+  setQuickStartModalOpen: (open: boolean) => void
 }
 
 export const useUIStore = create<UIStoreState>(set => ({
@@ -123,14 +136,21 @@ export const useUIStore = create<UIStoreState>(set => ({
   setHoveredOutputHandle: handle => set({ hoveredOutputHandle: handle }),
   connectionDragState: null,
   setConnectionDragState: state => set({ connectionDragState: state }),
-  sidebarVisible: true,
+  sidebarVisible: false,
   setSidebarVisible: visible => set({ sidebarVisible: visible }),
+  sidebarSearchFocusTrigger: 0,
+  triggerSidebarSearch: () =>
+    set(state => ({ sidebarSearchFocusTrigger: state.sidebarSearchFocusTrigger + 1 })),
   settingsDialogOpen: false,
   setSettingsDialogOpen: open => set({ settingsDialogOpen: open }),
   nodeInspectorVisible: false,
   setNodeInspectorVisible: visible => set({ nodeInspectorVisible: visible }),
   viewportLoggerVisible: false,
   setViewportLoggerVisible: visible => set({ viewportLoggerVisible: visible }),
+  timelineExpanded: false,
+  setTimelineExpanded: expanded => set({ timelineExpanded: expanded }),
+  quickStartModalOpen: false,
+  setQuickStartModalOpen: open => set({ quickStartModalOpen: open }),
 }))
 
 // ============================================================================
@@ -197,7 +217,7 @@ export const getOpEntries = () => getOpStore().getOpEntries()
 
 // Sheet object helpers
 export const getSheetObject = (id: OpId) => getOpStore().getSheetObject(id)
-export const setSheetObject = (id: OpId, sheetObj: ISheetObject) =>
+export const setSheetObject = (id: OpId, sheetObj: unknown) =>
   getOpStore().setSheetObject(id, sheetObj)
 export const deleteSheetObject = (id: OpId) => getOpStore().deleteSheetObject(id)
 export const hasSheetObject = (id: OpId) => getOpStore().hasSheetObject(id)

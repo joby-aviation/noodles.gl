@@ -1,5 +1,5 @@
 // Test for ContainerOpComponent children count reactivity
-import { render } from '@testing-library/react'
+import { cleanup, render } from '@testing-library/react'
 import type { Node as ReactFlowNode } from '@xyflow/react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -14,6 +14,7 @@ describe('ContainerOpComponent children count reactivity', () => {
   })
 
   afterEach(() => {
+    cleanup()
     clearOps()
   })
 
