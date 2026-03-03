@@ -13,8 +13,13 @@ export interface KeyframeTrackProps {
   pixelsPerSecond?: number
   timelineWidth?: number
   sequenceLength?: number
+  fps?: number
   opId?: string
   isFirstInGroup?: boolean
+}
+
+function snapToFrame(time: number, fps: number): number {
+  return Math.round(time * fps) / fps
 }
 
 // Extract display name from field path
@@ -30,6 +35,7 @@ export function KeyframeTrack({
   pixelsPerSecond = 100,
   timelineWidth = 1000,
   sequenceLength = 10,
+  fps = 30,
   opId,
   isFirstInGroup,
 }: KeyframeTrackProps) {
@@ -62,7 +68,7 @@ export function KeyframeTrack({
 
       const rect = e.currentTarget.getBoundingClientRect()
       const x = e.clientX - rect.left
-      const time = x / pixelsPerSecond
+      const time = snapToFrame(x / pixelsPerSecond, fps)
 
       const currentValue = track.defaultValue
 
@@ -72,7 +78,7 @@ export function KeyframeTrack({
         interpolation: 'bezier',
       })
     },
-    [track.id, track.defaultValue, pixelsPerSecond, addKeyframe, showLabelOnly]
+    [track.id, track.defaultValue, pixelsPerSecond, fps, addKeyframe, showLabelOnly]
   )
 
   // Handle bar segment popup open (called by KeyframeBar after confirming no drag)
@@ -159,6 +165,7 @@ export function KeyframeTrack({
             width={bar.width}
             pixelsPerSecond={pixelsPerSecond}
             sequenceLength={sequenceLength}
+            fps={fps}
             selectedKeyframeIds={selectedKeyframeIds}
             onOpenPopup={handleBarClick}
           />
@@ -171,6 +178,7 @@ export function KeyframeTrack({
             trackId={track.id}
             pixelsPerSecond={pixelsPerSecond}
             sequenceLength={sequenceLength}
+            fps={fps}
             isSelected={selectedKeyframeIds.has(keyframe.id)}
             selectedKeyframeIds={selectedKeyframeIds}
             onSelect={selectKeyframe}
@@ -209,6 +217,7 @@ interface KeyframeBarProps {
   width: number
   pixelsPerSecond: number
   sequenceLength: number
+  fps: number
   selectedKeyframeIds: Set<string>
   onOpenPopup: (k1: Keyframe, k2: Keyframe, x: number, y: number) => void
 }
@@ -220,6 +229,7 @@ function KeyframeBar({
   width,
   pixelsPerSecond,
   sequenceLength,
+  fps,
   selectedKeyframeIds,
   onOpenPopup,
 }: KeyframeBarProps) {
@@ -256,13 +266,15 @@ function KeyframeBar({
         if (Math.abs(deltaX) < 2 && !isDraggingRef.current) return
         isDraggingRef.current = true
 
-        const deltaTime = deltaX / pixelsPerSecond
+        // Snap the delta to the nearest frame multiple so all selected keyframes
+        // stay on frame boundaries after the move.
+        const snappedDelta = snapToFrame(deltaX / pixelsPerSecond, fps)
         for (const [tid, track] of store.tracks) {
           for (const kf of track.keyframes) {
             if (startPositions.has(kf.id)) {
               const origPos = startPositions.get(kf.id) ?? kf.position
               store.updateKeyframe(tid, kf.id, {
-                position: Math.max(0, Math.min(sequenceLength, origPos + deltaTime)),
+                position: Math.max(0, Math.min(sequenceLength, origPos + snappedDelta)),
               })
             }
           }
@@ -280,7 +292,7 @@ function KeyframeBar({
       document.addEventListener('pointermove', handlePointerMove)
       document.addEventListener('pointerup', handlePointerUp)
     },
-    [pixelsPerSecond, sequenceLength, selectedKeyframeIds]
+    [pixelsPerSecond, sequenceLength, fps, selectedKeyframeIds]
   )
 
   const handleClick = useCallback(
@@ -309,6 +321,7 @@ interface KeyframeDiamondProps {
   trackId: string
   pixelsPerSecond: number
   sequenceLength: number
+  fps: number
   isSelected: boolean
   selectedKeyframeIds: Set<string>
   onSelect: (keyframeId: string, addToSelection?: boolean) => void
@@ -320,6 +333,7 @@ function KeyframeDiamond({
   trackId,
   pixelsPerSecond,
   sequenceLength,
+  fps,
   isSelected,
   selectedKeyframeIds,
   onSelect,
@@ -369,8 +383,13 @@ function KeyframeDiamond({
         isDraggingRef.current = true
 
         const deltaTime = deltaX / pixelsPerSecond
-        const newDraggedPos = Math.max(0, Math.min(sequenceLength, startPosition + deltaTime))
-        const actualDelta = newDraggedPos - startPosition
+        // Snap the lead keyframe to the nearest frame, then apply the same delta
+        // to all selected keyframes so their relative positions are preserved.
+        const snappedPos = snapToFrame(
+          Math.max(0, Math.min(sequenceLength, startPosition + deltaTime)),
+          fps
+        )
+        const actualDelta = snappedPos - startPosition
 
         for (const [tid, track] of store.tracks) {
           for (const kf of track.keyframes) {
@@ -398,7 +417,7 @@ function KeyframeDiamond({
       document.addEventListener('pointermove', handlePointerMove)
       document.addEventListener('pointerup', handlePointerUp)
     },
-    [keyframe.id, keyframe.position, isSelected, onSelect, pixelsPerSecond, sequenceLength, selectedKeyframeIds]
+    [keyframe.id, keyframe.position, isSelected, onSelect, pixelsPerSecond, sequenceLength, fps, selectedKeyframeIds]
   )
 
   const handleClick = useCallback(

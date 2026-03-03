@@ -7,7 +7,7 @@ import { CurveEditorView } from './CurveEditorView'
 import { PlayControls } from './PlayControls'
 import { Playhead } from './Playhead'
 import { TimeDisplay } from './TimeDisplay'
-import { TimeRuler } from './TimeRuler'
+import { getMajorInterval, TimeRuler } from './TimeRuler'
 import { TrackList } from './TrackList'
 import s from './TimelinePanel.module.css'
 
@@ -61,6 +61,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
 
   // Calculate timeline width based on sequence length and zoom
   const timelineWidth = sequence.length * pixelsPerSecond
+  const majorInterval = getMajorInterval(pixelsPerSecond)
 
   // Convert time to pixels
   const _timeToPixels = useCallback((time: number) => time * pixelsPerSecond, [pixelsPerSecond])
@@ -84,16 +85,17 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
     setScrollLeft(e.currentTarget.scrollLeft)
   }, [])
 
-  // Calculate time from mouse event
+  // Calculate time from mouse event, snapped to the nearest frame
   const getTimeFromMouseEvent = useCallback(
     (e: MouseEvent | React.MouseEvent) => {
       if (!timelineAreaRef.current) return null
       const rect = timelineAreaRef.current.getBoundingClientRect()
       const currentScrollLeft = scrollAreaRef.current?.scrollLeft ?? 0
       const x = e.clientX - rect.left + currentScrollLeft
-      return Math.max(0, Math.min(pixelsToTime(x), sequence.length))
+      const raw = Math.max(0, Math.min(pixelsToTime(x), sequence.length))
+      return Math.round(raw * sequence.fps) / sequence.fps
     },
-    [pixelsToTime, sequence.length]
+    [pixelsToTime, sequence.length, sequence.fps]
   )
 
   // Handle mousedown on timeline area — shift+drag starts box selection, plain drag scrubs
@@ -345,6 +347,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
             pixelsPerSecond={pixelsPerSecond}
             scrollLeft={scrollLeft}
             sequenceLength={sequence.length}
+            fps={sequence.fps}
             onSetLength={setLength}
             onSetPosition={setPosition}
           />
@@ -355,10 +358,13 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
             <div
               ref={timelineAreaRef}
               className={`${s.timelineKeyframeArea} ${isScrubbing ? s.scrubbing : ''} ${boxSelectOverlay ? s.boxSelecting : ''}`}
-              style={{ width: timelineWidth }}
+              style={{
+                width: timelineWidth,
+                backgroundSize: `${majorInterval * pixelsPerSecond}px 100%, 100% 100%`,
+              }}
               onMouseDown={handleTimelineMouseDown}
             >
-              <TrackList pixelsPerSecond={pixelsPerSecond} timelineWidth={timelineWidth} sequenceLength={sequence.length} />
+              <TrackList pixelsPerSecond={pixelsPerSecond} timelineWidth={timelineWidth} sequenceLength={sequence.length} fps={sequence.fps} />
               <Playhead position={position} pixelsPerSecond={pixelsPerSecond} height={height - 80} />
               {boxSelectOverlay && (
                 <div className={s.timelineBoxSelect} style={boxSelectOverlay} />

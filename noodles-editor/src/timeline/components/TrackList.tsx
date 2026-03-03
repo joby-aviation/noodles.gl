@@ -9,6 +9,7 @@ export interface TrackListProps {
   pixelsPerSecond?: number
   timelineWidth?: number
   sequenceLength?: number
+  fps?: number
 }
 
 export function TrackList({
@@ -16,6 +17,7 @@ export function TrackList({
   pixelsPerSecond,
   timelineWidth,
   sequenceLength,
+  fps,
 }: TrackListProps) {
   const tracks = useTimelineStore(state => state.tracks)
 
@@ -52,6 +54,7 @@ export function TrackList({
           pixelsPerSecond={pixelsPerSecond}
           timelineWidth={timelineWidth}
           sequenceLength={sequenceLength}
+          fps={fps}
           opId={opId}
           isFirstInGroup={isFirstInGroup}
         />

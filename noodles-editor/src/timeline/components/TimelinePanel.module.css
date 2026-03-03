@@ -186,7 +186,7 @@
   background:
     linear-gradient(90deg, rgb(49 65 84 / 0.35) 1px, transparent 1px),
     linear-gradient(180deg, rgb(30 39 51 / 0.92) 0%, rgb(20 27 37 / 0.92) 100%);
-  background-size: 80px 100%, 100% 100%;
+  /* background-size is set via inline style so grid columns track the major tick interval */
   cursor: pointer;
 }
 
@@ -354,6 +354,11 @@
 
 .timelineRulerTick.major {
   background: rgb(106 128 157 / 0.62);
+}
+
+/* Frame-level sub-ticks: softer than minor ticks, only visible at high zoom */
+.timelineRulerTick.frame {
+  background: rgb(62 80 100 / 0.55);
 }
 
 .timelineRulerLabel {
