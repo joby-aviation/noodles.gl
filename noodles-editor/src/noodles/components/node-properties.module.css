@@ -589,6 +589,7 @@
 /* Editable field content (value input inside property row) */
 .editableFieldContent {
   flex-shrink: 0;
+  flex-grow: 1;
   min-width: 0;
   max-width: 120px;
 }
