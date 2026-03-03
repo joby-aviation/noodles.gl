@@ -235,7 +235,7 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
           </select>
         </div>
 
-        {(codec === 'vp9' || codec === 'av1') ? (
+        {codec === 'vp9' || codec === 'av1' ? (
           <div className={s.settingRow}>
             <label className={s.checkboxLabel}>
               <input
@@ -248,9 +248,7 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
             </label>
           </div>
         ) : (
-          <div className={s.alphaNote}>
-            Transparency requires VP9 or AV1
-          </div>
+          <div className={s.alphaNote}>Transparency requires VP9 or AV1</div>
         )}
 
         <div className={s.settingRow}>
