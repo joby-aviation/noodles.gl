@@ -7,12 +7,14 @@ export interface TrackListProps {
   showLabelsOnly?: boolean
   pixelsPerSecond?: number
   timelineWidth?: number
+  sequenceLength?: number
 }
 
 export function TrackList({
   showLabelsOnly = false,
   pixelsPerSecond,
   timelineWidth,
+  sequenceLength,
 }: TrackListProps) {
   const tracks = useTimelineStore(state => state.tracks)
 
@@ -41,6 +43,7 @@ export function TrackList({
           showLabelOnly={showLabelsOnly}
           pixelsPerSecond={pixelsPerSecond}
           timelineWidth={timelineWidth}
+          sequenceLength={sequenceLength}
         />
       ))}
     </div>

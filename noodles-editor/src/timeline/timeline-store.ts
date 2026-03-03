@@ -70,11 +70,15 @@ export interface TimelineStore {
   moveKeyframe: (trackId: string, keyframeId: string, newPosition: number) => void
   setKeyframeHandles: (trackId: string, keyframeId: string, handles: BezierHandles) => void
 
+  // Delete all currently selected keyframes in one history entry
+  deleteSelectedKeyframes: () => void
+
   // === Selection Actions ===
   selectKeyframe: (keyframeId: string, addToSelection?: boolean) => void
   deselectKeyframe: (keyframeId: string) => void
   clearSelection: () => void
   selectAllInTrack: (trackId: string) => void
+  selectTrack: (trackId: string) => void
 
   // === Evaluation ===
   evaluateTrack: (trackId: string, time?: number) => KeyframeValue | undefined
@@ -254,6 +258,8 @@ export const useTimelineStore = create<TimelineStore>()(
         return ''
       }
 
+      const before = captureTimelineState()
+
       const id = keyframe.id || generateKeyframeId()
       const newKeyframe: Keyframe = {
         id,
@@ -270,6 +276,7 @@ export const useTimelineStore = create<TimelineStore>()(
       tracks.set(trackId, updatedTrack)
       set({ tracks })
 
+      fireTimelineMutation('Add keyframe', before)
       return id
     },
 
@@ -297,6 +304,8 @@ export const useTimelineStore = create<TimelineStore>()(
 
       if (!track) return
 
+      const before = captureTimelineState()
+
       const updatedTrack = {
         ...track,
         keyframes: track.keyframes.filter(kf => kf.id !== keyframeId),
@@ -308,6 +317,25 @@ export const useTimelineStore = create<TimelineStore>()(
       selectedKeyframeIds.delete(keyframeId)
 
       set({ tracks, selectedKeyframeIds })
+      fireTimelineMutation('Delete keyframe', before)
+    },
+
+    deleteSelectedKeyframes: () => {
+      const { selectedKeyframeIds, tracks } = get()
+      if (selectedKeyframeIds.size === 0) return
+
+      const before = captureTimelineState()
+      const newTracks = new Map(tracks)
+
+      for (const [trackId, track] of newTracks) {
+        const filtered = track.keyframes.filter(kf => !selectedKeyframeIds.has(kf.id))
+        if (filtered.length !== track.keyframes.length) {
+          newTracks.set(trackId, { ...track, keyframes: filtered })
+        }
+      }
+
+      set({ tracks: newTracks, selectedKeyframeIds: new Set() })
+      fireTimelineMutation('Delete keyframes', before)
     },
 
     moveKeyframe: (trackId, keyframeId, newPosition) => {
@@ -348,6 +376,10 @@ export const useTimelineStore = create<TimelineStore>()(
       set({
         selectedKeyframeIds: new Set(track.keyframes.map(kf => kf.id)),
       })
+    },
+
+    selectTrack: trackId => {
+      set({ selectedTrackIds: new Set([trackId]) })
     },
 
     // === Evaluation ===
@@ -521,4 +553,33 @@ export function subscribeToPosition(callback: (position: number) => void) {
 
 export function subscribeToPlaying(callback: (playing: boolean) => void) {
   return useTimelineStore.subscribe(state => state.playing, callback)
+}
+
+// ============================================================================
+// Unified history integration
+// ============================================================================
+
+// Module-level callback — set by UndoRedoHandler to record timeline mutations
+// into the same undo stack as node/edge operations
+let _timelineMutationCallback:
+  | ((desc: string, before: string, after: string) => void)
+  | undefined
+
+export function registerTimelineMutationCallback(
+  cb: ((desc: string, before: string, after: string) => void) | undefined
+) {
+  _timelineMutationCallback = cb
+}
+
+// Capture the current timeline state as a JSON string for history snapshots
+export function captureTimelineState(): string {
+  return JSON.stringify(useTimelineStore.getState().toTheatreJSON())
+}
+
+// Fire a history entry for a completed mutation. Pass beforeJson captured before
+// the mutation; the current state is captured as "after" automatically.
+export function fireTimelineMutation(desc: string, beforeJson: string) {
+  if (!_timelineMutationCallback) return
+  const after = captureTimelineState()
+  _timelineMutationCallback(desc, beforeJson, after)
 }
