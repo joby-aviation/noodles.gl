@@ -113,6 +113,8 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
         return
       }
 
+      // Plain click on blank space — clear selection and scrub
+      getTimelineStore().clearSelection()
       const time = getTimeFromMouseEvent(e)
       if (time !== null) {
         setPosition(time)
