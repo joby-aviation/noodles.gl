@@ -255,7 +255,11 @@
   top: 50%;
   transform: translateY(-50%);
   border-radius: 999px;
-  pointer-events: none;
+  cursor: pointer;
+}
+
+.timeline-keyframe-bar:hover {
+  background: linear-gradient(90deg, rgb(102 235 237 / 0.55), rgb(102 235 237 / 0.7));
 }
 
 .timeline-keyframe {

@@ -232,9 +232,8 @@ export function CurveEditorView({
           />
         )}
 
-        {/* Bezier handles for selected keyframes (value mode only) */}
-        {mode === 'value' &&
-          track.keyframes.map((kf, i) => {
+        {/* Bezier handles for selected keyframes */}
+        {track.keyframes.map((kf, i) => {
             if (!isNumericValue(kf.value)) return null
             if (!selectedKeyframeIds.has(kf.id)) return null
             if (kf.interpolation !== 'bezier') return null
