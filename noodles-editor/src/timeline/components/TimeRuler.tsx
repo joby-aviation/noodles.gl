@@ -173,11 +173,13 @@ export function TimeRuler({
   )
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: Timeline ruler supports direct click-to-seek
     <div className="timeline-ruler" style={{ width }} onMouseDown={handleRulerMouseDown}>
       {ticks}
       {labels}
 
       {/* End-of-sequence marker */}
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: Marker supports pointer drag and double-click editing */}
       <div
         className="timeline-sequence-end-marker"
         style={{ left: endX }}

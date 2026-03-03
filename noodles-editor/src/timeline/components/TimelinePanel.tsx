@@ -134,6 +134,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
 
   return (
     // biome-ignore lint/a11y/noNoninteractiveTabindex: Timeline panel needs focus to receive keyboard events
+    // biome-ignore lint/a11y/noStaticElementInteractions: Timeline panel handles wheel and keyboard shortcuts
     <div ref={containerRef} className="timeline-panel" style={{ height }} onWheel={handleWheel} onKeyDown={handleKeyDown} tabIndex={0}>
       {/* Header with controls */}
       <div className="timeline-header">
