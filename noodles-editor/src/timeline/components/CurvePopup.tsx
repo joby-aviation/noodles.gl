@@ -1,5 +1,5 @@
 // Popup for editing bezier easing between two keyframes
-// Shows interpolation type selector, preset library, and bezier handle editor
+// Shows preset library with hover preview and inline bezier handle editor
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -18,9 +18,32 @@ export interface CurvePopupProps {
 }
 
 const POPUP_WIDTH = 420
-const POPUP_HEIGHT = 300
+const POPUP_HEIGHT = 280
 const CURVE_WIDTH = 240
 const CURVE_HEIGHT = 200
+
+// Preset item that can represent either a bezier curve or hold/linear
+interface PresetItem {
+  name: string
+  interpolation: InterpolationType
+  handles: BezierHandles
+}
+
+// Build full preset list: Hold at top, then all bezier presets
+const ALL_PRESETS: PresetItem[] = [
+  // Hold (step function)
+  {
+    name: 'Hold',
+    interpolation: 'hold',
+    handles: { left: [0, 0], right: [1, 0], type: 'aligned' as const },
+  },
+  // All bezier presets
+  ...EASING_PRESETS.map(p => ({
+    name: p.name,
+    interpolation: 'bezier' as InterpolationType,
+    handles: p.handles,
+  })),
+]
 
 // Generate SVG polyline path by sampling the bezier curve
 function generatePath(handles: BezierHandles, w: number, h: number, pad: number): string {
@@ -37,9 +60,25 @@ function generatePath(handles: BezierHandles, w: number, h: number, pad: number)
   return pts.join(' ')
 }
 
+// Generate a "hold" step function path
+function generateHoldPath(w: number, h: number, pad: number): string {
+  const x0 = pad
+  const x1 = w - pad
+  const y0 = h - pad // bottom (start value)
+  const y1 = pad // top (end value)
+  // Flat line at start value, then step up at end
+  return `M ${x0} ${y0} L ${x1} ${y0} L ${x1} ${y1}`
+}
+
 // Small curve preview for preset buttons
-function PresetPreview({ handles, isSelected }: { handles: BezierHandles; isSelected: boolean }) {
-  const path = useMemo(() => generatePath(handles, 44, 32, 4), [handles])
+function PresetPreview({ preset, isSelected }: { preset: PresetItem; isSelected: boolean }) {
+  const path = useMemo(() => {
+    if (preset.interpolation === 'hold') {
+      return generateHoldPath(44, 32, 4)
+    }
+    return generatePath(preset.handles, 44, 32, 4)
+  }, [preset])
+
   return (
     <svg width={44} height={32} aria-hidden="true">
       <path d={path} fill="none" stroke={isSelected ? '#48c6cf' : '#667'} strokeWidth={1.5} />
@@ -55,7 +94,7 @@ function InlineCurveEditor({
 }: {
   handles: BezierHandles
   onHandlesChange: (h: BezierHandles) => void
-  onHandlesCommit: (h: BezierHandles) => void
+  onHandlesCommit: () => void
 }) {
   const pad = 20
   const w = CURVE_WIDTH
@@ -79,10 +118,7 @@ function InlineCurveEditor({
   const rh = toPixel(handles.right[0], handles.right[1])
 
   const dragHandle = useCallback(
-    (
-      side: 'left' | 'right',
-      startEvent: React.PointerEvent<SVGCircleElement>
-    ) => {
+    (side: 'left' | 'right', startEvent: React.PointerEvent<SVGCircleElement>) => {
       startEvent.preventDefault()
       startEvent.stopPropagation()
       startEvent.currentTarget.setPointerCapture(startEvent.pointerId)
@@ -111,7 +147,7 @@ function InlineCurveEditor({
       }
 
       const handleUp = () => {
-        onHandlesCommit(handles)
+        onHandlesCommit()
         document.removeEventListener('pointermove', handleMove)
         document.removeEventListener('pointerup', handleUp)
       }
@@ -177,28 +213,49 @@ export function CurvePopup({ trackId, k1, k2: _k2, anchorX, anchorY, onClose }: 
   // Get current k1 from store (may have been updated)
   const currentK1 = track?.keyframes.find(kf => kf.id === k1.id) ?? k1
 
-  const [interpolation, setInterpolation] = useState<InterpolationType>(currentK1.interpolation)
-  const [previewHandles, setPreviewHandles] = useState<BezierHandles | null>(null)
-  const beforeStateRef = useRef<string>(captureTimelineState())
+  // Store the original state on mount — will restore if closed without commit
+  const originalStateRef = useRef<string>(captureTimelineState())
+  const committedRef = useRef(false)
   const popupRef = useRef<HTMLDivElement>(null)
 
-  const activeHandles: BezierHandles = previewHandles ?? currentK1.handles ?? {
+  // Current displayed handles (for the editor)
+  const activeHandles: BezierHandles = currentK1.handles ?? {
     left: [0.33, 0.33],
     right: [0.67, 0.67],
     type: 'aligned',
   }
 
-  const matchingPreset = useMemo(() => findMatchingPreset(activeHandles), [activeHandles])
+  // Find matching preset based on current keyframe state
+  const matchingPreset = useMemo(() => {
+    if (currentK1.interpolation === 'hold') {
+      return ALL_PRESETS.find(p => p.interpolation === 'hold')
+    }
+    const bezierMatch = findMatchingPreset(activeHandles)
+    if (bezierMatch) {
+      return ALL_PRESETS.find(p => p.name === bezierMatch.name)
+    }
+    return null
+  }, [currentK1.interpolation, activeHandles])
 
-  // Close on outside click
+  // Restore original state on close if not committed
+  const handleClose = useCallback(() => {
+    if (!committedRef.current) {
+      // Restore original state (ephemeral preview was not committed)
+      const originalData = JSON.parse(originalStateRef.current)
+      useTimelineStore.getState().fromTheatreJSON(originalData)
+    }
+    onClose()
+  }, [onClose])
+
+  // Close on outside click or Escape
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       if (popupRef.current && !popupRef.current.contains(e.target as Node)) {
-        onClose()
+        handleClose()
       }
     }
     const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') handleClose()
     }
     document.addEventListener('mousedown', handleClick)
     document.addEventListener('keydown', handleEsc)
@@ -206,7 +263,7 @@ export function CurvePopup({ trackId, k1, k2: _k2, anchorX, anchorY, onClose }: 
       document.removeEventListener('mousedown', handleClick)
       document.removeEventListener('keydown', handleEsc)
     }
-  }, [onClose])
+  }, [handleClose])
 
   // Position popup: prefer below and to the right of anchor, but keep in viewport
   const style = useMemo(() => {
@@ -222,93 +279,98 @@ export function CurvePopup({ trackId, k1, k2: _k2, anchorX, anchorY, onClose }: 
     return { left, top, width: POPUP_WIDTH }
   }, [anchorX, anchorY])
 
-  const applyInterpolationType = useCallback(
-    (type: InterpolationType) => {
-      setInterpolation(type)
-      updateKeyframe(trackId, k1.id, { interpolation: type })
-      if (type !== 'bezier') {
-        fireTimelineMutation('Set interpolation type', beforeStateRef.current)
-        onClose()
+  // Hover: apply preset ephemerally (no history)
+  const handlePresetHover = useCallback(
+    (preset: PresetItem) => {
+      updateKeyframe(trackId, k1.id, { interpolation: preset.interpolation })
+      if (preset.interpolation === 'bezier') {
+        setKeyframeHandles(trackId, k1.id, preset.handles)
       }
     },
-    [trackId, k1.id, updateKeyframe, onClose]
+    [trackId, k1.id, updateKeyframe, setKeyframeHandles]
   )
 
-  const applyPreset = useCallback(
-    (preset: (typeof EASING_PRESETS)[number]) => {
-      setKeyframeHandles(trackId, k1.id, preset.handles)
-      updateKeyframe(trackId, k1.id, { interpolation: 'bezier' })
-      fireTimelineMutation('Set easing curve', beforeStateRef.current)
+  // Leave hover: restore original (if not committed yet)
+  const handlePresetLeave = useCallback(() => {
+    if (!committedRef.current) {
+      const originalData = JSON.parse(originalStateRef.current)
+      useTimelineStore.getState().fromTheatreJSON(originalData)
+    }
+  }, [])
+
+  // Click: commit preset with history
+  const handlePresetClick = useCallback(
+    (preset: PresetItem) => {
+      // Apply the preset
+      updateKeyframe(trackId, k1.id, { interpolation: preset.interpolation })
+      if (preset.interpolation === 'bezier') {
+        setKeyframeHandles(trackId, k1.id, preset.handles)
+      }
+      // Fire history
+      fireTimelineMutation('Set easing curve', originalStateRef.current)
+      committedRef.current = true
       onClose()
     },
-    [trackId, k1.id, setKeyframeHandles, updateKeyframe, onClose]
+    [trackId, k1.id, updateKeyframe, setKeyframeHandles, onClose]
   )
 
-  const handleHandlesChange = useCallback((h: BezierHandles) => {
-    setPreviewHandles(h)
-    // Live update without committing to history yet
-    useTimelineStore.getState().setKeyframeHandles(trackId, k1.id, h)
-  }, [trackId, k1.id])
+  // Handle editor: live update (ephemeral)
+  const handleHandlesChange = useCallback(
+    (h: BezierHandles) => {
+      updateKeyframe(trackId, k1.id, { interpolation: 'bezier' })
+      setKeyframeHandles(trackId, k1.id, h)
+    },
+    [trackId, k1.id, updateKeyframe, setKeyframeHandles]
+  )
 
-  const handleHandlesCommit = useCallback((_h: BezierHandles) => {
-    setPreviewHandles(null)
-    fireTimelineMutation('Adjust bezier handles', beforeStateRef.current)
-    beforeStateRef.current = captureTimelineState()
+  // Handle editor commit: fire history
+  const handleHandlesCommit = useCallback(() => {
+    fireTimelineMutation('Adjust bezier handles', originalStateRef.current)
+    // Update the "original" to current so further edits are relative
+    originalStateRef.current = captureTimelineState()
+    committedRef.current = true
   }, [])
 
   return createPortal(
     <div ref={popupRef} className="curve-popup" style={style}>
-      {/* Interpolation type selector */}
-      <div className="curve-popup-type-bar">
-        {(['linear', 'hold', 'bezier'] as InterpolationType[]).map(type => (
-          <button
-            key={type}
-            type="button"
-            className={`curve-popup-type-btn ${interpolation === type ? 'active' : ''}`}
-            onClick={() => applyInterpolationType(type)}
-          >
-            {type.charAt(0).toUpperCase() + type.slice(1)}
-          </button>
-        ))}
-      </div>
+      <div className="curve-popup-body">
+        {/* Left: preset list */}
+        <div className="curve-popup-presets">
+          {ALL_PRESETS.map(preset => (
+            <button
+              key={preset.name}
+              type="button"
+              className={`curve-popup-preset-item ${matchingPreset?.name === preset.name ? 'active' : ''}`}
+              onMouseEnter={() => handlePresetHover(preset)}
+              onMouseLeave={handlePresetLeave}
+              onClick={() => handlePresetClick(preset)}
+              title={preset.name}
+            >
+              <PresetPreview
+                preset={preset}
+                isSelected={matchingPreset?.name === preset.name}
+              />
+              <span className="curve-popup-preset-name">{preset.name}</span>
+            </button>
+          ))}
+        </div>
 
-      {/* Bezier editor section */}
-      {interpolation === 'bezier' && (
-        <div className="curve-popup-body">
-          {/* Left: preset list */}
-          <div className="curve-popup-presets">
-            {EASING_PRESETS.map(preset => (
-              <button
-                key={preset.name}
-                type="button"
-                className={`curve-popup-preset-item ${matchingPreset?.name === preset.name ? 'active' : ''}`}
-                onMouseEnter={() => setPreviewHandles(preset.handles)}
-                onMouseLeave={() => setPreviewHandles(null)}
-                onClick={() => applyPreset(preset)}
-                title={preset.name}
-              >
-                <PresetPreview
-                  handles={preset.handles}
-                  isSelected={matchingPreset?.name === preset.name}
-                />
-                <span className="curve-popup-preset-name">{preset.name}</span>
-              </button>
-            ))}
-          </div>
-
-          {/* Right: bezier curve editor */}
-          <div className="curve-popup-editor">
-            <InlineCurveEditor
-              handles={activeHandles}
-              onHandlesChange={handleHandlesChange}
-              onHandlesCommit={handleHandlesCommit}
-            />
-            <div className="curve-popup-preset-label">
-              {matchingPreset ? matchingPreset.name : 'Custom'}
-            </div>
+        {/* Right: bezier curve editor */}
+        <div className="curve-popup-editor">
+          <InlineCurveEditor
+            handles={activeHandles}
+            onHandlesChange={handleHandlesChange}
+            onHandlesCommit={handleHandlesCommit}
+          />
+          <div className="curve-popup-preset-label">
+            {currentK1.interpolation === 'hold'
+              ? 'Hold'
+              : matchingPreset
+                ? matchingPreset.name
+                : 'Custom'}
           </div>
         </div>
-      )}
+      </div>
     </div>,
     document.body
   )

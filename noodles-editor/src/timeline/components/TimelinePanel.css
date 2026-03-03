@@ -714,38 +714,6 @@
   color: #b9c3cf;
 }
 
-.curve-popup-type-bar {
-  display: flex;
-  gap: 2px;
-  padding: 8px 8px 6px;
-  border-bottom: 1px solid #2f3b4c;
-  background: rgb(27 34 46 / 0.8);
-}
-
-.curve-popup-type-btn {
-  flex: 1;
-  height: 26px;
-  background: #252d3a;
-  border: 1px solid #3a475a;
-  border-radius: 4px;
-  color: #8a96ad;
-  font-size: 11px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.1s, border-color 0.1s, color 0.1s;
-}
-
-.curve-popup-type-btn:hover {
-  background: #2d3748;
-  color: #c2cbda;
-}
-
-.curve-popup-type-btn.active {
-  background: rgb(72 198 207 / 0.2);
-  border-color: #48c6cf;
-  color: #d9fdff;
-}
-
 .curve-popup-body {
   display: flex;
   height: 248px;
