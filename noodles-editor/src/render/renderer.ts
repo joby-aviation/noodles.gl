@@ -263,6 +263,7 @@ export const useRenderer = ({
       format = 'png',
       exrCompression = 'zip',
       includeDepth = false,
+      captureDelay = 200,
       startFrame = 0,
       endFrame = Math.floor(sequenceLength * fps),
       onFrameStart,
@@ -275,6 +276,7 @@ export const useRenderer = ({
       format?: ImageFormat
       exrCompression?: ExrCompression
       includeDepth?: boolean
+      captureDelay?: number
       startFrame?: number
       endFrame?: number
       onFrameStart?: (frame: number, total: number) => void
@@ -304,16 +306,10 @@ export const useRenderer = ({
           redraw()
 
           currentFrame.current = i
-          console.log(`exporting frame ${i}/${endFrame} at simtime ${simTime}`)
+          if (i % 10 === 0) console.log(`exporting frame ${i}/${endFrame} at simtime ${simTime}`)
 
-          // Wait for frame to be ready
-          const canvasResult = await canvasFrameReady()
-
-          if (canvasResult?.error) {
-            console.error('Error capturing canvas frame:', canvasResult.error)
-            onError?.(canvasResult.error, i)
-            continue
-          }
+          // Wait for frame to settle before capturing
+          await new Promise(r => setTimeout(r, captureDelay))
 
           // Generate filename
           const frameNumber = String(i).padStart(padLength, '0')
@@ -358,7 +354,7 @@ export const useRenderer = ({
 
       setIsRendering(false)
     },
-    [project, sequence, sequenceLength, fps, canvasFrameReady, redraw]
+    [project, sequence, sequenceLength, fps, redraw]
   )
 
   const [isRendering, setIsRendering] = useState(false)

@@ -441,6 +441,7 @@ export default function TimelineEditor() {
       format: imageFormat,
       exrCompression,
       includeDepth,
+      captureDelay,
       startFrame: 0,
       endFrame: totalFrames,
       onFrameStart: (frame, total) => {
@@ -457,6 +458,7 @@ export default function TimelineEditor() {
     imageFormat,
     exrCompression,
     includeDepth,
+    captureDelay,
     basemapEnabled,
     currentDirectory,
     activeStorageType,
