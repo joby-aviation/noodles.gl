@@ -236,83 +236,107 @@ export function CurveEditorView({
         {track.keyframes.map((kf, i) => {
             if (!isNumericValue(kf.value)) return null
             if (!selectedKeyframeIds.has(kf.id)) return null
-            // Show handles for any selected keyframe (not just bezier)
-            // Dragging a handle will auto-set interpolation to bezier
-            const nextKf = track.keyframes[i + 1]
-            if (!nextKf || !isNumericValue(nextKf.value)) return null
 
-            const handles = kf.handles ?? DEFAULT_BEZIER_HANDLES
-            const Δt = nextKf.position - kf.position
-            const Δv = (nextKf.value as number) - (kf.value as number)
+            const prevKf = i > 0 ? track.keyframes[i - 1] : null
+            const nextKf = i < track.keyframes.length - 1 ? track.keyframes[i + 1] : null
+
+            // Need at least one neighbor to show handles
+            if (!prevKf && !nextKf) return null
 
             const kx = timeToX(kf.position)
             const ky = valToY(kf.value as number)
-            const nkx = timeToX(nextKf.position)
-            const nky = valToY(nextKf.value as number)
-            const p1x = timeToX(kf.position + handles.left[0] * Δt)
-            const p1y = valToY((kf.value as number) + handles.left[1] * Δv)
-            const p2x = timeToX(kf.position + handles.right[0] * Δt)
-            const p2y = valToY((kf.value as number) + handles.right[1] * Δv)
+
+            // LEFT HANDLE (incoming to this keyframe)
+            // Stored on PREVIOUS keyframe as handles.right
+            let leftHandleEl = null
+            if (prevKf && isNumericValue(prevKf.value)) {
+              const prevHandles = prevKf.handles ?? DEFAULT_BEZIER_HANDLES
+              const ΔtPrev = kf.position - prevKf.position
+              const ΔvPrev = (kf.value as number) - (prevKf.value as number)
+              // handles.right position is relative to prev keyframe
+              const lhx = timeToX(prevKf.position + prevHandles.right[0] * ΔtPrev)
+              const lhy = valToY((prevKf.value as number) + prevHandles.right[1] * ΔvPrev)
+
+              leftHandleEl = (
+                <>
+                  <line
+                    x1={kx} y1={ky} x2={lhx} y2={lhy}
+                    stroke="rgb(100 100 130/0.55)" strokeWidth={1} strokeDasharray="3 2"
+                    style={{ pointerEvents: 'none' }}
+                  />
+                  <BezierHandleDot
+                    cx={lhx}
+                    cy={lhy}
+                    color="#ff6b6b"
+                    strokeColor="#ff9999"
+                    onDrag={(svgX, svgY) => {
+                      // Update PREVIOUS keyframe's handles.right
+                      const prev = getTimelineStore().tracks.get(track.id)?.keyframes.find(k => k.id === prevKf.id)
+                      if (prev?.interpolation !== 'bezier') {
+                        getTimelineStore().updateKeyframe(track.id, prevKf.id, { interpolation: 'bezier' })
+                      }
+                      const prevH = prev?.handles ?? DEFAULT_BEZIER_HANDLES
+                      const newRx = Math.max(0, Math.min(1, (xToTime(svgX) - prevKf.position) / (ΔtPrev || 1)))
+                      const newRy = (yToVal(svgY) - (prevKf.value as number)) / (ΔvPrev || 1)
+                      getTimelineStore().setKeyframeHandles(track.id, prevKf.id, {
+                        ...prevH,
+                        right: [newRx, newRy],
+                        type: 'free',
+                      })
+                    }}
+                    onDragEnd={before => fireTimelineMutation('Adjust bezier handles', before)}
+                  />
+                </>
+              )
+            }
+
+            // RIGHT HANDLE (outgoing from this keyframe)
+            // Stored on THIS keyframe as handles.left
+            let rightHandleEl = null
+            if (nextKf && isNumericValue(nextKf.value)) {
+              const handles = kf.handles ?? DEFAULT_BEZIER_HANDLES
+              const ΔtNext = nextKf.position - kf.position
+              const ΔvNext = (nextKf.value as number) - (kf.value as number)
+              const rhx = timeToX(kf.position + handles.left[0] * ΔtNext)
+              const rhy = valToY((kf.value as number) + handles.left[1] * ΔvNext)
+
+              rightHandleEl = (
+                <>
+                  <line
+                    x1={kx} y1={ky} x2={rhx} y2={rhy}
+                    stroke="rgb(100 100 130/0.55)" strokeWidth={1} strokeDasharray="3 2"
+                    style={{ pointerEvents: 'none' }}
+                  />
+                  <BezierHandleDot
+                    cx={rhx}
+                    cy={rhy}
+                    color="#51cf66"
+                    strokeColor="#82e6a0"
+                    onDrag={(svgX, svgY) => {
+                      // Update THIS keyframe's handles.left
+                      const cur = getTimelineStore().tracks.get(track.id)?.keyframes.find(k => k.id === kf.id)
+                      if (cur?.interpolation !== 'bezier') {
+                        getTimelineStore().updateKeyframe(track.id, kf.id, { interpolation: 'bezier' })
+                      }
+                      const curHandles = cur?.handles ?? DEFAULT_BEZIER_HANDLES
+                      const newLx = Math.max(0, Math.min(1, (xToTime(svgX) - kf.position) / (ΔtNext || 1)))
+                      const newLy = (yToVal(svgY) - (kf.value as number)) / (ΔvNext || 1)
+                      getTimelineStore().setKeyframeHandles(track.id, kf.id, {
+                        ...curHandles,
+                        left: [newLx, newLy],
+                        type: 'free',
+                      })
+                    }}
+                    onDragEnd={before => fireTimelineMutation('Adjust bezier handles', before)}
+                  />
+                </>
+              )
+            }
 
             return (
               <g key={`handles-${kf.id}`}>
-                {/* Handle lines */}
-                <line
-                  x1={kx} y1={ky} x2={p1x} y2={p1y}
-                  stroke="rgb(100 100 130/0.55)" strokeWidth={1} strokeDasharray="3 2"
-                  style={{ pointerEvents: 'none' }}
-                />
-                <line
-                  x1={nkx} y1={nky} x2={p2x} y2={p2y}
-                  stroke="rgb(100 100 130/0.55)" strokeWidth={1} strokeDasharray="3 2"
-                  style={{ pointerEvents: 'none' }}
-                />
-                {/* Left handle dot (P1) */}
-                <BezierHandleDot
-                  cx={p1x}
-                  cy={p1y}
-                  color="#ff6b6b"
-                  strokeColor="#ff9999"
-                  onDrag={(svgX, svgY) => {
-                    const cur = getTimelineStore().tracks.get(track.id)?.keyframes.find(k => k.id === kf.id)
-                    // Auto-set to bezier interpolation when dragging handles
-                    if (cur?.interpolation !== 'bezier') {
-                      getTimelineStore().updateKeyframe(track.id, kf.id, { interpolation: 'bezier' })
-                    }
-                    const curHandles = cur?.handles ?? DEFAULT_BEZIER_HANDLES
-                    const newLx = Math.max(0, Math.min(1, (xToTime(svgX) - kf.position) / (Δt || 1)))
-                    const newLy = (yToVal(svgY) - (kf.value as number)) / (Δv || 1)
-                    getTimelineStore().setKeyframeHandles(track.id, kf.id, {
-                      ...curHandles,
-                      left: [newLx, newLy],
-                      type: 'free',
-                    })
-                  }}
-                  onDragEnd={before => fireTimelineMutation('Adjust bezier handles', before)}
-                />
-                {/* Right handle dot (P2) */}
-                <BezierHandleDot
-                  cx={p2x}
-                  cy={p2y}
-                  color="#51cf66"
-                  strokeColor="#82e6a0"
-                  onDrag={(svgX, svgY) => {
-                    const cur = getTimelineStore().tracks.get(track.id)?.keyframes.find(k => k.id === kf.id)
-                    // Auto-set to bezier interpolation when dragging handles
-                    if (cur?.interpolation !== 'bezier') {
-                      getTimelineStore().updateKeyframe(track.id, kf.id, { interpolation: 'bezier' })
-                    }
-                    const curHandles = cur?.handles ?? DEFAULT_BEZIER_HANDLES
-                    const newRx = Math.max(0, Math.min(1, (xToTime(svgX) - kf.position) / (Δt || 1)))
-                    const newRy = (yToVal(svgY) - (kf.value as number)) / (Δv || 1)
-                    getTimelineStore().setKeyframeHandles(track.id, kf.id, {
-                      ...curHandles,
-                      right: [newRx, newRy],
-                      type: 'free',
-                    })
-                  }}
-                  onDragEnd={before => fireTimelineMutation('Adjust bezier handles', before)}
-                />
+                {leftHandleEl}
+                {rightHandleEl}
               </g>
             )
           })}

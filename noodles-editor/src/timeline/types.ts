@@ -34,7 +34,7 @@ export type KeyframeValue = PrimitiveKeyframeValue | CompoundKeyframeValue
 // Bezier Handle Types
 // ============================================================================
 
-export type HandleType = 'auto' | 'free' | 'aligned' | 'vector'
+export type HandleType = 'aligned' | 'uneven' | 'free'
 
 export interface BezierHandles {
   // Control point offsets in normalized [0-1] x [0-1] space
