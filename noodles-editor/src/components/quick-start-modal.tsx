@@ -194,7 +194,8 @@ export function QuickStartModal({
 
   const handleBack = useCallback(() => {
     setView('home')
-  }, [])
+    navigate('/', { replace: true })
+  }, [navigate])
 
   const handleClose = useCallback(() => {
     onOpenChange(false)
