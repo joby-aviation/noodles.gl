@@ -1,0 +1,5 @@
+name = "noodles-gl"
+pages_build_output_dir = "./website/build"
+
+[build]
+command = "yarn install:all && yarn build:all:cloudflare"
