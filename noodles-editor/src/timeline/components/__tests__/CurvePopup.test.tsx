@@ -293,7 +293,11 @@ describe('CurvePopup', () => {
       const secondTrack = 'second-track'
       store.getOrCreateTrack(secondTrack, 0)
       const id1 = store.addKeyframe(trackId, { position: 0.5, value: 50, interpolation: 'linear' })
-      const id2 = store.addKeyframe(secondTrack, { position: 0.5, value: 50, interpolation: 'linear' })
+      const id2 = store.addKeyframe(secondTrack, {
+        position: 0.5,
+        value: 50,
+        interpolation: 'linear',
+      })
       store.selectKeyframe(id1)
       store.selectKeyframe(id2, true)
 
@@ -337,7 +341,11 @@ describe('CurvePopup', () => {
       const secondTrack = 'second-track-easing'
       store.getOrCreateTrack(secondTrack, 0)
       const id1 = store.addKeyframe(trackId, { position: 0.5, value: 50, interpolation: 'linear' })
-      const id2 = store.addKeyframe(secondTrack, { position: 0.5, value: 50, interpolation: 'linear' })
+      const id2 = store.addKeyframe(secondTrack, {
+        position: 0.5,
+        value: 50,
+        interpolation: 'linear',
+      })
       store.selectKeyframe(id1)
       store.selectKeyframe(id2, true)
 
@@ -358,8 +366,14 @@ describe('CurvePopup', () => {
       fireEvent.click(within(container).getByTitle('Hold'))
 
       // Both selected keyframes should now have hold interpolation
-      const kf1 = useTimelineStore.getState().tracks.get(trackId)?.keyframes.find(kf => kf.id === id1)
-      const kf2 = useTimelineStore.getState().tracks.get(secondTrack)?.keyframes.find(kf => kf.id === id2)
+      const kf1 = useTimelineStore
+        .getState()
+        .tracks.get(trackId)
+        ?.keyframes.find(kf => kf.id === id1)
+      const kf2 = useTimelineStore
+        .getState()
+        .tracks.get(secondTrack)
+        ?.keyframes.find(kf => kf.id === id2)
       expect(kf1?.interpolation).toBe('hold')
       expect(kf2?.interpolation).toBe('hold')
       expect(mockOnClose).toHaveBeenCalled()
@@ -370,7 +384,11 @@ describe('CurvePopup', () => {
       const secondTrack = 'second-track-single'
       store.getOrCreateTrack(secondTrack, 0)
       const id1 = store.addKeyframe(trackId, { position: 0.5, value: 50, interpolation: 'linear' })
-      const id2 = store.addKeyframe(secondTrack, { position: 0.5, value: 50, interpolation: 'linear' })
+      const id2 = store.addKeyframe(secondTrack, {
+        position: 0.5,
+        value: 50,
+        interpolation: 'linear',
+      })
       store.selectKeyframe(id1)
       store.selectKeyframe(id2, true)
 
@@ -391,10 +409,16 @@ describe('CurvePopup', () => {
       fireEvent.click(within(container).getByTitle('Hold'))
 
       // Only k1 (in trackId at position 0) should change to hold
-      const k1After = useTimelineStore.getState().tracks.get(trackId)?.keyframes.find(kf => kf.id === actualK1.id)
+      const k1After = useTimelineStore
+        .getState()
+        .tracks.get(trackId)
+        ?.keyframes.find(kf => kf.id === actualK1.id)
       expect(k1After?.interpolation).toBe('hold')
       // id2 in secondTrack should be unchanged
-      const kf2 = useTimelineStore.getState().tracks.get(secondTrack)?.keyframes.find(kf => kf.id === id2)
+      const kf2 = useTimelineStore
+        .getState()
+        .tracks.get(secondTrack)
+        ?.keyframes.find(kf => kf.id === id2)
       expect(kf2?.interpolation).toBe('linear')
       expect(mockOnClose).toHaveBeenCalled()
     })

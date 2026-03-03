@@ -1,7 +1,12 @@
 // Keyframe track component - renders a single track with its keyframes
 
 import { useCallback, useRef, useState } from 'react'
-import { captureTimelineState, fireTimelineMutation, getTimelineStore, useTimelineStore } from '../timeline-store'
+import {
+  captureTimelineState,
+  fireTimelineMutation,
+  getTimelineStore,
+  useTimelineStore,
+} from '../timeline-store'
 import type { Keyframe, Track } from '../types'
 import { CurvePopup } from './CurvePopup'
 import { KeyframeValuePopup } from './KeyframeValuePopup'
@@ -93,13 +98,10 @@ export function KeyframeTrack({
     [selectedKeyframeIds]
   )
 
-  const handleOpenValuePopup = useCallback(
-    (kf: Keyframe, x: number, y: number) => {
-      setOpenPopup(null)
-      setOpenValuePopup({ keyframe: kf, x, y })
-    },
-    []
-  )
+  const handleOpenValuePopup = useCallback((kf: Keyframe, x: number, y: number) => {
+    setOpenPopup(null)
+    setOpenValuePopup({ keyframe: kf, x, y })
+  }, [])
 
   // Render label only
   if (showLabelOnly) {
@@ -421,7 +423,16 @@ function KeyframeDiamond({
       document.addEventListener('pointermove', handlePointerMove)
       document.addEventListener('pointerup', handlePointerUp)
     },
-    [keyframe.id, keyframe.position, isSelected, onSelect, pixelsPerSecond, sequenceLength, fps, selectedKeyframeIds]
+    [
+      keyframe.id,
+      keyframe.position,
+      isSelected,
+      onSelect,
+      pixelsPerSecond,
+      sequenceLength,
+      fps,
+      selectedKeyframeIds,
+    ]
   )
 
   const handleClick = useCallback(

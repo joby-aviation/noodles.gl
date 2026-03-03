@@ -5,7 +5,12 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { EASING_PRESETS, findMatchingPreset } from '../easing-presets'
 import { evaluateCubicBezier } from '../interpolation'
-import { captureTimelineState, fireTimelineMutation, getTimelineStore, useTimelineStore } from '../timeline-store'
+import {
+  captureTimelineState,
+  fireTimelineMutation,
+  getTimelineStore,
+  useTimelineStore,
+} from '../timeline-store'
 import type { BezierHandles, InterpolationType, Keyframe } from '../types'
 import s from './TimelinePanel.module.css'
 
@@ -176,14 +181,44 @@ function InlineCurveEditor({
         const yp = pad + v * (h - pad * 2)
         return (
           <g key={v}>
-            <line x1={xp} y1={pad} x2={xp} y2={h - pad} stroke="#2a3445" strokeWidth={v === 0 || v === 1 ? 1 : 0.5} />
-            <line x1={pad} y1={yp} x2={w - pad} y2={yp} stroke="#2a3445" strokeWidth={v === 0 || v === 1 ? 1 : 0.5} />
+            <line
+              x1={xp}
+              y1={pad}
+              x2={xp}
+              y2={h - pad}
+              stroke="#2a3445"
+              strokeWidth={v === 0 || v === 1 ? 1 : 0.5}
+            />
+            <line
+              x1={pad}
+              y1={yp}
+              x2={w - pad}
+              y2={yp}
+              stroke="#2a3445"
+              strokeWidth={v === 0 || v === 1 ? 1 : 0.5}
+            />
           </g>
         )
       })}
       {/* Handle lines */}
-      <line x1={start.x} y1={start.y} x2={lh.x} y2={lh.y} stroke="#556" strokeWidth={1} strokeDasharray="3 2" />
-      <line x1={end.x} y1={end.y} x2={rh.x} y2={rh.y} stroke="#556" strokeWidth={1} strokeDasharray="3 2" />
+      <line
+        x1={start.x}
+        y1={start.y}
+        x2={lh.x}
+        y2={lh.y}
+        stroke="#556"
+        strokeWidth={1}
+        strokeDasharray="3 2"
+      />
+      <line
+        x1={end.x}
+        y1={end.y}
+        x2={rh.x}
+        y2={rh.y}
+        stroke="#556"
+        strokeWidth={1}
+        strokeDasharray="3 2"
+      />
       {/* Curve */}
       <path d={curvePath} fill="none" stroke="#48c6cf" strokeWidth={2} />
       {/* Endpoints */}
@@ -191,7 +226,9 @@ function InlineCurveEditor({
       <circle cx={end.x} cy={end.y} r={4} fill="#48c6cf" />
       {/* Draggable handles */}
       <circle
-        cx={lh.x} cy={lh.y} r={6}
+        cx={lh.x}
+        cy={lh.y}
+        r={6}
         fill="#ff6b6b"
         stroke="#ff9999"
         strokeWidth={1.5}
@@ -199,7 +236,9 @@ function InlineCurveEditor({
         onPointerDown={e => dragHandle('left', e)}
       />
       <circle
-        cx={rh.x} cy={rh.y} r={6}
+        cx={rh.x}
+        cy={rh.y}
+        r={6}
         fill="#51cf66"
         stroke="#82e6a0"
         strokeWidth={1.5}
@@ -210,11 +249,21 @@ function InlineCurveEditor({
   )
 }
 
-export function CurvePopup({ trackId, k1, k2: _k2, anchorX, anchorY, onClose, applyToSelected = false }: CurvePopupProps) {
+export function CurvePopup({
+  trackId,
+  k1,
+  k2: _k2,
+  anchorX,
+  anchorY,
+  onClose,
+  applyToSelected = false,
+}: CurvePopupProps) {
   const updateKeyframe = useTimelineStore(state => state.updateKeyframe)
   const setKeyframeHandles = useTimelineStore(state => state.setKeyframeHandles)
   const track = useTimelineStore(state => state.tracks.get(trackId))
-  const selectedCount = useTimelineStore(state => applyToSelected ? state.selectedKeyframeIds.size : 0)
+  const selectedCount = useTimelineStore(state =>
+    applyToSelected ? state.selectedKeyframeIds.size : 0
+  )
 
   // Get current k1 from store (may have been updated)
   const currentK1 = track?.keyframes.find(kf => kf.id === k1.id) ?? k1
@@ -339,7 +388,9 @@ export function CurvePopup({ trackId, k1, k2: _k2, anchorX, anchorY, onClose, ap
   const handleHandlesCommit = useCallback(() => {
     if (applyToSelected) {
       // Propagate the edited k1 handles to all selected keyframes
-      const currentHandles = getTimelineStore().tracks.get(trackId)?.keyframes.find(kf => kf.id === k1.id)?.handles
+      const currentHandles = getTimelineStore()
+        .tracks.get(trackId)
+        ?.keyframes.find(kf => kf.id === k1.id)?.handles
       if (currentHandles) {
         getTimelineStore().applyEasingToSelectedKeyframes('bezier', currentHandles)
       }
@@ -367,10 +418,7 @@ export function CurvePopup({ trackId, k1, k2: _k2, anchorX, anchorY, onClose, ap
               onClick={() => handlePresetClick(preset)}
               title={preset.name}
             >
-              <PresetPreview
-                preset={preset}
-                isSelected={matchingPreset?.name === preset.name}
-              />
+              <PresetPreview preset={preset} isSelected={matchingPreset?.name === preset.name} />
               <span className={s.curvePopupPresetName}>{preset.name}</span>
             </button>
           ))}

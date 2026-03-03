@@ -155,7 +155,6 @@ function copy(text: string) {
   navigator.clipboard.writeText(text)
 }
 
-
 function Tooltip({
   text,
   position = 'top',
@@ -649,10 +648,7 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
                     {isEditMode && !isVisible && (
                       <Tooltip text="Show field" position="right">
                         <span>
-                          <AddRemoveButton
-                            type="add"
-                            onClick={() => handleShowField(input.name)}
-                          />
+                          <AddRemoveButton type="add" onClick={() => handleShowField(input.name)} />
                         </span>
                       </Tooltip>
                     )}

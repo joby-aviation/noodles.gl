@@ -27,7 +27,16 @@ function formatTimeCode(seconds: number, fps: number): string {
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}:${frames.toString().padStart(2, '0')}`
 }
 
-type ValueType = 'number' | 'boolean' | 'string' | 'rgba' | 'vec2' | 'vec3' | 'point2d' | 'point3d' | 'unknown'
+type ValueType =
+  | 'number'
+  | 'boolean'
+  | 'string'
+  | 'rgba'
+  | 'vec2'
+  | 'vec3'
+  | 'point2d'
+  | 'point3d'
+  | 'unknown'
 
 function detectValueType(value: KeyframeValue): ValueType {
   if (typeof value === 'number') return 'number'
@@ -161,13 +170,7 @@ function ScrubInput({
 
 // RGBA editor — colour swatch + per-channel scrub inputs
 // Values are stored as 0–1 for all channels (Theatre.js convention)
-function RGBAEditor({
-  value,
-  onChange,
-}: {
-  value: RGBA
-  onChange: (v: RGBA) => void
-}) {
+function RGBAEditor({ value, onChange }: { value: RGBA; onChange: (v: RGBA) => void }) {
   // Convert 0-1 float to two-digit hex byte
   const toHex = (v: number) =>
     Math.round(Math.max(0, Math.min(1, v)) * 255)
@@ -194,12 +197,42 @@ function RGBAEditor({
           onChange={handleColorInput}
           title="Pick colour"
         />
-        <span className={s.kfValueLabel} style={{ flex: 1 }}>Colour</span>
+        <span className={s.kfValueLabel} style={{ flex: 1 }}>
+          Colour
+        </span>
       </div>
-      <ScrubInput label="R" value={value.r} min={0} max={1} step={0.004} onChange={r => onChange({ ...value, r })} />
-      <ScrubInput label="G" value={value.g} min={0} max={1} step={0.004} onChange={g => onChange({ ...value, g })} />
-      <ScrubInput label="B" value={value.b} min={0} max={1} step={0.004} onChange={b => onChange({ ...value, b })} />
-      <ScrubInput label="A" value={value.a} min={0} max={1} step={0.01} onChange={a => onChange({ ...value, a })} />
+      <ScrubInput
+        label="R"
+        value={value.r}
+        min={0}
+        max={1}
+        step={0.004}
+        onChange={r => onChange({ ...value, r })}
+      />
+      <ScrubInput
+        label="G"
+        value={value.g}
+        min={0}
+        max={1}
+        step={0.004}
+        onChange={g => onChange({ ...value, g })}
+      />
+      <ScrubInput
+        label="B"
+        value={value.b}
+        min={0}
+        max={1}
+        step={0.004}
+        onChange={b => onChange({ ...value, b })}
+      />
+      <ScrubInput
+        label="A"
+        value={value.a}
+        min={0}
+        max={1}
+        step={0.01}
+        onChange={a => onChange({ ...value, a })}
+      />
     </>
   )
 }
@@ -319,8 +352,18 @@ export function KeyframeValuePopup({
         const vec = v as Vec2
         return (
           <>
-            <ScrubInput label="X" value={vec.x} step={0.01} onChange={x => handleValueChange({ ...vec, x })} />
-            <ScrubInput label="Y" value={vec.y} step={0.01} onChange={y => handleValueChange({ ...vec, y })} />
+            <ScrubInput
+              label="X"
+              value={vec.x}
+              step={0.01}
+              onChange={x => handleValueChange({ ...vec, x })}
+            />
+            <ScrubInput
+              label="Y"
+              value={vec.y}
+              step={0.01}
+              onChange={y => handleValueChange({ ...vec, y })}
+            />
           </>
         )
       }
@@ -328,9 +371,24 @@ export function KeyframeValuePopup({
         const vec = v as Vec3
         return (
           <>
-            <ScrubInput label="X" value={vec.x} step={0.01} onChange={x => handleValueChange({ ...vec, x })} />
-            <ScrubInput label="Y" value={vec.y} step={0.01} onChange={y => handleValueChange({ ...vec, y })} />
-            <ScrubInput label="Z" value={vec.z} step={0.01} onChange={z => handleValueChange({ ...vec, z })} />
+            <ScrubInput
+              label="X"
+              value={vec.x}
+              step={0.01}
+              onChange={x => handleValueChange({ ...vec, x })}
+            />
+            <ScrubInput
+              label="Y"
+              value={vec.y}
+              step={0.01}
+              onChange={y => handleValueChange({ ...vec, y })}
+            />
+            <ScrubInput
+              label="Z"
+              value={vec.z}
+              step={0.01}
+              onChange={z => handleValueChange({ ...vec, z })}
+            />
           </>
         )
       }
@@ -338,8 +396,18 @@ export function KeyframeValuePopup({
         const pt = v as Point2D
         return (
           <>
-            <ScrubInput label="Lng" value={pt.lng} step={0.0001} onChange={lng => handleValueChange({ ...pt, lng })} />
-            <ScrubInput label="Lat" value={pt.lat} step={0.0001} onChange={lat => handleValueChange({ ...pt, lat })} />
+            <ScrubInput
+              label="Lng"
+              value={pt.lng}
+              step={0.0001}
+              onChange={lng => handleValueChange({ ...pt, lng })}
+            />
+            <ScrubInput
+              label="Lat"
+              value={pt.lat}
+              step={0.0001}
+              onChange={lat => handleValueChange({ ...pt, lat })}
+            />
           </>
         )
       }
@@ -347,9 +415,24 @@ export function KeyframeValuePopup({
         const pt = v as Point3D
         return (
           <>
-            <ScrubInput label="Lng" value={pt.lng} step={0.0001} onChange={lng => handleValueChange({ ...pt, lng })} />
-            <ScrubInput label="Lat" value={pt.lat} step={0.0001} onChange={lat => handleValueChange({ ...pt, lat })} />
-            <ScrubInput label="Alt" value={pt.alt} step={1} onChange={alt => handleValueChange({ ...pt, alt })} />
+            <ScrubInput
+              label="Lng"
+              value={pt.lng}
+              step={0.0001}
+              onChange={lng => handleValueChange({ ...pt, lng })}
+            />
+            <ScrubInput
+              label="Lat"
+              value={pt.lat}
+              step={0.0001}
+              onChange={lat => handleValueChange({ ...pt, lat })}
+            />
+            <ScrubInput
+              label="Alt"
+              value={pt.alt}
+              step={1}
+              onChange={alt => handleValueChange({ ...pt, alt })}
+            />
           </>
         )
       }

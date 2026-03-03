@@ -87,7 +87,10 @@ export interface TimelineStore {
   // Select every keyframe across all tracks
   selectAllKeyframes: () => void
   // Apply easing to all currently selected keyframes (callers must fire history)
-  applyEasingToSelectedKeyframes: (interpolation: InterpolationType, handles?: BezierHandles) => void
+  applyEasingToSelectedKeyframes: (
+    interpolation: InterpolationType,
+    handles?: BezierHandles
+  ) => void
 
   // === Evaluation ===
   evaluateTrack: (trackId: string, time?: number) => KeyframeValue | undefined
@@ -618,9 +621,7 @@ export function subscribeToPlaying(callback: (playing: boolean) => void) {
 
 // Module-level callback — set by UndoRedoHandler to record timeline mutations
 // into the same undo stack as node/edge operations
-let _timelineMutationCallback:
-  | ((desc: string, before: string, after: string) => void)
-  | undefined
+let _timelineMutationCallback: ((desc: string, before: string, after: string) => void) | undefined
 
 export function registerTimelineMutationCallback(
   cb: ((desc: string, before: string, after: string) => void) | undefined

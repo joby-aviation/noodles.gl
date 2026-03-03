@@ -519,15 +519,39 @@ describe('TimelineStore', () => {
                     'track-pitch': {
                       type: 'BasicKeyframedTrack',
                       keyframes: [
-                        { id: 'kf1', position: 0, connectedRight: true, handles: [0.5, 1, 0.5, 0], value: 0 },
-                        { id: 'kf2', position: 2.233, connectedRight: true, handles: [0.5, 1, 0.5, 0], value: 60 },
+                        {
+                          id: 'kf1',
+                          position: 0,
+                          connectedRight: true,
+                          handles: [0.5, 1, 0.5, 0],
+                          value: 0,
+                        },
+                        {
+                          id: 'kf2',
+                          position: 2.233,
+                          connectedRight: true,
+                          handles: [0.5, 1, 0.5, 0],
+                          value: 60,
+                        },
                       ],
                     },
                     'track-bearing': {
                       type: 'BasicKeyframedTrack',
                       keyframes: [
-                        { id: 'kf3', position: 0, connectedRight: true, handles: [0.5, 1, 0.5, 0], value: 0 },
-                        { id: 'kf4', position: 2.233, connectedRight: true, handles: [0.5, 1, 0.5, 0], value: 60 },
+                        {
+                          id: 'kf3',
+                          position: 0,
+                          connectedRight: true,
+                          handles: [0.5, 1, 0.5, 0],
+                          value: 0,
+                        },
+                        {
+                          id: 'kf4',
+                          position: 2.233,
+                          connectedRight: true,
+                          handles: [0.5, 1, 0.5, 0],
+                          value: 60,
+                        },
                       ],
                     },
                   },
@@ -624,9 +648,15 @@ describe('TimelineStore', () => {
     })
 
     it('selects all keyframes across all tracks', () => {
-      useTimelineStore.getState().addKeyframe('track-a / value', { position: 0, value: 0, interpolation: 'linear' })
-      useTimelineStore.getState().addKeyframe('track-a / value', { position: 1, value: 1, interpolation: 'linear' })
-      useTimelineStore.getState().addKeyframe('track-b / value', { position: 0.5, value: 5, interpolation: 'linear' })
+      useTimelineStore
+        .getState()
+        .addKeyframe('track-a / value', { position: 0, value: 0, interpolation: 'linear' })
+      useTimelineStore
+        .getState()
+        .addKeyframe('track-a / value', { position: 1, value: 1, interpolation: 'linear' })
+      useTimelineStore
+        .getState()
+        .addKeyframe('track-b / value', { position: 0.5, value: 5, interpolation: 'linear' })
 
       useTimelineStore.getState().selectAllKeyframes()
 
@@ -634,8 +664,12 @@ describe('TimelineStore', () => {
     })
 
     it('replaces any existing selection', () => {
-      const id = useTimelineStore.getState().addKeyframe('track-a / value', { position: 0, value: 0, interpolation: 'linear' })
-      useTimelineStore.getState().addKeyframe('track-b / value', { position: 0, value: 0, interpolation: 'linear' })
+      const id = useTimelineStore
+        .getState()
+        .addKeyframe('track-a / value', { position: 0, value: 0, interpolation: 'linear' })
+      useTimelineStore
+        .getState()
+        .addKeyframe('track-b / value', { position: 0, value: 0, interpolation: 'linear' })
       useTimelineStore.getState().selectKeyframe(id)
       expect(useTimelineStore.getState().selectedKeyframeIds.size).toBe(1)
 
@@ -664,9 +698,15 @@ describe('TimelineStore', () => {
     beforeEach(() => {
       useTimelineStore.getState().getOrCreateTrack('track-a / value', 0)
       useTimelineStore.getState().getOrCreateTrack('track-b / value', 0)
-      kfAId = useTimelineStore.getState().addKeyframe('track-a / value', { position: 0, value: 0, interpolation: 'linear' })
-      kfBId = useTimelineStore.getState().addKeyframe('track-a / value', { position: 1, value: 1, interpolation: 'linear' })
-      kfCId = useTimelineStore.getState().addKeyframe('track-b / value', { position: 0, value: 5, interpolation: 'linear' })
+      kfAId = useTimelineStore
+        .getState()
+        .addKeyframe('track-a / value', { position: 0, value: 0, interpolation: 'linear' })
+      kfBId = useTimelineStore
+        .getState()
+        .addKeyframe('track-a / value', { position: 1, value: 1, interpolation: 'linear' })
+      kfCId = useTimelineStore
+        .getState()
+        .addKeyframe('track-b / value', { position: 0, value: 5, interpolation: 'linear' })
     })
 
     it('applies interpolation to all selected keyframes', () => {
@@ -681,7 +721,11 @@ describe('TimelineStore', () => {
     })
 
     it('sets handles when interpolation is bezier', () => {
-      const handles = { left: [0.25, 0.1] as [number, number], right: [0.75, 0.9] as [number, number], type: 'aligned' as const }
+      const handles = {
+        left: [0.25, 0.1] as [number, number],
+        right: [0.75, 0.9] as [number, number],
+        type: 'aligned' as const,
+      }
       useTimelineStore.getState().selectKeyframe(kfAId)
 
       useTimelineStore.getState().applyEasingToSelectedKeyframes('bezier', handles)

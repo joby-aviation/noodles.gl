@@ -2,7 +2,12 @@
 // Provides the overall layout and state management for the timeline UI
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { captureTimelineState, fireTimelineMutation, getTimelineStore, useTimelineStore } from '../timeline-store'
+import {
+  captureTimelineState,
+  fireTimelineMutation,
+  getTimelineStore,
+  useTimelineStore,
+} from '../timeline-store'
 import type { HandleType } from '../types'
 import { DEFAULT_BEZIER_HANDLES } from '../types'
 import { CurveEditorView } from './CurveEditorView'
@@ -51,7 +56,10 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
   pixelsPerSecondRef.current = pixelsPerSecond
   // Overlay rect state is only used for rendering
   const [boxSelectOverlay, setBoxSelectOverlay] = useState<{
-    left: number; top: number; width: number; height: number
+    left: number
+    top: number
+    width: number
+    height: number
   } | null>(null)
 
   // Timeline store state
@@ -261,7 +269,11 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
 
       // Don't intercept spacebar in input elements
       const target = e.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.contentEditable === 'true') {
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.contentEditable === 'true'
+      ) {
         return
       }
 
@@ -274,9 +286,15 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
   }, [])
 
   return (
-    // biome-ignore lint/a11y/noNoninteractiveTabindex: Timeline panel needs focus to receive keyboard events
-    // biome-ignore lint/a11y/noStaticElementInteractions: Timeline panel handles wheel and keyboard shortcuts
-    <div ref={containerRef} className={s.timelinePanel} style={{ height }} onWheel={handleWheel} onKeyDown={handleKeyDown} tabIndex={0}>
+    <div
+      ref={containerRef}
+      className={s.timelinePanel}
+      style={{ height }}
+      role="application"
+      aria-label="Timeline panel"
+      onWheel={handleWheel}
+      onKeyDown={handleKeyDown}
+    >
       {/* Header with controls */}
       <div className={s.timelineHeader}>
         {onCollapse && (
@@ -295,7 +313,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
         <button
           type="button"
           className={`${s.timelineViewModeBtn} ${viewMode !== 'keyframes' ? s.active : ''}`}
-          onClick={() => setViewMode(v => v === 'keyframes' ? 'value' : 'keyframes')}
+          onClick={() => setViewMode(v => (v === 'keyframes' ? 'value' : 'keyframes'))}
           title={viewMode === 'keyframes' ? 'Switch to curve editor' : 'Switch to keyframe view'}
         >
           <CurveViewIcon />
@@ -304,7 +322,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
           <button
             type="button"
             className={`${s.timelineViewModeBtn} ${s.active}`}
-            onClick={() => setViewMode(v => v === 'value' ? 'speed' : 'value')}
+            onClick={() => setViewMode(v => (v === 'value' ? 'speed' : 'value'))}
             title={viewMode === 'value' ? 'Switch to speed graph' : 'Switch to value graph'}
           >
             {viewMode === 'value' ? 'Value' : 'Speed'}
@@ -391,11 +409,18 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
               }}
               onMouseDown={handleTimelineMouseDown}
             >
-              <TrackList pixelsPerSecond={pixelsPerSecond} timelineWidth={timelineWidth} sequenceLength={sequence.length} fps={sequence.fps} />
-              <Playhead position={position} pixelsPerSecond={pixelsPerSecond} height={height - 80} />
-              {boxSelectOverlay && (
-                <div className={s.timelineBoxSelect} style={boxSelectOverlay} />
-              )}
+              <TrackList
+                pixelsPerSecond={pixelsPerSecond}
+                timelineWidth={timelineWidth}
+                sequenceLength={sequence.length}
+                fps={sequence.fps}
+              />
+              <Playhead
+                position={position}
+                pixelsPerSecond={pixelsPerSecond}
+                height={height - 80}
+              />
+              {boxSelectOverlay && <div className={s.timelineBoxSelect} style={boxSelectOverlay} />}
             </div>
           ) : (
             <CurveEditorView
@@ -424,7 +449,13 @@ function ChevronDownIcon() {
 function FitIcon() {
   return (
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-      <path d="M1 4V1H4M8 1H11V4M11 8V11H8M4 11H1V8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M1 4V1H4M8 1H11V4M11 8V11H8M4 11H1V8"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   )
 }
@@ -432,7 +463,12 @@ function FitIcon() {
 function CurveViewIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-      <path d="M1 11 C3 11 4 3 7 3 C10 3 11 9 13 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path
+        d="M1 11 C3 11 4 3 7 3 C10 3 11 9 13 9"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
       <circle cx="3.5" cy="10" r="1.5" fill="currentColor" />
       <circle cx="10.5" cy="6" r="1.5" fill="currentColor" />
     </svg>
