@@ -1,9 +1,11 @@
 import type { ISheetObject } from '@theatre/core'
+import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react'
 import { create } from 'zustand'
 import type { IOperator, Operator } from './operators'
 // only import types from noodles to avoid circular dependencies
 import type { OpId } from './utils/id-utils'
-import { isAbsolutePath, resolvePath } from './utils/path-utils'
+import { edgeId } from './utils/id-utils'
+import { generateQualifiedPath, isAbsolutePath, resolvePath } from './utils/path-utils'
 
 // ============================================================================
 // Operator Store (Zustand) - Separate slice for operators and sheet objects
@@ -52,8 +54,16 @@ export const useOperatorStore = create<OperatorStoreState>((set, get) => ({
 
   deleteOp: id => {
     const operators = new Map(get().operators)
+    const op = operators.get(id)
     operators.delete(id)
+    // Dispose only if this op instance is no longer referenced at any id.
+    // During renames, setOp(newId, op) runs before deleteOp(oldId), so the
+    // same instance is still in the map and should NOT be disposed.
+    const isStillReferenced = op && Array.from(operators.values()).some(o => o === op)
     set({ operators })
+    if (op && !isStillReferenced) {
+      op.dispose?.()
+    }
   },
 
   hasOp: id => get().operators.has(id),
@@ -95,15 +105,57 @@ export const useOperatorStore = create<OperatorStoreState>((set, get) => ({
 // UI Store (Zustand) - Separate slice for UI state
 // ============================================================================
 
+interface ConnectionDragState {
+  sourceNodeId: string
+  sourceHandleId: string
+  compatibleNodeIds: Set<string>
+}
+
 interface UIStoreState {
   hoveredOutputHandle: { nodeId: string; handleId: string } | null
   setHoveredOutputHandle: (handle: { nodeId: string; handleId: string } | null) => void
+  connectionDragState: ConnectionDragState | null
+  setConnectionDragState: (state: ConnectionDragState | null) => void
+  sidebarVisible: boolean
+  setSidebarVisible: (visible: boolean) => void
+  sidebarSearchFocusTrigger: number
+  triggerSidebarSearch: () => void
+  settingsDialogOpen: boolean
+  setSettingsDialogOpen: (open: boolean) => void
 }
 
 export const useUIStore = create<UIStoreState>(set => ({
   hoveredOutputHandle: null,
   setHoveredOutputHandle: handle => set({ hoveredOutputHandle: handle }),
+  connectionDragState: null,
+  setConnectionDragState: state => set({ connectionDragState: state }),
+  sidebarVisible: false,
+  setSidebarVisible: visible => set({ sidebarVisible: visible }),
+  sidebarSearchFocusTrigger: 0,
+  triggerSidebarSearch: () =>
+    set(state => ({ sidebarSearchFocusTrigger: state.sidebarSearchFocusTrigger + 1 })),
+  settingsDialogOpen: false,
+  setSettingsDialogOpen: open => set({ settingsDialogOpen: open }),
 }))
+
+// ============================================================================
+// Active OutOp Store (Zustand) - Tracks which OutOp is the "active" one
+// Similar to Blender's active camera concept - sticky selection independent
+// of node selection that drives render settings
+// ============================================================================
+
+interface ActiveOutOpState {
+  activeOutOpId: string | null
+  setActiveOutOpId: (id: string | null) => void
+}
+
+export const useActiveOutOpStore = create<ActiveOutOpState>(set => ({
+  activeOutOpId: null,
+  setActiveOutOpId: id => set({ activeOutOpId: id }),
+}))
+
+// Get the active OutOp store instance for use outside React components
+export const getActiveOutOpStore = () => useActiveOutOpStore.getState()
 
 // ============================================================================
 // Helper functions for non-React contexts
@@ -159,6 +211,100 @@ export const getAllSheetObjectIds = () => Array.from(getOpStore().sheetObjects.k
 // Hovered output handle helpers
 export const setHoveredOutputHandle = (handle: { nodeId: string; handleId: string } | null) =>
   getUIStore().setHoveredOutputHandle(handle)
+
+// ============================================================================
+// Operator ID Update Helper
+// ============================================================================
+
+//
+// Updates an operator's ID and all references to it (nodes, edges, children).
+// This is used when renaming operators in the node tree sidebar or node headers.
+//
+// @param nodeId - Current ID of the operator
+// @param newBaseName - New base name (without path prefix)
+// @param isContainer - Whether the operator is a container
+// @param setNodes - React Flow setNodes function
+// @param setEdges - React Flow setEdges function
+export const updateOperatorId = (
+  nodeId: string,
+  newBaseName: string,
+  isContainer: boolean,
+  setNodes: (updater: (nodes: ReactFlowNode[]) => ReactFlowNode[]) => void,
+  setEdges: (updater: (edges: ReactFlowEdge[]) => ReactFlowEdge[]) => void
+) => {
+  const store = getOpStore()
+  const op = store.getOp(nodeId)
+  if (!op) return
+
+  const newQualifiedId = generateQualifiedPath(newBaseName, op.containerId ?? '/')
+
+  // Update the operator itself
+  setOp(newQualifiedId, op)
+  op.id = newQualifiedId
+
+  // If this is a container, update all children nodes and their operators
+  if (isContainer) {
+    const childOps = getAllOps().filter((childOp: Operator<IOperator>) =>
+      childOp.id.startsWith(`${nodeId}/`)
+    )
+
+    for (const childOp of childOps) {
+      const oldChildId = childOp.id
+      // Replace only the exact container path at the start
+      const newChildId = newQualifiedId + oldChildId.slice(nodeId.length)
+      setOp(newChildId, childOp)
+      childOp.id = newChildId
+      queueMicrotask(() => deleteOp(oldChildId))
+    }
+  }
+
+  // Give React time to update the component tree before deleting the old id
+  queueMicrotask(() => {
+    deleteOp(nodeId)
+  })
+
+  // Update React Flow nodes and edges
+  setNodes(nodes =>
+    nodes.map(n => {
+      // Update the node itself if it matches
+      if (n.id === nodeId) {
+        return { ...n, id: newQualifiedId }
+      }
+      // Update children if this is a container
+      if (isContainer && n.id.startsWith(`${nodeId}/`)) {
+        return { ...n, id: newQualifiedId + n.id.slice(nodeId.length) }
+      }
+      return n
+    })
+  )
+
+  setEdges(edges =>
+    edges.map(edge => {
+      const sourceNeedsUpdate =
+        edge.source === nodeId || (isContainer && edge.source.startsWith(`${nodeId}/`))
+      const targetNeedsUpdate =
+        edge.target === nodeId || (isContainer && edge.target.startsWith(`${nodeId}/`))
+
+      if (!sourceNeedsUpdate && !targetNeedsUpdate) return edge
+
+      const updatedEdge = {
+        ...edge,
+        source: sourceNeedsUpdate
+          ? edge.source === nodeId
+            ? newQualifiedId
+            : newQualifiedId + edge.source.slice(nodeId.length)
+          : edge.source,
+        target: targetNeedsUpdate
+          ? edge.target === nodeId
+            ? newQualifiedId
+            : newQualifiedId + edge.target.slice(nodeId.length)
+          : edge.target,
+      }
+
+      return { ...updatedEdge, id: edgeId(updatedEdge) }
+    })
+  )
+}
 
 // ============================================================================
 // Nesting State (Zustand)

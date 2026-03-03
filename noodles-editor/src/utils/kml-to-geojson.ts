@@ -1,11 +1,7 @@
 import { kml } from '@tmcw/togeojson'
 import type { FeatureCollection } from 'geojson'
 
-/**
- * Convert KML string to GeoJSON FeatureCollection
- * @param kmlString - KML string to convert
- * @returns GeoJSON FeatureCollection
- */
+// Convert KML string to GeoJSON FeatureCollection
 export function kmlToGeoJson(kmlString: string): FeatureCollection {
   // Parse KML string to XML DOM
   const parser = new DOMParser()

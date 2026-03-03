@@ -1,4 +1,5 @@
 import { CodeiumEditor } from '@codeium/react-code-editor'
+import type { OnMount } from '@monaco-editor/react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
 import { Handle, Position, useEdges, useNodeId, useReactFlow } from '@xyflow/react'
@@ -8,8 +9,6 @@ import { Button } from 'primereact/button'
 import { InputText } from 'primereact/inputtext'
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Temporal } from 'temporal-polyfill'
-
-import { colorToHex } from '../../utils/color'
 import {
   type BezierCurveField,
   type BooleanField,
@@ -19,6 +18,7 @@ import {
   type ColorRampField,
   type CompoundPropsField,
   type DateField,
+  type ExpressionField,
   type Field,
   type FileField,
   getFieldReferences,
@@ -31,15 +31,19 @@ import {
   Vec3Field,
 } from '../fields'
 import { useFileSystemStore } from '../filesystem-store'
+import type { Edge as GraphEdge } from '../graph-executor'
 import type { Edge } from '../noodles'
-import type { IOperator, Operator } from '../operators'
+import s from '../noodles.module.css'
+import { getFriendlyErrorMessage, type IOperator, type Operator } from '../operators'
 import { checkAssetExists, writeAsset } from '../storage'
+import { getExpressionContext } from '../utils/expression-context'
 import { projectScheme } from '../utils/filesystem'
 import { edgeId, type OpId } from '../utils/id-utils'
-import { handleClass } from './op-components'
-
-import s from '../noodles.module.css'
+import { ColorSwatch } from './color-swatch'
+import { ExpressionEditorOverlay } from './ExpressionEditorOverlay'
+import { GeocodingDialog } from './geocoding-dialog'
 import menuStyles from './menu.module.css'
+import { handleClass, useHandleDimmed } from './op-components'
 
 type InputComponent = React.ComponentType<{
   id: OpId
@@ -64,7 +68,7 @@ export const inputComponents = {
   data: EmptyFieldComponent,
   date: DateFieldComponent,
   effect: EmptyFieldComponent,
-  expression: TextFieldComponent,
+  expression: ExpressionFieldComponent,
   file: FileFieldComponent,
   function: EmptyFieldComponent,
   geojson: EmptyFieldComponent,
@@ -143,15 +147,18 @@ export function TextFieldComponent({
       </select>
     )
   } else {
+    // Always use textarea - handles both single-line and multiline naturally
+    const lineCount = typeof value === 'string' ? value.split('\n').length : 1
     input = (
-      <input
+      <textarea
         id={id}
-        className={s.fieldInput}
+        className={cx(s.fieldInput, s.fieldTextarea)}
         title={value}
         value={value}
         onBlur={onChange}
         onChange={onChange}
         disabled={disabled}
+        rows={lineCount}
       />
     )
   }
@@ -162,6 +169,158 @@ export function TextFieldComponent({
         {id}
       </label>
       <div className={s.fieldInputWrapper}>{input}</div>
+    </div>
+  )
+}
+
+// Validates an expression by attempting to parse it
+// Returns an error message if invalid, null if valid
+function validateExpression(expression: string): string | null {
+  if (!expression.trim()) return null
+
+  try {
+    // Try to parse as a function body (wrapping with return like the operators do)
+    // Match the actual parameters available in AccessorOp.execute() and ExpressionOp.execute()
+    // eslint-disable-next-line no-new-func
+    new Function(
+      'd',
+      'i',
+      'data',
+      'op',
+      'utils',
+      'd3',
+      'turf',
+      'deck',
+      'Plot',
+      'Temporal',
+      `return ${expression}`
+    )
+    return null
+  } catch (e) {
+    if (e instanceof SyntaxError) {
+      // Use the friendly error message from operators.ts for better user feedback
+      return getFriendlyErrorMessage(e.message, expression)
+    }
+    return 'Invalid expression'
+  }
+}
+
+export function ExpressionFieldComponent({
+  id,
+  field,
+  disabled,
+}: {
+  id: OpId
+  field: ExpressionField
+  disabled: boolean
+}) {
+  const [value, setValue] = useState(field.value ?? '')
+  const [overlayOpen, setOverlayOpen] = useState(false)
+  const [validationError, setValidationError] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
+
+  const nodeId = useNodeId() as string
+  const edges = useEdges()
+
+  // Convert edges to GraphEdge format for context
+  const graphEdges = useMemo(
+    () =>
+      edges.map(e => ({
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        sourceHandle: e.sourceHandle || '',
+        targetHandle: e.targetHandle || '',
+      })) as GraphEdge[],
+    [edges]
+  )
+
+  // Get expression context for autocomplete
+  const expressionContext = useMemo(
+    () => getExpressionContext(nodeId, graphEdges),
+    [nodeId, graphEdges]
+  )
+
+  useEffect(() => {
+    const sub = field.subscribe(newVal => {
+      if (typeof newVal === 'function') return
+      setValue(newVal ?? '')
+      // Validate on external changes
+      setValidationError(validateExpression(newVal ?? ''))
+    })
+    return () => sub.unsubscribe()
+  }, [field])
+
+  const handleInputClick = useCallback(() => {
+    if (disabled) return
+    if (inputRef.current) {
+      setAnchorRect(inputRef.current.getBoundingClientRect())
+    }
+    setOverlayOpen(true)
+  }, [disabled])
+
+  const handleOverlayChange = useCallback(
+    (newValue: string) => {
+      setValue(newValue)
+      field.setValue(newValue)
+      setValidationError(validateExpression(newValue))
+    },
+    [field]
+  )
+
+  const handleOverlayClose = useCallback(() => {
+    setOverlayOpen(false)
+  }, [])
+
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.currentTarget.value
+    setValue(newValue)
+  }, [])
+
+  const handleInputBlur = useCallback(
+    (e: React.FocusEvent<HTMLInputElement>) => {
+      const newValue = e.currentTarget.value
+      if (newValue !== field.value) {
+        field.setValue(newValue)
+        setValidationError(validateExpression(newValue))
+      }
+    },
+    [field]
+  )
+
+  return (
+    <div className={s.fieldWrapper}>
+      <label className={s.fieldLabel} htmlFor={id}>
+        {id}
+      </label>
+      <div className={cx(s.fieldInputWrapper, s.expressionFieldWrapper)}>
+        <input
+          ref={inputRef}
+          id={id}
+          className={cx(s.fieldInput, s.expressionFieldInput, {
+            [s.expressionFieldError]: validationError,
+          })}
+          title={validationError || value}
+          value={value}
+          onChange={handleInputChange}
+          onBlur={handleInputBlur}
+          onClick={handleInputClick}
+          disabled={disabled}
+          placeholder="Click to edit expression..."
+        />
+        {validationError && <span className={s.expressionFieldErrorIcon}>⚠</span>}
+      </div>
+      {overlayOpen && (
+        <ExpressionEditorOverlay
+          value={value}
+          onChange={handleOverlayChange}
+          onClose={handleOverlayClose}
+          context={expressionContext}
+          anchorRect={anchorRect}
+          validationError={validationError}
+        />
+      )}
     </div>
   )
 }
@@ -216,6 +375,10 @@ export function VectorFieldComponent({
   const [value, setValue] = useState<
     { [key: string]: number } | [number, number] | [number, number, number]
   >(guardAccessorFallback(field.value))
+  const [geocodingOpen, setGeocodingOpen] = useState(false)
+
+  const isPointField = field instanceof Point2DField || field instanceof Point3DField
+  const isPoint3D = field instanceof Point3DField
 
   const keys =
     field instanceof Point3DField
@@ -258,6 +421,46 @@ export function VectorFieldComponent({
     field.setValue(latestValueRef.current)
   }, [field])
 
+  // Get current coordinates for Point fields
+  const getCurrentCoordinates = useCallback(() => {
+    const currentValue = field.value
+    if (field.returnType === 'tuple') {
+      return {
+        longitude: (currentValue as number[])[0],
+        latitude: (currentValue as number[])[1],
+      }
+    }
+    return {
+      longitude: (currentValue as { lng: number; lat: number }).lng,
+      latitude: (currentValue as { lng: number; lat: number }).lat,
+    }
+  }, [field])
+
+  // Handle location selection from geocoding dialog
+  const handleLocationSelected = useCallback(
+    ({ longitude, latitude }: { longitude: number; latitude: number }) => {
+      if (field.returnType === 'tuple') {
+        // For tuple format, preserve altitude for Point3D
+        if (isPoint3D) {
+          const currentAlt = (field.value as number[])[2] || 0
+          field.setValue([longitude, latitude, currentAlt])
+        } else {
+          field.setValue([longitude, latitude])
+        }
+      } else {
+        // For object format, preserve altitude for Point3D
+        if (isPoint3D) {
+          const currentAlt = (field.value as { lng: number; lat: number; alt: number }).alt || 0
+          field.setValue({ lng: longitude, lat: latitude, alt: currentAlt })
+        } else {
+          field.setValue({ lng: longitude, lat: latitude })
+        }
+      }
+      setGeocodingOpen(false)
+    },
+    [field, isPoint3D]
+  )
+
   return (
     <div className={s.fieldWrapper}>
       <label className={s.fieldLabel} htmlFor={id}>
@@ -278,7 +481,29 @@ export function VectorFieldComponent({
             />
           )
         })}
+        {isPointField && (
+          <Button
+            icon="pi pi-map-marker"
+            className={s.fieldLookupButton}
+            onClick={() => setGeocodingOpen(true)}
+            title="Lookup Location"
+            size="small"
+            disabled={disabled}
+            severity="secondary"
+            text
+          />
+        )}
       </div>
+
+      {isPointField && (
+        <GeocodingDialog
+          open={geocodingOpen}
+          onOpenChange={setGeocodingOpen}
+          mode="update-field"
+          initialValue={getCurrentCoordinates()}
+          onLocationSelected={handleLocationSelected}
+        />
+      )}
     </div>
   )
 }
@@ -293,7 +518,7 @@ export function CodeFieldComponent({
 }) {
   const [value, setValue] = useState(guardAccessorFallback(field.value))
   const { setEdges, getNode } = useReactFlow()
-  const editorRef = useRef<unknown>(null)
+  const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
   const nodeId = useNodeId() as string
@@ -314,7 +539,7 @@ export function CodeFieldComponent({
     [field, disabled]
   )
 
-  const handleEditorDidMount = useCallback((editor: unknown) => {
+  const handleEditorDidMount: OnMount = useCallback((editor, _monaco) => {
     editorRef.current = editor
     editor.layout()
   }, [])
@@ -798,6 +1023,8 @@ function DraggableNumberInput({
   onCommit,
   min,
   max,
+  softMin,
+  softMax,
   step = 1,
   className,
   title,
@@ -809,6 +1036,8 @@ function DraggableNumberInput({
   onCommit?: () => void
   min?: number
   max?: number
+  softMin?: number
+  softMax?: number
   step?: number
   className?: string
   title?: string
@@ -857,7 +1086,7 @@ function DraggableNumberInput({
     (e: React.FormEvent<HTMLInputElement>) => {
       const newValue = e.currentTarget.value
       setDisplayValue(newValue)
-      if (newValue !== '') {
+      if (!(+newValue === 0 && newValue.length !== 1)) {
         onChange(+newValue)
       }
     },
@@ -868,9 +1097,10 @@ function DraggableNumberInput({
     disabled,
     onDragStart: e => {
       const target = e.target as HTMLInputElement
+      const touchEvent = e as unknown as TouchEvent
       if (
         target.type === 'number' &&
-        ('offsetX' in e ? e.offsetX : (e as any).touches[0].clientX - target.offsetLeft) >
+        ('offsetX' in e ? e.offsetX : touchEvent.touches[0].clientX - target.offsetLeft) >
           target.offsetWidth - 20
       ) {
         return false
@@ -878,8 +1108,8 @@ function DraggableNumberInput({
 
       startValueRef.current = value
       setInitialMousePos({
-        x: 'clientX' in e ? e.clientX : (e as any).touches[0].clientX,
-        y: 'clientY' in e ? e.clientY : (e as any).touches[0].clientY,
+        x: 'clientX' in e ? e.clientX : touchEvent.touches[0].clientX,
+        y: 'clientY' in e ? e.clientY : touchEvent.touches[0].clientY,
       })
       setCurrentStepMultiplier(1)
       isHorizontalLockedRef.current = false
@@ -950,9 +1180,11 @@ function DraggableNumberInput({
     displayValue === '' ? '' : Math.round((+displayValue + Number.EPSILON) * 100) / 100
 
   return (
+    // biome-ignore lint/a11y/useSemanticElements: Number input wrapper with drag interaction requires div with role
     <div
       className={s.fieldInputWrapper}
       style={{ position: 'relative' }}
+      role="group"
       tabIndex={-1}
       onMouseDown={handleMouseDown}
       onTouchStart={handleTouchStart}
@@ -974,8 +1206,8 @@ function DraggableNumberInput({
         title={title || displayValue}
         onChange={onInputChange}
         disabled={disabled}
-        min={min}
-        max={max}
+        min={Number.isFinite(softMin ?? -Infinity) ? softMin : min}
+        max={Number.isFinite(softMax ?? Infinity) ? softMax : max}
         step={step}
       />
       {shouldShowLadder && (
@@ -1029,6 +1261,8 @@ export function NumberFieldComponent({
         onChange={handleChange}
         min={field.min}
         max={field.max}
+        softMin={field.softMin}
+        softMax={field.softMax}
         step={field.step}
         className={cx(s.fieldInput, s.fieldInputNumber)}
         title={value.toString()}
@@ -1153,11 +1387,12 @@ export function ColorFieldComponent({
     return () => sub.unsubscribe()
   }, [field])
 
-  const onChange = e => {
-    field.setValue(e.currentTarget.value)
-  }
-
-  const formatted = typeof value === 'string' ? value : colorToHex(value, false)
+  const handleColorChange = useCallback(
+    (hexColor: string) => {
+      field.setValue(hexColor)
+    },
+    [field]
+  )
 
   return (
     <div className={s.fieldWrapper}>
@@ -1165,14 +1400,7 @@ export function ColorFieldComponent({
         {id}
       </label>
       <div className={s.fieldInputWrapper}>
-        <input
-          id={id}
-          type="color"
-          className={cx(s.fieldInput, s.fieldInputColor)}
-          value={formatted}
-          onChange={onChange}
-          disabled={disabled}
-        />
+        <ColorSwatch value={value} onChange={handleColorChange} disabled={disabled} />
       </div>
     </div>
   )
@@ -1279,7 +1507,7 @@ export function CompoundFieldComponent({
 export function EmptyFieldComponent({ id }: { id: OpId; field: Field<IField> }) {
   return (
     <div className={s.fieldWrapper}>
-      <label className={s.fieldLabel}>{id}</label>
+      <div className={s.fieldLabel}>{id}</div>
     </div>
   )
 }
@@ -1305,10 +1533,13 @@ export function BezierCurveFieldComponent({
 
   const svgSize = { width: 200, height: 150 }
   const padding = { top: 10, right: 10, bottom: 20, left: 20 }
-  const graphArea = {
-    width: svgSize.width - padding.left - padding.right,
-    height: svgSize.height - padding.top - padding.bottom,
-  }
+  const graphArea = useMemo(
+    () => ({
+      width: svgSize.width - padding.left - padding.right,
+      height: svgSize.height - padding.top - padding.bottom,
+    }),
+    []
+  )
 
   // Convert SVG coordinates to curve coordinates (0-1, 0-1)
   const svgToCurve = useCallback(
@@ -1586,7 +1817,9 @@ export function BezierCurveFieldComponent({
             maxWidth: '100%',
             height: 'auto',
           }}
+          aria-label="Bezier curve editor"
         >
+          <title>Bezier curve editor</title>
           {/* Background */}
           <rect width={svgSize.width} height={svgSize.height} fill="#1a1a1a" />
 
@@ -1613,6 +1846,7 @@ export function BezierCurveFieldComponent({
             const isSelected = selectedIndex === index
 
             return (
+              // biome-ignore lint/suspicious/noArrayIndexKey: Bezier curve points don't have stable IDs
               <g key={index}>
                 {/* Left handle */}
                 {point.handleLeftX !== undefined && point.handleLeftY !== undefined && (
@@ -1821,6 +2055,7 @@ export function FieldComponent({
   const nid = useNodeId()
   const edges = useEdges()
   const qualifiedFieldId = handle ? `${handle.namespace}.${fieldId}` : `par.${fieldId}`
+  const isHandleDimmed = useHandleDimmed(nid ?? '', qualifiedFieldId)
   const incomers = edges.filter(
     edge =>
       edge.target === nid && edge.targetHandle === qualifiedFieldId && edge.type !== 'ReferenceEdge'
@@ -1839,7 +2074,7 @@ export function FieldComponent({
       {handle && (
         <Handle
           id={qualifiedFieldId}
-          className={handleClass(field)}
+          className={cx(handleClass(field), { [s.handleDimmed]: isHandleDimmed })}
           style={handleStyle}
           type={handle.type}
           position={Position.Left}

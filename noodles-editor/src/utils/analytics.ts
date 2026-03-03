@@ -1,13 +1,19 @@
 import posthog from 'posthog-js'
 
 const ANALYTICS_CONSENT_KEY = 'noodles-analytics-consent'
+const ERROR_CAPTURE_CONSENT_KEY = 'noodles-error-capture-consent'
 const POSTHOG_API_KEY = import.meta.env.VITE_POSTHOG_API_KEY
-const POSTHOG_HOST = import.meta.env.VITE_POSTHOG_HOST || 'https://app.posthog.com'
+const POSTHOG_HOST = import.meta.env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com'
 
 export interface AnalyticsConsent {
   enabled: boolean
   timestamp: string
   version: number
+}
+
+interface ErrorCaptureConsent {
+  enabled: boolean
+  timestamp: string
 }
 
 export class AnalyticsManager {
@@ -36,6 +42,7 @@ export class AnalyticsManager {
         disable_session_recording: true, // Privacy: no session recording
         capture_pageview: false, // Manual tracking
         capture_pageleave: true,
+        capture_exceptions: true, // Capture unhandled exceptions
         loaded: posthog => {
           if (import.meta.env.DEV) {
             posthog.debug(false) // Set to true for verbose logging in dev
@@ -79,7 +86,31 @@ export class AnalyticsManager {
         }
       }
     } catch (error) {
-      console.warn('Failed to save analytics consent:', error)
+      console.error('Failed to save analytics consent:', error)
+    }
+  }
+
+  setErrorCaptureConsent(enabled: boolean) {
+    const consent: ErrorCaptureConsent = {
+      enabled,
+      timestamp: new Date().toISOString(),
+    }
+
+    try {
+      localStorage.setItem(ERROR_CAPTURE_CONSENT_KEY, JSON.stringify(consent))
+    } catch (error) {
+      console.error('Failed to save error capture consent:', error)
+    }
+  }
+
+  getErrorCaptureEnabled(): boolean {
+    try {
+      const stored = localStorage.getItem(ERROR_CAPTURE_CONSENT_KEY)
+      if (!stored) return true // Default to enabled
+      const consent: ErrorCaptureConsent = JSON.parse(stored)
+      return consent.enabled
+    } catch {
+      return true // Default to enabled on error
     }
   }
 
@@ -87,7 +118,7 @@ export class AnalyticsManager {
     return this.getConsent() !== null
   }
 
-  track(event: string, properties?: Record<string, any>) {
+  track(event: string, properties?: Record<string, unknown>) {
     if (!this.initialized || !this.getConsent()?.enabled) {
       return
     }
@@ -97,14 +128,11 @@ export class AnalyticsManager {
       const safeProperties = this.filterSensitiveData(properties || {})
       posthog.capture(event, safeProperties)
     } catch (error) {
-      // Silently fail if PostHog is blocked
-      if (import.meta.env.DEV) {
-        console.warn('Analytics tracking failed:', event, error)
-      }
+      console.error('Analytics tracking failed:', event, error)
     }
   }
 
-  identify(userId: string, properties?: Record<string, any>) {
+  identify(userId: string, properties?: Record<string, unknown>) {
     if (!this.initialized || !this.getConsent()?.enabled) {
       return
     }
@@ -113,10 +141,7 @@ export class AnalyticsManager {
       const safeProperties = this.filterSensitiveData(properties || {})
       posthog.identify(userId, safeProperties)
     } catch (error) {
-      // Silently fail if PostHog is blocked
-      if (import.meta.env.DEV) {
-        console.warn('Analytics identify failed:', error)
-      }
+      console.error('Analytics identify failed:', error)
     }
   }
 
@@ -128,14 +153,27 @@ export class AnalyticsManager {
     try {
       posthog.reset()
     } catch (error) {
-      // Silently fail if PostHog is blocked
-      if (import.meta.env.DEV) {
-        console.warn('Analytics reset failed:', error)
-      }
+      console.error('Analytics reset failed:', error)
     }
   }
 
-  private filterSensitiveData(properties: Record<string, any>): Record<string, any> {
+  captureException(
+    error: Error,
+    properties?: Record<string, unknown> & { source?: string; componentStack?: string }
+  ) {
+    // Check if user has disabled error capture
+    if (!this.initialized || !this.getErrorCaptureEnabled()) {
+      return
+    }
+
+    try {
+      posthog.captureException(error, properties)
+    } catch (err) {
+      console.error('Analytics exception capture failed:', err)
+    }
+  }
+
+  private filterSensitiveData(properties: Record<string, unknown>): Record<string, unknown> {
     const filtered = { ...properties }
 
     // Remove sensitive keys that might contain user data
@@ -173,7 +211,7 @@ export class AnalyticsManager {
     // Recursively filter nested objects
     Object.keys(filtered).forEach(key => {
       if (filtered[key] && typeof filtered[key] === 'object' && !Array.isArray(filtered[key])) {
-        filtered[key] = this.filterSensitiveData(filtered[key])
+        filtered[key] = this.filterSensitiveData(filtered[key] as Record<string, unknown>)
       }
     })
 

@@ -74,6 +74,8 @@ jobs:
 
       - name: Build all for GitHub Pages
         run: yarn build:all
+        env:
+          VITE_POSTHOG_API_KEY: ${{ secrets.VITE_POSTHOG_API_KEY }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v4

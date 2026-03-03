@@ -1,5 +1,6 @@
 import { assert } from '@deck.gl/core'
-import { createRafDriver, type IProject, type ISequence, onChange, val } from '@theatre/core'
+import { createRafDriver, type IProject, type ISequence } from '@theatre/core'
+import { useVal } from '@theatre/react'
 import {
   EncodedPacket,
   EncodedVideoPacketSource,
@@ -28,14 +29,8 @@ export const useRenderer = ({
   bitrateMode: 'variable' | 'constant'
   redraw: () => void
 }) => {
-  const [sequenceLength, setSequenceLength] = useState(() => val(sequence.pointer.length))
-
-  useEffect(() => {
-    const unsubscribe = onChange(sequence.pointer.length, length => {
-      setSequenceLength(length)
-    })
-    return unsubscribe
-  }, [sequence])
+  // useVal keeps the prism "hot" and avoids cold prism warnings
+  const sequenceLength = useVal(sequence.pointer.length)
 
   const canvasRenderDone = useRef<(result?: { error?: Error }) => void>(() => {})
   const canvasFrameReady = useCallback(
@@ -257,7 +252,7 @@ export const useRenderer = ({
         redraw()
 
         currentFrame.current = i
-        console.log(`capturing frame ${i}/${endFrame} at simtime ${simTime}`)
+        if (i % 10 === 0) console.log(`capturing frame ${i}/${endFrame} at simtime ${simTime}`)
 
         const canvasResult = await canvasFrameReady()
 
@@ -272,10 +267,8 @@ export const useRenderer = ({
         ) => {
           // @ts-expect-error - typescript types not updated yet
           recorder.track.requestFrame()
-          console.log('requesting frame')
           const result = await recorder.reader.read()
           const frame = result.value
-          console.log('got frame', frame)
 
           assert(frame, 'frame is required - might be a problem with the browser')
 

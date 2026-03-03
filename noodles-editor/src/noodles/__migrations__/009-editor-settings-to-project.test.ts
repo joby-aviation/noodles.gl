@@ -157,8 +157,10 @@ describe('009-editor-settings-to-project', () => {
     const reverted = await down(migrated)
 
     // Timeline should be equivalent (might not be identical due to object ordering)
-    const originalEditor = (original.timeline as any).sheetsById.Noodles.staticOverrides.byObject.editor
-    const revertedEditor = (reverted.timeline as any).sheetsById.Noodles.staticOverrides.byObject.editor
+    const originalEditor = (original.timeline as any).sheetsById.Noodles.staticOverrides.byObject
+      .editor
+    const revertedEditor = (reverted.timeline as any).sheetsById.Noodles.staticOverrides.byObject
+      .editor
     expect(revertedEditor).toEqual(originalEditor)
   })
 })

@@ -1,10 +1,13 @@
-import { Component, lazy, Suspense, type ReactNode } from 'react'
+import { Component, lazy, type ReactNode, Suspense } from 'react'
 import { Redirect, Route, Router, Switch, useRoute, useSearchParams } from 'wouter'
 import { AnalyticsConsentBanner } from './components/analytics-consent-banner'
+import { ExternalControlProvider } from './external-control'
+import { PageModal } from './page-modal'
 import TimelineEditor from './timeline-editor'
 
-// Lazy-load ExamplesPage to reduce main bundle size
+// Lazy-load page components to reduce main bundle size
 const ExamplesPage = lazy(() => import('./examples-page'))
+const ProjectsPage = lazy(() => import('./projects-page'))
 
 // Error boundary to catch analytics failures
 class AnalyticsErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
@@ -34,8 +37,26 @@ const baseUrl = import.meta.env.BASE_URL.replace(/\/+$/, '')
 
 function App() {
   console.log('App rendering, baseUrl:', baseUrl, 'location:', window.location.pathname)
+
+  // Check if external control should be enabled based on URL params
+  const urlParams = new URLSearchParams(window.location.search)
+  const enableExternalControl = urlParams.get('externalControl') === 'true'
+  const externalControlDebug = urlParams.get('externalControlDebug') === 'true'
+
   return (
     <Router base={baseUrl}>
+      {/* External control provider - only enable when requested via URL params */}
+      <ExternalControlProvider
+        enabled={enableExternalControl}
+        autoConnect={false}
+        debug={externalControlDebug}
+        onStatusChange={connected => {
+          console.log('[ExternalControl] Status:', connected ? 'Connected' : 'Disconnected')
+        }}
+        onError={error => {
+          console.error('[ExternalControl] Error:', error)
+        }}
+      />
       <Switch>
         {/* Project routes - /examples/:projectId and /projects/:projectId (most specific first) */}
         <Route path="/examples/:projectId">
@@ -47,9 +68,20 @@ function App() {
 
         {/* Examples list page */}
         <Route path="/examples">
-          <Suspense fallback={<div>Loading...</div>}>
-            <ExamplesPage />
-          </Suspense>
+          <PageModal>
+            <Suspense fallback={<div>Loading...</div>}>
+              <ExamplesPage />
+            </Suspense>
+          </PageModal>
+        </Route>
+
+        {/* Projects list page */}
+        <Route path="/projects">
+          <PageModal>
+            <Suspense fallback={<div>Loading...</div>}>
+              <ProjectsPage />
+            </Suspense>
+          </PageModal>
         </Route>
 
         {/* Catch-all for root path, 404s, and redirects */}
@@ -95,9 +127,10 @@ function FallbackRoute() {
     return <Redirect to={`/examples/${projectParam}`} />
   }
 
-  // Default: navigate to /examples
-  console.log('Default redirect to /examples')
-  return <Redirect to="/examples" />
+  // Default: navigate to /projects in dev, /examples in prod
+  const defaultRoute = import.meta.env.DEV ? '/projects' : '/examples'
+  console.log('Default redirect to', defaultRoute)
+  return <Redirect to={defaultRoute} />
 }
 
 export default App

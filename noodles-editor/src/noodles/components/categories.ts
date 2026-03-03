@@ -1,28 +1,13 @@
-import type { NodeType } from '../utils/node-creation-utils'
-
 // Operator categories
 export const categories = {
   code: ['Accessor', 'Code', 'DuckDb', 'JSON', 'Expression'],
-  grouping: [
-    'Container',
-    'ForLoop',
-    'ForLoopBegin',
-    'ForLoopEnd',
-    'GraphInput',
-    'GraphOutput',
-  ],
-  color: [
-    'CategoricalColorRamp',
-    'Color',
-    'ColorRamp',
-    'CombineRGBA',
-    'HSL',
-    'SplitRGBA',
-  ],
+  grouping: ['Container', 'ForLoop', 'ForLoopBegin', 'ForLoopEnd', 'GraphInput', 'GraphOutput'],
+  color: ['CategoricalColorRamp', 'Color', 'ColorRamp', 'CombineRGBA', 'HSL', 'SplitRGBA'],
   data: [
     'Arc',
     'BoundingBox',
     'Bounds',
+    'Chart',
     'Concat',
     'DateTime',
     'DeckRenderer',
@@ -96,15 +81,7 @@ export const categories = {
   ],
   number: ['Number', 'MapRange', 'Extent', 'Math', 'BezierCurve', 'Time'],
   string: ['String'],
-  utility: [
-    'Boolean',
-    'Console',
-    'LayerProps',
-    'Mouse',
-    'Project',
-    'Unproject',
-    'MapStyle',
-  ],
+  utility: ['Boolean', 'Console', 'LayerProps', 'Mouse', 'Project', 'Unproject', 'MapStyle'],
   vector: ['CombineXY', 'CombineXYZ', 'SplitXY', 'SplitXYZ'],
   view: [
     'FirstPersonView',

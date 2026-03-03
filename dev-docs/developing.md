@@ -101,7 +101,7 @@ The project uses:
 
 ### Code Quality
 
-- Follow Biome configuration
+- Follow Biome configuration in biome.json (2 spaces, no semicolons, single quotes)
 - Write unit tests for operators
 - Use TypeScript strictly
 - Comment complex logic

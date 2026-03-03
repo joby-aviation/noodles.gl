@@ -1,0 +1,6 @@
+{
+    "scripts": {
+        "setup": "(cd noodles-editor && yarn)",
+        "run": "(cd noodles-editor && yarn start)"
+    }
+}

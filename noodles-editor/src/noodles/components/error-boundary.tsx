@@ -96,7 +96,7 @@ export class ErrorBoundary extends Component<Props, State> {
           <div className={s.actions}>
             {canReset ? (
               <>
-                <button onClick={this.handleReset} className={s.button}>
+                <button type="button" onClick={this.handleReset} className={s.button}>
                   Reset {resetCount > 0 && `(${resetCount}/${maxResets})`}
                 </button>
                 {resetCount > 0 && (
@@ -111,7 +111,11 @@ export class ErrorBoundary extends Component<Props, State> {
                 <p className={s.errorMessage}>
                   Maximum reset attempts reached. Please refresh the page.
                 </p>
-                <button onClick={() => window.location.reload()} className={s.refreshButton}>
+                <button
+                  type="button"
+                  onClick={() => window.location.reload()}
+                  className={s.refreshButton}
+                >
                   Refresh Page
                 </button>
               </>

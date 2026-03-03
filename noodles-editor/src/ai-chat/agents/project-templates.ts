@@ -1,9 +1,7 @@
-/**
- * Project Templates and Common Patterns
- *
- * This file contains template configurations for common Noodles.gl project patterns.
- * Used by the Project Generator Agent to create well-structured projects.
- */
+// Project Templates and Common Patterns
+//
+// This file contains template configurations for common Noodles.gl project patterns.
+// Used by the Project Generator Agent to create well-structured projects.
 
 import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react'
 
@@ -14,10 +12,8 @@ export interface ProjectTemplate {
   edges: Partial<ReactFlowEdge>[]
 }
 
-/**
- * Basic visualization pipeline pattern:
- * Data Source → Data Transform → Deck.gl Layer → DeckRenderer → Viewer
- */
+// Basic visualization pipeline pattern:
+// Data Source → Data Transform → Deck.gl Layer → DeckRenderer → Viewer
 export const BASIC_VIZ_PATTERN: ProjectTemplate = {
   name: 'Basic Visualization',
   description: 'Standard data visualization pipeline with viewer output',
@@ -93,23 +89,19 @@ export const BASIC_VIZ_PATTERN: ProjectTemplate = {
   ],
 }
 
-/**
- * Common node positioning utilities
- */
+// Common node positioning utilities
 export const LAYOUT = {
-  /** Standard horizontal spacing between nodes */
+  // Standard horizontal spacing between nodes
   HORIZONTAL_GAP: 300,
-  /** Standard vertical spacing between nodes */
+  // Standard vertical spacing between nodes
   VERTICAL_GAP: 150,
-  /** Starting X position for first node */
+  // Starting X position for first node
   START_X: 100,
-  /** Starting Y position for first node */
+  // Starting Y position for first node
   START_Y: 100,
 }
 
-/**
- * Common operator configurations by category
- */
+// Common operator configurations by category
 export const OPERATOR_CONFIGS = {
   dataSources: {
     FileOp: {
@@ -217,9 +209,7 @@ export const OPERATOR_CONFIGS = {
   },
 }
 
-/**
- * Basemap style URLs
- */
+// Basemap style URLs
 export const BASEMAP_STYLES = {
   darkNoLabels: 'https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json',
   dark: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
@@ -229,9 +219,7 @@ export const BASEMAP_STYLES = {
   voyagerNoLabels: 'https://basemaps.cartocdn.com/gl/voyager-nolabels-gl-style/style.json',
 }
 
-/**
- * Common accessor patterns for Deck.gl layers
- */
+// Common accessor patterns for Deck.gl layers
 export const ACCESSOR_PATTERNS = {
   position: {
     latLng: '[d.longitude, d.latitude]',
@@ -250,9 +238,7 @@ export const ACCESSOR_PATTERNS = {
   },
 }
 
-/**
- * Helper: Generate a unique node ID
- */
+// Helper: Generate a unique node ID
 export function generateNodeId(type: string, existing: Set<string>): string {
   const baseName = type.replace(/Op$/, '').toLowerCase()
   let counter = 1
@@ -266,9 +252,7 @@ export function generateNodeId(type: string, existing: Set<string>): string {
   return id
 }
 
-/**
- * Helper: Calculate node position in a flow layout
- */
+// Helper: Calculate node position in a flow layout
 export function calculatePosition(_index: number, column = 0, row = 0): { x: number; y: number } {
   return {
     x: LAYOUT.START_X + column * LAYOUT.HORIZONTAL_GAP,
@@ -276,9 +260,7 @@ export function calculatePosition(_index: number, column = 0, row = 0): { x: num
   }
 }
 
-/**
- * Helper: Create an edge ID from source/target
- */
+// Helper: Create an edge ID from source/target
 export function createEdgeId(
   sourceId: string,
   sourceHandle: string,
@@ -288,9 +270,7 @@ export function createEdgeId(
   return `${sourceId}.${sourceHandle}->${targetId}.${targetHandle}`
 }
 
-/**
- * Visualization type to layer mapping
- */
+// Visualization type to layer mapping
 export const VIZ_TYPE_TO_LAYER: Record<string, string> = {
   scatter: 'ScatterplotLayerOp',
   scatterplot: 'ScatterplotLayerOp',
@@ -325,9 +305,7 @@ export const VIZ_TYPE_TO_LAYER: Record<string, string> = {
   labels: 'TextLayerOp',
 }
 
-/**
- * Data format detection patterns
- */
+// Data format detection patterns
 export const DATA_FORMAT_PATTERNS = {
   csv: /\.csv$/i,
   json: /\.json$/i,

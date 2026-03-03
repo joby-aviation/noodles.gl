@@ -170,6 +170,50 @@ describe('ListField', () => {
     field1.setValue(10)
     expect(listField.value).toEqual([10, 2])
   })
+
+  it('reorders inputs with reorderInputs', () => {
+    const field1 = new NumberField(1)
+    const field2 = new NumberField(2)
+    const field3 = new NumberField(3)
+    const listField = new ListField(new NumberField())
+
+    listField.addConnection('field-1', field1, 'value')
+    listField.addConnection('field-2', field2, 'value')
+    listField.addConnection('field-3', field3, 'value')
+
+    expect(listField.value).toEqual([1, 2, 3])
+
+    listField.reorderInputs(0, 2)
+    expect(listField.value).toEqual([2, 3, 1])
+
+    listField.reorderInputs(2, 0)
+    expect(listField.value).toEqual([1, 2, 3])
+
+    listField.reorderInputs(1, 2)
+    expect(listField.value).toEqual([1, 3, 2])
+  })
+
+  it('reorderInputs does nothing when fromIndex equals toIndex', () => {
+    const field1 = new NumberField(1)
+    const field2 = new NumberField(2)
+    const listField = new ListField(new NumberField())
+
+    listField.addConnection('field-1', field1, 'value')
+    listField.addConnection('field-2', field2, 'value')
+
+    listField.reorderInputs(0, 0)
+    expect(listField.value).toEqual([1, 2])
+  })
+
+  it('reorderInputs throws for out-of-bounds indices', () => {
+    const field1 = new NumberField(1)
+    const listField = new ListField(new NumberField())
+
+    listField.addConnection('field-1', field1, 'value')
+
+    expect(() => listField.reorderInputs(-1, 0)).toThrow()
+    expect(() => listField.reorderInputs(0, 5)).toThrow()
+  })
 })
 
 describe('JSONUrlField', () => {
@@ -244,6 +288,88 @@ describe('NumberField', () => {
       'Parse error',
       expect.arrayContaining([expect.objectContaining({ code: 'too_big' })])
     )
+  })
+
+  it('sets softMin and softMax on the instance', () => {
+    const field1 = new NumberField()
+    expect(field1.softMin, 'softMin default').toEqual(-Infinity)
+    expect(field1.softMax, 'softMax default').toEqual(Infinity)
+
+    const field2 = new NumberField(50, { softMin: 0, softMax: 100 })
+    expect(field2.softMin, 'softMin').toEqual(0)
+    expect(field2.softMax, 'softMax').toEqual(100)
+  })
+
+  it('allows values outside softMin/softMax (soft limits are UI hints only)', () => {
+    const field = new NumberField(50, { softMin: 0, softMax: 100 })
+
+    // Values outside soft limits should be accepted
+    field.setValue(150)
+    expect(field.value).toEqual(150)
+
+    field.setValue(-50)
+    expect(field.value).toEqual(-50)
+  })
+
+  it('enforces hard min/max while allowing soft limits to differ', () => {
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const field = new NumberField(50, {
+      min: 0,
+      max: 200,
+      softMin: 10,
+      softMax: 100,
+    })
+
+    // Values within hard limits but outside soft limits should be accepted
+    field.setValue(5)
+    expect(field.value).toEqual(5)
+
+    field.setValue(150)
+    expect(field.value).toEqual(150)
+
+    // Values outside hard limits should be rejected
+    field.setValue(-10)
+    expect(field.value).toEqual(150) // unchanged
+    expect(consoleWarn).toHaveBeenCalledWith(
+      'Parse error',
+      expect.arrayContaining([expect.objectContaining({ code: 'too_small' })])
+    )
+
+    consoleWarn.mockClear()
+    field.setValue(250)
+    expect(field.value).toEqual(150) // unchanged
+    expect(consoleWarn).toHaveBeenCalledWith(
+      'Parse error',
+      expect.arrayContaining([expect.objectContaining({ code: 'too_big' })])
+    )
+  })
+
+  it('supports softMax without softMin and vice versa', () => {
+    const field1 = new NumberField(50, { softMax: 100 })
+    expect(field1.softMin).toEqual(-Infinity)
+    expect(field1.softMax).toEqual(100)
+
+    const field2 = new NumberField(50, { softMin: 0 })
+    expect(field2.softMin).toEqual(0)
+    expect(field2.softMax).toEqual(Infinity)
+  })
+
+  it('supports combining hard min with soft max', () => {
+    const field = new NumberField(50, { min: 0, softMax: 100 })
+    expect(field.min).toEqual(0)
+    expect(field.max).toEqual(Infinity)
+    expect(field.softMin).toEqual(-Infinity)
+    expect(field.softMax).toEqual(100)
+
+    // Can exceed soft max
+    field.setValue(200)
+    expect(field.value).toEqual(200)
+
+    // Cannot go below hard min
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    field.setValue(-10)
+    expect(field.value).toEqual(200) // unchanged
+    expect(consoleWarn).toHaveBeenCalled()
   })
 })
 
@@ -546,15 +672,15 @@ describe('Accessor fields', () => {
 
   it('allows ColorFields to pass a string color', () => {
     const field = new ColorField('#ff0000', { accessor: true })
-    expect(field.value).toEqual('#ff0000')
-    expect(hexToColor(field.value)).toEqual([255, 0, 0, 255]) // ensure it's a valid color
+    expect(field.value).toEqual('#ff0000ff')
+    expect(hexToColor(field.value)).toEqual([255, 0, 0, 255])
     field.setValue('#00ff00')
-    expect(field.value).toEqual('#00ff00')
+    expect(field.value).toEqual('#00ff00ff')
   })
 
   it('allows ColorFields to pass a callback function', () => {
     const field = new ColorField('#ff0000', { accessor: true })
-    expect(field.value).toEqual('#ff0000')
+    expect(field.value).toEqual('#ff0000ff')
     field.setValue(d => d.color)
     expect(field.value({ color: '#00ff00' })).toEqual('#00ff00')
   })
@@ -831,6 +957,35 @@ describe('Point3DField', () => {
   })
 })
 
+describe('ColorField', () => {
+  it('creates a field with default color value', () => {
+    const field = new ColorField()
+    expect(field.value).toBe('#0000ffff')
+  })
+
+  it('normalizes 6-char hex to 8-char hex via schema', () => {
+    const field = new ColorField()
+
+    field.setValue('#ff0000')
+    expect(field.value).toBe('#ff0000ff')
+
+    field.setValue('#00ff0080')
+    expect(field.value).toBe('#00ff0080')
+  })
+
+  it('deserializes both old and new formats', () => {
+    expect(ColorField.deserialize('#ff0000')).toBe('#ff0000')
+    expect(ColorField.deserialize('#ff000080')).toBe('#ff000080')
+    expect(ColorField.deserialize([255, 0, 0, 128])).toBe('#ff000080')
+  })
+
+  it('handles loading old project files with 6-char hex', () => {
+    const deserialized = ColorField.deserialize('#00ff00')
+    const field = new ColorField(deserialized)
+    expect(field.value).toBe('#00ff00ff')
+  })
+})
+
 describe('DateField', () => {
   it('creates a field with default PlainDateTime value', () => {
     const field = new DateField()
@@ -914,6 +1069,36 @@ describe('DateField', () => {
     const deserialized = DateField.deserialize(serialized)
 
     expect(Temporal.PlainDateTime.compare(originalDate, deserialized)).toBe(0)
+  })
+})
+
+describe('Field showByDefault option', () => {
+  it('defaults showByDefault to true', () => {
+    const field = new NumberField(0)
+    expect(field.showByDefault).toBe(true)
+  })
+
+  it('respects showByDefault: false option', () => {
+    const field = new NumberField(0, { showByDefault: false })
+    expect(field.showByDefault).toBe(false)
+  })
+
+  it('respects showByDefault: true option explicitly', () => {
+    const field = new NumberField(0, { showByDefault: true })
+    expect(field.showByDefault).toBe(true)
+  })
+
+  it('works with CompoundPropsField', () => {
+    const field = new CompoundPropsField(
+      { x: new NumberField(0), y: new NumberField(0) },
+      { showByDefault: false }
+    )
+    expect(field.showByDefault).toBe(false)
+  })
+
+  it('works with ListField', () => {
+    const field = new ListField(new NumberField(), { showByDefault: false })
+    expect(field.showByDefault).toBe(false)
   })
 })
 
