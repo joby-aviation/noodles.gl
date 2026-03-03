@@ -183,7 +183,7 @@ export const useRenderer = ({
           bitrateMode,
           hardwareAcceleration: 'prefer-hardware',
           framerate: fps,
-          alpha: exportAlpha ? 'keep' : 'discard',
+          ...(exportAlpha ? { alpha: 'keep' as const } : {}),
           ...codecMap[codec],
         } as const
 
