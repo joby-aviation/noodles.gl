@@ -27,10 +27,9 @@ function formatDate(timestamp?: number): string | null {
 interface ProjectsViewProps {
   onBack?: () => void
   onClose: () => void
-  showBackButton?: boolean
 }
 
-export function ProjectsView({ onBack, onClose, showBackButton = true }: ProjectsViewProps) {
+export function ProjectsView({ onBack, onClose }: ProjectsViewProps) {
   const [, navigate] = useLocation()
   const [allProjects, setAllProjects] = useState<UserProject[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
@@ -118,7 +117,7 @@ export function ProjectsView({ onBack, onClose, showBackButton = true }: Project
     <>
       {/* Header with back button */}
       <div className={s.viewHeader}>
-        {showBackButton && onBack && (
+        {onBack && (
           <button type="button" className={s.backButton} onClick={onBack}>
             <ChevronLeftIcon width={16} height={16} />
             Back

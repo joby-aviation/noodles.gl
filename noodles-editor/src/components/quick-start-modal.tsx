@@ -388,18 +388,10 @@ export function QuickStartModal({
         <Dialog.Content className={s.content}>
           {view === 'home' && renderHomeView()}
           {view === 'projects' && (
-            <ProjectsView
-              onBack={handleBack}
-              onClose={() => onOpenChange(false)}
-              showBackButton={initialView === 'home'}
-            />
+            <ProjectsView onBack={handleBack} onClose={() => onOpenChange(false)} />
           )}
           {view === 'examples' && (
-            <ExamplesView
-              onBack={handleBack}
-              onClose={() => onOpenChange(false)}
-              showBackButton={initialView === 'home'}
-            />
+            <ExamplesView onBack={handleBack} onClose={() => onOpenChange(false)} />
           )}
 
           {/* Close button */}

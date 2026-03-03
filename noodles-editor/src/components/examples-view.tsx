@@ -124,10 +124,9 @@ export const CURATED_EXAMPLES = [
 interface ExamplesViewProps {
   onBack?: () => void
   onClose: () => void
-  showBackButton?: boolean
 }
 
-export function ExamplesView({ onBack, onClose, showBackButton = true }: ExamplesViewProps) {
+export function ExamplesView({ onBack, onClose }: ExamplesViewProps) {
   const [, navigate] = useLocation()
   const allExamples = useAllExamples()
 
@@ -144,7 +143,7 @@ export function ExamplesView({ onBack, onClose, showBackButton = true }: Example
     <>
       {/* Header with back button */}
       <div className={s.viewHeader}>
-        {showBackButton && onBack && (
+        {onBack && (
           <button type="button" className={s.backButton} onClick={onBack}>
             <ChevronLeftIcon width={16} height={16} />
             Back
