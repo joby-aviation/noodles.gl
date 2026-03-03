@@ -132,6 +132,26 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
     [selectedKeyframeIds]
   )
 
+  // Handle spacebar for play/pause globally
+  useEffect(() => {
+    const handleSpaceKey = (e: KeyboardEvent) => {
+      // Only handle spacebar
+      if (e.code !== 'Space') return
+
+      // Don't intercept spacebar in input elements
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.contentEditable === 'true') {
+        return
+      }
+
+      e.preventDefault()
+      getTimelineStore().togglePlay()
+    }
+
+    document.addEventListener('keydown', handleSpaceKey)
+    return () => document.removeEventListener('keydown', handleSpaceKey)
+  }, [])
+
   return (
     // biome-ignore lint/a11y/noNoninteractiveTabindex: Timeline panel needs focus to receive keyboard events
     // biome-ignore lint/a11y/noStaticElementInteractions: Timeline panel handles wheel and keyboard shortcuts
