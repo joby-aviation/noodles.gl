@@ -340,42 +340,25 @@
 }
 
 .property {
-  margin-bottom: 2px;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
   font-size: 12px;
 }
 
-.propertyHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 4px 0;
-}
-
-.propertyDetails {
+/* Single-row layout: dot · label · [input] · [diamond] */
+.propertyRow {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: rgba(255, 255, 255, 0.5);
+  padding: 3px 0;
 }
 
-/* Wrapper clips the type label while it's translated off-screen */
-.inputTypeWrapper {
+.propertyLabel {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
-}
-
-.inputType {
-  display: block;
+  text-overflow: ellipsis;
   white-space: nowrap;
-  transform: translateX(100%);
-  transition: transform 0.15s ease-out;
-}
-
-.propertyDetails:hover .inputType {
-  transform: translateX(0%);
 }
 
 /* Port */
@@ -603,16 +586,11 @@
   color: var(--color-text-primary);
 }
 
-/* Editable field row (value type input + keyframe indicator) */
-.editableFieldRow {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
+/* Editable field content (value input inside property row) */
 .editableFieldContent {
-  flex: 1;
+  flex-shrink: 0;
   min-width: 0;
+  max-width: 120px;
 }
 
 .fieldPlaceholder {
@@ -665,4 +643,35 @@
 
 .dialogFieldList li {
   margin: 2px 0;
+}
+
+/* Right-click context menu */
+.contextMenu {
+  position: fixed;
+  z-index: var(--z-index-menu);
+  background: rgba(28, 28, 28, 0.97);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 4px;
+  min-width: 160px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+.contextMenuItem {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  background: none;
+  border: none;
+  color: var(--color-text-primary);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.1s;
+}
+
+.contextMenuItem:hover {
+  background: rgba(255, 255, 255, 0.08);
 }
