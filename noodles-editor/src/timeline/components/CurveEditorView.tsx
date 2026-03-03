@@ -237,7 +237,8 @@ export function CurveEditorView({
         {track.keyframes.map((kf, i) => {
             if (!isNumericValue(kf.value)) return null
             if (!selectedKeyframeIds.has(kf.id)) return null
-            if (kf.interpolation !== 'bezier') return null
+            // Show handles for any selected keyframe (not just bezier)
+            // Dragging a handle will auto-set interpolation to bezier
             const nextKf = track.keyframes[i + 1]
             if (!nextKf || !isNumericValue(nextKf.value)) return null
 
@@ -275,6 +276,10 @@ export function CurveEditorView({
                   strokeColor="#ff9999"
                   onDrag={(svgX, svgY) => {
                     const cur = getTimelineStore().tracks.get(track.id)?.keyframes.find(k => k.id === kf.id)
+                    // Auto-set to bezier interpolation when dragging handles
+                    if (cur?.interpolation !== 'bezier') {
+                      getTimelineStore().updateKeyframe(track.id, kf.id, { interpolation: 'bezier' })
+                    }
                     const curHandles = cur?.handles ?? DEFAULT_BEZIER_HANDLES
                     const newLx = Math.max(0, Math.min(1, (xToTime(svgX) - kf.position) / (Δt || 1)))
                     const newLy = (yToVal(svgY) - (kf.value as number)) / (Δv || 1)
@@ -294,6 +299,10 @@ export function CurveEditorView({
                   strokeColor="#82e6a0"
                   onDrag={(svgX, svgY) => {
                     const cur = getTimelineStore().tracks.get(track.id)?.keyframes.find(k => k.id === kf.id)
+                    // Auto-set to bezier interpolation when dragging handles
+                    if (cur?.interpolation !== 'bezier') {
+                      getTimelineStore().updateKeyframe(track.id, kf.id, { interpolation: 'bezier' })
+                    }
                     const curHandles = cur?.handles ?? DEFAULT_BEZIER_HANDLES
                     const newRx = Math.max(0, Math.min(1, (xToTime(svgX) - kf.position) / (Δt || 1)))
                     const newRy = (yToVal(svgY) - (kf.value as number)) / (Δv || 1)
