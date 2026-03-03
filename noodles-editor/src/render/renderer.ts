@@ -75,209 +75,209 @@ export const useRenderer = ({
       setIsRendering(true)
 
       try {
-      // Warn if alpha export is requested with incompatible codec
-      if (exportAlpha && (codec === 'avc' || codec === 'hevc')) {
-        console.warn(
-          `Alpha channel export is not supported with ${codec.toUpperCase()} codec. Please use VP9 or AV1 for transparency support.`
-        )
-        alert(
-          `Warning: H.264 and H.265 codecs don't support transparency.\n\nSwitch to VP9 or AV1 codec to export with alpha channel.`
-        )
-      }
-
-      const getContainer = async (name: string) => {
-        // Determine file extension and container format based on codec and alpha
-        let extension = '.mp4'
-        let mimeType = 'video/mp4'
-        let containerFormat: Mp4OutputFormat | WebMOutputFormat | MkvOutputFormat =
-          new Mp4OutputFormat({ fastStart: 'in-memory' })
-
-        if (exportAlpha) {
-          if (codec === 'vp9') {
-            extension = '.webm'
-            mimeType = 'video/webm'
-            containerFormat = new WebMOutputFormat()
-          } else if (codec === 'av1') {
-            extension = '.mkv'
-            mimeType = 'video/x-matroska'
-            containerFormat = new MkvOutputFormat()
-          }
-          // For avc/hevc, keep MP4 format but alpha won't work (already warned above)
+        // Warn if alpha export is requested with incompatible codec
+        if (exportAlpha && (codec === 'avc' || codec === 'hevc')) {
+          console.warn(
+            `Alpha channel export is not supported with ${codec.toUpperCase()} codec. Please use VP9 or AV1 for transparency support.`
+          )
+          alert(
+            `Warning: H.264 and H.265 codecs don't support transparency.\n\nSwitch to VP9 or AV1 codec to export with alpha channel.`
+          )
         }
 
-        const fileHandle = await window
-          .showSaveFilePicker({
-            suggestedName: `${name}${extension}`,
-            types: [
-              {
-                description: 'Video File',
-                accept: { [mimeType]: [extension] },
-              },
-            ],
-          })
-          .catch(error => {
-            if (error.name === 'AbortError') {
-              console.log('File picker cancelled by user for:', name)
-            } else {
-              console.error('Error in showSaveFilePicker for', name, ':', error)
+        const getContainer = async (name: string) => {
+          // Determine file extension and container format based on codec and alpha
+          let extension = '.mp4'
+          let mimeType = 'video/mp4'
+          let containerFormat: Mp4OutputFormat | WebMOutputFormat | MkvOutputFormat =
+            new Mp4OutputFormat({ fastStart: 'in-memory' })
+
+          if (exportAlpha) {
+            if (codec === 'vp9') {
+              extension = '.webm'
+              mimeType = 'video/webm'
+              containerFormat = new WebMOutputFormat()
+            } else if (codec === 'av1') {
+              extension = '.mkv'
+              mimeType = 'video/x-matroska'
+              containerFormat = new MkvOutputFormat()
             }
-            return null // Signal cancellation/failure
+            // For avc/hevc, keep MP4 format but alpha won't work (already warned above)
+          }
+
+          const fileHandle = await window
+            .showSaveFilePicker({
+              suggestedName: `${name}${extension}`,
+              types: [
+                {
+                  description: 'Video File',
+                  accept: { [mimeType]: [extension] },
+                },
+              ],
+            })
+            .catch(error => {
+              if (error.name === 'AbortError') {
+                console.log('File picker cancelled by user for:', name)
+              } else {
+                console.error('Error in showSaveFilePicker for', name, ':', error)
+              }
+              return null // Signal cancellation/failure
+            })
+
+          if (!fileHandle) {
+            return null
+          }
+          const fileWritableStream = await fileHandle.createWritable()
+
+          const output = new Output({
+            format: containerFormat,
+            target: new StreamTarget(
+              fileWritableStream as WritableStream<{
+                type: 'write'
+                data: Uint8Array
+                position: number
+              }>,
+              { chunked: true }
+            ),
           })
 
-        if (!fileHandle) {
-          return null
-        }
-        const fileWritableStream = await fileHandle.createWritable()
+          const videoSource = new EncodedVideoPacketSource(codec)
+          output.addVideoTrack(videoSource, {
+            frameRate: fps,
+          })
 
-        const output = new Output({
-          format: containerFormat,
-          target: new StreamTarget(
-            fileWritableStream as WritableStream<{
-              type: 'write'
-              data: Uint8Array
-              position: number
-            }>,
-            { chunked: true }
-          ),
-        })
+          let currentFrameIndex = startFrame
+          const videoEncoder = new VideoEncoder({
+            output: (chunk, meta) => {
+              // Use the simulated time as the timestamp, not the VideoFrame's real-time timestamp
+              const timestamp = currentFrameIndex / fps
+              const duration = 1 / fps
+              const packet = EncodedPacket.fromEncodedChunk(chunk)
+              // Clone the packet with the correct timestamp
+              const correctedPacket = packet.clone({ timestamp, duration })
+              videoSource.add(correctedPacket, meta)
+              currentFrameIndex++
+            },
+            error: e => console.error(e),
+          })
 
-        const videoSource = new EncodedVideoPacketSource(codec)
-        output.addVideoTrack(videoSource, {
-          frameRate: fps,
-        })
+          const codecMap = {
+            hevc: {
+              codec: 'hev1.1.6.L123.00',
+              hevc: { format: 'annexb' },
+            },
+            avc: {
+              codec: 'avc1.42003e',
+            },
+            vp9: {
+              codec: 'vp09.00.10.08',
+            },
+            av1: {
+              codec: 'v01.0.08M.10.0.110.09',
+            },
+          } as const
 
-        let currentFrameIndex = startFrame
-        const videoEncoder = new VideoEncoder({
-          output: (chunk, meta) => {
-            // Use the simulated time as the timestamp, not the VideoFrame's real-time timestamp
-            const timestamp = currentFrameIndex / fps
-            const duration = 1 / fps
-            const packet = EncodedPacket.fromEncodedChunk(chunk)
-            // Clone the packet with the correct timestamp
-            const correctedPacket = packet.clone({ timestamp, duration })
-            videoSource.add(correctedPacket, meta)
-            currentFrameIndex++
-          },
-          error: e => console.error(e),
-        })
+          const config = {
+            width,
+            height,
+            bitrate,
+            bitrateMode,
+            hardwareAcceleration: 'prefer-hardware',
+            framerate: fps,
+            ...(exportAlpha ? { alpha: 'keep' as const } : {}),
+            ...codecMap[codec],
+          } as const
 
-        const codecMap = {
-          hevc: {
-            codec: 'hev1.1.6.L123.00',
-            hevc: { format: 'annexb' },
-          },
-          avc: {
-            codec: 'avc1.42003e',
-          },
-          vp9: {
-            codec: 'vp09.00.10.08',
-          },
-          av1: {
-            codec: 'v01.0.08M.10.0.110.09',
-          },
-        } as const
+          const { supported } = await VideoEncoder.isConfigSupported(config)
 
-        const config = {
-          width,
-          height,
-          bitrate,
-          bitrateMode,
-          hardwareAcceleration: 'prefer-hardware',
-          framerate: fps,
-          ...(exportAlpha ? { alpha: 'keep' as const } : {}),
-          ...codecMap[codec],
-        } as const
+          if (!supported) {
+            const reason = exportAlpha
+              ? `Alpha (transparency) export is not supported in this browser for the ${codec.toUpperCase()} codec.\n\nTry switching to VP9 or AV1, or disable "Export with transparency".`
+              : `The ${codec.toUpperCase()} codec is not supported in this browser.\n\nTry switching to a different codec.`
+            videoEncoder.close()
+            throw new Error(reason)
+          }
 
-        const { supported } = await VideoEncoder.isConfigSupported(config)
+          videoEncoder.configure(config)
 
-        if (!supported) {
-          const reason = exportAlpha
-            ? `Alpha (transparency) export is not supported in this browser for the ${codec.toUpperCase()} codec.\n\nTry switching to VP9 or AV1, or disable "Export with transparency".`
-            : `The ${codec.toUpperCase()} codec is not supported in this browser.\n\nTry switching to a different codec.`
-          videoEncoder.close()
-          throw new Error(reason)
-        }
+          async function encodeFrame(data: VideoFrame) {
+            const keyFrame = i % 60 === 0
+            videoEncoder.encode(data, { keyFrame })
+          }
 
-        videoEncoder.configure(config)
+          await output.start()
 
-        async function encodeFrame(data: VideoFrame) {
-          const keyFrame = i % 60 === 0
-          videoEncoder.encode(data, { keyFrame })
-        }
+          async function finishEncoding() {
+            await videoEncoder.flush()
+            videoSource.close()
+            await output.finalize()
+          }
 
-        await output.start()
-
-        async function finishEncoding() {
-          await videoEncoder.flush()
-          videoSource.close()
-          await output.finalize()
+          return {
+            videoEncoder,
+            encodeFrame,
+            output,
+            videoSource,
+            finishEncoding,
+          }
         }
 
-        return {
-          videoEncoder,
-          encodeFrame,
-          output,
-          videoSource,
-          finishEncoding,
+        function getCanvasRecorder(canvas: HTMLCanvasElement) {
+          const track = canvas.captureStream(0).getVideoTracks()[0]
+          const mediaProcessor = new MediaStreamTrackProcessor({ track })
+          const reader = mediaProcessor.readable.getReader()
+          return { track, reader }
         }
-      }
 
-      function getCanvasRecorder(canvas: HTMLCanvasElement) {
-        const track = canvas.captureStream(0).getVideoTracks()[0]
-        const mediaProcessor = new MediaStreamTrackProcessor({ track })
-        const reader = mediaProcessor.readable.getReader()
-        return { track, reader }
-      }
-
-      const mapContainer = await getContainer(`${projectName}-map`)
-      if (!mapContainer) {
-        console.log('Render setup cancelled by user (map container).')
-        return
-      }
-      const containers = new Map([['map', mapContainer]])
-
-      const mapRecorder = getCanvasRecorder(canvas)
-
-      async function finishEncoding() {
-        for (const container of containers.values()) {
-          await container.finishEncoding()
-        }
-        mapRecorder?.reader?.releaseLock()
-      }
-
-      for (; i < endFrame + 1; i++) {
-        const simTime = i / fps
-        getTimelineStore().setPosition(simTime)
-        redraw()
-
-        currentFrame.current = i
-        if (i % 10 === 0) console.log(`capturing frame ${i}/${endFrame} at simtime ${simTime}`)
-
-        const canvasResult = await canvasFrameReady()
-
-        if (canvasResult?.error) {
-          console.error('Error capturing canvas frame:', canvasResult.error)
+        const mapContainer = await getContainer(`${projectName}-map`)
+        if (!mapContainer) {
+          console.log('Render setup cancelled by user (map container).')
           return
         }
+        const containers = new Map([['map', mapContainer]])
 
-        const addRecorderFrame = async (
-          recorder: ReturnType<typeof getCanvasRecorder>,
-          container: Awaited<ReturnType<typeof getContainer>>
-        ) => {
-          // @ts-expect-error - typescript types not updated yet
-          recorder.track.requestFrame()
-          const result = await recorder.reader.read()
-          const frame = result.value
+        const mapRecorder = getCanvasRecorder(canvas)
 
-          assert(frame, 'frame is required - might be a problem with the browser')
-
-          await container?.encodeFrame(frame)
-          frame.close()
+        async function finishEncoding() {
+          for (const container of containers.values()) {
+            await container.finishEncoding()
+          }
+          mapRecorder?.reader?.releaseLock()
         }
 
-        await addRecorderFrame(mapRecorder, mapContainer)
-      }
-      finishEncoding()
+        for (; i < endFrame + 1; i++) {
+          const simTime = i / fps
+          getTimelineStore().setPosition(simTime)
+          redraw()
+
+          currentFrame.current = i
+          if (i % 10 === 0) console.log(`capturing frame ${i}/${endFrame} at simtime ${simTime}`)
+
+          const canvasResult = await canvasFrameReady()
+
+          if (canvasResult?.error) {
+            console.error('Error capturing canvas frame:', canvasResult.error)
+            return
+          }
+
+          const addRecorderFrame = async (
+            recorder: ReturnType<typeof getCanvasRecorder>,
+            container: Awaited<ReturnType<typeof getContainer>>
+          ) => {
+            // @ts-expect-error - typescript types not updated yet
+            recorder.track.requestFrame()
+            const result = await recorder.reader.read()
+            const frame = result.value
+
+            assert(frame, 'frame is required - might be a problem with the browser')
+
+            await container?.encodeFrame(frame)
+            frame.close()
+          }
+
+          await addRecorderFrame(mapRecorder, mapContainer)
+        }
+        finishEncoding()
       } finally {
         setIsRendering(false)
       }
