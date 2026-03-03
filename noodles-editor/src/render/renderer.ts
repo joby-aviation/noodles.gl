@@ -84,7 +84,6 @@ export const useRenderer = ({
         )
       }
 
-
       const getContainer = async (name: string) => {
         // Determine file extension and container format based on codec and alpha
         let extension = '.mp4'
