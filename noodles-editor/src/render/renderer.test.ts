@@ -9,7 +9,6 @@ describe('useRenderer', () => {
       .mockImplementation(() =>
         Promise.reject(new DOMException('The user aborted a request.', 'AbortError'))
       )
-    const consoleLogSpy = vi.spyOn(console, 'log')
 
     // Setup useRenderer
     const mockRedraw = vi.fn()
@@ -36,14 +35,10 @@ describe('useRenderer', () => {
     // Assertions
     expect(result.current.isRendering).toBe(false)
     expect(mockShowSaveFilePicker).toHaveBeenCalled()
-    // It's hard to assert that redraw was not called "excessively" without knowing the exact number of calls.
-    // We can assert that it was called a specific number of times if we know the expected behavior.
-    // For now, let's assume it shouldn't be called at all if the save dialog is cancelled.
+    // Redraw shouldn't be called if the save dialog is cancelled
     expect(mockRedraw).not.toHaveBeenCalled()
-    expect(consoleLogSpy).toHaveBeenCalledWith('Render setup cancelled by user (map container).')
 
     // Clean up mocks
-    consoleLogSpy.mockRestore()
     mockShowSaveFilePicker.mockRestore()
   })
 })

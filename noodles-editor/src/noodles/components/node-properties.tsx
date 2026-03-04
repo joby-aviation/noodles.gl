@@ -1,8 +1,7 @@
-import type { NodeJSON } from 'SKIP-@xyflow/react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
 import type { Edge } from '@xyflow/react'
-import { useEdges, useNodes, useReactFlow } from '@xyflow/react'
+import { useReactFlow, useStore } from '@xyflow/react'
 import cx from 'classnames'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -325,9 +324,15 @@ function CompoundSubFields({
 }
 
 // Exported for testing
-export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
+export function NodeProperties({ nodeId }: { nodeId: string }) {
   const { setEdges } = useReactFlow()
-  const edges = useEdges()
+  // Only re-renders when this node's incoming edges change (not on position updates)
+  const edges = useStore(
+    s => s.edges.filter(e => e.target === nodeId),
+    (a, b) => a.length === b.length && a.every((e, i) => e.id === b[i].id)
+  )
+  // Only re-renders when node type changes (stable during drag)
+  const nodeType = useStore(s => s.nodes.find(n => n.id === nodeId)?.type ?? '')
   const expandTimeline = useCallback(() => {
     useUIStore.getState().setTimelineExpanded(true)
   }, [])
@@ -347,7 +352,7 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
   const descriptionRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef<HTMLElement | null>(null)
   const store = getOpStore()
-  const op = store.getOp(node.id)
+  const op = store.getOp(nodeId)
 
   const { displayName, description } = op
     ? (op.constructor as typeof Operator)
@@ -363,11 +368,11 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
   }, [op])
 
   // Exit edit mode and clear search when switching to a different node
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally run when node.id changes
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally run when nodeId changes
   useEffect(() => {
     setIsEditMode(false)
     setHiddenFieldSearch('')
-  }, [node.id])
+  }, [nodeId])
 
   // Close context menu on outside click or Escape
   useEffect(() => {
@@ -427,7 +432,7 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
       // Get all edges connected to this input
       const relevantEdges = edges.filter(
         e =>
-          e.target === node.id &&
+          e.target === nodeId &&
           (e.targetHandle === inputName || e.targetHandle === `${IN_NS}.${inputName}`)
       )
       if (relevantEdges.length < 2) return edges
@@ -517,7 +522,7 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
       <div className={s.header}>
         <div className={s.title}>
           {getBaseName(op.id)}
-          <div className={cx(s.capsule, headerClass(node.type))}>{typeCategory(node.type)}</div>
+          <div className={cx(s.capsule, headerClass(nodeType))}>{typeCategory(nodeType)}</div>
         </div>
       </div>
       {op instanceof OutOp && (
@@ -597,7 +602,7 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
             const renderInput = (input: (typeof inputs)[0], isVisible: boolean) => {
               const incomers = edges.filter(
                 e =>
-                  e.target === node.id &&
+                  e.target === nodeId &&
                   (e.targetHandle === input.name || e.targetHandle === `par.${input.name}`)
               )
               const hideCheck = canHideField(op, input.name, edges)
@@ -933,24 +938,35 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
 }
 
 export function PropertyPanel() {
-  const nodes = useNodes()
-  const edges = useEdges()
-  const selectedNodes = nodes.filter(n => n.selected)
-  const selectedEdges = edges.filter(n => n.selected)
+  // Only re-renders when selection changes, not on position updates during drag
+  const { selectedNodeId, selectedNodeCount, selectedEdgeCount } = useStore(
+    s => {
+      const selectedNodes = s.nodes.filter(n => n.selected)
+      return {
+        selectedNodeId: selectedNodes.length === 1 ? selectedNodes[0].id : null,
+        selectedNodeCount: selectedNodes.length,
+        selectedEdgeCount: s.edges.filter(e => e.selected).length,
+      }
+    },
+    (a, b) =>
+      a.selectedNodeId === b.selectedNodeId &&
+      a.selectedNodeCount === b.selectedNodeCount &&
+      a.selectedEdgeCount === b.selectedEdgeCount
+  )
 
   return (
     <div className={s.panel}>
-      {selectedNodes.length === 1 ? (
-        <NodeProperties node={selectedNodes[0]} />
+      {selectedNodeId != null ? (
+        <NodeProperties nodeId={selectedNodeId} />
       ) : (
         <>
           <div className={s.header}>
             <div className={s.title}>Page</div>
           </div>
-          {selectedNodes.length > 1 ? (
+          {selectedNodeCount > 1 ? (
             <div>
-              <div>{selectedNodes.length} nodes selected</div>
-              <div>{selectedEdges.length} edges selected</div>
+              <div>{selectedNodeCount} nodes selected</div>
+              <div>{selectedEdgeCount} edges selected</div>
             </div>
           ) : (
             <div>Select a node to see properties</div>

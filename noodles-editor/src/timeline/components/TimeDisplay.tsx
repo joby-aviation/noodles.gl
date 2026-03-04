@@ -2,8 +2,8 @@
 // The total duration is clickable to edit the sequence length
 
 import { useCallback, useRef, useState } from 'react'
-import s from './TimelinePanel.module.css'
 import { captureTimelineState, fireTimelineMutation, useTimelineStore } from '../timeline-store'
+import s from './TimelinePanel.module.css'
 
 // Format time as MM:SS:FF (minutes:seconds:frames)
 function formatTimeCode(seconds: number, fps: number): string {

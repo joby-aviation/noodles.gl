@@ -1,5 +1,5 @@
 import * as Tooltip from '@radix-ui/react-tooltip'
-import { useReactFlow } from '@xyflow/react'
+import { useReactFlow, useStore } from '@xyflow/react'
 import cx from 'classnames'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { analytics } from '../../utils/analytics'
@@ -321,6 +321,12 @@ interface NodeTreeSidebarProps {
   updateOperatorId: (nodeId: string, newBaseName: string, isContainer: boolean) => void
 }
 
+// Selector that only updates when selection changes (not position)
+const selectedNodeIdsSelector = (state: { nodes: Array<{ id: string; selected?: boolean }> }) => {
+  const selectedIds = state.nodes.filter(n => n.selected).map(n => n.id)
+  return selectedIds.join(',') // Return string for stable comparison
+}
+
 export function NodeTreeSidebar({ updateOperatorId }: NodeTreeSidebarProps) {
   const operators = useOperatorStore(state => state.operators)
   const reactFlow = useReactFlow()
@@ -337,6 +343,8 @@ export function NodeTreeSidebar({ updateOperatorId }: NodeTreeSidebarProps) {
   // Build tree from operators
   const tree = useMemo(() => buildTree(operators), [operators])
 
+  // Get selected node IDs from React Flow - only re-render when selection changes, not position
+  const selectedIdsString = useStore(selectedNodeIdsSelector)
   // Flat filtered list when searching
   const filteredNodes = useMemo(() => {
     if (!searchQuery.trim()) return null
@@ -359,12 +367,9 @@ export function NodeTreeSidebar({ updateOperatorId }: NodeTreeSidebarProps) {
       })
       .sort((a, b) => a.id.localeCompare(b.id))
   }, [searchQuery, operators])
-
-  // Get selected node IDs from React Flow (reactive)
-  const nodes = reactFlow.getNodes()
   const selectedNodeIds = useMemo(() => {
-    return new Set(nodes.filter(n => n.selected).map(n => n.id))
-  }, [nodes])
+    return new Set(selectedIdsString ? selectedIdsString.split(',') : [])
+  }, [selectedIdsString])
 
   const handleSelect = useCallback(
     (id: string) => {

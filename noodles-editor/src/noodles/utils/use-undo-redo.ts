@@ -1,5 +1,6 @@
 import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react'
 import { useCallback, useRef } from 'react'
+import { debugHistory, debugHistorySnapshot } from '../../utils/debug'
 import { getOpStore } from '../store'
 import type { NodesProjectJSON } from './serialization'
 import { serializeEdges, serializeNodes } from './serialization'
@@ -64,7 +65,7 @@ export function useUndoRedo(
     }
 
     managerRef.current = new UndoRedoManager(getCurrentState, restoreState)
-    console.log('UndoRedoManager created (no initial snapshot yet)')
+    debugHistory('UndoRedoManager created (no initial snapshot yet)')
   }
 
   // Ref to track if we're currently restoring state (to prevent recursive snapshots)
@@ -77,11 +78,11 @@ export function useUndoRedo(
     // Take initial snapshot on first user action if not already taken
     if (!hasInitialSnapshot.current && description !== 'Initial state') {
       try {
-        console.log('Taking delayed initial snapshot before:', description)
+        debugHistorySnapshot('Taking delayed initial snapshot before: %s', description)
         managerRef.current?.takeSnapshot('Initial state')
         hasInitialSnapshot.current = true
-        console.log(
-          'Initial snapshot complete, history length:',
+        debugHistorySnapshot(
+          'Initial snapshot complete, history length: %d',
           managerRef.current?.getHistory().length
         )
       } catch (error) {
@@ -90,9 +91,12 @@ export function useUndoRedo(
       }
     }
 
-    console.log(`Taking snapshot: ${description}`)
+    debugHistorySnapshot('Taking snapshot: %s', description)
     managerRef.current?.takeSnapshot(description)
-    console.log('After snapshot, history length:', managerRef.current?.getHistory().length)
+    debugHistorySnapshot(
+      'After snapshot, history length: %d',
+      managerRef.current?.getHistory().length
+    )
   }, [])
 
   const undo = useCallback(() => {

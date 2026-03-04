@@ -1,16 +1,18 @@
 import { describe, expect, it } from 'vitest'
+import z from 'zod/v4'
 
 import {
   ArrayField,
   CompoundPropsField,
   DataField,
+  LayerField,
   ListField,
   NumberField,
   Point2DField,
   StringField,
   UnknownField,
 } from '../fields'
-import { canConnect, validateConnection } from './can-connect'
+import { canConnect, schemasAreCompatible, validateConnection } from './can-connect'
 
 describe('CanConnect', () => {
   it('allows compatible fields to connect', () => {
@@ -42,12 +44,14 @@ describe('CanConnect', () => {
     expect(canConnect(dataField, arrayField)).toBe(false)
   })
 
-  it('does not allow incompatible fields with different types to connect', () => {
+  it('allows DataField (z.unknown) to connect to/from any field', () => {
+    // DataField uses z.unknown() schema, which is optimistically compatible with anything.
+    // Type mismatches are caught at runtime, not connection time.
     const field1 = new DataField()
     field1.setValue([1, 2, 3])
     const field2 = new StringField('test')
-    expect(canConnect(field1, field2)).toBe(false)
-    expect(canConnect(field2, field1)).toBe(true) // DataField can connect to any field
+    expect(canConnect(field1, field2)).toBe(true) // unknown -> string is optimistically valid
+    expect(canConnect(field2, field1)).toBe(true) // string -> unknown is valid (DataField accepts anything)
   })
 
   it('allows ArrayFields to parse the subfield type correctly when connecting to a DataField', () => {
@@ -214,5 +218,138 @@ describe('ValidateConnection', () => {
     expect(result.valid).toBe(false)
     expect(result.error).toContain('Type mismatch')
     expect(result.error).not.toContain('Constraint violation')
+  })
+
+  it('returns severity "error" for type mismatches', () => {
+    const source = new StringField('test')
+    const target = new NumberField(0)
+
+    const result = validateConnection(source, target)
+    expect(result.valid).toBe(false)
+    expect(result.severity).toBe('error')
+  })
+
+  it('returns severity "warning" for constraint violations', () => {
+    const source = new NumberField(100)
+    const target = new NumberField(0, { max: 50 })
+
+    const result = validateConnection(source, target)
+    expect(result.valid).toBe(false)
+    expect(result.severity).toBe('warning')
+  })
+
+  it('DataField → ListField<LayerField> is valid (structural compatibility)', () => {
+    const dataField = new DataField()
+    const listField = new ListField(new LayerField())
+
+    const result = validateConnection(dataField, listField)
+    expect(result.valid).toBe(true)
+  })
+
+  it('unexecuted operator with undefined value is valid', () => {
+    // DataField defaults to undefined before execution
+    const dataField = new DataField()
+    expect(dataField.value).toEqual([])
+
+    // Even with the default empty array, structural compatibility should pass
+    const listField = new ListField(new LayerField())
+    const result = validateConnection(dataField, listField)
+    expect(result.valid).toBe(true)
+  })
+})
+
+describe('schemasAreCompatible', () => {
+  it('z.unknown() is compatible with any schema', () => {
+    expect(schemasAreCompatible(z.unknown(), z.number())).toBe(true)
+    expect(schemasAreCompatible(z.number(), z.unknown())).toBe(true)
+    expect(schemasAreCompatible(z.unknown(), z.string())).toBe(true)
+    expect(schemasAreCompatible(z.unknown(), z.object({ a: z.number() }))).toBe(true)
+  })
+
+  it('same primitive types are compatible', () => {
+    expect(schemasAreCompatible(z.number(), z.number())).toBe(true)
+    expect(schemasAreCompatible(z.string(), z.string())).toBe(true)
+    expect(schemasAreCompatible(z.boolean(), z.boolean())).toBe(true)
+  })
+
+  it('different primitive types are incompatible', () => {
+    expect(schemasAreCompatible(z.string(), z.number())).toBe(false)
+    expect(schemasAreCompatible(z.number(), z.string())).toBe(false)
+    expect(schemasAreCompatible(z.boolean(), z.number())).toBe(false)
+  })
+
+  it('arrays are compatible if elements are compatible', () => {
+    expect(schemasAreCompatible(z.array(z.number()), z.array(z.number()))).toBe(true)
+    expect(schemasAreCompatible(z.array(z.string()), z.array(z.number()))).toBe(false)
+    expect(schemasAreCompatible(z.array(z.unknown()), z.array(z.number()))).toBe(true)
+  })
+
+  it('objects are compatible if target properties exist in source with compatible types', () => {
+    const source = z.object({ a: z.number(), b: z.string() })
+    const target = z.object({ a: z.number() })
+    expect(schemasAreCompatible(source, target)).toBe(true)
+
+    // Missing required property
+    expect(schemasAreCompatible(target, source)).toBe(false)
+  })
+
+  it('objects with incompatible property types are incompatible', () => {
+    const source = z.object({ a: z.string() })
+    const target = z.object({ a: z.number() })
+    expect(schemasAreCompatible(source, target)).toBe(false)
+  })
+
+  it('optional wrappers are unwrapped for comparison', () => {
+    expect(schemasAreCompatible(z.number().optional(), z.number())).toBe(true)
+    expect(schemasAreCompatible(z.number(), z.number().optional())).toBe(true)
+    expect(schemasAreCompatible(z.string().optional(), z.number())).toBe(false)
+  })
+
+  it('nullable wrappers are unwrapped for comparison', () => {
+    expect(schemasAreCompatible(z.number().nullable(), z.number())).toBe(true)
+    expect(schemasAreCompatible(z.string().nullable(), z.number())).toBe(false)
+  })
+
+  it('readonly wrappers are unwrapped for comparison', () => {
+    expect(schemasAreCompatible(z.number().readonly(), z.number())).toBe(true)
+  })
+
+  it('z.unknown().readonly() is compatible with z.object()', () => {
+    // This is the exact schema combination from DataField → LayerField
+    expect(schemasAreCompatible(z.unknown().readonly(), z.object({ a: z.number() }))).toBe(true)
+  })
+
+  it('tuples are compatible if items match', () => {
+    expect(
+      schemasAreCompatible(z.tuple([z.string(), z.number()]), z.tuple([z.string(), z.number()]))
+    ).toBe(true)
+    expect(
+      schemasAreCompatible(z.tuple([z.string(), z.number()]), z.tuple([z.number(), z.string()]))
+    ).toBe(false)
+    expect(schemasAreCompatible(z.tuple([z.string()]), z.tuple([z.string(), z.number()]))).toBe(
+      false
+    )
+  })
+
+  it('string is compatible with literal<string>', () => {
+    expect(schemasAreCompatible(z.string(), z.literal('foo'))).toBe(true)
+    expect(schemasAreCompatible(z.number(), z.literal(5))).toBe(true)
+    expect(schemasAreCompatible(z.string(), z.literal(5))).toBe(false)
+  })
+
+  it('string is compatible with union of literals', () => {
+    const literals = z.union([z.literal('foo'), z.literal('bar')])
+    expect(schemasAreCompatible(z.string(), literals)).toBe(true)
+    expect(schemasAreCompatible(z.number(), literals)).toBe(false)
+  })
+
+  it('unions are compatible if all source options match at least one target option', () => {
+    const source = z.union([z.string(), z.number()])
+    const target = z.union([z.string(), z.number(), z.boolean()])
+    expect(schemasAreCompatible(source, target)).toBe(true)
+
+    // Source has option not in target
+    const incompatible = z.union([z.string()])
+    expect(schemasAreCompatible(source, incompatible)).toBe(false)
   })
 })

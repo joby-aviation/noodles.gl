@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle } from 'react'
-import { analytics } from '../../utils/analytics'
 import { registerTimelineMutationCallback } from '../../timeline/timeline-store'
+import { analytics } from '../../utils/analytics'
 import { useUndoRedo } from '../utils/use-reactflow-undo-redo'
 
 export interface UndoRedoHandlerRef {
