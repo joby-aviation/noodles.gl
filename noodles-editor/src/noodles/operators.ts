@@ -136,6 +136,7 @@ import { subscribeToPosition } from '../timeline/timeline-store'
 import * as utils from '../utils'
 import { getArc } from '../utils/arc-geometry'
 import { colorToHex, hexToColor } from '../utils/color'
+import { debugDirty, debugExecute, debugPull } from '../utils/debug'
 import { getDirections } from '../utils/directions'
 import { CARTO_DARK, MAP_STYLES } from '../utils/map-styles'
 import { mulberry32 } from '../utils/random'
@@ -423,6 +424,7 @@ export abstract class Operator<OP extends IOperator> {
   async pull(): Promise<ExtractProps<(typeof this)['outputs']>> {
     // Return cached if clean
     if (this._pullExecutionStatus === PullExecutionStatus.CLEAN && this._cachedOutput !== null) {
+      debugPull('%s: %s -> cached', this.id, PullExecutionStatus.CLEAN)
       return this._cachedOutput
     }
 
@@ -431,13 +433,17 @@ export abstract class Operator<OP extends IOperator> {
       this._pullExecutionStatus === PullExecutionStatus.COMPUTING &&
       this._computingPromise !== null
     ) {
+      debugPull('%s: %s -> waiting', this.id, PullExecutionStatus.COMPUTING)
       return this._computingPromise
     }
 
     // Handle error state
     if (this._pullExecutionStatus === PullExecutionStatus.ERROR) {
+      debugPull('%s: %s -> error', this.id, PullExecutionStatus.ERROR)
       throw new Error(`Operator ${this.id} is in error state`)
     }
+
+    debugPull('%s: %s -> executing', this.id, this._pullExecutionStatus)
 
     // Mark as computing
     this._pullExecutionStatus = PullExecutionStatus.COMPUTING
@@ -456,6 +462,7 @@ export abstract class Operator<OP extends IOperator> {
   // Internal pull execution logic
   private async _pullExecution(): Promise<ExtractProps<(typeof this)['outputs']>> {
     const startTime = performance.now()
+    debugExecute('%s: starting %O', this.id, { inputs: this.data })
 
     try {
       // Pull upstream dependencies first
@@ -478,6 +485,10 @@ export abstract class Operator<OP extends IOperator> {
       this.dirty = false // Also clear the dirty flag for GraphExecutor
       this._lastExecutionTime = performance.now() - startTime
 
+      debugExecute('%s: %dms %O', this.id, this._lastExecutionTime.toFixed(2), {
+        outputs: finalResult,
+      })
+
       // Update execution state for UI
       this.executionState.next({
         status: 'success',
@@ -496,6 +507,7 @@ export abstract class Operator<OP extends IOperator> {
       return finalResult
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err))
+      debugExecute('%s: ERROR - %s', this.id, error.message)
       console.warn(
         `Pull execution failure in [${this.id} (${(this.constructor as typeof Operator).displayName})]:`,
         error.message
@@ -531,9 +543,16 @@ export abstract class Operator<OP extends IOperator> {
 
   // Mark this operator as dirty and propagate downstream
   markDirty(): void {
-    if (this._pullExecutionStatus === PullExecutionStatus.DIRTY) {
+    const alreadyDirty = this._pullExecutionStatus === PullExecutionStatus.DIRTY
+    if (alreadyDirty) {
+      debugDirty('%s already dirty, skipping', this.id)
       return // Already dirty
     }
+    debugDirty(
+      '%s marked dirty, propagating to %d downstream',
+      this.id,
+      this._downstreamDependents.size
+    )
 
     this._pullExecutionStatus = PullExecutionStatus.DIRTY
     this._cachedOutput = null

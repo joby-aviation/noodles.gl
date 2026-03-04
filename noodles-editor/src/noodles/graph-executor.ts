@@ -403,6 +403,13 @@ export class GraphExecutor {
     // ForLoopEndOp may have downstream roots that will pull from its cached results
     const roots = this.findRootOperators()
 
+    debugExecutor(
+      'Frame start: %d dirty nodes, pulling %d roots %O',
+      this.dirtyNodes.size,
+      roots.length,
+      roots.map(op => op.id)
+    )
+
     // Pull from roots - this recursively executes all upstream dependencies
     if (this.options.parallel) {
       await Promise.all(
@@ -438,6 +445,8 @@ export class GraphExecutor {
     this.metrics.frameTime = performance.now() - frameStart
     this.metrics.executionCount = results.size
     this.metrics.totalOperators = this.nodes.size
+
+    debugExecutor('Frame complete: %dms', this.metrics.frameTime.toFixed(2))
 
     return results
   }
@@ -874,6 +883,10 @@ export function updateGraph(edges: Edge[]): void {
     globalExecutor.syncNodesFromStore()
     // Build edge relationships
     globalExecutor.buildFromEdges(edges)
+    // Start the RAF loop if not already running
+    if (!globalExecutor.isRunning) {
+      globalExecutor.start()
+    }
   }
 }
 

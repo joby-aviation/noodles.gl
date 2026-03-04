@@ -5,6 +5,7 @@ import { Temporal } from 'temporal-polyfill'
 import { isHexColor } from 'validator'
 import z from 'zod/v4'
 import { colorToHex } from '../utils/color'
+import { debugSetValue } from '../utils/debug'
 import type { BetterDeckProps, BetterMapProps } from '../visualizations'
 import type { inputComponents } from './components/field-components'
 import type { IOperator, Operator } from './operators'
@@ -183,18 +184,23 @@ export abstract class Field<
   }
 
   setValue(value: z.input<S>): void {
+    const oldValue = this.value
     const parsed = this.schema.safeParse(value, {
       reportInput: true,
       error: _iss => this.pathToProps.join('.'),
     })
+    const path = this.op?.id
+      ? `${this.op.id}.${this.pathToProps.join('.')}`
+      : this.pathToProps.join('.')
     if (parsed.success) {
+      debugSetValue('%s: %O -> %O', path, oldValue, parsed.data)
       this.next(parsed.data)
 
       // Mark the owning operator as dirty
       this.op?.markDirty()
     } else {
+      debugSetValue('%s: %O -> %O [PARSE FAILED]', path, oldValue, value)
       console.warn('Parse error', parsed.error.issues)
-      // console.trace()
     }
   }
 
