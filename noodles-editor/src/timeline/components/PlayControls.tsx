@@ -1,7 +1,7 @@
 // Play controls component - play/pause/loop/speed controls
 
-import s from './TimelinePanel.module.css'
 import { useTimelineStore } from '../timeline-store'
+import s from './TimelinePanel.module.css'
 
 export function PlayControls() {
   const playing = useTimelineStore(state => state.playing)

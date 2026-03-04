@@ -9,7 +9,6 @@ import type { BetterDeckProps, BetterMapProps } from '../visualizations'
 import type { inputComponents } from './components/field-components'
 import type { IOperator, Operator } from './operators'
 import type { ExtractProps } from './utils/extract-props'
-
 import { resolvePath } from './utils/path-utils'
 
 export interface IField<

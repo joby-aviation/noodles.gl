@@ -1,8 +1,8 @@
 // Playhead component - draggable position indicator
 
 import { useCallback, useRef, useState } from 'react'
-import s from './TimelinePanel.module.css'
 import { useTimelineStore } from '../timeline-store'
+import s from './TimelinePanel.module.css'
 
 export interface PlayheadProps {
   position: number
