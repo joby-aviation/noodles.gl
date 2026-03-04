@@ -5003,12 +5003,13 @@ export class HexagonLayerOp extends Operator<HexagonLayerOp> {
 
 export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
   static displayName = 'Tile3DLayer'
-  static description = 'Render Cesium or Google 3D tiles on the map'
+  static description = 'Render 3D tiles on the map (Google, Cesium, or a custom tileset URL)'
   static cacheable = false
   createInputs() {
     return {
       visible: new BooleanField(true),
-      provider: new StringLiteralField('Google', ['Cesium', 'Google']),
+      provider: new StringLiteralField('Google', ['Cesium', 'Generic', 'Google']),
+      tilesetUrl: new StringField('', { showByDefault: false }),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       operation: new StringLiteralField('terrain+draw', {
         values: ['terrain+draw', 'draw', 'terrain'],
@@ -5037,19 +5038,20 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
   execute({
     flatLighting,
     provider,
+    tilesetUrl,
     throttleRequests,
     maxMemoryUsage,
     maxScreenSpaceError,
     ...props
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // TODO: Add a typeahead field with pre-populated values, or the option to add a custom value
     const GOOGLE_TILESET_URL = 'https://tile.googleapis.com/v1/3dtiles/root.json'
     const NYC_CESIUM_TILESET_URL = 'https://assets.ion.cesium.com/242005/tileset.json'
 
     const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY!
     const CESIUM_ACCESS_TOKEN = import.meta.env.VITE_CESIUM_ACCESS_TOKEN!
 
-    const tilesetUrl = provider === 'Cesium' ? NYC_CESIUM_TILESET_URL : GOOGLE_TILESET_URL
+    const defaultUrl = provider === 'Cesium' ? NYC_CESIUM_TILESET_URL : GOOGLE_TILESET_URL
+    const data = tilesetUrl || defaultUrl
 
     const loader = provider === 'Cesium' ? CesiumIonLoader : Tiles3DLoader
 
@@ -5087,7 +5089,7 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
     const layer = {
       ...parseLayerProps<Tile3DLayerProps>(props),
       type: 'Tile3DLayer' as const,
-      data: tilesetUrl,
+      data,
       loader,
       loadOptions,
       onTilesetLoad,
