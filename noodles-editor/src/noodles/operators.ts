@@ -707,7 +707,11 @@ export abstract class Operator<OP extends IOperator> {
 
   // Get custom input fields as Field instances
   getCustomInputFields(): Record<string, Field> {
-    debugParams('getCustomInputFields %s: %d definitions', this.id, this.customInputDefinitions.length)
+    debugParams(
+      'getCustomInputFields %s: %d definitions',
+      this.id,
+      this.customInputDefinitions.length
+    )
     const fields: Record<string, Field> = {}
     for (const def of this.customInputDefinitions) {
       const field = this.createFieldFromDefinition(def)
@@ -719,7 +723,12 @@ export abstract class Operator<OP extends IOperator> {
 
   // Create a Field instance from a custom field definition
   protected createFieldFromDefinition(def: CustomFieldDefinition): Field {
-    debugParams('createFieldFromDefinition type=%s name=%s defaultValue=%O', def.type, def.name, def.defaultValue)
+    debugParams(
+      'createFieldFromDefinition type=%s name=%s defaultValue=%O',
+      def.type,
+      def.name,
+      def.defaultValue
+    )
     const FieldClass = fieldTypeToClass[def.type]
     if (!FieldClass) {
       debugParams('unknown field type: %s', def.type)
@@ -728,7 +737,12 @@ export abstract class Operator<OP extends IOperator> {
     const field = new FieldClass(def.defaultValue, def.options)
     // If value is still undefined, the defaultValue passed was invalid for this field type
     if (field.value === undefined) {
-      debugParams('field value undefined after construction: type=%s name=%s defaultValue=%O', def.type, def.name, def.defaultValue)
+      debugParams(
+        'field value undefined after construction: type=%s name=%s defaultValue=%O',
+        def.type,
+        def.name,
+        def.defaultValue
+      )
       throw new Error(
         `Invalid default value for field "${def.name}" (type: ${def.type}): ${JSON.stringify(def.defaultValue)}`
       )
@@ -804,7 +818,11 @@ export abstract class Operator<OP extends IOperator> {
 
   // Rebuild inputs when custom fields change
   rebuildInputs(): void {
-    debugParams('rebuildInputs start %s, %d custom definitions', this.id, this.customInputDefinitions.length)
+    debugParams(
+      'rebuildInputs start %s, %d custom definitions',
+      this.id,
+      this.customInputDefinitions.length
+    )
     // Preserve existing field values and connections
     const oldValues = new Map<string, unknown>()
     const oldConnections = new Map<
@@ -827,7 +845,11 @@ export abstract class Operator<OP extends IOperator> {
     // Recreate inputs (built-in + custom)
     const builtInInputs = this.createInputs()
     const customInputs = this.getCustomInputFields() // may throw on invalid field definitions
-    debugParams('rebuildInputs built %d custom inputs for %s', Object.keys(customInputs).length, this.id)
+    debugParams(
+      'rebuildInputs built %d custom inputs for %s',
+      Object.keys(customInputs).length,
+      this.id
+    )
 
     this.inputs = { ...builtInInputs, ...customInputs } as ReturnType<OP['createInputs']>
 

@@ -203,7 +203,7 @@ export function serializeNodes(
 
     preparedNodes.push({
       ...cleanedNode,
-      ...(node.type && resizeableNodes.includes(node.type as any)
+      ...(node.type && (resizeableNodes as readonly string[]).includes(node.type)
         ? { width, height, measured }
         : {}),
       data: {

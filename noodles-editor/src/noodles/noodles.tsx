@@ -1370,7 +1370,11 @@ export function getNoodles(): Visualization {
             }}
             operator={getOp(parameterEditorState.operatorId)!}
             onSave={definitions => {
-              debugParams('onSave for op %s, %d definitions', parameterEditorState.operatorId, definitions.length)
+              debugParams(
+                'onSave for op %s, %d definitions',
+                parameterEditorState.operatorId,
+                definitions.length
+              )
               const op = getOp(parameterEditorState.operatorId!)
               if (op) {
                 try {
