@@ -1,6 +1,7 @@
 // RAF-based playback driver for the native timeline system
 // Provides smooth playback and manual mode for video rendering
 
+import { debugPlayback } from '../utils/debug'
 import { getTimelineStore, useTimelineStore } from './timeline-store'
 
 // ============================================================================
@@ -61,7 +62,7 @@ export class PlaybackDriver {
   // Manually trigger a tick with a specific timestamp (only works in manual mode)
   manualTick(timestamp: number): void {
     if (!this.manualMode) {
-      console.warn('manualTick called but manual mode is not enabled')
+      debugPlayback('manualTick called but manual mode is not enabled')
       return
     }
 

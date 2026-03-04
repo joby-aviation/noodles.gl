@@ -1,6 +1,7 @@
 // GraphExecutor - Execution engine for the operator graph
 // Manages operator execution with topological sorting, dirty tracking, and RAF loop
 
+import { debugExecutor } from '../utils/debug'
 import type { ForLoopBeginOp, ForLoopEndOp, ForLoopMetaOp, IOperator, Operator } from './operators'
 import { getAllOps } from './store'
 import type { OpId } from './utils/id-utils'
@@ -371,6 +372,13 @@ export class GraphExecutor {
     this.syncNodesFromStore()
     this.updateSort()
 
+    debugExecutor(
+      'executeFrame: nodes=%d, edges=%d, dirty=%d',
+      this.nodes.size,
+      this.edges.length,
+      this.dirtyNodes.size
+    )
+
     // Reset frame metrics
     if (this.options.enableProfiling) {
       this.metrics.executionCount = 0
@@ -402,6 +410,13 @@ export class GraphExecutor {
     // Find root operators to pull from (sinks like DeckRenderer, Viewer, etc.)
     // ForLoopEndOp may have downstream roots that will pull from its cached results
     const roots = this.findRootOperators()
+
+    debugExecutor(
+      'Pulling roots: %d dirty nodes, %d roots %O',
+      this.dirtyNodes.size,
+      roots.length,
+      roots.map(op => op.id)
+    )
 
     // Pull from roots - this recursively executes all upstream dependencies
     if (this.options.parallel) {
@@ -438,6 +453,8 @@ export class GraphExecutor {
     this.metrics.frameTime = performance.now() - frameStart
     this.metrics.executionCount = results.size
     this.metrics.totalOperators = this.nodes.size
+
+    debugExecutor('Frame complete: %dms', this.metrics.frameTime.toFixed(2))
 
     return results
   }
@@ -837,6 +854,8 @@ let globalExecutor: GraphExecutor | null = null
 
 // Initialize the execution system
 export function initializeExecutor(options?: ExecutorOptions): GraphExecutor {
+  // Stop the previous executor before replacing it to prevent RAF leaks
+  globalExecutor?.stop()
   globalExecutor = new GraphExecutor(options)
 
   if (typeof window !== 'undefined') {
@@ -874,6 +893,10 @@ export function updateGraph(edges: Edge[]): void {
     globalExecutor.syncNodesFromStore()
     // Build edge relationships
     globalExecutor.buildFromEdges(edges)
+    // Start the RAF loop if not already running
+    if (!globalExecutor.isRunning) {
+      globalExecutor.start()
+    }
   }
 }
 

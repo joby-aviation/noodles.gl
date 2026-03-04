@@ -1,10 +1,9 @@
 // Time ruler component showing time markers based on zoom level
 
 import type React from 'react'
-import { useCallback, useRef, useState } from 'react'
-import { useMemo } from 'react'
-import s from './TimelinePanel.module.css'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { captureTimelineState, fireTimelineMutation } from '../timeline-store'
+import s from './TimelinePanel.module.css'
 
 export interface TimeRulerProps {
   width: number

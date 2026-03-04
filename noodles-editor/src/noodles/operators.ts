@@ -132,13 +132,14 @@ import type z from 'zod/v4'
 import './utils/bigint-fix' // BigInt JSON polyfill for DuckDB
 import * as duckdb from '@duckdb/duckdb-wasm'
 import { getTransformScaleFactor } from '../render/transform-scale'
+import { subscribeToPosition } from '../timeline/timeline-store'
 import * as utils from '../utils'
 import { getArc } from '../utils/arc-geometry'
 import { colorToHex, hexToColor } from '../utils/color'
+import { debugDirty, debugExecute, debugPull } from '../utils/debug'
 import { getDirections } from '../utils/directions'
 import { CARTO_DARK, MAP_STYLES } from '../utils/map-styles'
 import { mulberry32 } from '../utils/random'
-import { subscribeToPosition } from '../timeline/timeline-store'
 import { FilterColorExtension } from './extensions/filter-color-extension'
 import { Mask3DExtension } from './extensions/mask-3d-extension'
 import {
@@ -445,6 +446,7 @@ export abstract class Operator<OP extends IOperator> {
   async pull(): Promise<ExtractProps<(typeof this)['outputs']>> {
     // Return cached if clean
     if (this._pullExecutionStatus === PullExecutionStatus.CLEAN && this._cachedOutput !== null) {
+      debugPull('%s: %s -> cached', this.id, PullExecutionStatus.CLEAN)
       return this._cachedOutput
     }
 
@@ -453,13 +455,17 @@ export abstract class Operator<OP extends IOperator> {
       this._pullExecutionStatus === PullExecutionStatus.COMPUTING &&
       this._computingPromise !== null
     ) {
+      debugPull('%s: %s -> waiting', this.id, PullExecutionStatus.COMPUTING)
       return this._computingPromise
     }
 
     // Handle error state
     if (this._pullExecutionStatus === PullExecutionStatus.ERROR) {
+      debugPull('%s: %s -> error', this.id, PullExecutionStatus.ERROR)
       throw new Error(`Operator ${this.id} is in error state`)
     }
+
+    debugPull('%s: %s -> executing', this.id, this._pullExecutionStatus)
 
     // Mark as computing
     this._pullExecutionStatus = PullExecutionStatus.COMPUTING
@@ -478,6 +484,7 @@ export abstract class Operator<OP extends IOperator> {
   // Internal pull execution logic
   private async _pullExecution(): Promise<ExtractProps<(typeof this)['outputs']>> {
     const startTime = performance.now()
+    debugExecute('%s: starting %O', this.id, { inputs: this.data })
 
     try {
       // Pull upstream dependencies first
@@ -500,6 +507,10 @@ export abstract class Operator<OP extends IOperator> {
       this.dirty = false // Also clear the dirty flag for GraphExecutor
       this._lastExecutionTime = performance.now() - startTime
 
+      debugExecute('%s: %dms %O', this.id, this._lastExecutionTime.toFixed(2), {
+        outputs: finalResult,
+      })
+
       // Update execution state for UI
       this.executionState.next({
         status: 'success',
@@ -518,6 +529,7 @@ export abstract class Operator<OP extends IOperator> {
       return finalResult
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err))
+      debugExecute('%s: ERROR - %s', this.id, error.message)
       console.warn(
         `Pull execution failure in [${this.id} (${(this.constructor as typeof Operator).displayName})]:`,
         error.message
@@ -553,9 +565,16 @@ export abstract class Operator<OP extends IOperator> {
 
   // Mark this operator as dirty and propagate downstream
   markDirty(): void {
-    if (this._pullExecutionStatus === PullExecutionStatus.DIRTY) {
+    const alreadyDirty = this._pullExecutionStatus === PullExecutionStatus.DIRTY
+    if (alreadyDirty) {
+      debugDirty('%s already dirty, skipping', this.id)
       return // Already dirty
     }
+    debugDirty(
+      '%s marked dirty, propagating to %d downstream',
+      this.id,
+      this._downstreamDependents.size
+    )
 
     this._pullExecutionStatus = PullExecutionStatus.DIRTY
     this._cachedOutput = null
@@ -4269,6 +4288,96 @@ function parseLayerProps<P extends LayerProps>({
   return result
 }
 
+export class BlendingOp extends Operator<BlendingOp> {
+  static displayName = 'Blending'
+  static description = 'Configure WebGL blending mode for layers (additive, normal, subtractive)'
+  createInputs() {
+    return {
+      mode: new StringLiteralField('normal', {
+        values: ['normal', 'additive', 'subtractive', 'custom'],
+      }),
+      // Custom mode fields (only used when mode='custom')
+      blendColorSrcFactor: new StringLiteralField('src-alpha', {
+        values: [
+          'src-alpha',
+          'one',
+          'zero',
+          'dst-alpha',
+          'one-minus-src-alpha',
+          'one-minus-dst-alpha',
+          'one-minus-dst-color',
+        ],
+        optional: true,
+        showByDefault: false,
+      }),
+      blendColorDstFactor: new StringLiteralField('one-minus-src-alpha', {
+        values: [
+          'src-alpha',
+          'one',
+          'zero',
+          'dst-alpha',
+          'one-minus-src-alpha',
+          'one-minus-dst-alpha',
+          'one-minus-dst-color',
+        ],
+        optional: true,
+        showByDefault: false,
+      }),
+    }
+  }
+  createOutputs() {
+    return {
+      parameters: new UnknownField({}),
+    }
+  }
+  execute({
+    mode,
+    blendColorSrcFactor,
+    blendColorDstFactor,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    // Kepler-style presets using luma.gl v9 parameter names
+    const presets = {
+      normal: {
+        blend: true,
+        blendColorSrcFactor: 'src-alpha',
+        blendColorDstFactor: 'one-minus-src-alpha',
+        blendAlphaSrcFactor: 'one',
+        blendAlphaDstFactor: 'one-minus-src-alpha',
+        blendColorOperation: 'add',
+        blendAlphaOperation: 'add',
+      },
+      additive: {
+        blend: true,
+        blendColorSrcFactor: 'src-alpha',
+        blendColorDstFactor: 'dst-alpha',
+        blendColorOperation: 'add',
+      },
+      subtractive: {
+        blend: true,
+        blendColorSrcFactor: 'one',
+        blendColorDstFactor: 'one-minus-dst-color',
+        blendAlphaSrcFactor: 'src-alpha',
+        blendAlphaDstFactor: 'dst-alpha',
+        blendColorOperation: 'reverse-subtract',
+        blendAlphaOperation: 'add',
+      },
+    }
+
+    if (mode === 'custom' && blendColorSrcFactor && blendColorDstFactor) {
+      return {
+        parameters: {
+          blend: true,
+          blendColorSrcFactor,
+          blendColorDstFactor,
+          blendColorOperation: 'add',
+        },
+      }
+    }
+
+    return { parameters: presets[mode as keyof typeof presets] || presets.normal }
+  }
+}
+
 export class PathLayerOp extends Operator<PathLayerOp> {
   static displayName = 'PathLayer'
   static description = 'Render a path on the map'
@@ -4513,7 +4622,6 @@ export class TextLayerOp extends Operator<TextLayerOp> {
         cutoff: new NumberField(0.25, { min: 0, max: 1, step: 0.01 }),
         smoothing: new NumberField(0.1, { min: 0, max: 1, step: 0.01 }),
       }),
-      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -4523,6 +4631,7 @@ export class TextLayerOp extends Operator<TextLayerOp> {
         },
         { showByDefault: false }
       ),
+      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
   createOutputs() {
@@ -4937,7 +5046,6 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
       }),
       elevationScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
       _full3d: new BooleanField(false, { showByDefault: false }),
-      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -4947,6 +5055,7 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
         },
         { showByDefault: false }
       ),
+      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
   createOutputs() {
@@ -7003,6 +7112,7 @@ export const opTypes = {
   ArcLayerOp,
   BezierCurveOp,
   BitmapLayerOp,
+  BlendingOp,
   BooleanOp,
   BoundingBoxOp,
   BoundsOp,

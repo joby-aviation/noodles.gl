@@ -1,5 +1,6 @@
 import type { Deck, DeckProps } from '@deck.gl/core'
 import { useEffect } from 'react'
+import { debugRender } from '../utils/debug'
 
 interface RendererConfig {
   waitForData: boolean
@@ -45,7 +46,7 @@ export function useDeckDrawLoop({
           onAfterRender: context => {
             props.onAfterRender?.(context)
             if (waitForData && !isDeckReady(deck)) {
-              console.warn('deck waiting')
+              debugRender('deck waiting for layers to load')
               return // layers aren't loaded
             }
             // Deck is ready, or we are not waiting for data

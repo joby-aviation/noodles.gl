@@ -2,8 +2,8 @@
 // Shows a thin tab when collapsed, full panel when expanded
 
 import { useUIStore } from '../../noodles/store'
-import { TimelinePanel } from './TimelinePanel'
 import s from './CollapsibleTimelinePanel.module.css'
+import { TimelinePanel } from './TimelinePanel'
 
 export interface CollapsibleTimelinePanelProps {
   height?: number

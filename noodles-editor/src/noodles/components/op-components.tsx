@@ -22,7 +22,15 @@ import { Column } from 'primereact/column'
 import { DataTable } from 'primereact/datatable'
 import { InputNumber } from 'primereact/inputnumber'
 import { InputText } from 'primereact/inputtext'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import {
+  type ComponentType,
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 import { createPortal } from 'react-dom'
 import { Temporal } from 'temporal-polyfill'
 
@@ -156,21 +164,39 @@ export function useHandleDimmed(nodeId: string, handleId: string): boolean {
   return !canConnect(targetField, sourceField)
 }
 
-const defaultNodeComponents = {} as Record<OpType, typeof NodeComponent>
+// Custom comparison function for node components
+// During drag, React Flow passes new position/data objects but id/type/selected don't change
+// By only comparing these three props, we prevent re-renders during drag operations
+// Exported for testing
+export function nodePropsAreEqual(
+  prevProps: ReactFlowNodeProps,
+  nextProps: ReactFlowNodeProps
+): boolean {
+  return (
+    prevProps.id === nextProps.id &&
+    prevProps.type === nextProps.type &&
+    prevProps.selected === nextProps.selected
+  )
+}
+
+// Memoized once - all node types in the registry share this single wrapper
+const MemoNodeComponent = memo(NodeComponent, nodePropsAreEqual)
+
+const defaultNodeComponents: Record<string, ComponentType<ReactFlowNodeProps>> = {}
 for (const key of Object.keys(opTypes)) {
-  defaultNodeComponents[key] = NodeComponent
+  defaultNodeComponents[key] = MemoNodeComponent
 }
 
 export const nodeComponents = {
   ...defaultNodeComponents,
-  GeocoderOp: GeocoderOpComponent,
-  DirectionsOp: DirectionsOpComponent,
-  MouseOp: MouseOpComponent,
-  OutOp: OutOpComponent,
-  TableEditorOp: TableEditorOpComponent,
-  TimeOp: TimeOpComponent,
-  ViewerOp: ViewerOpComponent,
-  ContainerOp: ContainerOpComponent,
+  GeocoderOp: memo(GeocoderOpComponent, nodePropsAreEqual),
+  DirectionsOp: memo(DirectionsOpComponent, nodePropsAreEqual),
+  MouseOp: memo(MouseOpComponent, nodePropsAreEqual),
+  OutOp: memo(OutOpComponent, nodePropsAreEqual),
+  TableEditorOp: memo(TableEditorOpComponent, nodePropsAreEqual),
+  TimeOp: memo(TimeOpComponent, nodePropsAreEqual),
+  ViewerOp: memo(ViewerOpComponent, nodePropsAreEqual),
+  ContainerOp: memo(ContainerOpComponent, nodePropsAreEqual),
 } as const as ReactFlowNodeTypes
 
 export const edgeComponents = {
@@ -329,6 +355,9 @@ export const SOURCE_HANDLE = 'source'
 export const TARGET_HANDLE = 'target'
 export const PAR_NAMESPACE = 'par'
 export const OUT_NAMESPACE = 'out'
+
+// Stable constant - avoids creating a new object on every render inside .map()
+export const PAR_HANDLE_OPTIONS = { type: TARGET_HANDLE, namespace: PAR_NAMESPACE } as const
 
 function useLocked(op: Operator<IOperator>) {
   const [locked, setLocked] = useState(op.locked.value)
@@ -584,7 +613,7 @@ function NodeComponent({
               id={key}
               field={field}
               disabled={locked}
-              handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
+              handle={PAR_HANDLE_OPTIONS}
             />
           ))}
         <div className={s.outputHandleContainer}>
@@ -940,7 +969,7 @@ function GeocoderOpComponent({
               id={key}
               field={field}
               disabled={locked}
-              handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
+              handle={PAR_HANDLE_OPTIONS}
               renderInput={false}
             />
           ))}
@@ -1134,7 +1163,7 @@ function TableEditorOpComponent({
               id={key}
               field={field}
               disabled={locked}
-              handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
+              handle={PAR_HANDLE_OPTIONS}
             />
           ))}
         <div className="card p-fluid">
@@ -1325,7 +1354,7 @@ function ViewerOpComponent({
               id={key}
               field={field}
               disabled={locked}
-              handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
+              handle={PAR_HANDLE_OPTIONS}
             />
           ))}
         {content}
@@ -1384,7 +1413,7 @@ function ContainerOpComponent({
               id={key}
               field={field}
               disabled={locked}
-              handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
+              handle={PAR_HANDLE_OPTIONS}
             />
           ))}
         <div>Children: {childrenCount}</div>
@@ -1480,7 +1509,7 @@ function OutOpComponent({ id, type }: ReactFlowNodeProps<NodeDataJSON<OutOp>> & 
             id={key}
             field={field}
             disabled={locked}
-            handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
+            handle={PAR_HANDLE_OPTIONS}
           />
         ))}
         <div className={s.outputHandleContainer}>

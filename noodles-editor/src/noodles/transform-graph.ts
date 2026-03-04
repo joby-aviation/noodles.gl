@@ -228,11 +228,13 @@ export function transformGraph<
         targetOp.showField(targetFieldName)
 
         // ReferenceEdges mark reactive dependencies only — type checking doesn't apply
+        // Only validate when the source field has produced a value; skip if the operator hasn't
+        // executed yet (value === undefined) to avoid false "type mismatch" errors on initial load
         const validation = validateConnection(sourceField, targetField)
-        if (!validation.valid && validation.error) {
+        if (!validation.valid && validation.error && sourceField.value !== undefined) {
           targetOp.addConnectionError(edge.id, validation.error)
         } else {
-          // Clear any existing error for this edge if it's now valid
+          // Clear any existing error for this edge if it's now valid (or not yet computed)
           targetOp.removeConnectionError(edge.id)
         }
       }
