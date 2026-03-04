@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChromePicker } from 'react-color'
 import { createPortal } from 'react-dom'
-import { colorToHex } from '../../utils/color'
 import { Z_INDEX } from '../../styles/z-index'
+import { colorToHex } from '../../utils/color'
 import s from '../noodles.module.css'
 
 interface ColorSwatchProps {
