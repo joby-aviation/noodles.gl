@@ -10,6 +10,7 @@ import {
 import { useEdges } from '@xyflow/react'
 import { useCallback, useState } from 'react'
 import type { CustomFieldDefinition, IOperator, Operator } from '../operators'
+import { fieldTypeToClass } from '../fields'
 import { findFieldReferences } from '../utils/field-references'
 import { debugParams } from '../../utils/debug'
 import s from './parameter-editor-dialog.module.css'
@@ -398,7 +399,11 @@ function FieldEditor({ definition, onUpdate, onValidate, error }: FieldEditorPro
           Type
           <select
             value={definition.type}
-            onChange={e => onUpdate({ type: e.target.value })}
+            onChange={e => {
+              const newType = e.target.value
+              const FieldClass = fieldTypeToClass[newType]
+              onUpdate({ type: newType, defaultValue: FieldClass?.defaultValue })
+            }}
             className={s.select}
           >
             <option value="number">Number</option>
