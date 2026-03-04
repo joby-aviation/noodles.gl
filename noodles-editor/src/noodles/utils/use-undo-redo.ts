@@ -93,7 +93,10 @@ export function useUndoRedo(
 
     debugHistorySnapshot('Taking snapshot: %s', description)
     managerRef.current?.takeSnapshot(description)
-    debugHistorySnapshot('After snapshot, history length: %d', managerRef.current?.getHistory().length)
+    debugHistorySnapshot(
+      'After snapshot, history length: %d',
+      managerRef.current?.getHistory().length
+    )
   }, [])
 
   const undo = useCallback(() => {

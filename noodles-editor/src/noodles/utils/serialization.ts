@@ -114,7 +114,12 @@ export function serializeNodes(
   options?: SerializeNodesOptions
 ) {
   const { forClipboard = false } = options ?? {}
-  debugSerialize('serializeNodes: %d nodes, %d edges, forClipboard=%s', nodes.length, edges.length, forClipboard)
+  debugSerialize(
+    'serializeNodes: %d nodes, %d edges, forClipboard=%s',
+    nodes.length,
+    edges.length,
+    forClipboard
+  )
 
   // Make a copy of the node to prepared for serialization.
   const preparedNodes: NodeJSON<unknown>[] = []

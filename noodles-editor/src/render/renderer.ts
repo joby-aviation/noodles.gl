@@ -217,7 +217,8 @@ export const useRenderer = ({
         redraw()
 
         currentFrame.current = i
-        if (i % 10 === 0) debugRenderFrame('capturing frame %d/%d at simtime %d', i, endFrame, simTime)
+        if (i % 10 === 0)
+          debugRenderFrame('capturing frame %d/%d at simtime %d', i, endFrame, simTime)
 
         const canvasResult = await canvasFrameReady()
 

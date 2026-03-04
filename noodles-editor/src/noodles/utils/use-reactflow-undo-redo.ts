@@ -98,7 +98,10 @@ export function useUndoRedo() {
           (change.type === 'position' && change.dragging === false) // Only record final position
       )
 
-      debugHistory('Node changes: %O', changes.map(c => c.type))
+      debugHistory(
+        'Node changes: %O',
+        changes.map(c => c.type)
+      )
       debugHistory('Significant changes: %d', significantChanges.length)
       debugHistorySnapshot('Captured state counts: %O', {
         nodesBeforeCount: nodesBefore.length,
@@ -139,7 +142,10 @@ export function useUndoRedo() {
             // Remove any history after current index
             const newHistory = prev.history.slice(0, prev.currentIndex + 1)
             newHistory.push(entry)
-            debugHistorySnapshot('After adding node entry - new history length: %d', newHistory.length)
+            debugHistorySnapshot(
+              'After adding node entry - new history length: %d',
+              newHistory.length
+            )
 
             // Limit history size
             let finalHistory = newHistory
@@ -147,7 +153,11 @@ export function useUndoRedo() {
             if (newHistory.length > maxHistorySize) {
               finalHistory = newHistory.slice(-maxHistorySize)
               newIndex = finalHistory.length - 1
-              debugHistory('Trimmed history to %d entries, new index: %d', finalHistory.length, newIndex)
+              debugHistory(
+                'Trimmed history to %d entries, new index: %d',
+                finalHistory.length,
+                newIndex
+              )
             }
 
             debugHistorySnapshot(
@@ -192,7 +202,10 @@ export function useUndoRedo() {
       // Apply changes
       userOnEdgesChange(changes)
 
-      debugHistory('Edge changes: %O', changes.map(c => c.type))
+      debugHistory(
+        'Edge changes: %O',
+        changes.map(c => c.type)
+      )
 
       // Create history entry for all edge changes (they're usually significant)
       if (changes.length > 0) {
@@ -224,7 +237,10 @@ export function useUndoRedo() {
             // Remove any history after current index
             const newHistory = prev.history.slice(0, prev.currentIndex + 1)
             newHistory.push(entry)
-            debugHistorySnapshot('After adding edge entry - new history length: %d', newHistory.length)
+            debugHistorySnapshot(
+              'After adding edge entry - new history length: %d',
+              newHistory.length
+            )
 
             // Limit history size
             let finalHistory = newHistory
@@ -232,7 +248,11 @@ export function useUndoRedo() {
             if (newHistory.length > maxHistorySize) {
               finalHistory = newHistory.slice(-maxHistorySize)
               newIndex = finalHistory.length - 1
-              debugHistory('Trimmed history to %d entries, new index: %d', finalHistory.length, newIndex)
+              debugHistory(
+                'Trimmed history to %d entries, new index: %d',
+                finalHistory.length,
+                newIndex
+              )
             }
 
             debugHistorySnapshot(

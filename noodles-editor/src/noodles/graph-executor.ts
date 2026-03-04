@@ -364,7 +364,12 @@ export class GraphExecutor {
     this.syncNodesFromStore()
     this.updateSort()
 
-    debugExecutor('executeFrame: nodes=%d, edges=%d, dirty=%d', this.nodes.size, this.edges.length, this.dirtyNodes.size)
+    debugExecutor(
+      'executeFrame: nodes=%d, edges=%d, dirty=%d',
+      this.nodes.size,
+      this.edges.length,
+      this.dirtyNodes.size
+    )
 
     // Reset frame metrics
     if (this.options.enableProfiling) {
