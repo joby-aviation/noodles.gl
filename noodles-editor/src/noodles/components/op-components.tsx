@@ -601,7 +601,7 @@ function NodeComponent({
       })}
     >
       <NodeHeader id={id} type={type} op={op} connectionErrors={connectionErrors} />
-      {resizeableNodes.includes(type as any) && (
+      {(resizeableNodes as readonly string[]).includes(type) && (
         <NodeResizer isVisible={selected} minWidth={200} minHeight={100} />
       )}
       <div className={s.content}>
