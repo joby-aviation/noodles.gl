@@ -457,7 +457,11 @@ localStorage.debug = ''                 // Disable
 - `noodles:history:snapshot` - Snapshot capture and storage
 - `noodles:history:undo` - Undo operations
 - `noodles:history:redo` - Redo operations
-- `noodles:executor` - Graph execution (future)
+- `noodles:executor` - Graph execution frame loop
+- `noodles:render` - Video/image rendering setup
+- `noodles:render:frame` - Per-frame capture progress
+- `noodles:playback` - Timeline playback driver
+- `noodles:serialize` - Project save/load (future)
 
 **Adding new debug logging:**
 ```typescript

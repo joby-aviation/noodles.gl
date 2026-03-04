@@ -8,6 +8,7 @@ import {
 } from 'mediabunny'
 import { useCallback, useRef, useState } from 'react'
 import { getTimelineStore, useTimelineStore } from '../timeline/timeline-store'
+import { debugRender, debugRenderFrame } from '../utils/debug'
 
 export const rafDriver = {
   tick: (_timestamp: number) => {},
@@ -83,7 +84,7 @@ export const useRenderer = ({
           })
           .catch(error => {
             if (error.name === 'AbortError') {
-              console.log('File picker cancelled by user for:', name)
+              debugRender('File picker cancelled by user for: %s', name)
             } else {
               console.error('Error in showSaveFilePicker for', name, ':', error)
             }
@@ -196,7 +197,7 @@ export const useRenderer = ({
       const mapContainer = await getContainer(`${projectName}-map`)
       if (!mapContainer) {
         setIsRendering(false)
-        console.log('Render setup cancelled by user (map container).')
+        debugRender('Render setup cancelled by user (map container)')
         return
       }
       const containers = new Map([['map', mapContainer]])
@@ -216,7 +217,7 @@ export const useRenderer = ({
         redraw()
 
         currentFrame.current = i
-        if (i % 10 === 0) console.log(`capturing frame ${i}/${endFrame} at simtime ${simTime}`)
+        if (i % 10 === 0) debugRenderFrame('capturing frame %d/%d at simtime %d', i, endFrame, simTime)
 
         const canvasResult = await canvasFrameReady()
 
