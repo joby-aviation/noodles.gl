@@ -102,6 +102,7 @@ import { calculateViewerPosition } from './utils/viewer-position'
  * work reliably regardless of import order (prevents linting from breaking styles).
  */
 import './layers.css'
+import { debugVis } from '../utils/debug'
 import s from './noodles.module.css'
 
 export type Edge<N1 extends Operator<IOperator>, N2 extends Operator<IOperator>> = {
@@ -1451,6 +1452,13 @@ export function getNoodles(): Visualization {
             })
             instantiatedLayers.push(overlayLayer)
           }
+
+          debugVis(
+            'vis subscription fired: %d layers types=%O hasMapProps=%s',
+            instantiatedLayers.length,
+            layers?.map(l => l.type) || [],
+            !!mapProps
+          )
 
           setVisProps({
             deckProps: {
