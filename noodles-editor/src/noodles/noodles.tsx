@@ -247,13 +247,29 @@ export function getNoodles(): Visualization {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [hasUnsavedChanges, projectName])
 
+  // Only changes when graph structure changes (nodes added/removed/type changed, edges reconnected)
+  // Intentionally excludes node position so dragging does NOT re-run transformGraph
+  const graphStructureKey = useMemo(() => {
+    const nodeIds = nodes
+      .map(n => `${n.id}:${n.type}`)
+      .sort()
+      .join(',')
+    const edgeIds = edges
+      .map(e => e.id)
+      .sort()
+      .join(',')
+    return `${nodeIds}|${edgeIds}`
+  }, [nodes, edges])
+
   // `transformGraph` needs all nodes to build the opMap and resolve connections
   // Use useEffect instead of useMemo to avoid setState during render
   const [operators, setOperators] = useState<Operator<IOperator>[]>([])
+  // nodes/edges omitted from deps intentionally — only re-run on structural changes, not position updates during drag
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional - graphStructureKey gates this
   useEffect(() => {
     const ops = transformGraph({ nodes, edges })
     setOperators(ops)
-  }, [nodes, edges])
+  }, [graphStructureKey])
 
   // Bind timeline tracks for all operators (outside ReactFlow rendering pipeline).
   useEffect(() => {
@@ -322,7 +338,6 @@ export function getNoodles(): Visualization {
 
   // Track connection drag state for dimming unconnectable nodes
   const setConnectionDragState = useUIStore(state => state.setConnectionDragState)
-
   const onConnectStart: OnConnectStart = useCallback(
     (_event, params) => {
       if (!params.nodeId || !params.handleId) return
@@ -1310,8 +1325,6 @@ export function getNoodles(): Visualization {
               <ReactFlowInstanceCapture />
               <Background />
               <Controls position="bottom-right" />
-              {showDebugInfo && <NodeInfoOverlay />}
-              {showDebugInfo && <ViewportInfoPanel />}
               <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />
               <CopyControls ref={copyControlsRef} />
               <UndoRedoHandler ref={undoRedoRef} />
@@ -1324,6 +1337,8 @@ export function getNoodles(): Visualization {
                 isVisible={showChatPanel}
                 initialMessage={chatInitialMessage}
               />
+              {showDebugInfo && <NodeInfoOverlay />}
+              {showDebugInfo && <ViewportInfoPanel />}
             </ReactFlow>
           </TimelineProvider>
         </PrimeReactProvider>

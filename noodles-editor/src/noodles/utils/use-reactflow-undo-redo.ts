@@ -83,20 +83,24 @@ export function useUndoRedo() {
         return
       }
 
-      // Record state before changes - capture directly from store to avoid stale closure
-      const { nodes: nodesBefore, edges: edgesBefore } = store.getState()
-      const timelineStateBefore = captureTimelineState()
-
-      // Apply changes
-      userOnNodesChange(changes)
-
-      // Create history entry for significant changes (not just selection/drag)
+      // Filter first to avoid calling store.getState() on every drag frame
       const significantChanges = changes.filter(
         change =>
           change.type === 'add' ||
           change.type === 'remove' ||
           (change.type === 'position' && change.dragging === false) // Only record final position
       )
+
+      if (significantChanges.length === 0) {
+        userOnNodesChange(changes)
+        return
+      }
+
+      // Only capture state when there are significant changes to record
+      const { nodes: nodesBefore, edges: edgesBefore } = store.getState()
+      const timelineStateBefore = captureTimelineState()
+
+      userOnNodesChange(changes)
 
       debugHistory(
         'Node changes: %O',
@@ -108,71 +112,69 @@ export function useUndoRedo() {
         edgesBeforeCount: edgesBefore.length,
       })
 
-      if (significantChanges.length > 0) {
-        // Capture state after changes (need to use setTimeout to get updated state from store)
-        setTimeout(() => {
-          const { nodes: nodesAfter, edges: edgesAfter } = store.getState()
-          const timelineStateAfter = captureTimelineState()
+      // Capture state after changes (need to use setTimeout to get updated state from store)
+      setTimeout(() => {
+        const { nodes: nodesAfter, edges: edgesAfter } = store.getState()
+        const timelineStateAfter = captureTimelineState()
 
-          debugHistorySnapshot('Captured after state counts: %O', {
-            nodesAfterCount: nodesAfter.length,
-            edgesAfterCount: edgesAfter.length,
-          })
+        debugHistorySnapshot('Captured after state counts: %O', {
+          nodesAfterCount: nodesAfter.length,
+          edgesAfterCount: edgesAfter.length,
+        })
 
-          const entry: HistoryEntry = {
-            id: crypto.randomUUID(),
-            timestamp: Date.now(),
-            description: getChangeDescription(significantChanges, 'node'),
-            nodeChanges: significantChanges,
-            edgeChanges: [],
-            nodesBefore: [...nodesBefore],
-            edgesBefore: [...edgesBefore],
-            nodesAfter: [...nodesAfter],
-            edgesAfter: [...edgesAfter],
-            timelineStateBefore,
-            timelineStateAfter,
+        const entry: HistoryEntry = {
+          id: crypto.randomUUID(),
+          timestamp: Date.now(),
+          description: getChangeDescription(significantChanges, 'node'),
+          nodeChanges: significantChanges,
+          edgeChanges: [],
+          nodesBefore: [...nodesBefore],
+          edgesBefore: [...edgesBefore],
+          nodesAfter: [...nodesAfter],
+          edgesAfter: [...edgesAfter],
+          timelineStateBefore,
+          timelineStateAfter,
+        }
+
+        setUndoRedoState(prev => {
+          debugHistorySnapshot(
+            'Before adding node entry - history length: %d, currentIndex: %d',
+            prev.history.length,
+            prev.currentIndex
+          )
+          // Remove any history after current index
+          const newHistory = prev.history.slice(0, prev.currentIndex + 1)
+          newHistory.push(entry)
+          debugHistorySnapshot(
+            'After adding node entry - new history length: %d',
+            newHistory.length
+          )
+
+          // Limit history size
+          let finalHistory = newHistory
+          let newIndex = prev.currentIndex + 1
+          if (newHistory.length > maxHistorySize) {
+            finalHistory = newHistory.slice(-maxHistorySize)
+            newIndex = finalHistory.length - 1
+            debugHistory(
+              'Trimmed history to %d entries, new index: %d',
+              finalHistory.length,
+              newIndex
+            )
           }
 
-          setUndoRedoState(prev => {
-            debugHistorySnapshot(
-              'Before adding node entry - history length: %d, currentIndex: %d',
-              prev.history.length,
-              prev.currentIndex
-            )
-            // Remove any history after current index
-            const newHistory = prev.history.slice(0, prev.currentIndex + 1)
-            newHistory.push(entry)
-            debugHistorySnapshot(
-              'After adding node entry - new history length: %d',
-              newHistory.length
-            )
-
-            // Limit history size
-            let finalHistory = newHistory
-            let newIndex = prev.currentIndex + 1
-            if (newHistory.length > maxHistorySize) {
-              finalHistory = newHistory.slice(-maxHistorySize)
-              newIndex = finalHistory.length - 1
-              debugHistory(
-                'Trimmed history to %d entries, new index: %d',
-                finalHistory.length,
-                newIndex
-              )
-            }
-
-            debugHistorySnapshot(
-              'Added node history entry: "%s", final index: %d, final history length: %d',
-              entry.description,
-              newIndex,
-              finalHistory.length
-            )
-            return {
-              history: finalHistory,
-              currentIndex: newIndex,
-            }
-          })
-        }, 0)
-      }
+          debugHistorySnapshot(
+            'Added node history entry: "%s", final index: %d, final history length: %d',
+            entry.description,
+            newIndex,
+            finalHistory.length
+          )
+          return {
+            history: finalHistory,
+            currentIndex: newIndex,
+          }
+        })
+      }, 0)
     }
 
     store.setState({ onNodesChange: onNodesChangeWithHistory })
@@ -195,11 +197,15 @@ export function useUndoRedo() {
         return
       }
 
-      // Record state before changes - capture directly from store to avoid stale closure
+      if (changes.length === 0) {
+        userOnEdgesChange(changes)
+        return
+      }
+
+      // Only capture state when there are changes to record
       const { nodes: nodesBefore, edges: edgesBefore } = store.getState()
       const timelineStateBefore = captureTimelineState()
 
-      // Apply changes
       userOnEdgesChange(changes)
 
       debugHistory(
@@ -207,67 +213,64 @@ export function useUndoRedo() {
         changes.map(c => c.type)
       )
 
-      // Create history entry for all edge changes (they're usually significant)
-      if (changes.length > 0) {
-        // Capture state after changes (need to use setTimeout to get updated state from store)
-        setTimeout(() => {
-          const { nodes: nodesAfter, edges: edgesAfter } = store.getState()
-          const timelineStateAfter = captureTimelineState()
+      // Capture state after changes (need to use setTimeout to get updated state from store)
+      setTimeout(() => {
+        const { nodes: nodesAfter, edges: edgesAfter } = store.getState()
+        const timelineStateAfter = captureTimelineState()
 
-          const entry: HistoryEntry = {
-            id: crypto.randomUUID(),
-            timestamp: Date.now(),
-            description: getChangeDescription(changes, 'edge'),
-            nodeChanges: [],
-            edgeChanges: changes,
-            nodesBefore,
-            edgesBefore,
-            nodesAfter: [...nodesAfter],
-            edgesAfter: [...edgesAfter],
-            timelineStateBefore,
-            timelineStateAfter,
+        const entry: HistoryEntry = {
+          id: crypto.randomUUID(),
+          timestamp: Date.now(),
+          description: getChangeDescription(changes, 'edge'),
+          nodeChanges: [],
+          edgeChanges: changes,
+          nodesBefore,
+          edgesBefore,
+          nodesAfter: [...nodesAfter],
+          edgesAfter: [...edgesAfter],
+          timelineStateBefore,
+          timelineStateAfter,
+        }
+
+        setUndoRedoState(prev => {
+          debugHistorySnapshot(
+            'Before adding edge entry - history length: %d, currentIndex: %d',
+            prev.history.length,
+            prev.currentIndex
+          )
+          // Remove any history after current index
+          const newHistory = prev.history.slice(0, prev.currentIndex + 1)
+          newHistory.push(entry)
+          debugHistorySnapshot(
+            'After adding edge entry - new history length: %d',
+            newHistory.length
+          )
+
+          // Limit history size
+          let finalHistory = newHistory
+          let newIndex = prev.currentIndex + 1
+          if (newHistory.length > maxHistorySize) {
+            finalHistory = newHistory.slice(-maxHistorySize)
+            newIndex = finalHistory.length - 1
+            debugHistory(
+              'Trimmed history to %d entries, new index: %d',
+              finalHistory.length,
+              newIndex
+            )
           }
 
-          setUndoRedoState(prev => {
-            debugHistorySnapshot(
-              'Before adding edge entry - history length: %d, currentIndex: %d',
-              prev.history.length,
-              prev.currentIndex
-            )
-            // Remove any history after current index
-            const newHistory = prev.history.slice(0, prev.currentIndex + 1)
-            newHistory.push(entry)
-            debugHistorySnapshot(
-              'After adding edge entry - new history length: %d',
-              newHistory.length
-            )
-
-            // Limit history size
-            let finalHistory = newHistory
-            let newIndex = prev.currentIndex + 1
-            if (newHistory.length > maxHistorySize) {
-              finalHistory = newHistory.slice(-maxHistorySize)
-              newIndex = finalHistory.length - 1
-              debugHistory(
-                'Trimmed history to %d entries, new index: %d',
-                finalHistory.length,
-                newIndex
-              )
-            }
-
-            debugHistorySnapshot(
-              'Added edge history entry: "%s", final index: %d, final history length: %d',
-              entry.description,
-              newIndex,
-              finalHistory.length
-            )
-            return {
-              history: finalHistory,
-              currentIndex: newIndex,
-            }
-          })
-        }, 0)
-      }
+          debugHistorySnapshot(
+            'Added edge history entry: "%s", final index: %d, final history length: %d',
+            entry.description,
+            newIndex,
+            finalHistory.length
+          )
+          return {
+            history: finalHistory,
+            currentIndex: newIndex,
+          }
+        })
+      }, 0)
     }
 
     store.setState({ onEdgesChange: onEdgesChangeWithHistory })
