@@ -1,6 +1,7 @@
 // GraphExecutor - Execution engine for the operator graph
 // Manages operator execution with topological sorting, dirty tracking, and RAF loop
 
+import { debugExecutor } from '../utils/debug'
 import type { ForLoopBeginOp, ForLoopEndOp, ForLoopMetaOp, IOperator, Operator } from './operators'
 import { getAllOps } from './store'
 import type { OpId } from './utils/id-utils'
@@ -362,6 +363,13 @@ export class GraphExecutor {
     // Sync nodes from store to ensure we have latest operators
     this.syncNodesFromStore()
     this.updateSort()
+
+    debugExecutor(
+      'executeFrame: nodes=%d, edges=%d, dirty=%d',
+      this.nodes.size,
+      this.edges.length,
+      this.dirtyNodes.size
+    )
 
     // Reset frame metrics
     if (this.options.enableProfiling) {

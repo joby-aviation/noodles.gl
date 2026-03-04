@@ -9,6 +9,12 @@ import type {
 import { useStore, useStoreApi } from '@xyflow/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { captureTimelineState, getTimelineStore } from '../../timeline/timeline-store'
+import {
+  debugHistory,
+  debugHistoryRedo,
+  debugHistorySnapshot,
+  debugHistoryUndo,
+} from '../../utils/debug'
 
 interface HistoryEntry {
   id: string
@@ -92,12 +98,12 @@ export function useUndoRedo() {
           (change.type === 'position' && change.dragging === false) // Only record final position
       )
 
-      console.info(
-        'Node changes:',
+      debugHistory(
+        'Node changes: %O',
         changes.map(c => c.type)
       )
-      console.info('Significant changes:', significantChanges.length)
-      console.info('Captured state counts:', {
+      debugHistory('Significant changes: %d', significantChanges.length)
+      debugHistorySnapshot('Captured state counts: %O', {
         nodesBeforeCount: nodesBefore.length,
         edgesBeforeCount: edgesBefore.length,
       })
@@ -108,7 +114,7 @@ export function useUndoRedo() {
           const { nodes: nodesAfter, edges: edgesAfter } = store.getState()
           const timelineStateAfter = captureTimelineState()
 
-          console.info('Captured after state counts:', {
+          debugHistorySnapshot('Captured after state counts: %O', {
             nodesAfterCount: nodesAfter.length,
             edgesAfterCount: edgesAfter.length,
           })
@@ -128,13 +134,18 @@ export function useUndoRedo() {
           }
 
           setUndoRedoState(prev => {
-            console.info(
-              `Before adding node entry - history length: ${prev.history.length}, currentIndex: ${prev.currentIndex}`
+            debugHistorySnapshot(
+              'Before adding node entry - history length: %d, currentIndex: %d',
+              prev.history.length,
+              prev.currentIndex
             )
             // Remove any history after current index
             const newHistory = prev.history.slice(0, prev.currentIndex + 1)
             newHistory.push(entry)
-            console.info(`After adding node entry - new history length: ${newHistory.length}`)
+            debugHistorySnapshot(
+              'After adding node entry - new history length: %d',
+              newHistory.length
+            )
 
             // Limit history size
             let finalHistory = newHistory
@@ -142,13 +153,18 @@ export function useUndoRedo() {
             if (newHistory.length > maxHistorySize) {
               finalHistory = newHistory.slice(-maxHistorySize)
               newIndex = finalHistory.length - 1
-              console.info(
-                `Trimmed history to ${finalHistory.length} entries, new index: ${newIndex}`
+              debugHistory(
+                'Trimmed history to %d entries, new index: %d',
+                finalHistory.length,
+                newIndex
               )
             }
 
-            console.info(
-              `Added node history entry: "${entry.description}", final index: ${newIndex}, final history length: ${finalHistory.length}`
+            debugHistorySnapshot(
+              'Added node history entry: "%s", final index: %d, final history length: %d',
+              entry.description,
+              newIndex,
+              finalHistory.length
             )
             return {
               history: finalHistory,
@@ -186,8 +202,8 @@ export function useUndoRedo() {
       // Apply changes
       userOnEdgesChange(changes)
 
-      console.info(
-        'Edge changes:',
+      debugHistory(
+        'Edge changes: %O',
         changes.map(c => c.type)
       )
 
@@ -213,13 +229,18 @@ export function useUndoRedo() {
           }
 
           setUndoRedoState(prev => {
-            console.info(
-              `Before adding edge entry - history length: ${prev.history.length}, currentIndex: ${prev.currentIndex}`
+            debugHistorySnapshot(
+              'Before adding edge entry - history length: %d, currentIndex: %d',
+              prev.history.length,
+              prev.currentIndex
             )
             // Remove any history after current index
             const newHistory = prev.history.slice(0, prev.currentIndex + 1)
             newHistory.push(entry)
-            console.info(`After adding edge entry - new history length: ${newHistory.length}`)
+            debugHistorySnapshot(
+              'After adding edge entry - new history length: %d',
+              newHistory.length
+            )
 
             // Limit history size
             let finalHistory = newHistory
@@ -227,13 +248,18 @@ export function useUndoRedo() {
             if (newHistory.length > maxHistorySize) {
               finalHistory = newHistory.slice(-maxHistorySize)
               newIndex = finalHistory.length - 1
-              console.info(
-                `Trimmed history to ${finalHistory.length} entries, new index: ${newIndex}`
+              debugHistory(
+                'Trimmed history to %d entries, new index: %d',
+                finalHistory.length,
+                newIndex
               )
             }
 
-            console.info(
-              `Added edge history entry: "${entry.description}", final index: ${newIndex}, final history length: ${finalHistory.length}`
+            debugHistorySnapshot(
+              'Added edge history entry: "%s", final index: %d, final history length: %d',
+              entry.description,
+              newIndex,
+              finalHistory.length
             )
             return {
               history: finalHistory,
@@ -248,10 +274,10 @@ export function useUndoRedo() {
   }, [onEdgesChange, store])
 
   const undo = useCallback(() => {
-    console.info(`Undo check: currentIndex=${currentIndex}, history.length=${history.length}`)
+    debugHistoryUndo('Undo check: currentIndex=%d, history.length=%d', currentIndex, history.length)
 
     if (currentIndex < 0 || currentIndex >= history.length) {
-      console.info('Cannot undo - no history available')
+      debugHistoryUndo('Cannot undo - no history available')
       return
     }
 
@@ -263,13 +289,13 @@ export function useUndoRedo() {
 
     isRestoringRef.current = true
 
-    console.info(`Undoing: ${entry.description}`)
+    debugHistoryUndo('Undoing: %s', entry.description)
 
     // Calculate the changes needed to restore the state
     const currentNodes = store.getState().nodes
     const currentEdges = store.getState().edges
 
-    console.info('Undo state comparison:', {
+    debugHistoryUndo('Undo state comparison: %O', {
       currentNodeCount: currentNodes.length,
       currentNodeIds: currentNodes.map(n => n.id),
       targetNodeCount: entry.nodesBefore.length,
@@ -327,7 +353,7 @@ export function useUndoRedo() {
 
     const allEdgeChanges = [...edgeRemoveChanges, ...edgeAddChanges]
 
-    console.info('Applying undo changes:', {
+    debugHistoryUndo('Applying undo changes: %O', {
       nodeChanges: allNodeChanges.map(c => c.type),
       edgeChanges: allEdgeChanges.map(c => c.type),
     })
@@ -367,7 +393,7 @@ export function useUndoRedo() {
     const entry = history[currentIndex + 1]
     isRestoringRef.current = true
 
-    console.info(`Redoing: ${entry.description}`)
+    debugHistoryRedo('Redoing: %s', entry.description)
 
     // Calculate the changes needed to restore the "after" state
     const currentNodes = store.getState().nodes
@@ -422,7 +448,7 @@ export function useUndoRedo() {
 
     const allEdgeChanges = [...edgeRemoveChanges, ...edgeAddChanges]
 
-    console.info('Applying redo changes:', {
+    debugHistoryRedo('Applying redo changes: %O', {
       nodeChanges: allNodeChanges.map(c => c.type),
       edgeChanges: allEdgeChanges.map(c => c.type),
     })
@@ -460,8 +486,11 @@ export function useUndoRedo() {
     currentIndex >= 0 && currentIndex < history.length && history[currentIndex] != null
   const canRedo = currentIndex < history.length - 1
 
-  console.info(
-    `State check: currentIndex=${currentIndex}, history.length=${history.length}, canUndo=${canUndo}`
+  debugHistory(
+    'State check: currentIndex=%d, history.length=%d, canUndo=%s',
+    currentIndex,
+    history.length,
+    canUndo
   )
 
   const state: UndoRedoPublicState = {
