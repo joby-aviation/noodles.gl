@@ -18,7 +18,7 @@ Basic workflows for using Noodles.gl to create geospatial visualizations and ani
 
 ### Timeline Editor
 - **Keyframes**: Click any parameter in property panel to add keyframes
-- **Animation**: Use [Theatre.js timeline](https://www.theatrejs.com/docs/latest/manual/sequences#addingremoving-keyframes) for smooth motion
+- **Animation**: Create smooth motion with bezier curve interpolation
 - **Playback**: Press 'space' to play animation
 
 ### Tools Shelf

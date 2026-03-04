@@ -4,7 +4,7 @@ Noodles.gl is a sophisticated node-based editor designed for creating geospatial
 
 The core concepts are based on Operators and Fields. At a high level, Operators comprise multiple Fields and an `execute` function. Fields are strongly typed and will react to incoming data changes. Fields and Operators can have custom React components that render in the node editor. In the future we might allow these to be created within the tool itself.
 
-Noodles is powered by a reactive dataflow engine using rxjs and a keyframe-based timeline system powered by Theatre.js. It has a type system using Zod to make it easier to parse and accept arguments in multiple formats while allowing the operators to be flexible and composable.
+Noodles is powered by a reactive dataflow engine using rxjs and a native keyframe-based timeline system with bezier interpolation. It has a type system using Zod to make it easier to parse and accept arguments in multiple formats while allowing the operators to be flexible and composable.
 
 Changes from the node editor propagate automatically through the dataflow graph, and any parameters can be keyframed on the timeline to create smooth animations. This makes it easy to create complex, data-driven animations with minimal effort.
 
@@ -27,7 +27,7 @@ noodles-editor/
 
 - `index.tsx` - Application entry point
 - `App.tsx` - Root component (minimal wrapper)
-- `TimelineEditor.tsx` - Timeline editor interface for orchestrating React with the rendering pipeline and Theatre.js
+- `TimelineEditor.tsx` - Timeline editor interface for orchestrating React with the rendering pipeline and native timeline system
 - `noodles.tsx` - Main visualization component that loads projects and manages state, and orchestrates nodes with React Flow
 - `Operators.ts` - Registry of all available operators. Define new operators here.
 - `Fields.ts` - Registry of all available fields. Define new fields here.
@@ -49,8 +49,7 @@ noodles-editor/
 - `arc-geometry.ts` - Arc geometry calculations
 - `interpolate.ts` - Animation interpolation functions
 - `map-styles.ts` - Map styling configurations
-- `sheet-context.ts` - Theatre.js sheet context management
-- `use-sheet-value.ts` - React hooks for Theatre.js values
+- `sheet-context.ts` - React context for timeline (legacy compatibility shim)
 
 ### Rendering (`src/render/`)
 
@@ -67,11 +66,11 @@ noodles-editor/
   - `mapProps` - MapLibre map settings
   - `widgets` - UI panel components
 
-### Theatre.js Integration
+### Timeline System
 
 - Projects are loaded dynamically based on URL parameters
-- Each visualization has an associated Theatre.js sheet
-- Animation state is managed through Theatre.js objects
+- Each visualization has an associated timeline with tracks and keyframes
+- Animation state is managed through the native timeline store
 
 ### Component Organization
 
@@ -84,7 +83,7 @@ noodles-editor/
 
 - URL parameters determine visualization project
 - Projects can have associated state files and data
-- Real-time updates through Theatre.js timeline
+- Real-time updates through native timeline with bezier interpolation
 - Node-based operators for modular data transformations
 - Type system using zod for validation, parsing, and transformation
 
@@ -163,14 +162,14 @@ if (operator.pullExecutionStatus === PullExecutionStatus.CLEAN) {
 
 ## State Management with Zustand
 
-The application uses Zustand for global state management, storing operators and Theatre.js sheet objects.
+The application uses Zustand for global state management, storing operators and timeline state.
 
 ### Store Architecture
 
 The store contains:
 
 - `operators`: Map of operator IDs to operator instances
-- `sheetObjects`: Map of operator IDs to Theatre.js sheet objects
+- `tracks`: Map of field paths to timeline tracks with keyframes
 - `hoveredOutputHandle`: Currently hovered output handle for UI feedback
 - Batching support for atomic updates
 
@@ -231,16 +230,16 @@ getOpStore().batch(() => {
 })
 ```
 
-### Sheet Object Management
+### Timeline Track Management
 
 ```typescript
-import { getSheetObject, setSheetObject, deleteSheetObject, hasSheetObject } from './store'
+import { getTrack, setTrack, deleteTrack, hasTrack } from './timeline/timeline-store'
 
-// Manage Theatre.js sheet objects
-const sheetObj = getSheetObject('/data-loader')
-setSheetObject('/data-loader', sheetObject)
-deleteSheetObject('/data-loader')
-if (hasSheetObject('/data-loader')) { /* ... */ }
+// Manage timeline tracks
+const track = getTrack('/data-loader.par.value')
+setTrack('/data-loader.par.value', track)
+deleteTrack('/data-loader.par.value')
+if (hasTrack('/data-loader.par.value')) { /* ... */ }
 ```
 
 ### Important Notes

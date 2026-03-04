@@ -1700,7 +1700,7 @@ Common operators you'll work with:
 - **Fields** define input/output schemas and UI hints. Connect fields via edges.
 - **Paths** identify operators: \`/name\` for root, \`/container/name\` for nested.
 - **Reactive references**: Use \`op('/path').par.field\` in CodeOp/ExpressionOp or \`{{/path.out.field}}\` in DuckDbOp.
-- **Theatre.js timeline**: Any operator input can be keyframed for animation.
+- **Timeline**: Any operator input can be keyframed for animation with bezier interpolation.
 
 Be helpful, thorough, and always validate your suggestions against the actual operator schemas!`
   }
