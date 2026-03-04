@@ -5055,7 +5055,9 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
       throw new Error('Tile3DLayer: Google Maps API key is not set (add it in Settings > API Keys)')
     }
     if (provider === 'Cesium' && !CESIUM_ACCESS_TOKEN) {
-      throw new Error('Tile3DLayer: Cesium Ion access token is not set (add it in Settings > API Keys)')
+      throw new Error(
+        'Tile3DLayer: Cesium Ion access token is not set (add it in Settings > API Keys)'
+      )
     }
 
     const defaultUrl = provider === 'Cesium' ? NYC_CESIUM_TILESET_URL : GOOGLE_TILESET_URL
