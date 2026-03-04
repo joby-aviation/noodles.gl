@@ -51,6 +51,7 @@ import type { Visualization } from '../visualizations'
 import { BlockLibrary, type BlockLibraryRef } from './components/block-library'
 import { categories, nodeTypeToDisplayName } from './components/categories'
 import { CopyControls, type CopyControlsRef } from './components/copy-controls'
+import { NodeInfoOverlay, ViewportInfoPanel } from './components/devtools'
 import { ErrorBoundary } from './components/error-boundary'
 import { ExampleNotFoundDialog } from './components/example-not-found-dialog'
 import { PropertyPanel } from './components/node-properties'
@@ -102,6 +103,7 @@ import { calculateViewerPosition } from './utils/viewer-position'
  * work reliably regardless of import order (prevents linting from breaking styles).
  */
 import './layers.css'
+import { debugVis } from '../utils/debug'
 import s from './noodles.module.css'
 
 export type Edge<N1 extends Operator<IOperator>, N2 extends Operator<IOperator>> = {
@@ -1469,6 +1471,13 @@ export function getNoodles(): Visualization {
             })
             instantiatedLayers.push(overlayLayer)
           }
+
+          debugVis(
+            'vis subscription fired: %d layers types=%O hasMapProps=%s',
+            instantiatedLayers.length,
+            layers?.map(l => l.type) || [],
+            !!mapProps
+          )
 
           setVisProps({
             deckProps: {

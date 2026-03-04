@@ -7,6 +7,7 @@ import type {
 import JSZip from 'jszip'
 import { isEqual } from 'lodash'
 
+import { debugSerialize } from '../../utils/debug'
 import { resizeableNodes } from '../components/op-components'
 import type { useOperatorStore } from '../store'
 import type { ExtractProps } from './extract-props'
@@ -113,6 +114,12 @@ export function serializeNodes(
   options?: SerializeNodesOptions
 ) {
   const { forClipboard = false } = options ?? {}
+  debugSerialize(
+    'serializeNodes: %d nodes, %d edges, forClipboard=%s',
+    nodes.length,
+    edges.length,
+    forClipboard
+  )
 
   // Make a copy of the node to prepared for serialization.
   const preparedNodes: NodeJSON<unknown>[] = []
@@ -212,6 +219,7 @@ export function serializeEdges(
   nodes: ReactFlowNode<Record<string, unknown>>[],
   edges: ReactFlowEdge[]
 ) {
+  debugSerialize('serializeEdges: %d nodes, %d edges', nodes.length, edges.length)
   // Create a set of valid node IDs to filter out orphaned edges
   const validNodeIds = new Set(nodes.map(node => node.id))
 
@@ -219,9 +227,7 @@ export function serializeEdges(
     .filter(edge => {
       // Skip edges that reference non-existent nodes
       if (!validNodeIds.has(edge.source) || !validNodeIds.has(edge.target)) {
-        console.warn(
-          `Skipping orphaned edge during serialization: ${edge.id} (${edge.source} -> ${edge.target})`
-        )
+        debugSerialize('Skipping orphaned edge: %s (%s -> %s)', edge.id, edge.source, edge.target)
         return false
       }
       // Skip ReferenceEdge types - they should not be persisted in save files
@@ -250,6 +256,7 @@ export async function saveProjectLocally(
   projectJson: NoodlesProjectJSON,
   storageType: 'fileSystemAccess' | 'opfs' | 'publicFolder'
 ) {
+  debugSerialize('saveProjectLocally: %s (storage: %s)', projectName, storageType)
   const zip = new JSZip()
 
   // Create a folder with the project name

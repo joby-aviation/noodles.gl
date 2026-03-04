@@ -75,15 +75,10 @@ describe('UndoRedoManager', () => {
     })
 
     it('should skip duplicate snapshots', () => {
-      const consoleSpy = vi.spyOn(console, 'info').mockImplementation(() => {})
-
       manager.takeSnapshot('First snapshot')
       manager.takeSnapshot('Duplicate snapshot')
 
       expect(manager.getHistory()).toHaveLength(1)
-      expect(consoleSpy).toHaveBeenCalledWith('Skipping duplicate snapshot')
-
-      consoleSpy.mockRestore()
     })
 
     it('should truncate redo history when taking new snapshot after undo', () => {
@@ -149,14 +144,9 @@ describe('UndoRedoManager', () => {
     })
 
     it('should not undo when no history available', () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
-
       manager.undo()
 
       expect(mockRestoreState).not.toHaveBeenCalled()
-      expect(consoleSpy).toHaveBeenCalledWith('Cannot undo - no history available')
-
-      consoleSpy.mockRestore()
     })
 
     it('should handle multiple undos correctly', () => {
