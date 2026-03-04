@@ -404,7 +404,7 @@ export class GraphExecutor {
     const roots = this.findRootOperators()
 
     debugExecutor(
-      'Frame start: %d dirty nodes, pulling %d roots %O',
+      'Pulling roots: %d dirty nodes, %d roots %O',
       this.dirtyNodes.size,
       roots.length,
       roots.map(op => op.id)
@@ -846,6 +846,8 @@ let globalExecutor: GraphExecutor | null = null
 
 // Initialize the execution system
 export function initializeExecutor(options?: ExecutorOptions): GraphExecutor {
+  // Stop the previous executor before replacing it to prevent RAF leaks
+  globalExecutor?.stop()
   globalExecutor = new GraphExecutor(options)
 
   if (typeof window !== 'undefined') {

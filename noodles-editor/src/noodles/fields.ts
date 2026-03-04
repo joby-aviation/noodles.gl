@@ -185,13 +185,13 @@ export abstract class Field<
 
   setValue(value: z.input<S>): void {
     const oldValue = this.value
-    const parsed = this.schema.safeParse(value, {
-      reportInput: true,
-      error: _iss => this.pathToProps.join('.'),
-    })
     const path = this.op?.id
       ? `${this.op.id}.${this.pathToProps.join('.')}`
       : this.pathToProps.join('.')
+    const parsed = this.schema.safeParse(value, {
+      reportInput: true,
+      error: _iss => path,
+    })
     if (parsed.success) {
       debugSetValue('%s: %O -> %O', path, oldValue, parsed.data)
       this.next(parsed.data)
