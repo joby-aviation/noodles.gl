@@ -326,9 +326,9 @@ describe('schemasAreCompatible', () => {
     expect(
       schemasAreCompatible(z.tuple([z.string(), z.number()]), z.tuple([z.number(), z.string()]))
     ).toBe(false)
-    expect(
-      schemasAreCompatible(z.tuple([z.string()]), z.tuple([z.string(), z.number()]))
-    ).toBe(false)
+    expect(schemasAreCompatible(z.tuple([z.string()]), z.tuple([z.string(), z.number()]))).toBe(
+      false
+    )
   })
 
   it('string is compatible with literal<string>', () => {

@@ -118,9 +118,7 @@ export function schemasAreCompatible(from: z.ZodType, to: z.ZodType): boolean {
     case 'tuple':
       if (!fromDef.items || !toDef.items) return true
       if (fromDef.items.length !== toDef.items.length) return false
-      return fromDef.items.every((fromItem, i) =>
-        schemasAreCompatible(fromItem, toDef.items![i])
-      )
+      return fromDef.items.every((fromItem, i) => schemasAreCompatible(fromItem, toDef.items![i]))
 
     default:
       // Primitives with same type are compatible
