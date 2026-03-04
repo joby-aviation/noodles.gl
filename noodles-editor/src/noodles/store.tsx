@@ -121,10 +121,6 @@ interface UIStoreState {
   triggerSidebarSearch: () => void
   settingsDialogOpen: boolean
   setSettingsDialogOpen: (open: boolean) => void
-  nodeInspectorVisible: boolean
-  setNodeInspectorVisible: (visible: boolean) => void
-  viewportLoggerVisible: boolean
-  setViewportLoggerVisible: (visible: boolean) => void
   timelineExpanded: boolean
   setTimelineExpanded: (expanded: boolean) => void
   quickStartModalOpen: boolean
@@ -143,10 +139,6 @@ export const useUIStore = create<UIStoreState>(set => ({
     set(state => ({ sidebarSearchFocusTrigger: state.sidebarSearchFocusTrigger + 1 })),
   settingsDialogOpen: false,
   setSettingsDialogOpen: open => set({ settingsDialogOpen: open }),
-  nodeInspectorVisible: false,
-  setNodeInspectorVisible: visible => set({ nodeInspectorVisible: visible }),
-  viewportLoggerVisible: false,
-  setViewportLoggerVisible: visible => set({ viewportLoggerVisible: visible }),
   timelineExpanded: false,
   setTimelineExpanded: expanded => set({ timelineExpanded: expanded }),
   quickStartModalOpen: false,

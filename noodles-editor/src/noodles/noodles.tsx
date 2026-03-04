@@ -338,9 +338,6 @@ export function getNoodles(): Visualization {
 
   // Track connection drag state for dimming unconnectable nodes
   const setConnectionDragState = useUIStore(state => state.setConnectionDragState)
-  const nodeInspectorVisible = useUIStore(state => state.nodeInspectorVisible)
-  const viewportLoggerVisible = useUIStore(state => state.viewportLoggerVisible)
-
   const onConnectStart: OnConnectStart = useCallback(
     (_event, params) => {
       if (!params.nodeId || !params.handleId) return
@@ -1340,8 +1337,8 @@ export function getNoodles(): Visualization {
                 isVisible={showChatPanel}
                 initialMessage={chatInitialMessage}
               />
-              {nodeInspectorVisible && <NodeInfoOverlay />}
-              {viewportLoggerVisible && <ViewportInfoPanel />}
+              {showDebugInfo && <NodeInfoOverlay />}
+              {showDebugInfo && <ViewportInfoPanel />}
             </ReactFlow>
           </TimelineProvider>
         </PrimeReactProvider>
