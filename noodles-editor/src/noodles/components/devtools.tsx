@@ -1,119 +1,46 @@
-import { Panel, ViewportPortal, useNodes, useReactFlow, useStore } from '@xyflow/react'
-import type { XYPosition } from '@xyflow/react'
+import { Panel, useNodes, useReactFlow, useStore, useViewport } from '@xyflow/react'
+import s from './devtools.module.css'
 
-type NodeInfoProps = {
-  id: string
-  type: string
-  selected: boolean
-  position: XYPosition
-  absPosition: XYPosition
-  width: number
-  height: number
-}
-
-function NodeInfo({ id, type, selected, position, absPosition, width, height }: NodeInfoProps) {
-  if (!width || !height) return null
+// Renders x/y/width/height info below each node in graph coordinates
+export function NodeInfoOverlay() {
+  const nodes = useNodes()
+  const { getInternalNode } = useReactFlow()
+  const transform = useStore(state => state.transform)
 
   return (
     <div
+      className={s.overlay}
       style={{
-        position: 'absolute',
-        transform: `translate(${absPosition.x}px, ${absPosition.y + height + 4}px)`,
-        width: Math.max(width, 160),
-        background: 'rgba(0,0,0,0.75)',
-        color: '#9effa0',
-        fontFamily: 'monospace',
-        fontSize: '10px',
-        lineHeight: '1.5',
-        padding: '4px 6px',
-        borderRadius: '3px',
-        pointerEvents: 'none',
-        whiteSpace: 'nowrap',
+        transform: `translate(${transform[0]}px, ${transform[1]}px) scale(${transform[2]})`,
       }}
     >
-      <div>
-        <span style={{ opacity: 0.5 }}>id </span>
-        {id}
-      </div>
-      <div>
-        <span style={{ opacity: 0.5 }}>type </span>
-        {type}
-      </div>
-      <div>
-        <span style={{ opacity: 0.5 }}>sel </span>
-        {selected ? 'true' : 'false'}
-      </div>
-      <div>
-        <span style={{ opacity: 0.5 }}>pos </span>
-        {position.x.toFixed(0)}, {position.y.toFixed(0)}
-      </div>
-      <div>
-        <span style={{ opacity: 0.5 }}>dim </span>
-        {width} × {height}
-      </div>
+      {nodes.map(node => {
+        const internalNode = getInternalNode(node.id)
+        const absPos = internalNode?.internals.positionAbsolute
+        const w = node.measured?.width ?? 0
+        const h = node.measured?.height ?? 0
+        if (!absPos) return null
+        return (
+          <div
+            key={node.id}
+            className={s.nodeLabel}
+            style={{ top: absPos.y + h + 4, left: absPos.x }}
+          >
+            x: {Math.round(node.position.x)} y: {Math.round(node.position.y)} {w}×{h}
+          </div>
+        )
+      })}
     </div>
   )
 }
 
-export function NodeInspector() {
-  const { getInternalNode } = useReactFlow()
-  const nodes = useNodes()
-
+// Renders current viewport x/y/zoom in a bottom-left panel
+export function ViewportInfoPanel() {
+  const { x, y, zoom } = useViewport()
   return (
-    <ViewportPortal>
-      <div>
-        {nodes.map(node => {
-          const internal = getInternalNode(node.id)
-          if (!internal) return null
-          const absPosition = internal.internals.positionAbsolute
-          const width = node.measured?.width ?? 0
-          const height = node.measured?.height ?? 0
-          return (
-            <NodeInfo
-              key={node.id}
-              id={node.id}
-              type={node.type ?? 'default'}
-              selected={!!node.selected}
-              position={node.position}
-              absPosition={absPosition}
-              width={width}
-              height={height}
-            />
-          )
-        })}
-      </div>
-    </ViewportPortal>
-  )
-}
-
-export function ViewportLogger() {
-  const [x, y, zoom] = useStore(s => s.transform)
-
-  return (
-    <Panel
-      position="bottom-left"
-      style={{
-        background: 'rgba(0,0,0,0.75)',
-        color: '#9effa0',
-        fontFamily: 'monospace',
-        fontSize: '11px',
-        lineHeight: '1.6',
-        padding: '6px 8px',
-        borderRadius: '4px',
-        pointerEvents: 'none',
-      }}
-    >
-      <div>
-        <span style={{ opacity: 0.5 }}>x </span>
-        {x.toFixed(2)}
-      </div>
-      <div>
-        <span style={{ opacity: 0.5 }}>y </span>
-        {y.toFixed(2)}
-      </div>
-      <div>
-        <span style={{ opacity: 0.5 }}>zoom </span>
-        {zoom.toFixed(3)}
+    <Panel position="bottom-left">
+      <div className={s.viewportInfo}>
+        x: {x.toFixed(1)} y: {y.toFixed(1)} zoom: {zoom.toFixed(2)}
       </div>
     </Panel>
   )

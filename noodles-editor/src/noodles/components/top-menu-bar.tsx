@@ -510,7 +510,7 @@ export function TopMenuBar({
                               <DropdownMenu.ItemIndicator className={s.itemIndicator}>
                                 <i className="pi pi-check" style={{ fontSize: '12px' }} />
                               </DropdownMenu.ItemIndicator>
-                              Node Inspector
+                              Node Info Overlay
                             </DropdownMenu.CheckboxItem>
                             <DropdownMenu.CheckboxItem
                               className={s.dropdownItem}
@@ -520,7 +520,7 @@ export function TopMenuBar({
                               <DropdownMenu.ItemIndicator className={s.itemIndicator}>
                                 <i className="pi pi-check" style={{ fontSize: '12px' }} />
                               </DropdownMenu.ItemIndicator>
-                              Viewport Logger
+                              Viewport Info
                             </DropdownMenu.CheckboxItem>
                           </DropdownMenu.SubContent>
                         </DropdownMenu.Portal>

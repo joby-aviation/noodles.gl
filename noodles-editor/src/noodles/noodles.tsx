@@ -55,7 +55,7 @@ import { ErrorBoundary } from './components/error-boundary'
 import { ExampleNotFoundDialog } from './components/example-not-found-dialog'
 import { PropertyPanel } from './components/node-properties'
 import { NodeTreeSidebar } from './components/node-tree-sidebar'
-import { NodeInspector, ViewportLogger } from './components/devtools'
+import { NodeInfoOverlay, ViewportInfoPanel } from './components/devtools'
 import { edgeComponents, nodeComponents } from './components/op-components'
 import { ProjectNotFoundDialog } from './components/project-not-found-dialog'
 import { RenameDialog } from './components/rename-dialog'
@@ -1340,8 +1340,8 @@ export function getNoodles(): Visualization {
                 isVisible={showChatPanel}
                 initialMessage={chatInitialMessage}
               />
-              {nodeInspectorVisible && <NodeInspector />}
-              {viewportLoggerVisible && <ViewportLogger />}
+              {nodeInspectorVisible && <NodeInfoOverlay />}
+              {viewportLoggerVisible && <ViewportInfoPanel />}
             </ReactFlow>
           </TimelineProvider>
         </PrimeReactProvider>
