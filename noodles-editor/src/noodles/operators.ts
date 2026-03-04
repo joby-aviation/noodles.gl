@@ -136,7 +136,7 @@ import { subscribeToPosition } from '../timeline/timeline-store'
 import * as utils from '../utils'
 import { getArc } from '../utils/arc-geometry'
 import { colorToHex, hexToColor } from '../utils/color'
-import { debugDirty, debugExecute, debugPull } from '../utils/debug'
+import { debugDirty, debugExecute, debugParams, debugPull } from '../utils/debug'
 import { getDirections } from '../utils/directions'
 import { CARTO_DARK, MAP_STYLES } from '../utils/map-styles'
 import { mulberry32 } from '../utils/random'
@@ -707,9 +707,11 @@ export abstract class Operator<OP extends IOperator> {
 
   // Get custom input fields as Field instances
   getCustomInputFields(): Record<string, Field> {
+    debugParams('getCustomInputFields %s: %d definitions', this.id, this.customInputDefinitions.length)
     const fields: Record<string, Field> = {}
     for (const def of this.customInputDefinitions) {
       const field = this.createFieldFromDefinition(def)
+      debugParams('created field "%s" type=%s value=%O', def.name, def.type, field.value)
       fields[def.name] = field
     }
     return fields
@@ -717,11 +719,21 @@ export abstract class Operator<OP extends IOperator> {
 
   // Create a Field instance from a custom field definition
   protected createFieldFromDefinition(def: CustomFieldDefinition): Field {
+    debugParams('createFieldFromDefinition type=%s name=%s defaultValue=%O', def.type, def.name, def.defaultValue)
     const FieldClass = fieldTypeToClass[def.type]
     if (!FieldClass) {
+      debugParams('unknown field type: %s', def.type)
       throw new Error(`Unknown field type: ${def.type}`)
     }
-    return new FieldClass(def.defaultValue, def.options)
+    const field = new FieldClass(def.defaultValue, def.options)
+    // If value is still undefined, the defaultValue passed was invalid for this field type
+    if (field.value === undefined) {
+      debugParams('field value undefined after construction: type=%s name=%s defaultValue=%O', def.type, def.name, def.defaultValue)
+      throw new Error(
+        `Invalid default value for field "${def.name}" (type: ${def.type}): ${JSON.stringify(def.defaultValue)}`
+      )
+    }
+    return field
   }
 
   // Validate custom field name
@@ -792,6 +804,7 @@ export abstract class Operator<OP extends IOperator> {
 
   // Rebuild inputs when custom fields change
   rebuildInputs(): void {
+    debugParams('rebuildInputs start %s, %d custom definitions', this.id, this.customInputDefinitions.length)
     // Preserve existing field values and connections
     const oldValues = new Map<string, unknown>()
     const oldConnections = new Map<
@@ -813,7 +826,8 @@ export abstract class Operator<OP extends IOperator> {
 
     // Recreate inputs (built-in + custom)
     const builtInInputs = this.createInputs()
-    const customInputs = this.getCustomInputFields()
+    const customInputs = this.getCustomInputFields() // may throw on invalid field definitions
+    debugParams('rebuildInputs built %d custom inputs for %s', Object.keys(customInputs).length, this.id)
 
     this.inputs = { ...builtInInputs, ...customInputs } as ReturnType<OP['createInputs']>
 
@@ -852,6 +866,7 @@ export abstract class Operator<OP extends IOperator> {
 
     // Notify listeners that custom fields have changed
     this.customFieldsChanged.next(this.customInputDefinitions)
+    debugParams('rebuildInputs complete %s', this.id)
   }
 
   dispose() {

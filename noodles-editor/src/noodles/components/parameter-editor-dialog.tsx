@@ -11,6 +11,7 @@ import { useEdges } from '@xyflow/react'
 import { useCallback, useState } from 'react'
 import type { CustomFieldDefinition, IOperator, Operator } from '../operators'
 import { findFieldReferences } from '../utils/field-references'
+import { debugParams } from '../../utils/debug'
 import s from './parameter-editor-dialog.module.css'
 
 interface ParameterEditorDialogProps {
@@ -151,6 +152,7 @@ export function ParameterEditorDialog({
       return
     }
 
+    debugParams('handleSave: %d definitions: %O', definitions.length, definitions)
     onSave(definitions)
     onOpenChange(false)
   }, [definitions, validateFieldName, onSave, onOpenChange])

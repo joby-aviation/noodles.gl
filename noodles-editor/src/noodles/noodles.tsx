@@ -103,7 +103,7 @@ import { calculateViewerPosition } from './utils/viewer-position'
  * work reliably regardless of import order (prevents linting from breaking styles).
  */
 import './layers.css'
-import { debugVis } from '../utils/debug'
+import { debugParams, debugVis } from '../utils/debug'
 import s from './noodles.module.css'
 
 export type Edge<N1 extends Operator<IOperator>, N2 extends Operator<IOperator>> = {
@@ -172,6 +172,9 @@ export function getNoodles(): Visualization {
     open: boolean
     operatorId: string | null
   }>({ open: false, operatorId: null })
+  const [paramEditorError, setParamEditorError] = useState<Error | null>(null)
+  // Throw during render so the ErrorBoundary catches it with a descriptive message
+  if (paramEditorError) throw paramEditorError
 
   // Wrap onNodesChange to track node selection and mark unsaved changes
   const onNodesChange = useCallback(
@@ -1361,14 +1364,25 @@ export function getNoodles(): Visualization {
         {parameterEditorState.operatorId && (
           <ParameterEditorDialog
             open={parameterEditorState.open}
-            onOpenChange={open => setParameterEditorState({ open, operatorId: null })}
+            onOpenChange={open => {
+              setParameterEditorState({ open, operatorId: null })
+              if (!open) setParamEditorError(null)
+            }}
             operator={getOp(parameterEditorState.operatorId)!}
             onSave={definitions => {
+              debugParams('onSave for op %s, %d definitions', parameterEditorState.operatorId, definitions.length)
               const op = getOp(parameterEditorState.operatorId!)
               if (op) {
-                op.customInputDefinitions = definitions
-                op.rebuildInputs()
-                setNodes(nodes => [...nodes]) // Force re-render
+                try {
+                  op.customInputDefinitions = definitions
+                  debugParams('calling rebuildInputs on %s', op.id)
+                  op.rebuildInputs()
+                  debugParams('rebuildInputs complete, forcing re-render')
+                  setNodes(nodes => [...nodes]) // Force re-render
+                } catch (err) {
+                  debugParams('rebuildInputs threw: %O', err)
+                  setParamEditorError(err instanceof Error ? err : new Error(String(err)))
+                }
               }
             }}
           />

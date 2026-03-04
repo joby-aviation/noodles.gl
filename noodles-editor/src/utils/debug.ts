@@ -25,3 +25,6 @@ export const debugDirty = createDebug('noodles:field:dirty')
 export const debugPull = createDebug('noodles:executor:pull')
 export const debugExecute = createDebug('noodles:executor:execute')
 export const debugVis = createDebug('noodles:vis')
+
+// Parameter editor namespace
+export const debugParams = createDebug('noodles:params')
