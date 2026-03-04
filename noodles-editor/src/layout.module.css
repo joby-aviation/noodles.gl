@@ -24,7 +24,7 @@
   left: 240px;
   top: 50%;
   transform: translateY(-50%);
-  z-index: 1000;
+  z-index: var(--z-index-chrome);
   display: flex;
   align-items: center;
   justify-content: center;

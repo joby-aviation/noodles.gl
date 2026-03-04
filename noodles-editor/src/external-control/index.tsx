@@ -3,6 +3,7 @@
 
 import type React from 'react'
 import { useEffect, useRef, useState } from 'react'
+import { Z_INDEX } from '../styles/z-index'
 import { ExternalControl } from './api'
 
 export interface ExternalControlProps {
@@ -107,7 +108,7 @@ export const ExternalControlProvider: React.FC<ExternalControlProps> = ({
         borderRadius: 4,
         fontSize: 12,
         fontFamily: 'monospace',
-        zIndex: 10000,
+        zIndex: Z_INDEX.MODAL,
         pointerEvents: 'none',
       }}
     >

@@ -736,7 +736,7 @@
 
 .curvePopup {
   position: fixed;
-  z-index: 1000;
+  z-index: var(--z-index-chrome);
   background: linear-gradient(180deg, #1e2634 0%, #171d27 100%);
   border: 1px solid #2f3b4c;
   border-radius: 8px;
@@ -879,7 +879,7 @@
 
 .keyframeValuePopup {
   position: fixed;
-  z-index: 1000;
+  z-index: var(--z-index-chrome);
   background: linear-gradient(180deg, #1e2634 0%, #171d27 100%);
   border: 1px solid #2f3b4c;
   border-radius: 8px;
@@ -1055,7 +1055,7 @@
 
 .handleTypeMenu {
   position: fixed;
-  z-index: 1000;
+  z-index: var(--z-index-chrome);
   background: linear-gradient(180deg, #1e2634 0%, #171d27 100%);
   border: 1px solid #2f3b4c;
   border-radius: 6px;

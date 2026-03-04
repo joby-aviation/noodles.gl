@@ -3,7 +3,7 @@
   inset: 0;
   background-color: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(4px);
-  z-index: 9999;
+  z-index: var(--z-index-backdrop);
 }
 
 .content {
@@ -19,7 +19,7 @@
   width: 90vw;
   max-height: 85vh;
   overflow: auto;
-  z-index: 10000;
+  z-index: var(--z-index-modal);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 }
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Z_INDEX } from '../styles/z-index'
 import { analytics } from '../utils/analytics'
 
 export function AnalyticsConsentBanner() {
@@ -37,7 +38,7 @@ export function AnalyticsConsentBanner() {
         borderRadius: 8,
         border: '1px solid var(--color-border, rgba(255, 255, 255, 0.1))',
         boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
-        zIndex: 'var(--z-index-analytics-consent, 9998)' as unknown as number,
+        zIndex: Z_INDEX.BANNER,
         maxWidth: 260,
         fontSize: 12,
       }}
