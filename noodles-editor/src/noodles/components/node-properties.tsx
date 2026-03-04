@@ -531,12 +531,6 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
           <RenderSettingsPanel op={op} />
         </div>
       )}
-      <div className={s.section}>
-        <label className={s.input}>
-          <span>ID</span>
-          <input type="text" value={op.id} readOnly />
-        </label>
-      </div>
       {(displayName || description) && (
         <div className={s.opMeta}>
           {displayName && <div className={s.opDisplayName}>{displayName}</div>}
