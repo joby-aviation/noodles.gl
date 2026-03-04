@@ -1,0 +1,5938 @@
+{
+  "version": "1.0.0",
+  "operators": {
+    "NumberOp": {
+      "type": "NumberOp",
+      "category": "utility",
+      "description": "A number",
+      "displayName": "Number",
+      "inputs": {
+        "val": {
+          "type": "NumberField",
+          "default": 0,
+          "step": 1
+        }
+      },
+      "outputs": {
+        "val": {
+          "type": "NumberField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "MapRangeOp": {
+      "type": "MapRangeOp",
+      "category": "utility",
+      "description": "Remap a number from one range to another (e.g., map 0-100 to 0-1, or temperature to color intensity)",
+      "displayName": "MapRange",
+      "inputs": {
+        "val": {
+          "type": "NumberField",
+          "default": 0,
+          "step": 0.01,
+          "accessor": true
+        },
+        "inMin": {
+          "type": "NumberField",
+          "default": 0,
+          "step": 0.1
+        },
+        "inMax": {
+          "type": "NumberField",
+          "default": 1,
+          "step": 0.1
+        },
+        "outMin": {
+          "type": "NumberField",
+          "default": 0,
+          "step": 0.1
+        },
+        "outMax": {
+          "type": "NumberField",
+          "default": 1,
+          "step": 0.1
+        }
+      },
+      "outputs": {
+        "scaled": {
+          "type": "NumberField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "ExtentOp": {
+      "type": "ExtentOp",
+      "category": "utility",
+      "description": "Find the minimum and maximum values in your data (e.g., to set color scale ranges or determine data bounds)",
+      "displayName": "Extent",
+      "inputs": {
+        "data": {
+          "type": "DataField"
+        },
+        "accessor": {
+          "type": "UnknownField",
+          "accessor": true,
+          "optional": true
+        }
+      },
+      "outputs": {
+        "min": {
+          "type": "NumberField"
+        },
+        "max": {
+          "type": "NumberField"
+        },
+        "extent": {
+          "type": "Vec2Field"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "SelectOp": {
+      "type": "SelectOp",
+      "category": "utility",
+      "description": "Select an element from an array using an index (clamped to array bounds by default, or wrapped around array bounds)",
+      "displayName": "Select",
+      "inputs": {
+        "data": {
+          "type": "DataField"
+        },
+        "index": {
+          "type": "NumberField",
+          "default": 0,
+          "step": 1
+        },
+        "wrap": {
+          "type": "BooleanField",
+          "default": false
+        }
+      },
+      "outputs": {
+        "value": {
+          "type": "UnknownField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "MathOp": {
+      "type": "MathOp",
+      "category": "utility",
+      "description": "Perform a mathematical operation",
+      "displayName": "Math",
+      "inputs": {
+        "operator": {
+          "type": "StringLiteralField",
+          "default": "add",
+          "values": [
+            "add",
+            "subtract",
+            "multiply",
+            "divide",
+            "sine",
+            "cosine",
+            "tan",
+            "min",
+            "max",
+            "modulo",
+            "power",
+            "log",
+            "sqrt",
+            "round",
+            "floor",
+            "ceil",
+            "abs",
+            "rad",
+            "deg"
+          ]
+        },
+        "a": {
+          "type": "NumberField",
+          "default": 0,
+          "step": 1,
+          "accessor": true
+        },
+        "b": {
+          "type": "NumberField",
+          "default": 0,
+          "step": 1,
+          "accessor": true
+        }
+      },
+      "outputs": {
+        "result": {
+          "type": "NumberField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "StringOp": {
+      "type": "StringOp",
+      "category": "utility",
+      "description": "A string",
+      "displayName": "String",
+      "inputs": {
+        "val": {
+          "type": "StringField",
+          "default": ""
+        }
+      },
+      "outputs": {
+        "val": {
+          "type": "StringField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "BooleanOp": {
+      "type": "BooleanOp",
+      "category": "utility",
+      "description": "A boolean",
+      "displayName": "Boolean",
+      "inputs": {
+        "val": {
+          "type": "BooleanField",
+          "default": false
+        }
+      },
+      "outputs": {
+        "val": {
+          "type": "BooleanField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "DateTimeOp": {
+      "type": "DateTimeOp",
+      "category": "utility",
+      "description": "A date and time",
+      "displayName": "DateTime",
+      "inputs": {
+        "date": {
+          "type": "DateField"
+        }
+      },
+      "outputs": {
+        "date": {
+          "type": "DateField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "CombineXYOp": {
+      "type": "CombineXYOp",
+      "category": "utility",
+      "description": "Combine x and y into a 2D vector",
+      "displayName": "CombineXY",
+      "inputs": {
+        "x": {
+          "type": "NumberField",
+          "default": 0,
+          "step": 0.01,
+          "accessor": true
+        },
+        "y": {
+          "type": "NumberField",
+          "default": 0,
+          "step": 0.01,
+          "accessor": true
+        }
+      },
+      "outputs": {
+        "xy": {
+          "type": "Vec2Field"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "CombineXYZOp": {
+      "type": "CombineXYZOp",
+      "category": "utility",
+      "description": "Combine x, y, and z into a 3D vector",
+      "displayName": "CombineXYZ",
+      "inputs": {
+        "x": {
+          "type": "NumberField",
+          "default": 0,
+          "step": 0.01,
+          "accessor": true
+        },
+        "y": {
+          "type": "NumberField",
+          "default": 0,
+          "step": 0.01,
+          "accessor": true
+        },
+        "z": {
+          "type": "NumberField",
+          "default": 0,
+          "step": 0.01,
+          "accessor": true
+        }
+      },
+      "outputs": {
+        "xyz": {
+          "type": "Vec3Field"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "SplitXYOp": {
+      "type": "SplitXYOp",
+      "category": "utility",
+      "description": "Split a 2D vector into its x and y components",
+      "displayName": "SplitXY",
+      "inputs": {
+        "vec": {
+          "type": "Vec2Field",
+          "accessor": true
+        }
+      },
+      "outputs": {
+        "x": {
+          "type": "NumberField"
+        },
+        "y": {
+          "type": "NumberField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "SplitXYZOp": {
+      "type": "SplitXYZOp",
+      "category": "utility",
+      "description": "Split a 3D vector into its x, y, and z components",
+      "displayName": "SplitXYZ",
+      "inputs": {
+        "vec": {
+          "type": "Vec3Field",
+          "accessor": true
+        }
+      },
+      "outputs": {
+        "x": {
+          "type": "NumberField"
+        },
+        "y": {
+          "type": "NumberField"
+        },
+        "z": {
+          "type": "NumberField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "CombineRGBAOp": {
+      "type": "CombineRGBAOp",
+      "category": "utility",
+      "description": "Combine r, g, b, and a into a color (range 0-255)",
+      "displayName": "CombineRGBA",
+      "inputs": {
+        "r": {
+          "type": "NumberField",
+          "default": 0,
+          "accessor": true
+        },
+        "g": {
+          "type": "NumberField",
+          "default": 0,
+          "accessor": true
+        },
+        "b": {
+          "type": "NumberField",
+          "default": 0,
+          "accessor": true
+        },
+        "a": {
+          "type": "NumberField",
+          "default": 1,
+          "accessor": true
+        }
+      },
+      "outputs": {
+        "color": {
+          "type": "ColorField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "SplitRGBAOp": {
+      "type": "SplitRGBAOp",
+      "category": "utility",
+      "description": "Split a color into its red, green, blue, and alpha components (range 0-255)",
+      "displayName": "SplitRGBA",
+      "inputs": {
+        "color": {
+          "type": "ColorField"
+        }
+      },
+      "outputs": {
+        "r": {
+          "type": "NumberField"
+        },
+        "g": {
+          "type": "NumberField"
+        },
+        "b": {
+          "type": "NumberField"
+        },
+        "a": {
+          "type": "NumberField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "ColorOp": {
+      "type": "ColorOp",
+      "category": "utility",
+      "description": "A color",
+      "displayName": "Color",
+      "inputs": {
+        "color": {
+          "type": "ColorField"
+        }
+      },
+      "outputs": {
+        "color": {
+          "type": "ColorField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "HSLOp": {
+      "type": "HSLOp",
+      "category": "utility",
+      "description": "A color in HSL (hue, saturation, lightness) format",
+      "displayName": "HSL",
+      "inputs": {
+        "h": {
+          "type": "NumberField",
+          "default": 0,
+          "min": 0,
+          "max": 360,
+          "step": 1,
+          "accessor": true
+        },
+        "s": {
+          "type": "NumberField",
+          "default": 0.5,
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "accessor": true
+        },
+        "l": {
+          "type": "NumberField",
+          "default": 0.8,
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "accessor": true
+        }
+      },
+      "outputs": {
+        "color": {
+          "type": "ColorField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "ColorRampOp": {
+      "type": "ColorRampOp",
+      "category": "utility",
+      "description": "Interpolate a color from a color ramp, value range 0-1",
+      "displayName": "ColorRamp",
+      "inputs": {},
+      "outputs": {
+        "color": {
+          "type": "ColorField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "CategoricalColorRampOp": {
+      "type": "CategoricalColorRampOp",
+      "category": "utility",
+      "description": "Map a string category to a color",
+      "displayName": "CategoricalColorRamp",
+      "inputs": {},
+      "outputs": {
+        "color": {
+          "type": "ColorField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "TimeOp": {
+      "type": "TimeOp",
+      "category": "utility",
+      "description": "Get the current clock, timeline, and session time",
+      "displayName": "Time",
+      "inputs": {},
+      "outputs": {
+        "now": {
+          "type": "NumberField"
+        },
+        "sequenceTime": {
+          "type": "NumberField"
+        },
+        "tick": {
+          "type": "NumberField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "BezierCurveOp": {
+      "type": "BezierCurveOp",
+      "category": "utility",
+      "description": "Bezier curve for mapping input values using an interactive graph editor",
+      "displayName": "BezierCurve",
+      "inputs": {
+        "factor": {
+          "type": "NumberField",
+          "default": 0.5,
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "accessor": true
+        },
+        "curve": {
+          "type": "BezierCurveField"
+        }
+      },
+      "outputs": {
+        "value": {
+          "type": "NumberField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "FileOp": {
+      "type": "FileOp",
+      "category": "utility",
+      "description": "Fetch a file from a URL or text. Supports csv, tsv, json, text, and binary formats",
+      "displayName": "File",
+      "inputs": {
+        "format": {
+          "type": "StringLiteralField",
+          "default": "json",
+          "values": [
+            "json",
+            "csv",
+            "tsv",
+            "text",
+            "binary"
+          ]
+        },
+        "url": {
+          "type": "FileField"
+        },
+        "text": {
+          "type": "StringField"
+        },
+        "autoType": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "pulse": {
+          "type": "NumberField",
+          "default": 0,
+          "min": 0,
+          "step": 1
+        }
+      },
+      "outputs": {
+        "data": {
+          "type": "DataField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "DuckDbOp": {
+      "type": "DuckDbOp",
+      "category": "utility",
+      "description": "Query a DuckDB database using sql",
+      "displayName": "DuckDB",
+      "inputs": {
+        "query": {
+          "type": "CodeField",
+          "default": "SELECT 1 as val;",
+          "language": "sql"
+        }
+      },
+      "outputs": {
+        "data": {
+          "type": "DataField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "JSONOp": {
+      "type": "JSONOp",
+      "category": "utility",
+      "description": "Parse a JSON string",
+      "displayName": "JSON",
+      "inputs": {
+        "text": {
+          "type": "CodeField",
+          "default": "{}",
+          "language": "json"
+        }
+      },
+      "outputs": {
+        "data": {
+          "type": "DataField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "ViewerOp": {
+      "type": "ViewerOp",
+      "category": "utility",
+      "description": "Inspect data in the viewer",
+      "displayName": "Viewer",
+      "inputs": {
+        "data": {
+          "type": "UnknownField"
+        }
+      },
+      "outputs": {},
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "TableEditorOp": {
+      "type": "TableEditorOp",
+      "category": "utility",
+      "description": "Edit a table in the viewer",
+      "displayName": "TableEditor",
+      "inputs": {
+        "data": {
+          "type": "DataField"
+        }
+      },
+      "outputs": {
+        "data": {
+          "type": "DataField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "ChartOp": {
+      "type": "ChartOp",
+      "category": "utility",
+      "description": "Create charts using Observable Plot (bar, histogram, scatter)",
+      "displayName": "Chart",
+      "inputs": {
+        "width": {
+          "type": "NumberField",
+          "default": 640,
+          "min": 100,
+          "max": 2000,
+          "step": 10
+        },
+        "height": {
+          "type": "NumberField",
+          "default": 400,
+          "min": 100,
+          "max": 2000,
+          "step": 10
+        },
+        "color": {
+          "type": "ColorField",
+          "default": "#4269d0"
+        },
+        "title": {
+          "type": "StringField",
+          "default": ""
+        },
+        "xLabel": {
+          "type": "StringField",
+          "default": ""
+        },
+        "yLabel": {
+          "type": "StringField",
+          "default": ""
+        }
+      },
+      "outputs": {
+        "chart": {
+          "type": "UnknownField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "ScatterOp": {
+      "type": "ScatterOp",
+      "category": "utility",
+      "description": "Scatter points randomly within a bounding box",
+      "displayName": "Scatter",
+      "inputs": {
+        "bounds": {
+          "type": "ArrayField"
+        },
+        "count": {
+          "type": "NumberField",
+          "default": 100,
+          "min": 1,
+          "step": 1
+        },
+        "seed": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "step": 1
+        }
+      },
+      "outputs": {
+        "points": {
+          "type": "ArrayField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "BoundsOp": {
+      "type": "BoundsOp",
+      "category": "utility",
+      "description": "Create a bounding box from two points",
+      "displayName": "Bounds",
+      "inputs": {
+        "point1": {
+          "type": "Point2DField"
+        },
+        "point2": {
+          "type": "Point2DField"
+        }
+      },
+      "outputs": {
+        "bounds": {
+          "type": "ArrayField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "BoundingBoxOp": {
+      "type": "BoundingBoxOp",
+      "category": "utility",
+      "description": "Calculate the geographic bounds of your points (with lat/lng keys) and get a camera position (center, zoom) that fits them all in view.",
+      "displayName": "BoundingBox",
+      "inputs": {
+        "data": {
+          "type": "ArrayField"
+        },
+        "padding": {
+          "type": "NumberField",
+          "default": 0,
+          "softMax": 1000
+        }
+      },
+      "outputs": {
+        "bounds": {
+          "type": "ArrayField"
+        },
+        "longitude": {
+          "type": "NumberField"
+        },
+        "latitude": {
+          "type": "NumberField"
+        },
+        "zoom": {
+          "type": "NumberField"
+        },
+        "viewState": {
+          "type": "CompoundPropsField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "GeocoderOp": {
+      "type": "GeocoderOp",
+      "category": "utility",
+      "description": "Get the location of a query string",
+      "displayName": "Geocoder",
+      "inputs": {
+        "query": {
+          "type": "StringField"
+        }
+      },
+      "outputs": {
+        "location": {
+          "type": "Point2DField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "DirectionsOp": {
+      "type": "DirectionsOp",
+      "category": "utility",
+      "description": "Get driving or transit directions between two points",
+      "displayName": "Directions",
+      "inputs": {
+        "origin": {
+          "type": "Point2DField"
+        },
+        "destination": {
+          "type": "Point2DField"
+        },
+        "mode": {
+          "type": "StringLiteralField",
+          "default": "transit",
+          "values": [
+            "driving",
+            "transit"
+          ]
+        }
+      },
+      "outputs": {
+        "route": {
+          "type": "CompoundPropsField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "ArcOp": {
+      "type": "ArcOp",
+      "category": "utility",
+      "description": "Generate an arc path between two points at a given altitude",
+      "displayName": "Arc",
+      "inputs": {
+        "source": {
+          "type": "Point3DField"
+        },
+        "target": {
+          "type": "Point3DField"
+        },
+        "altitudeMultiplier": {
+          "type": "NumberField",
+          "default": 2,
+          "min": 0,
+          "softMax": 100
+        },
+        "apexAlt": {
+          "type": "NumberField",
+          "default": 10000,
+          "min": 0,
+          "softMax": 100000
+        },
+        "smoothHeight": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "smoothPosition": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "segmentCount": {
+          "type": "NumberField",
+          "default": 250,
+          "min": 1,
+          "softMax": 1000
+        },
+        "tilt": {
+          "type": "NumberField",
+          "default": 0,
+          "max": 90
+        }
+      },
+      "outputs": {
+        "path": {
+          "type": "ArrayField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "NetworkOp": {
+      "type": "NetworkOp",
+      "category": "utility",
+      "description": "Generate a network of routes between a set of points (usually skyports)",
+      "displayName": "Network",
+      "inputs": {
+        "skyports": {
+          "type": "DataField"
+        },
+        "hub": {
+          "type": "BooleanField",
+          "default": false
+        }
+      },
+      "outputs": {
+        "routes": {
+          "type": "DataField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "SwitchOp": {
+      "type": "SwitchOp",
+      "category": "utility",
+      "description": "Select one value from a list using an index (0, 1, 2...). With blend enabled, smoothly interpolate between values for animation effects.",
+      "displayName": "Switch",
+      "inputs": {
+        "values": {
+          "type": "ListField"
+        },
+        "index": {
+          "type": "NumberField",
+          "default": 0,
+          "min": 0,
+          "step": 1
+        },
+        "blend": {
+          "type": "BooleanField",
+          "default": false
+        }
+      },
+      "outputs": {
+        "value": {
+          "type": "DataField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "ForLoopBeginOp": {
+      "type": "ForLoopBeginOp",
+      "category": "utility",
+      "description": "Start a loop that processes each item in an array. The scope body is wrapped in a group node. Outputs are set by the executor during iteration.",
+      "displayName": "ForLoopBegin",
+      "inputs": {
+        "data": {
+          "type": "DataField"
+        }
+      },
+      "outputs": {
+        "item": {
+          "type": "DataField"
+        },
+        "index": {
+          "type": "NumberField"
+        },
+        "total": {
+          "type": "NumberField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "ForLoopEndOp": {
+      "type": "ForLoopEndOp",
+      "category": "utility",
+      "description": "End a loop started by ForLoopBegin. Collects all the processed items into an array and passes them to downstream operators.",
+      "displayName": "ForLoopEnd",
+      "inputs": {
+        "item": {
+          "type": "DataField"
+        }
+      },
+      "outputs": {
+        "data": {
+          "type": "DataField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "ForLoopMetaOp": {
+      "type": "ForLoopMetaOp",
+      "category": "utility",
+      "description": "Access iteration metadata and accumulator within a ForLoop scope. Like Houdini iteration metadata.",
+      "displayName": "ForLoopMeta",
+      "inputs": {
+        "initialValue": {
+          "type": "DataField",
+          "description": "Initial accumulator value"
+        },
+        "currentValue": {
+          "type": "DataField",
+          "description": "Value to pass to next iteration"
+        }
+      },
+      "outputs": {
+        "accumulator": {
+          "type": "DataField"
+        },
+        "index": {
+          "type": "NumberField"
+        },
+        "total": {
+          "type": "NumberField"
+        },
+        "isFirst": {
+          "type": "BooleanField"
+        },
+        "isLast": {
+          "type": "BooleanField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "FilterOp": {
+      "type": "FilterOp",
+      "category": "utility",
+      "description": "Filter an array of data based on a condition",
+      "displayName": "FilterOp",
+      "inputs": {
+        "condition": {
+          "type": "StringLiteralField",
+          "default": "equals",
+          "values": [
+            "equals",
+            "not equals",
+            "greater than",
+            "less than",
+            "greater than or equal to",
+            "less than or equal to",
+            "contains",
+            "not contains",
+            "in",
+            "not in"
+          ]
+        },
+        "value": {
+          "type": "StringField",
+          "default": ""
+        }
+      },
+      "outputs": {
+        "data": {
+          "type": "DataField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "SliceOp": {
+      "type": "SliceOp",
+      "category": "utility",
+      "description": "Slice an array of data",
+      "displayName": "Slice",
+      "inputs": {
+        "data": {
+          "type": "DataField"
+        },
+        "start": {
+          "type": "NumberField",
+          "default": 0,
+          "min": 0,
+          "step": 1
+        },
+        "end": {
+          "type": "NumberField",
+          "default": 10,
+          "min": 0,
+          "step": 1,
+          "optional": true
+        }
+      },
+      "outputs": {
+        "data": {
+          "type": "DataField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "SortOp": {
+      "type": "SortOp",
+      "category": "utility",
+      "description": "Sort an array of data based on a key",
+      "displayName": "Sort",
+      "inputs": {
+        "data": {
+          "type": "DataField"
+        },
+        "key": {
+          "type": "StringField",
+          "default": ""
+        },
+        "order": {
+          "type": "StringLiteralField",
+          "default": "asc",
+          "values": [
+            "asc",
+            "desc"
+          ]
+        }
+      },
+      "outputs": {
+        "data": {
+          "type": "DataField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "RandomizeAttributeOp": {
+      "type": "RandomizeAttributeOp",
+      "category": "utility",
+      "description": "Randomize a numeric attribute on data elements within a given range",
+      "displayName": "RandomizeAttribute",
+      "inputs": {
+        "data": {
+          "type": "DataField"
+        },
+        "key": {
+          "type": "StringField",
+          "default": ""
+        },
+        "min": {
+          "type": "NumberField",
+          "default": 0,
+          "step": 0.01
+        },
+        "max": {
+          "type": "NumberField",
+          "default": 1,
+          "step": 0.01
+        }
+      },
+      "outputs": {
+        "data": {
+          "type": "DataField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "ConcatOp": {
+      "type": "ConcatOp",
+      "category": "utility",
+      "description": "Concatenate multiple arrays into a single array. Use depth to flatten nested arrays (depth=1 flattens one level, depth=2 flattens two levels).",
+      "displayName": "Concat",
+      "inputs": {
+        "values": {
+          "type": "ListField"
+        },
+        "depth": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 2
+        }
+      },
+      "outputs": {
+        "data": {
+          "type": "DataField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "MergeOp": {
+      "type": "MergeOp",
+      "category": "utility",
+      "description": "Merge multiple objects into one (think Object.assign)",
+      "displayName": "Merge",
+      "inputs": {
+        "objects": {
+          "type": "ListField"
+        }
+      },
+      "outputs": {
+        "object": {
+          "type": "DataField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "MouseOp": {
+      "type": "MouseOp",
+      "category": "utility",
+      "description": "Get the current mouse position on the screen",
+      "displayName": "Mouse",
+      "inputs": {},
+      "outputs": {
+        "position": {
+          "type": "Vec2Field"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "MapStyleOp": {
+      "type": "MapStyleOp",
+      "category": "utility",
+      "description": "Map style for MapLibre",
+      "displayName": "MapStyle",
+      "inputs": {
+        "mapStyle": {
+          "type": "StringLiteralField"
+        }
+      },
+      "outputs": {
+        "mapStyle": {
+          "type": "StringField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "ProjectOp": {
+      "type": "ProjectOp",
+      "category": "utility",
+      "description": "Project a lat/lng point to a screen position. Requires the ViewState and dimensions of the map.",
+      "displayName": "Project",
+      "inputs": {
+        "position": {
+          "type": "Point2DField"
+        },
+        "width": {
+          "type": "NumberField",
+          "default": 1920,
+          "min": 1,
+          "softMax": 10000
+        },
+        "height": {
+          "type": "NumberField",
+          "default": 1080,
+          "min": 1,
+          "softMax": 10000
+        },
+        "viewState": {
+          "type": "CompoundPropsField"
+        }
+      },
+      "outputs": {
+        "screenPosition": {
+          "type": "Vec2Field"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "UnprojectOp": {
+      "type": "UnprojectOp",
+      "category": "utility",
+      "description": "Unproject a screen position to a lat/lng point. Requires the ViewState and dimensions",
+      "displayName": "Unproject",
+      "inputs": {
+        "screenPosition": {
+          "type": "Vec2Field"
+        },
+        "width": {
+          "type": "NumberField",
+          "default": 1920,
+          "min": 1,
+          "softMax": 10000
+        },
+        "height": {
+          "type": "NumberField",
+          "default": 1080,
+          "min": 1,
+          "softMax": 10000
+        },
+        "viewState": {
+          "type": "CompoundPropsField"
+        }
+      },
+      "outputs": {
+        "point": {
+          "type": "Point2DField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "MapViewStateOp": {
+      "type": "MapViewStateOp",
+      "category": "utility",
+      "description": "Create a react-map-gl MapViewState for controlling the camera.",
+      "displayName": "MapViewState",
+      "inputs": {
+        "longitude": {
+          "type": "NumberField",
+          "max": 180,
+          "step": 0.001
+        },
+        "latitude": {
+          "type": "NumberField",
+          "max": 90,
+          "step": 0.001
+        },
+        "zoom": {
+          "type": "NumberField",
+          "default": 12,
+          "min": 0,
+          "max": 24,
+          "step": 0.1
+        },
+        "pitch": {
+          "type": "NumberField",
+          "default": 0,
+          "min": 0,
+          "max": 85,
+          "optional": true
+        },
+        "bearing": {
+          "type": "NumberField",
+          "default": 0,
+          "optional": true
+        }
+      },
+      "outputs": {
+        "viewState": {
+          "type": "CompoundPropsField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "SplitMapViewStateOp": {
+      "type": "SplitMapViewStateOp",
+      "category": "utility",
+      "description": "Split a viewState object into its individual components.",
+      "displayName": "SplitMapViewState",
+      "inputs": {
+        "viewState": {
+          "type": "CompoundPropsField"
+        }
+      },
+      "outputs": {
+        "longitude": {
+          "type": "NumberField"
+        },
+        "latitude": {
+          "type": "NumberField"
+        },
+        "zoom": {
+          "type": "NumberField"
+        },
+        "pitch": {
+          "type": "NumberField"
+        },
+        "bearing": {
+          "type": "NumberField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "MaplibreBasemapOp": {
+      "type": "MaplibreBasemapOp",
+      "category": "utility",
+      "description": "A MapLibre basemap with sky and lighting settings. Sky colors apply to mercator projection; light and atmosphere apply to globe projection.",
+      "displayName": "MaplibreBasemap",
+      "inputs": {
+        "mapStyle": {
+          "type": "JSONUrlField"
+        },
+        "projection": {
+          "type": "StringLiteralField",
+          "default": "mercator",
+          "values": [
+            "mercator",
+            "globe"
+          ],
+          "showByDefault": false
+        },
+        "viewState": {
+          "type": "CompoundPropsField"
+        },
+        "sky": {
+          "type": "CompoundPropsField",
+          "showByDefault": false
+        },
+        "light": {
+          "type": "CompoundPropsField",
+          "showByDefault": false
+        }
+      },
+      "outputs": {
+        "maplibre": {
+          "type": "CompoundPropsField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "DeckRendererOp": {
+      "type": "DeckRendererOp",
+      "category": "utility",
+      "description": "Render a deck.gl visualization with layers and effects.",
+      "displayName": "DeckRenderer",
+      "inputs": {
+        "layers": {
+          "type": "ListField"
+        },
+        "effects": {
+          "type": "ListField",
+          "showByDefault": false
+        },
+        "views": {
+          "type": "ListField"
+        },
+        "widgets": {
+          "type": "ListField",
+          "showByDefault": false
+        },
+        "layerFilter": {
+          "type": "FunctionField",
+          "showByDefault": false
+        },
+        "basemap": {
+          "type": "UnknownField",
+          "optional": true
+        },
+        "viewState": {
+          "type": "UnknownField",
+          "showByDefault": false
+        }
+      },
+      "outputs": {
+        "vis": {
+          "type": "VisualizationField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "MapViewOp": {
+      "type": "MapViewOp",
+      "category": "utility",
+      "description": "A deck.gl map view.",
+      "displayName": "MapView",
+      "inputs": {
+        "orthographic": {
+          "type": "BooleanField",
+          "default": false,
+          "showByDefault": false
+        },
+        "fovy": {
+          "type": "NumberField",
+          "default": 40,
+          "min": 0.1,
+          "max": 179.9,
+          "showByDefault": false
+        },
+        "repeat": {
+          "type": "BooleanField",
+          "default": false,
+          "showByDefault": false
+        },
+        "viewState": {
+          "type": "CompoundPropsField"
+        }
+      },
+      "outputs": {
+        "view": {
+          "type": "ViewField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "GraphInputOp": {
+      "type": "GraphInputOp",
+      "category": "utility",
+      "description": "Receives input from the parent Container.",
+      "displayName": "GraphInput",
+      "inputs": {
+        "parentValue": {
+          "type": "UnknownField",
+          "default": null,
+          "optional": true
+        }
+      },
+      "outputs": {
+        "value": {
+          "type": "UnknownField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "GraphOutputOp": {
+      "type": "GraphOutputOp",
+      "category": "utility",
+      "description": "Provides output to the parent Container.",
+      "displayName": "GraphOutput",
+      "inputs": {
+        "value": {
+          "type": "UnknownField",
+          "default": null,
+          "optional": true
+        }
+      },
+      "outputs": {
+        "propagatedValue": {
+          "type": "UnknownField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "GlobeViewOp": {
+      "type": "GlobeViewOp",
+      "category": "utility",
+      "description": "A deck.gl globe view.",
+      "displayName": "GlobeView",
+      "inputs": {
+        "viewState": {
+          "type": "CompoundPropsField"
+        }
+      },
+      "outputs": {
+        "view": {
+          "type": "ViewField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "FpsWidgetOp": {
+      "type": "FpsWidgetOp",
+      "category": "utility",
+      "description": "Display frames per second (FPS) widget",
+      "displayName": "FpsWidget",
+      "inputs": {
+        "placement": {
+          "type": "StringLiteralField",
+          "default": "top-left",
+          "values": [
+            "top-left",
+            "top-right",
+            "bottom-left",
+            "bottom-right"
+          ]
+        },
+        "viewId": {
+          "type": "StringField",
+          "default": "",
+          "optional": true
+        }
+      },
+      "outputs": {
+        "widget": {
+          "type": "WidgetField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "FirstPersonViewOp": {
+      "type": "FirstPersonViewOp",
+      "category": "utility",
+      "description": "A deck.gl first person view.",
+      "displayName": "FirstPersonView",
+      "inputs": {
+        "orthographic": {
+          "type": "BooleanField",
+          "default": false,
+          "showByDefault": false
+        },
+        "fovy": {
+          "type": "NumberField",
+          "default": 40,
+          "min": 0.1,
+          "max": 179.9,
+          "showByDefault": false
+        },
+        "viewState": {
+          "type": "CompoundPropsField"
+        }
+      },
+      "outputs": {
+        "view": {
+          "type": "ViewField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "OrbitViewOp": {
+      "type": "OrbitViewOp",
+      "category": "utility",
+      "description": "A deck.gl orbit view.",
+      "displayName": "OrbitView",
+      "inputs": {
+        "orthographic": {
+          "type": "BooleanField",
+          "default": false,
+          "showByDefault": false
+        },
+        "orbitAxis": {
+          "type": "StringLiteralField",
+          "default": "Z",
+          "values": [
+            "X",
+            "Y",
+            "Z"
+          ],
+          "showByDefault": false
+        },
+        "fovy": {
+          "type": "NumberField",
+          "default": 40,
+          "min": 0.1,
+          "max": 179.9,
+          "showByDefault": false
+        },
+        "viewState": {
+          "type": "CompoundPropsField"
+        }
+      },
+      "outputs": {
+        "view": {
+          "type": "ViewField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "OrthographicViewOp": {
+      "type": "OrthographicViewOp",
+      "category": "utility",
+      "description": "A deck.gl orthographic view.",
+      "displayName": "OrthographicView",
+      "inputs": {
+        "flipY": {
+          "type": "BooleanField",
+          "default": false,
+          "showByDefault": false
+        },
+        "viewState": {
+          "type": "CompoundPropsField"
+        }
+      },
+      "outputs": {
+        "view": {
+          "type": "ViewField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "OutOp": {
+      "type": "OutOp",
+      "category": "utility",
+      "description": "Output a visualization.",
+      "displayName": "Out",
+      "inputs": {
+        "vis": {
+          "type": "VisualizationField"
+        },
+        "display": {
+          "type": "StringLiteralField",
+          "default": "fixed"
+        },
+        "width": {
+          "type": "NumberField",
+          "default": 1920,
+          "min": 1,
+          "max": 8192,
+          "step": 1
+        },
+        "height": {
+          "type": "NumberField",
+          "default": 1080,
+          "min": 1,
+          "max": 8192,
+          "step": 1
+        },
+        "lod": {
+          "type": "NumberField",
+          "default": 2,
+          "min": 0.1,
+          "max": 4,
+          "step": 0.1
+        },
+        "waitForData": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "codec": {
+          "type": "StringLiteralField",
+          "default": "avc"
+        },
+        "bitrateMbps": {
+          "type": "NumberField",
+          "default": 10,
+          "min": 1,
+          "max": 100,
+          "step": 1
+        },
+        "bitrateMode": {
+          "type": "StringLiteralField",
+          "default": "constant"
+        },
+        "scaleControl": {
+          "type": "NumberField",
+          "default": 0.3,
+          "min": 0.1,
+          "max": 1,
+          "step": 0.05
+        },
+        "framerate": {
+          "type": "NumberField",
+          "default": 30,
+          "min": 1,
+          "max": 120,
+          "step": 1
+        },
+        "captureDelay": {
+          "type": "NumberField",
+          "default": 200,
+          "min": 0,
+          "max": 10000,
+          "step": 10
+        }
+      },
+      "outputs": {},
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "ConsoleOp": {
+      "type": "ConsoleOp",
+      "category": "utility",
+      "description": "Log data to the console",
+      "displayName": "Console",
+      "inputs": {
+        "data": {
+          "type": "DataField"
+        }
+      },
+      "outputs": {},
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "LayerPropsOp": {
+      "type": "LayerPropsOp",
+      "category": "utility",
+      "description": "Add additional props to a layer (e.g., operation: \"mask\" for mask layers, beforeId for maplibre layer ordering)",
+      "displayName": "LayerProps",
+      "inputs": {
+        "layer": {
+          "type": "LayerField"
+        },
+        "operation": {
+          "type": "StringField",
+          "default": "",
+          "optional": true
+        },
+        "beforeId": {
+          "type": "StringField",
+          "default": "",
+          "optional": true
+        },
+        "additionalProps": {
+          "type": "UnknownField",
+          "optional": true
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "BlendingOp": {
+      "type": "BlendingOp",
+      "category": "utility",
+      "description": "Configure WebGL blending mode for layers (additive, normal, subtractive)",
+      "displayName": "Blending",
+      "inputs": {
+        "mode": {
+          "type": "StringLiteralField",
+          "default": "normal",
+          "values": [
+            "normal",
+            "additive",
+            "subtractive",
+            "custom"
+          ]
+        },
+        "blendColorSrcFactor": {
+          "type": "StringLiteralField",
+          "default": "src-alpha",
+          "values": [
+            "src-alpha",
+            "one",
+            "zero",
+            "dst-alpha",
+            "one-minus-src-alpha",
+            "one-minus-dst-alpha",
+            "one-minus-dst-color"
+          ],
+          "optional": true,
+          "showByDefault": false
+        },
+        "blendColorDstFactor": {
+          "type": "StringLiteralField",
+          "default": "one-minus-src-alpha",
+          "values": [
+            "src-alpha",
+            "one",
+            "zero",
+            "dst-alpha",
+            "one-minus-src-alpha",
+            "one-minus-dst-alpha",
+            "one-minus-dst-color"
+          ],
+          "optional": true,
+          "showByDefault": false
+        }
+      },
+      "outputs": {
+        "parameters": {
+          "type": "UnknownField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "PathLayerOp": {
+      "type": "PathLayerOp",
+      "category": "utility",
+      "description": "Render a path on the map",
+      "displayName": "PathLayer",
+      "inputs": {
+        "data": {
+          "type": "DataField"
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        },
+        "billboard": {
+          "type": "BooleanField",
+          "default": true,
+          "showByDefault": false
+        },
+        "capRounded": {
+          "type": "BooleanField",
+          "default": true,
+          "showByDefault": false
+        },
+        "getPath": {
+          "type": "UnknownField",
+          "accessor": true
+        },
+        "getColor": {
+          "type": "ColorField",
+          "default": "#006ac6",
+          "accessor": true
+        },
+        "getWidth": {
+          "type": "NumberField",
+          "default": 8,
+          "min": 0,
+          "softMax": 100,
+          "accessor": true
+        },
+        "widthUnits": {
+          "type": "StringLiteralField",
+          "default": "meters",
+          "values": [
+            "pixels",
+            "meters"
+          ],
+          "showByDefault": false
+        },
+        "widthScale": {
+          "type": "NumberField",
+          "default": 20,
+          "min": 0,
+          "softMax": 100,
+          "showByDefault": false
+        },
+        "widthMinPixels": {
+          "type": "NumberField",
+          "default": 2,
+          "min": 0,
+          "softMax": 100,
+          "showByDefault": false
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "showByDefault": false
+        },
+        "extensions": {
+          "type": "ListField",
+          "showByDefault": false
+        },
+        "wrapLongitude": {
+          "type": "BooleanField",
+          "default": false,
+          "showByDefault": false
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "ScatterplotLayerOp": {
+      "type": "ScatterplotLayerOp",
+      "category": "utility",
+      "description": "Render a scatterplot of points as circles on the map",
+      "displayName": "ScatterplotLayer",
+      "inputs": {
+        "data": {
+          "type": "DataField"
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        },
+        "stroked": {
+          "type": "BooleanField",
+          "default": true,
+          "showByDefault": false
+        },
+        "billboard": {
+          "type": "BooleanField",
+          "default": false,
+          "showByDefault": false
+        },
+        "getPosition": {
+          "type": "Point3DField",
+          "default": [
+            0,
+            0,
+            0
+          ],
+          "returnType": "tuple",
+          "accessor": true
+        },
+        "getFillColor": {
+          "type": "ColorField",
+          "default": "#fff",
+          "accessor": true
+        },
+        "getLineColor": {
+          "type": "ColorField",
+          "default": "#fff",
+          "accessor": true,
+          "showByDefault": false
+        },
+        "getRadius": {
+          "type": "NumberField",
+          "default": 20,
+          "min": 0,
+          "softMax": 1000000,
+          "accessor": true
+        },
+        "getLineWidth": {
+          "type": "NumberField",
+          "default": 0,
+          "min": 0,
+          "accessor": true,
+          "showByDefault": false
+        },
+        "radiusScale": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "softMax": 100,
+          "showByDefault": false
+        },
+        "radiusUnits": {
+          "type": "StringLiteralField",
+          "default": "pixels",
+          "values": [
+            "pixels",
+            "meters"
+          ],
+          "showByDefault": false
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "showByDefault": false
+        },
+        "extensions": {
+          "type": "ListField",
+          "showByDefault": false
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "TripsLayerOp": {
+      "type": "TripsLayerOp",
+      "category": "utility",
+      "description": "Render a set of trips with timestamps for animation on the map",
+      "displayName": "TripsLayer",
+      "inputs": {
+        "data": {
+          "type": "DataField"
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        },
+        "getPath": {
+          "type": "UnknownField",
+          "accessor": true
+        },
+        "getTimestamps": {
+          "type": "UnknownField",
+          "accessor": true
+        },
+        "getColor": {
+          "type": "ColorField",
+          "default": "#bfcae3",
+          "accessor": true
+        },
+        "getWidth": {
+          "type": "NumberField",
+          "default": 8,
+          "min": 0,
+          "softMax": 100,
+          "accessor": true
+        },
+        "billboard": {
+          "type": "BooleanField",
+          "default": false,
+          "showByDefault": false
+        },
+        "capRounded": {
+          "type": "BooleanField",
+          "default": true,
+          "showByDefault": false
+        },
+        "jointRounded": {
+          "type": "BooleanField",
+          "default": true,
+          "showByDefault": false
+        },
+        "currentTime": {
+          "type": "NumberField",
+          "default": 0,
+          "min": 0
+        },
+        "fadeTrail": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "trailLength": {
+          "type": "NumberField",
+          "default": 120,
+          "min": 0
+        },
+        "widthUnits": {
+          "type": "StringLiteralField",
+          "default": "meters",
+          "values": [
+            "pixels",
+            "meters"
+          ],
+          "showByDefault": false
+        },
+        "widthMinPixels": {
+          "type": "NumberField",
+          "default": 2,
+          "min": 0,
+          "softMax": 100,
+          "showByDefault": false
+        },
+        "widthScale": {
+          "type": "NumberField",
+          "default": 20,
+          "min": 0,
+          "softMax": 100,
+          "showByDefault": false
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "showByDefault": false
+        },
+        "extensions": {
+          "type": "ListField",
+          "showByDefault": false
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "SolidPolygonLayerOp": {
+      "type": "SolidPolygonLayerOp",
+      "category": "utility",
+      "description": "Render a set of solid polygons on the map",
+      "displayName": "SolidPolygonLayer",
+      "inputs": {
+        "data": {
+          "type": "DataField"
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        },
+        "getPolygon": {
+          "type": "UnknownField",
+          "accessor": true
+        },
+        "getFillColor": {
+          "type": "ColorField",
+          "default": "#fff",
+          "accessor": true
+        },
+        "getLineColor": {
+          "type": "ColorField",
+          "default": "#fff",
+          "accessor": true
+        },
+        "getLineWidth": {
+          "type": "NumberField",
+          "default": 0,
+          "min": 0,
+          "accessor": true
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "showByDefault": false
+        },
+        "extensions": {
+          "type": "ListField",
+          "showByDefault": false
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "TextLayerOp": {
+      "type": "TextLayerOp",
+      "category": "utility",
+      "description": "Render a set of text labels on the map",
+      "displayName": "TextLayer",
+      "inputs": {
+        "data": {
+          "type": "DataField"
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        },
+        "getPosition": {
+          "type": "Point3DField",
+          "default": [
+            0,
+            0,
+            0
+          ],
+          "returnType": "tuple",
+          "accessor": true
+        },
+        "getText": {
+          "type": "StringField",
+          "default": "",
+          "accessor": true
+        },
+        "billboard": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "fontFamily": {
+          "type": "StringField",
+          "default": "Inter"
+        },
+        "fontWeight": {
+          "type": "NumberField",
+          "default": 400,
+          "min": 100,
+          "max": 900,
+          "step": 100
+        },
+        "sizeUnits": {
+          "type": "StringLiteralField",
+          "default": "pixels",
+          "values": [
+            "pixels",
+            "meters"
+          ],
+          "showByDefault": false
+        },
+        "getSize": {
+          "type": "NumberField",
+          "default": 48,
+          "min": 0,
+          "softMax": 200,
+          "accessor": true
+        },
+        "getColor": {
+          "type": "ColorField",
+          "default": "#f0f0f0",
+          "accessor": true
+        },
+        "getAngle": {
+          "type": "NumberField",
+          "default": 0,
+          "softMin": 0,
+          "softMax": 360,
+          "accessor": true,
+          "showByDefault": false
+        },
+        "getTextAnchor": {
+          "type": "StringLiteralField",
+          "default": "middle",
+          "values": [
+            "start",
+            "middle",
+            "end"
+          ],
+          "accessor": true
+        },
+        "getPixelOffset": {
+          "type": "Vec2Field",
+          "returnType": "tuple",
+          "accessor": true,
+          "showByDefault": false
+        },
+        "getAlignmentBaseline": {
+          "type": "StringLiteralField",
+          "default": "center",
+          "values": [
+            "top",
+            "center",
+            "bottom"
+          ],
+          "accessor": true,
+          "showByDefault": false
+        },
+        "fontSettings": {
+          "type": "CompoundPropsField"
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "showByDefault": false
+        },
+        "extensions": {
+          "type": "ListField",
+          "showByDefault": false
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "IconLayerOp": {
+      "type": "IconLayerOp",
+      "category": "utility",
+      "description": "Render a set of icons on the map",
+      "displayName": "IconLayer",
+      "inputs": {
+        "data": {
+          "type": "DataField"
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        },
+        "getPosition": {
+          "type": "Point3DField",
+          "default": [
+            0,
+            0,
+            0
+          ],
+          "returnType": "tuple",
+          "accessor": true
+        },
+        "iconAtlas": {
+          "type": "StringField",
+          "default": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.png",
+          "showByDefault": false
+        },
+        "iconMapping": {
+          "type": "JSONUrlField",
+          "default": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.json",
+          "showByDefault": false
+        },
+        "billboard": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "getIcon": {
+          "type": "UnknownField",
+          "default": null,
+          "accessor": true
+        },
+        "getSize": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "softMax": 100,
+          "accessor": true
+        },
+        "sizeUnits": {
+          "type": "StringLiteralField",
+          "default": "pixels",
+          "values": [
+            "pixels",
+            "meters"
+          ],
+          "showByDefault": false
+        },
+        "sizeScale": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "softMax": 10000,
+          "showByDefault": false
+        },
+        "sizeMinPixels": {
+          "type": "NumberField",
+          "default": 0,
+          "min": 0,
+          "softMax": 10000,
+          "showByDefault": false
+        },
+        "sizeMaxPixels": {
+          "type": "NumberField",
+          "default": 100,
+          "min": 0,
+          "softMax": 10000,
+          "showByDefault": false
+        },
+        "getPixelOffset": {
+          "type": "Vec2Field",
+          "returnType": "tuple",
+          "accessor": true,
+          "showByDefault": false
+        },
+        "getColor": {
+          "type": "ColorField",
+          "default": "#fff",
+          "accessor": true
+        },
+        "getAngle": {
+          "type": "NumberField",
+          "default": 0,
+          "accessor": true,
+          "showByDefault": false
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "showByDefault": false
+        },
+        "extensions": {
+          "type": "ListField",
+          "showByDefault": false
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "ScenegraphLayerOp": {
+      "type": "ScenegraphLayerOp",
+      "category": "utility",
+      "description": "Render a 3D model on the map",
+      "displayName": "ScenegraphLayer",
+      "inputs": {
+        "data": {
+          "type": "DataField"
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        },
+        "scenegraph": {
+          "type": "JSONUrlField",
+          "default": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/examples/scenegraph-layer/airplane.glb"
+        },
+        "getPosition": {
+          "type": "Point3DField",
+          "default": [
+            0,
+            0,
+            0
+          ],
+          "returnType": "tuple",
+          "accessor": true
+        },
+        "getOrientation": {
+          "type": "Vec3Field",
+          "default": [
+            0,
+            0,
+            0
+          ],
+          "returnType": "tuple",
+          "accessor": true
+        },
+        "getScale": {
+          "type": "Vec3Field",
+          "default": [
+            1,
+            1,
+            1
+          ],
+          "returnType": "tuple",
+          "accessor": true
+        },
+        "sizeScale": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "softMax": 10000,
+          "showByDefault": false
+        },
+        "sizeMinPixels": {
+          "type": "NumberField",
+          "default": 0,
+          "min": 0,
+          "softMax": 100,
+          "showByDefault": false
+        },
+        "sizeMaxPixels": {
+          "type": "NumberField",
+          "default": 100,
+          "min": 0,
+          "softMax": 100,
+          "showByDefault": false
+        },
+        "getColor": {
+          "type": "ColorField",
+          "default": "#fff",
+          "accessor": true
+        },
+        "getTranslation": {
+          "type": "Vec3Field",
+          "default": [
+            0,
+            0,
+            0
+          ],
+          "returnType": "tuple",
+          "accessor": true,
+          "showByDefault": false
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "showByDefault": false
+        },
+        "extensions": {
+          "type": "ListField",
+          "showByDefault": false
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "SimpleMeshLayerOp": {
+      "type": "SimpleMeshLayerOp",
+      "category": "utility",
+      "description": "Render simple 3D meshes/models at specified positions",
+      "displayName": "SimpleMeshLayer",
+      "inputs": {
+        "data": {
+          "type": "DataField"
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        },
+        "mesh": {
+          "type": "StringField",
+          "default": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/humanoid_quad.obj"
+        },
+        "wireframe": {
+          "type": "BooleanField",
+          "default": false,
+          "showByDefault": false
+        },
+        "texture": {
+          "type": "UnknownField",
+          "default": null,
+          "optional": true,
+          "showByDefault": false
+        },
+        "textureParameters": {
+          "type": "DataField",
+          "showByDefault": false
+        },
+        "getPosition": {
+          "type": "Point3DField",
+          "default": [
+            0,
+            0,
+            0
+          ],
+          "returnType": "tuple",
+          "accessor": true
+        },
+        "getColor": {
+          "type": "ColorField",
+          "default": "#000000",
+          "accessor": true
+        },
+        "getOrientation": {
+          "type": "Vec3Field",
+          "default": [
+            0,
+            0,
+            0
+          ],
+          "returnType": "tuple",
+          "accessor": true
+        },
+        "getScale": {
+          "type": "Vec3Field",
+          "default": [
+            1,
+            1,
+            1
+          ],
+          "returnType": "tuple",
+          "accessor": true
+        },
+        "sizeScale": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "softMax": 1000,
+          "showByDefault": false
+        },
+        "getTranslation": {
+          "type": "Vec3Field",
+          "default": [
+            0,
+            0,
+            0
+          ],
+          "returnType": "tuple",
+          "accessor": true,
+          "showByDefault": false
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "showByDefault": false
+        },
+        "extensions": {
+          "type": "ListField",
+          "showByDefault": false
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "H3HexagonLayerOp": {
+      "type": "H3HexagonLayerOp",
+      "category": "utility",
+      "description": "Render a hexagon grid on the map using the H3 grid system",
+      "displayName": "H3HexagonLayer",
+      "inputs": {
+        "data": {
+          "type": "DataField"
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        },
+        "getHexagon": {
+          "type": "StringField",
+          "default": "",
+          "accessor": true
+        },
+        "getFillColor": {
+          "type": "ColorField",
+          "default": "#fff",
+          "accessor": true
+        },
+        "getRadius": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "accessor": true
+        },
+        "getLineWidth": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "accessor": true
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "showByDefault": false
+        },
+        "extensions": {
+          "type": "ListField",
+          "showByDefault": false
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "A5LayerOp": {
+      "type": "A5LayerOp",
+      "category": "utility",
+      "description": "Render filled and/or stroked polygons using the A5 geospatial indexing system",
+      "displayName": "A5Layer",
+      "inputs": {
+        "data": {
+          "type": "DataField"
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        },
+        "getPentagon": {
+          "type": "UnknownField",
+          "accessor": true
+        },
+        "getFillColor": {
+          "type": "ColorField",
+          "default": "#fff",
+          "accessor": true
+        },
+        "getElevation": {
+          "type": "NumberField",
+          "default": 1000,
+          "min": 0,
+          "softMax": 100000,
+          "accessor": true
+        },
+        "elevationScale": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "softMax": 100,
+          "showByDefault": false
+        },
+        "extruded": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "pickable": {
+          "type": "BooleanField",
+          "default": true,
+          "showByDefault": false
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "showByDefault": false
+        },
+        "extensions": {
+          "type": "ListField",
+          "showByDefault": false
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "HeatmapLayerOp": {
+      "type": "HeatmapLayerOp",
+      "category": "utility",
+      "description": "Render a heatmap from points on the map",
+      "displayName": "HeatmapLayer",
+      "inputs": {
+        "data": {
+          "type": "DataField"
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        },
+        "getPosition": {
+          "type": "Point2DField",
+          "default": [
+            0,
+            0
+          ],
+          "returnType": "tuple",
+          "accessor": true
+        },
+        "getWeight": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "accessor": true
+        },
+        "aggregation": {
+          "type": "StringLiteralField",
+          "default": "SUM",
+          "values": [
+            "SUM",
+            "MEAN"
+          ]
+        },
+        "radiusPixels": {
+          "type": "NumberField",
+          "default": 30,
+          "min": 0,
+          "softMax": 10000
+        },
+        "intensity": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "showByDefault": false
+        },
+        "threshold": {
+          "type": "NumberField",
+          "default": 0.05,
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "showByDefault": false
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "showByDefault": false
+        },
+        "extensions": {
+          "type": "ListField",
+          "showByDefault": false
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "GeoJsonLayerOp": {
+      "type": "GeoJsonLayerOp",
+      "category": "utility",
+      "description": "Render GeoJSON data with points, lines, and polygons",
+      "displayName": "GeoJsonLayer",
+      "inputs": {
+        "data": {
+          "type": "GeoJsonField"
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        },
+        "pointType": {
+          "type": "StringLiteralField",
+          "default": "circle",
+          "values": [
+            "circle",
+            "icon",
+            "text",
+            "circle+text",
+            "icon+text",
+            "circle+icon"
+          ],
+          "showByDefault": false
+        },
+        "getPointRadius": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "softMax": 100000,
+          "accessor": true,
+          "showByDefault": false
+        },
+        "pointRadiusUnits": {
+          "type": "StringLiteralField",
+          "default": "meters",
+          "values": [
+            "pixels",
+            "meters"
+          ],
+          "showByDefault": false
+        },
+        "pointRadiusScale": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "softMax": 100,
+          "showByDefault": false
+        },
+        "pointRadiusMinPixels": {
+          "type": "NumberField",
+          "default": 0,
+          "min": 0,
+          "softMax": 100,
+          "showByDefault": false
+        },
+        "pointRadiusMaxPixels": {
+          "type": "NumberField",
+          "default": 100,
+          "min": 0,
+          "softMax": 1000,
+          "showByDefault": false
+        },
+        "pointRadiusBillboard": {
+          "type": "BooleanField",
+          "default": false,
+          "showByDefault": false
+        },
+        "getText": {
+          "type": "StringField",
+          "default": "",
+          "accessor": true,
+          "showByDefault": false
+        },
+        "getTextSize": {
+          "type": "NumberField",
+          "default": 32,
+          "min": 0,
+          "softMax": 200,
+          "accessor": true,
+          "showByDefault": false
+        },
+        "getTextColor": {
+          "type": "ColorField",
+          "default": "#000000",
+          "accessor": true,
+          "showByDefault": false
+        },
+        "getTextAngle": {
+          "type": "NumberField",
+          "default": 0,
+          "softMin": 0,
+          "softMax": 360,
+          "accessor": true,
+          "showByDefault": false
+        },
+        "getTextAnchor": {
+          "type": "StringLiteralField",
+          "default": "middle",
+          "values": [
+            "start",
+            "middle",
+            "end"
+          ],
+          "accessor": true,
+          "showByDefault": false
+        },
+        "getTextAlignmentBaseline": {
+          "type": "StringLiteralField",
+          "default": "center",
+          "values": [
+            "top",
+            "center",
+            "bottom"
+          ],
+          "accessor": true,
+          "showByDefault": false
+        },
+        "getTextPixelOffset": {
+          "type": "Vec2Field",
+          "returnType": "tuple",
+          "accessor": true,
+          "showByDefault": false
+        },
+        "textSizeUnits": {
+          "type": "StringLiteralField",
+          "default": "pixels",
+          "values": [
+            "pixels",
+            "meters"
+          ],
+          "showByDefault": false
+        },
+        "textSizeScale": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "softMax": 100,
+          "showByDefault": false
+        },
+        "textSizeMinPixels": {
+          "type": "NumberField",
+          "default": 0,
+          "min": 0,
+          "softMax": 100,
+          "showByDefault": false
+        },
+        "textSizeMaxPixels": {
+          "type": "NumberField",
+          "default": 100,
+          "min": 0,
+          "showByDefault": false
+        },
+        "textBillboard": {
+          "type": "BooleanField",
+          "default": true,
+          "showByDefault": false
+        },
+        "textFontFamily": {
+          "type": "StringField",
+          "default": "Monaco, monospace",
+          "showByDefault": false
+        },
+        "textFontWeight": {
+          "type": "NumberField",
+          "default": 400,
+          "min": 100,
+          "max": 900,
+          "step": 100,
+          "showByDefault": false
+        },
+        "filled": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "getFillColor": {
+          "type": "ColorField",
+          "default": "#006ac6",
+          "accessor": true
+        },
+        "stroked": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "getLineColor": {
+          "type": "ColorField",
+          "default": "#000000",
+          "accessor": true
+        },
+        "getLineWidth": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "softMax": 100,
+          "accessor": true
+        },
+        "lineWidthUnits": {
+          "type": "StringLiteralField",
+          "default": "meters",
+          "values": [
+            "pixels",
+            "meters"
+          ],
+          "showByDefault": false
+        },
+        "lineWidthScale": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "softMax": 100,
+          "showByDefault": false
+        },
+        "lineWidthMinPixels": {
+          "type": "NumberField",
+          "default": 0,
+          "min": 0,
+          "softMax": 100,
+          "showByDefault": false
+        },
+        "lineWidthMaxPixels": {
+          "type": "NumberField",
+          "default": 100,
+          "min": 0,
+          "softMax": 1000,
+          "showByDefault": false
+        },
+        "lineCapRounded": {
+          "type": "BooleanField",
+          "default": false,
+          "showByDefault": false
+        },
+        "lineJointRounded": {
+          "type": "BooleanField",
+          "default": false,
+          "showByDefault": false
+        },
+        "lineMiterLimit": {
+          "type": "NumberField",
+          "default": 4,
+          "min": 0,
+          "softMax": 10,
+          "showByDefault": false
+        },
+        "lineBillboard": {
+          "type": "BooleanField",
+          "default": false,
+          "showByDefault": false
+        },
+        "extruded": {
+          "type": "BooleanField",
+          "default": false,
+          "showByDefault": false
+        },
+        "wireframe": {
+          "type": "BooleanField",
+          "default": false,
+          "showByDefault": false
+        },
+        "getElevation": {
+          "type": "NumberField",
+          "default": 1000,
+          "min": 0,
+          "softMax": 100000,
+          "accessor": true,
+          "showByDefault": false
+        },
+        "elevationScale": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "softMax": 100,
+          "showByDefault": false
+        },
+        "_full3d": {
+          "type": "BooleanField",
+          "default": false,
+          "showByDefault": false
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "showByDefault": false
+        },
+        "extensions": {
+          "type": "ListField",
+          "showByDefault": false
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "ArcLayerOp": {
+      "type": "ArcLayerOp",
+      "category": "utility",
+      "description": "Render a set of arcs on the map",
+      "displayName": "ArcLayer",
+      "inputs": {
+        "data": {
+          "type": "DataField"
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        },
+        "getSourcePosition": {
+          "type": "Point3DField",
+          "default": [
+            0,
+            0,
+            0
+          ],
+          "returnType": "tuple",
+          "accessor": true
+        },
+        "getTargetPosition": {
+          "type": "Point3DField",
+          "default": [
+            0,
+            0,
+            0
+          ],
+          "returnType": "tuple",
+          "accessor": true
+        },
+        "getSourceColor": {
+          "type": "ColorField",
+          "default": "#fff",
+          "accessor": true
+        },
+        "getTargetColor": {
+          "type": "ColorField",
+          "default": "#fff",
+          "accessor": true
+        },
+        "widthUnits": {
+          "type": "StringLiteralField",
+          "default": "meters",
+          "values": [
+            "pixels",
+            "meters"
+          ],
+          "showByDefault": false
+        },
+        "getWidth": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "softMax": 100,
+          "accessor": true
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "showByDefault": false
+        },
+        "extensions": {
+          "type": "ListField",
+          "showByDefault": false
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "GridLayerOp": {
+      "type": "GridLayerOp",
+      "category": "utility",
+      "description": "Aggregate data into a grid and render as columns",
+      "displayName": "GridLayer",
+      "inputs": {
+        "data": {
+          "type": "DataField"
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        },
+        "getPosition": {
+          "type": "Point3DField",
+          "default": [
+            0,
+            0,
+            0
+          ],
+          "returnType": "tuple",
+          "accessor": true
+        },
+        "cellSize": {
+          "type": "NumberField",
+          "default": 1000,
+          "min": 1,
+          "softMax": 100000
+        },
+        "getColorWeight": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "accessor": true
+        },
+        "colorAggregation": {
+          "type": "StringLiteralField",
+          "default": "SUM",
+          "values": [
+            "SUM",
+            "MEAN",
+            "MIN",
+            "MAX",
+            "COUNT"
+          ]
+        },
+        "colorScaleType": {
+          "type": "StringLiteralField",
+          "default": "quantize",
+          "values": [
+            "linear",
+            "quantize",
+            "quantile",
+            "ordinal"
+          ],
+          "showByDefault": false
+        },
+        "colorRange": {
+          "type": "UnknownField",
+          "optional": true
+        },
+        "colorDomain": {
+          "type": "UnknownField",
+          "default": null,
+          "optional": true,
+          "showByDefault": false
+        },
+        "upperPercentile": {
+          "type": "NumberField",
+          "default": 100,
+          "min": 0,
+          "max": 100,
+          "step": 0.1,
+          "showByDefault": false
+        },
+        "lowerPercentile": {
+          "type": "NumberField",
+          "default": 0,
+          "min": 0,
+          "max": 100,
+          "step": 0.1,
+          "showByDefault": false
+        },
+        "extruded": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "getElevationWeight": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "accessor": true
+        },
+        "elevationAggregation": {
+          "type": "StringLiteralField",
+          "default": "SUM",
+          "values": [
+            "SUM",
+            "MEAN",
+            "MIN",
+            "MAX",
+            "COUNT"
+          ]
+        },
+        "elevationScaleType": {
+          "type": "StringLiteralField",
+          "default": "linear",
+          "values": [
+            "linear",
+            "quantile"
+          ],
+          "showByDefault": false
+        },
+        "elevationScale": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "softMax": 100,
+          "showByDefault": false
+        },
+        "elevationRange": {
+          "type": "Vec2Field",
+          "default": [
+            0,
+            1000
+          ],
+          "returnType": "tuple",
+          "showByDefault": false
+        },
+        "elevationDomain": {
+          "type": "UnknownField",
+          "default": null,
+          "optional": true,
+          "showByDefault": false
+        },
+        "elevationUpperPercentile": {
+          "type": "NumberField",
+          "default": 100,
+          "min": 0,
+          "max": 100,
+          "step": 0.1,
+          "showByDefault": false
+        },
+        "elevationLowerPercentile": {
+          "type": "NumberField",
+          "default": 0,
+          "min": 0,
+          "max": 100,
+          "step": 0.1,
+          "showByDefault": false
+        },
+        "coverage": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "showByDefault": false
+        },
+        "gpuAggregation": {
+          "type": "BooleanField",
+          "default": true,
+          "showByDefault": false
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "showByDefault": false
+        },
+        "extensions": {
+          "type": "ListField",
+          "showByDefault": false
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "HexagonLayerOp": {
+      "type": "HexagonLayerOp",
+      "category": "utility",
+      "description": "Aggregate data into hexagonal bins and render as hexagonal columns",
+      "displayName": "HexagonLayer",
+      "inputs": {
+        "data": {
+          "type": "DataField"
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        },
+        "getPosition": {
+          "type": "Point3DField",
+          "default": [
+            0,
+            0,
+            0
+          ],
+          "returnType": "tuple",
+          "accessor": true
+        },
+        "radius": {
+          "type": "NumberField",
+          "default": 1000,
+          "min": 1,
+          "softMax": 100000
+        },
+        "getColorWeight": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "accessor": true
+        },
+        "colorAggregation": {
+          "type": "StringLiteralField",
+          "default": "SUM",
+          "values": [
+            "SUM",
+            "MEAN",
+            "MIN",
+            "MAX",
+            "COUNT"
+          ]
+        },
+        "colorScaleType": {
+          "type": "StringLiteralField",
+          "default": "quantize",
+          "values": [
+            "linear",
+            "quantize",
+            "quantile",
+            "ordinal"
+          ],
+          "showByDefault": false
+        },
+        "colorRange": {
+          "type": "UnknownField",
+          "optional": true
+        },
+        "colorDomain": {
+          "type": "UnknownField",
+          "default": null,
+          "optional": true,
+          "showByDefault": false
+        },
+        "upperPercentile": {
+          "type": "NumberField",
+          "default": 100,
+          "min": 0,
+          "max": 100,
+          "step": 0.1,
+          "showByDefault": false
+        },
+        "lowerPercentile": {
+          "type": "NumberField",
+          "default": 0,
+          "min": 0,
+          "max": 100,
+          "step": 0.1,
+          "showByDefault": false
+        },
+        "extruded": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "getElevationWeight": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "accessor": true
+        },
+        "elevationAggregation": {
+          "type": "StringLiteralField",
+          "default": "SUM",
+          "values": [
+            "SUM",
+            "MEAN",
+            "MIN",
+            "MAX",
+            "COUNT"
+          ]
+        },
+        "elevationScaleType": {
+          "type": "StringLiteralField",
+          "default": "linear",
+          "values": [
+            "linear",
+            "quantile"
+          ],
+          "showByDefault": false
+        },
+        "elevationScale": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "softMax": 100,
+          "showByDefault": false
+        },
+        "elevationRange": {
+          "type": "Vec2Field",
+          "default": [
+            0,
+            1000
+          ],
+          "returnType": "tuple",
+          "showByDefault": false
+        },
+        "elevationDomain": {
+          "type": "UnknownField",
+          "default": null,
+          "optional": true,
+          "showByDefault": false
+        },
+        "elevationUpperPercentile": {
+          "type": "NumberField",
+          "default": 100,
+          "min": 0,
+          "max": 100,
+          "step": 0.1,
+          "showByDefault": false
+        },
+        "elevationLowerPercentile": {
+          "type": "NumberField",
+          "default": 0,
+          "min": 0,
+          "max": 100,
+          "step": 0.1,
+          "showByDefault": false
+        },
+        "coverage": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "showByDefault": false
+        },
+        "gpuAggregation": {
+          "type": "BooleanField",
+          "default": true,
+          "showByDefault": false
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "showByDefault": false
+        },
+        "extensions": {
+          "type": "ListField",
+          "showByDefault": false
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "Tile3DLayerOp": {
+      "type": "Tile3DLayerOp",
+      "category": "utility",
+      "description": "Render 3D tiles on the map (Google, Cesium, or a custom tileset URL)",
+      "displayName": "Tile3DLayer",
+      "inputs": {
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "provider": {
+          "type": "StringLiteralField",
+          "default": "Google"
+        },
+        "tilesetUrl": {
+          "type": "StringField",
+          "default": "",
+          "showByDefault": false
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        },
+        "operation": {
+          "type": "StringLiteralField",
+          "default": "terrain+draw",
+          "values": [
+            "terrain+draw",
+            "draw",
+            "terrain"
+          ]
+        },
+        "wireframe": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "flatLighting": {
+          "type": "BooleanField",
+          "default": true,
+          "showByDefault": false
+        },
+        "throttleRequests": {
+          "type": "BooleanField",
+          "default": false,
+          "showByDefault": false
+        },
+        "pointSize": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "softMax": 100
+        },
+        "maxLodMetricValue": {
+          "type": "NumberField",
+          "default": 2,
+          "min": 0,
+          "softMax": 10,
+          "showByDefault": false
+        },
+        "maxScreenSpaceError": {
+          "type": "NumberField",
+          "default": 50,
+          "min": 0,
+          "softMax": 1000,
+          "showByDefault": false
+        },
+        "maxMemoryUsage": {
+          "type": "NumberField",
+          "default": 2024,
+          "min": 0,
+          "softMax": 10000,
+          "showByDefault": false
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "showByDefault": false
+        },
+        "extensions": {
+          "type": "ListField",
+          "showByDefault": false
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "Mask3DExtensionOp": {
+      "type": "Mask3DExtensionOp",
+      "category": "utility",
+      "description": "Mask a sphere (used with Tile3DLayer)",
+      "displayName": "Mask3DExtension",
+      "inputs": {
+        "targetPosition": {
+          "type": "Vec3Field",
+          "default": [
+            0,
+            0,
+            0
+          ],
+          "returnType": "tuple"
+        },
+        "innerRadius": {
+          "type": "NumberField",
+          "default": 0,
+          "min": 0,
+          "softMax": 10000
+        },
+        "fadeRange": {
+          "type": "NumberField",
+          "default": 0,
+          "min": 0,
+          "softMax": 10000
+        }
+      },
+      "outputs": {
+        "extension": {
+          "type": "ExtensionField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "BrushingExtensionOp": {
+      "type": "BrushingExtensionOp",
+      "category": "utility",
+      "description": "Only render the points within a given radius of the mouse position. Used with most layer types.",
+      "displayName": "BrushingExtension",
+      "inputs": {
+        "brushingRadius": {
+          "type": "NumberField",
+          "default": 100,
+          "min": 0,
+          "softMax": 100000
+        },
+        "brushingEnabled": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "brushingTarget": {
+          "type": "StringLiteralField",
+          "default": "source",
+          "values": [
+            "source",
+            "target",
+            "source_target",
+            "custom"
+          ]
+        },
+        "getBrushingTarget": {
+          "type": "Point2DField",
+          "default": [
+            0,
+            0
+          ],
+          "returnType": "tuple",
+          "accessor": true
+        }
+      },
+      "outputs": {
+        "extension": {
+          "type": "ExtensionField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "PathStyleExtensionOp": {
+      "type": "PathStyleExtensionOp",
+      "category": "utility",
+      "description": "Style a path (used with PathLayer, PolygonLayer, and GeoJSONLayer)",
+      "displayName": "PathStyleExtension",
+      "inputs": {
+        "dash": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "highPrecisionDash": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "offset": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "dashJustified": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "getDashArray": {
+          "type": "Vec2Field",
+          "default": [
+            4,
+            4
+          ],
+          "returnType": "tuple",
+          "accessor": true
+        },
+        "getOffset": {
+          "type": "NumberField",
+          "default": 0,
+          "softMax": 10000,
+          "accessor": true
+        },
+        "dashGapPickable": {
+          "type": "BooleanField",
+          "default": false
+        }
+      },
+      "outputs": {
+        "extension": {
+          "type": "ExtensionField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "TerrainExtensionOp": {
+      "type": "TerrainExtensionOp",
+      "category": "utility",
+      "description": "Render a terrain layer on the map",
+      "displayName": "TerrainExtension",
+      "inputs": {
+        "terrainDrawMode": {
+          "type": "StringLiteralField",
+          "default": "offset"
+        }
+      },
+      "outputs": {
+        "extension": {
+          "type": "ExtensionField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "RasterTileLayerOp": {
+      "type": "RasterTileLayerOp",
+      "category": "utility",
+      "description": "Render a raster tile layer on the map",
+      "displayName": "RasterTileLayer",
+      "inputs": {
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        },
+        "data": {
+          "type": "StringField",
+          "default": "https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}"
+        },
+        "minZoom": {
+          "type": "NumberField",
+          "default": 0,
+          "min": 0,
+          "max": 24
+        },
+        "maxZoom": {
+          "type": "NumberField",
+          "default": 24,
+          "min": 0,
+          "max": 24
+        },
+        "tileSize": {
+          "type": "NumberField",
+          "default": 256,
+          "min": 1,
+          "softMax": 1024
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "showByDefault": false
+        },
+        "extensions": {
+          "type": "ListField"
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "BrightnessContrastExtensionOp": {
+      "type": "BrightnessContrastExtensionOp",
+      "category": "utility",
+      "description": "Adjust brightness and contrast of a layer",
+      "displayName": "BrightnessContrastExtension",
+      "inputs": {
+        "brightness": {
+          "type": "NumberField",
+          "default": 0,
+          "max": 1,
+          "step": 0.01
+        },
+        "contrast": {
+          "type": "NumberField",
+          "default": 0,
+          "max": 1,
+          "step": 0.01
+        }
+      },
+      "outputs": {
+        "extension": {
+          "type": "ExtensionField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "HueSaturationExtensionOp": {
+      "type": "HueSaturationExtensionOp",
+      "category": "utility",
+      "description": "Adjust hue and saturation of a layer",
+      "displayName": "HueSaturationExtension",
+      "inputs": {
+        "hue": {
+          "type": "NumberField",
+          "default": 0,
+          "max": 1,
+          "step": 0.01
+        },
+        "saturation": {
+          "type": "NumberField",
+          "default": 0,
+          "max": 1,
+          "step": 0.01
+        }
+      },
+      "outputs": {
+        "extension": {
+          "type": "ExtensionField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "VibranceExtensionOp": {
+      "type": "VibranceExtensionOp",
+      "category": "utility",
+      "description": "Adjust vibrance of a layer",
+      "displayName": "VibranceExtension",
+      "inputs": {
+        "amount": {
+          "type": "NumberField",
+          "default": 0,
+          "max": 1,
+          "step": 0.01
+        }
+      },
+      "outputs": {
+        "extension": {
+          "type": "ExtensionField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "AccessorOp": {
+      "type": "AccessorOp",
+      "category": "utility",
+      "description": "A function called for each row of your data and passed to Deck.gl layer properties. The current row is passed as the `d` variable (e.g., `d.population`, `d.properties.color`). Returns a value that controls visual properties like position, color, or size.",
+      "displayName": "Accessor",
+      "inputs": {
+        "expression": {
+          "type": "ExpressionField"
+        }
+      },
+      "outputs": {
+        "accessor": {
+          "type": "FunctionField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "CodeOp": {
+      "type": "CodeOp",
+      "category": "utility",
+      "description": "Run custom JavaScript code to transform your data. Available variables: `data` (all input data), `d` (first element), `op()` (access other operators). Includes d3, turf, and other utilities. Use `this` to store state between executions.",
+      "displayName": "Code",
+      "inputs": {
+        "data": {
+          "type": "ListField"
+        },
+        "code": {
+          "type": "CodeField",
+          "default": "",
+          "language": "javascript"
+        }
+      },
+      "outputs": {
+        "data": {
+          "type": "DataField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "ContainerOp": {
+      "type": "ContainerOp",
+      "category": "utility",
+      "description": "Encapsulates a subgraph of operators. Visually groups child nodes.",
+      "displayName": "Container",
+      "inputs": {
+        "in": {
+          "type": "UnknownField",
+          "default": null,
+          "optional": true
+        }
+      },
+      "outputs": {
+        "out": {
+          "type": "UnknownField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "ExpressionOp": {
+      "type": "ExpressionOp",
+      "category": "utility",
+      "description": "Evaluate a JavaScript expression to compute a single value. Available variables: `data` (all input data), `d` (first element), `op()` (access other operators). Includes d3, turf, and other utilities.",
+      "displayName": "Expression",
+      "inputs": {
+        "data": {
+          "type": "ListField"
+        },
+        "expression": {
+          "type": "ExpressionField"
+        }
+      },
+      "outputs": {
+        "data": {
+          "type": "DataField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "RectangleOp": {
+      "type": "RectangleOp",
+      "category": "utility",
+      "description": "Generate a rectangle GeoJSON geometry from a center point and dimensions in kilometers",
+      "displayName": "Rectangle",
+      "inputs": {
+        "center": {
+          "type": "Point2DField",
+          "default": [
+            null,
+            null
+          ],
+          "returnType": "object"
+        },
+        "altitude": {
+          "type": "NumberField",
+          "default": 0,
+          "step": 0.1
+        },
+        "width": {
+          "type": "NumberField",
+          "default": 10,
+          "min": 0.001,
+          "softMax": 10000,
+          "step": 0.1
+        },
+        "height": {
+          "type": "NumberField",
+          "default": 10,
+          "min": 0.001,
+          "softMax": 10000,
+          "step": 0.1
+        },
+        "properties": {
+          "type": "DataField"
+        }
+      },
+      "outputs": {
+        "feature": {
+          "type": "GeoJsonField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "PointOp": {
+      "type": "PointOp",
+      "category": "utility",
+      "description": "Create a GeoJSON Point feature from coordinates",
+      "displayName": "Point",
+      "inputs": {
+        "coordinates": {
+          "type": "Point2DField"
+        },
+        "properties": {
+          "type": "DataField"
+        }
+      },
+      "outputs": {
+        "feature": {
+          "type": "GeoJsonField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "GeoJsonOp": {
+      "type": "GeoJsonOp",
+      "category": "utility",
+      "description": "Create a GeoJSON FeatureCollection from a list of features",
+      "displayName": "GeoJson",
+      "inputs": {
+        "features": {
+          "type": "ListField"
+        }
+      },
+      "outputs": {
+        "featureCollection": {
+          "type": "GeoJsonField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "KmlToGeoJsonOp": {
+      "type": "KmlToGeoJsonOp",
+      "category": "utility",
+      "description": "Convert KML string to GeoJSON FeatureCollection",
+      "displayName": "KmlToGeoJson",
+      "inputs": {
+        "kml": {
+          "type": "CodeField",
+          "default": "",
+          "language": "xml"
+        }
+      },
+      "outputs": {
+        "geojson": {
+          "type": "DataField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "GeoJsonTransformOp": {
+      "type": "GeoJsonTransformOp",
+      "category": "utility",
+      "description": "Transform a GeoJSON feature with scale, translate, and rotate operations",
+      "displayName": "GeoJsonTransform",
+      "inputs": {
+        "feature": {
+          "type": "GeoJsonField"
+        },
+        "scale": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0.001,
+          "softMax": 100,
+          "step": 0.1
+        },
+        "translateX": {
+          "type": "NumberField",
+          "default": 0,
+          "softMax": 10000,
+          "step": 0.1
+        },
+        "translateY": {
+          "type": "NumberField",
+          "default": 0,
+          "softMax": 10000,
+          "step": 0.1
+        },
+        "rotate": {
+          "type": "NumberField",
+          "default": 0,
+          "softMax": 360,
+          "step": 1
+        }
+      },
+      "outputs": {
+        "feature": {
+          "type": "GeoJsonField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "BitmapLayerOp": {
+      "type": "BitmapLayerOp",
+      "category": "utility",
+      "description": "Render a raster image at specified boundaries",
+      "displayName": "BitmapLayer",
+      "inputs": {
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        },
+        "image": {
+          "type": "StringField",
+          "default": ""
+        },
+        "bounds": {
+          "type": "UnknownField",
+          "default": [
+            [
+              null,
+              37.7
+            ],
+            [
+              null,
+              37.9
+            ]
+          ]
+        },
+        "desaturate": {
+          "type": "NumberField",
+          "default": 0,
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "showByDefault": false
+        },
+        "transparentColor": {
+          "type": "ColorField",
+          "default": null,
+          "optional": true,
+          "showByDefault": false
+        },
+        "tintColor": {
+          "type": "ColorField",
+          "default": null,
+          "optional": true,
+          "showByDefault": false
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "showByDefault": false
+        },
+        "extensions": {
+          "type": "ListField",
+          "showByDefault": false
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "ColumnLayerOp": {
+      "type": "ColumnLayerOp",
+      "category": "utility",
+      "description": "Render extruded cylinders (columns) at given positions",
+      "displayName": "ColumnLayer",
+      "inputs": {
+        "data": {
+          "type": "DataField"
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        },
+        "diskResolution": {
+          "type": "NumberField",
+          "default": 20,
+          "min": 3,
+          "softMax": 100,
+          "showByDefault": false
+        },
+        "vertices": {
+          "type": "UnknownField",
+          "default": null,
+          "optional": true,
+          "showByDefault": false
+        },
+        "offset": {
+          "type": "Vec3Field",
+          "default": [
+            0,
+            0,
+            0
+          ],
+          "returnType": "tuple",
+          "showByDefault": false
+        },
+        "coverage": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "showByDefault": false
+        },
+        "elevationScale": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "softMax": 100,
+          "showByDefault": false
+        },
+        "filled": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "stroked": {
+          "type": "BooleanField",
+          "default": false,
+          "showByDefault": false
+        },
+        "extruded": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "wireframe": {
+          "type": "BooleanField",
+          "default": false,
+          "showByDefault": false
+        },
+        "flatShading": {
+          "type": "BooleanField",
+          "default": false,
+          "showByDefault": false
+        },
+        "radiusUnits": {
+          "type": "StringLiteralField",
+          "default": "meters",
+          "values": [
+            "pixels",
+            "meters"
+          ],
+          "showByDefault": false
+        },
+        "lineWidthUnits": {
+          "type": "StringLiteralField",
+          "default": "meters",
+          "values": [
+            "pixels",
+            "meters"
+          ],
+          "showByDefault": false
+        },
+        "getPosition": {
+          "type": "Point3DField",
+          "default": [
+            0,
+            0,
+            0
+          ],
+          "returnType": "tuple",
+          "accessor": true
+        },
+        "getFillColor": {
+          "type": "ColorField",
+          "default": "#000000",
+          "accessor": true
+        },
+        "getLineColor": {
+          "type": "ColorField",
+          "default": "#000000",
+          "accessor": true,
+          "showByDefault": false
+        },
+        "getElevation": {
+          "type": "NumberField",
+          "default": 1000,
+          "min": 0,
+          "accessor": true
+        },
+        "getLineWidth": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "accessor": true,
+          "showByDefault": false
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "showByDefault": false
+        },
+        "extensions": {
+          "type": "ListField",
+          "showByDefault": false
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "GridCellLayerOp": {
+      "type": "GridCellLayerOp",
+      "category": "utility",
+      "description": "Render a grid of cells at specified coordinates",
+      "displayName": "GridCellLayer",
+      "inputs": {
+        "data": {
+          "type": "DataField"
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        },
+        "cellSize": {
+          "type": "NumberField",
+          "default": 1000,
+          "min": 1,
+          "softMax": 100000
+        },
+        "coverage": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "showByDefault": false
+        },
+        "elevationScale": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "softMax": 100,
+          "showByDefault": false
+        },
+        "extruded": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "filled": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "stroked": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "wireframe": {
+          "type": "BooleanField",
+          "default": false,
+          "showByDefault": false
+        },
+        "flatShading": {
+          "type": "BooleanField",
+          "default": false,
+          "showByDefault": false
+        },
+        "getPosition": {
+          "type": "Point3DField",
+          "default": [
+            0,
+            0,
+            0
+          ],
+          "returnType": "tuple",
+          "accessor": true
+        },
+        "getColor": {
+          "type": "ColorField",
+          "default": "#000000",
+          "accessor": true
+        },
+        "getElevation": {
+          "type": "NumberField",
+          "default": 1000,
+          "min": 0,
+          "accessor": true
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "showByDefault": false
+        },
+        "extensions": {
+          "type": "ListField",
+          "showByDefault": false
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "LineLayerOp": {
+      "type": "LineLayerOp",
+      "category": "utility",
+      "description": "Render straight lines between source and target coordinates",
+      "displayName": "LineLayer",
+      "inputs": {
+        "data": {
+          "type": "DataField"
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        },
+        "widthUnits": {
+          "type": "StringLiteralField",
+          "default": "pixels",
+          "values": [
+            "pixels",
+            "meters"
+          ],
+          "showByDefault": false
+        },
+        "widthScale": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "softMax": 100,
+          "showByDefault": false
+        },
+        "widthMinPixels": {
+          "type": "NumberField",
+          "default": 0,
+          "min": 0,
+          "softMax": 100,
+          "showByDefault": false
+        },
+        "widthMaxPixels": {
+          "type": "NumberField",
+          "default": 100,
+          "min": 0,
+          "softMax": 1000,
+          "showByDefault": false
+        },
+        "getSourcePosition": {
+          "type": "Point3DField",
+          "default": [
+            0,
+            0,
+            0
+          ],
+          "returnType": "tuple",
+          "accessor": true
+        },
+        "getTargetPosition": {
+          "type": "Point3DField",
+          "default": [
+            0,
+            0,
+            0
+          ],
+          "returnType": "tuple",
+          "accessor": true
+        },
+        "getColor": {
+          "type": "ColorField",
+          "default": "#000000",
+          "accessor": true
+        },
+        "getWidth": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "accessor": true
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "showByDefault": false
+        },
+        "extensions": {
+          "type": "ListField",
+          "showByDefault": false
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "PointCloudLayerOp": {
+      "type": "PointCloudLayerOp",
+      "category": "utility",
+      "description": "Render a point cloud with millions of 3D points",
+      "displayName": "PointCloudLayer",
+      "inputs": {
+        "data": {
+          "type": "DataField"
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        },
+        "sizeUnits": {
+          "type": "StringLiteralField",
+          "default": "pixels",
+          "values": [
+            "pixels",
+            "meters",
+            "common"
+          ],
+          "showByDefault": false
+        },
+        "pointSize": {
+          "type": "NumberField",
+          "default": 10,
+          "min": 0,
+          "max": 100
+        },
+        "getPosition": {
+          "type": "Point3DField",
+          "default": [
+            0,
+            0,
+            0
+          ],
+          "returnType": "tuple",
+          "accessor": true
+        },
+        "getNormal": {
+          "type": "Vec3Field",
+          "default": [
+            0,
+            0,
+            1
+          ],
+          "returnType": "tuple",
+          "accessor": true,
+          "showByDefault": false
+        },
+        "getColor": {
+          "type": "ColorField",
+          "default": "#000000",
+          "accessor": true
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "showByDefault": false
+        },
+        "extensions": {
+          "type": "ListField",
+          "showByDefault": false
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "PolygonLayerOp": {
+      "type": "PolygonLayerOp",
+      "category": "utility",
+      "description": "Render filled and/or stroked polygons",
+      "displayName": "PolygonLayer",
+      "inputs": {
+        "data": {
+          "type": "DataField"
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        },
+        "filled": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "stroked": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "extruded": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "wireframe": {
+          "type": "BooleanField",
+          "default": false,
+          "showByDefault": false
+        },
+        "elevationScale": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "softMax": 100,
+          "showByDefault": false
+        },
+        "lineWidthUnits": {
+          "type": "StringLiteralField",
+          "default": "meters",
+          "values": [
+            "pixels",
+            "meters"
+          ],
+          "showByDefault": false
+        },
+        "lineWidthScale": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "softMax": 100,
+          "showByDefault": false
+        },
+        "lineWidthMinPixels": {
+          "type": "NumberField",
+          "default": 0,
+          "min": 0,
+          "softMax": 100,
+          "showByDefault": false
+        },
+        "lineWidthMaxPixels": {
+          "type": "NumberField",
+          "default": 100,
+          "min": 0,
+          "softMax": 1000,
+          "showByDefault": false
+        },
+        "lineJointRounded": {
+          "type": "BooleanField",
+          "default": false,
+          "showByDefault": false
+        },
+        "lineMiterLimit": {
+          "type": "NumberField",
+          "default": 4,
+          "min": 0,
+          "softMax": 10,
+          "showByDefault": false
+        },
+        "getPolygon": {
+          "type": "UnknownField",
+          "accessor": true
+        },
+        "getFillColor": {
+          "type": "ColorField",
+          "default": "#000000",
+          "accessor": true
+        },
+        "getLineColor": {
+          "type": "ColorField",
+          "default": "#000000",
+          "accessor": true
+        },
+        "getLineWidth": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "accessor": true
+        },
+        "getElevation": {
+          "type": "NumberField",
+          "default": 1000,
+          "min": 0,
+          "accessor": true
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "showByDefault": false
+        },
+        "extensions": {
+          "type": "ListField",
+          "showByDefault": false
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "ContourLayerOp": {
+      "type": "ContourLayerOp",
+      "category": "utility",
+      "description": "Aggregate data and render contour lines or filled contour bands",
+      "displayName": "ContourLayer",
+      "inputs": {
+        "data": {
+          "type": "DataField"
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        },
+        "cellSize": {
+          "type": "NumberField",
+          "default": 1000,
+          "min": 1,
+          "softMax": 100000
+        },
+        "gpuAggregation": {
+          "type": "BooleanField",
+          "default": true,
+          "showByDefault": false
+        },
+        "aggregation": {
+          "type": "StringLiteralField",
+          "default": "SUM",
+          "values": [
+            "SUM",
+            "MEAN",
+            "MIN",
+            "MAX"
+          ]
+        },
+        "contours": {
+          "type": "UnknownField",
+          "default": [
+            null,
+            null,
+            null
+          ]
+        },
+        "zOffset": {
+          "type": "NumberField",
+          "default": 0.005,
+          "min": 0,
+          "max": 1,
+          "step": 0.001,
+          "showByDefault": false
+        },
+        "getPosition": {
+          "type": "Point3DField",
+          "default": [
+            0,
+            0,
+            0
+          ],
+          "returnType": "tuple",
+          "accessor": true
+        },
+        "getWeight": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "accessor": true
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "showByDefault": false
+        },
+        "extensions": {
+          "type": "ListField",
+          "showByDefault": false
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "ScreenGridLayerOp": {
+      "type": "ScreenGridLayerOp",
+      "category": "utility",
+      "description": "Aggregate data into a grid in screen space and visualize as a heatmap",
+      "displayName": "ScreenGridLayer",
+      "inputs": {
+        "data": {
+          "type": "DataField"
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        },
+        "cellSizePixels": {
+          "type": "NumberField",
+          "default": 50,
+          "min": 1,
+          "softMax": 1000
+        },
+        "cellMarginPixels": {
+          "type": "NumberField",
+          "default": 2,
+          "min": 0,
+          "softMax": 100,
+          "showByDefault": false
+        },
+        "colorRange": {
+          "type": "UnknownField",
+          "optional": true
+        },
+        "colorDomain": {
+          "type": "UnknownField",
+          "default": null,
+          "optional": true,
+          "showByDefault": false
+        },
+        "aggregation": {
+          "type": "StringLiteralField",
+          "default": "SUM",
+          "values": [
+            "SUM",
+            "MEAN",
+            "MIN",
+            "MAX"
+          ]
+        },
+        "getPosition": {
+          "type": "Point3DField",
+          "default": [
+            0,
+            0,
+            0
+          ],
+          "returnType": "tuple",
+          "accessor": true
+        },
+        "getWeight": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "accessor": true
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "showByDefault": false
+        },
+        "extensions": {
+          "type": "ListField",
+          "showByDefault": false
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "GreatCircleLayerOp": {
+      "type": "GreatCircleLayerOp",
+      "category": "utility",
+      "description": "Render great circle arcs between pairs of source and target coordinates",
+      "displayName": "GreatCircleLayer",
+      "inputs": {
+        "data": {
+          "type": "DataField"
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        },
+        "numSegments": {
+          "type": "NumberField",
+          "default": 20,
+          "min": 1,
+          "softMax": 100,
+          "showByDefault": false
+        },
+        "widthUnits": {
+          "type": "StringLiteralField",
+          "default": "pixels",
+          "values": [
+            "pixels",
+            "meters"
+          ],
+          "showByDefault": false
+        },
+        "widthScale": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "softMax": 100,
+          "showByDefault": false
+        },
+        "widthMinPixels": {
+          "type": "NumberField",
+          "default": 0,
+          "min": 0,
+          "softMax": 100,
+          "showByDefault": false
+        },
+        "widthMaxPixels": {
+          "type": "NumberField",
+          "default": 100,
+          "min": 0,
+          "softMax": 1000,
+          "showByDefault": false
+        },
+        "getSourcePosition": {
+          "type": "Point2DField",
+          "default": [
+            0,
+            0
+          ],
+          "returnType": "tuple",
+          "accessor": true
+        },
+        "getTargetPosition": {
+          "type": "Point2DField",
+          "default": [
+            0,
+            0
+          ],
+          "returnType": "tuple",
+          "accessor": true
+        },
+        "getSourceColor": {
+          "type": "ColorField",
+          "default": "#000000",
+          "accessor": true
+        },
+        "getTargetColor": {
+          "type": "ColorField",
+          "default": "#000000",
+          "accessor": true
+        },
+        "getWidth": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "accessor": true
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "showByDefault": false
+        },
+        "extensions": {
+          "type": "ListField",
+          "showByDefault": false
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "H3ClusterLayerOp": {
+      "type": "H3ClusterLayerOp",
+      "category": "utility",
+      "description": "Render hexagons from H3 hexagon indices and cluster them by density",
+      "displayName": "H3ClusterLayer",
+      "inputs": {
+        "data": {
+          "type": "DataField"
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        },
+        "getHexagons": {
+          "type": "UnknownField",
+          "accessor": true
+        },
+        "getLineWidth": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "accessor": true
+        },
+        "getFillColor": {
+          "type": "ColorField",
+          "default": "#000000",
+          "accessor": true
+        },
+        "getElevation": {
+          "type": "NumberField",
+          "default": 1000,
+          "accessor": true
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "showByDefault": false
+        },
+        "extensions": {
+          "type": "ListField",
+          "showByDefault": false
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "GeohashLayerOp": {
+      "type": "GeohashLayerOp",
+      "category": "utility",
+      "description": "Render filled and/or stroked polygons based on geohash strings",
+      "displayName": "GeohashLayer",
+      "inputs": {
+        "data": {
+          "type": "DataField"
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        },
+        "getGeohash": {
+          "type": "StringField",
+          "default": "",
+          "accessor": true
+        },
+        "getFillColor": {
+          "type": "ColorField",
+          "default": "#000000",
+          "accessor": true
+        },
+        "getLineColor": {
+          "type": "ColorField",
+          "default": "#000000",
+          "accessor": true
+        },
+        "getElevation": {
+          "type": "NumberField",
+          "default": 1000,
+          "accessor": true
+        },
+        "getLineWidth": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "accessor": true
+        },
+        "elevationScale": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "softMax": 100,
+          "showByDefault": false
+        },
+        "filled": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "stroked": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "extruded": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "showByDefault": false
+        },
+        "extensions": {
+          "type": "ListField",
+          "showByDefault": false
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "S2LayerOp": {
+      "type": "S2LayerOp",
+      "category": "utility",
+      "description": "Render filled and/or stroked polygons based on S2 tokens",
+      "displayName": "S2Layer",
+      "inputs": {
+        "data": {
+          "type": "DataField"
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        },
+        "getS2Token": {
+          "type": "StringField",
+          "default": "",
+          "accessor": true
+        },
+        "getFillColor": {
+          "type": "ColorField",
+          "default": "#000000",
+          "accessor": true
+        },
+        "getLineColor": {
+          "type": "ColorField",
+          "default": "#000000",
+          "accessor": true
+        },
+        "getElevation": {
+          "type": "NumberField",
+          "default": 1000,
+          "accessor": true
+        },
+        "getLineWidth": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "accessor": true
+        },
+        "elevationScale": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "softMax": 100,
+          "showByDefault": false
+        },
+        "filled": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "stroked": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "extruded": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "showByDefault": false
+        },
+        "extensions": {
+          "type": "ListField",
+          "showByDefault": false
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "QuadkeyLayerOp": {
+      "type": "QuadkeyLayerOp",
+      "category": "utility",
+      "description": "Render filled and/or stroked polygons based on quadkey strings",
+      "displayName": "QuadkeyLayer",
+      "inputs": {
+        "data": {
+          "type": "DataField"
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        },
+        "getQuadkey": {
+          "type": "StringField",
+          "default": "",
+          "accessor": true
+        },
+        "getFillColor": {
+          "type": "ColorField",
+          "default": "#000000",
+          "accessor": true
+        },
+        "getLineColor": {
+          "type": "ColorField",
+          "default": "#000000",
+          "accessor": true
+        },
+        "getElevation": {
+          "type": "NumberField",
+          "default": 1000,
+          "accessor": true
+        },
+        "getLineWidth": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "accessor": true
+        },
+        "elevationScale": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "softMax": 100,
+          "showByDefault": false
+        },
+        "filled": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "stroked": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "extruded": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "showByDefault": false
+        },
+        "extensions": {
+          "type": "ListField",
+          "showByDefault": false
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "MVTLayerOp": {
+      "type": "MVTLayerOp",
+      "category": "utility",
+      "description": "Render Mapbox Vector Tiles (MVT)",
+      "displayName": "MVTLayer",
+      "inputs": {
+        "data": {
+          "type": "StringField",
+          "default": "https://example.com/tiles/{z}/{x}/{y}.mvt"
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        },
+        "minZoom": {
+          "type": "NumberField",
+          "default": 0,
+          "min": 0,
+          "max": 24
+        },
+        "maxZoom": {
+          "type": "NumberField",
+          "default": 24,
+          "min": 0,
+          "max": 24
+        },
+        "filled": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "stroked": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "lineWidthMinPixels": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "showByDefault": false
+        },
+        "getFillColor": {
+          "type": "ColorField",
+          "default": "#000000",
+          "accessor": true
+        },
+        "getLineColor": {
+          "type": "ColorField",
+          "default": "#000000",
+          "accessor": true
+        },
+        "getLineWidth": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "accessor": true
+        },
+        "getPointRadius": {
+          "type": "NumberField",
+          "default": 1,
+          "accessor": true
+        },
+        "pointRadiusUnits": {
+          "type": "StringLiteralField",
+          "default": "pixels",
+          "values": [
+            "pixels",
+            "meters"
+          ],
+          "showByDefault": false
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "showByDefault": false
+        },
+        "extensions": {
+          "type": "ListField",
+          "showByDefault": false
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "TerrainLayerOp": {
+      "type": "TerrainLayerOp",
+      "category": "utility",
+      "description": "Render a terrain mesh from heightmap tiles",
+      "displayName": "TerrainLayer",
+      "inputs": {
+        "elevationData": {
+          "type": "StringField",
+          "default": "https://example.com/elevation/{z}/{x}/{y}.png"
+        },
+        "texture": {
+          "type": "StringField",
+          "default": "",
+          "optional": true
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        },
+        "meshMaxError": {
+          "type": "NumberField",
+          "default": 4,
+          "min": 0,
+          "softMax": 100,
+          "showByDefault": false
+        },
+        "elevationDecoder": {
+          "type": "CompoundPropsField"
+        },
+        "bounds": {
+          "type": "UnknownField",
+          "default": null,
+          "optional": true
+        },
+        "color": {
+          "type": "ColorField",
+          "default": "#ffffff"
+        },
+        "wireframe": {
+          "type": "BooleanField",
+          "default": false,
+          "showByDefault": false
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "showByDefault": false
+        },
+        "extensions": {
+          "type": "ListField",
+          "showByDefault": false
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "TileLayerOp": {
+      "type": "TileLayerOp",
+      "category": "utility",
+      "description": "Render data organized in a tiled format (generic tile layer)",
+      "displayName": "TileLayer",
+      "inputs": {
+        "data": {
+          "type": "StringField",
+          "default": "https://example.com/tiles/{z}/{x}/{y}"
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1,
+          "min": 0,
+          "max": 1,
+          "step": 0.01
+        },
+        "minZoom": {
+          "type": "NumberField",
+          "default": 0,
+          "min": 0,
+          "max": 24
+        },
+        "maxZoom": {
+          "type": "NumberField",
+          "default": 24,
+          "min": 0,
+          "max": 24
+        },
+        "tileSize": {
+          "type": "NumberField",
+          "default": 256,
+          "min": 1,
+          "softMax": 1024,
+          "showByDefault": false
+        },
+        "maxCacheSize": {
+          "type": "NumberField",
+          "optional": true,
+          "showByDefault": false
+        },
+        "maxCacheByteSize": {
+          "type": "NumberField",
+          "optional": true,
+          "showByDefault": false
+        },
+        "refinementStrategy": {
+          "type": "StringLiteralField",
+          "default": "best-available",
+          "values": [
+            "best-available",
+            "no-overlap",
+            "never"
+          ],
+          "showByDefault": false
+        },
+        "zRange": {
+          "type": "UnknownField",
+          "default": [
+            0,
+            24
+          ],
+          "optional": true,
+          "showByDefault": false
+        },
+        "extent": {
+          "type": "UnknownField",
+          "default": [
+            null,
+            null,
+            null,
+            null
+          ],
+          "optional": true,
+          "showByDefault": false
+        },
+        "renderSubLayers": {
+          "type": "FunctionField",
+          "default": null,
+          "optional": true,
+          "showByDefault": false
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "showByDefault": false
+        },
+        "extensions": {
+          "type": "ListField",
+          "showByDefault": false
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "ClipExtensionOp": {
+      "type": "ClipExtensionOp",
+      "category": "utility",
+      "description": "Clip layers by a rectangular bounds",
+      "displayName": "ClipExtension",
+      "inputs": {
+        "clipByInstance": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "clipBounds": {
+          "type": "UnknownField",
+          "default": [
+            0,
+            0,
+            1,
+            1
+          ]
+        }
+      },
+      "outputs": {
+        "extension": {
+          "type": "ExtensionField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "CollisionFilterExtensionOp": {
+      "type": "CollisionFilterExtensionOp",
+      "category": "utility",
+      "description": "Hide overlapping objects (e.g., labels)",
+      "displayName": "CollisionFilterExtension",
+      "inputs": {
+        "collisionEnabled": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "collisionGroup": {
+          "type": "StringField",
+          "default": "default"
+        },
+        "getCollisionPriority": {
+          "type": "NumberField",
+          "default": 0,
+          "accessor": true
+        }
+      },
+      "outputs": {
+        "extension": {
+          "type": "ExtensionField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "DataFilterExtensionOp": {
+      "type": "DataFilterExtensionOp",
+      "category": "utility",
+      "description": "Filter data by one or more numeric ranges",
+      "displayName": "DataFilterExtension",
+      "inputs": {
+        "filterSize": {
+          "type": "NumberField",
+          "default": 2,
+          "min": 1,
+          "max": 4,
+          "step": 1
+        },
+        "filterEnabled": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "filterRange": {
+          "type": "UnknownField",
+          "default": [
+            [
+              0,
+              1
+            ],
+            [
+              0,
+              1
+            ]
+          ]
+        },
+        "filterSoftRange": {
+          "type": "UnknownField",
+          "default": null,
+          "optional": true
+        },
+        "filterTransformSize": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "filterTransformColor": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "getFilterValue": {
+          "type": "UnknownField",
+          "accessor": true
+        }
+      },
+      "outputs": {
+        "extension": {
+          "type": "ExtensionField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "FillStyleExtensionOp": {
+      "type": "FillStyleExtensionOp",
+      "category": "utility",
+      "description": "Add patterns and styles to polygon fills",
+      "displayName": "FillStyleExtension",
+      "inputs": {
+        "fillPatternEnabled": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "fillPatternMask": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "fillPatternAtlas": {
+          "type": "StringField",
+          "default": "",
+          "optional": true
+        },
+        "fillPatternMapping": {
+          "type": "UnknownField",
+          "default": null,
+          "optional": true
+        },
+        "getFillPattern": {
+          "type": "UnknownField",
+          "default": null,
+          "accessor": true
+        },
+        "getFillPatternScale": {
+          "type": "NumberField",
+          "default": 1,
+          "accessor": true
+        },
+        "getFillPatternOffset": {
+          "type": "Vec2Field",
+          "default": [
+            0,
+            0
+          ],
+          "returnType": "tuple",
+          "accessor": true
+        }
+      },
+      "outputs": {
+        "extension": {
+          "type": "ExtensionField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "MaskExtensionOp": {
+      "type": "MaskExtensionOp",
+      "category": "utility",
+      "description": "Show/hide layer objects by a geofence",
+      "displayName": "MaskExtension",
+      "inputs": {
+        "maskId": {
+          "type": "StringField",
+          "default": ""
+        },
+        "maskByInstance": {
+          "type": "BooleanField",
+          "default": false
+        }
+      },
+      "outputs": {
+        "extension": {
+          "type": "ExtensionField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    },
+    "TimeSeriesOp": {
+      "type": "TimeSeriesOp",
+      "category": "utility",
+      "description": "Interpolate time-varying data at a given time. Aligns with TripsLayer API for easy reuse of accessors.",
+      "displayName": "TimeSeries",
+      "inputs": {
+        "data": {
+          "type": "DataField"
+        },
+        "currentTime": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "getTimestamps": {
+          "type": "UnknownField",
+          "accessor": true
+        },
+        "getValues": {
+          "type": "UnknownField",
+          "accessor": true
+        },
+        "getProperties": {
+          "type": "UnknownField",
+          "accessor": true,
+          "optional": true
+        }
+      },
+      "outputs": {
+        "data": {
+          "type": "DataField"
+        }
+      },
+      "sourceFile": "src/noodles/operators.ts"
+    }
+  },
+  "categories": {
+    "code": [
+      "Accessor",
+      "Code",
+      "DuckDb",
+      "JSON",
+      "Expression"
+    ],
+    "grouping": [
+      "Container",
+      "ForLoop",
+      "ForLoopBegin",
+      "ForLoopEnd",
+      "GraphInput",
+      "GraphOutput"
+    ],
+    "color": [
+      "CategoricalColorRamp",
+      "Color",
+      "ColorRamp",
+      "CombineRGBA",
+      "HSL",
+      "SplitRGBA"
+    ],
+    "data": [
+      "Arc",
+      "BoundingBox",
+      "Bounds",
+      "Chart",
+      "Concat",
+      "DateTime",
+      "DeckRenderer",
+      "Directions",
+      "File",
+      "Filter",
+      "Geocoder",
+      "Merge",
+      "Network",
+      "Out",
+      "RandomizeAttribute",
+      "Scatter",
+      "Select",
+      "Slice",
+      "Sort",
+      "Switch",
+      "TableEditor",
+      "TimeSeries",
+      "Viewer",
+      "ViewState"
+    ],
+    "geojson": [
+      "GeoJson",
+      "GeoJsonTransform",
+      "KmlToGeoJson",
+      "Point",
+      "Rectangle"
+    ],
+    "layer": [
+      "A5Layer",
+      "ArcLayer",
+      "BitmapLayer",
+      "ColumnLayer",
+      "ContourLayer",
+      "GeoJsonLayer",
+      "GeohashLayer",
+      "GreatCircleLayer",
+      "GridCellLayer",
+      "GridLayer",
+      "H3ClusterLayer",
+      "H3HexagonLayer",
+      "HeatmapLayer",
+      "HexagonLayer",
+      "IconLayer",
+      "LineLayer",
+      "MVTLayer",
+      "PathLayer",
+      "PointCloudLayer",
+      "PolygonLayer",
+      "QuadkeyLayer",
+      "RasterTileLayer",
+      "S2Layer",
+      "ScatterplotLayer",
+      "ScenegraphLayer",
+      "ScreenGridLayer",
+      "SimpleMeshLayer",
+      "SolidPolygonLayer",
+      "TerrainLayer",
+      "TextLayer",
+      "Tile3DLayer",
+      "TileLayer",
+      "TripsLayer"
+    ],
+    "extension": [
+      "BrightnessContrastExtension",
+      "BrushingExtension",
+      "ClipExtension",
+      "CollisionFilterExtension",
+      "DataFilterExtension",
+      "FillStyleExtension",
+      "HueSaturationExtension",
+      "Mask3DExtension",
+      "MaskExtension",
+      "PathStyleExtension",
+      "TerrainExtension",
+      "VibranceExtension"
+    ],
+    "number": [
+      "Number",
+      "MapRange",
+      "Extent",
+      "Math",
+      "BezierCurve",
+      "Time"
+    ],
+    "string": [
+      "String"
+    ],
+    "utility": [
+      "Blending",
+      "Boolean",
+      "Console",
+      "LayerProps",
+      "Mouse",
+      "Project",
+      "Unproject",
+      "MapStyle"
+    ],
+    "vector": [
+      "CombineXY",
+      "CombineXYZ",
+      "SplitXY",
+      "SplitXYZ"
+    ],
+    "view": [
+      "FirstPersonView",
+      "GlobeView",
+      "MaplibreBasemap",
+      "MapView",
+      "MapViewState",
+      "OrbitView",
+      "OrthographicView",
+      "SplitMapViewState"
+    ],
+    "widget": [
+      "FpsWidget"
+    ]
+  }
+}
