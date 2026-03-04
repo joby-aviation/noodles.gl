@@ -181,6 +181,7 @@ import {
   WidgetField,
 } from './fields'
 import { DEFAULT_LATITUDE, DEFAULT_LONGITUDE, safeMode } from './globals'
+import { getKeysStore } from './keys-store'
 import { getAllOps, getOp } from './store'
 import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
 import { composeAccessor, isAccessor } from './utils/accessor-helpers'
@@ -5047,8 +5048,15 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
     const GOOGLE_TILESET_URL = 'https://tile.googleapis.com/v1/3dtiles/root.json'
     const NYC_CESIUM_TILESET_URL = 'https://assets.ion.cesium.com/242005/tileset.json'
 
-    const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY!
-    const CESIUM_ACCESS_TOKEN = import.meta.env.VITE_CESIUM_ACCESS_TOKEN!
+    const GOOGLE_MAPS_API_KEY = getKeysStore().getKey('googleMaps')
+    const CESIUM_ACCESS_TOKEN = getKeysStore().getKey('cesium')
+
+    if (provider === 'Google' && !GOOGLE_MAPS_API_KEY) {
+      throw new Error('Tile3DLayer: Google Maps API key is not set (add it in Settings > API Keys)')
+    }
+    if (provider === 'Cesium' && !CESIUM_ACCESS_TOKEN) {
+      throw new Error('Tile3DLayer: Cesium Ion access token is not set (add it in Settings > API Keys)')
+    }
 
     const defaultUrl = provider === 'Cesium' ? NYC_CESIUM_TILESET_URL : GOOGLE_TILESET_URL
     const data = tilesetUrl || defaultUrl
