@@ -14,9 +14,9 @@ import { CurveEditorView } from './CurveEditorView'
 import { PlayControls } from './PlayControls'
 import { Playhead } from './Playhead'
 import { TimeDisplay } from './TimeDisplay'
+import s from './TimelinePanel.module.css'
 import { getMajorInterval, TimeRuler } from './TimeRuler'
 import { TrackList } from './TrackList'
-import s from './TimelinePanel.module.css'
 
 type ViewMode = 'keyframes' | 'value' | 'speed'
 

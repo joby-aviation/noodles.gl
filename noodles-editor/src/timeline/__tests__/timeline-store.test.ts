@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { useTimelineStore } from '../timeline-store'
-import { DEFAULT_SEQUENCE_STATE } from '../types'
 import type { TheatreTimelineData } from '../types'
+import { DEFAULT_SEQUENCE_STATE } from '../types'
 
 describe('TimelineStore', () => {
   beforeEach(() => {
