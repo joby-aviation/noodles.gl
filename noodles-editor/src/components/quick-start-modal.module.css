@@ -91,6 +91,7 @@
   flex: 1;
   overflow-y: auto;
   padding: 1.25rem 2rem 1.5rem;
+  min-height: 420px;
 }
 
 /* Sections */
