@@ -3,6 +3,19 @@ import { Cross2Icon } from '@radix-ui/react-icons'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation } from 'wouter'
 import logoSvg from '/noodles-favicon.svg'
+import newProjectJSON from '../noodles/new.json'
+import { directoryHandleCache } from '../noodles/utils/directory-handle-cache'
+import {
+  checkFileSystemSupport,
+  requestPermission,
+  selectDirectory,
+  writeFileToDirectory,
+} from '../noodles/utils/filesystem'
+import {
+  NOODLES_VERSION,
+  type NoodlesProjectJSON,
+  safeStringify,
+} from '../noodles/utils/serialization'
 import { analytics } from '../utils/analytics'
 import { CURATED_EXAMPLES, ExamplesView } from './examples-view'
 import { ProjectsView, useRecentProjects } from './projects-view'
@@ -211,6 +224,43 @@ export function QuickStartModal({
     [navigate, onOpenChange]
   )
 
+  const handleNewProject = useCallback(async () => {
+    try {
+      const directoryHandle = await selectDirectory()
+      const hasPermission = await requestPermission(directoryHandle, 'readwrite')
+      if (!hasPermission) return
+      const starterProject = { ...newProjectJSON, version: NOODLES_VERSION } as NoodlesProjectJSON
+      await writeFileToDirectory(
+        directoryHandle,
+        'noodles.json',
+        safeStringify(starterProject as Record<string, unknown>)
+      )
+      await directoryHandleCache.cacheHandle(
+        directoryHandle.name,
+        directoryHandle,
+        directoryHandle.name
+      )
+      analytics.track('quick_start_new_project')
+      onOpenChange(false)
+      navigate(`/projects/${directoryHandle.name}`)
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') return
+      console.error('Failed to create new project:', error)
+    }
+  }, [navigate, onOpenChange])
+
+  const handleOpenProject = useCallback(async () => {
+    try {
+      const handle = await selectDirectory()
+      await directoryHandleCache.cacheHandle(handle.name, handle, handle.name)
+      analytics.track('quick_start_open_project')
+      onOpenChange(false)
+      navigate(`/projects/${handle.name}`)
+    } catch {
+      // user cancelled
+    }
+  }, [navigate, onOpenChange])
+
   const formatFileSize = (bytes: number): string => {
     if (bytes < 1024) return `${bytes} B`
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
@@ -232,6 +282,20 @@ export function QuickStartModal({
       </div>
 
       <div className={s.body}>
+        {/* New / Open project actions */}
+        {checkFileSystemSupport().fileSystemAccess && (
+          <div className={s.projectActionsRow}>
+            <button type="button" className={s.projectActionButton} onClick={handleNewProject}>
+              <i className="pi pi-plus-circle" />
+              New project
+            </button>
+            <button type="button" className={s.projectActionButton} onClick={handleOpenProject}>
+              <i className="pi pi-folder-open" />
+              Open project
+            </button>
+          </div>
+        )}
+
         {/* Upload Section */}
         <div className={s.section}>
           <h3 className={s.sectionTitle}>Start with your data</h3>
