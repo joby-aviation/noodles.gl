@@ -461,7 +461,7 @@ localStorage.debug = ''                 // Disable
 - `noodles:render` - Video/image rendering setup
 - `noodles:render:frame` - Per-frame capture progress
 - `noodles:playback` - Timeline playback driver
-- `noodles:serialize` - Project save/load (future)
+- `noodles:serialize` - Project save/load and serialization
 
 **Adding new debug logging:**
 ```typescript
