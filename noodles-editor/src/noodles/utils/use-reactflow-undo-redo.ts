@@ -145,7 +145,10 @@ export function useUndoRedo() {
           // Remove any history after current index
           const newHistory = prev.history.slice(0, prev.currentIndex + 1)
           newHistory.push(entry)
-          debugHistorySnapshot('After adding node entry - new history length: %d', newHistory.length)
+          debugHistorySnapshot(
+            'After adding node entry - new history length: %d',
+            newHistory.length
+          )
 
           // Limit history size
           let finalHistory = newHistory
@@ -153,7 +156,11 @@ export function useUndoRedo() {
           if (newHistory.length > maxHistorySize) {
             finalHistory = newHistory.slice(-maxHistorySize)
             newIndex = finalHistory.length - 1
-            debugHistory('Trimmed history to %d entries, new index: %d', finalHistory.length, newIndex)
+            debugHistory(
+              'Trimmed history to %d entries, new index: %d',
+              finalHistory.length,
+              newIndex
+            )
           }
 
           debugHistorySnapshot(
@@ -234,7 +241,10 @@ export function useUndoRedo() {
           // Remove any history after current index
           const newHistory = prev.history.slice(0, prev.currentIndex + 1)
           newHistory.push(entry)
-          debugHistorySnapshot('After adding edge entry - new history length: %d', newHistory.length)
+          debugHistorySnapshot(
+            'After adding edge entry - new history length: %d',
+            newHistory.length
+          )
 
           // Limit history size
           let finalHistory = newHistory
@@ -242,7 +252,11 @@ export function useUndoRedo() {
           if (newHistory.length > maxHistorySize) {
             finalHistory = newHistory.slice(-maxHistorySize)
             newIndex = finalHistory.length - 1
-            debugHistory('Trimmed history to %d entries, new index: %d', finalHistory.length, newIndex)
+            debugHistory(
+              'Trimmed history to %d entries, new index: %d',
+              finalHistory.length,
+              newIndex
+            )
           }
 
           debugHistorySnapshot(
