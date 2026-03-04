@@ -115,9 +115,7 @@ describe('NodeProperties', () => {
   })
 
   it('renders nothing when operator is not found', () => {
-    const { container } = wrapWithProviders(
-      <NodeProperties nodeId="/nonexistent" />
-    )
+    const { container } = wrapWithProviders(<NodeProperties nodeId="/nonexistent" />)
     expect(container.firstChild).toBeNull()
   })
 
