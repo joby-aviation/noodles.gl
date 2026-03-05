@@ -1085,3 +1085,71 @@
   background: rgb(72 198 207 / 0.15);
   color: #d9fdff;
 }
+
+/* Track label right-side keyframe action buttons */
+
+.timelineTrackLabelActions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+
+.timelineTrackLabel:hover .timelineTrackLabelActions {
+  opacity: 1;
+}
+
+.timelineTrackLabel.selected .timelineTrackLabelActions {
+  opacity: 1;
+}
+
+.timelineTrackLabelBtn {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  color: var(--tl-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s ease, color 0.1s ease;
+  flex-shrink: 0;
+}
+
+.timelineTrackLabelBtn svg {
+  width: 10px;
+  height: 14px;
+  display: block;
+}
+
+.timelineTrackLabelBtn:hover:not(:disabled) {
+  background: rgb(255 255 255 / 0.08);
+  color: var(--tl-text);
+}
+
+.timelineTrackLabelBtn:disabled {
+  opacity: 0.22;
+  cursor: not-allowed;
+}
+
+.timelineTrackLabelBtn.atKeyframe {
+  color: var(--tl-warning);
+}
+
+.timelineTrackLabelBtn.atKeyframe:hover:not(:disabled) {
+  color: #e6ba57;
+}
+
+.timelineTrackLabelBtn.hasKeyframes {
+  color: var(--tl-accent);
+}
+
+.timelineTrackLabelBtn.hasKeyframes:hover:not(:disabled) {
+  color: var(--tl-accent-strong);
+}

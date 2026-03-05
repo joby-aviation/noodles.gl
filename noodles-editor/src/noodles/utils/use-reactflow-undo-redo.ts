@@ -286,7 +286,7 @@ export function useUndoRedo() {
 
     const entry = history[currentIndex]
     if (!entry) {
-      console.warn('Cannot undo - history entry is undefined')
+      debugHistory('Cannot undo - history entry is undefined')
       return
     }
 
@@ -375,7 +375,7 @@ export function useUndoRedo() {
       try {
         getTimelineStore().fromTheatreJSON(JSON.parse(entry.timelineStateBefore))
       } catch (e) {
-        console.warn('Failed to restore timeline state during undo', e)
+        debugHistory('Failed to restore timeline state during undo', e)
       }
     }
 
@@ -470,7 +470,7 @@ export function useUndoRedo() {
       try {
         getTimelineStore().fromTheatreJSON(JSON.parse(entry.timelineStateAfter))
       } catch (e) {
-        console.warn('Failed to restore timeline state during redo', e)
+        debugHistory('Failed to restore timeline state during redo', e)
       }
     }
 

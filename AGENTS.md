@@ -452,16 +452,7 @@ localStorage.debug = ''                 // Disable
 // Refresh the page after changing
 ```
 
-**Available namespaces:**
-- `noodles:history` - General history operations
-- `noodles:history:snapshot` - Snapshot capture and storage
-- `noodles:history:undo` - Undo operations
-- `noodles:history:redo` - Redo operations
-- `noodles:executor` - Graph execution frame loop
-- `noodles:render` - Video/image rendering setup
-- `noodles:render:frame` - Per-frame capture progress
-- `noodles:playback` - Timeline playback driver
-- `noodles:serialize` - Project save/load and serialization
+**Available namespaces:** see [`noodles-editor/src/utils/debug.ts`](noodles-editor/src/utils/debug.ts) for the full list with descriptions.
 
 **Adding new debug logging:**
 ```typescript

@@ -86,7 +86,7 @@ export function useUndoRedo(
           managerRef.current?.getHistory().length
         )
       } catch (error) {
-        console.error('Failed to take initial snapshot:', error)
+        debugHistory('Failed to take initial snapshot:', error)
         return // Don't proceed if initial snapshot failed
       }
     }

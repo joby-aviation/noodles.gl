@@ -10,6 +10,7 @@ export interface TrackListProps {
   timelineWidth?: number
   sequenceLength?: number
   fps?: number
+  onOpenCurveEditor?: (trackId: string) => void
 }
 
 export function TrackList({
@@ -18,6 +19,7 @@ export function TrackList({
   timelineWidth,
   sequenceLength,
   fps,
+  onOpenCurveEditor,
 }: TrackListProps) {
   const tracks = useTimelineStore(state => state.tracks)
 
@@ -57,6 +59,7 @@ export function TrackList({
           fps={fps}
           opId={opId}
           isFirstInGroup={isFirstInGroup}
+          onOpenCurveEditor={onOpenCurveEditor}
         />
       ))}
     </div>

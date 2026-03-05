@@ -19,6 +19,7 @@ import {
   safeStringify,
 } from '../noodles/utils/serialization'
 import { analytics } from '../utils/analytics'
+import { debugUI } from '../utils/debug'
 import s from './quick-start-modal.module.css'
 
 export interface UserProject {
@@ -67,7 +68,7 @@ export function ProjectsView({ onBack, onClose }: ProjectsViewProps) {
             })
           }
         } catch (err) {
-          console.error('Failed to load cached directory handles', err)
+          debugUI('Failed to load cached directory handles', err)
         }
       }
 
@@ -95,7 +96,7 @@ export function ProjectsView({ onBack, onClose }: ProjectsViewProps) {
             }
           }
         } catch (err) {
-          console.error('Failed to enumerate OPFS projects', err)
+          debugUI('Failed to enumerate OPFS projects', err)
         }
       }
 
@@ -244,7 +245,7 @@ export function useRecentProjects(limit = 3): CachedHandleEntry[] {
         const handles = await directoryHandleCache.getAllCachedHandles()
         setRecentProjects(handles.slice(0, limit))
       } catch (err) {
-        console.error('Failed to load recent projects', err)
+        debugUI('Failed to load recent projects', err)
       }
     }
     loadRecent()

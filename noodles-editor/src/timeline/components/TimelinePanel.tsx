@@ -261,14 +261,11 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
     [selectedKeyframeIds]
   )
 
-  // Handle spacebar for play/pause globally
+  // Handle spacebar for play/pause and arrow keys for frame stepping globally
   useEffect(() => {
-    const handleSpaceKey = (e: KeyboardEvent) => {
-      // Only handle spacebar
-      if (e.code !== 'Space') return
-
-      // Don't intercept spacebar in input elements
+    const handleKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement
+      // Don't intercept keys in input elements
       if (
         target.tagName === 'INPUT' ||
         target.tagName === 'TEXTAREA' ||
@@ -277,12 +274,20 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
         return
       }
 
-      e.preventDefault()
-      getTimelineStore().togglePlay()
+      if (e.code === 'Space') {
+        e.preventDefault()
+        getTimelineStore().togglePlay()
+      } else if (e.code === 'ArrowLeft') {
+        e.preventDefault()
+        getTimelineStore().stepBackward(1)
+      } else if (e.code === 'ArrowRight') {
+        e.preventDefault()
+        getTimelineStore().stepForward(1)
+      }
     }
 
-    document.addEventListener('keydown', handleSpaceKey)
-    return () => document.removeEventListener('keydown', handleSpaceKey)
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
   }, [])
 
   return (
@@ -381,7 +386,13 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
           <div className={s.timelineTrackLabelsHeader}>
             <span className={s.timelineTrackLabelsTitle}>Properties</span>
           </div>
-          <TrackList showLabelsOnly />
+          <TrackList
+            showLabelsOnly
+            onOpenCurveEditor={trackId => {
+              getTimelineStore().selectTrack(trackId)
+              setViewMode('value')
+            }}
+          />
         </div>
 
         {/* Scrollable timeline area */}

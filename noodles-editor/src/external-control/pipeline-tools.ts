@@ -1,6 +1,7 @@
 // Pipeline-specific tools for automated data pipeline creation and testing
 
 import { opTypes } from '../noodles/operators'
+import { debugExternal } from '../utils/debug'
 import { toolRegistry } from './tool-adapter'
 
 export interface PipelineSpec {
@@ -278,7 +279,7 @@ export class PipelineManager {
       if (sourceNodeId) {
         // TODO: Implement actual data injection
         // This would require modifying the source node's input data
-        console.log('Injecting test data into', sourceNodeId, testData)
+        debugExternal('Injecting test data into', sourceNodeId, testData)
       }
 
       // Wait for pipeline execution (with timeout)

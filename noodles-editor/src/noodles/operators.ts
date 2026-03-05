@@ -509,7 +509,7 @@ export abstract class Operator<OP extends IOperator> {
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err))
       debugExecute('%s: ERROR - %s', this.id, error.message)
-      console.warn(
+      debugPull(
         `Pull execution failure in [${this.id} (${(this.constructor as typeof Operator).displayName})]:`,
         error.message
       )
@@ -636,7 +636,7 @@ export abstract class Operator<OP extends IOperator> {
             return finalResult
           } catch (err: unknown) {
             const error = err instanceof Error ? err : new Error(String(err))
-            console.warn(
+            debugExecute(
               `Failure in [${this.id} (${(this.constructor as typeof Operator).displayName})]:`,
               error.message,
               error.stack
@@ -1900,7 +1900,7 @@ export class DuckDbOp extends Operator<DuckDbOp> {
       await conn.close()
       return { data }
     } catch (e) {
-      console.error('Error executing query', e)
+      debugExecute('Error executing query', e)
       await conn.close()
       await db.reset()
       if (e instanceof Error) {
@@ -2665,8 +2665,8 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
     if (this._iterating) return
     this._iterating = true
 
-    console.log('[ForLoopEndOp.executeIteration] Starting with data:', data)
-    console.log(
+    debugExecute('[ForLoopEndOp.executeIteration] Starting with data:', data)
+    debugExecute(
       '[ForLoopEndOp.executeIteration] Chain:',
       this.chain.map(op => `${op.id} (${op.constructor.name})`)
     )
@@ -2691,7 +2691,7 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
 
       // Get proper execution order (chain is reverse order from EndOp)
       const executionOrder = [...this.chain].reverse()
-      console.log(
+      debugExecute(
         '[ForLoopEndOp.executeIteration] Execution order:',
         executionOrder.map(op => `${op.id} (${op.constructor.name})`)
       )
@@ -2705,7 +2705,7 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
         const isFirst = index === 0
         const isLast = index === total - 1
 
-        console.log(`[ForLoopEndOp.executeIteration] Iteration ${index}: item =`, item)
+        debugExecute(`[ForLoopEndOp.executeIteration] Iteration ${index}: item =`, item)
 
         // Set iteration values on BeginOp outputs
         beginOp.outputs.item.next(item)
@@ -2736,20 +2736,22 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
         // Execute chain by pulling each intermediate operator
         for (const op of executionOrder) {
           if (op !== beginOp && op !== metaOp && op !== this) {
-            console.log(`[ForLoopEndOp.executeIteration] Pulling ${op.id} (${op.constructor.name})`)
+            debugExecute(
+              `[ForLoopEndOp.executeIteration] Pulling ${op.id} (${op.constructor.name})`
+            )
             await op.pull()
             // Log the outputs after pulling
             const outputs: Record<string, unknown> = {}
             for (const [key, field] of Object.entries(op.outputs)) {
               outputs[key] = field.value
             }
-            console.log(`[ForLoopEndOp.executeIteration] After pull, ${op.id} outputs:`, outputs)
+            debugExecute(`[ForLoopEndOp.executeIteration] After pull, ${op.id} outputs:`, outputs)
           }
         }
 
         // Collect result - the input field should now have the value from upstream
         const collectedValue = this.inputs.item.value
-        console.log(
+        debugExecute(
           `[ForLoopEndOp.executeIteration] Iteration ${index}: collecting this.inputs.item.value =`,
           collectedValue
         )
@@ -2761,7 +2763,7 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
         }
       }
 
-      console.log('[ForLoopEndOp.executeIteration] Final results:', results)
+      debugExecute('[ForLoopEndOp.executeIteration] Final results:', results)
       // Update output with collected results
       this.outputs.data.next(results)
     } finally {
@@ -5445,8 +5447,8 @@ function fnWithSource(args: string[], body: string, id: string): FunctionWithSou
     return func
   } catch (e) {
     const error = e instanceof Error ? e : new Error(String(e))
-    // Use console.warn since syntax errors during editing are expected
-    console.warn(formatSyntaxError(error, id, body))
+    // Use debugExecute since syntax errors during editing are expected
+    debugExecute(formatSyntaxError(error, id, body))
 
     // Strip "return " prefix for user code analysis
     const userCode = body.startsWith('return ') ? body.slice(7) : body
