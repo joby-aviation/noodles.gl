@@ -1,5 +1,6 @@
 // Keyframe track component - renders a single track with its keyframes
 
+import { useReactFlow } from '@xyflow/react'
 import { useCallback, useRef, useState } from 'react'
 import {
   captureTimelineState,
@@ -21,6 +22,7 @@ export interface KeyframeTrackProps {
   fps?: number
   opId?: string
   isFirstInGroup?: boolean
+  onOpenCurveEditor?: (trackId: string) => void
 }
 
 function snapToFrame(time: number, fps: number): number {
@@ -43,6 +45,7 @@ export function KeyframeTrack({
   fps = 30,
   opId,
   isFirstInGroup,
+  onOpenCurveEditor,
 }: KeyframeTrackProps) {
   const selectedKeyframeIds = useTimelineStore(state => state.selectedKeyframeIds)
   const selectedTrackIds = useTimelineStore(state => state.selectedTrackIds)
@@ -50,6 +53,10 @@ export function KeyframeTrack({
   const selectTrack = useTimelineStore(state => state.selectTrack)
   const toggleTrackKeyframes = useTimelineStore(state => state.toggleTrackKeyframes)
   const addKeyframe = useTimelineStore(state => state.addKeyframe)
+  const deleteKeyframe = useTimelineStore(state => state.deleteKeyframe)
+  const position = useTimelineStore(state => state.position)
+  const setPosition = useTimelineStore(state => state.setPosition)
+  const reactFlow = useReactFlow()
 
   const [openPopup, setOpenPopup] = useState<{
     k1: Keyframe
@@ -106,18 +113,60 @@ export function KeyframeTrack({
   // Render label only
   if (showLabelOnly) {
     const isTrackSelected = selectedTrackIds.has(track.id)
+    const eps = 0.001
+    const prevKf = [...track.keyframes].filter(kf => kf.position < position - eps).at(-1)
+    const nextKf = track.keyframes.find(kf => kf.position > position + eps)
+    const atKf = track.keyframes.find(kf => Math.abs(kf.position - position) < eps)
+    const hasKfs = track.keyframes.length > 0
+
+    // The React Flow node ID for this track's operator (fieldPath opId has no leading slash)
+    const rfNodeId = '/' + track.fieldPath.split(' / ')[0]
+
+    const handleLabelClick = (e: React.MouseEvent) => {
+      if (e.shiftKey) {
+        toggleTrackKeyframes(track.id)
+      } else {
+        selectTrack(track.id)
+        // Also select operator so properties panel shows it
+        reactFlow.setNodes(nodes => nodes.map(n => ({ ...n, selected: n.id === rfNodeId })))
+      }
+    }
+
+    const handlePrevKf = (e: React.MouseEvent) => {
+      e.stopPropagation()
+      if (prevKf) setPosition(prevKf.position)
+    }
+
+    const handleNextKf = (e: React.MouseEvent) => {
+      e.stopPropagation()
+      if (nextKf) setPosition(nextKf.position)
+    }
+
+    const handleToggleKeyframe = (e: React.MouseEvent) => {
+      e.stopPropagation()
+      const before = captureTimelineState()
+      if (atKf) {
+        deleteKeyframe(track.id, atKf.id)
+        fireTimelineMutation('Delete keyframe', before)
+      } else {
+        const value = getTimelineStore().evaluateTrack(track.id, position) ?? track.defaultValue
+        addKeyframe(track.id, { position, value, interpolation: 'bezier' })
+        fireTimelineMutation('Add keyframe', before)
+      }
+    }
+
+    const handleOpenCurveEditor = (e: React.MouseEvent) => {
+      e.stopPropagation()
+      reactFlow.setNodes(nodes => nodes.map(n => ({ ...n, selected: n.id === rfNodeId })))
+      onOpenCurveEditor?.(track.id)
+    }
+
     return (
       // biome-ignore lint/a11y/noStaticElementInteractions: Track label selects track for curve editor; shift-click toggles keyframe selection
       <div
         className={`${s.timelineTrackLabel} ${isTrackSelected ? s.selected : ''}`}
         title={track.fieldPath}
-        onClick={e => {
-          if (e.shiftKey) {
-            toggleTrackKeyframes(track.id)
-          } else {
-            selectTrack(track.id)
-          }
-        }}
+        onClick={handleLabelClick}
       >
         {isFirstInGroup ? (
           <>
@@ -131,6 +180,42 @@ export function KeyframeTrack({
             <span className={s.timelineTrackName}>{displayName}</span>
           </>
         )}
+        <div className={s.timelineTrackLabelActions}>
+          <button
+            type="button"
+            className={s.timelineTrackLabelBtn}
+            onClick={handlePrevKf}
+            disabled={!prevKf}
+            title="Previous keyframe"
+          >
+            <PrevKfChevron />
+          </button>
+          <button
+            type="button"
+            className={`${s.timelineTrackLabelBtn} ${atKf ? s.atKeyframe : hasKfs ? s.hasKeyframes : ''}`}
+            onClick={handleToggleKeyframe}
+            title={atKf ? 'Remove keyframe' : 'Add keyframe'}
+          >
+            <TrackDiamondIcon filled={!!atKf} />
+          </button>
+          <button
+            type="button"
+            className={s.timelineTrackLabelBtn}
+            onClick={handleNextKf}
+            disabled={!nextKf}
+            title="Next keyframe"
+          >
+            <NextKfChevron />
+          </button>
+          <button
+            type="button"
+            className={s.timelineTrackLabelBtn}
+            onClick={handleOpenCurveEditor}
+            title="Open curve editor"
+          >
+            <OpenCurveEditorIcon />
+          </button>
+        </div>
       </div>
     )
   }
@@ -460,5 +545,58 @@ function KeyframeDiamond({
       onClick={handleClick}
       title={`${keyframe.position.toFixed(2)}s`}
     />
+  )
+}
+
+// Narrow left chevron for previous keyframe navigation
+function PrevKfChevron() {
+  return (
+    <svg viewBox="0 0 8 14" fill="none" aria-hidden="true">
+      <path d="M6 2L2 7L6 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+// Narrow right chevron for next keyframe navigation
+function NextKfChevron() {
+  return (
+    <svg viewBox="0 0 8 14" fill="none" aria-hidden="true">
+      <path d="M2 2L6 7L2 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+// Diamond icon — filled when at a keyframe, hollow otherwise
+function TrackDiamondIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg viewBox="0 0 10 10" aria-hidden="true">
+      <rect
+        x="2.2"
+        y="2.2"
+        width="5.6"
+        height="5.6"
+        rx="0.5"
+        transform="rotate(45 5 5)"
+        fill={filled ? 'currentColor' : 'none'}
+        stroke="currentColor"
+        strokeWidth="1.4"
+      />
+    </svg>
+  )
+}
+
+// Curve editor icon — small bezier curve with endpoint dots
+function OpenCurveEditorIcon() {
+  return (
+    <svg viewBox="0 0 14 14" fill="none" aria-hidden="true">
+      <path
+        d="M1.5 11C4 11 4.5 3 7 3C9.5 3 10 9 12.5 9"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+      <circle cx="1.5" cy="11" r="1.3" fill="currentColor" />
+      <circle cx="12.5" cy="9" r="1.3" fill="currentColor" />
+    </svg>
   )
 }
