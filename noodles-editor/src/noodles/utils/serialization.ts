@@ -55,6 +55,7 @@ export type NoodlesProjectJSON = ReactFlowJsonObject & {
   apiKeys?: {
     mapbox?: string
     googleMaps?: string
+    cesium?: string
     anthropic?: string
   }
 }

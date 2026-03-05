@@ -66,16 +66,17 @@
   --xy-controls-button-color: #383838;
   --xy-controls-button-color-hover: #262626;
 
-  --z-index-for-loop: -99;
-  --z-index-tooltip-container: 101;
-  --z-index-react-flow: 999;
-  --z-index-breadcrumbs: 1000;
-  --z-index-menu: 10000;
-  --z-index-viewer-preview: 9999;
-  --z-index-step-ladder: 10001;
-  --z-index-modal-overlay: 9999;
-  --z-index-modal-content: 10000;
-  --z-index-analytics-consent: 9998;
+}
+
+:root {
+  --z-index-background: -99;
+  --z-index-node-tooltip: 101;
+  --z-index-canvas: 999;
+  --z-index-chrome: 1000;
+  --z-index-banner: 9998;
+  --z-index-backdrop: 9999;
+  --z-index-modal: 10000;
+  --z-index-top: 10001;
 }
 
 /**
@@ -118,7 +119,7 @@
 }
 
 :global(.react-flow-wrapper) {
-  z-index: var(--z-index-react-flow);
+  z-index: var(--z-index-canvas);
   width: 100%;
   height: 100%;
 }
@@ -155,7 +156,7 @@
 :global(.react-flow__node-group) {
   background-color: var(--node-group-background-color);
   /* Allow nodes to be selected over the ForLoopBody. Needs to override the style prop */
-  z-index: var(--z-index-for-loop);
+  z-index: var(--z-index-background);
   pointer-events: none;
 }
 
@@ -616,6 +617,12 @@
   background-color: var(--color-value);
 }
 
+/* Portal wrapper for the color picker — position/z-index here, top/left set dynamically */
+.colorPickerPortal {
+  position: fixed;
+  z-index: var(--z-index-modal);
+}
+
 /* Dark mode ChromePicker wrapper */
 .chromePickerWrapper {
   /* Override react-color's ChromePicker styles for dark mode */
@@ -706,7 +713,7 @@
   border: 1px solid var(--node-handle-outline-color);
   border-radius: 2px;
   padding: 4px 2px;
-  z-index: var(--z-index-step-ladder);
+  z-index: var(--z-index-top);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   min-width: 60px;
   pointer-events: none;
@@ -775,7 +782,7 @@
   width: 260px;
   padding-bottom: 1em;
   position: absolute;
-  z-index: var(--z-index-menu);
+  z-index: var(--z-index-modal);
   overflow: auto;
   border-radius: 8px;
 }
@@ -925,6 +932,8 @@
 
 /* Expression Editor Overlay */
 .expressionEditorOverlay {
+  position: fixed;
+  z-index: var(--z-index-modal);
   background-color: var(--color-bg-secondary);
   border: 1px solid var(--color-border-hover);
   border-radius: 6px;

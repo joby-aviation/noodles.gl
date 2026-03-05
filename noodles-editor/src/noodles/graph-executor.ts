@@ -536,11 +536,14 @@ export class GraphExecutor {
   syncNodesFromStore(): void {
     const ops = getAllOps()
 
+    let changed = false
+
     // Remove nodes that no longer exist in store (but preserve manually added nodes)
     for (const [id] of this.nodes) {
       // Don't remove nodes that were manually added via addNode()
       if (!this.manuallyAddedNodes.has(id) && !ops.find(op => op.id === id)) {
         this.nodes.delete(id)
+        changed = true
       }
     }
 
@@ -552,10 +555,11 @@ export class GraphExecutor {
         if (op.dirty) {
           this.dirtyNodes.add(op.id)
         }
+        changed = true
       }
     }
 
-    this.isDirty = true
+    if (changed) this.isDirty = true
   }
 
   // Find root operators (sinks - DeckRenderer, Out, Viewer, etc.)

@@ -181,6 +181,7 @@ import {
   WidgetField,
 } from './fields'
 import { DEFAULT_LATITUDE, DEFAULT_LONGITUDE, safeMode } from './globals'
+import { getKeysStore } from './keys-store'
 import { getAllOps, getOp } from './store'
 import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
 import { composeAccessor, isAccessor } from './utils/accessor-helpers'
@@ -5003,12 +5004,13 @@ export class HexagonLayerOp extends Operator<HexagonLayerOp> {
 
 export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
   static displayName = 'Tile3DLayer'
-  static description = 'Render Cesium or Google 3D tiles on the map'
+  static description = 'Render 3D tiles on the map (Google, Cesium, or a custom tileset URL)'
   static cacheable = false
   createInputs() {
     return {
       visible: new BooleanField(true),
-      provider: new StringLiteralField('Google', ['Cesium', 'Google']),
+      provider: new StringLiteralField('Google', ['Cesium', 'Generic', 'Google']),
+      tilesetUrl: new StringField('', { showByDefault: false }),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       operation: new StringLiteralField('terrain+draw', {
         values: ['terrain+draw', 'draw', 'terrain'],
@@ -5037,19 +5039,29 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
   execute({
     flatLighting,
     provider,
+    tilesetUrl,
     throttleRequests,
     maxMemoryUsage,
     maxScreenSpaceError,
     ...props
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // TODO: Add a typeahead field with pre-populated values, or the option to add a custom value
     const GOOGLE_TILESET_URL = 'https://tile.googleapis.com/v1/3dtiles/root.json'
     const NYC_CESIUM_TILESET_URL = 'https://assets.ion.cesium.com/242005/tileset.json'
 
-    const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY!
-    const CESIUM_ACCESS_TOKEN = import.meta.env.VITE_CESIUM_ACCESS_TOKEN!
+    const GOOGLE_MAPS_API_KEY = getKeysStore().getKey('googleMaps')
+    const CESIUM_ACCESS_TOKEN = getKeysStore().getKey('cesium')
 
-    const tilesetUrl = provider === 'Cesium' ? NYC_CESIUM_TILESET_URL : GOOGLE_TILESET_URL
+    if (provider === 'Google' && !GOOGLE_MAPS_API_KEY) {
+      throw new Error('Tile3DLayer: Google Maps API key is not set (add it in Settings > API Keys)')
+    }
+    if (provider === 'Cesium' && !CESIUM_ACCESS_TOKEN) {
+      throw new Error(
+        'Tile3DLayer: Cesium Ion access token is not set (add it in Settings > API Keys)'
+      )
+    }
+
+    const defaultUrl = provider === 'Cesium' ? NYC_CESIUM_TILESET_URL : GOOGLE_TILESET_URL
+    const data = tilesetUrl || defaultUrl
 
     const loader = provider === 'Cesium' ? CesiumIonLoader : Tiles3DLoader
 
@@ -5087,7 +5099,7 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
     const layer = {
       ...parseLayerProps<Tile3DLayerProps>(props),
       type: 'Tile3DLayer' as const,
-      data: tilesetUrl,
+      data,
       loader,
       loadOptions,
       onTilesetLoad,
@@ -6712,11 +6724,10 @@ function interpolateTimeSeries(
   const timeDelta = after.time - before.time
   const factor = timeDelta === 0 ? 0 : (currentTime - before.time) / timeDelta
 
-  // Interpolate all numeric fields
+  // Interpolate all numeric fields. before and after always share the same
+  // keys within a timeSeries, so iterating before's keys is sufficient.
   const result: Record<string, number> = {}
-  const allKeys = new Set([...Object.keys(before), ...Object.keys(after)])
-
-  for (const key of allKeys) {
+  for (const key of Object.keys(before)) {
     const beforeVal = before[key] ?? 0
     const afterVal = after[key] ?? 0
     result[key] = beforeVal + (afterVal - beforeVal) * factor
@@ -6730,6 +6741,18 @@ export class TimeSeriesOp extends Operator<TimeSeriesOp> {
   static description =
     'Interpolate time-varying data at a given time. Aligns with TripsLayer API for easy reuse of accessors.'
   asDownload = () => this.outputData
+
+  // Precomputed per-item data keyed by data/accessor references. Rebuilt only
+  // when those inputs change, not on every currentTime change during scrubbing.
+  private _precomputedTimeSeries: TimeSeriesDataPoint[][] | null = null
+  private _precomputedProperties: Record<string, unknown>[] | null = null
+  private _precomputeCacheKey: {
+    data: unknown
+    getTimestamps: unknown
+    getValues: unknown
+    getProperties: unknown
+  } | null = null
+
   createInputs() {
     return {
       data: new DataField(),
@@ -6766,9 +6789,18 @@ export class TimeSeriesOp extends Operator<TimeSeriesOp> {
       info: { index: number; data: unknown; target: unknown[] }
     ) => T
 
-    return {
-      data: data.map((d, i) => {
-        // Call accessors with proper deck.gl accessor signature
+    // Rebuild the expensive per-item structure only when data or accessors change.
+    // During timeline scrubbing only currentTime changes, so this cache stays hot.
+    const cacheKey = this._precomputeCacheKey
+    if (
+      !this._precomputedTimeSeries ||
+      !this._precomputedProperties ||
+      cacheKey?.data !== data ||
+      cacheKey?.getTimestamps !== getTimestamps ||
+      cacheKey?.getValues !== getValues ||
+      cacheKey?.getProperties !== getProperties
+    ) {
+      this._precomputedTimeSeries = data.map((d, i) => {
         const timestamps = (getTimestamps as DeckAccessor<number[]>)(d, {
           index: i,
           data,
@@ -6779,28 +6811,29 @@ export class TimeSeriesOp extends Operator<TimeSeriesOp> {
           data,
           target: [],
         })
-        const properties = getProperties
+        return timestamps.map((time: number, idx: number) => ({
+          time,
+          ...(values[idx] || {}),
+        }))
+      })
+      this._precomputedProperties = data.map((d, i) =>
+        getProperties
           ? (getProperties as DeckAccessor<Record<string, unknown>>)(d, {
               index: i,
               data,
               target: [],
             })
           : {}
+      )
+      this._precomputeCacheKey = { data, getTimestamps, getValues, getProperties }
+    }
 
-        // Convert values array to timeSeries format for interpolation
-        const timeSeries = timestamps.map((time: number, idx: number) => ({
-          time,
-          ...(values[idx] || {}),
-        }))
-
-        const interpolated = interpolateTimeSeries(timeSeries, currentTime)
-
-        return {
-          ...properties,
-          ...interpolated,
-          time: currentTime,
-        }
-      }),
+    return {
+      data: this._precomputedTimeSeries.map((timeSeries, i) => ({
+        ...this._precomputedProperties![i],
+        ...interpolateTimeSeries(timeSeries, currentTime),
+        time: currentTime,
+      })),
     }
   }
 }

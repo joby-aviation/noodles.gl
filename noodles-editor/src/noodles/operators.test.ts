@@ -27,6 +27,7 @@ import {
   ScatterplotLayerOp,
   SelectOp,
   SwitchOp,
+  Tile3DLayerOp,
   TimeSeriesOp,
 } from './operators'
 import { setOp } from './store'
@@ -1852,6 +1853,71 @@ describe('TimeSeriesOp', () => {
       [2, 2],
     ]) // preserved from getProperties
   })
+
+  it('reuses precomputed cache when only currentTime changes (scrubbing perf)', () => {
+    const op = new TimeSeriesOp('/timeseries-cache-test')
+    const data = [
+      { timestamps: [0, 10], values: [{ x: 0 }, { x: 10 }] },
+      { timestamps: [0, 10], values: [{ x: 100 }, { x: 200 }] },
+    ]
+    const getTimestamps = (d: any) => d.timestamps
+    const getValues = (d: any) => d.values
+    const getProperties = undefined
+
+    // First execution builds the cache
+    op.execute({ data, currentTime: 5, getTimestamps, getValues, getProperties })
+    const cacheAfterFirst = (op as any)._precomputedTimeSeries
+
+    // Second execution with different currentTime should reuse same cache reference
+    op.execute({ data, currentTime: 7, getTimestamps, getValues, getProperties })
+    expect((op as any)._precomputedTimeSeries).toBe(cacheAfterFirst)
+
+    // Third execution with same currentTime should also reuse cache
+    op.execute({ data, currentTime: 7, getTimestamps, getValues, getProperties })
+    expect((op as any)._precomputedTimeSeries).toBe(cacheAfterFirst)
+  })
+
+  it('rebuilds cache when data reference changes', () => {
+    const op = new TimeSeriesOp('/timeseries-cache-rebuild')
+    const data1 = [{ timestamps: [0, 10], values: [{ x: 0 }, { x: 10 }] }]
+    const data2 = [{ timestamps: [0, 10], values: [{ x: 0 }, { x: 10 }] }] // same content, different reference
+    const getTimestamps = (d: any) => d.timestamps
+    const getValues = (d: any) => d.values
+
+    op.execute({ data: data1, currentTime: 5, getTimestamps, getValues, getProperties: undefined })
+    const cacheAfterFirst = (op as any)._precomputedTimeSeries
+
+    // New data reference should rebuild cache
+    op.execute({ data: data2, currentTime: 5, getTimestamps, getValues, getProperties: undefined })
+    expect((op as any)._precomputedTimeSeries).not.toBe(cacheAfterFirst)
+  })
+
+  it('rebuilds cache when accessor function reference changes', () => {
+    const op = new TimeSeriesOp('/timeseries-accessor-change')
+    const data = [{ timestamps: [0, 10], values: [{ x: 0 }, { x: 10 }] }]
+    const getTimestamps1 = (d: any) => d.timestamps
+    const getTimestamps2 = (d: any) => d.timestamps // same logic, different reference
+    const getValues = (d: any) => d.values
+
+    op.execute({
+      data,
+      currentTime: 5,
+      getTimestamps: getTimestamps1,
+      getValues,
+      getProperties: undefined,
+    })
+    const cacheAfterFirst = (op as any)._precomputedTimeSeries
+
+    // New accessor reference should rebuild cache
+    op.execute({
+      data,
+      currentTime: 5,
+      getTimestamps: getTimestamps2,
+      getValues,
+      getProperties: undefined,
+    })
+    expect((op as any)._precomputedTimeSeries).not.toBe(cacheAfterFirst)
+  })
 })
 
 describe('KmlToGeoJsonOp', () => {
@@ -2268,5 +2334,53 @@ describe('Operator field visibility', () => {
       // visibleFields stays null since no change was needed
       expect(op.visibleFields.value).toBe(null)
     })
+  })
+})
+
+describe('Tile3DLayerOp', () => {
+  const GOOGLE_URL = 'https://tile.googleapis.com/v1/3dtiles/root.json'
+  const CESIUM_URL = 'https://assets.ion.cesium.com/242005/tileset.json'
+
+  it('defaults to the Google tileset URL when provider is Google', () => {
+    const op = new Tile3DLayerOp('/tile3d-0')
+    const { layer } = op.execute({})
+    expect(layer.type).toEqual('Tile3DLayer')
+    expect(layer.data).toEqual(GOOGLE_URL)
+  })
+
+  it('uses the Cesium tileset URL when provider is Cesium', () => {
+    const op = new Tile3DLayerOp('/tile3d-0')
+    const { layer } = op.execute({ provider: 'Cesium' })
+    expect(layer.data).toEqual(CESIUM_URL)
+  })
+
+  it('uses a custom tilesetUrl when provided, regardless of provider', () => {
+    const op = new Tile3DLayerOp('/tile3d-0')
+    const custom = 'https://example.com/custom/tileset.json'
+    const { layer: googleLayer } = op.execute({ tilesetUrl: custom, provider: 'Google' })
+    expect(googleLayer.data).toEqual(custom)
+
+    const { layer: cesiumLayer } = op.execute({ tilesetUrl: custom, provider: 'Cesium' })
+    expect(cesiumLayer.data).toEqual(custom)
+
+    const { layer: genericLayer } = op.execute({ tilesetUrl: custom, provider: 'Generic' })
+    expect(genericLayer.data).toEqual(custom)
+  })
+
+  it('falls back to the provider default when tilesetUrl is empty', () => {
+    const op = new Tile3DLayerOp('/tile3d-0')
+    const { layer } = op.execute({ tilesetUrl: '', provider: 'Cesium' })
+    expect(layer.data).toEqual(CESIUM_URL)
+  })
+
+  it('hides tilesetUrl by default', () => {
+    const op = new Tile3DLayerOp('/tile3d-0')
+    expect(op.isFieldVisible('tilesetUrl')).toBe(false)
+  })
+
+  it('includes Generic in provider options', () => {
+    const op = new Tile3DLayerOp('/tile3d-0')
+    const values = op.inputs.provider.choices.map(c => c.value)
+    expect(values).toContain('Generic')
   })
 })
