@@ -194,7 +194,6 @@ export function transformGraph<
         targetOp[targetNamespace === 'par' ? 'inputs' : 'outputs'][targetFieldName]
       if (!sourceField || !targetField) {
         console.error('Invalid connection')
-        debugger
         continue
       }
 
