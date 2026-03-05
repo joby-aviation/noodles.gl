@@ -235,6 +235,19 @@ export default function TimelineEditor() {
       debugRender('map waiting')
       return
     }
+    // During rendering, also check that deck layers have finished loading data.
+    // mapIdle fires on map tile/style readiness only — it doesn't know about deck layer data.
+    // Without this guard, waitForData has no effect for basemap scenes.
+    if (isRenderingRef.current && waitForData) {
+      const deck = deckRef.current
+      if (
+        deck &&
+        !deck.props.layers.every(layer => !layer || (!Array.isArray(layer) && layer.isLoaded))
+      ) {
+        debugRender('map idle, waiting for deck layers')
+        return
+      }
+    }
     // This should alert the renderer that the scene is ready to be captured
     // Because onIdle can be synchronous, we need to defer the promise resolution to the next tick.
     // TODO: Perhaps set up the promises refs before the render loop, and then later await the Promise.all?
@@ -378,7 +391,9 @@ export default function TimelineEditor() {
     await startSequenceCapture({
       canvas,
       getGLContext: () => glContextRef.current,
-      getDeck: () => deckRef.current,
+      // For basemap scenes, mapProps.onIdle is the frame-ready signal — don't also set up
+      // deck.onAfterRender or both paths call captureFrame(), causing premature resolution.
+      getDeck: basemapEnabled ? undefined : () => deckRef.current,
       directoryHandle: rendersDir,
       format: imageFormat,
       exrCompression,

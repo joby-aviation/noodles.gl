@@ -95,15 +95,28 @@ export function captureExrFrame(
     try {
       gl.readPixels(0, 0, width, height, gl.DEPTH_COMPONENT, gl.FLOAT, depthPixels)
 
-      // Flip Y axis for depth
-      const flippedDepth = flipYFloat32(depthPixels, width, height, 1)
+      // Deck.gl renders to internal FBOs and blits only color to the canvas. The canvas default
+      // framebuffer depth is cleared but never written with scene depth, so readPixels returns a
+      // uniform value (typically 0.0 or 1.0). Skip the layer in that case to avoid a misleading
+      // empty channel; a proper depth AOV would require a dedicated rendering pass.
+      const firstVal = depthPixels[0]
+      const hasDepthData = depthPixels.some(v => Math.abs(v - firstVal) > 0.001)
+      if (!hasDepthData) {
+        console.warn(
+          'Depth buffer is uniform (%f) — scene depth is not available from the canvas framebuffer.',
+          firstVal
+        )
+      } else {
+        // Flip Y axis for depth
+        const flippedDepth = flipYFloat32(depthPixels, width, height, 1)
 
-      writer
-        .addLayer('Depth')
-        .channel('Z', 'f32', flippedDepth)
-        .compression(compressionType)
-        .sampleType('f32')
-        .end()
+        writer
+          .addLayer('Depth')
+          .channel('Z', 'f32', flippedDepth)
+          .compression(compressionType)
+          .sampleType('f32')
+          .end()
+      }
     } catch (e) {
       console.warn('Failed to read depth buffer:', e)
     }
