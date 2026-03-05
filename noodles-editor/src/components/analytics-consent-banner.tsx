@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import s from './analytics-consent-banner.module.css'
 import { analytics } from '../utils/analytics'
+import s from './analytics-consent-banner.module.css'
 
 export function AnalyticsConsentBanner() {
   const [showBanner, setShowBanner] = useState(false)
