@@ -10,6 +10,8 @@ import s from './quick-start-modal.module.css'
 
 export type ModalView = 'home' | 'projects' | 'examples'
 
+const DEFAULT_EXAMPLE = 'nyc-taxis'
+
 // Store for pending quick start actions (file upload or LLM question)
 // These can be picked up by the main app after navigating to a project
 interface PendingQuickStartAction {
@@ -156,7 +158,7 @@ export function QuickStartModal({
 
     // Navigate to an example - the main app can detect the pending action
     onOpenChange(false)
-    navigate('/examples/world-flights')
+    navigate(`/examples/${DEFAULT_EXAMPLE}`)
   }, [uploadedFile, onOpenChange, navigate])
 
   const handleAskQuestion = useCallback(() => {
@@ -169,7 +171,7 @@ export function QuickStartModal({
 
     // Navigate to an example - the main app can detect the pending action and open chat
     onOpenChange(false)
-    navigate('/examples/world-flights')
+    navigate(`/examples/${DEFAULT_EXAMPLE}`)
   }, [llmQuestion, onOpenChange, navigate])
 
   const handleExampleClick = useCallback(
@@ -199,7 +201,7 @@ export function QuickStartModal({
   const handleClose = useCallback(() => {
     onOpenChange(false)
     // Default behavior when closing without action: go to examples
-    navigate('/examples/world-flights')
+    navigate(`/examples/${DEFAULT_EXAMPLE}`)
   }, [onOpenChange, navigate])
 
   const handleProjectClick = useCallback(
