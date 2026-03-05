@@ -4,6 +4,7 @@ import s from './error-boundary.module.css'
 interface Props {
   children: ReactNode
   fallback?: ReactNode
+  title?: string
   maxResets?: number
   resetTimeout?: number
 }
@@ -81,7 +82,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
       return (
         <div className={s.container}>
-          <h3 className={s.title}>Node Graph Error</h3>
+          <h3 className={s.title}>{this.props.title ?? 'Node Graph Error'}</h3>
           <p>An error occurred in the node graph. Check the console for details.</p>
           {this.state.error && (
             <details className={s.details}>

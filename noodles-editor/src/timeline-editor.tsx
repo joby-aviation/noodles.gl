@@ -6,6 +6,7 @@ import type { Map as MapLibre } from 'maplibre-gl'
 import { forwardRef, useCallback, useEffect, useRef, useState } from 'react'
 import ReactMapGL, { type MapProps, useControl } from 'react-map-gl/maplibre'
 import { Layout } from './layout'
+import { ErrorBoundary } from './noodles/components/error-boundary'
 import { TopMenuBar } from './noodles/components/top-menu-bar'
 import { ExportActionsProvider } from './noodles/contexts/export-actions-context'
 import { useRenderSettings } from './noodles/hooks/use-render-settings'
@@ -364,9 +365,11 @@ export default function TimelineEditor() {
             layoutMode={layoutMode}
           >
             {isFixedMode ? (
-              <TransformScale scale={renderSettings.scaleControl}>{renderContent()}</TransformScale>
+              <TransformScale scale={renderSettings.scaleControl}>
+                <ErrorBoundary title="Visualization Error">{renderContent()}</ErrorBoundary>
+              </TransformScale>
             ) : (
-              renderContent()
+              <ErrorBoundary title="Visualization Error">{renderContent()}</ErrorBoundary>
             )}
           </Layout>
         </ExportActionsProvider>
