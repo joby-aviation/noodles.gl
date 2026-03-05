@@ -426,7 +426,8 @@ export function bindOperatorToTimeline(op: Operator<IOperator>, store?: Timeline
     // during scrubbing instead of the non-existent parent track.
     if (field instanceof CompoundPropsField) {
       for (const [subName, subField] of Object.entries(field.fields)) {
-        if (subField instanceof CompoundPropsField || !isAnimatableField(subField as AnyField)) continue
+        if (subField instanceof CompoundPropsField || !isAnimatableField(subField as AnyField))
+          continue
         const cleanup = bindFieldToTimeline(op, fieldName, subField as AnyField, store, [subName])
         cleanupFns.push(cleanup)
         activeBindings.set(`${op.id}.${fieldName}.${subName}`, cleanup)
