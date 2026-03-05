@@ -1,7 +1,8 @@
 // Keyframe track component - renders a single track with its keyframes
 
 import { useReactFlow } from '@xyflow/react'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   captureTimelineState,
   fireTimelineMutation,
@@ -71,6 +72,30 @@ export function KeyframeTrack({
     x: number
     y: number
   } | null>(null)
+
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+
+  // Close context menu on outside click or Escape
+  useEffect(() => {
+    if (!contextMenu) return
+    const close = () => setContextMenu(null)
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close()
+    }
+    document.addEventListener('pointerdown', close)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('pointerdown', close)
+      document.removeEventListener('keydown', handleKey)
+    }
+  }, [contextMenu])
+
+  const handleMakeStatic = useCallback(() => {
+    const before = captureTimelineState()
+    getTimelineStore().deleteTrack(track.id)
+    fireTimelineMutation('Make static', before)
+    setContextMenu(null)
+  }, [track.id])
 
   const displayName = getDisplayName(track.fieldPath)
 
@@ -162,61 +187,80 @@ export function KeyframeTrack({
     }
 
     return (
-      // biome-ignore lint/a11y/noStaticElementInteractions: Track label selects track for curve editor; shift-click toggles keyframe selection
-      <div
-        className={`${s.timelineTrackLabel} ${isTrackSelected ? s.selected : ''}`}
-        title={track.fieldPath}
-        onClick={handleLabelClick}
-      >
-        {isFirstInGroup ? (
-          <>
-            <span className={s.timelineTrackOpId}>{opId}</span>
-            <span className={s.timelineTrackSep}> - </span>
-            <span className={s.timelineTrackName}>{displayName}</span>
-          </>
-        ) : (
-          <>
-            <span className={`${s.timelineTrackBranch} ${s.visible}`}>└</span>
-            <span className={s.timelineTrackName}>{displayName}</span>
-          </>
-        )}
-        <div className={s.timelineTrackLabelActions}>
-          <button
-            type="button"
-            className={s.timelineTrackLabelBtn}
-            onClick={handlePrevKf}
-            disabled={!prevKf}
-            title="Previous keyframe"
-          >
-            <PrevKfChevron />
-          </button>
-          <button
-            type="button"
-            className={`${s.timelineTrackLabelBtn} ${atKf ? s.atKeyframe : hasKfs ? s.hasKeyframes : ''}`}
-            onClick={handleToggleKeyframe}
-            title={atKf ? 'Remove keyframe' : 'Add keyframe'}
-          >
-            <TrackDiamondIcon filled={!!atKf} />
-          </button>
-          <button
-            type="button"
-            className={s.timelineTrackLabelBtn}
-            onClick={handleNextKf}
-            disabled={!nextKf}
-            title="Next keyframe"
-          >
-            <NextKfChevron />
-          </button>
-          <button
-            type="button"
-            className={s.timelineTrackLabelBtn}
-            onClick={handleOpenCurveEditor}
-            title="Open curve editor"
-          >
-            <OpenCurveEditorIcon />
-          </button>
+      <>
+        {/* biome-ignore lint/a11y/noStaticElementInteractions: Track label selects track for curve editor; shift-click toggles keyframe selection */}
+        <div
+          className={`${s.timelineTrackLabel} ${isTrackSelected ? s.selected : ''}`}
+          title={track.fieldPath}
+          onClick={handleLabelClick}
+          onContextMenu={e => {
+            e.preventDefault()
+            setContextMenu({ x: e.clientX, y: e.clientY })
+          }}
+        >
+          {isFirstInGroup ? (
+            <>
+              <span className={s.timelineTrackOpId}>{opId}</span>
+              <span className={s.timelineTrackSep}> - </span>
+              <span className={s.timelineTrackName}>{displayName}</span>
+            </>
+          ) : (
+            <>
+              <span className={`${s.timelineTrackBranch} ${s.visible}`}>└</span>
+              <span className={s.timelineTrackName}>{displayName}</span>
+            </>
+          )}
+          <div className={s.timelineTrackLabelActions}>
+            <button
+              type="button"
+              className={s.timelineTrackLabelBtn}
+              onClick={handlePrevKf}
+              disabled={!prevKf}
+              title="Previous keyframe"
+            >
+              <PrevKfChevron />
+            </button>
+            <button
+              type="button"
+              className={`${s.timelineTrackLabelBtn} ${atKf ? s.atKeyframe : hasKfs ? s.hasKeyframes : ''}`}
+              onClick={handleToggleKeyframe}
+              title={atKf ? 'Remove keyframe' : 'Add keyframe'}
+            >
+              <TrackDiamondIcon filled={!!atKf} />
+            </button>
+            <button
+              type="button"
+              className={s.timelineTrackLabelBtn}
+              onClick={handleNextKf}
+              disabled={!nextKf}
+              title="Next keyframe"
+            >
+              <NextKfChevron />
+            </button>
+            <button
+              type="button"
+              className={s.timelineTrackLabelBtn}
+              onClick={handleOpenCurveEditor}
+              title="Open curve editor"
+            >
+              <OpenCurveEditorIcon />
+            </button>
+          </div>
         </div>
-      </div>
+        {contextMenu &&
+          createPortal(
+            <div
+              className={s.handleTypeMenu}
+              style={{ top: contextMenu.y, left: contextMenu.x }}
+              onPointerDown={e => e.stopPropagation()}
+            >
+              <button type="button" onClick={handleMakeStatic}>
+                Make static
+              </button>
+            </div>,
+            document.body
+          )}
+      </>
     )
   }
 
