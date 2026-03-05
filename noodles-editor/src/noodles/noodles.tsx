@@ -18,6 +18,7 @@ import {
   useEdgesState,
   useNodesState,
   useReactFlow,
+  useStoreApi,
 } from '@xyflow/react'
 import cx from 'classnames'
 import type { LayerExtension } from 'deck.gl'
@@ -69,7 +70,14 @@ import { useProjectModifications } from './hooks/use-project-modifications'
 import type { IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
 import { copyDataDirectory, copyPublicFolderData, hasDataDirectory, load, save } from './storage'
-import { getOp, getOpStore, getUIStore, useNestingStore, useUIStore } from './store'
+import {
+  getOp,
+  getOpStore,
+  getUIStore,
+  useEdgeConnectionStore,
+  useNestingStore,
+  useUIStore,
+} from './store'
 import { transformGraph } from './transform-graph'
 import { canConnect } from './utils/can-connect'
 import { directoryHandleCache } from './utils/directory-handle-cache'
@@ -135,6 +143,22 @@ function useTimelineState(): UseTimelineStateReturn {
     timelineReady: true,
     getTimelineJson,
   }
+}
+
+// Syncs edge data from React Flow store to centralized EdgeConnectionStore for O(1) lookups
+function EdgeConnectionSynchronizer() {
+  const store = useStoreApi()
+
+  useEffect(() => {
+    const unsubscribe = store.subscribe(state => {
+      useEdgeConnectionStore.getState().updateFromEdges(state.edges)
+    })
+    // Initial sync
+    useEdgeConnectionStore.getState().updateFromEdges(store.getState().edges)
+    return unsubscribe
+  }, [store])
+
+  return null
 }
 
 export function getNoodles(): Visualization {
@@ -1323,6 +1347,7 @@ export function getNoodles(): Visualization {
               edgeTypes={edgeComponents}
             >
               <ReactFlowInstanceCapture />
+              <EdgeConnectionSynchronizer />
               <Background />
               <Controls position="bottom-right" />
               <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />

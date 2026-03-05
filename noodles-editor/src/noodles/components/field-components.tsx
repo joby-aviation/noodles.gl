@@ -2,7 +2,7 @@ import { CodeiumEditor } from '@codeium/react-code-editor'
 import type { OnMount } from '@monaco-editor/react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
-import { Handle, Position, useEdges, useNodeId, useReactFlow, useStoreApi } from '@xyflow/react'
+import { Handle, Position, useEdges, useNodeId, useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
 import type { ScaleLinear, ScaleOrdinal } from 'd3'
 import { Button } from 'primereact/button'
@@ -36,6 +36,7 @@ import type { Edge } from '../noodles'
 import s from '../noodles.module.css'
 import { getFriendlyErrorMessage, type IOperator, type Operator } from '../operators'
 import { checkAssetExists, writeAsset } from '../storage'
+import { useEdgeConnectionStore } from '../store'
 import { getExpressionContext } from '../utils/expression-context'
 import { projectScheme } from '../utils/filesystem'
 import { edgeId, type OpId } from '../utils/id-utils'
@@ -2039,44 +2040,19 @@ export function BezierCurveFieldComponent({
   )
 }
 
-// Custom hook to check if a specific field has incoming connections
-// More efficient than useEdges() which re-renders on ANY edge change
+// O(1) lookup for incoming connections via centralized EdgeConnectionStore
+// The store only updates when edges structurally change (add/remove), not on position updates
 function useHasIncomingConnection(nodeId: string | null, handleId: string): boolean {
-  const store = useStoreApi()
-  const [hasConnection, setHasConnection] = useState(() => {
-    if (!nodeId) return false
-    const edges = store.getState().edges
-    return edges.some(
-      edge =>
-        edge.target === nodeId && edge.targetHandle === handleId && edge.type !== 'ReferenceEdge'
+  return useEdgeConnectionStore(
+    useCallback(
+      state => {
+        if (!nodeId) return false
+        const key = `${nodeId}::${handleId}` as const
+        return state.connectionMap.has(key)
+      },
+      [nodeId, handleId]
     )
-  })
-
-  useEffect(() => {
-    if (!nodeId) return
-
-    // Subscribe to edge changes, but only update state when our specific connection changes
-    const unsubscribe = store.subscribe((state, prevState) => {
-      if (state.edges === prevState.edges) return
-
-      const hadConnection = prevState.edges.some(
-        edge =>
-          edge.target === nodeId && edge.targetHandle === handleId && edge.type !== 'ReferenceEdge'
-      )
-      const hasConnectionNow = state.edges.some(
-        edge =>
-          edge.target === nodeId && edge.targetHandle === handleId && edge.type !== 'ReferenceEdge'
-      )
-
-      if (hadConnection !== hasConnectionNow) {
-        setHasConnection(hasConnectionNow)
-      }
-    })
-
-    return unsubscribe
-  }, [nodeId, handleId, store])
-
-  return hasConnection
+  )
 }
 
 export function FieldComponent({
