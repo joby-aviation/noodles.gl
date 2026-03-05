@@ -145,7 +145,6 @@ function EdgeConnectionSynchronizer() {
   return null
 }
 
-
 export function getNoodles(): Visualization {
   const [location, navigate] = useLocation()
   const params = useParams()
