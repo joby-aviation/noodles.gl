@@ -5,6 +5,7 @@ import { nanoid } from 'nanoid'
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
 
+import { debugKeyframe } from '../utils/debug'
 import { evaluateTrack } from './interpolation'
 import type {
   BezierHandles,
@@ -288,6 +289,7 @@ export const useTimelineStore = create<TimelineStore>()(
       tracks.set(trackId, updatedTrack)
       set({ tracks })
 
+      debugKeyframe('store.addKeyframe track=%s pos=%s id=%s value=%O', trackId, keyframe.position, id, keyframe.value)
       fireTimelineMutation('Add keyframe', before)
       return id
     },
@@ -308,6 +310,7 @@ export const useTimelineStore = create<TimelineStore>()(
       }
       tracks.set(trackId, updatedTrack)
       set({ tracks })
+      debugKeyframe('store.updateKeyframe track=%s id=%s updates=%O', trackId, keyframeId, updates)
     },
 
     deleteKeyframe: (trackId, keyframeId) => {
@@ -440,7 +443,9 @@ export const useTimelineStore = create<TimelineStore>()(
       if (!track) return undefined
 
       const evalTime = time ?? get().position
-      return evaluateTrack(track, evalTime)
+      const result = evaluateTrack(track, evalTime)
+      debugKeyframe('evaluateTrack %s @ t=%s kfs=%d → %O', trackId, evalTime.toFixed(3), track.keyframes.length, result)
+      return result
     },
 
     evaluateAllTracks: time => {
