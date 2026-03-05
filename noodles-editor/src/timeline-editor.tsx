@@ -3,7 +3,7 @@ import { MapboxOverlay, type MapboxOverlayProps } from '@deck.gl/mapbox'
 import { DeckGL } from '@deck.gl/react'
 import { ReactFlowProvider } from '@xyflow/react'
 import type { Map as MapLibre } from 'maplibre-gl'
-import { forwardRef, useCallback, useEffect, useRef, useState } from 'react'
+import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ReactMapGL, { type MapProps, useControl } from 'react-map-gl/maplibre'
 import { Layout } from './layout'
 import { TopMenuBar } from './noodles/components/top-menu-bar'
@@ -89,12 +89,17 @@ export default function TimelineEditor() {
     bitrateMbps,
     bitrateMode,
     codec,
-    resolution,
     lod,
     waitForData,
     captureDelay,
     exportAlpha,
   } = renderSettings
+
+  // Memoize resolution to prevent unnecessary re-renders when only the object reference changes
+  const resolution = useMemo(
+    () => renderSettings.resolution,
+    [renderSettings.resolution.width, renderSettings.resolution.height]
+  )
 
   const { startCapture, captureFrame, currentFrame, isRendering } = useRenderer({
     projectName: noodles.projectName ?? 'render',

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { OutOp } from '../operators'
 import type { RenderSettings } from '../utils/serialization'
 import { DEFAULT_RENDER_SETTINGS } from '../utils/serialization'
+import { debugRender } from '../../utils/debug'
 import { useActiveOutOp } from './use-active-outop'
 
 // Hook to read render settings from the active OutOp node.
@@ -17,9 +18,27 @@ export function useRenderSettings(): RenderSettings {
   })
 
   useEffect(() => {
+    debugRender('useRenderSettings effect triggered, outOp=%s', outOp?.id ?? 'null')
+
     if (!outOp) {
       setSettings({ ...DEFAULT_RENDER_SETTINGS })
       return
+    }
+
+    // Batch multiple field updates into a single state update using microtask.
+    // This prevents multiple rapid setState calls when several fields change at once.
+    let pendingUpdate = false
+    function updateSettings() {
+      if (pendingUpdate) return
+      pendingUpdate = true
+      queueMicrotask(() => {
+        // outOp should still be valid here since we're inside the effect scope
+        // but check just in case the effect was cleaned up mid-microtask
+        if (!outOp) return
+        debugRender('updateSettings batched, setting new state for outOp=%s', outOp.id)
+        setSettings(getRenderSettingsFromOutOp(outOp))
+        pendingUpdate = false
+      })
     }
 
     // Subscribe to all render setting fields
@@ -37,10 +56,6 @@ export function useRenderSettings(): RenderSettings {
       outOp.inputs.framerate.subscribe(() => updateSettings()),
       outOp.inputs.captureDelay.subscribe(() => updateSettings()),
     ]
-
-    function updateSettings() {
-      setSettings(getRenderSettingsFromOutOp(outOp!))
-    }
 
     // Initial update
     updateSettings()
