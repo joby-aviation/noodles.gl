@@ -300,7 +300,8 @@ export const useRenderer = ({
       const originalOnAfterRender = deck?.props.onAfterRender
 
       const isDeckReady = () =>
-        !deck || deck.props.layers.every(layer => !layer || (!Array.isArray(layer) && layer.isLoaded))
+        !deck ||
+        deck.props.layers.every(layer => !layer || (!Array.isArray(layer) && layer.isLoaded))
 
       if (deck) {
         deck.setProps({
