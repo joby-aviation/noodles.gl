@@ -4,6 +4,7 @@
 import { globalContextManager } from '../ai-chat/global-context-manager'
 import { MCPTools } from '../ai-chat/mcp-tools'
 import { getOpStore } from '../noodles/store'
+import { debugExternal } from '../utils/debug'
 import {
   createErrorMessage,
   createMessage,
@@ -69,14 +70,14 @@ export const initializeWorkerBridge = async (): Promise<void> => {
 
     // Set up error handler
     worker.onerror = error => {
-      console.error('[Bridge] Worker error:', error)
+      debugExternal('[Bridge] Worker error:', error)
       emit('error', { error })
     }
 
     isInitialized = true
     emit('initialized', {})
   } catch (error) {
-    console.error('[Bridge] Failed to initialize worker:', error)
+    debugExternal('[Bridge] Failed to initialize worker:', error)
     throw error
   }
 }
@@ -150,13 +151,13 @@ const handleWorkerMessage = async (event: MessageEvent) => {
 
     case MessageType.CONNECT:
       // External client connected - acknowledge
-      console.log('[Bridge] External client connected:', message.payload)
+      debugExternal('[Bridge] External client connected:', message.payload)
       emit('clientConnected', message.payload)
       break
 
     case MessageType.DISCONNECT:
       // External client disconnected
-      console.log('[Bridge] External client disconnected')
+      debugExternal('[Bridge] External client disconnected')
       emit('clientDisconnected', message.payload)
       break
 
@@ -170,7 +171,7 @@ const handleWorkerMessage = async (event: MessageEvent) => {
       break
 
     default:
-      console.log('[Bridge] Unhandled message type:', message.type)
+      debugExternal('[Bridge] Unhandled message type:', message.type)
   }
 }
 
@@ -486,7 +487,7 @@ const handleDataUpload = async (message: DataUploadMessage) => {
     const fileUrl = `data://${filename}`
 
     // TODO: Integrate with actual storage system
-    console.log('[Bridge] Data upload:', filename, mimeType, data)
+    debugExternal('[Bridge] Data upload:', filename, mimeType, data)
 
     sendToWorker(
       createMessage(
@@ -538,7 +539,7 @@ const handleStateRequest = async (message: Message) => {
 // Send message to worker
 const sendToWorker = (message: Message) => {
   if (!worker) {
-    console.error('[Bridge] Worker not initialized')
+    debugExternal('[Bridge] Worker not initialized')
     return
   }
   worker.postMessage(message)

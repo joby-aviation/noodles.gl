@@ -36,6 +36,7 @@ import type { Edge } from '../noodles'
 import s from '../noodles.module.css'
 import { getFriendlyErrorMessage, type IOperator, type Operator } from '../operators'
 import { checkAssetExists, writeAsset } from '../storage'
+import { useEdgeConnectionStore } from '../store'
 import { getExpressionContext } from '../utils/expression-context'
 import { projectScheme } from '../utils/filesystem'
 import { edgeId, type OpId } from '../utils/id-utils'
@@ -2039,6 +2040,21 @@ export function BezierCurveFieldComponent({
   )
 }
 
+// O(1) lookup for incoming connections via centralized EdgeConnectionStore
+// The store only updates when edges structurally change (add/remove), not on position updates
+function useHasIncomingConnection(nodeId: string | null, handleId: string): boolean {
+  return useEdgeConnectionStore(
+    useCallback(
+      state => {
+        if (!nodeId) return false
+        const key = `${nodeId}::${handleId}` as const
+        return state.connectionMap.has(key)
+      },
+      [nodeId, handleId]
+    )
+  )
+}
+
 export function FieldComponent({
   id: fieldId,
   field,
@@ -2053,13 +2069,9 @@ export function FieldComponent({
   renderInput?: boolean
 }) {
   const nid = useNodeId()
-  const edges = useEdges()
   const qualifiedFieldId = handle ? `${handle.namespace}.${fieldId}` : `par.${fieldId}`
   const isHandleDimmed = useHandleDimmed(nid ?? '', qualifiedFieldId)
-  const incomers = edges.filter(
-    edge =>
-      edge.target === nid && edge.targetHandle === qualifiedFieldId && edge.type !== 'ReferenceEdge'
-  )
+  const hasIncomingConnection = useHasIncomingConnection(nid, qualifiedFieldId)
 
   const { type } = field.constructor as typeof Field
   const InputComp = inputComponents[type]
@@ -2081,7 +2093,7 @@ export function FieldComponent({
         />
       )}
       {renderInput &&
-        (incomers.length > 0 ? (
+        (hasIncomingConnection ? (
           <EmptyFieldComponent id={fieldId} field={field} />
         ) : (
           <InputComp id={fieldId} field={field} disabled={disabled} />

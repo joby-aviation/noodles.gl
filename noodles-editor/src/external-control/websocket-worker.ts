@@ -1,6 +1,9 @@
 // Web Worker for handling WebSocket connections to external tools
 // Runs in a separate thread to avoid blocking the main UI
 
+// console is used here instead of the debug package because this file runs in a
+// Web Worker, which has no access to localStorage — the debug package would be
+// permanently silenced with no way to enable it.
 import {
   createErrorMessage,
   createMessage,

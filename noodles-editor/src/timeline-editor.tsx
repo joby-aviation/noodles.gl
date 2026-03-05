@@ -1,13 +1,12 @@
 import type { Deck, DeckProps } from '@deck.gl/core'
 import { MapboxOverlay, type MapboxOverlayProps } from '@deck.gl/mapbox'
 import { DeckGL } from '@deck.gl/react'
-import { useVal } from '@theatre/react'
-import studio from '@theatre/studio'
 import { ReactFlowProvider } from '@xyflow/react'
 import type { Map as MapLibre } from 'maplibre-gl'
 import { forwardRef, useCallback, useEffect, useRef, useState } from 'react'
 import ReactMapGL, { type MapProps, useControl } from 'react-map-gl/maplibre'
 import { Layout } from './layout'
+import { ErrorBoundary } from './noodles/components/error-boundary'
 import { TopMenuBar } from './noodles/components/top-menu-bar'
 import { ExportActionsProvider } from './noodles/contexts/export-actions-context'
 import { useActiveStorageType, useCurrentDirectory } from './noodles/filesystem-store'
@@ -15,60 +14,17 @@ import { useRenderSettings } from './noodles/hooks/use-render-settings'
 import { getNoodles } from './noodles/noodles'
 import type { RenderSettings } from './noodles/utils/serialization'
 import { useDeckDrawLoop } from './render/draw-loop'
-import { captureScreenshot, rafDriver, useRenderer } from './render/renderer'
+import { captureScreenshot, useRenderer } from './render/renderer'
 import { TransformScale } from './render/transform-scale'
+import { CollapsibleTimelinePanel } from './timeline/components/CollapsibleTimelinePanel'
+import { useTimelineStore } from './timeline/timeline-store'
 import s from './timeline-editor.module.css'
+import { debugRender } from './utils/debug'
 import setRef from './utils/set-ref'
 
-// https://www.theatrejs.com/docs/latest/manual/advanced#rafdrivers
-// the rafDriver breaks things like spacebar playback
-studio.initialize({
-  __experimental_rafDriver: rafDriver,
-  usePersistentStorage: false,
-})
-
-// Inject styles into TheatreJS shadow DOM to hide export button
-// Using the generated class name is brittle but more reliable than trying to
-// target dynamically rendered buttons. This may break if Theatre.js updates.
-const injectTheatreStyles = () => {
-  const theatreRoot = document.querySelector('#theatrejs-studio-root')
-  if (theatreRoot?.shadowRoot && !theatreRoot.shadowRoot.querySelector('#hide-export-style')) {
-    const style = document.createElement('style')
-    style.id = 'hide-export-style'
-    style.textContent = `
-      /* Hide all panels except properties (export button, sheet name) */
-      .sc-dPZUQH:not([data-testid="DetailPanel-Object"]) {
-        display: none !important;
-      }
-
-      /* Hide the left sidebar (sheet tree panel) */
-      [data-testid="SequenceEditorPanel-tree"],
-      .sc-djVXDX.fXnbPU {
-        display: none !important;
-      }
-
-      /* Hide the sidebar top bar */
-      .sc-cHMHOW.dGwDVq {
-        display: none !important;
-      }
-    `
-    theatreRoot.shadowRoot.appendChild(style)
-    return true
-  }
-  return false
+function useSequenceLength() {
+  return useTimelineStore(state => state.sequence.length)
 }
-
-// Use a single MutationObserver to watch for both the theatre root being added
-// and its shadowRoot being attached
-const observer = new MutationObserver(() => {
-  if (injectTheatreStyles()) {
-    observer.disconnect()
-  }
-})
-observer.observe(document.body, { childList: true, subtree: true })
-
-// Also try injecting immediately in case everything is already loaded
-injectTheatreStyles()
 
 const DeckGLOverlay = forwardRef<
   Deck,
@@ -79,9 +35,7 @@ const DeckGLOverlay = forwardRef<
 >(({ renderer, isRendering, ...props }, ref) => {
   // MapboxOverlay handles a variety of props differently than the Deck class.
   // https://deck.gl/docs/api-reference/mapbox/mapbox-overlay#constructor
-  const deck = useControl<MapboxOverlay>(
-    () => new MapboxOverlay({ ...props, interleaved: true, _renderLayersInGroups: true })
-  )
+  const deck = useControl<MapboxOverlay>(() => new MapboxOverlay({ ...props, interleaved: true }))
 
   if (!isRendering) {
     deck.setProps({
@@ -110,8 +64,6 @@ const DeckGLOverlay = forwardRef<
 const isMapReady = (map: MapLibre | null) => !map || (map.isStyleLoaded() && map.areTilesLoaded())
 
 export default function TimelineEditor() {
-  const [ready, setReady] = useState(false)
-
   const mapRef = useRef<MapLibre | null>(null)
   const deckRef = useRef<Deck>(null)
   const glContextRef = useRef<WebGL2RenderingContext | null>(null)
@@ -129,9 +81,7 @@ export default function TimelineEditor() {
   }, [])
 
   const noodles = getNoodles()
-  const { project, sheet, flowGraph, nodeSidebar, propertiesPanel, layoutMode, ...visualization } =
-    noodles
-  const sequence = sheet.sequence
+  const { flowGraph, nodeSidebar, propertiesPanel, layoutMode, ...visualization } = noodles
 
   // Render settings are now stored as OutOp inputs
   const renderSettings = useRenderSettings()
@@ -140,11 +90,7 @@ export default function TimelineEditor() {
   const currentDirectory = useCurrentDirectory()
   const activeStorageType = useActiveStorageType()
 
-  useEffect(() => {
-    project?.ready.then(() => setReady(true))
-  }, [project])
-
-  const sequenceLength = useVal(sequence.pointer.length)
+  const sequenceLength = useSequenceLength()
 
   const {
     framerate,
@@ -163,8 +109,7 @@ export default function TimelineEditor() {
 
   const { startCapture, startSequenceCapture, captureFrame, currentFrame, isRendering } =
     useRenderer({
-      project,
-      sequence: sequence,
+      projectName: noodles.projectName ?? 'render',
       fps: framerate,
       bitrate: bitrateMbps * 1_000_000,
       bitrateMode,
@@ -172,9 +117,10 @@ export default function TimelineEditor() {
     })
   isRenderingRef.current = isRendering
 
-  // If the visualization doesn't supply mapProps, disable basemap.
+  // If the visualization doesn't supply mapProps (or has a blank mapStyle), disable basemap.
+  // A blank mapStyle is treated as transparent — DeckGL renders without map tiles.
   // TODO: Detect if deck is in othorgraphic mode, and disable?
-  const basemapEnabled = Boolean(visualization.mapProps)
+  const basemapEnabled = Boolean(visualization.mapProps?.mapStyle)
   // console.log(rgbaToClearColor(mapState.background))
 
   // Track deck.gl rendering stats for Claude AI debugging
@@ -267,7 +213,6 @@ export default function TimelineEditor() {
       map.setSky(undefined)
     }
   }, [light, sky])
-
   // Expose deck.gl canvas and instance for Claude AI visual debugging
   useEffect(() => {
     if (deckRef.current) {
@@ -287,7 +232,7 @@ export default function TimelineEditor() {
     mapRef.current = map
     // Wait for map tiles to load before capturing.
     if (!isMapReady(map)) {
-      console.warn('map waiting')
+      debugRender('map waiting')
       return
     }
     // This should alert the renderer that the scene is ready to be captured
@@ -296,9 +241,6 @@ export default function TimelineEditor() {
     // Delay rendering by 200ms so that deck and maplibre can settle before capturing.
     setTimeout(() => captureFrame(), captureDelay)
   }
-
-  // TODO: Move to a TheatreJS extension:
-  // https://www.theatrejs.com/docs/latest/manual/authoring-extensions
 
   const pureDeckInstance = !basemapEnabled ? deckRef.current : null
   useDeckDrawLoop({
@@ -312,20 +254,19 @@ export default function TimelineEditor() {
     props: deckProps,
   })
 
-  // Export functions always use the active OutOp's settings (via useRenderSettings)
   const startRender = useCallback(async () => {
     let canvas: HTMLCanvasElement | null = null
 
     if (basemapEnabled) {
       if (!mapRef.current) {
-        console.error('Start Render: maplibre is not defined (when basemapEnabled is true)')
+        debugRender('Start Render: maplibre is not defined (when basemapEnabled is true)')
         return
       }
       canvas = mapRef.current.getCanvas()
     } else {
       // Pure Deck.gl mode
       if (!deckRef.current) {
-        console.error('Start Render: deckRef is not defined (when basemapEnabled is false)')
+        debugRender('Start Render: deckRef is not defined (when basemapEnabled is false)')
         return
       }
       // @ts-expect-error canvas is protected but accessible
@@ -333,7 +274,7 @@ export default function TimelineEditor() {
     }
 
     if (!canvas) {
-      console.error('Start Render: Failed to get canvas element')
+      debugRender('Start Render: Failed to get canvas element')
       return
     }
 
@@ -347,15 +288,15 @@ export default function TimelineEditor() {
 
   const takeScreenshot = useCallback(async () => {
     if (!deckRef.current) {
-      console.error('Take Screenshot: deck is not defined')
+      debugRender('Take Screenshot: deck is not defined')
       return
     }
     if (basemapEnabled && !mapRef.current) {
-      console.error('Take Screenshot: maplibre is not defined')
+      debugRender('Take Screenshot: maplibre is not defined')
       return
     }
 
-    const suggestedName = project.address.projectId
+    const suggestedName = noodles.projectName ?? 'screenshot'
     try {
       await captureScreenshot(
         suggestedName,
@@ -373,19 +314,19 @@ export default function TimelineEditor() {
       )
     } catch (e) {
       if (e instanceof Error && e.name !== 'AbortError') {
-        console.error('Export failed:', e)
+        debugRender('Export failed: %o', e)
         alert(`Export failed: ${e.message}`)
       }
     }
-  }, [project.address.projectId, redraw, basemapEnabled, imageFormat, exrCompression, includeDepth])
+  }, [noodles.projectName, redraw, basemapEnabled, imageFormat, exrCompression, includeDepth])
 
   const exportSequence = useCallback(async () => {
     if (!deckRef.current) {
-      console.error('Export Sequence: deck is not defined')
+      debugRender('Export Sequence: deck is not defined')
       return
     }
     if (basemapEnabled && !mapRef.current) {
-      console.error('Export Sequence: maplibre is not defined')
+      debugRender('Export Sequence: maplibre is not defined')
       return
     }
 
@@ -398,7 +339,7 @@ export default function TimelineEditor() {
         rendersDir = await window.showDirectoryPicker({ mode: 'readwrite' })
       } catch (e) {
         if ((e as DOMException).name === 'AbortError') {
-          console.log('Export sequence cancelled by user')
+          debugRender('Export sequence cancelled by user')
           return
         }
         throw e
@@ -410,13 +351,13 @@ export default function TimelineEditor() {
           create: true,
         })
       } catch (e) {
-        console.error('Failed to create renders directory:', e)
+        debugRender('Failed to create renders directory: %o', e)
         // Fall back to prompting user
         try {
           rendersDir = await window.showDirectoryPicker({ mode: 'readwrite' })
         } catch (err) {
           if ((err as DOMException).name === 'AbortError') {
-            console.log('Export sequence cancelled by user')
+            debugRender('Export sequence cancelled by user')
             return
           }
           throw err
@@ -437,18 +378,20 @@ export default function TimelineEditor() {
     await startSequenceCapture({
       canvas,
       getGLContext: () => glContextRef.current,
+      getDeck: () => deckRef.current,
       directoryHandle: rendersDir,
       format: imageFormat,
       exrCompression,
       includeDepth,
       captureDelay,
+      waitForData,
       startFrame: 0,
       endFrame: totalFrames,
       onFrameStart: (frame, total) => {
-        console.log(`Exporting frame ${frame + 1}/${total}`)
+        debugRender('Exporting frame %d/%d', frame + 1, total)
       },
       onFrameComplete: (frame, total) => {
-        console.log(`Completed frame ${frame}/${total}`)
+        debugRender('Completed frame %d/%d', frame, total)
       },
     })
   }, [
@@ -459,6 +402,7 @@ export default function TimelineEditor() {
     exrCompression,
     includeDepth,
     captureDelay,
+    waitForData,
     basemapEnabled,
     currentDirectory,
     activeStorageType,
@@ -475,11 +419,6 @@ export default function TimelineEditor() {
   // Use fixed resolution for 'fixed' display mode, undefined for 'responsive' mode to use natural dimensions
   const isFixedMode = renderSettings.display === 'fixed'
   const displayResolution = isFixedMode ? lodResolution : undefined
-
-  if (!ready) {
-    // don't call project.getAssetUrl until Theatre project is ready
-    return <div>loading project...</div>
-  }
 
   const renderContent = () => {
     if (basemapEnabled) {
@@ -554,13 +493,16 @@ export default function TimelineEditor() {
             top={topBar}
             left={nodeSidebar}
             right={propertiesPanel}
+            bottom={<CollapsibleTimelinePanel />}
             flowGraph={flowGraph}
             layoutMode={layoutMode}
           >
             {isFixedMode ? (
-              <TransformScale scale={renderSettings.scaleControl}>{renderContent()}</TransformScale>
+              <TransformScale scale={renderSettings.scaleControl}>
+                <ErrorBoundary title="Visualization Error">{renderContent()}</ErrorBoundary>
+              </TransformScale>
             ) : (
-              renderContent()
+              <ErrorBoundary title="Visualization Error">{renderContent()}</ErrorBoundary>
             )}
           </Layout>
         </ExportActionsProvider>

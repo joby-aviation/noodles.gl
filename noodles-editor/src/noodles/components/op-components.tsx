@@ -1,7 +1,6 @@
 import MapboxGeocoder from '@mapbox/mapbox-gl-geocoder'
 import ReactJson from '@microlink/react-json-view'
 import * as Tooltip from '@radix-ui/react-tooltip'
-import type { ISheet } from '@theatre/core'
 import {
   BaseEdge,
   type EdgeProps,
@@ -23,12 +22,19 @@ import { Column } from 'primereact/column'
 import { DataTable } from 'primereact/datatable'
 import { InputNumber } from 'primereact/inputnumber'
 import { InputText } from 'primereact/inputtext'
-import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import {
+  type ComponentType,
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 import { createPortal } from 'react-dom'
 import { Temporal } from 'temporal-polyfill'
 
 import { analytics } from '../../utils/analytics'
-import { SheetContext } from '../../utils/sheet-context'
 import { ArrayField, type Field, type IField, ListField } from '../fields'
 import { useKeysStore } from '../keys-store'
 import s from '../noodles.module.css'
@@ -157,21 +163,39 @@ export function useHandleDimmed(nodeId: string, handleId: string): boolean {
   return !canConnect(targetField, sourceField)
 }
 
-const defaultNodeComponents = {} as Record<OpType, typeof NodeComponent>
+// Custom comparison function for node components
+// During drag, React Flow passes new position/data objects but id/type/selected don't change
+// By only comparing these three props, we prevent re-renders during drag operations
+// Exported for testing
+export function nodePropsAreEqual(
+  prevProps: ReactFlowNodeProps,
+  nextProps: ReactFlowNodeProps
+): boolean {
+  return (
+    prevProps.id === nextProps.id &&
+    prevProps.type === nextProps.type &&
+    prevProps.selected === nextProps.selected
+  )
+}
+
+// Memoized once - all node types in the registry share this single wrapper
+const MemoNodeComponent = memo(NodeComponent, nodePropsAreEqual)
+
+const defaultNodeComponents: Record<string, ComponentType<ReactFlowNodeProps>> = {}
 for (const key of Object.keys(opTypes)) {
-  defaultNodeComponents[key] = NodeComponent
+  defaultNodeComponents[key] = MemoNodeComponent
 }
 
 export const nodeComponents = {
   ...defaultNodeComponents,
-  GeocoderOp: GeocoderOpComponent,
-  DirectionsOp: DirectionsOpComponent,
-  MouseOp: MouseOpComponent,
-  OutOp: OutOpComponent,
-  TableEditorOp: TableEditorOpComponent,
-  TimeOp: TimeOpComponent,
-  ViewerOp: ViewerOpComponent,
-  ContainerOp: ContainerOpComponent,
+  GeocoderOp: memo(GeocoderOpComponent, nodePropsAreEqual),
+  DirectionsOp: memo(DirectionsOpComponent, nodePropsAreEqual),
+  MouseOp: memo(MouseOpComponent, nodePropsAreEqual),
+  OutOp: memo(OutOpComponent, nodePropsAreEqual),
+  TableEditorOp: memo(TableEditorOpComponent, nodePropsAreEqual),
+  TimeOp: memo(TimeOpComponent, nodePropsAreEqual),
+  ViewerOp: memo(ViewerOpComponent, nodePropsAreEqual),
+  ContainerOp: memo(ContainerOpComponent, nodePropsAreEqual),
 } as const as ReactFlowNodeTypes
 
 export const edgeComponents = {
@@ -330,6 +354,9 @@ export const SOURCE_HANDLE = 'source'
 export const TARGET_HANDLE = 'target'
 export const PAR_NAMESPACE = 'par'
 export const OUT_NAMESPACE = 'out'
+
+// Stable constant - avoids creating a new object on every render inside .map()
+export const PAR_HANDLE_OPTIONS = { type: TARGET_HANDLE, namespace: PAR_NAMESPACE } as const
 
 function useLocked(op: Operator<IOperator>) {
   const [locked, setLocked] = useState(op.locked.value)
@@ -535,7 +562,7 @@ function NodeComponent({
               id={key}
               field={field}
               disabled={locked}
-              handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
+              handle={PAR_HANDLE_OPTIONS}
             />
           ))}
         <div className={s.outputHandleContainer}>
@@ -891,7 +918,7 @@ function GeocoderOpComponent({
               id={key}
               field={field}
               disabled={locked}
-              handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
+              handle={PAR_HANDLE_OPTIONS}
               renderInput={false}
             />
           ))}
@@ -1085,7 +1112,7 @@ function TableEditorOpComponent({
               id={key}
               field={field}
               disabled={locked}
-              handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
+              handle={PAR_HANDLE_OPTIONS}
             />
           ))}
         <div className="card p-fluid">
@@ -1276,7 +1303,7 @@ function ViewerOpComponent({
               id={key}
               field={field}
               disabled={locked}
-              handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
+              handle={PAR_HANDLE_OPTIONS}
             />
           ))}
         {content}
@@ -1335,7 +1362,7 @@ function ContainerOpComponent({
               id={key}
               field={field}
               disabled={locked}
-              handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
+              handle={PAR_HANDLE_OPTIONS}
             />
           ))}
         <div>Children: {childrenCount}</div>
@@ -1358,19 +1385,11 @@ function TimeOpComponent({
   if (!op) {
     throw new Error(`Operator with id ${id} not found`)
   }
-  const sheet = useContext(SheetContext) as ISheet
   const isDimmed = useNodeDimmed(id)
 
   const [now, setNow] = useState(0)
   const [sequenceTime, setSequenceTime] = useState(0)
   const [tick, setTick] = useState(0)
-
-  // Inject Theatre sheet into operator on mount
-  useEffect(() => {
-    if (sheet) {
-      op.setTheatreSheet(sheet)
-    }
-  }, [sheet, op])
 
   // Subscribe to outputs for display
   useEffect(() => {
@@ -1439,7 +1458,7 @@ function OutOpComponent({ id, type }: ReactFlowNodeProps<NodeDataJSON<OutOp>> & 
             id={key}
             field={field}
             disabled={locked}
-            handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
+            handle={PAR_HANDLE_OPTIONS}
           />
         ))}
         <div className={s.outputHandleContainer}>

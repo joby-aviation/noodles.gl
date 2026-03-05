@@ -186,11 +186,10 @@ export function ColorSwatch({ value, onChange, disabled = false }: ColorSwatchPr
         createPortal(
           <div
             ref={pickerRef}
+            className={s.colorPickerPortal}
             style={{
-              position: 'fixed',
               top: `${pickerPosition.top}px`,
               left: `${pickerPosition.left}px`,
-              zIndex: 10000,
             }}
           >
             <div className={s.chromePickerWrapper}>

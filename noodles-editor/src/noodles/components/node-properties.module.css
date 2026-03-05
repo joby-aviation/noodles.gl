@@ -340,26 +340,25 @@
 }
 
 .property {
-  margin-bottom: 2px;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
   font-size: 12px;
 }
 
-.propertyHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 4px 0;
-}
-
-.propertyDetails {
+/* Single-row layout: dot · label · [input] · [diamond] */
+.propertyRow {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: rgba(255, 255, 255, 0.5);
+  padding: 3px 0;
+}
+
+.propertyLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Port */
@@ -454,8 +453,7 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  /* above theatrejs */
-  z-index: var(--z-index-tooltip-container);
+  z-index: var(--z-index-node-tooltip);
 }
 
 .tooltipText {
@@ -520,7 +518,7 @@
   font-size: 12px;
   font-weight: 500;
   max-width: 200px;
-  z-index: var(--z-index-menu);
+  z-index: var(--z-index-modal);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   animation-duration: 200ms;
   animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
@@ -587,6 +585,50 @@
   color: var(--color-text-primary);
 }
 
+/* Editable field content (value input inside property row) */
+.editableFieldContent {
+  flex-shrink: 0;
+  flex-grow: 1;
+  min-width: 0;
+  max-width: 120px;
+}
+
+/* hide the duplicate label rendered by field components; the panel renders its own label */
+.editableFieldContent label {
+  display: none;
+}
+
+.fieldPlaceholder {
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* Compound props sub-fields */
+.compoundSubFields {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 12px;
+  margin-top: 4px;
+}
+
+.compoundSubField {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.compoundSubFieldLabel {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  min-width: 60px;
+  flex-shrink: 0;
+}
+
 /* Dialog field lists */
 .dialogFieldLists {
   display: flex;
@@ -613,4 +655,41 @@
 
 .dialogFieldList li {
   margin: 2px 0;
+}
+
+/* Right-click context menu */
+.contextMenu {
+  position: fixed;
+  z-index: var(--z-index-modal);
+  background: rgba(28, 28, 28, 0.97);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 4px;
+  min-width: 160px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+.contextMenuItem {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  background: none;
+  border: none;
+  color: var(--color-text-primary);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.1s;
+}
+
+.contextMenuItem:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.contextMenuSeparator {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 4px 0;
 }

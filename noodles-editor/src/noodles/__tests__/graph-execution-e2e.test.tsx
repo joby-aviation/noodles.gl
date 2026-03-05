@@ -1,23 +1,10 @@
 // End-to-end tests for graph execution flow
 // Tests the complete flow: graph transformation -> operator creation -> subscriptions
 import type { Node as ReactFlowNode } from '@xyflow/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { MathOp, NumberOp } from '../operators'
 import { clearOps, getOp } from '../store'
 import { transformGraph } from '../transform-graph'
-
-// Mock Theatre.js studio to avoid side effects
-vi.mock('@theatre/studio', () => ({
-  default: {
-    transaction: vi.fn(fn =>
-      fn({
-        __experimental_forgetSheet: vi.fn(),
-      })
-    ),
-    setSelection: vi.fn(),
-    createContentOfSaveFile: vi.fn(() => ({ sheetsById: {} })),
-  },
-}))
 
 describe('Graph Execution E2E', () => {
   afterEach(() => {

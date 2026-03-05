@@ -26,6 +26,7 @@ export default defineConfig({
       'react-dom',
       'react/jsx-dev-runtime',
       'node:path',
+      'node:module',
     ],
   },
   plugins: [

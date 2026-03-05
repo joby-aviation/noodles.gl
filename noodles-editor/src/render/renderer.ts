@@ -1,6 +1,4 @@
-import { assert } from '@deck.gl/core'
-import { createRafDriver, type IProject, type ISequence } from '@theatre/core'
-import { useVal } from '@theatre/react'
+import { assert, type Deck } from '@deck.gl/core'
 import {
   EncodedPacket,
   EncodedVideoPacketSource,
@@ -8,29 +6,35 @@ import {
   Output,
   StreamTarget,
 } from 'mediabunny'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import type { ExrCompression, ImageFormat } from '../noodles/utils/serialization'
+import { getTimelineStore, useTimelineStore } from '../timeline/timeline-store'
+import { debugRender, debugRenderFrame } from '../utils/debug'
 import { captureExrFrame, captureJpegFrame, capturePngFrame } from './exr-export'
 
-export const rafDriver = createRafDriver({ name: 'WorldView' })
+export const rafDriver = {
+  tick: (_timestamp: number) => {},
+}
+
+function useSequenceLength() {
+  return useTimelineStore(state => state.sequence.length)
+}
 
 export const useRenderer = ({
-  project,
-  sequence,
+  projectName = 'render',
   fps = 30,
   bitrate = 10_000_000, // 10mbps
   bitrateMode,
   redraw,
 }: {
-  project: IProject
-  sequence: ISequence
+  projectName?: string
   fps?: number
   bitrate?: number
   bitrateMode: 'variable' | 'constant'
   redraw: () => void
 }) => {
-  // useVal keeps the prism "hot" and avoids cold prism warnings
-  const sequenceLength = useVal(sequence.pointer.length)
+  // Get sequence length from the appropriate timeline system
+  const sequenceLength = useSequenceLength()
 
   const canvasRenderDone = useRef<(result?: { error?: Error }) => void>(() => {})
   const canvasFrameReady = useCallback(
@@ -69,8 +73,6 @@ export const useRenderer = ({
 
       setIsRendering(true)
 
-      const projectName = project.address.projectId
-
       const getContainer = async (name: string) => {
         const fileHandle = await window
           .showSaveFilePicker({
@@ -84,9 +86,9 @@ export const useRenderer = ({
           })
           .catch(error => {
             if (error.name === 'AbortError') {
-              console.log('File picker cancelled by user for:', name)
+              debugRender('File picker cancelled by user for: %s', name)
             } else {
-              console.error('Error in showSaveFilePicker for', name, ':', error)
+              debugRender('Error in showSaveFilePicker for', name, ':', error)
             }
             return null // Signal cancellation/failure
           })
@@ -127,7 +129,7 @@ export const useRenderer = ({
             videoSource.add(correctedPacket, meta)
             currentFrameIndex++
           },
-          error: e => console.error(e),
+          error: e => debugRender(e),
         })
 
         const codecMap = {
@@ -159,7 +161,7 @@ export const useRenderer = ({
         const { supported } = await VideoEncoder.isConfigSupported(config)
 
         if (!supported) {
-          console.error('Unsupported codec configuration', config)
+          debugRender('Unsupported codec configuration', config)
           debugger
         }
 
@@ -187,8 +189,6 @@ export const useRenderer = ({
         }
       }
 
-      await project.ready
-
       function getCanvasRecorder(canvas: HTMLCanvasElement) {
         const track = canvas.captureStream(0).getVideoTracks()[0]
         const mediaProcessor = new MediaStreamTrackProcessor({ track })
@@ -199,7 +199,7 @@ export const useRenderer = ({
       const mapContainer = await getContainer(`${projectName}-map`)
       if (!mapContainer) {
         setIsRendering(false)
-        console.log('Render setup cancelled by user (map container).')
+        debugRender('Render setup cancelled by user (map container)')
         return
       }
       const containers = new Map([['map', mapContainer]])
@@ -215,19 +215,17 @@ export const useRenderer = ({
 
       for (; i < endFrame + 1; i++) {
         const simTime = i / fps
-        sequence.position = simTime
-        rafDriver.tick(performance.now())
-        // redraw in case nothing changes due to theatre raf driver
-        // TODO: Where should this go so that the first frame captures?
+        getTimelineStore().setPosition(simTime)
         redraw()
 
         currentFrame.current = i
-        if (i % 10 === 0) console.log(`capturing frame ${i}/${endFrame} at simtime ${simTime}`)
+        if (i % 10 === 0)
+          debugRenderFrame('capturing frame %d/%d at simtime %d', i, endFrame, simTime)
 
         const canvasResult = await canvasFrameReady()
 
         if (canvasResult?.error) {
-          console.error('Error capturing canvas frame:', canvasResult.error)
+          debugRender('Error capturing canvas frame:', canvasResult.error)
           return
         }
 
@@ -251,7 +249,7 @@ export const useRenderer = ({
       finishEncoding()
       setIsRendering(false)
     },
-    [project, sequence, sequenceLength, fps, bitrate, bitrateMode, canvasFrameReady, redraw]
+    [projectName, sequenceLength, fps, bitrate, bitrateMode, canvasFrameReady, redraw]
   )
 
   // Image sequence export - uses the same render loop as video capture but writes individual images
@@ -259,11 +257,13 @@ export const useRenderer = ({
     async ({
       canvas,
       getGLContext,
+      getDeck,
       directoryHandle,
       format = 'png',
       exrCompression = 'zip',
       includeDepth = false,
       captureDelay = 200,
+      waitForData = true,
       startFrame = 0,
       endFrame = Math.floor(sequenceLength * fps),
       onFrameStart,
@@ -272,11 +272,13 @@ export const useRenderer = ({
     }: {
       canvas: HTMLCanvasElement
       getGLContext: () => WebGL2RenderingContext | null
+      getDeck?: () => Deck | null
       directoryHandle: FileSystemDirectoryHandle
       format?: ImageFormat
       exrCompression?: ExrCompression
       includeDepth?: boolean
       captureDelay?: number
+      waitForData?: boolean
       startFrame?: number
       endFrame?: number
       onFrameStart?: (frame: number, total: number) => void
@@ -288,88 +290,105 @@ export const useRenderer = ({
 
       setIsRendering(true)
 
-      const projectName = project.address.projectId
       const totalFrames = endFrame - startFrame + 1
       const padLength = Math.max(4, String(endFrame).length)
       const extension = format === 'exr' ? 'exr' : format === 'jpeg' ? 'jpg' : 'png'
 
-      await project.ready
+      // For pure Deck scenes (no basemap), set up our own persistent onAfterRender callback.
+      // This mirrors how basemap scenes work where mapProps.onIdle fires every frame.
+      const deck = getDeck?.()
+      const originalOnAfterRender = deck?.props.onAfterRender
 
-      for (let i = startFrame; i < endFrame + 1; i++) {
-        onFrameStart?.(i - startFrame, totalFrames)
+      const isDeckReady = () =>
+        !deck || deck.props.layers.every(layer => !layer || (!Array.isArray(layer) && layer.isLoaded))
 
-        try {
-          // Set sequence position and render frame
-          const simTime = i / fps
-          sequence.position = simTime
-          rafDriver.tick(performance.now())
-          redraw()
-
-          currentFrame.current = i
-          if (i % 10 === 0) console.log(`exporting frame ${i}/${endFrame} at simtime ${simTime}`)
-
-          // Wait for frame to settle before capturing
-          await new Promise(r => setTimeout(r, captureDelay))
-
-          // Generate filename
-          const frameNumber = String(i).padStart(padLength, '0')
-          const filename = `${projectName}_${frameNumber}.${extension}`
-
-          // Capture and write frame
-          if (format === 'exr') {
-            const gl = getGLContext()
-            if (!gl) {
-              throw new Error('WebGL context not available for EXR export')
+      if (deck) {
+        deck.setProps({
+          onAfterRender: context => {
+            originalOnAfterRender?.(context)
+            // Check if layers are loaded when waitForData is enabled
+            if (waitForData && !isDeckReady()) {
+              debugRender('deck waiting for layers to load')
+              return
             }
-
-            const exrData = captureExrFrame(gl, canvas.width, canvas.height, {
-              compression: exrCompression,
-              includeDepth,
-            })
-
-            const fileHandle = await directoryHandle.getFileHandle(filename, { create: true })
-            const writable = await fileHandle.createWritable()
-            await writable.write(new Blob([exrData as unknown as BlobPart]))
-            await writable.close()
-          } else {
-            // PNG or JPEG export
-            const blob =
-              format === 'jpeg'
-                ? await captureJpegFrame(canvas, 0.92)
-                : await capturePngFrame(canvas, 1)
-
-            const fileHandle = await directoryHandle.getFileHandle(filename, { create: true })
-            const writable = await fileHandle.createWritable()
-            await writable.write(blob)
-            await writable.close()
-          }
-
-          onFrameComplete?.(i - startFrame + 1, totalFrames)
-        } catch (e) {
-          const error = e instanceof Error ? e : new Error(String(e))
-          onError?.(error, i)
-          console.error(`Error exporting frame ${i}:`, error)
-        }
+            // Signal frame is ready after captureDelay
+            setTimeout(() => captureFrame(), captureDelay)
+          },
+        })
       }
 
-      setIsRendering(false)
+      try {
+        for (let i = startFrame; i < endFrame + 1; i++) {
+          onFrameStart?.(i - startFrame, totalFrames)
+
+          try {
+            // Set sequence position and render frame
+            const simTime = i / fps
+            getTimelineStore().setPosition(simTime)
+            redraw()
+
+            currentFrame.current = i
+            if (i % 10 === 0)
+              debugRenderFrame('exporting frame %d/%d at simtime %d', i, endFrame, simTime)
+
+            // Wait for frame to be ready (resolved by onAfterRender callback for pure deck,
+            // or by mapProps.onIdle for basemap scenes)
+            await canvasFrameReady()
+
+            // Generate filename
+            const frameNumber = String(i).padStart(padLength, '0')
+            const filename = `${projectName}_${frameNumber}.${extension}`
+
+            // Capture and write frame
+            if (format === 'exr') {
+              const gl = getGLContext()
+              if (!gl) {
+                throw new Error('WebGL context not available for EXR export')
+              }
+
+              const exrData = captureExrFrame(gl, canvas.width, canvas.height, {
+                compression: exrCompression,
+                includeDepth,
+              })
+
+              const fileHandle = await directoryHandle.getFileHandle(filename, { create: true })
+              const writable = await fileHandle.createWritable()
+              await writable.write(new Blob([exrData as unknown as BlobPart]))
+              await writable.close()
+            } else {
+              // PNG or JPEG export
+              const blob =
+                format === 'jpeg'
+                  ? await captureJpegFrame(canvas, 0.92)
+                  : await capturePngFrame(canvas, 1)
+
+              const fileHandle = await directoryHandle.getFileHandle(filename, { create: true })
+              const writable = await fileHandle.createWritable()
+              await writable.write(blob)
+              await writable.close()
+            }
+
+            onFrameComplete?.(i - startFrame + 1, totalFrames)
+          } catch (e) {
+            const error = e instanceof Error ? e : new Error(String(e))
+            onError?.(error, i)
+            debugRender('Error exporting frame %d: %o', i, error)
+          }
+        }
+      } finally {
+        // Restore original callback after loop completes
+        if (deck) {
+          deck.setProps({
+            onAfterRender: originalOnAfterRender ?? (() => {}),
+          })
+        }
+        setIsRendering(false)
+      }
     },
-    [project, sequence, sequenceLength, fps, redraw]
+    [projectName, sequenceLength, fps, redraw, canvasFrameReady, captureFrame]
   )
 
   const [isRendering, setIsRendering] = useState(false)
-  useEffect(() => {
-    if (isRendering) {
-      return
-    }
-    let tick: number
-    const cb = () => {
-      rafDriver.tick(performance.now())
-      tick = requestAnimationFrame(cb)
-    }
-    tick = requestAnimationFrame(cb)
-    return () => cancelAnimationFrame(tick)
-  }, [isRendering])
 
   return {
     startCapture,

@@ -1,7 +1,5 @@
 import type { AnyNodeJSON } from 'SKIP-@xyflow/react'
 import * as deckWidgets from '@deck.gl/widgets'
-import { getProject, type IProjectConfig } from '@theatre/core'
-import studio from '@theatre/studio'
 import type {
   Connection,
   DefaultEdgeOptions,
@@ -20,6 +18,7 @@ import {
   useEdgesState,
   useNodesState,
   useReactFlow,
+  useStoreApi,
 } from '@xyflow/react'
 import cx from 'classnames'
 import type { LayerExtension } from 'deck.gl'
@@ -30,6 +29,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useParams } from 'wouter'
 import { ChatPanel } from '../ai-chat/chat-panel'
 import { globalContextManager } from '../ai-chat/global-context-manager'
+import { getPendingQuickStartAction } from '../components/quick-start-modal'
 import { analytics } from '../utils/analytics'
 import { getKeysForProject, getKeysStore } from './keys-store'
 import newProjectJSON from './new.json'
@@ -41,18 +41,23 @@ const exampleProjectUrls = import.meta.glob('../examples/**/noodles.json', {
   import: 'default',
 })
 
-import { SheetProvider } from '../utils/sheet-context'
+import {
+  bindOperatorToTimeline,
+  cleanupRemovedOperators as cleanupRemovedOperatorsNative,
+  clearAllBindings,
+} from '../timeline/field-bindings'
+import { TimelineProvider } from '../timeline/timeline-context'
+import { getTimelineStore } from '../timeline/timeline-store'
 import type { Visualization } from '../visualizations'
 import { BlockLibrary, type BlockLibraryRef } from './components/block-library'
 import { categories, nodeTypeToDisplayName } from './components/categories'
 import { CopyControls, type CopyControlsRef } from './components/copy-controls'
+import { NodeInfoOverlay, ViewportInfoPanel } from './components/devtools'
 import { ErrorBoundary } from './components/error-boundary'
 import { ExampleNotFoundDialog } from './components/example-not-found-dialog'
 import { PropertyPanel } from './components/node-properties'
 import { NodeTreeSidebar } from './components/node-tree-sidebar'
-import { NodeInfoOverlay, ViewportInfoPanel } from './components/devtools'
 import { edgeComponents, nodeComponents } from './components/op-components'
-import { UNSAVED_PROJECT_NAME } from './components/project-name-bar'
 import { ProjectNotFoundDialog } from './components/project-not-found-dialog'
 import { RenameDialog } from './components/rename-dialog'
 import { SaveAsDialog } from './components/save-as-dialog'
@@ -65,8 +70,14 @@ import { useProjectModifications } from './hooks/use-project-modifications'
 import type { IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
 import { copyDataDirectory, copyPublicFolderData, hasDataDirectory, load, save } from './storage'
-import { getOp, getOpStore, getUIStore, useNestingStore, useUIStore } from './store'
-import { bindOperatorToTheatre, cleanupRemovedOperators } from './theatre-bindings'
+import {
+  getOp,
+  getOpStore,
+  getUIStore,
+  useEdgeConnectionStore,
+  useNestingStore,
+  useUIStore,
+} from './store'
 import { transformGraph } from './transform-graph'
 import { canConnect } from './utils/can-connect'
 import { directoryHandleCache } from './utils/directory-handle-cache'
@@ -99,6 +110,7 @@ import { calculateViewerPosition } from './utils/viewer-position'
  * work reliably regardless of import order (prevents linting from breaking styles).
  */
 import './layers.css'
+import { debugApp, debugVis } from '../utils/debug'
 import s from './noodles.module.css'
 
 export type Edge<N1 extends Operator<IOperator>, N2 extends Operator<IOperator>> = {
@@ -117,82 +129,21 @@ const defaultEdgeOptions: DefaultEdgeOptions = {
   animated: false,
 }
 
-// TheatreJS is used by the Noodles framework to provide a timeline and keyframe animation for Op fields.
-// Naturally, the Noodles framework will load a new theatre state when a Noodles project is loaded.
-// TheatreJS doesn't support loading projects with the same ID more than once, so a new theatre project name is generated when a new Noodles project is loaded.
-// Currently a UUID is used, but a more human-readable name could be generated instead as long as its unique to the page session.
-//
-// TheatreJS project names are not included in the Noodles project file.
-// TheatreJS sheet names are included, so they should be the same for every project.
-const THEATRE_SHEET_ID = 'Noodles'
-function useTheatreJs(projectName: string | null) {
-  // Increment whenever a new theatre project is created to keep the project name unique *within theatre*.
-  const _projectCounterRef = useRef(1)
-  const name = `${projectName || UNSAVED_PROJECT_NAME}-${_projectCounterRef.current}`
-  const config = {} as IProjectConfig
-  const [theatreState, setTheatreState] = useState({ name, config })
-  const [theatreReady, setTheatreReady] = useState(false)
-  const theatreProject = useMemo(() => {
-    const { name, config } = theatreState
-    setTheatreReady(false)
-    return getProject(name, config)
-  }, [theatreState])
-  const theatreSheet = useMemo(() => theatreProject.sheet(THEATRE_SHEET_ID), [theatreProject])
+// Syncs edge data from React Flow store to centralized EdgeConnectionStore for O(1) lookups
+function EdgeConnectionSynchronizer() {
+  const store = useStoreApi()
+
   useEffect(() => {
-    theatreProject?.ready.then(() => setTheatreReady(true))
-  }, [theatreProject])
+    const unsubscribe = store.subscribe(state => {
+      useEdgeConnectionStore.getState().updateFromEdges(state.edges)
+    })
+    // Initial sync
+    useEdgeConnectionStore.getState().updateFromEdges(store.getState().edges)
+    return unsubscribe
+  }, [store])
 
-  const setTheatreProject = useCallback(
-    (theatreConfig: IProjectConfig, incomingProjectName?: string) => {
-      // Forget the sheet to clean up the Theatre.js UI
-      studio.transaction(api => {
-        try {
-          api.__experimental_forgetSheet(theatreSheet)
-        } catch (error) {
-          console.warn('Error forgetting Theatre sheet:', error)
-        }
-      })
-
-      // Increment the project counter to keep the project name unique
-      _projectCounterRef.current += 1
-      const newProjectName = `${incomingProjectName || UNSAVED_PROJECT_NAME}-${_projectCounterRef.current}`
-      setTheatreState({ name: newProjectName, config: theatreConfig })
-    },
-    [theatreSheet]
-  )
-
-  const getTimelineJson = useCallback(() => {
-    const timeline = studio.createContentOfSaveFile(theatreState.name)
-
-    // Clear staticOverrides - render settings are now stored at project level
-    const sheetsById = Object.fromEntries(
-      Object.entries(
-        timeline.sheetsById as Record<string, { staticOverrides?: { byObject?: unknown } }>
-      ).map(([sheetId, sheet]) => [
-        sheetId,
-        {
-          ...sheet,
-          staticOverrides: {
-            byObject: {},
-          },
-        },
-      ])
-    )
-
-    return { ...timeline, sheetsById }
-  }, [theatreState.name])
-
-  return {
-    theatreReady,
-    theatreProject,
-    theatreSheet,
-    setTheatreProject,
-    getTimelineJson,
-  }
+  return null
 }
-
-// Not using the top-level sheet since a Noodles theatre sheet and project are dynamically created.
-// Also, the top-level sheet is used for theatre-managed project files, whereas a Noodles project file is managed within this visType.
 
 export function getNoodles(): Visualization {
   const [location, navigate] = useLocation()
@@ -217,12 +168,17 @@ export function getNoodles(): Visualization {
   const storageType = useActiveStorageType()
   const { currentDirectory, setCurrentDirectory, setActiveStorageType, setError } =
     useFileSystemStore()
-  const { theatreReady, theatreProject, theatreSheet, setTheatreProject, getTimelineJson } =
-    useTheatreJs(projectName)
+  const getTimelineJson = useCallback(
+    (): Record<string, unknown> =>
+      getTimelineStore().toTheatreJSON() as unknown as Record<string, unknown>,
+    []
+  )
+
   const [nodes, setNodes, onNodesChangeBase] = useNodesState<AnyNodeJSON>([])
   const [edges, setEdges, onEdgesChangeBase] = useEdgesState<ReactFlowEdge<unknown>>([])
   const [defaultViewport, setDefaultViewport] = useState({ x: 0, y: 0, zoom: 1 })
   const [showChatPanel, setShowChatPanel] = useState(false)
+  const [chatInitialMessage, setChatInitialMessage] = useState<string | undefined>(undefined)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
   // Wrap onNodesChange to track node selection and mark unsaved changes
@@ -262,27 +218,10 @@ export function getNoodles(): Visualization {
     [onEdgesChangeBase]
   )
 
-  // Update URL when project name changes (for when loading a project from file/storage)
-  // This updates the router, which will trigger projectName to update via useMemo
-  const setProjectName = useCallback(
-    (nameOrUpdater: React.SetStateAction<string | null>) => {
-      // Handle both direct values and updater functions
-      const name =
-        typeof nameOrUpdater === 'function' ? nameOrUpdater(projectName ?? null) : nameOrUpdater
-
-      if (name) {
-        navigate(`${routePrefix}/${name}`, { replace: true })
-      } else {
-        navigate('/', { replace: true })
-      }
-    },
-    [navigate, projectName, routePrefix]
-  )
-
   // Eagerly start loading AI context bundles on app start
   useEffect(() => {
     globalContextManager.startLoading().catch(error => {
-      console.warn('Failed to preload AI context:', error)
+      debugApp('Failed to preload AI context:', error)
     })
   }, [])
 
@@ -304,45 +243,62 @@ export function getNoodles(): Visualization {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [hasUnsavedChanges, projectName])
 
+  // Only changes when graph structure changes (nodes added/removed/type changed, edges reconnected)
+  // Intentionally excludes node position so dragging does NOT re-run transformGraph
+  const graphStructureKey = useMemo(() => {
+    const nodeIds = nodes
+      .map(n => `${n.id}:${n.type}`)
+      .sort()
+      .join(',')
+    const edgeIds = edges
+      .map(e => e.id)
+      .sort()
+      .join(',')
+    return `${nodeIds}|${edgeIds}`
+  }, [nodes, edges])
+
   // `transformGraph` needs all nodes to build the opMap and resolve connections
   // Use useEffect instead of useMemo to avoid setState during render
   const [operators, setOperators] = useState<Operator<IOperator>[]>([])
+  // Set to true in loadProjectFile so the effect below skips the redundant re-run triggered
+  // by setNodes/setEdges — the graph was already built synchronously during load
+  const isProjectLoadRef = useRef(false)
+  // nodes/edges omitted from deps intentionally — only re-run on structural changes, not position updates during drag
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional - graphStructureKey gates this
   useEffect(() => {
+    // loadProjectFile already called transformGraph directly, so skip this triggered re-run
+    if (isProjectLoadRef.current) return
     const ops = transformGraph({ nodes, edges })
     setOperators(ops)
-  }, [nodes, edges])
+  }, [graphStructureKey])
 
-  // Bind Theatre.js objects for all operators (outside ReactFlow rendering pipeline)
-  // This ensures containers and all other operators can be keyframed in the timeline
+  // Reset isProjectLoadRef after every render so the flag never gets stuck when
+  // graphStructureKey doesn't change (e.g. re-loading the same project, undo of position-only drag).
+  // Defined after the graphStructureKey effect so it clears the flag after the guard check runs.
   useEffect(() => {
-    if (!theatreReady || !theatreSheet) return
+    isProjectLoadRef.current = false
+  })
 
-    // Track cleanup functions for newly bound operators
+  // Bind timeline tracks for all operators (outside ReactFlow rendering pipeline).
+  useEffect(() => {
     const newCleanupFns = new Map<string, () => void>()
+    const currentOperatorIds = new Set(operators.map(op => op.id))
 
-    // Only bind operators that aren't already bound
-    const store = getOpStore()
     for (const op of operators) {
-      if (!store.hasSheetObject(op.id)) {
-        const cleanup = bindOperatorToTheatre(op, theatreSheet)
-        if (cleanup) {
-          newCleanupFns.set(op.id, cleanup)
-        }
+      if (op.id === '/out') continue // Skip special operators
+      const cleanup = bindOperatorToTimeline(op)
+      if (cleanup) {
+        newCleanupFns.set(op.id, cleanup)
       }
     }
+    cleanupRemovedOperatorsNative(currentOperatorIds)
 
-    // Cleanup operators that are no longer in the graph
-    const currentOperatorIds = new Set(operators.map(op => op.id))
-    cleanupRemovedOperators(currentOperatorIds, theatreSheet)
-
-    // Return cleanup function only for newly bound operators
     return () => {
       for (const cleanup of newCleanupFns.values()) {
         cleanup()
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [theatreReady, theatreSheet, operators])
+  }, [operators])
 
   // Use shared hook for project modifications
   const {
@@ -385,7 +341,6 @@ export function getNoodles(): Visualization {
 
   // Track connection drag state for dimming unconnectable nodes
   const setConnectionDragState = useUIStore(state => state.setConnectionDragState)
-
   const onConnectStart: OnConnectStart = useCallback(
     (_event, params) => {
       if (!params.nodeId || !params.handleId) return
@@ -453,16 +408,6 @@ export function getNoodles(): Visualization {
     },
     [onNodeDragStopBase]
   )
-
-  const onNodeClick = useCallback((_e: React.MouseEvent, node: ReactFlowNode<unknown>) => {
-    const store = getOpStore()
-    const obj = store.getSheetObject(node.id)
-    if (obj) {
-      studio.setSelection([obj])
-    } else {
-      studio.setSelection([])
-    }
-  }, [])
 
   const reactFlowRef = useRef<HTMLDivElement>(null)
   const reactFlowInstanceRef = useRef<ReactFlowInstance | null>(null)
@@ -625,21 +570,43 @@ export function getNoodles(): Visualization {
     (project: NoodlesProjectJSON, name?: string, targetRoutePrefix?: string) => {
       const { nodes, edges, viewport, timeline, editorSettings, apiKeys } = project
 
-      // Mark that we've programmatically loading this project BEFORE any state changes
-      // This prevents the useEffect from trying to reload it from storage when the URL changes
+      // Prevent the storage-loading useEffect from reloading when the URL changes below
       isProgrammaticLoadRef.current = true
+      // Signal the graphStructureKey effect to skip — transformGraph runs synchronously below
+      isProjectLoadRef.current = true
 
-      // Update current project ref for undo/redo
       currentProjectRef.current = project
 
+      // Dispose all old operators cleanly (executionState.complete() + unsubscribeListeners)
       const store = getOpStore()
       for (const op of store.getAllOps()) {
-        op.unsubscribeListeners()
+        op.dispose()
       }
       store.clearOps()
+
+      // Load timeline state before transformGraph so field bindings see the right keyframe data
+      clearAllBindings()
+      const hasTimeline = timeline && Object.keys(timeline).length > 0
+      if (hasTimeline) {
+        try {
+          // Timeline data uses a Theatre.js-compatible JSON format for backwards compatibility.
+          getTimelineStore().fromTheatreJSON(
+            timeline as unknown as import('../timeline/types').TheatreTimelineData
+          )
+        } catch (error) {
+          console.error('Failed to load timeline:', error)
+        }
+      } else {
+        getTimelineStore().reset()
+      }
+
+      // Build the operator graph synchronously — operators are ready before any re-render
+      const ops = transformGraph({ nodes, edges })
+      setOperators(ops)
+
+      // Update React Flow state (for rendering; graph is already set up above)
       setNodes(nodes)
       setEdges(edges)
-      setProjectName(name ?? null)
 
       // Load editor settings from project with defaults
       setLayoutMode(editorSettings?.layoutMode ?? 'noodles-on-top')
@@ -651,25 +618,18 @@ export function getNoodles(): Visualization {
       // Load API keys from project file if present
       getKeysStore().setProjectKeys(apiKeys)
 
-      // Set viewport state before ReactFlow renders (but not during undo/redo)
+      // Restore viewport unless we're in an undo/redo restore
       if (viewport && name && !undoRedoRef.current?.isRestoring()) {
         setDefaultViewport(viewport)
       }
 
-      // Only include timeline state if it exists and has content, otherwise use empty config
-      const hasTimeline = timeline && Object.keys(timeline).length > 0
-      setTheatreProject(name && hasTimeline ? { state: timeline } : {}, name)
+      // Navigate to the project URL
+      const effectiveRoutePrefix = targetRoutePrefix ?? routePrefix
+      navigate(name ? `${effectiveRoutePrefix}/${name}` : '/', { replace: true })
 
-      // Update URL query parameter with project name
-      if (name) {
-        const effectiveRoutePrefix = targetRoutePrefix ?? routePrefix
-        navigate(`${effectiveRoutePrefix}/${name}`, { replace: true })
-      }
-
-      // Clear unsaved changes flag when loading a project
       setHasUnsavedChanges(false)
     },
-    [setNodes, setEdges, setProjectName, setTheatreProject, navigate, routePrefix]
+    [setNodes, setEdges, navigate, routePrefix]
   )
 
   // Assign to ref for undo/redo system
@@ -693,7 +653,7 @@ export function getNoodles(): Visualization {
           loadProjectFile(newProjectJSON as NoodlesProjectJSON)
           return
         } catch (_error) {
-          console.error('Failed to load default new project:', _error)
+          debugApp('Failed to load default new project:', _error)
         }
         return
       }
@@ -721,7 +681,7 @@ export function getNoodles(): Visualization {
             loadProjectFile(project, projectName)
             return
           } catch (error) {
-            console.error('Failed to load example project:', error)
+            debugApp('Failed to load example project:', error)
           }
         }
 
@@ -757,6 +717,34 @@ export function getNoodles(): Visualization {
     })()
   }, [projectName, isExamplesRoute])
 
+  // Handle pending quick start actions (file upload or LLM question from quick start modal)
+  const pendingActionHandledRef = useRef(false)
+  useEffect(() => {
+    // Only run once after project is loaded (nodes are populated)
+    if (nodes.length === 0 || pendingActionHandledRef.current) return
+
+    const pendingAction = getPendingQuickStartAction()
+    if (!pendingAction) return
+
+    pendingActionHandledRef.current = true
+
+    if (pendingAction.type === 'llm' && pendingAction.question) {
+      // Open AI chat panel with the question pre-filled
+      setChatInitialMessage(pendingAction.question)
+      setShowChatPanel(true)
+      analytics.track('quick_start_llm_action_handled')
+    } else if (pendingAction.type === 'file' && pendingAction.file) {
+      // For file uploads, we'll open the chat panel and suggest using the AI to visualize
+      // The file can be referenced in the message
+      const fileName = pendingAction.file.name
+      setChatInitialMessage(
+        `I just uploaded a file called "${fileName}". Please help me create a visualization from this data. First, I'll need to import it using the Data Importer (click the upload icon in the toolbar). Can you guide me through the process?`
+      )
+      setShowChatPanel(true)
+      analytics.track('quick_start_file_action_handled', { fileName })
+    }
+  }, [nodes.length])
+
   const displayedNodes = useMemo(() => {
     const dragHandle = `.${s.header}`
     const targetContainerId = currentContainerId || '/'
@@ -786,7 +774,7 @@ export function getNoodles(): Visualization {
   // File menu callbacks
   const getNoodlesProjectJson = useCallback((): NoodlesProjectJSON => {
     const store = getOpStore()
-    const timeline = getTimelineJson()
+    const timeline = getTimelineStore().toTheatreJSON() as unknown as Record<string, unknown>
     const viewport = reactFlowInstanceRef.current?.getViewport() || { x: 0, y: 0, zoom: 1 }
     const projectKeys = getKeysForProject()
     // Render settings are now stored as OutOp inputs, serialized with the node
@@ -804,7 +792,7 @@ export function getNoodles(): Visualization {
       },
       ...(projectKeys ? { apiKeys: projectKeys } : {}),
     }
-  }, [nodes, edges, getTimelineJson, layoutMode, showOverlay, showDebugInfo])
+  }, [nodes, edges, layoutMode, showOverlay, showDebugInfo])
 
   const onMenuSave = useCallback(async () => {
     if (!projectName) return
@@ -828,7 +816,7 @@ export function getNoodles(): Visualization {
       // Ensure we have write permission
       const hasPermission = await requestPermission(directoryHandle, 'readwrite')
       if (!hasPermission) {
-        console.error('Permission denied to write to directory')
+        debugApp('Permission denied to write to directory')
         return
       }
 
@@ -850,7 +838,7 @@ export function getNoodles(): Visualization {
         // User cancelled the picker
         return
       }
-      console.error('Failed to open directory picker:', error)
+      debugApp('Failed to open directory picker:', error)
       setError({
         type: 'unknown',
         message: 'Error selecting directory',
@@ -1043,7 +1031,7 @@ export function getNoodles(): Visualization {
       // Ensure we have write permission
       const hasPermission = await requestPermission(directoryHandle, 'readwrite')
       if (!hasPermission) {
-        console.error('Permission denied to write to directory')
+        debugApp('Permission denied to write to directory')
         return
       }
 
@@ -1071,7 +1059,7 @@ export function getNoodles(): Visualization {
         // User cancelled the picker
         return
       }
-      console.error('Failed to create new project:', error)
+      debugApp('Failed to create new project:', error)
     }
   }, [setCurrentDirectory, setActiveStorageType, loadProjectFile])
 
@@ -1184,7 +1172,7 @@ export function getNoodles(): Visualization {
       // Ensure we have write permission
       const hasPermission = await requestPermission(directoryHandle, 'readwrite')
       if (!hasPermission) {
-        console.error('Permission denied to write to directory')
+        debugApp('Permission denied to write to directory')
         return
       }
 
@@ -1230,7 +1218,7 @@ export function getNoodles(): Visualization {
         // User cancelled the picker
         return
       }
-      console.error('Failed to import project:', error)
+      debugApp('Failed to import project:', error)
     }
   }, [setCurrentDirectory, setActiveStorageType, loadProjectFile])
 
@@ -1295,7 +1283,7 @@ export function getNoodles(): Visualization {
           // User cancelled the picker
           return
         }
-        console.error('Failed to open project:', error)
+        debugApp('Failed to open project:', error)
         setError({
           type: 'unknown',
           message:
@@ -1314,11 +1302,11 @@ export function getNoodles(): Visualization {
     [loadProjectFile, setCurrentDirectory, setActiveStorageType, setError]
   )
 
-  const flowGraph = theatreReady && (
+  const flowGraph = (
     <ErrorBoundary>
       <div className={cx('react-flow-wrapper', !showOverlay && 'react-flow-wrapper-hidden')}>
         <PrimeReactProvider>
-          <SheetProvider value={theatreSheet}>
+          <TimelineProvider>
             <ReactFlow
               ref={reactFlowRef}
               nodes={displayedNodes}
@@ -1329,7 +1317,6 @@ export function getNoodles(): Visualization {
               onConnectStart={onConnectStart}
               onConnectEnd={onConnectEnd}
               onReconnect={onReconnect}
-              onNodeClick={onNodeClick}
               onNodesDelete={onNodesDelete}
               onNodeDragStop={onNodeDragStop}
               onPaneContextMenu={onPaneContextMenu}
@@ -1342,20 +1329,25 @@ export function getNoodles(): Visualization {
               edgeTypes={edgeComponents}
             >
               <ReactFlowInstanceCapture />
+              <EdgeConnectionSynchronizer />
               <Background />
               <Controls position="bottom-right" />
-              {showDebugInfo && <NodeInfoOverlay />}
-              {showDebugInfo && <ViewportInfoPanel />}
               <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />
               <CopyControls ref={copyControlsRef} />
               <UndoRedoHandler ref={undoRedoRef} />
               <ChatPanel
                 project={{ nodes, edges }}
-                onClose={() => setShowChatPanel(false)}
+                onClose={() => {
+                  setShowChatPanel(false)
+                  setChatInitialMessage(undefined)
+                }}
                 isVisible={showChatPanel}
+                initialMessage={chatInitialMessage}
               />
+              {showDebugInfo && <NodeInfoOverlay />}
+              {showDebugInfo && <ViewportInfoPanel />}
             </ReactFlow>
-          </SheetProvider>
+          </TimelineProvider>
         </PrimeReactProvider>
         <ProjectNotFoundDialog
           projectName={projectName || ''}
@@ -1439,7 +1431,7 @@ export function getNoodles(): Visualization {
                     const { type: extType, ...constructorArgs } = ext
                     const extensionDef = extensionMap[extType]
                     if (!extensionDef) {
-                      console.warn(`Unknown extension type: ${extType}`)
+                      debugApp(`Unknown extension type: ${extType}`)
                       return null
                     }
 
@@ -1482,6 +1474,13 @@ export function getNoodles(): Visualization {
             })
             instantiatedLayers.push(overlayLayer)
           }
+
+          debugVis(
+            'vis subscription fired: %d layers types=%O hasMapProps=%s',
+            instantiatedLayers.length,
+            layers?.map(l => l.type) || [],
+            !!mapProps
+          )
 
           setVisProps({
             deckProps: {
@@ -1535,7 +1534,5 @@ export function getNoodles(): Visualization {
     onChangeShowChatPanel: setShowChatPanel,
     hasUnsavedChanges,
     ...visProps,
-    project: theatreProject,
-    sheet: theatreSheet,
   }
 }

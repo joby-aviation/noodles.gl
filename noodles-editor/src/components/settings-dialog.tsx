@@ -246,6 +246,21 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
               />
 
               <KeyGroup
+                label="Cesium Ion Access Token"
+                description="Required for Cesium 3D tiles"
+                placeholder="eyJhb..."
+                browserValue={browserKeys.cesium || ''}
+                projectValue={projectKeys.cesium}
+                envValue={envKeys.cesium}
+                activeSource={getActiveSource('cesium')}
+                onBrowserChange={value => setBrowserKey('cesium', value)}
+                onBrowserClear={() => {
+                  setBrowserKey('cesium', undefined)
+                  analytics.track('key_cleared', { key: 'cesium' })
+                }}
+              />
+
+              <KeyGroup
                 label="Anthropic API Key"
                 description="Required for Claude AI assistant features"
                 placeholder="sk-ant-..."

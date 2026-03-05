@@ -1,11 +1,12 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-export type KeyType = 'mapbox' | 'googleMaps' | 'anthropic'
+export type KeyType = 'mapbox' | 'googleMaps' | 'cesium' | 'anthropic'
 
 export interface KeysConfig {
   mapbox?: string
   googleMaps?: string
+  cesium?: string
   anthropic?: string
 }
 
@@ -58,6 +59,7 @@ export const useKeysStore = create<KeysStore>()(
         const cleaned: KeysConfig = {}
         if (keys.mapbox?.trim()) cleaned.mapbox = keys.mapbox.trim()
         if (keys.googleMaps?.trim()) cleaned.googleMaps = keys.googleMaps.trim()
+        if (keys.cesium?.trim()) cleaned.cesium = keys.cesium.trim()
         if (keys.anthropic?.trim()) cleaned.anthropic = keys.anthropic.trim()
         set({ browserKeys: cleaned })
       },
@@ -127,6 +129,7 @@ export function getEnvKeys(): KeysConfig {
   return {
     mapbox: import.meta.env.VITE_MAPBOX_ACCESS_TOKEN,
     googleMaps: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+    cesium: import.meta.env.VITE_CESIUM_ACCESS_TOKEN,
     anthropic: import.meta.env.VITE_CLAUDE_API_KEY,
   }
 }

@@ -1,3 +1,4 @@
+import { debugSerialize } from '../utils/debug'
 import { directoryHandleCache } from './utils/directory-handle-cache'
 import type { StorageType } from './utils/filesystem'
 import {
@@ -733,7 +734,7 @@ export async function copyPublicFolderData(
       // Fetch and write file
       const response = await fetch(url)
       if (!response.ok) {
-        console.warn(`Failed to fetch ${url}`)
+        debugSerialize(`Failed to fetch ${url}`)
         failedFiles.push(relativePath)
         continue
       }

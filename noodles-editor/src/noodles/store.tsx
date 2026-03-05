@@ -1,4 +1,3 @@
-import type { ISheetObject } from '@theatre/core'
 import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react'
 import { create } from 'zustand'
 import type { IOperator, Operator } from './operators'
@@ -14,7 +13,7 @@ import { generateQualifiedPath, isAbsolutePath, resolvePath } from './utils/path
 interface OperatorStoreState {
   // The actual maps
   operators: Map<OpId, Operator<IOperator>>
-  sheetObjects: Map<OpId, ISheetObject>
+  sheetObjects: Map<OpId, unknown>
 
   // Batching state
   _batching: boolean
@@ -29,8 +28,8 @@ interface OperatorStoreState {
   getOpEntries: () => [OpId, Operator<IOperator>][]
 
   // Sheet object actions
-  getSheetObject: (id: OpId) => ISheetObject | undefined
-  setSheetObject: (id: OpId, sheetObj: ISheetObject) => void
+  getSheetObject: (id: OpId) => unknown
+  setSheetObject: (id: OpId, sheetObj: unknown) => void
   deleteSheetObject: (id: OpId) => void
   hasSheetObject: (id: OpId) => boolean
 
@@ -122,6 +121,10 @@ interface UIStoreState {
   triggerSidebarSearch: () => void
   settingsDialogOpen: boolean
   setSettingsDialogOpen: (open: boolean) => void
+  timelineExpanded: boolean
+  setTimelineExpanded: (expanded: boolean) => void
+  quickStartModalOpen: boolean
+  setQuickStartModalOpen: (open: boolean) => void
 }
 
 export const useUIStore = create<UIStoreState>(set => ({
@@ -136,6 +139,10 @@ export const useUIStore = create<UIStoreState>(set => ({
     set(state => ({ sidebarSearchFocusTrigger: state.sidebarSearchFocusTrigger + 1 })),
   settingsDialogOpen: false,
   setSettingsDialogOpen: open => set({ settingsDialogOpen: open }),
+  timelineExpanded: false,
+  setTimelineExpanded: expanded => set({ timelineExpanded: expanded }),
+  quickStartModalOpen: false,
+  setQuickStartModalOpen: open => set({ quickStartModalOpen: open }),
 }))
 
 // ============================================================================
@@ -202,7 +209,7 @@ export const getOpEntries = () => getOpStore().getOpEntries()
 
 // Sheet object helpers
 export const getSheetObject = (id: OpId) => getOpStore().getSheetObject(id)
-export const setSheetObject = (id: OpId, sheetObj: ISheetObject) =>
+export const setSheetObject = (id: OpId, sheetObj: unknown) =>
   getOpStore().setSheetObject(id, sheetObj)
 export const deleteSheetObject = (id: OpId) => getOpStore().deleteSheetObject(id)
 export const hasSheetObject = (id: OpId) => getOpStore().hasSheetObject(id)
@@ -318,4 +325,45 @@ interface NestingState {
 export const useNestingStore = create<NestingState>(set => ({
   currentContainerId: '/',
   setCurrentContainerId: (id: string) => set({ currentContainerId: id }),
+}))
+
+// ============================================================================
+// Edge Connection Store - O(1) lookup for incoming connections
+// ============================================================================
+
+// Key format: "nodeId::handleId" for O(1) lookup
+type ConnectionKey = `${string}::${string}`
+
+interface EdgeConnectionState {
+  connectionMap: Map<ConnectionKey, boolean>
+  _edgeSignature: string
+  updateFromEdges: (edges: ReactFlowEdge[]) => void
+}
+
+export const useEdgeConnectionStore = create<EdgeConnectionState>((set, get) => ({
+  connectionMap: new Map(),
+  _edgeSignature: '',
+
+  updateFromEdges: edges => {
+    // Compute structural signature (ignores array reference changes)
+    const signature = edges
+      .filter(e => e.type !== 'ReferenceEdge')
+      .map(e => `${e.target}:${e.targetHandle}`)
+      .sort()
+      .join('|')
+
+    // Early exit if structure unchanged
+    if (signature === get()._edgeSignature) return
+
+    // Build new connection map
+    const newMap = new Map<ConnectionKey, boolean>()
+    for (const edge of edges) {
+      if (edge.type === 'ReferenceEdge') continue
+      if (!edge.target || !edge.targetHandle) continue
+      const key: ConnectionKey = `${edge.target}::${edge.targetHandle}`
+      newMap.set(key, true)
+    }
+
+    set({ connectionMap: newMap, _edgeSignature: signature })
+  },
 }))

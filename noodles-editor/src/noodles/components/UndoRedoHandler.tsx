@@ -1,4 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle } from 'react'
+import { registerTimelineMutationCallback } from '../../timeline/timeline-store'
 import { analytics } from '../../utils/analytics'
 import { useUndoRedo } from '../utils/use-reactflow-undo-redo'
 
@@ -19,6 +20,12 @@ export interface UndoRedoHandlerRef {
 // This component must be placed inside ReactFlow to access the zustand store
 export const UndoRedoHandler = forwardRef<UndoRedoHandlerRef>((_, ref) => {
   const undoRedo = useUndoRedo()
+
+  // Register the timeline mutation callback so timeline ops join the unified undo stack
+  useEffect(() => {
+    registerTimelineMutationCallback(undoRedo.recordTimelineChange)
+    return () => registerTimelineMutationCallback(undefined)
+  }, [undoRedo.recordTimelineChange])
 
   // Expose the undo/redo methods to parent component via ref
   useImperativeHandle(

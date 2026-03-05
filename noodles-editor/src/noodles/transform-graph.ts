@@ -1,4 +1,5 @@
 import { getIncomers, type Node as ReactFlowNode } from '@xyflow/react'
+import { debugExecutor } from '../utils/debug'
 import { type Edge as ExecutorEdge, updateGraph } from './graph-executor'
 import type { Edge } from './noodles'
 import type { IOperator, Operator, OpType } from './operators'
@@ -146,10 +147,6 @@ export function transformGraph<
     }) as OP[]
   })
 
-  for (const op of created) {
-    op.createListeners()
-  }
-
   // Update dependency graph
   updateGraph(edges as unknown as ExecutorEdge[])
 
@@ -197,8 +194,7 @@ export function transformGraph<
       const targetField =
         targetOp[targetNamespace === 'par' ? 'inputs' : 'outputs'][targetFieldName]
       if (!sourceField || !targetField) {
-        console.error('Invalid connection')
-        debugger
+        debugExecutor('Invalid connection')
         continue
       }
 
@@ -213,11 +209,13 @@ export function transformGraph<
         targetOp.showField(targetFieldName)
 
         // ReferenceEdges mark reactive dependencies only — type checking doesn't apply
+        // Only validate when the source field has produced a value; skip if the operator hasn't
+        // executed yet (value === undefined) to avoid false "type mismatch" errors on initial load
         const validation = validateConnection(sourceField, targetField)
-        if (!validation.valid && validation.error) {
+        if (!validation.valid && validation.error && sourceField.value !== undefined) {
           targetOp.addConnectionError(edge.id, validation.error)
         } else {
-          // Clear any existing error for this edge if it's now valid
+          // Clear any existing error for this edge if it's now valid (or not yet computed)
           targetOp.removeConnectionError(edge.id)
         }
       }

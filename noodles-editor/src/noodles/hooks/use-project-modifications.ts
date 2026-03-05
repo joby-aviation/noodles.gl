@@ -13,6 +13,7 @@ import {
 } from '@xyflow/react'
 import { useCallback } from 'react'
 import { analytics } from '../../utils/analytics'
+import { debugUI } from '../../utils/debug'
 import { type Field, ListField } from '../fields'
 import type { IOperator, Operator } from '../operators'
 import { deleteOp, getAllOps, getOp, setOp } from '../store'
@@ -338,7 +339,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
             // Auto-show field when value is set programmatically (AI tools)
             operator.showField(key)
           } else {
-            console.error(`Input ${key} not found on operator ${nodeId} or doesn't have setValue`)
+            debugUI(`Input ${key} not found on operator ${nodeId} or doesn't have setValue`)
           }
         })
       }
@@ -562,7 +563,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
             if (!sourceExists || !targetExists) {
               const error = `Edge ${edge.id}: source or target node not in node list (source: ${edge.source}, target: ${edge.target})`
-              console.error('⚠️', error)
+              debugUI('⚠️', error)
               skippedEdges.push(error)
               return false
             }
@@ -571,7 +572,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
           if (edgesToAddOptimistically.length > 0) {
             setEdges(currentEdges => [...currentEdges, ...edgesToAddOptimistically])
-            console.log(`✅ Added ${edgesToAddOptimistically.length} edge(s) optimistically`)
+            debugUI(`✅ Added ${edgesToAddOptimistically.length} edge(s) optimistically`)
           }
 
           if (skippedEdges.length > 0) {
@@ -597,7 +598,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
             if (!sourceNode || !targetNode) {
               const error = `Edge ${edge.id}: source or target node not found`
-              console.error(error)
+              debugUI(error)
               edgeErrors.push(error)
               continue
             }
@@ -607,14 +608,14 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
             if (!sourceOp || !targetOp) {
               const error = `Edge ${edge.id}: source or target operator not found`
-              console.error(error)
+              debugUI(error)
               edgeErrors.push(error)
               continue
             }
 
             if (!edge.sourceHandle || !edge.targetHandle) {
               const error = `Edge ${edge.id}: missing source or target handle`
-              console.error(error)
+              debugUI(error)
               edgeErrors.push(error)
               continue
             }
@@ -624,7 +625,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
             if (!sourceHandleInfo || !targetHandleInfo) {
               const error = `Edge ${edge.id}: could not parse handle IDs`
-              console.error(error)
+              debugUI(error)
               edgeErrors.push(error)
               continue
             }
@@ -634,7 +635,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
             if (!sourceField || !targetField) {
               const error = `Edge ${edge.id}: field not found (${sourceHandleInfo.fieldName} -> ${targetHandleInfo.fieldName})`
-              console.error(error)
+              debugUI(error)
               edgeErrors.push(error)
               continue
             }
@@ -644,7 +645,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
             if (!canConnect(sourceField, targetField)) {
               const error = `Edge ${edge.id}: incompatible types (${sourceFieldType} -> ${targetFieldType})`
-              console.error(error)
+              debugUI(error)
               edgeErrors.push(error)
               continue
             }
@@ -664,7 +665,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
             }
 
             if (edgeErrors.length > 0) {
-              console.log(
+              debugUI(
                 `Added ${validEdges.length}/${edgesToAdd.length} edges (${edgeErrors.length} skipped)`
               )
             }
@@ -708,13 +709,13 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
       const source = nodes.find(n => n.id === connection.source)
       if (!source) {
-        console.error('Invalid source', connection)
+        debugUI('Invalid source', connection)
         return
       }
       const targetIndex = nodes.findIndex(n => n.id === connection.target)
       const target = nodes[targetIndex]
       if (!target) {
-        console.error('Invalid target', connection)
+        debugUI('Invalid target', connection)
         return
       }
 
@@ -722,7 +723,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       const targetOp = getOp(target.id)
 
       if (!sourceOp || !targetOp) {
-        console.error('Invalid source or target', connection)
+        debugUI('Invalid source or target', connection)
         return
       }
 
@@ -818,7 +819,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       if (deletedOutOps.length > 0 && remainingOutOps.length === 0) {
         // Restore the deleted OutOps
         setNodes(nodes => [...nodes, ...deletedOutOps])
-        console.warn('Cannot delete the last Output node. At least one Output node is required.')
+        debugUI('Cannot delete the last Output node. At least one Output node is required.')
         return
       }
 

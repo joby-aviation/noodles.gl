@@ -10,7 +10,7 @@ Key Features:
 - Node-based visual programming editor
 - Real-time reactive data flow
 - Geospatial visualization built on Deck.gl and MapLibre
-- Timeline-based animation with Theatre.js integration
+- Timeline-based animation with native bezier interpolation
 - Support for JSON, CSV, GeoJSON, and other data formats
 - Export to video, images, or interactive web presentations
 
@@ -61,7 +61,7 @@ Key Features:
 ### Core Technologies
 - **React** - UI framework
 - **TypeScript** - Type-safe JavaScript
-- **Theatre.js** - Timeline and animation control
+- **Native Timeline** - Keyframe animation with bezier curves
 - **Deck.gl** - WebGL-powered geospatial visualization
 - **MapLibre GL JS** - Map rendering
 - **Vite** - Build tool and development server

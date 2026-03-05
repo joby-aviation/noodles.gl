@@ -24,7 +24,7 @@ function HomepageHeader() {
         <div className={styles.buttons}>
           <a
             className={clsx('button button--primary button--lg', styles.ctaButton)}
-            href={`${appUrl}/examples/nyc-taxis`}
+            href={`${appUrl}/`}
           >
             Launch Editor
           </a>
