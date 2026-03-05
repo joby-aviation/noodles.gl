@@ -6,7 +6,12 @@ import cx from 'classnames'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { KeyframeIndicator } from '../../timeline/components/KeyframeIndicator'
-import { fieldValueToKeyframeValue } from '../../timeline/field-bindings'
+import { fieldValueToKeyframeValue, getFieldPath } from '../../timeline/field-bindings'
+import {
+  captureTimelineState,
+  fireTimelineMutation,
+  getTimelineStore,
+} from '../../timeline/timeline-store'
 import type { KeyframeValue } from '../../timeline/types'
 import { CompoundPropsField, type Field, type IField, IN_NS, ListField, OUT_NS } from '../fields'
 import type { IOperator, Operator } from '../operators'
@@ -348,6 +353,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
     y: number
     codeRef: string
     mustacheRef: string
+    fieldPath?: string
   } | null>(null)
   const descriptionRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef<HTMLElement | null>(null)
@@ -632,6 +638,10 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                       y: e.clientY,
                       codeRef: input.codeRef,
                       mustacheRef: input.mustacheRef,
+                      fieldPath:
+                        isValueField(input.field) && incomers.length === 0
+                          ? getFieldPath(op.id, input.name)
+                          : undefined,
                     })
                   }}
                 >
@@ -930,6 +940,24 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
             >
               Copy mustache path
             </button>
+            {contextMenu.fieldPath &&
+              getTimelineStore().hasKeyframesForField(contextMenu.fieldPath) && (
+                <>
+                  <div className={s.contextMenuSeparator} />
+                  <button
+                    type="button"
+                    className={s.contextMenuItem}
+                    onClick={() => {
+                      const before = captureTimelineState()
+                      getTimelineStore().deleteTrack(contextMenu.fieldPath!)
+                      fireTimelineMutation('Make static', before)
+                      setContextMenu(null)
+                    }}
+                  >
+                    Make static
+                  </button>
+                </>
+              )}
           </div>,
           document.body
         )}

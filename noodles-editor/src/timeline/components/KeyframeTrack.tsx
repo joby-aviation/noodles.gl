@@ -1,7 +1,8 @@
 // Keyframe track component - renders a single track with its keyframes
 
 import { useReactFlow } from '@xyflow/react'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   captureTimelineState,
   fireTimelineMutation,
@@ -36,20 +37,23 @@ function getDisplayName(fieldPath: string): string {
   return parts[parts.length - 1]
 }
 
-export function KeyframeTrack({
+interface KeyframeTrackLabelProps {
+  track: Track
+  opId?: string
+  isFirstInGroup?: boolean
+  displayName: string
+  onOpenCurveEditor?: (trackId: string) => void
+}
+
+// Label column for a track — owns context menu state so hooks don't run in keyframe-row mode
+function KeyframeTrackLabel({
   track,
-  showLabelOnly = false,
-  pixelsPerSecond = 100,
-  timelineWidth = 1000,
-  sequenceLength = 10,
-  fps = 30,
   opId,
   isFirstInGroup,
+  displayName,
   onOpenCurveEditor,
-}: KeyframeTrackProps) {
-  const selectedKeyframeIds = useTimelineStore(state => state.selectedKeyframeIds)
+}: KeyframeTrackLabelProps) {
   const selectedTrackIds = useTimelineStore(state => state.selectedTrackIds)
-  const selectKeyframe = useTimelineStore(state => state.selectKeyframe)
   const selectTrack = useTimelineStore(state => state.selectTrack)
   const toggleTrackKeyframes = useTimelineStore(state => state.toggleTrackKeyframes)
   const addKeyframe = useTimelineStore(state => state.addKeyframe)
@@ -58,115 +62,90 @@ export function KeyframeTrack({
   const setPosition = useTimelineStore(state => state.setPosition)
   const reactFlow = useReactFlow()
 
-  const [openPopup, setOpenPopup] = useState<{
-    k1: Keyframe
-    k2: Keyframe
-    x: number
-    y: number
-    applyToSelected: boolean
-  } | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
 
-  const [openValuePopup, setOpenValuePopup] = useState<{
-    keyframe: Keyframe
-    x: number
-    y: number
-  } | null>(null)
-
-  const displayName = getDisplayName(track.fieldPath)
-
-  // Handle double-click to add keyframe
-  const handleDoubleClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (showLabelOnly) return
-
-      const rect = e.currentTarget.getBoundingClientRect()
-      const x = e.clientX - rect.left
-      const time = snapToFrame(x / pixelsPerSecond, fps)
-
-      const currentValue = track.defaultValue
-
-      addKeyframe(track.id, {
-        position: time,
-        value: currentValue,
-        interpolation: 'bezier',
-      })
-    },
-    [track.id, track.defaultValue, pixelsPerSecond, fps, addKeyframe, showLabelOnly]
-  )
-
-  // Handle bar segment popup open (called by KeyframeBar after confirming no drag)
-  const handleBarClick = useCallback(
-    (k1: Keyframe, k2: Keyframe, x: number, y: number) => {
-      setOpenValuePopup(null)
-      // Apply to all selected keyframes when k1 is part of a multi-selection
-      const applyToSelected = selectedKeyframeIds.size > 1 && selectedKeyframeIds.has(k1.id)
-      setOpenPopup({ k1, k2, x, y, applyToSelected })
-    },
-    [selectedKeyframeIds]
-  )
-
-  const handleOpenValuePopup = useCallback((kf: Keyframe, x: number, y: number) => {
-    setOpenPopup(null)
-    setOpenValuePopup({ keyframe: kf, x, y })
-  }, [])
-
-  // Render label only
-  if (showLabelOnly) {
-    const isTrackSelected = selectedTrackIds.has(track.id)
-    const eps = 0.001
-    const prevKf = [...track.keyframes].filter(kf => kf.position < position - eps).at(-1)
-    const nextKf = track.keyframes.find(kf => kf.position > position + eps)
-    const atKf = track.keyframes.find(kf => Math.abs(kf.position - position) < eps)
-    const hasKfs = track.keyframes.length > 0
-
-    // The React Flow node ID for this track's operator (fieldPath opId has no leading slash)
-    const rfNodeId = `/${track.fieldPath.split(' / ')[0]}`
-
-    const handleLabelClick = (e: React.MouseEvent) => {
-      if (e.shiftKey) {
-        toggleTrackKeyframes(track.id)
-      } else {
-        selectTrack(track.id)
-        // Also select operator so properties panel shows it
-        reactFlow.setNodes(nodes => nodes.map(n => ({ ...n, selected: n.id === rfNodeId })))
-      }
+  // Close context menu on outside click or Escape
+  useEffect(() => {
+    if (!contextMenu) return
+    const close = () => setContextMenu(null)
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close()
     }
-
-    const handlePrevKf = (e: React.MouseEvent) => {
-      e.stopPropagation()
-      if (prevKf) setPosition(prevKf.position)
+    document.addEventListener('pointerdown', close)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('pointerdown', close)
+      document.removeEventListener('keydown', handleKey)
     }
+  }, [contextMenu])
 
-    const handleNextKf = (e: React.MouseEvent) => {
-      e.stopPropagation()
-      if (nextKf) setPosition(nextKf.position)
-    }
+  const handleMakeStatic = useCallback(() => {
+    const before = captureTimelineState()
+    getTimelineStore().deleteTrack(track.id)
+    fireTimelineMutation('Make static', before)
+    setContextMenu(null)
+  }, [track.id])
 
-    const handleToggleKeyframe = (e: React.MouseEvent) => {
-      e.stopPropagation()
-      const before = captureTimelineState()
-      if (atKf) {
-        deleteKeyframe(track.id, atKf.id)
-        fireTimelineMutation('Delete keyframe', before)
-      } else {
-        const value = getTimelineStore().evaluateTrack(track.id, position) ?? track.defaultValue
-        addKeyframe(track.id, { position, value, interpolation: 'bezier' })
-        fireTimelineMutation('Add keyframe', before)
-      }
-    }
+  const isTrackSelected = selectedTrackIds.has(track.id)
+  const eps = 0.001
+  const prevKf = [...track.keyframes].filter(kf => kf.position < position - eps).at(-1)
+  const nextKf = track.keyframes.find(kf => kf.position > position + eps)
+  const atKf = track.keyframes.find(kf => Math.abs(kf.position - position) < eps)
+  const hasKfs = track.keyframes.length > 0
 
-    const handleOpenCurveEditor = (e: React.MouseEvent) => {
-      e.stopPropagation()
+  // The React Flow node ID for this track's operator (fieldPath opId has no leading slash)
+  const rfNodeId = `/${track.fieldPath.split(' / ')[0]}`
+
+  const handleLabelClick = (e: React.MouseEvent) => {
+    if (e.shiftKey) {
+      toggleTrackKeyframes(track.id)
+    } else {
+      selectTrack(track.id)
+      // Also select operator so properties panel shows it
       reactFlow.setNodes(nodes => nodes.map(n => ({ ...n, selected: n.id === rfNodeId })))
-      onOpenCurveEditor?.(track.id)
     }
+  }
 
-    return (
-      // biome-ignore lint/a11y/noStaticElementInteractions: Track label selects track for curve editor; shift-click toggles keyframe selection
+  const handlePrevKf = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (prevKf) setPosition(prevKf.position)
+  }
+
+  const handleNextKf = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (nextKf) setPosition(nextKf.position)
+  }
+
+  const handleToggleKeyframe = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    const before = captureTimelineState()
+    if (atKf) {
+      deleteKeyframe(track.id, atKf.id)
+      fireTimelineMutation('Delete keyframe', before)
+    } else {
+      const value = getTimelineStore().evaluateTrack(track.id, position) ?? track.defaultValue
+      addKeyframe(track.id, { position, value, interpolation: 'bezier' })
+      fireTimelineMutation('Add keyframe', before)
+    }
+  }
+
+  const handleOpenCurveEditor = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    reactFlow.setNodes(nodes => nodes.map(n => ({ ...n, selected: n.id === rfNodeId })))
+    onOpenCurveEditor?.(track.id)
+  }
+
+  return (
+    <>
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: Track label selects track for curve editor; shift-click toggles keyframe selection */}
       <div
         className={`${s.timelineTrackLabel} ${isTrackSelected ? s.selected : ''}`}
         title={track.fieldPath}
         onClick={handleLabelClick}
+        onContextMenu={e => {
+          e.preventDefault()
+          setContextMenu({ x: e.clientX, y: e.clientY })
+        }}
       >
         {isFirstInGroup ? (
           <>
@@ -217,6 +196,96 @@ export function KeyframeTrack({
           </button>
         </div>
       </div>
+      {contextMenu &&
+        createPortal(
+          <div
+            className={s.handleTypeMenu}
+            style={{ top: contextMenu.y, left: contextMenu.x }}
+            onPointerDown={e => e.stopPropagation()}
+          >
+            <button type="button" onClick={handleMakeStatic}>
+              Make static
+            </button>
+          </div>,
+          document.body
+        )}
+    </>
+  )
+}
+
+export function KeyframeTrack({
+  track,
+  showLabelOnly = false,
+  pixelsPerSecond = 100,
+  timelineWidth = 1000,
+  sequenceLength = 10,
+  fps = 30,
+  opId,
+  isFirstInGroup,
+  onOpenCurveEditor,
+}: KeyframeTrackProps) {
+  const selectedKeyframeIds = useTimelineStore(state => state.selectedKeyframeIds)
+  const selectKeyframe = useTimelineStore(state => state.selectKeyframe)
+  const addKeyframe = useTimelineStore(state => state.addKeyframe)
+
+  const [openPopup, setOpenPopup] = useState<{
+    k1: Keyframe
+    k2: Keyframe
+    x: number
+    y: number
+    applyToSelected: boolean
+  } | null>(null)
+
+  const [openValuePopup, setOpenValuePopup] = useState<{
+    keyframe: Keyframe
+    x: number
+    y: number
+  } | null>(null)
+
+  const displayName = getDisplayName(track.fieldPath)
+
+  // Handle double-click to add keyframe
+  const handleDoubleClick = useCallback(
+    (e: React.MouseEvent) => {
+      const rect = e.currentTarget.getBoundingClientRect()
+      const x = e.clientX - rect.left
+      const time = snapToFrame(x / pixelsPerSecond, fps)
+
+      addKeyframe(track.id, {
+        position: time,
+        value: track.defaultValue,
+        interpolation: 'bezier',
+      })
+    },
+    [track.id, track.defaultValue, pixelsPerSecond, fps, addKeyframe]
+  )
+
+  // Handle bar segment popup open (called by KeyframeBar after confirming no drag)
+  const handleBarClick = useCallback(
+    (k1: Keyframe, k2: Keyframe, x: number, y: number) => {
+      setOpenValuePopup(null)
+      // Apply to all selected keyframes when k1 is part of a multi-selection
+      const applyToSelected = selectedKeyframeIds.size > 1 && selectedKeyframeIds.has(k1.id)
+      setOpenPopup({ k1, k2, x, y, applyToSelected })
+    },
+    [selectedKeyframeIds]
+  )
+
+  const handleOpenValuePopup = useCallback((kf: Keyframe, x: number, y: number) => {
+    setOpenPopup(null)
+    setOpenValuePopup({ keyframe: kf, x, y })
+  }, [])
+
+  // Render label only — delegate to sub-component so context menu hooks are scoped there
+  if (showLabelOnly) {
+    return (
+      <KeyframeTrackLabel
+        track={track}
+        opId={opId}
+        isFirstInGroup={isFirstInGroup}
+        displayName={displayName}
+        onOpenCurveEditor={onOpenCurveEditor}
+      />
     )
   }
 
