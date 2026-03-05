@@ -146,10 +146,6 @@ export function transformGraph<
     }) as OP[]
   })
 
-  for (const op of created) {
-    op.createListeners()
-  }
-
   // Update dependency graph
   updateGraph(edges as unknown as ExecutorEdge[])
 

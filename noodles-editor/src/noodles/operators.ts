@@ -6724,11 +6724,10 @@ function interpolateTimeSeries(
   const timeDelta = after.time - before.time
   const factor = timeDelta === 0 ? 0 : (currentTime - before.time) / timeDelta
 
-  // Interpolate all numeric fields
+  // Interpolate all numeric fields. before and after always share the same
+  // keys within a timeSeries, so iterating before's keys is sufficient.
   const result: Record<string, number> = {}
-  const allKeys = new Set([...Object.keys(before), ...Object.keys(after)])
-
-  for (const key of allKeys) {
+  for (const key of Object.keys(before)) {
     const beforeVal = before[key] ?? 0
     const afterVal = after[key] ?? 0
     result[key] = beforeVal + (afterVal - beforeVal) * factor
@@ -6742,6 +6741,18 @@ export class TimeSeriesOp extends Operator<TimeSeriesOp> {
   static description =
     'Interpolate time-varying data at a given time. Aligns with TripsLayer API for easy reuse of accessors.'
   asDownload = () => this.outputData
+
+  // Precomputed per-item data keyed by data/accessor references. Rebuilt only
+  // when those inputs change, not on every currentTime change during scrubbing.
+  private _precomputedTimeSeries: TimeSeriesDataPoint[][] | null = null
+  private _precomputedProperties: Record<string, unknown>[] | null = null
+  private _precomputeCacheKey: {
+    data: unknown
+    getTimestamps: unknown
+    getValues: unknown
+    getProperties: unknown
+  } | null = null
+
   createInputs() {
     return {
       data: new DataField(),
@@ -6778,9 +6789,18 @@ export class TimeSeriesOp extends Operator<TimeSeriesOp> {
       info: { index: number; data: unknown; target: unknown[] }
     ) => T
 
-    return {
-      data: data.map((d, i) => {
-        // Call accessors with proper deck.gl accessor signature
+    // Rebuild the expensive per-item structure only when data or accessors change.
+    // During timeline scrubbing only currentTime changes, so this cache stays hot.
+    const cacheKey = this._precomputeCacheKey
+    if (
+      !this._precomputedTimeSeries ||
+      !this._precomputedProperties ||
+      cacheKey?.data !== data ||
+      cacheKey?.getTimestamps !== getTimestamps ||
+      cacheKey?.getValues !== getValues ||
+      cacheKey?.getProperties !== getProperties
+    ) {
+      this._precomputedTimeSeries = data.map((d, i) => {
         const timestamps = (getTimestamps as DeckAccessor<number[]>)(d, {
           index: i,
           data,
@@ -6791,28 +6811,29 @@ export class TimeSeriesOp extends Operator<TimeSeriesOp> {
           data,
           target: [],
         })
-        const properties = getProperties
+        return timestamps.map((time: number, idx: number) => ({
+          time,
+          ...(values[idx] || {}),
+        }))
+      })
+      this._precomputedProperties = data.map((d, i) =>
+        getProperties
           ? (getProperties as DeckAccessor<Record<string, unknown>>)(d, {
               index: i,
               data,
               target: [],
             })
           : {}
+      )
+      this._precomputeCacheKey = { data, getTimestamps, getValues, getProperties }
+    }
 
-        // Convert values array to timeSeries format for interpolation
-        const timeSeries = timestamps.map((time: number, idx: number) => ({
-          time,
-          ...(values[idx] || {}),
-        }))
-
-        const interpolated = interpolateTimeSeries(timeSeries, currentTime)
-
-        return {
-          ...properties,
-          ...interpolated,
-          time: currentTime,
-        }
-      }),
+    return {
+      data: this._precomputedTimeSeries.map((timeSeries, i) => ({
+        ...this._precomputedProperties![i],
+        ...interpolateTimeSeries(timeSeries, currentTime),
+        time: currentTime,
+      })),
     }
   }
 }
