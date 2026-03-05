@@ -267,13 +267,17 @@ export function getNoodles(): Visualization {
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional - graphStructureKey gates this
   useEffect(() => {
     // loadProjectFile already called transformGraph directly, so skip this triggered re-run
-    if (isProjectLoadRef.current) {
-      isProjectLoadRef.current = false
-      return
-    }
+    if (isProjectLoadRef.current) return
     const ops = transformGraph({ nodes, edges })
     setOperators(ops)
   }, [graphStructureKey])
+
+  // Reset isProjectLoadRef after every render so the flag never gets stuck when
+  // graphStructureKey doesn't change (e.g. re-loading the same project, undo of position-only drag).
+  // Defined after the graphStructureKey effect so it clears the flag after the guard check runs.
+  useEffect(() => {
+    isProjectLoadRef.current = false
+  })
 
   // Bind timeline tracks for all operators (outside ReactFlow rendering pipeline).
   useEffect(() => {
