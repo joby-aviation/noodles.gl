@@ -3,8 +3,8 @@
 
 import type React from 'react'
 import { useEffect, useRef, useState } from 'react'
-import { Z_INDEX } from '../styles/z-index'
 import { ExternalControl } from './api'
+import s from './index.module.css'
 
 export interface ExternalControlProps {
   enabled?: boolean
@@ -96,22 +96,9 @@ export const ExternalControlProvider: React.FC<ExternalControlProps> = ({
   // Render status indicator if in debug mode
   if (!debug) return null
 
+  const statusClass = isConnected ? s.connected : error ? s.error : s.disconnected
   return (
-    <div
-      style={{
-        position: 'fixed',
-        bottom: 10,
-        right: 10,
-        padding: '8px 12px',
-        background: isConnected ? '#4CAF50' : error ? '#f44336' : '#666',
-        color: 'white',
-        borderRadius: 4,
-        fontSize: 12,
-        fontFamily: 'monospace',
-        zIndex: Z_INDEX.MODAL,
-        pointerEvents: 'none',
-      }}
-    >
+    <div className={`${s.indicator} ${statusClass}`}>
       External Control:{' '}
       {isConnected
         ? 'Connected'

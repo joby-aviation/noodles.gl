@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChromePicker } from 'react-color'
 import { createPortal } from 'react-dom'
-import { Z_INDEX } from '../../styles/z-index'
 import { colorToHex } from '../../utils/color'
 import s from '../noodles.module.css'
 
@@ -187,11 +186,10 @@ export function ColorSwatch({ value, onChange, disabled = false }: ColorSwatchPr
         createPortal(
           <div
             ref={pickerRef}
+            className={s.colorPickerPortal}
             style={{
-              position: 'fixed',
               top: `${pickerPosition.top}px`,
               left: `${pickerPosition.left}px`,
-              zIndex: Z_INDEX.MODAL,
             }}
           >
             <div className={s.chromePickerWrapper}>

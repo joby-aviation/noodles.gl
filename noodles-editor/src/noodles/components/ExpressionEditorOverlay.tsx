@@ -4,7 +4,6 @@
 import Editor, { type OnMount } from '@monaco-editor/react'
 import { useCallback, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Z_INDEX } from '../../styles/z-index'
 import s from '../noodles.module.css'
 import type { ExpressionContext } from '../utils/expression-context'
 import { registerExpressionCompletions } from './expression-completions'
@@ -70,11 +69,9 @@ export function ExpressionEditorOverlay({
     top = Math.max(10, top)
 
     return {
-      position: 'fixed',
       top: `${top}px`,
       left: `${left}px`,
       width: `${overlayWidth}px`,
-      zIndex: Z_INDEX.MODAL,
     }
   }, [anchorRect])
 
