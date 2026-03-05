@@ -19,6 +19,7 @@
   /* Generic UI colors - used throughout the interface */
   --color-bg-base: #1a1a1a;
   --color-bg-primary: #282b2fde;
+  --color-bg-primary-solid: #282b2f;
   --color-bg-secondary: #2a2a2a;
   --color-bg-hover: rgba(255, 255, 255, 0.1);
   --color-bg-active: rgba(255, 255, 255, 0.15);
@@ -709,7 +710,7 @@
   position: absolute;
   display: flex;
   flex-direction: column;
-  background: var(--node-background-color);
+  background: var(--color-bg-primary-solid);
   border: 1px solid var(--node-handle-outline-color);
   border-radius: 2px;
   padding: 4px 2px;
