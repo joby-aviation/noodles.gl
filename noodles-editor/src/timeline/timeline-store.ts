@@ -289,7 +289,13 @@ export const useTimelineStore = create<TimelineStore>()(
       tracks.set(trackId, updatedTrack)
       set({ tracks })
 
-      debugKeyframe('store.addKeyframe track=%s pos=%s id=%s value=%O', trackId, keyframe.position, id, keyframe.value)
+      debugKeyframe(
+        'store.addKeyframe track=%s pos=%s id=%s value=%O',
+        trackId,
+        keyframe.position,
+        id,
+        keyframe.value
+      )
       fireTimelineMutation('Add keyframe', before)
       return id
     },
@@ -444,7 +450,13 @@ export const useTimelineStore = create<TimelineStore>()(
 
       const evalTime = time ?? get().position
       const result = evaluateTrack(track, evalTime)
-      debugKeyframe('evaluateTrack %s @ t=%s kfs=%d → %O', trackId, evalTime.toFixed(3), track.keyframes.length, result)
+      debugKeyframe(
+        'evaluateTrack %s @ t=%s kfs=%d → %O',
+        trackId,
+        evalTime.toFixed(3),
+        track.keyframes.length,
+        result
+      )
       return result
     },
 

@@ -265,7 +265,7 @@ export function bindFieldToTimeline(
   // Subscribe to timeline position changes -> update field
   const unsubscribePosition = useTimelineStore.subscribe(
     state => state.position,
-    (position) => {
+    position => {
       if (op.locked?.value || updating) return
 
       const value = timelineStore.evaluateTrack(fieldPath)
@@ -320,7 +320,13 @@ export function bindFieldToTimeline(
     debugKeyframe('field change %s.%s = %O (updating=%s)', op.id, fieldName, value_, updating)
 
     if (op.locked?.value || updating) {
-      debugKeyframe('skip %s.%s: updating=%s locked=%s', op.id, fieldName, updating, op.locked?.value)
+      debugKeyframe(
+        'skip %s.%s: updating=%s locked=%s',
+        op.id,
+        fieldName,
+        updating,
+        op.locked?.value
+      )
       return
     }
 
@@ -340,14 +346,27 @@ export function bindFieldToTimeline(
       const position = getTimelineStore().position
       const epsilon = 0.001
 
-      debugKeyframe('%s: track=%s kfs=%s pos=%s', fieldPath, !!track, track?.keyframes.length ?? 0, position.toFixed(3))
+      debugKeyframe(
+        '%s: track=%s kfs=%s pos=%s',
+        fieldPath,
+        !!track,
+        track?.keyframes.length ?? 0,
+        position.toFixed(3)
+      )
 
       const existingKf = track?.keyframes.find(kf => Math.abs(kf.position - position) < epsilon)
 
       if (existingKf) {
         // Update existing keyframe
         if (JSON.stringify(existingKf.value) !== JSON.stringify(kfValue)) {
-          debugKeyframe('update kf %s @ pos=%s id=%s %O → %O', fieldPath, position.toFixed(3), existingKf.id, existingKf.value, kfValue)
+          debugKeyframe(
+            'update kf %s @ pos=%s id=%s %O → %O',
+            fieldPath,
+            position.toFixed(3),
+            existingKf.id,
+            existingKf.value,
+            kfValue
+          )
           timelineStore.updateKeyframe(fieldPath, existingKf.id, { value: kfValue })
         } else {
           debugKeyframe('skip update %s: value unchanged %O', fieldPath, kfValue)
@@ -364,12 +383,19 @@ export function bindFieldToTimeline(
             interpolation: 'bezier',
           })
         } else {
-          debugKeyframe('skip add %s: value same as interpolated %O', fieldPath, currentInterpolated)
+          debugKeyframe(
+            'skip add %s: value same as interpolated %O',
+            fieldPath,
+            currentInterpolated
+          )
         }
       } else {
         // Note: If track has no keyframes, we don't auto-create
         // User should explicitly click the keyframe indicator to start animating
-        debugKeyframe('skip %s: no keyframes on track (use keyframe indicator to start animating)', fieldPath)
+        debugKeyframe(
+          'skip %s: no keyframes on track (use keyframe indicator to start animating)',
+          fieldPath
+        )
       }
 
       lastKeyframeValue = kfValue
