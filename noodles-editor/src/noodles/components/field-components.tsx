@@ -9,6 +9,8 @@ import { Button } from 'primereact/button'
 import { InputText } from 'primereact/inputtext'
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Temporal } from 'temporal-polyfill'
+import { getFieldPath } from '../../timeline/field-bindings'
+import { useTimelineStore } from '../../timeline/timeline-store'
 import {
   type BezierCurveField,
   type BooleanField,
@@ -2076,6 +2078,18 @@ export function FieldComponent({
   const { type } = field.constructor as typeof Field
   const InputComp = inputComponents[type]
 
+  const hasKeyframes = useTimelineStore(state => {
+    if (!nid || !renderInput) return false
+    // Check for a direct track or any sub-property track (e.g. compound fields)
+    const prefix = getFieldPath(nid, fieldId)
+    for (const [path, track] of state.tracks) {
+      if ((path === prefix || path.startsWith(`${prefix} / `)) && track.keyframes.length > 0) {
+        return true
+      }
+    }
+    return false
+  })
+
   // When renderInput is false, position handle absolutely to avoid relying on container height
   const handleStyle = renderInput
     ? { transform: 'translate(-17px, -50%)' }
@@ -2095,6 +2109,10 @@ export function FieldComponent({
       {renderInput &&
         (hasIncomingConnection ? (
           <EmptyFieldComponent id={fieldId} field={field} />
+        ) : hasKeyframes ? (
+          <div className={s.keyframedFieldInput}>
+            <InputComp id={fieldId} field={field} disabled={disabled} />
+          </div>
         ) : (
           <InputComp id={fieldId} field={field} disabled={disabled} />
         ))}

@@ -66,6 +66,8 @@
   --xy-controls-button-color: #383838;
   --xy-controls-button-color-hover: #262626;
 
+  --timeline-accent: #48c6cf;
+
 }
 
 :root {
@@ -418,6 +420,10 @@
   align-items: center;
   justify-content: flex-end;
   flex: 2;
+}
+
+.keyframedFieldInput {
+  background: color-mix(in srgb, var(--timeline-accent) 7%, transparent);
 }
 
 .fieldInput {

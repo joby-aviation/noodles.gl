@@ -11,6 +11,7 @@ import {
   captureTimelineState,
   fireTimelineMutation,
   getTimelineStore,
+  useTimelineStore,
 } from '../../timeline/timeline-store'
 import type { KeyframeValue } from '../../timeline/types'
 import { CompoundPropsField, type Field, type IField, IN_NS, ListField, OUT_NS } from '../fields'
@@ -218,6 +219,29 @@ function AddRemoveButton({
   )
 }
 
+// Wraps an editable field input with a highlight when the field has keyframes
+function FieldInputWithHighlight({
+  opId,
+  fieldName,
+  field,
+  subPath,
+}: {
+  opId: string
+  fieldName: string
+  field: Field
+  subPath?: string[]
+}) {
+  const hasKeyframes = useTimelineStore(state => {
+    const track = state.tracks.get(getFieldPath(opId, fieldName, subPath))
+    return track ? track.keyframes.length > 0 : false
+  })
+  return (
+    <div className={cx(s.editableFieldContent, { [s.keyframedField]: hasKeyframes })}>
+      <EditableFieldInput fieldName={subPath?.[0] ?? fieldName} field={field} disabled={false} />
+    </div>
+  )
+}
+
 // Render an editable field input based on field type
 function EditableFieldInput({
   fieldName,
@@ -308,10 +332,12 @@ function CompoundSubFields({
         return (
           <div key={subName} className={s.compoundSubField}>
             <span className={s.compoundSubFieldLabel}>{subName}</span>
-            <div className={s.editableFieldContent}>
-              {/* biome-ignore lint/suspicious/noExplicitAny: Field type validated via isValueField */}
-              <EditableFieldInput fieldName={subName} field={subField as any} disabled={false} />
-            </div>
+            <FieldInputWithHighlight
+              opId={opId}
+              fieldName={fieldName}
+              field={subField as Field}
+              subPath={[subName]}
+            />
             <KeyframeIndicator
               opId={opId}
               fieldName={fieldName}
@@ -672,13 +698,11 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                     {/* Value type, not connected: editable input + keyframe indicator */}
                     {isValueField(input.field) && incomers.length === 0 && (
                       <>
-                        <div className={s.editableFieldContent}>
-                          <EditableFieldInput
-                            fieldName={input.name}
-                            field={input.field}
-                            disabled={false}
-                          />
-                        </div>
+                        <FieldInputWithHighlight
+                          opId={op.id}
+                          fieldName={input.name}
+                          field={input.field}
+                        />
                         <KeyframeIndicator
                           opId={op.id}
                           fieldName={input.name}
