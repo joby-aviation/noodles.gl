@@ -281,13 +281,8 @@ describe('NumberField', () => {
     expect(field2.step, 'step').toEqual(0.1)
 
     // setValue should fail if the value is out of bounds
-    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     field2.setValue(15)
     expect(field2.value).toEqual(5)
-    expect(consoleWarn).toHaveBeenCalledWith(
-      'Parse error',
-      expect.arrayContaining([expect.objectContaining({ code: 'too_big' })])
-    )
   })
 
   it('sets softMin and softMax on the instance', () => {
@@ -312,7 +307,6 @@ describe('NumberField', () => {
   })
 
   it('enforces hard min/max while allowing soft limits to differ', () => {
-    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const field = new NumberField(50, {
       min: 0,
       max: 200,
@@ -330,18 +324,9 @@ describe('NumberField', () => {
     // Values outside hard limits should be rejected
     field.setValue(-10)
     expect(field.value).toEqual(150) // unchanged
-    expect(consoleWarn).toHaveBeenCalledWith(
-      'Parse error',
-      expect.arrayContaining([expect.objectContaining({ code: 'too_small' })])
-    )
 
-    consoleWarn.mockClear()
     field.setValue(250)
     expect(field.value).toEqual(150) // unchanged
-    expect(consoleWarn).toHaveBeenCalledWith(
-      'Parse error',
-      expect.arrayContaining([expect.objectContaining({ code: 'too_big' })])
-    )
   })
 
   it('supports softMax without softMin and vice versa', () => {
@@ -366,10 +351,8 @@ describe('NumberField', () => {
     expect(field.value).toEqual(200)
 
     // Cannot go below hard min
-    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     field.setValue(-10)
     expect(field.value).toEqual(200) // unchanged
-    expect(consoleWarn).toHaveBeenCalled()
   })
 })
 
@@ -417,10 +400,8 @@ describe('StringLiteralField', () => {
     expect(field.choices).toEqual([])
     expect(canConnect(new StringField('foo'), field)).toBe(true)
     // expect(canConnect(new NumberField(5), field)).toBe(true)
-    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     field.setValue('foo')
     // field.setValue(5)
-    expect(consoleWarn).not.toHaveBeenCalled()
   })
 
   it('allows reconfiguring options', () => {
@@ -708,10 +689,7 @@ describe('Accessor fields', () => {
     getPositionField.setValue({ lng: 5, lat: 6 })
     expect(getPositionField.value).toEqual([5, 6])
 
-    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     expect(canConnect(accessorField, getPositionField), 'should connect').toBe(true)
-    expect(consoleWarn.calls).toMatchInlineSnapshot('undefined')
-    expect(consoleWarn, 'should not warn').not.toHaveBeenCalled()
 
     getPositionField.addConnection('getPosition', accessorField, 'value')
 

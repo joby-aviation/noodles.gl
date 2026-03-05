@@ -86,7 +86,7 @@ export const useRenderer = ({
             if (error.name === 'AbortError') {
               debugRender('File picker cancelled by user for: %s', name)
             } else {
-              console.error('Error in showSaveFilePicker for', name, ':', error)
+              debugRender('Error in showSaveFilePicker for', name, ':', error)
             }
             return null // Signal cancellation/failure
           })
@@ -127,7 +127,7 @@ export const useRenderer = ({
             videoSource.add(correctedPacket, meta)
             currentFrameIndex++
           },
-          error: e => console.error(e),
+          error: e => debugRender(e),
         })
 
         const codecMap = {
@@ -159,7 +159,7 @@ export const useRenderer = ({
         const { supported } = await VideoEncoder.isConfigSupported(config)
 
         if (!supported) {
-          console.error('Unsupported codec configuration', config)
+          debugRender('Unsupported codec configuration', config)
           debugger
         }
 
@@ -223,7 +223,7 @@ export const useRenderer = ({
         const canvasResult = await canvasFrameReady()
 
         if (canvasResult?.error) {
-          console.error('Error capturing canvas frame:', canvasResult.error)
+          debugRender('Error capturing canvas frame:', canvasResult.error)
           return
         }
 

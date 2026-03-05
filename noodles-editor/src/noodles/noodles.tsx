@@ -110,7 +110,7 @@ import { calculateViewerPosition } from './utils/viewer-position'
  * work reliably regardless of import order (prevents linting from breaking styles).
  */
 import './layers.css'
-import { debugVis } from '../utils/debug'
+import { debugApp, debugVis } from '../utils/debug'
 import s from './noodles.module.css'
 
 export type Edge<N1 extends Operator<IOperator>, N2 extends Operator<IOperator>> = {
@@ -221,7 +221,7 @@ export function getNoodles(): Visualization {
   // Eagerly start loading AI context bundles on app start
   useEffect(() => {
     globalContextManager.startLoading().catch(error => {
-      console.warn('Failed to preload AI context:', error)
+      debugApp('Failed to preload AI context:', error)
     })
   }, [])
 
@@ -653,7 +653,7 @@ export function getNoodles(): Visualization {
           loadProjectFile(newProjectJSON as NoodlesProjectJSON)
           return
         } catch (_error) {
-          console.error('Failed to load default new project:', _error)
+          debugApp('Failed to load default new project:', _error)
         }
         return
       }
@@ -681,7 +681,7 @@ export function getNoodles(): Visualization {
             loadProjectFile(project, projectName)
             return
           } catch (error) {
-            console.error('Failed to load example project:', error)
+            debugApp('Failed to load example project:', error)
           }
         }
 
@@ -816,7 +816,7 @@ export function getNoodles(): Visualization {
       // Ensure we have write permission
       const hasPermission = await requestPermission(directoryHandle, 'readwrite')
       if (!hasPermission) {
-        console.error('Permission denied to write to directory')
+        debugApp('Permission denied to write to directory')
         return
       }
 
@@ -838,7 +838,7 @@ export function getNoodles(): Visualization {
         // User cancelled the picker
         return
       }
-      console.error('Failed to open directory picker:', error)
+      debugApp('Failed to open directory picker:', error)
       setError({
         type: 'unknown',
         message: 'Error selecting directory',
@@ -1031,7 +1031,7 @@ export function getNoodles(): Visualization {
       // Ensure we have write permission
       const hasPermission = await requestPermission(directoryHandle, 'readwrite')
       if (!hasPermission) {
-        console.error('Permission denied to write to directory')
+        debugApp('Permission denied to write to directory')
         return
       }
 
@@ -1059,7 +1059,7 @@ export function getNoodles(): Visualization {
         // User cancelled the picker
         return
       }
-      console.error('Failed to create new project:', error)
+      debugApp('Failed to create new project:', error)
     }
   }, [setCurrentDirectory, setActiveStorageType, loadProjectFile])
 
@@ -1172,7 +1172,7 @@ export function getNoodles(): Visualization {
       // Ensure we have write permission
       const hasPermission = await requestPermission(directoryHandle, 'readwrite')
       if (!hasPermission) {
-        console.error('Permission denied to write to directory')
+        debugApp('Permission denied to write to directory')
         return
       }
 
@@ -1218,7 +1218,7 @@ export function getNoodles(): Visualization {
         // User cancelled the picker
         return
       }
-      console.error('Failed to import project:', error)
+      debugApp('Failed to import project:', error)
     }
   }, [setCurrentDirectory, setActiveStorageType, loadProjectFile])
 
@@ -1283,7 +1283,7 @@ export function getNoodles(): Visualization {
           // User cancelled the picker
           return
         }
-        console.error('Failed to open project:', error)
+        debugApp('Failed to open project:', error)
         setError({
           type: 'unknown',
           message:
@@ -1431,7 +1431,7 @@ export function getNoodles(): Visualization {
                     const { type: extType, ...constructorArgs } = ext
                     const extensionDef = extensionMap[extType]
                     if (!extensionDef) {
-                      console.warn(`Unknown extension type: ${extType}`)
+                      debugApp(`Unknown extension type: ${extType}`)
                       return null
                     }
 

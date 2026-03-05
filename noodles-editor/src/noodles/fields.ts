@@ -198,7 +198,7 @@ export abstract class Field<
       this.op?.markDirty()
     } else {
       debugSetValue('%s: %O -> %O [PARSE FAILED]', path, oldValue, value)
-      console.warn('Parse error', parsed.error.issues)
+      debugSetValue('Parse error', parsed.error.issues)
     }
   }
 
@@ -330,7 +330,7 @@ export function getFieldReferences(text: string, thisOpId?: string) {
     const inOut = groups?.inOut as InOut
 
     if (!groups || !opId || !fieldPath) {
-      console.error(`Invalid operator ID or field path: ${opId}`)
+      debugSetValue(`Invalid operator ID or field path: ${opId}`)
       continue
     }
 

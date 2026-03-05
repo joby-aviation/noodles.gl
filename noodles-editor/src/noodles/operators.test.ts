@@ -117,12 +117,10 @@ describe('Error handling', () => {
 
     const onError = vi.spyOn(operator, 'onError')
     const execute = vi.spyOn(operator, 'execute')
-    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
     expect(operator.inputs.num.value).toEqual(0)
     expect(onError).not.toHaveBeenCalled()
     expect(execute).not.toHaveBeenCalled()
-    expect(consoleWarn).not.toHaveBeenCalled()
     expect(operator.outputData).toEqual({})
 
     // In pull-based model, pull() triggers execution and handles errors
@@ -130,15 +128,12 @@ describe('Error handling', () => {
 
     expect(execute).toHaveBeenCalledTimes(1)
     expect(onError).toHaveBeenCalledTimes(1)
-    expect(consoleWarn).toHaveBeenCalledTimes(1)
     expect(operator.outputData).toEqual({})
 
     expect(execute.mock.calls[0][0]).toEqual({
       num: 0,
     })
     expect(onError.mock.calls[0][0]).toEqual(new Error('Test error'))
-    expect(consoleWarn.mock.calls[0][0]).toEqual('Pull execution failure in [/test-0 (TestOp)]:')
-    expect(consoleWarn.mock.calls[0][1]).toEqual('Test error')
 
     // Test that pull can be called again after error
     operator.inputs.num.setValue(1)
@@ -150,14 +145,11 @@ describe('Error handling', () => {
 
     expect(execute).toHaveBeenCalledTimes(2)
     expect(onError).toHaveBeenCalledTimes(2)
-    expect(consoleWarn).toHaveBeenCalledTimes(2)
 
     expect(execute.mock.calls[1][0]).toEqual({
       num: 1,
     })
     expect(onError.mock.calls[1][0]).toEqual(new Error('Test error'))
-    expect(consoleWarn.mock.calls[1][0]).toEqual('Pull execution failure in [/test-0 (TestOp)]:')
-    expect(consoleWarn.mock.calls[1][1]).toEqual('Test error')
   })
 })
 
@@ -369,7 +361,6 @@ describe('ExpressionOp', () => {
 
   it('throws SyntaxError for invalid expressions and logs warning', () => {
     const operator = new ExpressionOp('/expression-syntax-error')
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
     expect(() => {
       operator.execute({
@@ -377,13 +368,6 @@ describe('ExpressionOp', () => {
         expression: 'return }', // Invalid syntax
       })
     }).toThrow(SyntaxError)
-
-    // Verify the warning was logged with helpful formatting
-    expect(warnSpy).toHaveBeenCalledTimes(1)
-    expect(warnSpy.mock.calls[0][0]).toContain('Syntax error')
-    expect(warnSpy.mock.calls[0][0]).toContain('/expression-syntax-error')
-
-    warnSpy.mockRestore()
   })
 
   describe('friendly error messages', () => {
@@ -407,18 +391,11 @@ describe('ExpressionOp', () => {
     testCases.forEach(({ expression, expectedMessage }) => {
       it(`shows "${expectedMessage}" for "${expression}"`, () => {
         const operator = new ExpressionOp('/test-expr')
-        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
         // Verify the thrown error has the friendly message
         expect(() => {
           operator.execute({ data: [], expression })
         }).toThrow(expectedMessage)
-
-        // Verify console.warn also has the friendly message
-        expect(warnSpy).toHaveBeenCalledTimes(1)
-        expect(warnSpy.mock.calls[0][0]).toContain(expectedMessage)
-
-        warnSpy.mockRestore()
       })
     })
   })

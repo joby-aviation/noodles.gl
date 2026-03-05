@@ -5,7 +5,7 @@ import { nanoid } from 'nanoid'
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
 
-import { debugKeyframe } from '../utils/debug'
+import { debugKeyframe, debugTimeline } from '../utils/debug'
 import { evaluateTrack } from './interpolation'
 import type {
   BezierHandles,
@@ -267,7 +267,7 @@ export const useTimelineStore = create<TimelineStore>()(
       const track = tracks.get(trackId)
 
       if (!track) {
-        console.warn(`Track ${trackId} not found`)
+        debugTimeline(`Track ${trackId} not found`)
         return ''
       }
 
@@ -534,7 +534,7 @@ export const useTimelineStore = create<TimelineStore>()(
       }
 
       if (!json || typeof json !== 'object' || !json.sheetsById?.Noodles) {
-        console.warn('Invalid Theatre.js timeline data')
+        debugTimeline('Invalid Theatre.js timeline data')
         set(emptyTimelineState)
         return
       }

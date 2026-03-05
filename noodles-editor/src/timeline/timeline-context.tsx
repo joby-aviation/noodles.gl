@@ -2,6 +2,7 @@
 
 import type React from 'react'
 import { createContext, useContext, useEffect, useMemo, useRef } from 'react'
+import { debugTimeline } from '../utils/debug'
 import { connectPlaybackToTimeline, playbackDriver } from './playback'
 import { getTimelineStore, useTimelineStore } from './timeline-store'
 import type { TheatreTimelineData } from './types'
@@ -36,7 +37,7 @@ export function TimelineProvider({ children, initialData }: TimelineProviderProp
       try {
         store.fromTheatreJSON(initialData)
       } catch (error) {
-        console.error('Failed to load timeline data:', error)
+        debugTimeline('Failed to load timeline data:', error)
       }
     }
 
