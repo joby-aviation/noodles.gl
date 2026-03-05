@@ -318,6 +318,21 @@ export const useRenderer = ({
         })
       }
 
+      // Writes are pipelined: each frame's file write runs concurrently with the next render.
+      // This avoids blocking the render loop on writable.close(), which flushes to disk (~750ms/frame).
+      // A bounded queue prevents unbounded memory accumulation.
+      const MAX_CONCURRENT_WRITES = 4
+      const pendingWrites: Promise<void>[] = []
+
+      const writeFile = (filename: string, data: Uint8Array | Blob): Promise<void> =>
+        directoryHandle
+          .getFileHandle(filename, { create: true })
+          .then(fh => fh.createWritable())
+          .then(async writable => {
+            await writable.write(data)
+            await writable.close()
+          })
+
       try {
         for (let i = startFrame; i < endFrame + 1; i++) {
           onFrameStart?.(i - startFrame, totalFrames)
@@ -340,33 +355,33 @@ export const useRenderer = ({
             const frameNumber = String(i).padStart(padLength, '0')
             const filename = `${projectName}_${frameNumber}.${extension}`
 
-            // Capture and write frame
+            // Drain oldest write if the queue is full before capturing the next frame
+            if (pendingWrites.length >= MAX_CONCURRENT_WRITES) {
+              await pendingWrites.shift()
+            }
+
+            // Capture frame data and enqueue the write without awaiting it.
+            // For EXR, captureExrFrame is synchronous so pixels are captured before the GL
+            // context changes. For PNG/JPEG, toBlob must finish before we can move on, but
+            // the subsequent file write is still pipelined.
             if (format === 'exr') {
               const gl = getGLContext()
               if (!gl) {
                 throw new Error('WebGL context not available for EXR export')
               }
-
               const exrData = captureExrFrame(gl, canvas.width, canvas.height, {
                 compression: exrCompression,
                 includeDepth,
               })
-
-              const fileHandle = await directoryHandle.getFileHandle(filename, { create: true })
-              const writable = await fileHandle.createWritable()
-              await writable.write(new Blob([exrData as unknown as BlobPart]))
-              await writable.close()
+              pendingWrites.push(writeFile(filename, exrData))
             } else {
-              // PNG or JPEG export
+              // PNG or JPEG: toBlob must complete before GL context changes, but the
+              // resulting file write runs concurrently with the next frame's render.
               const blob =
                 format === 'jpeg'
                   ? await captureJpegFrame(canvas, 0.92)
                   : await capturePngFrame(canvas, 1)
-
-              const fileHandle = await directoryHandle.getFileHandle(filename, { create: true })
-              const writable = await fileHandle.createWritable()
-              await writable.write(blob)
-              await writable.close()
+              pendingWrites.push(writeFile(filename, blob))
             }
 
             onFrameComplete?.(i - startFrame + 1, totalFrames)
@@ -376,6 +391,9 @@ export const useRenderer = ({
             debugRender('Error exporting frame %d: %o', i, error)
           }
         }
+
+        // Wait for all in-flight writes to complete before finishing
+        await Promise.all(pendingWrites)
       } finally {
         // Restore original callback after loop completes
         if (deck) {
