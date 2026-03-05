@@ -90,7 +90,7 @@ export class PlaybackDriver {
       try {
         callback(deltaMs)
       } catch (error) {
-        console.error('Error in playback subscriber:', error)
+        debugPlayback('Error in playback subscriber:', error)
       }
     }
   }

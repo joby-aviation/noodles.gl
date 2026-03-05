@@ -1,4 +1,5 @@
 import { getIncomers, type Node as ReactFlowNode } from '@xyflow/react'
+import { debugExecutor } from '../utils/debug'
 import { type Edge as ExecutorEdge, updateGraph } from './graph-executor'
 import type { Edge } from './noodles'
 import type { IOperator, Operator, OpType } from './operators'
@@ -193,7 +194,7 @@ export function transformGraph<
       const targetField =
         targetOp[targetNamespace === 'par' ? 'inputs' : 'outputs'][targetFieldName]
       if (!sourceField || !targetField) {
-        console.error('Invalid connection')
+        debugExecutor('Invalid connection')
         continue
       }
 

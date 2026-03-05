@@ -2,6 +2,7 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
 import cx from 'classnames'
 import { useState } from 'react'
+import { debugUI } from '../../utils/debug'
 import s from './menu.module.css'
 
 interface SaveAsDialogProps {
@@ -32,7 +33,7 @@ export const SaveAsDialog = ({
       await onConfirm({ copyDataFiles })
       onClose()
     } catch (err) {
-      console.error('Failed to save project:', err)
+      debugUI('Failed to save project:', err)
       setError(err instanceof Error ? err.message : 'Failed to save project')
     } finally {
       setIsSaving(false)

@@ -293,7 +293,7 @@ export async function saveProjectLocally(
             projectFolder.file(relativePath, arrayBuffer)
           }
         } catch (error) {
-          console.error(`Could not fetch asset ${relativePath}:`, error)
+          debugSerialize(`Could not fetch asset ${relativePath}:`, error)
         }
       }
     }
@@ -327,7 +327,7 @@ export async function saveProjectLocally(
         }
       }
     } catch (error) {
-      console.error('Could not read data files for export:', error)
+      debugSerialize('Could not read data files for export:', error)
       // Continue with export even if data files can't be read
     }
   }

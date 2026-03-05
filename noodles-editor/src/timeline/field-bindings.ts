@@ -21,7 +21,7 @@ import {
 } from '../noodles/fields'
 import type { IOperator, Operator } from '../noodles/operators'
 import { type RGBA as ColorRGBA, colorToRgba, hexToRgba, rgbaToHex } from '../utils/color'
-import { debugBinding, debugKeyframe } from '../utils/debug'
+import { debugBinding, debugKeyframe, debugTimeline } from '../utils/debug'
 import type { TimelineStore } from './timeline-store'
 import { getTimelineStore, useTimelineStore } from './timeline-store'
 import type { KeyframeValue, Point2D, Point3D, RGBA, Vec2, Vec3 } from './types'
@@ -292,7 +292,7 @@ export function bindFieldToTimeline(
           debugBinding('skip setValue %s.%s: field already %O', op.id, fieldName, field.value)
         }
       } catch (e) {
-        console.warn(`Error syncing timeline to field for ${op.id}.${fieldName}:`, e)
+        debugTimeline(`Error syncing timeline to field for ${op.id}.${fieldName}:`, e)
       }
       updating = false
     }
@@ -310,7 +310,7 @@ export function bindFieldToTimeline(
         lastKeyframeValue = initialValue
       }
     } catch (e) {
-      console.warn(`Error in initial field sync for ${op.id}.${fieldName}:`, e)
+      debugTimeline(`Error in initial field sync for ${op.id}.${fieldName}:`, e)
     }
     updating = false
   }
@@ -400,7 +400,7 @@ export function bindFieldToTimeline(
 
       lastKeyframeValue = kfValue
     } catch (e) {
-      console.warn(`Error syncing field to timeline for ${op.id}.${fieldName}:`, e)
+      debugTimeline(`Error syncing field to timeline for ${op.id}.${fieldName}:`, e)
     }
     updating = false
   })

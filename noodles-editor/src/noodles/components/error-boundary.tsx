@@ -1,4 +1,5 @@
 import React, { Component, type ReactNode } from 'react'
+import { debugUI } from '../../utils/debug'
 import s from './error-boundary.module.css'
 
 interface Props {
@@ -35,7 +36,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('Node graph error:', error, errorInfo)
+    debugUI('Node graph error:', error, errorInfo)
 
     // Increment reset count if error occurs within timeout period
     const now = Date.now()
@@ -56,13 +57,13 @@ export class ErrorBoundary extends Component<Props, State> {
     const maxResets = this.props.maxResets ?? DEFAULT_MAX_RESETS
 
     if (resetCount >= maxResets) {
-      console.warn(
+      debugUI(
         `Maximum reset attempts (${maxResets}) reached. Please refresh the page or check for underlying issues.`
       )
       return
     }
 
-    console.log('Resetting error boundary...')
+    debugUI('Resetting error boundary...')
     this.setState({
       hasError: false,
       error: null,

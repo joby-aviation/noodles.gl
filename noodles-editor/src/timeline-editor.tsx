@@ -18,6 +18,7 @@ import { TransformScale } from './render/transform-scale'
 import { CollapsibleTimelinePanel } from './timeline/components/CollapsibleTimelinePanel'
 import { useTimelineStore } from './timeline/timeline-store'
 import s from './timeline-editor.module.css'
+import { debugRender } from './utils/debug'
 import setRef from './utils/set-ref'
 
 function useSequenceLength() {
@@ -206,7 +207,7 @@ export default function TimelineEditor() {
     mapRef.current = map
     // Wait for map tiles to load before capturing.
     if (!isMapReady(map)) {
-      console.warn('map waiting')
+      debugRender('map waiting')
       return
     }
     // This should alert the renderer that the scene is ready to be captured
@@ -233,14 +234,14 @@ export default function TimelineEditor() {
 
     if (basemapEnabled) {
       if (!mapRef.current) {
-        console.error('Start Render: maplibre is not defined (when basemapEnabled is true)')
+        debugRender('Start Render: maplibre is not defined (when basemapEnabled is true)')
         return
       }
       canvas = mapRef.current.getCanvas()
     } else {
       // Pure Deck.gl mode
       if (!deckRef.current) {
-        console.error('Start Render: deckRef is not defined (when basemapEnabled is false)')
+        debugRender('Start Render: deckRef is not defined (when basemapEnabled is false)')
         return
       }
       // @ts-expect-error canvas is protected but accessible
@@ -248,7 +249,7 @@ export default function TimelineEditor() {
     }
 
     if (!canvas) {
-      console.error('Start Render: Failed to get canvas element')
+      debugRender('Start Render: Failed to get canvas element')
       return
     }
 
@@ -262,11 +263,11 @@ export default function TimelineEditor() {
 
   const takeScreenshot = useCallback(async () => {
     if (!deckRef.current) {
-      console.error('Take Screenshot: deck is not defined')
+      debugRender('Take Screenshot: deck is not defined')
       return
     }
     if (basemapEnabled && !mapRef.current) {
-      console.error('Take Screenshot: maplibre is not defined')
+      debugRender('Take Screenshot: maplibre is not defined')
       return
     }
 
