@@ -37,20 +37,23 @@ function getDisplayName(fieldPath: string): string {
   return parts[parts.length - 1]
 }
 
-export function KeyframeTrack({
+interface KeyframeTrackLabelProps {
+  track: Track
+  opId?: string
+  isFirstInGroup?: boolean
+  displayName: string
+  onOpenCurveEditor?: (trackId: string) => void
+}
+
+// Label column for a track — owns context menu state so hooks don't run in keyframe-row mode
+function KeyframeTrackLabel({
   track,
-  showLabelOnly = false,
-  pixelsPerSecond = 100,
-  timelineWidth = 1000,
-  sequenceLength = 10,
-  fps = 30,
   opId,
   isFirstInGroup,
+  displayName,
   onOpenCurveEditor,
-}: KeyframeTrackProps) {
-  const selectedKeyframeIds = useTimelineStore(state => state.selectedKeyframeIds)
+}: KeyframeTrackLabelProps) {
   const selectedTrackIds = useTimelineStore(state => state.selectedTrackIds)
-  const selectKeyframe = useTimelineStore(state => state.selectKeyframe)
   const selectTrack = useTimelineStore(state => state.selectTrack)
   const toggleTrackKeyframes = useTimelineStore(state => state.toggleTrackKeyframes)
   const addKeyframe = useTimelineStore(state => state.addKeyframe)
@@ -58,20 +61,6 @@ export function KeyframeTrack({
   const position = useTimelineStore(state => state.position)
   const setPosition = useTimelineStore(state => state.setPosition)
   const reactFlow = useReactFlow()
-
-  const [openPopup, setOpenPopup] = useState<{
-    k1: Keyframe
-    k2: Keyframe
-    x: number
-    y: number
-    applyToSelected: boolean
-  } | null>(null)
-
-  const [openValuePopup, setOpenValuePopup] = useState<{
-    keyframe: Keyframe
-    x: number
-    y: number
-  } | null>(null)
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
 
@@ -97,26 +86,178 @@ export function KeyframeTrack({
     setContextMenu(null)
   }, [track.id])
 
+  const isTrackSelected = selectedTrackIds.has(track.id)
+  const eps = 0.001
+  const prevKf = [...track.keyframes].filter(kf => kf.position < position - eps).at(-1)
+  const nextKf = track.keyframes.find(kf => kf.position > position + eps)
+  const atKf = track.keyframes.find(kf => Math.abs(kf.position - position) < eps)
+  const hasKfs = track.keyframes.length > 0
+
+  // The React Flow node ID for this track's operator (fieldPath opId has no leading slash)
+  const rfNodeId = `/${track.fieldPath.split(' / ')[0]}`
+
+  const handleLabelClick = (e: React.MouseEvent) => {
+    if (e.shiftKey) {
+      toggleTrackKeyframes(track.id)
+    } else {
+      selectTrack(track.id)
+      // Also select operator so properties panel shows it
+      reactFlow.setNodes(nodes => nodes.map(n => ({ ...n, selected: n.id === rfNodeId })))
+    }
+  }
+
+  const handlePrevKf = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (prevKf) setPosition(prevKf.position)
+  }
+
+  const handleNextKf = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (nextKf) setPosition(nextKf.position)
+  }
+
+  const handleToggleKeyframe = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    const before = captureTimelineState()
+    if (atKf) {
+      deleteKeyframe(track.id, atKf.id)
+      fireTimelineMutation('Delete keyframe', before)
+    } else {
+      const value = getTimelineStore().evaluateTrack(track.id, position) ?? track.defaultValue
+      addKeyframe(track.id, { position, value, interpolation: 'bezier' })
+      fireTimelineMutation('Add keyframe', before)
+    }
+  }
+
+  const handleOpenCurveEditor = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    reactFlow.setNodes(nodes => nodes.map(n => ({ ...n, selected: n.id === rfNodeId })))
+    onOpenCurveEditor?.(track.id)
+  }
+
+  return (
+    <>
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: Track label selects track for curve editor; shift-click toggles keyframe selection */}
+      <div
+        className={`${s.timelineTrackLabel} ${isTrackSelected ? s.selected : ''}`}
+        title={track.fieldPath}
+        onClick={handleLabelClick}
+        onContextMenu={e => {
+          e.preventDefault()
+          setContextMenu({ x: e.clientX, y: e.clientY })
+        }}
+      >
+        {isFirstInGroup ? (
+          <>
+            <span className={s.timelineTrackOpId}>{opId}</span>
+            <span className={s.timelineTrackSep}> - </span>
+            <span className={s.timelineTrackName}>{displayName}</span>
+          </>
+        ) : (
+          <>
+            <span className={`${s.timelineTrackBranch} ${s.visible}`}>└</span>
+            <span className={s.timelineTrackName}>{displayName}</span>
+          </>
+        )}
+        <div className={s.timelineTrackLabelActions}>
+          <button
+            type="button"
+            className={s.timelineTrackLabelBtn}
+            onClick={handlePrevKf}
+            disabled={!prevKf}
+            title="Previous keyframe"
+          >
+            <PrevKfChevron />
+          </button>
+          <button
+            type="button"
+            className={`${s.timelineTrackLabelBtn} ${atKf ? s.atKeyframe : hasKfs ? s.hasKeyframes : ''}`}
+            onClick={handleToggleKeyframe}
+            title={atKf ? 'Remove keyframe' : 'Add keyframe'}
+          >
+            <TrackDiamondIcon filled={!!atKf} />
+          </button>
+          <button
+            type="button"
+            className={s.timelineTrackLabelBtn}
+            onClick={handleNextKf}
+            disabled={!nextKf}
+            title="Next keyframe"
+          >
+            <NextKfChevron />
+          </button>
+          <button
+            type="button"
+            className={s.timelineTrackLabelBtn}
+            onClick={handleOpenCurveEditor}
+            title="Open curve editor"
+          >
+            <OpenCurveEditorIcon />
+          </button>
+        </div>
+      </div>
+      {contextMenu &&
+        createPortal(
+          <div
+            className={s.handleTypeMenu}
+            style={{ top: contextMenu.y, left: contextMenu.x }}
+            onPointerDown={e => e.stopPropagation()}
+          >
+            <button type="button" onClick={handleMakeStatic}>
+              Make static
+            </button>
+          </div>,
+          document.body
+        )}
+    </>
+  )
+}
+
+export function KeyframeTrack({
+  track,
+  showLabelOnly = false,
+  pixelsPerSecond = 100,
+  timelineWidth = 1000,
+  sequenceLength = 10,
+  fps = 30,
+  opId,
+  isFirstInGroup,
+  onOpenCurveEditor,
+}: KeyframeTrackProps) {
+  const selectedKeyframeIds = useTimelineStore(state => state.selectedKeyframeIds)
+  const selectKeyframe = useTimelineStore(state => state.selectKeyframe)
+  const addKeyframe = useTimelineStore(state => state.addKeyframe)
+
+  const [openPopup, setOpenPopup] = useState<{
+    k1: Keyframe
+    k2: Keyframe
+    x: number
+    y: number
+    applyToSelected: boolean
+  } | null>(null)
+
+  const [openValuePopup, setOpenValuePopup] = useState<{
+    keyframe: Keyframe
+    x: number
+    y: number
+  } | null>(null)
+
   const displayName = getDisplayName(track.fieldPath)
 
   // Handle double-click to add keyframe
   const handleDoubleClick = useCallback(
     (e: React.MouseEvent) => {
-      if (showLabelOnly) return
-
       const rect = e.currentTarget.getBoundingClientRect()
       const x = e.clientX - rect.left
       const time = snapToFrame(x / pixelsPerSecond, fps)
 
-      const currentValue = track.defaultValue
-
       addKeyframe(track.id, {
         position: time,
-        value: currentValue,
+        value: track.defaultValue,
         interpolation: 'bezier',
       })
     },
-    [track.id, track.defaultValue, pixelsPerSecond, fps, addKeyframe, showLabelOnly]
+    [track.id, track.defaultValue, pixelsPerSecond, fps, addKeyframe]
   )
 
   // Handle bar segment popup open (called by KeyframeBar after confirming no drag)
@@ -135,132 +276,16 @@ export function KeyframeTrack({
     setOpenValuePopup({ keyframe: kf, x, y })
   }, [])
 
-  // Render label only
+  // Render label only — delegate to sub-component so context menu hooks are scoped there
   if (showLabelOnly) {
-    const isTrackSelected = selectedTrackIds.has(track.id)
-    const eps = 0.001
-    const prevKf = [...track.keyframes].filter(kf => kf.position < position - eps).at(-1)
-    const nextKf = track.keyframes.find(kf => kf.position > position + eps)
-    const atKf = track.keyframes.find(kf => Math.abs(kf.position - position) < eps)
-    const hasKfs = track.keyframes.length > 0
-
-    // The React Flow node ID for this track's operator (fieldPath opId has no leading slash)
-    const rfNodeId = `/${track.fieldPath.split(' / ')[0]}`
-
-    const handleLabelClick = (e: React.MouseEvent) => {
-      if (e.shiftKey) {
-        toggleTrackKeyframes(track.id)
-      } else {
-        selectTrack(track.id)
-        // Also select operator so properties panel shows it
-        reactFlow.setNodes(nodes => nodes.map(n => ({ ...n, selected: n.id === rfNodeId })))
-      }
-    }
-
-    const handlePrevKf = (e: React.MouseEvent) => {
-      e.stopPropagation()
-      if (prevKf) setPosition(prevKf.position)
-    }
-
-    const handleNextKf = (e: React.MouseEvent) => {
-      e.stopPropagation()
-      if (nextKf) setPosition(nextKf.position)
-    }
-
-    const handleToggleKeyframe = (e: React.MouseEvent) => {
-      e.stopPropagation()
-      const before = captureTimelineState()
-      if (atKf) {
-        deleteKeyframe(track.id, atKf.id)
-        fireTimelineMutation('Delete keyframe', before)
-      } else {
-        const value = getTimelineStore().evaluateTrack(track.id, position) ?? track.defaultValue
-        addKeyframe(track.id, { position, value, interpolation: 'bezier' })
-        fireTimelineMutation('Add keyframe', before)
-      }
-    }
-
-    const handleOpenCurveEditor = (e: React.MouseEvent) => {
-      e.stopPropagation()
-      reactFlow.setNodes(nodes => nodes.map(n => ({ ...n, selected: n.id === rfNodeId })))
-      onOpenCurveEditor?.(track.id)
-    }
-
     return (
-      <>
-        {/* biome-ignore lint/a11y/noStaticElementInteractions: Track label selects track for curve editor; shift-click toggles keyframe selection */}
-        <div
-          className={`${s.timelineTrackLabel} ${isTrackSelected ? s.selected : ''}`}
-          title={track.fieldPath}
-          onClick={handleLabelClick}
-          onContextMenu={e => {
-            e.preventDefault()
-            setContextMenu({ x: e.clientX, y: e.clientY })
-          }}
-        >
-          {isFirstInGroup ? (
-            <>
-              <span className={s.timelineTrackOpId}>{opId}</span>
-              <span className={s.timelineTrackSep}> - </span>
-              <span className={s.timelineTrackName}>{displayName}</span>
-            </>
-          ) : (
-            <>
-              <span className={`${s.timelineTrackBranch} ${s.visible}`}>└</span>
-              <span className={s.timelineTrackName}>{displayName}</span>
-            </>
-          )}
-          <div className={s.timelineTrackLabelActions}>
-            <button
-              type="button"
-              className={s.timelineTrackLabelBtn}
-              onClick={handlePrevKf}
-              disabled={!prevKf}
-              title="Previous keyframe"
-            >
-              <PrevKfChevron />
-            </button>
-            <button
-              type="button"
-              className={`${s.timelineTrackLabelBtn} ${atKf ? s.atKeyframe : hasKfs ? s.hasKeyframes : ''}`}
-              onClick={handleToggleKeyframe}
-              title={atKf ? 'Remove keyframe' : 'Add keyframe'}
-            >
-              <TrackDiamondIcon filled={!!atKf} />
-            </button>
-            <button
-              type="button"
-              className={s.timelineTrackLabelBtn}
-              onClick={handleNextKf}
-              disabled={!nextKf}
-              title="Next keyframe"
-            >
-              <NextKfChevron />
-            </button>
-            <button
-              type="button"
-              className={s.timelineTrackLabelBtn}
-              onClick={handleOpenCurveEditor}
-              title="Open curve editor"
-            >
-              <OpenCurveEditorIcon />
-            </button>
-          </div>
-        </div>
-        {contextMenu &&
-          createPortal(
-            <div
-              className={s.handleTypeMenu}
-              style={{ top: contextMenu.y, left: contextMenu.x }}
-              onPointerDown={e => e.stopPropagation()}
-            >
-              <button type="button" onClick={handleMakeStatic}>
-                Make static
-              </button>
-            </div>,
-            document.body
-          )}
-      </>
+      <KeyframeTrackLabel
+        track={track}
+        opId={opId}
+        isFirstInGroup={isFirstInGroup}
+        displayName={displayName}
+        onOpenCurveEditor={onOpenCurveEditor}
+      />
     )
   }
 
