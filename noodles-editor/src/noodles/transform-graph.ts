@@ -146,9 +146,6 @@ export function transformGraph<
     }) as OP[]
   })
 
-  // GraphExecutor drives all execution via pull(); createListeners() would
-  // set up a parallel reactive combineLatest path that double-executes operators.
-
   // Update dependency graph
   updateGraph(edges as unknown as ExecutorEdge[])
 

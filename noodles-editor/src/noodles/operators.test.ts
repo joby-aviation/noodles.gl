@@ -1853,6 +1853,71 @@ describe('TimeSeriesOp', () => {
       [2, 2],
     ]) // preserved from getProperties
   })
+
+  it('reuses precomputed cache when only currentTime changes (scrubbing perf)', () => {
+    const op = new TimeSeriesOp('/timeseries-cache-test')
+    const data = [
+      { timestamps: [0, 10], values: [{ x: 0 }, { x: 10 }] },
+      { timestamps: [0, 10], values: [{ x: 100 }, { x: 200 }] },
+    ]
+    const getTimestamps = (d: any) => d.timestamps
+    const getValues = (d: any) => d.values
+    const getProperties = undefined
+
+    // First execution builds the cache
+    op.execute({ data, currentTime: 5, getTimestamps, getValues, getProperties })
+    const cacheAfterFirst = (op as any)._precomputedTimeSeries
+
+    // Second execution with different currentTime should reuse same cache reference
+    op.execute({ data, currentTime: 7, getTimestamps, getValues, getProperties })
+    expect((op as any)._precomputedTimeSeries).toBe(cacheAfterFirst)
+
+    // Third execution with same currentTime should also reuse cache
+    op.execute({ data, currentTime: 7, getTimestamps, getValues, getProperties })
+    expect((op as any)._precomputedTimeSeries).toBe(cacheAfterFirst)
+  })
+
+  it('rebuilds cache when data reference changes', () => {
+    const op = new TimeSeriesOp('/timeseries-cache-rebuild')
+    const data1 = [{ timestamps: [0, 10], values: [{ x: 0 }, { x: 10 }] }]
+    const data2 = [{ timestamps: [0, 10], values: [{ x: 0 }, { x: 10 }] }] // same content, different reference
+    const getTimestamps = (d: any) => d.timestamps
+    const getValues = (d: any) => d.values
+
+    op.execute({ data: data1, currentTime: 5, getTimestamps, getValues, getProperties: undefined })
+    const cacheAfterFirst = (op as any)._precomputedTimeSeries
+
+    // New data reference should rebuild cache
+    op.execute({ data: data2, currentTime: 5, getTimestamps, getValues, getProperties: undefined })
+    expect((op as any)._precomputedTimeSeries).not.toBe(cacheAfterFirst)
+  })
+
+  it('rebuilds cache when accessor function reference changes', () => {
+    const op = new TimeSeriesOp('/timeseries-accessor-change')
+    const data = [{ timestamps: [0, 10], values: [{ x: 0 }, { x: 10 }] }]
+    const getTimestamps1 = (d: any) => d.timestamps
+    const getTimestamps2 = (d: any) => d.timestamps // same logic, different reference
+    const getValues = (d: any) => d.values
+
+    op.execute({
+      data,
+      currentTime: 5,
+      getTimestamps: getTimestamps1,
+      getValues,
+      getProperties: undefined,
+    })
+    const cacheAfterFirst = (op as any)._precomputedTimeSeries
+
+    // New accessor reference should rebuild cache
+    op.execute({
+      data,
+      currentTime: 5,
+      getTimestamps: getTimestamps2,
+      getValues,
+      getProperties: undefined,
+    })
+    expect((op as any)._precomputedTimeSeries).not.toBe(cacheAfterFirst)
+  })
 })
 
 describe('KmlToGeoJsonOp', () => {
