@@ -975,28 +975,22 @@ function StepLadder({
     })
   }
 
-  // Position the ladder behind the mouse cursor, relative to container
+  // Position vertically so the default step (1x) is centered at the mouse position
   const defaultStepIndex = steps.findIndex(step => step.multiplier === 1)
-  const stepItemHeight = 28 // Adjusted height based on CSS: padding(3px) + margin(1px) + font + borders
+  const stepItemHeight = 28
 
   let topPosition = 0
-  let leftPosition = 0
 
   if (containerRect) {
-    // Convert global mouse coordinates to relative coordinates within the container
-    const relativeMouseX = mousePos.x - containerRect.left
     const relativeMouseY = mousePos.y - containerRect.top
-
-    // Position so the default step (1x) is centered at the mouse position
     topPosition = relativeMouseY - (defaultStepIndex * stepItemHeight + stepItemHeight / 2)
-    leftPosition = relativeMouseX - 40 // Increased offset to better center behind cursor
   }
 
   return (
     <div
       className={s.stepLadder}
       style={{
-        left: `${leftPosition}px`,
+        right: 'calc(100% + 4px)',
         top: `${topPosition}px`,
         transform: 'none',
       }}
