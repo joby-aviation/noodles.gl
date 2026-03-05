@@ -163,11 +163,21 @@ describe('captureExrFrame depth handling', () => {
       FLOAT: 0x1406,
       UNSIGNED_BYTE: 0x1401,
       DEPTH_COMPONENT: 0x1902,
-      readPixels: vi.fn().mockImplementation(
-        (_x: number, _y: number, _w: number, _h: number, format: number, _type: number, pixels: Float32Array) => {
-          if (format === 0x1902) depthFill(pixels)
-        }
-      ),
+      readPixels: vi
+        .fn()
+        .mockImplementation(
+          (
+            _x: number,
+            _y: number,
+            _w: number,
+            _h: number,
+            format: number,
+            _type: number,
+            pixels: Float32Array
+          ) => {
+            if (format === 0x1902) depthFill(pixels)
+          }
+        ),
     } as unknown as WebGL2RenderingContext
   }
 
@@ -221,11 +231,11 @@ describe('captureExrFrame depth handling', () => {
       FLOAT: 0x1406,
       UNSIGNED_BYTE: 0x1401,
       DEPTH_COMPONENT: 0x1902,
-      readPixels: vi.fn().mockImplementation(
-        (_x: number, _y: number, _w: number, _h: number, format: number) => {
+      readPixels: vi
+        .fn()
+        .mockImplementation((_x: number, _y: number, _w: number, _h: number, format: number) => {
           if (format === 0x1902) throw new Error('INVALID_OPERATION')
-        }
-      ),
+        }),
     } as unknown as WebGL2RenderingContext
 
     const { captureExrFrame } = await import('./exr-export')
