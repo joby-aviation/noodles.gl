@@ -97,9 +97,10 @@ export default function TimelineEditor() {
   })
   isRenderingRef.current = isRendering
 
-  // If the visualization doesn't supply mapProps, disable basemap.
+  // If the visualization doesn't supply mapProps (or has a blank mapStyle), disable basemap.
+  // A blank mapStyle is treated as transparent — DeckGL renders without map tiles.
   // TODO: Detect if deck is in othorgraphic mode, and disable?
-  const basemapEnabled = Boolean(visualization.mapProps)
+  const basemapEnabled = Boolean(visualization.mapProps?.mapStyle)
   // console.log(rgbaToClearColor(mapState.background))
 
   // Track deck.gl rendering stats for Claude AI debugging

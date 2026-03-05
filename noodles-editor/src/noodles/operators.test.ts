@@ -17,6 +17,7 @@ import {
   JSONOp,
   KmlToGeoJsonOp,
   LayerPropsOp,
+  MaplibreBasemapOp,
   MapViewOp,
   MathOp,
   MergeOp,
@@ -812,6 +813,63 @@ describe('DeckRendererOp', () => {
       zoom: 5,
       pitch: 30,
     })
+  })
+
+  it('returns mapProps with empty mapStyle when basemap has an empty mapStyle', () => {
+    // The operator passes the empty mapStyle through unchanged.
+    // It's timeline-editor's basemapEnabled check that treats it as "no basemap".
+    const operator = new DeckRendererOp('/deck-0')
+    const {
+      vis: { mapProps },
+    } = operator.execute({
+      basemap: { mapStyle: '', latitude: 37, longitude: -122, zoom: 10, pitch: 0, bearing: 0 },
+      viewState: {},
+    })
+    expect(mapProps).toBeDefined()
+    expect(mapProps?.mapStyle).toBe('')
+  })
+})
+
+describe('MaplibreBasemapOp', () => {
+  it('passes mapStyle through to output', () => {
+    const op = new MaplibreBasemapOp('/maplibre-0')
+    const result = op.execute({
+      mapStyle: 'https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json',
+      projection: 'mercator',
+      viewState: { latitude: 37, longitude: -122, zoom: 10, pitch: 0, bearing: 0 },
+      sky: {
+        enabled: false,
+        skyColor: '#88C6FC',
+        horizonColor: '#ffffff',
+        skyHorizonBlend: 0.8,
+        atmosphereBlend: 0.5,
+      },
+      light: { anchor: 'viewport', azimuthal: 210, polar: 30 },
+    })
+    expect(result.maplibre.mapStyle).toBe(
+      'https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json'
+    )
+  })
+
+  it('passes empty mapStyle through without modification', () => {
+    // An empty mapStyle signals "no basemap" (transparent). The operator passes it through
+    // unchanged; timeline-editor detects it via basemapEnabled and skips MapLibre rendering,
+    // which prevents the "There is no style added to the map" crash.
+    const op = new MaplibreBasemapOp('/maplibre-0')
+    const result = op.execute({
+      mapStyle: '',
+      projection: 'mercator',
+      viewState: { latitude: 37, longitude: -122, zoom: 10, pitch: 0, bearing: 0 },
+      sky: {
+        enabled: false,
+        skyColor: '#88C6FC',
+        horizonColor: '#ffffff',
+        skyHorizonBlend: 0.8,
+        atmosphereBlend: 0.5,
+      },
+      light: { anchor: 'viewport', azimuthal: 210, polar: 30 },
+    })
+    expect(result.maplibre.mapStyle).toBe('')
   })
 })
 
