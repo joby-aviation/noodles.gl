@@ -124,6 +124,33 @@ export interface TimelineEphemeralState {
 }
 
 // ============================================================================
+// Time Marker Types
+// ============================================================================
+
+export interface TimeMarkerConnection {
+  keyframeId: string
+  trackId: string // fieldPath
+  offset: number // keyframe.position - marker.position (can be negative)
+}
+
+export interface TimeMarker {
+  id: string // "tm_abc123"
+  position: number // Time in seconds
+  connectedKeyframes: TimeMarkerConnection[]
+}
+
+// Serialized format for Theatre.js JSON
+export interface SerializedTimeMarker {
+  id: string
+  position: number
+  connections: Array<{
+    keyframeId: string
+    trackPath: string
+    offset: number
+  }>
+}
+
+// ============================================================================
 // Serialization Types (Theatre.js compatible)
 // ============================================================================
 
@@ -154,6 +181,7 @@ export interface TheatreSequenceData {
       trackData: Record<string, TheatreTrackData>
     }
   >
+  markers?: SerializedTimeMarker[]
 }
 
 // Top-level Theatre.js timeline format

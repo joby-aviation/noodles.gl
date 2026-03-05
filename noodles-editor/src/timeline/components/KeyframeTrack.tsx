@@ -24,6 +24,8 @@ export interface KeyframeTrackProps {
   opId?: string
   isFirstInGroup?: boolean
   onOpenCurveEditor?: (trackId: string) => void
+  connectingFromMarkerId?: string | null
+  onKeyframeConnectionDrop?: (trackId: string, keyframeId: string) => void
 }
 
 function snapToFrame(time: number, fps: number): number {
@@ -223,6 +225,8 @@ export function KeyframeTrack({
   opId,
   isFirstInGroup,
   onOpenCurveEditor,
+  connectingFromMarkerId,
+  onKeyframeConnectionDrop,
 }: KeyframeTrackProps) {
   const selectedKeyframeIds = useTimelineStore(state => state.selectedKeyframeIds)
   const selectKeyframe = useTimelineStore(state => state.selectKeyframe)
@@ -334,7 +338,6 @@ export function KeyframeTrack({
           <KeyframeDiamond
             key={keyframe.id}
             keyframe={keyframe}
-            trackId={track.id}
             pixelsPerSecond={pixelsPerSecond}
             sequenceLength={sequenceLength}
             fps={fps}
@@ -342,6 +345,8 @@ export function KeyframeTrack({
             selectedKeyframeIds={selectedKeyframeIds}
             onSelect={selectKeyframe}
             onOpenValuePopup={handleOpenValuePopup}
+            isConnectionDropTarget={!!connectingFromMarkerId}
+            onConnectionDrop={() => onKeyframeConnectionDrop?.(track.id, keyframe.id)}
           />
         ))}
       </div>
@@ -478,7 +483,6 @@ function KeyframeBar({
 // Keyframe diamond with drag support
 interface KeyframeDiamondProps {
   keyframe: Keyframe
-  trackId: string
   pixelsPerSecond: number
   sequenceLength: number
   fps: number
@@ -486,11 +490,12 @@ interface KeyframeDiamondProps {
   selectedKeyframeIds: Set<string>
   onSelect: (keyframeId: string, addToSelection?: boolean) => void
   onOpenValuePopup?: (keyframe: Keyframe, x: number, y: number) => void
+  isConnectionDropTarget?: boolean
+  onConnectionDrop?: () => void
 }
 
 function KeyframeDiamond({
   keyframe,
-  _trackId,
   pixelsPerSecond,
   sequenceLength,
   fps,
@@ -498,10 +503,13 @@ function KeyframeDiamond({
   selectedKeyframeIds,
   onSelect,
   onOpenValuePopup,
+  isConnectionDropTarget,
+  onConnectionDrop,
 }: KeyframeDiamondProps) {
   const x = keyframe.position * pixelsPerSecond
   const isDraggingRef = useRef(false)
   const beforeStateRef = useRef<string>('')
+  const [isHovered, setIsHovered] = useState(false)
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -605,13 +613,25 @@ function KeyframeDiamond({
     [keyframe, onSelect, onOpenValuePopup]
   )
 
+  const handleMouseUp = useCallback(() => {
+    // Handle connection drop when in connection mode and hovering
+    if (isConnectionDropTarget && isHovered && onConnectionDrop) {
+      onConnectionDrop()
+    }
+  }, [isConnectionDropTarget, isHovered, onConnectionDrop])
+
+  const showDropTarget = isConnectionDropTarget && isHovered
+
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: Keyframe diamond is a drag handle
     <div
-      className={`${s.timelineKeyframe} ${isSelected ? s.selected : ''}`}
+      className={`${s.timelineKeyframe} ${isSelected ? s.selected : ''} ${showDropTarget ? s.dropTarget : ''}`}
       style={{ left: x }}
       onPointerDown={handlePointerDown}
       onClick={handleClick}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      onMouseUp={handleMouseUp}
       title={`${keyframe.position.toFixed(2)}s`}
     />
   )
