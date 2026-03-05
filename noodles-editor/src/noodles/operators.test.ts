@@ -836,7 +836,13 @@ describe('MaplibreBasemapOp', () => {
       mapStyle: 'https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json',
       projection: 'mercator',
       viewState: { latitude: 37, longitude: -122, zoom: 10, pitch: 0, bearing: 0 },
-      sky: { enabled: false, skyColor: '#88C6FC', horizonColor: '#ffffff', skyHorizonBlend: 0.8, atmosphereBlend: 0.5 },
+      sky: {
+        enabled: false,
+        skyColor: '#88C6FC',
+        horizonColor: '#ffffff',
+        skyHorizonBlend: 0.8,
+        atmosphereBlend: 0.5,
+      },
       light: { anchor: 'viewport', azimuthal: 210, polar: 30 },
     })
     expect(result.maplibre.mapStyle).toBe(
@@ -853,7 +859,13 @@ describe('MaplibreBasemapOp', () => {
       mapStyle: '',
       projection: 'mercator',
       viewState: { latitude: 37, longitude: -122, zoom: 10, pitch: 0, bearing: 0 },
-      sky: { enabled: false, skyColor: '#88C6FC', horizonColor: '#ffffff', skyHorizonBlend: 0.8, atmosphereBlend: 0.5 },
+      sky: {
+        enabled: false,
+        skyColor: '#88C6FC',
+        horizonColor: '#ffffff',
+        skyHorizonBlend: 0.8,
+        atmosphereBlend: 0.5,
+      },
       light: { anchor: 'viewport', azimuthal: 210, polar: 30 },
     })
     expect(result.maplibre.mapStyle).toBe('')
