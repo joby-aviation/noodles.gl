@@ -120,7 +120,7 @@ export function KeyframeTrack({
     const hasKfs = track.keyframes.length > 0
 
     // The React Flow node ID for this track's operator (fieldPath opId has no leading slash)
-    const rfNodeId = '/' + track.fieldPath.split(' / ')[0]
+    const rfNodeId = `/${track.fieldPath.split(' / ')[0]}`
 
     const handleLabelClick = (e: React.MouseEvent) => {
       if (e.shiftKey) {
@@ -552,7 +552,13 @@ function KeyframeDiamond({
 function PrevKfChevron() {
   return (
     <svg viewBox="0 0 8 14" fill="none" aria-hidden="true">
-      <path d="M6 2L2 7L6 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M6 2L2 7L6 12"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   )
 }
@@ -561,7 +567,13 @@ function PrevKfChevron() {
 function NextKfChevron() {
   return (
     <svg viewBox="0 0 8 14" fill="none" aria-hidden="true">
-      <path d="M2 2L6 7L2 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M2 2L6 7L2 12"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   )
 }
