@@ -64,7 +64,10 @@ export function TimeMarker({
       const handleMove = (moveEvent: PointerEvent) => {
         if (!dragStateRef.current) return
         const delta = (moveEvent.clientX - dragStateRef.current.startX) / pixelsPerSecond
-        const newPosition = snapToFrame(Math.max(0, dragStateRef.current.startPosition + delta), fps)
+        const newPosition = snapToFrame(
+          Math.max(0, dragStateRef.current.startPosition + delta),
+          fps
+        )
         onMove(marker.id, newPosition)
       }
 
@@ -78,7 +81,17 @@ export function TimeMarker({
       document.addEventListener('pointermove', handleMove)
       document.addEventListener('pointerup', handleUp)
     },
-    [marker.id, marker.position, pixelsPerSecond, fps, onSelect, onMove, onStartConnection, onMoveStart, onMoveEnd]
+    [
+      marker.id,
+      marker.position,
+      pixelsPerSecond,
+      fps,
+      onSelect,
+      onMove,
+      onStartConnection,
+      onMoveStart,
+      onMoveEnd,
+    ]
   )
 
   return (
@@ -91,7 +104,13 @@ export function TimeMarker({
       onMouseLeave={() => setIsHovered(false)}
     >
       {/* Marker icon - small flag/triangle shape */}
-      <svg className={s.timeMarkerIcon} viewBox="0 0 12 10" width="12" height="10" aria-hidden="true">
+      <svg
+        className={s.timeMarkerIcon}
+        viewBox="0 0 12 10"
+        width="12"
+        height="10"
+        aria-hidden="true"
+      >
         <path d="M6 0 L12 3 L12 10 L6 7 L0 10 L0 3 Z" />
       </svg>
 

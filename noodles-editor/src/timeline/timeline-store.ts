@@ -325,9 +325,7 @@ export const useTimelineStore = create<TimelineStore>()(
       }
 
       // Update marker position
-      const newMarkers = markers.map(m =>
-        m.id === markerId ? { ...m, position: newPosition } : m
-      )
+      const newMarkers = markers.map(m => (m.id === markerId ? { ...m, position: newPosition } : m))
       set({ markers: newMarkers, tracks: newTracks })
     },
 
@@ -370,7 +368,10 @@ export const useTimelineStore = create<TimelineStore>()(
     disconnectKeyframeFromMarker: (markerId, keyframeId) => {
       const markers = get().markers.map(m =>
         m.id === markerId
-          ? { ...m, connectedKeyframes: m.connectedKeyframes.filter(c => c.keyframeId !== keyframeId) }
+          ? {
+              ...m,
+              connectedKeyframes: m.connectedKeyframes.filter(c => c.keyframeId !== keyframeId),
+            }
           : m
       )
       set({ markers })
@@ -483,7 +484,9 @@ export const useTimelineStore = create<TimelineStore>()(
       // Clean up marker connections for deleted keyframes
       const newMarkers = markers.map(m => ({
         ...m,
-        connectedKeyframes: m.connectedKeyframes.filter(c => !selectedKeyframeIds.has(c.keyframeId)),
+        connectedKeyframes: m.connectedKeyframes.filter(
+          c => !selectedKeyframeIds.has(c.keyframeId)
+        ),
       }))
 
       set({ tracks: newTracks, selectedKeyframeIds: new Set(), markers: newMarkers })

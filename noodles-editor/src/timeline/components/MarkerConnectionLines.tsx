@@ -113,10 +113,7 @@ export function MarkerConnectionLines({
         />
       ))}
       {tempLine && (
-        <path
-          className={`${s.markerConnectionLine} ${s.connecting}`}
-          d={tempLine.path}
-        />
+        <path className={`${s.markerConnectionLine} ${s.connecting}`} d={tempLine.path} />
       )}
     </svg>
   )

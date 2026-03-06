@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { NoodlesProjectJSON } from '../utils/serialization'
-import { up, down } from './013-add-time-markers'
+import { down, up } from './013-add-time-markers'
 
 describe('013-add-time-markers migration', () => {
   describe('up', () => {
@@ -35,7 +35,11 @@ describe('013-add-time-markers migration', () => {
     it('preserves existing markers if present', async () => {
       const existingMarkers = [
         { id: 'tm_123', position: 2.5, connections: [] },
-        { id: 'tm_456', position: 5.0, connections: [{ keyframeId: 'kf_abc', trackPath: 'op / prop', offset: 0.5 }] },
+        {
+          id: 'tm_456',
+          position: 5.0,
+          connections: [{ keyframeId: 'kf_abc', trackPath: 'op / prop', offset: 0.5 }],
+        },
       ]
 
       const project: NoodlesProjectJSON = {
@@ -179,14 +183,26 @@ describe('013-add-time-markers migration', () => {
                 length: 15,
                 subUnitsPerUnit: 60,
                 tracksByObject: {
-                  'test': {
+                  test: {
                     trackIdByPropPath: { value: 'track_1' },
                     trackData: {
                       track_1: {
                         type: 'BasicKeyframedTrack',
                         keyframes: [
-                          { id: 'kf_1', position: 0, connectedRight: true, handles: [0, 0, 1, 1], value: 0 },
-                          { id: 'kf_2', position: 5, connectedRight: false, handles: [0, 0, 1, 1], value: 100 },
+                          {
+                            id: 'kf_1',
+                            position: 0,
+                            connectedRight: true,
+                            handles: [0, 0, 1, 1],
+                            value: 0,
+                          },
+                          {
+                            id: 'kf_2',
+                            position: 5,
+                            connectedRight: false,
+                            handles: [0, 0, 1, 1],
+                            value: 100,
+                          },
                         ],
                       },
                     },

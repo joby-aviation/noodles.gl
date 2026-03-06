@@ -78,7 +78,9 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
   const deleteMarker = useTimelineStore(state => state.deleteMarker)
 
   // Connection drag state
-  const [connectionMousePos, setConnectionMousePos] = useState<{ x: number; y: number } | null>(null)
+  const [connectionMousePos, setConnectionMousePos] = useState<{ x: number; y: number } | null>(
+    null
+  )
 
   // Track order for connection lines (same as TrackList ordering)
   const trackOrder = useMemo(() => {

@@ -4,8 +4,8 @@ import type React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { captureTimelineState, fireTimelineMutation, useTimelineStore } from '../timeline-store'
-import { TimeMarker } from './TimeMarker'
 import s from './TimelinePanel.module.css'
+import { TimeMarker } from './TimeMarker'
 
 export interface TimeRulerProps {
   width: number
@@ -82,7 +82,9 @@ export function TimeRuler({
 }: TimeRulerProps) {
   const [editingLength, setEditingLength] = useState(false)
   const [inputValue, setInputValue] = useState('')
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; time: number } | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; time: number } | null>(
+    null
+  )
   const inputRef = useRef<HTMLInputElement>(null)
   const rulerRef = useRef<HTMLDivElement>(null)
   const beforeStateRef = useRef<string>('')
