@@ -779,6 +779,7 @@ describe('DeckRendererOp', () => {
     expect(deckProps.viewState).toEqual({
       longitude: -122,
       latitude: 37,
+      zoom: 5, // carried from basemap (not overridden by viewState)
       pitch: 30,
       nestedView: { bearing: 45 },
       transitionDuration: 1000,
@@ -804,6 +805,23 @@ describe('DeckRendererOp', () => {
     })
     expect(mapProps).toBeDefined()
     expect(mapProps?.mapStyle).toBe('')
+  })
+
+  it('includes basemap viewState in deckProps when mapStyle is empty (transparent mode)', () => {
+    // When mapStyle is empty, timeline-editor switches to standalone DeckGL (basemapEnabled=false).
+    // deckProps.viewState must carry the geo position so layers render at the correct location.
+    const operator = new DeckRendererOp('/deck-0')
+    const {
+      vis: { deckProps },
+    } = operator.execute({
+      basemap: { mapStyle: '', latitude: 37, longitude: -122, zoom: 10, pitch: 0, bearing: 0 },
+      viewState: {},
+    })
+    expect(deckProps.viewState).toMatchObject({
+      latitude: 37,
+      longitude: -122,
+      zoom: 10,
+    })
   })
 })
 
