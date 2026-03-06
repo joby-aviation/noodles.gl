@@ -280,19 +280,21 @@ describe('captureDepthFromDeckFBO', () => {
       createFramebuffer: vi.fn().mockReturnValue(tempFBO),
       bindFramebuffer: vi.fn(),
       framebufferTexture2D: vi.fn(),
-      readPixels: vi.fn().mockImplementation(
-        (
-          _x: number,
-          _y: number,
-          _w: number,
-          _h: number,
-          _format: number,
-          _type: number,
-          pixels: Float32Array
-        ) => {
-          readPixelsFill?.(pixels)
-        }
-      ),
+      readPixels: vi
+        .fn()
+        .mockImplementation(
+          (
+            _x: number,
+            _y: number,
+            _w: number,
+            _h: number,
+            _format: number,
+            _type: number,
+            pixels: Float32Array
+          ) => {
+            readPixelsFill?.(pixels)
+          }
+        ),
       deleteFramebuffer: vi.fn(),
     } as unknown as WebGL2RenderingContext
   }

@@ -340,9 +340,7 @@ export const useRenderer = ({
       // For PNG: use captureStream + requestFrame to read from the browser compositor rather
       // than the raw GL framebuffer (which is cleared after the buffer swap).
       const track = format !== 'exr' ? canvas.captureStream(0).getVideoTracks()[0] : null
-      const reader = track
-        ? new MediaStreamTrackProcessor({ track }).readable.getReader()
-        : null
+      const reader = track ? new MediaStreamTrackProcessor({ track }).readable.getReader() : null
 
       // Pipelined writes: up to MAX_CONCURRENT_WRITES file writes run concurrently with
       // the next frame's render to avoid ~750ms/frame disk flush stalls.
