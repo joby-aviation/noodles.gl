@@ -380,6 +380,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
     codeRef: string
     mustacheRef: string
     fieldPath?: string
+    inputName?: string // field name for "Reset to default"
   } | null>(null)
   const descriptionRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef<HTMLElement | null>(null)
@@ -667,6 +668,12 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                       fieldPath:
                         isValueField(input.field) && incomers.length === 0
                           ? getFieldPath(op.id, input.name)
+                          : undefined,
+                      inputName:
+                        incomers.length === 0 &&
+                        input.field.defaultValue !== undefined &&
+                        hasNonDefaultValue(input.field)
+                          ? input.name
                           : undefined,
                     })
                   }}
@@ -964,6 +971,31 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
             >
               Copy mustache path
             </button>
+            {contextMenu.inputName && (
+              <>
+                <div className={s.contextMenuSeparator} />
+                <button
+                  type="button"
+                  className={s.contextMenuItem}
+                  onClick={() => {
+                    const field = op.inputs[contextMenu.inputName!]
+                    if (!field) return
+                    // If there's an active keyframe track, remove it first so the
+                    // static reset is actually reflected in the rendered output.
+                    const fp = getFieldPath(op.id, contextMenu.inputName!)
+                    if (getTimelineStore().hasKeyframesForField(fp)) {
+                      const before = captureTimelineState()
+                      getTimelineStore().deleteTrack(fp)
+                      fireTimelineMutation('Reset to default', before)
+                    }
+                    field.setValue(field.defaultValue)
+                    setContextMenu(null)
+                  }}
+                >
+                  Reset to default
+                </button>
+              </>
+            )}
             {contextMenu.fieldPath &&
               getTimelineStore().hasKeyframesForField(contextMenu.fieldPath) && (
                 <>
