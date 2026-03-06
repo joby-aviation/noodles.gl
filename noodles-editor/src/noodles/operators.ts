@@ -3539,11 +3539,19 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
     // Validate the ViewState to ensure lat/lng are within valid bounds
     validateViewState(viewState)
 
+    // Extract geo fields from basemap so standalone DeckGL gets the correct position
+    // when basemapEnabled=false (empty mapStyle). MapboxOverlay ignores viewState, so
+    // this doesn't affect the interleaved basemap rendering path.
+    const basemapViewState = basemap
+      ? pick(basemap, ['longitude', 'latitude', 'zoom', 'pitch', 'bearing'])
+      : {}
+    if (basemap) validateViewState(basemapViewState)
+
     const deckProps: DeckProps & { layers: (LayerProps & { type: string })[] } = {
       layers,
       effects,
       ...(views?.length > 0 ? { views } : {}),
-      viewState,
+      viewState: { ...basemapViewState, ...viewState },
       layerFilter,
       widgets,
     }
