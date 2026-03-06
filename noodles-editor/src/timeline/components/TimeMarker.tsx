@@ -12,7 +12,7 @@ export interface TimeMarkerProps {
   isSelected: boolean
   onSelect: (markerId: string) => void
   onMove: (markerId: string, newPosition: number) => void
-  onStartConnection: (markerId: string) => void
+  onStartConnection: (markerId: string, clientX: number, clientY: number) => void
   onMoveStart?: () => void
   onMoveEnd?: () => void
 }
@@ -49,8 +49,7 @@ export function TimeMarker({
       // Check if we're clicking on the port
       const target = e.target as HTMLElement
       if (target.closest(`.${s.timeMarkerPort}`)) {
-        // Start connection drag
-        onStartConnection(marker.id)
+        onStartConnection(marker.id, e.clientX, e.clientY)
         return
       }
 
@@ -92,8 +91,8 @@ export function TimeMarker({
       onMouseLeave={() => setIsHovered(false)}
     >
       {/* Marker icon - small flag/triangle shape */}
-      <svg className={s.timeMarkerIcon} viewBox="0 0 12 20" width="12" height="20" aria-hidden="true">
-        <path d="M6 0 L12 6 L12 20 L6 14 L0 20 L0 6 Z" />
+      <svg className={s.timeMarkerIcon} viewBox="0 0 12 10" width="12" height="10" aria-hidden="true">
+        <path d="M6 0 L12 3 L12 10 L6 7 L0 10 L0 3 Z" />
       </svg>
 
       {/* Port - appears on hover */}

@@ -601,6 +601,8 @@ function KeyframeDiamond({
     (e: React.MouseEvent) => {
       // If drag happened, don't toggle selection on click
       if (isDraggingRef.current) return
+      // If completing a marker connection, don't open the value popup
+      if (isConnectionDropTarget) return
       e.stopPropagation()
       const addToSelection = e.shiftKey || e.metaKey || e.ctrlKey
       onSelect(keyframe.id, addToSelection)
@@ -610,10 +612,10 @@ function KeyframeDiamond({
         onOpenValuePopup(keyframe, rect.left + rect.width / 2, rect.top)
       }
     },
-    [keyframe, onSelect, onOpenValuePopup]
+    [keyframe, onSelect, onOpenValuePopup, isConnectionDropTarget]
   )
 
-  const handleMouseUp = useCallback(() => {
+  const handlePointerUp = useCallback(() => {
     // Handle connection drop when in connection mode and hovering
     if (isConnectionDropTarget && isHovered && onConnectionDrop) {
       onConnectionDrop()
@@ -629,9 +631,9 @@ function KeyframeDiamond({
       style={{ left: x }}
       onPointerDown={handlePointerDown}
       onClick={handleClick}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      onMouseUp={handleMouseUp}
+      onPointerEnter={() => setIsHovered(true)}
+      onPointerLeave={() => setIsHovered(false)}
+      onPointerUp={handlePointerUp}
       title={`${keyframe.position.toFixed(2)}s`}
     />
   )

@@ -9,7 +9,6 @@ export interface MarkerConnectionLinesProps {
   tracks: Map<string, Track>
   selectedKeyframeIds: Set<string>
   pixelsPerSecond: number
-  rulerHeight: number
   trackHeight: number
   trackOrder: string[] // Array of trackIds in display order
   connectingFromMarkerId: string | null
@@ -32,7 +31,6 @@ export function MarkerConnectionLines({
   tracks,
   selectedKeyframeIds,
   pixelsPerSecond,
-  rulerHeight,
   trackHeight,
   trackOrder,
   connectingFromMarkerId,
@@ -57,7 +55,9 @@ export function MarkerConnectionLines({
 
     for (const marker of markers) {
       const markerX = marker.position * pixelsPerSecond
-      const markerY = rulerHeight - 4 // Bottom of marker port
+      // SVG Y=0 is track area top; ruler is above it via overflow:visible.
+      // Port center: bottom:14px + half of 16px container = 22px above ruler bottom = SVG Y=-22.
+      const markerY = -22
 
       for (const conn of marker.connectedKeyframes) {
         // Only show line if keyframe is selected
@@ -73,7 +73,7 @@ export function MarkerConnectionLines({
         if (trackIndex === undefined) continue
 
         const keyframeX = keyframe.position * pixelsPerSecond
-        const keyframeY = rulerHeight + trackIndex * trackHeight + trackHeight / 2
+        const keyframeY = trackIndex * trackHeight + trackHeight / 2
 
         lines.push({
           id: `${marker.id}-${conn.keyframeId}`,
@@ -84,7 +84,7 @@ export function MarkerConnectionLines({
     }
 
     return lines
-  }, [markers, tracks, selectedKeyframeIds, pixelsPerSecond, rulerHeight, trackHeight, trackIndexMap])
+  }, [markers, tracks, selectedKeyframeIds, pixelsPerSecond, trackHeight, trackIndexMap])
 
   // Add temporary connection line during drag
   const tempLine = useMemo(() => {
@@ -94,12 +94,12 @@ export function MarkerConnectionLines({
     if (!marker) return null
 
     const markerX = marker.position * pixelsPerSecond
-    const markerY = rulerHeight - 4
+    const markerY = -22
 
     return {
       path: getConnectionPath(markerX, markerY, mousePosition.x, mousePosition.y),
     }
-  }, [connectingFromMarkerId, mousePosition, markers, pixelsPerSecond, rulerHeight])
+  }, [connectingFromMarkerId, mousePosition, markers, pixelsPerSecond])
 
   if (connectionLines.length === 0 && !tempLine) return null
 

@@ -179,42 +179,44 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
     }
   }, [isScrubbing, getTimeFromMouseEvent, setPosition])
 
-  // Handle marker connection start
+  // Handle marker connection start — attach document listeners synchronously so fast
+  // drags (pointerdown → pointerup without much movement) aren't missed by a deferred effect.
   const handleStartMarkerConnection = useCallback(
-    (markerId: string) => {
+    (markerId: string, clientX: number, clientY: number) => {
       setConnectingFromMarker(markerId)
+
+      // Set the initial line position immediately from the pointerdown coords.
+      const rect = timelineAreaRef.current?.getBoundingClientRect()
+      const sl = scrollAreaRef.current?.scrollLeft ?? 0
+      if (rect) {
+        setConnectionMousePos({
+          x: clientX - rect.left + sl,
+          y: clientY - rect.top,
+        })
+      }
+
+      const handlePointerMove = (e: PointerEvent) => {
+        const r = timelineAreaRef.current?.getBoundingClientRect()
+        if (!r) return
+        const scrollLeft = scrollAreaRef.current?.scrollLeft ?? 0
+        setConnectionMousePos({
+          x: e.clientX - r.left + scrollLeft,
+          y: e.clientY - r.top,
+        })
+      }
+
+      const handlePointerUp = () => {
+        setConnectingFromMarker(null)
+        setConnectionMousePos(null)
+        document.removeEventListener('pointermove', handlePointerMove)
+        document.removeEventListener('pointerup', handlePointerUp)
+      }
+
+      document.addEventListener('pointermove', handlePointerMove)
+      document.addEventListener('pointerup', handlePointerUp)
     },
     [setConnectingFromMarker]
   )
-
-  // Handle marker connection drag (track mouse position)
-  useEffect(() => {
-    if (!connectingFromMarkerId) return
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const rect = timelineAreaRef.current?.getBoundingClientRect()
-      if (!rect) return
-      const sl = scrollAreaRef.current?.scrollLeft ?? 0
-      setConnectionMousePos({
-        x: e.clientX - rect.left + sl,
-        y: e.clientY - rect.top + 36, // Offset by ruler height
-      })
-    }
-
-    const handleMouseUp = () => {
-      // Check if we're over a keyframe (handled by KeyframeTrack via prop)
-      // For now, just cancel the connection
-      setConnectingFromMarker(null)
-      setConnectionMousePos(null)
-    }
-
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
-    }
-  }, [connectingFromMarkerId, setConnectingFromMarker])
 
   // Handle keyframe drop for marker connection
   const handleKeyframeConnectionDrop = useCallback(
@@ -521,7 +523,6 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
                 tracks={tracks}
                 selectedKeyframeIds={selectedKeyframeIds}
                 pixelsPerSecond={pixelsPerSecond}
-                rulerHeight={36}
                 trackHeight={TRACK_ROW_HEIGHT}
                 trackOrder={trackOrder}
                 connectingFromMarkerId={connectingFromMarkerId}

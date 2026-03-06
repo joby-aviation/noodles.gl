@@ -15,7 +15,7 @@ export interface TimeRulerProps {
   fps: number
   onSetLength: (length: number) => void
   onSetPosition: (position: number) => void
-  onStartMarkerConnection?: (markerId: string) => void
+  onStartMarkerConnection?: (markerId: string, clientX: number, clientY: number) => void
 }
 
 // Format time as MM:SS.ms or SS.ms depending on duration
@@ -333,8 +333,8 @@ export function TimeRuler({
   }, [])
 
   const handleStartConnection = useCallback(
-    (markerId: string) => {
-      onStartMarkerConnection?.(markerId)
+    (markerId: string, clientX: number, clientY: number) => {
+      onStartMarkerConnection?.(markerId, clientX, clientY)
     },
     [onStartMarkerConnection]
   )

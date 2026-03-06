@@ -1092,7 +1092,10 @@
 
 .timeMarker {
   position: absolute;
-  top: 0;
+  top: auto;
+  bottom: 0;
+  height: 32px;
+  width: 16px;
   z-index: 7;
   cursor: pointer;
   transform: translateX(-50%);
@@ -1105,6 +1108,10 @@
 
 .timeMarkerIcon {
   display: block;
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
   fill: var(--tl-accent);
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
   transition: fill 0.12s ease, filter 0.12s ease;
@@ -1117,7 +1124,7 @@
 /* Time Marker Port */
 .timeMarkerPort {
   position: absolute;
-  bottom: 2px;
+  bottom: 14px;
   left: 50%;
   transform: translateX(-50%);
   width: 16px;
