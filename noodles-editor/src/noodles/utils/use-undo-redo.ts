@@ -106,6 +106,13 @@ export function useUndoRedo() {
 
       userOnNodesChange(changes)
 
+      // Delete timeline tracks for removed operators synchronously so that
+      // timelineStateAfter (captured in setTimeout below) reflects the deletion.
+      const removeChanges = significantChanges.filter(c => c.type === 'remove')
+      if (removeChanges.length > 0) {
+        getTimelineStore().deleteTracksForOperators(removeChanges.map(c => c.id))
+      }
+
       debugHistory(
         'Node changes: %O',
         changes.map(c => c.type)

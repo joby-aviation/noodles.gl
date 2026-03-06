@@ -64,6 +64,7 @@ export interface TimelineStore {
   getTrack: (fieldPath: string) => Track | undefined
   getTrackById: (trackId: string) => Track | undefined
   deleteTrack: (trackId: string) => void
+  deleteTracksForOperators: (operatorIds: string[]) => void
   hasKeyframesForField: (fieldPath: string) => boolean
 
   // === Marker Actions ===
@@ -282,6 +283,24 @@ export const useTimelineStore = create<TimelineStore>()(
         connectedKeyframes: m.connectedKeyframes.filter(c => c.trackId !== trackId),
       }))
       set({ tracks, markers })
+    },
+
+    deleteTracksForOperators: operatorIds => {
+      const tracks = new Map(get().tracks)
+      let changed = false
+      for (const [trackId] of tracks) {
+        for (const opId of operatorIds) {
+          // opId is like "/my-op" or "/container/child"
+          // track prefix is "my-op / " or "container / child / "
+          const prefix = `${opId.slice(1).split('/').join(' / ')} / `
+          if (trackId.startsWith(prefix)) {
+            tracks.delete(trackId)
+            changed = true
+            break
+          }
+        }
+      }
+      if (changed) set({ tracks })
     },
 
     hasKeyframesForField: fieldPath => {
