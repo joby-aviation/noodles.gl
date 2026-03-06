@@ -817,10 +817,12 @@ describe('DeckRendererOp', () => {
       basemap: { mapStyle: '', latitude: 37, longitude: -122, zoom: 10, pitch: 0, bearing: 0 },
       viewState: {},
     })
-    expect(deckProps.viewState).toMatchObject({
+    expect(deckProps.viewState).toEqual({
       latitude: 37,
       longitude: -122,
       zoom: 10,
+      pitch: 0,
+      bearing: 0,
     })
   })
 })

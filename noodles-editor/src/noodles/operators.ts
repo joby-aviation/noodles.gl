@@ -3545,6 +3545,7 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
     const basemapViewState = basemap
       ? pick(basemap, ['longitude', 'latitude', 'zoom', 'pitch', 'bearing'])
       : {}
+    if (basemap) validateViewState(basemapViewState)
 
     const deckProps: DeckProps & { layers: (LayerProps & { type: string })[] } = {
       layers,
