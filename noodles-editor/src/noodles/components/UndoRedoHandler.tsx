@@ -1,7 +1,8 @@
 import { forwardRef, useEffect, useImperativeHandle } from 'react'
 import { registerTimelineMutationCallback } from '../../timeline/timeline-store'
 import { analytics } from '../../utils/analytics'
-import { useUndoRedo } from '../utils/use-reactflow-undo-redo'
+import { registerPropertyMutationCallback } from '../utils/property-history'
+import { useUndoRedo } from '../utils/use-undo-redo'
 
 export interface UndoRedoHandlerRef {
   undo: () => void
@@ -26,6 +27,12 @@ export const UndoRedoHandler = forwardRef<UndoRedoHandlerRef>((_, ref) => {
     registerTimelineMutationCallback(undoRedo.recordTimelineChange)
     return () => registerTimelineMutationCallback(undefined)
   }, [undoRedo.recordTimelineChange])
+
+  // Register the property mutation callback so field edits join the unified undo stack
+  useEffect(() => {
+    registerPropertyMutationCallback(undoRedo.recordPropertyChange)
+    return () => registerPropertyMutationCallback(undefined)
+  }, [undoRedo.recordPropertyChange])
 
   // Expose the undo/redo methods to parent component via ref
   useImperativeHandle(
