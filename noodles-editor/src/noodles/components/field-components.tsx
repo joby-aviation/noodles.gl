@@ -235,6 +235,8 @@ export function ExpressionFieldComponent({
   const inputRef = useRef<HTMLInputElement>(null)
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
   const { captureStart, commitChange } = usePropertyHistory()
+  // Tracks when a click is about to open the overlay so handleInputBlur can skip its commit
+  const openingOverlayRef = useRef(false)
 
   const nodeId = useNodeId() as string
   const edges = useEdges()
@@ -273,8 +275,11 @@ export function ExpressionFieldComponent({
     if (inputRef.current) {
       setAnchorRect(inputRef.current.getBoundingClientRect())
     }
+    // Re-capture before the blur fires so handleInputBlur doesn't consume the snapshot
+    openingOverlayRef.current = true
+    captureStart()
     setOverlayOpen(true)
-  }, [disabled])
+  }, [disabled, captureStart])
 
   const handleOverlayChange = useCallback(
     (newValue: string) => {
@@ -301,6 +306,11 @@ export function ExpressionFieldComponent({
       if (newValue !== field.value) {
         field.setValue(newValue)
         setValidationError(validateExpression(newValue))
+      }
+      // Skip commit when the overlay is opening — handleOverlayClose will commit instead
+      if (openingOverlayRef.current) {
+        openingOverlayRef.current = false
+        return
       }
       commitChange('Change expression')
     },
