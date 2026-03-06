@@ -124,7 +124,7 @@ describe('flipYFloat32', () => {
 })
 
 describe('captureExrFrame', () => {
-  it('should call gl.readPixels with UNSIGNED_BYTE type', async () => {
+  it('should call gl.readPixels with UNSIGNED_BYTE type for RGBA', async () => {
     const mockGL = {
       RGBA: 0x1908,
       FLOAT: 0x1406,
@@ -141,7 +141,6 @@ describe('captureExrFrame', () => {
 
     captureExrFrame(mockGL, 100, 100, {
       compression: 'zip',
-      includeDepth: false,
     })
 
     expect(mockGL.readPixels).toHaveBeenCalledWith(
@@ -174,7 +173,7 @@ describe('captureExrFrame', () => {
 
     const { captureExrFrame } = await import('./exr-export')
 
-    captureExrFrame(mockGL, 2, 2, { compression: 'zip', includeDepth: false })
+    captureExrFrame(mockGL, 2, 2, { compression: 'zip' })
 
     // FBO 0 bound before readPixels, previous FBO restored after
     expect(bindOrder[0]).toEqual([0x8ca8, null])
@@ -187,107 +186,212 @@ describe('captureExrFrame', () => {
     expect(readPixelsCallOrder).toBeGreaterThan(firstBind)
     expect(readPixelsCallOrder).toBeLessThan(secondBind)
   })
+
+  it('should not add Depth layer when depth is not provided', async () => {
+    const mockGL = {
+      RGBA: 0x1908,
+      FLOAT: 0x1406,
+      UNSIGNED_BYTE: 0x1401,
+      DEPTH_COMPONENT: 0x1902,
+      READ_FRAMEBUFFER: 0x8ca8,
+      READ_FRAMEBUFFER_BINDING: 0x8caa,
+      getParameter: vi.fn().mockReturnValue(null),
+      bindFramebuffer: vi.fn(),
+      readPixels: vi.fn(),
+    } as unknown as WebGL2RenderingContext
+
+    const { captureExrFrame, EXRWriter } = await import('./exr-export').then(async m => ({
+      ...m,
+      EXRWriter: (await import('exrjs')).EXRWriter,
+    }))
+
+    captureExrFrame(mockGL, 4, 4, { compression: 'zip' })
+
+    const instance = (EXRWriter as ReturnType<typeof vi.fn>).mock.instances.at(-1)
+    expect(instance.addLayer).not.toHaveBeenCalledWith('Depth')
+  })
+
+  it('should not add Depth layer when depth is null', async () => {
+    const mockGL = {
+      RGBA: 0x1908,
+      FLOAT: 0x1406,
+      UNSIGNED_BYTE: 0x1401,
+      DEPTH_COMPONENT: 0x1902,
+      READ_FRAMEBUFFER: 0x8ca8,
+      READ_FRAMEBUFFER_BINDING: 0x8caa,
+      getParameter: vi.fn().mockReturnValue(null),
+      bindFramebuffer: vi.fn(),
+      readPixels: vi.fn(),
+    } as unknown as WebGL2RenderingContext
+
+    const { captureExrFrame, EXRWriter } = await import('./exr-export').then(async m => ({
+      ...m,
+      EXRWriter: (await import('exrjs')).EXRWriter,
+    }))
+
+    captureExrFrame(mockGL, 4, 4, { compression: 'zip', depth: null })
+
+    const instance = (EXRWriter as ReturnType<typeof vi.fn>).mock.instances.at(-1)
+    expect(instance.addLayer).not.toHaveBeenCalledWith('Depth')
+  })
+
+  it('should add Depth layer with Z channel when depth Float32Array is provided', async () => {
+    const mockGL = {
+      RGBA: 0x1908,
+      FLOAT: 0x1406,
+      UNSIGNED_BYTE: 0x1401,
+      DEPTH_COMPONENT: 0x1902,
+      READ_FRAMEBUFFER: 0x8ca8,
+      READ_FRAMEBUFFER_BINDING: 0x8caa,
+      getParameter: vi.fn().mockReturnValue(null),
+      bindFramebuffer: vi.fn(),
+      readPixels: vi.fn(),
+    } as unknown as WebGL2RenderingContext
+
+    const { captureExrFrame, EXRWriter } = await import('./exr-export').then(async m => ({
+      ...m,
+      EXRWriter: (await import('exrjs')).EXRWriter,
+    }))
+
+    const depth = new Float32Array(4 * 4).fill(0.5)
+    depth[0] = 0.1 // some variation
+
+    captureExrFrame(mockGL, 4, 4, { compression: 'zip', depth })
+
+    const instance = (EXRWriter as ReturnType<typeof vi.fn>).mock.instances.at(-1)
+    expect(instance.addLayer).toHaveBeenCalledWith('Depth')
+    expect(instance.channel).toHaveBeenCalledWith('Z', 'f32', depth)
+  })
 })
 
-describe('captureExrFrame depth handling', () => {
+describe('captureDepthFromDeckFBO', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  function makeMockGL(depthFill: (pixels: Float32Array) => void) {
+  function makeMockGL(readPixelsFill?: (pixels: Float32Array) => void) {
+    const tempFBO = {}
     return {
-      RGBA: 0x1908,
-      FLOAT: 0x1406,
-      UNSIGNED_BYTE: 0x1401,
-      DEPTH_COMPONENT: 0x1902,
       READ_FRAMEBUFFER: 0x8ca8,
-      READ_FRAMEBUFFER_BINDING: 0x8caa,
-      getParameter: vi.fn().mockReturnValue(null),
+      DEPTH_ATTACHMENT: 0x8d00,
+      DEPTH_COMPONENT: 0x1902,
+      FLOAT: 0x1406,
+      TEXTURE_2D: 0x0de1,
+      createFramebuffer: vi.fn().mockReturnValue(tempFBO),
       bindFramebuffer: vi.fn(),
-      readPixels: vi
-        .fn()
-        .mockImplementation(
-          (
-            _x: number,
-            _y: number,
-            _w: number,
-            _h: number,
-            format: number,
-            _type: number,
-            pixels: Float32Array
-          ) => {
-            if (format === 0x1902) depthFill(pixels)
-          }
-        ),
+      framebufferTexture2D: vi.fn(),
+      readPixels: vi.fn().mockImplementation(
+        (
+          _x: number,
+          _y: number,
+          _w: number,
+          _h: number,
+          _format: number,
+          _type: number,
+          pixels: Float32Array
+        ) => {
+          readPixelsFill?.(pixels)
+        }
+      ),
+      deleteFramebuffer: vi.fn(),
     } as unknown as WebGL2RenderingContext
   }
 
-  async function getLastWriterInstance() {
-    const { EXRWriter } = await import('exrjs')
-    return (EXRWriter as ReturnType<typeof vi.fn>).mock.instances.at(-1)
-  }
+  it('returns null when deck._framebuffer is absent', async () => {
+    const gl = makeMockGL()
+    const { captureDepthFromDeckFBO } = await import('./exr-export')
 
-  it('skips Depth layer and warns when depth buffer is all zeros', async () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const gl = makeMockGL(pixels => pixels.fill(0.0))
-
-    const { captureExrFrame } = await import('./exr-export')
-    captureExrFrame(gl, 4, 4, { compression: 'zip', includeDepth: true })
-
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('uniform'), 0)
-    const instance = await getLastWriterInstance()
-    expect(instance.addLayer).not.toHaveBeenCalledWith('Depth')
+    expect(captureDepthFromDeckFBO(null, gl, 4, 4)).toBeNull()
+    expect(captureDepthFromDeckFBO({}, gl, 4, 4)).toBeNull()
+    expect(captureDepthFromDeckFBO({ _framebuffer: null }, gl, 4, 4)).toBeNull()
   })
 
-  it('skips Depth layer and warns when depth buffer is all ones', async () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const gl = makeMockGL(pixels => pixels.fill(1.0))
+  it('returns null when depth texture handle is absent', async () => {
+    const gl = makeMockGL()
+    const { captureDepthFromDeckFBO } = await import('./exr-export')
 
-    const { captureExrFrame } = await import('./exr-export')
-    captureExrFrame(gl, 4, 4, { compression: 'zip', includeDepth: true })
-
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('uniform'), 1)
-    const instance = await getLastWriterInstance()
-    expect(instance.addLayer).not.toHaveBeenCalledWith('Depth')
+    const deck = { _framebuffer: { depthStencilAttachment: { texture: { handle: null } } } }
+    expect(captureDepthFromDeckFBO(deck, gl, 4, 4)).toBeNull()
   })
 
-  it('writes Depth layer when depth buffer has meaningful variation', async () => {
+  it('binds depth texture to temp FBO and reads pixels', async () => {
+    const depthHandle = {}
+    const gl = makeMockGL(pixels => pixels.fill(0.5))
+    const { captureDepthFromDeckFBO } = await import('./exr-export')
+
+    const deck = {
+      _framebuffer: { depthStencilAttachment: { texture: { handle: depthHandle } } },
+    }
+
+    const result = captureDepthFromDeckFBO(deck, gl, 2, 2)
+
+    expect(result).not.toBeNull()
+    expect(gl.createFramebuffer).toHaveBeenCalled()
+    expect(gl.bindFramebuffer).toHaveBeenCalledWith(gl.READ_FRAMEBUFFER, expect.anything())
+    expect(gl.framebufferTexture2D).toHaveBeenCalledWith(
+      gl.READ_FRAMEBUFFER,
+      gl.DEPTH_ATTACHMENT,
+      gl.TEXTURE_2D,
+      depthHandle,
+      0
+    )
+    expect(gl.readPixels).toHaveBeenCalledWith(
+      0,
+      0,
+      2,
+      2,
+      gl.DEPTH_COMPONENT,
+      gl.FLOAT,
+      expect.any(Float32Array)
+    )
+    expect(gl.deleteFramebuffer).toHaveBeenCalled()
+  })
+
+  it('unbinds temp FBO after readPixels', async () => {
+    const depthHandle = {}
+    const bindOrder: Array<WebGLFramebuffer | null> = []
+    const gl = makeMockGL()
+    ;(gl.bindFramebuffer as ReturnType<typeof vi.fn>).mockImplementation(
+      (_target: number, fbo: WebGLFramebuffer | null) => {
+        bindOrder.push(fbo)
+      }
+    )
+    const { captureDepthFromDeckFBO } = await import('./exr-export')
+
+    const deck = {
+      _framebuffer: { depthStencilAttachment: { texture: { handle: depthHandle } } },
+    }
+
+    captureDepthFromDeckFBO(deck, gl, 2, 2)
+
+    // First bind: temp FBO; second bind: null (unbind)
+    expect(bindOrder).toHaveLength(2)
+    expect(bindOrder[0]).not.toBeNull()
+    expect(bindOrder[1]).toBeNull()
+  })
+
+  it('returns Y-flipped depth data', async () => {
+    const depthHandle = {}
+    // 2x2 image: row 0 (bottom) = [0.1, 0.2], row 1 (top) = [0.3, 0.4]
     const gl = makeMockGL(pixels => {
-      pixels.fill(0.5)
-      pixels[0] = 0.1 // introduce > 0.001 difference
+      pixels[0] = 0.1
+      pixels[1] = 0.2
+      pixels[2] = 0.3
+      pixels[3] = 0.4
     })
+    const { captureDepthFromDeckFBO } = await import('./exr-export')
 
-    const { captureExrFrame } = await import('./exr-export')
-    captureExrFrame(gl, 4, 4, { compression: 'zip', includeDepth: true })
+    const deck = {
+      _framebuffer: { depthStencilAttachment: { texture: { handle: depthHandle } } },
+    }
 
-    const instance = await getLastWriterInstance()
-    expect(instance.addLayer).toHaveBeenCalledWith('Depth')
-    expect(instance.channel).toHaveBeenCalledWith('Z', 'f32', expect.any(Float32Array))
-  })
+    const result = captureDepthFromDeckFBO(deck, gl, 2, 2)
 
-  it('skips Depth layer when readPixels throws', async () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const gl = {
-      RGBA: 0x1908,
-      FLOAT: 0x1406,
-      UNSIGNED_BYTE: 0x1401,
-      DEPTH_COMPONENT: 0x1902,
-      READ_FRAMEBUFFER: 0x8ca8,
-      READ_FRAMEBUFFER_BINDING: 0x8caa,
-      getParameter: vi.fn().mockReturnValue(null),
-      bindFramebuffer: vi.fn(),
-      readPixels: vi
-        .fn()
-        .mockImplementation((_x: number, _y: number, _w: number, _h: number, format: number) => {
-          if (format === 0x1902) throw new Error('INVALID_OPERATION')
-        }),
-    } as unknown as WebGL2RenderingContext
-
-    const { captureExrFrame } = await import('./exr-export')
-    captureExrFrame(gl, 4, 4, { compression: 'zip', includeDepth: true })
-
-    expect(warnSpy).toHaveBeenCalledWith('Failed to read depth buffer:', expect.any(Error))
-    const instance = await getLastWriterInstance()
-    expect(instance.addLayer).not.toHaveBeenCalledWith('Depth')
+    // After Y-flip: row 0 should be [0.3, 0.4], row 1 should be [0.1, 0.2]
+    expect(result).not.toBeNull()
+    expect(result![0]).toBeCloseTo(0.3)
+    expect(result![1]).toBeCloseTo(0.4)
+    expect(result![2]).toBeCloseTo(0.1)
+    expect(result![3]).toBeCloseTo(0.2)
   })
 })

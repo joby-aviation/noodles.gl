@@ -598,6 +598,11 @@
   display: none;
 }
 
+/* Applied when the field has keyframes in the timeline */
+.keyframedField {
+  background: color-mix(in srgb, var(--timeline-accent) 7%, transparent);
+}
+
 .fieldPlaceholder {
   padding: 6px 8px;
   background: rgba(255, 255, 255, 0.03);

@@ -35,7 +35,6 @@ export type RenderSettings = {
   scaleControl: number
   framerate: number
   captureDelay: number
-  // Image export settings
   imageFormat: ImageFormat
   exrCompression: ExrCompression
   includeDepth: boolean
@@ -53,7 +52,6 @@ export const DEFAULT_RENDER_SETTINGS: RenderSettings = {
   scaleControl: 0.3,
   framerate: 30,
   captureDelay: 200,
-  // Image export defaults
   imageFormat: 'png',
   exrCompression: 'zip',
   includeDepth: false,

@@ -10,7 +10,7 @@ import { useCallback, useRef, useState } from 'react'
 import type { ExrCompression, ImageFormat } from '../noodles/utils/serialization'
 import { getTimelineStore, useTimelineStore } from '../timeline/timeline-store'
 import { debugRender, debugRenderFrame } from '../utils/debug'
-import { captureExrFrame, captureJpegFrame, capturePngFrame } from './exr-export'
+import { captureDepthFromDeckFBO, captureExrFrame } from './exr-export'
 
 export const rafDriver = {
   tick: (_timestamp: number) => {},
@@ -252,7 +252,10 @@ export const useRenderer = ({
     [projectName, sequenceLength, fps, bitrate, bitrateMode, canvasFrameReady, redraw]
   )
 
-  // Image sequence export - uses the same render loop as video capture but writes individual images
+  // Image sequence export — same frame loop as video capture, writes individual images.
+  // PNG uses captureStream + MediaStreamTrackProcessor to read from the browser compositor
+  // (avoids reading the raw GL framebuffer which is cleared after buffer swap).
+  // EXR uses gl.readPixels directly since it needs float precision from the GL context.
   const startSequenceCapture = useCallback(
     async ({
       canvas,
@@ -271,10 +274,10 @@ export const useRenderer = ({
       onError,
     }: {
       canvas: HTMLCanvasElement
-      getGLContext: () => WebGL2RenderingContext | null
+      getGLContext?: () => WebGL2RenderingContext | null
       getDeck?: () => Deck | null
       directoryHandle: FileSystemDirectoryHandle
-      format?: ImageFormat
+      format?: 'png' | 'exr'
       exrCompression?: ExrCompression
       includeDepth?: boolean
       captureDelay?: number
@@ -292,16 +295,14 @@ export const useRenderer = ({
 
       const totalFrames = endFrame - startFrame + 1
       const padLength = Math.max(4, String(endFrame).length)
-      const extension = format === 'exr' ? 'exr' : format === 'jpeg' ? 'jpg' : 'png'
+      const extension = format === 'exr' ? 'exr' : 'png'
 
-      // For pure Deck scenes (no basemap), set up our own persistent onAfterRender callback.
-      // This mirrors how basemap scenes work where mapProps.onIdle fires every frame.
       const deck = getDeck?.()
       const originalOnAfterRender = deck?.props.onAfterRender
 
-      const isDeckReady = () =>
-        !deck ||
-        deck.props.layers.every(layer => !layer || (!Array.isArray(layer) && layer.isLoaded))
+      // For EXR with depth, capture depth from Deck's internal FBO synchronously in
+      // onAfterRender (before it is cleared). Stored here for use after canvasFrameReady().
+      let capturedDepth: Float32Array | null = null
 
       // Tracks the pending capture timer so only one fires per logical frame.
       // Without this guard, every onAfterRender during captureDelay queues its own
@@ -312,10 +313,18 @@ export const useRenderer = ({
         deck.setProps({
           onAfterRender: context => {
             originalOnAfterRender?.(context)
-            // Check if layers are loaded when waitForData is enabled
-            if (waitForData && !isDeckReady()) {
+            if (
+              waitForData &&
+              !deck.props.layers.every(l => !l || (!Array.isArray(l) && l.isLoaded))
+            ) {
               debugRender('deck waiting for layers to load')
               return
+            }
+            // Capture depth from the internal FBO before it is cleared (EXR only).
+            // Must happen synchronously here, before the next render cycle.
+            if (format === 'exr' && includeDepth && getGLContext) {
+              const gl = getGLContext()
+              if (gl) capturedDepth = captureDepthFromDeckFBO(deck, gl, canvas.width, canvas.height)
             }
             // Throttle to one scheduled captureFrame per frame: once a timer is in-flight,
             // ignore subsequent onAfterRender firings until it resolves.
@@ -328,9 +337,15 @@ export const useRenderer = ({
         })
       }
 
-      // Writes are pipelined: each frame's file write runs concurrently with the next render.
-      // This avoids blocking the render loop on writable.close(), which flushes to disk (~750ms/frame).
-      // A bounded queue prevents unbounded memory accumulation.
+      // For PNG: use captureStream + requestFrame to read from the browser compositor rather
+      // than the raw GL framebuffer (which is cleared after the buffer swap).
+      const track = format !== 'exr' ? canvas.captureStream(0).getVideoTracks()[0] : null
+      const reader = track
+        ? new MediaStreamTrackProcessor({ track }).readable.getReader()
+        : null
+
+      // Pipelined writes: up to MAX_CONCURRENT_WRITES file writes run concurrently with
+      // the next frame's render to avoid ~750ms/frame disk flush stalls.
       const MAX_CONCURRENT_WRITES = 4
       const pendingWrites: Promise<void>[] = []
 
@@ -348,7 +363,6 @@ export const useRenderer = ({
           onFrameStart?.(i - startFrame, totalFrames)
 
           try {
-            // Set sequence position and render frame
             const simTime = i / fps
             getTimelineStore().setPosition(simTime)
             redraw()
@@ -357,40 +371,38 @@ export const useRenderer = ({
             if (i % 10 === 0)
               debugRenderFrame('exporting frame %d/%d at simtime %d', i, endFrame, simTime)
 
-            // Wait for frame to be ready (resolved by onAfterRender callback for pure deck,
-            // or by mapProps.onIdle for basemap scenes)
+            // Wait for frame to be ready (onAfterRender for pure-deck, onIdle for basemap)
             await canvasFrameReady()
 
-            // Generate filename
             const frameNumber = String(i).padStart(padLength, '0')
             const filename = `${projectName}_${frameNumber}.${extension}`
 
-            // Drain oldest write if the queue is full before capturing the next frame
             if (pendingWrites.length >= MAX_CONCURRENT_WRITES) {
               await pendingWrites.shift()
             }
 
-            // Capture frame data and enqueue the write without awaiting it.
-            // For EXR, captureExrFrame is synchronous so pixels are captured before the GL
-            // context changes. For PNG/JPEG, toBlob must finish before we can move on, but
-            // the subsequent file write is still pipelined.
             if (format === 'exr') {
-              const gl = getGLContext()
-              if (!gl) {
-                throw new Error('WebGL context not available for EXR export')
-              }
+              const gl = getGLContext?.()
+              if (!gl) throw new Error('WebGL context not available for EXR export')
+              // Consume and reset depth captured in onAfterRender
+              const depth = capturedDepth
+              capturedDepth = null
               const exrData = captureExrFrame(gl, canvas.width, canvas.height, {
                 compression: exrCompression,
-                includeDepth,
+                depth,
               })
               pendingWrites.push(writeFile(filename, exrData))
             } else {
-              // PNG or JPEG: toBlob must complete before GL context changes, but the
-              // resulting file write runs concurrently with the next frame's render.
-              const blob =
-                format === 'jpeg'
-                  ? await captureJpegFrame(canvas, 0.92)
-                  : await capturePngFrame(canvas, 1)
+              // PNG: read from compositor (display buffer, not raw GL framebuffer which may be cleared)
+              // @ts-expect-error - typescript types not updated yet
+              track!.requestFrame()
+              const { value: frame } = await reader!.read()
+              assert(frame, 'frame is required - might be a problem with the browser')
+              const offscreen = new OffscreenCanvas(frame.displayWidth, frame.displayHeight)
+              const ctx = offscreen.getContext('2d')!
+              ctx.drawImage(frame, 0, 0)
+              frame.close()
+              const blob = await offscreen.convertToBlob({ type: 'image/png' })
               pendingWrites.push(writeFile(filename, blob))
             }
 
@@ -402,14 +414,11 @@ export const useRenderer = ({
           }
         }
 
-        // Wait for all in-flight writes to complete before finishing
         await Promise.all(pendingWrites)
       } finally {
-        // Restore original callback after loop completes
+        if (reader) reader.releaseLock()
         if (deck) {
-          deck.setProps({
-            onAfterRender: originalOnAfterRender ?? (() => {}),
-          })
+          deck.setProps({ onAfterRender: originalOnAfterRender ?? (() => {}) })
         }
         setIsRendering(false)
       }
@@ -436,6 +445,7 @@ export interface ScreenshotOptions {
   exrCompression?: ExrCompression
   includeDepth?: boolean
   getGLContext?: () => WebGL2RenderingContext | null
+  getDeck?: () => Deck | null
 }
 
 export const captureScreenshot = async (
@@ -449,6 +459,7 @@ export const captureScreenshot = async (
     exrCompression = 'zip',
     includeDepth = false,
     getGLContext,
+    getDeck,
   } = options
 
   if (format === 'exr') {
@@ -467,19 +478,25 @@ export const captureScreenshot = async (
       types: [{ description: 'OpenEXR', accept: { 'image/x-exr': ['.exr'] } }],
     })
 
-    // Redraw to ensure buffer is populated
+    // Redraw to ensure buffer is populated, then capture depth from Deck's internal FBO
     const canvas = getBufferedCanvas()
+
+    let depth: Float32Array | null = null
+    if (includeDepth && getDeck) {
+      const deck = getDeck()
+      if (deck) depth = captureDepthFromDeckFBO(deck, gl, canvas.width, canvas.height)
+    }
 
     const exrData = captureExrFrame(gl, canvas.width, canvas.height, {
       compression: exrCompression,
-      includeDepth,
+      depth,
     })
 
     const fileWritableStream = await imageHandle.createWritable()
     await fileWritableStream.write(exrData)
     await fileWritableStream.close()
   } else {
-    // PNG/JPEG path - use existing canvas.toBlob approach
+    // PNG/JPEG path
     const extension = format === 'jpeg' ? '.jpeg' : '.png'
     const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png'
 
@@ -496,10 +513,13 @@ export const captureScreenshot = async (
     // Redraw to ensure buffer is populated
     const canvas = getBufferedCanvas()
 
-    const blob =
-      format === 'jpeg'
-        ? await captureJpegFrame(canvas, quality)
-        : await capturePngFrame(canvas, quality)
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        b => (b ? resolve(b) : reject(new Error('Canvas is empty'))),
+        mimeType,
+        format === 'jpeg' ? quality : undefined
+      )
+    })
 
     const fileWritableStream = await imageHandle.createWritable()
     await fileWritableStream.write(blob)

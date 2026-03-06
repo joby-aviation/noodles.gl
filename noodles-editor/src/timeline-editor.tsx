@@ -10,6 +10,7 @@ import { ErrorBoundary } from './noodles/components/error-boundary'
 import { TopMenuBar } from './noodles/components/top-menu-bar'
 import { ExportActionsProvider } from './noodles/contexts/export-actions-context'
 import { useActiveStorageType, useCurrentDirectory } from './noodles/filesystem-store'
+import { useActiveOutOp } from './noodles/hooks/use-active-outop'
 import { useRenderSettings } from './noodles/hooks/use-render-settings'
 import { getNoodles } from './noodles/noodles'
 import type { RenderSettings } from './noodles/utils/serialization'
@@ -68,6 +69,8 @@ export default function TimelineEditor() {
   const deckRef = useRef<Deck>(null)
   const glContextRef = useRef<WebGL2RenderingContext | null>(null)
   const isRenderingRef = useRef(false)
+  // Session-only handle set by selectRendersDirectory; takes priority over project subdir
+  const rendersDirectoryHandleRef = useRef<FileSystemDirectoryHandle | null>(null)
   // Throttles captureFrame() calls from mapProps.onIdle to one per frame cycle.
   // onIdle can fire multiple times per redraw (e.g. from map.redraw() + deck.redraw()),
   // causing stale timers to prematurely resolve future canvasFrameReady() promises.
@@ -89,8 +92,9 @@ export default function TimelineEditor() {
 
   // Render settings are now stored as OutOp inputs
   const renderSettings = useRenderSettings()
-
-  // File system state for image sequence export
+  // Active OutOp for updating rendersDirectory when user picks a directory
+  const activeOutOp = useActiveOutOp()
+  // File system state for resolving the renders directory
   const currentDirectory = useCurrentDirectory()
   const activeStorageType = useActiveStorageType()
 
@@ -332,6 +336,7 @@ export default function TimelineEditor() {
           exrCompression,
           includeDepth,
           getGLContext: () => glContextRef.current,
+          getDeck: () => deckRef.current,
         }
       )
     } catch (e) {
@@ -341,6 +346,17 @@ export default function TimelineEditor() {
       }
     }
   }, [noodles.projectName, redraw, basemapEnabled, imageFormat, exrCompression, includeDepth])
+
+  const selectRendersDirectory = useCallback(async () => {
+    try {
+      const handle = await window.showDirectoryPicker({ mode: 'readwrite' })
+      rendersDirectoryHandleRef.current = handle
+      // Persist the folder name to the OutOp so it survives project reloads
+      activeOutOp?.inputs.rendersDirectory.setValue(handle.name)
+    } catch (e) {
+      if ((e as DOMException).name !== 'AbortError') throw e
+    }
+  }, [activeOutOp])
 
   const exportSequence = useCallback(async () => {
     if (!deckRef.current) {
@@ -352,42 +368,32 @@ export default function TimelineEditor() {
       return
     }
 
-    // Get or create the renders directory
+    // Resolve the target directory: session-picked handle > project subdir > user picker
     let rendersDir: FileSystemDirectoryHandle
-
-    // For public folder projects or when no project directory available, prompt user
-    if (activeStorageType === 'publicFolder' || !currentDirectory) {
-      try {
-        rendersDir = await window.showDirectoryPicker({ mode: 'readwrite' })
-      } catch (e) {
-        if ((e as DOMException).name === 'AbortError') {
-          debugRender('Export sequence cancelled by user')
-          return
-        }
-        throw e
-      }
-    } else {
-      // Create/get renders subdirectory in project folder
+    if (rendersDirectoryHandleRef.current) {
+      rendersDir = rendersDirectoryHandleRef.current
+    } else if (activeStorageType !== 'publicFolder' && currentDirectory) {
       try {
         rendersDir = await currentDirectory.getDirectoryHandle(rendersDirectory || 'renders', {
           create: true,
         })
       } catch (e) {
-        debugRender('Failed to create renders directory: %o', e)
-        // Fall back to prompting user
+        debugRender('Failed to create renders directory: %o, falling back to picker', e)
         try {
           rendersDir = await window.showDirectoryPicker({ mode: 'readwrite' })
         } catch (err) {
-          if ((err as DOMException).name === 'AbortError') {
-            debugRender('Export sequence cancelled by user')
-            return
-          }
+          if ((err as DOMException).name === 'AbortError') return
           throw err
         }
       }
+    } else {
+      try {
+        rendersDir = await window.showDirectoryPicker({ mode: 'readwrite' })
+      } catch (e) {
+        if ((e as DOMException).name === 'AbortError') return
+        throw e
+      }
     }
-
-    const totalFrames = Math.floor(sequenceLength * framerate)
 
     let canvas: HTMLCanvasElement
     if (basemapEnabled) {
@@ -404,19 +410,15 @@ export default function TimelineEditor() {
       // deck.onAfterRender or both paths call captureFrame(), causing premature resolution.
       getDeck: basemapEnabled ? undefined : () => deckRef.current,
       directoryHandle: rendersDir,
-      format: imageFormat,
+      format: imageFormat === 'exr' ? 'exr' : 'png',
       exrCompression,
       includeDepth,
       captureDelay,
       waitForData,
       startFrame: 0,
-      endFrame: totalFrames,
-      onFrameStart: (frame, total) => {
-        debugRender('Exporting frame %d/%d', frame + 1, total)
-      },
-      onFrameComplete: (frame, total) => {
-        debugRender('Completed frame %d/%d', frame, total)
-      },
+      endFrame: Math.floor(sequenceLength * framerate),
+      onFrameStart: (frame, total) => debugRender('Exporting frame %d/%d', frame + 1, total),
+      onFrameComplete: (frame, total) => debugRender('Completed frame %d/%d', frame, total),
     })
   }, [
     startSequenceCapture,
@@ -427,10 +429,10 @@ export default function TimelineEditor() {
     includeDepth,
     captureDelay,
     waitForData,
+    rendersDirectory,
     basemapEnabled,
     currentDirectory,
     activeStorageType,
-    rendersDirectory,
   ])
 
   // Increase the render target resolution to increase map tile detail.
@@ -511,6 +513,7 @@ export default function TimelineEditor() {
           startRender={startRender}
           takeScreenshot={takeScreenshot}
           exportSequence={exportSequence}
+          selectRendersDirectory={selectRendersDirectory}
           isRendering={isRendering}
         >
           <Layout

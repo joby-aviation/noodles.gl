@@ -5,7 +5,9 @@ const { EXRWriter, Compression } = exrjs
 
 export interface ExrCaptureOptions {
   compression: ExrCompression
-  includeDepth?: boolean
+  // Pre-captured depth buffer (Y-flipped, from captureDepthFromDeckFBO).
+  // If absent or null, no Depth layer is written.
+  depth?: Float32Array | null
 }
 
 // Maps our compression type names to exrjs compression constants
@@ -39,28 +41,15 @@ export function flipYFloat32(
   return result
 }
 
-// Extracts a single channel from interleaved RGBA data
-function _extractChannel(
-  data: Float32Array,
-  channelIndex: number,
-  totalChannels: number
-): Float32Array {
-  const pixelCount = data.length / totalChannels
-  const result = new Float32Array(pixelCount)
-  for (let i = 0; i < pixelCount; i++) {
-    result[i] = data[i * totalChannels + channelIndex]
-  }
-  return result
-}
-
-// Captures pixel data from WebGL context and creates an EXR buffer
+// Captures pixel data from WebGL context and creates an EXR buffer.
+// depth (if provided) must already be Y-flipped — use captureDepthFromDeckFBO.
 export function captureExrFrame(
   gl: WebGL2RenderingContext,
   width: number,
   height: number,
   options: ExrCaptureOptions
 ): Uint8Array {
-  const { compression, includeDepth = false } = options
+  const { compression, depth } = options
   const compressionType = mapCompression(compression)
 
   // The canvas default framebuffer is always 8-bit regardless of EXT_color_buffer_float,
@@ -95,39 +84,14 @@ export function captureExrFrame(
     .scanlines()
     .end()
 
-  // Add depth pass if requested
-  if (includeDepth) {
-    const depthPixels = new Float32Array(width * height)
-
-    // Try to read depth buffer
-    try {
-      gl.readPixels(0, 0, width, height, gl.DEPTH_COMPONENT, gl.FLOAT, depthPixels)
-
-      // Deck.gl renders to internal FBOs and blits only color to the canvas. The canvas default
-      // framebuffer depth is cleared but never written with scene depth, so readPixels returns a
-      // uniform value (typically 0.0 or 1.0). Skip the layer in that case to avoid a misleading
-      // empty channel; a proper depth AOV would require a dedicated rendering pass.
-      const firstVal = depthPixels[0]
-      const hasDepthData = depthPixels.some(v => Math.abs(v - firstVal) > 0.001)
-      if (!hasDepthData) {
-        console.warn(
-          'Depth buffer is uniform (%f) — scene depth is not available from the canvas framebuffer.',
-          firstVal
-        )
-      } else {
-        // Flip Y axis for depth
-        const flippedDepth = flipYFloat32(depthPixels, width, height, 1)
-
-        writer
-          .addLayer('Depth')
-          .channel('Z', 'f32', flippedDepth)
-          .compression(compressionType)
-          .sampleType('f32')
-          .end()
-      }
-    } catch (e) {
-      console.warn('Failed to read depth buffer:', e)
-    }
+  // Add depth pass if provided (already Y-flipped by captureDepthFromDeckFBO)
+  if (depth) {
+    writer
+      .addLayer('Depth')
+      .channel('Z', 'f32', depth)
+      .compression(compressionType)
+      .sampleType('f32')
+      .end()
   }
 
   // Encode to buffer
@@ -136,24 +100,37 @@ export function captureExrFrame(
   return new Uint8Array(buffer)
 }
 
-// Captures a single PNG frame from the canvas
-export function capturePngFrame(canvas: HTMLCanvasElement, quality = 1): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob(
-      blob => (blob ? resolve(blob) : reject(new Error('Canvas is empty'))),
-      'image/png',
-      quality
-    )
-  })
-}
+// Reads depth from Deck.gl's internal framebuffer. Must be called synchronously
+// during or just after onAfterRender, before the FBO is cleared for the next frame.
+//
+// Deck.gl renders to a private luma.gl Framebuffer (_framebuffer) and blits only
+// color to the canvas — the canvas depth buffer is never populated with scene depth.
+// This function reads deck._framebuffer.depthStencilAttachment.texture directly
+// by attaching it to a temporary read FBO.
+//
+// Returns null if the deck instance does not expose the expected FBO structure.
+export function captureDepthFromDeckFBO(
+  deck: unknown,
+  gl: WebGL2RenderingContext,
+  width: number,
+  height: number
+): Float32Array | null {
+  // biome-ignore lint/suspicious/noExplicitAny: accessing Deck.gl private internals
+  const fbo = (deck as any)?._framebuffer
+  const depthHandle = fbo?.depthStencilAttachment?.texture?.handle
+  if (!depthHandle) return null
 
-// Captures a single JPEG frame from the canvas
-export function captureJpegFrame(canvas: HTMLCanvasElement, quality = 0.92): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob(
-      blob => (blob ? resolve(blob) : reject(new Error('Canvas is empty'))),
-      'image/jpeg',
-      quality
-    )
-  })
+  // Bind the depth texture to a temporary read FBO so gl.readPixels can access it
+  const tempFBO = gl.createFramebuffer()
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, tempFBO)
+  gl.framebufferTexture2D(gl.READ_FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, depthHandle, 0)
+
+  const pixels = new Float32Array(width * height)
+  gl.readPixels(0, 0, width, height, gl.DEPTH_COMPONENT, gl.FLOAT, pixels)
+
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null)
+  gl.deleteFramebuffer(tempFBO)
+
+  // Flip Y axis: WebGL is bottom-up, EXR is top-down
+  return flipYFloat32(pixels, width, height, 1)
 }

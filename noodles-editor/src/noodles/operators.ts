@@ -3539,11 +3539,19 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
     // Validate the ViewState to ensure lat/lng are within valid bounds
     validateViewState(viewState)
 
+    // Extract geo fields from basemap so standalone DeckGL gets the correct position
+    // when basemapEnabled=false (empty mapStyle). MapboxOverlay ignores viewState, so
+    // this doesn't affect the interleaved basemap rendering path.
+    const basemapViewState = basemap
+      ? pick(basemap, ['longitude', 'latitude', 'zoom', 'pitch', 'bearing'])
+      : {}
+    if (basemap) validateViewState(basemapViewState)
+
     const deckProps: DeckProps & { layers: (LayerProps & { type: string })[] } = {
       layers,
       effects,
       ...(views?.length > 0 ? { views } : {}),
-      viewState,
+      viewState: { ...basemapViewState, ...viewState },
       layerFilter,
       widgets,
     }
@@ -3867,7 +3875,6 @@ export class OutOp extends Operator<OutOp> {
       scaleControl: new NumberField(0.3, { min: 0.1, max: 1, step: 0.05 }),
       framerate: new NumberField(30, { min: 1, max: 120, step: 1 }),
       captureDelay: new NumberField(200, { min: 0, max: 10000, step: 10 }),
-      // Image export settings
       imageFormat: new StringLiteralField('png', ['png', 'jpeg', 'exr']),
       exrCompression: new StringLiteralField('zip', ['none', 'zip', 'piz']),
       includeDepth: new BooleanField(false),

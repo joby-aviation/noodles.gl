@@ -30,7 +30,8 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
   const isActive = activeOutOpId === op.id
 
   // Get export actions from context (provided by TimelineEditor)
-  const { startRender, takeScreenshot, exportSequence, isRendering } = useExportActions()
+  const { startRender, takeScreenshot, exportSequence, selectRendersDirectory, isRendering } =
+    useExportActions()
 
   // Subscribe to field changes
   const [display, setDisplay] = useState(op.inputs.display.value)
@@ -44,7 +45,6 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
   const [bitrateMode, setBitrateMode] = useState(op.inputs.bitrateMode.value)
   const [waitForData, setWaitForData] = useState(op.inputs.waitForData.value)
   const [captureDelay, setCaptureDelay] = useState(op.inputs.captureDelay.value)
-  // Image export settings
   const [imageFormat, setImageFormat] = useState(op.inputs.imageFormat.value)
   const [exrCompression, setExrCompression] = useState(op.inputs.exrCompression.value)
   const [includeDepth, setIncludeDepth] = useState(op.inputs.includeDepth.value)
@@ -275,20 +275,6 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
             </div>
           </>
         )}
-
-        <div className={s.settingRow}>
-          <label htmlFor="render-renders-directory" className={s.label}>
-            Output Dir
-          </label>
-          <input
-            id="render-renders-directory"
-            type="text"
-            className={s.textInput}
-            value={rendersDirectory}
-            placeholder="renders"
-            onChange={e => op.inputs.rendersDirectory.setValue(e.target.value)}
-          />
-        </div>
       </div>
 
       {/* Video Encoding Section */}
@@ -393,6 +379,21 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
             onChange={e => op.inputs.captureDelay.setValue(Number(e.target.value))}
           />
           <span className={s.unit}>ms</span>
+        </div>
+
+        <div className={s.settingRow}>
+          <label htmlFor="render-renders-directory" className={s.label}>
+            Output Dir
+          </label>
+          <button
+            id="render-renders-directory"
+            type="button"
+            className={s.directoryButton}
+            onClick={() => selectRendersDirectory?.()}
+          >
+            <i className="pi pi-folder" />
+            {rendersDirectory || 'renders'}
+          </button>
         </div>
       </div>
 

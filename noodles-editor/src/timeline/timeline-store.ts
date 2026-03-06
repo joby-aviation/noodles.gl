@@ -13,10 +13,12 @@ import type {
   Keyframe,
   KeyframeValue,
   SequenceState,
+  SerializedTimeMarker,
   TheatreKeyframe,
   TheatreSequenceData,
   TheatreTimelineData,
   TheatreTrackData,
+  TimeMarker,
   Track,
 } from './types'
 import { DEFAULT_BEZIER_HANDLES, DEFAULT_SEQUENCE_STATE } from './types'
@@ -29,6 +31,7 @@ export interface TimelineStore {
   // === Historic State (serialized to project) ===
   sequence: SequenceState
   tracks: Map<string, Track>
+  markers: TimeMarker[]
 
   // === Ephemeral State (session only) ===
   position: number
@@ -37,6 +40,8 @@ export interface TimelineStore {
   playbackSpeed: number
   selectedKeyframeIds: Set<string>
   selectedTrackIds: Set<string>
+  selectedMarkerId: string | null
+  connectingFromMarkerId: string | null
 
   // === Sequence Actions ===
   setLength: (length: number) => void
@@ -60,6 +65,17 @@ export interface TimelineStore {
   getTrackById: (trackId: string) => Track | undefined
   deleteTrack: (trackId: string) => void
   hasKeyframesForField: (fieldPath: string) => boolean
+
+  // === Marker Actions ===
+  addMarker: (position: number) => string
+  deleteMarker: (markerId: string) => void
+  deleteAllMarkers: () => void
+  moveMarker: (markerId: string, newPosition: number) => void
+  selectMarker: (markerId: string | null) => void
+  setConnectingFromMarker: (markerId: string | null) => void
+  connectKeyframeToMarker: (markerId: string, trackId: string, keyframeId: string) => void
+  disconnectKeyframeFromMarker: (markerId: string, keyframeId: string) => void
+  getMarkerForKeyframe: (keyframeId: string) => TimeMarker | undefined
 
   // === Keyframe Actions ===
   addKeyframe: (trackId: string, keyframe: Omit<Keyframe, 'id'> & { id?: string }) => string
@@ -113,6 +129,10 @@ function generateKeyframeId(): string {
 
 function generateTrackId(): string {
   return `track_${nanoid(8)}`
+}
+
+function generateMarkerId(): string {
+  return `tm_${nanoid(8)}`
 }
 
 // Keep keyframes sorted by position
@@ -176,12 +196,15 @@ export const useTimelineStore = create<TimelineStore>()(
     // === Initial State ===
     sequence: { ...DEFAULT_SEQUENCE_STATE },
     tracks: new Map(),
+    markers: [],
     position: 0,
     playing: false,
     loop: true,
     playbackSpeed: 1,
     selectedKeyframeIds: new Set(),
     selectedTrackIds: new Set(),
+    selectedMarkerId: null,
+    connectingFromMarkerId: null,
 
     // === Sequence Actions ===
     setLength: length => {
@@ -253,12 +276,109 @@ export const useTimelineStore = create<TimelineStore>()(
     deleteTrack: trackId => {
       const tracks = new Map(get().tracks)
       tracks.delete(trackId)
-      set({ tracks })
+      // Clean up marker connections for this track
+      const markers = get().markers.map(m => ({
+        ...m,
+        connectedKeyframes: m.connectedKeyframes.filter(c => c.trackId !== trackId),
+      }))
+      set({ tracks, markers })
     },
 
     hasKeyframesForField: fieldPath => {
       const track = get().tracks.get(fieldPath)
       return track ? track.keyframes.length > 0 : false
+    },
+
+    // === Marker Actions ===
+    addMarker: position => {
+      const id = generateMarkerId()
+      const markers = [...get().markers, { id, position, connectedKeyframes: [] }]
+      set({ markers })
+      return id
+    },
+
+    deleteMarker: markerId => {
+      const markers = get().markers.filter(m => m.id !== markerId)
+      const selectedMarkerId = get().selectedMarkerId === markerId ? null : get().selectedMarkerId
+      set({ markers, selectedMarkerId })
+    },
+
+    deleteAllMarkers: () => {
+      set({ markers: [], selectedMarkerId: null })
+    },
+
+    moveMarker: (markerId, newPosition) => {
+      const { markers, tracks } = get()
+      const marker = markers.find(m => m.id === markerId)
+      if (!marker) return
+
+      // Move all connected keyframes maintaining their offset
+      const newTracks = new Map(tracks)
+      for (const conn of marker.connectedKeyframes) {
+        const track = newTracks.get(conn.trackId)
+        if (!track) continue
+        const newKfPosition = Math.max(0, newPosition + conn.offset)
+        const keyframes = track.keyframes.map(kf =>
+          kf.id === conn.keyframeId ? { ...kf, position: newKfPosition } : kf
+        )
+        newTracks.set(conn.trackId, { ...track, keyframes: sortKeyframes(keyframes) })
+      }
+
+      // Update marker position
+      const newMarkers = markers.map(m => (m.id === markerId ? { ...m, position: newPosition } : m))
+      set({ markers: newMarkers, tracks: newTracks })
+    },
+
+    selectMarker: markerId => {
+      set({ selectedMarkerId: markerId })
+    },
+
+    setConnectingFromMarker: markerId => {
+      set({ connectingFromMarkerId: markerId })
+    },
+
+    connectKeyframeToMarker: (markerId, trackId, keyframeId) => {
+      const { markers, tracks } = get()
+      const marker = markers.find(m => m.id === markerId)
+      const track = tracks.get(trackId)
+      if (!marker || !track) return
+
+      const keyframe = track.keyframes.find(kf => kf.id === keyframeId)
+      if (!keyframe) return
+
+      // Check if already connected to this marker
+      if (marker.connectedKeyframes.some(c => c.keyframeId === keyframeId)) return
+
+      // Remove from any other marker first
+      let newMarkers = markers.map(m => ({
+        ...m,
+        connectedKeyframes: m.connectedKeyframes.filter(c => c.keyframeId !== keyframeId),
+      }))
+
+      // Add to the target marker
+      const offset = keyframe.position - marker.position
+      newMarkers = newMarkers.map(m =>
+        m.id === markerId
+          ? { ...m, connectedKeyframes: [...m.connectedKeyframes, { keyframeId, trackId, offset }] }
+          : m
+      )
+      set({ markers: newMarkers })
+    },
+
+    disconnectKeyframeFromMarker: (markerId, keyframeId) => {
+      const markers = get().markers.map(m =>
+        m.id === markerId
+          ? {
+              ...m,
+              connectedKeyframes: m.connectedKeyframes.filter(c => c.keyframeId !== keyframeId),
+            }
+          : m
+      )
+      set({ markers })
+    },
+
+    getMarkerForKeyframe: keyframeId => {
+      return get().markers.find(m => m.connectedKeyframes.some(c => c.keyframeId === keyframeId))
     },
 
     // === Keyframe Actions ===
@@ -337,12 +457,18 @@ export const useTimelineStore = create<TimelineStore>()(
       const selectedKeyframeIds = new Set(get().selectedKeyframeIds)
       selectedKeyframeIds.delete(keyframeId)
 
-      set({ tracks, selectedKeyframeIds })
+      // Clean up marker connections
+      const markers = get().markers.map(m => ({
+        ...m,
+        connectedKeyframes: m.connectedKeyframes.filter(c => c.keyframeId !== keyframeId),
+      }))
+
+      set({ tracks, selectedKeyframeIds, markers })
       fireTimelineMutation('Delete keyframe', before)
     },
 
     deleteSelectedKeyframes: () => {
-      const { selectedKeyframeIds, tracks } = get()
+      const { selectedKeyframeIds, tracks, markers } = get()
       if (selectedKeyframeIds.size === 0) return
 
       const before = captureTimelineState()
@@ -355,7 +481,15 @@ export const useTimelineStore = create<TimelineStore>()(
         }
       }
 
-      set({ tracks: newTracks, selectedKeyframeIds: new Set() })
+      // Clean up marker connections for deleted keyframes
+      const newMarkers = markers.map(m => ({
+        ...m,
+        connectedKeyframes: m.connectedKeyframes.filter(
+          c => !selectedKeyframeIds.has(c.keyframeId)
+        ),
+      }))
+
+      set({ tracks: newTracks, selectedKeyframeIds: new Set(), markers: newMarkers })
       fireTimelineMutation('Delete keyframes', before)
     },
 
@@ -477,7 +611,7 @@ export const useTimelineStore = create<TimelineStore>()(
 
     // === Serialization ===
     toTheatreJSON: () => {
-      const { sequence, tracks } = get()
+      const { sequence, tracks, markers } = get()
 
       // Group tracks by object name (operator path)
       const tracksByObject: TheatreSequenceData['tracksByObject'] = {}
@@ -507,6 +641,17 @@ export const useTimelineStore = create<TimelineStore>()(
         tracksByObject[objectName].trackData[trackDataId] = trackData
       }
 
+      // Serialize markers
+      const serializedMarkers: SerializedTimeMarker[] = markers.map(m => ({
+        id: m.id,
+        position: m.position,
+        connections: m.connectedKeyframes.map(c => ({
+          keyframeId: c.keyframeId,
+          trackPath: c.trackId,
+          offset: c.offset,
+        })),
+      }))
+
       return {
         sheetsById: {
           Noodles: {
@@ -514,6 +659,7 @@ export const useTimelineStore = create<TimelineStore>()(
               length: sequence.length,
               subUnitsPerUnit: sequence.fps,
               tracksByObject,
+              markers: serializedMarkers.length > 0 ? serializedMarkers : undefined,
             },
             staticOverrides: { byObject: {} },
           },
@@ -527,10 +673,13 @@ export const useTimelineStore = create<TimelineStore>()(
       const emptyTimelineState = {
         sequence: { ...DEFAULT_SEQUENCE_STATE },
         tracks: new Map<string, Track>(),
+        markers: [] as TimeMarker[],
         position: 0,
         playing: false,
         selectedKeyframeIds: new Set<string>(),
         selectedTrackIds: new Set<string>(),
+        selectedMarkerId: null,
+        connectingFromMarkerId: null,
       }
 
       if (!json || typeof json !== 'object' || !json.sheetsById?.Noodles) {
@@ -582,6 +731,17 @@ export const useTimelineStore = create<TimelineStore>()(
         }
       }
 
+      // Deserialize markers
+      const markers: TimeMarker[] = (theatreSeq.markers ?? []).map(m => ({
+        id: m.id,
+        position: m.position,
+        connectedKeyframes: (m.connections ?? []).map(c => ({
+          keyframeId: c.keyframeId,
+          trackId: c.trackPath,
+          offset: c.offset,
+        })),
+      }))
+
       set({
         sequence: {
           length:
@@ -594,10 +754,13 @@ export const useTimelineStore = create<TimelineStore>()(
               : DEFAULT_SEQUENCE_STATE.fps,
         },
         tracks: newTracks,
+        markers,
         position: 0,
         playing: false,
         selectedKeyframeIds: new Set(),
         selectedTrackIds: new Set(),
+        selectedMarkerId: null,
+        connectingFromMarkerId: null,
       })
     },
 
@@ -605,12 +768,15 @@ export const useTimelineStore = create<TimelineStore>()(
       set({
         sequence: { ...DEFAULT_SEQUENCE_STATE },
         tracks: new Map(),
+        markers: [],
         position: 0,
         playing: false,
         loop: true,
         playbackSpeed: 1,
         selectedKeyframeIds: new Set(),
         selectedTrackIds: new Set(),
+        selectedMarkerId: null,
+        connectingFromMarkerId: null,
       })
     },
   }))
