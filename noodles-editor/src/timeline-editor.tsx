@@ -9,6 +9,8 @@ import { Layout } from './layout'
 import { ErrorBoundary } from './noodles/components/error-boundary'
 import { TopMenuBar } from './noodles/components/top-menu-bar'
 import { ExportActionsProvider } from './noodles/contexts/export-actions-context'
+import { useActiveStorageType, useCurrentDirectory } from './noodles/filesystem-store'
+import { useActiveOutOp } from './noodles/hooks/use-active-outop'
 import { useRenderSettings } from './noodles/hooks/use-render-settings'
 import { getNoodles } from './noodles/noodles'
 import type { RenderSettings } from './noodles/utils/serialization'
@@ -66,6 +68,8 @@ export default function TimelineEditor() {
   const mapRef = useRef<MapLibre | null>(null)
   const deckRef = useRef<Deck>(null)
   const isRenderingRef = useRef(false)
+  // Session-only handle set by selectRendersDirectory; takes priority over project subdir
+  const rendersDirectoryHandleRef = useRef<FileSystemDirectoryHandle | null>(null)
 
   // Trigger a redraw of React, mapbox and deck when the renderer state changes,
   // to ensure that the VideoStreamReader in renderer.ts runs
@@ -83,19 +87,34 @@ export default function TimelineEditor() {
 
   // Render settings are now stored as OutOp inputs
   const renderSettings = useRenderSettings()
+  // Active OutOp for updating rendersDirectory when user picks a directory
+  const activeOutOp = useActiveOutOp()
+  // File system state for resolving the renders directory
+  const currentDirectory = useCurrentDirectory()
+  const activeStorageType = useActiveStorageType()
 
   const sequenceLength = useSequenceLength()
 
-  const { framerate, bitrateMbps, bitrateMode, codec, resolution, lod, waitForData, captureDelay } =
-    renderSettings
-
-  const { startCapture, captureFrame, currentFrame, isRendering } = useRenderer({
-    projectName: noodles.projectName ?? 'render',
-    fps: framerate,
-    bitrate: bitrateMbps * 1_000_000,
+  const {
+    framerate,
+    bitrateMbps,
     bitrateMode,
-    redraw,
-  })
+    codec,
+    resolution,
+    lod,
+    waitForData,
+    captureDelay,
+    rendersDirectory,
+  } = renderSettings
+
+  const { startCapture, startSequenceCapture, captureFrame, currentFrame, isRendering } =
+    useRenderer({
+      projectName: noodles.projectName ?? 'render',
+      fps: framerate,
+      bitrate: bitrateMbps * 1_000_000,
+      bitrateMode,
+      redraw,
+    })
   isRenderingRef.current = isRendering
 
   // If the visualization doesn't supply mapProps (or has a blank mapStyle), disable basemap.
@@ -210,6 +229,18 @@ export default function TimelineEditor() {
       debugRender('map waiting')
       return
     }
+    // During rendering with waitForData, also confirm deck layers have finished loading.
+    // mapIdle fires on map tile/style readiness only — it doesn't know about deck layer data.
+    if (isRenderingRef.current && waitForData) {
+      const deck = deckRef.current
+      if (
+        deck &&
+        !deck.props.layers.every(layer => !layer || (!Array.isArray(layer) && layer.isLoaded))
+      ) {
+        debugRender('map idle, waiting for deck layers')
+        return
+      }
+    }
     // This should alert the renderer that the scene is ready to be captured
     // Because onIdle can be synchronous, we need to defer the promise resolution to the next tick.
     // TODO: Perhaps set up the promises refs before the render loop, and then later await the Promise.all?
@@ -278,6 +309,87 @@ export default function TimelineEditor() {
       return deckRef.current.canvas!
     })
   }, [noodles.projectName, redraw, basemapEnabled])
+
+  const selectRendersDirectory = useCallback(async () => {
+    try {
+      const handle = await window.showDirectoryPicker({ mode: 'readwrite' })
+      rendersDirectoryHandleRef.current = handle
+      // Persist the folder name to the OutOp so it survives project reloads
+      activeOutOp?.inputs.rendersDirectory.setValue(handle.name)
+    } catch (e) {
+      if ((e as DOMException).name !== 'AbortError') throw e
+    }
+  }, [activeOutOp])
+
+  const exportSequence = useCallback(async () => {
+    if (!deckRef.current) {
+      debugRender('Export Sequence: deck is not defined')
+      return
+    }
+    if (basemapEnabled && !mapRef.current) {
+      debugRender('Export Sequence: maplibre is not defined')
+      return
+    }
+
+    // Resolve the target directory: session-picked handle > project subdir > user picker
+    let rendersDir: FileSystemDirectoryHandle
+    if (rendersDirectoryHandleRef.current) {
+      rendersDir = rendersDirectoryHandleRef.current
+    } else if (activeStorageType !== 'publicFolder' && currentDirectory) {
+      try {
+        rendersDir = await currentDirectory.getDirectoryHandle(rendersDirectory || 'renders', {
+          create: true,
+        })
+      } catch (e) {
+        debugRender('Failed to create renders directory: %o, falling back to picker', e)
+        try {
+          rendersDir = await window.showDirectoryPicker({ mode: 'readwrite' })
+        } catch (err) {
+          if ((err as DOMException).name === 'AbortError') return
+          throw err
+        }
+      }
+    } else {
+      try {
+        rendersDir = await window.showDirectoryPicker({ mode: 'readwrite' })
+      } catch (e) {
+        if ((e as DOMException).name === 'AbortError') return
+        throw e
+      }
+    }
+
+    let canvas: HTMLCanvasElement
+    if (basemapEnabled) {
+      canvas = mapRef.current!.getCanvas()
+    } else {
+      // @ts-expect-error canvas is protected
+      canvas = deckRef.current.canvas!
+    }
+
+    await startSequenceCapture({
+      canvas,
+      // Basemap scenes use mapProps.onIdle for frame readiness; pure-deck scenes need
+      // onAfterRender wired up inside startSequenceCapture via getDeck.
+      getDeck: basemapEnabled ? undefined : () => deckRef.current,
+      directoryHandle: rendersDir,
+      captureDelay,
+      waitForData,
+      startFrame: 0,
+      endFrame: Math.floor(sequenceLength * framerate),
+      onFrameStart: (frame, total) => debugRender('Exporting frame %d/%d', frame + 1, total),
+      onFrameComplete: (frame, total) => debugRender('Completed frame %d/%d', frame, total),
+    })
+  }, [
+    startSequenceCapture,
+    sequenceLength,
+    framerate,
+    captureDelay,
+    waitForData,
+    rendersDirectory,
+    basemapEnabled,
+    currentDirectory,
+    activeStorageType,
+  ])
 
   // Increase the render target resolution to increase map tile detail.
   // To convert viewport bounds back to their original size, add about 1 to the zoom value.
@@ -356,6 +468,8 @@ export default function TimelineEditor() {
         <ExportActionsProvider
           startRender={startRender}
           takeScreenshot={takeScreenshot}
+          exportSequence={exportSequence}
+          selectRendersDirectory={selectRendersDirectory}
           isRendering={isRendering}
         >
           <Layout
