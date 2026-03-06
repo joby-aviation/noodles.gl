@@ -1086,6 +1086,163 @@
   color: #d9fdff;
 }
 
+/* ============================================================ */
+/* Time Marker */
+/* ============================================================ */
+
+.timeMarker {
+  position: absolute;
+  top: auto;
+  bottom: 0;
+  height: 32px;
+  width: 16px;
+  z-index: 7;
+  cursor: pointer;
+  transform: translateX(-50%);
+}
+
+.timeMarker.selected .timeMarkerIcon {
+  fill: var(--tl-accent-strong);
+  filter: drop-shadow(0 0 6px rgb(72 198 207 / 0.6));
+}
+
+.timeMarkerIcon {
+  display: block;
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  fill: var(--tl-accent);
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+  transition: fill 0.12s ease, filter 0.12s ease;
+}
+
+.timeMarker:hover .timeMarkerIcon {
+  fill: var(--tl-accent-strong);
+}
+
+/* Time Marker Port */
+.timeMarkerPort {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 16px;
+  height: 16px;
+  cursor: crosshair;
+  transition: opacity 0.15s ease;
+}
+
+.timeMarkerPortOuter {
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--tl-accent);
+  border-radius: 50%;
+  background: transparent;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.timeMarkerPortInner {
+  background: var(--tl-accent);
+  border-radius: 50%;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  transition: width 0.12s ease, height 0.12s ease;
+}
+
+/* Ruler context menu */
+.rulerContextMenu {
+  position: fixed;
+  z-index: var(--z-index-chrome);
+  background: linear-gradient(180deg, #1e2634 0%, #171d27 100%);
+  border: 1px solid #2f3b4c;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.5);
+  padding: 4px;
+  min-width: 160px;
+}
+
+.rulerContextMenu button {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: #b9c3cf;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.rulerContextMenu button:hover {
+  background: rgb(72 198 207 / 0.15);
+  color: #d9fdff;
+}
+
+.rulerContextMenuDivider {
+  height: 1px;
+  background: #2f3b4c;
+  margin: 4px 0;
+}
+
+/* ============================================================ */
+/* Marker Connection Lines */
+/* ============================================================ */
+
+.markerConnectionLines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 6;
+  overflow: visible;
+}
+
+.markerConnectionLine {
+  fill: none;
+  stroke: var(--tl-accent);
+  stroke-width: 1.5;
+  stroke-opacity: 0.5;
+}
+
+.markerConnectionLine.active {
+  stroke-opacity: 0.8;
+  stroke-width: 2;
+}
+
+.markerConnectionLine.connecting {
+  stroke-opacity: 0.6;
+  stroke-dasharray: 4 3;
+}
+
+/* Keyframe drop target during connection */
+.timelineKeyframe.dropTarget {
+  background: rgb(72 198 207 / 0.4) !important;
+  transform: translate(-50%, -50%) rotate(45deg) scale(1.15);
+}
+
+/* Keyframe connected indicator */
+.timelineKeyframe.connected::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  background: var(--tl-accent);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
 /* Track label right-side keyframe action buttons */
 
 .timelineTrackLabelActions {
