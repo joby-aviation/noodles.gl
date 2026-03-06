@@ -32,6 +32,7 @@ export type RenderSettings = {
   scaleControl: number
   framerate: number
   captureDelay: number
+  rendersDirectory: string
 }
 
 export const DEFAULT_RENDER_SETTINGS: RenderSettings = {
@@ -45,6 +46,7 @@ export const DEFAULT_RENDER_SETTINGS: RenderSettings = {
   scaleControl: 0.3,
   framerate: 30,
   captureDelay: 200,
+  rendersDirectory: 'renders',
 }
 
 export type NoodlesProjectJSON = ReactFlowJsonObject & {
