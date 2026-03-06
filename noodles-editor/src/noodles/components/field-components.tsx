@@ -42,6 +42,7 @@ import { useEdgeConnectionStore } from '../store'
 import { getExpressionContext } from '../utils/expression-context'
 import { projectScheme } from '../utils/filesystem'
 import { edgeId, type OpId } from '../utils/id-utils'
+import { usePropertyHistory } from '../utils/property-history'
 import { ColorSwatch } from './color-swatch'
 import { ExpressionEditorOverlay } from './ExpressionEditorOverlay'
 import { GeocodingDialog } from './geocoding-dialog'
@@ -114,6 +115,7 @@ export function TextFieldComponent({
   disabled: boolean
 }) {
   const [value, setValue] = useState(formatText(field.value))
+  const { captureStart, commitChange } = usePropertyHistory()
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
@@ -134,12 +136,18 @@ export function TextFieldComponent({
 
   let input = null
   if (field instanceof StringLiteralField) {
+    // Select dropdown: capture before + commit after inline since change is atomic
+    const onSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+      captureStart()
+      onChange(e)
+      commitChange('Change value')
+    }
     input = (
       <select
         id={id}
         className={cx(s.fieldInput, s.fieldInputSelect)}
         value={value}
-        onChange={onChange}
+        onChange={onSelectChange}
         disabled={disabled}
       >
         {field.choices.map(({ label, value }) => (
@@ -158,7 +166,11 @@ export function TextFieldComponent({
         className={cx(s.fieldInput, s.fieldTextarea)}
         title={value}
         value={value}
-        onBlur={onChange}
+        onFocus={captureStart}
+        onBlur={e => {
+          onChange(e)
+          commitChange('Change text')
+        }}
         onChange={onChange}
         disabled={disabled}
         rows={lineCount}
@@ -222,6 +234,7 @@ export function ExpressionFieldComponent({
   const [validationError, setValidationError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
+  const { captureStart, commitChange } = usePropertyHistory()
 
   const nodeId = useNodeId() as string
   const edges = useEdges()
@@ -274,7 +287,8 @@ export function ExpressionFieldComponent({
 
   const handleOverlayClose = useCallback(() => {
     setOverlayOpen(false)
-  }, [])
+    commitChange('Change expression')
+  }, [commitChange])
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.currentTarget.value
@@ -288,8 +302,9 @@ export function ExpressionFieldComponent({
         field.setValue(newValue)
         setValidationError(validateExpression(newValue))
       }
+      commitChange('Change expression')
     },
-    [field]
+    [field, commitChange]
   )
 
   return (
@@ -307,6 +322,7 @@ export function ExpressionFieldComponent({
           title={validationError || value}
           value={value}
           onChange={handleInputChange}
+          onFocus={captureStart}
           onBlur={handleInputBlur}
           onClick={handleInputClick}
           disabled={disabled}
@@ -335,6 +351,7 @@ function VectorNumberInput({
   disabled,
   onChange,
   onCommit,
+  onInteractionStart,
 }: {
   keyName: string
   value: number
@@ -342,6 +359,7 @@ function VectorNumberInput({
   disabled: boolean
   onChange: (key: string | number, val: number) => void
   onCommit: () => void
+  onInteractionStart?: () => void
 }) {
   const handleChange = useCallback(
     (val: number) => {
@@ -358,6 +376,7 @@ function VectorNumberInput({
         disabled={disabled}
         onChange={handleChange}
         onCommit={onCommit}
+        onInteractionStart={onInteractionStart}
         step={0.1}
         className={cx(s.fieldInput, s.fieldInputVector, s.fieldInputNumber)}
         title={`${keyName}: ${value}`}
@@ -379,6 +398,7 @@ export function VectorFieldComponent({
     { [key: string]: number } | [number, number] | [number, number, number]
   >(guardAccessorFallback(field.value))
   const [geocodingOpen, setGeocodingOpen] = useState(false)
+  const { captureStart, commitChange } = usePropertyHistory()
 
   const isPointField = field instanceof Point2DField || field instanceof Point3DField
   const isPoint3D = field instanceof Point3DField
@@ -422,7 +442,8 @@ export function VectorFieldComponent({
 
   const onCommit = useCallback(() => {
     field.setValue(latestValueRef.current)
-  }, [field])
+    commitChange('Change value')
+  }, [field, commitChange])
 
   // Get current coordinates for Point fields
   const getCurrentCoordinates = useCallback(() => {
@@ -459,9 +480,10 @@ export function VectorFieldComponent({
           field.setValue({ lng: longitude, lat: latitude })
         }
       }
+      commitChange('Change location')
       setGeocodingOpen(false)
     },
-    [field, isPoint3D]
+    [field, isPoint3D, commitChange]
   )
 
   return (
@@ -481,6 +503,7 @@ export function VectorFieldComponent({
               disabled={disabled}
               onChange={onChange}
               onCommit={onCommit}
+              onInteractionStart={captureStart}
             />
           )
         })}
@@ -488,7 +511,10 @@ export function VectorFieldComponent({
           <Button
             icon="pi pi-map-marker"
             className={s.fieldLookupButton}
-            onClick={() => setGeocodingOpen(true)}
+            onClick={() => {
+              captureStart()
+              setGeocodingOpen(true)
+            }}
             title="Lookup Location"
             size="small"
             disabled={disabled}
@@ -523,6 +549,7 @@ export function CodeFieldComponent({
   const { setEdges, getNode } = useReactFlow()
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const { captureStart, commitChange } = usePropertyHistory()
 
   const nodeId = useNodeId() as string
   const node = getNode(nodeId)
@@ -542,10 +569,16 @@ export function CodeFieldComponent({
     [field, disabled]
   )
 
-  const handleEditorDidMount: OnMount = useCallback((editor, _monaco) => {
-    editorRef.current = editor
-    editor.layout()
-  }, [])
+  const handleEditorDidMount: OnMount = useCallback(
+    (editor, _monaco) => {
+      editorRef.current = editor
+      editor.layout()
+      // Capture property state when user begins editing, commit when they stop
+      editor.onDidFocusEditorText(() => captureStart())
+      editor.onDidBlurEditorWidget(() => commitChange('Change code'))
+    },
+    [captureStart, commitChange]
+  )
 
   // Force layout update on load and when node height changes
   useLayoutEffect(() => {
@@ -662,6 +695,7 @@ export function FileFieldComponent({
   disabled: boolean
 }) {
   const [value, setValue] = useState(guardAccessorFallback(field.value))
+  const { captureStart, commitChange } = usePropertyHistory()
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
@@ -683,6 +717,7 @@ export function FileFieldComponent({
     if (val !== field.value) {
       field.setValue(val)
     }
+    commitChange('Change file')
   }
 
   const [replaceDialogOpen, setReplaceDialogOpen] = useState(false)
@@ -714,7 +749,8 @@ export function FileFieldComponent({
     // Check if file already exists
     const exists = await checkAssetExists(activeStorageType, currentProjectName, file.name)
     if (exists) {
-      // Show confirmation dialog
+      // Capture before showing dialog - user will confirm the change
+      captureStart()
       setPendingFile({ name: file.name, contents })
       setReplaceDialogOpen(true)
       return
@@ -727,7 +763,9 @@ export function FileFieldComponent({
       throw new Error(result.error?.message || `Failed to write file: ${file.name}`)
     }
 
+    captureStart()
     field.setValue(projectScheme + file.name)
+    commitChange('Change file')
   }
 
   const onConfirmReplace = async () => {
@@ -750,6 +788,7 @@ export function FileFieldComponent({
     }
 
     field.setValue(projectScheme + pendingFile.name)
+    commitChange('Change file')
     setReplaceDialogOpen(false)
     setPendingFile(null)
   }
@@ -771,6 +810,7 @@ export function FileFieldComponent({
             placeholder="https://"
             className={cx(s.fieldInput, s.fieldInputFileUrl)}
             value={value}
+            onFocus={captureStart}
             onBlur={onBlur}
             onChange={onChange}
             disabled={disabled}
@@ -1018,6 +1058,7 @@ function DraggableNumberInput({
   disabled,
   onChange,
   onCommit,
+  onInteractionStart,
   min,
   max,
   softMin,
@@ -1031,6 +1072,7 @@ function DraggableNumberInput({
   disabled: boolean
   onChange: (val: number) => void
   onCommit?: () => void
+  onInteractionStart?: () => void
   min?: number
   max?: number
   softMin?: number
@@ -1103,6 +1145,7 @@ function DraggableNumberInput({
         return false
       }
 
+      onInteractionStart?.()
       startValueRef.current = value
       setInitialMousePos({
         x: 'clientX' in e ? e.clientX : touchEvent.touches[0].clientX,
@@ -1191,7 +1234,10 @@ function DraggableNumberInput({
         id={id}
         ref={inputRef}
         type="number"
-        onFocus={() => setIsActive(true)}
+        onFocus={() => {
+          setIsActive(true)
+          onInteractionStart?.()
+        }}
         onBlur={() => {
           setIsActive(false)
           onCommit?.()
@@ -1229,6 +1275,7 @@ export function NumberFieldComponent({
   disabled: boolean
 }) {
   const [value, setValue] = useState<number>(guardAccessorFallback(field.value))
+  const { captureStart, commitChange } = usePropertyHistory()
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
@@ -1256,6 +1303,8 @@ export function NumberFieldComponent({
         value={value}
         disabled={disabled}
         onChange={handleChange}
+        onCommit={() => commitChange('Change value')}
+        onInteractionStart={captureStart}
         min={field.min}
         max={field.max}
         softMin={field.softMin}
@@ -1278,6 +1327,7 @@ export function BooleanFieldComponent({
   disabled: boolean
 }) {
   const [value, setValue] = useState<boolean>(guardAccessorFallback(field.value))
+  const { captureStart, commitChange } = usePropertyHistory()
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
@@ -1289,9 +1339,11 @@ export function BooleanFieldComponent({
 
   const onChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
+      captureStart()
       field.setValue(e.currentTarget.checked)
+      commitChange('Toggle boolean')
     },
-    [field]
+    [field, captureStart, commitChange]
   )
 
   return (
@@ -1323,6 +1375,7 @@ export function DateFieldComponent({
   disabled: boolean
 }) {
   const [value, setValue] = useState(guardAccessorFallback(field.value))
+  const { captureStart, commitChange } = usePropertyHistory()
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
@@ -1336,8 +1389,9 @@ export function DateFieldComponent({
     // Parse the datetime-local input value and create a Temporal.PlainDateTime
     const inputValue = e.currentTarget.value
     if (inputValue) {
-      // Parse the full ISO datetime string from the input
+      captureStart()
       field.setValue(Temporal.PlainDateTime.from(inputValue))
+      commitChange('Change date')
     }
   }
 
@@ -1375,6 +1429,7 @@ export function ColorFieldComponent({
   disabled: boolean
 }) {
   const [value, setValue] = useState(guardAccessorFallback(field.value))
+  const { captureStart, commitChange } = usePropertyHistory()
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
@@ -1397,7 +1452,13 @@ export function ColorFieldComponent({
         {id}
       </label>
       <div className={s.fieldInputWrapper}>
-        <ColorSwatch value={value} onChange={handleColorChange} disabled={disabled} />
+        <ColorSwatch
+          value={value}
+          onChange={handleColorChange}
+          disabled={disabled}
+          onPickerOpen={captureStart}
+          onPickerClose={() => commitChange('Change color')}
+        />
       </div>
     </div>
   )
@@ -1520,6 +1581,7 @@ export function BezierCurveFieldComponent({
 }) {
   const svgRef = useRef<SVGSVGElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const { captureStart, commitChange } = usePropertyHistory()
   const [dragState, setDragState] = useState<{
     isDragging: boolean
     dragIndex: number
@@ -1703,6 +1765,7 @@ export function BezierCurveFieldComponent({
       const target = getInteractionTarget(x, y)
 
       if (target) {
+        captureStart()
         setDragState({
           isDragging: true,
           dragIndex: target.index,
@@ -1714,11 +1777,21 @@ export function BezierCurveFieldComponent({
         // Add new point if clicking on empty space within the graph area
         const curvePos = svgToCurve(x, y)
         if (curvePos.x >= 0 && curvePos.x <= 1 && curvePos.y >= 0 && curvePos.y <= 1) {
+          captureStart()
           field.addPoint(curvePos.x, curvePos.y)
+          commitChange('Add curve point')
         }
       }
     },
-    [disabled, getInteractionTarget, svgToCurve, field, getMousePosition]
+    [
+      disabled,
+      getInteractionTarget,
+      svgToCurve,
+      field,
+      getMousePosition,
+      captureStart,
+      commitChange,
+    ]
   )
 
   const handleMouseMove = useCallback(
@@ -1748,8 +1821,11 @@ export function BezierCurveFieldComponent({
   )
 
   const handleMouseUp = useCallback(() => {
+    if (dragState?.isDragging) {
+      commitChange('Edit curve')
+    }
     setDragState(null)
-  }, [])
+  }, [dragState, commitChange])
 
   const handleDoubleClick = useCallback(
     (e: React.MouseEvent<SVGSVGElement>) => {
@@ -1759,11 +1835,13 @@ export function BezierCurveFieldComponent({
       const target = getInteractionTarget(x, y)
 
       if (target && target.type === 'point') {
+        captureStart()
         // Remove point on double-click
         field.removePoint(target.index)
+        commitChange('Remove curve point')
       }
     },
-    [disabled, getInteractionTarget, field, getMousePosition]
+    [disabled, getInteractionTarget, field, getMousePosition, captureStart, commitChange]
   )
 
   // Handle point selection for showing controls
