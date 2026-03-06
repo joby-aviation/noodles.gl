@@ -130,6 +130,10 @@ describe('captureExrFrame', () => {
       FLOAT: 0x1406,
       UNSIGNED_BYTE: 0x1401,
       DEPTH_COMPONENT: 0x1902,
+      READ_FRAMEBUFFER: 0x8ca8,
+      READ_FRAMEBUFFER_BINDING: 0x8caa,
+      getParameter: vi.fn().mockReturnValue(null),
+      bindFramebuffer: vi.fn(),
       readPixels: vi.fn(),
     } as unknown as WebGL2RenderingContext
 
@@ -150,6 +154,39 @@ describe('captureExrFrame', () => {
       expect.any(Uint8Array)
     )
   })
+
+  it('should bind FBO 0 before readPixels and restore previous binding', async () => {
+    const sentinelFBO = {} as WebGLFramebuffer
+    const bindOrder: Array<[number, WebGLFramebuffer | null]> = []
+    const mockGL = {
+      RGBA: 0x1908,
+      FLOAT: 0x1406,
+      UNSIGNED_BYTE: 0x1401,
+      DEPTH_COMPONENT: 0x1902,
+      READ_FRAMEBUFFER: 0x8ca8,
+      READ_FRAMEBUFFER_BINDING: 0x8caa,
+      getParameter: vi.fn().mockReturnValue(sentinelFBO),
+      bindFramebuffer: vi.fn((target: number, fbo: WebGLFramebuffer | null) => {
+        bindOrder.push([target, fbo])
+      }),
+      readPixels: vi.fn(),
+    } as unknown as WebGL2RenderingContext
+
+    const { captureExrFrame } = await import('./exr-export')
+
+    captureExrFrame(mockGL, 2, 2, { compression: 'zip', includeDepth: false })
+
+    // FBO 0 bound before readPixels, previous FBO restored after
+    expect(bindOrder[0]).toEqual([0x8ca8, null])
+    expect(bindOrder[1]).toEqual([0x8ca8, sentinelFBO])
+
+    // readPixels should be called between the two bindFramebuffer calls
+    const readPixelsCallOrder = vi.mocked(mockGL.readPixels).mock.invocationCallOrder[0]
+    const firstBind = vi.mocked(mockGL.bindFramebuffer).mock.invocationCallOrder[0]
+    const secondBind = vi.mocked(mockGL.bindFramebuffer).mock.invocationCallOrder[1]
+    expect(readPixelsCallOrder).toBeGreaterThan(firstBind)
+    expect(readPixelsCallOrder).toBeLessThan(secondBind)
+  })
 })
 
 describe('captureExrFrame depth handling', () => {
@@ -163,6 +200,10 @@ describe('captureExrFrame depth handling', () => {
       FLOAT: 0x1406,
       UNSIGNED_BYTE: 0x1401,
       DEPTH_COMPONENT: 0x1902,
+      READ_FRAMEBUFFER: 0x8ca8,
+      READ_FRAMEBUFFER_BINDING: 0x8caa,
+      getParameter: vi.fn().mockReturnValue(null),
+      bindFramebuffer: vi.fn(),
       readPixels: vi
         .fn()
         .mockImplementation(
@@ -231,6 +272,10 @@ describe('captureExrFrame depth handling', () => {
       FLOAT: 0x1406,
       UNSIGNED_BYTE: 0x1401,
       DEPTH_COMPONENT: 0x1902,
+      READ_FRAMEBUFFER: 0x8ca8,
+      READ_FRAMEBUFFER_BINDING: 0x8caa,
+      getParameter: vi.fn().mockReturnValue(null),
+      bindFramebuffer: vi.fn(),
       readPixels: vi
         .fn()
         .mockImplementation((_x: number, _y: number, _w: number, _h: number, format: number) => {

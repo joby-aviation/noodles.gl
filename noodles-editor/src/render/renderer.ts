@@ -303,6 +303,11 @@ export const useRenderer = ({
         !deck ||
         deck.props.layers.every(layer => !layer || (!Array.isArray(layer) && layer.isLoaded))
 
+      // Tracks the pending capture timer so only one fires per logical frame.
+      // Without this guard, every onAfterRender during captureDelay queues its own
+      // setTimeout, and stale timers from frame N prematurely resolve frame N+1, N+2, etc.
+      let captureTimer: ReturnType<typeof setTimeout> | null = null
+
       if (deck) {
         deck.setProps({
           onAfterRender: context => {
@@ -312,8 +317,13 @@ export const useRenderer = ({
               debugRender('deck waiting for layers to load')
               return
             }
-            // Signal frame is ready after captureDelay
-            setTimeout(() => captureFrame(), captureDelay)
+            // Throttle to one scheduled captureFrame per frame: once a timer is in-flight,
+            // ignore subsequent onAfterRender firings until it resolves.
+            if (captureTimer !== null) return
+            captureTimer = setTimeout(() => {
+              captureTimer = null
+              captureFrame()
+            }, captureDelay)
           },
         })
       }

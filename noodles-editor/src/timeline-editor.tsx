@@ -68,6 +68,10 @@ export default function TimelineEditor() {
   const deckRef = useRef<Deck>(null)
   const glContextRef = useRef<WebGL2RenderingContext | null>(null)
   const isRenderingRef = useRef(false)
+  // Throttles captureFrame() calls from mapProps.onIdle to one per frame cycle.
+  // onIdle can fire multiple times per redraw (e.g. from map.redraw() + deck.redraw()),
+  // causing stale timers to prematurely resolve future canvasFrameReady() promises.
+  const captureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Trigger a redraw of React, mapbox and deck when the renderer state changes,
   // to ensure that the VideoStreamReader in renderer.ts runs
@@ -251,8 +255,13 @@ export default function TimelineEditor() {
     // This should alert the renderer that the scene is ready to be captured
     // Because onIdle can be synchronous, we need to defer the promise resolution to the next tick.
     // TODO: Perhaps set up the promises refs before the render loop, and then later await the Promise.all?
-    // Delay rendering by 200ms so that deck and maplibre can settle before capturing.
-    setTimeout(() => captureFrame(), captureDelay)
+    // Throttle to one scheduled captureFrame per frame: once a timer is in-flight, ignore
+    // subsequent onIdle firings (e.g. from both map.redraw() and deck.redraw() triggering idle).
+    if (captureTimerRef.current !== null) return
+    captureTimerRef.current = setTimeout(() => {
+      captureTimerRef.current = null
+      captureFrame()
+    }, captureDelay)
   }
 
   const pureDeckInstance = !basemapEnabled ? deckRef.current : null

@@ -65,8 +65,16 @@ export function captureExrFrame(
 
   // The canvas default framebuffer is always 8-bit regardless of EXT_color_buffer_float,
   // which only applies to offscreen framebuffers. Read as UNSIGNED_BYTE and normalize to [0,1].
+  //
+  // MapLibre (interleaved mode) leaves its internal FBO bound as the READ framebuffer after
+  // rendering. Explicitly bind FBO 0 (canvas) so readPixels captures the composited result.
+  const prevReadFBO = gl.getParameter(gl.READ_FRAMEBUFFER_BINDING) as WebGLFramebuffer | null
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null)
   const uint8Pixels = new Uint8Array(width * height * 4)
   gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, uint8Pixels)
+  if (prevReadFBO !== null) {
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, prevReadFBO)
+  }
   const rgbaPixels = new Float32Array(uint8Pixels.length)
   for (let i = 0; i < uint8Pixels.length; i++) {
     rgbaPixels[i] = uint8Pixels[i] / 255
