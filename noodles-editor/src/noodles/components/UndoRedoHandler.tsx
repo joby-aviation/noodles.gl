@@ -1,6 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle } from 'react'
 import { registerTimelineMutationCallback } from '../../timeline/timeline-store'
 import { analytics } from '../../utils/analytics'
+import { debugHistoryRedo, debugHistoryUndo } from '../../utils/debug'
 import { registerPropertyMutationCallback } from '../utils/property-history'
 import { useUndoRedo } from '../utils/use-undo-redo'
 
@@ -59,7 +60,7 @@ export const UndoRedoHandler = forwardRef<UndoRedoHandlerRef>((_, ref) => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'z') {
         e.preventDefault()
-        console.info('Undo triggered via keyboard')
+        debugHistoryUndo('Undo triggered via keyboard')
         analytics.track('undo_performed')
         undoRedo.undo()
       } else if (
@@ -67,7 +68,7 @@ export const UndoRedoHandler = forwardRef<UndoRedoHandlerRef>((_, ref) => {
         ((e.ctrlKey || e.metaKey) && e.key === 'y')
       ) {
         e.preventDefault()
-        console.info('Redo triggered via keyboard')
+        debugHistoryRedo('Redo triggered via keyboard')
         analytics.track('redo_performed')
         undoRedo.redo()
       }
