@@ -264,6 +264,160 @@ describe('captureExrFrame', () => {
   })
 })
 
+describe('captureExrFrameFromImageData', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  function makeImageData(width: number, height: number, fill?: (data: Uint8ClampedArray) => void) {
+    const data = new Uint8ClampedArray(width * height * 4)
+    fill?.(data)
+    return { width, height, data, colorSpace: 'srgb' as const }
+  }
+
+  it('should convert Uint8ClampedArray to normalized Float32Array [0,1]', async () => {
+    const { captureExrFrameFromImageData, EXRWriter } = await import('./exr-export').then(
+      async m => ({
+        ...m,
+        EXRWriter: (await import('exrjs')).EXRWriter,
+      })
+    )
+
+    // 2x1 image: pixel 0 = (255, 128, 0, 255), pixel 1 = (0, 0, 255, 128)
+    const imageData = makeImageData(2, 1, data => {
+      data[0] = 255
+      data[1] = 128
+      data[2] = 0
+      data[3] = 255
+      data[4] = 0
+      data[5] = 0
+      data[6] = 255
+      data[7] = 128
+    })
+
+    captureExrFrameFromImageData(imageData, { compression: 'zip' })
+
+    const instance = (EXRWriter as ReturnType<typeof vi.fn>).mock.instances.at(-1)
+    const rgbaArg = instance.rgba.mock.calls[0][0] as Float32Array
+
+    // Check normalized values
+    expect(rgbaArg[0]).toBeCloseTo(1.0) // 255/255
+    expect(rgbaArg[1]).toBeCloseTo(128 / 255) // 128/255
+    expect(rgbaArg[2]).toBeCloseTo(0) // 0/255
+    expect(rgbaArg[3]).toBeCloseTo(1.0) // 255/255
+    expect(rgbaArg[4]).toBeCloseTo(0) // 0/255
+    expect(rgbaArg[5]).toBeCloseTo(0) // 0/255
+    expect(rgbaArg[6]).toBeCloseTo(1.0) // 255/255
+    expect(rgbaArg[7]).toBeCloseTo(128 / 255) // 128/255
+  })
+
+  it('should NOT flip Y axis (ImageData is already top-down)', async () => {
+    const { captureExrFrameFromImageData, EXRWriter } = await import('./exr-export').then(
+      async m => ({
+        ...m,
+        EXRWriter: (await import('exrjs')).EXRWriter,
+      })
+    )
+
+    // 2x2 image: top row = red, bottom row = green
+    const imageData = makeImageData(2, 2, data => {
+      // Row 0 (top): red pixels
+      data[0] = 255
+      data[1] = 0
+      data[2] = 0
+      data[3] = 255
+      data[4] = 255
+      data[5] = 0
+      data[6] = 0
+      data[7] = 255
+      // Row 1 (bottom): green pixels
+      data[8] = 0
+      data[9] = 255
+      data[10] = 0
+      data[11] = 255
+      data[12] = 0
+      data[13] = 255
+      data[14] = 0
+      data[15] = 255
+    })
+
+    captureExrFrameFromImageData(imageData, { compression: 'zip' })
+
+    const instance = (EXRWriter as ReturnType<typeof vi.fn>).mock.instances.at(-1)
+    const rgbaArg = instance.rgba.mock.calls[0][0] as Float32Array
+
+    // First row should still be red (no flip)
+    expect(rgbaArg[0]).toBeCloseTo(1.0) // R
+    expect(rgbaArg[1]).toBeCloseTo(0) // G
+    expect(rgbaArg[2]).toBeCloseTo(0) // B
+    // Second row should still be green (no flip)
+    expect(rgbaArg[8]).toBeCloseTo(0) // R
+    expect(rgbaArg[9]).toBeCloseTo(1.0) // G
+    expect(rgbaArg[10]).toBeCloseTo(0) // B
+  })
+
+  it('should add Beauty layer with rgba data', async () => {
+    const { captureExrFrameFromImageData, EXRWriter } = await import('./exr-export').then(
+      async m => ({
+        ...m,
+        EXRWriter: (await import('exrjs')).EXRWriter,
+      })
+    )
+
+    const imageData = makeImageData(4, 4)
+    captureExrFrameFromImageData(imageData, { compression: 'zip' })
+
+    const instance = (EXRWriter as ReturnType<typeof vi.fn>).mock.instances.at(-1)
+    expect(instance.addLayer).toHaveBeenCalledWith('Beauty')
+    expect(instance.rgba).toHaveBeenCalledWith(expect.any(Float32Array))
+    expect(instance.compression).toHaveBeenCalled()
+    expect(instance.sampleType).toHaveBeenCalledWith('f32')
+    expect(instance.scanlines).toHaveBeenCalled()
+    expect(instance.end).toHaveBeenCalled()
+  })
+
+  it('should not add Depth layer when depth is not provided', async () => {
+    const { captureExrFrameFromImageData, EXRWriter } = await import('./exr-export').then(
+      async m => ({
+        ...m,
+        EXRWriter: (await import('exrjs')).EXRWriter,
+      })
+    )
+
+    const imageData = makeImageData(4, 4)
+    captureExrFrameFromImageData(imageData, { compression: 'zip' })
+
+    const instance = (EXRWriter as ReturnType<typeof vi.fn>).mock.instances.at(-1)
+    expect(instance.addLayer).not.toHaveBeenCalledWith('Depth')
+  })
+
+  it('should add Depth layer with Z channel when depth is provided', async () => {
+    const { captureExrFrameFromImageData, EXRWriter } = await import('./exr-export').then(
+      async m => ({
+        ...m,
+        EXRWriter: (await import('exrjs')).EXRWriter,
+      })
+    )
+
+    const imageData = makeImageData(4, 4)
+    const depth = new Float32Array(16).fill(0.5)
+    captureExrFrameFromImageData(imageData, { compression: 'zip', depth })
+
+    const instance = (EXRWriter as ReturnType<typeof vi.fn>).mock.instances.at(-1)
+    expect(instance.addLayer).toHaveBeenCalledWith('Depth')
+    expect(instance.channel).toHaveBeenCalledWith('Z', 'f32', depth)
+  })
+
+  it('should return Uint8Array from encode()', async () => {
+    const { captureExrFrameFromImageData } = await import('./exr-export')
+
+    const imageData = makeImageData(2, 2)
+    const result = captureExrFrameFromImageData(imageData, { compression: 'zip' })
+
+    expect(result).toBeInstanceOf(Uint8Array)
+  })
+})
+
 describe('captureDepthFromDeckFBO', () => {
   beforeEach(() => {
     vi.clearAllMocks()
