@@ -301,6 +301,35 @@ export const useRenderer = ({
       const padLength = Math.max(4, String(endFrame).length)
       const extension = format === 'exr' ? 'exr' : 'png'
 
+      // For EXR with depth: deck renders to canvas default FBO by default (depth as renderbuffer,
+      // not readable). Create a custom FBO with a depth *texture* and set it as deck's render target.
+      // biome-ignore lint/suspicious/noExplicitAny: accessing deck.gl/luma.gl private APIs
+      let depthFBO: any = null
+      // biome-ignore lint/suspicious/noExplicitAny: accessing deck.gl/luma.gl private APIs
+      let originalFramebuffer: any = undefined
+      const deck = getDeck?.()
+      const gl = getGLContext?.()
+
+      if (format === 'exr' && includeDepth && deck && gl) {
+        // biome-ignore lint/suspicious/noExplicitAny: accessing deck.gl private APIs
+        const device = (deck as any).device
+        if (device?.createFramebuffer) {
+          const width = canvas.width
+          const height = canvas.height
+          depthFBO = device.createFramebuffer({
+            id: 'depth-capture-fbo',
+            width,
+            height,
+            colorAttachments: ['rgba8unorm'],
+            depthStencilAttachment: 'depth24plus',
+          })
+          // biome-ignore lint/suspicious/noExplicitAny: accessing deck.gl private APIs
+          originalFramebuffer = (deck as any).props._framebuffer
+          deck.setProps({ _framebuffer: depthFBO })
+          debugRender('[seq] Created depth FBO %dx%d for EXR capture', width, height)
+        }
+      }
+
       // Use captureStream + requestFrame to read from the browser compositor rather than
       // the raw GL framebuffer. This works for both PNG and EXR because the compositor
       // persists the displayed frame, whereas gl.readPixels can read a cleared buffer
@@ -338,13 +367,22 @@ export const useRenderer = ({
             // Wait for frame to be ready (onAfterRender for pure-deck, onIdle for basemap)
             await canvasFrameReady()
 
-            // Capture depth after the frame renders but before the next redraw() call.
-            // The deck FBO is still valid here — it's only cleared at the start of the next render pass.
+            // When using depth FBO: blit color to canvas so captureStream captures it
+            if (depthFBO && gl) {
+              gl.bindFramebuffer(gl.READ_FRAMEBUFFER, depthFBO.handle)
+              gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null)
+              gl.blitFramebuffer(
+                0, 0, canvas.width, canvas.height,
+                0, 0, canvas.width, canvas.height,
+                gl.COLOR_BUFFER_BIT, gl.NEAREST
+              )
+              gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null)
+            }
+
+            // Capture depth from the custom FBO (deck._framebuffer points to depthFBO now)
             let depth: Float32Array | null = null
-            if (format === 'exr' && includeDepth && getGLContext) {
-              const gl = getGLContext()
-              const deck = getDeck?.()
-              if (gl && deck) depth = captureDepthFromDeckFBO(deck, gl, canvas.width, canvas.height)
+            if (format === 'exr' && includeDepth && depthFBO && gl && deck) {
+              depth = captureDepthFromDeckFBO(deck, gl, canvas.width, canvas.height)
               debugRender('[seq] depth capture: %s', depth ? `${depth.length} floats` : 'null')
             }
 
@@ -397,6 +435,12 @@ export const useRenderer = ({
         await Promise.all(pendingWrites)
       } finally {
         if (reader) reader.releaseLock()
+        // Restore original framebuffer and cleanup depth FBO
+        if (depthFBO && deck) {
+          deck.setProps({ _framebuffer: originalFramebuffer ?? null })
+          depthFBO.destroy()
+          debugRender('[seq] Destroyed depth FBO')
+        }
         setIsRendering(false)
       }
     },
