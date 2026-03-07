@@ -10,7 +10,11 @@ import { useCallback, useRef, useState } from 'react'
 import type { ExrCompression, ImageFormat } from '../noodles/utils/serialization'
 import { getTimelineStore, useTimelineStore } from '../timeline/timeline-store'
 import { debugRender, debugRenderFrame } from '../utils/debug'
-import { captureDepthFromDeckFBO, captureExrFrame } from './exr-export'
+import {
+  captureDepthFromDeckFBO,
+  captureExrFrame,
+  captureExrFrameFromImageData,
+} from './exr-export'
 
 export const rafDriver = {
   tick: (_timestamp: number) => {},
@@ -325,6 +329,10 @@ export const useRenderer = ({
             if (format === 'exr' && includeDepth && getGLContext) {
               const gl = getGLContext()
               if (gl) capturedDepth = captureDepthFromDeckFBO(deck, gl, canvas.width, canvas.height)
+              debugRender(
+                '[seq] depth capture: %s',
+                capturedDepth ? `${capturedDepth.length} floats` : 'null'
+              )
             }
             // Throttle to one scheduled captureFrame per frame: once a timer is in-flight,
             // ignore subsequent onAfterRender firings until it resolves.
@@ -337,10 +345,12 @@ export const useRenderer = ({
         })
       }
 
-      // For PNG: use captureStream + requestFrame to read from the browser compositor rather
-      // than the raw GL framebuffer (which is cleared after the buffer swap).
-      const track = format !== 'exr' ? canvas.captureStream(0).getVideoTracks()[0] : null
-      const reader = track ? new MediaStreamTrackProcessor({ track }).readable.getReader() : null
+      // Use captureStream + requestFrame to read from the browser compositor rather than
+      // the raw GL framebuffer. This works for both PNG and EXR because the compositor
+      // persists the displayed frame, whereas gl.readPixels can read a cleared buffer
+      // if another render cycle starts before the read (race condition with useDeckDrawLoop).
+      const track = canvas.captureStream(0).getVideoTracks()[0]
+      const reader = new MediaStreamTrackProcessor({ track }).readable.getReader()
 
       // Pipelined writes: up to MAX_CONCURRENT_WRITES file writes run concurrently with
       // the next frame's render to avoid ~750ms/frame disk flush stalls.
@@ -379,27 +389,36 @@ export const useRenderer = ({
               await pendingWrites.shift()
             }
 
+            // Read from compositor (display buffer) — works for both PNG and EXR
+            // @ts-expect-error - typescript types not updated yet
+            track.requestFrame()
+            const { value: frame } = await reader.read()
+            assert(frame, 'frame is required - might be a problem with the browser')
+            const offscreen = new OffscreenCanvas(frame.displayWidth, frame.displayHeight)
+            const ctx = offscreen.getContext('2d')!
+            ctx.drawImage(frame, 0, 0)
+            frame.close()
+
             if (format === 'exr') {
-              const gl = getGLContext?.()
-              if (!gl) throw new Error('WebGL context not available for EXR export')
-              // Consume and reset depth captured in onAfterRender
+              // EXR: extract raw pixels from 2D canvas, encode to EXR
+              const imageData = ctx.getImageData(0, 0, offscreen.width, offscreen.height)
+              // Consume and reset depth captured in onAfterRender (if any)
               const depth = capturedDepth
               capturedDepth = null
-              const exrData = captureExrFrame(gl, canvas.width, canvas.height, {
+              debugRender(
+                '[seq] EXR frame %d: imageData %dx%d, depth=%s',
+                i,
+                imageData.width,
+                imageData.height,
+                !!depth
+              )
+              const exrData = captureExrFrameFromImageData(imageData, {
                 compression: exrCompression,
                 depth,
               })
               pendingWrites.push(writeFile(filename, exrData))
             } else {
-              // PNG: read from compositor (display buffer, not raw GL framebuffer which may be cleared)
-              // @ts-expect-error - typescript types not updated yet
-              track!.requestFrame()
-              const { value: frame } = await reader!.read()
-              assert(frame, 'frame is required - might be a problem with the browser')
-              const offscreen = new OffscreenCanvas(frame.displayWidth, frame.displayHeight)
-              const ctx = offscreen.getContext('2d')!
-              ctx.drawImage(frame, 0, 0)
-              frame.close()
+              // PNG: encode to PNG blob
               const blob = await offscreen.convertToBlob({ type: 'image/png' })
               pendingWrites.push(writeFile(filename, blob))
             }

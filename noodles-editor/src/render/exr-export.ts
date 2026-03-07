@@ -41,6 +41,48 @@ export function flipYFloat32(
   return result
 }
 
+// Captures pixel data from ImageData (2D canvas) and creates an EXR buffer.
+// ImageData is already top-down, so no Y-flip is needed (unlike gl.readPixels).
+// This is the preferred path for basemap scenes where gl.readPixels may read a cleared buffer.
+export function captureExrFrameFromImageData(
+  imageData: ImageData,
+  options: ExrCaptureOptions
+): Uint8Array {
+  const { compression, depth } = options
+  const { width, height, data } = imageData
+  const compressionType = mapCompression(compression)
+
+  // Convert Uint8ClampedArray to Float32Array normalized to [0,1]
+  const rgbaPixels = new Float32Array(data.length)
+  for (let i = 0; i < data.length; i++) {
+    rgbaPixels[i] = data[i] / 255
+  }
+
+  // ImageData is already top-down (same as EXR), no Y-flip needed
+
+  const writer = new EXRWriter(width, height)
+
+  writer
+    .addLayer('Beauty')
+    .rgba(rgbaPixels)
+    .compression(compressionType)
+    .sampleType('f32')
+    .scanlines()
+    .end()
+
+  if (depth) {
+    writer
+      .addLayer('Depth')
+      .channel('Z', 'f32', depth)
+      .compression(compressionType)
+      .sampleType('f32')
+      .end()
+  }
+
+  const buffer = writer.encode()
+  return new Uint8Array(buffer)
+}
+
 // Captures pixel data from WebGL context and creates an EXR buffer.
 // depth (if provided) must already be Y-flipped — use captureDepthFromDeckFBO.
 export function captureExrFrame(
