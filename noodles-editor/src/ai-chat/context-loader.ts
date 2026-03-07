@@ -2,6 +2,7 @@
 
 import { resolve } from 'node:path'
 
+import { debugAiChat } from '../utils/debug'
 import type {
   CodeIndex,
   DocsIndex,
@@ -33,10 +34,10 @@ export class ContextLoader {
     try {
       this.manifest = await this.fetchJSON<Manifest>(`${this.baseUrl}/manifest.json`)
     } catch (_error) {
-      console.warn(
+      debugAiChat(
         'Context bundles not available. Advanced features (code search, operator schemas) will be disabled.'
       )
-      console.warn('To enable these features, run: yarn generate:context')
+      debugAiChat('To enable these features, run: yarn generate:context')
       // Continue without context - basic chat will still work
       onProgress?.({
         stage: 'complete',
@@ -127,12 +128,12 @@ export class ContextLoader {
     // Try IndexedDB cache first
     const cached = await this.getCachedBundle<T>(hash)
     if (cached) {
-      console.log(`Loaded ${filename} from cache`)
+      debugAiChat(`Loaded ${filename} from cache`)
       return cached
     }
 
     // Fetch from network
-    console.log(`Fetching ${filename} from network...`)
+    debugAiChat(`Fetching ${filename} from network...`)
     const data = await this.fetchJSON<T>(`${this.baseUrl}/${filename}`)
 
     // Store in IndexedDB
@@ -164,7 +165,7 @@ export class ContextLoader {
         request.onerror = () => reject(request.error)
       })
     } catch (err) {
-      console.warn('IndexedDB cache miss:', err)
+      debugAiChat('IndexedDB cache miss:', err)
       return null
     }
   }
@@ -181,7 +182,7 @@ export class ContextLoader {
         request.onerror = () => reject(request.error)
       })
     } catch (err) {
-      console.warn('Failed to cache bundle:', err)
+      debugAiChat('Failed to cache bundle:', err)
     }
   }
 

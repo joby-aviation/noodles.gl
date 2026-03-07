@@ -1,22 +1,9 @@
 // Integration tests for core Noodles graph editor flows
 // Tests node addition, connection, deletion, and graph manipulation
 import type { Node as ReactFlowNode } from '@xyflow/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { clearOps, getAllOps, getOp, hasOp } from '../store'
 import { transformGraph } from '../transform-graph'
-
-// Mock Theatre.js studio to avoid side effects
-vi.mock('@theatre/studio', () => ({
-  default: {
-    transaction: vi.fn(fn =>
-      fn({
-        __experimental_forgetSheet: vi.fn(),
-      })
-    ),
-    setSelection: vi.fn(),
-    createContentOfSaveFile: vi.fn(() => ({ sheetsById: {} })),
-  },
-}))
 
 describe('Noodles Graph Integration', () => {
   afterEach(() => {

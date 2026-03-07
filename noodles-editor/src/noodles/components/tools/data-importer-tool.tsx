@@ -4,6 +4,7 @@ import type { NodeJSON } from '@xyflow/react'
 import { useReactFlow } from '@xyflow/react'
 import { useCallback, useRef, useState } from 'react'
 import { analytics } from '../../../utils/analytics'
+import { debugUI } from '../../../utils/debug'
 import { useFileSystemStore } from '../../filesystem-store'
 import type { Edge } from '../../noodles'
 import type {
@@ -149,7 +150,7 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
           throw new Error(result.error?.message || `Failed to write file: ${file.name}`)
         }
 
-        console.log('File imported:', file.name)
+        debugUI('File imported:', file.name)
         const type = file.type.includes('csv') ? 'csv' : 'json'
 
         // Position nodes at center of viewport (same as block library)
@@ -243,8 +244,11 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
             Upload CSV or JSON files to create a visualization pipeline.
           </Dialog.Description>
 
+          {/* biome-ignore lint/a11y/useSemanticElements: div needed for drag-and-drop zone styling */}
           <div
             className={`${s.dropZone} ${isDragging ? s.dropZoneDragging : ''}`}
+            role="button"
+            tabIndex={0}
             onDragEnter={handleDragEnter}
             onDragLeave={handleDragLeave}
             onDragOver={handleDragOver}

@@ -1,11 +1,29 @@
 import { getIncomers, type Node as ReactFlowNode } from '@xyflow/react'
-
+import { debugExecutor } from '../utils/debug'
+import { type Edge as ExecutorEdge, updateGraph } from './graph-executor'
 import type { Edge } from './noodles'
 import type { IOperator, Operator, OpType } from './operators'
 import { ContainerOp, ForLoopEndOp, GraphInputOp, opTypes } from './operators'
 import { getOpStore } from './store'
+import { validateConnection } from './utils/can-connect'
 import { memoize } from './utils/memoize'
 import { getParentPath, isDirectChild, parseHandleId } from './utils/path-utils'
+import { computeVisibilityHeuristic } from './utils/visibility-heuristic'
+
+// Re-export GraphExecutor and related types for use elsewhere
+export {
+  type ComputeResult,
+  forceUpdate,
+  GraphExecutor,
+  GraphScope,
+  getExecutionOrder,
+  getExecutor,
+  getPerformanceMetrics,
+  initializeExecutor,
+  startExecutor,
+  stopExecutor,
+  wouldCreateCycle,
+} from './graph-executor'
 
 // Local type definitions for ReactFlow node data using Operator class constraint
 // Simplified to avoid complex type resolution that causes memory issues
@@ -95,23 +113,53 @@ export function transformGraph<
         created.push(op)
         // Store operator in store using fully qualified path
         store.setOp(id, op)
+
+        // Restore field visibility from saved data or derive from heuristic
+        const visibleInputs = (data as { visibleInputs?: string[] })?.visibleInputs
+
+        if (visibleInputs && Array.isArray(visibleInputs)) {
+          // Explicit visibility saved - use it directly as the full set
+          op.visibleFields.next(new Set(visibleInputs))
+        } else {
+          // No saved visibility - derive from heuristic
+          const customValues = data?.inputs ?? {}
+          // ReferenceEdges are filtered because they're operator references in code,
+          // not data connections that should affect field visibility
+          const connectedFields = new Set(
+            edges
+              .filter(edge => edge.target === id && edge.type !== 'ReferenceEdge')
+              .map(edge => parseHandleId(String(edge.targetHandle))?.fieldName)
+              .filter((name): name is string => name !== undefined)
+          )
+
+          const { visibleFields: heuristicVisible, differsFromDefaults } =
+            computeVisibilityHeuristic(op, customValues, connectedFields)
+
+          if (differsFromDefaults) {
+            // Heuristic differs from defaults, need to set explicitly
+            op.visibleFields.next(heuristicVisible)
+          }
+          // else: leave visibleFields as null, showByDefault defaults will work
+        }
       }
 
       return op
     }) as OP[]
   })
 
-  for (const op of created) {
-    op.createListeners()
-  }
+  // Update dependency graph
+  updateGraph(edges as unknown as ExecutorEdge[])
 
   // Remove any connections that are not in the edges array
+  // Also clear connection errors for removed edges
   for (const op of instances) {
     for (const [_key, field] of Object.entries(op.inputs)) {
       for (const [id] of field.subscriptions) {
         const edge = edges.find(edge => edge.id === id)
         if (!edge) {
           field.removeConnection(id, 'reference')
+          // Also remove any connection error for this edge
+          op.removeConnectionError(id)
         }
       }
     }
@@ -146,8 +194,7 @@ export function transformGraph<
       const targetField =
         targetOp[targetNamespace === 'par' ? 'inputs' : 'outputs'][targetFieldName]
       if (!sourceField || !targetField) {
-        console.warn('Invalid connection')
-        debugger
+        debugExecutor('Invalid connection')
         continue
       }
 
@@ -155,6 +202,27 @@ export function transformGraph<
       const connectionType =
         (edge as Edge<OP, OP> & { type?: string }).type === 'ReferenceEdge' ? 'reference' : 'value'
       targetField.addConnection(edge.id, sourceField, connectionType)
+
+      // Auto-show fields when they receive data connections (for programmatic/AI connections)
+      // ReferenceEdges are operator references in code, not data flow, so don't auto-show
+      if (connectionType === 'value') {
+        targetOp.showField(targetFieldName)
+
+        // ReferenceEdges mark reactive dependencies only — type checking doesn't apply
+        // Only validate when the source field has produced a value; skip if the operator hasn't
+        // executed yet (value === undefined) to avoid false "type mismatch" errors on initial load
+        const validation = validateConnection(sourceField, targetField)
+        if (!validation.valid && validation.error && sourceField.value !== undefined) {
+          targetOp.addConnectionError(edge.id, validation.error)
+        } else {
+          // Clear any existing error for this edge if it's now valid (or not yet computed)
+          targetOp.removeConnectionError(edge.id)
+        }
+      }
+
+      // Update operator dependencies for pull-based execution
+      sourceOp.addDownstreamDependent(targetOp)
+      targetOp.addUpstreamDependency(sourceOp)
     }
   }
 

@@ -7,6 +7,8 @@ import {
   useProjectModifications,
 } from '../noodles/hooks/use-project-modifications'
 import { useKeysStore } from '../noodles/keys-store'
+import { useUIStore } from '../noodles/store'
+import { debugAiChat } from '../utils/debug'
 import styles from './chat-panel.module.css'
 import { ClaudeClient } from './claude-client'
 import { loadConversation, saveConversation } from './conversation-history'
@@ -19,9 +21,10 @@ interface ChatPanelProps {
   project: NoodlesProject
   onClose: () => void
   isVisible: boolean
+  initialMessage?: string
 }
 
-export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) => {
+export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, initialMessage }) => {
   // Get ReactFlow state for the modification hook
   const { getNodes, getEdges, setNodes, setEdges } = useReactFlow()
 
@@ -45,6 +48,9 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
 
   // Get API key directly from store (reactive)
   const apiKey = useKeysStore(state => state.getKey('anthropic'))
+
+  // Get the function to open settings dialog
+  const setSettingsDialogOpen = useUIStore(state => state.setSettingsDialogOpen)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -80,7 +86,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
         setMcpTools(tools)
         setClaudeClient(client)
       } catch (error) {
-        console.error('Failed to initialize Claude:', error)
+        debugAiChat('Failed to initialize Claude:', error)
       } finally {
         setContextLoading(false)
       }
@@ -95,6 +101,13 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
       mcpTools.setProject(project)
     }
   }, [mcpTools, project])
+
+  // Handle initial message from quick start modal
+  useEffect(() => {
+    if (initialMessage && isVisible && messages.length === 0) {
+      setInput(initialMessage)
+    }
+  }, [initialMessage, isVisible, messages.length])
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -130,13 +143,13 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
 
       // Apply project modifications if any
       if (response.projectModifications && response.projectModifications.length > 0) {
-        console.log('Applying project modifications:', response.projectModifications)
+        debugAiChat('Applying project modifications:', response.projectModifications)
         const result = applyModifications(response.projectModifications as ProjectModification[])
 
         if (!result.success) {
           // Surface validation errors back to the user and AI
           const errorMessage = `Failed to apply modifications: ${result.error}`
-          console.error(errorMessage)
+          debugAiChat(errorMessage)
           setMessages(prev => [
             ...prev,
             {
@@ -146,7 +159,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
           ])
         } else if (result.warnings && result.warnings.length > 0) {
           // Show warnings in console and chat
-          console.warn('Modification warnings:', result.warnings)
+          debugAiChat('Modification warnings:', result.warnings)
           const warningMessage = `⚠️ Modifications applied with warnings:\n${result.warnings.map(w => `• ${w}`).join('\n')}`
           setMessages(prev => [
             ...prev,
@@ -158,7 +171,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
         }
       }
     } catch (error) {
-      console.error('Error sending message:', error)
+      debugAiChat('Error sending message:', error)
 
       // Check if this is an authentication error
       const errorStr = error instanceof Error ? error.message : String(error)
@@ -207,9 +220,9 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
     if (messages.length > 0 && !currentConversationId) {
       try {
         const id = saveConversation(messages)
-        console.log('Auto-saved conversation:', id)
+        debugAiChat('Auto-saved conversation:', id)
       } catch (error) {
-        console.warn('Failed to auto-save conversation:', error)
+        debugAiChat('Failed to auto-save conversation:', error)
       }
     }
 
@@ -242,7 +255,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
       try {
         saveConversation(messages)
       } catch (error) {
-        console.warn('Failed to auto-save before loading:', error)
+        debugAiChat('Failed to auto-save before loading:', error)
       }
     }
 
@@ -265,8 +278,15 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
         <div className={styles.chatPanelLoading}>
           <h3>Anthropic API Key Required</h3>
           <p>
-            To use the Noodles assistant, you need to configure your Claude API key in Settings (top
-            menu).
+            To use the Noodles assistant, you need to configure your Claude API key in{' '}
+            <button
+              type="button"
+              onClick={() => setSettingsDialogOpen(true)}
+              className={styles.linkButton}
+            >
+              Settings
+            </button>{' '}
+            (top menu).
           </p>
           <p>
             Get your API key from{' '}

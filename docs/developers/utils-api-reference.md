@@ -158,7 +158,7 @@ const idx = utils.binarySearchClosest(times, 250)  // Returns 2 (index of 200)
 
 ## Color Utilities
 
-Functions for converting between color formats used in deck.gl and Theatre.js.
+Functions for converting between color formats used in deck.gl and the timeline system.
 
 ### `colorToRgba(color)`
 

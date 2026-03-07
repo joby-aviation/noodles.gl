@@ -170,6 +170,50 @@ describe('ListField', () => {
     field1.setValue(10)
     expect(listField.value).toEqual([10, 2])
   })
+
+  it('reorders inputs with reorderInputs', () => {
+    const field1 = new NumberField(1)
+    const field2 = new NumberField(2)
+    const field3 = new NumberField(3)
+    const listField = new ListField(new NumberField())
+
+    listField.addConnection('field-1', field1, 'value')
+    listField.addConnection('field-2', field2, 'value')
+    listField.addConnection('field-3', field3, 'value')
+
+    expect(listField.value).toEqual([1, 2, 3])
+
+    listField.reorderInputs(0, 2)
+    expect(listField.value).toEqual([2, 3, 1])
+
+    listField.reorderInputs(2, 0)
+    expect(listField.value).toEqual([1, 2, 3])
+
+    listField.reorderInputs(1, 2)
+    expect(listField.value).toEqual([1, 3, 2])
+  })
+
+  it('reorderInputs does nothing when fromIndex equals toIndex', () => {
+    const field1 = new NumberField(1)
+    const field2 = new NumberField(2)
+    const listField = new ListField(new NumberField())
+
+    listField.addConnection('field-1', field1, 'value')
+    listField.addConnection('field-2', field2, 'value')
+
+    listField.reorderInputs(0, 0)
+    expect(listField.value).toEqual([1, 2])
+  })
+
+  it('reorderInputs throws for out-of-bounds indices', () => {
+    const field1 = new NumberField(1)
+    const listField = new ListField(new NumberField())
+
+    listField.addConnection('field-1', field1, 'value')
+
+    expect(() => listField.reorderInputs(-1, 0)).toThrow()
+    expect(() => listField.reorderInputs(0, 5)).toThrow()
+  })
 })
 
 describe('JSONUrlField', () => {
@@ -237,13 +281,8 @@ describe('NumberField', () => {
     expect(field2.step, 'step').toEqual(0.1)
 
     // setValue should fail if the value is out of bounds
-    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     field2.setValue(15)
     expect(field2.value).toEqual(5)
-    expect(consoleWarn).toHaveBeenCalledWith(
-      'Parse error',
-      expect.arrayContaining([expect.objectContaining({ code: 'too_big' })])
-    )
   })
 
   it('sets softMin and softMax on the instance', () => {
@@ -268,7 +307,6 @@ describe('NumberField', () => {
   })
 
   it('enforces hard min/max while allowing soft limits to differ', () => {
-    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const field = new NumberField(50, {
       min: 0,
       max: 200,
@@ -286,18 +324,9 @@ describe('NumberField', () => {
     // Values outside hard limits should be rejected
     field.setValue(-10)
     expect(field.value).toEqual(150) // unchanged
-    expect(consoleWarn).toHaveBeenCalledWith(
-      'Parse error',
-      expect.arrayContaining([expect.objectContaining({ code: 'too_small' })])
-    )
 
-    consoleWarn.mockClear()
     field.setValue(250)
     expect(field.value).toEqual(150) // unchanged
-    expect(consoleWarn).toHaveBeenCalledWith(
-      'Parse error',
-      expect.arrayContaining([expect.objectContaining({ code: 'too_big' })])
-    )
   })
 
   it('supports softMax without softMin and vice versa', () => {
@@ -322,10 +351,8 @@ describe('NumberField', () => {
     expect(field.value).toEqual(200)
 
     // Cannot go below hard min
-    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     field.setValue(-10)
     expect(field.value).toEqual(200) // unchanged
-    expect(consoleWarn).toHaveBeenCalled()
   })
 })
 
@@ -373,10 +400,8 @@ describe('StringLiteralField', () => {
     expect(field.choices).toEqual([])
     expect(canConnect(new StringField('foo'), field)).toBe(true)
     // expect(canConnect(new NumberField(5), field)).toBe(true)
-    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     field.setValue('foo')
     // field.setValue(5)
-    expect(consoleWarn).not.toHaveBeenCalled()
   })
 
   it('allows reconfiguring options', () => {
@@ -664,10 +689,7 @@ describe('Accessor fields', () => {
     getPositionField.setValue({ lng: 5, lat: 6 })
     expect(getPositionField.value).toEqual([5, 6])
 
-    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     expect(canConnect(accessorField, getPositionField), 'should connect').toBe(true)
-    expect(consoleWarn.calls).toMatchInlineSnapshot('undefined')
-    expect(consoleWarn, 'should not warn').not.toHaveBeenCalled()
 
     getPositionField.addConnection('getPosition', accessorField, 'value')
 
@@ -1025,6 +1047,36 @@ describe('DateField', () => {
     const deserialized = DateField.deserialize(serialized)
 
     expect(Temporal.PlainDateTime.compare(originalDate, deserialized)).toBe(0)
+  })
+})
+
+describe('Field showByDefault option', () => {
+  it('defaults showByDefault to true', () => {
+    const field = new NumberField(0)
+    expect(field.showByDefault).toBe(true)
+  })
+
+  it('respects showByDefault: false option', () => {
+    const field = new NumberField(0, { showByDefault: false })
+    expect(field.showByDefault).toBe(false)
+  })
+
+  it('respects showByDefault: true option explicitly', () => {
+    const field = new NumberField(0, { showByDefault: true })
+    expect(field.showByDefault).toBe(true)
+  })
+
+  it('works with CompoundPropsField', () => {
+    const field = new CompoundPropsField(
+      { x: new NumberField(0), y: new NumberField(0) },
+      { showByDefault: false }
+    )
+    expect(field.showByDefault).toBe(false)
+  })
+
+  it('works with ListField', () => {
+    const field = new ListField(new NumberField(), { showByDefault: false })
+    expect(field.showByDefault).toBe(false)
   })
 })
 

@@ -45,17 +45,18 @@ This document provides essential context for Large Language Models (LLMs) workin
 - Can be keyframed in timeline for animations
 - Custom React components for specialized UI controls
 
-**Reactive Flow**: Automatic updates using RxJS
-- Unidirectional data flow from outputs to inputs
-- Lazy evaluation: nodes only execute when upstream values change
+**Pull-Based Execution**: Demand-driven operator execution
+- Operators only execute when outputs are requested and inputs have changed
+- Dirty flag system tracks which operators need re-execution
 - Topological sorting determines execution order
 - Parallel execution for independent branches
+- GraphExecutor manages the execution loop with RAF-based timing
 
 ### Technology Stack
 
 **Core:** React 18, TypeScript, Vite, Yarn
 
-**Animation:** Theatre.js (timeline editor, all parameters can be keyframed)
+**Animation:** Native timeline system (bezier interpolation, keyframeable parameters)
 
 **Visualization:** Deck.gl (WebGL data visualization), MapLibre GL (mapping), luma.gl (rendering), D3.js (data)
 
@@ -63,7 +64,7 @@ This document provides essential context for Large Language Models (LLMs) workin
 
 **UI:** @xyflow/react (node editor), Radix UI, PrimeReact
 
-**State:** Zustand (global state), RxJS (reactive data flow), Theatre.js (animation state)
+**State:** Zustand (global state, timeline state), RxJS (reactive data flow)
 
 **Dev Tools:** Biome (linting/formatting), TypeScript, Vitest, Playwright
 
@@ -122,10 +123,11 @@ noodles-gl-public/
 
 - **`noodles-editor/src/noodles/operators.ts`** - Registry of all available operators. Add new operators here.
 - **`noodles-editor/src/noodles/fields.ts`** - Field system implementation. All field types defined here.
+- **`noodles-editor/src/noodles/graph-executor.ts`** - Pull-based execution engine with topological sorting, dirty tracking, and RAF loop.
 - **`noodles-editor/src/noodles/components/op-components.tsx`** - React components for rendering operator nodes. Most use default renderer, some have custom components.
 - **`noodles-editor/src/noodles/components/field-components.tsx`** - React components for rendering field inputs.
 - **`noodles-editor/src/noodles/noodles.tsx`** - Main visualization component that loads projects and manages state, orchestrates nodes with React Flow.
-- **`noodles-editor/src/timeline-editor.tsx`** - Timeline editor interface for Theatre.js integration.
+- **`noodles-editor/src/timeline-editor.tsx`** - Timeline editor interface with native timeline components.
 
 ### Utilities
 
@@ -290,7 +292,6 @@ return distances
 - `turf` - Turf.js geospatial analysis functions
 - `deck` - Deck.gl utilities and components
 - `Plot` - Observable Plot for creating charts
-- `vega` - Vega visualization grammar
 - `Temporal` - TC39 Temporal API for dates and times
 - `utils` - Collection of utility functions (arc geometry, color conversion, geospatial operations, interpolation, etc.)
 - All Operator classes for instantiation
@@ -439,6 +440,26 @@ yarn build:all
 - Playwright for browser integration tests
 - Run specific tests: `yarn test src/noodles/operators.test.ts`
 
+### Debug Logging
+
+The codebase uses the `debug` package for development logging. Debug output is disabled by default and has zero overhead when disabled.
+
+**Enable in browser console:**
+```javascript
+localStorage.debug = 'noodles:*'        // All noodles logging
+localStorage.debug = 'noodles:history*' // Just history/undo-redo
+localStorage.debug = ''                 // Disable
+// Refresh the page after changing
+```
+
+**Available namespaces:** see [`noodles-editor/src/utils/debug.ts`](noodles-editor/src/utils/debug.ts) for the full list with descriptions.
+
+**Adding new debug logging:**
+```typescript
+import { debugHistory } from '../../utils/debug'
+debugHistory('Message with %s formatting', value)
+```
+
 ## Creating New Operators
 
 ### Basic Structure
@@ -547,7 +568,7 @@ return {
 
 ### Timeline Animation
 
-Any field can be keyframed via Theatre.js. Changes in timeline propagate through reactive system with smooth interpolation between keyframes.
+Any field can be keyframed via the native timeline system. Changes in timeline propagate through the reactive system with smooth bezier interpolation between keyframes.
 
 ## Common Tasks for LLMs
 
@@ -600,7 +621,7 @@ Any field can be keyframed via Theatre.js. Changes in timeline propagate through
 3. **Fields are observables** - Use `field.setValue()` to update, `field.value` to read
 4. **Memoization is automatic** - Don't worry about caching, the framework handles it
 5. **Type safety is critical** - Always use Zod schemas for validation
-6. **Timeline integration** - Any parameter can be animated via Theatre.js
+6. **Timeline integration** - Any parameter can be animated via the native timeline
 7. **Project files are JSON** - Easy to parse and modify programmatically
 8. **Testing is expected** - Add tests for new features and changes to critical components
 9. **Document edge cases** - Users may not expect implementation-specific behavior

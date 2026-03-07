@@ -1,9 +1,7 @@
-/**
- * Project Generator Agent
- *
- * Generates complete Noodles.gl projects from natural language descriptions.
- * Can be invoked from the AI chat to create new visualizations.
- */
+// Project Generator Agent
+//
+// Generates complete Noodles.gl projects from natural language descriptions.
+// Can be invoked from the AI chat to create new visualizations.
 
 import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react'
 import {
@@ -16,13 +14,13 @@ import {
 } from './project-templates'
 
 export interface GenerateProjectParams {
-  /** Natural language description of the visualization */
+  // Natural language description of the visualization
   description: string
-  /** Data source URL or path (optional, will use placeholder if not provided) */
+  // Data source URL or path (optional, will use placeholder if not provided)
   dataSource?: string
-  /** Visualization type hint (optional, will infer from description) */
+  // Visualization type hint (optional, will infer from description)
   visualizationType?: string
-  /** Whether to include a basemap */
+  // Whether to include a basemap
   includeBasemap?: boolean
 }
 
@@ -33,9 +31,7 @@ export interface GeneratedProject {
 }
 
 export class ProjectGeneratorAgent {
-  /**
-   * Generate a complete project from a description
-   */
+  // Generate a complete project from a description
   async generateProject(params: GenerateProjectParams): Promise<GeneratedProject> {
     const {
       description,
@@ -209,9 +205,7 @@ export class ProjectGeneratorAgent {
     }
   }
 
-  /**
-   * Infer visualization type from description
-   */
+  // Infer visualization type from description
   private inferVisualizationType(description: string): string {
     const lower = description.toLowerCase()
 
@@ -237,9 +231,7 @@ export class ProjectGeneratorAgent {
     return 'scatter'
   }
 
-  /**
-   * Infer data format from file extension
-   */
+  // Infer data format from file extension
   private inferDataFormat(url: string): string {
     if (url.endsWith('.csv')) return 'csv'
     if (url.endsWith('.json')) return 'json'
@@ -248,9 +240,7 @@ export class ProjectGeneratorAgent {
     return 'csv' // default
   }
 
-  /**
-   * Get layer-specific configuration
-   */
+  // Get layer-specific configuration
   private getLayerConfig(layerType: string, _description: string): Record<string, unknown> {
     const baseConfig = OPERATOR_CONFIGS.layers[layerType as keyof typeof OPERATOR_CONFIGS.layers]
     if (baseConfig) {
@@ -259,9 +249,7 @@ export class ProjectGeneratorAgent {
     return {}
   }
 
-  /**
-   * Generate accessor functions based on layer type
-   */
+  // Generate accessor functions based on layer type
   private generateAccessors(layerType: string, description: string): Record<string, string> {
     const accessors: Record<string, string> = {}
 
@@ -284,9 +272,7 @@ export class ProjectGeneratorAgent {
     return accessors
   }
 
-  /**
-   * Check if layer needs position accessor
-   */
+  // Check if layer needs position accessor
   private needsPositionAccessor(layerType: string): boolean {
     return [
       'ScatterplotLayerOp',
@@ -297,9 +283,7 @@ export class ProjectGeneratorAgent {
     ].includes(layerType)
   }
 
-  /**
-   * Infer position accessor from description
-   */
+  // Infer position accessor from description
   private inferPositionAccessor(description: string): string {
     const lower = description.toLowerCase()
 
@@ -319,9 +303,7 @@ export class ProjectGeneratorAgent {
     return '[d.longitude, d.latitude]'
   }
 
-  /**
-   * Get the layer input field name for an accessor type
-   */
+  // Get the layer input field name for an accessor type
   private getLayerAccessorField(layerType: string, accessorType: string): string | null {
     const mapping: Record<string, Record<string, string>> = {
       ScatterplotLayerOp: {
@@ -364,9 +346,7 @@ export class ProjectGeneratorAgent {
     return mapping[layerType]?.[accessorType] || null
   }
 
-  /**
-   * Validate generated project structure
-   */
+  // Validate generated project structure
   validateProject(project: GeneratedProject): { valid: boolean; errors: string[] } {
     const errors: string[] = []
 

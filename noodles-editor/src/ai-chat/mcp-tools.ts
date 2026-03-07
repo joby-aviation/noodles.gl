@@ -17,7 +17,7 @@ export class MCPTools {
   private consoleErrors: ConsoleError[] = []
   private project: NoodlesProject | null = null
 
-  constructor(private contextLoader: ContextLoader) {
+  constructor(private contextLoader?: ContextLoader) {
     this.setupConsoleTracking()
   }
 
@@ -60,6 +60,7 @@ export class MCPTools {
 
   // Check if context has been loaded successfully
   hasContext(): boolean {
+    if (!this.contextLoader) return false
     return (
       this.contextLoader.getCodeIndex() !== null ||
       this.contextLoader.getOperatorRegistry() !== null ||
@@ -77,7 +78,7 @@ export class MCPTools {
   // Search source code using regex or text matching
   async searchCode(params: SearchCodeParams): Promise<ToolResult> {
     try {
-      const codeIndex = this.contextLoader.getCodeIndex()
+      const codeIndex = this.contextLoader?.getCodeIndex()
 
       if (!codeIndex) {
         return { success: false, error: 'Code index not loaded' }
@@ -125,7 +126,7 @@ export class MCPTools {
     endLine?: number
   }): Promise<ToolResult> {
     try {
-      const codeIndex = this.contextLoader.getCodeIndex()
+      const codeIndex = this.contextLoader?.getCodeIndex()
       if (!codeIndex) {
         return { success: false, error: 'Code index not loaded' }
       }
@@ -159,7 +160,7 @@ export class MCPTools {
   // Get schema for a specific operator type
   async getOperatorSchema(params: { type: string }): Promise<ToolResult> {
     try {
-      const registry = this.contextLoader.getOperatorRegistry()
+      const registry = this.contextLoader?.getOperatorRegistry()
       if (!registry) {
         return { success: false, error: 'Operator registry not loaded' }
       }
@@ -184,7 +185,7 @@ export class MCPTools {
   // List all available operators, optionally filtered by category
   async listOperators(params: { category?: string }): Promise<ToolResult> {
     try {
-      const registry = this.contextLoader.getOperatorRegistry()
+      const registry = this.contextLoader?.getOperatorRegistry()
       if (!registry) {
         return { success: false, error: 'Operator registry not loaded' }
       }
@@ -213,7 +214,7 @@ export class MCPTools {
     section?: 'users' | 'developers' | 'ai-assistant' | 'examples'
   }): Promise<ToolResult> {
     try {
-      const docsIndex = this.contextLoader.getDocsIndex()
+      const docsIndex = this.contextLoader?.getDocsIndex()
 
       if (!docsIndex) {
         return { success: false, error: 'Docs index not loaded' }
@@ -242,7 +243,7 @@ export class MCPTools {
   // Get an example project by ID
   async getExample(params: { id: string }): Promise<ToolResult> {
     try {
-      const examples = this.contextLoader.getExamples()
+      const examples = this.contextLoader?.getExamples()
       if (!examples) {
         return { success: false, error: 'Examples not loaded' }
       }
@@ -264,7 +265,7 @@ export class MCPTools {
   // List all available examples
   async listExamples(params: { category?: string; tag?: string }): Promise<ToolResult> {
     try {
-      const examples = this.contextLoader.getExamples()
+      const examples = this.contextLoader?.getExamples()
       if (!examples) {
         return { success: false, error: 'Examples not loaded' }
       }
@@ -294,7 +295,7 @@ export class MCPTools {
   // Find a symbol (class, function, type) by name
   async findSymbol(params: { name: string }): Promise<ToolResult> {
     try {
-      const codeIndex = this.contextLoader.getCodeIndex()
+      const codeIndex = this.contextLoader?.getCodeIndex()
       if (!codeIndex) {
         return { success: false, error: 'Code index not loaded' }
       }
@@ -830,7 +831,7 @@ export class MCPTools {
       const executionState = operator ? (operator as any).executionState?.value : null
 
       // Get available inputs and outputs from operator schema
-      const registry = this.contextLoader.getOperatorRegistry()
+      const registry = this.contextLoader?.getOperatorRegistry()
       const schema = registry?.operators[node.type]
 
       return {
@@ -884,7 +885,7 @@ export class MCPTools {
   private validateProject(project: NoodlesProject): ToolResult {
     // biome-ignore lint/suspicious/noExplicitAny: dynamic issue structure
     const issues: any[] = []
-    const registry = this.contextLoader.getOperatorRegistry()
+    const registry = this.contextLoader?.getOperatorRegistry()
 
     if (!registry) {
       return { success: false, error: 'Registry not loaded' }
