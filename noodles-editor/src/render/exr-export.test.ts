@@ -418,6 +418,138 @@ describe('captureExrFrameFromImageData', () => {
   })
 })
 
+describe('EXR pixel data capture (regression tests for blank frames)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('should pass non-zero pixel data to EXRWriter when ImageData has content', async () => {
+    // This test catches the blank frame bug where gl.readPixels returned zeros
+    vi.doUnmock('exrjs')
+    const { captureExrFrameFromImageData, EXRWriter } = await import('./exr-export').then(
+      async m => ({
+        ...m,
+        EXRWriter: (await import('exrjs')).EXRWriter,
+      })
+    )
+
+    // Create ImageData with known non-zero content (red pixel)
+    const data = new Uint8ClampedArray([255, 0, 0, 255]) // RGBA red
+    const imageData = { width: 1, height: 1, data, colorSpace: 'srgb' as const }
+
+    captureExrFrameFromImageData(imageData, { compression: 'zip' })
+
+    const instance = (EXRWriter as ReturnType<typeof vi.fn>).mock.instances.at(-1)
+    const rgbaArg = instance.rgba.mock.calls[0][0] as Float32Array
+
+    // Verify we passed non-zero data (not blank)
+    const hasNonZero = rgbaArg.some(v => v > 0)
+    expect(hasNonZero).toBe(true)
+    expect(rgbaArg[0]).toBeCloseTo(1.0) // Red channel should be 1.0
+  })
+
+  it('should detect blank frames when ImageData is all zeros', async () => {
+    const { captureExrFrameFromImageData, EXRWriter } = await import('./exr-export').then(
+      async m => ({
+        ...m,
+        EXRWriter: (await import('exrjs')).EXRWriter,
+      })
+    )
+
+    // Simulate blank frame - all zeros (this is what the bug produced)
+    const data = new Uint8ClampedArray(4 * 4 * 4).fill(0)
+    const imageData = { width: 4, height: 4, data, colorSpace: 'srgb' as const }
+
+    captureExrFrameFromImageData(imageData, { compression: 'zip' })
+
+    const instance = (EXRWriter as ReturnType<typeof vi.fn>).mock.instances.at(-1)
+    const rgbaArg = instance.rgba.mock.calls[0][0] as Float32Array
+
+    // All zeros - this would indicate a blank frame capture
+    const allZero = rgbaArg.every(v => v === 0)
+    expect(allZero).toBe(true)
+  })
+
+  it('should capture pixel data from OffscreenCanvas via getImageData', async () => {
+    // This simulates the actual capture flow: OffscreenCanvas → getImageData → EXR
+    // Tests that the compositor-based approach correctly extracts pixel data
+    const { captureExrFrameFromImageData, EXRWriter } = await import('./exr-export').then(
+      async m => ({
+        ...m,
+        EXRWriter: (await import('exrjs')).EXRWriter,
+      })
+    )
+
+    // Create a real OffscreenCanvas and draw known content
+    const offscreen = new OffscreenCanvas(2, 2)
+    const ctx = offscreen.getContext('2d')!
+
+    // Draw a red rectangle (top-left), green (top-right), blue (bottom-left), white (bottom-right)
+    ctx.fillStyle = '#ff0000'
+    ctx.fillRect(0, 0, 1, 1)
+    ctx.fillStyle = '#00ff00'
+    ctx.fillRect(1, 0, 1, 1)
+    ctx.fillStyle = '#0000ff'
+    ctx.fillRect(0, 1, 1, 1)
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(1, 1, 1, 1)
+
+    // This is the exact flow used in renderer.ts
+    const imageData = ctx.getImageData(0, 0, offscreen.width, offscreen.height)
+
+    captureExrFrameFromImageData(imageData, { compression: 'zip' })
+
+    const instance = (EXRWriter as ReturnType<typeof vi.fn>).mock.instances.at(-1)
+    const rgbaArg = instance.rgba.mock.calls[0][0] as Float32Array
+
+    // Verify we captured actual pixel data (not blank)
+    const hasNonZero = rgbaArg.some(v => v > 0)
+    expect(hasNonZero).toBe(true)
+
+    // Verify specific pixels (RGBA, 4 values per pixel)
+    // Pixel 0 (top-left): Red
+    expect(rgbaArg[0]).toBeCloseTo(1.0) // R
+    expect(rgbaArg[1]).toBeCloseTo(0) // G
+    expect(rgbaArg[2]).toBeCloseTo(0) // B
+
+    // Pixel 1 (top-right): Green
+    expect(rgbaArg[4]).toBeCloseTo(0) // R
+    expect(rgbaArg[5]).toBeCloseTo(1.0) // G (may have slight variation due to color space)
+    expect(rgbaArg[6]).toBeCloseTo(0) // B
+
+    // Pixel 2 (bottom-left): Blue
+    expect(rgbaArg[8]).toBeCloseTo(0) // R
+    expect(rgbaArg[9]).toBeCloseTo(0) // G
+    expect(rgbaArg[10]).toBeCloseTo(1.0) // B
+
+    // Pixel 3 (bottom-right): White
+    expect(rgbaArg[12]).toBeCloseTo(1.0) // R
+    expect(rgbaArg[13]).toBeCloseTo(1.0) // G
+    expect(rgbaArg[14]).toBeCloseTo(1.0) // B
+  })
+
+  it('should preserve alpha channel from ImageData', async () => {
+    const { captureExrFrameFromImageData, EXRWriter } = await import('./exr-export').then(
+      async m => ({
+        ...m,
+        EXRWriter: (await import('exrjs')).EXRWriter,
+      })
+    )
+
+    // Create ImageData with semi-transparent pixel
+    const data = new Uint8ClampedArray([255, 0, 0, 128]) // Red at 50% alpha
+    const imageData = { width: 1, height: 1, data, colorSpace: 'srgb' as const }
+
+    captureExrFrameFromImageData(imageData, { compression: 'zip' })
+
+    const instance = (EXRWriter as ReturnType<typeof vi.fn>).mock.instances.at(-1)
+    const rgbaArg = instance.rgba.mock.calls[0][0] as Float32Array
+
+    expect(rgbaArg[0]).toBeCloseTo(1.0) // R
+    expect(rgbaArg[3]).toBeCloseTo(128 / 255) // A = ~0.5
+  })
+})
+
 describe('captureDepthFromDeckFBO', () => {
   beforeEach(() => {
     vi.clearAllMocks()
