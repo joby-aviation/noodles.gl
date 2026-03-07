@@ -301,50 +301,6 @@ export const useRenderer = ({
       const padLength = Math.max(4, String(endFrame).length)
       const extension = format === 'exr' ? 'exr' : 'png'
 
-      const deck = getDeck?.()
-      const originalOnAfterRender = deck?.props.onAfterRender
-
-      // For EXR with depth, capture depth from Deck's internal FBO synchronously in
-      // onAfterRender (before it is cleared). Stored here for use after canvasFrameReady().
-      let capturedDepth: Float32Array | null = null
-
-      // Tracks the pending capture timer so only one fires per logical frame.
-      // Without this guard, every onAfterRender during captureDelay queues its own
-      // setTimeout, and stale timers from frame N prematurely resolve frame N+1, N+2, etc.
-      let captureTimer: ReturnType<typeof setTimeout> | null = null
-
-      if (deck) {
-        deck.setProps({
-          onAfterRender: context => {
-            originalOnAfterRender?.(context)
-            if (
-              waitForData &&
-              !deck.props.layers.every(l => !l || (!Array.isArray(l) && l.isLoaded))
-            ) {
-              debugRender('deck waiting for layers to load')
-              return
-            }
-            // Capture depth from the internal FBO before it is cleared (EXR only).
-            // Must happen synchronously here, before the next render cycle.
-            if (format === 'exr' && includeDepth && getGLContext) {
-              const gl = getGLContext()
-              if (gl) capturedDepth = captureDepthFromDeckFBO(deck, gl, canvas.width, canvas.height)
-              debugRender(
-                '[seq] depth capture: %s',
-                capturedDepth ? `${capturedDepth.length} floats` : 'null'
-              )
-            }
-            // Throttle to one scheduled captureFrame per frame: once a timer is in-flight,
-            // ignore subsequent onAfterRender firings until it resolves.
-            if (captureTimer !== null) return
-            captureTimer = setTimeout(() => {
-              captureTimer = null
-              captureFrame()
-            }, captureDelay)
-          },
-        })
-      }
-
       // Use captureStream + requestFrame to read from the browser compositor rather than
       // the raw GL framebuffer. This works for both PNG and EXR because the compositor
       // persists the displayed frame, whereas gl.readPixels can read a cleared buffer
@@ -382,6 +338,16 @@ export const useRenderer = ({
             // Wait for frame to be ready (onAfterRender for pure-deck, onIdle for basemap)
             await canvasFrameReady()
 
+            // Capture depth after the frame renders but before the next redraw() call.
+            // The deck FBO is still valid here — it's only cleared at the start of the next render pass.
+            let depth: Float32Array | null = null
+            if (format === 'exr' && includeDepth && getGLContext) {
+              const gl = getGLContext()
+              const deck = getDeck?.()
+              if (gl && deck) depth = captureDepthFromDeckFBO(deck, gl, canvas.width, canvas.height)
+              debugRender('[seq] depth capture: %s', depth ? `${depth.length} floats` : 'null')
+            }
+
             const frameNumber = String(i).padStart(padLength, '0')
             const filename = `${projectName}_${frameNumber}.${extension}`
 
@@ -402,9 +368,6 @@ export const useRenderer = ({
             if (format === 'exr') {
               // EXR: extract raw pixels from 2D canvas, encode to EXR
               const imageData = ctx.getImageData(0, 0, offscreen.width, offscreen.height)
-              // Consume and reset depth captured in onAfterRender (if any)
-              const depth = capturedDepth
-              capturedDepth = null
               debugRender(
                 '[seq] EXR frame %d: imageData %dx%d, depth=%s',
                 i,
@@ -434,9 +397,6 @@ export const useRenderer = ({
         await Promise.all(pendingWrites)
       } finally {
         if (reader) reader.releaseLock()
-        if (deck) {
-          deck.setProps({ onAfterRender: originalOnAfterRender ?? (() => {}) })
-        }
         setIsRendering(false)
       }
     },
