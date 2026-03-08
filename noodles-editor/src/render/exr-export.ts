@@ -157,10 +157,14 @@ export function captureDepthFromDeckFBO(
   width: number,
   height: number
 ): Float32Array | null {
+  // deck.setProps({ _framebuffer }) stores in deck.props._framebuffer, not deck._framebuffer
   // biome-ignore lint/suspicious/noExplicitAny: accessing Deck.gl private internals
-  const fbo = (deck as any)?._framebuffer
+  const fbo = (deck as any)?.props?._framebuffer ?? (deck as any)?._framebuffer
   const depthHandle = fbo?.depthStencilAttachment?.texture?.handle
-  if (!depthHandle) return null
+  if (!depthHandle) {
+    console.log('[depth] fbo:', fbo, 'depthStencilAttachment:', fbo?.depthStencilAttachment)
+    return null
+  }
 
   // Bind the depth texture to a temporary read FBO so gl.readPixels can access it
   const tempFBO = gl.createFramebuffer()

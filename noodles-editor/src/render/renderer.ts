@@ -269,6 +269,7 @@ export const useRenderer = ({
       format = 'png',
       exrCompression = 'zip',
       includeDepth = false,
+      basemapEnabled = false,
       captureDelay = 200,
       waitForData = true,
       startFrame = 0,
@@ -284,6 +285,7 @@ export const useRenderer = ({
       format?: 'png' | 'exr'
       exrCompression?: ExrCompression
       includeDepth?: boolean
+      basemapEnabled?: boolean
       captureDelay?: number
       waitForData?: boolean
       startFrame?: number
@@ -306,13 +308,25 @@ export const useRenderer = ({
       // biome-ignore lint/suspicious/noExplicitAny: accessing deck.gl/luma.gl private APIs
       let depthFBO: any = null
       // biome-ignore lint/suspicious/noExplicitAny: accessing deck.gl/luma.gl private APIs
-      let originalFramebuffer: any = undefined
+      let originalFramebuffer: any
       const deck = getDeck?.()
       const gl = getGLContext?.()
 
-      if (format === 'exr' && includeDepth && deck && gl) {
+      console.log(
+        `[seq] startSequenceCapture: format=${format} includeDepth=${includeDepth} basemapEnabled=${basemapEnabled} hasDeck=${!!deck} hasGL=${!!gl}`
+      )
+
+      // Only use custom FBO for pure-deck scenes (no basemap). For basemap scenes, redirecting
+      // deck's rendering to a custom FBO breaks the MapLibre/Deck.gl interleaving.
+      if (format === 'exr' && includeDepth && !basemapEnabled && deck && gl) {
         // biome-ignore lint/suspicious/noExplicitAny: accessing deck.gl private APIs
         const device = (deck as any).device
+        console.log(
+          '[seq] deck.device:',
+          device,
+          'hasCreateFramebuffer:',
+          !!device?.createFramebuffer
+        )
         if (device?.createFramebuffer) {
           const width = canvas.width
           const height = canvas.height
@@ -326,7 +340,7 @@ export const useRenderer = ({
           // biome-ignore lint/suspicious/noExplicitAny: accessing deck.gl private APIs
           originalFramebuffer = (deck as any).props._framebuffer
           deck.setProps({ _framebuffer: depthFBO })
-          debugRender('[seq] Created depth FBO %dx%d for EXR capture', width, height)
+          console.log(`[seq] Created depth FBO ${width}x${height} for EXR capture`)
         }
       }
 
@@ -372,18 +386,58 @@ export const useRenderer = ({
               gl.bindFramebuffer(gl.READ_FRAMEBUFFER, depthFBO.handle)
               gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null)
               gl.blitFramebuffer(
-                0, 0, canvas.width, canvas.height,
-                0, 0, canvas.width, canvas.height,
-                gl.COLOR_BUFFER_BIT, gl.NEAREST
+                0,
+                0,
+                canvas.width,
+                canvas.height,
+                0,
+                0,
+                canvas.width,
+                canvas.height,
+                gl.COLOR_BUFFER_BIT,
+                gl.NEAREST
               )
               gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null)
             }
 
-            // Capture depth from the custom FBO (deck._framebuffer points to depthFBO now)
+            // Capture depth - two paths depending on basemap mode
             let depth: Float32Array | null = null
-            if (format === 'exr' && includeDepth && depthFBO && gl && deck) {
+            if (format === 'exr' && includeDepth && basemapEnabled && deck && gl) {
+              // Basemap mode: do a second deck-only pass to capture depth
+              // (The composite render already happened; we capture color from it, then render deck-only for depth)
+              // biome-ignore lint/suspicious/noExplicitAny: accessing deck.gl private APIs
+              const device = (deck as any).device
+              if (device?.createFramebuffer) {
+                const tempDepthFBO = device.createFramebuffer({
+                  id: 'deck-only-depth-fbo',
+                  width: canvas.width,
+                  height: canvas.height,
+                  colorAttachments: ['rgba8unorm'],
+                  depthStencilAttachment: 'depth24plus',
+                })
+
+                // biome-ignore lint/suspicious/noExplicitAny: accessing deck.gl private APIs
+                const prevFB = (deck as any).props._framebuffer
+                deck.setProps({ _framebuffer: tempDepthFBO })
+
+                // Render deck layers only to the temporary FBO
+                deck.redraw()
+
+                // Capture depth from deck-only pass
+                depth = captureDepthFromDeckFBO(deck, gl, canvas.width, canvas.height)
+                console.log(
+                  '[seq] basemap deck-only depth:',
+                  depth ? `${depth.length} floats` : 'null'
+                )
+
+                // Restore original state
+                deck.setProps({ _framebuffer: prevFB ?? null })
+                tempDepthFBO.destroy()
+              }
+            } else if (format === 'exr' && includeDepth && depthFBO && gl && deck) {
+              // Pure-deck mode: depth already captured in the main render pass
               depth = captureDepthFromDeckFBO(deck, gl, canvas.width, canvas.height)
-              debugRender('[seq] depth capture: %s', depth ? `${depth.length} floats` : 'null')
+              console.log('[seq] depth capture:', depth ? `${depth.length} floats` : 'null')
             }
 
             const frameNumber = String(i).padStart(padLength, '0')
@@ -439,12 +493,12 @@ export const useRenderer = ({
         if (depthFBO && deck) {
           deck.setProps({ _framebuffer: originalFramebuffer ?? null })
           depthFBO.destroy()
-          debugRender('[seq] Destroyed depth FBO')
+          console.log('[seq] Destroyed depth FBO')
         }
         setIsRendering(false)
       }
     },
-    [projectName, sequenceLength, fps, redraw, canvasFrameReady, captureFrame]
+    [projectName, sequenceLength, fps, redraw, canvasFrameReady]
   )
 
   const [isRendering, setIsRendering] = useState(false)
@@ -499,18 +553,14 @@ export const captureScreenshot = async (
       types: [{ description: 'OpenEXR', accept: { 'image/x-exr': ['.exr'] } }],
     })
 
-    // Redraw to ensure buffer is populated, then capture depth from Deck's internal FBO
+    // Redraw to ensure buffer is populated, then capture
     const canvas = getBufferedCanvas()
 
-    let depth: Float32Array | null = null
-    if (includeDepth && getDeck) {
-      const deck = getDeck()
-      if (deck) depth = captureDepthFromDeckFBO(deck, gl, canvas.width, canvas.height)
-    }
-
+    // Note: depth capture for single screenshots is not yet supported (requires custom FBO
+    // which breaks basemap compositing). For now, just capture color.
     const exrData = captureExrFrame(gl, canvas.width, canvas.height, {
       compression: exrCompression,
-      depth,
+      depth: null,
     })
 
     const fileWritableStream = await imageHandle.createWritable()

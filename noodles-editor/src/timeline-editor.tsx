@@ -406,13 +406,12 @@ export default function TimelineEditor() {
     await startSequenceCapture({
       canvas,
       getGLContext: () => glContextRef.current,
-      // For basemap scenes, mapProps.onIdle is the frame-ready signal — don't also set up
-      // deck.onAfterRender or both paths call captureFrame(), causing premature resolution.
-      getDeck: basemapEnabled ? undefined : () => deckRef.current,
+      getDeck: () => deckRef.current,
       directoryHandle: rendersDir,
       format: imageFormat === 'exr' ? 'exr' : 'png',
       exrCompression,
       includeDepth,
+      basemapEnabled,
       captureDelay,
       waitForData,
       startFrame: 0,
