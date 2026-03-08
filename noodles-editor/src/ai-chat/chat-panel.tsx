@@ -9,6 +9,7 @@ import {
 import { useKeysStore } from '../noodles/keys-store'
 import { useUIStore } from '../noodles/store'
 import styles from './chat-panel.module.css'
+import { AIClient } from './ai-client'
 import { ClaudeClient } from './claude-client'
 import { loadConversation, saveConversation } from './conversation-history'
 import { ConversationHistoryPanel } from './conversation-history-panel'
@@ -37,15 +38,18 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [contextLoading, setContextLoading] = useState(true)
-  const [claudeClient, setClaudeClient] = useState<ClaudeClient | null>(null)
+  const [claudeClient, setClaudeClient] = useState<ClaudeClient | AIClient | null>(null)
   const [mcpTools, setMcpTools] = useState<MCPTools | null>(null)
+  const [providerInfo, setProviderInfo] = useState<string>('')
   const [autoCapture, setAutoCapture] = useState(true)
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
   const [showHistory, setShowHistory] = useState(false)
   const [contextProgress, setContextProgress] = useState<string>('')
 
-  // Get API key directly from store (reactive)
-  const apiKey = useKeysStore(state => state.getKey('anthropic'))
+  // Get API keys from store (reactive)
+  const anthropicKey = useKeysStore(state => state.getKey('anthropic'))
+  const openaiKey = useKeysStore(state => state.getKey('openai'))
+  const apiKey = anthropicKey || openaiKey
 
   // Get the function to open settings dialog
   const setSettingsDialogOpen = useUIStore(state => state.setSettingsDialogOpen)
@@ -65,10 +69,12 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
     return unsubscribe
   }, [])
 
-  // Initialize Claude client when API key is available
+  // Initialize AI client when API key is available
+  // Supports both Anthropic and OpenAI providers
   useEffect(() => {
     if (!apiKey) {
       setContextLoading(false)
+      setProviderInfo('')
       return
     }
 
@@ -79,19 +85,34 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible }) =
         const loader = await globalContextManager.waitForReady()
 
         const tools = new MCPTools(loader)
-        const client = new ClaudeClient(apiKey, tools)
 
-        setMcpTools(tools)
-        setClaudeClient(client)
+        // Try provider-agnostic AIClient first
+        const aiClient = AIClient.create(
+          { anthropic: anthropicKey, openai: openaiKey },
+          tools,
+        )
+
+        if (aiClient) {
+          setMcpTools(tools)
+          setClaudeClient(aiClient)
+          setProviderInfo(`${aiClient.providerName} · ${aiClient.providerModel}`)
+          console.log(`[ChatPanel] Using ${aiClient.providerName} (${aiClient.providerModel})`)
+        } else if (anthropicKey) {
+          // Fallback to legacy ClaudeClient
+          const client = new ClaudeClient(anthropicKey, tools)
+          setMcpTools(tools)
+          setClaudeClient(client)
+          setProviderInfo('Anthropic · Claude (legacy)')
+        }
       } catch (error) {
-        console.error('Failed to initialize Claude:', error)
+        console.error('Failed to initialize AI client:', error)
       } finally {
         setContextLoading(false)
       }
     }
 
     init()
-  }, [apiKey])
+  }, [apiKey, anthropicKey, openaiKey])
 
   // Update MCPTools with current project whenever it changes
   useEffect(() => {

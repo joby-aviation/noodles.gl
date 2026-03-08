@@ -247,7 +247,7 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
 
               <KeyGroup
                 label="Anthropic API Key"
-                description="Required for Claude AI assistant features"
+                description="Claude AI assistant (recommended for best tool use)"
                 placeholder="sk-ant-..."
                 browserValue={browserKeys.anthropic || ''}
                 projectValue={projectKeys.anthropic}
@@ -257,6 +257,21 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                 onBrowserClear={() => {
                   setBrowserKey('anthropic', undefined)
                   analytics.track('key_cleared', { key: 'anthropic' })
+                }}
+              />
+
+              <KeyGroup
+                label="OpenAI API Key"
+                description="Alternative AI provider — also works with OpenRouter"
+                placeholder="sk-..."
+                browserValue={browserKeys.openai || ''}
+                projectValue={projectKeys?.openai}
+                envValue={envKeys.openai}
+                activeSource={getActiveSource('openai')}
+                onBrowserChange={value => setBrowserKey('openai', value)}
+                onBrowserClear={() => {
+                  setBrowserKey('openai', undefined)
+                  analytics.track('key_cleared', { key: 'openai' })
                 }}
               />
             </div>

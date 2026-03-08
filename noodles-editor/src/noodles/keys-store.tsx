@@ -1,12 +1,13 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-export type KeyType = 'mapbox' | 'googleMaps' | 'anthropic'
+export type KeyType = 'mapbox' | 'googleMaps' | 'anthropic' | 'openai'
 
 export interface KeysConfig {
   mapbox?: string
   googleMaps?: string
   anthropic?: string
+  openai?: string
 }
 
 // Separate state and actions for clarity
@@ -59,6 +60,7 @@ export const useKeysStore = create<KeysStore>()(
         if (keys.mapbox?.trim()) cleaned.mapbox = keys.mapbox.trim()
         if (keys.googleMaps?.trim()) cleaned.googleMaps = keys.googleMaps.trim()
         if (keys.anthropic?.trim()) cleaned.anthropic = keys.anthropic.trim()
+        if (keys.openai?.trim()) cleaned.openai = keys.openai.trim()
         set({ browserKeys: cleaned })
       },
 
@@ -128,5 +130,6 @@ export function getEnvKeys(): KeysConfig {
     mapbox: import.meta.env.VITE_MAPBOX_ACCESS_TOKEN,
     googleMaps: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     anthropic: import.meta.env.VITE_CLAUDE_API_KEY,
+    openai: import.meta.env.VITE_OPENAI_API_KEY,
   }
 }
