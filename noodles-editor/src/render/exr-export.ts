@@ -8,6 +8,9 @@ export interface ExrCaptureOptions {
   // Pre-captured depth buffer (Y-flipped, from captureDepthFromDeckFBO).
   // If absent or null, no Depth layer is written.
   depth?: Float32Array | null
+  // Pre-allocated buffer for RGBA pixels. If provided, conversion writes here
+  // instead of allocating a new Float32Array. Must be at least width*height*4.
+  rgbaBuffer?: Float32Array
 }
 
 // Maps our compression type names to exrjs compression constants
@@ -24,19 +27,36 @@ function mapCompression(compression: ExrCompression): number {
   }
 }
 
-// Flips Float32Array pixel data vertically (WebGL is bottom-up, EXR is top-down)
+// Flips Float32Array pixel data vertically (WebGL is bottom-up, EXR is top-down).
+// If outputBuffer is provided, writes there instead of allocating a new array.
 export function flipYFloat32(
   data: Float32Array,
   width: number,
   height: number,
-  channels: number
+  channels: number,
+  outputBuffer?: Float32Array
 ): Float32Array {
-  const result = new Float32Array(data.length)
+  const result = outputBuffer ?? new Float32Array(data.length)
   const rowSize = width * channels
   for (let y = 0; y < height; y++) {
     const srcRow = (height - 1 - y) * rowSize
     const dstRow = y * rowSize
     result.set(data.subarray(srcRow, srcRow + rowSize), dstRow)
+  }
+  return result
+}
+
+// Converts ImageData (Uint8ClampedArray) to normalized Float32Array [0,1].
+// If outputBuffer is provided, writes there instead of allocating.
+// ImageData is already top-down so no Y-flip is needed.
+export function imageDataToFloat32(
+  imageData: ImageData,
+  outputBuffer?: Float32Array
+): Float32Array {
+  const { data } = imageData
+  const result = outputBuffer ?? new Float32Array(data.length)
+  for (let i = 0; i < data.length; i++) {
+    result[i] = data[i] / 255
   }
   return result
 }
@@ -142,6 +162,13 @@ export function captureExrFrame(
   return new Uint8Array(buffer)
 }
 
+export interface DepthCaptureOptions {
+  // Pre-allocated buffer for raw depth pixels (before Y-flip). Must be width*height.
+  rawBuffer?: Float32Array
+  // Pre-allocated buffer for flipped output. Must be width*height.
+  outputBuffer?: Float32Array
+}
+
 // Reads depth from Deck.gl's internal framebuffer. Must be called synchronously
 // during or just after onAfterRender, before the FBO is cleared for the next frame.
 //
@@ -155,7 +182,8 @@ export function captureDepthFromDeckFBO(
   deck: unknown,
   gl: WebGL2RenderingContext,
   width: number,
-  height: number
+  height: number,
+  options: DepthCaptureOptions = {}
 ): Float32Array | null {
   // deck.setProps({ _framebuffer }) stores in deck.props._framebuffer, not deck._framebuffer
   // biome-ignore lint/suspicious/noExplicitAny: accessing Deck.gl private internals
@@ -171,12 +199,12 @@ export function captureDepthFromDeckFBO(
   gl.bindFramebuffer(gl.READ_FRAMEBUFFER, tempFBO)
   gl.framebufferTexture2D(gl.READ_FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, depthHandle, 0)
 
-  const pixels = new Float32Array(width * height)
+  const pixels = options.rawBuffer ?? new Float32Array(width * height)
   gl.readPixels(0, 0, width, height, gl.DEPTH_COMPONENT, gl.FLOAT, pixels)
 
   gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null)
   gl.deleteFramebuffer(tempFBO)
 
   // Flip Y axis: WebGL is bottom-up, EXR is top-down
-  return flipYFloat32(pixels, width, height, 1)
+  return flipYFloat32(pixels, width, height, 1, options.outputBuffer)
 }

@@ -10,11 +10,14 @@ import { useCallback, useRef, useState } from 'react'
 import type { ExrCompression, ImageFormat } from '../noodles/utils/serialization'
 import { getTimelineStore, useTimelineStore } from '../timeline/timeline-store'
 import { debugRender, debugRenderFrame } from '../utils/debug'
+import { Float32ArrayPool } from './buffer-pool'
 import {
   captureDepthFromDeckFBO,
   captureExrFrame,
   captureExrFrameFromImageData,
+  imageDataToFloat32,
 } from './exr-export'
+import { ExrWorkerPool } from './exr-worker-pool'
 
 export const rafDriver = {
   tick: (_timestamp: number) => {},
@@ -303,6 +306,13 @@ export const useRenderer = ({
       const padLength = Math.max(4, String(endFrame).length)
       const extension = format === 'exr' ? 'exr' : 'png'
 
+      // Initialize buffer pool and worker pool for EXR encoding
+      const bufferPool = format === 'exr' ? new Float32ArrayPool() : null
+      const workerPool = format === 'exr' ? new ExrWorkerPool() : null
+      const pendingEncodes: Promise<void>[] = []
+      // Maximum pending encodes before applying backpressure
+      const MAX_PENDING_ENCODES = 8
+
       // For EXR with depth: deck renders to canvas default FBO by default (depth as renderbuffer,
       // not readable). Create a custom FBO with a depth *texture* and set it as deck's render target.
       // biome-ignore lint/suspicious/noExplicitAny: accessing deck.gl/luma.gl private APIs
@@ -457,8 +467,8 @@ export const useRenderer = ({
             ctx.drawImage(frame, 0, 0)
             frame.close()
 
-            if (format === 'exr') {
-              // EXR: extract raw pixels from 2D canvas, encode to EXR
+            if (format === 'exr' && workerPool && bufferPool) {
+              // EXR: extract raw pixels, encode in worker pool (non-blocking)
               const imageData = ctx.getImageData(0, 0, offscreen.width, offscreen.height)
               debugRender(
                 '[seq] EXR frame %d: imageData %dx%d, depth=%s',
@@ -467,6 +477,47 @@ export const useRenderer = ({
                 imageData.height,
                 !!depth
               )
+
+              // Acquire buffer from pool and convert pixels
+              const rgbaBuffer = bufferPool.acquire(imageData.data.length)
+              imageDataToFloat32(imageData, rgbaBuffer)
+
+              // Copy depth to a pooled buffer (worker will transfer ownership)
+              let depthBuffer: Float32Array | null = null
+              if (depth) {
+                depthBuffer = bufferPool.acquire(depth.length)
+                depthBuffer.set(depth)
+              }
+
+              // Backpressure: wait if too many encodes pending
+              if (pendingEncodes.length >= MAX_PENDING_ENCODES) {
+                await pendingEncodes.shift()
+              }
+
+              // Queue encode in worker (non-blocking, buffers returned to pool after)
+              const encodePromise = workerPool
+                .encode(
+                  offscreen.width,
+                  offscreen.height,
+                  rgbaBuffer,
+                  depthBuffer,
+                  exrCompression,
+                  bufferPool
+                )
+                .then(exrData => {
+                  // Wait for oldest file write if at limit
+                  if (pendingWrites.length >= MAX_CONCURRENT_WRITES) {
+                    return pendingWrites.shift()!.then(() => writeFile(filename, exrData))
+                  }
+                  const writePromise = writeFile(filename, exrData)
+                  pendingWrites.push(writePromise)
+                  return writePromise
+                })
+
+              pendingEncodes.push(encodePromise)
+            } else if (format === 'exr') {
+              // Fallback: synchronous encoding (shouldn't happen, but safe)
+              const imageData = ctx.getImageData(0, 0, offscreen.width, offscreen.height)
               const exrData = captureExrFrameFromImageData(imageData, {
                 compression: exrCompression,
                 depth,
@@ -486,9 +537,14 @@ export const useRenderer = ({
           }
         }
 
+        // Wait for all pending encodes and writes to complete
+        await Promise.all(pendingEncodes)
         await Promise.all(pendingWrites)
       } finally {
         if (reader) reader.releaseLock()
+        // Cleanup worker pool and buffer pool
+        workerPool?.terminate()
+        bufferPool?.clear()
         // Restore original framebuffer and cleanup depth FBO
         if (depthFBO && deck) {
           deck.setProps({ _framebuffer: originalFramebuffer ?? null })
