@@ -212,9 +212,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 12px;
 }
 
 .exportButton {
@@ -269,4 +267,46 @@
   font-size: 11px;
   opacity: 0.7;
   flex-shrink: 0;
+}
+
+.pillToggle {
+  display: flex;
+  background-color: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+
+.pillOption,
+.pillOptionActive {
+  flex: 1;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.15s;
+}
+
+.pillToggle button:first-child {
+  border-radius: 18px 0 0 18px;
+}
+
+.pillToggle button:last-child {
+  border-radius: 0 18px 18px 0;
+}
+
+.pillOption {
+  background-color: transparent;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.pillOption:hover {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.pillOptionActive {
+  background-color: #3b82f6;
+  color: white;
 }

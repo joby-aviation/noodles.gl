@@ -49,6 +49,7 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
   const [exrCompression, setExrCompression] = useState(op.inputs.exrCompression.value)
   const [includeDepth, setIncludeDepth] = useState(op.inputs.includeDepth.value)
   const [rendersDirectory, setRendersDirectory] = useState(op.inputs.rendersDirectory.value)
+  const [exportMode, setExportMode] = useState<'image' | 'video'>('image')
 
   useEffect(() => {
     const subscriptions = [
@@ -113,6 +114,193 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
         <button type="button" className={s.setActiveButton} onClick={() => setActiveOutOpId(op.id)}>
           Set as Active Output
         </button>
+      )}
+
+      {/* Export Buttons */}
+      <div className={s.exportSection}>
+        {exportMode === 'image' && (
+          <>
+            <button
+              type="button"
+              className={s.exportButton}
+              onClick={() => {
+                setActiveOutOpId(op.id)
+                takeScreenshot?.()
+              }}
+              disabled={!takeScreenshot}
+            >
+              <i className="pi pi-image" />
+              Export {imageFormat.toUpperCase()}
+            </button>
+            <button
+              type="button"
+              className={s.exportButton}
+              onClick={() => {
+                setActiveOutOpId(op.id)
+                exportSequence?.()
+              }}
+              disabled={!exportSequence || isRendering}
+            >
+              <i className="pi pi-images" />
+              {isRendering ? 'Exporting...' : 'Export Sequence'}
+            </button>
+          </>
+        )}
+        {exportMode === 'video' && (
+          <button
+            type="button"
+            className={s.exportButton}
+            onClick={() => {
+              setActiveOutOpId(op.id)
+              startRender?.()
+            }}
+            disabled={!startRender || isRendering}
+          >
+            <i className="pi pi-video" />
+            {isRendering ? 'Rendering...' : 'Export Video'}
+          </button>
+        )}
+      </div>
+
+      {/* Export Mode Toggle */}
+      <div className={s.pillToggle}>
+        <button
+          type="button"
+          className={exportMode === 'image' ? s.pillOptionActive : s.pillOption}
+          onClick={() => setExportMode('image')}
+        >
+          Image
+        </button>
+        <button
+          type="button"
+          className={exportMode === 'video' ? s.pillOptionActive : s.pillOption}
+          onClick={() => setExportMode('video')}
+        >
+          Video
+        </button>
+      </div>
+
+      {/* Image Export Settings */}
+      {exportMode === 'image' && (
+      <div className={s.section}>
+        <div className={s.settingRow}>
+          <label htmlFor="render-image-format" className={s.label}>
+            Format
+          </label>
+          <select
+            id="render-image-format"
+            className={s.select}
+            value={imageFormat}
+            onChange={e => op.inputs.imageFormat.setValue(e.target.value)}
+          >
+            <option value="png">PNG</option>
+            <option value="exr">EXR (HDR)</option>
+          </select>
+        </div>
+
+        {imageFormat === 'exr' && (
+          <>
+            <div className={s.settingRow}>
+              <label htmlFor="render-exr-compression" className={s.label}>
+                Compression
+              </label>
+              <select
+                id="render-exr-compression"
+                className={s.select}
+                value={exrCompression}
+                onChange={e => op.inputs.exrCompression.setValue(e.target.value)}
+              >
+                <option value="none">None</option>
+                <option value="zip">ZIP</option>
+                <option value="piz">PIZ</option>
+              </select>
+            </div>
+
+            <div className={s.settingRow}>
+              <label className={s.checkboxLabel}>
+                <input
+                  type="checkbox"
+                  checked={includeDepth}
+                  onChange={e => op.inputs.includeDepth.setValue(e.target.checked)}
+                  className={s.checkbox}
+                />
+                Include Depth
+              </label>
+            </div>
+          </>
+        )}
+      </div>
+      )}
+
+      {/* Video Encoding Settings */}
+      {exportMode === 'video' && (
+      <div className={s.section}>
+        <div className={s.settingRow}>
+          <label htmlFor="render-codec" className={s.label}>
+            Codec
+          </label>
+          <select
+            id="render-codec"
+            className={s.select}
+            value={codec}
+            onChange={e => op.inputs.codec.setValue(e.target.value)}
+          >
+            <option value="avc">H.264</option>
+            <option value="hevc">H.265</option>
+            <option value="vp9">VP9</option>
+            <option value="av1">AV1</option>
+          </select>
+        </div>
+
+        <div className={s.settingRow}>
+          <label htmlFor="render-framerate" className={s.label}>
+            Framerate
+          </label>
+          <input
+            id="render-framerate"
+            type="number"
+            className={s.numberInput}
+            value={framerate}
+            min="1"
+            max="120"
+            onChange={e => op.inputs.framerate.setValue(Number(e.target.value))}
+          />
+          <span className={s.unit}>fps</span>
+        </div>
+
+        <div className={s.settingRow}>
+          <label htmlFor="render-bitrate" className={s.label}>
+            Bitrate
+          </label>
+          <input
+            id="render-bitrate"
+            type="number"
+            className={s.numberInput}
+            value={bitrateMbps}
+            min="1"
+            max="100"
+            onChange={e => op.inputs.bitrateMbps.setValue(Number(e.target.value))}
+          />
+          <span className={s.unit}>Mbps</span>
+        </div>
+
+        <div className={s.settingRow}>
+          <label htmlFor="render-bitrate-mode" className={s.label}>
+            Mode
+          </label>
+          <select
+            id="render-bitrate-mode"
+            className={s.select}
+            value={bitrateMode}
+            onChange={e =>
+              op.inputs.bitrateMode.setValue(e.target.value as 'constant' | 'variable')
+            }
+          >
+            <option value="constant">Constant</option>
+            <option value="variable">Variable</option>
+          </select>
+        </div>
+      </div>
       )}
 
       {/* Display Section */}
@@ -224,129 +412,6 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
         </div>
       </div>
 
-      {/* Image Export Section */}
-      <div className={s.section}>
-        <h3 className={s.sectionTitle}>Image Export</h3>
-
-        <div className={s.settingRow}>
-          <label htmlFor="render-image-format" className={s.label}>
-            Format
-          </label>
-          <select
-            id="render-image-format"
-            className={s.select}
-            value={imageFormat}
-            onChange={e => op.inputs.imageFormat.setValue(e.target.value)}
-          >
-            <option value="png">PNG</option>
-            <option value="exr">EXR (HDR)</option>
-          </select>
-        </div>
-
-        {imageFormat === 'exr' && (
-          <>
-            <div className={s.settingRow}>
-              <label htmlFor="render-exr-compression" className={s.label}>
-                Compression
-              </label>
-              <select
-                id="render-exr-compression"
-                className={s.select}
-                value={exrCompression}
-                onChange={e => op.inputs.exrCompression.setValue(e.target.value)}
-              >
-                <option value="none">None</option>
-                <option value="zip">ZIP</option>
-                <option value="piz">PIZ</option>
-              </select>
-            </div>
-
-            <div className={s.settingRow}>
-              <label className={s.checkboxLabel}>
-                <input
-                  type="checkbox"
-                  checked={includeDepth}
-                  onChange={e => op.inputs.includeDepth.setValue(e.target.checked)}
-                  className={s.checkbox}
-                />
-                Include Depth
-              </label>
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* Video Encoding Section */}
-      <div className={s.section}>
-        <h3 className={s.sectionTitle}>Video</h3>
-
-        <div className={s.settingRow}>
-          <label htmlFor="render-codec" className={s.label}>
-            Codec
-          </label>
-          <select
-            id="render-codec"
-            className={s.select}
-            value={codec}
-            onChange={e => op.inputs.codec.setValue(e.target.value)}
-          >
-            <option value="avc">H.264</option>
-            <option value="hevc">H.265</option>
-            <option value="vp9">VP9</option>
-            <option value="av1">AV1</option>
-          </select>
-        </div>
-
-        <div className={s.settingRow}>
-          <label htmlFor="render-framerate" className={s.label}>
-            Framerate
-          </label>
-          <input
-            id="render-framerate"
-            type="number"
-            className={s.numberInput}
-            value={framerate}
-            min="1"
-            max="120"
-            onChange={e => op.inputs.framerate.setValue(Number(e.target.value))}
-          />
-          <span className={s.unit}>fps</span>
-        </div>
-
-        <div className={s.settingRow}>
-          <label htmlFor="render-bitrate" className={s.label}>
-            Bitrate
-          </label>
-          <input
-            id="render-bitrate"
-            type="number"
-            className={s.numberInput}
-            value={bitrateMbps}
-            min="1"
-            max="100"
-            onChange={e => op.inputs.bitrateMbps.setValue(Number(e.target.value))}
-          />
-          <span className={s.unit}>Mbps</span>
-        </div>
-
-        <div className={s.settingRow}>
-          <label htmlFor="render-bitrate-mode" className={s.label}>
-            Mode
-          </label>
-          <select
-            id="render-bitrate-mode"
-            className={s.select}
-            value={bitrateMode}
-            onChange={e =>
-              op.inputs.bitrateMode.setValue(e.target.value as 'constant' | 'variable')
-            }
-          >
-            <option value="constant">Constant</option>
-            <option value="variable">Variable</option>
-          </select>
-        </div>
-      </div>
-
       {/* Advanced Section */}
       <div className={s.section}>
         <h3 className={s.sectionTitle}>Advanced</h3>
@@ -399,49 +464,6 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
       <button type="button" className={s.resetButton} onClick={handleResetToDefaults}>
         Reset to Defaults
       </button>
-
-      {/* Export Section */}
-      <div className={s.exportSection}>
-        <button
-          type="button"
-          className={s.exportButton}
-          onClick={() => {
-            // Ensure this OutOp is active before exporting
-            setActiveOutOpId(op.id)
-            takeScreenshot?.()
-          }}
-          disabled={!takeScreenshot}
-        >
-          <i className="pi pi-image" />
-          Export {imageFormat.toUpperCase()}
-        </button>
-        <button
-          type="button"
-          className={s.exportButton}
-          onClick={() => {
-            // Ensure this OutOp is active before exporting
-            setActiveOutOpId(op.id)
-            exportSequence?.()
-          }}
-          disabled={!exportSequence || isRendering}
-        >
-          <i className="pi pi-images" />
-          {isRendering ? 'Exporting...' : 'Export Sequence'}
-        </button>
-        <button
-          type="button"
-          className={s.exportButton}
-          onClick={() => {
-            // Ensure this OutOp is active before exporting
-            setActiveOutOpId(op.id)
-            startRender?.()
-          }}
-          disabled={!startRender || isRendering}
-        >
-          <i className="pi pi-video" />
-          {isRendering ? 'Rendering...' : 'Export Video'}
-        </button>
-      </div>
     </div>
   )
 }
