@@ -1,7 +1,7 @@
 // Worker pool for parallel EXR encoding. Manages a pool of workers and
 // handles request queuing with backpressure.
 
-import type { ExrEncodeRequest, ExrEncodeResponse } from './exr-worker'
+import type { ExrEncodeError, ExrEncodeRequest, ExrEncodeResponse } from './exr-worker'
 import type { Float32ArrayPool } from './buffer-pool'
 
 interface PendingRequest {
@@ -25,6 +25,7 @@ export class ExrWorkerPool {
   private queue: QueuedTask[] = []
 
   constructor(poolSize: number = navigator.hardwareConcurrency || 4) {
+    console.log(`[ExrWorkerPool] Creating pool with ${poolSize} workers`)
     for (let i = 0; i < poolSize; i++) {
       const worker = new Worker(new URL('./exr-worker.ts', import.meta.url), {
         type: 'module',
@@ -34,18 +35,28 @@ export class ExrWorkerPool {
       this.workers.push(worker)
       this.idleWorkers.push(worker)
     }
+    console.log(`[ExrWorkerPool] Pool created`)
   }
 
-  private handleResponse(worker: Worker, event: MessageEvent<ExrEncodeResponse>) {
-    const { id, exrData, rgbaPixels, depth } = event.data
-    const request = this.pending.get(id)
+  private handleResponse(
+    worker: Worker,
+    event: MessageEvent<ExrEncodeResponse | ExrEncodeError>
+  ) {
+    const data = event.data
+    console.log(`[ExrWorkerPool] Received response id=${data.id}`, 'error' in data ? data.error : 'ok')
+    const request = this.pending.get(data.id)
 
     if (request) {
-      this.pending.delete(id)
+      this.pending.delete(data.id)
       // Return buffers to pool for reuse
-      request.bufferPool.release(rgbaPixels)
-      if (depth) request.bufferPool.release(depth)
-      request.resolve(exrData)
+      request.bufferPool.release(data.rgbaPixels)
+      if (data.depth) request.bufferPool.release(data.depth)
+
+      if ('error' in data && data.error) {
+        request.reject(new Error(data.error))
+      } else {
+        request.resolve((data as ExrEncodeResponse).exrData)
+      }
     }
 
     // Return worker to idle pool and process next queued task
@@ -70,6 +81,7 @@ export class ExrWorkerPool {
     this.pending.set(request.id, pending)
     const transfers: Transferable[] = [request.rgbaPixels.buffer]
     if (request.depth) transfers.push(request.depth.buffer)
+    console.log(`[ExrWorkerPool] Dispatching id=${request.id} to worker`)
     worker.postMessage(request, transfers)
   }
 

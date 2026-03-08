@@ -115,14 +115,21 @@ export default function TimelineEditor() {
     rendersDirectory,
   } = renderSettings
 
-  const { startCapture, startSequenceCapture, captureFrame, currentFrame, isRendering } =
-    useRenderer({
-      projectName: noodles.projectName ?? 'render',
-      fps: framerate,
-      bitrate: bitrateMbps * 1_000_000,
-      bitrateMode,
-      redraw,
-    })
+  const {
+    startCapture,
+    startSequenceCapture,
+    captureFrame,
+    currentFrame,
+    isRendering,
+    encodingProgress,
+    setEncodingProgress,
+  } = useRenderer({
+    projectName: noodles.projectName ?? 'render',
+    fps: framerate,
+    bitrate: bitrateMbps * 1_000_000,
+    bitrateMode,
+    redraw,
+  })
   isRenderingRef.current = isRendering
 
   // If the visualization doesn't supply mapProps (or has a blank mapStyle), disable basemap.
@@ -368,6 +375,12 @@ export default function TimelineEditor() {
       return
     }
 
+    // Reset encoding progress for EXR exports
+    const totalFrames = Math.floor(sequenceLength * framerate) + 1
+    if (imageFormat === 'exr') {
+      setEncodingProgress({ encoded: 0, total: totalFrames })
+    }
+
     // Resolve the target directory: session-picked handle > project subdir > user picker
     let rendersDir: FileSystemDirectoryHandle
     if (rendersDirectoryHandleRef.current) {
@@ -418,7 +431,14 @@ export default function TimelineEditor() {
       endFrame: Math.floor(sequenceLength * framerate),
       onFrameStart: (frame, total) => debugRender('Exporting frame %d/%d', frame + 1, total),
       onFrameComplete: (frame, total) => debugRender('Completed frame %d/%d', frame, total),
+      onEncodingProgress: (encoded, total) => {
+        debugRender('Encoding progress: %d/%d', encoded, total)
+        setEncodingProgress({ encoded, total })
+      },
     })
+
+    // Clear encoding progress when done
+    setEncodingProgress(null)
   }, [
     startSequenceCapture,
     sequenceLength,
@@ -432,6 +452,7 @@ export default function TimelineEditor() {
     basemapEnabled,
     currentDirectory,
     activeStorageType,
+    setEncodingProgress,
   ])
 
   // Increase the render target resolution to increase map tile detail.
@@ -503,8 +524,20 @@ export default function TimelineEditor() {
           <progress
             max={sequenceLength * renderSettings.framerate}
             value={currentFrame}
-            title={`Rendered ${currentFrame} / ${sequenceLength * renderSettings.framerate}`}
+            title={`Captured ${currentFrame} / ${Math.floor(sequenceLength * renderSettings.framerate)}`}
           />
+          {encodingProgress && (
+            <>
+              <span style={{ marginLeft: 8, fontSize: 12 }}>
+                Encoding: {encodingProgress.encoded}/{encodingProgress.total}
+              </span>
+              <progress
+                max={encodingProgress.total}
+                value={encodingProgress.encoded}
+                style={{ marginLeft: 8 }}
+              />
+            </>
+          )}
         </div>
       )}
       <ReactFlowProvider>

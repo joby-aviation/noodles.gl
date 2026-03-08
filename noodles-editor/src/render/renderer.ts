@@ -279,6 +279,7 @@ export const useRenderer = ({
       endFrame = Math.floor(sequenceLength * fps),
       onFrameStart,
       onFrameComplete,
+      onEncodingProgress,
       onError,
     }: {
       canvas: HTMLCanvasElement
@@ -295,6 +296,7 @@ export const useRenderer = ({
       endFrame?: number
       onFrameStart?: (frame: number, total: number) => void
       onFrameComplete?: (frame: number, total: number) => void
+      onEncodingProgress?: (encoded: number, total: number) => void
       onError?: (error: Error, frame: number) => void
     }) => {
       assert(canvas, 'canvas is required')
@@ -312,6 +314,8 @@ export const useRenderer = ({
       const pendingEncodes: Promise<void>[] = []
       // Maximum pending encodes before applying backpressure
       const MAX_PENDING_ENCODES = 8
+      // Track encoding progress for UI feedback
+      let framesEncoded = 0
 
       // For EXR with depth: deck renders to canvas default FBO by default (depth as renderbuffer,
       // not readable). Create a custom FBO with a depth *texture* and set it as deck's render target.
@@ -505,6 +509,10 @@ export const useRenderer = ({
                   bufferPool
                 )
                 .then(exrData => {
+                  // Report encoding progress
+                  framesEncoded++
+                  onEncodingProgress?.(framesEncoded, totalFrames)
+
                   // Wait for oldest file write if at limit
                   if (pendingWrites.length >= MAX_CONCURRENT_WRITES) {
                     return pendingWrites.shift()!.then(() => writeFile(filename, exrData))
@@ -558,6 +566,10 @@ export const useRenderer = ({
   )
 
   const [isRendering, setIsRendering] = useState(false)
+  const [encodingProgress, setEncodingProgress] = useState<{
+    encoded: number
+    total: number
+  } | null>(null)
 
   return {
     startCapture,
@@ -565,6 +577,8 @@ export const useRenderer = ({
     captureFrame,
     currentFrame: currentFrame.current,
     isRendering,
+    encodingProgress,
+    setEncodingProgress,
   }
 }
 
