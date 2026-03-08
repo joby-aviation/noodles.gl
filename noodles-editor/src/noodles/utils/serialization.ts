@@ -21,7 +21,7 @@ export type EditorSettings = {
   showDebugInfo?: boolean
 }
 
-export type ImageFormat = 'png' | 'jpeg' | 'exr'
+export type ImageFormat = 'png' | 'exr'
 export type ExrCompression = 'none' | 'zip' | 'piz'
 
 export type RenderSettings = {

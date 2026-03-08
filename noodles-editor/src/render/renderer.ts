@@ -567,15 +567,15 @@ export const captureScreenshot = async (
     await fileWritableStream.write(exrData)
     await fileWritableStream.close()
   } else {
-    // PNG/JPEG path
-    const extension = format === 'jpeg' ? '.jpeg' : '.png'
-    const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png'
+    // PNG path
+    const extension = '.png'
+    const mimeType = 'image/png'
 
     const imageHandle = await window.showSaveFilePicker({
       suggestedName: `${suggestedName}${extension}`,
       types: [
         {
-          description: format.toUpperCase(),
+          description: 'PNG',
           accept: { [mimeType]: [extension] },
         },
       ],
@@ -587,8 +587,7 @@ export const captureScreenshot = async (
     const blob = await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob(
         b => (b ? resolve(b) : reject(new Error('Canvas is empty'))),
-        mimeType,
-        format === 'jpeg' ? quality : undefined
+        mimeType
       )
     })
 

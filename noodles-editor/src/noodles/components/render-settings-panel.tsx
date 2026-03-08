@@ -239,7 +239,6 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
             onChange={e => op.inputs.imageFormat.setValue(e.target.value)}
           >
             <option value="png">PNG</option>
-            <option value="jpeg">JPEG</option>
             <option value="exr">EXR (HDR)</option>
           </select>
         </div>
