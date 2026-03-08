@@ -1215,24 +1215,22 @@ export class SplitRGBAOp extends Operator<SplitRGBAOp> {
     }
   }
   execute({ color }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const parseColor = (c: string) => {
+    const parseColor = (c: unknown) => {
       const [r, g, b, a] = hexToColor(c)
-        .split(',')
-        .map((v: string) => parseInt(v, 10))
       return { r, g, b, a }
     }
 
     if (isAccessor(color)) {
       // Return accessor functions for each component
-      const r = composeAccessor(color, (c: string) => parseColor(c).r)
-      const g = composeAccessor(color, (c: string) => parseColor(c).g)
-      const b = composeAccessor(color, (c: string) => parseColor(c).b)
-      const a = composeAccessor(color, (c: string) => parseColor(c).a)
+      const r = composeAccessor(color, (c: unknown) => parseColor(c).r)
+      const g = composeAccessor(color, (c: unknown) => parseColor(c).g)
+      const b = composeAccessor(color, (c: unknown) => parseColor(c).b)
+      const a = composeAccessor(color, (c: unknown) => parseColor(c).a)
       return { r, g, b, a } as ExtractProps<typeof this.outputs>
     }
 
     // Static value
-    return parseColor(color as string)
+    return parseColor(color)
   }
 }
 
