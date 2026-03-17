@@ -5,6 +5,7 @@ import { defineConfig } from 'vitest/config'
 export default defineConfig({
   resolve: {
     dedupe: ['react', 'react-dom'],
+    conditions: ['browser', 'import', 'module', 'default'],
   },
   test: {
     setupFiles: ['src/setupTests.ts'],

@@ -104,10 +104,14 @@ export default defineConfig(({ mode }) => {
     server: {
       open: true,
     },
+    resolve: {
+      conditions: ['browser', 'import', 'module', 'default'],
+    },
     plugins: [
       react(),
       nodePolyfills({
         protocolImports: true,
+        exclude: ['module'],
       }),
       contextGeneratorPlugin(),
       {

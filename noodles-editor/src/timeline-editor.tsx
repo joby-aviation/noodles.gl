@@ -67,9 +67,14 @@ const isMapReady = (map: MapLibre | null) => !map || (map.isStyleLoaded() && map
 export default function TimelineEditor() {
   const mapRef = useRef<MapLibre | null>(null)
   const deckRef = useRef<Deck>(null)
+  const glContextRef = useRef<WebGL2RenderingContext | null>(null)
   const isRenderingRef = useRef(false)
   // Session-only handle set by selectRendersDirectory; takes priority over project subdir
   const rendersDirectoryHandleRef = useRef<FileSystemDirectoryHandle | null>(null)
+  // Throttles captureFrame() calls from mapProps.onIdle to one per frame cycle.
+  // onIdle can fire multiple times per redraw (e.g. from map.redraw() + deck.redraw()),
+  // causing stale timers to prematurely resolve future canvasFrameReady() promises.
+  const captureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Trigger a redraw of React, mapbox and deck when the renderer state changes,
   // to ensure that the VideoStreamReader in renderer.ts runs
@@ -104,17 +109,27 @@ export default function TimelineEditor() {
     lod,
     waitForData,
     captureDelay,
+    imageFormat,
+    exrCompression,
+    includeDepth,
     rendersDirectory,
   } = renderSettings
 
-  const { startCapture, startSequenceCapture, captureFrame, currentFrame, isRendering } =
-    useRenderer({
-      projectName: noodles.projectName ?? 'render',
-      fps: framerate,
-      bitrate: bitrateMbps * 1_000_000,
-      bitrateMode,
-      redraw,
-    })
+  const {
+    startCapture,
+    startSequenceCapture,
+    captureFrame,
+    currentFrame,
+    isRendering,
+    encodingProgress,
+    setEncodingProgress,
+  } = useRenderer({
+    projectName: noodles.projectName ?? 'render',
+    fps: framerate,
+    bitrate: bitrateMbps * 1_000_000,
+    bitrateMode,
+    redraw,
+  })
   isRenderingRef.current = isRendering
 
   // If the visualization doesn't supply mapProps (or has a blank mapStyle), disable basemap.
@@ -139,6 +154,12 @@ export default function TimelineEditor() {
     ...visualization.deckProps,
     onDeviceInitialized: device => {
       visualization.deckProps?.onDeviceInitialized?.(device)
+      // Store WebGL context for EXR export
+      // @ts-expect-error luma.gl device has gl property
+      if (device.gl) {
+        // @ts-expect-error luma.gl device has gl property
+        glContextRef.current = device.gl
+      }
       redraw()
     },
     onAfterRender: () => {
@@ -229,8 +250,9 @@ export default function TimelineEditor() {
       debugRender('map waiting')
       return
     }
-    // During rendering with waitForData, also confirm deck layers have finished loading.
+    // During rendering, also check that deck layers have finished loading data.
     // mapIdle fires on map tile/style readiness only — it doesn't know about deck layer data.
+    // Without this guard, waitForData has no effect for basemap scenes.
     if (isRenderingRef.current && waitForData) {
       const deck = deckRef.current
       if (
@@ -244,8 +266,13 @@ export default function TimelineEditor() {
     // This should alert the renderer that the scene is ready to be captured
     // Because onIdle can be synchronous, we need to defer the promise resolution to the next tick.
     // TODO: Perhaps set up the promises refs before the render loop, and then later await the Promise.all?
-    // Delay rendering by 200ms so that deck and maplibre can settle before capturing.
-    setTimeout(() => captureFrame(), captureDelay)
+    // Throttle to one scheduled captureFrame per frame: once a timer is in-flight, ignore
+    // subsequent onIdle firings (e.g. from both map.redraw() and deck.redraw() triggering idle).
+    if (captureTimerRef.current !== null) return
+    captureTimerRef.current = setTimeout(() => {
+      captureTimerRef.current = null
+      captureFrame()
+    }, captureDelay)
   }
 
   const pureDeckInstance = !basemapEnabled ? deckRef.current : null
@@ -303,12 +330,29 @@ export default function TimelineEditor() {
     }
 
     const suggestedName = noodles.projectName ?? 'screenshot'
-    await captureScreenshot(suggestedName, () => {
-      redraw()
-      // @ts-expect-error canvas is protected
-      return deckRef.current.canvas!
-    })
-  }, [noodles.projectName, redraw, basemapEnabled])
+    try {
+      await captureScreenshot(
+        suggestedName,
+        () => {
+          redraw()
+          // @ts-expect-error canvas is protected
+          return deckRef.current.canvas!
+        },
+        {
+          format: imageFormat,
+          exrCompression,
+          includeDepth,
+          getGLContext: () => glContextRef.current,
+          getDeck: () => deckRef.current,
+        }
+      )
+    } catch (e) {
+      if (e instanceof Error && e.name !== 'AbortError') {
+        debugRender('Export failed: %o', e)
+        alert(`Export failed: ${e.message}`)
+      }
+    }
+  }, [noodles.projectName, redraw, basemapEnabled, imageFormat, exrCompression, includeDepth])
 
   const selectRendersDirectory = useCallback(async () => {
     try {
@@ -329,6 +373,12 @@ export default function TimelineEditor() {
     if (basemapEnabled && !mapRef.current) {
       debugRender('Export Sequence: maplibre is not defined')
       return
+    }
+
+    // Reset encoding progress for EXR exports
+    const totalFrames = Math.floor(sequenceLength * framerate) + 1
+    if (imageFormat === 'exr') {
+      setEncodingProgress({ encoded: 0, total: totalFrames })
     }
 
     // Resolve the target directory: session-picked handle > project subdir > user picker
@@ -368,27 +418,41 @@ export default function TimelineEditor() {
 
     await startSequenceCapture({
       canvas,
-      // Basemap scenes use mapProps.onIdle for frame readiness; pure-deck scenes need
-      // onAfterRender wired up inside startSequenceCapture via getDeck.
-      getDeck: basemapEnabled ? undefined : () => deckRef.current,
+      getGLContext: () => glContextRef.current,
+      getDeck: () => deckRef.current,
       directoryHandle: rendersDir,
+      format: imageFormat === 'exr' ? 'exr' : 'png',
+      exrCompression,
+      includeDepth,
+      basemapEnabled,
       captureDelay,
       waitForData,
       startFrame: 0,
       endFrame: Math.floor(sequenceLength * framerate),
       onFrameStart: (frame, total) => debugRender('Exporting frame %d/%d', frame + 1, total),
       onFrameComplete: (frame, total) => debugRender('Completed frame %d/%d', frame, total),
+      onEncodingProgress: (encoded, total) => {
+        debugRender('Encoding progress: %d/%d', encoded, total)
+        setEncodingProgress({ encoded, total })
+      },
     })
+
+    // Clear encoding progress when done
+    setEncodingProgress(null)
   }, [
     startSequenceCapture,
     sequenceLength,
     framerate,
+    imageFormat,
+    exrCompression,
+    includeDepth,
     captureDelay,
     waitForData,
     rendersDirectory,
     basemapEnabled,
     currentDirectory,
     activeStorageType,
+    setEncodingProgress,
   ])
 
   // Increase the render target resolution to increase map tile detail.
@@ -460,8 +524,20 @@ export default function TimelineEditor() {
           <progress
             max={sequenceLength * renderSettings.framerate}
             value={currentFrame}
-            title={`Rendered ${currentFrame} / ${sequenceLength * renderSettings.framerate}`}
+            title={`Captured ${currentFrame} / ${Math.floor(sequenceLength * renderSettings.framerate)}`}
           />
+          {encodingProgress && (
+            <>
+              <span style={{ marginLeft: 8, fontSize: 12 }}>
+                Encoding: {encodingProgress.encoded}/{encodingProgress.total}
+              </span>
+              <progress
+                max={encodingProgress.total}
+                value={encodingProgress.encoded}
+                style={{ marginLeft: 8 }}
+              />
+            </>
+          )}
         </div>
       )}
       <ReactFlowProvider>

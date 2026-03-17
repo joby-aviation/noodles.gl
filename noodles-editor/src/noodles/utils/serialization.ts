@@ -21,6 +21,9 @@ export type EditorSettings = {
   showDebugInfo?: boolean
 }
 
+export type ImageFormat = 'png' | 'exr'
+export type ExrCompression = 'none' | 'zip' | 'piz'
+
 export type RenderSettings = {
   display: 'fixed' | 'responsive'
   resolution: { width: number; height: number }
@@ -32,6 +35,9 @@ export type RenderSettings = {
   scaleControl: number
   framerate: number
   captureDelay: number
+  imageFormat: ImageFormat
+  exrCompression: ExrCompression
+  includeDepth: boolean
   rendersDirectory: string
 }
 
@@ -46,6 +52,9 @@ export const DEFAULT_RENDER_SETTINGS: RenderSettings = {
   scaleControl: 0.3,
   framerate: 30,
   captureDelay: 200,
+  imageFormat: 'png',
+  exrCompression: 'zip',
+  includeDepth: false,
   rendersDirectory: 'renders',
 }
 

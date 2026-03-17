@@ -105,13 +105,8 @@ export class ToolRegistry {
       parameters: {
         format: {
           type: 'string',
-          description: 'Image format (png or jpeg)',
+          description: 'Image format (png)',
           default: 'png',
-        },
-        quality: {
-          type: 'number',
-          description: 'JPEG quality (0-1)',
-          default: 0.9,
         },
       },
     })

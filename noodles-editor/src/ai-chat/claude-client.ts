@@ -66,7 +66,7 @@ export class ClaudeClient {
     message: string
     project: NoodlesProject
     screenshot?: string
-    screenshotFormat?: 'png' | 'jpeg'
+    screenshotFormat?: 'png'
     autoCapture?: boolean
     conversationHistory?: Message[]
   }): Promise<ClaudeResponse> {
@@ -99,7 +99,7 @@ export class ClaudeClient {
     // Auto-capture is disabled by default - too large for context
     // AI should explicitly use capture_visualization tool when needed
     const screenshot = params.screenshot
-    const screenshotFormat = params.screenshotFormat || 'jpeg'
+    const screenshotFormat = params.screenshotFormat || 'png'
 
     // Disable auto-capture to reduce token usage
     // const visualKeywords = ['see', 'look', 'show', 'appear', 'display', 'visual', 'render', 'color', 'layer']
@@ -107,10 +107,10 @@ export class ClaudeClient {
     //   visualKeywords.some(kw => message.toLowerCase().includes(kw))
     //
     // if (shouldAutoCapture && !screenshot) {
-    //   const result = await this.tools.captureVisualization({ format: 'jpeg', quality: 0.5 })
+    //   const result = await this.tools.captureVisualization({ format: 'png' })
     //   if (result.success) {
     //     screenshot = result.data.screenshot
-    //     screenshotFormat = result.data.format || 'jpeg'
+    //     screenshotFormat = result.data.format || 'png'
     //   }
     // }
 
@@ -181,7 +181,7 @@ export class ClaudeClient {
     const toolCalls: ToolCall[] = []
     let finalText = ''
     let capturedScreenshot: string | null = null
-    let capturedScreenshotFormat: 'png' | 'jpeg' = 'jpeg'
+    let capturedScreenshotFormat: 'png' = 'png'
     const collectedModifications: ProjectModification[] = []
 
     // Handle tool use loop
@@ -210,7 +210,7 @@ export class ClaudeClient {
               result.data?.screenshot
             ) {
               capturedScreenshot = result.data.screenshot
-              capturedScreenshotFormat = result.data.format || 'jpeg'
+              capturedScreenshotFormat = result.data.format || 'png'
             }
 
             // If this was an apply_modifications call, collect the modifications
@@ -295,7 +295,7 @@ export class ClaudeClient {
         })
 
         capturedScreenshot = null // Reset for next iteration
-        capturedScreenshotFormat = 'jpeg' // Reset to default
+        capturedScreenshotFormat = 'png' // Reset to default
       } else {
         messages.push(toolResults)
       }
@@ -355,8 +355,7 @@ export class ClaudeClient {
           type: 'object',
           properties: {
             includeUI: { type: 'boolean' },
-            format: { type: 'string', enum: ['png', 'jpeg'] },
-            quality: { type: 'number', description: 'JPEG quality 0-1, default 0.7' },
+            format: { type: 'string', enum: ['png'] },
           },
         },
       },
