@@ -1,6 +1,7 @@
 import type { Deck, DeckProps } from '@deck.gl/core'
 import { useEffect } from 'react'
 import { debugRender } from '../utils/debug'
+import { workerSetTimeout } from '../utils/worker-timer'
 
 interface RendererConfig {
   waitForData: boolean
@@ -49,10 +50,8 @@ export function useDeckDrawLoop({
               debugRender('deck waiting for layers to load')
               return // layers aren't loaded
             }
-            // Deck is ready, or we are not waiting for data
-            // Delay rendering by 200ms so that deck and maplibre can settle before capturing.
-            // In testing, this helped during interleaved rendering even though captureFrame isn't defined.
-            setTimeout(() => resolvePass(), captureDelay)
+            // Use worker timer so the delay fires even when the tab is hidden.
+            workerSetTimeout(() => resolvePass(), captureDelay)
           },
         })
         await passPromise
