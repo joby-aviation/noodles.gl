@@ -2,6 +2,7 @@
 // Provides the overall layout and state management for the timeline UI
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useExportActions } from '../../noodles/contexts/export-actions-context'
 import {
   captureTimelineState,
   fireTimelineMutation,
@@ -42,6 +43,8 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
   const containerRef = useRef<HTMLDivElement>(null)
   const timelineAreaRef = useRef<HTMLDivElement>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
+
+  const { isRendering } = useExportActions()
 
   // Local UI state
   const [pixelsPerSecond, setPixelsPerSecond] = useState(DEFAULT_PIXELS_PER_SECOND)
@@ -133,6 +136,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
   const handleTimelineMouseDown = useCallback(
     (e: React.MouseEvent) => {
       if (e.button !== 0) return
+      if (isRendering) return
 
       if (e.shiftKey) {
         const rect = timelineAreaRef.current?.getBoundingClientRect()
@@ -154,7 +158,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
         setIsScrubbing(true)
       }
     },
-    [getTimeFromMouseEvent, setPosition]
+    [getTimeFromMouseEvent, setPosition, isRendering]
   )
 
   // Handle mousemove while scrubbing (attached to document)
@@ -162,6 +166,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
     if (!isScrubbing) return
 
     const handleMouseMove = (e: MouseEvent) => {
+      if (isRendering) return
       const time = getTimeFromMouseEvent(e)
       if (time !== null) {
         setPosition(time)
@@ -179,7 +184,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [isScrubbing, getTimeFromMouseEvent, setPosition])
+  }, [isScrubbing, getTimeFromMouseEvent, setPosition, isRendering])
 
   // Handle marker connection start — attach document listeners synchronously so fast
   // drags (pointerdown → pointerup without much movement) aren't missed by a deferred effect.
@@ -361,19 +366,19 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
 
       if (e.code === 'Space') {
         e.preventDefault()
-        getTimelineStore().togglePlay()
+        if (!isRendering) getTimelineStore().togglePlay()
       } else if (e.code === 'ArrowLeft') {
         e.preventDefault()
-        getTimelineStore().stepBackward(1)
+        if (!isRendering) getTimelineStore().stepBackward(1)
       } else if (e.code === 'ArrowRight') {
         e.preventDefault()
-        getTimelineStore().stepForward(1)
+        if (!isRendering) getTimelineStore().stepForward(1)
       }
     }
 
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
-  }, [])
+  }, [isRendering])
 
   return (
     <div
