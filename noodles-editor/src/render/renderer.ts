@@ -211,6 +211,20 @@ export const useRenderer = ({
         mapRecorder?.reader?.releaseLock()
       }
 
+      // Seek to start frame and wait for render to complete before capturing.
+      // This prevents stale frames from being encoded if the playhead was
+      // at a different position when render started.
+      const warmupSimTime = startFrame / fps
+      getTimelineStore().setPosition(warmupSimTime)
+      redraw()
+
+      const warmupResult = await canvasFrameReady()
+      if (warmupResult?.error) {
+        debugRender('Error during render warmup:', warmupResult.error)
+        setIsRendering(false)
+        return
+      }
+
       for (; i < endFrame + 1; i++) {
         const simTime = i / fps
         getTimelineStore().setPosition(simTime)
