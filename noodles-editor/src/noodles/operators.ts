@@ -5059,8 +5059,9 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
     const GOOGLE_TILESET_URL = 'https://tile.googleapis.com/v1/3dtiles/root.json'
     const NYC_CESIUM_TILESET_URL = 'https://assets.ion.cesium.com/242005/tileset.json'
 
-    const GOOGLE_MAPS_API_KEY = getKeysStore().getKey('googleMaps')
-    const CESIUM_ACCESS_TOKEN = getKeysStore().getKey('cesium')
+    const { getKey } = getKeysStore()
+    const GOOGLE_MAPS_API_KEY = getKey('googleMaps')
+    const CESIUM_ACCESS_TOKEN = getKey('cesium')
 
     if (provider === 'Google' && !GOOGLE_MAPS_API_KEY) {
       throw new Error('Tile3DLayer: Google Maps API key is not set (add it in Settings > API Keys)')

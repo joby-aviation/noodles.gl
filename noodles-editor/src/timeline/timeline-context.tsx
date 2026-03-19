@@ -107,7 +107,8 @@ export function useTrackValue(trackId: string | null) {
 
   return useMemo(() => {
     if (!track || !trackId) return null
-    return getTimelineStore().evaluateTrack(trackId, position)
+    const store = getTimelineStore()
+    return store.evaluateTrack(trackId, position)
   }, [trackId, track, position])
 }
 

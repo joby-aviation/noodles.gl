@@ -96,7 +96,8 @@ export async function loadGoogleMapsAPI(apiKey: string): Promise<void> {
 // Geocode using Google Places AutocompleteSuggestion API (recommended)
 // Returns autocomplete predictions for a search query
 export async function geocodeWithGooglePlaces(query: string): Promise<GeocodingResult[]> {
-  const apiKey = getKeysStore().getKey('googleMaps')
+  const keysStore = getKeysStore()
+  const apiKey = keysStore.getKey('googleMaps')
   if (!apiKey) {
     throw new Error('Google Maps API key not configured')
   }

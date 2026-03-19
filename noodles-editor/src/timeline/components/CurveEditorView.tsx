@@ -102,12 +102,11 @@ export function CurveEditorView({
 
   const setHandleType = useCallback((trackId: string, keyframeId: string, type: HandleType) => {
     const before = captureTimelineState()
-    const kf = getTimelineStore()
-      .tracks.get(trackId)
-      ?.keyframes.find(k => k.id === keyframeId)
+    const { tracks, setKeyframeHandles } = getTimelineStore()
+    const kf = tracks.get(trackId)?.keyframes.find(k => k.id === keyframeId)
     if (!kf) return
     const handles = kf.handles ?? DEFAULT_BEZIER_HANDLES
-    getTimelineStore().setKeyframeHandles(trackId, keyframeId, { ...handles, type })
+    setKeyframeHandles(trackId, keyframeId, { ...handles, type })
     fireTimelineMutation('Change handle type', before)
     setContextMenu(null)
   }, [])
@@ -219,8 +218,8 @@ export function CurveEditorView({
   const updateKfSpeed = useCallback(
     (kfId: string, prevKfId: string | null, nextKfId: string | null, desiredSpeed: number) => {
       if (!track) return
-      const store = getTimelineStore()
-      const trackData = store.tracks.get(track.id)
+      const { tracks, updateKeyframe, setKeyframeHandles } = getTimelineStore()
+      const trackData = tracks.get(track.id)
       if (!trackData) return
 
       const kf = trackData.keyframes.find(k => k.id === kfId)
@@ -230,11 +229,11 @@ export function CurveEditorView({
 
       // Ensure bezier interpolation so handles apply
       if (kf.interpolation !== 'bezier') {
-        store.updateKeyframe(track.id, kfId, { interpolation: 'bezier' })
+        updateKeyframe(track.id, kfId, { interpolation: 'bezier' })
       }
 
       // Re-read after potential mutation so we get any freshly-initialized handles
-      const freshKf = store.tracks.get(track.id)?.keyframes.find(k => k.id === kfId)
+      const freshKf = tracks.get(track.id)?.keyframes.find(k => k.id === kfId)
       const handles = freshKf?.handles ?? DEFAULT_BEZIER_HANDLES
 
       // Update outgoing speed: kf.handles.left = P1 of segment kf→nextKf
@@ -245,7 +244,7 @@ export function CurveEditorView({
         if (ΔtNext > 0 && Math.abs(ΔvNext) > 0.0001) {
           const p1x = Math.max(0.001, handles.left[0])
           const newP1y = (desiredSpeed * p1x * ΔtNext) / ΔvNext
-          store.setKeyframeHandles(track.id, kfId, {
+          setKeyframeHandles(track.id, kfId, {
             ...handles,
             left: [p1x, newP1y],
           })
@@ -254,7 +253,7 @@ export function CurveEditorView({
 
       // For aligned/uneven handles, also mirror the incoming speed
       const updatedHandles =
-        store.tracks.get(track.id)?.keyframes.find(k => k.id === kfId)?.handles ?? handles
+        tracks.get(track.id)?.keyframes.find(k => k.id === kfId)?.handles ?? handles
       if (
         (updatedHandles.type === 'aligned' || updatedHandles.type === 'uneven') &&
         prevKf &&
@@ -264,11 +263,11 @@ export function CurveEditorView({
         const ΔtPrev = kf.position - prevKf.position
         const ΔvPrev = (kf.value as number) - (prevKf.value as number)
         if (ΔtPrev > 0 && Math.abs(ΔvPrev) > 0.0001) {
-          const prevKfLatest = store.tracks.get(track.id)?.keyframes.find(k => k.id === prevKf.id)
+          const prevKfLatest = tracks.get(track.id)?.keyframes.find(k => k.id === prevKf.id)
           const prevHandles = prevKfLatest?.handles ?? DEFAULT_BEZIER_HANDLES
           const p2x = Math.min(0.999, prevHandles.right[0])
           const newP2y = 1 - (desiredSpeed * (1 - p2x) * ΔtPrev) / ΔvPrev
-          store.setKeyframeHandles(track.id, prevKf.id, {
+          setKeyframeHandles(track.id, prevKf.id, {
             ...prevHandles,
             right: [p2x, newP2y],
           })
@@ -402,20 +401,18 @@ export function CurveEditorView({
                       color="#ff6b6b"
                       strokeColor="#ff9999"
                       onDrag={(svgX, svgY) => {
-                        const store = getTimelineStore()
-                        const latestPrev = store.tracks
+                        const { tracks, updateKeyframe, setKeyframeHandles } = getTimelineStore()
+                        const latestPrev = tracks
                           .get(track.id)
                           ?.keyframes.find(k => k.id === prevKf.id)
-                        const latestKf = store.tracks
-                          .get(track.id)
-                          ?.keyframes.find(k => k.id === kf.id)
+                        const latestKf = tracks.get(track.id)?.keyframes.find(k => k.id === kf.id)
                         if (!latestPrev || !latestKf) return
                         if (latestPrev.interpolation !== 'bezier') {
-                          store.updateKeyframe(track.id, prevKf.id, { interpolation: 'bezier' })
+                          updateKeyframe(track.id, prevKf.id, { interpolation: 'bezier' })
                         }
 
                         // Re-read after potential mutation to get fresh handles
-                        const freshPrev = store.tracks
+                        const freshPrev = tracks
                           .get(track.id)
                           ?.keyframes.find(k => k.id === prevKf.id)
                         const ph = freshPrev?.handles ?? DEFAULT_BEZIER_HANDLES
@@ -431,7 +428,7 @@ export function CurveEditorView({
                           newDenom > 0.0001
                             ? 1 - (newSpeed * newDenom * ΔtPrev) / ΔvPrev
                             : ph.right[1]
-                        store.setKeyframeHandles(track.id, prevKf.id, {
+                        setKeyframeHandles(track.id, prevKf.id, {
                           ...ph,
                           right: [newP2x, newP2y],
                         })
@@ -445,7 +442,7 @@ export function CurveEditorView({
                             if (ΔtNext > 0 && Math.abs(ΔvNext) > 0.0001) {
                               const p1x = Math.max(0.001, curHandles.left[0])
                               const newP1y = (newSpeed * p1x * ΔtNext) / ΔvNext
-                              store.setKeyframeHandles(track.id, kf.id, {
+                              setKeyframeHandles(track.id, kf.id, {
                                 ...curHandles,
                                 left: [p1x, newP1y],
                               })
@@ -496,19 +493,15 @@ export function CurveEditorView({
                       color="#51cf66"
                       strokeColor="#82e6a0"
                       onDrag={(svgX, svgY) => {
-                        const store = getTimelineStore()
-                        const latestKf = store.tracks
-                          .get(track.id)
-                          ?.keyframes.find(k => k.id === kf.id)
+                        const { tracks, updateKeyframe, setKeyframeHandles } = getTimelineStore()
+                        const latestKf = tracks.get(track.id)?.keyframes.find(k => k.id === kf.id)
                         if (!latestKf) return
                         if (latestKf.interpolation !== 'bezier') {
-                          store.updateKeyframe(track.id, kf.id, { interpolation: 'bezier' })
+                          updateKeyframe(track.id, kf.id, { interpolation: 'bezier' })
                         }
 
                         // Re-read after potential mutation to get fresh handles
-                        const freshKf = store.tracks
-                          .get(track.id)
-                          ?.keyframes.find(k => k.id === kf.id)
+                        const freshKf = tracks.get(track.id)?.keyframes.find(k => k.id === kf.id)
                         const curHandles = freshKf?.handles ?? DEFAULT_BEZIER_HANDLES
 
                         const newHandleTime = xToTime(svgX)
@@ -521,7 +514,7 @@ export function CurveEditorView({
                           newP1x > 0.0001
                             ? (newSpeed * newP1x * ΔtNext) / ΔvNext
                             : curHandles.left[1]
-                        store.setKeyframeHandles(track.id, kf.id, {
+                        setKeyframeHandles(track.id, kf.id, {
                           ...curHandles,
                           left: [newP1x, newP1y],
                         })
@@ -532,7 +525,7 @@ export function CurveEditorView({
                             const ΔtPrev = kf.position - prevKf.position
                             const ΔvPrev = (kf.value as number) - (prevKf.value as number)
                             if (ΔtPrev > 0 && Math.abs(ΔvPrev) > 0.0001) {
-                              const prevLatest = store.tracks
+                              const prevLatest = tracks
                                 .get(track.id)
                                 ?.keyframes.find(k => k.id === prevKf.id)
                               const prevHandles = prevLatest?.handles ?? DEFAULT_BEZIER_HANDLES
@@ -542,7 +535,7 @@ export function CurveEditorView({
                                 denom > 0.0001
                                   ? 1 - (newSpeed * denom * ΔtPrev) / ΔvPrev
                                   : prevHandles.right[1]
-                              store.setKeyframeHandles(track.id, prevKf.id, {
+                              setKeyframeHandles(track.id, prevKf.id, {
                                 ...prevHandles,
                                 right: [p2x, newP2y],
                               })
@@ -611,11 +604,10 @@ export function CurveEditorView({
                     strokeColor="#ff9999"
                     onDrag={(svgX, svgY) => {
                       // Update PREVIOUS keyframe's handles.right
-                      const prev = getTimelineStore()
-                        .tracks.get(track.id)
-                        ?.keyframes.find(k => k.id === prevKf.id)
+                      const { tracks, updateKeyframe, setKeyframeHandles } = getTimelineStore()
+                      const prev = tracks.get(track.id)?.keyframes.find(k => k.id === prevKf.id)
                       if (prev?.interpolation !== 'bezier') {
-                        getTimelineStore().updateKeyframe(track.id, prevKf.id, {
+                        updateKeyframe(track.id, prevKf.id, {
                           interpolation: 'bezier',
                         })
                       }
@@ -625,15 +617,13 @@ export function CurveEditorView({
                         Math.min(1, (xToTime(svgX) - prevKf.position) / (ΔtPrev || 1))
                       )
                       const newRy = (yToVal(svgY) - (prevKf.value as number)) / (ΔvPrev || 1)
-                      getTimelineStore().setKeyframeHandles(track.id, prevKf.id, {
+                      setKeyframeHandles(track.id, prevKf.id, {
                         ...prevH,
                         right: [newRx, newRy],
                       })
 
                       // Mirror to opposite handle if aligned or uneven
-                      const curKf = getTimelineStore()
-                        .tracks.get(track.id)
-                        ?.keyframes.find(k => k.id === kf.id)
+                      const curKf = tracks.get(track.id)?.keyframes.find(k => k.id === kf.id)
                       const curHandles = curKf?.handles ?? DEFAULT_BEZIER_HANDLES
                       if (curHandles.type === 'aligned' || curHandles.type === 'uneven') {
                         // Calculate pixel offset from keyframe
@@ -663,7 +653,7 @@ export function CurveEditorView({
                             }
                           }
 
-                          getTimelineStore().setKeyframeHandles(track.id, kf.id, {
+                          setKeyframeHandles(track.id, kf.id, {
                             ...curHandles,
                             left: [Math.max(0, Math.min(1, mirrorLx)), mirrorLy],
                           })
@@ -709,11 +699,10 @@ export function CurveEditorView({
                     strokeColor="#82e6a0"
                     onDrag={(svgX, svgY) => {
                       // Update THIS keyframe's handles.left
-                      const cur = getTimelineStore()
-                        .tracks.get(track.id)
-                        ?.keyframes.find(k => k.id === kf.id)
+                      const { tracks, updateKeyframe, setKeyframeHandles } = getTimelineStore()
+                      const cur = tracks.get(track.id)?.keyframes.find(k => k.id === kf.id)
                       if (cur?.interpolation !== 'bezier') {
-                        getTimelineStore().updateKeyframe(track.id, kf.id, {
+                        updateKeyframe(track.id, kf.id, {
                           interpolation: 'bezier',
                         })
                       }
@@ -723,7 +712,7 @@ export function CurveEditorView({
                         Math.min(1, (xToTime(svgX) - kf.position) / (ΔtNext || 1))
                       )
                       const newLy = (yToVal(svgY) - (kf.value as number)) / (ΔvNext || 1)
-                      getTimelineStore().setKeyframeHandles(track.id, kf.id, {
+                      setKeyframeHandles(track.id, kf.id, {
                         ...curHandles,
                         left: [newLx, newLy],
                       })
@@ -741,10 +730,8 @@ export function CurveEditorView({
                           const ΔtP = kf.position - prevKf.position
                           const ΔvP = (kf.value as number) - (prevKf.value as number)
                           const prevH =
-                            getTimelineStore()
-                              .tracks.get(track.id)
-                              ?.keyframes.find(k => k.id === prevKf.id)?.handles ??
-                            DEFAULT_BEZIER_HANDLES
+                            tracks.get(track.id)?.keyframes.find(k => k.id === prevKf.id)
+                              ?.handles ?? DEFAULT_BEZIER_HANDLES
                           // Convert mirrored pixel offset to normalized coords for handles.right
                           // handles.right is relative to prevKf, so we need to translate
                           let mirrorRx = xToTime(kx + mirrorX) - prevKf.position
@@ -762,7 +749,7 @@ export function CurveEditorView({
                             }
                           }
 
-                          getTimelineStore().setKeyframeHandles(track.id, prevKf.id, {
+                          setKeyframeHandles(track.id, prevKf.id, {
                             ...prevH,
                             right: [Math.max(0, Math.min(1, mirrorRx)), mirrorRy],
                           })
@@ -992,16 +979,17 @@ function CurveKeyframeDot({
       const rect = svgEl.getBoundingClientRect()
       const newPos = Math.max(0, Math.min(sequenceLength, xToTime(me.clientX - rect.left)))
 
+      const { updateKeyframe } = getTimelineStore()
       if (mode === 'value') {
         const newValue = yToVal(me.clientY - rect.top)
-        getTimelineStore().updateKeyframe(trackId, kf.id, { position: newPos, value: newValue })
+        updateKeyframe(trackId, kf.id, { position: newPos, value: newValue })
       } else if (mode === 'speed' && onSpeedYDrag) {
         // X: update timeline position
-        getTimelineStore().updateKeyframe(trackId, kf.id, { position: newPos })
+        updateKeyframe(trackId, kf.id, { position: newPos })
         // Y: update bezier handles to achieve the dragged speed
         onSpeedYDrag(me.clientY - rect.top)
       } else {
-        getTimelineStore().updateKeyframe(trackId, kf.id, { position: newPos })
+        updateKeyframe(trackId, kf.id, { position: newPos })
       }
     }
 
