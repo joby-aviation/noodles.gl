@@ -11,12 +11,12 @@ self.onmessage = (e) => {
   if (type === 'setTimeout') {
     const handle = setTimeout(() => {
       timers.delete(id)
-      self.postMessage({ id, ts: performance.now() })
+      self.postMessage({ id })
     }, delay)
     timers.set(id, handle)
   } else if (type === 'setInterval') {
     const handle = setInterval(() => {
-      self.postMessage({ id, ts: performance.now() })
+      self.postMessage({ id })
     }, delay)
     timers.set(id, handle)
   } else if (type === 'clear') {
@@ -38,14 +38,25 @@ function getWorker(): Worker {
     const blob = new Blob([workerSource], { type: 'application/javascript' })
     const url = URL.createObjectURL(blob)
     worker = new Worker(url)
-    worker.onmessage = (e: MessageEvent<{ id: number; ts: number }>) => {
+    URL.revokeObjectURL(url) // url no longer needed once the worker is created
+    // Use main-thread performance.now() so timestamps are on the same clock as callers
+    worker.onmessage = (e: MessageEvent<{ id: number }>) => {
       const entry = callbacks.get(e.data.id)
       if (!entry) return
       if (entry.once) callbacks.delete(e.data.id)
-      entry.fn(e.data.ts)
+      entry.fn(performance.now())
     }
   }
   return worker
+}
+
+// Clean up on HMR dispose so the old worker doesn't keep running after a hot reload
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    worker?.terminate()
+    worker = null
+    callbacks.clear()
+  })
 }
 
 // Drop-in replacement for setTimeout, not throttled when tab is hidden.
@@ -61,7 +72,7 @@ export function workerSetTimeout(callback: () => void, delayMs: number): () => v
 }
 
 // Drop-in replacement for setInterval, not throttled when tab is hidden.
-// Callback receives a performance.now() timestamp from the worker.
+// Callback receives a main-thread performance.now() timestamp.
 // Returns a cancel function.
 export function workerSetInterval(
   callback: (timestamp: number) => void,
