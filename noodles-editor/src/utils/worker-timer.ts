@@ -37,14 +37,25 @@ function getWorker(): Worker {
   if (!worker) {
     const blob = new Blob([workerSource], { type: 'application/javascript' })
     const url = URL.createObjectURL(blob)
-    worker = new Worker(url)
-    URL.revokeObjectURL(url) // url no longer needed once the worker is created
+    try {
+      worker = new Worker(url)
+    } catch (e) {
+      URL.revokeObjectURL(url)
+      throw new Error(
+        'worker-timer: failed to create worker — check that CSP worker-src allows blob: URLs',
+        { cause: e }
+      )
+    }
+    URL.revokeObjectURL(url)
     // Use main-thread performance.now() so timestamps are on the same clock as callers
     worker.onmessage = (e: MessageEvent<{ id: number }>) => {
       const entry = callbacks.get(e.data.id)
       if (!entry) return
       if (entry.once) callbacks.delete(e.data.id)
       entry.fn(performance.now())
+    }
+    worker.onerror = (e) => {
+      throw new Error(`worker-timer: worker error — ${e.message}`, { cause: e })
     }
   }
   return worker
