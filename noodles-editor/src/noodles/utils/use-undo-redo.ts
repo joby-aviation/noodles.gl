@@ -110,7 +110,8 @@ export function useUndoRedo() {
       // timelineStateAfter (captured in setTimeout below) reflects the deletion.
       const removeChanges = significantChanges.filter(c => c.type === 'remove')
       if (removeChanges.length > 0) {
-        getTimelineStore().deleteTracksForOperators(removeChanges.map(c => c.id))
+        const timelineStore = getTimelineStore()
+        timelineStore.deleteTracksForOperators(removeChanges.map(c => c.id))
       }
 
       debugHistory(
@@ -384,7 +385,8 @@ export function useUndoRedo() {
     // Restore timeline state if the entry has a snapshot
     if (entry.timelineStateBefore) {
       try {
-        getTimelineStore().fromTheatreJSON(JSON.parse(entry.timelineStateBefore))
+        const timelineStore = getTimelineStore()
+        timelineStore.fromTheatreJSON(JSON.parse(entry.timelineStateBefore))
       } catch (e) {
         debugHistory('Failed to restore timeline state during undo', e)
       }
@@ -484,7 +486,8 @@ export function useUndoRedo() {
     // Restore timeline state if the entry has a snapshot
     if (entry.timelineStateAfter) {
       try {
-        getTimelineStore().fromTheatreJSON(JSON.parse(entry.timelineStateAfter))
+        const timelineStore = getTimelineStore()
+        timelineStore.fromTheatreJSON(JSON.parse(entry.timelineStateAfter))
       } catch (e) {
         debugHistory('Failed to restore timeline state during redo', e)
       }

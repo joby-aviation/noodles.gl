@@ -83,7 +83,8 @@ function KeyframeTrackLabel({
 
   const handleMakeStatic = useCallback(() => {
     const before = captureTimelineState()
-    getTimelineStore().deleteTrack(track.id)
+    const store = getTimelineStore()
+    store.deleteTrack(track.id)
     fireTimelineMutation('Make static', before)
     setContextMenu(null)
   }, [track.id])
@@ -125,7 +126,8 @@ function KeyframeTrackLabel({
       deleteKeyframe(track.id, atKf.id)
       fireTimelineMutation('Delete keyframe', before)
     } else {
-      const value = getTimelineStore().evaluateTrack(track.id, position) ?? track.defaultValue
+      const store = getTimelineStore()
+      const value = store.evaluateTrack(track.id, position) ?? track.defaultValue
       addKeyframe(track.id, { position, value, interpolation: 'bezier' })
       fireTimelineMutation('Add keyframe', before)
     }

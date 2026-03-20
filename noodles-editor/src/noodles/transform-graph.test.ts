@@ -407,7 +407,8 @@ describe('Field visibility restoration from saved data', () => {
 
       transformGraph({ nodes, edges: [] })
 
-      const op = getOpStore().getOp('/deck-0')
+      const { getOp } = getOpStore()
+      const op = getOp('/deck-0')
       expect(op).toBeDefined()
       expect(op!.visibleFields.value).toBeInstanceOf(Set)
       // Both fields should be visible (from visibleInputs)
@@ -434,7 +435,8 @@ describe('Field visibility restoration from saved data', () => {
 
       transformGraph({ nodes, edges: [] })
 
-      const op = getOpStore().getOp('/deck-0')
+      const { getOp } = getOpStore()
+      const op = getOp('/deck-0')
       expect(op).toBeDefined()
       expect(op!.visibleFields.value).toBeInstanceOf(Set)
       // 'effects' should be visible (from visibleInputs)
@@ -458,7 +460,8 @@ describe('Field visibility restoration from saved data', () => {
 
       transformGraph({ nodes, edges: [] })
 
-      const op = getOpStore().getOp('/geojson-0') as GeoJsonLayerOp
+      const { getOp } = getOpStore()
+      const op = getOp('/geojson-0') as GeoJsonLayerOp
       expect(op).toBeDefined()
       // visibleFields should be an empty Set (explicit visibility with nothing visible)
       expect(op.visibleFields.value).toBeInstanceOf(Set)
@@ -481,7 +484,8 @@ describe('Field visibility restoration from saved data', () => {
 
       transformGraph({ nodes, edges: [] })
 
-      const op = getOpStore().getOp('/geojson-0') as GeoJsonLayerOp
+      const { getOp } = getOpStore()
+      const op = getOp('/geojson-0') as GeoJsonLayerOp
       expect(op).toBeDefined()
       expect(op.visibleFields.value).toBe(null)
     })
@@ -503,7 +507,8 @@ describe('Field visibility restoration from saved data', () => {
 
       transformGraph({ nodes, edges: [] })
 
-      const op = getOpStore().getOp('/deck-0')
+      const { getOp } = getOpStore()
+      const op = getOp('/deck-0')
       expect(op).toBeDefined()
       // visibleFields should be set because 'effects' has showByDefault:false but has a value
       expect(op!.visibleFields.value).toBeInstanceOf(Set)
@@ -541,7 +546,8 @@ describe('Field visibility restoration from saved data', () => {
 
       transformGraph({ nodes, edges })
 
-      const op = getOpStore().getOp('/deck-0')
+      const { getOp } = getOpStore()
+      const op = getOp('/deck-0')
       expect(op).toBeDefined()
       // visibleFields should be set because 'effects' has showByDefault:false but has a connection
       expect(op!.visibleFields.value).toBeInstanceOf(Set)
@@ -564,7 +570,8 @@ describe('Field visibility restoration from saved data', () => {
 
       transformGraph({ nodes, edges: [] })
 
-      const op = getOpStore().getOp('/num-0')
+      const { getOp } = getOpStore()
+      const op = getOp('/num-0')
       expect(op).toBeDefined()
       // visibleFields should remain null because the heuristic matches defaults
       expect(op!.visibleFields.value).toBe(null)
@@ -592,7 +599,8 @@ describe('Field visibility restoration from saved data', () => {
       // First create without connection
       transformGraph({ nodes, edges: [] })
 
-      const op = getOpStore().getOp('/deck-0')
+      const { getOp } = getOpStore()
+      const op = getOp('/deck-0')
       expect(op).toBeDefined()
       // 'effects' is hidden by default
       expect(op!.inputs.effects.showByDefault).toBe(false)
@@ -646,7 +654,8 @@ describe('Field visibility restoration from saved data', () => {
 
       transformGraph({ nodes, edges })
 
-      const op = getOpStore().getOp('/deck-0')
+      const { getOp } = getOpStore()
+      const op = getOp('/deck-0')
       expect(op).toBeDefined()
 
       // ReferenceEdges should not trigger auto-show
@@ -802,12 +811,13 @@ describe('connection error suppression for undefined source fields', () => {
 
     // First run: StringOp has value 'hello' → type mismatch error set
     transformGraph({ nodes, edges })
-    const add = getOpStore().getOp('/add') as MathOp
+    const { getOp } = getOpStore()
+    const add = getOp('/add') as MathOp
     expect(add.hasConnectionErrors()).toBe(true)
 
     // Simulate source field resetting to undefined (e.g. operator disposed and recreated)
     // BehaviorSubject.next() sets the raw value, bypassing Field.setValue validation
-    const str = getOpStore().getOp('/str')!
+    const str = getOp('/str')!
     str.outputs.val.next(undefined as unknown as string)
 
     // Second run: same structure, but source field now has undefined value

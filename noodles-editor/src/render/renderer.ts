@@ -48,6 +48,7 @@ export const useRenderer = ({
   }, [])
 
   const currentFrame = useRef(0)
+  const { setPosition } = getTimelineStore()
 
   const startCapture = useCallback(
     async ({
@@ -215,7 +216,7 @@ export const useRenderer = ({
       // This prevents stale frames from being encoded if the playhead was
       // at a different position when render started.
       const warmupSimTime = startFrame / fps
-      getTimelineStore().setPosition(warmupSimTime)
+      setPosition(warmupSimTime)
       redraw()
 
       const warmupResult = await canvasFrameReady()
@@ -227,7 +228,7 @@ export const useRenderer = ({
 
       for (; i < endFrame + 1; i++) {
         const simTime = i / fps
-        getTimelineStore().setPosition(simTime)
+        setPosition(simTime)
         redraw()
 
         currentFrame.current = i
@@ -261,7 +262,7 @@ export const useRenderer = ({
       finishEncoding()
       setIsRendering(false)
     },
-    [projectName, sequenceLength, fps, bitrate, bitrateMode, canvasFrameReady, redraw]
+    [projectName, sequenceLength, fps, bitrate, bitrateMode, canvasFrameReady, redraw, setPosition]
   )
 
   // Image sequence export — same frame loop as video capture, writes individual PNGs.
@@ -342,7 +343,7 @@ export const useRenderer = ({
           onFrameStart?.(i - startFrame, totalFrames)
 
           const simTime = i / fps
-          getTimelineStore().setPosition(simTime)
+          setPosition(simTime)
           redraw()
 
           currentFrame.current = i
@@ -386,7 +387,7 @@ export const useRenderer = ({
         setIsRendering(false)
       }
     },
-    [projectName, sequenceLength, fps, redraw, canvasFrameReady, captureFrame]
+    [projectName, sequenceLength, fps, redraw, canvasFrameReady, captureFrame, setPosition]
   )
 
   const [isRendering, setIsRendering] = useState(false)
