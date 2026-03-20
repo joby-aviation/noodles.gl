@@ -171,7 +171,7 @@ export function getNoodles(): Visualization {
   const timelineStore = getTimelineStore()
   const getTimelineJson = useCallback((): Record<string, unknown> => {
     return timelineStore.toTheatreJSON() as unknown as Record<string, unknown>
-  }, [timelineStore])
+  }, [timelineStore.toTheatreJSON])
 
   const [nodes, setNodes, onNodesChangeBase] = useNodesState<AnyNodeJSON>([])
   const [edges, setEdges, onEdgesChangeBase] = useEdgesState<ReactFlowEdge<unknown>>([])
@@ -629,14 +629,7 @@ export function getNoodles(): Visualization {
 
       setHasUnsavedChanges(false)
     },
-    [
-      setNodes,
-      setEdges,
-      navigate,
-      routePrefix, // Timeline data uses a Theatre.js-compatible JSON format for backwards compatibility.
-      timelineStore.fromTheatreJSON,
-      timelineStore.reset,
-    ]
+    [setNodes, setEdges, navigate, routePrefix, timelineStore.fromTheatreJSON, timelineStore.reset]
   )
 
   // Assign to ref for undo/redo system
