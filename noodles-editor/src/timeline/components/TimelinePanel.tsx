@@ -147,7 +147,8 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
       }
 
       // Plain click on blank space — clear selection and scrub
-      getTimelineStore().clearSelection()
+      const store = getTimelineStore()
+      store.clearSelection()
       const time = getTimeFromMouseEvent(e)
       if (time !== null) {
         setPosition(time)
@@ -312,7 +313,8 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
         // Delete selected keyframes
         if (selectedKeyframeIds.size > 0) {
           e.preventDefault()
-          getTimelineStore().deleteSelectedKeyframes()
+          const store = getTimelineStore()
+          store.deleteSelectedKeyframes()
           return
         }
       }
@@ -320,7 +322,8 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
       // Cmd/Ctrl+A to select all keyframes
       if ((e.key === 'a' || e.key === 'A') && (e.metaKey || e.ctrlKey)) {
         e.preventDefault()
-        getTimelineStore().selectAllKeyframes()
+        const store = getTimelineStore()
+        store.selectAllKeyframes()
       }
 
       // T to cycle handle type for selected keyframes
@@ -359,15 +362,16 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
         return
       }
 
+      const store = getTimelineStore()
       if (e.code === 'Space') {
         e.preventDefault()
-        getTimelineStore().togglePlay()
+        store.togglePlay()
       } else if (e.code === 'ArrowLeft') {
         e.preventDefault()
-        getTimelineStore().stepBackward(1)
+        store.stepBackward(1)
       } else if (e.code === 'ArrowRight') {
         e.preventDefault()
-        getTimelineStore().stepForward(1)
+        store.stepForward(1)
       }
     }
 
@@ -474,7 +478,8 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
           <TrackList
             showLabelsOnly
             onOpenCurveEditor={trackId => {
-              getTimelineStore().selectTrack(trackId)
+              const store = getTimelineStore()
+              store.selectTrack(trackId)
               setViewMode('value')
             }}
           />

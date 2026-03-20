@@ -358,7 +358,8 @@ export function CurvePopup({
     (preset: PresetItem) => {
       if (applyToSelected) {
         // Apply to all selected keyframes across all tracks
-        getTimelineStore().applyEasingToSelectedKeyframes(
+        const store = getTimelineStore()
+        store.applyEasingToSelectedKeyframes(
           preset.interpolation,
           preset.interpolation === 'bezier' ? preset.handles : undefined
         )
@@ -388,11 +389,12 @@ export function CurvePopup({
   const handleHandlesCommit = useCallback(() => {
     if (applyToSelected) {
       // Propagate the edited k1 handles to all selected keyframes
-      const currentHandles = getTimelineStore()
-        .tracks.get(trackId)
+      const store = getTimelineStore()
+      const currentHandles = store.tracks
+        .get(trackId)
         ?.keyframes.find(kf => kf.id === k1.id)?.handles
       if (currentHandles) {
-        getTimelineStore().applyEasingToSelectedKeyframes('bezier', currentHandles)
+        store.applyEasingToSelectedKeyframes('bezier', currentHandles)
       }
     }
     fireTimelineMutation('Adjust bezier handles', originalStateRef.current)

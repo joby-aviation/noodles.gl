@@ -54,7 +54,8 @@ async function getDrivingDirections({
   origin: { lat: number; lng: number }
   destination: { lat: number; lng: number }
 }): Promise<AnimatedDirections> {
-  const token = getKeysStore().getKey('mapbox')
+  const keysStore = getKeysStore()
+  const token = keysStore.getKey('mapbox')
   if (!token) {
     throw new Error(
       'Mapbox access token not configured. Please add your token in Settings > API Keys.'
@@ -108,7 +109,8 @@ async function getTransitDirections({
   origin: { lat: number; lng: number }
   destination: { lat: number; lng: number }
 }): Promise<AnimatedDirections> {
-  const apiKey = getKeysStore().getKey('googleMaps')
+  const keysStore = getKeysStore()
+  const apiKey = keysStore.getKey('googleMaps')
   if (!apiKey) {
     throw new Error(
       'Google Maps API key not configured. Please add your key in Settings > API Keys.'

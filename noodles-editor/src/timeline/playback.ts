@@ -146,7 +146,8 @@ export function connectPlaybackToTimeline(): () => void {
   )
 
   // Start immediately if already playing
-  if (getTimelineStore().playing && !playbackDriver.isManualMode()) {
+  const store = getTimelineStore()
+  if (store.playing && !playbackDriver.isManualMode()) {
     playbackDriver.start()
   }
 
@@ -184,10 +185,12 @@ export function getCurrentFrame(): number {
 
 // Step forward by one frame
 export function nextFrame(): void {
-  getTimelineStore().stepForward(1)
+  const store = getTimelineStore()
+  store.stepForward(1)
 }
 
 // Step backward by one frame
 export function prevFrame(): void {
-  getTimelineStore().stepBackward(1)
+  const store = getTimelineStore()
+  store.stepBackward(1)
 }

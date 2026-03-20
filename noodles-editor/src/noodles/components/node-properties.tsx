@@ -983,9 +983,10 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                     // If there's an active keyframe track, remove it first so the
                     // static reset is actually reflected in the rendered output.
                     const fp = getFieldPath(op.id, contextMenu.inputName!)
-                    if (getTimelineStore().hasKeyframesForField(fp)) {
+                    const store = getTimelineStore()
+                    if (store.hasKeyframesForField(fp)) {
                       const before = captureTimelineState()
-                      getTimelineStore().deleteTrack(fp)
+                      store.deleteTrack(fp)
                       fireTimelineMutation('Reset to default', before)
                     }
                     field.setValue(field.defaultValue)
@@ -1005,7 +1006,8 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                     className={s.contextMenuItem}
                     onClick={() => {
                       const before = captureTimelineState()
-                      getTimelineStore().deleteTrack(contextMenu.fieldPath!)
+                      const store = getTimelineStore()
+                      store.deleteTrack(contextMenu.fieldPath!)
                       fireTimelineMutation('Make static', before)
                       setContextMenu(null)
                     }}

@@ -168,11 +168,10 @@ export function getNoodles(): Visualization {
   const storageType = useActiveStorageType()
   const { currentDirectory, setCurrentDirectory, setActiveStorageType, setError } =
     useFileSystemStore()
-  const getTimelineJson = useCallback(
-    (): Record<string, unknown> =>
-      getTimelineStore().toTheatreJSON() as unknown as Record<string, unknown>,
-    []
-  )
+  const timelineStore = getTimelineStore()
+  const getTimelineJson = useCallback((): Record<string, unknown> => {
+    return timelineStore.toTheatreJSON() as unknown as Record<string, unknown>
+  }, [timelineStore.toTheatreJSON])
 
   const [nodes, setNodes, onNodesChangeBase] = useNodesState<AnyNodeJSON>([])
   const [edges, setEdges, onEdgesChangeBase] = useEdgesState<ReactFlowEdge<unknown>>([])
@@ -590,14 +589,14 @@ export function getNoodles(): Visualization {
       if (hasTimeline) {
         try {
           // Timeline data uses a Theatre.js-compatible JSON format for backwards compatibility.
-          getTimelineStore().fromTheatreJSON(
+          timelineStore.fromTheatreJSON(
             timeline as unknown as import('../timeline/types').TheatreTimelineData
           )
         } catch (error) {
           console.error('Failed to load timeline:', error)
         }
       } else {
-        getTimelineStore().reset()
+        timelineStore.reset()
       }
 
       // Build the operator graph synchronously — operators are ready before any re-render
@@ -616,7 +615,8 @@ export function getNoodles(): Visualization {
       // Render settings are now stored as OutOp inputs (migration 012 handles conversion)
 
       // Load API keys from project file if present
-      getKeysStore().setProjectKeys(apiKeys)
+      const keysStore = getKeysStore()
+      keysStore.setProjectKeys(apiKeys)
 
       // Restore viewport unless we're in an undo/redo restore
       if (viewport && name && !undoRedoRef.current?.isRestoring()) {
@@ -629,7 +629,7 @@ export function getNoodles(): Visualization {
 
       setHasUnsavedChanges(false)
     },
-    [setNodes, setEdges, navigate, routePrefix]
+    [setNodes, setEdges, navigate, routePrefix, timelineStore.fromTheatreJSON, timelineStore.reset]
   )
 
   // Assign to ref for undo/redo system
@@ -774,7 +774,7 @@ export function getNoodles(): Visualization {
   // File menu callbacks
   const getNoodlesProjectJson = useCallback((): NoodlesProjectJSON => {
     const store = getOpStore()
-    const timeline = getTimelineStore().toTheatreJSON() as unknown as Record<string, unknown>
+    const timeline = timelineStore.toTheatreJSON() as unknown as Record<string, unknown>
     const viewport = reactFlowInstanceRef.current?.getViewport() || { x: 0, y: 0, zoom: 1 }
     const projectKeys = getKeysForProject()
     // Render settings are now stored as OutOp inputs, serialized with the node
@@ -792,7 +792,7 @@ export function getNoodles(): Visualization {
       },
       ...(projectKeys ? { apiKeys: projectKeys } : {}),
     }
-  }, [nodes, edges, layoutMode, showOverlay, showDebugInfo])
+  }, [nodes, edges, layoutMode, showOverlay, showDebugInfo, timelineStore.toTheatreJSON])
 
   const onMenuSave = useCallback(async () => {
     if (!projectName) return

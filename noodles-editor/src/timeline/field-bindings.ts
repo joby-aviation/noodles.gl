@@ -343,7 +343,7 @@ export function bindFieldToTimeline(
       const track = timelineStore.getTrack(fieldPath)
       // Read position from the live store — timelineStore is a snapshot and its
       // .position property would be stale if the playhead moved after bind
-      const position = getTimelineStore().position
+      const { position } = getTimelineStore()
       const epsilon = 0.001
 
       debugKeyframe(
