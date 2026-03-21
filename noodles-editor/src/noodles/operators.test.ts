@@ -25,6 +25,7 @@ import {
   Operator,
   ProjectOp,
   RectangleOp,
+  RerouteOp,
   ScatterplotLayerOp,
   SelectOp,
   SwitchOp,
@@ -2437,5 +2438,26 @@ describe('Tile3DLayerOp', () => {
     const op = new Tile3DLayerOp('/tile3d-0')
     const values = op.inputs.provider.choices.map(c => c.value)
     expect(values).toContain('Generic')
+  })
+})
+
+describe('RerouteOp', () => {
+  it('passes a value through unchanged', () => {
+    const op = new RerouteOp('/reroute-0')
+    const data = [1, 2, 3]
+    const result = op.execute({ value: data })
+    expect(result.value).toBe(data)
+  })
+
+  it('passes undefined through when input is not connected', () => {
+    const op = new RerouteOp('/reroute-0')
+    const result = op.execute({ value: undefined })
+    expect(result.value).toBeUndefined()
+  })
+
+  it('has a single value input and a single value output', () => {
+    const op = new RerouteOp('/reroute-0')
+    expect(Object.keys(op.inputs)).toEqual(['value'])
+    expect(Object.keys(op.outputs)).toEqual(['value'])
   })
 })

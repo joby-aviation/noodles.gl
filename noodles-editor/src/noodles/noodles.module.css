@@ -1015,3 +1015,17 @@
   font-size: 12px;
   margin-left: 4px;
 }
+
+.rerouteNode {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: var(--color-bg-secondary);
+  border: 2px solid #666;
+  position: relative;
+  cursor: pointer;
+}
+
+:global(.react-flow__node.selected) .rerouteNode {
+  border-color: var(--node-selected-color);
+}

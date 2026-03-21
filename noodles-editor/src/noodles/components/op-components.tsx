@@ -49,6 +49,7 @@ import {
   Operator,
   type OutOp,
   opTypes,
+  type RerouteOp,
   type TableEditorOp,
   type TimeOp,
   type ViewerOp,
@@ -192,6 +193,7 @@ export const nodeComponents = {
   DirectionsOp: memo(DirectionsOpComponent, nodePropsAreEqual),
   MouseOp: memo(MouseOpComponent, nodePropsAreEqual),
   OutOp: memo(OutOpComponent, nodePropsAreEqual),
+  RerouteOp: memo(RerouteOpComponent, nodePropsAreEqual),
   TableEditorOp: memo(TableEditorOpComponent, nodePropsAreEqual),
   TimeOp: memo(TimeOpComponent, nodePropsAreEqual),
   ViewerOp: memo(ViewerOpComponent, nodePropsAreEqual),
@@ -1428,6 +1430,33 @@ function TimeOpComponent({
 
 // OutOp component that only shows the vis input.
 // Render settings are hidden from the node UI and shown in the properties panel instead.
+function RerouteOpComponent({
+  id,
+}: ReactFlowNodeProps<NodeDataJSON<RerouteOp>> & { type: 'RerouteOp' }) {
+  const isDimmed = useNodeDimmed(id)
+  const isInputDimmed = useHandleDimmed(id, 'par.value')
+  const isOutputDimmed = useHandleDimmed(id, 'out.value')
+
+  return (
+    <div className={cx(s.rerouteNode, { [s.wrapperDimmed]: isDimmed })}>
+      <Handle
+        id="par.value"
+        type="target"
+        position={Position.Left}
+        className={cx(s.handleData, { [s.handleDimmed]: isInputDimmed })}
+        style={{ top: '50%', transform: 'translateY(-50%)' }}
+      />
+      <Handle
+        id="out.value"
+        type="source"
+        position={Position.Right}
+        className={cx(s.handleData, { [s.handleDimmed]: isOutputDimmed })}
+        style={{ top: '50%', transform: 'translateY(-50%)' }}
+      />
+    </div>
+  )
+}
+
 function OutOpComponent({ id, type }: ReactFlowNodeProps<NodeDataJSON<OutOp>> & { type: 'OutOp' }) {
   const op = getOp(id as string)
   if (!op) {
