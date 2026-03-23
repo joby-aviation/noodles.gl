@@ -29,7 +29,7 @@ interface UseConnectionDropOnEdgeOptions {
 }
 
 // Find the edge closest to a flow-space point, skipping edges from the dragging source
-function findEdgeAtPosition(
+export function findEdgeAtPosition(
   flowPos: XYPosition,
   sourceNodeId: string,
   getNodes: () => ReactFlowNode[],
