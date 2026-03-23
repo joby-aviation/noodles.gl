@@ -18,7 +18,7 @@ import { getNodeCenter, pointToLineDistance } from '../utils/edge-geometry'
 import { parseHandleId } from '../utils/path-utils'
 
 // Distance threshold in pixels for considering a drop position "on" an edge
-const EDGE_DROP_THRESHOLD = 30
+const EDGE_DROP_THRESHOLD = 50
 
 interface UseConnectionDropOnEdgeOptions {
   getNodes: () => ReactFlowNode[]
