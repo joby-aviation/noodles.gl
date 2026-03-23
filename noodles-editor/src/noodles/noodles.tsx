@@ -746,7 +746,7 @@ export function getNoodles(): Visualization {
   }, [nodes.length])
 
   const displayedNodes = useMemo(() => {
-    const dragHandle = `.${s.header}`
+    const dragHandle = `.${s.dragHandle}`
     const targetContainerId = currentContainerId || '/'
 
     return nodes

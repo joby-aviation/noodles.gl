@@ -784,7 +784,7 @@ function NodeHeader({
     : ''
 
   return (
-    <div className={cx(s.header, headerClass(type))}>
+    <div className={cx(s.header, s.dragHandle, headerClass(type))}>
       <div className={s.headerTitle} title={`${id} (${displayName})`}>
         {editableId} ({displayName})
       </div>
@@ -1428,8 +1428,6 @@ function TimeOpComponent({
   )
 }
 
-// OutOp component that only shows the vis input.
-// Render settings are hidden from the node UI and shown in the properties panel instead.
 function RerouteOpComponent({
   id,
 }: ReactFlowNodeProps<NodeDataJSON<RerouteOp>> & { type: 'RerouteOp' }) {
@@ -1438,25 +1436,27 @@ function RerouteOpComponent({
   const isOutputDimmed = useHandleDimmed(id, 'out.value')
 
   return (
-    <div className={cx(s.rerouteNode, { [s.wrapperDimmed]: isDimmed })}>
+    <div className={cx(s.rerouteNode, s.dragHandle, { [s.wrapperDimmed]: isDimmed })}>
       <Handle
         id="par.value"
         type="target"
         position={Position.Left}
-        className={cx(s.handleData, { [s.handleDimmed]: isInputDimmed })}
+        className={cx(s.rerouteHandle, { [s.handleDimmed]: isInputDimmed })}
         style={{ top: '50%', transform: 'translateY(-50%)' }}
       />
       <Handle
         id="out.value"
         type="source"
         position={Position.Right}
-        className={cx(s.handleData, { [s.handleDimmed]: isOutputDimmed })}
+        className={cx(s.rerouteHandle, { [s.handleDimmed]: isOutputDimmed })}
         style={{ top: '50%', transform: 'translateY(-50%)' }}
       />
     </div>
   )
 }
 
+// OutOp component that only shows the vis input.
+// Render settings are hidden from the node UI and shown in the properties panel instead.
 function OutOpComponent({ id, type }: ReactFlowNodeProps<NodeDataJSON<OutOp>> & { type: 'OutOp' }) {
   const op = getOp(id as string)
   if (!op) {
