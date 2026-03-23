@@ -64,6 +64,7 @@ import { SaveAsDialog } from './components/save-as-dialog'
 import { StorageErrorHandler } from './components/storage-error-handler'
 import { UndoRedoHandler, type UndoRedoHandlerRef } from './components/UndoRedoHandler'
 import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
+import { useConnectionDropOnEdge } from './hooks/use-connection-drop-on-edge'
 import { useKeyboardShortcut } from './hooks/use-keyboard-shortcut'
 import { useNodeDropOnEdge } from './hooks/use-node-drop-on-edge'
 import { useProjectModifications } from './hooks/use-project-modifications'
@@ -385,9 +386,21 @@ export function getNoodles(): Visualization {
     [setConnectionDragState]
   )
 
-  const onConnectEnd: OnConnectEnd = useCallback(() => {
-    setConnectionDragState(null)
-  }, [setConnectionDragState])
+  const { onConnectEnd: onConnectionDropEnd } = useConnectionDropOnEdge({
+    getNodes: useCallback(() => nodes, [nodes]),
+    getEdges: useCallback(() => edges, [edges]),
+    onConnect,
+    getConnectionDragState: () => useUIStore.getState().connectionDragState,
+    screenToFlowPosition: pos => reactFlowInstanceRef.current?.screenToFlowPosition(pos) ?? pos,
+  })
+
+  const onConnectEnd: OnConnectEnd = useCallback(
+    (event, connectionState) => {
+      onConnectionDropEnd(event, connectionState)
+      setConnectionDragState(null)
+    },
+    [onConnectionDropEnd, setConnectionDragState]
+  )
 
   // Hook for dropping nodes onto edges to insert them
   const { onNodeDragStop: onNodeDragStopBase } = useNodeDropOnEdge({
