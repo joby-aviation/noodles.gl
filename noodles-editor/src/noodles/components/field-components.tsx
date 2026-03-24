@@ -10,7 +10,7 @@ import { InputText } from 'primereact/inputtext'
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Temporal } from 'temporal-polyfill'
 import { getFieldPath } from '../../timeline/field-bindings'
-import { KeyframeIndicator } from '../../timeline/components/KeyframeIndicator'
+import { VectorKeyframeIndicator } from '../../timeline/components/KeyframeIndicator'
 import { useTimelineStore } from '../../timeline/timeline-store'
 import {
   type BezierCurveField,
@@ -363,10 +363,6 @@ function VectorNumberInput({
   onChange,
   onCommit,
   onInteractionStart,
-  opId,
-  fieldName,
-  channelKey,
-  expandTimeline,
 }: {
   keyName: string
   value: number
@@ -375,10 +371,6 @@ function VectorNumberInput({
   onChange: (key: string | number, val: number) => void
   onCommit: () => void
   onInteractionStart?: () => void
-  opId?: string
-  fieldName?: string
-  channelKey?: string
-  expandTimeline?: () => void
 }) {
   const handleChange = useCallback(
     (val: number) => {
@@ -400,17 +392,6 @@ function VectorNumberInput({
         className={cx(s.fieldInput, s.fieldInputVector, s.fieldInputNumber)}
         title={`${keyName}: ${value}`}
       />
-      {opId && fieldName && channelKey && (
-        <KeyframeIndicator
-          opId={opId}
-          fieldName={fieldName}
-          subPath={[channelKey]}
-          currentValue={value}
-          size="small"
-          onKeyframeAdded={expandTimeline}
-          disabled={disabled}
-        />
-      )}
     </Fragment>
   )
 }
@@ -518,7 +499,7 @@ export function VectorFieldComponent({
       <label className={s.fieldLabel} htmlFor={id}>
         {id}
       </label>
-      <div id={id} className={s.fieldInputWrapper}>
+      <div id={id} className={cx(s.fieldInputWrapper, s.fieldInputWrapperVector)}>
         {keys.map((key, i) => {
           const objectKey = field.returnType === 'tuple' ? i : key
           return (
@@ -531,10 +512,6 @@ export function VectorFieldComponent({
               onChange={onChange}
               onCommit={onCommit}
               onInteractionStart={captureStart}
-              opId={opId}
-              fieldName={fieldName}
-              channelKey={key}
-              expandTimeline={expandTimeline}
             />
           )
         })}
@@ -551,6 +528,17 @@ export function VectorFieldComponent({
             disabled={disabled}
             severity="secondary"
             text
+          />
+        )}
+        {opId && fieldName && (
+          <VectorKeyframeIndicator
+            opId={opId}
+            fieldName={fieldName}
+            keys={keys}
+            value={value as Record<string | number, number>}
+            returnType={field.returnType}
+            disabled={disabled}
+            onKeyframeAdded={expandTimeline}
           />
         )}
       </div>
