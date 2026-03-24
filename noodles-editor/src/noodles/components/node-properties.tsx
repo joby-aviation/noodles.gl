@@ -357,6 +357,7 @@ function CompoundSubFields({
 // Exported for testing
 export function NodeProperties({ nodeId }: { nodeId: string }) {
   const { setEdges } = useReactFlow()
+  const onEdgesChange = useStore(s => s.onEdgesChange)
   // Only re-renders when this node's incoming edges change (not on position updates)
   const edges = useStore(
     s => s.edges.filter(e => e.target === nodeId),
@@ -1010,15 +1011,12 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                   className={s.contextMenuItem}
                   onClick={() => {
                     const name = contextMenu.listFieldInputName!
-                    setEdges(current =>
-                      current.filter(
-                        e =>
-                          !(
-                            e.target === nodeId &&
-                            (e.targetHandle === name || e.targetHandle === `par.${name}`)
-                          )
-                      )
+                    const toRemove = edges.filter(
+                      e =>
+                        e.target === nodeId &&
+                        (e.targetHandle === name || e.targetHandle === `par.${name}`)
                     )
+                    onEdgesChange(toRemove.map(e => ({ type: 'remove' as const, id: e.id })))
                     setContextMenu(null)
                   }}
                 >
