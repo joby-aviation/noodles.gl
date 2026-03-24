@@ -1,5 +1,4 @@
 import { extname } from 'node:path'
-import type { Feature as GeoJsonFeature, FeatureCollection as GeoJsonFeatureCollection } from 'geojson'
 import type {
   ContourLayerProps,
   GridLayerProps,
@@ -125,6 +124,10 @@ import {
   tsvParse,
 } from 'd3'
 import * as deck from 'deck.gl'
+import type {
+  Feature as GeoJsonFeature,
+  FeatureCollection as GeoJsonFeatureCollection,
+} from 'geojson'
 import { BehaviorSubject, combineLatest, type Subscription } from 'rxjs'
 import { filter, mergeMap } from 'rxjs/operators'
 import { Temporal } from 'temporal-polyfill'
@@ -187,9 +190,9 @@ import { getAllOps, getOp } from './store'
 import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
 import { composeAccessor, isAccessor } from './utils/accessor-helpers'
 import {
+  detectGeoKey,
   type Geography,
   type GeoKey,
-  detectGeoKey,
   getBoundaries,
   joinDataToFeatures,
 } from './utils/choropleth-boundaries'
@@ -5911,7 +5914,8 @@ async function resolveBoundariesAndJoin(
 ) {
   const geo = geography as Geography
   const gk = geoKey as GeoKey
-  const userBoundaries = geography === 'custom' ? (boundaries as GeoJsonFeatureCollection) : undefined
+  const userBoundaries =
+    geography === 'custom' ? (boundaries as GeoJsonFeatureCollection) : undefined
   const resolvedBoundaries = await getBoundaries(geo, userBoundaries)
 
   const rows = data as Record<string, unknown>[]
@@ -5920,9 +5924,12 @@ async function resolveBoundariesAndJoin(
     return joinDataToFeaturesViaDuckDb(resolvedBoundaries, rows, customSQL)
   }
 
-  const resolvedGeoKey = gk === 'auto' && geo !== 'custom'
-    ? detectGeoKey(rows, joinKey, geo)
-    : (gk === 'auto' ? 'name' : gk)
+  const resolvedGeoKey =
+    gk === 'auto' && geo !== 'custom'
+      ? detectGeoKey(rows, joinKey, geo)
+      : gk === 'auto'
+        ? 'name'
+        : gk
 
   return joinDataToFeatures(resolvedBoundaries, rows, joinKey, resolvedGeoKey)
 }
@@ -5952,7 +5959,14 @@ export class ChoroplethJoinOp extends Operator<ChoroplethJoinOp> {
     geoKey,
     customSQL,
   }: ExtractProps<typeof this.inputs>): Promise<ExtractProps<typeof this.outputs>> {
-    const features = await resolveBoundariesAndJoin(data, geography, boundaries, joinKey, geoKey, customSQL)
+    const features = await resolveBoundariesAndJoin(
+      data,
+      geography,
+      boundaries,
+      joinKey,
+      geoKey,
+      customSQL
+    )
     return { features }
   }
 }
@@ -5999,7 +6013,16 @@ export class ChoroplethLayerOp extends Operator<ChoroplethLayerOp> {
       if (d.length > 0) valueColumn.updateChoices(Object.keys(d[0]))
     })
 
-    return { ...base, valueColumn, colorScheme, opacity, stroked, getLineColor, getLineWidth, visible }
+    return {
+      ...base,
+      valueColumn,
+      colorScheme,
+      opacity,
+      stroked,
+      getLineColor,
+      getLineWidth,
+      visible,
+    }
   }
 
   createOutputs() {
@@ -6033,7 +6056,8 @@ export class ChoroplethLayerOp extends Operator<ChoroplethLayerOp> {
     )
 
     const interpolator =
-      choroplethInterpolators[colorScheme as keyof typeof choroplethInterpolators] ?? interpolateViridis
+      choroplethInterpolators[colorScheme as keyof typeof choroplethInterpolators] ??
+      interpolateViridis
 
     // Auto-compute domain from matched features' valueColumn
     const values = featureCollection.features
@@ -6046,7 +6070,8 @@ export class ChoroplethLayerOp extends Operator<ChoroplethLayerOp> {
 
     const getFillColor = (f: GeoJsonFeature) => {
       const val = f.properties?.[valueColumn]
-      if (typeof val !== 'number' || Number.isNaN(val)) return [180, 180, 180, 100] as [number, number, number, number]
+      if (typeof val !== 'number' || Number.isNaN(val))
+        return [180, 180, 180, 100] as [number, number, number, number]
       const t = (val - domainMin) / range
       const hex = d3Color(interpolator(t))?.formatHex() ?? '#808080'
       return hexToColor(hex) ?? ([128, 128, 128, 255] as [number, number, number, number])

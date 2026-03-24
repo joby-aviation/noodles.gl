@@ -7,7 +7,8 @@ export type GeoKey = 'auto' | 'name' | 'abbrev' | 'fips' | 'iso2' | 'iso3'
 const BOUNDARY_URLS: Record<Exclude<Geography, 'custom'>, string> = {
   'us-states': 'https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json',
   'world-countries': 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json',
-  'ca-provinces': 'https://cdn.jsdelivr.net/gh/codeforamerica/click_that_hood@master/public/data/canada.geojson',
+  'ca-provinces':
+    'https://cdn.jsdelivr.net/gh/codeforamerica/click_that_hood@master/public/data/canada.geojson',
 }
 
 // [fips_padded, abbrev, name]
@@ -66,9 +67,15 @@ const US_STATES: [string, string, string][] = [
 ]
 
 // Keyed by zero-padded FIPS string (matches feature.id after padding)
-const US_STATE_BY_FIPS = new Map(US_STATES.map(([fips, abbrev, name]) => [fips, { fips, abbrev, name }]))
-const US_STATE_BY_ABBREV = new Map(US_STATES.map(([fips, abbrev, name]) => [abbrev.toLowerCase(), { fips, abbrev, name }]))
-const US_STATE_BY_NAME = new Map(US_STATES.map(([fips, abbrev, name]) => [name.toLowerCase(), { fips, abbrev, name }]))
+const US_STATE_BY_FIPS = new Map(
+  US_STATES.map(([fips, abbrev, name]) => [fips, { fips, abbrev, name }])
+)
+const US_STATE_BY_ABBREV = new Map(
+  US_STATES.map(([fips, abbrev, name]) => [abbrev.toLowerCase(), { fips, abbrev, name }])
+)
+const US_STATE_BY_NAME = new Map(
+  US_STATES.map(([fips, abbrev, name]) => [name.toLowerCase(), { fips, abbrev, name }])
+)
 
 // [numeric, iso2, iso3, name]
 const COUNTRY_TABLE: [string, string, string, string][] = [
@@ -297,10 +304,18 @@ const COUNTRY_NAME_ALIASES: Record<string, string> = {
   'cape verde': 'cape verde',
 }
 
-const COUNTRY_BY_NUMERIC = new Map(COUNTRY_TABLE.map(([n, iso2, iso3, name]) => [n, { iso2, iso3, name }]))
-const COUNTRY_BY_ISO2 = new Map(COUNTRY_TABLE.map(([, iso2, iso3, name]) => [iso2.toLowerCase(), { iso2, iso3, name }]))
-const COUNTRY_BY_ISO3 = new Map(COUNTRY_TABLE.map(([, iso2, iso3, name]) => [iso3.toLowerCase(), { iso2, iso3, name }]))
-const COUNTRY_BY_NAME = new Map(COUNTRY_TABLE.map(([, iso2, iso3, name]) => [name.toLowerCase(), { iso2, iso3, name }]))
+const COUNTRY_BY_NUMERIC = new Map(
+  COUNTRY_TABLE.map(([n, iso2, iso3, name]) => [n, { iso2, iso3, name }])
+)
+const COUNTRY_BY_ISO2 = new Map(
+  COUNTRY_TABLE.map(([, iso2, iso3, name]) => [iso2.toLowerCase(), { iso2, iso3, name }])
+)
+const COUNTRY_BY_ISO3 = new Map(
+  COUNTRY_TABLE.map(([, iso2, iso3, name]) => [iso3.toLowerCase(), { iso2, iso3, name }])
+)
+const COUNTRY_BY_NAME = new Map(
+  COUNTRY_TABLE.map(([, iso2, iso3, name]) => [name.toLowerCase(), { iso2, iso3, name }])
+)
 
 // [code, name]
 const CA_PROVINCES: [string, string][] = [
@@ -319,8 +334,12 @@ const CA_PROVINCES: [string, string][] = [
   ['YT', 'Yukon'],
 ]
 
-const CA_PROVINCE_BY_CODE = new Map(CA_PROVINCES.map(([code, name]) => [code.toLowerCase(), { code, name }]))
-const CA_PROVINCE_BY_NAME = new Map(CA_PROVINCES.map(([code, name]) => [name.toLowerCase(), { code, name }]))
+const CA_PROVINCE_BY_CODE = new Map(
+  CA_PROVINCES.map(([code, name]) => [code.toLowerCase(), { code, name }])
+)
+const CA_PROVINCE_BY_NAME = new Map(
+  CA_PROVINCES.map(([code, name]) => [name.toLowerCase(), { code, name }])
+)
 // Common alternates
 CA_PROVINCE_BY_NAME.set('newfoundland', CA_PROVINCE_BY_CODE.get('nl')!)
 CA_PROVINCE_BY_NAME.set('labrador', CA_PROVINCE_BY_CODE.get('nl')!)
@@ -517,10 +536,7 @@ function normalizeUserValue(rawVal: string, geoKey: Exclude<GeoKey, 'auto'>): st
 }
 
 // Get the normalized key from a feature's properties that matches the geoKey type
-function getFeatureNormalizedKey(
-  feature: Feature,
-  geoKey: Exclude<GeoKey, 'auto'>
-): string | null {
+function getFeatureNormalizedKey(feature: Feature, geoKey: Exclude<GeoKey, 'auto'>): string | null {
   const props = feature.properties ?? {}
   let val: unknown
 

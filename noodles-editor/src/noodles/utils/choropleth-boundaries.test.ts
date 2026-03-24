@@ -279,8 +279,18 @@ describe('joinDataToFeatures', () => {
 
   it('joins world countries by ISO alpha-2 code', () => {
     const worldBoundaries = makeFeatureCollection([
-      { type: 'Feature', id: 840, properties: { name: 'United States', iso2: 'US', iso3: 'USA' }, geometry: null },
-      { type: 'Feature', id: 276, properties: { name: 'Germany', iso2: 'DE', iso3: 'DEU' }, geometry: null },
+      {
+        type: 'Feature',
+        id: 840,
+        properties: { name: 'United States', iso2: 'US', iso3: 'USA' },
+        geometry: null,
+      },
+      {
+        type: 'Feature',
+        id: 276,
+        properties: { name: 'Germany', iso2: 'DE', iso3: 'DEU' },
+        geometry: null,
+      },
     ])
     const data = [
       { country: 'US', gdp: 21000 },
@@ -293,8 +303,18 @@ describe('joinDataToFeatures', () => {
 
   it('resolves common country name aliases', () => {
     const worldBoundaries = makeFeatureCollection([
-      { type: 'Feature', id: 840, properties: { name: 'United States', iso2: 'US', iso3: 'USA' }, geometry: null },
-      { type: 'Feature', id: 826, properties: { name: 'United Kingdom', iso2: 'GB', iso3: 'GBR' }, geometry: null },
+      {
+        type: 'Feature',
+        id: 840,
+        properties: { name: 'United States', iso2: 'US', iso3: 'USA' },
+        geometry: null,
+      },
+      {
+        type: 'Feature',
+        id: 826,
+        properties: { name: 'United Kingdom', iso2: 'GB', iso3: 'GBR' },
+        geometry: null,
+      },
     ])
     const data = [
       { country: 'USA', gdp: 21000 },
