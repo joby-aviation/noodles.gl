@@ -412,6 +412,154 @@ export function bindFieldToTimeline(
   }
 }
 
+// Bind a single channel of a vector-like field to an individual number track
+// Creates per-channel tracks like "op / position / x" or "op / center / lng" so each
+// component can be keyframed independently
+function bindVecChannelToTimeline(
+  op: Operator<IOperator>,
+  fieldName: string,
+  field: Vec2Field | Vec3Field | Point2DField | Point3DField,
+  channelKey: string,
+  store?: TimelineStore
+): () => void {
+  const timelineStore = store || useTimelineStore.getState()
+  const fieldPath = getFieldPath(op.id, fieldName, [channelKey])
+
+  debugBinding('bind %s.%s.%s → track %s', op.id, fieldName, channelKey, fieldPath)
+
+  let updating = false
+  let lastKfValue: number | undefined
+
+  const getChannel = (): number => (field.value as Record<string, number>)[channelKey] ?? 0
+
+  const setChannel = (val: number): void =>
+    // biome-ignore lint/suspicious/noExplicitAny: spreading vector value with channel override
+    field.setValue({ ...field.value, [channelKey]: val } as any)
+
+  timelineStore.getOrCreateTrack(fieldPath, getChannel())
+
+  // Subscribe to timeline position changes -> update the field's channel
+  const unsubscribePosition = useTimelineStore.subscribe(
+    state => state.position,
+    position => {
+      if (op.locked?.value || updating) return
+
+      const value = timelineStore.evaluateTrack(fieldPath) as number | undefined
+      debugBinding('pos=%s eval %s → %O', position.toFixed(3), fieldPath, value)
+      if (value === undefined) return
+
+      if (lastKfValue !== undefined && value === lastKfValue) {
+        debugBinding('skip %s: value unchanged (%O)', fieldPath, value)
+        return
+      }
+      lastKfValue = value
+
+      updating = true
+      try {
+        if (getChannel() !== value) {
+          debugBinding('setChannel %s.%s.%s → %O', op.id, fieldName, channelKey, value)
+          setChannel(value)
+        }
+      } catch (e) {
+        debugTimeline(`Error syncing timeline to vec channel ${fieldPath}:`, e)
+      }
+      updating = false
+    }
+  )
+
+  // Initial evaluation — sync channel to current position when binding is established
+  const initialValue = timelineStore.evaluateTrack(fieldPath) as number | undefined
+  debugBinding('initial eval %s → %O', fieldPath, initialValue)
+  if (initialValue !== undefined) {
+    updating = true
+    try {
+      setChannel(initialValue)
+      lastKfValue = initialValue
+    } catch (e) {
+      debugTimeline(`Error in initial vec channel sync ${fieldPath}:`, e)
+    }
+    updating = false
+  }
+
+  // Subscribe to field value changes -> update or create a keyframe on the channel track
+  // Fires for any change to the Vec2/Vec3 field; we extract only our channel's value
+  const fieldSub = field.subscribe((vecValue: unknown) => {
+    if (op.locked?.value || updating) return
+
+    const kfValue = (vecValue as Record<string, number>)[channelKey] ?? 0
+
+    // Skip if this channel's value hasn't changed — the Vec2/Vec3 update was caused
+    // by a different channel being modified (e.g. x changed but y is still the same)
+    if (lastKfValue !== undefined && kfValue === lastKfValue) return
+
+    updating = true
+    try {
+      const track = timelineStore.getTrack(fieldPath)
+      const { position } = getTimelineStore()
+      const epsilon = 0.001
+
+      debugKeyframe(
+        '%s: track=%s kfs=%s pos=%s',
+        fieldPath,
+        !!track,
+        track?.keyframes.length ?? 0,
+        position.toFixed(3)
+      )
+
+      const existingKf = track?.keyframes.find(kf => Math.abs(kf.position - position) < epsilon)
+
+      if (existingKf) {
+        if (existingKf.value !== kfValue) {
+          debugKeyframe(
+            'update kf %s @ pos=%s id=%s %O → %O',
+            fieldPath,
+            position.toFixed(3),
+            existingKf.id,
+            existingKf.value,
+            kfValue
+          )
+          timelineStore.updateKeyframe(fieldPath, existingKf.id, { value: kfValue })
+        } else {
+          debugKeyframe('skip update %s: value unchanged %O', fieldPath, kfValue)
+        }
+      } else if (track && track.keyframes.length > 0) {
+        // Only insert if value differs from what the track currently interpolates —
+        // this prevents redundant keyframes when another channel caused the vec update
+        const currentInterpolated = timelineStore.evaluateTrack(fieldPath)
+        if (kfValue !== currentInterpolated) {
+          debugKeyframe('add kf %s @ pos=%s value=%O', fieldPath, position.toFixed(3), kfValue)
+          timelineStore.addKeyframe(fieldPath, {
+            position,
+            value: kfValue,
+            interpolation: 'bezier',
+          })
+        } else {
+          debugKeyframe(
+            'skip add %s: value same as interpolated %O',
+            fieldPath,
+            currentInterpolated
+          )
+        }
+      } else {
+        debugKeyframe(
+          'skip %s: no keyframes on track (use keyframe indicator to start animating)',
+          fieldPath
+        )
+      }
+
+      lastKfValue = kfValue
+    } catch (e) {
+      debugTimeline(`Error syncing vec channel to timeline ${fieldPath}:`, e)
+    }
+    updating = false
+  })
+
+  return () => {
+    unsubscribePosition()
+    fieldSub.unsubscribe()
+  }
+}
+
 // Bind all animatable fields for an operator to the timeline, returns cleanup function
 export function bindOperatorToTimeline(op: Operator<IOperator>, store?: TimelineStore): () => void {
   const cleanupFns: Array<() => void> = []
@@ -420,6 +568,34 @@ export function bindOperatorToTimeline(op: Operator<IOperator>, store?: Timeline
     // Skip non-animatable fields
     if (typeof field.value === 'function') continue
     if (!isAnimatableField(field as AnyField)) continue
+
+    // Vec2/Vec3 and Point2D/Point3D fields: bind each channel as an individual number
+    // track so components can be keyframed independently (e.g. "op / position / x",
+    // "op / center / lng")
+    if (
+      field instanceof Vec2Field ||
+      field instanceof Vec3Field ||
+      field instanceof Point2DField ||
+      field instanceof Point3DField
+    ) {
+      let keys: string[]
+      if (field instanceof Vec2Field) keys = ['x', 'y']
+      else if (field instanceof Vec3Field) keys = ['x', 'y', 'z']
+      else if (field instanceof Point2DField) keys = ['lng', 'lat']
+      else keys = ['lng', 'lat', 'alt'] // Point3DField
+      for (const key of keys) {
+        const cleanup = bindVecChannelToTimeline(
+          op,
+          fieldName,
+          field as Vec2Field | Vec3Field | Point2DField | Point3DField,
+          key,
+          store
+        )
+        cleanupFns.push(cleanup)
+        activeBindings.set(`${op.id}.${fieldName}.${key}`, cleanup)
+      }
+      continue
+    }
 
     // CompoundPropsField: bind each animatable sub-field individually so that
     // per-property sub-path tracks (e.g. "viewState / zoom") are evaluated
