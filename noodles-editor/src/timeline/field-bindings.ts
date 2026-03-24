@@ -578,12 +578,8 @@ export function bindOperatorToTimeline(op: Operator<IOperator>, store?: Timeline
       field instanceof Point2DField ||
       field instanceof Point3DField
     ) {
-      let keys: string[]
-      if (field instanceof Vec2Field) keys = ['x', 'y']
-      else if (field instanceof Vec3Field) keys = ['x', 'y', 'z']
-      else if (field instanceof Point2DField) keys = ['lng', 'lat']
-      else keys = ['lng', 'lat', 'alt'] // Point3DField
-      for (const key of keys) {
+      const { channelKeys } = field.constructor as typeof Vec2Field
+      for (const key of channelKeys) {
         const cleanup = bindVecChannelToTimeline(
           op,
           fieldName,

@@ -673,6 +673,7 @@ export class Point3DField extends Field<
 > {
   static type = 'geopoint-3d'
   static defaultValue = { lng: 0, lat: 0, alt: 0 }
+  static channelKeys = ['lng', 'lat', 'alt'] as const
 
   returnType: 'object' | 'tuple' = 'object'
 
@@ -735,6 +736,7 @@ export class Point2DField extends Field<
 > {
   static type = 'geopoint-2d'
   static defaultValue = { lng: 0, lat: 0 }
+  static channelKeys = ['lng', 'lat'] as const
 
   returnType: 'object' | 'tuple' = 'object'
 
@@ -776,6 +778,7 @@ export class Vec2Field extends Field<
 > {
   static type = 'vec2'
   static defaultValue = { x: 0, y: 0 }
+  static channelKeys = ['x', 'y'] as const
   returnType: 'object' | 'tuple' = 'object'
   constructor(override?: Vec2FieldOverride, options?: Vec2FieldOptions) {
     super(override, options)
@@ -811,6 +814,7 @@ export class Vec3Field extends Field<
 > {
   static type = 'vec3'
   static defaultValue = { x: 0, y: 0, z: 0 }
+  static channelKeys = ['x', 'y', 'z'] as const
   returnType: 'object' | 'tuple' = 'object'
   constructor(override?: Vec3FieldOverride, options?: Vec2FieldOptions) {
     super(override, options)

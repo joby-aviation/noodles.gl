@@ -10,6 +10,7 @@ import { InputText } from 'primereact/inputtext'
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Temporal } from 'temporal-polyfill'
 import { getFieldPath } from '../../timeline/field-bindings'
+import { KeyframeIndicator } from '../../timeline/components/KeyframeIndicator'
 import { useTimelineStore } from '../../timeline/timeline-store'
 import {
   type BezierCurveField,
@@ -362,6 +363,10 @@ function VectorNumberInput({
   onChange,
   onCommit,
   onInteractionStart,
+  opId,
+  fieldName,
+  channelKey,
+  expandTimeline,
 }: {
   keyName: string
   value: number
@@ -370,6 +375,10 @@ function VectorNumberInput({
   onChange: (key: string | number, val: number) => void
   onCommit: () => void
   onInteractionStart?: () => void
+  opId?: string
+  fieldName?: string
+  channelKey?: string
+  expandTimeline?: () => void
 }) {
   const handleChange = useCallback(
     (val: number) => {
@@ -391,6 +400,17 @@ function VectorNumberInput({
         className={cx(s.fieldInput, s.fieldInputVector, s.fieldInputNumber)}
         title={`${keyName}: ${value}`}
       />
+      {opId && fieldName && channelKey && (
+        <KeyframeIndicator
+          opId={opId}
+          fieldName={fieldName}
+          subPath={[channelKey]}
+          currentValue={value}
+          size="small"
+          onKeyframeAdded={expandTimeline}
+          disabled={disabled}
+        />
+      )}
     </Fragment>
   )
 }
@@ -399,10 +419,16 @@ export function VectorFieldComponent({
   id,
   field,
   disabled,
+  opId,
+  fieldName,
+  expandTimeline,
 }: {
   id: OpId
   field: Vec2Field | Vec3Field | Point2DField | Point3DField
   disabled: boolean
+  opId?: string
+  fieldName?: string
+  expandTimeline?: () => void
 }) {
   const [value, setValue] = useState<
     { [key: string]: number } | [number, number] | [number, number, number]
@@ -413,16 +439,7 @@ export function VectorFieldComponent({
   const isPointField = field instanceof Point2DField || field instanceof Point3DField
   const isPoint3D = field instanceof Point3DField
 
-  const keys =
-    field instanceof Point3DField
-      ? ['lng', 'lat', 'alt']
-      : field instanceof Point2DField
-        ? ['lng', 'lat']
-        : field instanceof Vec2Field
-          ? ['x', 'y']
-          : field instanceof Vec3Field
-            ? ['x', 'y', 'z']
-            : Object.keys(value)
+  const keys = (field.constructor as typeof Vec2Field).channelKeys ?? Object.keys(value)
 
   // Track the latest value in a ref for onCommit
   const latestValueRef = useRef(value)
@@ -514,6 +531,10 @@ export function VectorFieldComponent({
               onChange={onChange}
               onCommit={onCommit}
               onInteractionStart={captureStart}
+              opId={opId}
+              fieldName={fieldName}
+              channelKey={key}
+              expandTimeline={expandTimeline}
             />
           )
         })}
