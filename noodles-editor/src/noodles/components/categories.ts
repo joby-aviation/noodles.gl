@@ -29,7 +29,7 @@ export const categories = {
     'Viewer',
     'ViewState',
   ],
-  geojson: ['GeoJson', 'GeoJsonTransform', 'KmlToGeoJson', 'Point', 'Rectangle'],
+  geojson: ['ChoroplethJoin', 'ChoroplethLayer', 'GeoJson', 'GeoJsonTransform', 'KmlToGeoJson', 'Point', 'Rectangle'],
   layer: [
     'A5Layer',
     'ArcLayer',
