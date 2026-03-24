@@ -796,6 +796,7 @@ export function FileUrlFieldComponent({
 
     captureStart()
     field.setValue(projectScheme + file.name)
+    setValue(projectScheme + file.name)
     commitChange('Change file')
   }
 
@@ -816,6 +817,7 @@ export function FileUrlFieldComponent({
     }
 
     field.setValue(projectScheme + pendingFile.name)
+    setValue(projectScheme + pendingFile.name)
     commitChange('Change file')
     setReplaceDialogOpen(false)
     setPendingFile(null)
