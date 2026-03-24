@@ -167,6 +167,14 @@
   all: revert;
 }
 
+.dragHandle {
+  cursor: grab;
+}
+
+.dragHandle:active {
+  cursor: grabbing;
+}
+
 .header {
   border-radius: 10px 10px 0 0;
   border-color: var(--node-header-border-color);
@@ -1014,4 +1022,25 @@
   color: #ef4444;
   font-size: 12px;
   margin-left: 4px;
+}
+
+.rerouteNode {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: var(--color-bg-secondary);
+  border: 2px solid #666;
+  position: relative;
+  cursor: pointer;
+}
+
+:global(.react-flow__node.selected) .rerouteNode {
+  border-color: var(--node-selected-color);
+}
+
+.rerouteHandle {
+  width: 10px !important;
+  height: 10px !important;
+  background-color: transparent !important;
+  border: none !important;
 }

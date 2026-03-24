@@ -3903,6 +3903,24 @@ export class ConsoleOp extends Operator<ConsoleOp> {
   }
 }
 
+export class RerouteOp extends Operator<RerouteOp> {
+  static displayName = 'Reroute'
+  static description = 'Pass-through for organizing graph layout'
+  createInputs() {
+    return {
+      value: new UnknownField(undefined, { optional: true }),
+    }
+  }
+  createOutputs() {
+    return {
+      value: new UnknownField(undefined),
+    }
+  }
+  execute({ value }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    return { value }
+  }
+}
+
 export class LayerPropsOp extends Operator<LayerPropsOp> {
   static displayName = 'LayerProps'
   static description =
@@ -6941,6 +6959,7 @@ export const opTypes = {
   RandomizeAttributeOp,
   RasterTileLayerOp,
   RectangleOp,
+  RerouteOp,
   S2LayerOp,
   ScatterOp,
   ScatterplotLayerOp,
