@@ -8575,6 +8575,7 @@ __metadata:
     rxjs: ^7.8.2
     suncalc: ^1.9.0
     temporal-polyfill: ^0.3.0
+    topojson-client: 3.x
     tsx: ^4.21.0
     type-fest: ^5.3.1
     typescript: ^5.9.3
