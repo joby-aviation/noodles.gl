@@ -753,6 +753,15 @@ export function FileUrlFieldComponent({
   const [pendingFile, setPendingFile] = useState<{ name: string; contents: Blob } | null>(null)
 
   const onUpload = async () => {
+    try {
+      await doUpload()
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return
+      throw err
+    }
+  }
+
+  const doUpload = async () => {
     const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
     if (!currentProjectName) {
       throw new Error('No project loaded. Please save or load a project first.')
