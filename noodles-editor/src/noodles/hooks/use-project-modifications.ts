@@ -696,6 +696,8 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
   // Handles edge creation with validation and field updates
   const onConnect: OnConnect = useCallback(
     connection => {
+      if (connection.source === connection.target) return
+
       const nodes = getNodes()
 
       const newEdge: ReactFlowEdge = {
