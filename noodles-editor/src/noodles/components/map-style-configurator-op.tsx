@@ -112,9 +112,10 @@ function MapStyleConfiguratorDialog({ op, open, onOpenChange }: ConfiguratorDial
       return
     }
 
+    const controller = new AbortController()
     setLoading(true)
     setError(null)
-    fetch(baseStyle)
+    fetch(baseStyle, { signal: controller.signal })
       .then(r => {
         if (!r.ok) throw new Error(`Failed to fetch style: ${r.statusText}`)
         return r.json()
@@ -124,9 +125,11 @@ function MapStyleConfiguratorDialog({ op, open, onOpenChange }: ConfiguratorDial
         setLoading(false)
       })
       .catch((err: Error) => {
+        if (err.name === 'AbortError') return
         setError(err.message)
         setLoading(false)
       })
+    return () => controller.abort()
   }, [open, op])
 
   // Sync overrides from field when dialog opens
@@ -197,7 +200,16 @@ function MapStyleConfiguratorDialog({ op, open, onOpenChange }: ConfiguratorDial
   }
 
   const groupedLayers = styleJson ? groupLayersByCategory(styleJson.layers ?? []) : null
-  const totalOverrides = overrides.layers?.length ?? 0
+  // Count only entries with meaningful changes (ignore no-op visibility resets)
+  const totalOverrides =
+    overrides.layers?.filter(o => {
+      const hasHiddenLayer = o.layoutOverrides?.['visibility'] === 'none'
+      const hasPaintOverride = o.paintOverrides && Object.keys(o.paintOverrides).length > 0
+      const hasOtherLayout =
+        o.layoutOverrides &&
+        Object.entries(o.layoutOverrides).some(([k, v]) => !(k === 'visibility' && v === 'visible'))
+      return hasHiddenLayer || hasPaintOverride || hasOtherLayout
+    }).length ?? 0
 
   return (
     <Dialog.Root open={open} onOpenChange={handleOpenChange}>

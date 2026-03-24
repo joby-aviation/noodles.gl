@@ -3494,6 +3494,10 @@ export class MapStyleConfiguratorOp extends Operator<MapStyleConfiguratorOp> {
   static description =
     'Visually edit Maplibre style layer colors, fonts, and visibility. Connect the output to MaplibreBasemap.'
 
+  // Cache to avoid re-fetching the same style URL on every override change
+  private _cachedStyleUrl: string | null = null
+  private _cachedStyle: MaplibreStyle | null = null
+
   createInputs() {
     return {
       baseStyle: new JSONUrlField(CARTO_DARK),
@@ -3516,9 +3520,13 @@ export class MapStyleConfiguratorOp extends Operator<MapStyleConfiguratorOp> {
 
     let styleObj: MaplibreStyle
     if (typeof baseStyle === 'string') {
-      const resp = await fetch(baseStyle)
-      if (!resp.ok) throw new Error(`Failed to fetch map style: ${resp.statusText}`)
-      styleObj = await resp.json()
+      if (this._cachedStyleUrl !== baseStyle) {
+        const resp = await fetch(baseStyle)
+        if (!resp.ok) throw new Error(`Failed to fetch map style: ${resp.statusText}`)
+        this._cachedStyle = await resp.json()
+        this._cachedStyleUrl = baseStyle
+      }
+      styleObj = this._cachedStyle!
     } else {
       styleObj = baseStyle as MaplibreStyle
     }

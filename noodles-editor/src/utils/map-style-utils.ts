@@ -77,17 +77,6 @@ export function getEditableColorProps(layer: MaplibreLayer): string[] {
   return EDITABLE_COLOR_PROPS[layer.type] ?? []
 }
 
-// Returns true if a layer has any editable color properties
-export function isLayerColorEditable(layer: MaplibreLayer): boolean {
-  return getEditableColorProps(layer).length > 0
-}
-
-// Get the primary color prop for a layer type (used for category-level color override)
-export function getPrimaryColorProp(layerType: string): string | null {
-  const props = EDITABLE_COLOR_PROPS[layerType]
-  return props?.[0] ?? null
-}
-
 export function applyStyleOverrides(
   styleObj: MaplibreStyle,
   overrides: StyleConfiguratorData
