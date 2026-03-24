@@ -381,6 +381,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
     mustacheRef: string
     fieldPath?: string
     inputName?: string // field name for "Reset to default"
+    listFieldInputName?: string // field name when it's a ListField with connections
   } | null>(null)
   const descriptionRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef<HTMLElement | null>(null)
@@ -673,6 +674,10 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                         incomers.length === 0 &&
                         input.field.defaultValue !== undefined &&
                         hasNonDefaultValue(input.field)
+                          ? input.name
+                          : undefined,
+                      listFieldInputName:
+                        input.field instanceof ListField && incomers.length > 0
                           ? input.name
                           : undefined,
                     })
@@ -994,6 +999,30 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                   }}
                 >
                   Reset to default
+                </button>
+              </>
+            )}
+            {contextMenu.listFieldInputName && (
+              <>
+                <div className={s.contextMenuSeparator} />
+                <button
+                  type="button"
+                  className={s.contextMenuItem}
+                  onClick={() => {
+                    const name = contextMenu.listFieldInputName!
+                    setEdges(current =>
+                      current.filter(
+                        e =>
+                          !(
+                            e.target === nodeId &&
+                            (e.targetHandle === name || e.targetHandle === `par.${name}`)
+                          )
+                      )
+                    )
+                    setContextMenu(null)
+                  }}
+                >
+                  Disconnect all inputs
                 </button>
               </>
             )}
