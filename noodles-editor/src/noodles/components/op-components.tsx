@@ -1,7 +1,5 @@
 import MapboxGeocoder from '@mapbox/mapbox-gl-geocoder'
 import ReactJson from '@microlink/react-json-view'
-import * as Dialog from '@radix-ui/react-dialog'
-import { Cross2Icon } from '@radix-ui/react-icons'
 import * as Tooltip from '@radix-ui/react-tooltip'
 import {
   BaseEdge,
@@ -37,15 +35,6 @@ import { createPortal } from 'react-dom'
 import { Temporal } from 'temporal-polyfill'
 
 import { analytics } from '../../utils/analytics'
-import {
-  CATEGORY_ORDER,
-  getEditableColorProps,
-  groupLayersByCategory,
-  type LayerCategory,
-  type MaplibreLayer,
-  type MaplibreStyle,
-  type StyleConfiguratorData,
-} from '../../utils/map-style-utils'
 import { ArrayField, type Field, type IField, ListField } from '../fields'
 import { useKeysStore } from '../keys-store'
 import s from '../noodles.module.css'
@@ -54,7 +43,6 @@ import {
   type ContainerOp,
   type DirectionsOp,
   type GeocoderOp,
-  type MapStyleConfiguratorOp,
   type MouseOp,
   mathOpDescriptions,
   mathOps,
@@ -79,13 +67,11 @@ import type { NodeDataJSON } from '../transform-graph'
 import { canConnect } from '../utils/can-connect'
 import type { NodeType } from '../utils/node-creation-utils'
 import { generateQualifiedPath, getBaseName, getParentPath } from '../utils/path-utils'
-import { usePropertyHistory } from '../utils/property-history'
 import { categories as baseCategories, nodeTypeToDisplayName } from './categories'
-import { ColorSwatch } from './color-swatch'
 import { FieldComponent, type inputComponents } from './field-components'
 import previewStyles from './handle-preview.module.css'
 import { useObservable } from '../hooks/use-observable'
-import configuratorStyles from './map-style-configurator.module.css'
+import { MapStyleConfiguratorOpComponent } from './map-style-configurator-op'
 
 const isPlainObject = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype
@@ -114,7 +100,7 @@ function useConnectionErrors(op: Operator<IOperator>): Map<string, string> {
 }
 
 // Hook to check if a node should be dimmed during connection drag
-function useNodeDimmed(nodeId: string): boolean {
+export function useNodeDimmed(nodeId: string): boolean {
   return useUIStore(state => {
     const drag = state.connectionDragState
     if (!drag) return false
@@ -395,7 +381,7 @@ export const OUT_NAMESPACE = 'out'
 // Stable constant - avoids creating a new object on every render inside .map()
 export const PAR_HANDLE_OPTIONS = { type: TARGET_HANDLE, namespace: PAR_NAMESPACE } as const
 
-function useLocked(op: Operator<IOperator>) {
+export function useLocked(op: Operator<IOperator>) {
   const [locked, setLocked] = useState(op.locked.value)
   useEffect(() => {
     const subscription = op.locked.subscribe(setLocked)
@@ -405,7 +391,7 @@ function useLocked(op: Operator<IOperator>) {
 }
 
 // Hook to subscribe to field visibility changes and trigger re-render
-function useFieldVisibility(op: Operator<IOperator>) {
+export function useFieldVisibility(op: Operator<IOperator>) {
   const [, setVisibility] = useState(op.visibleFields.value)
   useEffect(() => {
     const subscription = op.visibleFields.subscribe(setVisibility)
@@ -483,7 +469,7 @@ function HandlePreviewContent({ data, name, type }: { data: unknown; name: strin
 }
 
 // Output handle component that renders just a handle (no label, no input UI)
-function OutputHandle({ id, field }: { id: string; field: Field<IField> }) {
+export function OutputHandle({ id, field }: { id: string; field: Field<IField> }) {
   const nid = useNodeId()
   const qualifiedFieldId = `${OUT_NAMESPACE}.${id}`
   const isHandleDimmed = useHandleDimmed(nid ?? '', qualifiedFieldId)
@@ -646,7 +632,7 @@ const ExecutionIndicator = ({ status, error, executionTime }: ExecutionState) =>
   }
 }
 
-function NodeHeader({
+export function NodeHeader({
   id,
   type,
   op,
@@ -1199,332 +1185,6 @@ function TableEditorOpComponent({
           ))}
         </div>
       </div>
-    </div>
-  )
-}
-
-// A single layer row in the configurator dialog
-function LayerRow({
-  layer,
-  layerOverride,
-  onVisibilityChange,
-  onColorChange,
-}: {
-  layer: MaplibreLayer
-  layerOverride: StyleConfiguratorData['layers'][number] | undefined
-  onVisibilityChange: (visible: boolean) => void
-  onColorChange: (prop: string, color: string) => void
-}) {
-  const isHidden = layerOverride?.layoutOverrides?.['visibility'] === 'none'
-  const colorProps = getEditableColorProps(layer)
-
-  return (
-    <div className={configuratorStyles.layerRow}>
-      <span className={configuratorStyles.layerTypeBadge}>{layer.type}</span>
-      <span className={configuratorStyles.layerId} title={layer.id}>
-        {layer.id}
-      </span>
-      <div className={configuratorStyles.layerColors}>
-        {colorProps.map(prop => {
-          const overriddenColor = layerOverride?.paintOverrides?.[prop] as string | undefined
-          const originalColor = layer.paint?.[prop] as string | undefined
-          // Only show swatch if the layer has a plain string color we can edit
-          if (!overriddenColor && typeof originalColor !== 'string') return null
-          return (
-            <ColorSwatch
-              key={prop}
-              value={overriddenColor ?? originalColor ?? '#888888'}
-              onChange={color => onColorChange(prop, color)}
-            />
-          )
-        })}
-      </div>
-      <button
-        type="button"
-        className={cx(
-          configuratorStyles.visibilityToggle,
-          isHidden && configuratorStyles.visibilityToggleHidden
-        )}
-        onClick={() => onVisibilityChange(!isHidden)}
-        title={isHidden ? 'Show layer' : 'Hide layer'}
-      >
-        {isHidden ? '○' : '●'}
-      </button>
-    </div>
-  )
-}
-
-interface ConfiguratorDialogProps {
-  op: Operator<MapStyleConfiguratorOp>
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}
-
-function MapStyleConfiguratorDialog({ op, open, onOpenChange }: ConfiguratorDialogProps) {
-  const [styleJson, setStyleJson] = useState<MaplibreStyle | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [overrides, setOverrides] = useState<StyleConfiguratorData>(
-    (op.inputs.overrides.value as StyleConfiguratorData) ?? { layers: [], global: {} }
-  )
-  const [collapsedCategories, setCollapsedCategories] = useState<Set<LayerCategory>>(new Set())
-  const { captureStart, commitChange } = usePropertyHistory()
-
-  // Fetch style when dialog opens or baseStyle changes
-  useEffect(() => {
-    if (!open) return
-    const baseStyle = op.inputs.baseStyle.value as string | object
-    if (!baseStyle) {
-      setStyleJson(null)
-      return
-    }
-
-    if (typeof baseStyle === 'object') {
-      setStyleJson(baseStyle as MaplibreStyle)
-      return
-    }
-
-    setLoading(true)
-    setError(null)
-    fetch(baseStyle)
-      .then(r => {
-        if (!r.ok) throw new Error(`Failed to fetch style: ${r.statusText}`)
-        return r.json()
-      })
-      .then((json: MaplibreStyle) => {
-        setStyleJson(json)
-        setLoading(false)
-      })
-      .catch((err: Error) => {
-        setError(err.message)
-        setLoading(false)
-      })
-  }, [open, op])
-
-  // Sync overrides from field when dialog opens
-  useEffect(() => {
-    if (open) {
-      setOverrides(
-        (op.inputs.overrides.value as StyleConfiguratorData) ?? { layers: [], global: {} }
-      )
-    }
-  }, [open, op])
-
-  const handleOpenChange = (nextOpen: boolean) => {
-    if (nextOpen) {
-      captureStart()
-      analytics.track('map_style_configurator_opened')
-    } else {
-      commitChange('Configure map style')
-    }
-    onOpenChange(nextOpen)
-  }
-
-  const updateOverrides = (next: StyleConfiguratorData) => {
-    setOverrides(next)
-    op.inputs.overrides.setValue(next)
-  }
-
-  const updateLayerPaint = (layerId: string, prop: string, value: string) => {
-    const layers = overrides.layers ?? []
-    const idx = layers.findIndex(o => o.layerId === layerId)
-    const updated =
-      idx >= 0
-        ? layers.map((o, i) =>
-            i === idx ? { ...o, paintOverrides: { ...(o.paintOverrides ?? {}), [prop]: value } } : o
-          )
-        : [...layers, { layerId, paintOverrides: { [prop]: value } }]
-    updateOverrides({ ...overrides, layers: updated })
-  }
-
-  const updateLayerVisibility = (layerId: string, visible: boolean) => {
-    const layers = overrides.layers ?? []
-    const visibility = visible ? 'visible' : 'none'
-    const idx = layers.findIndex(o => o.layerId === layerId)
-    const updated =
-      idx >= 0
-        ? layers.map((o, i) =>
-            i === idx ? { ...o, layoutOverrides: { ...(o.layoutOverrides ?? {}), visibility } } : o
-          )
-        : [...layers, { layerId, layoutOverrides: { visibility } }]
-    updateOverrides({ ...overrides, layers: updated })
-  }
-
-  const updateGlobal = (key: keyof StyleConfiguratorData['global'], value: unknown) => {
-    updateOverrides({ ...overrides, global: { ...(overrides.global ?? {}), [key]: value } })
-  }
-
-  const handleReset = () => {
-    updateOverrides({ layers: [], global: {} })
-    analytics.track('map_style_configurator_reset')
-  }
-
-  const toggleCategory = (category: LayerCategory) => {
-    setCollapsedCategories(prev => {
-      const next = new Set(prev)
-      if (next.has(category)) next.delete(category)
-      else next.add(category)
-      return next
-    })
-  }
-
-  const groupedLayers = styleJson ? groupLayersByCategory(styleJson.layers ?? []) : null
-  const totalOverrides = overrides.layers?.length ?? 0
-
-  return (
-    <Dialog.Root open={open} onOpenChange={handleOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className={configuratorStyles.overlay} />
-        <Dialog.Content className={configuratorStyles.content}>
-          <Dialog.Title className={configuratorStyles.title}>Map Style Configurator</Dialog.Title>
-          <Dialog.Close asChild>
-            <button type="button" className={configuratorStyles.closeButton} aria-label="Close">
-              <Cross2Icon />
-            </button>
-          </Dialog.Close>
-
-          {loading && <div className={configuratorStyles.loading}>Loading style layers…</div>}
-          {error && <div className={configuratorStyles.error}>{error}</div>}
-          {!loading && !error && !styleJson && (
-            <div className={configuratorStyles.emptyState}>
-              Set a base style URL in the node to configure layers.
-            </div>
-          )}
-
-          {styleJson && (
-            <>
-              {/* Global overrides */}
-              <div className={configuratorStyles.globalSection}>
-                <div className={configuratorStyles.globalSectionTitle}>Global</div>
-                <div className={configuratorStyles.globalRow}>
-                  <span className={configuratorStyles.globalLabel}>Label size scale</span>
-                  <input
-                    type="range"
-                    min={0.5}
-                    max={3}
-                    step={0.05}
-                    value={overrides.global?.labelSizeScale ?? 1}
-                    onChange={e => updateGlobal('labelSizeScale', parseFloat(e.target.value))}
-                    className={configuratorStyles.globalInput}
-                    style={{ padding: 0 }}
-                  />
-                  <span className={configuratorStyles.scaleValue}>
-                    {(overrides.global?.labelSizeScale ?? 1).toFixed(2)}×
-                  </span>
-                </div>
-                <div className={configuratorStyles.globalRow}>
-                  <span className={configuratorStyles.globalLabel}>Glyphs URL</span>
-                  <input
-                    type="text"
-                    placeholder={styleJson.glyphs ?? 'default font URL'}
-                    value={overrides.global?.glyphs ?? ''}
-                    onChange={e => updateGlobal('glyphs', e.target.value || undefined)}
-                    className={configuratorStyles.globalInput}
-                  />
-                </div>
-              </div>
-
-              {/* Per-category layer sections */}
-              {CATEGORY_ORDER.map(category => {
-                const layers = groupedLayers?.[category] ?? []
-                if (layers.length === 0) return null
-                const isCollapsed = collapsedCategories.has(category)
-                const categoryOverrides = overrides.layers?.filter(o =>
-                  layers.some(l => l.id === o.layerId)
-                )
-                const hasOverrides = (categoryOverrides?.length ?? 0) > 0
-
-                return (
-                  <div key={category} className={configuratorStyles.categorySection}>
-                    <button
-                      type="button"
-                      className={configuratorStyles.categoryHeader}
-                      onClick={() => toggleCategory(category)}
-                    >
-                      <span className={configuratorStyles.chevron}>{isCollapsed ? '▶' : '▼'}</span>
-                      <span className={configuratorStyles.categoryName}>{category}</span>
-                      {hasOverrides && (
-                        <span className={configuratorStyles.modifiedDot} title="Has overrides" />
-                      )}
-                      <span className={configuratorStyles.layerCount}>({layers.length})</span>
-                    </button>
-
-                    {!isCollapsed && (
-                      <div className={configuratorStyles.layerList}>
-                        {layers.map(layer => (
-                          <LayerRow
-                            key={layer.id}
-                            layer={layer}
-                            layerOverride={overrides.layers?.find(o => o.layerId === layer.id)}
-                            onVisibilityChange={visible => updateLayerVisibility(layer.id, visible)}
-                            onColorChange={(prop, color) => updateLayerPaint(layer.id, prop, color)}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-
-              <div className={configuratorStyles.footer}>
-                <button
-                  type="button"
-                  className={configuratorStyles.resetButton}
-                  onClick={handleReset}
-                >
-                  Reset All Overrides
-                </button>
-                <span className={configuratorStyles.layerInfo}>
-                  {totalOverrides > 0
-                    ? `${totalOverrides} layer${totalOverrides === 1 ? '' : 's'} modified`
-                    : 'No overrides'}
-                </span>
-              </div>
-            </>
-          )}
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
-  )
-}
-
-function MapStyleConfiguratorOpComponent({
-  id,
-  type,
-}: ReactFlowNodeProps<NodeDataJSON<MapStyleConfiguratorOp>> & {
-  type: 'MapStyleConfiguratorOp'
-}) {
-  const op = getOp(id as string)
-  if (!op) throw new Error(`Operator with id ${id} not found`)
-
-  const isDimmed = useNodeDimmed(id)
-  const locked = useLocked(op)
-  const [dialogOpen, setDialogOpen] = useState(false)
-  useFieldVisibility(op)
-
-  return (
-    <div className={cx(s.wrapper, { [s.wrapperDimmed]: isDimmed })}>
-      <NodeHeader id={id} type={type} op={op} />
-      <div className={s.content}>
-        <FieldComponent
-          id="baseStyle"
-          field={op.inputs.baseStyle}
-          disabled={locked}
-          handle={PAR_HANDLE_OPTIONS}
-        />
-        <button
-          type="button"
-          className={s.configureButton}
-          onClick={() => setDialogOpen(true)}
-          disabled={locked}
-        >
-          Configure Style
-        </button>
-        <div className={s.outputHandleContainer}>
-          <OutputHandle id="mapStyle" field={op.outputs.mapStyle} />
-        </div>
-      </div>
-      <MapStyleConfiguratorDialog op={op} open={dialogOpen} onOpenChange={setDialogOpen} />
     </div>
   )
 }
