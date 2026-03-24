@@ -135,6 +135,11 @@ import { getArc } from '../utils/arc-geometry'
 import { colorToHex, hexToColor } from '../utils/color'
 import { debugDirty, debugExecute, debugPull } from '../utils/debug'
 import { getDirections } from '../utils/directions'
+import {
+  applyStyleOverrides,
+  type MaplibreStyle,
+  type StyleConfiguratorData,
+} from '../utils/map-style-utils'
 import { CARTO_DARK, MAP_STYLES } from '../utils/map-styles'
 import { mulberry32 } from '../utils/random'
 import { FilterColorExtension } from './extensions/filter-color-extension'
@@ -3481,6 +3486,45 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
         sky,
       },
     }
+  }
+}
+
+export class MapStyleConfiguratorOp extends Operator<MapStyleConfiguratorOp> {
+  static displayName = 'MapStyleConfigurator'
+  static description =
+    'Visually edit Maplibre style layer colors, fonts, and visibility. Connect the output to MaplibreBasemap.'
+
+  createInputs() {
+    return {
+      baseStyle: new JSONUrlField(CARTO_DARK),
+      // Stores layer + global overrides as { layers: LayerOverride[], global: StyleGlobalOverrides }
+      overrides: new UnknownField({ layers: [], global: {} }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      mapStyle: new JSONUrlField(),
+    }
+  }
+
+  async execute({
+    baseStyle,
+    overrides,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!baseStyle) return { mapStyle: '' }
+
+    let styleObj: MaplibreStyle
+    if (typeof baseStyle === 'string') {
+      const resp = await fetch(baseStyle)
+      if (!resp.ok) throw new Error(`Failed to fetch map style: ${resp.statusText}`)
+      styleObj = await resp.json()
+    } else {
+      styleObj = baseStyle as MaplibreStyle
+    }
+
+    const config = (overrides ?? { layers: [], global: {} }) as StyleConfiguratorData
+    return { mapStyle: applyStyleOverrides(styleObj, config) }
   }
 }
 
@@ -7084,6 +7128,7 @@ export const opTypes = {
   LineLayerOp,
   MaplibreBasemapOp,
   MapRangeOp,
+  MapStyleConfiguratorOp,
   MapStyleOp,
   MapViewOp,
   MapViewStateOp,

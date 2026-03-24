@@ -635,6 +635,30 @@
   background-color: var(--color-value);
 }
 
+/* Button to open the Map Style Configurator dialog from within a node */
+.configureButton {
+  width: 100%;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  margin: 0.25rem 0;
+  font-family: inherit;
+  transition: background-color 0.15s;
+}
+
+.configureButton:hover {
+  background-color: #2563eb;
+}
+
+.configureButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Portal wrapper for the color picker — position/z-index here, top/left set dynamically */
 .colorPickerPortal {
   position: fixed;

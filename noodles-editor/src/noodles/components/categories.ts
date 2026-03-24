@@ -97,6 +97,7 @@ export const categories = {
     'FirstPersonView',
     'GlobeView',
     'MaplibreBasemap',
+    'MapStyleConfigurator',
     'MapView',
     'MapViewState',
     'OrbitView',
