@@ -694,6 +694,26 @@ export function CodeFieldComponent({
   )
 }
 
+const EXT_MIME_MAP: Record<string, string> = {
+  '.csv': 'text/csv',
+  '.json': 'application/json',
+  '.geojson': 'application/json',
+  '.glb': 'model/gltf-binary',
+  '.gltf': 'model/gltf+json',
+}
+
+// Groups extensions from a comma-separated accept string by MIME type for
+// showOpenFilePicker. Unknown extensions fall back to application/octet-stream.
+function extToMimeTypes(accept: string): Record<string, `.${string}`[]> {
+  const result: Record<string, `.${string}`[]> = {}
+  for (const ext of accept.split(',').map(e => e.trim())) {
+    const mime = EXT_MIME_MAP[ext] ?? 'application/octet-stream'
+    if (!result[mime]) result[mime] = []
+    result[mime].push(ext as `.${string}`)
+  }
+  return result
+}
+
 export function FileUrlFieldComponent({
   id,
   field,
@@ -740,12 +760,7 @@ export function FileUrlFieldComponent({
 
     const pickerOpts: OpenFilePickerOptions = field.accept
       ? {
-          types: [
-            {
-              description: 'Files',
-              accept: { 'application/octet-stream': field.accept.split(',') as `.${string}`[] },
-            },
-          ],
+          types: [{ description: 'Files', accept: extToMimeTypes(field.accept) }],
           excludeAcceptAllOption: true,
           multiple: false,
         }
