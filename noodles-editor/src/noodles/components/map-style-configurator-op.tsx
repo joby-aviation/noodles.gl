@@ -215,7 +215,13 @@ function MapStyleConfiguratorDialog({ op, open, onOpenChange }: ConfiguratorDial
     <Dialog.Root open={open} onOpenChange={handleOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className={configuratorStyles.overlay} />
-        <Dialog.Content className={configuratorStyles.content}>
+        <Dialog.Content
+          className={configuratorStyles.content}
+          // Prevent the dialog from closing when clicking the portaled color picker,
+          // which renders outside the dialog's DOM node via createPortal
+          onPointerDownOutside={e => e.preventDefault()}
+          onInteractOutside={e => e.preventDefault()}
+        >
           <Dialog.Title className={configuratorStyles.title}>Map Style Configurator</Dialog.Title>
           <Dialog.Close asChild>
             <button type="button" className={configuratorStyles.closeButton} aria-label="Close">
