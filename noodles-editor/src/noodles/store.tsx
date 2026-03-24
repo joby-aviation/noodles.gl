@@ -104,7 +104,7 @@ export const useOperatorStore = create<OperatorStoreState>((set, get) => ({
 // UI Store (Zustand) - Separate slice for UI state
 // ============================================================================
 
-interface ConnectionDragState {
+export interface ConnectionDragState {
   sourceNodeId: string
   sourceHandleId: string
   compatibleNodeIds: Set<string>
