@@ -30,8 +30,8 @@ import {
   Point2DField,
   Point3DField,
   StringLiteralField,
-  Vec2Field,
-  Vec3Field,
+  type Vec2Field,
+  type Vec3Field,
 } from '../fields'
 import { useFileSystemStore } from '../filesystem-store'
 import type { Edge as GraphEdge } from '../graph-executor'

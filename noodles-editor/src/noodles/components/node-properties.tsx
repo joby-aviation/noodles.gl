@@ -14,7 +14,15 @@ import {
   useTimelineStore,
 } from '../../timeline/timeline-store'
 import type { KeyframeValue } from '../../timeline/types'
-import { CompoundPropsField, type Field, type IField, IN_NS, ListField, OUT_NS, Vec2Field } from '../fields'
+import {
+  CompoundPropsField,
+  type Field,
+  type IField,
+  IN_NS,
+  ListField,
+  OUT_NS,
+  type Vec2Field,
+} from '../fields'
 import type { IOperator, Operator } from '../operators'
 import { OutOp } from '../operators'
 import { getOpStore, useUIStore } from '../store'
@@ -290,18 +298,20 @@ function EditableFieldInput({
     case 'vec2':
     case 'vec3':
     case 'geopoint-2d':
-    case 'geopoint-3d':
+    case 'geopoint-3d': {
       // biome-ignore lint/suspicious/noExplicitAny: Type checked at runtime
+      const vecField = field as any
       return (
         <VectorFieldComponent
           id={fieldName}
-          field={field as any}
+          field={vecField}
           disabled={disabled}
           opId={opId}
           fieldName={fieldName}
           expandTimeline={expandTimeline}
         />
       )
+    }
     default:
       // For other animatable types that don't have specialized components, show a placeholder
       return (
