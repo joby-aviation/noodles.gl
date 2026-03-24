@@ -357,6 +357,7 @@ function CompoundSubFields({
 // Exported for testing
 export function NodeProperties({ nodeId }: { nodeId: string }) {
   const { setEdges } = useReactFlow()
+  const onEdgesChange = useStore(s => s.onEdgesChange)
   // Only re-renders when this node's incoming edges change (not on position updates)
   const edges = useStore(
     s => s.edges.filter(e => e.target === nodeId),
@@ -381,6 +382,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
     mustacheRef: string
     fieldPath?: string
     inputName?: string // field name for "Reset to default"
+    listFieldInputName?: string // field name when it's a ListField with connections
   } | null>(null)
   const descriptionRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef<HTMLElement | null>(null)
@@ -673,6 +675,10 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                         incomers.length === 0 &&
                         input.field.defaultValue !== undefined &&
                         hasNonDefaultValue(input.field)
+                          ? input.name
+                          : undefined,
+                      listFieldInputName:
+                        input.field instanceof ListField && incomers.length > 0
                           ? input.name
                           : undefined,
                     })
@@ -994,6 +1000,27 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                   }}
                 >
                   Reset to default
+                </button>
+              </>
+            )}
+            {contextMenu.listFieldInputName && (
+              <>
+                <div className={s.contextMenuSeparator} />
+                <button
+                  type="button"
+                  className={s.contextMenuItem}
+                  onClick={() => {
+                    const name = contextMenu.listFieldInputName!
+                    const toRemove = edges.filter(
+                      e =>
+                        e.target === nodeId &&
+                        (e.targetHandle === name || e.targetHandle === `par.${name}`)
+                    )
+                    onEdgesChange(toRemove.map(e => ({ type: 'remove' as const, id: e.id })))
+                    setContextMenu(null)
+                  }}
+                >
+                  Disconnect all inputs
                 </button>
               </>
             )}
