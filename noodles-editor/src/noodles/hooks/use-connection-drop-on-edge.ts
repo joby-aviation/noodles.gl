@@ -44,8 +44,9 @@ export function findEdgeAtPosition(
   for (const edge of edges) {
     // Skip reference edges (not data connections)
     if (edge.type === 'ReferenceEdge') continue
-    // Skip edges originating from the node being dragged
+    // Skip edges originating from or targeting the node being dragged (no self-connections)
     if (edge.source === sourceNodeId) continue
+    if (edge.target === sourceNodeId) continue
 
     const sourceNode = nodes.find(n => n.id === edge.source)
     const targetNode = nodes.find(n => n.id === edge.target)

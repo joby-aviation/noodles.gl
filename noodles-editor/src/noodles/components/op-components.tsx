@@ -123,8 +123,8 @@ export function useHandleDimmed(nodeId: string, handleId: string): boolean {
   const drag = useUIStore(state => state.connectionDragState)
 
   if (!drag) return false
-  // Don't dim handles on the source node
-  if (drag.sourceNodeId === nodeId) return false
+  // Dim all handles on the source node except the one being dragged (no self-connections)
+  if (drag.sourceNodeId === nodeId) return drag.sourceHandleId !== handleId
   // If the node is not compatible, handles are already dimmed via node dimming
   if (!drag.compatibleNodeIds.has(nodeId)) return false
 

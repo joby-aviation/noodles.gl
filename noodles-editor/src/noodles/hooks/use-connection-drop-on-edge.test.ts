@@ -91,6 +91,23 @@ describe('useConnectionDropOnEdge logic', () => {
       expect(result).toBeNull()
     })
 
+    it('skips edges targeting the dragging source node', () => {
+      const nodeA = createMockNode('/a', { x: 0, y: 0 })
+      const nodeB = createMockNode('/b', { x: 200, y: 0 })
+      // Edge goes from /b into /a — dropping on this would create a self-connection for /a
+      const edge = createMockEdge('/b', '/a', 'out.val', 'par.data')
+      const nodes = [nodeA, nodeB]
+      const edges = [edge]
+
+      const result = findEdgeAtPosition(
+        { x: 200, y: 50 },
+        '/a',
+        () => nodes,
+        () => edges
+      )
+      expect(result).toBeNull()
+    })
+
     it('skips ReferenceEdge type edges', () => {
       const nodeA = createMockNode('/a', { x: 0, y: 0 })
       const nodeB = createMockNode('/b', { x: 200, y: 0 })
