@@ -87,6 +87,7 @@ describe('getBoundaries', () => {
 
   it('enriches US state features with fips and abbrev properties', async () => {
     mockFetch.mockResolvedValueOnce({
+      ok: true,
       json: () => Promise.resolve(US_STATES_TOPOJSON),
     })
 
@@ -98,6 +99,7 @@ describe('getBoundaries', () => {
 
   it('enriches world country features with iso2/iso3/name', async () => {
     mockFetch.mockResolvedValueOnce({
+      ok: true,
       json: () => Promise.resolve(WORLD_COUNTRIES_TOPOJSON),
     })
 
@@ -109,6 +111,7 @@ describe('getBoundaries', () => {
 
   it('caches boundary data after first fetch', async () => {
     mockFetch.mockResolvedValue({
+      ok: true,
       json: () => Promise.resolve(US_STATES_TOPOJSON),
     })
 
@@ -119,8 +122,8 @@ describe('getBoundaries', () => {
 
   it('fetches different geographies independently', async () => {
     mockFetch
-      .mockResolvedValueOnce({ json: () => Promise.resolve(US_STATES_TOPOJSON) })
-      .mockResolvedValueOnce({ json: () => Promise.resolve(WORLD_COUNTRIES_TOPOJSON) })
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(US_STATES_TOPOJSON) })
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(WORLD_COUNTRIES_TOPOJSON) })
 
     await getBoundaries('us-states')
     await getBoundaries('world-countries')

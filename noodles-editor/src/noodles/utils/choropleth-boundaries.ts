@@ -1,4 +1,5 @@
 import type { Feature, FeatureCollection } from 'geojson'
+import { createStore } from 'zustand/vanilla'
 import { feature as topoFeature } from 'topojson-client'
 
 export type Geography = 'us-states' | 'world-countries' | 'ca-provinces' | 'custom'
@@ -188,6 +189,7 @@ const COUNTRY_TABLE: [string, string, string, string][] = [
   ['470', 'MT', 'MLT', 'Malta'],
   ['584', 'MH', 'MHL', 'Marshall Islands'],
   ['478', 'MR', 'MRT', 'Mauritania'],
+  ['104', 'MM', 'MMR', 'Myanmar'],
   ['480', 'MU', 'MUS', 'Mauritius'],
   ['484', 'MX', 'MEX', 'Mexico'],
   ['583', 'FM', 'FSM', 'Micronesia'],
@@ -347,8 +349,10 @@ CA_PROVINCE_BY_NAME.set('pei', CA_PROVINCE_BY_CODE.get('pe')!)
 CA_PROVINCE_BY_NAME.set('prince edward island', CA_PROVINCE_BY_CODE.get('pe')!)
 CA_PROVINCE_BY_NAME.set('nwt', CA_PROVINCE_BY_CODE.get('nt')!)
 
-// Module-level fetch cache to avoid re-fetching across operator executions
-const boundaryCache = new Map<string, FeatureCollection>()
+// Zustand vanilla store for shared boundary cache (avoids module-scoped mutable state)
+const boundaryCacheStore = createStore<{
+  cache: Map<string, FeatureCollection>
+}>(() => ({ cache: new Map() }))
 
 function enrichUsStates(features: Feature[]): Feature[] {
   return features.map(f => {
@@ -410,12 +414,18 @@ export async function getBoundaries(
     return userBoundaries ?? { type: 'FeatureCollection', features: [] }
   }
 
-  if (boundaryCache.has(geography)) {
-    return boundaryCache.get(geography)!
+  const { cache } = boundaryCacheStore.getState()
+  if (cache.has(geography)) {
+    return cache.get(geography)!
   }
 
   const url = BOUNDARY_URLS[geography]
   const response = await fetch(url)
+  if (!response.ok) {
+    throw new Error(
+      `Failed to fetch boundaries for "${geography}": ${response.status} ${response.statusText}`
+    )
+  }
   const data = await response.json()
 
   let features: Feature[]
@@ -433,13 +443,16 @@ export async function getBoundaries(
   else if (geography === 'ca-provinces') features = enrichCaProvinces(features)
 
   const fc: FeatureCollection = { type: 'FeatureCollection', features }
-  boundaryCache.set(geography, fc)
+  boundaryCacheStore.setState(s => {
+    s.cache.set(geography, fc)
+    return { cache: s.cache }
+  })
   return fc
 }
 
 // Clear the cache (useful for testing)
 export function clearBoundaryCache() {
-  boundaryCache.clear()
+  boundaryCacheStore.setState({ cache: new Map() })
 }
 
 type StateInfo = { fips: string; abbrev: string; name: string }

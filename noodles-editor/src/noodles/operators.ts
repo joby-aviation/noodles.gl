@@ -5863,10 +5863,6 @@ async function joinDataToFeaturesViaDuckDb(
       return obj
     })
 
-    await conn.close()
-    await db.dropFile(boundsFile)
-    await db.dropFile(dataFile)
-
     // Re-attach joined properties back to original features using __idx
     const rowByIdx = new Map<number, Record<string, unknown>>()
     for (const row of rows) {
@@ -5881,11 +5877,10 @@ async function joinDataToFeaturesViaDuckDb(
     })
 
     return { type: 'FeatureCollection', features }
-  } catch (e) {
-    await conn.close()
+  } finally {
+    await conn.close().catch(() => null)
     await db.dropFile(boundsFile).catch(() => null)
     await db.dropFile(dataFile).catch(() => null)
-    throw e
   }
 }
 
