@@ -54,7 +54,7 @@ function getWorker(): Worker {
       if (entry.once) callbacks.delete(e.data.id)
       entry.fn(performance.now())
     }
-    worker.onerror = (e) => {
+    worker.onerror = e => {
       throw new Error(`worker-timer: worker error — ${e.message}`, { cause: e })
     }
   }
