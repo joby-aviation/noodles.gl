@@ -898,7 +898,15 @@ export function getNoodles(): Visualization {
       },
       ...(projectKeys ? { apiKeys: projectKeys } : {}),
     }
-  }, [nodes, edges, layoutMode, showOverlay, showDebugInfo, timelineStore.toTheatreJSON, autoLayout])
+  }, [
+    nodes,
+    edges,
+    layoutMode,
+    showOverlay,
+    showDebugInfo,
+    timelineStore.toTheatreJSON,
+    autoLayout,
+  ])
 
   const onMenuSave = useCallback(async () => {
     if (!projectName) return
