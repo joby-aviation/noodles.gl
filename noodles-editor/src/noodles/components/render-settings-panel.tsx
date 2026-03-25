@@ -30,7 +30,8 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
   const isActive = activeOutOpId === op.id
 
   // Get export actions from context (provided by TimelineEditor)
-  const { startRender, takeScreenshot, isRendering } = useExportActions()
+  const { startRender, takeScreenshot, exportSequence, selectRendersDirectory, isRendering } =
+    useExportActions()
 
   // Subscribe to field changes
   const [display, setDisplay] = useState(op.inputs.display.value)
@@ -45,6 +46,7 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
   const [exportAlpha, setExportAlpha] = useState(op.inputs.exportAlpha.value)
   const [waitForData, setWaitForData] = useState(op.inputs.waitForData.value)
   const [captureDelay, setCaptureDelay] = useState(op.inputs.captureDelay.value)
+  const [rendersDirectory, setRendersDirectory] = useState(op.inputs.rendersDirectory.value)
 
   useEffect(() => {
     const subscriptions = [
@@ -60,6 +62,7 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
       op.inputs.exportAlpha.subscribe(v => setExportAlpha(v)),
       op.inputs.waitForData.subscribe(v => setWaitForData(v)),
       op.inputs.captureDelay.subscribe(v => setCaptureDelay(v)),
+      op.inputs.rendersDirectory.subscribe(v => setRendersDirectory(v)),
     ]
     return () => {
       for (const sub of subscriptions) sub.unsubscribe()
@@ -89,6 +92,7 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
     op.inputs.exportAlpha.setValue(DEFAULT_RENDER_SETTINGS.exportAlpha)
     op.inputs.waitForData.setValue(DEFAULT_RENDER_SETTINGS.waitForData)
     op.inputs.captureDelay.setValue(DEFAULT_RENDER_SETTINGS.captureDelay)
+    op.inputs.rendersDirectory.setValue(DEFAULT_RENDER_SETTINGS.rendersDirectory)
   }, [op])
 
   return (
@@ -333,6 +337,21 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
           />
           <span className={s.unit}>ms</span>
         </div>
+
+        <div className={s.settingRow}>
+          <label htmlFor="render-renders-directory" className={s.label}>
+            Output Dir
+          </label>
+          <button
+            id="render-renders-directory"
+            type="button"
+            className={s.directoryButton}
+            onClick={() => selectRendersDirectory?.()}
+          >
+            <i className="pi pi-folder" />
+            {rendersDirectory || 'renders'}
+          </button>
+        </div>
       </div>
 
       <button type="button" className={s.resetButton} onClick={handleResetToDefaults}>
@@ -353,6 +372,19 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
         >
           <i className="pi pi-image" />
           Export Photo
+        </button>
+        <button
+          type="button"
+          className={s.exportButton}
+          onClick={() => {
+            // Ensure this OutOp is active before exporting
+            setActiveOutOpId(op.id)
+            exportSequence?.()
+          }}
+          disabled={!exportSequence || isRendering}
+        >
+          <i className="pi pi-images" />
+          {isRendering ? 'Exporting...' : 'Export Sequence'}
         </button>
         <button
           type="button"

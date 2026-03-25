@@ -10,6 +10,8 @@ import s from './quick-start-modal.module.css'
 
 export type ModalView = 'home' | 'projects' | 'examples'
 
+const DEFAULT_EXAMPLE = 'nyc-taxis'
+
 // Store for pending quick start actions (file upload or LLM question)
 // These can be picked up by the main app after navigating to a project
 interface PendingQuickStartAction {
@@ -156,7 +158,7 @@ export function QuickStartModal({
 
     // Navigate to an example - the main app can detect the pending action
     onOpenChange(false)
-    navigate('/examples/world-flights')
+    navigate(`/examples/${DEFAULT_EXAMPLE}`)
   }, [uploadedFile, onOpenChange, navigate])
 
   const handleAskQuestion = useCallback(() => {
@@ -169,7 +171,7 @@ export function QuickStartModal({
 
     // Navigate to an example - the main app can detect the pending action and open chat
     onOpenChange(false)
-    navigate('/examples/world-flights')
+    navigate(`/examples/${DEFAULT_EXAMPLE}`)
   }, [llmQuestion, onOpenChange, navigate])
 
   const handleExampleClick = useCallback(
@@ -181,27 +183,6 @@ export function QuickStartModal({
     [navigate, onOpenChange]
   )
 
-  const handleBrowseAll = useCallback(() => {
-    analytics.track('quick_start_browse_all')
-    navigate('/examples')
-  }, [navigate])
-
-  const handleViewAllProjects = useCallback(() => {
-    analytics.track('quick_start_view_all_projects')
-    navigate('/projects')
-  }, [navigate])
-
-  const handleBack = useCallback(() => {
-    setView('home')
-    navigate('/', { replace: true })
-  }, [navigate])
-
-  const handleClose = useCallback(() => {
-    onOpenChange(false)
-    // Default behavior when closing without action: go to examples
-    navigate('/examples/world-flights')
-  }, [onOpenChange, navigate])
-
   const handleProjectClick = useCallback(
     (path: string) => {
       analytics.track('quick_start_project_selected', { path })
@@ -211,160 +192,171 @@ export function QuickStartModal({
     [navigate, onOpenChange]
   )
 
+  const handleClose = useCallback(() => {
+    onOpenChange(false)
+    // Default behavior when closing without action: go to examples
+    navigate(`/examples/${DEFAULT_EXAMPLE}`)
+  }, [onOpenChange, navigate])
+
+  // Switch tabs and update the URL so deep links stay in sync
+  const switchToTab = useCallback(
+    (newView: ModalView) => {
+      setView(newView)
+      const paths: Record<ModalView, string> = {
+        home: '/',
+        projects: '/projects',
+        examples: '/examples',
+      }
+      navigate(paths[newView], { replace: true })
+    },
+    [navigate]
+  )
+
   const formatFileSize = (bytes: number): string => {
     if (bytes < 1024) return `${bytes} B`
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   }
 
-  // Render home view content
   const renderHomeView = () => (
-    <>
-      {/* Header */}
-      <div className={s.header}>
-        <div className={s.logo}>
-          <img src={logoSvg} alt="Noodles.gl" />
+    <div className={s.body}>
+      {/* Upload Section */}
+      <div className={s.section}>
+        <h3 className={s.sectionTitle}>Start with your data</h3>
+        {/* biome-ignore lint/a11y/useSemanticElements: div needed for drag-and-drop zone styling */}
+        <div
+          className={`${s.uploadZone} ${isDragging ? s.uploadZoneDragging : ''}`}
+          role="button"
+          tabIndex={0}
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+          onClick={() => !uploadedFile && fileInputRef.current?.click()}
+          onKeyDown={e => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              fileInputRef.current?.click()
+            }
+          }}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,.json,.geojson"
+            onChange={handleFileSelect}
+            style={{ display: 'none' }}
+          />
+          {uploadedFile ? (
+            <div className={s.uploadedFile}>
+              <i className={`pi pi-file ${s.uploadIcon}`} style={{ fontSize: '28px' }} />
+              <span className={s.fileName}>{uploadedFile.name}</span>
+              <span className={s.fileSize}>{formatFileSize(uploadedFile.size)}</span>
+              <button
+                type="button"
+                className={s.createButton}
+                onClick={e => {
+                  e.stopPropagation()
+                  handleCreateFromFile()
+                }}
+              >
+                Create Visualization
+              </button>
+            </div>
+          ) : (
+            <>
+              <i className={`pi pi-cloud-upload ${s.uploadIcon}`} />
+              <p className={s.uploadText}>Drop your data file here</p>
+              <p className={s.uploadHint}>CSV, JSON, or GeoJSON (max 50MB)</p>
+            </>
+          )}
         </div>
-        <Dialog.Title className={s.title}>Welcome to Noodles.gl</Dialog.Title>
-        <Dialog.Description className={s.subtitle}>
-          Create beautiful geospatial visualizations with a visual node editor
-        </Dialog.Description>
+        {error && <div className={s.error}>{error}</div>}
       </div>
 
-      <div className={s.body}>
-        {/* Upload Section */}
-        <div className={s.section}>
-          <h3 className={s.sectionTitle}>Start with your data</h3>
-          {/* biome-ignore lint/a11y/useSemanticElements: div needed for drag-and-drop zone styling */}
-          <div
-            className={`${s.uploadZone} ${isDragging ? s.uploadZoneDragging : ''}`}
-            role="button"
-            tabIndex={0}
-            onDragEnter={handleDragEnter}
-            onDragLeave={handleDragLeave}
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
-            onClick={() => !uploadedFile && fileInputRef.current?.click()}
+      {/* LLM Section */}
+      <div className={s.section}>
+        <h3 className={s.sectionTitle}>Or describe what you want to build</h3>
+        <div className={s.llmInputWrapper}>
+          <textarea
+            className={s.llmTextarea}
+            value={llmQuestion}
+            onChange={e => setLlmQuestion(e.target.value)}
+            placeholder="e.g., Create a heatmap showing earthquake density in California..."
+            rows={2}
             onKeyDown={e => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                fileInputRef.current?.click()
+              if (e.key === 'Enter' && e.shiftKey) {
+                e.preventDefault()
+                handleAskQuestion()
               }
             }}
+          />
+          <button
+            type="button"
+            className={s.llmSubmitButton}
+            onClick={handleAskQuestion}
+            disabled={!llmQuestion.trim()}
           >
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv,.json,.geojson"
-              onChange={handleFileSelect}
-              style={{ display: 'none' }}
-            />
-            {uploadedFile ? (
-              <div className={s.uploadedFile}>
-                <i className={`pi pi-file ${s.uploadIcon}`} style={{ fontSize: '28px' }} />
-                <span className={s.fileName}>{uploadedFile.name}</span>
-                <span className={s.fileSize}>{formatFileSize(uploadedFile.size)}</span>
-                <button
-                  type="button"
-                  className={s.createButton}
-                  onClick={e => {
-                    e.stopPropagation()
-                    handleCreateFromFile()
-                  }}
-                >
-                  Create Visualization
-                </button>
-              </div>
-            ) : (
-              <>
-                <i className={`pi pi-cloud-upload ${s.uploadIcon}`} />
-                <p className={s.uploadText}>Drop your data file here</p>
-                <p className={s.uploadHint}>CSV, JSON, or GeoJSON (max 50MB)</p>
-              </>
-            )}
-          </div>
-          {error && <div className={s.error}>{error}</div>}
+            Create
+          </button>
         </div>
+      </div>
 
-        {/* LLM Section */}
-        <div className={s.section}>
-          <h3 className={s.sectionTitle}>Or describe what you want to build</h3>
-          <div className={s.llmInputWrapper}>
-            <textarea
-              className={s.llmTextarea}
-              value={llmQuestion}
-              onChange={e => setLlmQuestion(e.target.value)}
-              placeholder="e.g., Create a heatmap showing earthquake density in California..."
-              rows={2}
-              onKeyDown={e => {
-                if (e.key === 'Enter' && e.shiftKey) {
-                  e.preventDefault()
-                  handleAskQuestion()
-                }
-              }}
-            />
+      {/* Examples Section */}
+      <div className={s.section}>
+        <div className={s.recentProjectsHeader}>
+          <h3 className={s.sectionTitle}>Featured examples</h3>
+          <button type="button" className={s.viewAllLink} onClick={() => switchToTab('examples')}>
+            View all →
+          </button>
+        </div>
+        <div className={s.examplesGrid}>
+          {CURATED_EXAMPLES.map(example => (
             <button
+              key={example.id}
               type="button"
-              className={s.llmSubmitButton}
-              onClick={handleAskQuestion}
-              disabled={!llmQuestion.trim()}
+              className={s.exampleCard}
+              onClick={() => handleExampleClick(example.id)}
             >
-              Create
+              <i className={`pi ${example.icon} ${s.exampleIcon}`} />
+              <div className={s.exampleInfo}>
+                <h4>{example.title}</h4>
+                <p>{example.description}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Recent Projects Section */}
+      {recentProjects.length > 0 && (
+        <div className={s.recentProjectsSection}>
+          <div className={s.recentProjectsHeader}>
+            <h3 className={s.sectionTitle}>Recent projects</h3>
+            <button type="button" className={s.viewAllLink} onClick={() => switchToTab('projects')}>
+              View all →
             </button>
           </div>
-        </div>
-
-        {/* Examples Section */}
-        <div className={s.section}>
-          <h3 className={s.sectionTitle}>Or explore examples</h3>
           <div className={s.examplesGrid}>
-            {CURATED_EXAMPLES.map(example => (
+            {recentProjects.map(project => (
               <button
-                key={example.id}
+                key={project.projectName}
                 type="button"
                 className={s.exampleCard}
-                onClick={() => handleExampleClick(example.id)}
+                onClick={() => handleProjectClick(`/projects/${project.projectName}`)}
               >
-                <i className={`pi ${example.icon} ${s.exampleIcon}`} />
+                <i className={`pi pi-folder ${s.exampleIcon}`} />
                 <div className={s.exampleInfo}>
-                  <h4>{example.title}</h4>
-                  <p>{example.description}</p>
+                  <h4>{project.projectName}</h4>
+                  {project.cachedAt && <p>{formatDate(project.cachedAt)}</p>}
                 </div>
               </button>
             ))}
           </div>
         </div>
+      )}
 
-        {/* Recent Projects Section */}
-        {recentProjects.length > 0 && (
-          <div className={s.recentProjectsSection}>
-            <div className={s.recentProjectsHeader}>
-              <h3 className={s.sectionTitle}>Recent projects</h3>
-              <button type="button" className={s.viewAllLink} onClick={handleViewAllProjects}>
-                View all →
-              </button>
-            </div>
-            <div className={s.examplesGrid}>
-              {recentProjects.map(project => (
-                <button
-                  key={project.projectName}
-                  type="button"
-                  className={s.exampleCard}
-                  onClick={() => handleProjectClick(`/projects/${project.projectName}`)}
-                >
-                  <i className={`pi pi-folder ${s.exampleIcon}`} />
-                  <div className={s.exampleInfo}>
-                    <h4>{project.projectName}</h4>
-                    {project.cachedAt && <p>{formatDate(project.cachedAt)}</p>}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Footer */}
-      <div className={s.footer}>
+      {/* Docs link */}
+      <div className={s.docsRow}>
         <a
           href="https://noodles.gl/docs"
           target="_blank"
@@ -374,11 +366,8 @@ export function QuickStartModal({
           <i className="pi pi-book" />
           Documentation
         </a>
-        <button type="button" className={s.browseAllButton} onClick={handleBrowseAll}>
-          Browse all examples
-        </button>
       </div>
-    </>
+    </div>
   )
 
   return (
@@ -386,20 +375,50 @@ export function QuickStartModal({
       <Dialog.Portal>
         <Dialog.Overlay className={s.overlay} />
         <Dialog.Content className={s.content}>
-          {view === 'home' && renderHomeView()}
-          {view === 'projects' && (
-            <ProjectsView onBack={handleBack} onClose={() => onOpenChange(false)} />
-          )}
-          {view === 'examples' && (
-            <ExamplesView onBack={handleBack} onClose={() => onOpenChange(false)} />
-          )}
+          {/* Compact header */}
+          <div className={s.compactHeader}>
+            <div className={s.headerBrand}>
+              <img src={logoSvg} alt="" className={s.headerLogo} />
+              <Dialog.Title className={s.headerTitle}>Noodles.gl</Dialog.Title>
+            </div>
+            <Dialog.Close asChild>
+              <button type="button" className={s.closeButton} aria-label="Close">
+                <Cross2Icon />
+              </button>
+            </Dialog.Close>
+          </div>
 
-          {/* Close button */}
-          <Dialog.Close asChild>
-            <button type="button" className={s.closeButton} aria-label="Close">
-              <Cross2Icon />
+          {/* Tab bar */}
+          <div className={s.tabBar}>
+            <button
+              type="button"
+              className={s.tabButton}
+              data-active={view === 'home' ? '' : undefined}
+              onClick={() => switchToTab('home')}
+            >
+              Home
             </button>
-          </Dialog.Close>
+            <button
+              type="button"
+              className={s.tabButton}
+              data-active={view === 'projects' ? '' : undefined}
+              onClick={() => switchToTab('projects')}
+            >
+              Projects
+            </button>
+            <button
+              type="button"
+              className={s.tabButton}
+              data-active={view === 'examples' ? '' : undefined}
+              onClick={() => switchToTab('examples')}
+            >
+              Examples
+            </button>
+          </div>
+
+          {view === 'home' && renderHomeView()}
+          {view === 'projects' && <ProjectsView onClose={() => onOpenChange(false)} />}
+          {view === 'examples' && <ExamplesView onClose={() => onOpenChange(false)} />}
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

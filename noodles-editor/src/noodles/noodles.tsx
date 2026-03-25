@@ -18,6 +18,7 @@ import {
   useEdgesState,
   useNodesState,
   useReactFlow,
+  useStoreApi,
 } from '@xyflow/react'
 import cx from 'classnames'
 import type { LayerExtension } from 'deck.gl'
@@ -63,13 +64,21 @@ import { SaveAsDialog } from './components/save-as-dialog'
 import { StorageErrorHandler } from './components/storage-error-handler'
 import { UndoRedoHandler, type UndoRedoHandlerRef } from './components/UndoRedoHandler'
 import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
+import { useConnectionDropOnEdge } from './hooks/use-connection-drop-on-edge'
 import { useKeyboardShortcut } from './hooks/use-keyboard-shortcut'
 import { useNodeDropOnEdge } from './hooks/use-node-drop-on-edge'
 import { useProjectModifications } from './hooks/use-project-modifications'
 import type { IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
 import { copyDataDirectory, copyPublicFolderData, hasDataDirectory, load, save } from './storage'
-import { getOp, getOpStore, getUIStore, useNestingStore, useUIStore } from './store'
+import {
+  getOp,
+  getOpStore,
+  getUIStore,
+  useEdgeConnectionStore,
+  useNestingStore,
+  useUIStore,
+} from './store'
 import { transformGraph } from './transform-graph'
 import { canConnect } from './utils/can-connect'
 import { directoryHandleCache } from './utils/directory-handle-cache'
@@ -102,7 +111,7 @@ import { calculateViewerPosition } from './utils/viewer-position'
  * work reliably regardless of import order (prevents linting from breaking styles).
  */
 import './layers.css'
-import { debugVis } from '../utils/debug'
+import { debugApp, debugVis } from '../utils/debug'
 import s from './noodles.module.css'
 
 export type Edge<N1 extends Operator<IOperator>, N2 extends Operator<IOperator>> = {
@@ -121,20 +130,20 @@ const defaultEdgeOptions: DefaultEdgeOptions = {
   animated: false,
 }
 
-type UseTimelineStateReturn = {
-  timelineReady: boolean
-  getTimelineJson: () => Record<string, unknown>
-}
+// Syncs edge data from React Flow store to centralized EdgeConnectionStore for O(1) lookups
+function EdgeConnectionSynchronizer() {
+  const store = useStoreApi()
 
-function useTimelineState(): UseTimelineStateReturn {
-  const getTimelineJson = useCallback((): Record<string, unknown> => {
-    return getTimelineStore().toTheatreJSON() as unknown as Record<string, unknown>
-  }, [])
+  useEffect(() => {
+    const unsubscribe = store.subscribe(state => {
+      useEdgeConnectionStore.getState().updateFromEdges(state.edges)
+    })
+    // Initial sync
+    useEdgeConnectionStore.getState().updateFromEdges(store.getState().edges)
+    return unsubscribe
+  }, [store])
 
-  return {
-    timelineReady: true,
-    getTimelineJson,
-  }
+  return null
 }
 
 export function getNoodles(): Visualization {
@@ -160,7 +169,11 @@ export function getNoodles(): Visualization {
   const storageType = useActiveStorageType()
   const { currentDirectory, setCurrentDirectory, setActiveStorageType, setError } =
     useFileSystemStore()
-  const { timelineReady, getTimelineJson } = useTimelineState()
+  const timelineStore = getTimelineStore()
+  const getTimelineJson = useCallback((): Record<string, unknown> => {
+    return timelineStore.toTheatreJSON() as unknown as Record<string, unknown>
+  }, [timelineStore.toTheatreJSON])
+
   const [nodes, setNodes, onNodesChangeBase] = useNodesState<AnyNodeJSON>([])
   const [edges, setEdges, onEdgesChangeBase] = useEdgesState<ReactFlowEdge<unknown>>([])
   const [defaultViewport, setDefaultViewport] = useState({ x: 0, y: 0, zoom: 1 })
@@ -205,27 +218,10 @@ export function getNoodles(): Visualization {
     [onEdgesChangeBase]
   )
 
-  // Update URL when project name changes (for when loading a project from file/storage)
-  // This updates the router, which will trigger projectName to update via useMemo
-  const setProjectName = useCallback(
-    (nameOrUpdater: React.SetStateAction<string | null>) => {
-      // Handle both direct values and updater functions
-      const name =
-        typeof nameOrUpdater === 'function' ? nameOrUpdater(projectName ?? null) : nameOrUpdater
-
-      if (name) {
-        navigate(`${routePrefix}/${name}`, { replace: true })
-      } else {
-        navigate('/', { replace: true })
-      }
-    },
-    [navigate, projectName, routePrefix]
-  )
-
   // Eagerly start loading AI context bundles on app start
   useEffect(() => {
     globalContextManager.startLoading().catch(error => {
-      console.warn('Failed to preload AI context:', error)
+      debugApp('Failed to preload AI context:', error)
     })
   }, [])
 
@@ -264,18 +260,27 @@ export function getNoodles(): Visualization {
   // `transformGraph` needs all nodes to build the opMap and resolve connections
   // Use useEffect instead of useMemo to avoid setState during render
   const [operators, setOperators] = useState<Operator<IOperator>[]>([])
+  // Set to true in loadProjectFile so the effect below skips the redundant re-run triggered
+  // by setNodes/setEdges — the graph was already built synchronously during load
+  const isProjectLoadRef = useRef(false)
   // nodes/edges omitted from deps intentionally — only re-run on structural changes, not position updates during drag
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional - graphStructureKey gates this
   useEffect(() => {
+    // loadProjectFile already called transformGraph directly, so skip this triggered re-run
+    if (isProjectLoadRef.current) return
     const ops = transformGraph({ nodes, edges })
     setOperators(ops)
   }, [graphStructureKey])
 
+  // Reset isProjectLoadRef after every render so the flag never gets stuck when
+  // graphStructureKey doesn't change (e.g. re-loading the same project, undo of position-only drag).
+  // Defined after the graphStructureKey effect so it clears the flag after the guard check runs.
+  useEffect(() => {
+    isProjectLoadRef.current = false
+  })
+
   // Bind timeline tracks for all operators (outside ReactFlow rendering pipeline).
   useEffect(() => {
-    if (!timelineReady) return
-
-    // Track cleanup functions for newly bound operators
     const newCleanupFns = new Map<string, () => void>()
     const currentOperatorIds = new Set(operators.map(op => op.id))
 
@@ -288,14 +293,12 @@ export function getNoodles(): Visualization {
     }
     cleanupRemovedOperatorsNative(currentOperatorIds)
 
-    // Return cleanup function only for newly bound operators
     return () => {
       for (const cleanup of newCleanupFns.values()) {
         cleanup()
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timelineReady, operators])
+  }, [operators])
 
   // Use shared hook for project modifications
   const {
@@ -383,9 +386,21 @@ export function getNoodles(): Visualization {
     [setConnectionDragState]
   )
 
-  const onConnectEnd: OnConnectEnd = useCallback(() => {
-    setConnectionDragState(null)
-  }, [setConnectionDragState])
+  const { onConnectEnd: onConnectionDropEnd } = useConnectionDropOnEdge({
+    getNodes: useCallback(() => nodes, [nodes]),
+    getEdges: useCallback(() => edges, [edges]),
+    onConnect,
+    getConnectionDragState: () => useUIStore.getState().connectionDragState,
+    screenToFlowPosition: pos => reactFlowInstanceRef.current?.screenToFlowPosition(pos) ?? pos,
+  })
+
+  const onConnectEnd: OnConnectEnd = useCallback(
+    (event, connectionState) => {
+      onConnectionDropEnd(event, connectionState)
+      setConnectionDragState(null)
+    },
+    [onConnectionDropEnd, setConnectionDragState]
+  )
 
   // Hook for dropping nodes onto edges to insert them
   const { onNodeDragStop: onNodeDragStopBase } = useNodeDropOnEdge({
@@ -567,21 +582,43 @@ export function getNoodles(): Visualization {
     (project: NoodlesProjectJSON, name?: string, targetRoutePrefix?: string) => {
       const { nodes, edges, viewport, timeline, editorSettings, apiKeys } = project
 
-      // Mark that we've programmatically loading this project BEFORE any state changes
-      // This prevents the useEffect from trying to reload it from storage when the URL changes
+      // Prevent the storage-loading useEffect from reloading when the URL changes below
       isProgrammaticLoadRef.current = true
+      // Signal the graphStructureKey effect to skip — transformGraph runs synchronously below
+      isProjectLoadRef.current = true
 
-      // Update current project ref for undo/redo
       currentProjectRef.current = project
 
+      // Dispose all old operators cleanly (executionState.complete() + unsubscribeListeners)
       const store = getOpStore()
       for (const op of store.getAllOps()) {
-        op.unsubscribeListeners()
+        op.dispose()
       }
       store.clearOps()
+
+      // Load timeline state before transformGraph so field bindings see the right keyframe data
+      clearAllBindings()
+      const hasTimeline = timeline && Object.keys(timeline).length > 0
+      if (hasTimeline) {
+        try {
+          // Timeline data uses a Theatre.js-compatible JSON format for backwards compatibility.
+          timelineStore.fromTheatreJSON(
+            timeline as unknown as import('../timeline/types').TheatreTimelineData
+          )
+        } catch (error) {
+          console.error('Failed to load timeline:', error)
+        }
+      } else {
+        timelineStore.reset()
+      }
+
+      // Build the operator graph synchronously — operators are ready before any re-render
+      const ops = transformGraph({ nodes, edges })
+      setOperators(ops)
+
+      // Update React Flow state (for rendering; graph is already set up above)
       setNodes(nodes)
       setEdges(edges)
-      setProjectName(name ?? null)
 
       // Load editor settings from project with defaults
       setLayoutMode(editorSettings?.layoutMode ?? 'noodles-on-top')
@@ -591,39 +628,21 @@ export function getNoodles(): Visualization {
       // Render settings are now stored as OutOp inputs (migration 012 handles conversion)
 
       // Load API keys from project file if present
-      getKeysStore().setProjectKeys(apiKeys)
+      const keysStore = getKeysStore()
+      keysStore.setProjectKeys(apiKeys)
 
-      // Set viewport state before ReactFlow renders (but not during undo/redo)
+      // Restore viewport unless we're in an undo/redo restore
       if (viewport && name && !undoRedoRef.current?.isRestoring()) {
         setDefaultViewport(viewport)
       }
 
-      // Load timeline data.
-      const hasTimeline = timeline && Object.keys(timeline).length > 0
-      if (hasTimeline) {
-        try {
-          // Timeline data is stored in Theatre.js-compatible format for compatibility.
-          getTimelineStore().fromTheatreJSON(
-            timeline as unknown as import('../timeline/types').TheatreTimelineData
-          )
-        } catch (error) {
-          console.error('Failed to load timeline data into native store:', error)
-        }
-      } else {
-        getTimelineStore().reset()
-      }
-      clearAllBindings()
+      // Navigate to the project URL
+      const effectiveRoutePrefix = targetRoutePrefix ?? routePrefix
+      navigate(name ? `${effectiveRoutePrefix}/${name}` : '/', { replace: true })
 
-      // Update URL query parameter with project name
-      if (name) {
-        const effectiveRoutePrefix = targetRoutePrefix ?? routePrefix
-        navigate(`${effectiveRoutePrefix}/${name}`, { replace: true })
-      }
-
-      // Clear unsaved changes flag when loading a project
       setHasUnsavedChanges(false)
     },
-    [setNodes, setEdges, setProjectName, navigate, routePrefix]
+    [setNodes, setEdges, navigate, routePrefix, timelineStore.fromTheatreJSON, timelineStore.reset]
   )
 
   // Assign to ref for undo/redo system
@@ -647,7 +666,7 @@ export function getNoodles(): Visualization {
           loadProjectFile(newProjectJSON as NoodlesProjectJSON)
           return
         } catch (_error) {
-          console.error('Failed to load default new project:', _error)
+          debugApp('Failed to load default new project:', _error)
         }
         return
       }
@@ -675,7 +694,7 @@ export function getNoodles(): Visualization {
             loadProjectFile(project, projectName)
             return
           } catch (error) {
-            console.error('Failed to load example project:', error)
+            debugApp('Failed to load example project:', error)
           }
         }
 
@@ -740,7 +759,7 @@ export function getNoodles(): Visualization {
   }, [nodes.length])
 
   const displayedNodes = useMemo(() => {
-    const dragHandle = `.${s.header}`
+    const dragHandle = `.${s.dragHandle}`
     const targetContainerId = currentContainerId || '/'
 
     return nodes
@@ -768,7 +787,7 @@ export function getNoodles(): Visualization {
   // File menu callbacks
   const getNoodlesProjectJson = useCallback((): NoodlesProjectJSON => {
     const store = getOpStore()
-    const timeline = getTimelineJson()
+    const timeline = timelineStore.toTheatreJSON() as unknown as Record<string, unknown>
     const viewport = reactFlowInstanceRef.current?.getViewport() || { x: 0, y: 0, zoom: 1 }
     const projectKeys = getKeysForProject()
     // Render settings are now stored as OutOp inputs, serialized with the node
@@ -786,7 +805,7 @@ export function getNoodles(): Visualization {
       },
       ...(projectKeys ? { apiKeys: projectKeys } : {}),
     }
-  }, [nodes, edges, getTimelineJson, layoutMode, showOverlay, showDebugInfo])
+  }, [nodes, edges, layoutMode, showOverlay, showDebugInfo, timelineStore.toTheatreJSON])
 
   const onMenuSave = useCallback(async () => {
     if (!projectName) return
@@ -810,7 +829,7 @@ export function getNoodles(): Visualization {
       // Ensure we have write permission
       const hasPermission = await requestPermission(directoryHandle, 'readwrite')
       if (!hasPermission) {
-        console.error('Permission denied to write to directory')
+        debugApp('Permission denied to write to directory')
         return
       }
 
@@ -832,7 +851,7 @@ export function getNoodles(): Visualization {
         // User cancelled the picker
         return
       }
-      console.error('Failed to open directory picker:', error)
+      debugApp('Failed to open directory picker:', error)
       setError({
         type: 'unknown',
         message: 'Error selecting directory',
@@ -1025,7 +1044,7 @@ export function getNoodles(): Visualization {
       // Ensure we have write permission
       const hasPermission = await requestPermission(directoryHandle, 'readwrite')
       if (!hasPermission) {
-        console.error('Permission denied to write to directory')
+        debugApp('Permission denied to write to directory')
         return
       }
 
@@ -1053,7 +1072,7 @@ export function getNoodles(): Visualization {
         // User cancelled the picker
         return
       }
-      console.error('Failed to create new project:', error)
+      debugApp('Failed to create new project:', error)
     }
   }, [setCurrentDirectory, setActiveStorageType, loadProjectFile])
 
@@ -1166,7 +1185,7 @@ export function getNoodles(): Visualization {
       // Ensure we have write permission
       const hasPermission = await requestPermission(directoryHandle, 'readwrite')
       if (!hasPermission) {
-        console.error('Permission denied to write to directory')
+        debugApp('Permission denied to write to directory')
         return
       }
 
@@ -1212,7 +1231,7 @@ export function getNoodles(): Visualization {
         // User cancelled the picker
         return
       }
-      console.error('Failed to import project:', error)
+      debugApp('Failed to import project:', error)
     }
   }, [setCurrentDirectory, setActiveStorageType, loadProjectFile])
 
@@ -1277,7 +1296,7 @@ export function getNoodles(): Visualization {
           // User cancelled the picker
           return
         }
-        console.error('Failed to open project:', error)
+        debugApp('Failed to open project:', error)
         setError({
           type: 'unknown',
           message:
@@ -1296,7 +1315,7 @@ export function getNoodles(): Visualization {
     [loadProjectFile, setCurrentDirectory, setActiveStorageType, setError]
   )
 
-  const flowGraph = timelineReady && (
+  const flowGraph = (
     <ErrorBoundary>
       <div className={cx('react-flow-wrapper', !showOverlay && 'react-flow-wrapper-hidden')}>
         <PrimeReactProvider>
@@ -1323,6 +1342,7 @@ export function getNoodles(): Visualization {
               edgeTypes={edgeComponents}
             >
               <ReactFlowInstanceCapture />
+              <EdgeConnectionSynchronizer />
               <Background />
               <Controls position="bottom-right" />
               <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />
@@ -1424,7 +1444,7 @@ export function getNoodles(): Visualization {
                     const { type: extType, ...constructorArgs } = ext
                     const extensionDef = extensionMap[extType]
                     if (!extensionDef) {
-                      console.warn(`Unknown extension type: ${extType}`)
+                      debugApp(`Unknown extension type: ${extType}`)
                       return null
                     }
 

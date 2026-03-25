@@ -1,6 +1,7 @@
 import { useReactFlow } from '@xyflow/react'
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 'react'
 
+import { debugUI } from '../../utils/debug'
 import { useProjectModifications } from '../hooks/use-project-modifications'
 import { getOpStore, hasOp, useNestingStore } from '../store'
 import { edgeId, nodeId } from '../utils/id-utils'
@@ -233,10 +234,10 @@ export const CopyControls = forwardRef<CopyControlsRef>((_, ref) => {
 
     const result = applyModifications(modifications)
     if (!result.success) {
-      console.error('Failed to paste nodes:', result.error)
+      debugUI('Failed to paste nodes:', result.error)
     }
     if (result.warnings) {
-      console.warn('Paste warnings:', result.warnings)
+      debugUI('Paste warnings:', result.warnings)
     }
   }, [currentContainerId, screenToFlowPosition, applyModifications, getNodes])
 
@@ -279,7 +280,7 @@ export const CopyControls = forwardRef<CopyControlsRef>((_, ref) => {
 
       const copied = e.clipboardData?.getData('text')
       if (!copied) {
-        console.warn('Paste listener: No copied data found')
+        debugUI('Paste listener: No copied data found')
         return
       }
 

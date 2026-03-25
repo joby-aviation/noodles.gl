@@ -6,7 +6,13 @@ import cx from 'classnames'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { KeyframeIndicator } from '../../timeline/components/KeyframeIndicator'
-import { fieldValueToKeyframeValue } from '../../timeline/field-bindings'
+import { fieldValueToKeyframeValue, getFieldPath } from '../../timeline/field-bindings'
+import {
+  captureTimelineState,
+  fireTimelineMutation,
+  getTimelineStore,
+  useTimelineStore,
+} from '../../timeline/timeline-store'
 import type { KeyframeValue } from '../../timeline/types'
 import { CompoundPropsField, type Field, type IField, IN_NS, ListField, OUT_NS } from '../fields'
 import type { IOperator, Operator } from '../operators'
@@ -213,6 +219,29 @@ function AddRemoveButton({
   )
 }
 
+// Wraps an editable field input with a highlight when the field has keyframes
+function FieldInputWithHighlight({
+  opId,
+  fieldName,
+  field,
+  subPath,
+}: {
+  opId: string
+  fieldName: string
+  field: Field
+  subPath?: string[]
+}) {
+  const hasKeyframes = useTimelineStore(state => {
+    const track = state.tracks.get(getFieldPath(opId, fieldName, subPath))
+    return track ? track.keyframes.length > 0 : false
+  })
+  return (
+    <div className={cx(s.editableFieldContent, { [s.keyframedField]: hasKeyframes })}>
+      <EditableFieldInput fieldName={subPath?.[0] ?? fieldName} field={field} disabled={false} />
+    </div>
+  )
+}
+
 // Render an editable field input based on field type
 function EditableFieldInput({
   fieldName,
@@ -303,10 +332,12 @@ function CompoundSubFields({
         return (
           <div key={subName} className={s.compoundSubField}>
             <span className={s.compoundSubFieldLabel}>{subName}</span>
-            <div className={s.editableFieldContent}>
-              {/* biome-ignore lint/suspicious/noExplicitAny: Field type validated via isValueField */}
-              <EditableFieldInput fieldName={subName} field={subField as any} disabled={false} />
-            </div>
+            <FieldInputWithHighlight
+              opId={opId}
+              fieldName={fieldName}
+              field={subField as Field}
+              subPath={[subName]}
+            />
             <KeyframeIndicator
               opId={opId}
               fieldName={fieldName}
@@ -326,6 +357,7 @@ function CompoundSubFields({
 // Exported for testing
 export function NodeProperties({ nodeId }: { nodeId: string }) {
   const { setEdges } = useReactFlow()
+  const onEdgesChange = useStore(s => s.onEdgesChange)
   // Only re-renders when this node's incoming edges change (not on position updates)
   const edges = useStore(
     s => s.edges.filter(e => e.target === nodeId),
@@ -348,6 +380,9 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
     y: number
     codeRef: string
     mustacheRef: string
+    fieldPath?: string
+    inputName?: string // field name for "Reset to default"
+    listFieldInputName?: string // field name when it's a ListField with connections
   } | null>(null)
   const descriptionRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef<HTMLElement | null>(null)
@@ -632,6 +667,20 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                       y: e.clientY,
                       codeRef: input.codeRef,
                       mustacheRef: input.mustacheRef,
+                      fieldPath:
+                        isValueField(input.field) && incomers.length === 0
+                          ? getFieldPath(op.id, input.name)
+                          : undefined,
+                      inputName:
+                        incomers.length === 0 &&
+                        input.field.defaultValue !== undefined &&
+                        hasNonDefaultValue(input.field)
+                          ? input.name
+                          : undefined,
+                      listFieldInputName:
+                        input.field instanceof ListField && incomers.length > 0
+                          ? input.name
+                          : undefined,
                     })
                   }}
                 >
@@ -662,13 +711,11 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                     {/* Value type, not connected: editable input + keyframe indicator */}
                     {isValueField(input.field) && incomers.length === 0 && (
                       <>
-                        <div className={s.editableFieldContent}>
-                          <EditableFieldInput
-                            fieldName={input.name}
-                            field={input.field}
-                            disabled={false}
-                          />
-                        </div>
+                        <FieldInputWithHighlight
+                          opId={op.id}
+                          fieldName={input.name}
+                          field={input.field}
+                        />
                         <KeyframeIndicator
                           opId={op.id}
                           fieldName={input.name}
@@ -930,6 +977,72 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
             >
               Copy mustache path
             </button>
+            {contextMenu.inputName && (
+              <>
+                <div className={s.contextMenuSeparator} />
+                <button
+                  type="button"
+                  className={s.contextMenuItem}
+                  onClick={() => {
+                    const field = op.inputs[contextMenu.inputName!]
+                    if (!field) return
+                    // If there's an active keyframe track, remove it first so the
+                    // static reset is actually reflected in the rendered output.
+                    const fp = getFieldPath(op.id, contextMenu.inputName!)
+                    const store = getTimelineStore()
+                    if (store.hasKeyframesForField(fp)) {
+                      const before = captureTimelineState()
+                      store.deleteTrack(fp)
+                      fireTimelineMutation('Reset to default', before)
+                    }
+                    field.setValue(field.defaultValue)
+                    setContextMenu(null)
+                  }}
+                >
+                  Reset to default
+                </button>
+              </>
+            )}
+            {contextMenu.listFieldInputName && (
+              <>
+                <div className={s.contextMenuSeparator} />
+                <button
+                  type="button"
+                  className={s.contextMenuItem}
+                  onClick={() => {
+                    const name = contextMenu.listFieldInputName!
+                    const toRemove = edges.filter(
+                      e =>
+                        e.target === nodeId &&
+                        (e.targetHandle === name || e.targetHandle === `par.${name}`)
+                    )
+                    onEdgesChange(toRemove.map(e => ({ type: 'remove' as const, id: e.id })))
+                    setContextMenu(null)
+                  }}
+                >
+                  Disconnect all inputs
+                </button>
+              </>
+            )}
+            {contextMenu.fieldPath &&
+              getTimelineStore().hasKeyframesForField(contextMenu.fieldPath) && (
+                <>
+                  <div className={s.contextMenuSeparator} />
+                  <button
+                    type="button"
+                    className={s.contextMenuItem}
+                    onClick={() => {
+                      const before = captureTimelineState()
+                      const store = getTimelineStore()
+                      store.deleteTrack(contextMenu.fieldPath!)
+                      fireTimelineMutation('Make static', before)
+                      setContextMenu(null)
+                    }}
+                  >
+                    Make static
+                  </button>
+                </>
+              )}
           </div>,
           document.body
         )}

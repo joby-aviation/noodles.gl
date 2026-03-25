@@ -1,3 +1,4 @@
+import { debugMigration } from '../../utils/debug'
 import { edgeId } from '../utils/id-utils'
 import type { NoodlesProjectJSON } from '../utils/serialization'
 
@@ -21,7 +22,7 @@ export async function up(project: NoodlesProjectJSON) {
         const targetHandle =
           nodeType === 'CodeOp' ? 'code' : nodeType === 'DuckDbOp' ? 'query' : undefined
         if (!targetHandle) {
-          console.error(`Unknown node type: ${nodeType} for edge ${edge.id}`)
+          debugMigration(`Unknown node type: ${nodeType} for edge ${edge.id}`)
           return edge
         }
 
@@ -39,7 +40,7 @@ export async function up(project: NoodlesProjectJSON) {
     })
     .reduce((acc: Edge[], edge: Edge) => {
       if (acc.find(e => e.id === edge.id)) {
-        console.error(`Duplicate edge id: ${edge.id}`)
+        debugMigration(`Duplicate edge id: ${edge.id}`)
       } else {
         acc.push(edge)
       }

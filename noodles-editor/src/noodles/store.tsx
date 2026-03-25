@@ -104,7 +104,7 @@ export const useOperatorStore = create<OperatorStoreState>((set, get) => ({
 // UI Store (Zustand) - Separate slice for UI state
 // ============================================================================
 
-interface ConnectionDragState {
+export interface ConnectionDragState {
   sourceNodeId: string
   sourceHandleId: string
   compatibleNodeIds: Set<string>
@@ -325,4 +325,45 @@ interface NestingState {
 export const useNestingStore = create<NestingState>(set => ({
   currentContainerId: '/',
   setCurrentContainerId: (id: string) => set({ currentContainerId: id }),
+}))
+
+// ============================================================================
+// Edge Connection Store - O(1) lookup for incoming connections
+// ============================================================================
+
+// Key format: "nodeId::handleId" for O(1) lookup
+type ConnectionKey = `${string}::${string}`
+
+interface EdgeConnectionState {
+  connectionMap: Map<ConnectionKey, boolean>
+  _edgeSignature: string
+  updateFromEdges: (edges: ReactFlowEdge[]) => void
+}
+
+export const useEdgeConnectionStore = create<EdgeConnectionState>((set, get) => ({
+  connectionMap: new Map(),
+  _edgeSignature: '',
+
+  updateFromEdges: edges => {
+    // Compute structural signature (ignores array reference changes)
+    const signature = edges
+      .filter(e => e.type !== 'ReferenceEdge')
+      .map(e => `${e.target}:${e.targetHandle}`)
+      .sort()
+      .join('|')
+
+    // Early exit if structure unchanged
+    if (signature === get()._edgeSignature) return
+
+    // Build new connection map
+    const newMap = new Map<ConnectionKey, boolean>()
+    for (const edge of edges) {
+      if (edge.type === 'ReferenceEdge') continue
+      if (!edge.target || !edge.targetHandle) continue
+      const key: ConnectionKey = `${edge.target}::${edge.targetHandle}`
+      newMap.set(key, true)
+    }
+
+    set({ connectionMap: newMap, _edgeSignature: signature })
+  },
 }))

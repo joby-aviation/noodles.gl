@@ -11,6 +11,7 @@ import {
 } from '@radix-ui/react-icons'
 import type React from 'react'
 import { useCallback, useEffect, useState } from 'react'
+import { debugExternal } from '../../utils/debug'
 import { type Session, sessionManager } from '../session-manager'
 import s from './sharing-dialog.module.css'
 
@@ -46,7 +47,7 @@ export const SharingDialog: React.FC<SharingDialogProps> = ({ isOpen, onClose })
       setCopiedToken(token)
       setTimeout(() => setCopiedToken(null), 2000)
     } catch (error) {
-      console.error('Failed to copy:', error)
+      debugExternal('Failed to copy:', error)
     }
   }
 

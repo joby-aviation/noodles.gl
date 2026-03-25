@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   BooleanField,
   ColorField,
+  CompoundPropsField,
   NumberField,
   Point2DField,
   Point3DField,
@@ -19,6 +20,7 @@ import {
   fieldValueToKeyframeValue,
   getFieldDefaultKeyframeValue,
   getFieldPath,
+  isAnimatableField,
   keyframeValueToFieldValue,
   opIdToObjectName,
 } from '../field-bindings'
@@ -31,6 +33,17 @@ function makeOp(id: string): Operator<IOperator> {
 
 // Operator mock with a single NumberField input — for bindOperatorToTimeline
 function makeOpWithInputs(id: string, fieldName: string, field: NumberField): Operator<IOperator> {
+  return {
+    id,
+    locked: { value: false },
+    inputs: { [fieldName]: field },
+  } as unknown as Operator<IOperator>
+}
+
+type AnyField = import('../../noodles/fields').Field<unknown>
+
+// General operator mock accepting any field type
+function makeOpWithField(id: string, fieldName: string, field: AnyField): Operator<IOperator> {
   return {
     id,
     locked: { value: false },
@@ -589,5 +602,155 @@ describe('cleanupRemovedOperators', () => {
     expect(field.value).toBeCloseTo(50, 0)
 
     cleanup2()
+  })
+})
+
+describe('isAnimatableField', () => {
+  it('returns true for NumberField', () => {
+    expect(isAnimatableField(new NumberField(0))).toBe(true)
+  })
+
+  it('returns true for BooleanField', () => {
+    expect(isAnimatableField(new BooleanField(false))).toBe(true)
+  })
+
+  it('returns true for StringField', () => {
+    expect(isAnimatableField(new StringField(''))).toBe(true)
+  })
+
+  it('returns true for ColorField', () => {
+    expect(isAnimatableField(new ColorField('#000000'))).toBe(true)
+  })
+
+  it('returns true for Vec2Field', () => {
+    expect(isAnimatableField(new Vec2Field({ x: 0, y: 0 }))).toBe(true)
+  })
+
+  it('returns true for Vec3Field', () => {
+    expect(isAnimatableField(new Vec3Field({ x: 0, y: 0, z: 0 }))).toBe(true)
+  })
+
+  it('returns true for Point2DField', () => {
+    expect(isAnimatableField(new Point2DField({ lng: 0, lat: 0 }))).toBe(true)
+  })
+
+  it('returns true for Point3DField', () => {
+    expect(isAnimatableField(new Point3DField({ lng: 0, lat: 0, alt: 0 }))).toBe(true)
+  })
+
+  // CompoundPropsField returns true — this is intentional (it is animatable as a whole),
+  // but bindOperatorToTimeline must explicitly guard against it when iterating sub-fields,
+  // since binding a CompoundPropsField sub-field directly would create a ghost track.
+  it('returns true for CompoundPropsField', () => {
+    const compound = new CompoundPropsField({ zoom: new NumberField(10) })
+    expect(isAnimatableField(compound)).toBe(true)
+  })
+})
+
+describe('bindOperatorToTimeline - CompoundPropsField handling', () => {
+  beforeEach(() => {
+    useTimelineStore.getState().reset()
+  })
+
+  afterEach(() => {
+    useTimelineStore.getState().reset()
+  })
+
+  it('creates a sub-path track for each primitive sub-field, not the parent track', () => {
+    const zoomField = new NumberField(10)
+    const latField = new NumberField(0)
+    const viewStateField = new CompoundPropsField({ zoom: zoomField, latitude: latField })
+    const op = makeOpWithField('/map', 'viewState', viewStateField)
+    const store = getTimelineStore()
+
+    const cleanup = bindOperatorToTimeline(op)
+
+    expect(store.getTrack('map / viewState / zoom')).toBeDefined()
+    expect(store.getTrack('map / viewState / latitude')).toBeDefined()
+    // parent compound track should not be created
+    expect(store.getTrack('map / viewState')).toBeUndefined()
+
+    cleanup()
+  })
+
+  it('scrubbing updates a CompoundPropsField sub-field via its sub-path track', () => {
+    const zoomField = new NumberField(10)
+    const viewStateField = new CompoundPropsField({ zoom: zoomField })
+    const op = makeOpWithField('/map', 'viewState', viewStateField)
+    const store = getTimelineStore()
+    const trackPath = 'map / viewState / zoom'
+
+    store.getOrCreateTrack(trackPath, 10)
+    store.addKeyframe(trackPath, { position: 0, value: 0, interpolation: 'linear' })
+    store.addKeyframe(trackPath, { position: 10, value: 100, interpolation: 'linear' })
+
+    const cleanup = bindOperatorToTimeline(op)
+
+    store.setPosition(5)
+    expect(zoomField.value).toBeCloseTo(50, 0)
+
+    cleanup()
+  })
+
+  it('changing a sub-field value adds a keyframe on the sub-path track', () => {
+    const zoomField = new NumberField(0)
+    const viewStateField = new CompoundPropsField({ zoom: zoomField })
+    const op = makeOpWithField('/map', 'viewState', viewStateField)
+    const store = getTimelineStore()
+    const trackPath = 'map / viewState / zoom'
+
+    store.getOrCreateTrack(trackPath, 0)
+    store.addKeyframe(trackPath, { position: 0, value: 0, interpolation: 'linear' })
+
+    const cleanup = bindOperatorToTimeline(op)
+    store.setPosition(5)
+
+    zoomField.setValue(50)
+
+    const track = store.getTrack(trackPath)
+    expect(track?.keyframes).toHaveLength(2)
+    const newKf = track?.keyframes.find(kf => Math.abs(kf.position - 5) < 0.001)
+    expect(newKf?.value).toBe(50)
+
+    cleanup()
+  })
+
+  it('skips nested CompoundPropsField sub-fields to avoid ghost tracks', () => {
+    const innerField = new NumberField(1)
+    const innerCompound = new CompoundPropsField({ x: innerField })
+    const outerCompound = new CompoundPropsField({ nested: innerCompound })
+    const op = makeOpWithField('/op', 'config', outerCompound)
+    const store = getTimelineStore()
+
+    const cleanup = bindOperatorToTimeline(op)
+
+    // Nested compound must not get a track — it would be unresponsive (ghost track)
+    expect(store.getTrack('op / config / nested')).toBeUndefined()
+    // Parent compound also doesn't get a direct track
+    expect(store.getTrack('op / config')).toBeUndefined()
+
+    cleanup()
+  })
+
+  it('cleanupRemovedOperators removes compound sub-field bindings by operator ID', () => {
+    const zoomField = new NumberField(0)
+    const viewStateField = new CompoundPropsField({ zoom: zoomField })
+    const op = makeOpWithField('/map', 'viewState', viewStateField)
+    const store = getTimelineStore()
+    const trackPath = 'map / viewState / zoom'
+
+    store.getOrCreateTrack(trackPath, 0)
+    store.addKeyframe(trackPath, { position: 0, value: 0, interpolation: 'linear' })
+    store.addKeyframe(trackPath, { position: 10, value: 100, interpolation: 'linear' })
+
+    bindOperatorToTimeline(op)
+
+    // Remove the operator
+    cleanupRemovedOperators(new Set())
+
+    // Binding is gone — scrubbing must not update the sub-field
+    zoomField.next(0)
+    store.setPosition(5)
+    expect(zoomField.value).toBe(0)
   })
 })
