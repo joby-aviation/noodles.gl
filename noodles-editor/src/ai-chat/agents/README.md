@@ -74,7 +74,7 @@ Result: List of issues (missing docs, type annotations, etc.) and suggestions
 
 **Example**:
 ```bash
-$ yarn generate:migration
+$ npm run generate:migration
 Operator type: ScatterplotLayerOp
 Change type: rename_field
 Input or output? out

@@ -87,10 +87,10 @@ Get your API key from: https://console.anthropic.com/
 **Note**: The `.env.local` file is ignored by git to keep your API key secure.
 
 ## Running
-* `yarn start`
+* `npm start`
 
 ## Testing
-* `yarn test`
+* `npm test`
 
 ## Features
 We use Linear for project management and task tracking

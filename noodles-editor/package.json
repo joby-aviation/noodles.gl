@@ -58,7 +58,7 @@
     "wouter": "^3.9.0",
     "zod": "^4.3.5"
   },
-  "resolutions": {
+  "overrides": {
     "d3-scale-chromatic": "3.1.x"
   },
   "scripts": {
@@ -71,7 +71,7 @@
     "format:check": "biome format ./src/**/*.{ts,tsx}",
     "fix-lint": "biome check --write --unsafe ./src/**/*.{ts,tsx}",
     "build:migrate-script": "vite build --config vite.config.migrate.ts",
-    "migrate-projects": "yarn build:migrate-script && node dist/migrate-project-files.js",
+    "migrate-projects": "npm run build:migrate-script && node dist/migrate-project-files.js",
     "generate:context": "tsx scripts/generate-context.ts",
     "generate:migration": "tsx scripts/generate-migration.ts"
   },
@@ -119,5 +119,5 @@
   "engines": {
     "node": ">=24.11.0"
   },
-  "packageManager": "yarn@4.5.3"
+  "packageManager": "npm"
 }

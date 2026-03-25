@@ -12,8 +12,7 @@ __pycache__/
 mapbox-token.js
 TODO
 
-yarn-error.log
-package-lock.json
+npm-debug.log*
 
 .env.local
 .venv
@@ -35,15 +34,6 @@ venv.bak/
 # Jupyter Notebook
 .ipynb_checkpoints
 
-# Yarn
-.pnp.*
-.yarn/*
-**/.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/sdks
-!.yarn/versions
 *.blend1
 
 # vibe coding

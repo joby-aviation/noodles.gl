@@ -2,9 +2,6 @@
 
 # dependencies
 /node_modules
-/.yarn
-/.pnp
-.pnp.js
 .vite
 
 # vibe coding
