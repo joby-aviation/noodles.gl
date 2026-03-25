@@ -1,5 +1,5 @@
 import type z from 'zod/v4'
-import { type Field, ListField, UnknownField } from '../fields'
+import { DataField, type Field, ListField, UnknownField } from '../fields'
 
 export type ConnectionValidationResult = {
   valid: boolean
@@ -33,8 +33,17 @@ export function validateConnection(from: Field, to: Field): ConnectionValidation
   if (from instanceof UnknownField) {
     return { valid: true }
   }
-  // TODO: for correctness this should validate the other schema
-  // rather than just the value
+  // DataField is a generic data container and can connect to any list. The operator consuming
+  // the list (e.g. DeckRendererOp) handles mismatched values at runtime.
+  if (from instanceof DataField && to instanceof ListField) {
+    return { valid: true }
+  }
+  // If the source field hasn't executed yet its value is undefined — skip validation since we
+  // can't check type compatibility against a value that doesn't exist yet.
+  // TODO: for correctness this should validate the other schema rather than just the value
+  if (from.value === undefined) {
+    return { valid: true }
+  }
   const schema = to instanceof ListField ? to.schema.unwrap() : to.schema
   const result = schema.safeParse(from.value, {
     error: _iss => from.pathToProps.join('.'),

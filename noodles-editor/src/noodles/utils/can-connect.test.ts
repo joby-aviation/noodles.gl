@@ -4,6 +4,7 @@ import {
   ArrayField,
   CompoundPropsField,
   DataField,
+  LayerField,
   ListField,
   NumberField,
   Point2DField,
@@ -65,6 +66,26 @@ describe('CanConnect', () => {
     const listField = new ListField(new NumberField())
 
     expect(canConnect(numberField, listField)).toBe(true)
+  })
+
+  it('allows DataField to connect to any ListField', () => {
+    // DataField is a generic container — a CodeOp returning layer configs should connect
+    // to ListField<LayerField> even though the types differ structurally
+    const dataField = new DataField()
+    dataField.setValue([{ type: 'SimpleMeshLayer', data: [0] }])
+
+    expect(canConnect(dataField, new ListField(new LayerField()))).toBe(true)
+    expect(canConnect(dataField, new ListField(new NumberField()))).toBe(true)
+  })
+
+  it('skips validation when source field value is undefined', () => {
+    // Operators that haven't executed yet have undefined output values — validation
+    // against undefined always fails with a spurious type-mismatch error
+    const source = new NumberField()
+    // @ts-expect-error - force undefined to simulate pre-execution state
+    source['_value'] = undefined
+
+    expect(canConnect(source, new ListField(new NumberField()))).toBe(true)
   })
 
   it('allows connecting compatible CompoundPropsFields', () => {
