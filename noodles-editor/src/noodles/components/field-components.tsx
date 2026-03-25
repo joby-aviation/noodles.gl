@@ -594,13 +594,10 @@ export function CodeFieldComponent({
       editor.onDidBlurEditorWidget(() => commitChange('Change code'))
       // Add Cmd+K keyboard shortcut for SQL notebook mode
       if (isSqlField) {
-        editor.addCommand(
-          monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK,
-          () => {
-            setNotebookOpen(true)
-            analytics.track('sql_notebook_opened', { trigger: 'keyboard' })
-          }
-        )
+        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK, () => {
+          setNotebookOpen(true)
+          analytics.track('sql_notebook_opened', { trigger: 'keyboard' })
+        })
       }
     },
     [captureStart, commitChange, isSqlField]

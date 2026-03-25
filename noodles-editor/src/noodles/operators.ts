@@ -1908,7 +1908,6 @@ export class DuckDbOp extends Operator<DuckDbOp> {
       return null
     }
   }
-
 }
 
 export class JSONOp extends Operator<JSONOp> {

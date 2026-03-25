@@ -45,7 +45,7 @@ function parseSqlStatements(sql: string): string[] {
 
 async function executeAllStatements(
   queryString: string,
-  contextOpId: string,
+  contextOpId: string
 ): Promise<Array<{ sql: string; data: unknown[]; executionTime: number; error?: string }>> {
   const queries = parseSqlStatements(queryString)
   if (!queries.length) return []
@@ -59,7 +59,11 @@ async function executeAllStatements(
     try {
       if (!mustacheRe.test(query)) {
         const result = await conn.query(query)
-        results.push({ sql: query, data: result.toArray(), executionTime: performance.now() - startTime })
+        results.push({
+          sql: query,
+          data: result.toArray(),
+          executionTime: performance.now() - startTime,
+        })
         continue
       }
 
@@ -74,12 +78,19 @@ async function executeAllStatements(
         const [firstKey, ...rest] = fieldPath.split('.')
         const field = op?.[inOut === 'par' ? 'inputs' : 'outputs']?.[firstKey]
         if (!field) throw new Error(`Field ${firstKey} not found on ${opId}`)
-        return rest.reduce((d: any, prop: string) => d[prop], field.value)
+        return rest.reduce(
+          (d: unknown, prop: string) => (d as Record<string, unknown>)[prop],
+          field.value
+        )
       })
 
       const prepared = await conn.prepare(parameterizedQuery)
       const result = await prepared.query(...positionalParams)
-      results.push({ sql: query, data: result.toArray(), executionTime: performance.now() - startTime })
+      results.push({
+        sql: query,
+        data: result.toArray(),
+        executionTime: performance.now() - startTime,
+      })
     } catch (error) {
       results.push({
         sql: query,
@@ -204,25 +215,22 @@ export function SqlNotebookDialog({
     }
   }, [session.sqlContent, operatorId])
 
-  const handleEditorDidMount: OnMount = useCallback((editor, monaco) => {
-    editorRef.current = editor
+  const handleEditorDidMount: OnMount = useCallback(
+    (editor, monaco) => {
+      editorRef.current = editor
 
-    // Cmd+Enter to execute
-    editor.addCommand(
-      monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
-      () => {
+      // Cmd+Enter to execute
+      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
         executeAll()
-      }
-    )
+      })
 
-    // Escape to close
-    editor.addCommand(
-      monaco.KeyCode.Escape,
-      () => {
+      // Escape to close
+      editor.addCommand(monaco.KeyCode.Escape, () => {
         onOpenChange(false)
-      }
-    )
-  }, [executeAll, onOpenChange])
+      })
+    },
+    [executeAll, onOpenChange]
+  )
 
   const handleCommit = useCallback(() => {
     onCommit(session.sqlContent)
@@ -249,8 +257,7 @@ export function SqlNotebookDialog({
         <Dialog.Content className={s.dialogContent}>
           <Dialog.Title className={s.dialogTitle}>SQL Notebook</Dialog.Title>
           <Dialog.Description className={s.dialogDescription}>
-            Execute multi-statement SQL and review results. Changes are not saved until you
-            commit.
+            Execute multi-statement SQL and review results. Changes are not saved until you commit.
           </Dialog.Description>
 
           {/* Editor Section */}
@@ -304,9 +311,17 @@ export function SqlNotebookDialog({
                 <p>Execute queries to see results</p>
               </div>
             ) : (
-              <Accordion.Root type="multiple" defaultValue={session.results.map((_, i) => `item-${i}`)} className={s.accordion}>
+              <Accordion.Root
+                type="multiple"
+                defaultValue={session.results.map((_, i) => `item-${i}`)}
+                className={s.accordion}
+              >
                 {session.results.map((result, index) => (
-                  <Accordion.Item key={`${result.statementIndex}-${result.sql}`} value={`item-${index}`} className={s.accordionItem}>
+                  <Accordion.Item
+                    key={`${result.statementIndex}-${result.sql}`}
+                    value={`item-${index}`}
+                    className={s.accordionItem}
+                  >
                     <Accordion.Header className={s.accordionHeader}>
                       <Accordion.Trigger className={s.accordionTrigger}>
                         <span className={s.statementBadge}>{index + 1}</span>
@@ -339,7 +354,10 @@ export function SqlNotebookDialog({
                       </div>
                       {result.error ? (
                         <div className={s.errorMessage}>
-                          <i className="pi pi-exclamation-circle" style={{ marginRight: '0.5rem' }} />
+                          <i
+                            className="pi pi-exclamation-circle"
+                            style={{ marginRight: '0.5rem' }}
+                          />
                           {result.error}
                         </div>
                       ) : result.data && result.data.length > 0 ? (
