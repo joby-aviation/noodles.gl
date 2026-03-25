@@ -11,7 +11,7 @@ import { NodeProperties } from '../node-properties'
 // Mock edges for tests - will be updated per test
 let mockEdges: Edge[] = []
 
-// Mock useReactFlow and useEdges
+// Mock useReactFlow and useStore
 vi.mock('@xyflow/react', async () => {
   const actual = await vi.importActual('@xyflow/react')
   return {
@@ -23,8 +23,9 @@ vi.mock('@xyflow/react', async () => {
       getNodes: vi.fn(() => []),
       getNode: vi.fn(),
     }),
-    useEdges: () => mockEdges,
-    useNodes: () => [],
+    // Provide a minimal store state — NodeProperties reads edges and nodeType from useStore
+    useStore: (selector: (state: { nodes: unknown[]; edges: Edge[] }) => unknown) =>
+      selector({ nodes: [], edges: mockEdges }),
   }
 })
 
@@ -86,15 +87,10 @@ describe('NodeProperties field visibility editing', () => {
   }
 
   // Helper to render NodeProperties with contexts
-  const renderNodeProperties = (node: {
-    id: string
-    type: string
-    position: { x: number; y: number }
-    data: unknown
-  }) => {
+  const renderNodeProperties = (node: { id: string }) => {
     return render(
       <ReactFlowProvider>
-        <NodeProperties node={node as any} />
+        <NodeProperties nodeId={node.id} />
       </ReactFlowProvider>
     )
   }
@@ -484,6 +480,94 @@ describe('NodeProperties field visibility editing', () => {
       // Visibility should be reset (effects should be hidden again)
       expect(op.visibleFields.value).toBe(null)
       expect(op.isFieldVisible('effects')).toBe(false)
+    })
+  })
+
+  describe('context menu reset to default', () => {
+    // GeoJsonLayerOp.opacity is input-only with default 1 — no output ambiguity
+    it('shows "Reset to default" when disconnected field has a non-default value', () => {
+      const node = setupOperator('GeoJsonLayerOp', '/geo', { opacity: 0.5 })
+      renderNodeProperties(node)
+
+      // Use selector: 'span' to target the property label, not the field input label
+      const opacityLabel = screen.getByText('opacity', { selector: 'span' })
+      fireEvent.contextMenu(opacityLabel.closest('[role="listitem"]')!)
+
+      expect(screen.getByText('Reset to default')).toBeInTheDocument()
+    })
+
+    it('does not show "Reset to default" when field value equals the default', () => {
+      // GeoJsonLayerOp.opacity defaults to 1 — leave at default
+      const node = setupOperator('GeoJsonLayerOp', '/geo', { opacity: 1 })
+      renderNodeProperties(node)
+
+      const opacityLabel = screen.getByText('opacity', { selector: 'span' })
+      fireEvent.contextMenu(opacityLabel.closest('[role="listitem"]')!)
+
+      expect(screen.queryByText('Reset to default')).not.toBeInTheDocument()
+    })
+
+    it('clicking "Reset to default" resets the field value to its default', () => {
+      const node = setupOperator('GeoJsonLayerOp', '/geo', { opacity: 0.5 })
+      renderNodeProperties(node)
+
+      const opacityLabel = screen.getByText('opacity', { selector: 'span' })
+      fireEvent.contextMenu(opacityLabel.closest('[role="listitem"]')!)
+      fireEvent.click(screen.getByText('Reset to default'))
+
+      const op = getOp('/geo')!
+      expect(op.inputs.opacity.value).toBe(1)
+    })
+
+    it('does not show "Reset to default" when field has an incoming connection', () => {
+      const nodes = [
+        {
+          id: '/src',
+          type: 'NumberOp',
+          position: { x: 0, y: 0 },
+          data: { inputs: { val: 0.5 } },
+        },
+        {
+          id: '/geo',
+          type: 'GeoJsonLayerOp',
+          position: { x: 100, y: 0 },
+          data: { inputs: {} },
+        },
+      ]
+      const edges: Edge[] = [
+        {
+          id: '/src.out.val->/geo.par.opacity',
+          source: '/src',
+          target: '/geo',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.opacity',
+        },
+      ]
+      transformGraph({ nodes, edges })
+      mockEdges = edges
+
+      renderNodeProperties({ id: '/geo' })
+
+      const opacityLabel = screen.getByText('opacity')
+      fireEvent.contextMenu(opacityLabel.closest('[role="listitem"]')!)
+
+      expect(screen.queryByText('Reset to default')).not.toBeInTheDocument()
+    })
+
+    it('shows "Reset to default" for UnknownField (DeckRendererOp basemap)', () => {
+      // basemap is an UnknownField with a default map config object
+      const node = setupOperator(
+        'DeckRendererOp',
+        '/deck',
+        { basemap: { mapStyle: 'custom-style', latitude: 0, longitude: 0, zoom: 1 } },
+        ['layers', 'views', 'basemap']
+      )
+      renderNodeProperties(node)
+
+      const basemapLabel = screen.getByText('basemap')
+      fireEvent.contextMenu(basemapLabel.closest('[role="listitem"]')!)
+
+      expect(screen.getByText('Reset to default')).toBeInTheDocument()
     })
   })
 

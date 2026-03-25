@@ -1,4 +1,3 @@
-import type { NodeJSON } from 'SKIP-@xyflow/react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
 import cx from 'classnames'
@@ -13,11 +12,11 @@ import { getNodeDescription, headerClass, typeCategory, typeDisplayName } from '
 
 interface SuggestedNodesSectionProps {
   operator: Operator<IOperator>
-  node: NodeJSON<unknown>
+  nodeId: string
   onAddNode: (opType: OpType, connection: ConnectionPlan) => void
 }
 
-export function SuggestedNodesSection({ operator, node, onAddNode }: SuggestedNodesSectionProps) {
+export function SuggestedNodesSection({ operator, nodeId, onAddNode }: SuggestedNodesSectionProps) {
   const [previewSuggestion, setPreviewSuggestion] = useState<SuggestedNode | null>(null)
   const [connectionPlan, setConnectionPlan] = useState<ConnectionPlan | null>(null)
 
@@ -67,7 +66,7 @@ export function SuggestedNodesSection({ operator, node, onAddNode }: SuggestedNo
           <Dialog.Content className={menuStyles.dialogContent}>
             {previewSuggestion && connectionPlan && (
               <SuggestionPreviewContent
-                sourceNodeId={node.id}
+                sourceNodeId={nodeId}
                 suggestion={previewSuggestion}
                 connectionPlan={connectionPlan}
                 onConfirm={handleConfirm}

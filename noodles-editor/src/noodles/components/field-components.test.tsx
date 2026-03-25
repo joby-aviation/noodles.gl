@@ -92,7 +92,6 @@ describe('NumberFieldComponent', () => {
   })
 
   it('rejects values outside hard limits', () => {
-    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const field = new NumberField(50, { min: 0, max: 100 })
     render(<NumberFieldComponent id="test-field" field={field} disabled={false} />)
 
@@ -103,7 +102,6 @@ describe('NumberFieldComponent', () => {
 
     // The field rejects the value and keeps previous value (Zod validation fails)
     expect(field.value).toBe(50)
-    expect(consoleWarn).toHaveBeenCalled()
   })
 
   it('updates when field value changes externally', () => {

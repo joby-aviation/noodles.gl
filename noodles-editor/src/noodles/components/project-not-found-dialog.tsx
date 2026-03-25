@@ -2,6 +2,7 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
 import cx from 'classnames'
 import { useCallback, useState } from 'react'
+import { debugUI } from '../../utils/debug'
 import { useFileSystemStore } from '../filesystem-store'
 import { load } from '../storage'
 import { selectDirectory } from '../utils/filesystem'
@@ -55,11 +56,11 @@ export const ProjectNotFoundDialog = ({
           onProjectLoaded(project, projectName)
           onClose()
         } catch (error) {
-          console.error('Error migrating project:', error)
+          debugUI('Error migrating project:', error)
           setError(error instanceof Error ? error.message : 'Failed to migrate project.')
         }
       } else {
-        console.error('Failed to load project:', result.error)
+        debugUI('Failed to load project:', result.error)
         setError(result.error.message)
       }
     } catch (error) {
@@ -67,7 +68,7 @@ export const ProjectNotFoundDialog = ({
       if (error instanceof Error && error.name === 'AbortError') {
         return
       }
-      console.error('Error opening folder:', error)
+      debugUI('Error opening folder:', error)
       setError(error instanceof Error ? error.message : 'Failed to open folder.')
     } finally {
       setIsLocating(false)
@@ -86,7 +87,7 @@ export const ProjectNotFoundDialog = ({
       if (error instanceof Error && error.name === 'AbortError') {
         return
       }
-      console.error('Error importing project:', error)
+      debugUI('Error importing project:', error)
       setError(error instanceof Error ? error.message : 'Failed to import project.')
     } finally {
       setIsImporting(false)
@@ -104,7 +105,7 @@ export const ProjectNotFoundDialog = ({
       if (error instanceof Error && error.name === 'AbortError') {
         return
       }
-      console.error('Error creating new project:', error)
+      debugUI('Error creating new project:', error)
       setError(error instanceof Error ? error.message : 'Failed to create new project.')
     }
   }, [onNewProject, onClose])

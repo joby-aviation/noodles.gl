@@ -3,10 +3,10 @@
 
 import type React from 'react'
 import { useCallback } from 'react'
-import s from './TimelinePanel.module.css'
 import { getFieldPath } from '../field-bindings'
 import { getTimelineStore, useTimelineStore } from '../timeline-store'
 import type { KeyframeValue } from '../types'
+import s from './TimelinePanel.module.css'
 
 export interface KeyframeIndicatorProps {
   // Operator ID (e.g., "/my-operator")

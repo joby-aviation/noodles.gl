@@ -1,11 +1,25 @@
-import { ChevronLeftIcon } from '@radix-ui/react-icons'
 import * as Dialog from '@radix-ui/react-dialog'
+import { ChevronLeftIcon } from '@radix-ui/react-icons'
 import { useCallback, useEffect, useState } from 'react'
 import { useLocation } from 'wouter'
+import newProjectJSON from '../noodles/new.json'
 import type { CachedHandleEntry } from '../noodles/utils/directory-handle-cache'
 import { directoryHandleCache } from '../noodles/utils/directory-handle-cache'
-import { checkFileSystemSupport, getOPFSRoot, selectDirectory } from '../noodles/utils/filesystem'
+import {
+  checkFileSystemSupport,
+  fileExists,
+  getOPFSRoot,
+  requestPermission,
+  selectDirectory,
+  writeFileToDirectory,
+} from '../noodles/utils/filesystem'
+import {
+  NOODLES_VERSION,
+  type NoodlesProjectJSON,
+  safeStringify,
+} from '../noodles/utils/serialization'
 import { analytics } from '../utils/analytics'
+import { debugUI } from '../utils/debug'
 import s from './quick-start-modal.module.css'
 
 export interface UserProject {
@@ -54,7 +68,7 @@ export function ProjectsView({ onBack, onClose }: ProjectsViewProps) {
             })
           }
         } catch (err) {
-          console.error('Failed to load cached directory handles', err)
+          debugUI('Failed to load cached directory handles', err)
         }
       }
 
@@ -82,7 +96,7 @@ export function ProjectsView({ onBack, onClose }: ProjectsViewProps) {
             }
           }
         } catch (err) {
-          console.error('Failed to enumerate OPFS projects', err)
+          debugUI('Failed to enumerate OPFS projects', err)
         }
       }
 
@@ -93,14 +107,54 @@ export function ProjectsView({ onBack, onClose }: ProjectsViewProps) {
     loadAllProjects()
   }, [fileSystemSupport.fileSystemAccess, fileSystemSupport.opfs])
 
+  const handleNewProject = useCallback(async () => {
+    try {
+      const directoryHandle = await selectDirectory()
+      const hasPermission = await requestPermission(directoryHandle, 'readwrite')
+      if (!hasPermission) return
+
+      // If a noodles.json already exists, open that project instead of overwriting
+      const alreadyExists = await fileExists(directoryHandle, 'noodles.json')
+      if (alreadyExists) {
+        await directoryHandleCache.cacheHandle(
+          directoryHandle.name,
+          directoryHandle,
+          directoryHandle.name
+        )
+        onClose()
+        navigate(`/projects/${directoryHandle.name}`)
+        return
+      }
+
+      const starterProject = { ...newProjectJSON, version: NOODLES_VERSION } as NoodlesProjectJSON
+      await writeFileToDirectory(
+        directoryHandle,
+        'noodles.json',
+        safeStringify(starterProject as Record<string, unknown>)
+      )
+      await directoryHandleCache.cacheHandle(
+        directoryHandle.name,
+        directoryHandle,
+        directoryHandle.name
+      )
+      analytics.track('quick_start_new_project')
+      onClose()
+      navigate(`/projects/${directoryHandle.name}`)
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') return
+      console.error('Failed to create new project:', error)
+    }
+  }, [navigate, onClose])
+
   const handleOpenFolder = useCallback(async () => {
     try {
       const handle = await selectDirectory()
       await directoryHandleCache.cacheHandle(handle.name, handle, handle.name)
       onClose()
       navigate(`/projects/${handle.name}`)
-    } catch {
-      // User cancelled or permission denied
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') return
+      console.error('Failed to open project:', error)
     }
   }, [navigate, onClose])
 
@@ -115,24 +169,28 @@ export function ProjectsView({ onBack, onClose }: ProjectsViewProps) {
 
   return (
     <>
-      {/* Header with back button */}
-      <div className={s.viewHeader}>
-        {onBack && (
+      {/* Show view header only in standalone mode (with back button) */}
+      {onBack && (
+        <div className={s.viewHeader}>
           <button type="button" className={s.backButton} onClick={onBack}>
             <ChevronLeftIcon width={16} height={16} />
             Back
           </button>
-        )}
-        <Dialog.Title className={s.viewTitle}>Projects</Dialog.Title>
-        <Dialog.Description className={s.viewSubtitle}>
-          Your saved projects from local folders and browser storage
-        </Dialog.Description>
-      </div>
+          <Dialog.Title className={s.viewTitle}>Projects</Dialog.Title>
+          <Dialog.Description className={s.viewSubtitle}>
+            Your saved projects from local folders and browser storage
+          </Dialog.Description>
+        </div>
+      )}
 
       <div className={s.body}>
         {fileSystemSupport.fileSystemAccess && (
-          <div className={s.openFolderSection}>
-            <button type="button" className={s.openFolderButton} onClick={handleOpenFolder}>
+          <div className={s.projectActionsRow}>
+            <button type="button" className={s.projectActionButton} onClick={handleNewProject}>
+              <i className="pi pi-plus-circle" />
+              New project
+            </button>
+            <button type="button" className={s.projectActionButton} onClick={handleOpenFolder}>
               <i className="pi pi-folder-open" />
               Open folder…
             </button>
@@ -145,7 +203,7 @@ export function ProjectsView({ onBack, onClose }: ProjectsViewProps) {
           <div className={s.emptyState}>
             <p>No projects found.</p>
             {fileSystemSupport.fileSystemAccess && (
-              <p>Use "Open folder…" to open a project from your file system.</p>
+              <p>Use "New project" or "Open folder…" to get started.</p>
             )}
           </div>
         ) : (
@@ -187,7 +245,7 @@ export function useRecentProjects(limit = 3): CachedHandleEntry[] {
         const handles = await directoryHandleCache.getAllCachedHandles()
         setRecentProjects(handles.slice(0, limit))
       } catch (err) {
-        console.error('Failed to load recent projects', err)
+        debugUI('Failed to load recent projects', err)
       }
     }
     loadRecent()

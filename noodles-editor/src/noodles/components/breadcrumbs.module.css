@@ -5,7 +5,7 @@
   align-items: center;
   font-size: 14px;
   position: absolute;
-  z-index: var(--z-index-breadcrumbs);
+  z-index: var(--z-index-chrome);
 }
 
 .segment {

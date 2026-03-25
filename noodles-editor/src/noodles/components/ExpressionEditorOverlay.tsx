@@ -69,11 +69,9 @@ export function ExpressionEditorOverlay({
     top = Math.max(10, top)
 
     return {
-      position: 'fixed',
       top: `${top}px`,
       left: `${left}px`,
       width: `${overlayWidth}px`,
-      zIndex: 10000,
     }
   }, [anchorRect])
 

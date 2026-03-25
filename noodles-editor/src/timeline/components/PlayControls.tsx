@@ -1,7 +1,7 @@
 // Play controls component - play/pause/loop/speed controls
 
-import s from './TimelinePanel.module.css'
 import { useTimelineStore } from '../timeline-store'
+import s from './TimelinePanel.module.css'
 
 export function PlayControls() {
   const playing = useTimelineStore(state => state.playing)
@@ -12,17 +12,11 @@ export function PlayControls() {
   const toggleLoop = useTimelineStore(state => state.toggleLoop)
   const goToStart = useTimelineStore(state => state.goToStart)
   const goToEnd = useTimelineStore(state => state.goToEnd)
-  const stepBackward = useTimelineStore(state => state.stepBackward)
-  const stepForward = useTimelineStore(state => state.stepForward)
 
   return (
     <div className={s.timelinePlayControls}>
       <button type="button" onClick={goToStart} title="Go to start (Home)">
         <StartIcon />
-      </button>
-
-      <button type="button" onClick={() => stepBackward(1)} title="Step backward (←)">
-        <StepBackIcon />
       </button>
 
       <button
@@ -32,10 +26,6 @@ export function PlayControls() {
         title={playing ? 'Pause (Space)' : 'Play (Space)'}
       >
         {playing ? <PauseIcon /> : <PlayIcon />}
-      </button>
-
-      <button type="button" onClick={() => stepForward(1)} title="Step forward (→)">
-        <StepForwardIcon />
       </button>
 
       <button type="button" onClick={goToEnd} title="Go to end (End)">
@@ -62,14 +52,6 @@ function StartIcon() {
   )
 }
 
-function StepBackIcon() {
-  return (
-    <svg viewBox="0 0 16 16" aria-hidden="true">
-      <path d="M12 3.4v9.2L4.5 8 12 3.4z" />
-    </svg>
-  )
-}
-
 function PlayIcon() {
   return (
     <svg viewBox="0 0 16 16" aria-hidden="true">
@@ -82,14 +64,6 @@ function PauseIcon() {
   return (
     <svg viewBox="0 0 16 16" aria-hidden="true">
       <path d="M4.6 3.4h2.8v9.2H4.6zM8.8 3.4h2.8v9.2H8.8z" />
-    </svg>
-  )
-}
-
-function StepForwardIcon() {
-  return (
-    <svg viewBox="0 0 16 16" aria-hidden="true">
-      <path d="M4 3.4v9.2L11.5 8 4 3.4z" />
     </svg>
   )
 }

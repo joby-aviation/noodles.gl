@@ -81,7 +81,17 @@ export const categories = {
   ],
   number: ['Number', 'MapRange', 'Extent', 'Math', 'BezierCurve', 'Time'],
   string: ['String'],
-  utility: ['Boolean', 'Console', 'LayerProps', 'Mouse', 'Project', 'Unproject', 'MapStyle'],
+  utility: [
+    'Blending',
+    'Boolean',
+    'Console',
+    'LayerProps',
+    'Mouse',
+    'Project',
+    'Reroute',
+    'Unproject',
+    'MapStyle',
+  ],
   vector: ['CombineXY', 'CombineXYZ', 'SplitXY', 'SplitXYZ'],
   view: [
     'FirstPersonView',

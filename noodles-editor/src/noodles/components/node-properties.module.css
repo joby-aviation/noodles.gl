@@ -453,8 +453,7 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  /* above theatrejs */
-  z-index: var(--z-index-tooltip-container);
+  z-index: var(--z-index-node-tooltip);
 }
 
 .tooltipText {
@@ -519,7 +518,7 @@
   font-size: 12px;
   font-weight: 500;
   max-width: 200px;
-  z-index: var(--z-index-menu);
+  z-index: var(--z-index-modal);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   animation-duration: 200ms;
   animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
@@ -747,6 +746,11 @@
   display: none;
 }
 
+/* Applied when the field has keyframes in the timeline */
+.keyframedField {
+  background: color-mix(in srgb, var(--timeline-accent) 7%, transparent);
+}
+
 .fieldPlaceholder {
   padding: 6px 8px;
   background: rgba(255, 255, 255, 0.03);
@@ -809,7 +813,7 @@
 /* Right-click context menu */
 .contextMenu {
   position: fixed;
-  z-index: var(--z-index-menu);
+  z-index: var(--z-index-modal);
   background: rgba(28, 28, 28, 0.97);
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -835,4 +839,10 @@
 
 .contextMenuItem:hover {
   background: rgba(255, 255, 255, 0.08);
+}
+
+.contextMenuSeparator {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 4px 0;
 }

@@ -123,11 +123,12 @@ describe('PlaybackDriver', () => {
       expect(callback).toHaveBeenLastCalledWith(100)
     })
 
-    it('manualTick warns when not in manual mode', () => {
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    it('manualTick does not notify subscribers when not in manual mode', () => {
+      const callback = vi.fn()
+      driver.subscribe(callback)
       driver.manualTick(0)
-      expect(warnSpy).toHaveBeenCalledWith('manualTick called but manual mode is not enabled')
-      warnSpy.mockRestore()
+      // Should not notify subscribers when not in manual mode
+      expect(callback).not.toHaveBeenCalled()
     })
 
     it('manualTick does nothing when not in manual mode', () => {
@@ -151,17 +152,12 @@ describe('PlaybackDriver', () => {
       driver.subscribe(successCallback)
       driver.setManualMode(true)
 
-      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-
       driver.manualTick(0)
       driver.manualTick(16)
 
       // Error callback threw but success callback should still be called
       expect(errorCallback).toHaveBeenCalled()
       expect(successCallback).toHaveBeenCalled()
-      expect(errorSpy).toHaveBeenCalled()
-
-      errorSpy.mockRestore()
     })
   })
 })
