@@ -430,11 +430,25 @@ function bindVecChannelToTimeline(
   let updating = false
   let lastKfValue: number | undefined
 
-  const getChannel = (): number => (field.value as Record<string, number>)[channelKey] ?? 0
+  const channelKeys = (field.constructor as typeof Vec2Field).channelKeys
+  const channelIndex = channelKeys.indexOf(channelKey as (typeof channelKeys)[number])
 
-  const setChannel = (val: number): void =>
-    // biome-ignore lint/suspicious/noExplicitAny: spreading vector value with channel override
-    field.setValue({ ...field.value, [channelKey]: val } as any)
+  const getChannel = (): number =>
+    field.returnType === 'tuple'
+      ? ((field.value as number[])[channelIndex] ?? 0)
+      : ((field.value as Record<string, number>)[channelKey] ?? 0)
+
+  const setChannel = (val: number): void => {
+    if (field.returnType === 'tuple') {
+      const t = [...(field.value as number[])]
+      t[channelIndex] = val
+      // biome-ignore lint/suspicious/noExplicitAny: updating tuple value with channel override
+      field.setValue(t as any)
+    } else {
+      // biome-ignore lint/suspicious/noExplicitAny: spreading vector value with channel override
+      field.setValue({ ...field.value, [channelKey]: val } as any)
+    }
+  }
 
   timelineStore.getOrCreateTrack(fieldPath, getChannel())
 
@@ -486,7 +500,10 @@ function bindVecChannelToTimeline(
   const fieldSub = field.subscribe((vecValue: unknown) => {
     if (op.locked?.value || updating) return
 
-    const kfValue = (vecValue as Record<string, number>)[channelKey] ?? 0
+    const kfValue =
+      field.returnType === 'tuple'
+        ? ((vecValue as number[])[channelIndex] ?? 0)
+        : ((vecValue as Record<string, number>)[channelKey] ?? 0)
 
     // Skip if this channel's value hasn't changed — the Vec2/Vec3 update was caused
     // by a different channel being modified (e.g. x changed but y is still the same)
