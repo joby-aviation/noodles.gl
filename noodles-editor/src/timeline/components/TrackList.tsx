@@ -10,6 +10,9 @@ export interface TrackListProps {
   timelineWidth?: number
   sequenceLength?: number
   fps?: number
+  onOpenCurveEditor?: (trackId: string) => void
+  connectingFromMarkerId?: string | null
+  onKeyframeConnectionDrop?: (trackId: string, keyframeId: string) => void
 }
 
 export function TrackList({
@@ -18,6 +21,9 @@ export function TrackList({
   timelineWidth,
   sequenceLength,
   fps,
+  onOpenCurveEditor,
+  connectingFromMarkerId,
+  onKeyframeConnectionDrop,
 }: TrackListProps) {
   const tracks = useTimelineStore(state => state.tracks)
 
@@ -57,6 +63,9 @@ export function TrackList({
           fps={fps}
           opId={opId}
           isFirstInGroup={isFirstInGroup}
+          onOpenCurveEditor={onOpenCurveEditor}
+          connectingFromMarkerId={connectingFromMarkerId}
+          onKeyframeConnectionDrop={onKeyframeConnectionDrop}
         />
       ))}
     </div>

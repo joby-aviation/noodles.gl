@@ -1,6 +1,8 @@
 // Keyframe track component - renders a single track with its keyframes
 
-import { useCallback, useRef, useState } from 'react'
+import { useReactFlow } from '@xyflow/react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   captureTimelineState,
   fireTimelineMutation,
@@ -21,6 +23,9 @@ export interface KeyframeTrackProps {
   fps?: number
   opId?: string
   isFirstInGroup?: boolean
+  onOpenCurveEditor?: (trackId: string) => void
+  connectingFromMarkerId?: string | null
+  onKeyframeConnectionDrop?: (trackId: string, keyframeId: string) => void
 }
 
 function snapToFrame(time: number, fps: number): number {
@@ -34,6 +39,184 @@ function getDisplayName(fieldPath: string): string {
   return parts[parts.length - 1]
 }
 
+interface KeyframeTrackLabelProps {
+  track: Track
+  opId?: string
+  isFirstInGroup?: boolean
+  displayName: string
+  onOpenCurveEditor?: (trackId: string) => void
+}
+
+// Label column for a track — owns context menu state so hooks don't run in keyframe-row mode
+function KeyframeTrackLabel({
+  track,
+  opId,
+  isFirstInGroup,
+  displayName,
+  onOpenCurveEditor,
+}: KeyframeTrackLabelProps) {
+  const selectedTrackIds = useTimelineStore(state => state.selectedTrackIds)
+  const selectTrack = useTimelineStore(state => state.selectTrack)
+  const toggleTrackKeyframes = useTimelineStore(state => state.toggleTrackKeyframes)
+  const addKeyframe = useTimelineStore(state => state.addKeyframe)
+  const deleteKeyframe = useTimelineStore(state => state.deleteKeyframe)
+  const position = useTimelineStore(state => state.position)
+  const setPosition = useTimelineStore(state => state.setPosition)
+  const reactFlow = useReactFlow()
+
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+
+  // Close context menu on outside click or Escape
+  useEffect(() => {
+    if (!contextMenu) return
+    const close = () => setContextMenu(null)
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close()
+    }
+    document.addEventListener('pointerdown', close)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('pointerdown', close)
+      document.removeEventListener('keydown', handleKey)
+    }
+  }, [contextMenu])
+
+  const handleMakeStatic = useCallback(() => {
+    const before = captureTimelineState()
+    const store = getTimelineStore()
+    store.deleteTrack(track.id)
+    fireTimelineMutation('Make static', before)
+    setContextMenu(null)
+  }, [track.id])
+
+  const isTrackSelected = selectedTrackIds.has(track.id)
+  const eps = 0.001
+  const prevKf = [...track.keyframes].filter(kf => kf.position < position - eps).at(-1)
+  const nextKf = track.keyframes.find(kf => kf.position > position + eps)
+  const atKf = track.keyframes.find(kf => Math.abs(kf.position - position) < eps)
+  const hasKfs = track.keyframes.length > 0
+
+  // The React Flow node ID for this track's operator (fieldPath opId has no leading slash)
+  const rfNodeId = `/${track.fieldPath.split(' / ')[0]}`
+
+  const handleLabelClick = (e: React.MouseEvent) => {
+    if (e.shiftKey) {
+      toggleTrackKeyframes(track.id)
+    } else {
+      selectTrack(track.id)
+      // Also select operator so properties panel shows it
+      reactFlow.setNodes(nodes => nodes.map(n => ({ ...n, selected: n.id === rfNodeId })))
+    }
+  }
+
+  const handlePrevKf = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (prevKf) setPosition(prevKf.position)
+  }
+
+  const handleNextKf = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (nextKf) setPosition(nextKf.position)
+  }
+
+  const handleToggleKeyframe = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    const before = captureTimelineState()
+    if (atKf) {
+      deleteKeyframe(track.id, atKf.id)
+      fireTimelineMutation('Delete keyframe', before)
+    } else {
+      const store = getTimelineStore()
+      const value = store.evaluateTrack(track.id, position) ?? track.defaultValue
+      addKeyframe(track.id, { position, value, interpolation: 'bezier' })
+      fireTimelineMutation('Add keyframe', before)
+    }
+  }
+
+  const handleOpenCurveEditor = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    reactFlow.setNodes(nodes => nodes.map(n => ({ ...n, selected: n.id === rfNodeId })))
+    onOpenCurveEditor?.(track.id)
+  }
+
+  return (
+    <>
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: Track label selects track for curve editor; shift-click toggles keyframe selection */}
+      <div
+        className={`${s.timelineTrackLabel} ${isTrackSelected ? s.selected : ''}`}
+        title={track.fieldPath}
+        onClick={handleLabelClick}
+        onContextMenu={e => {
+          e.preventDefault()
+          setContextMenu({ x: e.clientX, y: e.clientY })
+        }}
+      >
+        {isFirstInGroup ? (
+          <>
+            <span className={s.timelineTrackOpId}>{opId}</span>
+            <span className={s.timelineTrackSep}> - </span>
+            <span className={s.timelineTrackName}>{displayName}</span>
+          </>
+        ) : (
+          <>
+            <span className={`${s.timelineTrackBranch} ${s.visible}`}>└</span>
+            <span className={s.timelineTrackName}>{displayName}</span>
+          </>
+        )}
+        <div className={s.timelineTrackLabelActions}>
+          <button
+            type="button"
+            className={s.timelineTrackLabelBtn}
+            onClick={handlePrevKf}
+            disabled={!prevKf}
+            title="Previous keyframe"
+          >
+            <PrevKfChevron />
+          </button>
+          <button
+            type="button"
+            className={`${s.timelineTrackLabelBtn} ${atKf ? s.atKeyframe : hasKfs ? s.hasKeyframes : ''}`}
+            onClick={handleToggleKeyframe}
+            title={atKf ? 'Remove keyframe' : 'Add keyframe'}
+          >
+            <TrackDiamondIcon filled={!!atKf} />
+          </button>
+          <button
+            type="button"
+            className={s.timelineTrackLabelBtn}
+            onClick={handleNextKf}
+            disabled={!nextKf}
+            title="Next keyframe"
+          >
+            <NextKfChevron />
+          </button>
+          <button
+            type="button"
+            className={s.timelineTrackLabelBtn}
+            onClick={handleOpenCurveEditor}
+            title="Open curve editor"
+          >
+            <OpenCurveEditorIcon />
+          </button>
+        </div>
+      </div>
+      {contextMenu &&
+        createPortal(
+          <div
+            className={s.handleTypeMenu}
+            style={{ top: contextMenu.y, left: contextMenu.x }}
+            onPointerDown={e => e.stopPropagation()}
+          >
+            <button type="button" onClick={handleMakeStatic}>
+              Make static
+            </button>
+          </div>,
+          document.body
+        )}
+    </>
+  )
+}
+
 export function KeyframeTrack({
   track,
   showLabelOnly = false,
@@ -43,12 +226,12 @@ export function KeyframeTrack({
   fps = 30,
   opId,
   isFirstInGroup,
+  onOpenCurveEditor,
+  connectingFromMarkerId,
+  onKeyframeConnectionDrop,
 }: KeyframeTrackProps) {
   const selectedKeyframeIds = useTimelineStore(state => state.selectedKeyframeIds)
-  const selectedTrackIds = useTimelineStore(state => state.selectedTrackIds)
   const selectKeyframe = useTimelineStore(state => state.selectKeyframe)
-  const selectTrack = useTimelineStore(state => state.selectTrack)
-  const toggleTrackKeyframes = useTimelineStore(state => state.toggleTrackKeyframes)
   const addKeyframe = useTimelineStore(state => state.addKeyframe)
 
   const [openPopup, setOpenPopup] = useState<{
@@ -70,21 +253,17 @@ export function KeyframeTrack({
   // Handle double-click to add keyframe
   const handleDoubleClick = useCallback(
     (e: React.MouseEvent) => {
-      if (showLabelOnly) return
-
       const rect = e.currentTarget.getBoundingClientRect()
       const x = e.clientX - rect.left
       const time = snapToFrame(x / pixelsPerSecond, fps)
 
-      const currentValue = track.defaultValue
-
       addKeyframe(track.id, {
         position: time,
-        value: currentValue,
+        value: track.defaultValue,
         interpolation: 'bezier',
       })
     },
-    [track.id, track.defaultValue, pixelsPerSecond, fps, addKeyframe, showLabelOnly]
+    [track.id, track.defaultValue, pixelsPerSecond, fps, addKeyframe]
   )
 
   // Handle bar segment popup open (called by KeyframeBar after confirming no drag)
@@ -103,35 +282,16 @@ export function KeyframeTrack({
     setOpenValuePopup({ keyframe: kf, x, y })
   }, [])
 
-  // Render label only
+  // Render label only — delegate to sub-component so context menu hooks are scoped there
   if (showLabelOnly) {
-    const isTrackSelected = selectedTrackIds.has(track.id)
     return (
-      // biome-ignore lint/a11y/noStaticElementInteractions: Track label selects track for curve editor; shift-click toggles keyframe selection
-      <div
-        className={`${s.timelineTrackLabel} ${isTrackSelected ? s.selected : ''}`}
-        title={track.fieldPath}
-        onClick={e => {
-          if (e.shiftKey) {
-            toggleTrackKeyframes(track.id)
-          } else {
-            selectTrack(track.id)
-          }
-        }}
-      >
-        {isFirstInGroup ? (
-          <>
-            <span className={s.timelineTrackOpId}>{opId}</span>
-            <span className={s.timelineTrackSep}> - </span>
-            <span className={s.timelineTrackName}>{displayName}</span>
-          </>
-        ) : (
-          <>
-            <span className={`${s.timelineTrackBranch} ${s.visible}`}>└</span>
-            <span className={s.timelineTrackName}>{displayName}</span>
-          </>
-        )}
-      </div>
+      <KeyframeTrackLabel
+        track={track}
+        opId={opId}
+        isFirstInGroup={isFirstInGroup}
+        displayName={displayName}
+        onOpenCurveEditor={onOpenCurveEditor}
+      />
     )
   }
 
@@ -180,7 +340,6 @@ export function KeyframeTrack({
           <KeyframeDiamond
             key={keyframe.id}
             keyframe={keyframe}
-            trackId={track.id}
             pixelsPerSecond={pixelsPerSecond}
             sequenceLength={sequenceLength}
             fps={fps}
@@ -188,6 +347,8 @@ export function KeyframeTrack({
             selectedKeyframeIds={selectedKeyframeIds}
             onSelect={selectKeyframe}
             onOpenValuePopup={handleOpenValuePopup}
+            isConnectionDropTarget={!!connectingFromMarkerId}
+            onConnectionDrop={() => onKeyframeConnectionDrop?.(track.id, keyframe.id)}
           />
         ))}
       </div>
@@ -324,7 +485,6 @@ function KeyframeBar({
 // Keyframe diamond with drag support
 interface KeyframeDiamondProps {
   keyframe: Keyframe
-  trackId: string
   pixelsPerSecond: number
   sequenceLength: number
   fps: number
@@ -332,11 +492,12 @@ interface KeyframeDiamondProps {
   selectedKeyframeIds: Set<string>
   onSelect: (keyframeId: string, addToSelection?: boolean) => void
   onOpenValuePopup?: (keyframe: Keyframe, x: number, y: number) => void
+  isConnectionDropTarget?: boolean
+  onConnectionDrop?: () => void
 }
 
 function KeyframeDiamond({
   keyframe,
-  _trackId,
   pixelsPerSecond,
   sequenceLength,
   fps,
@@ -344,10 +505,13 @@ function KeyframeDiamond({
   selectedKeyframeIds,
   onSelect,
   onOpenValuePopup,
+  isConnectionDropTarget,
+  onConnectionDrop,
 }: KeyframeDiamondProps) {
   const x = keyframe.position * pixelsPerSecond
   const isDraggingRef = useRef(false)
   const beforeStateRef = useRef<string>('')
+  const [isHovered, setIsHovered] = useState(false)
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -439,6 +603,8 @@ function KeyframeDiamond({
     (e: React.MouseEvent) => {
       // If drag happened, don't toggle selection on click
       if (isDraggingRef.current) return
+      // If completing a marker connection, don't open the value popup
+      if (isConnectionDropTarget) return
       e.stopPropagation()
       const addToSelection = e.shiftKey || e.metaKey || e.ctrlKey
       onSelect(keyframe.id, addToSelection)
@@ -448,17 +614,94 @@ function KeyframeDiamond({
         onOpenValuePopup(keyframe, rect.left + rect.width / 2, rect.top)
       }
     },
-    [keyframe, onSelect, onOpenValuePopup]
+    [keyframe, onSelect, onOpenValuePopup, isConnectionDropTarget]
   )
+
+  const handlePointerUp = useCallback(() => {
+    // Handle connection drop when in connection mode and hovering
+    if (isConnectionDropTarget && isHovered && onConnectionDrop) {
+      onConnectionDrop()
+    }
+  }, [isConnectionDropTarget, isHovered, onConnectionDrop])
+
+  const showDropTarget = isConnectionDropTarget && isHovered
 
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: Keyframe diamond is a drag handle
     <div
-      className={`${s.timelineKeyframe} ${isSelected ? s.selected : ''}`}
+      className={`${s.timelineKeyframe} ${isSelected ? s.selected : ''} ${showDropTarget ? s.dropTarget : ''}`}
       style={{ left: x }}
       onPointerDown={handlePointerDown}
       onClick={handleClick}
+      onPointerEnter={() => setIsHovered(true)}
+      onPointerLeave={() => setIsHovered(false)}
+      onPointerUp={handlePointerUp}
       title={`${keyframe.position.toFixed(2)}s`}
     />
+  )
+}
+
+// Narrow left chevron for previous keyframe navigation
+function PrevKfChevron() {
+  return (
+    <svg viewBox="0 0 8 14" fill="none" aria-hidden="true">
+      <path
+        d="M6 2L2 7L6 12"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+// Narrow right chevron for next keyframe navigation
+function NextKfChevron() {
+  return (
+    <svg viewBox="0 0 8 14" fill="none" aria-hidden="true">
+      <path
+        d="M2 2L6 7L2 12"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+// Diamond icon — filled when at a keyframe, hollow otherwise
+function TrackDiamondIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg viewBox="0 0 10 10" aria-hidden="true">
+      <rect
+        x="2.2"
+        y="2.2"
+        width="5.6"
+        height="5.6"
+        rx="0.5"
+        transform="rotate(45 5 5)"
+        fill={filled ? 'currentColor' : 'none'}
+        stroke="currentColor"
+        strokeWidth="1.4"
+      />
+    </svg>
+  )
+}
+
+// Curve editor icon — small bezier curve with endpoint dots
+function OpenCurveEditorIcon() {
+  return (
+    <svg viewBox="0 0 14 14" fill="none" aria-hidden="true">
+      <path
+        d="M1.5 11C4 11 4.5 3 7 3C9.5 3 10 9 12.5 9"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+      <circle cx="1.5" cy="11" r="1.3" fill="currentColor" />
+      <circle cx="12.5" cy="9" r="1.3" fill="currentColor" />
+    </svg>
   )
 }

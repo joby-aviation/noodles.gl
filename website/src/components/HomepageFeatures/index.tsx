@@ -15,7 +15,7 @@ const FeatureList: FeatureItem[] = [
     icon: '🎬',
     description: (
       <>
-        Built on Theatre.js for professional animation timeline control.
+        Professional animation timeline with bezier curve interpolation.
         Create smooth, synchronized animations with precise timing control.
       </>
     ),

@@ -1,6 +1,8 @@
 // GraphExecutor - Execution engine for the operator graph
-// Manages operator execution with topological sorting, dirty tracking, and RAF loop
+// Manages operator execution with topological sorting, dirty tracking, and a worker timer loop
 
+import { debugExecutor } from '../utils/debug'
+import { visibilityAdaptiveLoop } from '../utils/worker-timer'
 import type { ForLoopBeginOp, ForLoopEndOp, ForLoopMetaOp, IOperator, Operator } from './operators'
 import { getAllOps } from './store'
 import type { OpId } from './utils/id-utils'
@@ -144,8 +146,8 @@ export class GraphExecutor {
   // Track nodes added directly via addNode() (not from store sync)
   private manuallyAddedNodes: Set<string> = new Set()
 
-  // RAF loop state
-  private rafId: number | null = null
+  // Loop cancel function — RAF when visible, worker timer when hidden
+  private cancelLoop: (() => void) | null = null
   private isPulling = false
   private lastFrameTime = 0
   private frameInterval: number
@@ -174,29 +176,26 @@ export class GraphExecutor {
 
   // Start the execution loop
   start(): void {
-    if (this.rafId !== null) return
+    if (this.cancelLoop !== null) return
     this.lastFrameTime = performance.now()
-    this.loop()
+    this.cancelLoop = visibilityAdaptiveLoop(this.loop, this.frameInterval)
   }
 
   // Stop the execution loop
   stop(): void {
-    if (this.rafId !== null) {
-      cancelAnimationFrame(this.rafId)
-      this.rafId = null
-    }
+    this.cancelLoop?.()
+    this.cancelLoop = null
     if (this.batchTimeout !== null) {
       clearTimeout(this.batchTimeout)
       this.batchTimeout = null
     }
   }
 
-  // Main loop - runs on animation frame
-  private loop = (): void => {
-    const currentTime = performance.now()
+  // Main loop - runs via RAF when visible (vsync-coordinated), worker timer when hidden
+  private loop = (currentTime: number): void => {
     const deltaTime = currentTime - this.lastFrameTime
 
-    // Throttle to target FPS
+    // Guard against the interval firing more frequently than expected
     if (deltaTime >= this.frameInterval) {
       this.lastFrameTime = currentTime - (deltaTime % this.frameInterval)
 
@@ -207,12 +206,10 @@ export class GraphExecutor {
         })
       }
     }
-
-    this.rafId = requestAnimationFrame(this.loop)
   }
 
   get isRunning(): boolean {
-    return this.rafId !== null
+    return this.cancelLoop !== null
   }
 
   // Add a node to the graph
@@ -307,7 +304,7 @@ export class GraphExecutor {
     const { sorted, cycles } = topologicalSort(this.nodes, this.edges)
 
     if (cycles.length > 0) {
-      console.error('Cycles detected in graph:', cycles)
+      debugExecutor('Cycles detected in graph:', cycles)
     }
 
     this.sortedOrder = sorted
@@ -363,6 +360,13 @@ export class GraphExecutor {
     this.syncNodesFromStore()
     this.updateSort()
 
+    debugExecutor(
+      'executeFrame: nodes=%d, edges=%d, dirty=%d',
+      this.nodes.size,
+      this.edges.length,
+      this.dirtyNodes.size
+    )
+
     // Reset frame metrics
     if (this.options.enableProfiling) {
       this.metrics.executionCount = 0
@@ -394,6 +398,13 @@ export class GraphExecutor {
     // Find root operators to pull from (sinks like DeckRenderer, Viewer, etc.)
     // ForLoopEndOp may have downstream roots that will pull from its cached results
     const roots = this.findRootOperators()
+
+    debugExecutor(
+      'Pulling roots: %d dirty nodes, %d roots %O',
+      this.dirtyNodes.size,
+      roots.length,
+      roots.map(op => op.id)
+    )
 
     // Pull from roots - this recursively executes all upstream dependencies
     if (this.options.parallel) {
@@ -430,6 +441,8 @@ export class GraphExecutor {
     this.metrics.frameTime = performance.now() - frameStart
     this.metrics.executionCount = results.size
     this.metrics.totalOperators = this.nodes.size
+
+    debugExecutor('Frame complete: %dms', this.metrics.frameTime.toFixed(2))
 
     return results
   }
@@ -519,11 +532,14 @@ export class GraphExecutor {
   syncNodesFromStore(): void {
     const ops = getAllOps()
 
+    let changed = false
+
     // Remove nodes that no longer exist in store (but preserve manually added nodes)
     for (const [id] of this.nodes) {
       // Don't remove nodes that were manually added via addNode()
       if (!this.manuallyAddedNodes.has(id) && !ops.find(op => op.id === id)) {
         this.nodes.delete(id)
+        changed = true
       }
     }
 
@@ -535,10 +551,11 @@ export class GraphExecutor {
         if (op.dirty) {
           this.dirtyNodes.add(op.id)
         }
+        changed = true
       }
     }
 
-    this.isDirty = true
+    if (changed) this.isDirty = true
   }
 
   // Find root operators (sinks - DeckRenderer, Out, Viewer, etc.)
@@ -829,6 +846,8 @@ let globalExecutor: GraphExecutor | null = null
 
 // Initialize the execution system
 export function initializeExecutor(options?: ExecutorOptions): GraphExecutor {
+  // Stop the previous executor before replacing it to prevent RAF leaks
+  globalExecutor?.stop()
   globalExecutor = new GraphExecutor(options)
 
   if (typeof window !== 'undefined') {
@@ -866,6 +885,10 @@ export function updateGraph(edges: Edge[]): void {
     globalExecutor.syncNodesFromStore()
     // Build edge relationships
     globalExecutor.buildFromEdges(edges)
+    // Start the RAF loop if not already running
+    if (!globalExecutor.isRunning) {
+      globalExecutor.start()
+    }
   }
 }
 

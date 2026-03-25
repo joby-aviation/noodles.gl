@@ -1,6 +1,6 @@
-import { ChevronLeftIcon } from '@radix-ui/react-icons'
-import * as Dialog from '@radix-ui/react-dialog'
 import { basename, dirname } from 'node:path'
+import * as Dialog from '@radix-ui/react-dialog'
+import { ChevronLeftIcon } from '@radix-ui/react-icons'
 import { useCallback, useMemo } from 'react'
 import { useLocation } from 'wouter'
 import { analytics } from '../utils/analytics'
@@ -141,19 +141,19 @@ export function ExamplesView({ onBack, onClose }: ExamplesViewProps) {
 
   return (
     <>
-      {/* Header with back button */}
-      <div className={s.viewHeader}>
-        {onBack && (
+      {/* Show view header only in standalone mode (with back button) */}
+      {onBack && (
+        <div className={s.viewHeader}>
           <button type="button" className={s.backButton} onClick={onBack}>
             <ChevronLeftIcon width={16} height={16} />
             Back
           </button>
-        )}
-        <Dialog.Title className={s.viewTitle}>Examples</Dialog.Title>
-        <Dialog.Description className={s.viewSubtitle}>
-          Explore example projects showcasing different visualizations
-        </Dialog.Description>
-      </div>
+          <Dialog.Title className={s.viewTitle}>Examples</Dialog.Title>
+          <Dialog.Description className={s.viewSubtitle}>
+            Explore example projects showcasing different visualizations
+          </Dialog.Description>
+        </div>
+      )}
 
       <div className={s.body}>
         <div className={s.fullGrid}>

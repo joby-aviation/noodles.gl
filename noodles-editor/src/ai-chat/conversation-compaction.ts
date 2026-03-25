@@ -1,5 +1,6 @@
 // Conversation compaction utilities for managing long conversation history
 import type Anthropic from '@anthropic-ai/sdk'
+import { debugAiChat } from '../utils/debug'
 import type { Message } from './types'
 
 const SUMMARY_SYSTEM_PROMPT = `You are summarizing a conversation to preserve context while reducing length.
@@ -99,7 +100,7 @@ export async function compactConversation(
 
     return compactedMessages
   } catch (error) {
-    console.error('[Compaction] Failed to generate summary:', error)
+    debugAiChat('[Compaction] Failed to generate summary:', error)
     // Fallback: just return recent messages without summary
     return recentMessages
   }

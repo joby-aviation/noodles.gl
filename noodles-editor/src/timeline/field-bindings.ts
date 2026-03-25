@@ -21,6 +21,7 @@ import {
 } from '../noodles/fields'
 import type { IOperator, Operator } from '../noodles/operators'
 import { type RGBA as ColorRGBA, colorToRgba, hexToRgba, rgbaToHex } from '../utils/color'
+import { debugBinding, debugKeyframe, debugTimeline } from '../utils/debug'
 import type { TimelineStore } from './timeline-store'
 import { getTimelineStore, useTimelineStore } from './timeline-store'
 import type { KeyframeValue, Point2D, Point3D, RGBA, Vec2, Vec3 } from './types'
@@ -243,10 +244,13 @@ export function bindFieldToTimeline(
   op: Operator<IOperator>,
   fieldName: string,
   field: AnyField,
-  store?: TimelineStore
+  store?: TimelineStore,
+  subPath?: string[]
 ): () => void {
   const timelineStore = store || useTimelineStore.getState()
-  const fieldPath = getFieldPath(op.id, fieldName)
+  const fieldPath = getFieldPath(op.id, fieldName, subPath)
+
+  debugBinding('bind %s.%s → track %s', op.id, fieldName, fieldPath)
 
   // Track binding state to prevent infinite loops
   let updating = false
@@ -261,10 +265,11 @@ export function bindFieldToTimeline(
   // Subscribe to timeline position changes -> update field
   const unsubscribePosition = useTimelineStore.subscribe(
     state => state.position,
-    () => {
+    position => {
       if (op.locked?.value || updating) return
 
       const value = timelineStore.evaluateTrack(fieldPath)
+      debugBinding('pos=%s eval %s → %O', position.toFixed(3), fieldPath, value)
       if (value === undefined) return
 
       // Skip if value hasn't changed
@@ -272,6 +277,7 @@ export function bindFieldToTimeline(
         lastKeyframeValue !== undefined &&
         JSON.stringify(value) === JSON.stringify(lastKeyframeValue)
       ) {
+        debugBinding('skip %s: value unchanged (%O)', fieldPath, value)
         return
       }
       lastKeyframeValue = value
@@ -280,10 +286,13 @@ export function bindFieldToTimeline(
       try {
         const fieldValue = keyframeValueToFieldValue(field, value)
         if (field.value !== fieldValue && fieldValue !== undefined) {
+          debugBinding('setValue %s.%s → %O', op.id, fieldName, fieldValue)
           field.setValue(fieldValue)
+        } else {
+          debugBinding('skip setValue %s.%s: field already %O', op.id, fieldName, field.value)
         }
       } catch (e) {
-        console.warn(`Error syncing timeline to field for ${op.id}.${fieldName}:`, e)
+        debugTimeline(`Error syncing timeline to field for ${op.id}.${fieldName}:`, e)
       }
       updating = false
     }
@@ -291,6 +300,7 @@ export function bindFieldToTimeline(
 
   // Initial evaluation — sync field to current position when binding is established
   const initialValue = timelineStore.evaluateTrack(fieldPath)
+  debugBinding('initial eval %s → %O', fieldPath, initialValue)
   if (initialValue !== undefined) {
     updating = true
     try {
@@ -300,14 +310,25 @@ export function bindFieldToTimeline(
         lastKeyframeValue = initialValue
       }
     } catch (e) {
-      console.warn(`Error in initial field sync for ${op.id}.${fieldName}:`, e)
+      debugTimeline(`Error in initial field sync for ${op.id}.${fieldName}:`, e)
     }
     updating = false
   }
 
   // Subscribe to field value changes -> update or create keyframe
   const fieldSub = field.subscribe((value_: unknown) => {
-    if (op.locked?.value || updating) return
+    debugKeyframe('field change %s.%s = %O (updating=%s)', op.id, fieldName, value_, updating)
+
+    if (op.locked?.value || updating) {
+      debugKeyframe(
+        'skip %s.%s: updating=%s locked=%s',
+        op.id,
+        fieldName,
+        updating,
+        op.locked?.value
+      )
+      return
+    }
 
     // Skip compound field updates to avoid infinite loops
     if (field instanceof CompoundPropsField) {
@@ -322,34 +343,64 @@ export function bindFieldToTimeline(
       const track = timelineStore.getTrack(fieldPath)
       // Read position from the live store — timelineStore is a snapshot and its
       // .position property would be stale if the playhead moved after bind
-      const position = getTimelineStore().position
+      const { position } = getTimelineStore()
       const epsilon = 0.001
+
+      debugKeyframe(
+        '%s: track=%s kfs=%s pos=%s',
+        fieldPath,
+        !!track,
+        track?.keyframes.length ?? 0,
+        position.toFixed(3)
+      )
 
       const existingKf = track?.keyframes.find(kf => Math.abs(kf.position - position) < epsilon)
 
       if (existingKf) {
         // Update existing keyframe
         if (JSON.stringify(existingKf.value) !== JSON.stringify(kfValue)) {
+          debugKeyframe(
+            'update kf %s @ pos=%s id=%s %O → %O',
+            fieldPath,
+            position.toFixed(3),
+            existingKf.id,
+            existingKf.value,
+            kfValue
+          )
           timelineStore.updateKeyframe(fieldPath, existingKf.id, { value: kfValue })
+        } else {
+          debugKeyframe('skip update %s: value unchanged %O', fieldPath, kfValue)
         }
       } else if (track && track.keyframes.length > 0) {
         // Only insert keyframe if value differs from what's currently interpolated —
         // this prevents redundant keyframes when the user sets the same value
         const currentInterpolated = timelineStore.evaluateTrack(fieldPath)
         if (JSON.stringify(kfValue) !== JSON.stringify(currentInterpolated)) {
+          debugKeyframe('add kf %s @ pos=%s value=%O', fieldPath, position.toFixed(3), kfValue)
           timelineStore.addKeyframe(fieldPath, {
             position,
             value: kfValue,
             interpolation: 'bezier',
           })
+        } else {
+          debugKeyframe(
+            'skip add %s: value same as interpolated %O',
+            fieldPath,
+            currentInterpolated
+          )
         }
+      } else {
+        // Note: If track has no keyframes, we don't auto-create
+        // User should explicitly click the keyframe indicator to start animating
+        debugKeyframe(
+          'skip %s: no keyframes on track (use keyframe indicator to start animating)',
+          fieldPath
+        )
       }
-      // Note: If track has no keyframes, we don't auto-create
-      // User should explicitly click the keyframe indicator to start animating
 
       lastKeyframeValue = kfValue
     } catch (e) {
-      console.warn(`Error syncing field to timeline for ${op.id}.${fieldName}:`, e)
+      debugTimeline(`Error syncing field to timeline for ${op.id}.${fieldName}:`, e)
     }
     updating = false
   })
@@ -369,6 +420,20 @@ export function bindOperatorToTimeline(op: Operator<IOperator>, store?: Timeline
     // Skip non-animatable fields
     if (typeof field.value === 'function') continue
     if (!isAnimatableField(field as AnyField)) continue
+
+    // CompoundPropsField: bind each animatable sub-field individually so that
+    // per-property sub-path tracks (e.g. "viewState / zoom") are evaluated
+    // during scrubbing instead of the non-existent parent track.
+    if (field instanceof CompoundPropsField) {
+      for (const [subName, subField] of Object.entries(field.fields)) {
+        if (subField instanceof CompoundPropsField || !isAnimatableField(subField as AnyField))
+          continue
+        const cleanup = bindFieldToTimeline(op, fieldName, subField as AnyField, store, [subName])
+        cleanupFns.push(cleanup)
+        activeBindings.set(`${op.id}.${fieldName}.${subName}`, cleanup)
+      }
+      continue
+    }
 
     // For ListField, bind the inner field
     const actualField = field instanceof ListField ? field.field : field
@@ -429,8 +494,8 @@ export function cleanupRemovedOperators(
   const keysToRemove: string[] = []
 
   for (const [key, cleanup] of activeBindings) {
-    // key format is "${op.id}.${fieldName}" where op.id already starts with "/"
-    // e.g. "/my-op.value" -> opId = "/my-op"
+    // key format is "${op.id}.${fieldName}" or "${op.id}.${fieldName}.${subName}"
+    // e.g. "/my-op.value" or "/my-op.viewState.zoom" -> opId = "/my-op"
     const opId = key.split('.')[0]
     if (!currentOperatorIds.has(opId)) {
       cleanup()

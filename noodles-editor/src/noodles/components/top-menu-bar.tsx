@@ -7,6 +7,7 @@ import logoSvg from '/noodles-favicon.svg'
 import { SettingsDialog } from '../../components/settings-dialog'
 import { ExternalControlButton } from '../../external-control/components/external-control-button'
 import { analytics } from '../../utils/analytics'
+import { debugUI } from '../../utils/debug'
 import { ContainerOp } from '../operators'
 import { getOpStore, useNestingStore, useUIStore } from '../store'
 import { directoryHandleCache } from '../utils/directory-handle-cache'
@@ -89,7 +90,7 @@ export function TopMenuBar({
     directoryHandleCache
       .getAllProjectNames()
       .then(names => setRecentProjects(names))
-      .catch(err => console.error('Failed to load recent projects:', err))
+      .catch(err => debugUI('Failed to load recent projects:', err))
   }, [])
 
   // Keyboard shortcuts

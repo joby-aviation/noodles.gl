@@ -440,6 +440,26 @@ yarn build:all
 - Playwright for browser integration tests
 - Run specific tests: `yarn test src/noodles/operators.test.ts`
 
+### Debug Logging
+
+The codebase uses the `debug` package for development logging. Debug output is disabled by default and has zero overhead when disabled.
+
+**Enable in browser console:**
+```javascript
+localStorage.debug = 'noodles:*'        // All noodles logging
+localStorage.debug = 'noodles:history*' // Just history/undo-redo
+localStorage.debug = ''                 // Disable
+// Refresh the page after changing
+```
+
+**Available namespaces:** see [`noodles-editor/src/utils/debug.ts`](noodles-editor/src/utils/debug.ts) for the full list with descriptions.
+
+**Adding new debug logging:**
+```typescript
+import { debugHistory } from '../../utils/debug'
+debugHistory('Message with %s formatting', value)
+```
+
 ## Creating New Operators
 
 ### Basic Structure

@@ -5,6 +5,7 @@ import { type ModalView, QuickStartModal } from './components/quick-start-modal'
 import { ExternalControlProvider } from './external-control'
 import { useUIStore } from './noodles/store'
 import TimelineEditor from './timeline-editor'
+import { debugApp } from './utils/debug'
 
 // Error boundary to catch analytics failures
 class AnalyticsErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
@@ -19,7 +20,7 @@ class AnalyticsErrorBoundary extends Component<{ children: ReactNode }, { hasErr
 
   componentDidCatch(error: Error) {
     // Silently catch analytics errors (e.g., if blocked by ad blockers)
-    console.warn('Analytics component failed to load:', error)
+    debugApp('Analytics component failed to load:', error)
   }
 
   render() {
@@ -33,7 +34,7 @@ class AnalyticsErrorBoundary extends Component<{ children: ReactNode }, { hasErr
 const baseUrl = import.meta.env.BASE_URL.replace(/\/+$/, '')
 
 function App() {
-  console.log('App rendering, baseUrl:', baseUrl, 'location:', window.location.pathname)
+  debugApp('App rendering, baseUrl:', baseUrl, 'location:', window.location.pathname)
 
   // Check if external control should be enabled based on URL params
   const urlParams = new URLSearchParams(window.location.search)
@@ -48,10 +49,10 @@ function App() {
         autoConnect={false}
         debug={externalControlDebug}
         onStatusChange={connected => {
-          console.log('[ExternalControl] Status:', connected ? 'Connected' : 'Disconnected')
+          debugApp('[ExternalControl] Status:', connected ? 'Connected' : 'Disconnected')
         }}
         onError={error => {
-          console.error('[ExternalControl] Error:', error)
+          debugApp('[ExternalControl] Error:', error)
         }}
       />
       <Switch>
@@ -107,7 +108,7 @@ function QuickStartModalRoute({ initialView = 'home' }: { initialView?: ModalVie
   }, [setQuickStartModalOpen, redirectPath])
 
   if (redirectPath) {
-    console.log('QuickStartModalRoute: Redirecting to:', redirectPath)
+    debugApp('QuickStartModalRoute: Redirecting to:', redirectPath)
     return <Redirect to={redirectPath} />
   }
 
@@ -129,7 +130,7 @@ function FallbackRoute() {
   const redirect = searchParams.get('redirect')
   const projectParam = searchParams.get('project')
 
-  console.log('FallbackRoute:', {
+  debugApp('FallbackRoute:', {
     path: window.location.pathname,
     search: window.location.search,
     redirect,
@@ -142,14 +143,14 @@ function FallbackRoute() {
     if (redirect.startsWith('/') && !redirect.startsWith('//')) {
       // Valid redirect - process it
       const path = redirect.replace(/^\/app\//, '/') // Remove /app/ base if present
-      console.log('Redirecting to:', path)
+      debugApp('Redirecting to:', path)
       return <Redirect to={path} />
     }
     // Invalid redirect - log warning and fall through to default navigation
-    console.warn('Ignoring invalid redirect URL:', redirect)
+    debugApp('Ignoring invalid redirect URL:', redirect)
   } else if (projectParam && !match) {
     // Redirect from ?project=name to /examples/name
-    console.log('Redirecting to project:', projectParam)
+    debugApp('Redirecting to project:', projectParam)
     return <Redirect to={`/examples/${projectParam}`} />
   }
 
@@ -162,7 +163,7 @@ function FallbackRoute() {
   }
 
   // Default: redirect to root to show the modal
-  console.log('Default redirect to /')
+  debugApp('Default redirect to /')
   return <Redirect to="/" />
 }
 

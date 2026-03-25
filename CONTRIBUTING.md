@@ -82,7 +82,7 @@ For detailed architecture information, see [Architecture Guide](https://github.c
 Key concepts:
 
 - **Node-based system** for visual programming
-- **[Theatre.js](https://www.theatrejs.com/)** integration for timeline control
+- **Native timeline system** with bezier interpolation for keyframe animation
 - **[Deck.gl](https://deck.gl/) + [MapLibre](https://maplibre.org/)** for 3D visualizations
 
 ## 🌟 Contributing Guidelines
@@ -116,7 +116,7 @@ Use clear, descriptive commit messages:
 
 ```
 feat: add new geospatial visualization node
-fix: resolve Theatre.js timeline synchronization issue
+fix: resolve timeline keyframe interpolation issue
 docs: update API documentation for operators
 refactor: improve performance of arc geometry calculations
 ```

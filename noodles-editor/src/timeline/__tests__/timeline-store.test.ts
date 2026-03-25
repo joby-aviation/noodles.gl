@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { useTimelineStore } from '../timeline-store'
-import { DEFAULT_SEQUENCE_STATE } from '../types'
 import type { TheatreTimelineData } from '../types'
+import { DEFAULT_SEQUENCE_STATE } from '../types'
 
 describe('TimelineStore', () => {
   beforeEach(() => {
@@ -167,6 +167,69 @@ describe('TimelineStore', () => {
         interpolation: 'linear',
       })
       expect(useTimelineStore.getState().hasKeyframesForField('test / value')).toBe(true)
+    })
+  })
+
+  describe('deleteTracksForOperators', () => {
+    it('deletes all tracks for the given operator', () => {
+      const store = useTimelineStore.getState()
+      store.getOrCreateTrack('my-op / par / value', 0)
+      store.getOrCreateTrack('my-op / par / color', 0)
+      store.deleteTracksForOperators(['/my-op'])
+      expect(store.getTrack('my-op / par / value')).toBeUndefined()
+      expect(store.getTrack('my-op / par / color')).toBeUndefined()
+    })
+
+    it('leaves tracks for other operators untouched', () => {
+      const store = useTimelineStore.getState()
+      store.getOrCreateTrack('my-op / par / value', 0)
+      store.getOrCreateTrack('other-op / par / value', 0)
+      store.deleteTracksForOperators(['/my-op'])
+      expect(store.getTrack('my-op / par / value')).toBeUndefined()
+      expect(store.getTrack('other-op / par / value')).toBeDefined()
+    })
+
+    it('handles container operators by deleting all child tracks', () => {
+      const store = useTimelineStore.getState()
+      store.getOrCreateTrack('container / child / par / value', 0)
+      store.getOrCreateTrack('container / child / par / color', 0)
+      store.deleteTracksForOperators(['/container'])
+      expect(store.getTrack('container / child / par / value')).toBeUndefined()
+      expect(store.getTrack('container / child / par / color')).toBeUndefined()
+    })
+
+    it('handles nested operator IDs with slashes', () => {
+      const store = useTimelineStore.getState()
+      store.getOrCreateTrack('container / child / par / value', 0)
+      store.getOrCreateTrack('other / par / value', 0)
+      store.deleteTracksForOperators(['/container/child'])
+      expect(store.getTrack('container / child / par / value')).toBeUndefined()
+      expect(store.getTrack('other / par / value')).toBeDefined()
+    })
+
+    it('is a no-op when operator has no tracks', () => {
+      const store = useTimelineStore.getState()
+      store.getOrCreateTrack('other-op / par / value', 0)
+      store.deleteTracksForOperators(['/nonexistent'])
+      expect(store.getTrack('other-op / par / value')).toBeDefined()
+    })
+
+    it('is a no-op for empty operatorIds array', () => {
+      const store = useTimelineStore.getState()
+      store.getOrCreateTrack('my-op / par / value', 0)
+      store.deleteTracksForOperators([])
+      expect(store.getTrack('my-op / par / value')).toBeDefined()
+    })
+
+    it('deletes tracks for multiple operators at once', () => {
+      const store = useTimelineStore.getState()
+      store.getOrCreateTrack('op-a / par / value', 0)
+      store.getOrCreateTrack('op-b / par / value', 0)
+      store.getOrCreateTrack('op-c / par / value', 0)
+      store.deleteTracksForOperators(['/op-a', '/op-b'])
+      expect(store.getTrack('op-a / par / value')).toBeUndefined()
+      expect(store.getTrack('op-b / par / value')).toBeUndefined()
+      expect(store.getTrack('op-c / par / value')).toBeDefined()
     })
   })
 

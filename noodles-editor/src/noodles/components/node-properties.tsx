@@ -1,13 +1,18 @@
-import type { NodeJSON } from 'SKIP-@xyflow/react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
 import type { Edge } from '@xyflow/react'
-import { useEdges, useNodes, useReactFlow } from '@xyflow/react'
+import { useReactFlow, useStore } from '@xyflow/react'
 import cx from 'classnames'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { KeyframeIndicator } from '../../timeline/components/KeyframeIndicator'
-import { fieldValueToKeyframeValue } from '../../timeline/field-bindings'
+import { fieldValueToKeyframeValue, getFieldPath } from '../../timeline/field-bindings'
+import {
+  captureTimelineState,
+  fireTimelineMutation,
+  getTimelineStore,
+  useTimelineStore,
+} from '../../timeline/timeline-store'
 import type { KeyframeValue } from '../../timeline/types'
 import { CompoundPropsField, type Field, type IField, IN_NS, ListField, OUT_NS } from '../fields'
 import type { IOperator, Operator } from '../operators'
@@ -214,6 +219,29 @@ function AddRemoveButton({
   )
 }
 
+// Wraps an editable field input with a highlight when the field has keyframes
+function FieldInputWithHighlight({
+  opId,
+  fieldName,
+  field,
+  subPath,
+}: {
+  opId: string
+  fieldName: string
+  field: Field
+  subPath?: string[]
+}) {
+  const hasKeyframes = useTimelineStore(state => {
+    const track = state.tracks.get(getFieldPath(opId, fieldName, subPath))
+    return track ? track.keyframes.length > 0 : false
+  })
+  return (
+    <div className={cx(s.editableFieldContent, { [s.keyframedField]: hasKeyframes })}>
+      <EditableFieldInput fieldName={subPath?.[0] ?? fieldName} field={field} disabled={false} />
+    </div>
+  )
+}
+
 // Render an editable field input based on field type
 function EditableFieldInput({
   fieldName,
@@ -304,10 +332,12 @@ function CompoundSubFields({
         return (
           <div key={subName} className={s.compoundSubField}>
             <span className={s.compoundSubFieldLabel}>{subName}</span>
-            <div className={s.editableFieldContent}>
-              {/* biome-ignore lint/suspicious/noExplicitAny: Field type validated via isValueField */}
-              <EditableFieldInput fieldName={subName} field={subField as any} disabled={false} />
-            </div>
+            <FieldInputWithHighlight
+              opId={opId}
+              fieldName={fieldName}
+              field={subField as Field}
+              subPath={[subName]}
+            />
             <KeyframeIndicator
               opId={opId}
               fieldName={fieldName}
@@ -325,9 +355,16 @@ function CompoundSubFields({
 }
 
 // Exported for testing
-export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
+export function NodeProperties({ nodeId }: { nodeId: string }) {
   const { setEdges } = useReactFlow()
-  const edges = useEdges()
+  const onEdgesChange = useStore(s => s.onEdgesChange)
+  // Only re-renders when this node's incoming edges change (not on position updates)
+  const edges = useStore(
+    s => s.edges.filter(e => e.target === nodeId),
+    (a, b) => a.length === b.length && a.every((e, i) => e.id === b[i].id)
+  )
+  // Only re-renders when node type changes (stable during drag)
+  const nodeType = useStore(s => s.nodes.find(n => n.id === nodeId)?.type ?? '')
   const expandTimeline = useCallback(() => {
     useUIStore.getState().setTimelineExpanded(true)
   }, [])
@@ -343,11 +380,14 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
     y: number
     codeRef: string
     mustacheRef: string
+    fieldPath?: string
+    inputName?: string // field name for "Reset to default"
+    listFieldInputName?: string // field name when it's a ListField with connections
   } | null>(null)
   const descriptionRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef<HTMLElement | null>(null)
   const store = getOpStore()
-  const op = store.getOp(node.id)
+  const op = store.getOp(nodeId)
 
   const { displayName, description } = op
     ? (op.constructor as typeof Operator)
@@ -363,11 +403,11 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
   }, [op])
 
   // Exit edit mode and clear search when switching to a different node
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally run when node.id changes
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally run when nodeId changes
   useEffect(() => {
     setIsEditMode(false)
     setHiddenFieldSearch('')
-  }, [node.id])
+  }, [nodeId])
 
   // Close context menu on outside click or Escape
   useEffect(() => {
@@ -427,7 +467,7 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
       // Get all edges connected to this input
       const relevantEdges = edges.filter(
         e =>
-          e.target === node.id &&
+          e.target === nodeId &&
           (e.targetHandle === inputName || e.targetHandle === `${IN_NS}.${inputName}`)
       )
       if (relevantEdges.length < 2) return edges
@@ -517,7 +557,7 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
       <div className={s.header}>
         <div className={s.title}>
           {getBaseName(op.id)}
-          <div className={cx(s.capsule, headerClass(node.type))}>{typeCategory(node.type)}</div>
+          <div className={cx(s.capsule, headerClass(nodeType))}>{typeCategory(nodeType)}</div>
         </div>
       </div>
       {op instanceof OutOp && (
@@ -597,7 +637,7 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
             const renderInput = (input: (typeof inputs)[0], isVisible: boolean) => {
               const incomers = edges.filter(
                 e =>
-                  e.target === node.id &&
+                  e.target === nodeId &&
                   (e.targetHandle === input.name || e.targetHandle === `par.${input.name}`)
               )
               const hideCheck = canHideField(op, input.name, edges)
@@ -627,6 +667,20 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
                       y: e.clientY,
                       codeRef: input.codeRef,
                       mustacheRef: input.mustacheRef,
+                      fieldPath:
+                        isValueField(input.field) && incomers.length === 0
+                          ? getFieldPath(op.id, input.name)
+                          : undefined,
+                      inputName:
+                        incomers.length === 0 &&
+                        input.field.defaultValue !== undefined &&
+                        hasNonDefaultValue(input.field)
+                          ? input.name
+                          : undefined,
+                      listFieldInputName:
+                        input.field instanceof ListField && incomers.length > 0
+                          ? input.name
+                          : undefined,
                     })
                   }}
                 >
@@ -657,13 +711,11 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
                     {/* Value type, not connected: editable input + keyframe indicator */}
                     {isValueField(input.field) && incomers.length === 0 && (
                       <>
-                        <div className={s.editableFieldContent}>
-                          <EditableFieldInput
-                            fieldName={input.name}
-                            field={input.field}
-                            disabled={false}
-                          />
-                        </div>
+                        <FieldInputWithHighlight
+                          opId={op.id}
+                          fieldName={input.name}
+                          field={input.field}
+                        />
                         <KeyframeIndicator
                           opId={op.id}
                           fieldName={input.name}
@@ -925,6 +977,72 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
             >
               Copy mustache path
             </button>
+            {contextMenu.inputName && (
+              <>
+                <div className={s.contextMenuSeparator} />
+                <button
+                  type="button"
+                  className={s.contextMenuItem}
+                  onClick={() => {
+                    const field = op.inputs[contextMenu.inputName!]
+                    if (!field) return
+                    // If there's an active keyframe track, remove it first so the
+                    // static reset is actually reflected in the rendered output.
+                    const fp = getFieldPath(op.id, contextMenu.inputName!)
+                    const store = getTimelineStore()
+                    if (store.hasKeyframesForField(fp)) {
+                      const before = captureTimelineState()
+                      store.deleteTrack(fp)
+                      fireTimelineMutation('Reset to default', before)
+                    }
+                    field.setValue(field.defaultValue)
+                    setContextMenu(null)
+                  }}
+                >
+                  Reset to default
+                </button>
+              </>
+            )}
+            {contextMenu.listFieldInputName && (
+              <>
+                <div className={s.contextMenuSeparator} />
+                <button
+                  type="button"
+                  className={s.contextMenuItem}
+                  onClick={() => {
+                    const name = contextMenu.listFieldInputName!
+                    const toRemove = edges.filter(
+                      e =>
+                        e.target === nodeId &&
+                        (e.targetHandle === name || e.targetHandle === `par.${name}`)
+                    )
+                    onEdgesChange(toRemove.map(e => ({ type: 'remove' as const, id: e.id })))
+                    setContextMenu(null)
+                  }}
+                >
+                  Disconnect all inputs
+                </button>
+              </>
+            )}
+            {contextMenu.fieldPath &&
+              getTimelineStore().hasKeyframesForField(contextMenu.fieldPath) && (
+                <>
+                  <div className={s.contextMenuSeparator} />
+                  <button
+                    type="button"
+                    className={s.contextMenuItem}
+                    onClick={() => {
+                      const before = captureTimelineState()
+                      const store = getTimelineStore()
+                      store.deleteTrack(contextMenu.fieldPath!)
+                      fireTimelineMutation('Make static', before)
+                      setContextMenu(null)
+                    }}
+                  >
+                    Make static
+                  </button>
+                </>
+              )}
           </div>,
           document.body
         )}
@@ -933,24 +1051,35 @@ export function NodeProperties({ node }: { node: NodeJSON<unknown> }) {
 }
 
 export function PropertyPanel() {
-  const nodes = useNodes()
-  const edges = useEdges()
-  const selectedNodes = nodes.filter(n => n.selected)
-  const selectedEdges = edges.filter(n => n.selected)
+  // Only re-renders when selection changes, not on position updates during drag
+  const { selectedNodeId, selectedNodeCount, selectedEdgeCount } = useStore(
+    s => {
+      const selectedNodes = s.nodes.filter(n => n.selected)
+      return {
+        selectedNodeId: selectedNodes.length === 1 ? selectedNodes[0].id : null,
+        selectedNodeCount: selectedNodes.length,
+        selectedEdgeCount: s.edges.filter(e => e.selected).length,
+      }
+    },
+    (a, b) =>
+      a.selectedNodeId === b.selectedNodeId &&
+      a.selectedNodeCount === b.selectedNodeCount &&
+      a.selectedEdgeCount === b.selectedEdgeCount
+  )
 
   return (
     <div className={s.panel}>
-      {selectedNodes.length === 1 ? (
-        <NodeProperties node={selectedNodes[0]} />
+      {selectedNodeId != null ? (
+        <NodeProperties nodeId={selectedNodeId} />
       ) : (
         <>
           <div className={s.header}>
             <div className={s.title}>Page</div>
           </div>
-          {selectedNodes.length > 1 ? (
+          {selectedNodeCount > 1 ? (
             <div>
-              <div>{selectedNodes.length} nodes selected</div>
-              <div>{selectedEdges.length} edges selected</div>
+              <div>{selectedNodeCount} nodes selected</div>
+              <div>{selectedEdgeCount} edges selected</div>
             </div>
           ) : (
             <div>Select a node to see properties</div>

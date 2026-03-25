@@ -1,6 +1,7 @@
 // Session management for external control
 // Handles secure session creation and validation
 
+import { debugExternal } from '../utils/debug'
 import { generateMessageId } from './message-protocol'
 
 export interface Session {
@@ -155,7 +156,7 @@ export class SessionManager {
 
       localStorage.setItem('noodles-external-sessions', JSON.stringify(sessionsArray))
     } catch (error) {
-      console.error('Failed to persist sessions:', error)
+      debugExternal('Failed to persist sessions:', error)
     }
   }
 
@@ -181,7 +182,7 @@ export class SessionManager {
         }
       }
     } catch (error) {
-      console.error('Failed to load sessions:', error)
+      debugExternal('Failed to load sessions:', error)
     }
   }
 }
