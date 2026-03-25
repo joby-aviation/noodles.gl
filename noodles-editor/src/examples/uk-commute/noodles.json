@@ -128,6 +128,20 @@
       }
     },
     {
+      "type": "BlendingOp",
+      "id": "/blending",
+      "position": {
+        "x": 550,
+        "y": 290
+      },
+      "data": {
+        "inputs": {
+          "mode": "additive"
+        },
+        "locked": false
+      }
+    },
+    {
       "type": "MaplibreBasemapOp",
       "id": "/maplibre-basemap",
       "position": {
@@ -247,6 +261,27 @@
       "target": "/deck",
       "sourceHandle": "out.layer",
       "targetHandle": "par.layers"
+    },
+    {
+      "id": "/blending.out.parameters->/arc-layer.par.parameters",
+      "source": "/blending",
+      "target": "/arc-layer",
+      "sourceHandle": "out.parameters",
+      "targetHandle": "par.parameters"
+    },
+    {
+      "id": "/blending.out.parameters->/residence-layer.par.parameters",
+      "source": "/blending",
+      "target": "/residence-layer",
+      "sourceHandle": "out.parameters",
+      "targetHandle": "par.parameters"
+    },
+    {
+      "id": "/blending.out.parameters->/workplace-layer.par.parameters",
+      "source": "/blending",
+      "target": "/workplace-layer",
+      "sourceHandle": "out.parameters",
+      "targetHandle": "par.parameters"
     }
   ],
   "viewport": {
