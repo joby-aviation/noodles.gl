@@ -71,8 +71,6 @@ export const useRenderer = ({
     }) => {
       assert(canvas, 'canvas is required')
 
-      let i = startFrame
-
       setIsRendering(true)
 
       try {
@@ -127,7 +125,7 @@ export const useRenderer = ({
         debugRender('Render finished, state reset')
       }
     },
-    [projectName, sequenceLength, fps, bitrate, bitrateMode, canvasFrameReady, redraw, setPosition]
+    [projectName, sequenceLength, fps, bitrate, bitrateMode, canvasFrameReady, redraw]
   )
 
   // Image sequence export — same frame loop as video capture, writes individual PNGs.
@@ -327,7 +325,6 @@ async function captureWithFFmpeg({
 
   // Collect all frames as RGBA data
   const frames: Uint8Array[] = []
-  const totalFrames = endFrame - startFrame + 1
 
   try {
     for (let i = startFrame; i <= endFrame; i++) {
