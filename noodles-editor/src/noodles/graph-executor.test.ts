@@ -240,6 +240,24 @@ describe('GraphExecutor', () => {
     expect(edges).toHaveLength(1)
     expect(edges[0]).toEqual({ source: '/op-1', target: '/op-2' })
   })
+
+  it('syncNodesFromStore does not mark isDirty when no nodes change', () => {
+    // Regression test: syncNodesFromStore used to unconditionally set isDirty=true,
+    // causing topologicalSort to run every frame even for static graphs.
+    const executor = new GraphExecutor()
+    const op = new NumberOp('/op-1')
+    executor.addNode(op)
+
+    // Initial sync marks dirty
+    executor.syncNodesFromStore()
+
+    // Force isDirty to false after sync
+    ;(executor as any).isDirty = false
+
+    // Second sync with same nodes should NOT mark dirty
+    executor.syncNodesFromStore()
+    expect((executor as any).isDirty).toBe(false)
+  })
 })
 
 describe('GraphScope', () => {

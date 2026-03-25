@@ -158,13 +158,12 @@ import {
   ExtensionField,
   type Field,
   type FieldReference,
-  FileField,
+  FileUrlField,
   FunctionField,
   fieldTypeToClass,
   GeoJsonField,
   IN_NS,
   type InOut,
-  JSONUrlField,
   LayerField,
   ListField,
   mustacheRe,
@@ -183,6 +182,7 @@ import {
   WidgetField,
 } from './fields'
 import { DEFAULT_LATITUDE, DEFAULT_LONGITUDE, safeMode } from './globals'
+import { getKeysStore } from './keys-store'
 import { getAllOps, getOp } from './store'
 import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
 import { composeAccessor, isAccessor } from './utils/accessor-helpers'
@@ -530,7 +530,7 @@ export abstract class Operator<OP extends IOperator> {
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err))
       debugExecute('%s: ERROR - %s', this.id, error.message)
-      console.warn(
+      debugPull(
         `Pull execution failure in [${this.id} (${(this.constructor as typeof Operator).displayName})]:`,
         error.message
       )
@@ -657,7 +657,7 @@ export abstract class Operator<OP extends IOperator> {
             return finalResult
           } catch (err: unknown) {
             const error = err instanceof Error ? err : new Error(String(err))
-            console.warn(
+            debugExecute(
               `Failure in [${this.id} (${(this.constructor as typeof Operator).displayName})]:`,
               error.message,
               error.stack
@@ -1782,7 +1782,7 @@ export class FileOp extends Operator<FileOp> {
   createInputs() {
     return {
       format: new StringLiteralField('json', { values: ['json', 'csv', 'tsv', 'text', 'binary'] }),
-      url: new FileField(),
+      url: new FileUrlField('', { accept: '.csv,.json,.geojson' }),
       text: new StringField(),
       autoType: new BooleanField(true), // TODO: Make this only available for csv
       pulse: new NumberField(0, { min: 0, step: 1 }),
@@ -2117,7 +2117,7 @@ export class DuckDbOp extends Operator<DuckDbOp> {
       await conn.close()
       return { data }
     } catch (e) {
-      console.error('Error executing query', e)
+      debugExecute('Error executing query', e)
       await conn.close()
       await db.reset()
       if (e instanceof Error) {
@@ -2882,8 +2882,8 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
     if (this._iterating) return
     this._iterating = true
 
-    console.log('[ForLoopEndOp.executeIteration] Starting with data:', data)
-    console.log(
+    debugExecute('[ForLoopEndOp.executeIteration] Starting with data:', data)
+    debugExecute(
       '[ForLoopEndOp.executeIteration] Chain:',
       this.chain.map(op => `${op.id} (${op.constructor.name})`)
     )
@@ -2908,7 +2908,7 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
 
       // Get proper execution order (chain is reverse order from EndOp)
       const executionOrder = [...this.chain].reverse()
-      console.log(
+      debugExecute(
         '[ForLoopEndOp.executeIteration] Execution order:',
         executionOrder.map(op => `${op.id} (${op.constructor.name})`)
       )
@@ -2922,7 +2922,7 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
         const isFirst = index === 0
         const isLast = index === total - 1
 
-        console.log(`[ForLoopEndOp.executeIteration] Iteration ${index}: item =`, item)
+        debugExecute(`[ForLoopEndOp.executeIteration] Iteration ${index}: item =`, item)
 
         // Set iteration values on BeginOp outputs
         beginOp.outputs.item.next(item)
@@ -2953,20 +2953,22 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
         // Execute chain by pulling each intermediate operator
         for (const op of executionOrder) {
           if (op !== beginOp && op !== metaOp && op !== this) {
-            console.log(`[ForLoopEndOp.executeIteration] Pulling ${op.id} (${op.constructor.name})`)
+            debugExecute(
+              `[ForLoopEndOp.executeIteration] Pulling ${op.id} (${op.constructor.name})`
+            )
             await op.pull()
             // Log the outputs after pulling
             const outputs: Record<string, unknown> = {}
             for (const [key, field] of Object.entries(op.outputs)) {
               outputs[key] = field.value
             }
-            console.log(`[ForLoopEndOp.executeIteration] After pull, ${op.id} outputs:`, outputs)
+            debugExecute(`[ForLoopEndOp.executeIteration] After pull, ${op.id} outputs:`, outputs)
           }
         }
 
         // Collect result - the input field should now have the value from upstream
         const collectedValue = this.inputs.item.value
-        console.log(
+        debugExecute(
           `[ForLoopEndOp.executeIteration] Iteration ${index}: collecting this.inputs.item.value =`,
           collectedValue
         )
@@ -2978,7 +2980,7 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
         }
       }
 
-      console.log('[ForLoopEndOp.executeIteration] Final results:', results)
+      debugExecute('[ForLoopEndOp.executeIteration] Final results:', results)
       // Update output with collected results
       this.outputs.data.next(results)
     } finally {
@@ -3634,7 +3636,7 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
 
   createInputs() {
     return {
-      mapStyle: new JSONUrlField(CARTO_DARK),
+      mapStyle: new FileUrlField(CARTO_DARK),
       projection: new StringLiteralField('mercator', {
         values: ['mercator', 'globe'],
         showByDefault: false,
@@ -3670,7 +3672,7 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
   createOutputs() {
     return {
       maplibre: new CompoundPropsField({
-        mapStyle: new JSONUrlField(),
+        mapStyle: new FileUrlField(),
         projection: new StringField(),
         longitude: new NumberField(),
         latitude: new NumberField(),
@@ -3727,7 +3729,7 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
         { optional: true }
       ),
       // basemap: new CompoundPropsField({
-      //   mapStyle: new JSONUrlField(CARTO_DARK),
+      //   mapStyle: new FileUrlField(CARTO_DARK),
       //   latitude: new NumberField(DEFAULT_LATITUDE, { min: -90, max: 90, step: 0.001 }),
       //   longitude: new NumberField(DEFAULT_LONGITUDE, { min: -180, max: 180, step: 0.001 }),
       //   zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
@@ -3754,11 +3756,19 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
     // Validate the ViewState to ensure lat/lng are within valid bounds
     validateViewState(viewState)
 
+    // Extract geo fields from basemap so standalone DeckGL gets the correct position
+    // when basemapEnabled=false (empty mapStyle). MapboxOverlay ignores viewState, so
+    // this doesn't affect the interleaved basemap rendering path.
+    const basemapViewState = basemap
+      ? pick(basemap, ['longitude', 'latitude', 'zoom', 'pitch', 'bearing'])
+      : {}
+    if (basemap) validateViewState(basemapViewState)
+
     const deckProps: DeckProps & { layers: (LayerProps & { type: string })[] } = {
       layers,
       effects,
       ...(views?.length > 0 ? { views } : {}),
-      viewState,
+      viewState: { ...basemapViewState, ...viewState },
       layerFilter,
       widgets,
     }
@@ -4193,6 +4203,7 @@ export class OutOp extends Operator<OutOp> {
       scaleControl: new NumberField(0.3, { min: 0.1, max: 1, step: 0.05 }),
       framerate: new NumberField(30, { min: 1, max: 120, step: 1 }),
       captureDelay: new NumberField(200, { min: 0, max: 10000, step: 10 }),
+      rendersDirectory: new StringField('renders'),
     }
   }
   createOutputs() {
@@ -4217,6 +4228,24 @@ export class ConsoleOp extends Operator<ConsoleOp> {
   execute({ data }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     console.log(data)
     return {}
+  }
+}
+
+export class RerouteOp extends Operator<RerouteOp> {
+  static displayName = 'Reroute'
+  static description = 'Pass-through for organizing graph layout'
+  createInputs() {
+    return {
+      value: new UnknownField(undefined, { optional: true }),
+    }
+  }
+  createOutputs() {
+    return {
+      value: new UnknownField(undefined),
+    }
+  }
+  execute({ value }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    return { value }
   }
 }
 
@@ -4701,7 +4730,7 @@ export class IconLayerOp extends Operator<IconLayerOp> {
         'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.png',
         { showByDefault: false }
       ),
-      iconMapping: new JSONUrlField(
+      iconMapping: new FileUrlField(
         'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.json',
         { showByDefault: false }
       ),
@@ -4762,8 +4791,9 @@ export class ScenegraphLayerOp extends Operator<ScenegraphLayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      scenegraph: new JSONUrlField(
-        'https://raw.githubusercontent.com/visgl/deck.gl-data/master/examples/scenegraph-layer/airplane.glb'
+      scenegraph: new FileUrlField(
+        'https://raw.githubusercontent.com/visgl/deck.gl-data/master/examples/scenegraph-layer/airplane.glb',
+        { accept: '.glb,.gltf' }
       ),
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
       getOrientation: new Vec3Field([0, 0, 0], { returnType: 'tuple', accessor: true }),
@@ -5332,12 +5362,13 @@ export class HexagonLayerOp extends Operator<HexagonLayerOp> {
 
 export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
   static displayName = 'Tile3DLayer'
-  static description = 'Render Cesium or Google 3D tiles on the map'
+  static description = 'Render 3D tiles on the map (Google, Cesium, or a custom tileset URL)'
   static cacheable = false
   createInputs() {
     return {
       visible: new BooleanField(true),
-      provider: new StringLiteralField('Google', ['Cesium', 'Google']),
+      provider: new StringLiteralField('Google', ['Cesium', 'Generic', 'Google']),
+      tilesetUrl: new StringField('', { showByDefault: false }),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       operation: new StringLiteralField('terrain+draw', {
         values: ['terrain+draw', 'draw', 'terrain'],
@@ -5366,19 +5397,30 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
   execute({
     flatLighting,
     provider,
+    tilesetUrl,
     throttleRequests,
     maxMemoryUsage,
     maxScreenSpaceError,
     ...props
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // TODO: Add a typeahead field with pre-populated values, or the option to add a custom value
     const GOOGLE_TILESET_URL = 'https://tile.googleapis.com/v1/3dtiles/root.json'
     const NYC_CESIUM_TILESET_URL = 'https://assets.ion.cesium.com/242005/tileset.json'
 
-    const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY!
-    const CESIUM_ACCESS_TOKEN = import.meta.env.VITE_CESIUM_ACCESS_TOKEN!
+    const { getKey } = getKeysStore()
+    const GOOGLE_MAPS_API_KEY = getKey('googleMaps')
+    const CESIUM_ACCESS_TOKEN = getKey('cesium')
 
-    const tilesetUrl = provider === 'Cesium' ? NYC_CESIUM_TILESET_URL : GOOGLE_TILESET_URL
+    if (provider === 'Google' && !GOOGLE_MAPS_API_KEY) {
+      throw new Error('Tile3DLayer: Google Maps API key is not set (add it in Settings > API Keys)')
+    }
+    if (provider === 'Cesium' && !CESIUM_ACCESS_TOKEN) {
+      throw new Error(
+        'Tile3DLayer: Cesium Ion access token is not set (add it in Settings > API Keys)'
+      )
+    }
+
+    const defaultUrl = provider === 'Cesium' ? NYC_CESIUM_TILESET_URL : GOOGLE_TILESET_URL
+    const data = tilesetUrl || defaultUrl
 
     const loader = provider === 'Cesium' ? CesiumIonLoader : Tiles3DLoader
 
@@ -5416,7 +5458,7 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
     const layer = {
       ...parseLayerProps<Tile3DLayerProps>(props),
       type: 'Tile3DLayer' as const,
-      data: tilesetUrl,
+      data,
       loader,
       loadOptions,
       onTilesetLoad,
@@ -5762,8 +5804,8 @@ function fnWithSource(args: string[], body: string, id: string): FunctionWithSou
     return func
   } catch (e) {
     const error = e instanceof Error ? e : new Error(String(e))
-    // Use console.warn since syntax errors during editing are expected
-    console.warn(formatSyntaxError(error, id, body))
+    // Use debugExecute since syntax errors during editing are expected
+    debugExecute(formatSyntaxError(error, id, body))
 
     // Strip "return " prefix for user code analysis
     const userCode = body.startsWith('return ') ? body.slice(7) : body
@@ -7049,11 +7091,10 @@ function interpolateTimeSeries(
   const timeDelta = after.time - before.time
   const factor = timeDelta === 0 ? 0 : (currentTime - before.time) / timeDelta
 
-  // Interpolate all numeric fields
+  // Interpolate all numeric fields. before and after always share the same
+  // keys within a timeSeries, so iterating before's keys is sufficient.
   const result: Record<string, number> = {}
-  const allKeys = new Set([...Object.keys(before), ...Object.keys(after)])
-
-  for (const key of allKeys) {
+  for (const key of Object.keys(before)) {
     const beforeVal = before[key] ?? 0
     const afterVal = after[key] ?? 0
     result[key] = beforeVal + (afterVal - beforeVal) * factor
@@ -7067,6 +7108,18 @@ export class TimeSeriesOp extends Operator<TimeSeriesOp> {
   static description =
     'Interpolate time-varying data at a given time. Aligns with TripsLayer API for easy reuse of accessors.'
   asDownload = () => this.outputData
+
+  // Precomputed per-item data keyed by data/accessor references. Rebuilt only
+  // when those inputs change, not on every currentTime change during scrubbing.
+  private _precomputedTimeSeries: TimeSeriesDataPoint[][] | null = null
+  private _precomputedProperties: Record<string, unknown>[] | null = null
+  private _precomputeCacheKey: {
+    data: unknown
+    getTimestamps: unknown
+    getValues: unknown
+    getProperties: unknown
+  } | null = null
+
   createInputs() {
     return {
       data: new DataField(),
@@ -7103,9 +7156,18 @@ export class TimeSeriesOp extends Operator<TimeSeriesOp> {
       info: { index: number; data: unknown; target: unknown[] }
     ) => T
 
-    return {
-      data: data.map((d, i) => {
-        // Call accessors with proper deck.gl accessor signature
+    // Rebuild the expensive per-item structure only when data or accessors change.
+    // During timeline scrubbing only currentTime changes, so this cache stays hot.
+    const cacheKey = this._precomputeCacheKey
+    if (
+      !this._precomputedTimeSeries ||
+      !this._precomputedProperties ||
+      cacheKey?.data !== data ||
+      cacheKey?.getTimestamps !== getTimestamps ||
+      cacheKey?.getValues !== getValues ||
+      cacheKey?.getProperties !== getProperties
+    ) {
+      this._precomputedTimeSeries = data.map((d, i) => {
         const timestamps = (getTimestamps as DeckAccessor<number[]>)(d, {
           index: i,
           data,
@@ -7116,28 +7178,29 @@ export class TimeSeriesOp extends Operator<TimeSeriesOp> {
           data,
           target: [],
         })
-        const properties = getProperties
+        return timestamps.map((time: number, idx: number) => ({
+          time,
+          ...(values[idx] || {}),
+        }))
+      })
+      this._precomputedProperties = data.map((d, i) =>
+        getProperties
           ? (getProperties as DeckAccessor<Record<string, unknown>>)(d, {
               index: i,
               data,
               target: [],
             })
           : {}
+      )
+      this._precomputeCacheKey = { data, getTimestamps, getValues, getProperties }
+    }
 
-        // Convert values array to timeSeries format for interpolation
-        const timeSeries = timestamps.map((time: number, idx: number) => ({
-          time,
-          ...(values[idx] || {}),
-        }))
-
-        const interpolated = interpolateTimeSeries(timeSeries, currentTime)
-
-        return {
-          ...properties,
-          ...interpolated,
-          time: currentTime,
-        }
-      }),
+    return {
+      data: this._precomputedTimeSeries.map((timeSeries, i) => ({
+        ...this._precomputedProperties![i],
+        ...interpolateTimeSeries(timeSeries, currentTime),
+        time: currentTime,
+      })),
     }
   }
 }
@@ -7233,6 +7296,7 @@ export const opTypes = {
   RandomizeAttributeOp,
   RasterTileLayerOp,
   RectangleOp,
+  RerouteOp,
   S2LayerOp,
   ScatterOp,
   ScatterplotLayerOp,

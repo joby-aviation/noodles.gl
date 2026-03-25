@@ -17,6 +17,7 @@ import {
   JSONOp,
   KmlToGeoJsonOp,
   LayerPropsOp,
+  MaplibreBasemapOp,
   MapViewOp,
   MathOp,
   MergeOp,
@@ -24,9 +25,11 @@ import {
   Operator,
   ProjectOp,
   RectangleOp,
+  RerouteOp,
   ScatterplotLayerOp,
   SelectOp,
   SwitchOp,
+  Tile3DLayerOp,
   TimeSeriesOp,
 } from './operators'
 import { setOp } from './store'
@@ -115,12 +118,10 @@ describe('Error handling', () => {
 
     const onError = vi.spyOn(operator, 'onError')
     const execute = vi.spyOn(operator, 'execute')
-    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
     expect(operator.inputs.num.value).toEqual(0)
     expect(onError).not.toHaveBeenCalled()
     expect(execute).not.toHaveBeenCalled()
-    expect(consoleWarn).not.toHaveBeenCalled()
     expect(operator.outputData).toEqual({})
 
     // In pull-based model, pull() triggers execution and handles errors
@@ -128,15 +129,12 @@ describe('Error handling', () => {
 
     expect(execute).toHaveBeenCalledTimes(1)
     expect(onError).toHaveBeenCalledTimes(1)
-    expect(consoleWarn).toHaveBeenCalledTimes(1)
     expect(operator.outputData).toEqual({})
 
     expect(execute.mock.calls[0][0]).toEqual({
       num: 0,
     })
     expect(onError.mock.calls[0][0]).toEqual(new Error('Test error'))
-    expect(consoleWarn.mock.calls[0][0]).toEqual('Pull execution failure in [/test-0 (TestOp)]:')
-    expect(consoleWarn.mock.calls[0][1]).toEqual('Test error')
 
     // Test that pull can be called again after error
     operator.inputs.num.setValue(1)
@@ -148,14 +146,11 @@ describe('Error handling', () => {
 
     expect(execute).toHaveBeenCalledTimes(2)
     expect(onError).toHaveBeenCalledTimes(2)
-    expect(consoleWarn).toHaveBeenCalledTimes(2)
 
     expect(execute.mock.calls[1][0]).toEqual({
       num: 1,
     })
     expect(onError.mock.calls[1][0]).toEqual(new Error('Test error'))
-    expect(consoleWarn.mock.calls[1][0]).toEqual('Pull execution failure in [/test-0 (TestOp)]:')
-    expect(consoleWarn.mock.calls[1][1]).toEqual('Test error')
   })
 })
 
@@ -484,7 +479,6 @@ describe('ExpressionOp', () => {
 
   it('throws SyntaxError for invalid expressions and logs warning', () => {
     const operator = new ExpressionOp('/expression-syntax-error')
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
     expect(() => {
       operator.execute({
@@ -492,13 +486,6 @@ describe('ExpressionOp', () => {
         expression: 'return }', // Invalid syntax
       })
     }).toThrow(SyntaxError)
-
-    // Verify the warning was logged with helpful formatting
-    expect(warnSpy).toHaveBeenCalledTimes(1)
-    expect(warnSpy.mock.calls[0][0]).toContain('Syntax error')
-    expect(warnSpy.mock.calls[0][0]).toContain('/expression-syntax-error')
-
-    warnSpy.mockRestore()
   })
 
   describe('friendly error messages', () => {
@@ -522,18 +509,11 @@ describe('ExpressionOp', () => {
     testCases.forEach(({ expression, expectedMessage }) => {
       it(`shows "${expectedMessage}" for "${expression}"`, () => {
         const operator = new ExpressionOp('/test-expr')
-        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
         // Verify the thrown error has the friendly message
         expect(() => {
           operator.execute({ data: [], expression })
         }).toThrow(expectedMessage)
-
-        // Verify console.warn also has the friendly message
-        expect(warnSpy).toHaveBeenCalledTimes(1)
-        expect(warnSpy.mock.calls[0][0]).toContain(expectedMessage)
-
-        warnSpy.mockRestore()
       })
     })
   })
@@ -917,6 +897,7 @@ describe('DeckRendererOp', () => {
     expect(deckProps.viewState).toEqual({
       longitude: -122,
       latitude: 37,
+      zoom: 5, // carried from basemap (not overridden by viewState)
       pitch: 30,
       nestedView: { bearing: 45 },
       transitionDuration: 1000,
@@ -928,6 +909,82 @@ describe('DeckRendererOp', () => {
       zoom: 5,
       pitch: 30,
     })
+  })
+
+  it('returns mapProps with empty mapStyle when basemap has an empty mapStyle', () => {
+    // The operator passes the empty mapStyle through unchanged.
+    // It's timeline-editor's basemapEnabled check that treats it as "no basemap".
+    const operator = new DeckRendererOp('/deck-0')
+    const {
+      vis: { mapProps },
+    } = operator.execute({
+      basemap: { mapStyle: '', latitude: 37, longitude: -122, zoom: 10, pitch: 0, bearing: 0 },
+      viewState: {},
+    })
+    expect(mapProps).toBeDefined()
+    expect(mapProps?.mapStyle).toBe('')
+  })
+
+  it('includes basemap viewState in deckProps when mapStyle is empty (transparent mode)', () => {
+    // When mapStyle is empty, timeline-editor switches to standalone DeckGL (basemapEnabled=false).
+    // deckProps.viewState must carry the geo position so layers render at the correct location.
+    const operator = new DeckRendererOp('/deck-0')
+    const {
+      vis: { deckProps },
+    } = operator.execute({
+      basemap: { mapStyle: '', latitude: 37, longitude: -122, zoom: 10, pitch: 0, bearing: 0 },
+      viewState: {},
+    })
+    expect(deckProps.viewState).toEqual({
+      latitude: 37,
+      longitude: -122,
+      zoom: 10,
+      pitch: 0,
+      bearing: 0,
+    })
+  })
+})
+
+describe('MaplibreBasemapOp', () => {
+  it('passes mapStyle through to output', () => {
+    const op = new MaplibreBasemapOp('/maplibre-0')
+    const result = op.execute({
+      mapStyle: 'https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json',
+      projection: 'mercator',
+      viewState: { latitude: 37, longitude: -122, zoom: 10, pitch: 0, bearing: 0 },
+      sky: {
+        enabled: false,
+        skyColor: '#88C6FC',
+        horizonColor: '#ffffff',
+        skyHorizonBlend: 0.8,
+        atmosphereBlend: 0.5,
+      },
+      light: { anchor: 'viewport', azimuthal: 210, polar: 30 },
+    })
+    expect(result.maplibre.mapStyle).toBe(
+      'https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json'
+    )
+  })
+
+  it('passes empty mapStyle through without modification', () => {
+    // An empty mapStyle signals "no basemap" (transparent). The operator passes it through
+    // unchanged; timeline-editor detects it via basemapEnabled and skips MapLibre rendering,
+    // which prevents the "There is no style added to the map" crash.
+    const op = new MaplibreBasemapOp('/maplibre-0')
+    const result = op.execute({
+      mapStyle: '',
+      projection: 'mercator',
+      viewState: { latitude: 37, longitude: -122, zoom: 10, pitch: 0, bearing: 0 },
+      sky: {
+        enabled: false,
+        skyColor: '#88C6FC',
+        horizonColor: '#ffffff',
+        skyHorizonBlend: 0.8,
+        atmosphereBlend: 0.5,
+      },
+      light: { anchor: 'viewport', azimuthal: 210, polar: 30 },
+    })
+    expect(result.maplibre.mapStyle).toBe('')
   })
 })
 
@@ -1969,6 +2026,71 @@ describe('TimeSeriesOp', () => {
       [2, 2],
     ]) // preserved from getProperties
   })
+
+  it('reuses precomputed cache when only currentTime changes (scrubbing perf)', () => {
+    const op = new TimeSeriesOp('/timeseries-cache-test')
+    const data = [
+      { timestamps: [0, 10], values: [{ x: 0 }, { x: 10 }] },
+      { timestamps: [0, 10], values: [{ x: 100 }, { x: 200 }] },
+    ]
+    const getTimestamps = (d: any) => d.timestamps
+    const getValues = (d: any) => d.values
+    const getProperties = undefined
+
+    // First execution builds the cache
+    op.execute({ data, currentTime: 5, getTimestamps, getValues, getProperties })
+    const cacheAfterFirst = (op as any)._precomputedTimeSeries
+
+    // Second execution with different currentTime should reuse same cache reference
+    op.execute({ data, currentTime: 7, getTimestamps, getValues, getProperties })
+    expect((op as any)._precomputedTimeSeries).toBe(cacheAfterFirst)
+
+    // Third execution with same currentTime should also reuse cache
+    op.execute({ data, currentTime: 7, getTimestamps, getValues, getProperties })
+    expect((op as any)._precomputedTimeSeries).toBe(cacheAfterFirst)
+  })
+
+  it('rebuilds cache when data reference changes', () => {
+    const op = new TimeSeriesOp('/timeseries-cache-rebuild')
+    const data1 = [{ timestamps: [0, 10], values: [{ x: 0 }, { x: 10 }] }]
+    const data2 = [{ timestamps: [0, 10], values: [{ x: 0 }, { x: 10 }] }] // same content, different reference
+    const getTimestamps = (d: any) => d.timestamps
+    const getValues = (d: any) => d.values
+
+    op.execute({ data: data1, currentTime: 5, getTimestamps, getValues, getProperties: undefined })
+    const cacheAfterFirst = (op as any)._precomputedTimeSeries
+
+    // New data reference should rebuild cache
+    op.execute({ data: data2, currentTime: 5, getTimestamps, getValues, getProperties: undefined })
+    expect((op as any)._precomputedTimeSeries).not.toBe(cacheAfterFirst)
+  })
+
+  it('rebuilds cache when accessor function reference changes', () => {
+    const op = new TimeSeriesOp('/timeseries-accessor-change')
+    const data = [{ timestamps: [0, 10], values: [{ x: 0 }, { x: 10 }] }]
+    const getTimestamps1 = (d: any) => d.timestamps
+    const getTimestamps2 = (d: any) => d.timestamps // same logic, different reference
+    const getValues = (d: any) => d.values
+
+    op.execute({
+      data,
+      currentTime: 5,
+      getTimestamps: getTimestamps1,
+      getValues,
+      getProperties: undefined,
+    })
+    const cacheAfterFirst = (op as any)._precomputedTimeSeries
+
+    // New accessor reference should rebuild cache
+    op.execute({
+      data,
+      currentTime: 5,
+      getTimestamps: getTimestamps2,
+      getValues,
+      getProperties: undefined,
+    })
+    expect((op as any)._precomputedTimeSeries).not.toBe(cacheAfterFirst)
+  })
 })
 
 describe('KmlToGeoJsonOp', () => {
@@ -2565,5 +2687,74 @@ describe('Operator field visibility', () => {
       // visibleFields stays null since no change was needed
       expect(op.visibleFields.value).toBe(null)
     })
+  })
+})
+
+describe('Tile3DLayerOp', () => {
+  const GOOGLE_URL = 'https://tile.googleapis.com/v1/3dtiles/root.json'
+  const CESIUM_URL = 'https://assets.ion.cesium.com/242005/tileset.json'
+
+  it('defaults to the Google tileset URL when provider is Google', () => {
+    const op = new Tile3DLayerOp('/tile3d-0')
+    const { layer } = op.execute({})
+    expect(layer.type).toEqual('Tile3DLayer')
+    expect(layer.data).toEqual(GOOGLE_URL)
+  })
+
+  it('uses the Cesium tileset URL when provider is Cesium', () => {
+    const op = new Tile3DLayerOp('/tile3d-0')
+    const { layer } = op.execute({ provider: 'Cesium' })
+    expect(layer.data).toEqual(CESIUM_URL)
+  })
+
+  it('uses a custom tilesetUrl when provided, regardless of provider', () => {
+    const op = new Tile3DLayerOp('/tile3d-0')
+    const custom = 'https://example.com/custom/tileset.json'
+    const { layer: googleLayer } = op.execute({ tilesetUrl: custom, provider: 'Google' })
+    expect(googleLayer.data).toEqual(custom)
+
+    const { layer: cesiumLayer } = op.execute({ tilesetUrl: custom, provider: 'Cesium' })
+    expect(cesiumLayer.data).toEqual(custom)
+
+    const { layer: genericLayer } = op.execute({ tilesetUrl: custom, provider: 'Generic' })
+    expect(genericLayer.data).toEqual(custom)
+  })
+
+  it('falls back to the provider default when tilesetUrl is empty', () => {
+    const op = new Tile3DLayerOp('/tile3d-0')
+    const { layer } = op.execute({ tilesetUrl: '', provider: 'Cesium' })
+    expect(layer.data).toEqual(CESIUM_URL)
+  })
+
+  it('hides tilesetUrl by default', () => {
+    const op = new Tile3DLayerOp('/tile3d-0')
+    expect(op.isFieldVisible('tilesetUrl')).toBe(false)
+  })
+
+  it('includes Generic in provider options', () => {
+    const op = new Tile3DLayerOp('/tile3d-0')
+    const values = op.inputs.provider.choices.map(c => c.value)
+    expect(values).toContain('Generic')
+  })
+})
+
+describe('RerouteOp', () => {
+  it('passes a value through unchanged', () => {
+    const op = new RerouteOp('/reroute-0')
+    const data = [1, 2, 3]
+    const result = op.execute({ value: data })
+    expect(result.value).toBe(data)
+  })
+
+  it('passes undefined through when input is not connected', () => {
+    const op = new RerouteOp('/reroute-0')
+    const result = op.execute({ value: undefined })
+    expect(result.value).toBeUndefined()
+  })
+
+  it('has a single value input and a single value output', () => {
+    const op = new RerouteOp('/reroute-0')
+    expect(Object.keys(op.inputs)).toEqual(['value'])
+    expect(Object.keys(op.outputs)).toEqual(['value'])
   })
 })

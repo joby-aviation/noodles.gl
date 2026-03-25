@@ -1,4 +1,5 @@
 import posthog from 'posthog-js'
+import { debugAnalytics } from './debug'
 
 const ANALYTICS_CONSENT_KEY = 'noodles-analytics-consent'
 const ERROR_CAPTURE_CONSENT_KEY = 'noodles-error-capture-consent'
@@ -53,7 +54,7 @@ export class AnalyticsManager {
       this.initialized = true
     } catch (error) {
       // Silently fail if PostHog is blocked by ad blockers
-      console.warn('Analytics initialization failed (likely blocked by ad blocker):', error)
+      debugAnalytics('Analytics initialization failed (likely blocked by ad blocker):', error)
       this.initialized = false
     }
   }
@@ -63,7 +64,7 @@ export class AnalyticsManager {
       const stored = localStorage.getItem(ANALYTICS_CONSENT_KEY)
       return stored ? JSON.parse(stored) : null
     } catch (error) {
-      console.error('Failed to read analytics consent:', error)
+      debugAnalytics('Failed to read analytics consent:', error)
       return null
     }
   }
@@ -86,7 +87,7 @@ export class AnalyticsManager {
         }
       }
     } catch (error) {
-      console.error('Failed to save analytics consent:', error)
+      debugAnalytics('Failed to save analytics consent:', error)
     }
   }
 
@@ -99,7 +100,7 @@ export class AnalyticsManager {
     try {
       localStorage.setItem(ERROR_CAPTURE_CONSENT_KEY, JSON.stringify(consent))
     } catch (error) {
-      console.error('Failed to save error capture consent:', error)
+      debugAnalytics('Failed to save error capture consent:', error)
     }
   }
 
@@ -128,7 +129,7 @@ export class AnalyticsManager {
       const safeProperties = this.filterSensitiveData(properties || {})
       posthog.capture(event, safeProperties)
     } catch (error) {
-      console.error('Analytics tracking failed:', event, error)
+      debugAnalytics('Analytics tracking failed:', event, error)
     }
   }
 
@@ -141,7 +142,7 @@ export class AnalyticsManager {
       const safeProperties = this.filterSensitiveData(properties || {})
       posthog.identify(userId, safeProperties)
     } catch (error) {
-      console.error('Analytics identify failed:', error)
+      debugAnalytics('Analytics identify failed:', error)
     }
   }
 
@@ -153,7 +154,7 @@ export class AnalyticsManager {
     try {
       posthog.reset()
     } catch (error) {
-      console.error('Analytics reset failed:', error)
+      debugAnalytics('Analytics reset failed:', error)
     }
   }
 
@@ -169,7 +170,7 @@ export class AnalyticsManager {
     try {
       posthog.captureException(error, properties)
     } catch (err) {
-      console.error('Analytics exception capture failed:', err)
+      debugAnalytics('Analytics exception capture failed:', err)
     }
   }
 

@@ -1,7 +1,8 @@
-// RAF-based playback driver for the native timeline system
+// Playback driver for the native timeline system
 // Provides smooth playback and manual mode for video rendering
 
 import { debugPlayback } from '../utils/debug'
+import { visibilityAdaptiveLoop } from '../utils/worker-timer'
 import { getTimelineStore, useTimelineStore } from './timeline-store'
 
 // ============================================================================
@@ -11,30 +12,28 @@ import { getTimelineStore, useTimelineStore } from './timeline-store'
 export type PlaybackCallback = (deltaMs: number) => void
 
 export class PlaybackDriver {
-  private rafId: number | null = null
+  private cancelTick: (() => void) | null = null
   private lastTimestamp = 0
   private manualMode = false
   private subscribers: Set<PlaybackCallback> = new Set()
 
-  // Start the playback loop (uses requestAnimationFrame for smooth ~60fps updates)
+  // Start the playback loop (~60fps, RAF when visible, worker timer when hidden)
   start(): void {
-    if (this.rafId !== null || this.manualMode) return
+    if (this.cancelTick !== null || this.manualMode) return
 
     this.lastTimestamp = performance.now()
-    this.rafId = requestAnimationFrame(this.tick)
+    this.cancelTick = visibilityAdaptiveLoop(this.tick, 1000 / 60)
   }
 
   // Stop the playback loop
   stop(): void {
-    if (this.rafId !== null) {
-      cancelAnimationFrame(this.rafId)
-      this.rafId = null
-    }
+    this.cancelTick?.()
+    this.cancelTick = null
   }
 
   // Check if the playback loop is running
   isRunning(): boolean {
-    return this.rafId !== null
+    return this.cancelTick !== null
   }
 
   // Subscribe to tick events, returns unsubscribe function
@@ -46,7 +45,7 @@ export class PlaybackDriver {
   }
 
   // Enable or disable manual mode for video rendering
-  // In manual mode, the RAF loop is disabled and ticks must be triggered manually
+  // In manual mode, the worker timer loop is disabled and ticks must be triggered manually
   setManualMode(enabled: boolean): void {
     this.manualMode = enabled
     if (enabled) {
@@ -71,7 +70,7 @@ export class PlaybackDriver {
     this.notifySubscribers(delta)
   }
 
-  // RAF callback - advances position based on elapsed time
+  // RAF/worker timer callback - advances position based on elapsed time
   private tick = (timestamp: number): void => {
     if (this.manualMode) return
 
@@ -79,9 +78,6 @@ export class PlaybackDriver {
     this.lastTimestamp = timestamp
 
     this.notifySubscribers(delta)
-
-    // Continue the loop
-    this.rafId = requestAnimationFrame(this.tick)
   }
 
   // Notify all subscribers of a tick
@@ -90,7 +86,7 @@ export class PlaybackDriver {
       try {
         callback(deltaMs)
       } catch (error) {
-        console.error('Error in playback subscriber:', error)
+        debugPlayback('Error in playback subscriber:', error)
       }
     }
   }
@@ -146,7 +142,8 @@ export function connectPlaybackToTimeline(): () => void {
   )
 
   // Start immediately if already playing
-  if (getTimelineStore().playing && !playbackDriver.isManualMode()) {
+  const store = getTimelineStore()
+  if (store.playing && !playbackDriver.isManualMode()) {
     playbackDriver.start()
   }
 
@@ -184,10 +181,12 @@ export function getCurrentFrame(): number {
 
 // Step forward by one frame
 export function nextFrame(): void {
-  getTimelineStore().stepForward(1)
+  const store = getTimelineStore()
+  store.stepForward(1)
 }
 
 // Step backward by one frame
 export function prevFrame(): void {
-  getTimelineStore().stepBackward(1)
+  const store = getTimelineStore()
+  store.stepBackward(1)
 }

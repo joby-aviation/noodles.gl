@@ -1,9 +1,11 @@
 // Time ruler component showing time markers based on zoom level
 
 import type React from 'react'
-import { useCallback, useMemo, useRef, useState } from 'react'
-import { captureTimelineState, fireTimelineMutation } from '../timeline-store'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { captureTimelineState, fireTimelineMutation, useTimelineStore } from '../timeline-store'
 import s from './TimelinePanel.module.css'
+import { TimeMarker } from './TimeMarker'
 
 export interface TimeRulerProps {
   width: number
@@ -13,6 +15,7 @@ export interface TimeRulerProps {
   fps: number
   onSetLength: (length: number) => void
   onSetPosition: (position: number) => void
+  onStartMarkerConnection?: (markerId: string, clientX: number, clientY: number) => void
 }
 
 // Format time as MM:SS.ms or SS.ms depending on duration
@@ -75,13 +78,44 @@ export function TimeRuler({
   fps,
   onSetLength,
   onSetPosition,
+  onStartMarkerConnection,
 }: TimeRulerProps) {
   const [editingLength, setEditingLength] = useState(false)
   const [inputValue, setInputValue] = useState('')
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; time: number } | null>(
+    null
+  )
   const inputRef = useRef<HTMLInputElement>(null)
+  const rulerRef = useRef<HTMLDivElement>(null)
   const beforeStateRef = useRef<string>('')
+  const markerBeforeRef = useRef<string>('')
   const dragStateRef = useRef<{ startX: number; startLength: number; before: string } | null>(null)
   const isScrubbingRef = useRef(false)
+
+  // Get markers from store
+  const markers = useTimelineStore(state => state.markers)
+  const selectedMarkerId = useTimelineStore(state => state.selectedMarkerId)
+  const addMarker = useTimelineStore(state => state.addMarker)
+  const deleteAllMarkers = useTimelineStore(state => state.deleteAllMarkers)
+  const moveMarker = useTimelineStore(state => state.moveMarker)
+  const selectMarker = useTimelineStore(state => state.selectMarker)
+
+  // Close context menu on outside click or escape
+  useEffect(() => {
+    if (!contextMenu) return
+
+    const handleClick = () => setContextMenu(null)
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setContextMenu(null)
+    }
+
+    document.addEventListener('click', handleClick)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('click', handleClick)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [contextMenu])
 
   const { ticks, labels } = useMemo(() => {
     const { major, subInterval, isFrameInterval } = getTickInfo(pixelsPerSecond, fps)
@@ -240,11 +274,100 @@ export function TimeRuler({
     [onSetPosition, pixelsPerSecond, sequenceLength, fps]
   )
 
+  // Context menu handler
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      const target = e.target as HTMLElement
+      // Don't show menu if clicking on a marker or end marker
+      if (target.closest(`.${s.timeMarker}`) || target.closest(`.${s.timelineSequenceEndMarker}`)) {
+        return
+      }
+      const rect = rulerRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const x = e.clientX - rect.left
+      const time = snapToFrame(Math.max(0, x / pixelsPerSecond), fps)
+      setContextMenu({ x: e.clientX, y: e.clientY, time })
+    },
+    [pixelsPerSecond, fps]
+  )
+
+  const handleAddMarker = useCallback(() => {
+    if (!contextMenu) return
+    const before = captureTimelineState()
+    addMarker(contextMenu.time)
+    fireTimelineMutation('Add time marker', before)
+    setContextMenu(null)
+  }, [contextMenu, addMarker])
+
+  const handleDeleteAllMarkers = useCallback(() => {
+    if (markers.length === 0) return
+    const before = captureTimelineState()
+    deleteAllMarkers()
+    fireTimelineMutation('Delete all markers', before)
+    setContextMenu(null)
+  }, [markers.length, deleteAllMarkers])
+
+  // Marker action handlers
+  const handleMarkerSelect = useCallback(
+    (markerId: string) => {
+      selectMarker(markerId)
+    },
+    [selectMarker]
+  )
+
+  const handleMarkerMove = useCallback(
+    (markerId: string, newPosition: number) => {
+      moveMarker(markerId, newPosition)
+    },
+    [moveMarker]
+  )
+
+  const handleMarkerMoveStart = useCallback(() => {
+    markerBeforeRef.current = captureTimelineState()
+  }, [])
+
+  const handleMarkerMoveEnd = useCallback(() => {
+    if (markerBeforeRef.current) {
+      fireTimelineMutation('Move marker', markerBeforeRef.current)
+      markerBeforeRef.current = ''
+    }
+  }, [])
+
+  const handleStartConnection = useCallback(
+    (markerId: string, clientX: number, clientY: number) => {
+      onStartMarkerConnection?.(markerId, clientX, clientY)
+    },
+    [onStartMarkerConnection]
+  )
+
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: Timeline ruler supports direct click-to-seek
-    <div className={s.timelineRuler} style={{ width }} onMouseDown={handleRulerMouseDown}>
+    <div
+      ref={rulerRef}
+      className={s.timelineRuler}
+      style={{ width }}
+      onMouseDown={handleRulerMouseDown}
+      onContextMenu={handleContextMenu}
+    >
       {ticks}
       {labels}
+
+      {/* Time markers */}
+      {markers.map(marker => (
+        <TimeMarker
+          key={marker.id}
+          marker={marker}
+          pixelsPerSecond={pixelsPerSecond}
+          fps={fps}
+          isSelected={marker.id === selectedMarkerId}
+          onSelect={handleMarkerSelect}
+          onMove={handleMarkerMove}
+          onStartConnection={handleStartConnection}
+          onMoveStart={handleMarkerMoveStart}
+          onMoveEnd={handleMarkerMoveEnd}
+        />
+      ))}
 
       {/* End-of-sequence marker */}
       {/* biome-ignore lint/a11y/noStaticElementInteractions: Marker supports pointer drag and double-click editing */}
@@ -271,6 +394,30 @@ export function TimeRuler({
           />
         )}
       </div>
+
+      {/* Context menu */}
+      {contextMenu &&
+        createPortal(
+          // biome-ignore lint/a11y/noStaticElementInteractions: Context menu needs click handler to prevent close
+          <div
+            className={s.rulerContextMenu}
+            style={{ left: contextMenu.x, top: contextMenu.y }}
+            onClick={e => e.stopPropagation()}
+          >
+            <button type="button" onClick={handleAddMarker}>
+              Add Time Marker
+            </button>
+            {markers.length > 0 && (
+              <>
+                <div className={s.rulerContextMenuDivider} />
+                <button type="button" onClick={handleDeleteAllMarkers}>
+                  Delete All Markers
+                </button>
+              </>
+            )}
+          </div>,
+          document.body
+        )}
     </div>
   )
 }

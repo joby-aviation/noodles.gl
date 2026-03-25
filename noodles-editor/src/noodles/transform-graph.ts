@@ -1,4 +1,5 @@
 import { getIncomers, type Node as ReactFlowNode } from '@xyflow/react'
+import { debugExecutor } from '../utils/debug'
 import { type Edge as ExecutorEdge, updateGraph } from './graph-executor'
 import type { Edge } from './noodles'
 import type { IOperator, Operator, OpType } from './operators'
@@ -161,10 +162,6 @@ export function transformGraph<
     }) as OP[]
   })
 
-  for (const op of created) {
-    op.createListeners()
-  }
-
   // Update dependency graph
   updateGraph(edges as unknown as ExecutorEdge[])
 
@@ -212,8 +209,7 @@ export function transformGraph<
       const targetField =
         targetOp[targetNamespace === 'par' ? 'inputs' : 'outputs'][targetFieldName]
       if (!sourceField || !targetField) {
-        console.error('Invalid connection')
-        debugger
+        debugExecutor('Invalid connection')
         continue
       }
 

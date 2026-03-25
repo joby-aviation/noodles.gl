@@ -152,17 +152,12 @@ describe('PlaybackDriver', () => {
       driver.subscribe(successCallback)
       driver.setManualMode(true)
 
-      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-
       driver.manualTick(0)
       driver.manualTick(16)
 
       // Error callback threw but success callback should still be called
       expect(errorCallback).toHaveBeenCalled()
       expect(successCallback).toHaveBeenCalled()
-      expect(errorSpy).toHaveBeenCalled()
-
-      errorSpy.mockRestore()
     })
   })
 })

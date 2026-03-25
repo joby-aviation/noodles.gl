@@ -9,10 +9,10 @@ import {
   DataField,
   DateField,
   Field,
+  FileUrlField,
   FunctionField,
   GeoJsonField,
   getFieldReferences,
-  JSONUrlField,
   LayerField,
   ListField,
   NumberField,
@@ -216,53 +216,34 @@ describe('ListField', () => {
   })
 })
 
-describe('JSONUrlField', () => {
-  it('accepts primitive values from other fields', () => {
+describe('FileUrlField', () => {
+  it('accepts string values from other fields', () => {
     const field = new StringField('test')
-    const jsonField = new JSONUrlField()
+    const urlField = new FileUrlField()
 
-    expect(canConnect(field, jsonField)).toBe(true)
-    jsonField.addConnection('field', field, 'value')
+    expect(canConnect(field, urlField)).toBe(true)
+    urlField.addConnection('field', field, 'value')
 
-    expect(jsonField.value).toEqual('test')
+    expect(urlField.value).toEqual('test')
   })
 
-  it('accepts primitive and compound values', () => {
-    const field1 = new JSONUrlField(10)
-    expect(field1.value).toEqual(10)
-    field1.setValue({ a: 'b' })
-    expect(field1.value).toEqual({ a: 'b' })
-    const field2 = new JSONUrlField({ c: 'd' })
-    expect(field2.value).toEqual({ c: 'd' })
-    const field3 = new JSONUrlField([1, 2, 3])
-    expect(field3.value).toEqual([1, 2, 3])
-    const field4 = new JSONUrlField({ foo: 'bar' }, { accessor: true })
-    expect(field4.value).toEqual({ foo: 'bar' })
-    const field5 = new JSONUrlField([1, 2, 3], { accessor: true })
-    expect(field5.value).toEqual([1, 2, 3])
-    field5.setValue(arr => arr.map(n => n * 2))
-    expect(field5.value([4, 5, 6])).toEqual([8, 10, 12])
-  })
+  it('accepts string values', () => {
+    const field = new FileUrlField('https://example.com/model.glb')
+    expect(field.value).toEqual('https://example.com/model.glb')
 
-  it('accepts JSON strings but not parse them', () => {
-    const field = new JSONUrlField('{"foo": "bar"}')
-    expect(field.value).toEqual('{"foo": "bar"}')
-    field.setValue('{"bar": "baz"}')
-    expect(field.value).toEqual('{"bar": "baz"}')
-  })
-
-  it('accepts url strings', () => {
-    const field = new JSONUrlField('https://example.com/data.json')
-    expect(field.value).toEqual('https://example.com/data.json')
-
-    field.setValue('data.json')
-    expect(field.value).toEqual('data.json')
-
-    field.setValue('/data.json')
-    expect(field.value).toEqual('/data.json')
+    field.setValue('@/model.glb')
+    expect(field.value).toEqual('@/model.glb')
 
     field.setValue('./data.json')
     expect(field.value).toEqual('./data.json')
+  })
+
+  it('stores the accept option on the instance', () => {
+    const field = new FileUrlField('https://example.com/model.glb', { accept: '.glb,.gltf' })
+    expect(field.accept).toEqual('.glb,.gltf')
+
+    const noAccept = new FileUrlField()
+    expect(noAccept.accept).toBeUndefined()
   })
 })
 
@@ -281,13 +262,8 @@ describe('NumberField', () => {
     expect(field2.step, 'step').toEqual(0.1)
 
     // setValue should fail if the value is out of bounds
-    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     field2.setValue(15)
     expect(field2.value).toEqual(5)
-    expect(consoleWarn).toHaveBeenCalledWith(
-      'Parse error',
-      expect.arrayContaining([expect.objectContaining({ code: 'too_big' })])
-    )
   })
 
   it('sets softMin and softMax on the instance', () => {
@@ -312,7 +288,6 @@ describe('NumberField', () => {
   })
 
   it('enforces hard min/max while allowing soft limits to differ', () => {
-    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const field = new NumberField(50, {
       min: 0,
       max: 200,
@@ -330,18 +305,9 @@ describe('NumberField', () => {
     // Values outside hard limits should be rejected
     field.setValue(-10)
     expect(field.value).toEqual(150) // unchanged
-    expect(consoleWarn).toHaveBeenCalledWith(
-      'Parse error',
-      expect.arrayContaining([expect.objectContaining({ code: 'too_small' })])
-    )
 
-    consoleWarn.mockClear()
     field.setValue(250)
     expect(field.value).toEqual(150) // unchanged
-    expect(consoleWarn).toHaveBeenCalledWith(
-      'Parse error',
-      expect.arrayContaining([expect.objectContaining({ code: 'too_big' })])
-    )
   })
 
   it('supports softMax without softMin and vice versa', () => {
@@ -366,10 +332,8 @@ describe('NumberField', () => {
     expect(field.value).toEqual(200)
 
     // Cannot go below hard min
-    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     field.setValue(-10)
     expect(field.value).toEqual(200) // unchanged
-    expect(consoleWarn).toHaveBeenCalled()
   })
 })
 
@@ -417,10 +381,8 @@ describe('StringLiteralField', () => {
     expect(field.choices).toEqual([])
     expect(canConnect(new StringField('foo'), field)).toBe(true)
     // expect(canConnect(new NumberField(5), field)).toBe(true)
-    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     field.setValue('foo')
     // field.setValue(5)
-    expect(consoleWarn).not.toHaveBeenCalled()
   })
 
   it('allows reconfiguring options', () => {
@@ -708,10 +670,7 @@ describe('Accessor fields', () => {
     getPositionField.setValue({ lng: 5, lat: 6 })
     expect(getPositionField.value).toEqual([5, 6])
 
-    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     expect(canConnect(accessorField, getPositionField), 'should connect').toBe(true)
-    expect(consoleWarn.calls).toMatchInlineSnapshot('undefined')
-    expect(consoleWarn, 'should not warn').not.toHaveBeenCalled()
 
     getPositionField.addConnection('getPosition', accessorField, 'value')
 

@@ -3,8 +3,10 @@ import z from 'zod/v4'
 
 import {
   ArrayField,
+  ColorField,
   CompoundPropsField,
   DataField,
+  FunctionField,
   LayerField,
   ListField,
   NumberField,
@@ -106,6 +108,22 @@ describe('CanConnect', () => {
       zoom: new NumberField(),
     })
     expect(canConnect(field2, field1)).toBe(true)
+  })
+
+  it('allows FunctionField to connect to a ColorField with accessor: true', () => {
+    // ColorField with accessor only (no transform) — schema is union([string, function])
+    const fnField = new FunctionField()
+    const colorField = new ColorField('#ff0000', { accessor: true })
+    expect(canConnect(fnField, colorField)).toBe(true)
+  })
+
+  it('allows FunctionField to connect to a ColorField with accessor and transform', () => {
+    // All layer getColor inputs use both accessor: true and transform: hexToColor.
+    // This produces pipe(union([string, function]), transform), which previously failed
+    // because unwrapSchema could not traverse ZodPipe (Zod v4 uses def.in, not def.innerType).
+    const fnField = new FunctionField()
+    const colorField = new ColorField('#ff0000', { accessor: true, transform: (v: unknown) => v })
+    expect(canConnect(fnField, colorField)).toBe(true)
   })
 
   it('allows UnknownField to connect to any field', () => {

@@ -1,7 +1,8 @@
 // Main Timeline Panel container component
 // Provides the overall layout and state management for the timeline UI
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useExportActions } from '../../noodles/contexts/export-actions-context'
 import {
   captureTimelineState,
   fireTimelineMutation,
@@ -11,6 +12,7 @@ import {
 import type { HandleType } from '../types'
 import { DEFAULT_BEZIER_HANDLES } from '../types'
 import { CurveEditorView } from './CurveEditorView'
+import { MarkerConnectionLines } from './MarkerConnectionLines'
 import { PlayControls } from './PlayControls'
 import { Playhead } from './Playhead'
 import { TimeDisplay } from './TimeDisplay'
@@ -42,6 +44,8 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
   const timelineAreaRef = useRef<HTMLDivElement>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
 
+  const { isRendering } = useExportActions()
+
   // Local UI state
   const [pixelsPerSecond, setPixelsPerSecond] = useState(DEFAULT_PIXELS_PER_SECOND)
   const [scrollLeft, setScrollLeft] = useState(0)
@@ -68,6 +72,26 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
   const setPosition = useTimelineStore(state => state.setPosition)
   const setLength = useTimelineStore(state => state.setLength)
   const selectedKeyframeIds = useTimelineStore(state => state.selectedKeyframeIds)
+  const tracks = useTimelineStore(state => state.tracks)
+  const markers = useTimelineStore(state => state.markers)
+  const selectedMarkerId = useTimelineStore(state => state.selectedMarkerId)
+  const connectingFromMarkerId = useTimelineStore(state => state.connectingFromMarkerId)
+  const setConnectingFromMarker = useTimelineStore(state => state.setConnectingFromMarker)
+  const connectKeyframeToMarker = useTimelineStore(state => state.connectKeyframeToMarker)
+  const deleteMarker = useTimelineStore(state => state.deleteMarker)
+
+  // Connection drag state
+  const [connectionMousePos, setConnectionMousePos] = useState<{ x: number; y: number } | null>(
+    null
+  )
+
+  // Track order for connection lines (same as TrackList ordering)
+  const trackOrder = useMemo(() => {
+    return Array.from(tracks.values())
+      .filter(t => t.keyframes.length > 0)
+      .sort((a, b) => a.fieldPath.localeCompare(b.fieldPath))
+      .map(t => t.id)
+  }, [tracks])
 
   // Calculate timeline width based on sequence length and zoom
   const timelineWidth = sequence.length * pixelsPerSecond
@@ -112,6 +136,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
   const handleTimelineMouseDown = useCallback(
     (e: React.MouseEvent) => {
       if (e.button !== 0) return
+      if (isRendering) return
 
       if (e.shiftKey) {
         const rect = timelineAreaRef.current?.getBoundingClientRect()
@@ -126,14 +151,15 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
       }
 
       // Plain click on blank space — clear selection and scrub
-      getTimelineStore().clearSelection()
+      const store = getTimelineStore()
+      store.clearSelection()
       const time = getTimeFromMouseEvent(e)
       if (time !== null) {
         setPosition(time)
         setIsScrubbing(true)
       }
     },
-    [getTimeFromMouseEvent, setPosition]
+    [getTimeFromMouseEvent, setPosition, isRendering]
   )
 
   // Handle mousemove while scrubbing (attached to document)
@@ -141,6 +167,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
     if (!isScrubbing) return
 
     const handleMouseMove = (e: MouseEvent) => {
+      if (isRendering) return
       const time = getTimeFromMouseEvent(e)
       if (time !== null) {
         setPosition(time)
@@ -158,7 +185,59 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [isScrubbing, getTimeFromMouseEvent, setPosition])
+  }, [isScrubbing, getTimeFromMouseEvent, setPosition, isRendering])
+
+  // Handle marker connection start — attach document listeners synchronously so fast
+  // drags (pointerdown → pointerup without much movement) aren't missed by a deferred effect.
+  const handleStartMarkerConnection = useCallback(
+    (markerId: string, clientX: number, clientY: number) => {
+      setConnectingFromMarker(markerId)
+
+      // Set the initial line position immediately from the pointerdown coords.
+      const rect = timelineAreaRef.current?.getBoundingClientRect()
+      const sl = scrollAreaRef.current?.scrollLeft ?? 0
+      if (rect) {
+        setConnectionMousePos({
+          x: clientX - rect.left + sl,
+          y: clientY - rect.top,
+        })
+      }
+
+      const handlePointerMove = (e: PointerEvent) => {
+        const r = timelineAreaRef.current?.getBoundingClientRect()
+        if (!r) return
+        const scrollLeft = scrollAreaRef.current?.scrollLeft ?? 0
+        setConnectionMousePos({
+          x: e.clientX - r.left + scrollLeft,
+          y: e.clientY - r.top,
+        })
+      }
+
+      const handlePointerUp = () => {
+        setConnectingFromMarker(null)
+        setConnectionMousePos(null)
+        document.removeEventListener('pointermove', handlePointerMove)
+        document.removeEventListener('pointerup', handlePointerUp)
+      }
+
+      document.addEventListener('pointermove', handlePointerMove)
+      document.addEventListener('pointerup', handlePointerUp)
+    },
+    [setConnectingFromMarker]
+  )
+
+  // Handle keyframe drop for marker connection
+  const handleKeyframeConnectionDrop = useCallback(
+    (trackId: string, keyframeId: string) => {
+      if (!connectingFromMarkerId) return
+      const before = captureTimelineState()
+      connectKeyframeToMarker(connectingFromMarkerId, trackId, keyframeId)
+      fireTimelineMutation('Connect keyframe to marker', before)
+      setConnectingFromMarker(null)
+      setConnectionMousePos(null)
+    },
+    [connectingFromMarkerId, connectKeyframeToMarker, setConnectingFromMarker]
+  )
 
   // Persistent document listeners for box selection — uses refs to avoid stale closures
   useEffect(() => {
@@ -224,18 +303,32 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
     }
   }, [])
 
-  // Delete selected keyframes on Delete/Backspace key, T to cycle handle type
+  // Delete selected keyframes/markers on Delete/Backspace key, T to cycle handle type
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedKeyframeIds.size > 0) {
-        e.preventDefault()
-        getTimelineStore().deleteSelectedKeyframes()
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        // Delete selected marker if one is selected
+        if (selectedMarkerId) {
+          e.preventDefault()
+          const before = captureTimelineState()
+          deleteMarker(selectedMarkerId)
+          fireTimelineMutation('Delete marker', before)
+          return
+        }
+        // Delete selected keyframes
+        if (selectedKeyframeIds.size > 0) {
+          e.preventDefault()
+          const store = getTimelineStore()
+          store.deleteSelectedKeyframes()
+          return
+        }
       }
 
       // Cmd/Ctrl+A to select all keyframes
       if ((e.key === 'a' || e.key === 'A') && (e.metaKey || e.ctrlKey)) {
         e.preventDefault()
-        getTimelineStore().selectAllKeyframes()
+        const store = getTimelineStore()
+        store.selectAllKeyframes()
       }
 
       // T to cycle handle type for selected keyframes
@@ -258,17 +351,14 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
         fireTimelineMutation('Cycle handle type', before)
       }
     },
-    [selectedKeyframeIds]
+    [selectedKeyframeIds, selectedMarkerId, deleteMarker]
   )
 
-  // Handle spacebar for play/pause globally
+  // Handle spacebar for play/pause and arrow keys for frame stepping globally
   useEffect(() => {
-    const handleSpaceKey = (e: KeyboardEvent) => {
-      // Only handle spacebar
-      if (e.code !== 'Space') return
-
-      // Don't intercept spacebar in input elements
+    const handleKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement
+      // Don't intercept keys in input elements
       if (
         target.tagName === 'INPUT' ||
         target.tagName === 'TEXTAREA' ||
@@ -277,13 +367,22 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
         return
       }
 
-      e.preventDefault()
-      getTimelineStore().togglePlay()
+      const store = getTimelineStore()
+      if (e.code === 'Space') {
+        e.preventDefault()
+        if (!isRendering) store.togglePlay()
+      } else if (e.code === 'ArrowLeft') {
+        e.preventDefault()
+        if (!isRendering) store.stepBackward(1)
+      } else if (e.code === 'ArrowRight') {
+        e.preventDefault()
+        if (!isRendering) store.stepForward(1)
+      }
     }
 
-    document.addEventListener('keydown', handleSpaceKey)
-    return () => document.removeEventListener('keydown', handleSpaceKey)
-  }, [])
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [isRendering])
 
   return (
     <div
@@ -381,7 +480,14 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
           <div className={s.timelineTrackLabelsHeader}>
             <span className={s.timelineTrackLabelsTitle}>Properties</span>
           </div>
-          <TrackList showLabelsOnly />
+          <TrackList
+            showLabelsOnly
+            onOpenCurveEditor={trackId => {
+              const store = getTimelineStore()
+              store.selectTrack(trackId)
+              setViewMode('value')
+            }}
+          />
         </div>
 
         {/* Scrollable timeline area */}
@@ -395,6 +501,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
             fps={sequence.fps}
             onSetLength={setLength}
             onSetPosition={setPosition}
+            onStartMarkerConnection={handleStartMarkerConnection}
           />
 
           {/* Keyframe area or curve editor view */}
@@ -414,11 +521,24 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
                 timelineWidth={timelineWidth}
                 sequenceLength={sequence.length}
                 fps={sequence.fps}
+                connectingFromMarkerId={connectingFromMarkerId}
+                onKeyframeConnectionDrop={handleKeyframeConnectionDrop}
               />
               <Playhead
                 position={position}
                 pixelsPerSecond={pixelsPerSecond}
                 height={height - 80}
+              />
+              {/* Marker connection lines */}
+              <MarkerConnectionLines
+                markers={markers}
+                tracks={tracks}
+                selectedKeyframeIds={selectedKeyframeIds}
+                pixelsPerSecond={pixelsPerSecond}
+                trackHeight={TRACK_ROW_HEIGHT}
+                trackOrder={trackOrder}
+                connectingFromMarkerId={connectingFromMarkerId}
+                mousePosition={connectionMousePos}
               />
               {boxSelectOverlay && <div className={s.timelineBoxSelect} style={boxSelectOverlay} />}
             </div>

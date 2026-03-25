@@ -32,6 +32,7 @@ export type RenderSettings = {
   scaleControl: number
   framerate: number
   captureDelay: number
+  rendersDirectory: string
 }
 
 export const DEFAULT_RENDER_SETTINGS: RenderSettings = {
@@ -45,6 +46,7 @@ export const DEFAULT_RENDER_SETTINGS: RenderSettings = {
   scaleControl: 0.3,
   framerate: 30,
   captureDelay: 200,
+  rendersDirectory: 'renders',
 }
 
 export type NoodlesProjectJSON = ReactFlowJsonObject & {
@@ -55,6 +57,7 @@ export type NoodlesProjectJSON = ReactFlowJsonObject & {
   apiKeys?: {
     mapbox?: string
     googleMaps?: string
+    cesium?: string
     anthropic?: string
   }
 }
@@ -297,7 +300,7 @@ export async function saveProjectLocally(
             projectFolder.file(relativePath, arrayBuffer)
           }
         } catch (error) {
-          console.error(`Could not fetch asset ${relativePath}:`, error)
+          debugSerialize(`Could not fetch asset ${relativePath}:`, error)
         }
       }
     }
@@ -331,7 +334,7 @@ export async function saveProjectLocally(
         }
       }
     } catch (error) {
-      console.error('Could not read data files for export:', error)
+      debugSerialize('Could not read data files for export:', error)
       // Continue with export even if data files can't be read
     }
   }
