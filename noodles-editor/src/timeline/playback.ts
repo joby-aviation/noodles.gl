@@ -2,7 +2,7 @@
 // Provides smooth playback and manual mode for video rendering
 
 import { debugPlayback } from '../utils/debug'
-import { workerSetInterval } from '../utils/worker-timer'
+import { visibilityAdaptiveLoop } from '../utils/worker-timer'
 import { getTimelineStore, useTimelineStore } from './timeline-store'
 
 // ============================================================================
@@ -17,12 +17,12 @@ export class PlaybackDriver {
   private manualMode = false
   private subscribers: Set<PlaybackCallback> = new Set()
 
-  // Start the playback loop (~60fps via worker timer, not throttled when tab is hidden)
+  // Start the playback loop (~60fps, RAF when visible, worker timer when hidden)
   start(): void {
     if (this.cancelTick !== null || this.manualMode) return
 
     this.lastTimestamp = performance.now()
-    this.cancelTick = workerSetInterval(this.tick, 1000 / 60)
+    this.cancelTick = visibilityAdaptiveLoop(this.tick, 1000 / 60)
   }
 
   // Stop the playback loop
@@ -70,7 +70,7 @@ export class PlaybackDriver {
     this.notifySubscribers(delta)
   }
 
-  // Worker timer callback - advances position based on elapsed time
+  // RAF/worker timer callback - advances position based on elapsed time
   private tick = (timestamp: number): void => {
     if (this.manualMode) return
 

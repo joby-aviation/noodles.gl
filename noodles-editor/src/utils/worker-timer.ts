@@ -97,3 +97,51 @@ export function workerSetInterval(
     getWorker().postMessage({ type: 'clear', id })
   }
 }
+
+// Adaptive loop: uses requestAnimationFrame when the tab is visible (vsync-coordinated,
+// zero IPC overhead) and automatically switches to workerSetInterval when hidden so the
+// loop keeps running during background rendering / exports.
+// Returns a cancel function.
+export function visibilityAdaptiveLoop(
+  callback: (timestamp: number) => void,
+  intervalMs: number
+): () => void {
+  let cancelWorker: (() => void) | null = null
+  let rafId: number | null = null
+
+  const startRAF = () => {
+    cancelWorker?.()
+    cancelWorker = null
+    const loop = (ts: number) => {
+      callback(ts)
+      rafId = requestAnimationFrame(loop)
+    }
+    rafId = requestAnimationFrame(loop)
+  }
+
+  const startWorker = () => {
+    if (rafId !== null) {
+      cancelAnimationFrame(rafId)
+      rafId = null
+    }
+    cancelWorker = workerSetInterval(callback, intervalMs)
+  }
+
+  const onVisibilityChange = () => {
+    if (document.visibilityState === 'visible') startRAF()
+    else startWorker()
+  }
+
+  document.addEventListener('visibilitychange', onVisibilityChange)
+  if (document.visibilityState === 'visible') startRAF()
+  else startWorker()
+
+  return () => {
+    document.removeEventListener('visibilitychange', onVisibilityChange)
+    cancelWorker?.()
+    if (rafId !== null) {
+      cancelAnimationFrame(rafId)
+      rafId = null
+    }
+  }
+}

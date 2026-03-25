@@ -2,7 +2,7 @@
 // Manages operator execution with topological sorting, dirty tracking, and a worker timer loop
 
 import { debugExecutor } from '../utils/debug'
-import { workerSetInterval } from '../utils/worker-timer'
+import { visibilityAdaptiveLoop } from '../utils/worker-timer'
 import type { ForLoopBeginOp, ForLoopEndOp, ForLoopMetaOp, IOperator, Operator } from './operators'
 import { getAllOps } from './store'
 import type { OpId } from './utils/id-utils'
@@ -146,7 +146,7 @@ export class GraphExecutor {
   // Track nodes added directly via addNode() (not from store sync)
   private manuallyAddedNodes: Set<string> = new Set()
 
-  // Timer loop state (worker-based, not throttled when tab is hidden)
+  // Loop cancel function — RAF when visible, worker timer when hidden
   private cancelLoop: (() => void) | null = null
   private isPulling = false
   private lastFrameTime = 0
@@ -178,7 +178,7 @@ export class GraphExecutor {
   start(): void {
     if (this.cancelLoop !== null) return
     this.lastFrameTime = performance.now()
-    this.cancelLoop = workerSetInterval(this.loop, this.frameInterval)
+    this.cancelLoop = visibilityAdaptiveLoop(this.loop, this.frameInterval)
   }
 
   // Stop the execution loop
@@ -191,7 +191,7 @@ export class GraphExecutor {
     }
   }
 
-  // Main loop - runs via worker timer at targetFPS, not throttled when tab is hidden
+  // Main loop - runs via RAF when visible (vsync-coordinated), worker timer when hidden
   private loop = (currentTime: number): void => {
     const deltaTime = currentTime - this.lastFrameTime
 
