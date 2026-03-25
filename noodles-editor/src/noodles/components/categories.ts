@@ -88,6 +88,7 @@ export const categories = {
     'LayerProps',
     'Mouse',
     'Project',
+    'Reroute',
     'Unproject',
     'MapStyle',
   ],

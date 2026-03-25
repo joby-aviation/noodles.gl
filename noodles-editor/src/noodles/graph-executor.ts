@@ -1,7 +1,8 @@
 // GraphExecutor - Execution engine for the operator graph
-// Manages operator execution with topological sorting, dirty tracking, and RAF loop
+// Manages operator execution with topological sorting, dirty tracking, and a worker timer loop
 
 import { debugExecutor } from '../utils/debug'
+import { visibilityAdaptiveLoop } from '../utils/worker-timer'
 import type { ForLoopBeginOp, ForLoopEndOp, ForLoopMetaOp, IOperator, Operator } from './operators'
 import { getAllOps } from './store'
 import type { OpId } from './utils/id-utils'
@@ -145,8 +146,8 @@ export class GraphExecutor {
   // Track nodes added directly via addNode() (not from store sync)
   private manuallyAddedNodes: Set<string> = new Set()
 
-  // RAF loop state
-  private rafId: number | null = null
+  // Loop cancel function — RAF when visible, worker timer when hidden
+  private cancelLoop: (() => void) | null = null
   private isPulling = false
   private lastFrameTime = 0
   private frameInterval: number
@@ -175,29 +176,26 @@ export class GraphExecutor {
 
   // Start the execution loop
   start(): void {
-    if (this.rafId !== null) return
+    if (this.cancelLoop !== null) return
     this.lastFrameTime = performance.now()
-    this.loop()
+    this.cancelLoop = visibilityAdaptiveLoop(this.loop, this.frameInterval)
   }
 
   // Stop the execution loop
   stop(): void {
-    if (this.rafId !== null) {
-      cancelAnimationFrame(this.rafId)
-      this.rafId = null
-    }
+    this.cancelLoop?.()
+    this.cancelLoop = null
     if (this.batchTimeout !== null) {
       clearTimeout(this.batchTimeout)
       this.batchTimeout = null
     }
   }
 
-  // Main loop - runs on animation frame
-  private loop = (): void => {
-    const currentTime = performance.now()
+  // Main loop - runs via RAF when visible (vsync-coordinated), worker timer when hidden
+  private loop = (currentTime: number): void => {
     const deltaTime = currentTime - this.lastFrameTime
 
-    // Throttle to target FPS
+    // Guard against the interval firing more frequently than expected
     if (deltaTime >= this.frameInterval) {
       this.lastFrameTime = currentTime - (deltaTime % this.frameInterval)
 
@@ -208,12 +206,10 @@ export class GraphExecutor {
         })
       }
     }
-
-    this.rafId = requestAnimationFrame(this.loop)
   }
 
   get isRunning(): boolean {
-    return this.rafId !== null
+    return this.cancelLoop !== null
   }
 
   // Add a node to the graph

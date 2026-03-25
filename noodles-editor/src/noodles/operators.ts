@@ -158,12 +158,11 @@ import {
   ExtensionField,
   type Field,
   type FieldReference,
-  FileField,
+  FileUrlField,
   FunctionField,
   GeoJsonField,
   IN_NS,
   type InOut,
-  JSONUrlField,
   LayerField,
   ListField,
   mustacheRe,
@@ -1565,7 +1564,7 @@ export class FileOp extends Operator<FileOp> {
   createInputs() {
     return {
       format: new StringLiteralField('json', { values: ['json', 'csv', 'tsv', 'text', 'binary'] }),
-      url: new FileField(),
+      url: new FileUrlField('', { accept: '.csv,.json,.geojson' }),
       text: new StringField(),
       autoType: new BooleanField(true), // TODO: Make this only available for csv
       pulse: new NumberField(0, { min: 0, step: 1 }),
@@ -3419,7 +3418,7 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
 
   createInputs() {
     return {
-      mapStyle: new JSONUrlField(CARTO_DARK),
+      mapStyle: new FileUrlField(CARTO_DARK),
       projection: new StringLiteralField('mercator', {
         values: ['mercator', 'globe'],
         showByDefault: false,
@@ -3455,7 +3454,7 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
   createOutputs() {
     return {
       maplibre: new CompoundPropsField({
-        mapStyle: new JSONUrlField(),
+        mapStyle: new FileUrlField(),
         projection: new StringField(),
         longitude: new NumberField(),
         latitude: new NumberField(),
@@ -3512,7 +3511,7 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
         { optional: true }
       ),
       // basemap: new CompoundPropsField({
-      //   mapStyle: new JSONUrlField(CARTO_DARK),
+      //   mapStyle: new FileUrlField(CARTO_DARK),
       //   latitude: new NumberField(DEFAULT_LATITUDE, { min: -90, max: 90, step: 0.001 }),
       //   longitude: new NumberField(DEFAULT_LONGITUDE, { min: -180, max: 180, step: 0.001 }),
       //   zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
@@ -3900,6 +3899,24 @@ export class ConsoleOp extends Operator<ConsoleOp> {
   execute({ data }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     console.log(data)
     return {}
+  }
+}
+
+export class RerouteOp extends Operator<RerouteOp> {
+  static displayName = 'Reroute'
+  static description = 'Pass-through for organizing graph layout'
+  createInputs() {
+    return {
+      value: new UnknownField(undefined, { optional: true }),
+    }
+  }
+  createOutputs() {
+    return {
+      value: new UnknownField(undefined),
+    }
+  }
+  execute({ value }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    return { value }
   }
 }
 
@@ -4384,7 +4401,7 @@ export class IconLayerOp extends Operator<IconLayerOp> {
         'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.png',
         { showByDefault: false }
       ),
-      iconMapping: new JSONUrlField(
+      iconMapping: new FileUrlField(
         'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.json',
         { showByDefault: false }
       ),
@@ -4445,8 +4462,9 @@ export class ScenegraphLayerOp extends Operator<ScenegraphLayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      scenegraph: new JSONUrlField(
-        'https://raw.githubusercontent.com/visgl/deck.gl-data/master/examples/scenegraph-layer/airplane.glb'
+      scenegraph: new FileUrlField(
+        'https://raw.githubusercontent.com/visgl/deck.gl-data/master/examples/scenegraph-layer/airplane.glb',
+        { accept: '.glb,.gltf' }
       ),
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
       getOrientation: new Vec3Field([0, 0, 0], { returnType: 'tuple', accessor: true }),
@@ -6941,6 +6959,7 @@ export const opTypes = {
   RandomizeAttributeOp,
   RasterTileLayerOp,
   RectangleOp,
+  RerouteOp,
   S2LayerOp,
   ScatterOp,
   ScatterplotLayerOp,

@@ -23,7 +23,7 @@ import {
   type DateField,
   type ExpressionField,
   type Field,
-  type FileField,
+  type FileUrlField,
   getFieldReferences,
   type IField,
   type NumberField,
@@ -74,12 +74,11 @@ export const inputComponents = {
   date: DateFieldComponent,
   effect: EmptyFieldComponent,
   expression: ExpressionFieldComponent,
-  file: FileFieldComponent,
+  'file-url': FileUrlFieldComponent,
   function: EmptyFieldComponent,
   geojson: EmptyFieldComponent,
   'geopoint-2d': VectorFieldComponent,
   'geopoint-3d': VectorFieldComponent,
-  'json-url': TextFieldComponent,
   layer: EmptyFieldComponent,
   list: EmptyFieldComponent,
   number: NumberFieldComponent,
@@ -704,13 +703,33 @@ export function CodeFieldComponent({
   )
 }
 
-export function FileFieldComponent({
+const EXT_MIME_MAP: Record<string, string> = {
+  '.csv': 'text/csv',
+  '.json': 'application/json',
+  '.geojson': 'application/json',
+  '.glb': 'model/gltf-binary',
+  '.gltf': 'model/gltf+json',
+}
+
+// Groups extensions from a comma-separated accept string by MIME type for
+// showOpenFilePicker. Unknown extensions fall back to application/octet-stream.
+function extToMimeTypes(accept: string): Record<string, `.${string}`[]> {
+  const result: Record<string, `.${string}`[]> = {}
+  for (const ext of accept.split(',').map(e => e.trim())) {
+    const mime = EXT_MIME_MAP[ext] ?? 'application/octet-stream'
+    if (!result[mime]) result[mime] = []
+    result[mime].push(ext as `.${string}`)
+  }
+  return result
+}
+
+export function FileUrlFieldComponent({
   id,
   field,
   disabled,
 }: {
   id: OpId
-  field: FileField
+  field: FileUrlField
   disabled: boolean
 }) {
   const [value, setValue] = useState(guardAccessorFallback(field.value))
@@ -740,50 +759,53 @@ export function FileFieldComponent({
   }
 
   const [replaceDialogOpen, setReplaceDialogOpen] = useState(false)
-  const [pendingFile, setPendingFile] = useState<{ name: string; contents: string } | null>(null)
+  const [pendingFile, setPendingFile] = useState<{ name: string; contents: Blob } | null>(null)
 
-  const onReupload = async () => {
-    // Get current project and storage type
+  const onUpload = async () => {
+    try {
+      await doUpload()
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return
+      throw err
+    }
+  }
+
+  const doUpload = async () => {
     const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
     if (!currentProjectName) {
       throw new Error('No project loaded. Please save or load a project first.')
     }
 
-    const [fileHandle] = await window.showOpenFilePicker({
-      types: [
-        {
-          description: 'CSV and JSON Files',
-          accept: {
-            'text/csv': ['.csv'],
-            'application/json': ['.json'],
-          },
-        },
-      ],
-      excludeAcceptAllOption: true,
-      multiple: false,
-    })
-    const file = await fileHandle.getFile()
-    const contents = await file.text()
+    const pickerOpts: OpenFilePickerOptions = field.accept
+      ? {
+          types: [{ description: 'Files', accept: extToMimeTypes(field.accept) }],
+          excludeAcceptAllOption: true,
+          multiple: false,
+        }
+      : { multiple: false }
 
-    // Check if file already exists
+    const [fileHandle] = await window.showOpenFilePicker(pickerOpts)
+    const file = await fileHandle.getFile()
+    // Read as ArrayBuffer so binary files (e.g. .glb) are preserved
+    const buffer = await file.arrayBuffer()
+    const contents = new Blob([buffer], { type: file.type })
+
     const exists = await checkAssetExists(activeStorageType, currentProjectName, file.name)
     if (exists) {
-      // Capture before showing dialog - user will confirm the change
       captureStart()
       setPendingFile({ name: file.name, contents })
       setReplaceDialogOpen(true)
       return
     }
 
-    // Write directly if file doesn't exist
     const result = await writeAsset(activeStorageType, currentProjectName, file.name, contents)
-
     if (!result.success) {
       throw new Error(result.error?.message || `Failed to write file: ${file.name}`)
     }
 
     captureStart()
     field.setValue(projectScheme + file.name)
+    setValue(projectScheme + file.name)
     commitChange('Change file')
   }
 
@@ -793,20 +815,18 @@ export function FileFieldComponent({
     const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
     if (!currentProjectName) return
 
-    // Write with overwrite option
     const result = await writeAsset(
       activeStorageType,
       currentProjectName,
       pendingFile.name,
-      pendingFile.contents,
-      { overwrite: true }
+      pendingFile.contents
     )
-
     if (!result.success) {
       throw new Error(result.error?.message || `Failed to write file: ${pendingFile.name}`)
     }
 
     field.setValue(projectScheme + pendingFile.name)
+    setValue(projectScheme + pendingFile.name)
     commitChange('Change file')
     setReplaceDialogOpen(false)
     setPendingFile(null)
@@ -823,24 +843,26 @@ export function FileFieldComponent({
         <label className={s.nodeFieldLabel} htmlFor={id}>
           {id}
         </label>
-        <div className={cx('p-inputgroup', s.fieldFileInputGroup)}>
+        <div className={cx('p-inputgroup', field.accept ? s.fieldFileInputGroup : undefined)}>
           <InputText
             id={id}
             placeholder="https://"
-            className={cx(s.fieldInput, s.fieldInputFileUrl)}
+            className={cx(s.fieldInput, field.accept ? s.fieldInputFileUrl : undefined)}
             value={value}
             onFocus={captureStart}
             onBlur={onBlur}
             onChange={onChange}
             disabled={disabled}
           />
-          <Button
-            icon="pi pi-upload"
-            className={s.fieldInputUploadButton}
-            onClick={onReupload}
-            title="Upload Data"
-            size="small"
-          />
+          {field.accept && (
+            <Button
+              icon="pi pi-upload"
+              className={s.fieldInputUploadButton}
+              onClick={onUpload}
+              title="Upload File"
+              size="small"
+            />
+          )}
         </div>
       </div>
 
