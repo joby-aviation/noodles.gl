@@ -129,4 +129,4 @@ batch(() => {
 - Visualizations are composed of nodes with inputs/outputs
 - Operators (Op) define the behavior of nodes
 - React Flow used for node graph visualization
-- TheatreJS used for animation timeline
+- Native timeline system used for keyframe animation

@@ -1,6 +1,9 @@
 // Web Worker for handling WebSocket connections to external tools
 // Runs in a separate thread to avoid blocking the main UI
 
+// console is used here instead of the debug package because this file runs in a
+// Web Worker, which has no access to localStorage — the debug package would be
+// permanently silenced with no way to enable it.
 import {
   createErrorMessage,
   createMessage,
@@ -75,10 +78,17 @@ const connect = (url: string) => {
       }, CONFIG.pingInterval) as unknown as number
     }
 
-    ws.onmessage = event => {
-      const message = parseMessage(event.data)
+    ws.onmessage = async event => {
+      let data = event.data
+
+      // Handle Blob data (WebSocket may return Blob)
+      if (data instanceof Blob) {
+        data = await data.text()
+      }
+
+      const message = parseMessage(data)
       if (!message) {
-        console.error('[Worker] Invalid message received:', event.data)
+        console.error('[Worker] Invalid message received:', data)
         return
       }
 

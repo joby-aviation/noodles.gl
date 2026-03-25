@@ -3,7 +3,6 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import type { Edge } from '@xyflow/react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { SheetContext } from '../../../utils/sheet-context'
 import type { DeckRendererOp, GeoJsonLayerOp } from '../../operators'
 import { clearOps, getOp } from '../../store'
 import { transformGraph } from '../../transform-graph'
@@ -12,7 +11,7 @@ import { NodeProperties } from '../node-properties'
 // Mock edges for tests - will be updated per test
 let mockEdges: Edge[] = []
 
-// Mock useReactFlow and useEdges
+// Mock useReactFlow and useStore
 vi.mock('@xyflow/react', async () => {
   const actual = await vi.importActual('@xyflow/react')
   return {
@@ -24,15 +23,11 @@ vi.mock('@xyflow/react', async () => {
       getNodes: vi.fn(() => []),
       getNode: vi.fn(),
     }),
-    useEdges: () => mockEdges,
-    useNodes: () => [],
+    // Provide a minimal store state — NodeProperties reads edges and nodeType from useStore
+    useStore: (selector: (state: { nodes: unknown[]; edges: Edge[] }) => unknown) =>
+      selector({ nodes: [], edges: mockEdges }),
   }
 })
-
-// Mock rebindOperatorToTheatre
-vi.mock('../../theatre-bindings', () => ({
-  rebindOperatorToTheatre: vi.fn(),
-}))
 
 // Mock CSS modules
 vi.mock('../node-properties.module.css', () => ({
@@ -92,18 +87,11 @@ describe('NodeProperties field visibility editing', () => {
   }
 
   // Helper to render NodeProperties with contexts
-  const renderNodeProperties = (node: {
-    id: string
-    type: string
-    position: { x: number; y: number }
-    data: unknown
-  }) => {
+  const renderNodeProperties = (node: { id: string }) => {
     return render(
-      <SheetContext.Provider value={null}>
-        <ReactFlowProvider>
-          <NodeProperties node={node as any} />
-        </ReactFlowProvider>
-      </SheetContext.Provider>
+      <ReactFlowProvider>
+        <NodeProperties nodeId={node.id} />
+      </ReactFlowProvider>
     )
   }
 
@@ -115,6 +103,13 @@ describe('NodeProperties field visibility editing', () => {
       throw new Error('Edit button not found')
     }
     return svgs[0] as HTMLElement
+  }
+
+  const findFieldActionButton = (fieldName: string) => {
+    const fieldLabel = screen.getByText(fieldName)
+    const propertyItem = fieldLabel.closest('[role="listitem"]')
+    expect(propertyItem).toBeInTheDocument()
+    return propertyItem?.querySelector('button')
   }
 
   describe('Edit mode toggle', () => {
@@ -182,13 +177,7 @@ describe('NodeProperties field visibility editing', () => {
       // Enter edit mode
       fireEvent.click(findEditButton())
 
-      // Find the 'effects' text element
-      const effectsText = screen.getByText('effects')
-      // Navigate up to find the property container and then find the + button
-      const propertyContainer = effectsText.closest('[class*="property"]')
-      expect(propertyContainer).toBeInTheDocument()
-
-      const addButton = propertyContainer?.querySelector('button')
+      const addButton = findFieldActionButton('effects')
       expect(addButton?.textContent).toBe('+')
       fireEvent.click(addButton!)
 
@@ -255,6 +244,55 @@ describe('NodeProperties field visibility editing', () => {
     })
   })
 
+  describe('Properties section timeline controls', () => {
+    it('shows field editor and keyframe button for unconnected animatable fields', () => {
+      const node = setupOperator('NumberOp', '/num')
+      renderNodeProperties(node)
+
+      expect(screen.getByLabelText('val')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /keyframe/i })).toBeInTheDocument()
+    })
+
+    it('does not render field editor or keyframe button when field has upstream connection', () => {
+      const nodes = [
+        {
+          id: '/source',
+          type: 'NumberOp',
+          position: { x: 0, y: 0 },
+          data: { inputs: { val: 1 } },
+        },
+        {
+          id: '/target',
+          type: 'NumberOp',
+          position: { x: 100, y: 0 },
+          data: { inputs: {} },
+        },
+      ]
+      const edges: Edge[] = [
+        {
+          id: '/source.out.val->/target.par.val',
+          source: '/source',
+          target: '/target',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.val',
+        },
+      ]
+
+      transformGraph({ nodes, edges })
+      mockEdges = edges
+
+      renderNodeProperties({
+        id: '/target',
+        type: 'NumberOp',
+        position: { x: 100, y: 0 },
+        data: { inputs: {} },
+      })
+
+      expect(screen.queryByLabelText('val')).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /keyframe/i })).not.toBeInTheDocument()
+    })
+  })
+
   describe('Hiding visible fields', () => {
     it('clicking − button hides a field without custom value', () => {
       // Start with 'effects' explicitly visible
@@ -273,9 +311,7 @@ describe('NodeProperties field visibility editing', () => {
       fireEvent.click(findEditButton())
 
       // Find the effects field - it should be in visible fields section (has − button)
-      const effectsText = screen.getByText('effects')
-      const propertyContainer = effectsText.closest('[class*="property"]')
-      const hideButton = propertyContainer?.querySelector('button')
+      const hideButton = findFieldActionButton('effects')
       expect(hideButton?.textContent).toBe('−')
       fireEvent.click(hideButton!)
 
@@ -323,9 +359,7 @@ describe('NodeProperties field visibility editing', () => {
       fireEvent.click(findEditButton())
 
       // Find the layers field and its − button
-      const layersText = screen.getByText('layers')
-      const propertyContainer = layersText.closest('[class*="property"]')
-      const hideButton = propertyContainer?.querySelector('button')
+      const hideButton = findFieldActionButton('layers')
       expect(hideButton?.textContent).toBe('−')
 
       // Button should be disabled
@@ -449,6 +483,94 @@ describe('NodeProperties field visibility editing', () => {
     })
   })
 
+  describe('context menu reset to default', () => {
+    // GeoJsonLayerOp.opacity is input-only with default 1 — no output ambiguity
+    it('shows "Reset to default" when disconnected field has a non-default value', () => {
+      const node = setupOperator('GeoJsonLayerOp', '/geo', { opacity: 0.5 })
+      renderNodeProperties(node)
+
+      // Use selector: 'span' to target the property label, not the field input label
+      const opacityLabel = screen.getByText('opacity', { selector: 'span' })
+      fireEvent.contextMenu(opacityLabel.closest('[role="listitem"]')!)
+
+      expect(screen.getByText('Reset to default')).toBeInTheDocument()
+    })
+
+    it('does not show "Reset to default" when field value equals the default', () => {
+      // GeoJsonLayerOp.opacity defaults to 1 — leave at default
+      const node = setupOperator('GeoJsonLayerOp', '/geo', { opacity: 1 })
+      renderNodeProperties(node)
+
+      const opacityLabel = screen.getByText('opacity', { selector: 'span' })
+      fireEvent.contextMenu(opacityLabel.closest('[role="listitem"]')!)
+
+      expect(screen.queryByText('Reset to default')).not.toBeInTheDocument()
+    })
+
+    it('clicking "Reset to default" resets the field value to its default', () => {
+      const node = setupOperator('GeoJsonLayerOp', '/geo', { opacity: 0.5 })
+      renderNodeProperties(node)
+
+      const opacityLabel = screen.getByText('opacity', { selector: 'span' })
+      fireEvent.contextMenu(opacityLabel.closest('[role="listitem"]')!)
+      fireEvent.click(screen.getByText('Reset to default'))
+
+      const op = getOp('/geo')!
+      expect(op.inputs.opacity.value).toBe(1)
+    })
+
+    it('does not show "Reset to default" when field has an incoming connection', () => {
+      const nodes = [
+        {
+          id: '/src',
+          type: 'NumberOp',
+          position: { x: 0, y: 0 },
+          data: { inputs: { val: 0.5 } },
+        },
+        {
+          id: '/geo',
+          type: 'GeoJsonLayerOp',
+          position: { x: 100, y: 0 },
+          data: { inputs: {} },
+        },
+      ]
+      const edges: Edge[] = [
+        {
+          id: '/src.out.val->/geo.par.opacity',
+          source: '/src',
+          target: '/geo',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.opacity',
+        },
+      ]
+      transformGraph({ nodes, edges })
+      mockEdges = edges
+
+      renderNodeProperties({ id: '/geo' })
+
+      const opacityLabel = screen.getByText('opacity')
+      fireEvent.contextMenu(opacityLabel.closest('[role="listitem"]')!)
+
+      expect(screen.queryByText('Reset to default')).not.toBeInTheDocument()
+    })
+
+    it('shows "Reset to default" for UnknownField (DeckRendererOp basemap)', () => {
+      // basemap is an UnknownField with a default map config object
+      const node = setupOperator(
+        'DeckRendererOp',
+        '/deck',
+        { basemap: { mapStyle: 'custom-style', latitude: 0, longitude: 0, zoom: 1 } },
+        ['layers', 'views', 'basemap']
+      )
+      renderNodeProperties(node)
+
+      const basemapLabel = screen.getByText('basemap')
+      fireEvent.contextMenu(basemapLabel.closest('[role="listitem"]')!)
+
+      expect(screen.getByText('Reset to default')).toBeInTheDocument()
+    })
+  })
+
   describe('Visibility state persistence', () => {
     it('visibility changes persist on operator', () => {
       const node = setupOperator('DeckRendererOp', '/deck')
@@ -461,9 +583,7 @@ describe('NodeProperties field visibility editing', () => {
       fireEvent.click(findEditButton())
 
       // Show the effects field
-      const effectsText = screen.getByText('effects')
-      const propertyContainer = effectsText.closest('[class*="property"]')
-      const addButton = propertyContainer?.querySelector('button')
+      const addButton = findFieldActionButton('effects')
       fireEvent.click(addButton!)
 
       // Verify the operator's visibility state was updated
