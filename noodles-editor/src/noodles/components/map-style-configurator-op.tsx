@@ -1,5 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog'
-import { Cross2Icon } from '@radix-ui/react-icons'
+import { Cross2Icon, EyeNoneIcon, EyeOpenIcon } from '@radix-ui/react-icons'
 import type { NodeProps as ReactFlowNodeProps } from '@xyflow/react'
 import cx from 'classnames'
 import { useEffect, useState } from 'react'
@@ -76,7 +76,7 @@ function LayerRow({
         onClick={() => onVisibilityChange(!isHidden)}
         title={isHidden ? 'Show layer' : 'Hide layer'}
       >
-        {isHidden ? '○' : '●'}
+        {isHidden ? <EyeNoneIcon /> : <EyeOpenIcon />}
       </button>
     </div>
   )
@@ -214,7 +214,6 @@ function MapStyleConfiguratorDialog({ op, open, onOpenChange }: ConfiguratorDial
   return (
     <Dialog.Root open={open} onOpenChange={handleOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className={configuratorStyles.overlay} />
         <Dialog.Content
           className={configuratorStyles.content}
           // Prevent the dialog from closing when clicking the portaled color picker,
@@ -255,6 +254,22 @@ function MapStyleConfiguratorDialog({ op, open, onOpenChange }: ConfiguratorDial
                   />
                   <span className={configuratorStyles.scaleValue}>
                     {(overrides.global?.labelSizeScale ?? 1).toFixed(2)}×
+                  </span>
+                </div>
+                <div className={configuratorStyles.globalRow}>
+                  <span className={configuratorStyles.globalLabel}>Line width scale</span>
+                  <input
+                    type="range"
+                    min={0.25}
+                    max={4}
+                    step={0.05}
+                    value={overrides.global?.lineWidthScale ?? 1}
+                    onChange={e => updateGlobal('lineWidthScale', parseFloat(e.target.value))}
+                    className={configuratorStyles.globalInput}
+                    style={{ padding: 0 }}
+                  />
+                  <span className={configuratorStyles.scaleValue}>
+                    {(overrides.global?.lineWidthScale ?? 1).toFixed(2)}×
                   </span>
                 </div>
                 <div className={configuratorStyles.globalRow}>

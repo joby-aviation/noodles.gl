@@ -30,6 +30,7 @@ export interface LayerOverride {
 export interface StyleGlobalOverrides {
   glyphs?: string
   labelSizeScale?: number
+  lineWidthScale?: number
 }
 
 export interface StyleConfiguratorData {
@@ -115,6 +116,22 @@ export function applyStyleOverrides(
         return {
           ...layer,
           layout: { ...layer.layout, 'text-size': textSize * scale },
+        }
+      }),
+    }
+  }
+
+  if (overrides.global?.lineWidthScale && overrides.global.lineWidthScale !== 1) {
+    const scale = overrides.global.lineWidthScale
+    result = {
+      ...result,
+      layers: result.layers.map(layer => {
+        if (layer.type !== 'line') return layer
+        const lineWidth = layer.paint?.['line-width']
+        if (typeof lineWidth !== 'number') return layer
+        return {
+          ...layer,
+          paint: { ...layer.paint, 'line-width': lineWidth * scale },
         }
       }),
     }
