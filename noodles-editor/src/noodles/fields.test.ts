@@ -9,10 +9,10 @@ import {
   DataField,
   DateField,
   Field,
+  FileUrlField,
   FunctionField,
   GeoJsonField,
   getFieldReferences,
-  JSONUrlField,
   LayerField,
   ListField,
   NumberField,
@@ -216,53 +216,34 @@ describe('ListField', () => {
   })
 })
 
-describe('JSONUrlField', () => {
-  it('accepts primitive values from other fields', () => {
+describe('FileUrlField', () => {
+  it('accepts string values from other fields', () => {
     const field = new StringField('test')
-    const jsonField = new JSONUrlField()
+    const urlField = new FileUrlField()
 
-    expect(canConnect(field, jsonField)).toBe(true)
-    jsonField.addConnection('field', field, 'value')
+    expect(canConnect(field, urlField)).toBe(true)
+    urlField.addConnection('field', field, 'value')
 
-    expect(jsonField.value).toEqual('test')
+    expect(urlField.value).toEqual('test')
   })
 
-  it('accepts primitive and compound values', () => {
-    const field1 = new JSONUrlField(10)
-    expect(field1.value).toEqual(10)
-    field1.setValue({ a: 'b' })
-    expect(field1.value).toEqual({ a: 'b' })
-    const field2 = new JSONUrlField({ c: 'd' })
-    expect(field2.value).toEqual({ c: 'd' })
-    const field3 = new JSONUrlField([1, 2, 3])
-    expect(field3.value).toEqual([1, 2, 3])
-    const field4 = new JSONUrlField({ foo: 'bar' }, { accessor: true })
-    expect(field4.value).toEqual({ foo: 'bar' })
-    const field5 = new JSONUrlField([1, 2, 3], { accessor: true })
-    expect(field5.value).toEqual([1, 2, 3])
-    field5.setValue(arr => arr.map(n => n * 2))
-    expect(field5.value([4, 5, 6])).toEqual([8, 10, 12])
-  })
+  it('accepts string values', () => {
+    const field = new FileUrlField('https://example.com/model.glb')
+    expect(field.value).toEqual('https://example.com/model.glb')
 
-  it('accepts JSON strings but not parse them', () => {
-    const field = new JSONUrlField('{"foo": "bar"}')
-    expect(field.value).toEqual('{"foo": "bar"}')
-    field.setValue('{"bar": "baz"}')
-    expect(field.value).toEqual('{"bar": "baz"}')
-  })
-
-  it('accepts url strings', () => {
-    const field = new JSONUrlField('https://example.com/data.json')
-    expect(field.value).toEqual('https://example.com/data.json')
-
-    field.setValue('data.json')
-    expect(field.value).toEqual('data.json')
-
-    field.setValue('/data.json')
-    expect(field.value).toEqual('/data.json')
+    field.setValue('@/model.glb')
+    expect(field.value).toEqual('@/model.glb')
 
     field.setValue('./data.json')
     expect(field.value).toEqual('./data.json')
+  })
+
+  it('stores the accept option on the instance', () => {
+    const field = new FileUrlField('https://example.com/model.glb', { accept: '.glb,.gltf' })
+    expect(field.accept).toEqual('.glb,.gltf')
+
+    const noAccept = new FileUrlField()
+    expect(noAccept.accept).toBeUndefined()
   })
 })
 
