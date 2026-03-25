@@ -167,12 +167,16 @@ describe('KeyboardManager', () => {
     document.body.removeChild(button)
   })
 
-  it('should warn when initializing twice', () => {
+  it('should be idempotent when initializing twice', () => {
+    // beforeEach already called init() once; calling again should warn but not throw
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
     keyboardManager.init()
-
     expect(warnSpy).toHaveBeenCalledWith('KeyboardManager already initialized')
+    expect(warnSpy).toHaveBeenCalledTimes(1)
+
+    keyboardManager.init()
+    expect(warnSpy).toHaveBeenCalledTimes(2)
 
     warnSpy.mockRestore()
   })

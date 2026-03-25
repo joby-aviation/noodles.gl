@@ -43,7 +43,7 @@ These components are core to the application and require thorough testing and ca
 
 ### Animation & Timeline
 
-- [noodles-editor/src/timeline-editor.tsx](../noodles-editor/src/timeline-editor.tsx) - Theatre.js timeline integration and keyframe management
+- [noodles-editor/src/timeline-editor.tsx](../noodles-editor/src/timeline-editor.tsx) - Native timeline integration and keyframe management
 
 ## Testing Best Practices
 
@@ -78,7 +78,7 @@ it('should update state correctly', () => {
 - Test operator connectivity and data flow through the graph
 - Verify subscriptions are properly created and cleaned up
 - Test that graph transformations match real application behavior
-- Mock Theatre.js and other external dependencies appropriately
+- Mock timeline state and other external dependencies appropriately
 
 ## Test Organization
 

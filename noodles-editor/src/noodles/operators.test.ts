@@ -4,6 +4,7 @@ import { NumberField } from './fields'
 import {
   AccessorOp,
   BoundingBoxOp,
+  ChartOp,
   CodeOp,
   ConcatOp,
   DeckRendererOp,
@@ -11,10 +12,12 @@ import {
   ExpressionOp,
   FileOp,
   FilterOp,
+  GeoJsonLayerOp,
   GeoJsonTransformOp,
   JSONOp,
   KmlToGeoJsonOp,
   LayerPropsOp,
+  MaplibreBasemapOp,
   MapViewOp,
   MathOp,
   MergeOp,
@@ -22,9 +25,11 @@ import {
   Operator,
   ProjectOp,
   RectangleOp,
+  RerouteOp,
   ScatterplotLayerOp,
   SelectOp,
   SwitchOp,
+  Tile3DLayerOp,
   TimeSeriesOp,
 } from './operators'
 import { setOp } from './store'
@@ -113,12 +118,10 @@ describe('Error handling', () => {
 
     const onError = vi.spyOn(operator, 'onError')
     const execute = vi.spyOn(operator, 'execute')
-    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
     expect(operator.inputs.num.value).toEqual(0)
     expect(onError).not.toHaveBeenCalled()
     expect(execute).not.toHaveBeenCalled()
-    expect(consoleWarn).not.toHaveBeenCalled()
     expect(operator.outputData).toEqual({})
 
     // In pull-based model, pull() triggers execution and handles errors
@@ -126,15 +129,12 @@ describe('Error handling', () => {
 
     expect(execute).toHaveBeenCalledTimes(1)
     expect(onError).toHaveBeenCalledTimes(1)
-    expect(consoleWarn).toHaveBeenCalledTimes(1)
     expect(operator.outputData).toEqual({})
 
     expect(execute.mock.calls[0][0]).toEqual({
       num: 0,
     })
     expect(onError.mock.calls[0][0]).toEqual(new Error('Test error'))
-    expect(consoleWarn.mock.calls[0][0]).toEqual('Pull execution failure in [/test-0 (TestOp)]:')
-    expect(consoleWarn.mock.calls[0][1]).toEqual('Test error')
 
     // Test that pull can be called again after error
     operator.inputs.num.setValue(1)
@@ -146,14 +146,11 @@ describe('Error handling', () => {
 
     expect(execute).toHaveBeenCalledTimes(2)
     expect(onError).toHaveBeenCalledTimes(2)
-    expect(consoleWarn).toHaveBeenCalledTimes(2)
 
     expect(execute.mock.calls[1][0]).toEqual({
       num: 1,
     })
     expect(onError.mock.calls[1][0]).toEqual(new Error('Test error'))
-    expect(consoleWarn.mock.calls[1][0]).toEqual('Pull execution failure in [/test-0 (TestOp)]:')
-    expect(consoleWarn.mock.calls[1][1]).toEqual('Test error')
   })
 })
 
@@ -365,7 +362,6 @@ describe('ExpressionOp', () => {
 
   it('throws SyntaxError for invalid expressions and logs warning', () => {
     const operator = new ExpressionOp('/expression-syntax-error')
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
     expect(() => {
       operator.execute({
@@ -373,13 +369,6 @@ describe('ExpressionOp', () => {
         expression: 'return }', // Invalid syntax
       })
     }).toThrow(SyntaxError)
-
-    // Verify the warning was logged with helpful formatting
-    expect(warnSpy).toHaveBeenCalledTimes(1)
-    expect(warnSpy.mock.calls[0][0]).toContain('Syntax error')
-    expect(warnSpy.mock.calls[0][0]).toContain('/expression-syntax-error')
-
-    warnSpy.mockRestore()
   })
 
   describe('friendly error messages', () => {
@@ -403,18 +392,11 @@ describe('ExpressionOp', () => {
     testCases.forEach(({ expression, expectedMessage }) => {
       it(`shows "${expectedMessage}" for "${expression}"`, () => {
         const operator = new ExpressionOp('/test-expr')
-        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
         // Verify the thrown error has the friendly message
         expect(() => {
           operator.execute({ data: [], expression })
         }).toThrow(expectedMessage)
-
-        // Verify console.warn also has the friendly message
-        expect(warnSpy).toHaveBeenCalledTimes(1)
-        expect(warnSpy.mock.calls[0][0]).toContain(expectedMessage)
-
-        warnSpy.mockRestore()
       })
     })
   })
@@ -523,6 +505,120 @@ describe('FilterOp', () => {
     ]
     operator.inputs.data.setValue(data)
     expect(operator.inputs.columnName.choices.map(c => c.value)).toEqual(['a', 'b'])
+  })
+})
+
+describe('ChartOp', () => {
+  it('generates a bar chart from data', () => {
+    const op = new ChartOp('/chart-1')
+    const result = op.execute({
+      data: [
+        { category: 'A', value: 10 },
+        { category: 'B', value: 20 },
+      ],
+      chartType: 'bar',
+      xField: 'category',
+      yField: 'value',
+      width: 640,
+      height: 400,
+      color: '#4269d0',
+      title: '',
+      xLabel: '',
+      yLabel: '',
+    })
+
+    expect(result.chart).toBeDefined()
+    expect(result.chart).toBeInstanceOf(HTMLElement)
+  })
+
+  it('generates a histogram from data', () => {
+    const op = new ChartOp('/chart-1')
+    const result = op.execute({
+      data: [{ value: 10 }, { value: 20 }, { value: 15 }, { value: 25 }],
+      chartType: 'histogram',
+      xField: 'value',
+      yField: '',
+      width: 640,
+      height: 400,
+      color: '#4269d0',
+      title: '',
+      xLabel: '',
+      yLabel: '',
+    })
+
+    expect(result.chart).toBeDefined()
+    expect(result.chart).toBeInstanceOf(HTMLElement)
+  })
+
+  it('generates a scatterplot from data', () => {
+    const op = new ChartOp('/chart-1')
+    const result = op.execute({
+      data: [
+        { x: 1, y: 2 },
+        { x: 2, y: 3 },
+        { x: 3, y: 5 },
+      ],
+      chartType: 'scatter',
+      xField: 'x',
+      yField: 'y',
+      width: 640,
+      height: 400,
+      color: '#4269d0',
+      title: '',
+      xLabel: '',
+      yLabel: '',
+    })
+
+    expect(result.chart).toBeDefined()
+    expect(result.chart).toBeInstanceOf(HTMLElement)
+  })
+
+  it('updates field choices when data changes', () => {
+    const op = new ChartOp('/chart-1', {}, false)
+    const data = [
+      { x: 1, y: 2, z: 3 },
+      { x: 4, y: 5, z: 6 },
+    ]
+    op.inputs.data.setValue(data)
+
+    expect(op.inputs.xField.choices.map(c => c.value)).toEqual(['x', 'y', 'z'])
+    expect(op.inputs.yField.choices.map(c => c.value)).toEqual(['x', 'y', 'z'])
+  })
+
+  it('handles empty data gracefully', () => {
+    const op = new ChartOp('/chart-1')
+    const result = op.execute({
+      data: [],
+      chartType: 'bar',
+      xField: 'x',
+      yField: 'y',
+      width: 640,
+      height: 400,
+      color: '#4269d0',
+      title: '',
+      xLabel: '',
+      yLabel: '',
+    })
+
+    expect(result.chart).toBeNull()
+  })
+
+  it('handles non-array data gracefully', () => {
+    const op = new ChartOp('/chart-1')
+    const result = op.execute({
+      data: { x: 1, y: 2 } as any,
+      chartType: 'bar',
+      xField: 'x',
+      yField: 'y',
+      width: 640,
+      height: 400,
+      color: '#4269d0',
+      title: '',
+      xLabel: '',
+      yLabel: '',
+    })
+
+    expect(result.chart).toBeNull()
   })
 })
 
@@ -684,6 +780,7 @@ describe('DeckRendererOp', () => {
     expect(deckProps.viewState).toEqual({
       longitude: -122,
       latitude: 37,
+      zoom: 5, // carried from basemap (not overridden by viewState)
       pitch: 30,
       nestedView: { bearing: 45 },
       transitionDuration: 1000,
@@ -695,6 +792,82 @@ describe('DeckRendererOp', () => {
       zoom: 5,
       pitch: 30,
     })
+  })
+
+  it('returns mapProps with empty mapStyle when basemap has an empty mapStyle', () => {
+    // The operator passes the empty mapStyle through unchanged.
+    // It's timeline-editor's basemapEnabled check that treats it as "no basemap".
+    const operator = new DeckRendererOp('/deck-0')
+    const {
+      vis: { mapProps },
+    } = operator.execute({
+      basemap: { mapStyle: '', latitude: 37, longitude: -122, zoom: 10, pitch: 0, bearing: 0 },
+      viewState: {},
+    })
+    expect(mapProps).toBeDefined()
+    expect(mapProps?.mapStyle).toBe('')
+  })
+
+  it('includes basemap viewState in deckProps when mapStyle is empty (transparent mode)', () => {
+    // When mapStyle is empty, timeline-editor switches to standalone DeckGL (basemapEnabled=false).
+    // deckProps.viewState must carry the geo position so layers render at the correct location.
+    const operator = new DeckRendererOp('/deck-0')
+    const {
+      vis: { deckProps },
+    } = operator.execute({
+      basemap: { mapStyle: '', latitude: 37, longitude: -122, zoom: 10, pitch: 0, bearing: 0 },
+      viewState: {},
+    })
+    expect(deckProps.viewState).toEqual({
+      latitude: 37,
+      longitude: -122,
+      zoom: 10,
+      pitch: 0,
+      bearing: 0,
+    })
+  })
+})
+
+describe('MaplibreBasemapOp', () => {
+  it('passes mapStyle through to output', () => {
+    const op = new MaplibreBasemapOp('/maplibre-0')
+    const result = op.execute({
+      mapStyle: 'https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json',
+      projection: 'mercator',
+      viewState: { latitude: 37, longitude: -122, zoom: 10, pitch: 0, bearing: 0 },
+      sky: {
+        enabled: false,
+        skyColor: '#88C6FC',
+        horizonColor: '#ffffff',
+        skyHorizonBlend: 0.8,
+        atmosphereBlend: 0.5,
+      },
+      light: { anchor: 'viewport', azimuthal: 210, polar: 30 },
+    })
+    expect(result.maplibre.mapStyle).toBe(
+      'https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json'
+    )
+  })
+
+  it('passes empty mapStyle through without modification', () => {
+    // An empty mapStyle signals "no basemap" (transparent). The operator passes it through
+    // unchanged; timeline-editor detects it via basemapEnabled and skips MapLibre rendering,
+    // which prevents the "There is no style added to the map" crash.
+    const op = new MaplibreBasemapOp('/maplibre-0')
+    const result = op.execute({
+      mapStyle: '',
+      projection: 'mercator',
+      viewState: { latitude: 37, longitude: -122, zoom: 10, pitch: 0, bearing: 0 },
+      sky: {
+        enabled: false,
+        skyColor: '#88C6FC',
+        horizonColor: '#ffffff',
+        skyHorizonBlend: 0.8,
+        atmosphereBlend: 0.5,
+      },
+      light: { anchor: 'viewport', azimuthal: 210, polar: 30 },
+    })
+    expect(result.maplibre.mapStyle).toBe('')
   })
 })
 
@@ -1736,6 +1909,71 @@ describe('TimeSeriesOp', () => {
       [2, 2],
     ]) // preserved from getProperties
   })
+
+  it('reuses precomputed cache when only currentTime changes (scrubbing perf)', () => {
+    const op = new TimeSeriesOp('/timeseries-cache-test')
+    const data = [
+      { timestamps: [0, 10], values: [{ x: 0 }, { x: 10 }] },
+      { timestamps: [0, 10], values: [{ x: 100 }, { x: 200 }] },
+    ]
+    const getTimestamps = (d: any) => d.timestamps
+    const getValues = (d: any) => d.values
+    const getProperties = undefined
+
+    // First execution builds the cache
+    op.execute({ data, currentTime: 5, getTimestamps, getValues, getProperties })
+    const cacheAfterFirst = (op as any)._precomputedTimeSeries
+
+    // Second execution with different currentTime should reuse same cache reference
+    op.execute({ data, currentTime: 7, getTimestamps, getValues, getProperties })
+    expect((op as any)._precomputedTimeSeries).toBe(cacheAfterFirst)
+
+    // Third execution with same currentTime should also reuse cache
+    op.execute({ data, currentTime: 7, getTimestamps, getValues, getProperties })
+    expect((op as any)._precomputedTimeSeries).toBe(cacheAfterFirst)
+  })
+
+  it('rebuilds cache when data reference changes', () => {
+    const op = new TimeSeriesOp('/timeseries-cache-rebuild')
+    const data1 = [{ timestamps: [0, 10], values: [{ x: 0 }, { x: 10 }] }]
+    const data2 = [{ timestamps: [0, 10], values: [{ x: 0 }, { x: 10 }] }] // same content, different reference
+    const getTimestamps = (d: any) => d.timestamps
+    const getValues = (d: any) => d.values
+
+    op.execute({ data: data1, currentTime: 5, getTimestamps, getValues, getProperties: undefined })
+    const cacheAfterFirst = (op as any)._precomputedTimeSeries
+
+    // New data reference should rebuild cache
+    op.execute({ data: data2, currentTime: 5, getTimestamps, getValues, getProperties: undefined })
+    expect((op as any)._precomputedTimeSeries).not.toBe(cacheAfterFirst)
+  })
+
+  it('rebuilds cache when accessor function reference changes', () => {
+    const op = new TimeSeriesOp('/timeseries-accessor-change')
+    const data = [{ timestamps: [0, 10], values: [{ x: 0 }, { x: 10 }] }]
+    const getTimestamps1 = (d: any) => d.timestamps
+    const getTimestamps2 = (d: any) => d.timestamps // same logic, different reference
+    const getValues = (d: any) => d.values
+
+    op.execute({
+      data,
+      currentTime: 5,
+      getTimestamps: getTimestamps1,
+      getValues,
+      getProperties: undefined,
+    })
+    const cacheAfterFirst = (op as any)._precomputedTimeSeries
+
+    // New accessor reference should rebuild cache
+    op.execute({
+      data,
+      currentTime: 5,
+      getTimestamps: getTimestamps2,
+      getValues,
+      getProperties: undefined,
+    })
+    expect((op as any)._precomputedTimeSeries).not.toBe(cacheAfterFirst)
+  })
 })
 
 describe('KmlToGeoJsonOp', () => {
@@ -1848,6 +2086,38 @@ describe('FileOp', () => {
         pulse: 0,
       })
       // DSVRowArray is an array with extra properties, check the actual content
+      expect(result.data).toHaveLength(2)
+      expect(result.data[0]).toEqual({ name: 'John', value: '30' })
+      expect(result.data[1]).toEqual({ name: 'Jane', value: '25' })
+    })
+  })
+
+  describe('TSV format', () => {
+    it('should parse TSV from text input', async () => {
+      const operator = new FileOp('/file-tsv-0')
+      const tsvText = 'name\tvalue\nJohn\t30\nJane\t25'
+      const result = await operator.execute({
+        format: 'tsv',
+        url: '',
+        text: tsvText,
+        autoType: true,
+        pulse: 0,
+      })
+      expect(result.data).toHaveLength(2)
+      expect(result.data[0]).toEqual({ name: 'John', value: 30 })
+      expect(result.data[1]).toEqual({ name: 'Jane', value: 25 })
+    })
+
+    it('should parse TSV without autoType', async () => {
+      const operator = new FileOp('/file-tsv-1')
+      const tsvText = 'name\tvalue\nJohn\t30\nJane\t25'
+      const result = await operator.execute({
+        format: 'tsv',
+        url: '',
+        text: tsvText,
+        autoType: false,
+        pulse: 0,
+      })
       expect(result.data).toHaveLength(2)
       expect(result.data[0]).toEqual({ name: 'John', value: '30' })
       expect(result.data[1]).toEqual({ name: 'Jane', value: '25' })
@@ -2002,5 +2272,192 @@ describe('FileOp', () => {
         })
       ).rejects.toThrow('Unsupported format: unsupported')
     })
+  })
+})
+
+describe('Operator field visibility', () => {
+  describe('isFieldVisible', () => {
+    it('returns true by default when visibleFields.value is null', () => {
+      const op = new NumberOp('/num-0')
+      expect(op.visibleFields.value).toBe(null)
+      expect(op.isFieldVisible('val')).toBe(true)
+    })
+
+    it('returns field.showByDefault when visibleFields.value is null', () => {
+      const op = new GeoJsonLayerOp('/geojson-0')
+      expect(op.visibleFields.value).toBe(null)
+      // Core fields should be visible by default
+      expect(op.isFieldVisible('data')).toBe(true)
+      expect(op.isFieldVisible('visible')).toBe(true)
+      // Hidden by default fields
+      expect(op.isFieldVisible('extruded')).toBe(false)
+      expect(op.isFieldVisible('extensions')).toBe(false)
+    })
+
+    it('returns true for fields in visibleFields set', () => {
+      const op = new GeoJsonLayerOp('/geojson-0')
+      op.visibleFields.next(new Set(['data', 'visible', 'extruded']))
+      expect(op.isFieldVisible('data')).toBe(true)
+      expect(op.isFieldVisible('visible')).toBe(true)
+      expect(op.isFieldVisible('extruded')).toBe(true)
+      expect(op.isFieldVisible('opacity')).toBe(false)
+    })
+
+    it('returns true for unknown fields when visibleFields.value is null', () => {
+      const op = new NumberOp('/num-0')
+      expect(op.isFieldVisible('nonexistent')).toBe(true)
+    })
+  })
+
+  describe('visibleFields BehaviorSubject', () => {
+    it('starts with null value', () => {
+      const op = new NumberOp('/num-0')
+      expect(op.visibleFields.value).toBe(null)
+    })
+
+    it('can be updated to a Set of field names via next()', () => {
+      const op = new GeoJsonLayerOp('/geojson-0')
+      op.visibleFields.next(new Set(['data', 'visible']))
+      expect(op.visibleFields.value).toBeInstanceOf(Set)
+      expect(op.visibleFields.value!.size).toBe(2)
+      expect(op.visibleFields.value!.has('data')).toBe(true)
+      expect(op.visibleFields.value!.has('visible')).toBe(true)
+    })
+
+    it('can be reset to null via next()', () => {
+      const op = new GeoJsonLayerOp('/geojson-0')
+      op.visibleFields.next(new Set(['data', 'visible']))
+      op.visibleFields.next(null)
+      expect(op.visibleFields.value).toBe(null)
+    })
+
+    it('notifies subscribers when value changes', () => {
+      const op = new GeoJsonLayerOp('/geojson-0')
+      const values: (Set<string> | null)[] = []
+      const subscription = op.visibleFields.subscribe(v => values.push(v))
+
+      op.visibleFields.next(new Set(['data']))
+      op.visibleFields.next(new Set(['data', 'visible']))
+      op.visibleFields.next(null)
+
+      subscription.unsubscribe()
+
+      expect(values).toHaveLength(4) // Initial null + 3 updates
+      expect(values[0]).toBe(null)
+      expect(values[1]!.has('data')).toBe(true)
+      expect(values[2]!.has('visible')).toBe(true)
+      expect(values[3]).toBe(null)
+    })
+  })
+
+  describe('showField method', () => {
+    it('shows a hidden field and preserves existing visible fields', () => {
+      const op = new GeoJsonLayerOp('/geojson-0')
+      // Initially visibleFields is null (using showByDefault defaults)
+      expect(op.visibleFields.value).toBe(null)
+
+      // 'pointType' has showByDefault: false
+      expect(op.inputs.pointType.showByDefault).toBe(false)
+      expect(op.isFieldVisible('pointType')).toBe(false)
+
+      // Show the field
+      op.showField('pointType')
+
+      // Now visibleFields should be set with defaults + pointType
+      expect(op.visibleFields.value).toBeInstanceOf(Set)
+      expect(op.visibleFields.value!.has('pointType')).toBe(true)
+      expect(op.isFieldVisible('pointType')).toBe(true)
+      // Existing showByDefault fields should still be visible
+      expect(op.visibleFields.value!.has('data')).toBe(true)
+
+      // Show another hidden field - should preserve all existing visible fields
+      op.showField('getText')
+
+      // Should have all previously visible fields plus the new one
+      expect(op.visibleFields.value!.has('data')).toBe(true)
+      expect(op.visibleFields.value!.has('pointType')).toBe(true)
+      expect(op.visibleFields.value!.has('getText')).toBe(true)
+    })
+
+    it('does nothing if field is already visible', () => {
+      const op = new GeoJsonLayerOp('/geojson-0')
+      // 'data' has showByDefault: true, so it's already visible
+      expect(op.isFieldVisible('data')).toBe(true)
+
+      // showField should not create a new Set if field is already visible via defaults
+      op.showField('data')
+
+      // visibleFields stays null since no change was needed
+      expect(op.visibleFields.value).toBe(null)
+    })
+  })
+})
+
+describe('Tile3DLayerOp', () => {
+  const GOOGLE_URL = 'https://tile.googleapis.com/v1/3dtiles/root.json'
+  const CESIUM_URL = 'https://assets.ion.cesium.com/242005/tileset.json'
+
+  it('defaults to the Google tileset URL when provider is Google', () => {
+    const op = new Tile3DLayerOp('/tile3d-0')
+    const { layer } = op.execute({})
+    expect(layer.type).toEqual('Tile3DLayer')
+    expect(layer.data).toEqual(GOOGLE_URL)
+  })
+
+  it('uses the Cesium tileset URL when provider is Cesium', () => {
+    const op = new Tile3DLayerOp('/tile3d-0')
+    const { layer } = op.execute({ provider: 'Cesium' })
+    expect(layer.data).toEqual(CESIUM_URL)
+  })
+
+  it('uses a custom tilesetUrl when provided, regardless of provider', () => {
+    const op = new Tile3DLayerOp('/tile3d-0')
+    const custom = 'https://example.com/custom/tileset.json'
+    const { layer: googleLayer } = op.execute({ tilesetUrl: custom, provider: 'Google' })
+    expect(googleLayer.data).toEqual(custom)
+
+    const { layer: cesiumLayer } = op.execute({ tilesetUrl: custom, provider: 'Cesium' })
+    expect(cesiumLayer.data).toEqual(custom)
+
+    const { layer: genericLayer } = op.execute({ tilesetUrl: custom, provider: 'Generic' })
+    expect(genericLayer.data).toEqual(custom)
+  })
+
+  it('falls back to the provider default when tilesetUrl is empty', () => {
+    const op = new Tile3DLayerOp('/tile3d-0')
+    const { layer } = op.execute({ tilesetUrl: '', provider: 'Cesium' })
+    expect(layer.data).toEqual(CESIUM_URL)
+  })
+
+  it('hides tilesetUrl by default', () => {
+    const op = new Tile3DLayerOp('/tile3d-0')
+    expect(op.isFieldVisible('tilesetUrl')).toBe(false)
+  })
+
+  it('includes Generic in provider options', () => {
+    const op = new Tile3DLayerOp('/tile3d-0')
+    const values = op.inputs.provider.choices.map(c => c.value)
+    expect(values).toContain('Generic')
+  })
+})
+
+describe('RerouteOp', () => {
+  it('passes a value through unchanged', () => {
+    const op = new RerouteOp('/reroute-0')
+    const data = [1, 2, 3]
+    const result = op.execute({ value: data })
+    expect(result.value).toBe(data)
+  })
+
+  it('passes undefined through when input is not connected', () => {
+    const op = new RerouteOp('/reroute-0')
+    const result = op.execute({ value: undefined })
+    expect(result.value).toBeUndefined()
+  })
+
+  it('has a single value input and a single value output', () => {
+    const op = new RerouteOp('/reroute-0')
+    expect(Object.keys(op.inputs)).toEqual(['value'])
+    expect(Object.keys(op.outputs)).toEqual(['value'])
   })
 })

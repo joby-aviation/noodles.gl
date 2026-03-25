@@ -70,7 +70,6 @@ const EXPRESSION_GLOBALS: GlobalDefinition[] = [
     properties: getLibraryProperties(deck),
   },
   { name: 'Plot', description: 'Observable Plot', type: 'library' },
-  { name: 'vega', description: 'Vega visualization grammar', type: 'library' },
   { name: 'Temporal', description: 'TC39 Temporal API for dates', type: 'library' },
 ]
 

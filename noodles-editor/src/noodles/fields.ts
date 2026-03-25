@@ -5,11 +5,11 @@ import { Temporal } from 'temporal-polyfill'
 import { isHexColor } from 'validator'
 import z from 'zod/v4'
 import { colorToHex } from '../utils/color'
+import { debugSetValue } from '../utils/debug'
 import type { BetterDeckProps, BetterMapProps } from '../visualizations'
 import type { inputComponents } from './components/field-components'
 import type { IOperator, Operator } from './operators'
 import type { ExtractProps } from './utils/extract-props'
-
 import { resolvePath } from './utils/path-utils'
 
 export interface IField<
@@ -32,6 +32,7 @@ type BaseFieldOptions = {
   optional?: boolean
   transform?: (val: unknown, ...args: unknown[]) => unknown
   accessor?: boolean
+  showByDefault?: boolean // Defaults to true. Set to false to hide field by default in UI.
 }
 
 type PointFieldOptions = BaseFieldOptions & {
@@ -95,6 +96,9 @@ export abstract class Field<
   // as a callback function. For example, `getPosition`, `getLineColor`, `getFillColor` etc.
   accessor = false
 
+  // Should this field be shown by default in the UI? Defaults to true.
+  showByDefault = true
+
   // Hold a reference to the operator that owns this field. Only used for debugging at the moment.
   op!: Operator<IOperator>
 
@@ -137,8 +141,13 @@ export abstract class Field<
   }
 
   // Wrap schema in additional functionality like optional, transform, accessor etc.
-  enhanceSchema({ accessor, optional, transform }: Partial<O>) {
+  enhanceSchema({ accessor, optional, transform, showByDefault }: Partial<O>) {
     let schema = this.schema
+
+    // Set showByDefault (defaults to true if not specified)
+    if (showByDefault !== undefined) {
+      this.showByDefault = showByDefault
+    }
 
     if (accessor) {
       this.accessor = true
@@ -175,18 +184,21 @@ export abstract class Field<
   }
 
   setValue(value: z.input<S>): void {
+    const oldValue = this.value
+    const path = this.pathToProps.join('.')
     const parsed = this.schema.safeParse(value, {
       reportInput: true,
-      error: _iss => this.pathToProps.join('.'),
+      error: _iss => path,
     })
     if (parsed.success) {
+      debugSetValue('%s: %O -> %O', path, oldValue, parsed.data)
       this.next(parsed.data)
 
       // Mark the owning operator as dirty
       this.op?.markDirty()
     } else {
-      console.warn('Parse error', parsed.error.issues)
-      // console.trace()
+      debugSetValue('%s: %O -> %O [PARSE FAILED]', path, oldValue, value)
+      debugSetValue('Parse error', parsed.error.issues)
     }
   }
 
@@ -247,29 +259,22 @@ export class StringField extends Field<z.ZodString> {
   }
 }
 
-export class FileField extends Field<
-  z.ZodUnion<
-    readonly [
-      z.ZodString,
-      z.ZodPipe<
-        z.ZodObject<{ id: z.ZodString; type: z.ZodLiteral<'file'> }, z.core.$strict>,
-        z.ZodTransform<string, { id: string; type: 'file' }>
-      >,
-    ]
-  >
-> {
-  static type = 'file'
+type FileUrlFieldOptions = BaseFieldOptions & {
+  accept?: string // e.g. '.glb,.gltf' — controls file picker filter and shows upload button
+}
+
+export class FileUrlField extends Field<z.ZodString, FileUrlFieldOptions> {
+  static type = 'file-url'
   static defaultValue = ''
-  createSchema() {
-    return z.union([
-      z.string(),
-      z
-        .object({
-          id: z.string(),
-          type: z.literal('file'),
-        })
-        .transform(val => val.id),
-    ])
+  accept?: string
+
+  constructor(initialValue?: string, options?: Partial<FileUrlFieldOptions>) {
+    super(initialValue, options)
+    this.accept = options?.accept
+  }
+
+  createSchema(_options?: Partial<FileUrlFieldOptions>) {
+    return z.string()
   }
 }
 
@@ -318,7 +323,7 @@ export function getFieldReferences(text: string, thisOpId?: string) {
     const inOut = groups?.inOut as InOut
 
     if (!groups || !opId || !fieldPath) {
-      console.warn(`Invalid operator ID or field path: ${opId}`)
+      debugSetValue(`Invalid operator ID or field path: ${opId}`)
       continue
     }
 
@@ -635,14 +640,6 @@ export class GeoJsonField<D extends Field = Field, TElement = unknown> extends F
   }
 }
 
-export class JSONUrlField extends Field<z.ZodUnion<readonly [z.ZodURL, z.ZodJSONSchema]>> {
-  static type = 'json-url'
-  static defaultValue = ''
-  createSchema(_options?: Partial<BaseFieldOptions>) {
-    return z.union([z.url(), z.json()])
-  }
-}
-
 type Point3DFieldValue =
   | { lng: number; lat: number; alt: number; [key: string]: unknown }
   | [number, number, number]
@@ -883,21 +880,23 @@ export class CompoundPropsField extends Field<
     super(defaults, { subschema, ...options, passthrough })
     this.fields = fields
 
-    this.subscribe(value => {
+    const parentToChild = this.subscribe(value => {
       for (const [key, field] of Object.entries(fields)) {
         if (Object.hasOwn(value || {}, key)) {
           field.next(value[key])
         }
       }
     })
+    this.subscriptions.set('__parentToChild', parentToChild)
 
     let updating = false
-    combineLatest(fields).subscribe(values => {
+    const childToParent = combineLatest(fields).subscribe(values => {
       if (updating) return
       updating = true
       this.next(values)
       updating = false
     })
+    this.subscriptions.set('__childToParent', childToParent)
   }
 
   next(parsed: ExtractProps<typeof this.fields>) {
@@ -945,9 +944,12 @@ export class ListField<F extends Field> extends Field<
     return z.array(subschema)
   }
 
-  constructor(public field?: F) {
+  constructor(
+    public field?: F,
+    options?: Partial<SubSchemaOptions<F['schema']> & BaseFieldOptions>
+  ) {
     const subschema = field?.schema || z.unknown()
-    super([], { subschema })
+    super([], { subschema, ...options })
   }
 
   // Overrides the default setValue to handle a list of fields

@@ -7,6 +7,7 @@ import type {
 import JSZip from 'jszip'
 import { isEqual } from 'lodash'
 
+import { debugSerialize } from '../../utils/debug'
 import { resizeableNodes } from '../components/op-components'
 import type { useOperatorStore } from '../store'
 import type { ExtractProps } from './extract-props'
@@ -30,6 +31,7 @@ export type EditorSettings = {
   layoutMode?: 'split' | 'noodles-on-top' | 'output-on-top'
   showOverlay?: boolean
   autoLayout?: Partial<AutoLayoutSettings>
+  showDebugInfo?: boolean
 }
 
 export type RenderSettings = {
@@ -43,6 +45,7 @@ export type RenderSettings = {
   scaleControl: number
   framerate: number
   captureDelay: number
+  rendersDirectory: string
 }
 
 export const DEFAULT_RENDER_SETTINGS: RenderSettings = {
@@ -56,24 +59,7 @@ export const DEFAULT_RENDER_SETTINGS: RenderSettings = {
   scaleControl: 0.3,
   framerate: 30,
   captureDelay: 200,
-}
-
-// Serialize render settings, only including values that differ from defaults
-export function serializeRenderSettings(
-  settings: RenderSettings
-): Partial<RenderSettings> | undefined {
-  const nonDefaults: Partial<RenderSettings> = {}
-
-  for (const key of Object.keys(DEFAULT_RENDER_SETTINGS) as (keyof RenderSettings)[]) {
-    const value = settings[key]
-    const defaultValue = DEFAULT_RENDER_SETTINGS[key]
-    if (!isEqual(value, defaultValue)) {
-      // TypeScript needs help with the union type assignment
-      ;(nonDefaults as Record<string, unknown>)[key] = value
-    }
-  }
-
-  return Object.keys(nonDefaults).length > 0 ? nonDefaults : undefined
+  rendersDirectory: 'renders',
 }
 
 export type NoodlesProjectJSON = ReactFlowJsonObject & {
@@ -84,6 +70,7 @@ export type NoodlesProjectJSON = ReactFlowJsonObject & {
   apiKeys?: {
     mapbox?: string
     googleMaps?: string
+    cesium?: string
     anthropic?: string
   }
 }
@@ -118,11 +105,38 @@ export function safeStringify(obj: Record<string, unknown>) {
   return `${JSON.stringify(obj, getJsonSanitizer(), 2)}\n`
 }
 
+import { computeVisibilityHeuristic } from './visibility-heuristic'
+
+export type SerializeNodesOptions = {
+  // When true (clipboard), always serializes visible fields to preserve exact state on paste,
+  // even if visibility matches heuristic. This handles fields visible due to connections
+  // that won't exist after paste.
+  forClipboard?: boolean
+}
+
+// Check if two sets have the same elements
+function setsEqual(a: Set<string>, b: Set<string>): boolean {
+  if (a.size !== b.size) return false
+  for (const item of a) {
+    if (!b.has(item)) return false
+  }
+  return true
+}
+
 export function serializeNodes(
   store: ReturnType<typeof useOperatorStore.getState>,
   nodes: ReactFlowNode<Record<string, unknown>>[],
-  edges: ReactFlowEdge[]
+  edges: ReactFlowEdge[],
+  options?: SerializeNodesOptions
 ) {
+  const { forClipboard = false } = options ?? {}
+  debugSerialize(
+    'serializeNodes: %d nodes, %d edges, forClipboard=%s',
+    nodes.length,
+    edges.length,
+    forClipboard
+  )
+
   // Make a copy of the node to prepared for serialization.
   const preparedNodes: NodeJSON<unknown>[] = []
   for (const node of nodes) {
@@ -139,17 +153,26 @@ export function serializeNodes(
       .filter(edge => edge.target === node.id && edge.type !== 'ReferenceEdge')
       .filter(edge => store.getOp(edge.source)?.locked?.value === false)
       .map(edge => parseHandleId(edge.targetHandle)?.fieldName)
-      .reduce((acc, fieldName) => acc.add(fieldName), new Set())
+      .reduce((acc, fieldName) => acc.add(fieldName), new Set<string | undefined>())
 
     // Serialize fields
     const inputs: ExtractProps<ReturnType<typeof op.createInputs>> = {}
     for (const [name, field] of Object.entries(op.inputs)) {
       const serialized = field.serialize()
-      if (
-        serialized !== undefined &&
-        !isEqual(serialized, field.defaultValue) &&
-        !incomers.has(name)
-      ) {
+      // Compare transformed values to properly detect non-default values
+      // This handles fields where serialize() returns a different format than stored value
+      // (e.g., ColorField with transform: hexToColor stores [R,G,B,A] but serializes to '#rrggbbaa')
+      let normalizedDefault = field.defaultValue
+      try {
+        if (normalizedDefault !== undefined) {
+          normalizedDefault = field.schema.parse(normalizedDefault)
+        }
+      } catch {
+        // If parsing fails, use the raw default value
+      }
+      const hasNonDefaultValue =
+        serialized !== undefined && !isEqual(field.value, normalizedDefault)
+      if (hasNonDefaultValue && !incomers.has(name)) {
         inputs[name] = serialized
       }
     }
@@ -166,12 +189,41 @@ export function serializeNodes(
       ...cleanedNode
     } = node
 
+    // Determine visibleInputs serialization
+    // We serialize the full visible set when it differs from heuristic
+    const visibilityData: { visibleInputs?: string[] } = {}
+
+    // Only serialize visibleInputs if visibility has been explicitly configured
+    // (visibleFields.value is not null) AND differs from heuristic
+    // If visibleFields.value is null, we rely on heuristic during deserialization
+    const hasExplicitVisibility = op.visibleFields.value !== null
+
+    if (hasExplicitVisibility || forClipboard) {
+      // Get current visible fields
+      const currentVisible = new Set<string>()
+      for (const name of Object.keys(op.inputs)) {
+        if (op.isFieldVisible(name)) {
+          currentVisible.add(name)
+        }
+      }
+
+      // Compute heuristic visibility
+      const { visibleFields: heuristicVisible } = computeVisibilityHeuristic(op, inputs, incomers)
+
+      // For clipboard: always serialize to preserve exact state (connections may not survive paste)
+      // For project save: only serialize if visibility differs from heuristic
+      if (forClipboard || !setsEqual(currentVisible, heuristicVisible)) {
+        visibilityData.visibleInputs = Array.from(currentVisible)
+      }
+    }
+
     preparedNodes.push({
       ...cleanedNode,
       ...(resizeableNodes.includes(node.type) ? { width, height, measured } : {}),
       data: {
         inputs,
         locked: op.locked.value,
+        ...visibilityData,
       },
     })
   }
@@ -183,6 +235,7 @@ export function serializeEdges(
   nodes: ReactFlowNode<Record<string, unknown>>[],
   edges: ReactFlowEdge[]
 ) {
+  debugSerialize('serializeEdges: %d nodes, %d edges', nodes.length, edges.length)
   // Create a set of valid node IDs to filter out orphaned edges
   const validNodeIds = new Set(nodes.map(node => node.id))
 
@@ -190,9 +243,7 @@ export function serializeEdges(
     .filter(edge => {
       // Skip edges that reference non-existent nodes
       if (!validNodeIds.has(edge.source) || !validNodeIds.has(edge.target)) {
-        console.warn(
-          `Skipping orphaned edge during serialization: ${edge.id} (${edge.source} -> ${edge.target})`
-        )
+        debugSerialize('Skipping orphaned edge: %s (%s -> %s)', edge.id, edge.source, edge.target)
         return false
       }
       // Skip ReferenceEdge types - they should not be persisted in save files
@@ -221,6 +272,7 @@ export async function saveProjectLocally(
   projectJson: NoodlesProjectJSON,
   storageType: 'fileSystemAccess' | 'opfs' | 'publicFolder'
 ) {
+  debugSerialize('saveProjectLocally: %s (storage: %s)', projectName, storageType)
   const zip = new JSZip()
 
   // Create a folder with the project name
@@ -256,7 +308,7 @@ export async function saveProjectLocally(
             projectFolder.file(relativePath, arrayBuffer)
           }
         } catch (error) {
-          console.warn(`Could not fetch asset ${relativePath}:`, error)
+          debugSerialize(`Could not fetch asset ${relativePath}:`, error)
         }
       }
     }
@@ -290,7 +342,7 @@ export async function saveProjectLocally(
         }
       }
     } catch (error) {
-      console.warn('Could not read data files for export:', error)
+      debugSerialize('Could not read data files for export:', error)
       // Continue with export even if data files can't be read
     }
   }

@@ -1,25 +1,12 @@
 // Tests for complex Noodles-specific integration scenarios
-// Focuses on tricky edge cases involving Theatre.js, operators, and field connections
+// Focuses on tricky edge cases involving operators and field connections
 import { screen } from '@testing-library/react'
 import type { Node as ReactFlowNode } from '@xyflow/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { type IOperator, type MathOp, NumberOp, type Operator } from '../operators'
 import { clearOps, getOp, setOp } from '../store'
 import { transformGraph } from '../transform-graph'
 import { renderWithNoodlesProviders } from './test-utils'
-
-// Mock Theatre.js studio to avoid side effects
-vi.mock('@theatre/studio', () => ({
-  default: {
-    transaction: vi.fn(fn =>
-      fn({
-        __experimental_forgetSheet: vi.fn(),
-      })
-    ),
-    setSelection: vi.fn(),
-    createContentOfSaveFile: vi.fn(() => ({ sheetsById: {} })),
-  },
-}))
 
 describe('Complex Noodles Integration Tests', () => {
   afterEach(() => {

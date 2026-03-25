@@ -13,6 +13,7 @@ import {
 } from '@xyflow/react'
 import { useCallback } from 'react'
 import { analytics } from '../../utils/analytics'
+import { debugUI } from '../../utils/debug'
 import { type Field, ListField } from '../fields'
 import type { IOperator, Operator } from '../operators'
 import { deleteOp, getAllOps, getOp, setOp } from '../store'
@@ -222,6 +223,16 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         return { success: false, error: `No nodes found with IDs: ${nodeIds.join(', ')}` }
       }
 
+      // Prevent deletion of the last OutOp
+      const allOutOps = nodes.filter(n => n.type === 'OutOp')
+      const deletingOutOps = nodesToDelete.filter(n => n.type === 'OutOp')
+      if (deletingOutOps.length > 0 && deletingOutOps.length >= allOutOps.length) {
+        return {
+          success: false,
+          error: 'Cannot delete the last Output node. At least one Output node is required.',
+        }
+      }
+
       // First handle edge reconnection (needs nodes to still exist)
       const result = handleNodesDeleted(nodesToDelete)
       // Then delete the nodes
@@ -325,8 +336,10 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
           const input = operatorInputs?.[key]
           if (input && typeof input.setValue === 'function') {
             input.setValue(value)
+            // Auto-show field when value is set programmatically (AI tools)
+            operator.showField(key)
           } else {
-            console.warn(`Input ${key} not found on operator ${nodeId} or doesn't have setValue`)
+            debugUI(`Input ${key} not found on operator ${nodeId} or doesn't have setValue`)
           }
         })
       }
@@ -416,6 +429,16 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
         if (nodeObjectsToDelete.length === 0) {
           return { success: false, error: `No nodes found with IDs: ${nodesToDelete.join(', ')}` }
+        }
+
+        // Prevent deletion of the last OutOp
+        const allOutOps = nodes.filter(n => n.type === 'OutOp')
+        const deletingOutOps = nodeObjectsToDelete.filter(n => n.type === 'OutOp')
+        if (deletingOutOps.length > 0 && deletingOutOps.length >= allOutOps.length) {
+          return {
+            success: false,
+            error: 'Cannot delete the last Output node. At least one Output node is required.',
+          }
         }
 
         // Handle edge reconnection BEFORE deleting nodes
@@ -517,6 +540,8 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
             const input = operatorInputs?.[key]
             if (input && typeof input.setValue === 'function') {
               input.setValue(value)
+              // Auto-show field when value is set programmatically (AI tools)
+              operator.showField(key)
             }
           }
         }
@@ -538,7 +563,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
             if (!sourceExists || !targetExists) {
               const error = `Edge ${edge.id}: source or target node not in node list (source: ${edge.source}, target: ${edge.target})`
-              console.warn('⚠️', error)
+              debugUI('⚠️', error)
               skippedEdges.push(error)
               return false
             }
@@ -547,7 +572,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
           if (edgesToAddOptimistically.length > 0) {
             setEdges(currentEdges => [...currentEdges, ...edgesToAddOptimistically])
-            console.log(`✅ Added ${edgesToAddOptimistically.length} edge(s) optimistically`)
+            debugUI(`✅ Added ${edgesToAddOptimistically.length} edge(s) optimistically`)
           }
 
           if (skippedEdges.length > 0) {
@@ -573,7 +598,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
             if (!sourceNode || !targetNode) {
               const error = `Edge ${edge.id}: source or target node not found`
-              console.error(error)
+              debugUI(error)
               edgeErrors.push(error)
               continue
             }
@@ -583,14 +608,14 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
             if (!sourceOp || !targetOp) {
               const error = `Edge ${edge.id}: source or target operator not found`
-              console.error(error)
+              debugUI(error)
               edgeErrors.push(error)
               continue
             }
 
             if (!edge.sourceHandle || !edge.targetHandle) {
               const error = `Edge ${edge.id}: missing source or target handle`
-              console.error(error)
+              debugUI(error)
               edgeErrors.push(error)
               continue
             }
@@ -600,7 +625,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
             if (!sourceHandleInfo || !targetHandleInfo) {
               const error = `Edge ${edge.id}: could not parse handle IDs`
-              console.error(error)
+              debugUI(error)
               edgeErrors.push(error)
               continue
             }
@@ -610,7 +635,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
             if (!sourceField || !targetField) {
               const error = `Edge ${edge.id}: field not found (${sourceHandleInfo.fieldName} -> ${targetHandleInfo.fieldName})`
-              console.error(error)
+              debugUI(error)
               edgeErrors.push(error)
               continue
             }
@@ -620,7 +645,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
             if (!canConnect(sourceField, targetField)) {
               const error = `Edge ${edge.id}: incompatible types (${sourceFieldType} -> ${targetFieldType})`
-              console.error(error)
+              debugUI(error)
               edgeErrors.push(error)
               continue
             }
@@ -640,7 +665,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
             }
 
             if (edgeErrors.length > 0) {
-              console.log(
+              debugUI(
                 `Added ${validEdges.length}/${edgesToAdd.length} edges (${edgeErrors.length} skipped)`
               )
             }
@@ -671,6 +696,8 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
   // Handles edge creation with validation and field updates
   const onConnect: OnConnect = useCallback(
     connection => {
+      if (connection.source === connection.target) return
+
       const nodes = getNodes()
 
       const newEdge: ReactFlowEdge = {
@@ -684,13 +711,13 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
       const source = nodes.find(n => n.id === connection.source)
       if (!source) {
-        console.warn('Invalid source', connection)
+        debugUI('Invalid source', connection)
         return
       }
       const targetIndex = nodes.findIndex(n => n.id === connection.target)
       const target = nodes[targetIndex]
       if (!target) {
-        console.warn('Invalid target', connection)
+        debugUI('Invalid target', connection)
         return
       }
 
@@ -698,27 +725,27 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       const targetOp = getOp(target.id)
 
       if (!sourceOp || !targetOp) {
-        console.warn('Invalid source or target', connection)
+        debugUI('Invalid source or target', connection)
         return
       }
 
       // Extract field names from qualified handle IDs
       if (!connection.sourceHandle || !connection.targetHandle) {
-        console.warn('Invalid handle IDs', connection)
+        console.error('Invalid handle IDs', connection)
         return
       }
       const sourceHandleInfo = parseHandleId(connection.sourceHandle)
       const targetHandleInfo = parseHandleId(connection.targetHandle)
 
       if (!sourceHandleInfo || !targetHandleInfo) {
-        console.warn('Invalid handle IDs', connection)
+        console.error('Invalid handle IDs', connection)
         return
       }
 
       const sourceField = sourceOp.outputs[sourceHandleInfo.fieldName]
       const targetField = targetOp.inputs[targetHandleInfo.fieldName]
       if (!sourceField || !targetField) {
-        console.warn('Invalid connection', connection)
+        console.error('Invalid connection', connection)
         return
       }
 
@@ -781,11 +808,26 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
   // ReactFlow-compatible onNodesDelete callback
   // Handles edge reconnection after ReactFlow deletes nodes
+  // Note: This is called AFTER ReactFlow has already deleted the nodes,
+  // so we restore OutOps if the user tried to delete the last one
   const onNodesDelete = useCallback(
     (deleted: ReactFlowNode[]) => {
+      // Check if we're trying to delete the last OutOp
+      const currentNodes = getNodes()
+      const remainingOutOps = currentNodes.filter(n => n.type === 'OutOp')
+      const deletedOutOps = deleted.filter(n => n.type === 'OutOp')
+
+      // If all remaining OutOps were deleted, restore them
+      if (deletedOutOps.length > 0 && remainingOutOps.length === 0) {
+        // Restore the deleted OutOps
+        setNodes(nodes => [...nodes, ...deletedOutOps])
+        debugUI('Cannot delete the last Output node. At least one Output node is required.')
+        return
+      }
+
       handleNodesDeleted(deleted)
     },
-    [handleNodesDeleted]
+    [getNodes, setNodes, handleNodesDeleted]
   )
 
   // Update operator ID and all references to it (nodes, edges, children)

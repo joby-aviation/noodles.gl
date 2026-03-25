@@ -1,10 +1,10 @@
 import type { DeckProps, FirstPersonViewState, MapViewState } from '@deck.gl/core'
-import type { IProject, ISheet } from '@theatre/core'
 import type { RefObject } from 'react'
 
 import type { MapProps } from 'react-map-gl/maplibre'
 import type { CopyControlsRef } from './noodles/components/copy-controls'
 import type { UndoRedoHandlerRef } from './noodles/components/UndoRedoHandler'
+import type { RenderSettings } from './noodles/utils/serialization'
 
 export type ViewState =
   | MapViewState
@@ -20,9 +20,11 @@ export type Visualization = {
   nodeSidebar?: React.ReactNode
   propertiesPanel?: React.ReactNode
   layoutMode?: 'split' | 'noodles-on-top' | 'output-on-top'
-  setLayoutMode?: (mode: 'split' | 'noodles-on-top' | 'output-on-top') => void
+  onChangeLayoutMode?: (mode: 'split' | 'noodles-on-top' | 'output-on-top') => void
   showOverlay?: boolean
-  setShowOverlay?: (show: boolean) => void
+  onChangeShowOverlay?: (show: boolean) => void
+  showDebugInfo?: boolean
+  onChangeShowDebugInfo?: (show: boolean) => void
   // Noodles props for creating menu in timeline-editor
   projectName?: string
   getTimelineJson?: () => Record<string, unknown>
@@ -38,11 +40,12 @@ export type Visualization = {
   copyControlsRef?: RefObject<CopyControlsRef | null>
   reactFlowRef?: RefObject<HTMLDivElement>
   showChatPanel?: boolean
-  setShowChatPanel?: (show: boolean) => void
+  onChangeShowChatPanel?: (show: boolean) => void
   hasUnsavedChanges?: boolean
+  // Render settings for video export
+  renderSettings?: RenderSettings
+  setRenderSettings?: (settings: RenderSettings) => void
   // Visualization props
   mapProps?: BetterMapProps
   deckProps: BetterDeckProps
-  project: IProject
-  sheet: ISheet
 }

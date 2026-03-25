@@ -9,6 +9,8 @@ import { Button } from 'primereact/button'
 import { InputText } from 'primereact/inputtext'
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Temporal } from 'temporal-polyfill'
+import { getFieldPath } from '../../timeline/field-bindings'
+import { useTimelineStore } from '../../timeline/timeline-store'
 import {
   type BezierCurveField,
   type BooleanField,
@@ -20,7 +22,7 @@ import {
   type DateField,
   type ExpressionField,
   type Field,
-  type FileField,
+  type FileUrlField,
   getFieldReferences,
   type IField,
   type NumberField,
@@ -36,9 +38,11 @@ import type { Edge } from '../noodles'
 import s from '../noodles.module.css'
 import { getFriendlyErrorMessage, type IOperator, type Operator } from '../operators'
 import { checkAssetExists, writeAsset } from '../storage'
+import { useEdgeConnectionStore } from '../store'
 import { getExpressionContext } from '../utils/expression-context'
 import { projectScheme } from '../utils/filesystem'
 import { edgeId, type OpId } from '../utils/id-utils'
+import { usePropertyHistory } from '../utils/property-history'
 import { ColorSwatch } from './color-swatch'
 import { ExpressionEditorOverlay } from './ExpressionEditorOverlay'
 import { GeocodingDialog } from './geocoding-dialog'
@@ -69,12 +73,11 @@ export const inputComponents = {
   date: DateFieldComponent,
   effect: EmptyFieldComponent,
   expression: ExpressionFieldComponent,
-  file: FileFieldComponent,
+  'file-url': FileUrlFieldComponent,
   function: EmptyFieldComponent,
   geojson: EmptyFieldComponent,
   'geopoint-2d': VectorFieldComponent,
   'geopoint-3d': VectorFieldComponent,
-  'json-url': TextFieldComponent,
   layer: EmptyFieldComponent,
   list: EmptyFieldComponent,
   number: NumberFieldComponent,
@@ -111,6 +114,7 @@ export function TextFieldComponent({
   disabled: boolean
 }) {
   const [value, setValue] = useState(formatText(field.value))
+  const { captureStart, commitChange } = usePropertyHistory()
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
@@ -131,12 +135,18 @@ export function TextFieldComponent({
 
   let input = null
   if (field instanceof StringLiteralField) {
+    // Select dropdown: capture before + commit after inline since change is atomic
+    const onSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+      captureStart()
+      onChange(e)
+      commitChange('Change value')
+    }
     input = (
       <select
         id={id}
         className={cx(s.fieldInput, s.fieldInputSelect)}
         value={value}
-        onChange={onChange}
+        onChange={onSelectChange}
         disabled={disabled}
       >
         {field.choices.map(({ label, value }) => (
@@ -147,15 +157,22 @@ export function TextFieldComponent({
       </select>
     )
   } else {
+    // Always use textarea - handles both single-line and multiline naturally
+    const lineCount = typeof value === 'string' ? value.split('\n').length : 1
     input = (
-      <input
+      <textarea
         id={id}
-        className={s.fieldInput}
+        className={cx(s.fieldInput, s.fieldTextarea)}
         title={value}
         value={value}
-        onBlur={onChange}
+        onFocus={captureStart}
+        onBlur={e => {
+          onChange(e)
+          commitChange('Change text')
+        }}
         onChange={onChange}
         disabled={disabled}
+        rows={lineCount}
       />
     )
   }
@@ -189,7 +206,6 @@ function validateExpression(expression: string): string | null {
       'turf',
       'deck',
       'Plot',
-      'vega',
       'Temporal',
       `return ${expression}`
     )
@@ -217,6 +233,9 @@ export function ExpressionFieldComponent({
   const [validationError, setValidationError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
+  const { captureStart, commitChange } = usePropertyHistory()
+  // Tracks when a click is about to open the overlay so handleInputBlur can skip its commit
+  const openingOverlayRef = useRef(false)
 
   const nodeId = useNodeId() as string
   const edges = useEdges()
@@ -255,8 +274,11 @@ export function ExpressionFieldComponent({
     if (inputRef.current) {
       setAnchorRect(inputRef.current.getBoundingClientRect())
     }
+    // Re-capture before the blur fires so handleInputBlur doesn't consume the snapshot
+    openingOverlayRef.current = true
+    captureStart()
     setOverlayOpen(true)
-  }, [disabled])
+  }, [disabled, captureStart])
 
   const handleOverlayChange = useCallback(
     (newValue: string) => {
@@ -269,7 +291,8 @@ export function ExpressionFieldComponent({
 
   const handleOverlayClose = useCallback(() => {
     setOverlayOpen(false)
-  }, [])
+    commitChange('Change expression')
+  }, [commitChange])
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.currentTarget.value
@@ -283,8 +306,14 @@ export function ExpressionFieldComponent({
         field.setValue(newValue)
         setValidationError(validateExpression(newValue))
       }
+      // Skip commit when the overlay is opening — handleOverlayClose will commit instead
+      if (openingOverlayRef.current) {
+        openingOverlayRef.current = false
+        return
+      }
+      commitChange('Change expression')
     },
-    [field]
+    [field, commitChange]
   )
 
   return (
@@ -302,6 +331,7 @@ export function ExpressionFieldComponent({
           title={validationError || value}
           value={value}
           onChange={handleInputChange}
+          onFocus={captureStart}
           onBlur={handleInputBlur}
           onClick={handleInputClick}
           disabled={disabled}
@@ -330,6 +360,7 @@ function VectorNumberInput({
   disabled,
   onChange,
   onCommit,
+  onInteractionStart,
 }: {
   keyName: string
   value: number
@@ -337,6 +368,7 @@ function VectorNumberInput({
   disabled: boolean
   onChange: (key: string | number, val: number) => void
   onCommit: () => void
+  onInteractionStart?: () => void
 }) {
   const handleChange = useCallback(
     (val: number) => {
@@ -353,6 +385,7 @@ function VectorNumberInput({
         disabled={disabled}
         onChange={handleChange}
         onCommit={onCommit}
+        onInteractionStart={onInteractionStart}
         step={0.1}
         className={cx(s.fieldInput, s.fieldInputVector, s.fieldInputNumber)}
         title={`${keyName}: ${value}`}
@@ -374,6 +407,7 @@ export function VectorFieldComponent({
     { [key: string]: number } | [number, number] | [number, number, number]
   >(guardAccessorFallback(field.value))
   const [geocodingOpen, setGeocodingOpen] = useState(false)
+  const { captureStart, commitChange } = usePropertyHistory()
 
   const isPointField = field instanceof Point2DField || field instanceof Point3DField
   const isPoint3D = field instanceof Point3DField
@@ -417,7 +451,8 @@ export function VectorFieldComponent({
 
   const onCommit = useCallback(() => {
     field.setValue(latestValueRef.current)
-  }, [field])
+    commitChange('Change value')
+  }, [field, commitChange])
 
   // Get current coordinates for Point fields
   const getCurrentCoordinates = useCallback(() => {
@@ -454,9 +489,10 @@ export function VectorFieldComponent({
           field.setValue({ lng: longitude, lat: latitude })
         }
       }
+      commitChange('Change location')
       setGeocodingOpen(false)
     },
-    [field, isPoint3D]
+    [field, isPoint3D, commitChange]
   )
 
   return (
@@ -476,6 +512,7 @@ export function VectorFieldComponent({
               disabled={disabled}
               onChange={onChange}
               onCommit={onCommit}
+              onInteractionStart={captureStart}
             />
           )
         })}
@@ -483,7 +520,10 @@ export function VectorFieldComponent({
           <Button
             icon="pi pi-map-marker"
             className={s.fieldLookupButton}
-            onClick={() => setGeocodingOpen(true)}
+            onClick={() => {
+              captureStart()
+              setGeocodingOpen(true)
+            }}
             title="Lookup Location"
             size="small"
             disabled={disabled}
@@ -518,6 +558,7 @@ export function CodeFieldComponent({
   const { setEdges, getNode } = useReactFlow()
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const { captureStart, commitChange } = usePropertyHistory()
 
   const nodeId = useNodeId() as string
   const node = getNode(nodeId)
@@ -537,10 +578,16 @@ export function CodeFieldComponent({
     [field, disabled]
   )
 
-  const handleEditorDidMount: OnMount = useCallback((editor, _monaco) => {
-    editorRef.current = editor
-    editor.layout()
-  }, [])
+  const handleEditorDidMount: OnMount = useCallback(
+    (editor, _monaco) => {
+      editorRef.current = editor
+      editor.layout()
+      // Capture property state when user begins editing, commit when they stop
+      editor.onDidFocusEditorText(() => captureStart())
+      editor.onDidBlurEditorWidget(() => commitChange('Change code'))
+    },
+    [captureStart, commitChange]
+  )
 
   // Force layout update on load and when node height changes
   useLayoutEffect(() => {
@@ -647,16 +694,37 @@ export function CodeFieldComponent({
   )
 }
 
-export function FileFieldComponent({
+const EXT_MIME_MAP: Record<string, string> = {
+  '.csv': 'text/csv',
+  '.json': 'application/json',
+  '.geojson': 'application/json',
+  '.glb': 'model/gltf-binary',
+  '.gltf': 'model/gltf+json',
+}
+
+// Groups extensions from a comma-separated accept string by MIME type for
+// showOpenFilePicker. Unknown extensions fall back to application/octet-stream.
+function extToMimeTypes(accept: string): Record<string, `.${string}`[]> {
+  const result: Record<string, `.${string}`[]> = {}
+  for (const ext of accept.split(',').map(e => e.trim())) {
+    const mime = EXT_MIME_MAP[ext] ?? 'application/octet-stream'
+    if (!result[mime]) result[mime] = []
+    result[mime].push(ext as `.${string}`)
+  }
+  return result
+}
+
+export function FileUrlFieldComponent({
   id,
   field,
   disabled,
 }: {
   id: OpId
-  field: FileField
+  field: FileUrlField
   disabled: boolean
 }) {
   const [value, setValue] = useState(guardAccessorFallback(field.value))
+  const { captureStart, commitChange } = usePropertyHistory()
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
@@ -678,51 +746,58 @@ export function FileFieldComponent({
     if (val !== field.value) {
       field.setValue(val)
     }
+    commitChange('Change file')
   }
 
   const [replaceDialogOpen, setReplaceDialogOpen] = useState(false)
-  const [pendingFile, setPendingFile] = useState<{ name: string; contents: string } | null>(null)
+  const [pendingFile, setPendingFile] = useState<{ name: string; contents: Blob } | null>(null)
 
-  const onReupload = async () => {
-    // Get current project and storage type
+  const onUpload = async () => {
+    try {
+      await doUpload()
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return
+      throw err
+    }
+  }
+
+  const doUpload = async () => {
     const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
     if (!currentProjectName) {
       throw new Error('No project loaded. Please save or load a project first.')
     }
 
-    const [fileHandle] = await window.showOpenFilePicker({
-      types: [
-        {
-          description: 'CSV and JSON Files',
-          accept: {
-            'text/csv': ['.csv'],
-            'application/json': ['.json'],
-          },
-        },
-      ],
-      excludeAcceptAllOption: true,
-      multiple: false,
-    })
-    const file = await fileHandle.getFile()
-    const contents = await file.text()
+    const pickerOpts: OpenFilePickerOptions = field.accept
+      ? {
+          types: [{ description: 'Files', accept: extToMimeTypes(field.accept) }],
+          excludeAcceptAllOption: true,
+          multiple: false,
+        }
+      : { multiple: false }
 
-    // Check if file already exists
+    const [fileHandle] = await window.showOpenFilePicker(pickerOpts)
+    const file = await fileHandle.getFile()
+    // Read as ArrayBuffer so binary files (e.g. .glb) are preserved
+    const buffer = await file.arrayBuffer()
+    const contents = new Blob([buffer], { type: file.type })
+
     const exists = await checkAssetExists(activeStorageType, currentProjectName, file.name)
     if (exists) {
-      // Show confirmation dialog
+      captureStart()
       setPendingFile({ name: file.name, contents })
       setReplaceDialogOpen(true)
       return
     }
 
-    // Write directly if file doesn't exist
     const result = await writeAsset(activeStorageType, currentProjectName, file.name, contents)
-
     if (!result.success) {
       throw new Error(result.error?.message || `Failed to write file: ${file.name}`)
     }
 
+    captureStart()
     field.setValue(projectScheme + file.name)
+    setValue(projectScheme + file.name)
+    commitChange('Change file')
   }
 
   const onConfirmReplace = async () => {
@@ -731,20 +806,19 @@ export function FileFieldComponent({
     const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
     if (!currentProjectName) return
 
-    // Write with overwrite option
     const result = await writeAsset(
       activeStorageType,
       currentProjectName,
       pendingFile.name,
-      pendingFile.contents,
-      { overwrite: true }
+      pendingFile.contents
     )
-
     if (!result.success) {
       throw new Error(result.error?.message || `Failed to write file: ${pendingFile.name}`)
     }
 
     field.setValue(projectScheme + pendingFile.name)
+    setValue(projectScheme + pendingFile.name)
+    commitChange('Change file')
     setReplaceDialogOpen(false)
     setPendingFile(null)
   }
@@ -760,23 +834,26 @@ export function FileFieldComponent({
         <label className={s.nodeFieldLabel} htmlFor={id}>
           {id}
         </label>
-        <div className={cx('p-inputgroup', s.fieldFileInputGroup)}>
+        <div className={cx('p-inputgroup', field.accept ? s.fieldFileInputGroup : undefined)}>
           <InputText
             id={id}
             placeholder="https://"
-            className={cx(s.fieldInput, s.fieldInputFileUrl)}
+            className={cx(s.fieldInput, field.accept ? s.fieldInputFileUrl : undefined)}
             value={value}
+            onFocus={captureStart}
             onBlur={onBlur}
             onChange={onChange}
             disabled={disabled}
           />
-          <Button
-            icon="pi pi-upload"
-            className={s.fieldInputUploadButton}
-            onClick={onReupload}
-            title="Upload Data"
-            size="small"
-          />
+          {field.accept && (
+            <Button
+              icon="pi pi-upload"
+              className={s.fieldInputUploadButton}
+              onClick={onUpload}
+              title="Upload File"
+              size="small"
+            />
+          )}
         </div>
       </div>
 
@@ -972,28 +1049,22 @@ function StepLadder({
     })
   }
 
-  // Position the ladder behind the mouse cursor, relative to container
+  // Position vertically so the default step (1x) is centered at the mouse position
   const defaultStepIndex = steps.findIndex(step => step.multiplier === 1)
-  const stepItemHeight = 28 // Adjusted height based on CSS: padding(3px) + margin(1px) + font + borders
+  const stepItemHeight = 28
 
   let topPosition = 0
-  let leftPosition = 0
 
   if (containerRect) {
-    // Convert global mouse coordinates to relative coordinates within the container
-    const relativeMouseX = mousePos.x - containerRect.left
     const relativeMouseY = mousePos.y - containerRect.top
-
-    // Position so the default step (1x) is centered at the mouse position
     topPosition = relativeMouseY - (defaultStepIndex * stepItemHeight + stepItemHeight / 2)
-    leftPosition = relativeMouseX - 40 // Increased offset to better center behind cursor
   }
 
   return (
     <div
       className={s.stepLadder}
       style={{
-        left: `${leftPosition}px`,
+        right: 'calc(100% + 4px)',
         top: `${topPosition}px`,
         transform: 'none',
       }}
@@ -1019,6 +1090,7 @@ function DraggableNumberInput({
   disabled,
   onChange,
   onCommit,
+  onInteractionStart,
   min,
   max,
   softMin,
@@ -1032,6 +1104,7 @@ function DraggableNumberInput({
   disabled: boolean
   onChange: (val: number) => void
   onCommit?: () => void
+  onInteractionStart?: () => void
   min?: number
   max?: number
   softMin?: number
@@ -1084,7 +1157,7 @@ function DraggableNumberInput({
     (e: React.FormEvent<HTMLInputElement>) => {
       const newValue = e.currentTarget.value
       setDisplayValue(newValue)
-      if (newValue !== '') {
+      if (!(+newValue === 0 && newValue.length !== 1)) {
         onChange(+newValue)
       }
     },
@@ -1104,6 +1177,7 @@ function DraggableNumberInput({
         return false
       }
 
+      onInteractionStart?.()
       startValueRef.current = value
       setInitialMousePos({
         x: 'clientX' in e ? e.clientX : touchEvent.touches[0].clientX,
@@ -1192,7 +1266,10 @@ function DraggableNumberInput({
         id={id}
         ref={inputRef}
         type="number"
-        onFocus={() => setIsActive(true)}
+        onFocus={() => {
+          setIsActive(true)
+          onInteractionStart?.()
+        }}
         onBlur={() => {
           setIsActive(false)
           onCommit?.()
@@ -1230,6 +1307,7 @@ export function NumberFieldComponent({
   disabled: boolean
 }) {
   const [value, setValue] = useState<number>(guardAccessorFallback(field.value))
+  const { captureStart, commitChange } = usePropertyHistory()
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
@@ -1257,6 +1335,8 @@ export function NumberFieldComponent({
         value={value}
         disabled={disabled}
         onChange={handleChange}
+        onCommit={() => commitChange('Change value')}
+        onInteractionStart={captureStart}
         min={field.min}
         max={field.max}
         softMin={field.softMin}
@@ -1279,6 +1359,7 @@ export function BooleanFieldComponent({
   disabled: boolean
 }) {
   const [value, setValue] = useState<boolean>(guardAccessorFallback(field.value))
+  const { captureStart, commitChange } = usePropertyHistory()
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
@@ -1290,9 +1371,11 @@ export function BooleanFieldComponent({
 
   const onChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
+      captureStart()
       field.setValue(e.currentTarget.checked)
+      commitChange('Toggle boolean')
     },
-    [field]
+    [field, captureStart, commitChange]
   )
 
   return (
@@ -1324,6 +1407,7 @@ export function DateFieldComponent({
   disabled: boolean
 }) {
   const [value, setValue] = useState(guardAccessorFallback(field.value))
+  const { captureStart, commitChange } = usePropertyHistory()
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
@@ -1337,8 +1421,9 @@ export function DateFieldComponent({
     // Parse the datetime-local input value and create a Temporal.PlainDateTime
     const inputValue = e.currentTarget.value
     if (inputValue) {
-      // Parse the full ISO datetime string from the input
+      captureStart()
       field.setValue(Temporal.PlainDateTime.from(inputValue))
+      commitChange('Change date')
     }
   }
 
@@ -1376,6 +1461,7 @@ export function ColorFieldComponent({
   disabled: boolean
 }) {
   const [value, setValue] = useState(guardAccessorFallback(field.value))
+  const { captureStart, commitChange } = usePropertyHistory()
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
@@ -1398,7 +1484,13 @@ export function ColorFieldComponent({
         {id}
       </label>
       <div className={s.fieldInputWrapper}>
-        <ColorSwatch value={value} onChange={handleColorChange} disabled={disabled} />
+        <ColorSwatch
+          value={value}
+          onChange={handleColorChange}
+          disabled={disabled}
+          onPickerOpen={captureStart}
+          onPickerClose={() => commitChange('Change color')}
+        />
       </div>
     </div>
   )
@@ -1521,6 +1613,7 @@ export function BezierCurveFieldComponent({
 }) {
   const svgRef = useRef<SVGSVGElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const { captureStart, commitChange } = usePropertyHistory()
   const [dragState, setDragState] = useState<{
     isDragging: boolean
     dragIndex: number
@@ -1704,6 +1797,7 @@ export function BezierCurveFieldComponent({
       const target = getInteractionTarget(x, y)
 
       if (target) {
+        captureStart()
         setDragState({
           isDragging: true,
           dragIndex: target.index,
@@ -1715,11 +1809,21 @@ export function BezierCurveFieldComponent({
         // Add new point if clicking on empty space within the graph area
         const curvePos = svgToCurve(x, y)
         if (curvePos.x >= 0 && curvePos.x <= 1 && curvePos.y >= 0 && curvePos.y <= 1) {
+          captureStart()
           field.addPoint(curvePos.x, curvePos.y)
+          commitChange('Add curve point')
         }
       }
     },
-    [disabled, getInteractionTarget, svgToCurve, field, getMousePosition]
+    [
+      disabled,
+      getInteractionTarget,
+      svgToCurve,
+      field,
+      getMousePosition,
+      captureStart,
+      commitChange,
+    ]
   )
 
   const handleMouseMove = useCallback(
@@ -1749,8 +1853,11 @@ export function BezierCurveFieldComponent({
   )
 
   const handleMouseUp = useCallback(() => {
+    if (dragState?.isDragging) {
+      commitChange('Edit curve')
+    }
     setDragState(null)
-  }, [])
+  }, [dragState, commitChange])
 
   const handleDoubleClick = useCallback(
     (e: React.MouseEvent<SVGSVGElement>) => {
@@ -1760,11 +1867,13 @@ export function BezierCurveFieldComponent({
       const target = getInteractionTarget(x, y)
 
       if (target && target.type === 'point') {
+        captureStart()
         // Remove point on double-click
         field.removePoint(target.index)
+        commitChange('Remove curve point')
       }
     },
-    [disabled, getInteractionTarget, field, getMousePosition]
+    [disabled, getInteractionTarget, field, getMousePosition, captureStart, commitChange]
   )
 
   // Handle point selection for showing controls
@@ -2037,6 +2146,21 @@ export function BezierCurveFieldComponent({
   )
 }
 
+// O(1) lookup for incoming connections via centralized EdgeConnectionStore
+// The store only updates when edges structurally change (add/remove), not on position updates
+function useHasIncomingConnection(nodeId: string | null, handleId: string): boolean {
+  return useEdgeConnectionStore(
+    useCallback(
+      state => {
+        if (!nodeId) return false
+        const key = `${nodeId}::${handleId}` as const
+        return state.connectionMap.has(key)
+      },
+      [nodeId, handleId]
+    )
+  )
+}
+
 export function FieldComponent({
   id: fieldId,
   field,
@@ -2051,16 +2175,24 @@ export function FieldComponent({
   renderInput?: boolean
 }) {
   const nid = useNodeId()
-  const edges = useEdges()
   const qualifiedFieldId = handle ? `${handle.namespace}.${fieldId}` : `par.${fieldId}`
   const isHandleDimmed = useHandleDimmed(nid ?? '', qualifiedFieldId)
-  const incomers = edges.filter(
-    edge =>
-      edge.target === nid && edge.targetHandle === qualifiedFieldId && edge.type !== 'ReferenceEdge'
-  )
+  const hasIncomingConnection = useHasIncomingConnection(nid, qualifiedFieldId)
 
   const { type } = field.constructor as typeof Field
   const InputComp = inputComponents[type]
+
+  const hasKeyframes = useTimelineStore(state => {
+    if (!nid || !renderInput) return false
+    // Check for a direct track or any sub-property track (e.g. compound fields)
+    const prefix = getFieldPath(nid, fieldId)
+    for (const [path, track] of state.tracks) {
+      if ((path === prefix || path.startsWith(`${prefix} / `)) && track.keyframes.length > 0) {
+        return true
+      }
+    }
+    return false
+  })
 
   // When renderInput is false, position handle absolutely to avoid relying on container height
   const handleStyle = renderInput
@@ -2079,8 +2211,12 @@ export function FieldComponent({
         />
       )}
       {renderInput &&
-        (incomers.length > 0 ? (
+        (hasIncomingConnection ? (
           <EmptyFieldComponent id={fieldId} field={field} />
+        ) : hasKeyframes ? (
+          <div className={s.keyframedFieldInput}>
+            <InputComp id={fieldId} field={field} disabled={disabled} />
+          </div>
         ) : (
           <InputComp id={fieldId} field={field} disabled={disabled} />
         ))}
