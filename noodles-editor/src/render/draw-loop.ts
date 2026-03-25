@@ -1,7 +1,7 @@
 import type { Deck, DeckProps } from '@deck.gl/core'
 import { useEffect } from 'react'
 import { debugRender } from '../utils/debug'
-import { workerSetTimeout } from '../utils/worker-timer'
+import { workerSetInterval, workerSetTimeout } from '../utils/worker-timer'
 
 interface RendererConfig {
   waitForData: boolean
@@ -54,7 +54,15 @@ export function useDeckDrawLoop({
             workerSetTimeout(() => resolvePass(), captureDelay)
           },
         })
-        await passPromise
+        // Pump Deck.gl's render directly via worker timer so onAfterRender fires even when
+        // the tab is switched. Deck.gl's internal RAF loop is throttled to ~1fps by Chrome
+        // when a tab is hidden, so we can't rely on it to drive rendering during export.
+        const cancelRedrawLoop = workerSetInterval(() => deck?.redraw('force'), 16)
+        try {
+          await passPromise
+        } finally {
+          cancelRedrawLoop()
+        }
         captureFrame?.()
       } catch (e) {
         const error = e instanceof Error ? e : new Error(String(e))
