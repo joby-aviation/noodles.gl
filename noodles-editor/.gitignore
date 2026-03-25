@@ -16,6 +16,7 @@
 
 # testing
 /coverage
+/.vitest-traces
 
 # production
 /build

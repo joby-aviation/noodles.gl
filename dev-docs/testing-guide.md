@@ -17,6 +17,8 @@ This guide covers testing strategy, best practices, and guidelines for the Noodl
 - **Unit Tests**: For operator logic, pure functions, and utilities
 - **Integration Tests**: For graph transformations, hook interactions, and data flow
 - **Component Tests**: For React components with React Testing Library
+- **Browser Tests**: For UI components in real browser environment with Playwright
+- **Visual Regression Tests**: Screenshot comparisons to catch visual changes
 - **E2E Tests**: For full user workflows with Playwright
 
 ## Critical Components Requiring Extra Scrutiny
@@ -101,7 +103,127 @@ yarn test --watch
 
 # Run tests with coverage
 yarn test --coverage
+
+# Update visual regression baselines
+yarn test --update
 ```
+
+## Browser Testing with Playwright Traces
+
+Noodles.gl uses Vitest browser mode with Playwright for component and integration tests. Playwright traces are automatically captured for failed tests to help debug issues.
+
+### What Are Traces?
+
+Playwright traces are detailed recordings of test execution that include:
+- Screenshots at each step
+- Network requests and responses
+- Console logs and errors
+- DOM snapshots
+- Test actions and timing
+
+### Viewing Traces
+
+When a test fails, traces are automatically saved to `.vitest-traces/` directory. To view a trace:
+
+```bash
+# View trace with Playwright trace viewer
+npx playwright show-trace .vitest-traces/<trace-file>.zip
+
+# Or upload to online viewer
+# Visit https://trace.playwright.dev and drag the .zip file
+```
+
+The trace viewer provides:
+- Timeline of all test actions
+- Screenshots at each step
+- Network activity
+- Console logs
+- Source code (if available)
+
+### Trace Configuration
+
+Traces are configured in `vitest.config.ts`:
+
+```typescript
+test: {
+  browser: {
+    trace: {
+      mode: 'retain-on-failure',  // Only save traces for failed tests
+      tracesDir: '.vitest-traces', // Where to save traces
+      screenshots: true,           // Include screenshots
+      snapshots: true,             // Include DOM snapshots
+    },
+  },
+}
+```
+
+Available trace modes:
+- `'retain-on-failure'` - Only failed tests (recommended for CI/local)
+- `'on'` - All tests (useful for debugging specific issues)
+- `'off'` - No traces
+
+### Tips for Using Traces
+
+1. **Debugging flaky tests**: Enable traces for all tests temporarily with `mode: 'on'`
+2. **CI failures**: Download trace artifacts from GitHub Actions to debug CI-only failures
+3. **Performance issues**: Use timeline view to identify slow operations
+4. **Visual inspection**: Screenshots help identify visual/rendering bugs
+
+## Visual Regression Testing
+
+Visual regression tests capture screenshots and compare them against baseline images to detect unintended visual changes.
+
+### Writing Visual Regression Tests
+
+```typescript
+import { expect, test } from 'vitest'
+import { page } from '@vitest/browser/context'
+import { render, screen } from '@testing-library/react'
+
+test('component matches visual snapshot', async () => {
+  render(<MyComponent />)
+  
+  // Wait for component to stabilize
+  await page.waitForTimeout(100)
+  
+  // Compare against baseline
+  const element = screen.getByTestId('my-element')
+  await expect(element).toMatchScreenshot('my-component.png')
+})
+```
+
+### Managing Baselines
+
+```bash
+# Update baselines after intentional visual changes
+yarn test --update
+
+# Or update specific test
+yarn test my-component.visual.test.tsx -u
+```
+
+Baseline screenshots are stored in `__screenshots__` directories and should be committed to version control.
+
+### Best Practices for Visual Tests
+
+- **Wait for stability**: Use `page.waitForTimeout()` to ensure components finish rendering
+- **Isolate tests**: Mock external dependencies to ensure consistent rendering
+- **Name screenshots clearly**: Use descriptive names like `'examples-page-layout.png'`
+- **Review changes carefully**: When updating baselines, verify changes are intentional
+- **CI consistency**: Baselines may differ across OS/browsers; generate in same environment as CI
+
+### When to Use Visual Tests
+
+Use visual regression tests for:
+- Critical UI paths (examples page, editor layout, timeline)
+- Complex visualizations (maps, charts, graphs)
+- Styling changes (themes, layout, responsive design)
+- Components with many visual states
+
+Avoid for:
+- Fast-changing UI (frequently updated text/content)
+- Dynamic data visualizations (use snapshot tests for data instead)
+- Tests with high maintenance overhead
 
 ## Test Runbooks for PRs
 
