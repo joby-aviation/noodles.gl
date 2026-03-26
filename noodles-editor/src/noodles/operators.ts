@@ -1564,7 +1564,7 @@ export class FileOp extends Operator<FileOp> {
   createInputs() {
     return {
       format: new StringLiteralField('json', { values: ['json', 'csv', 'tsv', 'text', 'binary'] }),
-      url: new FileUrlField('', { accept: '.csv,.json,.geojson' }),
+      url: new FileUrlField(),
       text: new StringField(),
       autoType: new BooleanField(true), // TODO: Make this only available for csv
       pulse: new NumberField(0, { min: 0, step: 1 }),
@@ -3418,7 +3418,7 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
 
   createInputs() {
     return {
-      mapStyle: new FileUrlField(CARTO_DARK),
+      mapStyle: new FileUrlField(CARTO_DARK, { accept: '.json' }),
       projection: new StringLiteralField('mercator', {
         values: ['mercator', 'globe'],
         showByDefault: false,
@@ -4403,7 +4403,7 @@ export class IconLayerOp extends Operator<IconLayerOp> {
       ),
       iconMapping: new FileUrlField(
         'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.json',
-        { showByDefault: false }
+        { showByDefault: false, accept: '.json' }
       ),
       billboard: new BooleanField(true),
       getIcon: new UnknownField(null, { accessor: true }), // Union of { url: string, width: number, height: number } or url: string, plus accessors
