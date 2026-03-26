@@ -40,11 +40,11 @@ jobs:
             noodles-editor/package-lock.json
 
       - name: Install dependencies for website
-        run: npm install
+        run: npm ci
         working-directory: ./website
 
       - name: Install dependencies for app
-        run: npm install
+        run: npm ci
         working-directory: ./noodles-editor
 
       - name: Generate AI context bundles

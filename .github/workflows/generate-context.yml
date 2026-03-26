@@ -27,7 +27,9 @@ jobs:
             website/package-lock.json
 
       - name: Install dependencies
-        run: npm run install:all
+        run: |
+          (cd website && npm ci)
+          (cd noodles-editor && npm ci)
 
       - name: Clean old context files
         run: |

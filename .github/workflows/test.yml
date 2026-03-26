@@ -27,7 +27,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd noodles-editor
-          npm install
+          npm ci
 
       - name: Check lint
         run: |
@@ -55,7 +55,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd noodles-editor
-          npm install
+          npm ci
 
       - name: Get Playwright version
         id: playwright-version
@@ -114,7 +114,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd website
-          npm install
+          npm ci
 
       - name: Build website
         run: |
