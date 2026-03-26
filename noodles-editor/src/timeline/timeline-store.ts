@@ -9,6 +9,7 @@ import { debugKeyframe, debugTimeline } from '../utils/debug'
 import { evaluateTrack } from './interpolation'
 import type {
   BezierHandles,
+  CopiedKeyframeEntry,
   InterpolationType,
   Keyframe,
   KeyframeValue,
@@ -110,6 +111,15 @@ export interface TimelineStore {
     handles?: BezierHandles
   ) => void
 
+  // === Clipboard State (ephemeral) ===
+  copiedKeyframes: CopiedKeyframeEntry[]
+
+  // === Clipboard Actions ===
+  // Copy selected keyframes to the internal clipboard
+  copySelectedKeyframes: () => void
+  // Paste copied keyframes at the current playhead position
+  pasteKeyframes: () => void
+
   // === Evaluation ===
   evaluateTrack: (trackId: string, time?: number) => KeyframeValue | undefined
   evaluateAllTracks: (time?: number) => Map<string, KeyframeValue>
@@ -206,6 +216,7 @@ export const useTimelineStore = create<TimelineStore>()(
     selectedTrackIds: new Set(),
     selectedMarkerId: null,
     connectingFromMarkerId: null,
+    copiedKeyframes: [],
 
     // === Sequence Actions ===
     setLength: length => {
@@ -596,6 +607,56 @@ export const useTimelineStore = create<TimelineStore>()(
       }
     },
 
+    // === Clipboard Actions ===
+    copySelectedKeyframes: () => {
+      const { tracks, selectedKeyframeIds } = get()
+      if (selectedKeyframeIds.size === 0) return
+
+      const entries: CopiedKeyframeEntry[] = []
+      for (const [trackId, track] of tracks) {
+        for (const kf of track.keyframes) {
+          if (selectedKeyframeIds.has(kf.id)) {
+            entries.push({ trackId, keyframe: kf })
+          }
+        }
+      }
+      set({ copiedKeyframes: entries })
+    },
+
+    pasteKeyframes: () => {
+      const { copiedKeyframes, position, tracks } = get()
+      if (copiedKeyframes.length === 0) return
+
+      // Find the earliest position among copied keyframes to use as the anchor
+      const minPosition = Math.min(...copiedKeyframes.map(e => e.keyframe.position))
+
+      const before = captureTimelineState()
+      const newTracks = new Map(tracks)
+      const newIds: string[] = []
+
+      for (const { trackId, keyframe } of copiedKeyframes) {
+        const track = newTracks.get(trackId)
+        if (!track) continue
+
+        const id = generateKeyframeId()
+        const pastedKeyframe: Keyframe = {
+          ...keyframe,
+          id,
+          position: position + (keyframe.position - minPosition),
+        }
+        newIds.push(id)
+
+        const updatedTrack = {
+          ...track,
+          keyframes: sortKeyframes([...track.keyframes, pastedKeyframe]),
+        }
+        newTracks.set(trackId, updatedTrack)
+      }
+
+      set({ tracks: newTracks, selectedKeyframeIds: new Set(newIds) })
+      fireTimelineMutation('Paste keyframes', before)
+    },
+
     // === Evaluation ===
     evaluateTrack: (trackId, time) => {
       const track = get().tracks.get(trackId)
@@ -796,6 +857,7 @@ export const useTimelineStore = create<TimelineStore>()(
         selectedTrackIds: new Set(),
         selectedMarkerId: null,
         connectingFromMarkerId: null,
+        copiedKeyframes: [],
       })
     },
   }))

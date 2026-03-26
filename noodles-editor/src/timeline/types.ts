@@ -151,6 +151,16 @@ export interface SerializedTimeMarker {
 }
 
 // ============================================================================
+// Clipboard Types
+// ============================================================================
+
+// Represents a single keyframe entry stored in the clipboard for copy/paste
+export interface CopiedKeyframeEntry {
+  trackId: string
+  keyframe: Keyframe
+}
+
+// ============================================================================
 // Serialization Types (Theatre.js compatible)
 // ============================================================================
 
