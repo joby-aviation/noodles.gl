@@ -34,6 +34,8 @@
 .resizeHandle {
   flex-shrink: 0;
   height: 4px;
+  margin: 0;
+  border: none;
   cursor: ns-resize;
   background: #2f3b4c;
   transition: background 0.12s ease;

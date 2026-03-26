@@ -26,7 +26,7 @@ export function CollapsibleTimelinePanel() {
     const stored = localStorage.getItem(STORAGE_KEY)
     if (stored !== null) {
       const parsed = parseInt(stored, 10)
-      if (!isNaN(parsed)) setHeight(clampHeight(parsed))
+      if (!Number.isNaN(parsed)) setHeight(clampHeight(parsed))
     }
   }, [setHeight])
 
@@ -69,7 +69,13 @@ export function CollapsibleTimelinePanel() {
 
   return (
     <div className={s.timelineCollapsibleContainer} style={{ height }}>
-      <div
+      <hr
+        aria-label="Drag to resize timeline"
+        aria-valuenow={height}
+        aria-valuemin={MIN_HEIGHT}
+        aria-valuemax={MAX_HEIGHT}
+        aria-orientation="vertical"
+        tabIndex={0}
         className={s.resizeHandle}
         onMouseDown={onResizeMouseDown}
         title="Drag to resize timeline"
