@@ -50,7 +50,7 @@ export function CollapsibleTimelinePanel() {
       document.addEventListener('mousemove', onMouseMove)
       document.addEventListener('mouseup', onMouseUp)
     },
-    [height, setHeight],
+    [height, setHeight]
   )
 
   if (!expanded) {
