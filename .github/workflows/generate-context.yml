@@ -22,14 +22,8 @@ jobs:
         with:
           node-version-file: '.nvmrc'
           cache: 'npm'
-          cache-dependency-path: |
-            noodles-editor/package-lock.json
-            website/package-lock.json
-
       - name: Install dependencies
-        run: |
-          (cd website && npm ci)
-          (cd noodles-editor && npm ci)
+        run: npm ci
 
       - name: Clean old context files
         run: |
