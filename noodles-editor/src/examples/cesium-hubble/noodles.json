@@ -81,7 +81,7 @@
             "  el.loop = true",
             "  el.muted = true",
             "  el.autoplay = true",
-            "  el.play().catch(() => {})",
+            "  el.play().catch((e) => console.warn('[cesium-hubble] autoplay blocked:', e))",
             "  return el",
             "}",
             "",
