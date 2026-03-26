@@ -47,6 +47,63 @@ export async function getDirections({
   }
 }
 
+// OSRM public demo server response types
+interface OSRMRoute {
+  geometry: {
+    type: 'LineString'
+    coordinates: [number, number][] // [lng, lat]
+  }
+  distance: number // meters
+  duration: number // seconds
+}
+
+interface OSRMDirectionsResponse {
+  code: string
+  message?: string
+  routes: OSRMRoute[]
+}
+
+async function getDrivingDirectionsOSRM({
+  origin,
+  destination,
+}: {
+  origin: { lat: number; lng: number }
+  destination: { lat: number; lng: number }
+}): Promise<AnimatedDirections> {
+  const res = await fetch(
+    `https://router.project-osrm.org/route/v1/driving/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?overview=full&geometries=geojson`
+  )
+  const data: OSRMDirectionsResponse = await res.json()
+
+  if (data.code !== 'Ok') {
+    throw new Error(data.message || `OSRM routing failed: ${data.code}`)
+  }
+
+  const [{ geometry, distance, duration }] = data.routes
+  const coords = geometry.coordinates // already [lng, lat]
+
+  // use millisecond precision for smooth motion
+  const speed = distance / duration / 1000
+  const timestamps = [0]
+
+  for (let i = 1; i < coords.length; i++) {
+    const prev = timestamps[i - 1]
+    // haversine expects [lat, lng]
+    const dist = haversine([coords[i - 1][1], coords[i - 1][0]], [coords[i][1], coords[i][0]])
+    timestamps.push(prev + dist / speed)
+  }
+
+  const durationFormatted = `${Math.round(duration / 60)} mins, ${Math.round(duration % 60)} secs`
+
+  return {
+    distance,
+    duration,
+    durationFormatted,
+    path: coords.map(([lng, lat]) => [lng, lat]),
+    timestamps,
+  }
+}
+
 async function getDrivingDirections({
   origin,
   destination,
@@ -56,49 +113,48 @@ async function getDrivingDirections({
 }): Promise<AnimatedDirections> {
   const keysStore = getKeysStore()
   const token = keysStore.getKey('mapbox')
-  if (!token) {
-    throw new Error(
-      'Mapbox access token not configured. Please add your token in Settings > API Keys.'
+
+  if (token) {
+    const res = await fetch(
+      `https://api.mapbox.com/directions/v5/mapbox/driving/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?access_token=${token}&overview=full`
     )
+    const data: MapboxDirectionsResponse = await res.json()
+
+    if (data.code === 'NoSegment' || data.code === 'InvalidInput') {
+      throw new Error(data.message)
+    }
+
+    const [{ geometry, distance, duration }] = data.routes
+
+    // use millisecond precision for smooth motion
+    // https://docs.unfolded.ai/studio/layer-reference/trip#geojson-as-input
+    const speed = distance / duration / 1000
+    const coords = polyline.decode(geometry)
+
+    const startTime = 0
+    const timestamps = [startTime]
+
+    for (let i = 1; i < coords.length; i++) {
+      const prev = timestamps[i - 1]
+      const dist = haversine(coords[i - 1], coords[i])
+      const delta = dist / speed
+      timestamps.push(prev + delta)
+    }
+
+    const path = coords.map(([lat, lng]) => [lng, lat])
+    const durationFormatted = `${Math.round(duration / 60)} mins, ${Math.round(duration % 60)} secs`
+
+    return { distance, duration, durationFormatted, path, timestamps }
   }
 
-  const res = await fetch(
-    `https://api.mapbox.com/directions/v5/mapbox/driving/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?access_token=${token}&overview=full`
-  )
-  const data: MapboxDirectionsResponse = await res.json()
-
-  if (data.code === 'NoSegment' || data.code === 'InvalidInput') {
-    throw new Error(data.message)
-  }
-
-  const [{ geometry, distance, duration }] = data.routes
-
-  // use millisecond precision for smooth motion
-  // https://docs.unfolded.ai/studio/layer-reference/trip#geojson-as-input
-  const speed = distance / duration / 1000
-  const coords = polyline.decode(geometry)
-
-  const startTime = 0
-  const timestamps = [startTime]
-
-  for (let i = 1; i < coords.length; i++) {
-    const prev = timestamps[i - 1]
-    const dist = haversine(coords[i - 1], coords[i])
-    const delta = dist / speed
-    timestamps.push(prev + delta)
-  }
-
-  // Convert to Deck format
-  const path = coords.map(([lat, lng]) => [lng, lat])
-
-  const durationFormatted = `${Math.round(duration / 60)} mins, ${Math.round(duration % 60)} secs`
-
-  return {
-    distance,
-    duration,
-    durationFormatted,
-    path,
-    timestamps,
+  // Fall back to OSRM public demo server (free, no key required)
+  try {
+    return await getDrivingDirectionsOSRM({ origin, destination })
+  } catch (error) {
+    throw new Error(
+      `Directions failed using free OSRM fallback: ${error instanceof Error ? error.message : error}. ` +
+        'Add a Mapbox access token in Settings > API Keys for more reliable routing.'
+    )
   }
 }
 
