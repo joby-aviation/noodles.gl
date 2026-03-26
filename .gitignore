@@ -35,6 +35,8 @@ venv.bak/
 .ipynb_checkpoints
 
 *.blend1
+.yarn/
+**/.yarn/
 
 # vibe coding
 .claude
