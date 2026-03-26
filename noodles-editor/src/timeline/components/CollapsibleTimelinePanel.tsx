@@ -36,13 +36,15 @@ export function CollapsibleTimelinePanel() {
       const startY = e.clientY
       const startHeight = height
 
+      let lastHeight = startHeight
+
       function onMouseMove(ev: MouseEvent) {
-        const newHeight = clampHeight(startHeight + (startY - ev.clientY))
-        setHeight(newHeight)
-        localStorage.setItem(STORAGE_KEY, String(newHeight))
+        lastHeight = clampHeight(startHeight + (startY - ev.clientY))
+        setHeight(lastHeight)
       }
 
       function onMouseUp() {
+        localStorage.setItem(STORAGE_KEY, String(lastHeight))
         document.removeEventListener('mousemove', onMouseMove)
         document.removeEventListener('mouseup', onMouseUp)
       }
