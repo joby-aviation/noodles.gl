@@ -1016,6 +1016,7 @@ function CurveKeyframeDot({
       strokeWidth={isSelected ? 2 : 1.5}
       style={{ cursor: 'move' }}
       onPointerDown={handlePointerDown}
+      onContextMenu={e => e.preventDefault()}
     />
   )
 }
