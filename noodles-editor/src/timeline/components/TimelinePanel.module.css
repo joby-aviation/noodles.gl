@@ -162,6 +162,10 @@
   padding: 0 12px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  flex-shrink: 0;
 }
 
 .timelineTrackLabelsTitle {
@@ -177,7 +181,7 @@
 .timelineScrollArea {
   flex: 1;
   overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: auto;
 }
 
 .timelineKeyframeArea {
