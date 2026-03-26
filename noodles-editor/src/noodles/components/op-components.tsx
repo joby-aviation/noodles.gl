@@ -16,7 +16,6 @@ import {
 } from '@xyflow/react'
 import cx from 'classnames'
 import { Layer } from 'deck.gl'
-import { isPlainObject } from 'lodash'
 import { Button } from 'primereact/button'
 import { Column } from 'primereact/column'
 import { DataTable } from 'primereact/datatable'
@@ -70,6 +69,7 @@ import { generateQualifiedPath, getBaseName, getParentPath } from '../utils/path
 import { categories as baseCategories, nodeTypeToDisplayName } from './categories'
 import { FieldComponent, type inputComponents } from './field-components'
 import previewStyles from './handle-preview.module.css'
+import { useObservable } from '../hooks/use-observable'
 
 // Extend categories with mathOps for UI purposes (add node menu, header classes, typeCategory)
 // Base categories.ts doesn't include mathOps to keep it clean for context generation
@@ -86,26 +86,12 @@ const SLOW_EXECUTION_THRESHOLD_MS = 100
 
 // Hook to subscribe to operator execution state
 function useExecutionState(op: Operator<IOperator>): ExecutionState {
-  const [executionState, setExecutionState] = useState<ExecutionState>({ status: 'idle' })
-
-  useEffect(() => {
-    const subscription = op.executionState.subscribe(setExecutionState)
-    return () => subscription.unsubscribe()
-  }, [op])
-
-  return executionState
+  return useObservable(op.executionState, { status: 'idle' })
 }
 
 // Hook to subscribe to operator connection errors
 function useConnectionErrors(op: Operator<IOperator>): Map<string, string> {
-  const [connectionErrors, setConnectionErrors] = useState<Map<string, string>>(new Map())
-
-  useEffect(() => {
-    const subscription = op.connectionErrors.subscribe(setConnectionErrors)
-    return () => subscription.unsubscribe()
-  }, [op])
-
-  return connectionErrors
+  return useObservable(op.connectionErrors, new Map())
 }
 
 // Hook to check if a node should be dimmed during connection drag
@@ -394,13 +380,13 @@ function HandlePreviewContent({ data, name, type }: { data: unknown; name: strin
         ) : Array.isArray(data) &&
           data.length > 0 &&
           data.length < 10 &&
-          isPlainObject(data[0]) &&
+          (data[0] !== null && typeof data[0] === 'object' && Object.getPrototypeOf(data[0]) === Object.prototype) &&
           Object.keys(data[0]).length < 10 ? (
           (() => {
             // Derive union of all keys across rows to avoid silently dropping columns
             const allKeys = new Set<string>()
             for (const row of data) {
-              if (isPlainObject(row)) {
+              if (row !== null && typeof row === 'object' && Object.getPrototypeOf(row) === Object.prototype) {
                 for (const key of Object.keys(row)) {
                   allKeys.add(key)
                 }
@@ -1245,13 +1231,13 @@ function ViewerOpComponent({
     Array.isArray(viewerData) &&
     viewerData.length > 0 &&
     viewerData.length < 20 &&
-    isPlainObject(viewerData[0]) &&
+    (viewerData[0] !== null && typeof viewerData[0] === 'object' && Object.getPrototypeOf(viewerData[0]) === Object.prototype) &&
     Object.keys(viewerData[0]).length < 20
   ) {
     // Derive union of all keys across rows to avoid silently dropping columns
     const allKeys = new Set<string>()
     for (const row of viewerData) {
-      if (isPlainObject(row)) {
+      if (row !== null && typeof row === 'object' && Object.getPrototypeOf(row) === Object.prototype) {
         for (const key of Object.keys(row)) {
           allKeys.add(key)
         }
