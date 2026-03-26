@@ -116,7 +116,6 @@ export {
 // ============================================================================
 
 export type {
-  CollapsibleTimelinePanelProps,
   CurveEditorProps,
   KeyframeIndicatorProps,
   KeyframeTrackProps,

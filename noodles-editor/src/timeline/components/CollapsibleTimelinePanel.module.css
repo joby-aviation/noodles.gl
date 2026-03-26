@@ -30,3 +30,15 @@
   background: #11161e;
   border-top: 1px solid #2f3b4c;
 }
+
+.resizeHandle {
+  flex-shrink: 0;
+  height: 4px;
+  cursor: ns-resize;
+  background: #2f3b4c;
+  transition: background 0.12s ease;
+}
+
+.resizeHandle:hover {
+  background: #3b82f6;
+}
