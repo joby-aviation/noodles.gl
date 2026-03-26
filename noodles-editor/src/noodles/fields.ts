@@ -565,19 +565,15 @@ export class DateField extends Field<
         'Expected Temporal.PlainDateTime'
       ),
       // Convert Date to Temporal.PlainDateTime in UTC
-      z
-        .date()
-        .transform(date => {
-          return Temporal.Instant.fromEpochMilliseconds(date.getTime())
-            .toZonedDateTimeISO('UTC')
-            .toPlainDateTime()
-        }),
+      z.date().transform(date => {
+        return Temporal.Instant.fromEpochMilliseconds(date.getTime())
+          .toZonedDateTimeISO('UTC')
+          .toPlainDateTime()
+      }),
       // Parse ISO datetime string from project files to Temporal
-      z.iso
-        .datetime({ offset: true, local: true })
-        .transform(str => {
-          return Temporal.PlainDateTime.from(str)
-        }),
+      z.iso.datetime({ offset: true, local: true }).transform(str => {
+        return Temporal.PlainDateTime.from(str)
+      }),
     ])
   }
   static deserialize(value: string) {
