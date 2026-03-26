@@ -9,6 +9,8 @@ import { Button } from 'primereact/button'
 import { InputText } from 'primereact/inputtext'
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Temporal } from 'temporal-polyfill'
+import { analytics } from '../../utils/analytics'
+import { SqlNotebookDialog } from './sql-notebook-dialog'
 import { getFieldPath } from '../../timeline/field-bindings'
 import { useTimelineStore } from '../../timeline/timeline-store'
 import {
@@ -570,6 +572,11 @@ export function CodeFieldComponent({
   const thisFieldId = `par.${fieldName}`
   const thisOpId = field.op.id
 
+  // SQL Notebook mode state (only for SQL fields)
+  const isSqlField = field.language === 'sql'
+  const [notebookOpen, setNotebookOpen] = useState(false)
+  const [showNotebookIcon, setShowNotebookIcon] = useState(false)
+
   const handleEditorChange = useCallback(
     (value: string | undefined, _event) => {
       if (disabled || value === undefined) return
@@ -579,14 +586,21 @@ export function CodeFieldComponent({
   )
 
   const handleEditorDidMount: OnMount = useCallback(
-    (editor, _monaco) => {
+    (editor, monaco) => {
       editorRef.current = editor
       editor.layout()
       // Capture property state when user begins editing, commit when they stop
       editor.onDidFocusEditorText(() => captureStart())
       editor.onDidBlurEditorWidget(() => commitChange('Change code'))
+      // Add Cmd+K keyboard shortcut for SQL notebook mode
+      if (isSqlField) {
+        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK, () => {
+          setNotebookOpen(true)
+          analytics.track('sql_notebook_opened', { trigger: 'keyboard' })
+        })
+      }
     },
-    [captureStart, commitChange]
+    [captureStart, commitChange, isSqlField]
   )
 
   // Force layout update on load and when node height changes
@@ -667,30 +681,63 @@ export function CodeFieldComponent({
   }, [fieldReferences, thisOpId, thisFieldId, nodeId, setEdges])
 
   return (
-    <div className={cx(s.fieldWrapper, s.fieldWrapperCode)} ref={containerRef}>
-      <div className={s.fieldInputWrapperCodeEditor}>
-        <CodeiumEditor
-          language={field.language}
-          options={{
-            tabSize: 2,
-            scrollBeyondLastLine: false,
-            minimap: { enabled: false },
-            automaticLayout: true,
-            fixedOverflowWidgets: true,
-            scrollbar: {
-              vertical: 'visible',
-              horizontal: 'visible',
-            },
-          }}
-          theme="vs-dark"
-          width="100%"
-          height={nodeHeight - 80}
-          defaultValue={field.value}
-          onChange={handleEditorChange}
-          onMount={handleEditorDidMount}
-        />
+    <>
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: only interactive for SQL to show notebook icon */}
+      <div
+        className={cx(s.fieldWrapper, s.fieldWrapperCode)}
+        ref={containerRef}
+        onMouseEnter={() => isSqlField && setShowNotebookIcon(true)}
+        onMouseLeave={() => isSqlField && setShowNotebookIcon(false)}
+      >
+        <div className={s.fieldInputWrapperCodeEditor}>
+          <CodeiumEditor
+            language={field.language}
+            options={{
+              tabSize: 2,
+              scrollBeyondLastLine: false,
+              minimap: { enabled: false },
+              automaticLayout: true,
+              fixedOverflowWidgets: true,
+              scrollbar: {
+                vertical: 'visible',
+                horizontal: 'visible',
+              },
+            }}
+            theme="vs-dark"
+            width="100%"
+            height={nodeHeight - 80}
+            defaultValue={field.value}
+            onChange={handleEditorChange}
+            onMount={handleEditorDidMount}
+          />
+          {isSqlField && showNotebookIcon && (
+            <button
+              type="button"
+              className={s.notebookTriggerIcon}
+              onClick={() => {
+                setNotebookOpen(true)
+                analytics.track('sql_notebook_opened', { trigger: 'icon' })
+              }}
+              title="Open SQL Notebook (Cmd+K)"
+            >
+              <i className="pi pi-external-link" />
+            </button>
+          )}
+        </div>
       </div>
-    </div>
+      {isSqlField && (
+        <SqlNotebookDialog
+          open={notebookOpen}
+          onOpenChange={setNotebookOpen}
+          initialSql={value}
+          operatorId={thisOpId}
+          onCommit={newSql => {
+            field.setValue(newSql)
+            setNotebookOpen(false)
+          }}
+        />
+      )}
+    </>
   )
 }
 
