@@ -33,7 +33,7 @@ export async function getFFmpeg(
 
     // Dynamic import to avoid bundling FFmpeg in main chunk
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { FFmpeg: FFmpegClass } = await import('@ffmpeg/ffmpeg') as { FFmpeg: new () => FFmpeg }
+    const { FFmpeg: FFmpegClass } = (await import('@ffmpeg/ffmpeg')) as { FFmpeg: new () => FFmpeg }
     ffmpegInstance = new FFmpegClass()
 
     // Track loading progress

@@ -1,8 +1,8 @@
 // FFmpeg-based video encoder for alpha transparency support.
 // Uses VP9 codec with yuva420p pixel format for reliable alpha encoding.
 
-import { getFFmpeg, type FFmpegLoadProgress } from './ffmpeg-loader'
 import { debugRender, debugRenderFrame } from '../utils/debug'
+import { type FFmpegLoadProgress, getFFmpeg } from './ffmpeg-loader'
 
 export type EncoderProgress = {
   stage: 'loading-ffmpeg' | 'writing-frames' | 'encoding' | 'finalizing'
@@ -78,15 +78,24 @@ export async function encodeWithAlpha(
   // -auto-alt-ref 0: disable alternate reference frames (required for alpha)
   debugRender('Starting FFmpeg encode with bitrate %d', bitrate)
   await ffmpeg.exec([
-    '-f', 'rawvideo',
-    '-pixel_format', 'rgba',
-    '-video_size', `${width}x${height}`,
-    '-framerate', String(fps),
-    '-i', 'frame%06d.raw',
-    '-c:v', 'libvpx-vp9',
-    '-pix_fmt', 'yuva420p',
-    '-b:v', `${bitrate}`,
-    '-auto-alt-ref', '0',
+    '-f',
+    'rawvideo',
+    '-pixel_format',
+    'rgba',
+    '-video_size',
+    `${width}x${height}`,
+    '-framerate',
+    String(fps),
+    '-i',
+    'frame%06d.raw',
+    '-c:v',
+    'libvpx-vp9',
+    '-pix_fmt',
+    'yuva420p',
+    '-b:v',
+    `${bitrate}`,
+    '-auto-alt-ref',
+    '0',
     'output.webm',
   ])
 

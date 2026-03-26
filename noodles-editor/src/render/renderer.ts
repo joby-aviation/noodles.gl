@@ -9,7 +9,7 @@ import {
 import { useCallback, useRef, useState } from 'react'
 import { getTimelineStore, useTimelineStore } from '../timeline/timeline-store'
 import { debugRender, debugRenderFrame } from '../utils/debug'
-import { encodeWithAlpha, videoFrameToRGBA, type EncoderProgress } from './ffmpeg-encoder'
+import { type EncoderProgress, encodeWithAlpha, videoFrameToRGBA } from './ffmpeg-encoder'
 
 export const rafDriver = {
   tick: (_timestamp: number) => {},
@@ -296,22 +296,24 @@ async function captureWithFFmpeg({
 
   // Get file handle first so user can cancel before we start capturing
   // @ts-expect-error - showSaveFilePicker is a modern browser API not in TS types
-  const fileHandle = await window.showSaveFilePicker({
-    suggestedName: `${projectName}-map.webm`,
-    types: [
-      {
-        description: 'WebM Video with Alpha',
-        accept: { 'video/webm': ['.webm'] },
-      },
-    ],
-  }).catch((error: Error) => {
-    if (error.name === 'AbortError') {
-      debugRender('File picker cancelled by user')
-    } else {
-      console.error('Error in showSaveFilePicker:', error)
-    }
-    return null
-  })
+  const fileHandle = await window
+    .showSaveFilePicker({
+      suggestedName: `${projectName}-map.webm`,
+      types: [
+        {
+          description: 'WebM Video with Alpha',
+          accept: { 'video/webm': ['.webm'] },
+        },
+      ],
+    })
+    .catch((error: Error) => {
+      if (error.name === 'AbortError') {
+        debugRender('File picker cancelled by user')
+      } else {
+        console.error('Error in showSaveFilePicker:', error)
+      }
+      return null
+    })
 
   if (!fileHandle) {
     debugRender('FFmpeg capture cancelled by user')
@@ -431,22 +433,24 @@ async function captureWithWebCodecs({
     const containerFormat = new Mp4OutputFormat({ fastStart: 'in-memory' })
 
     // @ts-expect-error - showSaveFilePicker is a modern browser API not in TS types
-    const fileHandle = await window.showSaveFilePicker({
-      suggestedName: `${name}${extension}`,
-      types: [
-        {
-          description: 'Video File',
-          accept: { [mimeType]: [extension] },
-        },
-      ],
-    }).catch((error: Error) => {
-      if (error.name === 'AbortError') {
-        debugRender('File picker cancelled by user for: %s', name)
-      } else {
-        console.error('Error in showSaveFilePicker for', name, ':', error)
-      }
-      return null
-    })
+    const fileHandle = await window
+      .showSaveFilePicker({
+        suggestedName: `${name}${extension}`,
+        types: [
+          {
+            description: 'Video File',
+            accept: { [mimeType]: [extension] },
+          },
+        ],
+      })
+      .catch((error: Error) => {
+        if (error.name === 'AbortError') {
+          debugRender('File picker cancelled by user for: %s', name)
+        } else {
+          console.error('Error in showSaveFilePicker for', name, ':', error)
+        }
+        return null
+      })
 
     if (!fileHandle) {
       return null

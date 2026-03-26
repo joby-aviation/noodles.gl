@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
+import { debugRender } from '../../utils/debug'
 import type { OutOp } from '../operators'
 import type { RenderSettings } from '../utils/serialization'
 import { DEFAULT_RENDER_SETTINGS } from '../utils/serialization'
-import { debugRender } from '../../utils/debug'
 import { useActiveOutOp } from './use-active-outop'
 
 // Hook to read render settings from the active OutOp node.
