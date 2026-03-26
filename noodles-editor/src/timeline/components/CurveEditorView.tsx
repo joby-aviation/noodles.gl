@@ -1007,6 +1007,7 @@ function CurveKeyframeDot({
   }
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: Keyframe dot is a drag handle and right-click target
     <circle
       cx={cx}
       cy={cy}
