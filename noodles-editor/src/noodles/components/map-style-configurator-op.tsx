@@ -2,11 +2,15 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon, EyeNoneIcon, EyeOpenIcon } from '@radix-ui/react-icons'
 import type { NodeProps as ReactFlowNodeProps } from '@xyflow/react'
 import cx from 'classnames'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import 'maplibre-gl/dist/maplibre-gl.css'
+import { Map as MapLibre, NavigationControl } from 'react-map-gl/maplibre'
 
 import { analytics } from '../../utils/analytics'
+import { CARTO_DARK } from '../../utils/map-styles'
 import {
   CATEGORY_ORDER,
+  applyStyleOverrides,
   getEditableColorProps,
   groupLayersByCategory,
   type LayerCategory,
@@ -96,7 +100,16 @@ function MapStyleConfiguratorDialog({ op, open, onOpenChange }: ConfiguratorDial
     (op.inputs.overrides.value as StyleConfiguratorData) ?? { layers: [], global: {} }
   )
   const [collapsedCategories, setCollapsedCategories] = useState<Set<LayerCategory>>(new Set())
+  const [mapView, setMapView] = useState({ longitude: -74.006, latitude: 40.7128, zoom: 9 })
   const { captureStart, commitChange } = usePropertyHistory()
+
+  const baseStyle = op.inputs.baseStyle.value as string | object | undefined
+  const mergedStyle = useMemo(
+    () => (styleJson ? applyStyleOverrides(styleJson, overrides) : null),
+    [styleJson, overrides]
+  )
+  const previewMapStyle =
+    mergedStyle ?? (typeof baseStyle === 'string' ? baseStyle : null) ?? CARTO_DARK
 
   // Fetch style when dialog opens or baseStyle changes
   useEffect(() => {
@@ -221,7 +234,8 @@ function MapStyleConfiguratorDialog({ op, open, onOpenChange }: ConfiguratorDial
           onPointerDownOutside={e => e.preventDefault()}
           onInteractOutside={e => e.preventDefault()}
         >
-          <Dialog.Title className={configuratorStyles.title}>Map Style Configurator</Dialog.Title>
+          <div className={configuratorStyles.controlsPane}>
+            <Dialog.Title className={configuratorStyles.title}>Map Style Configurator</Dialog.Title>
           <Dialog.Close asChild>
             <button type="button" className={configuratorStyles.closeButton} aria-label="Close">
               <Cross2Icon />
@@ -341,6 +355,20 @@ function MapStyleConfiguratorDialog({ op, open, onOpenChange }: ConfiguratorDial
               </div>
             </>
           )}
+        </div>
+
+        <div className={configuratorStyles.previewPane}>
+          <MapLibre
+            mapStyle={previewMapStyle as unknown as string}
+            style={{ width: '100%', height: '100%' }}
+            longitude={mapView.longitude}
+            latitude={mapView.latitude}
+            zoom={mapView.zoom}
+            onMove={e => setMapView(e.viewState)}
+          >
+            <NavigationControl position="top-right" showCompass={false} />
+          </MapLibre>
+        </div>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
