@@ -91,16 +91,16 @@ it('should update state correctly', () => {
 
 ```bash
 # Run all tests
-cd noodles-editor && yarn test
+cd noodles-editor && npm test
 
 # Run specific test file
-yarn test src/noodles/operators.test.ts
+npm test src/noodles/operators.test.ts
 
 # Run tests in watch mode
-yarn test --watch
+npm test -- --watch
 
 # Run tests with coverage
-yarn test --coverage
+npm test -- --coverage
 ```
 
 ## Test Runbooks for PRs

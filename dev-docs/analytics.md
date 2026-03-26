@@ -235,7 +235,7 @@ analytics.track('redo_performed')
 ### Development Mode
 
 1. Set environment variables in `.env.local`
-2. Run `yarn start`
+2. Run `npm start`
 3. Accept analytics consent
 4. Perform actions
 5. View events in PostHog Live Events
