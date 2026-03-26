@@ -125,7 +125,7 @@ describe('NodeProperties', () => {
       edges: [],
     })
     wrapWithProviders(<NodeProperties nodeId="/num" />)
-    expect(screen.getByText('Number')).toBeInTheDocument()
+    expect(screen.getByText('Number', { selector: '.opDisplayName' })).toBeInTheDocument()
   })
 
   it('only subscribes to incoming edges for the node', () => {
