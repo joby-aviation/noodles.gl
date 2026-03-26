@@ -13,5 +13,8 @@
     "start:app": "(cd noodles-editor && npm start)",
     "serve:website": "(cd website && npm run serve)",
     "serve:app": "(cd noodles-editor && npm run serve)"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.1"
   }
 }
