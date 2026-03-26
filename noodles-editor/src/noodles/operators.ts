@@ -3474,7 +3474,6 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
     sky,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     validateViewState(viewState)
-
     return {
       maplibre: {
         mapStyle,
@@ -3868,6 +3867,7 @@ export class OutOp extends Operator<OutOp> {
       height: new NumberField(1080, { min: 1, max: 8192, step: 1 }),
       lod: new NumberField(2, { min: 0.1, max: 4, step: 0.1 }),
       waitForData: new BooleanField(true),
+      exportAlpha: new BooleanField(false),
       codec: new StringLiteralField('avc', ['avc', 'hevc', 'vp9', 'av1']),
       bitrateMbps: new NumberField(10, { min: 1, max: 100, step: 1 }),
       bitrateMode: new StringLiteralField('constant', ['constant', 'variable']),

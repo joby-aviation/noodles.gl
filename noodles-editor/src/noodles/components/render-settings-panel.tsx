@@ -43,6 +43,7 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
   const [framerate, setFramerate] = useState(op.inputs.framerate.value)
   const [bitrateMbps, setBitrateMbps] = useState(op.inputs.bitrateMbps.value)
   const [bitrateMode, setBitrateMode] = useState(op.inputs.bitrateMode.value)
+  const [exportAlpha, setExportAlpha] = useState(op.inputs.exportAlpha.value)
   const [waitForData, setWaitForData] = useState(op.inputs.waitForData.value)
   const [captureDelay, setCaptureDelay] = useState(op.inputs.captureDelay.value)
   const [rendersDirectory, setRendersDirectory] = useState(op.inputs.rendersDirectory.value)
@@ -58,6 +59,7 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
       op.inputs.framerate.subscribe(v => setFramerate(v)),
       op.inputs.bitrateMbps.subscribe(v => setBitrateMbps(v)),
       op.inputs.bitrateMode.subscribe(v => setBitrateMode(v)),
+      op.inputs.exportAlpha.subscribe(v => setExportAlpha(v)),
       op.inputs.waitForData.subscribe(v => setWaitForData(v)),
       op.inputs.captureDelay.subscribe(v => setCaptureDelay(v)),
       op.inputs.rendersDirectory.subscribe(v => setRendersDirectory(v)),
@@ -87,6 +89,7 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
     op.inputs.framerate.setValue(DEFAULT_RENDER_SETTINGS.framerate)
     op.inputs.bitrateMbps.setValue(DEFAULT_RENDER_SETTINGS.bitrateMbps)
     op.inputs.bitrateMode.setValue(DEFAULT_RENDER_SETTINGS.bitrateMode)
+    op.inputs.exportAlpha.setValue(DEFAULT_RENDER_SETTINGS.exportAlpha)
     op.inputs.waitForData.setValue(DEFAULT_RENDER_SETTINGS.waitForData)
     op.inputs.captureDelay.setValue(DEFAULT_RENDER_SETTINGS.captureDelay)
     op.inputs.rendersDirectory.setValue(DEFAULT_RENDER_SETTINGS.rendersDirectory)
@@ -235,6 +238,22 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
             <option value="av1">AV1</option>
           </select>
         </div>
+
+        {codec === 'vp9' || codec === 'av1' ? (
+          <div className={s.settingRow}>
+            <label className={s.checkboxLabel}>
+              <input
+                type="checkbox"
+                checked={exportAlpha}
+                onChange={e => op.inputs.exportAlpha.setValue(e.target.checked)}
+                className={s.checkbox}
+              />
+              Export with transparency
+            </label>
+          </div>
+        ) : (
+          <div className={s.alphaNote}>Transparency requires VP9 or AV1</div>
+        )}
 
         <div className={s.settingRow}>
           <label htmlFor="render-framerate" className={s.label}>

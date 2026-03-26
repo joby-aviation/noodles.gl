@@ -27,6 +27,7 @@ export type RenderSettings = {
   lod: number
   waitForData: boolean
   codec: 'avc' | 'hevc' | 'vp9' | 'av1'
+  exportAlpha: boolean
   bitrateMbps: number
   bitrateMode: 'constant' | 'variable'
   scaleControl: number
@@ -41,6 +42,7 @@ export const DEFAULT_RENDER_SETTINGS: RenderSettings = {
   lod: 2,
   waitForData: true,
   codec: 'avc',
+  exportAlpha: false,
   bitrateMbps: 10,
   bitrateMode: 'constant',
   scaleControl: 0.3,

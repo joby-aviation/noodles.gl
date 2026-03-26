@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { debugRender } from '../../utils/debug'
 import type { OutOp } from '../operators'
 import type { RenderSettings } from '../utils/serialization'
 import { DEFAULT_RENDER_SETTINGS } from '../utils/serialization'
@@ -17,9 +18,27 @@ export function useRenderSettings(): RenderSettings {
   })
 
   useEffect(() => {
+    debugRender('useRenderSettings effect triggered, outOp=%s', outOp?.id ?? 'null')
+
     if (!outOp) {
       setSettings({ ...DEFAULT_RENDER_SETTINGS })
       return
+    }
+
+    // Batch multiple field updates into a single state update using microtask.
+    // This prevents multiple rapid setState calls when several fields change at once.
+    let pendingUpdate = false
+    function updateSettings() {
+      if (pendingUpdate) return
+      pendingUpdate = true
+      queueMicrotask(() => {
+        // outOp should still be valid here since we're inside the effect scope
+        // but check just in case the effect was cleaned up mid-microtask
+        if (!outOp) return
+        debugRender('updateSettings batched, setting new state for outOp=%s', outOp.id)
+        setSettings(getRenderSettingsFromOutOp(outOp))
+        pendingUpdate = false
+      })
     }
 
     // Subscribe to all render setting fields
@@ -29,6 +48,7 @@ export function useRenderSettings(): RenderSettings {
       outOp.inputs.height.subscribe(() => updateSettings()),
       outOp.inputs.lod.subscribe(() => updateSettings()),
       outOp.inputs.waitForData.subscribe(() => updateSettings()),
+      outOp.inputs.exportAlpha.subscribe(() => updateSettings()),
       outOp.inputs.codec.subscribe(() => updateSettings()),
       outOp.inputs.bitrateMbps.subscribe(() => updateSettings()),
       outOp.inputs.bitrateMode.subscribe(() => updateSettings()),
@@ -37,10 +57,6 @@ export function useRenderSettings(): RenderSettings {
       outOp.inputs.captureDelay.subscribe(() => updateSettings()),
       outOp.inputs.rendersDirectory.subscribe(() => updateSettings()),
     ]
-
-    function updateSettings() {
-      setSettings(getRenderSettingsFromOutOp(outOp!))
-    }
 
     // Initial update
     updateSettings()
@@ -66,6 +82,7 @@ export function getRenderSettingsFromOutOp(outOp: OutOp): RenderSettings {
     },
     lod: outOp.inputs.lod.value,
     waitForData: outOp.inputs.waitForData.value,
+    exportAlpha: outOp.inputs.exportAlpha.value,
     codec: outOp.inputs.codec.value as RenderSettings['codec'],
     bitrateMbps: outOp.inputs.bitrateMbps.value,
     bitrateMode: outOp.inputs.bitrateMode.value as RenderSettings['bitrateMode'],
@@ -91,6 +108,9 @@ export function setRenderSettingsOnOutOp(outOp: OutOp, settings: Partial<RenderS
   }
   if (settings.waitForData !== undefined) {
     outOp.inputs.waitForData.setValue(settings.waitForData)
+  }
+  if (settings.exportAlpha !== undefined) {
+    outOp.inputs.exportAlpha.setValue(settings.exportAlpha)
   }
   if (settings.codec !== undefined) {
     outOp.inputs.codec.setValue(settings.codec)
