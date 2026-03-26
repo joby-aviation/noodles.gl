@@ -4,6 +4,7 @@ import * as Tooltip from '@radix-ui/react-tooltip'
 import {
   BaseEdge,
   type EdgeProps,
+  getBezierPath,
   getStraightPath,
   Handle,
   NodeResizer,
@@ -201,8 +202,39 @@ export const nodeComponents = {
 } as const as ReactFlowNodeTypes
 
 export const edgeComponents = {
+  default: DefaultEdgeComponent,
   ReferenceEdge: ReferenceEdgeComponent,
 } as const as ReactFlowEdgeTypes
+
+function DefaultEdgeComponent({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  style = {},
+  markerEnd,
+}: EdgeProps) {
+  const targetedEdgeId = useUIStore(s => s.targetedEdgeId)
+  const [edgePath] = getBezierPath({
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+    sourcePosition,
+    targetPosition,
+  })
+  return (
+    <BaseEdge
+      path={edgePath}
+      markerEnd={markerEnd}
+      style={style}
+      className={id === targetedEdgeId ? s.targetedEdge : undefined}
+    />
+  )
+}
 
 function ReferenceEdgeComponent({
   sourceX,
