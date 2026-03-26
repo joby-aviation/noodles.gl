@@ -236,139 +236,145 @@ function MapStyleConfiguratorDialog({ op, open, onOpenChange }: ConfiguratorDial
         >
           <div className={configuratorStyles.controlsPane}>
             <Dialog.Title className={configuratorStyles.title}>Map Style Configurator</Dialog.Title>
-          <Dialog.Close asChild>
-            <button type="button" className={configuratorStyles.closeButton} aria-label="Close">
-              <Cross2Icon />
-            </button>
-          </Dialog.Close>
+            <Dialog.Close asChild>
+              <button type="button" className={configuratorStyles.closeButton} aria-label="Close">
+                <Cross2Icon />
+              </button>
+            </Dialog.Close>
 
-          {loading && <div className={configuratorStyles.loading}>Loading style layers…</div>}
-          {error && <div className={configuratorStyles.error}>{error}</div>}
-          {!loading && !error && !styleJson && (
-            <div className={configuratorStyles.emptyState}>
-              Set a base style URL in the node to configure layers.
-            </div>
-          )}
-
-          {styleJson && (
-            <>
-              <div className={configuratorStyles.globalSection}>
-                <div className={configuratorStyles.globalSectionTitle}>Global</div>
-                <div className={configuratorStyles.globalRow}>
-                  <span className={configuratorStyles.globalLabel}>Label size scale</span>
-                  <input
-                    type="range"
-                    min={0.5}
-                    max={3}
-                    step={0.05}
-                    value={overrides.global?.labelSizeScale ?? 1}
-                    onChange={e => updateGlobal('labelSizeScale', parseFloat(e.target.value))}
-                    className={configuratorStyles.globalInput}
-                    style={{ padding: 0 }}
-                  />
-                  <span className={configuratorStyles.scaleValue}>
-                    {(overrides.global?.labelSizeScale ?? 1).toFixed(2)}×
-                  </span>
-                </div>
-                <div className={configuratorStyles.globalRow}>
-                  <span className={configuratorStyles.globalLabel}>Line width scale</span>
-                  <input
-                    type="range"
-                    min={0.25}
-                    max={4}
-                    step={0.05}
-                    value={overrides.global?.lineWidthScale ?? 1}
-                    onChange={e => updateGlobal('lineWidthScale', parseFloat(e.target.value))}
-                    className={configuratorStyles.globalInput}
-                    style={{ padding: 0 }}
-                  />
-                  <span className={configuratorStyles.scaleValue}>
-                    {(overrides.global?.lineWidthScale ?? 1).toFixed(2)}×
-                  </span>
-                </div>
-                <div className={configuratorStyles.globalRow}>
-                  <span className={configuratorStyles.globalLabel}>Glyphs URL</span>
-                  <input
-                    type="text"
-                    placeholder={styleJson.glyphs ?? 'default font URL'}
-                    value={overrides.global?.glyphs ?? ''}
-                    onChange={e => updateGlobal('glyphs', e.target.value || undefined)}
-                    className={configuratorStyles.globalInput}
-                  />
-                </div>
+            {loading && <div className={configuratorStyles.loading}>Loading style layers…</div>}
+            {error && <div className={configuratorStyles.error}>{error}</div>}
+            {!loading && !error && !styleJson && (
+              <div className={configuratorStyles.emptyState}>
+                Set a base style URL in the node to configure layers.
               </div>
+            )}
 
-              {CATEGORY_ORDER.map(category => {
-                const layers = groupedLayers?.[category] ?? []
-                if (layers.length === 0) return null
-                const isCollapsed = collapsedCategories.has(category)
-                const categoryOverrides = overrides.layers?.filter(o =>
-                  layers.some(l => l.id === o.layerId)
-                )
-                const hasOverrides = (categoryOverrides?.length ?? 0) > 0
-
-                return (
-                  <div key={category} className={configuratorStyles.categorySection}>
-                    <button
-                      type="button"
-                      className={configuratorStyles.categoryHeader}
-                      onClick={() => toggleCategory(category)}
-                    >
-                      <span className={configuratorStyles.chevron}>{isCollapsed ? '▶' : '▼'}</span>
-                      <span className={configuratorStyles.categoryName}>{category}</span>
-                      {hasOverrides && (
-                        <span className={configuratorStyles.modifiedDot} title="Has overrides" />
-                      )}
-                      <span className={configuratorStyles.layerCount}>({layers.length})</span>
-                    </button>
-
-                    {!isCollapsed && (
-                      <div className={configuratorStyles.layerList}>
-                        {layers.map(layer => (
-                          <LayerRow
-                            key={layer.id}
-                            layer={layer}
-                            layerOverride={overrides.layers?.find(o => o.layerId === layer.id)}
-                            onVisibilityChange={visible => updateLayerVisibility(layer.id, visible)}
-                            onColorChange={(prop, color) => updateLayerPaint(layer.id, prop, color)}
-                          />
-                        ))}
-                      </div>
-                    )}
+            {styleJson && (
+              <>
+                <div className={configuratorStyles.globalSection}>
+                  <div className={configuratorStyles.globalSectionTitle}>Global</div>
+                  <div className={configuratorStyles.globalRow}>
+                    <span className={configuratorStyles.globalLabel}>Label size scale</span>
+                    <input
+                      type="range"
+                      min={0.5}
+                      max={3}
+                      step={0.05}
+                      value={overrides.global?.labelSizeScale ?? 1}
+                      onChange={e => updateGlobal('labelSizeScale', parseFloat(e.target.value))}
+                      className={configuratorStyles.globalInput}
+                      style={{ padding: 0 }}
+                    />
+                    <span className={configuratorStyles.scaleValue}>
+                      {(overrides.global?.labelSizeScale ?? 1).toFixed(2)}×
+                    </span>
                   </div>
-                )
-              })}
+                  <div className={configuratorStyles.globalRow}>
+                    <span className={configuratorStyles.globalLabel}>Line width scale</span>
+                    <input
+                      type="range"
+                      min={0.25}
+                      max={4}
+                      step={0.05}
+                      value={overrides.global?.lineWidthScale ?? 1}
+                      onChange={e => updateGlobal('lineWidthScale', parseFloat(e.target.value))}
+                      className={configuratorStyles.globalInput}
+                      style={{ padding: 0 }}
+                    />
+                    <span className={configuratorStyles.scaleValue}>
+                      {(overrides.global?.lineWidthScale ?? 1).toFixed(2)}×
+                    </span>
+                  </div>
+                  <div className={configuratorStyles.globalRow}>
+                    <span className={configuratorStyles.globalLabel}>Glyphs URL</span>
+                    <input
+                      type="text"
+                      placeholder={styleJson.glyphs ?? 'default font URL'}
+                      value={overrides.global?.glyphs ?? ''}
+                      onChange={e => updateGlobal('glyphs', e.target.value || undefined)}
+                      className={configuratorStyles.globalInput}
+                    />
+                  </div>
+                </div>
 
-              <div className={configuratorStyles.footer}>
-                <button
-                  type="button"
-                  className={configuratorStyles.resetButton}
-                  onClick={handleReset}
-                >
-                  Reset All Overrides
-                </button>
-                <span className={configuratorStyles.layerInfo}>
-                  {totalOverrides > 0
-                    ? `${totalOverrides} layer${totalOverrides === 1 ? '' : 's'} modified`
-                    : 'No overrides'}
-                </span>
-              </div>
-            </>
-          )}
-        </div>
+                {CATEGORY_ORDER.map(category => {
+                  const layers = groupedLayers?.[category] ?? []
+                  if (layers.length === 0) return null
+                  const isCollapsed = collapsedCategories.has(category)
+                  const categoryOverrides = overrides.layers?.filter(o =>
+                    layers.some(l => l.id === o.layerId)
+                  )
+                  const hasOverrides = (categoryOverrides?.length ?? 0) > 0
 
-        <div className={configuratorStyles.previewPane}>
-          <MapLibre
-            mapStyle={previewMapStyle as unknown as string}
-            style={{ width: '100%', height: '100%' }}
-            longitude={mapView.longitude}
-            latitude={mapView.latitude}
-            zoom={mapView.zoom}
-            onMove={e => setMapView(e.viewState)}
-          >
-            <NavigationControl position="top-right" showCompass={false} />
-          </MapLibre>
-        </div>
+                  return (
+                    <div key={category} className={configuratorStyles.categorySection}>
+                      <button
+                        type="button"
+                        className={configuratorStyles.categoryHeader}
+                        onClick={() => toggleCategory(category)}
+                      >
+                        <span className={configuratorStyles.chevron}>
+                          {isCollapsed ? '▶' : '▼'}
+                        </span>
+                        <span className={configuratorStyles.categoryName}>{category}</span>
+                        {hasOverrides && (
+                          <span className={configuratorStyles.modifiedDot} title="Has overrides" />
+                        )}
+                        <span className={configuratorStyles.layerCount}>({layers.length})</span>
+                      </button>
+
+                      {!isCollapsed && (
+                        <div className={configuratorStyles.layerList}>
+                          {layers.map(layer => (
+                            <LayerRow
+                              key={layer.id}
+                              layer={layer}
+                              layerOverride={overrides.layers?.find(o => o.layerId === layer.id)}
+                              onVisibilityChange={visible =>
+                                updateLayerVisibility(layer.id, visible)
+                              }
+                              onColorChange={(prop, color) =>
+                                updateLayerPaint(layer.id, prop, color)
+                              }
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+
+                <div className={configuratorStyles.footer}>
+                  <button
+                    type="button"
+                    className={configuratorStyles.resetButton}
+                    onClick={handleReset}
+                  >
+                    Reset All Overrides
+                  </button>
+                  <span className={configuratorStyles.layerInfo}>
+                    {totalOverrides > 0
+                      ? `${totalOverrides} layer${totalOverrides === 1 ? '' : 's'} modified`
+                      : 'No overrides'}
+                  </span>
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className={configuratorStyles.previewPane}>
+            <MapLibre
+              mapStyle={previewMapStyle as unknown as string}
+              style={{ width: '100%', height: '100%' }}
+              longitude={mapView.longitude}
+              latitude={mapView.latitude}
+              zoom={mapView.zoom}
+              onMove={e => setMapView(e.viewState)}
+            >
+              <NavigationControl position="top-right" showCompass={false} />
+            </MapLibre>
+          </div>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
