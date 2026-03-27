@@ -101,33 +101,6 @@ export default defineConfig(({ mode }) => {
 
   return {
     base: mode === 'development' ? '/' : '/app/',
-    build: {
-      rollupOptions: {
-        output: {
-          manualChunks: (id) => {
-            // Specialized visualization libraries (less frequently used)
-            // Separate chunk for Vega and Observable Plot to reduce main bundle size
-            if (
-              id.includes('node_modules/vega-') ||
-              id.includes('node_modules/vega/') ||
-              id.includes('node_modules/@observablehq/plot')
-            ) {
-              return 'vega-charts'
-            }
-
-            // Core vendor chunk (always loaded)
-            // Includes: deck.gl, theatre, loaders, luma, UI components, d3, turf, and utilities
-            // This groups frequently-used dependencies together for better caching
-            if (id.includes('node_modules/')) {
-              return 'vendor'
-            }
-
-            // Application code stays in main bundle (index)
-            return undefined
-          },
-        },
-      },
-    },
     server: {
       open: true,
     },
