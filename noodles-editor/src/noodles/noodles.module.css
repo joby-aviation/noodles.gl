@@ -776,9 +776,8 @@
 }
 
 .targetedEdgeIncompatible {
-  stroke: #f59e0b;
+  stroke: #9a8878;
   stroke-width: 2;
-  filter: drop-shadow(0 0 4px rgba(245, 158, 11, 0.5));
 }
 
 @keyframes edgeTargetPulse {
