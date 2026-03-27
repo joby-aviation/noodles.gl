@@ -71,6 +71,9 @@ import { FieldComponent, type inputComponents } from './field-components'
 import previewStyles from './handle-preview.module.css'
 import { useObservable } from '../hooks/use-observable'
 
+const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+  v !== null && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype
+
 // Extend categories with mathOps for UI purposes (add node menu, header classes, typeCategory)
 // Base categories.ts doesn't include mathOps to keep it clean for context generation
 const categories: Record<string, string[]> = Object.fromEntries(
@@ -380,13 +383,13 @@ function HandlePreviewContent({ data, name, type }: { data: unknown; name: strin
         ) : Array.isArray(data) &&
           data.length > 0 &&
           data.length < 10 &&
-          (data[0] !== null && typeof data[0] === 'object' && Object.getPrototypeOf(data[0]) === Object.prototype) &&
+          isPlainObject(data[0]) &&
           Object.keys(data[0]).length < 10 ? (
           (() => {
             // Derive union of all keys across rows to avoid silently dropping columns
             const allKeys = new Set<string>()
             for (const row of data) {
-              if (row !== null && typeof row === 'object' && Object.getPrototypeOf(row) === Object.prototype) {
+              if (isPlainObject(row)) {
                 for (const key of Object.keys(row)) {
                   allKeys.add(key)
                 }
@@ -1231,13 +1234,13 @@ function ViewerOpComponent({
     Array.isArray(viewerData) &&
     viewerData.length > 0 &&
     viewerData.length < 20 &&
-    (viewerData[0] !== null && typeof viewerData[0] === 'object' && Object.getPrototypeOf(viewerData[0]) === Object.prototype) &&
+    isPlainObject(viewerData[0]) &&
     Object.keys(viewerData[0]).length < 20
   ) {
     // Derive union of all keys across rows to avoid silently dropping columns
     const allKeys = new Set<string>()
     for (const row of viewerData) {
-      if (row !== null && typeof row === 'object' && Object.getPrototypeOf(row) === Object.prototype) {
+      if (isPlainObject(row)) {
         for (const key of Object.keys(row)) {
           allKeys.add(key)
         }
