@@ -261,16 +261,19 @@ export class StringField extends Field<z.ZodString> {
 
 type FileUrlFieldOptions = BaseFieldOptions & {
   accept?: string // e.g. '.glb,.gltf' — controls file picker filter and shows upload button
+  suggestions?: { value: string; label: string }[] // typeahead suggestions shown in input
 }
 
 export class FileUrlField extends Field<z.ZodString, FileUrlFieldOptions> {
   static type = 'file-url'
   static defaultValue = ''
   accept?: string
+  suggestions: { value: string; label: string }[]
 
   constructor(initialValue?: string, options?: Partial<FileUrlFieldOptions>) {
     super(initialValue, options)
     this.accept = options?.accept
+    this.suggestions = options?.suggestions ?? []
   }
 
   createSchema(_options?: Partial<FileUrlFieldOptions>) {

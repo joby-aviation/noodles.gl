@@ -3243,29 +3243,6 @@ export class MouseOp extends Operator<MouseOp> {
   }
 }
 
-class MapStyleOp extends Operator<MapStyleOp> {
-  static displayName = 'MapStyle'
-  static description = 'Map style for MapLibre'
-  createInputs() {
-    return {
-      mapStyle: new StringLiteralField(CARTO_DARK, {
-        values: Object.entries(MAP_STYLES).map(([url, name]) => ({
-          label: name,
-          value: url as string,
-        })),
-      }),
-    }
-  }
-  createOutputs() {
-    return {
-      mapStyle: new StringField(),
-    }
-  }
-  execute({ mapStyle }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    return { mapStyle }
-  }
-}
-
 export class ProjectOp extends Operator<ProjectOp> {
   static displayName = 'Project'
   static description =
@@ -3418,7 +3395,10 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
 
   createInputs() {
     return {
-      mapStyle: new FileUrlField(CARTO_DARK, { accept: '.json' }),
+      mapStyle: new FileUrlField(CARTO_DARK, {
+        accept: '.json',
+        suggestions: Object.entries(MAP_STYLES).map(([url, name]) => ({ value: url, label: name })),
+      }),
       projection: new StringLiteralField('mercator', {
         values: ['mercator', 'globe'],
         showByDefault: false,
@@ -6935,7 +6915,6 @@ export const opTypes = {
   LineLayerOp,
   MaplibreBasemapOp,
   MapRangeOp,
-  MapStyleOp,
   MapViewOp,
   MapViewStateOp,
   Mask3DExtensionOp,

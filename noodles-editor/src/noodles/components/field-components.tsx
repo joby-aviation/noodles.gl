@@ -837,6 +837,7 @@ export function FileUrlFieldComponent({
         <div className={cx('p-inputgroup', field.accept ? s.fieldFileInputGroup : undefined)}>
           <InputText
             id={id}
+            list={field.suggestions.length > 0 ? `${id}-suggestions` : undefined}
             placeholder="https://"
             className={cx(s.fieldInput, field.accept ? s.fieldInputFileUrl : undefined)}
             value={value}
@@ -845,6 +846,13 @@ export function FileUrlFieldComponent({
             onChange={onChange}
             disabled={disabled}
           />
+          {field.suggestions.length > 0 && (
+            <datalist id={`${id}-suggestions`}>
+              {field.suggestions.map(({ value: val, label }) => (
+                <option key={val} value={val}>{label}</option>
+              ))}
+            </datalist>
+          )}
           {field.accept && (
             <Button
               icon="pi pi-upload"
