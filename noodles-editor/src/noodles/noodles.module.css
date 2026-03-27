@@ -775,6 +775,12 @@
   animation: edgeTargetPulse 0.8s ease-in-out infinite;
 }
 
+.targetedEdgeIncompatible {
+  stroke: #f59e0b;
+  stroke-width: 2;
+  filter: drop-shadow(0 0 4px rgba(245, 158, 11, 0.5));
+}
+
 @keyframes edgeTargetPulse {
   0%,
   100% {
