@@ -259,29 +259,22 @@ export class StringField extends Field<z.ZodString> {
   }
 }
 
-export class FileField extends Field<
-  z.ZodUnion<
-    readonly [
-      z.ZodString,
-      z.ZodPipe<
-        z.ZodObject<{ id: z.ZodString; type: z.ZodLiteral<'file'> }, z.core.$strict>,
-        z.ZodTransform<string, { id: string; type: 'file' }>
-      >,
-    ]
-  >
-> {
-  static type = 'file'
+type FileUrlFieldOptions = BaseFieldOptions & {
+  accept?: string // e.g. '.glb,.gltf' — controls file picker filter and shows upload button
+}
+
+export class FileUrlField extends Field<z.ZodString, FileUrlFieldOptions> {
+  static type = 'file-url'
   static defaultValue = ''
-  createSchema() {
-    return z.union([
-      z.string(),
-      z
-        .object({
-          id: z.string(),
-          type: z.literal('file'),
-        })
-        .transform(val => val.id),
-    ])
+  accept?: string
+
+  constructor(initialValue?: string, options?: Partial<FileUrlFieldOptions>) {
+    super(initialValue, options)
+    this.accept = options?.accept
+  }
+
+  createSchema(_options?: Partial<FileUrlFieldOptions>) {
+    return z.string()
   }
 }
 
@@ -572,19 +565,15 @@ export class DateField extends Field<
         'Expected Temporal.PlainDateTime'
       ),
       // Convert Date to Temporal.PlainDateTime in UTC
-      z
-        .date()
-        .transform(date => {
-          return Temporal.Instant.fromEpochMilliseconds(date.getTime())
-            .toZonedDateTimeISO('UTC')
-            .toPlainDateTime()
-        }),
+      z.date().transform(date => {
+        return Temporal.Instant.fromEpochMilliseconds(date.getTime())
+          .toZonedDateTimeISO('UTC')
+          .toPlainDateTime()
+      }),
       // Parse ISO datetime string from project files to Temporal
-      z.iso
-        .datetime({ offset: true, local: true })
-        .transform(str => {
-          return Temporal.PlainDateTime.from(str)
-        }),
+      z.iso.datetime({ offset: true, local: true }).transform(str => {
+        return Temporal.PlainDateTime.from(str)
+      }),
     ])
   }
   static deserialize(value: string) {
@@ -644,14 +633,6 @@ export class GeoJsonField<D extends Field = Field, TElement = unknown> extends F
         ? field.defaultValue
         : { type: 'FeatureCollection', features: [] }
     super(defaultValue, { subschema } as SubSchemaOptions<D['schema']>)
-  }
-}
-
-export class JSONUrlField extends Field<z.ZodUnion<readonly [z.ZodURL, z.ZodJSONSchema]>> {
-  static type = 'json-url'
-  static defaultValue = ''
-  createSchema(_options?: Partial<BaseFieldOptions>) {
-    return z.union([z.url(), z.json()])
   }
 }
 

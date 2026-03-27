@@ -700,6 +700,35 @@ describe('useProjectModifications', () => {
       expect(edges.some(e => e.source === '/node-1' && e.target === '/node-3')).toBe(true)
     })
 
+    it('onConnect should not create an edge when source and target are the same node', () => {
+      const op = new NumberOp('/self', { val: 42 })
+      setOp('/self', op)
+
+      const { result } = renderHook(() =>
+        useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
+      )
+
+      act(() => {
+        result.current.addNode({
+          id: '/self',
+          type: 'NumberOp',
+          position: { x: 0, y: 0 },
+          data: {},
+        })
+      })
+
+      act(() => {
+        result.current.onConnect({
+          source: '/self',
+          target: '/self',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.val',
+        })
+      })
+
+      expect(edges).toHaveLength(0)
+    })
+
     it('onConnect should add edge with validation', () => {
       const op1 = new NumberOp('/source', { val: 42 })
       const op2 = new NumberOp('/target', { val: 0 })

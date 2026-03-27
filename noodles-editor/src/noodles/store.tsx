@@ -104,7 +104,7 @@ export const useOperatorStore = create<OperatorStoreState>((set, get) => ({
 // UI Store (Zustand) - Separate slice for UI state
 // ============================================================================
 
-interface ConnectionDragState {
+export interface ConnectionDragState {
   sourceNodeId: string
   sourceHandleId: string
   compatibleNodeIds: Set<string>
@@ -123,6 +123,8 @@ interface UIStoreState {
   setSettingsDialogOpen: (open: boolean) => void
   timelineExpanded: boolean
   setTimelineExpanded: (expanded: boolean) => void
+  timelineHeight: number
+  setTimelineHeight: (height: number) => void
   quickStartModalOpen: boolean
   setQuickStartModalOpen: (open: boolean) => void
 }
@@ -141,6 +143,8 @@ export const useUIStore = create<UIStoreState>(set => ({
   setSettingsDialogOpen: open => set({ settingsDialogOpen: open }),
   timelineExpanded: false,
   setTimelineExpanded: expanded => set({ timelineExpanded: expanded }),
+  timelineHeight: 250,
+  setTimelineHeight: height => set({ timelineHeight: height }),
   quickStartModalOpen: false,
   setQuickStartModalOpen: open => set({ quickStartModalOpen: open }),
 }))

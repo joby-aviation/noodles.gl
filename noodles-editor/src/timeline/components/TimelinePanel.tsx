@@ -2,6 +2,7 @@
 // Provides the overall layout and state management for the timeline UI
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useExportActions } from '../../noodles/contexts/export-actions-context'
 import {
   captureTimelineState,
   fireTimelineMutation,
@@ -42,6 +43,8 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
   const containerRef = useRef<HTMLDivElement>(null)
   const timelineAreaRef = useRef<HTMLDivElement>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
+
+  const { isRendering } = useExportActions()
 
   // Local UI state
   const [pixelsPerSecond, setPixelsPerSecond] = useState(DEFAULT_PIXELS_PER_SECOND)
@@ -133,6 +136,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
   const handleTimelineMouseDown = useCallback(
     (e: React.MouseEvent) => {
       if (e.button !== 0) return
+      if (isRendering) return
 
       if (e.shiftKey) {
         const rect = timelineAreaRef.current?.getBoundingClientRect()
@@ -147,14 +151,15 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
       }
 
       // Plain click on blank space — clear selection and scrub
-      getTimelineStore().clearSelection()
+      const store = getTimelineStore()
+      store.clearSelection()
       const time = getTimeFromMouseEvent(e)
       if (time !== null) {
         setPosition(time)
         setIsScrubbing(true)
       }
     },
-    [getTimeFromMouseEvent, setPosition]
+    [getTimeFromMouseEvent, setPosition, isRendering]
   )
 
   // Handle mousemove while scrubbing (attached to document)
@@ -162,6 +167,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
     if (!isScrubbing) return
 
     const handleMouseMove = (e: MouseEvent) => {
+      if (isRendering) return
       const time = getTimeFromMouseEvent(e)
       if (time !== null) {
         setPosition(time)
@@ -179,7 +185,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [isScrubbing, getTimeFromMouseEvent, setPosition])
+  }, [isScrubbing, getTimeFromMouseEvent, setPosition, isRendering])
 
   // Handle marker connection start — attach document listeners synchronously so fast
   // drags (pointerdown → pointerup without much movement) aren't missed by a deferred effect.
@@ -312,7 +318,8 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
         // Delete selected keyframes
         if (selectedKeyframeIds.size > 0) {
           e.preventDefault()
-          getTimelineStore().deleteSelectedKeyframes()
+          const store = getTimelineStore()
+          store.deleteSelectedKeyframes()
           return
         }
       }
@@ -320,7 +327,8 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
       // Cmd/Ctrl+A to select all keyframes
       if ((e.key === 'a' || e.key === 'A') && (e.metaKey || e.ctrlKey)) {
         e.preventDefault()
-        getTimelineStore().selectAllKeyframes()
+        const store = getTimelineStore()
+        store.selectAllKeyframes()
       }
 
       // T to cycle handle type for selected keyframes
@@ -359,21 +367,22 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
         return
       }
 
+      const store = getTimelineStore()
       if (e.code === 'Space') {
         e.preventDefault()
-        getTimelineStore().togglePlay()
+        if (!isRendering) store.togglePlay()
       } else if (e.code === 'ArrowLeft') {
         e.preventDefault()
-        getTimelineStore().stepBackward(1)
+        if (!isRendering) store.stepBackward(1)
       } else if (e.code === 'ArrowRight') {
         e.preventDefault()
-        getTimelineStore().stepForward(1)
+        if (!isRendering) store.stepForward(1)
       }
     }
 
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
-  }, [])
+  }, [isRendering])
 
   return (
     <div
@@ -474,7 +483,8 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
           <TrackList
             showLabelsOnly
             onOpenCurveEditor={trackId => {
-              getTimelineStore().selectTrack(trackId)
+              const store = getTimelineStore()
+              store.selectTrack(trackId)
               setViewMode('value')
             }}
           />

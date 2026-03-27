@@ -22,6 +22,7 @@ import { useTimelineStore } from './timeline/timeline-store'
 import s from './timeline-editor.module.css'
 import { debugRender } from './utils/debug'
 import setRef from './utils/set-ref'
+import { workerSetTimeout } from './utils/worker-timer'
 
 function useSequenceLength() {
   return useTimelineStore(state => state.sequence.length)
@@ -245,7 +246,8 @@ export default function TimelineEditor() {
     // Because onIdle can be synchronous, we need to defer the promise resolution to the next tick.
     // TODO: Perhaps set up the promises refs before the render loop, and then later await the Promise.all?
     // Delay rendering by 200ms so that deck and maplibre can settle before capturing.
-    setTimeout(() => captureFrame(), captureDelay)
+    // Use worker timer so this fires even when the tab is switched.
+    workerSetTimeout(() => captureFrame(), captureDelay)
   }
 
   const pureDeckInstance = !basemapEnabled ? deckRef.current : null

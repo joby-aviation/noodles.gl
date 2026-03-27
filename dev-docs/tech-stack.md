@@ -4,7 +4,7 @@
 
 - **React** with TypeScript
 - **Vite** as build tool and dev server
-- **Yarn** for package management
+- **npm** for package management
 - ES modules throughout the codebase
 
 ## Key Libraries
@@ -56,15 +56,15 @@
 
 ```bash
 # Development
-yarn start          # Start development server
-yarn build          # Build for production
-yarn serve          # Preview production build
-yarn test           # Run unit tests
+npm start           # Start development server
+npm run build       # Build for production
+npm run serve       # Preview production build
+npm test            # Run unit tests
 
 # Code Quality
-yarn lint           # Run Biome linter
-yarn fix-lint       # Auto-fix linting issues with Biome
+npm run lint        # Run Biome linter
+npm run fix-lint    # Auto-fix linting issues with Biome
 
 # Testing
-yarn test           # Run Vitest unit tests
+npm test            # Run Vitest unit tests
 ```

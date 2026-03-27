@@ -49,6 +49,7 @@ import {
   Operator,
   type OutOp,
   opTypes,
+  type RerouteOp,
   type TableEditorOp,
   type TimeOp,
   type ViewerOp,
@@ -122,8 +123,8 @@ export function useHandleDimmed(nodeId: string, handleId: string): boolean {
   const drag = useUIStore(state => state.connectionDragState)
 
   if (!drag) return false
-  // Don't dim handles on the source node
-  if (drag.sourceNodeId === nodeId) return false
+  // Dim all handles on the source node except the one being dragged (no self-connections)
+  if (drag.sourceNodeId === nodeId) return drag.sourceHandleId !== handleId
   // If the node is not compatible, handles are already dimmed via node dimming
   if (!drag.compatibleNodeIds.has(nodeId)) return false
 
@@ -192,6 +193,7 @@ export const nodeComponents = {
   DirectionsOp: memo(DirectionsOpComponent, nodePropsAreEqual),
   MouseOp: memo(MouseOpComponent, nodePropsAreEqual),
   OutOp: memo(OutOpComponent, nodePropsAreEqual),
+  RerouteOp: memo(RerouteOpComponent, nodePropsAreEqual),
   TableEditorOp: memo(TableEditorOpComponent, nodePropsAreEqual),
   TimeOp: memo(TimeOpComponent, nodePropsAreEqual),
   ViewerOp: memo(ViewerOpComponent, nodePropsAreEqual),
@@ -322,12 +324,11 @@ const handleClasses = {
   effect: s.handleEffect,
   expression: s.handleCode,
   extension: s.handleExtension,
-  file: s.handleString,
+  'file-url': s.handleString,
   function: s.handleCode,
   geojson: s.handleGeojson,
   'geopoint-2d': s.handleVector,
   'geopoint-3d': s.handleVector,
-  'json-url': s.handleString,
   layer: s.handleLayer,
   list: s.handleList,
   number: s.handleNumber,
@@ -782,7 +783,7 @@ function NodeHeader({
     : ''
 
   return (
-    <div className={cx(s.header, headerClass(type))}>
+    <div className={cx(s.header, s.dragHandle, headerClass(type))}>
       <div className={s.headerTitle} title={`${id} (${displayName})`}>
         {editableId} ({displayName})
       </div>
@@ -1422,6 +1423,33 @@ function TimeOpComponent({
           ))}
         </div>
       </div>
+    </div>
+  )
+}
+
+function RerouteOpComponent({
+  id,
+}: ReactFlowNodeProps<NodeDataJSON<RerouteOp>> & { type: 'RerouteOp' }) {
+  const isDimmed = useNodeDimmed(id)
+  const isInputDimmed = useHandleDimmed(id, 'par.value')
+  const isOutputDimmed = useHandleDimmed(id, 'out.value')
+
+  return (
+    <div className={cx(s.rerouteNode, s.dragHandle, { [s.wrapperDimmed]: isDimmed })}>
+      <Handle
+        id="par.value"
+        type="target"
+        position={Position.Left}
+        className={cx(s.rerouteHandle, { [s.handleDimmed]: isInputDimmed })}
+        style={{ top: '50%', transform: 'translateY(-50%)' }}
+      />
+      <Handle
+        id="out.value"
+        type="source"
+        position={Position.Right}
+        className={cx(s.rerouteHandle, { [s.handleDimmed]: isOutputDimmed })}
+        style={{ top: '50%', transform: 'translateY(-50%)' }}
+      />
     </div>
   )
 }

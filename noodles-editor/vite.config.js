@@ -39,7 +39,7 @@ function contextGeneratorPlugin() {
 
     try {
       console.log('\n🔄 Regenerating AI context bundles...')
-      execSync('yarn generate:context', {
+      execSync('npm run generate:context', {
         stdio: 'inherit',
         cwd: process.cwd(),
       })
