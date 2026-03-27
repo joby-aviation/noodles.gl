@@ -2,6 +2,10 @@
   "name": "noodles.gl",
   "version": "1.0.0",
   "private": true,
+  "workspaces": [
+    "website",
+    "noodles-editor"
+  ],
   "scripts": {
     "install:website": "(cd website && npm install)",
     "install:app": "(cd noodles-editor && npm install)",
