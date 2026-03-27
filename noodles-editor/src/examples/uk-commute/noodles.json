@@ -45,8 +45,8 @@
       "data": {
         "inputs": {
           "opacity": 0.3,
-          "getWidth": 1,
-          "getHeight": 2
+          "getWidth": 80,
+          "getHeight": 0.7
         },
         "locked": false
       },
