@@ -1,0 +1,4343 @@
+{
+  "version": "1.0.0",
+  "examples": {
+    "aggregation-example": {
+      "id": "aggregation-example",
+      "name": "SF Bike Parking Aggregation",
+      "description": "## Overview",
+      "category": "geospatial",
+      "readme": "# SF Bike Parking Aggregation\n\n## Overview\nThis example transforms individual bike parking locations into 3D aggregated visualizations using either square grid cells or hexagonal cells. Each point location is grouped into cells, with the cell's height and color indicating the total number of parking spaces in that area. You can toggle between grid and hexagon views to see how different aggregation shapes reveal density patterns differently.\n\n## Key Techniques\n- **Data source**: `FileOp` loads bike parking data from JSON\n- **Position accessor**: `AccessorOp` with expression `d.COORDINATES` extracts location\n- **Weight accessor**: `AccessorOp` with expression `d.SPACES` extracts parking space count\n- **Grid layer**: `GridLayerOp` with 200m cells and `elevationScale: 4`\n- **Hexagon layer**: `HexagonLayerOp` with 200m radius and `elevationScale: 4`\n- **Layer switching**: `SwitchOp` toggles between grid and hexagon views\n- **Basemap**: `MaplibreBasemapOp` with positron style\n\n## Data Structure\nThe JSON file contains bike parking facility records with fields:\n- `ADDRESS`: Street address of the facility\n- `RACKS`: Number of bike racks\n- `SPACES`: Number of parking spaces\n- `COORDINATES`: Array of [longitude, latitude]\n\n## Node Graph Flow\n```\nData → Position Accessor → Grid Layer → Switch → Deck\n                         ↘ Hexagon Layer ↗\n     → Spaces Accessor → Both Layers (getColorWeight, getElevationWeight)\n```\n\n## Use Cases\nThis pattern is useful for visualizing:\n- Facility density (parking, charging stations, amenities)\n- Event hotspots\n- Sales or activity heatmaps\n- Urban planning and resource allocation\n- Any point data that benefits from aggregation and density analysis\n",
+      "project": {
+        "nodes": [
+          {
+            "id": "/deck",
+            "type": "DeckRendererOp",
+            "data": {
+              "inputs": {},
+              "locked": false
+            },
+            "position": {
+              "x": 773.8775821892834,
+              "y": -378.07249361978614
+            }
+          },
+          {
+            "id": "/out",
+            "type": "OutOp",
+            "data": {
+              "inputs": {},
+              "locked": false
+            },
+            "position": {
+              "x": 1072.3714048301424,
+              "y": -379.31940494021575
+            }
+          },
+          {
+            "id": "/data-source",
+            "type": "FileOp",
+            "data": {
+              "inputs": {
+                "url": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/sf-bike-parking.json"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": -500.2487592119116,
+              "y": -528.1170745332273
+            }
+          },
+          {
+            "id": "/grid-layer",
+            "type": "GridLayerOp",
+            "data": {
+              "inputs": {
+                "cellSize": 200,
+                "elevationScale": 4
+              },
+              "locked": false
+            },
+            "position": {
+              "x": 0,
+              "y": -300
+            }
+          },
+          {
+            "id": "/position-accessor",
+            "type": "AccessorOp",
+            "data": {
+              "inputs": {
+                "expression": "d.COORDINATES"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": -500.24875921191165,
+              "y": -323.0023419203747
+            }
+          },
+          {
+            "id": "/spaces-accessor",
+            "type": "AccessorOp",
+            "data": {
+              "inputs": {
+                "expression": "d.SPACES"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": -498.20286616677055,
+              "y": -224.02528844294523
+            }
+          },
+          {
+            "type": "MaplibreBasemapOp",
+            "id": "/maplibre-basemap",
+            "position": {
+              "x": 360.27092289302794,
+              "y": -196.06132487348802
+            },
+            "data": {
+              "inputs": {
+                "mapStyle": "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
+                "viewState": {
+                  "latitude": 37.74,
+                  "longitude": -122.4,
+                  "zoom": 13,
+                  "pitch": 30,
+                  "bearing": 0
+                }
+              },
+              "locked": false
+            }
+          },
+          {
+            "type": "HexagonLayerOp",
+            "id": "/hexagon-layer",
+            "position": {
+              "x": -0.6925638656726676,
+              "y": -982.6889355005047
+            },
+            "data": {
+              "inputs": {
+                "radius": 200,
+                "extruded": true,
+                "elevationScale": 4
+              },
+              "locked": false
+            }
+          },
+          {
+            "type": "SwitchOp",
+            "id": "/switch",
+            "position": {
+              "x": 361.0002896459933,
+              "y": -378.2848378568678
+            },
+            "data": {
+              "inputs": {},
+              "locked": false
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "/deck.out.vis->/out.par.vis",
+            "source": "/deck",
+            "target": "/out",
+            "sourceHandle": "out.vis",
+            "targetHandle": "par.vis"
+          },
+          {
+            "id": "/data-source.out.data->/grid-layer.par.data",
+            "source": "/data-source",
+            "target": "/grid-layer",
+            "sourceHandle": "out.data",
+            "targetHandle": "par.data"
+          },
+          {
+            "id": "/position-accessor.out.accessor->/grid-layer.par.getPosition",
+            "source": "/position-accessor",
+            "target": "/grid-layer",
+            "sourceHandle": "out.accessor",
+            "targetHandle": "par.getPosition"
+          },
+          {
+            "id": "/spaces-accessor.out.accessor->/grid-layer.par.getColorWeight",
+            "source": "/spaces-accessor",
+            "target": "/grid-layer",
+            "sourceHandle": "out.accessor",
+            "targetHandle": "par.getColorWeight"
+          },
+          {
+            "source": "/spaces-accessor",
+            "sourceHandle": "out.accessor",
+            "target": "/grid-layer",
+            "targetHandle": "par.getElevationWeight",
+            "id": "/spaces-accessor.out.accessor->/grid-layer.par.getElevationWeight"
+          },
+          {
+            "source": "/maplibre-basemap",
+            "sourceHandle": "out.maplibre",
+            "target": "/deck",
+            "targetHandle": "par.basemap",
+            "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap"
+          },
+          {
+            "source": "/switch",
+            "sourceHandle": "out.value",
+            "target": "/deck",
+            "targetHandle": "par.layers",
+            "id": "/switch.out.value->/deck.par.layers"
+          },
+          {
+            "source": "/hexagon-layer",
+            "sourceHandle": "out.layer",
+            "target": "/switch",
+            "targetHandle": "par.values",
+            "id": "/hexagon-layer.out.layer->/switch.par.values"
+          },
+          {
+            "source": "/grid-layer",
+            "sourceHandle": "out.layer",
+            "target": "/switch",
+            "targetHandle": "par.values",
+            "id": "/grid-layer.out.layer->/switch.par.values"
+          },
+          {
+            "source": "/data-source",
+            "sourceHandle": "out.data",
+            "target": "/hexagon-layer",
+            "targetHandle": "par.data",
+            "id": "/data-source.out.data->/hexagon-layer.par.data"
+          },
+          {
+            "source": "/position-accessor",
+            "sourceHandle": "out.accessor",
+            "target": "/hexagon-layer",
+            "targetHandle": "par.getPosition",
+            "id": "/position-accessor.out.accessor->/hexagon-layer.par.getPosition"
+          },
+          {
+            "source": "/spaces-accessor",
+            "sourceHandle": "out.accessor",
+            "target": "/hexagon-layer",
+            "targetHandle": "par.getColorWeight",
+            "id": "/spaces-accessor.out.accessor->/hexagon-layer.par.getColorWeight"
+          },
+          {
+            "source": "/spaces-accessor",
+            "sourceHandle": "out.accessor",
+            "target": "/hexagon-layer",
+            "targetHandle": "par.getElevationWeight",
+            "id": "/spaces-accessor.out.accessor->/hexagon-layer.par.getElevationWeight"
+          }
+        ],
+        "viewport": {
+          "x": 671.0641779964585,
+          "y": 907.0984953781293,
+          "zoom": 0.8019816514742112
+        },
+        "version": 6,
+        "timeline": {
+          "sheetsById": {
+            "Noodles": {
+              "staticOverrides": {
+                "byObject": {}
+              }
+            }
+          },
+          "definitionVersion": "0.4.0",
+          "revisionHistory": [
+            "fBu1FW4HYanu9xRt",
+            "aiRAn66WU7kCXJZh",
+            "mtj8EgxoAJHG9vWu"
+          ]
+        }
+      },
+      "annotations": {},
+      "tags": [
+        "aggregation",
+        "example"
+      ],
+      "dataSourceTypes": [
+        "FileOp"
+      ],
+      "layerTypes": [
+        "GridLayerOp",
+        "HexagonLayerOp"
+      ],
+      "techniques": []
+    },
+    "california-earthquakes": {
+      "id": "california-earthquakes",
+      "name": "California Earthquakes",
+      "description": "_Adapted from [Kepler.gl example](https://kepler.gl/demo/earthquakes)_",
+      "category": "geospatial",
+      "readme": "# California Earthquakes\n\n_Adapted from [Kepler.gl example](https://kepler.gl/demo/earthquakes)_\n\n## Overview\nThis example visualizes California earthquake data where both the size and color of each point are driven by magnitude values. Larger earthquakes appear as bigger circles with more intense colors, using a square root scale for perceptually accurate sizing and a normalized color ramp to map magnitude values to a gradient. This demonstrates data-driven styling where a single metric (magnitude) controls multiple visual properties.\n\n## Key Techniques\n- **Data source**: `FileOp` loads earthquake data from CSV\n- **Position accessor**: `AccessorOp` with expression `[d.Longitude, d.Latitude]` extracts coordinates\n- **Magnitude accessor**: `AccessorOp` with expression `d.Magnitude` extracts magnitude value\n- **Radius calculation**: `AccessorOp` with expression `Math.sqrt(d.Magnitude) * 15` for perceptually better sizing\n- **Value normalization**: `MapRangeOp` scales magnitude from 0-5 range to 0-1\n- **Color mapping**: `ColorRampOp` maps normalized values to a color gradient\n- **Layer**: `ScatterplotLayerOp` displays the circles\n\n## Data Structure\nThe CSV file contains earthquake records with fields:\n- `DateTime`: Timestamp of earthquake\n- `Latitude`, `Longitude`: Geographic location\n- `Depth`: Depth in kilometers\n- `Magnitude`: Richter scale magnitude\n- `MagType`: Magnitude type (e.g., Mx)\n- `NbStations`, `Gap`, `Distance`, `RMS`: Seismic measurement metadata\n- `Source`, `EventID`: Data source and unique identifier\n\n## Node Graph Flow\n```\nData → Magnitude Accessor → MapRange → ColorRamp → Layer (getFillColor)\n                          ↘\n                           Radius Accessor → Layer (getRadius)\n     → Position Accessor → Layer (getPosition)\n```\n\n## Use Cases\nThis pattern is useful for visualizing:\n- Seismic activity\n- Scientific measurements with intensity scales\n- Weather events (temperature, precipitation)\n- Pollution levels\n- Any point data where size and color represent different aspects of the same metric\n",
+      "project": {
+        "nodes": [
+          {
+            "id": "/deck",
+            "type": "DeckRendererOp",
+            "data": {
+              "inputs": {},
+              "locked": false
+            },
+            "position": {
+              "x": 1200,
+              "y": 200
+            }
+          },
+          {
+            "id": "/out",
+            "type": "OutOp",
+            "data": {
+              "inputs": {},
+              "locked": false
+            },
+            "position": {
+              "x": 1500,
+              "y": 200
+            }
+          },
+          {
+            "id": "/data-source",
+            "type": "FileOp",
+            "data": {
+              "inputs": {
+                "format": "csv",
+                "url": "@/data.csv"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": -30.281922090095136,
+              "y": -18.432474315710078
+            }
+          },
+          {
+            "id": "/scatterplot-layer",
+            "type": "ScatterplotLayerOp",
+            "data": {
+              "inputs": {
+                "stroked": false,
+                "billboard": true,
+                "getLineColor": "#ffffffff",
+                "radiusUnits": "meters"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": 660.3778338957691,
+              "y": 152.6642123306002
+            }
+          },
+          {
+            "id": "/position-accessor",
+            "type": "AccessorOp",
+            "data": {
+              "inputs": {
+                "expression": "[d.Longitude, d.Latitude]"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": -58.11664384808154,
+              "y": 231.6605308265006
+            }
+          },
+          {
+            "id": "/magnitude-color",
+            "type": "ColorRampOp",
+            "data": {
+              "inputs": {
+                "colorScheme": "turbo"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": 239.2501455353884,
+              "y": 321.2516952166614
+            }
+          },
+          {
+            "id": "/magnitude-accessor",
+            "type": "AccessorOp",
+            "data": {
+              "inputs": {
+                "expression": "d.Magnitude"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": -471.58272967234626,
+              "y": 390.13392481159116
+            }
+          },
+          {
+            "type": "MaplibreBasemapOp",
+            "id": "/maplibre-basemap",
+            "position": {
+              "x": 562.9490410841586,
+              "y": 576.4871147356512
+            },
+            "data": {
+              "inputs": {
+                "mapStyle": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
+                "viewState": {
+                  "latitude": 37.059,
+                  "longitude": -119.963,
+                  "zoom": 7,
+                  "pitch": 0,
+                  "bearing": 0
+                }
+              },
+              "locked": false
+            }
+          },
+          {
+            "type": "MapRangeOp",
+            "id": "/map-range",
+            "position": {
+              "x": -77.87578429545218,
+              "y": 323.1939851432402
+            },
+            "data": {
+              "inputs": {
+                "inMin": 2.5,
+                "inMax": 7
+              },
+              "locked": false
+            }
+          },
+          {
+            "type": "MathOp",
+            "id": "/sqrt",
+            "position": {
+              "x": -74.586918742845,
+              "y": 555.6638521710034
+            },
+            "data": {
+              "inputs": {
+                "operator": "sqrt"
+              },
+              "locked": false
+            }
+          },
+          {
+            "id": "/multiply",
+            "type": "MathOp",
+            "data": {
+              "inputs": {
+                "operator": "multiply",
+                "b": 1000
+              },
+              "locked": false
+            },
+            "position": {
+              "x": 235.19973882458825,
+              "y": 548.5423198131313
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "/deck.out.vis->/out.par.vis",
+            "source": "/deck",
+            "target": "/out",
+            "sourceHandle": "out.vis",
+            "targetHandle": "par.vis"
+          },
+          {
+            "id": "/data-source.out.data->/scatterplot-layer.par.data",
+            "source": "/data-source",
+            "target": "/scatterplot-layer",
+            "sourceHandle": "out.data",
+            "targetHandle": "par.data"
+          },
+          {
+            "id": "/position-accessor.out.accessor->/scatterplot-layer.par.getPosition",
+            "source": "/position-accessor",
+            "target": "/scatterplot-layer",
+            "sourceHandle": "out.accessor",
+            "targetHandle": "par.getPosition"
+          },
+          {
+            "source": "/multiply",
+            "sourceHandle": "out.result",
+            "target": "/scatterplot-layer",
+            "targetHandle": "par.getRadius",
+            "id": "/multiply.out.result->/scatterplot-layer.par.getRadius"
+          },
+          {
+            "source": "/magnitude-color",
+            "sourceHandle": "out.color",
+            "target": "/scatterplot-layer",
+            "targetHandle": "par.getFillColor",
+            "id": "/magnitude-color.out.color->/scatterplot-layer.par.getFillColor"
+          },
+          {
+            "source": "/map-range",
+            "sourceHandle": "out.scaled",
+            "target": "/magnitude-color",
+            "targetHandle": "par.value",
+            "id": "/map-range.out.scaled->/magnitude-color.par.value"
+          },
+          {
+            "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
+            "source": "/maplibre-basemap",
+            "target": "/deck",
+            "sourceHandle": "out.maplibre",
+            "targetHandle": "par.basemap"
+          },
+          {
+            "id": "/scatterplot-layer.out.layer->/deck.par.layers",
+            "source": "/scatterplot-layer",
+            "target": "/deck",
+            "sourceHandle": "out.layer",
+            "targetHandle": "par.layers"
+          },
+          {
+            "source": "/magnitude-accessor",
+            "sourceHandle": "out.accessor",
+            "target": "/map-range",
+            "targetHandle": "par.val",
+            "id": "/magnitude-accessor.out.accessor->/map-range.par.val"
+          },
+          {
+            "source": "/magnitude-accessor",
+            "sourceHandle": "out.accessor",
+            "target": "/sqrt",
+            "targetHandle": "par.a",
+            "id": "/magnitude-accessor.out.accessor->/sqrt.par.a"
+          },
+          {
+            "source": "/magnitude-accessor",
+            "sourceHandle": "out.accessor",
+            "target": "/multiply",
+            "targetHandle": "par.a",
+            "id": "/magnitude-accessor.out.accessor->/multiply.par.a"
+          }
+        ],
+        "viewport": {
+          "x": 143.291766562843,
+          "y": 172.88548024794358,
+          "zoom": 0.4813563009649149
+        },
+        "timeline": {
+          "sheetsById": {
+            "Noodles": {
+              "staticOverrides": {
+                "byObject": {}
+              }
+            }
+          },
+          "definitionVersion": "0.4.0",
+          "revisionHistory": []
+        },
+        "version": 6
+      },
+      "annotations": {},
+      "tags": [
+        "california",
+        "earthquakes"
+      ],
+      "dataSourceTypes": [
+        "FileOp"
+      ],
+      "layerTypes": [
+        "ScatterplotLayerOp"
+      ],
+      "techniques": []
+    },
+    "cesium-hubble": {
+      "id": "cesium-hubble",
+      "name": "Cesium + Hubble Video Spheres",
+      "description": "## Overview",
+      "category": "geospatial",
+      "readme": "# Cesium + Hubble Video Spheres\n\n## Overview\nThis example combines a Cesium 3D point cloud of lower Manhattan with video-textured spheres placed at street musician locations across NYC. The camera animates through the scene over a 19-second timeline, visiting each performance location.\n\n## Key Techniques\n- **3D point cloud**: `Tile3DLayerOp` with the Cesium ion provider renders a photorealistic point cloud of NYC\n- **Inline mesh generation**: A `CodeOp` generates a UV sphere as a loaders.gl-format mesh (no external geometry file needed)\n- **Video textures**: Each `SimpleMeshLayer` uses a `<video>` element as its texture, creating live video playback on 3D spheres\n- **Animated camera**: The `MaplibreBasemapOp` view state (longitude, latitude, zoom, pitch, bearing) is keyframed in the timeline for a cinematic flythrough\n\n## Data\nTwelve street performance videos filmed in NYC neighborhoods including Lower Manhattan, Greenwich Village, Midtown, and Central Park.\n",
+      "project": {
+        "version": 7,
+        "nodes": [
+          {
+            "id": "/basemap",
+            "type": "MaplibreBasemapOp",
+            "position": {
+              "x": 300,
+              "y": 300
+            },
+            "data": {
+              "inputs": {
+                "mapStyle": "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
+                "viewState": {
+                  "longitude": -74.01528014573182,
+                  "latitude": 40.706616771021125,
+                  "zoom": 20,
+                  "pitch": 55.17280350846221,
+                  "bearing": 2.3531249999999773
+                }
+              },
+              "locked": false
+            }
+          },
+          {
+            "id": "/point-cloud",
+            "type": "Tile3DLayerOp",
+            "position": {
+              "x": -50,
+              "y": -180
+            },
+            "data": {
+              "inputs": {
+                "provider": "Cesium",
+                "flatLighting": true
+              },
+              "locked": false
+            }
+          },
+          {
+            "id": "/video-spheres",
+            "type": "CodeOp",
+            "position": {
+              "x": -400,
+              "y": 60
+            },
+            "width": 900,
+            "height": 680,
+            "measured": {
+              "width": 900,
+              "height": 680
+            },
+            "data": {
+              "inputs": {
+                "code": [
+                  "// Generate a UV sphere as a loaders.gl Mesh object (deck.gl accepts this natively)",
+                  "function generateSphere(radius, nlat, nlong) {",
+                  "  const positions = [], normals = [], texCoords = [], indices = []",
+                  "  for (let lat = 0; lat <= nlat; lat++) {",
+                  "    const theta = (lat * Math.PI) / nlat",
+                  "    const sinTheta = Math.sin(theta), cosTheta = Math.cos(theta)",
+                  "    for (let lon = 0; lon <= nlong; lon++) {",
+                  "      const phi = (lon * 2 * Math.PI) / nlong",
+                  "      const x = Math.cos(phi) * sinTheta, y = cosTheta, z = Math.sin(phi) * sinTheta",
+                  "      positions.push(x * radius, y * radius, z * radius)",
+                  "      normals.push(x, y, z)",
+                  "      texCoords.push(lon / nlong, lat / nlat)",
+                  "    }",
+                  "  }",
+                  "  for (let lat = 0; lat < nlat; lat++) {",
+                  "    for (let lon = 0; lon < nlong; lon++) {",
+                  "      const a = lat * (nlong + 1) + lon, b = a + nlong + 1",
+                  "      indices.push(a, b, a + 1, b, b + 1, a + 1)",
+                  "    }",
+                  "  }",
+                  "  return {",
+                  "    topology: 'triangle-list',",
+                  "    attributes: {",
+                  "      POSITION: { size: 3, value: new Float32Array(positions) },",
+                  "      NORMAL: { size: 3, value: new Float32Array(normals) },",
+                  "      TEXCOORD_0: { size: 2, value: new Float32Array(texCoords) },",
+                  "    },",
+                  "    indices: { size: 1, value: new Uint32Array(indices) },",
+                  "  }",
+                  "}",
+                  "const sphere = generateSphere(1, 40, 40)",
+                  "",
+                  "const makeVideo = (v) => {",
+                  "  if (v.isImage) return v.url",
+                  "  const el = document.createElement('video')",
+                  "  el.src = v.url + (v.startTime ? `#t=${v.startTime}` : '')",
+                  "  el.crossOrigin = 'anonymous'",
+                  "  el.loop = true",
+                  "  el.muted = true",
+                  "  el.autoplay = true",
+                  "  el.play().catch((e) => console.warn('[cesium-hubble] autoplay blocked:', e))",
+                  "  return el",
+                  "}",
+                  "",
+                  "const videos = [",
+                  "  { url: 'https://pointcloud-videos.s3.amazonaws.com/yt5s.com-Amazing%20Street%20Musicians%20Performing%20in%20New%20York%20City%2C%20Street%20Performers-%281080p%29.mp4', position: [-74.0152298040547, 40.70303169832896], radius: 150 },",
+                  "  { url: 'https://pointcloud-videos.s3.amazonaws.com/yt5s.com-Amazingly%20talented%20child%20subway%20drummer-%281080p%29.mp4', position: [-73.99666928636229, 40.72193350352984], radius: 100 },",
+                  "  { url: 'https://pointcloud-videos.s3.amazonaws.com/yt5s.com-Musicians%20outside%20of%20Cooper%20Union%20%28NYC%29-%28480p%29.mp4', position: [-73.986876427207, 40.73186576289673], radius: 100 },",
+                  "  { url: 'https://pointcloud-videos.s3.amazonaws.com/X2Download.com-the%20coolest%20saxophone%20subway%20band%20ever.mp4', position: [-73.99583300957174, 40.745258134105356], radius: 100, startTime: 5 },",
+                  "  { url: 'https://pointcloud-videos.s3.amazonaws.com/Woman%20Randomly%20Walks%20Off%20the%20Street%20to%20Join%20Street%20Musicians%20%5BTSNfJ7ibvCo%5D.webm', position: [-73.97545461759636, 40.753129712361265], radius: 100 },",
+                  "  { url: 'https://pointcloud-videos.s3.amazonaws.com/Coyote%20%26%20Crow%20perform%20live%20at%20Union%20Square%20%5Bf8KZqLy1Pb0%5D.webm', position: [-73.98910522225347, 40.741538412081425], radius: 100 },",
+                  "  { url: 'https://pointcloud-videos.s3.amazonaws.com/X2Download.com-This%20is%20amazing%21%20A%20spontaneous%20piano_sax%20performance%20with%20Ladyva%20at%20Charles%20de%20Gaulle%20airport.mp4', position: [-74.00787624379548, 40.71512284456615], radius: 100 },",
+                  "  { url: 'https://pointcloud-videos.s3.amazonaws.com/X2Download.com-Drum%20Circle.%20Prospect%20Park.%20Brooklyn.%20July%2019%202015..mp4', position: [-73.97181924048971, 40.76951659152664], radius: 100 },",
+                  "  { url: 'https://pointcloud-videos.s3.amazonaws.com/X2Download.com-Best%20Drummer%20Ever%20%5BHD%5D.mp4', position: [-73.98993325227518, 40.75865902126557], radius: 100 },",
+                  "  { url: 'https://pointcloud-videos.s3.amazonaws.com/Rosatera%20singing%20in%20the%20New%20York%20City%20Subway%20%5B9kY8mpeT5wo%5D.webm', position: [-73.98764377704777, 40.749780590644505], radius: 100 },",
+                  "  { url: 'https://pointcloud-videos.s3.amazonaws.com/Awesome%20Street%20Jazz%20Band%20In%20Central%20Park%20%5B_yu_6kOSWR8%5D.webm', position: [-73.9691642676795, 40.773157848397055], radius: 100 },",
+                  "  { url: 'https://pointcloud-videos.s3.amazonaws.com/C0010T01.JPG', position: [-73.99204731640815, 40.70971999194366], radius: 150, orientation: [0, 0, -90], isImage: true },",
+                  "]",
+                  "",
+                  "return videos.map((v, i) => ({",
+                  "  type: 'SimpleMeshLayer',",
+                  "  id: `video-sphere-${i}`,",
+                  "  data: [0],",
+                  "  mesh: sphere,",
+                  "  texture: makeVideo(v),",
+                  "  getOrientation: v.orientation ?? [0, 90, -90],",
+                  "  getPosition: [v.position[0], v.position[1], 0],",
+                  "  sizeScale: v.radius,",
+                  "  material: false,",
+                  "}))"
+                ]
+              },
+              "locked": false
+            }
+          },
+          {
+            "id": "/renderer",
+            "type": "DeckRendererOp",
+            "position": {
+              "x": 800,
+              "y": 60
+            },
+            "data": {
+              "inputs": {},
+              "locked": false
+            }
+          },
+          {
+            "id": "/out",
+            "type": "OutOp",
+            "position": {
+              "x": 1100,
+              "y": 60
+            },
+            "data": {
+              "inputs": {},
+              "locked": false
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "/basemap.out.maplibre->/renderer.par.basemap",
+            "source": "/basemap",
+            "target": "/renderer",
+            "sourceHandle": "out.maplibre",
+            "targetHandle": "par.basemap"
+          },
+          {
+            "id": "/point-cloud.out.layer->/renderer.par.layers",
+            "source": "/point-cloud",
+            "target": "/renderer",
+            "sourceHandle": "out.layer",
+            "targetHandle": "par.layers"
+          },
+          {
+            "id": "/video-spheres.out.data->/renderer.par.layers",
+            "source": "/video-spheres",
+            "target": "/renderer",
+            "sourceHandle": "out.data",
+            "targetHandle": "par.layers"
+          },
+          {
+            "id": "/renderer.out.vis->/out.par.vis",
+            "source": "/renderer",
+            "target": "/out",
+            "sourceHandle": "out.vis",
+            "targetHandle": "par.vis"
+          }
+        ],
+        "viewport": {
+          "x": 200,
+          "y": 200,
+          "zoom": 0.75
+        },
+        "timeline": {
+          "sheetsById": {
+            "Noodles": {
+              "staticOverrides": {
+                "byObject": {
+                  "render": {
+                    "framerate": 24
+                  }
+                }
+              },
+              "sequence": {
+                "subUnitsPerUnit": 30,
+                "length": 19,
+                "type": "PositionalSequence",
+                "tracksByObject": {
+                  "basemap": {
+                    "trackData": {
+                      "lngTrk001": {
+                        "type": "BasicKeyframedTrack",
+                        "__debugName": "basemap:[\"viewState\",\"longitude\"]",
+                        "keyframes": [
+                          {
+                            "id": "kf_lng_0",
+                            "position": 0,
+                            "connectedRight": true,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": -74.01528014573182
+                          },
+                          {
+                            "id": "kf_lng_1",
+                            "position": 4,
+                            "connectedRight": true,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": -74.0152298040547
+                          },
+                          {
+                            "id": "kf_lng_2",
+                            "position": 5.5,
+                            "connectedRight": true,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": -74.00393041204993
+                          },
+                          {
+                            "id": "kf_lng_3",
+                            "position": 7,
+                            "connectedRight": true,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": -73.98427479072922
+                          },
+                          {
+                            "id": "kf_lng_4",
+                            "position": 7.5,
+                            "connectedRight": true,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": -73.98
+                          },
+                          {
+                            "id": "kf_lng_5",
+                            "position": 11,
+                            "connectedRight": true,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": -73.97857897544452
+                          },
+                          {
+                            "id": "kf_lng_6",
+                            "position": 18,
+                            "connectedRight": true,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": -73.99384768869895
+                          },
+                          {
+                            "id": "kf_lng_7",
+                            "position": 19,
+                            "connectedRight": false,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": -73.99244100531732
+                          }
+                        ]
+                      },
+                      "latTrk001": {
+                        "type": "BasicKeyframedTrack",
+                        "__debugName": "basemap:[\"viewState\",\"latitude\"]",
+                        "keyframes": [
+                          {
+                            "id": "kf_lat_0",
+                            "position": 0,
+                            "connectedRight": true,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": 40.706616771021125
+                          },
+                          {
+                            "id": "kf_lat_1",
+                            "position": 4,
+                            "connectedRight": true,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": 40.70303169832896
+                          },
+                          {
+                            "id": "kf_lat_2",
+                            "position": 5.5,
+                            "connectedRight": true,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": 40.71734981243856
+                          },
+                          {
+                            "id": "kf_lat_3",
+                            "position": 7,
+                            "connectedRight": true,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": 40.75431303578706
+                          },
+                          {
+                            "id": "kf_lat_4",
+                            "position": 7.5,
+                            "connectedRight": true,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": 40.76
+                          },
+                          {
+                            "id": "kf_lat_5",
+                            "position": 11,
+                            "connectedRight": true,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": 40.76987541463695
+                          },
+                          {
+                            "id": "kf_lat_6",
+                            "position": 18,
+                            "connectedRight": true,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": 40.709429113152396
+                          },
+                          {
+                            "id": "kf_lat_7",
+                            "position": 19,
+                            "connectedRight": false,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": 40.7096991343267
+                          }
+                        ]
+                      },
+                      "zmTrk0001": {
+                        "type": "BasicKeyframedTrack",
+                        "__debugName": "basemap:[\"viewState\",\"zoom\"]",
+                        "keyframes": [
+                          {
+                            "id": "kf_zm_0",
+                            "position": 0,
+                            "connectedRight": true,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": 20
+                          },
+                          {
+                            "id": "kf_zm_1",
+                            "position": 4,
+                            "connectedRight": true,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": 15.71886755188483
+                          },
+                          {
+                            "id": "kf_zm_2",
+                            "position": 5.5,
+                            "connectedRight": true,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": 15.71886755188483
+                          },
+                          {
+                            "id": "kf_zm_3",
+                            "position": 7,
+                            "connectedRight": true,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": 18.73975411019099
+                          },
+                          {
+                            "id": "kf_zm_4",
+                            "position": 7.5,
+                            "connectedRight": true,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": 17
+                          },
+                          {
+                            "id": "kf_zm_5",
+                            "position": 11,
+                            "connectedRight": true,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": 15
+                          },
+                          {
+                            "id": "kf_zm_6",
+                            "position": 18,
+                            "connectedRight": true,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": 14.5
+                          },
+                          {
+                            "id": "kf_zm_7",
+                            "position": 19,
+                            "connectedRight": false,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": 17
+                          }
+                        ]
+                      },
+                      "ptTrk0001": {
+                        "type": "BasicKeyframedTrack",
+                        "__debugName": "basemap:[\"viewState\",\"pitch\"]",
+                        "keyframes": [
+                          {
+                            "id": "kf_pt_0",
+                            "position": 0,
+                            "connectedRight": true,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": 55.17280350846221
+                          },
+                          {
+                            "id": "kf_pt_1",
+                            "position": 4,
+                            "connectedRight": true,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": 60
+                          },
+                          {
+                            "id": "kf_pt_2",
+                            "position": 5.5,
+                            "connectedRight": true,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": 60
+                          },
+                          {
+                            "id": "kf_pt_3",
+                            "position": 7,
+                            "connectedRight": true,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": 60
+                          },
+                          {
+                            "id": "kf_pt_4",
+                            "position": 7.5,
+                            "connectedRight": true,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": 60
+                          },
+                          {
+                            "id": "kf_pt_5",
+                            "position": 11,
+                            "connectedRight": true,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": 60
+                          },
+                          {
+                            "id": "kf_pt_6",
+                            "position": 18,
+                            "connectedRight": true,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": 59.70381797146161
+                          },
+                          {
+                            "id": "kf_pt_7",
+                            "position": 19,
+                            "connectedRight": false,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": 59.70381797146161
+                          }
+                        ]
+                      },
+                      "brTrk0001": {
+                        "type": "BasicKeyframedTrack",
+                        "__debugName": "basemap:[\"viewState\",\"bearing\"]",
+                        "keyframes": [
+                          {
+                            "id": "kf_br_0",
+                            "position": 0,
+                            "connectedRight": true,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": 2.3531249999999773
+                          },
+                          {
+                            "id": "kf_br_1",
+                            "position": 4,
+                            "connectedRight": true,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": 33.00937499999998
+                          },
+                          {
+                            "id": "kf_br_2",
+                            "position": 5.5,
+                            "connectedRight": true,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": 33.00937499999998
+                          },
+                          {
+                            "id": "kf_br_3",
+                            "position": 7,
+                            "connectedRight": true,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": 33.00937499999998
+                          },
+                          {
+                            "id": "kf_br_4",
+                            "position": 7.5,
+                            "connectedRight": true,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": 33.00937499999998
+                          },
+                          {
+                            "id": "kf_br_5",
+                            "position": 11,
+                            "connectedRight": true,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": 120
+                          },
+                          {
+                            "id": "kf_br_6",
+                            "position": 18,
+                            "connectedRight": true,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": 165.36231617647059
+                          },
+                          {
+                            "id": "kf_br_7",
+                            "position": 19,
+                            "connectedRight": false,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": 165.36231617647059
+                          }
+                        ]
+                      }
+                    },
+                    "trackIdByPropPath": {
+                      "[\"viewState\",\"longitude\"]": "lngTrk001",
+                      "[\"viewState\",\"latitude\"]": "latTrk001",
+                      "[\"viewState\",\"zoom\"]": "zmTrk0001",
+                      "[\"viewState\",\"pitch\"]": "ptTrk0001",
+                      "[\"viewState\",\"bearing\"]": "brTrk0001"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "definitionVersion": "0.4.0",
+          "revisionHistory": []
+        }
+      },
+      "annotations": {},
+      "tags": [
+        "cesium",
+        "hubble"
+      ],
+      "dataSourceTypes": [],
+      "layerTypes": [
+        "Tile3DLayerOp"
+      ],
+      "techniques": []
+    },
+    "chargers": {
+      "id": "chargers",
+      "name": "EV Chargers with Live API Data",
+      "description": "## Overview",
+      "category": "geospatial",
+      "readme": "# EV Chargers with Live API Data\n\n## Overview\nThis example fetches live EV charging station data from the Open Charge Map API based on a geocoded location (Denver, CO). It demonstrates a complete data pipeline: converting a city name to coordinates, fetching nearby charging stations via API, calculating the bounding box, and displaying results as either individual points (scatterplot) or a density heatmap. The map automatically centers on the data.\n\n## Key Techniques\n- **Geocoder**: `GeocoderOp` with query `\"Denver, CO\"` converts place name to coordinates\n- **API query**: `DuckDbOp` fetches charging station data from Open Charge Map API\n- **Bounding box**: `BoundingBoxOp` calculates map extent with 200px padding\n- **View state**: `MapViewStateOp` centers map on data at zoom 10.8\n- **Position accessor**: `AccessorOp` with expression `[d.lng, d.lat]` extracts coordinates\n- **Scatterplot layer**: `ScatterplotLayerOp` shows individual stations\n- **Heatmap layer**: `HeatmapLayerOp` shows density with 100px radius\n- **Layer switching**: `SwitchOp` toggles between the two visualization styles\n- **Basemap**: `MaplibreBasemapOp`\n\n## Data Structure\nThe Open Charge Map API returns charging station records with:\n- `AddressInfo.Latitude`, `AddressInfo.Longitude`: Station location\n- Additional fields like operator, connection types, power output\n\n## Node Graph Flow\n```\nGeocoder → DuckDB (API fetch) → BoundingBox → ViewState → Basemap\n                               ↘ Position Accessor → Scatterplot Layer → Switch → Deck\n                                                   ↘ Heatmap Layer ↗\n```\n\n## Use Cases\nThis pattern is useful for:\n- Live data dashboards\n- Location-based services\n- Infrastructure mapping (charging stations, bike shares, transit)\n- Dynamic map applications that respond to user input\n- API integration and real-time data visualization\n- Geocoding user locations or place names\n",
+      "project": {
+        "nodes": [
+          {
+            "id": "deck",
+            "type": "DeckRendererOp",
+            "data": {
+              "inputs": {},
+              "locked": false
+            },
+            "position": {
+              "x": 621.0648631276329,
+              "y": -15.15716566510391
+            }
+          },
+          {
+            "id": "duckdb-0",
+            "type": "DuckDbOp",
+            "position": {
+              "x": -1264.3775772798185,
+              "y": -102.49235227489045
+            },
+            "resizing": false,
+            "data": {
+              "inputs": {
+                "query": [
+                  "SELECT AddressInfo.Latitude as lat, AddressInfo.Longitude as lng, *",
+                  "FROM read_json_auto(printf('https://api.openchargemap.io/v3/poi/?client=ocm.app.ionic.8.7.0&verbose=false&output=json&maxresults=1000&compact=true&boundingbox=(%f,%f),(%f,%f)&key=%s', {{centroid.out.location.lat}} + 0.5, {{centroid.out.location.lng}} - 0.5, {{centroid.out.location.lat}} - 0.5, {{centroid.out.location.lng}} + 0.5,",
+                  "'3967da06-b05f-47b5-8c83-f52cdf1065c2",
+                  "'));"
+                ]
+              },
+              "locked": false
+            },
+            "width": 430,
+            "height": 333,
+            "measured": {
+              "width": 430,
+              "height": 333
+            }
+          },
+          {
+            "id": "centroid",
+            "type": "GeocoderOp",
+            "position": {
+              "x": -1628.0833659498644,
+              "y": -92.14066297377941
+            },
+            "data": {
+              "inputs": {
+                "query": "Denver, CO"
+              },
+              "locked": false
+            }
+          },
+          {
+            "id": "boundingbox-0",
+            "type": "BoundingBoxOp",
+            "position": {
+              "x": -707.2197014646986,
+              "y": -209.733438472903
+            },
+            "data": {
+              "inputs": {
+                "padding": 200
+              },
+              "locked": false
+            }
+          },
+          {
+            "id": "scatterplotlayer-0",
+            "type": "ScatterplotLayerOp",
+            "position": {
+              "x": -443.51651196326486,
+              "y": 42.81912717553373
+            },
+            "data": {
+              "inputs": {
+                "getFillColor": "#ff5900ff",
+                "getLineColor": "#ffffffff",
+                "getRadius": 10
+              },
+              "locked": false
+            }
+          },
+          {
+            "id": "accessor-0",
+            "type": "AccessorOp",
+            "position": {
+              "x": -987.3019403521371,
+              "y": 455.41361700547714
+            },
+            "data": {
+              "inputs": {
+                "expression": "[d.lng, d.lat]"
+              },
+              "locked": false
+            }
+          },
+          {
+            "id": "viewstate-0",
+            "type": "MapViewStateOp",
+            "position": {
+              "x": -322.94795308841765,
+              "y": -212.49515765894387
+            },
+            "data": {
+              "inputs": {
+                "zoom": 10.8
+              },
+              "locked": false
+            }
+          },
+          {
+            "id": "switch-0",
+            "type": "SwitchOp",
+            "position": {
+              "x": 137.09785434585186,
+              "y": 67.59016854354427
+            },
+            "data": {
+              "inputs": {},
+              "locked": false
+            }
+          },
+          {
+            "id": "heatmaplayer-0",
+            "type": "HeatmapLayerOp",
+            "position": {
+              "x": -440.1008136696714,
+              "y": 476.821166774823
+            },
+            "data": {
+              "inputs": {
+                "getWeight": 5.4,
+                "radiusPixels": 100
+              },
+              "locked": false
+            }
+          },
+          {
+            "id": "basemap-0",
+            "type": "MaplibreBasemapOp",
+            "position": {
+              "x": 621.0648631276329,
+              "y": 214.84283433489608
+            },
+            "data": {
+              "inputs": {},
+              "locked": false
+            }
+          },
+          {
+            "id": "out",
+            "type": "OutOp",
+            "position": {
+              "x": 871.0648631276329,
+              "y": -15.15716566510391
+            },
+            "data": {
+              "inputs": {},
+              "locked": false
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "duckdb-0",
+            "sourceHandle": "data",
+            "target": "boundingbox-0",
+            "targetHandle": "data",
+            "id": "duckdb-0:data->boundingbox-0:data"
+          },
+          {
+            "source": "duckdb-0",
+            "sourceHandle": "data",
+            "target": "scatterplotlayer-0",
+            "targetHandle": "data",
+            "id": "duckdb-0:data->scatterplotlayer-0:data"
+          },
+          {
+            "source": "accessor-0",
+            "sourceHandle": "accessor",
+            "target": "scatterplotlayer-0",
+            "targetHandle": "getPosition",
+            "id": "accessor-0:accessor->scatterplotlayer-0:getPosition"
+          },
+          {
+            "source": "boundingbox-0",
+            "sourceHandle": "longitude",
+            "target": "viewstate-0",
+            "targetHandle": "longitude",
+            "id": "boundingbox-0:longitude->viewstate-0:longitude"
+          },
+          {
+            "source": "boundingbox-0",
+            "sourceHandle": "latitude",
+            "target": "viewstate-0",
+            "targetHandle": "latitude",
+            "id": "boundingbox-0:latitude->viewstate-0:latitude"
+          },
+          {
+            "id": "viewstate-0:viewState->basemap-0:viewState",
+            "source": "viewstate-0",
+            "target": "basemap-0",
+            "sourceHandle": "viewState",
+            "targetHandle": "viewState"
+          },
+          {
+            "source": "scatterplotlayer-0",
+            "sourceHandle": "layer",
+            "target": "switch-0",
+            "targetHandle": "values",
+            "id": "scatterplotlayer-0:layer->switch-0:values"
+          },
+          {
+            "source": "switch-0",
+            "sourceHandle": "value",
+            "target": "deck",
+            "targetHandle": "layers",
+            "id": "switch-0:value->deck:layers"
+          },
+          {
+            "source": "duckdb-0",
+            "sourceHandle": "data",
+            "target": "heatmaplayer-0",
+            "targetHandle": "data",
+            "id": "duckdb-0:data->heatmaplayer-0:data"
+          },
+          {
+            "source": "accessor-0",
+            "sourceHandle": "accessor",
+            "target": "heatmaplayer-0",
+            "targetHandle": "getPosition",
+            "id": "accessor-0:accessor->heatmaplayer-0:getPosition"
+          },
+          {
+            "source": "heatmaplayer-0",
+            "sourceHandle": "layer",
+            "target": "switch-0",
+            "targetHandle": "values",
+            "id": "heatmaplayer-0:layer->switch-0:values"
+          },
+          {
+            "id": "basemap-0:maplibre->deck:basemap",
+            "source": "basemap-0",
+            "target": "deck",
+            "sourceHandle": "maplibre",
+            "targetHandle": "basemap"
+          },
+          {
+            "id": "deck:vis->out:vis",
+            "source": "deck",
+            "target": "out",
+            "sourceHandle": "vis",
+            "targetHandle": "vis"
+          },
+          {
+            "id": "centroid:location->duckdb-0:query",
+            "type": "ReferenceEdge",
+            "source": "centroid",
+            "sourceHandle": "location",
+            "target": "duckdb-0",
+            "targetHandle": "query"
+          }
+        ],
+        "viewport": {
+          "x": 1304.5705824698812,
+          "y": 562.2542727922879,
+          "zoom": 0.5709600637849074
+        },
+        "timeline": {
+          "sheetsById": {
+            "Nodes": {
+              "staticOverrides": {
+                "byObject": {
+                  "scatterplotlayer-0": {
+                    "getFillColor": {
+                      "r": 1,
+                      "g": 0.34901960784313724,
+                      "b": 0,
+                      "a": 1
+                    },
+                    "getLineColor": {
+                      "r": 1,
+                      "g": 1,
+                      "b": 1,
+                      "a": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "definitionVersion": "0.4.0",
+          "revisionHistory": [
+            "RgR7etiO4UU4Vc5h",
+            "fUMQMdteEoY7aslv"
+          ]
+        },
+        "version": 4
+      },
+      "annotations": {},
+      "tags": [
+        "chargers"
+      ],
+      "dataSourceTypes": [
+        "DuckDbOp"
+      ],
+      "layerTypes": [
+        "ScatterplotLayerOp",
+        "HeatmapLayerOp"
+      ],
+      "techniques": []
+    },
+    "geojson-example": {
+      "id": "geojson-example",
+      "name": "GeoJSON BART Stations",
+      "description": "_Adapted from [Deck.gl examples](https://deck.gl/docs/api-reference/layers/path-layer)_",
+      "category": "geospatial",
+      "readme": "# GeoJSON BART Stations\n\n_Adapted from [Deck.gl examples](https://deck.gl/docs/api-reference/layers/path-layer)_\n\n## Overview\nThis example visualizes the BART transit system using a single GeoJSON layer that contains multiple geometry types: station points with text labels showing station names, rail route lines colored by their route ID (blue, orange, etc.), and polygon features. The GeoJSON layer automatically handles each geometry type differently while maintaining consistent styling through accessor functions.\n\n## Key Techniques\n- **Data source**: `FileOp` loads GeoJSON from URL\n- **GeoJSON layer**: `GeoJsonLayerOp` with `pointType: \"circle+text\"` for labeled points\n- **Fill color**: `ColorOp` with static color `#A0A0B4C8` (RGB: 160, 160, 180, Alpha: 200) sets uniform fill\n- **Line color**: `AccessorOp` with expression `d.properties.color || '#000'` uses feature properties\n- **Text labels**: `AccessorOp` with expression `d.properties.name` displays station names\n- **Styling**: `getPointRadius: 4`, `getLineWidth: 20`, `extruded: true`, `getElevation: 30`\n- **Basemap**: `MaplibreBasemapOp` with positron style\n\n## Data Structure\nThe GeoJSON file contains features with:\n- Geometry types: Point (stations), MultiLineString (rail routes), and Polygon\n- Properties:\n  - `name`: Station name or route name (e.g., \"DUBL-DALY (ROUTE 11/12)\")\n  - `color`: Hex color for rail routes (e.g., \"#00aeef\")\n\n## Node Graph Flow\n```\nData → GeoJSON Layer → Deck → Out\n     ↘ Fill Color Accessor ↗\n     ↘ Line Color Accessor ↗\n     ↘ Text Accessor ↗\n```\n\n## Use Cases\nThis pattern is useful for:\n- Transit system visualization\n- Infrastructure mapping\n- Any GeoJSON data with mixed geometry types\n- Features requiring labels\n- Property-driven styling\n- Municipal or regional datasets with predefined colors\n",
+      "project": {
+        "nodes": [
+          {
+            "id": "/deck",
+            "type": "DeckRendererOp",
+            "data": {
+              "inputs": {},
+              "locked": false
+            },
+            "position": {
+              "x": 400,
+              "y": 0
+            }
+          },
+          {
+            "id": "/out",
+            "type": "OutOp",
+            "data": {
+              "inputs": {},
+              "locked": false
+            },
+            "position": {
+              "x": 696,
+              "y": 0
+            }
+          },
+          {
+            "id": "/data-source",
+            "type": "FileOp",
+            "data": {
+              "inputs": {
+                "url": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/bart.geo.json"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": -395.9478357380689,
+              "y": -300.04661487236405
+            }
+          },
+          {
+            "id": "/geojson-layer",
+            "type": "GeoJsonLayerOp",
+            "data": {
+              "inputs": {
+                "pointType": "circle+text",
+                "getPointRadius": 4,
+                "stroked": false,
+                "getLineWidth": 100,
+                "lineWidthMinPixels": 4,
+                "extruded": true,
+                "getElevation": 30
+              },
+              "locked": false
+            },
+            "position": {
+              "x": 0,
+              "y": -300
+            }
+          },
+          {
+            "id": "/fill-color",
+            "type": "ColorOp",
+            "data": {
+              "inputs": {
+                "color": "#01017e"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": -400,
+              "y": 17.466148723640398
+            }
+          },
+          {
+            "id": "/line-color-accessor",
+            "type": "AccessorOp",
+            "data": {
+              "inputs": {
+                "expression": "d.properties.color || '#000'"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": -400,
+              "y": 122.86903440621529
+            }
+          },
+          {
+            "id": "/text-accessor",
+            "type": "AccessorOp",
+            "data": {
+              "inputs": {
+                "expression": "d.properties.name"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": -397.2985571587125,
+              "y": -85.09544950055495
+            }
+          },
+          {
+            "type": "MaplibreBasemapOp",
+            "id": "/maplibre-basemap",
+            "position": {
+              "x": -1.3507214206437084,
+              "y": 546.3063263041065
+            },
+            "data": {
+              "inputs": {
+                "mapStyle": "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
+                "viewState": {
+                  "latitude": 37.74,
+                  "longitude": -122.169,
+                  "zoom": 11,
+                  "pitch": 34,
+                  "bearing": 0
+                }
+              },
+              "locked": false
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "/deck.out.vis->/out.par.vis",
+            "source": "/deck",
+            "target": "/out",
+            "sourceHandle": "out.vis",
+            "targetHandle": "par.vis"
+          },
+          {
+            "id": "/data-source.out.data->/geojson-layer.par.data",
+            "source": "/data-source",
+            "target": "/geojson-layer",
+            "sourceHandle": "out.data",
+            "targetHandle": "par.data"
+          },
+          {
+            "id": "/fill-color.out.color->/geojson-layer.par.getFillColor",
+            "source": "/fill-color",
+            "target": "/geojson-layer",
+            "sourceHandle": "out.color",
+            "targetHandle": "par.getFillColor"
+          },
+          {
+            "id": "/line-color-accessor.out.accessor->/geojson-layer.par.getLineColor",
+            "source": "/line-color-accessor",
+            "target": "/geojson-layer",
+            "sourceHandle": "out.accessor",
+            "targetHandle": "par.getLineColor"
+          },
+          {
+            "id": "/text-accessor.out.accessor->/geojson-layer.par.getText",
+            "source": "/text-accessor",
+            "target": "/geojson-layer",
+            "sourceHandle": "out.accessor",
+            "targetHandle": "par.getText"
+          },
+          {
+            "id": "/geojson-layer.out.layer->/deck.par.layers",
+            "source": "/geojson-layer",
+            "target": "/deck",
+            "sourceHandle": "out.layer",
+            "targetHandle": "par.layers"
+          },
+          {
+            "source": "/maplibre-basemap",
+            "sourceHandle": "out.maplibre",
+            "target": "/deck",
+            "targetHandle": "par.basemap",
+            "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap"
+          }
+        ],
+        "viewport": {
+          "x": 545.8912906768109,
+          "y": 46.884631018890104,
+          "zoom": 0.5895523675768745
+        },
+        "timeline": {
+          "sheetsById": {
+            "Noodles": {
+              "staticOverrides": {
+                "byObject": {}
+              }
+            }
+          },
+          "definitionVersion": "0.4.0",
+          "revisionHistory": [
+            "9BkDRYWmSFG43ctt",
+            "2fowPmUFZuTc-Tpb",
+            "gu9E8g8-RbexkhTI",
+            "EeNr7wIUZGeY0pqE",
+            "-AcuXX9WdPaXNlc4",
+            "hPcEOr80dLTuA80M"
+          ]
+        },
+        "version": 6
+      },
+      "annotations": {},
+      "tags": [
+        "geojson",
+        "example"
+      ],
+      "dataSourceTypes": [
+        "FileOp"
+      ],
+      "layerTypes": [
+        "GeoJsonLayerOp"
+      ],
+      "techniques": []
+    },
+    "nyc-census": {
+      "id": "nyc-census",
+      "name": "NYC Census",
+      "description": "_Adapted from [Kepler.gl examples](https://github.com/keplergl/kepler.gl-data/tree/master/nyc_census)_",
+      "category": "geospatial",
+      "readme": "# NYC Census\n\n_Adapted from [Kepler.gl examples](https://github.com/keplergl/kepler.gl-data/tree/master/nyc_census)_\n\n## Overview\nThis example creates a choropleth map of NYC census tracts where each tract polygon is colored based on demographic data. Census tracts are colored according to population or other statistical variables, creating a heat map that reveals demographic patterns across New York City's five boroughs.\n\n## Key Techniques\n- **Data source**: `FileOp` loads census tract boundaries with demographic data\n- **Polygon layer**: `GeoJsonLayerOp` renders tract boundaries\n- **Color mapping**: Data-driven fill colors based on census variables\n- **Basemap**: `MaplibreBasemapOp` centered on New York City\n\n## Data Structure\nThe GeoJSON file contains census tract features with:\n- `geometry`: Polygon boundaries for each tract\n- `properties`:\n  - `ntaname`: Neighborhood tabulation area name\n  - `ntacode`: Neighborhood code\n  - `ct2010`: Census tract 2010 ID\n  - `boro_name`: Borough name (Manhattan, Brooklyn, etc.)\n  - `Population`: Population count\n  - `shape_area`, `shape_leng`: Geometric properties\n  - `puma`, `cdeligibil`, `ctlabel`: Additional census identifiers\n\n## Use Cases\nThis pattern is useful for:\n- Demographic analysis\n- Urban planning\n- Public health studies\n- Economic research\n- Resource allocation planning\n- Any choropleth/statistical mapping\n",
+      "project": {
+        "nodes": [
+          {
+            "id": "/deck",
+            "type": "DeckRendererOp",
+            "data": {
+              "inputs": {},
+              "locked": false
+            },
+            "position": {
+              "x": 1200,
+              "y": 150
+            }
+          },
+          {
+            "id": "/out",
+            "type": "OutOp",
+            "data": {
+              "inputs": {},
+              "locked": false
+            },
+            "position": {
+              "x": 1500,
+              "y": 150
+            }
+          },
+          {
+            "id": "/data-source",
+            "type": "FileOp",
+            "data": {
+              "inputs": {
+                "url": "@/data.json"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": 108.52630719568747,
+              "y": -122.97570510099875
+            }
+          },
+          {
+            "id": "/geojson-layer",
+            "type": "GeoJsonLayerOp",
+            "data": {
+              "inputs": {
+                "opacity": 0.7,
+                "stroked": false,
+                "getLineColor": "#000000ff",
+                "extruded": true,
+                "elevationScale": 11
+              },
+              "locked": false
+            },
+            "position": {
+              "x": 863.7581300813008,
+              "y": -94.96747967479675
+            }
+          },
+          {
+            "id": "/population-color",
+            "type": "ColorRampOp",
+            "data": {
+              "inputs": {
+                "colorScheme": "turbo"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": 442.56042758935484,
+              "y": 253.73756330259326
+            }
+          },
+          {
+            "id": "/population-accessor",
+            "type": "AccessorOp",
+            "data": {
+              "inputs": {
+                "expression": "d.properties.Population"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": -253.33131274420933,
+              "y": 249.151944688691
+            }
+          },
+          {
+            "id": "/elevation-accessor",
+            "type": "AccessorOp",
+            "data": {
+              "inputs": {
+                "expression": "d.properties.Population"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": -199.29590867423792,
+              "y": 549.2119133097201
+            }
+          },
+          {
+            "type": "MaplibreBasemapOp",
+            "id": "/maplibre-basemap",
+            "position": {
+              "x": 847.2845528455284,
+              "y": 902.3536585365853
+            },
+            "data": {
+              "inputs": {
+                "mapStyle": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
+                "viewState": {
+                  "latitude": 40.70103,
+                  "longitude": -73.91554,
+                  "zoom": 11.98,
+                  "pitch": 59.11,
+                  "bearing": -91.5
+                }
+              },
+              "locked": false
+            }
+          },
+          {
+            "type": "MapRangeOp",
+            "id": "/map-range",
+            "position": {
+              "x": 94.11925250078963,
+              "y": 260.9424297076135
+            },
+            "data": {
+              "inputs": {
+                "inMax": 10000
+              },
+              "locked": false
+            }
+          },
+          {
+            "type": "MapRangeOp",
+            "id": "/map-range-1",
+            "position": {
+              "x": 418.01764914528434,
+              "y": 519.3400164575731
+            },
+            "data": {
+              "inputs": {
+                "inMax": 10000,
+                "outMax": 200
+              },
+              "locked": false
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "/deck.out.vis->/out.par.vis",
+            "source": "/deck",
+            "target": "/out",
+            "sourceHandle": "out.vis",
+            "targetHandle": "par.vis"
+          },
+          {
+            "id": "/data-source.out.data->/geojson-layer.par.data",
+            "source": "/data-source",
+            "target": "/geojson-layer",
+            "sourceHandle": "out.data",
+            "targetHandle": "par.data"
+          },
+          {
+            "source": "/population-color",
+            "sourceHandle": "out.color",
+            "target": "/geojson-layer",
+            "targetHandle": "par.getFillColor",
+            "id": "/population-color.out.color->/geojson-layer.par.getFillColor"
+          },
+          {
+            "source": "/map-range-1",
+            "sourceHandle": "out.scaled",
+            "target": "/geojson-layer",
+            "targetHandle": "par.getElevation",
+            "id": "/map-range-1.out.scaled->/geojson-layer.par.getElevation"
+          },
+          {
+            "source": "/map-range",
+            "sourceHandle": "out.scaled",
+            "target": "/population-color",
+            "targetHandle": "par.value",
+            "id": "/map-range.out.scaled->/population-color.par.value"
+          },
+          {
+            "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
+            "source": "/maplibre-basemap",
+            "target": "/deck",
+            "sourceHandle": "out.maplibre",
+            "targetHandle": "par.basemap"
+          },
+          {
+            "id": "/geojson-layer.out.layer->/deck.par.layers",
+            "source": "/geojson-layer",
+            "target": "/deck",
+            "sourceHandle": "out.layer",
+            "targetHandle": "par.layers"
+          },
+          {
+            "source": "/population-accessor",
+            "sourceHandle": "out.accessor",
+            "target": "/map-range",
+            "targetHandle": "par.val",
+            "id": "/population-accessor.out.accessor->/map-range.par.val"
+          },
+          {
+            "source": "/elevation-accessor",
+            "sourceHandle": "out.accessor",
+            "target": "/map-range-1",
+            "targetHandle": "par.val",
+            "id": "/elevation-accessor.out.accessor->/map-range-1.par.val"
+          }
+        ],
+        "viewport": {
+          "x": 47.242109497431784,
+          "y": 75.01093484232683,
+          "zoom": 0.4556733508888464
+        },
+        "timeline": {
+          "sheetsById": {
+            "Noodles": {
+              "staticOverrides": {
+                "byObject": {}
+              }
+            }
+          },
+          "definitionVersion": "0.4.0",
+          "revisionHistory": []
+        },
+        "version": 6
+      },
+      "annotations": {},
+      "tags": [
+        "nyc",
+        "census"
+      ],
+      "dataSourceTypes": [
+        "FileOp"
+      ],
+      "layerTypes": [
+        "GeoJsonLayerOp"
+      ],
+      "techniques": []
+    },
+    "nyc-taxis": {
+      "id": "nyc-taxis",
+      "name": "NYC Taxis",
+      "description": "_Adapted from [Kepler.gl examples](https://kepler.gl/demo/nyctrips)_",
+      "category": "geospatial",
+      "readme": "# NYC Taxis\n\n_Adapted from [Kepler.gl examples](https://kepler.gl/demo/nyctrips)_\n\n## Overview\nThis example visualizes NYC taxi trips as a three-layer visualization: purple circles for pickup locations, blue circles for dropoff locations, and arcs connecting each pickup to its corresponding dropoff. This creates a flow map that reveals transportation patterns, with the arcs showing the direction and path of each trip.\n\n## Key Techniques\n- **Data source**: `FileOp` loads taxi trip data in CSV format\n- **Position accessors**: `AccessorOp` nodes extract pickup and dropoff coordinates from separate columns\n- **Colors**: `ColorOp` nodes define colors for pickup (purple) and dropoff (blue) points\n- **Point layers**: Two `ScatterplotLayerOp` nodes for pickup and dropoff locations\n- **Arc layer**: `ArcLayerOp` draws routes from pickup to dropoff\n- **Basemap**: `MaplibreBasemapOp` with dark matter style\n\n## Data Structure\nThe CSV file contains taxi trip records with fields:\n- `VendorID`: Taxi company identifier\n- `tpep_pickup_datetime`, `tpep_dropoff_datetime`: Trip start and end times\n- `passenger_count`: Number of passengers\n- `trip_distance`: Distance in miles\n- `pickup_longitude`, `pickup_latitude`: Starting location\n- `dropoff_longitude`, `dropoff_latitude`: Ending location\n- `fare_amount`, `tip_amount`, `total_amount`: Payment details\n\n## Use Cases\nThis pattern is useful for visualizing:\n- Origin-destination flows\n- Transportation networks\n- Migration patterns\n- Delivery routes\n- Any dataset with start and end locations\n",
+      "project": {
+        "nodes": [
+          {
+            "id": "/deck",
+            "type": "DeckRendererOp",
+            "data": {
+              "inputs": {},
+              "locked": false
+            },
+            "position": {
+              "x": 1200,
+              "y": 200
+            }
+          },
+          {
+            "id": "/out",
+            "type": "OutOp",
+            "data": {
+              "inputs": {},
+              "locked": false
+            },
+            "position": {
+              "x": 1500,
+              "y": 200
+            }
+          },
+          {
+            "id": "/data-source",
+            "type": "FileOp",
+            "data": {
+              "inputs": {
+                "format": "csv",
+                "url": "@/data.csv"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": 0,
+              "y": 200
+            }
+          },
+          {
+            "id": "/arc-layer",
+            "type": "ArcLayerOp",
+            "data": {
+              "inputs": {
+                "getWidth": 4
+              },
+              "locked": false
+            },
+            "position": {
+              "x": 897.6842857142857,
+              "y": -143.5742857142857
+            }
+          },
+          {
+            "id": "/pickup-layer",
+            "type": "ScatterplotLayerOp",
+            "data": {
+              "inputs": {
+                "opacity": 0.8,
+                "getLineColor": "#ffffffff",
+                "getRadius": 10
+              },
+              "locked": false
+            },
+            "position": {
+              "x": 837.4757142857144,
+              "y": 195.36857142857144
+            }
+          },
+          {
+            "id": "/dropoff-layer",
+            "type": "ScatterplotLayerOp",
+            "data": {
+              "inputs": {
+                "opacity": 0.8,
+                "getLineColor": "#ffffffff",
+                "getRadius": 10
+              },
+              "locked": false
+            },
+            "position": {
+              "x": 851.3700000000001,
+              "y": 589.8885714285714
+            }
+          },
+          {
+            "id": "/pickup-position",
+            "type": "AccessorOp",
+            "data": {
+              "inputs": {
+                "expression": "[d.pickup_longitude, d.pickup_latitude]"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": 352.2185714285714,
+              "y": 157.89285714285714
+            }
+          },
+          {
+            "id": "/dropoff-position",
+            "type": "AccessorOp",
+            "data": {
+              "inputs": {
+                "expression": "[d.dropoff_longitude, d.dropoff_latitude]"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": 352.2185714285714,
+              "y": 274.52714285714285
+            }
+          },
+          {
+            "type": "MaplibreBasemapOp",
+            "id": "/maplibre-basemap",
+            "position": {
+              "x": 1184.8328571428572,
+              "y": 484.2142857142857
+            },
+            "data": {
+              "inputs": {
+                "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+                "viewState": {
+                  "latitude": 40.74,
+                  "longitude": -73.98,
+                  "zoom": 12.09,
+                  "pitch": 56,
+                  "bearing": -15.25
+                }
+              },
+              "locked": false
+            }
+          },
+          {
+            "type": "ColorOp",
+            "id": "/pickup",
+            "position": {
+              "x": 471.3628571428572,
+              "y": 62.52428571428571
+            },
+            "data": {
+              "inputs": {
+                "color": "#8d12af"
+              },
+              "locked": false
+            }
+          },
+          {
+            "type": "ColorOp",
+            "id": "/dropoff",
+            "position": {
+              "x": 443.5742857142857,
+              "y": 420.8414285714286
+            },
+            "data": {
+              "inputs": {
+                "color": "#105b89"
+              },
+              "locked": false
+            }
+          },
+          {
+            "type": "BlendingOp",
+            "id": "/blending",
+            "position": {
+              "x": 272.8555514364492,
+              "y": 705.7558236067697
+            },
+            "data": {
+              "inputs": {
+                "mode": "additive"
+              },
+              "locked": false
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "/deck.out.vis->/out.par.vis",
+            "source": "/deck",
+            "target": "/out",
+            "sourceHandle": "out.vis",
+            "targetHandle": "par.vis"
+          },
+          {
+            "id": "/data-source.out.data->/arc-layer.par.data",
+            "source": "/data-source",
+            "target": "/arc-layer",
+            "sourceHandle": "out.data",
+            "targetHandle": "par.data"
+          },
+          {
+            "id": "/data-source.out.data->/pickup-layer.par.data",
+            "source": "/data-source",
+            "target": "/pickup-layer",
+            "sourceHandle": "out.data",
+            "targetHandle": "par.data"
+          },
+          {
+            "id": "/data-source.out.data->/dropoff-layer.par.data",
+            "source": "/data-source",
+            "target": "/dropoff-layer",
+            "sourceHandle": "out.data",
+            "targetHandle": "par.data"
+          },
+          {
+            "id": "/pickup-position.out.accessor->/arc-layer.par.getSourcePosition",
+            "source": "/pickup-position",
+            "target": "/arc-layer",
+            "sourceHandle": "out.accessor",
+            "targetHandle": "par.getSourcePosition"
+          },
+          {
+            "id": "/dropoff-position.out.accessor->/arc-layer.par.getTargetPosition",
+            "source": "/dropoff-position",
+            "target": "/arc-layer",
+            "sourceHandle": "out.accessor",
+            "targetHandle": "par.getTargetPosition"
+          },
+          {
+            "id": "/pickup-position.out.accessor->/pickup-layer.par.getPosition",
+            "source": "/pickup-position",
+            "target": "/pickup-layer",
+            "sourceHandle": "out.accessor",
+            "targetHandle": "par.getPosition"
+          },
+          {
+            "id": "/dropoff-position.out.accessor->/dropoff-layer.par.getPosition",
+            "source": "/dropoff-position",
+            "target": "/dropoff-layer",
+            "sourceHandle": "out.accessor",
+            "targetHandle": "par.getPosition"
+          },
+          {
+            "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
+            "source": "/maplibre-basemap",
+            "target": "/deck",
+            "sourceHandle": "out.maplibre",
+            "targetHandle": "par.basemap"
+          },
+          {
+            "id": "/arc-layer.out.layer->/deck.par.layers",
+            "source": "/arc-layer",
+            "target": "/deck",
+            "sourceHandle": "out.layer",
+            "targetHandle": "par.layers"
+          },
+          {
+            "id": "/pickup-layer.out.layer->/deck.par.layers",
+            "source": "/pickup-layer",
+            "target": "/deck",
+            "sourceHandle": "out.layer",
+            "targetHandle": "par.layers"
+          },
+          {
+            "id": "/dropoff-layer.out.layer->/deck.par.layers",
+            "source": "/dropoff-layer",
+            "target": "/deck",
+            "sourceHandle": "out.layer",
+            "targetHandle": "par.layers"
+          },
+          {
+            "source": "/pickup",
+            "sourceHandle": "out.color",
+            "target": "/arc-layer",
+            "targetHandle": "par.getSourceColor",
+            "id": "/pickup.out.color->/arc-layer.par.getSourceColor"
+          },
+          {
+            "source": "/pickup",
+            "sourceHandle": "out.color",
+            "target": "/pickup-layer",
+            "targetHandle": "par.getFillColor",
+            "id": "/pickup.out.color->/pickup-layer.par.getFillColor"
+          },
+          {
+            "source": "/dropoff",
+            "sourceHandle": "out.color",
+            "target": "/arc-layer",
+            "targetHandle": "par.getTargetColor",
+            "id": "/dropoff.out.color->/arc-layer.par.getTargetColor"
+          },
+          {
+            "source": "/dropoff",
+            "sourceHandle": "out.color",
+            "target": "/dropoff-layer",
+            "targetHandle": "par.getFillColor",
+            "id": "/dropoff.out.color->/dropoff-layer.par.getFillColor"
+          },
+          {
+            "source": "/blending",
+            "sourceHandle": "out.parameters",
+            "target": "/pickup-layer",
+            "targetHandle": "par.parameters",
+            "id": "/blending.out.parameters->/pickup-layer.par.parameters"
+          },
+          {
+            "source": "/blending",
+            "sourceHandle": "out.parameters",
+            "target": "/arc-layer",
+            "targetHandle": "par.parameters",
+            "id": "/blending.out.parameters->/arc-layer.par.parameters"
+          },
+          {
+            "source": "/blending",
+            "sourceHandle": "out.parameters",
+            "target": "/dropoff-layer",
+            "targetHandle": "par.parameters",
+            "id": "/blending.out.parameters->/dropoff-layer.par.parameters"
+          }
+        ],
+        "viewport": {
+          "x": 172.53317127277438,
+          "y": 204.01752158305402,
+          "zoom": 0.467987771000214
+        },
+        "timeline": {
+          "sheetsById": {
+            "Noodles": {
+              "staticOverrides": {
+                "byObject": {
+                  "editor": {
+                    "layoutMode": "noodles-on-top"
+                  }
+                }
+              }
+            }
+          },
+          "definitionVersion": "0.4.0",
+          "revisionHistory": []
+        },
+        "version": 6
+      },
+      "annotations": {},
+      "tags": [
+        "nyc",
+        "taxis"
+      ],
+      "dataSourceTypes": [
+        "FileOp"
+      ],
+      "layerTypes": [
+        "ArcLayerOp",
+        "ScatterplotLayerOp"
+      ],
+      "techniques": []
+    },
+    "orbit": {
+      "id": "orbit",
+      "name": "Orbit View 3D Scene",
+      "description": "## Overview",
+      "category": "geospatial",
+      "readme": "# Orbit View 3D Scene\n\n## Overview\nThis example sets up a minimal 3D scene with an orbit camera (no geographic map) for viewing 3D models or objects. Instead of a map basemap, it uses a solid blue background and an orbit view that lets you rotate around the scene. This is the starting point for any non-geographic 3D visualization like product viewers, molecular structures, or CAD models.\n\n## Key Techniques\n- **Orbit view**: `OrbitViewOp` with `clear: true`, `clearColor: \"#2997ffff\"`, and `fovy: 50`\n- **Deck renderer**: `DeckRendererOp` with `basemap: null` for no map tiles\n- **Scenegraph layer**: `ScenegraphLayerOp` with `sizeMinPixels: 10` and `getColor: \"#ffffffff\"`\n- **Data**: `ExpressionOp` with `[null]` provides minimal data\n\n## Node Graph Flow\n```\nExpression → Scenegraph Layer → Deck → Out\nOrbitView → Deck\n```\n\n## Use Cases\nThis pattern is useful for:\n- 3D model visualization\n- CAD/BIM model viewing\n- Point cloud rendering\n- Molecular or scientific 3D data\n- Product visualization\n- Game asset preview\n- Any non-geographic 3D content\n- VR/AR previews\n\n## Next Steps\nTo extend this example:\n- Add actual 3D model data via `FileOp` (GLB, OBJ formats)\n- Use multiple `ScenegraphLayerOp` instances for complex scenes\n- Add lighting with material properties\n- Animate models using timeline features\n- Add other 3D layers like `PointCloudLayerOp` or `MeshLayerOp`\n",
+      "project": {
+        "nodes": [
+          {
+            "id": "/deck",
+            "type": "DeckRendererOp",
+            "data": {
+              "inputs": {
+                "basemap": null
+              },
+              "locked": false
+            },
+            "position": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          {
+            "id": "/out",
+            "type": "OutOp",
+            "data": {
+              "inputs": {},
+              "locked": false
+            },
+            "position": {
+              "x": 390,
+              "y": 0
+            }
+          },
+          {
+            "id": "/orbitview-0",
+            "type": "OrbitViewOp",
+            "position": {
+              "x": -565.1875,
+              "y": 169.25
+            },
+            "data": {
+              "inputs": {
+                "clear": true,
+                "clearColor": "#2997ffff",
+                "fovy": 50
+              },
+              "locked": false
+            }
+          },
+          {
+            "id": "/scenegraphlayer-0",
+            "type": "ScenegraphLayerOp",
+            "position": {
+              "x": -539.9180707890639,
+              "y": -285.7888584218722
+            },
+            "data": {
+              "inputs": {
+                "sizeMinPixels": 10,
+                "getColor": "#ffffffff"
+              },
+              "locked": false
+            }
+          },
+          {
+            "id": "/expression-0",
+            "type": "ExpressionOp",
+            "position": {
+              "x": -1013.8408708542686,
+              "y": -139.4872739249836
+            },
+            "data": {
+              "inputs": {
+                "expression": "[null]"
+              },
+              "locked": false
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "/deck.out.vis->/out.par.vis",
+            "source": "/deck",
+            "target": "/out",
+            "sourceHandle": "out.vis",
+            "targetHandle": "par.vis"
+          },
+          {
+            "source": "/orbitview-0",
+            "sourceHandle": "out.view",
+            "target": "/deck",
+            "targetHandle": "par.views",
+            "id": "/orbitview-0.out.view->/deck.par.views"
+          },
+          {
+            "source": "/scenegraphlayer-0",
+            "sourceHandle": "out.layer",
+            "target": "/deck",
+            "targetHandle": "par.layers",
+            "id": "/scenegraphlayer-0.out.layer->/deck.par.layers"
+          },
+          {
+            "source": "/expression-0",
+            "sourceHandle": "out.data",
+            "target": "/scenegraphlayer-0",
+            "targetHandle": "par.data",
+            "id": "/expression-0.out.data->/scenegraphlayer-0.par.data"
+          }
+        ],
+        "viewport": {
+          "x": 1368.6650642622628,
+          "y": 546.6972278664407,
+          "zoom": 0.981085979917294
+        },
+        "version": 6,
+        "timeline": {
+          "sheetsById": {
+            "Noodles": {
+              "staticOverrides": {
+                "byObject": {
+                  "scenegraphlayer-0": {
+                    "getColor": {
+                      "r": 1,
+                      "g": 1,
+                      "b": 1,
+                      "a": 1
+                    }
+                  },
+                  "orbitview-0": {
+                    "clearColor": {
+                      "r": 0.1607843137254902,
+                      "g": 0.592156862745098,
+                      "b": 1,
+                      "a": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "definitionVersion": "0.4.0",
+          "revisionHistory": [
+            "JtY15U_d_cPZoRLu",
+            "9EsczZKTvYsUK8uR",
+            "R6gN92Yj6dfyRehM"
+          ]
+        }
+      },
+      "annotations": {},
+      "tags": [
+        "orbit"
+      ],
+      "dataSourceTypes": [],
+      "layerTypes": [
+        "ScenegraphLayerOp"
+      ],
+      "techniques": []
+    },
+    "sf-elevation-contours": {
+      "id": "sf-elevation-contours",
+      "name": "San Francisco Elevation Contours",
+      "description": "_Adapted from [Kepler.gl examples](https://github.com/keplergl/kepler.gl-data/tree/master/sfcontour)_",
+      "category": "geospatial",
+      "readme": "# San Francisco Elevation Contours\n\n_Adapted from [Kepler.gl examples](https://github.com/keplergl/kepler.gl-data/tree/master/sfcontour)_\n\n## Overview\nThis example displays San Francisco's topography through elevation contour lines - lines connecting points of equal elevation. Closely spaced lines indicate steep hills while widely spaced lines show flatter areas. Each line represents a specific elevation, creating a traditional topographic map that reveals the city's famous hills and valleys.\n\n## Key Techniques\n- **Data source**: `FileOp` loads contour line data (GeoJSON LineStrings)\n- **Line layer**: `GeoJsonLayerOp` renders contour lines\n- **Color mapping**: Line colors or weights based on elevation values\n- **Basemap**: `MaplibreBasemapOp` centered on San Francisco\n\n## Data Structure\nThe GeoJSON file contains contour line features with:\n- `geometry`: LineString coordinates\n- `properties`:\n  - `elevation`: Elevation value for the contour line\n  - `objectid`: Unique identifier\n  - `isoline_ty`: Isoline type (e.g., \"800 - Normal\")\n  - `shape_len`: Length of the contour line\n\n## Use Cases\nThis pattern is useful for:\n- Topographic mapping\n- Terrain analysis\n- Flood risk assessment\n- Urban planning (slope, drainage)\n- Hiking/trail planning\n- Geographic education\n- Any elevation or isoline data\n",
+      "project": {
+        "nodes": [
+          {
+            "id": "/deck",
+            "type": "DeckRendererOp",
+            "data": {
+              "inputs": {},
+              "locked": false
+            },
+            "position": {
+              "x": 1200,
+              "y": 100
+            }
+          },
+          {
+            "id": "/out",
+            "type": "OutOp",
+            "data": {
+              "inputs": {},
+              "locked": false
+            },
+            "position": {
+              "x": 1500,
+              "y": 100
+            }
+          },
+          {
+            "id": "/data-source",
+            "type": "FileOp",
+            "data": {
+              "inputs": {
+                "url": "https://raw.githubusercontent.com/keplergl/kepler.gl-data/master/sfcontour/data.json"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": 0,
+              "y": 50
+            }
+          },
+          {
+            "id": "/geojson-layer",
+            "type": "GeoJsonLayerOp",
+            "data": {
+              "inputs": {
+                "opacity": 0.38,
+                "lineWidthScale": 8,
+                "lineWidthMinPixels": 0.2
+              },
+              "locked": false
+            },
+            "position": {
+              "x": 900,
+              "y": 0
+            }
+          },
+          {
+            "id": "/elevation-color",
+            "type": "ColorRampOp",
+            "data": {
+              "inputs": {},
+              "locked": false
+            },
+            "position": {
+              "x": 418.8432510885341,
+              "y": 308.2017416545719
+            }
+          },
+          {
+            "id": "/elevation-accessor",
+            "type": "AccessorOp",
+            "data": {
+              "inputs": {
+                "expression": "d.properties.elevation"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": 22.383164005805497,
+              "y": 357.60812772133534
+            }
+          },
+          {
+            "type": "MaplibreBasemapOp",
+            "id": "/maplibre-basemap",
+            "position": {
+              "x": 1224.6705370101597,
+              "y": 352.92452830188677
+            },
+            "data": {
+              "inputs": {
+                "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+                "viewState": {
+                  "latitude": 37.75,
+                  "longitude": -122.46,
+                  "zoom": 14.1,
+                  "pitch": 52.59,
+                  "bearing": 25.07
+                }
+              },
+              "locked": false
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "/deck.out.vis->/out.par.vis",
+            "source": "/deck",
+            "target": "/out",
+            "sourceHandle": "out.vis",
+            "targetHandle": "par.vis"
+          },
+          {
+            "id": "/data-source.out.data->/geojson-layer.par.data",
+            "source": "/data-source",
+            "target": "/geojson-layer",
+            "sourceHandle": "out.data",
+            "targetHandle": "par.data"
+          },
+          {
+            "id": "/elevation-color.out.color->/geojson-layer.par.getFillColor",
+            "source": "/elevation-color",
+            "target": "/geojson-layer",
+            "sourceHandle": "out.color",
+            "targetHandle": "par.getFillColor"
+          },
+          {
+            "id": "/elevation-color.out.color->/geojson-layer.par.getLineColor",
+            "source": "/elevation-color",
+            "target": "/geojson-layer",
+            "sourceHandle": "out.color",
+            "targetHandle": "par.getLineColor"
+          },
+          {
+            "id": "/elevation-accessor.out.accessor->/elevation-color.par.value",
+            "source": "/elevation-accessor",
+            "target": "/elevation-color",
+            "sourceHandle": "out.accessor",
+            "targetHandle": "par.value"
+          },
+          {
+            "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
+            "source": "/maplibre-basemap",
+            "target": "/deck",
+            "sourceHandle": "out.maplibre",
+            "targetHandle": "par.basemap"
+          },
+          {
+            "id": "/geojson-layer.out.layer->/deck.par.layers",
+            "source": "/geojson-layer",
+            "target": "/deck",
+            "sourceHandle": "out.layer",
+            "targetHandle": "par.layers"
+          }
+        ],
+        "viewport": {
+          "x": 149,
+          "y": 48.131400370141876,
+          "zoom": 0.42504626773596543
+        },
+        "timeline": {
+          "sheetsById": {
+            "Noodles": {
+              "staticOverrides": {
+                "byObject": {}
+              }
+            }
+          },
+          "definitionVersion": "0.4.0",
+          "revisionHistory": []
+        },
+        "version": 6
+      },
+      "annotations": {},
+      "tags": [
+        "sf",
+        "elevation",
+        "contours"
+      ],
+      "dataSourceTypes": [
+        "FileOp"
+      ],
+      "layerTypes": [
+        "GeoJsonLayerOp"
+      ],
+      "techniques": []
+    },
+    "sf-street-trees": {
+      "id": "sf-street-trees",
+      "name": "San Francisco Street Trees",
+      "description": "_Adapted from [Kepler.gl examples](https://kepler.gl/demo/sftrees)_",
+      "category": "geospatial",
+      "readme": "# San Francisco Street Trees\n\n_Adapted from [Kepler.gl examples](https://kepler.gl/demo/sftrees)_\n\n## Overview\nThis example plots thousands of individual street trees across San Francisco as points on a map, creating a visual inventory of the city's urban forest. The density and clustering of points reveal which neighborhoods have more tree coverage, and the data includes species, age, and size information that could be used for color or size styling.\n\n## Key Techniques\n- **Data source**: `FileOp` loads street tree inventory with coordinates\n- **Point layer**: `ScatterplotLayerOp` renders individual trees\n- **Styling**: Points can be colored/sized by species, size, or age\n- **Basemap**: `MaplibreBasemapOp` centered on San Francisco\n\n## Data Structure\nThe CSV file contains street tree records with fields:\n- `TreeID`: Unique identifier\n- `latitude`, `longitude`: Tree location\n- `qSpecies`: Species name (common and scientific)\n- `qAddress`: Street address\n- `PlantType`: Type (e.g., Tree)\n- `PlantDate`: Date planted\n- `Plan`: Planning year\n- `Age`: Tree age in years\n- `DBH`: Diameter at breast height (inches)\n- `qSiteInfo`, `SiteOrder`: Location details\n\n## Use Cases\nThis pattern is useful for:\n- Urban forestry management\n- Environmental planning\n- Biodiversity studies\n- Heat island analysis\n- Urban green space assessment\n- Municipal asset tracking\n",
+      "project": {
+        "nodes": [
+          {
+            "id": "/deck",
+            "type": "DeckRendererOp",
+            "data": {
+              "inputs": {},
+              "locked": false
+            },
+            "position": {
+              "x": 1200,
+              "y": 100
+            }
+          },
+          {
+            "id": "/out",
+            "type": "OutOp",
+            "data": {
+              "inputs": {},
+              "locked": false
+            },
+            "position": {
+              "x": 1500,
+              "y": 100
+            }
+          },
+          {
+            "id": "/data-source",
+            "type": "FileOp",
+            "data": {
+              "inputs": {
+                "url": "@/data.csv",
+                "format": "csv"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          {
+            "id": "/hexagon-layer",
+            "type": "HexagonLayerOp",
+            "data": {
+              "inputs": {
+                "radius": 200,
+                "extruded": true,
+                "elevationScale": 5,
+                "coverage": 1,
+                "upperPercentile": 100,
+                "colorAggregation": "MEAN",
+                "elevationAggregation": "SUM"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": 900,
+              "y": 0
+            }
+          },
+          {
+            "id": "/position-accessor",
+            "type": "AccessorOp",
+            "data": {
+              "inputs": {
+                "expression": "[d.longitude, d.latitude]"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": 600,
+              "y": 0
+            }
+          },
+          {
+            "type": "MaplibreBasemapOp",
+            "id": "/maplibre-basemap",
+            "position": {
+              "x": 900,
+              "y": 200
+            },
+            "data": {
+              "inputs": {
+                "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+                "viewState": {
+                  "latitude": 37.759,
+                  "longitude": -122.448,
+                  "zoom": 12.51,
+                  "pitch": 40,
+                  "bearing": 0
+                }
+              },
+              "locked": false
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "/deck.out.vis->/out.par.vis",
+            "source": "/deck",
+            "target": "/out",
+            "sourceHandle": "out.vis",
+            "targetHandle": "par.vis"
+          },
+          {
+            "id": "/data-source.out.data->/hexagon-layer.par.data",
+            "source": "/data-source",
+            "target": "/hexagon-layer",
+            "sourceHandle": "out.data",
+            "targetHandle": "par.data"
+          },
+          {
+            "id": "/position-accessor.out.accessor->/hexagon-layer.par.getPosition",
+            "source": "/position-accessor",
+            "target": "/hexagon-layer",
+            "sourceHandle": "out.accessor",
+            "targetHandle": "par.getPosition"
+          },
+          {
+            "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
+            "source": "/maplibre-basemap",
+            "target": "/deck",
+            "sourceHandle": "out.maplibre",
+            "targetHandle": "par.basemap"
+          },
+          {
+            "id": "/hexagon-layer.out.layer->/deck.par.layers",
+            "source": "/hexagon-layer",
+            "target": "/deck",
+            "sourceHandle": "out.layer",
+            "targetHandle": "par.layers"
+          }
+        ],
+        "viewport": {
+          "x": 600,
+          "y": 400,
+          "zoom": 0.8
+        },
+        "version": 6,
+        "timeline": {
+          "sheetsById": {
+            "Noodles": {
+              "staticOverrides": {
+                "byObject": {}
+              }
+            }
+          },
+          "definitionVersion": "0.4.0",
+          "revisionHistory": []
+        }
+      },
+      "annotations": {},
+      "tags": [
+        "sf",
+        "street",
+        "trees"
+      ],
+      "dataSourceTypes": [
+        "FileOp"
+      ],
+      "layerTypes": [
+        "HexagonLayerOp"
+      ],
+      "techniques": []
+    },
+    "simple-mesh-example": {
+      "id": "simple-mesh-example",
+      "name": "Simple Mesh Layer BART Stations",
+      "description": "## Overview",
+      "category": "geospatial",
+      "readme": "# Simple Mesh Layer BART Stations\n\n## Overview\nThis example places 3D mesh objects (geometric shapes) at each BART station location, with each mesh colored by station ridership and randomly rotated for visual variety. Higher ridership stations appear more orange/red while lower ridership stations are darker. This demonstrates using 3D geometry as data markers instead of flat circles.\n\n## Key Techniques\n- **Data source**: `FileOp` loads BART station data from JSON\n- **Mesh layer**: `SimpleMeshLayerOp` with `sizeScale: 30`\n- **Position accessor**: `AccessorOp` with expression `d.coordinates` extracts locations\n- **Color accessor**: `AccessorOp` with expression `utils.colorToHex([Math.sqrt(d.exits), 140, 0])` colors by ridership\n- **Orientation accessor**: `AccessorOp` with expression `[0, Math.random() * 180, 0]` randomizes rotation\n- **Basemap**: `MaplibreBasemapOp` with 30-degree pitch\n\n## Data Structure\nThe JSON file contains BART station records with:\n- `name`: Station name and code\n- `code`: Two-letter station code\n- `address`: Street address\n- `entries`: Number of station entries (ridership)\n- `exits`: Number of station exits (ridership)\n- `coordinates`: Array of [longitude, latitude]\n\n## Node Graph Flow\n```\nData → Position Accessor → Mesh Layer → Deck → Out\n     → Color Accessor ↗\n     → Orientation Accessor ↗\nBasemap → Deck\n```\n\n## Use Cases\nThis pattern is useful for:\n- Custom 3D markers instead of standard pins\n- 3D icon visualizations\n- Data points requiring orientation (wind direction, flow)\n- Artistic or branded visualizations with custom shapes\n- 3D building representations\n- Game-like visualizations\n- Any scenario where 3D geometry adds meaning or visual interest\n\n## Next Steps\nTo extend this example:\n- Replace default mesh with custom 3D models\n- Add animation by modifying orientation over time\n- Use different mesh shapes based on data categories\n- Add interactivity to show station details on hover\n- Scale mesh size based on data values\n",
+      "project": {
+        "nodes": [
+          {
+            "id": "/deck",
+            "type": "DeckRendererOp",
+            "data": {
+              "inputs": {},
+              "locked": false
+            },
+            "position": {
+              "x": 400,
+              "y": 0
+            }
+          },
+          {
+            "id": "/out",
+            "type": "OutOp",
+            "data": {
+              "inputs": {},
+              "locked": false
+            },
+            "position": {
+              "x": 696.1465517241379,
+              "y": 2.1194581280788167
+            }
+          },
+          {
+            "id": "/data-source",
+            "type": "FileOp",
+            "data": {
+              "inputs": {
+                "url": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/bart-stations.json"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": -398.3985098486273,
+              "y": -292.07381101918014
+            }
+          },
+          {
+            "id": "/mesh-layer",
+            "type": "SimpleMeshLayerOp",
+            "data": {
+              "inputs": {
+                "sizeScale": 30
+              },
+              "locked": false
+            },
+            "position": {
+              "x": -11.657019704433509,
+              "y": -292.48522167487687
+            }
+          },
+          {
+            "id": "/position-accessor",
+            "type": "AccessorOp",
+            "data": {
+              "inputs": {
+                "expression": "d.coordinates"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": -402.21268038650896,
+              "y": -94.68299033727648
+            }
+          },
+          {
+            "id": "/color-accessor",
+            "type": "AccessorOp",
+            "data": {
+              "inputs": {
+                "expression": "utils.colorToHex([Math.sqrt(d.exits), 140, 0])"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": -401.1063401932545,
+              "y": 0.8916488897056247
+            }
+          },
+          {
+            "id": "/orientation-accessor",
+            "type": "AccessorOp",
+            "data": {
+              "inputs": {
+                "expression": "[0, Math.random() * 180, 0]"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": -402.21268038650896,
+              "y": 94.25360773017881
+            }
+          },
+          {
+            "type": "MaplibreBasemapOp",
+            "id": "/maplibre-basemap",
+            "position": {
+              "x": -8.134052678618417,
+              "y": 160.3387205830217
+            },
+            "data": {
+              "inputs": {
+                "mapStyle": "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
+                "viewState": {
+                  "latitude": 37.74,
+                  "longitude": -122.4,
+                  "zoom": 13,
+                  "pitch": 30,
+                  "bearing": 0
+                }
+              },
+              "locked": false
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "/deck.out.vis->/out.par.vis",
+            "source": "/deck",
+            "target": "/out",
+            "sourceHandle": "out.vis",
+            "targetHandle": "par.vis"
+          },
+          {
+            "id": "/data-source.out.data->/mesh-layer.par.data",
+            "source": "/data-source",
+            "target": "/mesh-layer",
+            "sourceHandle": "out.data",
+            "targetHandle": "par.data"
+          },
+          {
+            "id": "/position-accessor.out.accessor->/mesh-layer.par.getPosition",
+            "source": "/position-accessor",
+            "target": "/mesh-layer",
+            "sourceHandle": "out.accessor",
+            "targetHandle": "par.getPosition"
+          },
+          {
+            "id": "/color-accessor.out.accessor->/mesh-layer.par.getColor",
+            "source": "/color-accessor",
+            "target": "/mesh-layer",
+            "sourceHandle": "out.accessor",
+            "targetHandle": "par.getColor"
+          },
+          {
+            "id": "/orientation-accessor.out.accessor->/mesh-layer.par.getOrientation",
+            "source": "/orientation-accessor",
+            "target": "/mesh-layer",
+            "sourceHandle": "out.accessor",
+            "targetHandle": "par.getOrientation"
+          },
+          {
+            "id": "/mesh-layer.out.layer->/deck.par.layers",
+            "source": "/mesh-layer",
+            "target": "/deck",
+            "sourceHandle": "out.layer",
+            "targetHandle": "par.layers"
+          },
+          {
+            "source": "/maplibre-basemap",
+            "sourceHandle": "out.maplibre",
+            "target": "/deck",
+            "targetHandle": "par.basemap",
+            "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap"
+          }
+        ],
+        "viewport": {
+          "x": 679.3077440622253,
+          "y": 608.5965459146154,
+          "zoom": 1.2637785153212067
+        },
+        "version": 6,
+        "timeline": {
+          "sheetsById": {
+            "Noodles": {
+              "staticOverrides": {
+                "byObject": {}
+              }
+            }
+          },
+          "definitionVersion": "0.4.0",
+          "revisionHistory": [
+            "-4HqGw_hUq1pa55L",
+            "EBEi5VXt4CzCbCdr",
+            "NbvX_508-pqp2M-w",
+            "U0JXRRBXArWC_imO",
+            "IjYmlFFngqi9OGlw",
+            "qU_B0bL0ImX9r18-",
+            "JLOlCBVrfoKUFxpr"
+          ]
+        }
+      },
+      "annotations": {},
+      "tags": [
+        "simple",
+        "mesh",
+        "example"
+      ],
+      "dataSourceTypes": [
+        "FileOp"
+      ],
+      "layerTypes": [
+        "SimpleMeshLayerOp"
+      ],
+      "techniques": []
+    },
+    "uk-commute": {
+      "id": "uk-commute",
+      "name": "UK Commute Patterns",
+      "description": "_Adapted from [Kepler.gl examples](https://kepler.gl/demo/ukcommute)_",
+      "category": "geospatial",
+      "readme": "# UK Commute Patterns\n\n_Adapted from [Kepler.gl examples](https://kepler.gl/demo/ukcommute)_\n\n## Overview\nThis example visualizes UK commute patterns using a three-layer approach: orange circles mark where people live (residence), purple circles show where they work (workplace), and orange arcs connect each home to its corresponding workplace. The visualization uses actual commute flow data to show real transportation patterns across regions.\n\n## Key Techniques\n- **Data source**: `FileOp` loads CSV with residence and workplace coordinates\n- **Residence position**: `AccessorOp` with expression `[d.residence_lng, d.residence_lat]`\n- **Workplace position**: `AccessorOp` with expression `[d.workplace_lng, d.workplace_lat]`\n- **Residence layer**: `ScatterplotLayerOp` with orange fill (`#ffa500ff`)\n- **Workplace layer**: `ScatterplotLayerOp` with purple fill (`#800080ff`)\n- **Arc layer**: `ArcLayerOp` with orange color (`#ff991f`) and `getWidth: 2`\n- **Basemap**: `MaplibreBasemapOp` with dark matter style, 49° pitch\n\n## Data Structure\nThe CSV file contains:\n- `residence_lng`, `residence_lat`: Home location coordinates\n- `workplace_lng`, `workplace_lat`: Work location coordinates\n- `all_flows`: Number of commuters on this route\n\n## Use Cases\nThis pattern is useful for:\n- Transportation planning\n- Economic analysis\n- Urban development\n- Public transit planning\n- Regional connectivity studies\n- Labor market analysis\n",
+      "project": {
+        "nodes": [
+          {
+            "id": "/deck",
+            "type": "DeckRendererOp",
+            "data": {
+              "inputs": {},
+              "locked": false
+            },
+            "position": {
+              "x": 1200,
+              "y": 200
+            }
+          },
+          {
+            "id": "/out",
+            "type": "OutOp",
+            "data": {
+              "inputs": {},
+              "locked": false
+            },
+            "position": {
+              "x": 1500,
+              "y": 200
+            }
+          },
+          {
+            "id": "/data-source",
+            "type": "FileOp",
+            "data": {
+              "inputs": {
+                "format": "csv",
+                "url": "https://raw.githubusercontent.com/keplergl/kepler.gl-data/master/ukcommute/data.csv"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": 0,
+              "y": 200
+            }
+          },
+          {
+            "id": "/arc-layer",
+            "type": "ArcLayerOp",
+            "data": {
+              "inputs": {
+                "opacity": 0.3,
+                "getWidth": 80,
+                "getHeight": 0.7
+              },
+              "locked": false
+            },
+            "position": {
+              "x": 856.0014285714285,
+              "y": -90.31285714285714
+            }
+          },
+          {
+            "id": "/residence-layer",
+            "type": "ScatterplotLayerOp",
+            "data": {
+              "inputs": {
+                "opacity": 0.4,
+                "getLineColor": "#ffffffff",
+                "getRadius": 3
+              },
+              "locked": false
+            },
+            "position": {
+              "x": 781.8985714285714,
+              "y": 257.89285714285717
+            }
+          },
+          {
+            "id": "/workplace-layer",
+            "type": "ScatterplotLayerOp",
+            "data": {
+              "inputs": {
+                "opacity": 0.3,
+                "getLineColor": "#ffffffff",
+                "getRadius": 3
+              },
+              "locked": false
+            },
+            "position": {
+              "x": 798.1085714285715,
+              "y": 657.0442857142856
+            }
+          },
+          {
+            "id": "/home-position",
+            "type": "AccessorOp",
+            "data": {
+              "inputs": {
+                "expression": "[d.residence_lng, d.residence_lat]"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": 245.69571428571436,
+              "y": 431.14714285714285
+            }
+          },
+          {
+            "id": "/work-position",
+            "type": "AccessorOp",
+            "data": {
+              "inputs": {
+                "expression": "[d.workplace_lng, d.workplace_lat]"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": 234.11714285714288,
+              "y": 598.7271428571429
+            }
+          },
+          {
+            "id": "/source-color",
+            "type": "ColorOp",
+            "data": {
+              "inputs": {
+                "color": "#f69a00"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": 489.70793658494136,
+              "y": 60.857634523930294
+            }
+          },
+          {
+            "id": "/target-color",
+            "type": "ColorOp",
+            "data": {
+              "inputs": {
+                "color": "#950c69"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": 489.70793658494136,
+              "y": 180
+            }
+          },
+          {
+            "type": "BlendingOp",
+            "id": "/blending",
+            "position": {
+              "x": 550,
+              "y": 290
+            },
+            "data": {
+              "inputs": {
+                "mode": "additive"
+              },
+              "locked": false
+            }
+          },
+          {
+            "type": "MaplibreBasemapOp",
+            "id": "/maplibre-basemap",
+            "position": {
+              "x": 1183.273628275652,
+              "y": 464.1829877832712
+            },
+            "data": {
+              "inputs": {
+                "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+                "viewState": {
+                  "latitude": 52.25,
+                  "longitude": -2.69,
+                  "zoom": 7.56,
+                  "pitch": 49.18,
+                  "bearing": 0
+                }
+              },
+              "locked": false
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "/deck.out.vis->/out.par.vis",
+            "source": "/deck",
+            "target": "/out",
+            "sourceHandle": "out.vis",
+            "targetHandle": "par.vis"
+          },
+          {
+            "id": "/data-source.out.data->/arc-layer.par.data",
+            "source": "/data-source",
+            "target": "/arc-layer",
+            "sourceHandle": "out.data",
+            "targetHandle": "par.data"
+          },
+          {
+            "id": "/data-source.out.data->/residence-layer.par.data",
+            "source": "/data-source",
+            "target": "/residence-layer",
+            "sourceHandle": "out.data",
+            "targetHandle": "par.data"
+          },
+          {
+            "id": "/data-source.out.data->/workplace-layer.par.data",
+            "source": "/data-source",
+            "target": "/workplace-layer",
+            "sourceHandle": "out.data",
+            "targetHandle": "par.data"
+          },
+          {
+            "id": "/home-position.out.accessor->/arc-layer.par.getSourcePosition",
+            "source": "/home-position",
+            "target": "/arc-layer",
+            "sourceHandle": "out.accessor",
+            "targetHandle": "par.getSourcePosition"
+          },
+          {
+            "id": "/work-position.out.accessor->/arc-layer.par.getTargetPosition",
+            "source": "/work-position",
+            "target": "/arc-layer",
+            "sourceHandle": "out.accessor",
+            "targetHandle": "par.getTargetPosition"
+          },
+          {
+            "id": "/home-position.out.accessor->/residence-layer.par.getPosition",
+            "source": "/home-position",
+            "target": "/residence-layer",
+            "sourceHandle": "out.accessor",
+            "targetHandle": "par.getPosition"
+          },
+          {
+            "id": "/work-position.out.accessor->/workplace-layer.par.getPosition",
+            "source": "/work-position",
+            "target": "/workplace-layer",
+            "sourceHandle": "out.accessor",
+            "targetHandle": "par.getPosition"
+          },
+          {
+            "id": "/source-color.out.color->/arc-layer.par.getSourceColor",
+            "source": "/source-color",
+            "target": "/arc-layer",
+            "sourceHandle": "out.color",
+            "targetHandle": "par.getSourceColor"
+          },
+          {
+            "id": "/target-color.out.color->/arc-layer.par.getTargetColor",
+            "source": "/target-color",
+            "target": "/arc-layer",
+            "sourceHandle": "out.color",
+            "targetHandle": "par.getTargetColor"
+          },
+          {
+            "id": "/source-color.out.color->/residence-layer.par.getFillColor",
+            "source": "/source-color",
+            "target": "/residence-layer",
+            "sourceHandle": "out.color",
+            "targetHandle": "par.getFillColor"
+          },
+          {
+            "id": "/target-color.out.color->/workplace-layer.par.getFillColor",
+            "source": "/target-color",
+            "target": "/workplace-layer",
+            "sourceHandle": "out.color",
+            "targetHandle": "par.getFillColor"
+          },
+          {
+            "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
+            "source": "/maplibre-basemap",
+            "target": "/deck",
+            "sourceHandle": "out.maplibre",
+            "targetHandle": "par.basemap"
+          },
+          {
+            "id": "/arc-layer.out.layer->/deck.par.layers",
+            "source": "/arc-layer",
+            "target": "/deck",
+            "sourceHandle": "out.layer",
+            "targetHandle": "par.layers"
+          },
+          {
+            "id": "/residence-layer.out.layer->/deck.par.layers",
+            "source": "/residence-layer",
+            "target": "/deck",
+            "sourceHandle": "out.layer",
+            "targetHandle": "par.layers"
+          },
+          {
+            "id": "/workplace-layer.out.layer->/deck.par.layers",
+            "source": "/workplace-layer",
+            "target": "/deck",
+            "sourceHandle": "out.layer",
+            "targetHandle": "par.layers"
+          },
+          {
+            "id": "/blending.out.parameters->/arc-layer.par.parameters",
+            "source": "/blending",
+            "target": "/arc-layer",
+            "sourceHandle": "out.parameters",
+            "targetHandle": "par.parameters"
+          },
+          {
+            "id": "/blending.out.parameters->/residence-layer.par.parameters",
+            "source": "/blending",
+            "target": "/residence-layer",
+            "sourceHandle": "out.parameters",
+            "targetHandle": "par.parameters"
+          },
+          {
+            "id": "/blending.out.parameters->/workplace-layer.par.parameters",
+            "source": "/blending",
+            "target": "/workplace-layer",
+            "sourceHandle": "out.parameters",
+            "targetHandle": "par.parameters"
+          }
+        ],
+        "viewport": {
+          "x": 110.09970280160951,
+          "y": 138.99036470751906,
+          "zoom": 0.46798777100021355
+        },
+        "timeline": {
+          "sheetsById": {
+            "Noodles": {
+              "staticOverrides": {
+                "byObject": {}
+              }
+            }
+          },
+          "definitionVersion": "0.4.0",
+          "revisionHistory": []
+        },
+        "version": 6
+      },
+      "annotations": {},
+      "tags": [
+        "uk",
+        "commute"
+      ],
+      "dataSourceTypes": [
+        "FileOp"
+      ],
+      "layerTypes": [
+        "ArcLayerOp",
+        "ScatterplotLayerOp"
+      ],
+      "techniques": []
+    },
+    "us-county-unemployment": {
+      "id": "us-county-unemployment",
+      "name": "US County Unemployment",
+      "description": "_Adapted from [Kepler.gl examples](https://kepler.gl/)_",
+      "category": "geospatial",
+      "readme": "# US County Unemployment\n\n_Adapted from [Kepler.gl examples](https://kepler.gl/)_\n\n## Overview\nThis example creates a choropleth map of all US counties where each county's color represents its unemployment rate. Counties with higher unemployment appear in one color (typically darker or more intense) while lower unemployment counties appear in another, creating a visual map of economic health across the entire United States.\n\n## Key Techniques\n- **Data source**: `FileOp` loads county boundaries with unemployment statistics\n- **Polygon layer**: `GeoJsonLayerOp` renders county shapes\n- **Color mapping**: `ColorRampOp` creates sequential scale from low to high unemployment\n- **Basemap**: `MaplibreBasemapOp` showing continental United States\n\n## Data Structure\nThe GeoJSON file contains county features with:\n- `geometry`: MultiPolygon county boundaries\n- `properties`:\n  - `NAME`: County name\n  - `GEOID`: Geographic identifier (state + county FIPS code)\n  - `STATEFP`, `COUNTYFP`: State and county FIPS codes\n  - `unemployment_rate`: Unemployment rate (percentage)\n  - `labor_force`: Total labor force count\n  - `employed`: Number of employed persons\n  - `unemployment_level`: Number of unemployed persons\n  - `ALAND`, `AWATER`: Land and water area (square meters)\n  - `LSAD`, `COUNTYNS`, `AFFGEOID`: Additional identifiers\n\n## Use Cases\nThis pattern is useful for:\n- Economic analysis\n- Policy research\n- Regional development planning\n- Socioeconomic studies\n- Grant allocation\n- Business location decisions\n- Any statistical mapping by administrative region\n",
+      "project": {
+        "nodes": [
+          {
+            "id": "/deck",
+            "type": "DeckRendererOp",
+            "data": {
+              "inputs": {},
+              "locked": false
+            },
+            "position": {
+              "x": 1200,
+              "y": 100
+            }
+          },
+          {
+            "id": "/out",
+            "type": "OutOp",
+            "data": {
+              "inputs": {},
+              "locked": false
+            },
+            "position": {
+              "x": 1500,
+              "y": 100
+            }
+          },
+          {
+            "id": "/data-source",
+            "type": "FileOp",
+            "data": {
+              "inputs": {
+                "url": "@/data.geojson"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": -756.432131690169,
+              "y": 37.4393188464732
+            }
+          },
+          {
+            "id": "/geojson-layer",
+            "type": "GeoJsonLayerOp",
+            "data": {
+              "inputs": {
+                "opacity": 0.8,
+                "stroked": false,
+                "getLineColor": "#000000ff"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": 833.4203552164684,
+              "y": 8.119468876040457
+            }
+          },
+          {
+            "id": "/unemployment-color",
+            "type": "ColorRampOp",
+            "data": {
+              "inputs": {},
+              "locked": false
+            },
+            "position": {
+              "x": 374.2787652460753,
+              "y": 349.1371616697396
+            }
+          },
+          {
+            "id": "/unemployment-accessor",
+            "type": "AccessorOp",
+            "data": {
+              "inputs": {
+                "expression": "d.properties.unemployment_rate ?? 0"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": -600.2260484943222,
+              "y": 514.1452437371968
+            }
+          },
+          {
+            "type": "MaplibreBasemapOp",
+            "id": "/maplibre-basemap",
+            "position": {
+              "x": 758.7212415568961,
+              "y": -220.5884877788956
+            },
+            "data": {
+              "inputs": {
+                "mapStyle": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
+                "viewState": {
+                  "latitude": 40.017,
+                  "longitude": -94.347,
+                  "zoom": 5.45,
+                  "pitch": 0,
+                  "bearing": 0
+                }
+              },
+              "locked": false
+            }
+          },
+          {
+            "type": "MapRangeOp",
+            "id": "/map-range",
+            "position": {
+              "x": 83.47101216576985,
+              "y": 336.0787505954455
+            },
+            "data": {
+              "inputs": {
+                "inMin": 0.1
+              },
+              "locked": false
+            }
+          },
+          {
+            "type": "ExtentOp",
+            "id": "/extent",
+            "position": {
+              "x": -136.64819796918258,
+              "y": 286.1172519601011
+            },
+            "data": {
+              "inputs": {},
+              "locked": false
+            }
+          },
+          {
+            "type": "ExpressionOp",
+            "id": "/expression",
+            "position": {
+              "x": -471.74358724252534,
+              "y": 278.93357739586463
+            },
+            "data": {
+              "inputs": {
+                "expression": "d.features"
+              },
+              "locked": false
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "/deck.out.vis->/out.par.vis",
+            "source": "/deck",
+            "target": "/out",
+            "sourceHandle": "out.vis",
+            "targetHandle": "par.vis"
+          },
+          {
+            "id": "/data-source.out.data->/geojson-layer.par.data",
+            "source": "/data-source",
+            "target": "/geojson-layer",
+            "sourceHandle": "out.data",
+            "targetHandle": "par.data"
+          },
+          {
+            "id": "/unemployment-color.out.color->/geojson-layer.par.getFillColor",
+            "source": "/unemployment-color",
+            "target": "/geojson-layer",
+            "sourceHandle": "out.color",
+            "targetHandle": "par.getFillColor"
+          },
+          {
+            "source": "/map-range",
+            "sourceHandle": "out.scaled",
+            "target": "/unemployment-color",
+            "targetHandle": "par.value",
+            "id": "/map-range.out.scaled->/unemployment-color.par.value"
+          },
+          {
+            "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
+            "source": "/maplibre-basemap",
+            "target": "/deck",
+            "sourceHandle": "out.maplibre",
+            "targetHandle": "par.basemap"
+          },
+          {
+            "id": "/geojson-layer.out.layer->/deck.par.layers",
+            "source": "/geojson-layer",
+            "target": "/deck",
+            "sourceHandle": "out.layer",
+            "targetHandle": "par.layers"
+          },
+          {
+            "source": "/unemployment-accessor",
+            "sourceHandle": "out.accessor",
+            "target": "/map-range",
+            "targetHandle": "par.val",
+            "id": "/unemployment-accessor.out.accessor->/map-range.par.val"
+          },
+          {
+            "source": "/expression",
+            "sourceHandle": "out.data",
+            "target": "/extent",
+            "targetHandle": "par.data",
+            "id": "/expression.out.data->/extent.par.data"
+          },
+          {
+            "source": "/unemployment-accessor",
+            "sourceHandle": "out.accessor",
+            "target": "/extent",
+            "targetHandle": "par.accessor",
+            "id": "/unemployment-accessor.out.accessor->/extent.par.accessor"
+          },
+          {
+            "source": "/data-source",
+            "sourceHandle": "out.data",
+            "target": "/expression",
+            "targetHandle": "par.data",
+            "id": "/data-source.out.data->/expression.par.data"
+          },
+          {
+            "source": "/extent",
+            "sourceHandle": "out.max",
+            "target": "/map-range",
+            "targetHandle": "par.inMax",
+            "id": "/extent.out.max->/map-range.par.inMax"
+          }
+        ],
+        "viewport": {
+          "x": 32.46497320518563,
+          "y": 206.86749887589406,
+          "zoom": 0.6158038261288714
+        },
+        "timeline": {
+          "sheetsById": {
+            "Noodles": {
+              "staticOverrides": {
+                "byObject": {}
+              }
+            }
+          },
+          "definitionVersion": "0.4.0",
+          "revisionHistory": []
+        },
+        "version": 7
+      },
+      "annotations": {},
+      "tags": [
+        "us",
+        "county",
+        "unemployment"
+      ],
+      "dataSourceTypes": [
+        "FileOp"
+      ],
+      "layerTypes": [
+        "GeoJsonLayerOp"
+      ],
+      "techniques": []
+    },
+    "world-flights": {
+      "id": "world-flights",
+      "name": "World Flights",
+      "description": "_Adapted from [Kepler.gl examples](https://kepler.gl/)_",
+      "category": "geospatial",
+      "readme": "# World Flights\n\n_Adapted from [Kepler.gl examples](https://kepler.gl/)_\n\n## Overview\nThis example displays actual recorded flight trajectories as colored line paths across a global map. Each line represents an aircraft's journey, colored by the aircraft's country of origin. The trajectories show the complete path with altitude and timestamp data for each point along the route, creating a snapshot of global air traffic.\n\n## Key Techniques\n- **Data source**: `FileOp` loads GeoJSON with LineString flight paths\n- **Path layer**: `GeoJsonLayerOp` renders flight trajectories\n- **Animated layer**: `TripsLayerOp` shows animated flight paths with trail effects\n- **Country accessor**: `AccessorOp` with expression `d.properties.origin_country` extracts country string\n- **Color mapping**: `CategoricalColorRampOp` assigns distinct colors to each country category\n- **Basemap**: `MaplibreBasemapOp` showing global view\n\n## Data Structure\nThe GeoJSON file contains flight trajectory features with:\n- `geometry`: LineString with coordinates [longitude, latitude, altitude, timestamp] for each point\n- `properties`:\n  - `icao24`: Aircraft identifier\n  - `origin_country`: Country of aircraft origin\n  - `callsign`: Flight callsign\n  - `airline`: Airline name\n  - `country`: Additional country information\n\n## Node Graph Flow\n```\nData → GeoJSON Layer → Deck → Out\n     ↘ Trips Layer ↗\n     ↘ origin-country Accessor → CategoricalColorRamp → Layer Colors\n```\n\nThe `origin-country` accessor extracts the country string from each flight feature. This string flows into a `CategoricalColorRampOp`, which automatically assigns a unique color from a predefined color scheme to each distinct country. The color output then flows to both the `GeoJsonLayerOp` (for static paths) and `TripsLayerOp` (for animated trails), ensuring consistent coloring across both visualization layers.\n\n## Use Cases\nThis pattern is useful for visualizing:\n- Global transportation networks\n- International trade flows\n- Migration patterns\n- Communication networks\n- Any large-scale origin-destination data\n- Network connectivity visualization\n",
+      "project": {
+        "nodes": [
+          {
+            "id": "/deck",
+            "type": "DeckRendererOp",
+            "data": {
+              "inputs": {},
+              "locked": false
+            },
+            "position": {
+              "x": 1875.0367256829527,
+              "y": 204.36993456417756
+            }
+          },
+          {
+            "id": "/out",
+            "type": "OutOp",
+            "data": {
+              "inputs": {},
+              "locked": false
+            },
+            "position": {
+              "x": 2175.0367256829527,
+              "y": 204.36993456417756
+            }
+          },
+          {
+            "id": "/data-source",
+            "type": "FileOp",
+            "data": {
+              "inputs": {
+                "url": "https://raw.githubusercontent.com/keplergl/kepler.gl-data/master/world_flights/world_flights_soei4h.json"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": -560.4947637988143,
+              "y": -110.32865936206672
+            }
+          },
+          {
+            "id": "/geojson-layer",
+            "type": "GeoJsonLayerOp",
+            "data": {
+              "inputs": {
+                "opacity": 0.6,
+                "filled": false,
+                "getFillColor": "#006ac6ff",
+                "lineWidthMinPixels": 0.5
+              },
+              "locked": false
+            },
+            "position": {
+              "x": 1217.1431067420315,
+              "y": 504.07875432600656
+            }
+          },
+          {
+            "id": "/trips-layer",
+            "type": "TripsLayerOp",
+            "data": {
+              "inputs": {
+                "opacity": 0.8,
+                "getWidth": 10,
+                "trailLength": 336
+              },
+              "locked": false
+            },
+            "position": {
+              "x": 1222.826553627182,
+              "y": -23.609280302190164
+            }
+          },
+          {
+            "id": "/origin-country",
+            "type": "AccessorOp",
+            "data": {
+              "inputs": {
+                "expression": "d.properties.origin_country"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": 489.9664462342033,
+              "y": 160.86223283819214
+            }
+          },
+          {
+            "id": "/color-ramp",
+            "type": "CategoricalColorRampOp",
+            "data": {
+              "inputs": {
+                "colorScheme": "category10"
+              },
+              "locked": false
+            },
+            "position": {
+              "x": 809.9893060523932,
+              "y": 161.1204730229971
+            }
+          },
+          {
+            "type": "MaplibreBasemapOp",
+            "id": "/maplibre-basemap",
+            "position": {
+              "x": 1220.2681476223681,
+              "y": 1332.2961846354
+            },
+            "data": {
+              "inputs": {
+                "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+                "viewState": {
+                  "latitude": 38.69,
+                  "longitude": -1.76,
+                  "zoom": 2.62,
+                  "pitch": 0,
+                  "bearing": 0
+                }
+              },
+              "locked": false
+            }
+          },
+          {
+            "type": "TimeSeriesOp",
+            "id": "/time-series",
+            "position": {
+              "x": 1217.8136672854778,
+              "y": -438.4265655666825
+            },
+            "data": {
+              "inputs": {},
+              "locked": false
+            }
+          },
+          {
+            "type": "NumberOp",
+            "id": "/time",
+            "position": {
+              "x": 922.1081442949591,
+              "y": -434.661759509487
+            },
+            "data": {
+              "inputs": {
+                "val": 1567555200.276152
+              },
+              "locked": false
+            }
+          },
+          {
+            "type": "AccessorOp",
+            "id": "/timestamps",
+            "position": {
+              "x": 835.6063685997577,
+              "y": -91.54667285592765
+            },
+            "data": {
+              "inputs": {
+                "expression": "d.timestamps"
+              },
+              "locked": false
+            }
+          },
+          {
+            "type": "AccessorOp",
+            "id": "/path",
+            "position": {
+              "x": 835.4828782442315,
+              "y": -197.29219062248657
+            },
+            "data": {
+              "inputs": {
+                "expression": "d.path"
+              },
+              "locked": false
+            }
+          },
+          {
+            "type": "AccessorOp",
+            "id": "/properties",
+            "position": {
+              "x": 830.3792954707551,
+              "y": -322.12727915609275
+            },
+            "data": {
+              "inputs": {
+                "expression": "{properties: d.properties}"
+              },
+              "locked": false
+            }
+          },
+          {
+            "type": "CodeOp",
+            "id": "/code",
+            "position": {
+              "x": -25.623289069461407,
+              "y": -460.52226064152904
+            },
+            "resizing": false,
+            "data": {
+              "inputs": {
+                "code": [
+                  "return d.features.map(({",
+                  "  geometry: {coordinates}, properties",
+                  "}) => ({",
+                  "  path: coordinates.map(([lng, lat, alt]) => [lng, lat, alt]),",
+                  "  timestamps: coordinates.map(([_0, _1, _2, t]) => t),",
+                  "  properties",
+                  "}))"
+                ]
+              },
+              "locked": false
+            },
+            "width": 643,
+            "height": 253,
+            "measured": {
+              "width": 643,
+              "height": 253
+            }
+          },
+          {
+            "type": "AccessorOp",
+            "id": "/position",
+            "position": {
+              "x": 1213.9921321433353,
+              "y": -225.85871138238025
+            },
+            "data": {
+              "inputs": {
+                "expression": "[d[0], d[1], d[2]]"
+              },
+              "locked": false
+            }
+          },
+          {
+            "type": "ScatterplotLayerOp",
+            "id": "/scatterplot-layer",
+            "position": {
+              "x": 1552.7704108312605,
+              "y": -438.7214118271477
+            },
+            "data": {
+              "inputs": {
+                "opacity": 0.6,
+                "getLineColor": "#ffffffff",
+                "getRadius": 6
+              },
+              "locked": false
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "/deck.out.vis->/out.par.vis",
+            "source": "/deck",
+            "target": "/out",
+            "sourceHandle": "out.vis",
+            "targetHandle": "par.vis"
+          },
+          {
+            "id": "/origin-country.out.accessor->/color-ramp.par.value",
+            "source": "/origin-country",
+            "target": "/color-ramp",
+            "sourceHandle": "out.accessor",
+            "targetHandle": "par.value"
+          },
+          {
+            "id": "/color-ramp.out.color->/geojson-layer.par.getLineColor",
+            "source": "/color-ramp",
+            "target": "/geojson-layer",
+            "sourceHandle": "out.color",
+            "targetHandle": "par.getLineColor"
+          },
+          {
+            "id": "/color-ramp.out.color->/trips-layer.par.getColor",
+            "source": "/color-ramp",
+            "target": "/trips-layer",
+            "sourceHandle": "out.color",
+            "targetHandle": "par.getColor"
+          },
+          {
+            "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
+            "source": "/maplibre-basemap",
+            "target": "/deck",
+            "sourceHandle": "out.maplibre",
+            "targetHandle": "par.basemap"
+          },
+          {
+            "source": "/time",
+            "sourceHandle": "out.val",
+            "target": "/time-series",
+            "targetHandle": "par.currentTime",
+            "id": "/time.out.val->/time-series.par.currentTime"
+          },
+          {
+            "source": "/properties",
+            "sourceHandle": "out.accessor",
+            "target": "/time-series",
+            "targetHandle": "par.getProperties",
+            "id": "/properties.out.accessor->/time-series.par.getProperties"
+          },
+          {
+            "source": "/path",
+            "sourceHandle": "out.accessor",
+            "target": "/time-series",
+            "targetHandle": "par.getValues",
+            "id": "/path.out.accessor->/time-series.par.getValues"
+          },
+          {
+            "source": "/data-source",
+            "sourceHandle": "out.data",
+            "target": "/code",
+            "targetHandle": "par.data",
+            "id": "/data-source.out.data->/code.par.data"
+          },
+          {
+            "source": "/code",
+            "sourceHandle": "out.data",
+            "target": "/time-series",
+            "targetHandle": "par.data",
+            "id": "/code.out.data->/time-series.par.data"
+          },
+          {
+            "source": "/position",
+            "sourceHandle": "out.accessor",
+            "target": "/scatterplot-layer",
+            "targetHandle": "par.getPosition",
+            "id": "/position.out.accessor->/scatterplot-layer.par.getPosition"
+          },
+          {
+            "source": "/time-series",
+            "sourceHandle": "out.data",
+            "target": "/scatterplot-layer",
+            "targetHandle": "par.data",
+            "id": "/time-series.out.data->/scatterplot-layer.par.data"
+          },
+          {
+            "source": "/scatterplot-layer",
+            "sourceHandle": "out.layer",
+            "target": "/deck",
+            "targetHandle": "par.layers",
+            "id": "/scatterplot-layer.out.layer->/deck.par.layers"
+          },
+          {
+            "source": "/code",
+            "sourceHandle": "out.data",
+            "target": "/trips-layer",
+            "targetHandle": "par.data",
+            "id": "/code.out.data->/trips-layer.par.data"
+          },
+          {
+            "source": "/path",
+            "sourceHandle": "out.accessor",
+            "target": "/trips-layer",
+            "targetHandle": "par.getPath",
+            "id": "/path.out.accessor->/trips-layer.par.getPath"
+          },
+          {
+            "source": "/timestamps",
+            "sourceHandle": "out.accessor",
+            "target": "/trips-layer",
+            "targetHandle": "par.getTimestamps",
+            "id": "/timestamps.out.accessor->/trips-layer.par.getTimestamps"
+          },
+          {
+            "source": "/timestamps",
+            "sourceHandle": "out.accessor",
+            "target": "/time-series",
+            "targetHandle": "par.getTimestamps",
+            "id": "/timestamps.out.accessor->/time-series.par.getTimestamps"
+          },
+          {
+            "source": "/trips-layer",
+            "sourceHandle": "out.layer",
+            "target": "/deck",
+            "targetHandle": "par.layers",
+            "id": "/trips-layer.out.layer->/deck.par.layers"
+          },
+          {
+            "source": "/time",
+            "sourceHandle": "out.val",
+            "target": "/trips-layer",
+            "targetHandle": "par.currentTime",
+            "id": "/time.out.val->/trips-layer.par.currentTime"
+          },
+          {
+            "source": "/geojson-layer",
+            "sourceHandle": "out.layer",
+            "target": "/deck",
+            "targetHandle": "par.layers",
+            "id": "/geojson-layer.out.layer->/deck.par.layers"
+          },
+          {
+            "source": "/data-source",
+            "sourceHandle": "out.data",
+            "target": "/geojson-layer",
+            "targetHandle": "par.data",
+            "id": "/data-source.out.data->/geojson-layer.par.data"
+          },
+          {
+            "source": "/color-ramp",
+            "sourceHandle": "out.color",
+            "target": "/scatterplot-layer",
+            "targetHandle": "par.getFillColor",
+            "id": "/color-ramp.out.color->/scatterplot-layer.par.getFillColor"
+          }
+        ],
+        "viewport": {
+          "x": 371.10759039675463,
+          "y": 461.29570352289136,
+          "zoom": 0.5265126624852493
+        },
+        "timeline": {
+          "sheetsById": {
+            "Noodles": {
+              "staticOverrides": {
+                "byObject": {
+                  "render": {
+                    "framerate": 60
+                  }
+                }
+              },
+              "sequence": {
+                "subUnitsPerUnit": 30,
+                "length": 3.04,
+                "type": "PositionalSequence",
+                "tracksByObject": {
+                  "time": {
+                    "trackData": {
+                      "g0xHT4Xo4p": {
+                        "type": "BasicKeyframedTrack",
+                        "__debugName": "time:[\"val\"]",
+                        "keyframes": [
+                          {
+                            "id": "xHJJWLB41a",
+                            "position": 0,
+                            "connectedRight": true,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": 1567555200
+                          },
+                          {
+                            "id": "0XrkIwvDZr",
+                            "position": 2.967,
+                            "connectedRight": true,
+                            "handles": [
+                              0.5,
+                              1,
+                              0.5,
+                              0
+                            ],
+                            "type": "bezier",
+                            "value": 1567561720
+                          }
+                        ]
+                      }
+                    },
+                    "trackIdByPropPath": {
+                      "[\"val\"]": "g0xHT4Xo4p"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "definitionVersion": "0.4.0",
+          "revisionHistory": []
+        },
+        "version": 7
+      },
+      "annotations": {},
+      "tags": [
+        "world",
+        "flights"
+      ],
+      "dataSourceTypes": [
+        "FileOp"
+      ],
+      "layerTypes": [
+        "GeoJsonLayerOp",
+        "TripsLayerOp",
+        "ScatterplotLayerOp"
+      ],
+      "techniques": []
+    }
+  }
+}
