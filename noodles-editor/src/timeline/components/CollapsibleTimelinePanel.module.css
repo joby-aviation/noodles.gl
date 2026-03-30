@@ -10,9 +10,11 @@
   border-top: 1px solid #2f3b4c;
   color: #748095;
   cursor: pointer;
-  font-family: Inter, 'Segoe UI', 'SF Pro Text', system-ui, sans-serif;
+  font-family: Inter, "Segoe UI", "SF Pro Text", system-ui, sans-serif;
   font-size: 11px;
-  transition: background 0.12s ease, color 0.12s ease;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
 }
 
 .timelineCollapseTab:hover {

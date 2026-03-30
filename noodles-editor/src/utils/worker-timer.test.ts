@@ -12,7 +12,8 @@ describe('workerSetTimeout', () => {
   it('fires callback exactly once after the delay', async () => {
     const fn = vi.fn()
     workerSetTimeout(fn, 20)
-    await wait(80)
+    // Use a generous wait to account for Worker cold-start time in CI
+    await wait(500)
     expect(fn).toHaveBeenCalledTimes(1)
   })
 

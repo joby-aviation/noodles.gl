@@ -22,12 +22,9 @@ jobs:
         with:
           node-version-file: '.nvmrc'
           cache: 'npm'
-          cache-dependency-path: 'noodles-editor/package-lock.json'
 
       - name: Install dependencies
-        run: |
-          cd noodles-editor
-          npm ci
+        run: npm ci
 
       - name: Check lint
         run: |
@@ -50,12 +47,9 @@ jobs:
         with:
           node-version-file: '.nvmrc'
           cache: 'npm'
-          cache-dependency-path: 'noodles-editor/package-lock.json'
 
       - name: Install dependencies
-        run: |
-          cd noodles-editor
-          npm ci
+        run: npm ci
 
       - name: Get Playwright version
         id: playwright-version
@@ -109,12 +103,9 @@ jobs:
         with:
           node-version-file: '.nvmrc'
           cache: 'npm'
-          cache-dependency-path: 'website/package-lock.json'
 
       - name: Install dependencies
-        run: |
-          cd website
-          npm ci
+        run: npm ci
 
       - name: Build website
         run: |
