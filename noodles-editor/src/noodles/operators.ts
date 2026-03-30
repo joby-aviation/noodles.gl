@@ -5768,6 +5768,60 @@ export class ExpressionOp extends Operator<ExpressionOp> {
   }
 }
 
+function linearInterpolateRamp(
+  position: number,
+  sortedStops: Array<{ pos: number; val: number }>
+): number {
+  if (sortedStops.length === 1) return sortedStops[0].val
+  if (position <= sortedStops[0].pos) return sortedStops[0].val
+  if (position >= sortedStops[sortedStops.length - 1].pos)
+    return sortedStops[sortedStops.length - 1].val
+  for (let i = 0; i < sortedStops.length - 1; i++) {
+    const lo = sortedStops[i]
+    const hi = sortedStops[i + 1]
+    if (position >= lo.pos && position <= hi.pos) {
+      const range = hi.pos - lo.pos
+      if (range === 0) return lo.val
+      return lo.val + ((position - lo.pos) / range) * (hi.val - lo.val)
+    }
+  }
+  return 0
+}
+
+export class RampOp extends Operator<RampOp> {
+  static displayName = 'Ramp'
+  static description = 'Map a position (0–1) to a value using a user-defined curve'
+
+  createInputs() {
+    return {
+      position: new NumberField(0, { min: 0, max: 1, step: 0.01, accessor: true }),
+      stops: new DataField(),
+    }
+  }
+
+  createOutputs() {
+    return {
+      value: new NumberField(),
+    }
+  }
+
+  execute({
+    position,
+    stops,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const rampStops: Array<{ pos: number; val: number }> =
+      !stops || (stops as unknown[]).length === 0
+        ? [
+            { pos: 0, val: 0 },
+            { pos: 1, val: 1 },
+          ]
+        : [...(stops as Array<{ pos: number; val: number }>)].sort((a, b) => a.pos - b.pos)
+
+    const value = composeAccessor(position, (p: number) => linearInterpolateRamp(p, rampStops))
+    return { value }
+  }
+}
+
 export class RectangleOp extends Operator<RectangleOp> {
   static displayName = 'Rectangle'
   static description =
@@ -7098,6 +7152,7 @@ export const opTypes = {
   PolygonLayerOp,
   ProjectOp,
   QuadkeyLayerOp,
+  RampOp,
   RandomizeAttributeOp,
   RasterTileLayerOp,
   RectangleOp,

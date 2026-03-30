@@ -49,6 +49,7 @@ import {
   Operator,
   type OutOp,
   opTypes,
+  type RampOp,
   type RerouteOp,
   type TableEditorOp,
   type TimeOp,
@@ -70,6 +71,7 @@ import { generateQualifiedPath, getBaseName, getParentPath } from '../utils/path
 import { categories as baseCategories, nodeTypeToDisplayName } from './categories'
 import { FieldComponent, type inputComponents } from './field-components'
 import previewStyles from './handle-preview.module.css'
+import RampEditor, { type RampStop } from './ramp-editor'
 import { useObservable } from '../hooks/use-observable'
 
 const isPlainObject = (v: unknown): v is Record<string, unknown> =>
@@ -183,6 +185,7 @@ export const nodeComponents = {
   DirectionsOp: memo(DirectionsOpComponent, nodePropsAreEqual),
   MouseOp: memo(MouseOpComponent, nodePropsAreEqual),
   OutOp: memo(OutOpComponent, nodePropsAreEqual),
+  RampOp: memo(RampOpComponent, nodePropsAreEqual),
   RerouteOp: memo(RerouteOpComponent, nodePropsAreEqual),
   TableEditorOp: memo(TableEditorOpComponent, nodePropsAreEqual),
   TimeOp: memo(TimeOpComponent, nodePropsAreEqual),
@@ -591,6 +594,78 @@ function NodeComponent({
           {Object.entries(op.outputs).map(([key, field]) => (
             <OutputHandle key={key} id={key} field={field} />
           ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const DEFAULT_RAMP_STOPS: RampStop[] = [
+  { id: 'default-start', pos: 0, val: 0 },
+  { id: 'default-end', pos: 1, val: 1 },
+]
+
+function RampOpComponent({
+  id,
+  type,
+}: ReactFlowNodeProps<NodeDataJSON<RampOp>> & { type: 'RampOp' }) {
+  const op = getOp(id as string) as RampOp | undefined
+  if (!op) throw new Error(`Operator with id ${id} not found`)
+  const locked = useLocked(op)
+  const executionState = useExecutionState(op)
+  const connectionErrors = useConnectionErrors(op)
+  const hasConnectionErrors = connectionErrors.size > 0
+  const isDimmed = useNodeDimmed(id)
+
+  const [stops, setStops] = useState<RampStop[]>(() => {
+    const v = op.inputs.stops.value as RampStop[] | null
+    return v && v.length > 0 ? v : DEFAULT_RAMP_STOPS
+  })
+
+  // Subscribe to stops changes to handle undo/redo and project load
+  useEffect(() => {
+    const sub = op.inputs.stops.subscribe(newVal => {
+      const v = newVal as RampStop[] | null
+      setStops(v && v.length > 0 ? v : DEFAULT_RAMP_STOPS)
+    })
+    return () => sub.unsubscribe()
+  }, [op.inputs.stops])
+
+  // Seed default stops into the field on first render if empty
+  useEffect(() => {
+    const v = op.inputs.stops.value as RampStop[] | null
+    if (!v || v.length === 0) op.inputs.stops.setValue(DEFAULT_RAMP_STOPS)
+  }, [op.inputs.stops])
+
+  const handleChange = useCallback(
+    (newStops: RampStop[]) => {
+      if (locked) return
+      op.inputs.stops.setValue(newStops)
+    },
+    [op.inputs.stops, locked]
+  )
+
+  return (
+    <div
+      className={cx(s.wrapper, {
+        [s.wrapperError]: executionState.status === 'error' || hasConnectionErrors,
+        [s.wrapperExecuting]: executionState.status === 'executing',
+        [s.wrapperDimmed]: isDimmed,
+      })}
+    >
+      <NodeHeader id={id} type={type} op={op} connectionErrors={connectionErrors} />
+      <div className={s.content}>
+        <FieldComponent
+          id="position"
+          field={op.inputs.position}
+          disabled={locked}
+          handle={PAR_HANDLE_OPTIONS}
+        />
+        <div style={{ padding: '4px 0' }}>
+          <RampEditor stops={stops} onChange={handleChange} disabled={locked} />
+        </div>
+        <div className={s.outputHandleContainer}>
+          <OutputHandle id="value" field={op.outputs.value} />
         </div>
       </div>
     </div>
