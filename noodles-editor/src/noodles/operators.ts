@@ -3754,6 +3754,138 @@ export class FpsWidgetOp extends Operator<FpsWidgetOp> {
   }
 }
 
+export class FullscreenWidgetOp extends Operator<FullscreenWidgetOp> {
+  static displayName = 'FullscreenWidget'
+  static description = 'Enter/exit fullscreen widget'
+
+  createInputs() {
+    return {
+      placement: new StringLiteralField('top-right', {
+        values: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+      }),
+      viewId: new StringField('', { optional: true }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      widget: new WidgetField(),
+    }
+  }
+
+  execute({
+    placement,
+    viewId,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const widget = {
+      id: this.id,
+      type: '_FullscreenWidget',
+      placement,
+      ...(viewId && viewId !== '' ? { viewId } : {}),
+    }
+    return { widget }
+  }
+}
+
+export class ZoomWidgetOp extends Operator<ZoomWidgetOp> {
+  static displayName = 'ZoomWidget'
+  static description = 'Zoom in/out buttons widget'
+
+  createInputs() {
+    return {
+      placement: new StringLiteralField('top-right', {
+        values: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+      }),
+      viewId: new StringField('', { optional: true }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      widget: new WidgetField(),
+    }
+  }
+
+  execute({
+    placement,
+    viewId,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const widget = {
+      id: this.id,
+      type: '_ZoomWidget',
+      placement,
+      ...(viewId && viewId !== '' ? { viewId } : {}),
+    }
+    return { widget }
+  }
+}
+
+export class CompassWidgetOp extends Operator<CompassWidgetOp> {
+  static displayName = 'CompassWidget'
+  static description = 'Compass and bearing reset widget'
+
+  createInputs() {
+    return {
+      placement: new StringLiteralField('top-right', {
+        values: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+      }),
+      viewId: new StringField('', { optional: true }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      widget: new WidgetField(),
+    }
+  }
+
+  execute({
+    placement,
+    viewId,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const widget = {
+      id: this.id,
+      type: '_CompassWidget',
+      placement,
+      ...(viewId && viewId !== '' ? { viewId } : {}),
+    }
+    return { widget }
+  }
+}
+
+export class ScreenshotWidgetOp extends Operator<ScreenshotWidgetOp> {
+  static displayName = 'ScreenshotWidget'
+  static description = 'Download current frame as PNG widget'
+
+  createInputs() {
+    return {
+      placement: new StringLiteralField('top-right', {
+        values: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+      }),
+      viewId: new StringField('', { optional: true }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      widget: new WidgetField(),
+    }
+  }
+
+  execute({
+    placement,
+    viewId,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const widget = {
+      id: this.id,
+      type: '_ScreenshotWidget',
+      placement,
+      ...(viewId && viewId !== '' ? { viewId } : {}),
+    }
+    return { widget }
+  }
+}
+
 function createFrustumViewFields() {
   return {
     near: new NumberField(0.1, { min: 0, softMax: 1_000_000, step: 0.1, showByDefault: false }),
@@ -4368,6 +4500,7 @@ export class TextLayerOp extends Operator<TextLayerOp> {
         },
         { showByDefault: false }
       ),
+      backgroundBorderRadius: new NumberField(0, { min: 0, optional: true }),
       extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
@@ -4421,6 +4554,10 @@ export class IconLayerOp extends Operator<IconLayerOp> {
       ),
       getColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
       getAngle: new NumberField(0, { accessor: true, showByDefault: false }),
+      sizeBasis: new StringLiteralField('pixels', {
+        values: ['pixels', 'meters', 'common'],
+        optional: true,
+      }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -6445,6 +6582,7 @@ export class MVTLayerOp extends Operator<MVTLayerOp> {
         values: ['pixels', 'meters'],
         showByDefault: false,
       }),
+      autoLabels: new BooleanField(false, { optional: true }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -6888,6 +7026,7 @@ export const opTypes = {
   ClipExtensionOp,
   CodeOp,
   CollisionFilterExtensionOp,
+  CompassWidgetOp,
   ColorOp,
   ColorRampOp,
   ColumnLayerOp,
@@ -6913,6 +7052,7 @@ export const opTypes = {
   ForLoopEndOp,
   ForLoopMetaOp,
   FpsWidgetOp,
+  FullscreenWidgetOp,
   GeocoderOp,
   GeohashLayerOp,
   GeoJsonOp,
@@ -6967,6 +7107,7 @@ export const opTypes = {
   ScatterplotLayerOp,
   ScenegraphLayerOp,
   ScreenGridLayerOp,
+  ScreenshotWidgetOp,
   SimpleMeshLayerOp,
   SelectOp,
   SliceOp,
@@ -6990,6 +7131,7 @@ export const opTypes = {
   UnprojectOp,
   VibranceExtensionOp,
   ViewerOp,
+  ZoomWidgetOp,
 } as const // as Record<OpType, typeof Operator>
 
 // Execution state for visual debugging
