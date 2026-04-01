@@ -9,7 +9,7 @@
     "build:app:cloudflare": "(cd noodles-editor && npm run generate:context && VITE_USE_CDN_DUCKDB=true npm run build)",
     "build:website": "(cd website && npm run build)",
     "build:all": "npm run build:app && npm run build:website && mkdir -p website/build/app && cp -r noodles-editor/dist/* website/build/app/",
-    "build:all:cloudflare": "npm run build:website && npm run build:app:cloudflare && mkdir -p website/build/app && cp -r noodles-editor/dist/* website/build/app/",
+    "build:all:cloudflare": "npm run install:all && npm run build:website && npm run build:app:cloudflare && mkdir -p website/build/app && cp -r noodles-editor/dist/* website/build/app/",
     "start:website": "(cd website && npm start)",
     "start:app": "(cd noodles-editor && npm start)",
     "serve:website": "(cd website && npm run serve)",
