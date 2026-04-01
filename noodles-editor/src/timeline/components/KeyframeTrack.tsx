@@ -512,6 +512,19 @@ function KeyframeDiamond({
   const isDraggingRef = useRef(false)
   const beforeStateRef = useRef<string>('')
   const [isHovered, setIsHovered] = useState(false)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+
+  useEffect(() => {
+    if (!contextMenu) return
+    const close = () => setContextMenu(null)
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close() }
+    document.addEventListener('pointerdown', close)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('pointerdown', close)
+      document.removeEventListener('keydown', handleKey)
+    }
+  }, [contextMenu])
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -624,20 +637,53 @@ function KeyframeDiamond({
     }
   }, [isConnectionDropTarget, isHovered, onConnectionDrop])
 
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      if (!isSelected) onSelect(keyframe.id, false)
+      setContextMenu({ x: e.clientX, y: e.clientY })
+    },
+    [isSelected, keyframe.id, onSelect]
+  )
+
+  const handleDelete = useCallback(() => {
+    setContextMenu(null)
+    const before = captureTimelineState()
+    getTimelineStore().deleteSelectedKeyframes()
+    fireTimelineMutation('Delete keyframe', before)
+  }, [])
+
   const showDropTarget = isConnectionDropTarget && isHovered
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: Keyframe diamond is a drag handle
-    <div
-      className={`${s.timelineKeyframe} ${isSelected ? s.selected : ''} ${showDropTarget ? s.dropTarget : ''}`}
-      style={{ left: x }}
-      onPointerDown={handlePointerDown}
-      onClick={handleClick}
-      onPointerEnter={() => setIsHovered(true)}
-      onPointerLeave={() => setIsHovered(false)}
-      onPointerUp={handlePointerUp}
-      title={`${keyframe.position.toFixed(2)}s`}
-    />
+    <>
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: Keyframe diamond is a drag handle */}
+      <div
+        className={`${s.timelineKeyframe} ${isSelected ? s.selected : ''} ${showDropTarget ? s.dropTarget : ''}`}
+        style={{ left: x }}
+        onPointerDown={handlePointerDown}
+        onClick={handleClick}
+        onContextMenu={handleContextMenu}
+        onPointerEnter={() => setIsHovered(true)}
+        onPointerLeave={() => setIsHovered(false)}
+        onPointerUp={handlePointerUp}
+        title={`${keyframe.position.toFixed(2)}s`}
+      />
+      {contextMenu &&
+        createPortal(
+          <div
+            className={s.handleTypeMenu}
+            style={{ top: contextMenu.y, left: contextMenu.x }}
+            onPointerDown={e => e.stopPropagation()}
+          >
+            <button type="button" onClick={handleDelete}>
+              Delete keyframe
+            </button>
+          </div>,
+          document.body
+        )}
+    </>
   )
 }
 
