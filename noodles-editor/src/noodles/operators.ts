@@ -3420,7 +3420,7 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
 
   createInputs() {
     return {
-      mapStyle: new UnknownField(CARTO_DARK),
+      mapStyle: new FileUrlField(CARTO_DARK, { accept: '.json' }),
       projection: new StringLiteralField('mercator', {
         values: ['mercator', 'globe'],
         showByDefault: false,
@@ -3456,7 +3456,7 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
   createOutputs() {
     return {
       maplibre: new CompoundPropsField({
-        mapStyle: new UnknownField(),
+        mapStyle: new FileUrlField(),
         projection: new StringField(),
         longitude: new NumberField(),
         latitude: new NumberField(),
