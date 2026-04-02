@@ -65,9 +65,6 @@ export const useRenderer = ({
 
       setIsRendering(true)
 
-      const { EncodedPacket, EncodedVideoPacketSource, Mp4OutputFormat, Output, StreamTarget } =
-        await import('mediabunny')
-
       const getContainer = async (name: string) => {
         const fileHandle = await window
           .showSaveFilePicker({
@@ -91,6 +88,10 @@ export const useRenderer = ({
         if (!fileHandle) {
           return null
         }
+
+        const { EncodedPacket, EncodedVideoPacketSource, Mp4OutputFormat, Output, StreamTarget } =
+          await import('mediabunny')
+
         const fileWritableStream = await fileHandle.createWritable()
 
         const output = new Output({

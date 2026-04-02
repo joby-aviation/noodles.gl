@@ -3,12 +3,12 @@ import { Redirect, Route, Router, Switch, useRoute, useSearchParams } from 'wout
 import { AnalyticsConsentBanner } from './components/analytics-consent-banner'
 import { type ModalView, QuickStartModal } from './components/quick-start-modal'
 import { useUIStore } from './noodles/store'
+import TimelineEditor from './timeline-editor'
+import { debugApp } from './utils/debug'
 
 const ExternalControlProvider = lazy(() =>
   import('./external-control').then(m => ({ default: m.ExternalControlProvider }))
 )
-import TimelineEditor from './timeline-editor'
-import { debugApp } from './utils/debug'
 
 // Error boundary to catch analytics failures
 class AnalyticsErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
@@ -47,19 +47,20 @@ function App() {
   return (
     <Router base={baseUrl}>
       {/* External control provider - only enable when requested via URL params */}
-      <Suspense fallback={null}>
-        <ExternalControlProvider
-          enabled={enableExternalControl}
-          autoConnect={false}
-          debug={externalControlDebug}
-          onStatusChange={connected => {
-            debugApp('[ExternalControl] Status:', connected ? 'Connected' : 'Disconnected')
-          }}
-          onError={error => {
-            debugApp('[ExternalControl] Error:', error)
-          }}
-        />
-      </Suspense>
+      {enableExternalControl && (
+        <Suspense fallback={null}>
+          <ExternalControlProvider
+            autoConnect={false}
+            debug={externalControlDebug}
+            onStatusChange={connected => {
+              debugApp('[ExternalControl] Status:', connected ? 'Connected' : 'Disconnected')
+            }}
+            onError={error => {
+              debugApp('[ExternalControl] Error:', error)
+            }}
+          />
+        </Suspense>
+      )}
       <Switch>
         {/* Project routes - /examples/:projectId and /projects/:projectId (most specific first) */}
         <Route path="/examples/:projectId">
