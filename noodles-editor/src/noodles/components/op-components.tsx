@@ -1,6 +1,5 @@
 import MapboxGeocoder from '@mapbox/mapbox-gl-geocoder'
 import ReactJson from '@microlink/react-json-view'
-import * as Popover from '@radix-ui/react-popover'
 import * as Tooltip from '@radix-ui/react-tooltip'
 import {
   BaseEdge,
@@ -598,6 +597,9 @@ function NodeComponent({
   )
 }
 
+// Renders a popover anchored directly to the trigger element via position:absolute
+// so it stays inside the ReactFlow canvas coordinate space (avoids fixed-positioning
+// issues caused by CSS transforms on the ReactFlow viewport).
 function ErrorPopover({
   error,
   trigger,
@@ -610,20 +612,17 @@ function ErrorPopover({
   onDismiss: () => void
 }) {
   return (
-    <Popover.Root open={open}>
-      <Popover.Anchor style={{ display: 'contents' }}>
-        {trigger}
-      </Popover.Anchor>
-      <Popover.Portal>
-        <Popover.Content className={s.errorPopover} side="bottom" align="start" sideOffset={4}>
+    <div className={s.errorPopoverAnchor}>
+      {trigger}
+      {open && (
+        <div className={s.errorPopover}>
           <span className={s.errorPopoverMessage}>{error}</span>
           <button className={s.errorPopoverClose} onClick={onDismiss} type="button">
             <i className="pi pi-times" />
           </button>
-          <Popover.Arrow className={s.errorPopoverArrow} />
-        </Popover.Content>
-      </Popover.Portal>
-    </Popover.Root>
+        </div>
+      )}
+    </div>
   )
 }
 
