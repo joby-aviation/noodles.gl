@@ -115,6 +115,8 @@ interface UIStoreState {
   setHoveredOutputHandle: (handle: { nodeId: string; handleId: string } | null) => void
   connectionDragState: ConnectionDragState | null
   setConnectionDragState: (state: ConnectionDragState | null) => void
+  targetedEdgeId: string | null
+  setTargetedEdgeId: (id: string | null) => void
   sidebarVisible: boolean
   setSidebarVisible: (visible: boolean) => void
   sidebarSearchFocusTrigger: number
@@ -134,6 +136,8 @@ export const useUIStore = create<UIStoreState>(set => ({
   setHoveredOutputHandle: handle => set({ hoveredOutputHandle: handle }),
   connectionDragState: null,
   setConnectionDragState: state => set({ connectionDragState: state }),
+  targetedEdgeId: null,
+  setTargetedEdgeId: id => set({ targetedEdgeId: id }),
   sidebarVisible: false,
   setSidebarVisible: visible => set({ sidebarVisible: visible }),
   sidebarSearchFocusTrigger: 0,

@@ -64,7 +64,7 @@ import { SaveAsDialog } from './components/save-as-dialog'
 import { StorageErrorHandler } from './components/storage-error-handler'
 import { UndoRedoHandler, type UndoRedoHandlerRef } from './components/UndoRedoHandler'
 import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
-import { useConnectionDropOnEdge } from './hooks/use-connection-drop-on-edge'
+import { findEdgeAtPosition, useConnectionDropOnEdge } from './hooks/use-connection-drop-on-edge'
 import { useKeyboardShortcut } from './hooks/use-keyboard-shortcut'
 import { useNodeDropOnEdge } from './hooks/use-node-drop-on-edge'
 import { useProjectModifications } from './hooks/use-project-modifications'
@@ -341,6 +341,8 @@ export function getNoodles(): Visualization {
 
   // Track connection drag state for dimming unconnectable nodes
   const setConnectionDragState = useUIStore(state => state.setConnectionDragState)
+  const connectionDragState = useUIStore(state => state.connectionDragState)
+  const setTargetedEdgeId = useUIStore(state => state.setTargetedEdgeId)
   const onConnectStart: OnConnectStart = useCallback(
     (_event, params) => {
       if (!params.nodeId || !params.handleId) return
@@ -398,8 +400,28 @@ export function getNoodles(): Visualization {
     (event, connectionState) => {
       onConnectionDropEnd(event, connectionState)
       setConnectionDragState(null)
+      setTargetedEdgeId(null)
     },
-    [onConnectionDropEnd, setConnectionDragState]
+    [onConnectionDropEnd, setConnectionDragState, setTargetedEdgeId]
+  )
+
+  const onMouseMove = useCallback(
+    (event: { clientX: number; clientY: number }) => {
+      if (!connectionDragState) return
+      const pos = reactFlowInstanceRef.current?.screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      })
+      if (!pos) return
+      const edge = findEdgeAtPosition(
+        pos,
+        connectionDragState.sourceNodeId,
+        () => nodes,
+        () => edges
+      )
+      setTargetedEdgeId(edge?.id ?? null)
+    },
+    [connectionDragState, nodes, edges, setTargetedEdgeId]
   )
 
   // Hook for dropping nodes onto edges to insert them
@@ -1317,7 +1339,11 @@ export function getNoodles(): Visualization {
 
   const flowGraph = (
     <ErrorBoundary>
-      <div className={cx('react-flow-wrapper', !showOverlay && 'react-flow-wrapper-hidden')}>
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: canvas wrapper needs mouse tracking */}
+      <div
+        className={cx('react-flow-wrapper', !showOverlay && 'react-flow-wrapper-hidden')}
+        onMouseMove={onMouseMove}
+      >
         <PrimeReactProvider>
           <TimelineProvider>
             <ReactFlow

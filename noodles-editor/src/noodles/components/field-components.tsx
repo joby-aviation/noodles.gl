@@ -834,12 +834,12 @@ export function FileUrlFieldComponent({
         <label className={s.nodeFieldLabel} htmlFor={id}>
           {id}
         </label>
-        <div className={cx('p-inputgroup', field.accept ? s.fieldFileInputGroup : undefined)}>
+        <div className={cx('p-inputgroup', s.fieldFileInputGroup)}>
           <InputText
             id={id}
             list={field.suggestions.length > 0 ? `${id}-suggestions` : undefined}
             placeholder="https://"
-            className={cx(s.fieldInput, field.accept ? s.fieldInputFileUrl : undefined)}
+            className={cx(s.fieldInput, s.fieldInputFileUrl)}
             value={value}
             onFocus={captureStart}
             onBlur={onBlur}
@@ -853,15 +853,13 @@ export function FileUrlFieldComponent({
               ))}
             </datalist>
           )}
-          {field.accept && (
-            <Button
-              icon="pi pi-upload"
-              className={s.fieldInputUploadButton}
-              onClick={onUpload}
-              title="Upload File"
-              size="small"
-            />
-          )}
+          <Button
+            icon="pi pi-upload"
+            className={s.fieldInputUploadButton}
+            onClick={onUpload}
+            title="Upload File"
+            size="small"
+          />
         </div>
       </div>
 

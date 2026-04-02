@@ -1,7 +1,7 @@
 // Keyframe track component - renders a single track with its keyframes
 
 import { useReactFlow } from '@xyflow/react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   captureTimelineState,
@@ -65,13 +65,17 @@ function KeyframeTrackLabel({
   const reactFlow = useReactFlow()
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+  const trackMenuRef = useRef<HTMLDivElement>(null)
 
   // Close context menu on outside click or Escape
   useEffect(() => {
     if (!contextMenu) return
-    const close = () => setContextMenu(null)
+    const close = (e: PointerEvent) => {
+      if (trackMenuRef.current?.contains(e.target as Node)) return
+      setContextMenu(null)
+    }
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close()
+      if (e.key === 'Escape') setContextMenu(null)
     }
     document.addEventListener('pointerdown', close)
     document.addEventListener('keydown', handleKey)
@@ -203,9 +207,10 @@ function KeyframeTrackLabel({
       {contextMenu &&
         createPortal(
           <div
+            ref={trackMenuRef}
             className={s.handleTypeMenu}
             style={{ top: contextMenu.y, left: contextMenu.x }}
-            onPointerDown={e => e.stopPropagation()}
+            onMouseDown={e => e.stopPropagation()}
           >
             <button type="button" onClick={handleMakeStatic}>
               Make static
@@ -512,6 +517,33 @@ function KeyframeDiamond({
   const isDraggingRef = useRef(false)
   const beforeStateRef = useRef<string>('')
   const [isHovered, setIsHovered] = useState(false)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  // Nudge the menu back into the viewport if it overflows at right/bottom edges
+  useLayoutEffect(() => {
+    if (!contextMenu || !menuRef.current) return
+    const rect = menuRef.current.getBoundingClientRect()
+    let { x, y } = contextMenu
+    if (rect.right > window.innerWidth) x = window.innerWidth - rect.width - 4
+    if (rect.bottom > window.innerHeight) y = window.innerHeight - rect.height - 4
+    if (x !== contextMenu.x || y !== contextMenu.y) setContextMenu({ x, y })
+  }, [contextMenu])
+
+  useEffect(() => {
+    if (!contextMenu) return
+    const close = (e: PointerEvent) => {
+      if (menuRef.current?.contains(e.target as Node)) return
+      setContextMenu(null)
+    }
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setContextMenu(null) }
+    document.addEventListener('pointerdown', close)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('pointerdown', close)
+      document.removeEventListener('keydown', handleKey)
+    }
+  }, [contextMenu])
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -624,20 +656,54 @@ function KeyframeDiamond({
     }
   }, [isConnectionDropTarget, isHovered, onConnectionDrop])
 
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      if (!isSelected) onSelect(keyframe.id, false)
+      setContextMenu({ x: e.clientX, y: e.clientY })
+    },
+    [isSelected, keyframe.id, onSelect]
+  )
+
+  const handleDelete = useCallback(() => {
+    setContextMenu(null)
+    const before = captureTimelineState()
+    getTimelineStore().deleteSelectedKeyframes()
+    fireTimelineMutation('Delete keyframe', before)
+  }, [])
+
   const showDropTarget = isConnectionDropTarget && isHovered
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: Keyframe diamond is a drag handle
-    <div
-      className={`${s.timelineKeyframe} ${isSelected ? s.selected : ''} ${showDropTarget ? s.dropTarget : ''}`}
-      style={{ left: x }}
-      onPointerDown={handlePointerDown}
-      onClick={handleClick}
-      onPointerEnter={() => setIsHovered(true)}
-      onPointerLeave={() => setIsHovered(false)}
-      onPointerUp={handlePointerUp}
-      title={`${keyframe.position.toFixed(2)}s`}
-    />
+    <>
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: Keyframe diamond is a drag handle */}
+      <div
+        className={`${s.timelineKeyframe} ${isSelected ? s.selected : ''} ${showDropTarget ? s.dropTarget : ''}`}
+        style={{ left: x }}
+        onPointerDown={handlePointerDown}
+        onClick={handleClick}
+        onContextMenu={handleContextMenu}
+        onPointerEnter={() => setIsHovered(true)}
+        onPointerLeave={() => setIsHovered(false)}
+        onPointerUp={handlePointerUp}
+        title={`${keyframe.position.toFixed(2)}s`}
+      />
+      {contextMenu &&
+        createPortal(
+          <div
+            ref={menuRef}
+            className={s.handleTypeMenu}
+            style={{ top: contextMenu.y, left: contextMenu.x }}
+            onMouseDown={e => e.stopPropagation()}
+          >
+            <button type="button" onClick={handleDelete}>
+              Delete keyframe
+            </button>
+          </div>,
+          document.body
+        )}
+    </>
   )
 }
 
