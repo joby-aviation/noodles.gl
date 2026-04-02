@@ -1,11 +1,4 @@
 import { assert, type Deck } from '@deck.gl/core'
-import {
-  EncodedPacket,
-  EncodedVideoPacketSource,
-  Mp4OutputFormat,
-  Output,
-  StreamTarget,
-} from 'mediabunny'
 import { useCallback, useRef, useState } from 'react'
 import { getTimelineStore, useTimelineStore } from '../timeline/timeline-store'
 import { debugRender, debugRenderFrame } from '../utils/debug'
@@ -71,6 +64,9 @@ export const useRenderer = ({
       let i = startFrame
 
       setIsRendering(true)
+
+      const { EncodedPacket, EncodedVideoPacketSource, Mp4OutputFormat, Output, StreamTarget } =
+        await import('mediabunny')
 
       const getContainer = async (name: string) => {
         const fileHandle = await window

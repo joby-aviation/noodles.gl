@@ -4,8 +4,6 @@ import type {
   ReactFlowJsonObject,
   Node as ReactFlowNode,
 } from '@xyflow/react'
-import JSZip from 'jszip'
-
 import { debugSerialize } from '../../utils/debug'
 import { resizeableNodes } from '../components/op-components'
 import type { useOperatorStore } from '../store'
@@ -269,6 +267,7 @@ export async function saveProjectLocally(
   storageType: 'fileSystemAccess' | 'opfs' | 'publicFolder'
 ) {
   debugSerialize('saveProjectLocally: %s (storage: %s)', projectName, storageType)
+  const { default: JSZip } = await import('jszip')
   const zip = new JSZip()
 
   // Create a folder with the project name
