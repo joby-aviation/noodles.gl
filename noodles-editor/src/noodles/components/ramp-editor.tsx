@@ -1,4 +1,4 @@
-import { curveMonotoneX, line, scaleLinear } from 'd3'
+import { curveLinear, line, scaleLinear } from 'd3'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 export interface RampStop {
@@ -50,7 +50,7 @@ export default function RampEditor({
       line<RampStop>()
         .x(d => xScale(d.pos))
         .y(d => yScale(d.val))
-        .curve(curveMonotoneX),
+        .curve(curveLinear),
     [xScale, yScale]
   )
 
@@ -62,10 +62,15 @@ export default function RampEditor({
   })
 
   const [draggingId, setDraggingId] = useState<string | null>(null)
+  // Suppress the second click of a double-click (which would add two stops)
+  const lastClickTimeRef = useRef(0)
 
   const handleBgClick = useCallback(
     (e: React.MouseEvent<SVGRectElement>) => {
       if (disabled) return
+      const now = Date.now()
+      if (now - lastClickTimeRef.current < 300) return
+      lastClickTimeRef.current = now
       const rect = svgRef.current!.getBoundingClientRect()
       const x = e.clientX - rect.left
       const y = e.clientY - rect.top

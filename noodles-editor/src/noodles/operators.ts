@@ -5794,7 +5794,8 @@ export class RampOp extends Operator<RampOp> {
 
   createInputs() {
     return {
-      position: new NumberField(0, { min: 0, max: 1, step: 0.01, accessor: true }),
+      // softMin/softMax suggests 0-1 in the UI without hard-clamping accessor functions
+      position: new NumberField(0, { softMin: 0, softMax: 1, step: 0.01, accessor: true }),
       stops: new DataField(),
     }
   }

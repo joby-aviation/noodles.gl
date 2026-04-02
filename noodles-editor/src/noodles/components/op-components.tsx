@@ -600,10 +600,12 @@ function NodeComponent({
   )
 }
 
-const DEFAULT_RAMP_STOPS: RampStop[] = [
-  { id: 'default-start', pos: 0, val: 0 },
-  { id: 'default-end', pos: 1, val: 1 },
-]
+function makeDefaultStops(): RampStop[] {
+  return [
+    { id: crypto.randomUUID(), pos: 0, val: 0 },
+    { id: crypto.randomUUID(), pos: 1, val: 1 },
+  ]
+}
 
 function RampOpComponent({
   id,
@@ -619,14 +621,14 @@ function RampOpComponent({
 
   const [stops, setStops] = useState<RampStop[]>(() => {
     const v = op.inputs.stops.value as RampStop[] | null
-    return v && v.length > 0 ? v : DEFAULT_RAMP_STOPS
+    return v && v.length > 0 ? v : makeDefaultStops()
   })
 
   // Subscribe to stops changes to handle undo/redo and project load
   useEffect(() => {
     const sub = op.inputs.stops.subscribe(newVal => {
       const v = newVal as RampStop[] | null
-      setStops(v && v.length > 0 ? v : DEFAULT_RAMP_STOPS)
+      setStops(v && v.length > 0 ? v : makeDefaultStops())
     })
     return () => sub.unsubscribe()
   }, [op.inputs.stops])
@@ -634,7 +636,7 @@ function RampOpComponent({
   // Seed default stops into the field on first render if empty
   useEffect(() => {
     const v = op.inputs.stops.value as RampStop[] | null
-    if (!v || v.length === 0) op.inputs.stops.setValue(DEFAULT_RAMP_STOPS)
+    if (!v || v.length === 0) op.inputs.stops.setValue(makeDefaultStops())
   }, [op.inputs.stops])
 
   const handleChange = useCallback(
