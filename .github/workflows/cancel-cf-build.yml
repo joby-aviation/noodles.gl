@@ -17,6 +17,7 @@ jobs:
           CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CF_PROJECT: ${{ secrets.CLOUDFLARE_PAGES_PROJECT_NAME }}
           BRANCH: ${{ github.ref_name }}
+          COMMIT_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           if [ -z "$CF_API_TOKEN" ] || [ -z "$CF_ACCOUNT_ID" ] || [ -z "$CF_PROJECT" ]; then
@@ -31,8 +32,10 @@ jobs:
 
             echo "$response" | jq -r \
               --arg branch "$BRANCH" \
+              --arg sha "$COMMIT_SHA" \
               '.result[] | select(
                 .deployment_trigger.metadata.branch == $branch and
+                .deployment_trigger.metadata.commit_hash != $sha and
                 (.latest_stage.status == "active" or .latest_stage.status == "queued")
               ) | .id' \
             | while read -r id; do
