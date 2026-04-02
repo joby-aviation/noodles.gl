@@ -3420,7 +3420,7 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
 
   createInputs() {
     return {
-      mapStyle: new FileUrlField(CARTO_DARK, { accept: '.json' }),
+      mapStyle: new UnknownField(CARTO_DARK),
       projection: new StringLiteralField('mercator', {
         values: ['mercator', 'globe'],
         showByDefault: false,
@@ -3456,7 +3456,7 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
   createOutputs() {
     return {
       maplibre: new CompoundPropsField({
-        mapStyle: new FileUrlField(),
+        mapStyle: new UnknownField(),
         projection: new StringField(),
         longitude: new NumberField(),
         latitude: new NumberField(),
@@ -3500,7 +3500,7 @@ export class MapStyleConfiguratorOp extends Operator<MapStyleConfiguratorOp> {
 
   createInputs() {
     return {
-      baseStyle: new JSONUrlField(CARTO_DARK),
+      baseStyle: new FileUrlField(CARTO_DARK, { accept: '.json' }),
       // Stores layer + global overrides as { layers: LayerOverride[], global: StyleGlobalOverrides }
       overrides: new UnknownField({ layers: [], global: {} }),
     }
@@ -3508,7 +3508,8 @@ export class MapStyleConfiguratorOp extends Operator<MapStyleConfiguratorOp> {
 
   createOutputs() {
     return {
-      mapStyle: new JSONUrlField(),
+      // UnknownField because execute() returns a full style object, not just a URL string
+      mapStyle: new UnknownField(),
     }
   }
 
