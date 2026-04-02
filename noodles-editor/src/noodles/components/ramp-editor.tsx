@@ -75,23 +75,14 @@ export default function RampEditor({
 }: RampEditorProps) {
   const stops = stopsProp.length > 0 ? stopsProp : []
 
-  const [yMin, yMax] = useMemo(() => {
-    if (stops.length === 0) return [0, 1]
-    const vals = stops.map(s => s.val)
-    const min = Math.min(...vals)
-    const max = Math.max(...vals)
-    const range = max - min || 1
-    return [min - range * 0.15, max + range * 0.15]
-  }, [stops])
-
   const xScale = useMemo(
     () => scaleLinear().domain([0, 1]).range([PAD, width - PAD]),
     [width]
   )
 
   const yScale = useMemo(
-    () => scaleLinear().domain([yMin, yMax]).range([height - PAD, PAD]),
-    [yMin, yMax, height]
+    () => scaleLinear().domain([0, 1]).range([height - PAD, PAD]),
+    [height]
   )
 
   const svgRef = useRef<SVGSVGElement>(null)
