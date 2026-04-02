@@ -121,6 +121,12 @@ export default defineConfig(({ mode }) => {
             let url = req.url || '/'
             url = decodeURIComponent(url.split('?')[0])
 
+            // let Vite handle its own virtual/internal paths and hoisted node_modules
+            if (url.startsWith('/@') || url.startsWith('/node_modules/')) {
+              next()
+              return
+            }
+
             // if it looks like a file request (has an extension)...
             if (/\.[a-zA-Z0-9]{1,8}$/.test(url)) {
               const safe = path.posix.normalize(url).replace(/^(\.\.[/\\])+/, '')
