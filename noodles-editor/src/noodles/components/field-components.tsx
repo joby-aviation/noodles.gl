@@ -725,6 +725,7 @@ export function FileUrlFieldComponent({
 }) {
   const [value, setValue] = useState(guardAccessorFallback(field.value))
   const { captureStart, commitChange } = usePropertyHistory()
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false)
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
@@ -747,7 +748,23 @@ export function FileUrlFieldComponent({
       field.setValue(val)
     }
     commitChange('Change file')
+    // Delay closing so a suggestion click registers first
+    setTimeout(() => setSuggestionsOpen(false), 150)
   }
+
+  const onSuggestionSelect = (val: string) => {
+    captureStart()
+    field.setValue(val)
+    setValue(val)
+    commitChange('Change file')
+    setSuggestionsOpen(false)
+  }
+
+  const filteredSuggestions = field.suggestions.filter(
+    ({ value: v, label }) =>
+      v.toLowerCase().includes(value.toLowerCase()) ||
+      label.toLowerCase().includes(value.toLowerCase())
+  )
 
   const [replaceDialogOpen, setReplaceDialogOpen] = useState(false)
   const [pendingFile, setPendingFile] = useState<{ name: string; contents: Blob } | null>(null)
@@ -834,24 +851,33 @@ export function FileUrlFieldComponent({
         <label className={s.nodeFieldLabel} htmlFor={id}>
           {id}
         </label>
-        <div className={cx('p-inputgroup', s.fieldFileInputGroup)}>
+        <div className={cx('p-inputgroup', s.fieldFileInputGroup, s.fieldFileInputGroupSuggestions)}>
           <InputText
             id={id}
-            list={field.suggestions.length > 0 ? `${id}-suggestions` : undefined}
             placeholder="https://"
             className={cx(s.fieldInput, s.fieldInputFileUrl)}
             value={value}
-            onFocus={captureStart}
+            onFocus={() => { captureStart(); setSuggestionsOpen(true) }}
             onBlur={onBlur}
             onChange={onChange}
             disabled={disabled}
           />
-          {field.suggestions.length > 0 && (
-            <datalist id={`${id}-suggestions`}>
-              {field.suggestions.map(({ value: val, label }) => (
-                <option key={val} value={val}>{label}</option>
+          {field.suggestions.length > 0 && suggestionsOpen && filteredSuggestions.length > 0 && (
+            <ul className={s.fileUrlSuggestions}>
+              {filteredSuggestions.map(({ value: val, label }) => (
+                // biome-ignore lint/a11y/useSemanticElements: custom combobox option
+                <li
+                  key={val}
+                  role="option"
+                  aria-selected={val === value}
+                  className={cx(s.fileUrlSuggestion, { [s.fileUrlSuggestionActive]: val === value })}
+                  onMouseDown={() => onSuggestionSelect(val)}
+                >
+                  <span className={s.fileUrlSuggestionLabel}>{label}</span>
+                  <span className={s.fileUrlSuggestionUrl}>{val}</span>
+                </li>
               ))}
-            </datalist>
+            </ul>
           )}
           <Button
             icon="pi pi-upload"
