@@ -35,6 +35,7 @@ jobs:
               --arg sha "$COMMIT_SHA" \
               '.result[] | select(
                 .deployment_trigger.metadata.branch == $branch and
+                (.deployment_trigger.metadata.commit_hash | type) != "null" and
                 .deployment_trigger.metadata.commit_hash != $sha and
                 (.latest_stage.status == "active" or .latest_stage.status == "queued")
               ) | .id' \
