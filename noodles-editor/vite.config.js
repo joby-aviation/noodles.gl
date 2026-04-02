@@ -104,6 +104,10 @@ export default defineConfig(({ mode }) => {
     server: {
       open: true,
     },
+    // duckdb-wasm bundles WASM + worker files that break Vite's dep optimization
+    optimizeDeps: {
+      exclude: ['@duckdb/duckdb-wasm'],
+    },
     plugins: [
       react(),
       nodePolyfills({
