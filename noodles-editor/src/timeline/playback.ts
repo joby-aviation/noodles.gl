@@ -86,6 +86,7 @@ export class PlaybackDriver {
       try {
         callback(deltaMs)
       } catch (error) {
+        console.error('[Noodles] Playback subscriber error:', error)
         debugPlayback('Error in playback subscriber:', error)
       }
     }

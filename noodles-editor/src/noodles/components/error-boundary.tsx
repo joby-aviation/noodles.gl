@@ -37,6 +37,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('[Noodles] Node graph error:', error, errorInfo)
     debugUI('Node graph error:', error, errorInfo)
 
     // Increment reset count if error occurs within timeout period
@@ -134,8 +135,8 @@ export class ErrorBoundary extends Component<Props, State> {
             )}
             {canReset && resetCount > 0 && (
               <p className={s.warning}>
-                Warning: Error has occurred {resetCount} time{resetCount > 1 ? 's' : ''}. If
-                this persists, try refreshing the page.
+                Warning: Error has occurred {resetCount} time{resetCount > 1 ? 's' : ''}. If this
+                persists, try refreshing the page.
               </p>
             )}
           </div>
