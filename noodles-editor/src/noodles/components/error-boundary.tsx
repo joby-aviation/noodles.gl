@@ -37,6 +37,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('[Noodles] Node graph error:', error, errorInfo)
     debugUI('Node graph error:', error, errorInfo)
 
     // Increment reset count if error occurs within timeout period
