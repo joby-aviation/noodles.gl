@@ -4,6 +4,7 @@
   "private": true,
   "workspaces": ["website", "noodles-editor"],
   "scripts": {
+    "postinstall": "node scripts/patch-vitest-browser-playwright.cjs",
     "build:app": "(cd noodles-editor && npm run build)",
     "build:app:cloudflare": "(cd noodles-editor && npm run generate:context && VITE_USE_CDN_DUCKDB=true npm run build)",
     "build:website": "(cd website && npm run build)",
