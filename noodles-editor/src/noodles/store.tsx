@@ -108,6 +108,7 @@ export interface ConnectionDragState {
   sourceNodeId: string
   sourceHandleId: string
   compatibleNodeIds: Set<string>
+  compatibleEdgeIds: Set<string>
 }
 
 interface UIStoreState {
@@ -115,6 +116,8 @@ interface UIStoreState {
   setHoveredOutputHandle: (handle: { nodeId: string; handleId: string } | null) => void
   connectionDragState: ConnectionDragState | null
   setConnectionDragState: (state: ConnectionDragState | null) => void
+  targetedEdge: { id: string; compatible: boolean } | null
+  setTargetedEdge: (edge: { id: string; compatible: boolean } | null) => void
   sidebarVisible: boolean
   setSidebarVisible: (visible: boolean) => void
   sidebarSearchFocusTrigger: number
@@ -123,6 +126,8 @@ interface UIStoreState {
   setSettingsDialogOpen: (open: boolean) => void
   timelineExpanded: boolean
   setTimelineExpanded: (expanded: boolean) => void
+  timelineHeight: number
+  setTimelineHeight: (height: number) => void
   quickStartModalOpen: boolean
   setQuickStartModalOpen: (open: boolean) => void
 }
@@ -132,6 +137,8 @@ export const useUIStore = create<UIStoreState>(set => ({
   setHoveredOutputHandle: handle => set({ hoveredOutputHandle: handle }),
   connectionDragState: null,
   setConnectionDragState: state => set({ connectionDragState: state }),
+  targetedEdge: null,
+  setTargetedEdge: edge => set({ targetedEdge: edge }),
   sidebarVisible: false,
   setSidebarVisible: visible => set({ sidebarVisible: visible }),
   sidebarSearchFocusTrigger: 0,
@@ -141,6 +148,8 @@ export const useUIStore = create<UIStoreState>(set => ({
   setSettingsDialogOpen: open => set({ settingsDialogOpen: open }),
   timelineExpanded: false,
   setTimelineExpanded: expanded => set({ timelineExpanded: expanded }),
+  timelineHeight: 250,
+  setTimelineHeight: height => set({ timelineHeight: height }),
   quickStartModalOpen: false,
   setQuickStartModalOpen: open => set({ quickStartModalOpen: open }),
 }))

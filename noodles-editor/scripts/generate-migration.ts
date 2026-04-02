@@ -3,7 +3,7 @@
  * Migration Generator CLI
  *
  * Interactive CLI tool for generating schema migration files.
- * Usage: yarn generate:migration
+ * Usage: npm run generate:migration
  */
 
 import * as fs from 'node:fs'
@@ -149,7 +149,7 @@ async function main() {
     console.log('\n📋 Next steps:')
     console.log('  1. Review the generated migration files')
     console.log('  2. Update the test assertions with actual test cases')
-    console.log('  3. Run tests: yarn test')
+    console.log('  3. Run tests: npm test')
     console.log(`  4. Update NOODLES_VERSION in migrate-schema.ts to ${nextVersion}`)
   } catch (error) {
     console.error('❌ Error generating migration:', error)

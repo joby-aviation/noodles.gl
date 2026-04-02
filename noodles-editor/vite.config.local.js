@@ -3,7 +3,7 @@
 // Aliases deck.gl and luma.gl imports to local source directories (../deck.gl, ../luma.gl)
 // for rapid development iteration without needing to publish/link packages.
 //
-// Usage: yarn start:local
+// Usage: npm run start:local
 //
 // Limitations:
 // - @deck.gl/widgets uses npm package (CSS loading blocked by Vite 7 fs restrictions)

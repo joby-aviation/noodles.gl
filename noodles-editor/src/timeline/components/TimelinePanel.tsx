@@ -303,27 +303,39 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
     }
   }, [])
 
-  // Delete selected keyframes/markers on Delete/Backspace key, T to cycle handle type
+  // Intercept Delete/Backspace in capture phase so keyframe/marker deletion fires before
+  // ReactFlow's global handler (which would otherwise delete the selected operator node)
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+        return
+
+      if (selectedMarkerId) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        const before = captureTimelineState()
+        deleteMarker(selectedMarkerId)
+        fireTimelineMutation('Delete marker', before)
+        return
+      }
+      const store = getTimelineStore()
+      if (store.selectedKeyframeIds.size > 0) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        const before = captureTimelineState()
+        store.deleteSelectedKeyframes()
+        fireTimelineMutation('Delete keyframe', before)
+      }
+    }
+    document.addEventListener('keydown', handleKey, { capture: true })
+    return () => document.removeEventListener('keydown', handleKey, { capture: true })
+  }, [selectedMarkerId, deleteMarker])
+
+  // T to cycle handle type, Cmd/Ctrl+A to select all keyframes
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        // Delete selected marker if one is selected
-        if (selectedMarkerId) {
-          e.preventDefault()
-          const before = captureTimelineState()
-          deleteMarker(selectedMarkerId)
-          fireTimelineMutation('Delete marker', before)
-          return
-        }
-        // Delete selected keyframes
-        if (selectedKeyframeIds.size > 0) {
-          e.preventDefault()
-          const store = getTimelineStore()
-          store.deleteSelectedKeyframes()
-          return
-        }
-      }
-
       // Cmd/Ctrl+A to select all keyframes
       if ((e.key === 'a' || e.key === 'A') && (e.metaKey || e.ctrlKey)) {
         e.preventDefault()
@@ -363,7 +375,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
         fireTimelineMutation('Cycle handle type', before)
       }
     },
-    [selectedKeyframeIds, selectedMarkerId, deleteMarker]
+    [selectedKeyframeIds]
   )
 
   // Handle spacebar for play/pause and arrow keys for frame stepping globally
