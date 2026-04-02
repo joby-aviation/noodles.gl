@@ -68,7 +68,6 @@
   --xy-controls-button-color-hover: #262626;
 
   --timeline-accent: #48c6cf;
-
 }
 
 :root {
@@ -771,6 +770,30 @@
   stroke-width: 1.5;
   pointer-events: none;
   stroke: #888;
+}
+
+.targetedEdge {
+  stroke: #3b82f6;
+  stroke-width: 3;
+  filter: drop-shadow(0 0 6px rgba(59, 130, 246, 0.7));
+  animation: edgeTargetPulse 0.8s ease-in-out infinite;
+}
+
+.targetedEdgeIncompatible {
+  stroke: #9a8878;
+  stroke-width: 2;
+}
+
+@keyframes edgeTargetPulse {
+  0%,
+  100% {
+    stroke-opacity: 1;
+    filter: drop-shadow(0 0 6px rgba(59, 130, 246, 0.7));
+  }
+  50% {
+    stroke-opacity: 0.7;
+    filter: drop-shadow(0 0 12px rgba(59, 130, 246, 0.9));
+  }
 }
 
 /* Mapbox geocoder */

@@ -1564,7 +1564,7 @@ export class FileOp extends Operator<FileOp> {
   createInputs() {
     return {
       format: new StringLiteralField('json', { values: ['json', 'csv', 'tsv', 'text', 'binary'] }),
-      url: new FileUrlField('', { accept: '.csv,.json,.geojson' }),
+      url: new FileUrlField(),
       text: new StringField(),
       autoType: new BooleanField(true), // TODO: Make this only available for csv
       pulse: new NumberField(0, { min: 0, step: 1 }),
@@ -3418,7 +3418,7 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
 
   createInputs() {
     return {
-      mapStyle: new FileUrlField(CARTO_DARK),
+      mapStyle: new FileUrlField(CARTO_DARK, { accept: '.json' }),
       projection: new StringLiteralField('mercator', {
         values: ['mercator', 'globe'],
         showByDefault: false,
@@ -3747,6 +3747,138 @@ export class FpsWidgetOp extends Operator<FpsWidgetOp> {
     const widget = {
       id: this.id,
       type: '_FpsWidget',
+      placement,
+      ...(viewId && viewId !== '' ? { viewId } : {}),
+    }
+    return { widget }
+  }
+}
+
+export class FullscreenWidgetOp extends Operator<FullscreenWidgetOp> {
+  static displayName = 'FullscreenWidget'
+  static description = 'Enter/exit fullscreen widget'
+
+  createInputs() {
+    return {
+      placement: new StringLiteralField('top-right', {
+        values: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+      }),
+      viewId: new StringField('', { optional: true }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      widget: new WidgetField(),
+    }
+  }
+
+  execute({
+    placement,
+    viewId,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const widget = {
+      id: this.id,
+      type: '_FullscreenWidget',
+      placement,
+      ...(viewId && viewId !== '' ? { viewId } : {}),
+    }
+    return { widget }
+  }
+}
+
+export class ZoomWidgetOp extends Operator<ZoomWidgetOp> {
+  static displayName = 'ZoomWidget'
+  static description = 'Zoom in/out buttons widget'
+
+  createInputs() {
+    return {
+      placement: new StringLiteralField('top-right', {
+        values: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+      }),
+      viewId: new StringField('', { optional: true }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      widget: new WidgetField(),
+    }
+  }
+
+  execute({
+    placement,
+    viewId,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const widget = {
+      id: this.id,
+      type: '_ZoomWidget',
+      placement,
+      ...(viewId && viewId !== '' ? { viewId } : {}),
+    }
+    return { widget }
+  }
+}
+
+export class CompassWidgetOp extends Operator<CompassWidgetOp> {
+  static displayName = 'CompassWidget'
+  static description = 'Compass and bearing reset widget'
+
+  createInputs() {
+    return {
+      placement: new StringLiteralField('top-right', {
+        values: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+      }),
+      viewId: new StringField('', { optional: true }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      widget: new WidgetField(),
+    }
+  }
+
+  execute({
+    placement,
+    viewId,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const widget = {
+      id: this.id,
+      type: '_CompassWidget',
+      placement,
+      ...(viewId && viewId !== '' ? { viewId } : {}),
+    }
+    return { widget }
+  }
+}
+
+export class ScreenshotWidgetOp extends Operator<ScreenshotWidgetOp> {
+  static displayName = 'ScreenshotWidget'
+  static description = 'Download current frame as PNG widget'
+
+  createInputs() {
+    return {
+      placement: new StringLiteralField('top-right', {
+        values: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+      }),
+      viewId: new StringField('', { optional: true }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      widget: new WidgetField(),
+    }
+  }
+
+  execute({
+    placement,
+    viewId,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const widget = {
+      id: this.id,
+      type: '_ScreenshotWidget',
       placement,
       ...(viewId && viewId !== '' ? { viewId } : {}),
     }
@@ -4368,6 +4500,7 @@ export class TextLayerOp extends Operator<TextLayerOp> {
         },
         { showByDefault: false }
       ),
+      backgroundBorderRadius: new NumberField(0, { min: 0, optional: true }),
       extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
@@ -4403,7 +4536,7 @@ export class IconLayerOp extends Operator<IconLayerOp> {
       ),
       iconMapping: new FileUrlField(
         'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.json',
-        { showByDefault: false }
+        { showByDefault: false, accept: '.json' }
       ),
       billboard: new BooleanField(true),
       getIcon: new UnknownField(null, { accessor: true }), // Union of { url: string, width: number, height: number } or url: string, plus accessors
@@ -4421,6 +4554,10 @@ export class IconLayerOp extends Operator<IconLayerOp> {
       ),
       getColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
       getAngle: new NumberField(0, { accessor: true, showByDefault: false }),
+      sizeBasis: new StringLiteralField('pixels', {
+        values: ['pixels', 'meters', 'common'],
+        optional: true,
+      }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -4830,6 +4967,8 @@ export class ArcLayerOp extends Operator<ArcLayerOp> {
         showByDefault: false,
       }),
       getWidth: new NumberField(1, { min: 0, softMax: 100, accessor: true }),
+      getHeight: new NumberField(1, { min: 0, softMax: 10, accessor: true, showByDefault: false }),
+      getTilt: new NumberField(0, { min: -90, max: 90, accessor: true, showByDefault: false }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -6443,6 +6582,7 @@ export class MVTLayerOp extends Operator<MVTLayerOp> {
         values: ['pixels', 'meters'],
         showByDefault: false,
       }),
+      autoLabels: new BooleanField(false, { optional: true }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -6886,6 +7026,7 @@ export const opTypes = {
   ClipExtensionOp,
   CodeOp,
   CollisionFilterExtensionOp,
+  CompassWidgetOp,
   ColorOp,
   ColorRampOp,
   ColumnLayerOp,
@@ -6911,6 +7052,7 @@ export const opTypes = {
   ForLoopEndOp,
   ForLoopMetaOp,
   FpsWidgetOp,
+  FullscreenWidgetOp,
   GeocoderOp,
   GeohashLayerOp,
   GeoJsonOp,
@@ -6965,6 +7107,7 @@ export const opTypes = {
   ScatterplotLayerOp,
   ScenegraphLayerOp,
   ScreenGridLayerOp,
+  ScreenshotWidgetOp,
   SimpleMeshLayerOp,
   SelectOp,
   SliceOp,
@@ -6988,6 +7131,7 @@ export const opTypes = {
   UnprojectOp,
   VibranceExtensionOp,
   ViewerOp,
+  ZoomWidgetOp,
 } as const // as Record<OpType, typeof Operator>
 
 // Execution state for visual debugging

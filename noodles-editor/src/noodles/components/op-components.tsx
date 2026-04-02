@@ -4,6 +4,7 @@ import * as Tooltip from '@radix-ui/react-tooltip'
 import {
   BaseEdge,
   type EdgeProps,
+  getBezierPath,
   getStraightPath,
   Handle,
   NodeResizer,
@@ -16,7 +17,6 @@ import {
 } from '@xyflow/react'
 import cx from 'classnames'
 import { Layer } from 'deck.gl'
-import { isPlainObject } from 'lodash'
 import { Button } from 'primereact/button'
 import { Column } from 'primereact/column'
 import { DataTable } from 'primereact/datatable'
@@ -70,6 +70,10 @@ import { generateQualifiedPath, getBaseName, getParentPath } from '../utils/path
 import { categories as baseCategories, nodeTypeToDisplayName } from './categories'
 import { FieldComponent, type inputComponents } from './field-components'
 import previewStyles from './handle-preview.module.css'
+import { useObservable } from '../hooks/use-observable'
+
+const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+  v !== null && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype
 
 // Extend categories with mathOps for UI purposes (add node menu, header classes, typeCategory)
 // Base categories.ts doesn't include mathOps to keep it clean for context generation
@@ -86,26 +90,12 @@ const SLOW_EXECUTION_THRESHOLD_MS = 100
 
 // Hook to subscribe to operator execution state
 function useExecutionState(op: Operator<IOperator>): ExecutionState {
-  const [executionState, setExecutionState] = useState<ExecutionState>({ status: 'idle' })
-
-  useEffect(() => {
-    const subscription = op.executionState.subscribe(setExecutionState)
-    return () => subscription.unsubscribe()
-  }, [op])
-
-  return executionState
+  return useObservable(op.executionState, { status: 'idle' })
 }
 
 // Hook to subscribe to operator connection errors
 function useConnectionErrors(op: Operator<IOperator>): Map<string, string> {
-  const [connectionErrors, setConnectionErrors] = useState<Map<string, string>>(new Map())
-
-  useEffect(() => {
-    const subscription = op.connectionErrors.subscribe(setConnectionErrors)
-    return () => subscription.unsubscribe()
-  }, [op])
-
-  return connectionErrors
+  return useObservable(op.connectionErrors, new Map())
 }
 
 // Hook to check if a node should be dimmed during connection drag
@@ -201,8 +191,45 @@ export const nodeComponents = {
 } as const as ReactFlowNodeTypes
 
 export const edgeComponents = {
+  default: DefaultEdgeComponent,
   ReferenceEdge: ReferenceEdgeComponent,
 } as const as ReactFlowEdgeTypes
+
+function DefaultEdgeComponent({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  style = {},
+  markerEnd,
+}: EdgeProps) {
+  const targetedEdge = useUIStore(s => s.targetedEdge)
+  const [edgePath] = getBezierPath({
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+    sourcePosition,
+    targetPosition,
+  })
+  const edgeClassName =
+    targetedEdge?.id === id
+      ? targetedEdge.compatible
+        ? s.targetedEdge
+        : s.targetedEdgeIncompatible
+      : undefined
+  return (
+    <BaseEdge
+      path={edgePath}
+      markerEnd={markerEnd}
+      style={style}
+      className={edgeClassName}
+    />
+  )
+}
 
 function ReferenceEdgeComponent({
   sourceX,
