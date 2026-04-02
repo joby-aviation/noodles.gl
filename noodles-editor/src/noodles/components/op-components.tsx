@@ -725,42 +725,42 @@ function RampOpComponent({
           <label className={s.fieldLabel} style={{ whiteSpace: 'nowrap' }}>
             {activeStop ? `stop ${stops.indexOf(activeStop) + 1}` : 'stop'}
           </label>
-          <div className={cx(s.fieldInputWrapper, s.fieldInputWrapperVector)}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 2, minWidth: 0 }}>
             <label
               className={cx(s.fieldLabel, s.fieldLabelVector)}
               title="position"
-              style={{ cursor: 'default' }}
+              style={{ cursor: 'default', flexShrink: 0 }}
             >
               p
             </label>
             <input
               type="number"
-              className={cx(s.fieldInput, s.fieldInputVector)}
+              className={s.fieldInput}
               value={activeStop?.pos.toFixed(3) ?? ''}
               min={0}
               max={1}
               step={0.001}
               disabled={locked || !activeStop}
               onChange={handlePosChange}
-              style={{ minWidth: 52 }}
+              style={{ flex: 1, minWidth: 0 }}
             />
             <label
               className={cx(s.fieldLabel, s.fieldLabelVector)}
               title="value"
-              style={{ cursor: 'default' }}
+              style={{ cursor: 'default', flexShrink: 0 }}
             >
               v
             </label>
             <input
               type="number"
-              className={cx(s.fieldInput, s.fieldInputVector)}
+              className={s.fieldInput}
               value={activeStop?.val.toFixed(3) ?? ''}
               min={0}
               max={1}
               step={0.001}
               disabled={locked || !activeStop}
               onChange={handleValChange}
-              style={{ minWidth: 52 }}
+              style={{ flex: 1, minWidth: 0 }}
             />
           </div>
         </div>
@@ -783,7 +783,7 @@ function RampOpComponent({
                   type="button"
                   style={{
                     flex: 1,
-                    padding: '3px 0',
+                    padding: '4px 8px',
                     fontSize: '0.75em',
                     fontWeight: active ? 600 : 400,
                     cursor: locked || !activeStop ? 'default' : 'pointer',
