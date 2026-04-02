@@ -7,6 +7,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { Map as MapLibre, NavigationControl } from 'react-map-gl/maplibre'
 
 import { analytics } from '../../utils/analytics'
+import { debugUI } from '../../utils/debug'
 import { CARTO_DARK } from '../../utils/map-styles'
 import {
   CATEGORY_ORDER,
@@ -93,6 +94,7 @@ interface ConfiguratorDialogProps {
 }
 
 function MapStyleConfiguratorDialog({ op, open, onOpenChange }: ConfiguratorDialogProps) {
+  debugUI('MapStyleConfiguratorDialog render open=%s op=%s', open, op.id)
   const [styleJson, setStyleJson] = useState<MaplibreStyle | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -381,15 +383,30 @@ function MapStyleConfiguratorDialog({ op, open, onOpenChange }: ConfiguratorDial
   )
 }
 
-export function MapStyleConfiguratorOpComponent({
+// Outer shell: checks op existence before any hooks fire (avoids hooks-order violation)
+export function MapStyleConfiguratorOpComponent(
+  props: ReactFlowNodeProps<NodeDataJSON<MapStyleConfiguratorOp>> & {
+    type: 'MapStyleConfiguratorOp'
+  }
+) {
+  debugUI('MapStyleConfiguratorOpComponent render id=%s', props.id)
+  const op = getOp(props.id as string)
+  if (!op) {
+    debugUI('MapStyleConfiguratorOpComponent op not found yet for id=%s', props.id)
+    return null
+  }
+  return <MapStyleConfiguratorOpInner {...props} op={op as Operator<MapStyleConfiguratorOp>} />
+}
+
+function MapStyleConfiguratorOpInner({
   id,
   type,
+  op,
 }: ReactFlowNodeProps<NodeDataJSON<MapStyleConfiguratorOp>> & {
   type: 'MapStyleConfiguratorOp'
+  op: Operator<MapStyleConfiguratorOp>
 }) {
-  const op = getOp(id as string)
-  if (!op) return null
-
+  debugUI('MapStyleConfiguratorOpInner render id=%s', id)
   const isDimmed = useNodeDimmed(id)
   const locked = useLocked(op as Operator<IOperator>)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -417,11 +434,7 @@ export function MapStyleConfiguratorOpComponent({
           <OutputHandle id="mapStyle" field={op.outputs.mapStyle as Field<IField>} />
         </div>
       </div>
-      <MapStyleConfiguratorDialog
-        op={op as Operator<MapStyleConfiguratorOp>}
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-      />
+      <MapStyleConfiguratorDialog op={op} open={dialogOpen} onOpenChange={setDialogOpen} />
     </div>
   )
 }
