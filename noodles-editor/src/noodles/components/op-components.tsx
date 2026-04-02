@@ -69,6 +69,11 @@ import type { NodeDataJSON } from '../transform-graph'
 import { canConnect } from '../utils/can-connect'
 import type { NodeType } from '../utils/node-creation-utils'
 import { generateQualifiedPath, getBaseName, getParentPath } from '../utils/path-utils'
+import {
+  captureOperatorInputs,
+  firePropertyMutation,
+  usePropertyHistory,
+} from '../utils/property-history'
 import { categories as baseCategories, nodeTypeToDisplayName } from './categories'
 import { FieldComponent, type inputComponents } from './field-components'
 import previewStyles from './handle-preview.module.css'
@@ -650,6 +655,10 @@ function RampOpComponent({
     if (!v || v.length === 0) op.inputs.stops.setValue(makeDefaultStops())
   }, [op.inputs.stops])
 
+  // History helpers
+  const { captureStart, commitChange } = usePropertyHistory()
+
+  // Continuous drag update — no history commit per frame; history bracketed by drag start/end
   const handleChange = useCallback(
     (newStops: RampStop[]) => {
       if (locked) return
@@ -658,9 +667,40 @@ function RampOpComponent({
     [op.inputs.stops, locked]
   )
 
+  // Structural change (add/delete from ramp-editor) — atomic history commit
+  const handleStructuralChange = useCallback(
+    (newStops: RampStop[], description: string) => {
+      if (locked) return
+      const before = captureOperatorInputs()
+      op.inputs.stops.setValue(newStops)
+      firePropertyMutation(description, before)
+    },
+    [op.inputs.stops, locked]
+  )
+
+  const handleDragStart = useCallback(() => captureStart(), [captureStart])
+  const handleDragEnd = useCallback(
+    () => commitChange('Move ramp stop'),
+    [commitChange]
+  )
+
   const activeStop = stops.find(s => s.id === activeStopId) ?? null
 
   const handleActivate = useCallback((stopId: string) => setActiveStopId(stopId), [])
+
+  // Debounced history commit for continuous text input
+  const inputBeforeRef = useRef<string | null>(null)
+  const inputTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const commitInputDebounced = useCallback((description: string) => {
+    if (inputTimerRef.current) clearTimeout(inputTimerRef.current)
+    inputTimerRef.current = setTimeout(() => {
+      if (inputBeforeRef.current !== null) {
+        firePropertyMutation(description, inputBeforeRef.current)
+        inputBeforeRef.current = null
+      }
+    }, 600)
+  }, [])
 
   const handlePosChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -671,11 +711,13 @@ function RampOpComponent({
       if (isFirst || isLast) return
       const pos = Math.max(0, Math.min(1, Number.parseFloat(e.target.value)))
       if (Number.isNaN(pos)) return
-      handleChange(
+      if (inputBeforeRef.current === null) inputBeforeRef.current = captureOperatorInputs()
+      op.inputs.stops.setValue(
         stops.map(s => (s.id === activeStopId ? { ...s, pos } : s)).sort((a, b) => a.pos - b.pos)
       )
+      commitInputDebounced('Update ramp stop position')
     },
-    [activeStopId, locked, stops, handleChange]
+    [activeStopId, locked, stops, op.inputs.stops, commitInputDebounced]
   )
 
   const handleValChange = useCallback(
@@ -683,18 +725,31 @@ function RampOpComponent({
       if (!activeStopId || locked) return
       const val = Math.max(0, Math.min(1, Number.parseFloat(e.target.value)))
       if (Number.isNaN(val)) return
-      handleChange(stops.map(s => (s.id === activeStopId ? { ...s, val } : s)))
+      if (inputBeforeRef.current === null) inputBeforeRef.current = captureOperatorInputs()
+      op.inputs.stops.setValue(stops.map(s => (s.id === activeStopId ? { ...s, val } : s)))
+      commitInputDebounced('Update ramp stop value')
     },
-    [activeStopId, locked, stops, handleChange]
+    [activeStopId, locked, stops, op.inputs.stops, commitInputDebounced]
   )
 
   const handleInterpChange = useCallback(
     (interp: RampInterpType) => {
       if (!activeStopId || locked) return
-      handleChange(stops.map(s => (s.id === activeStopId ? { ...s, interp } : s)))
+      const before = captureOperatorInputs()
+      op.inputs.stops.setValue(stops.map(s => (s.id === activeStopId ? { ...s, interp } : s)))
+      firePropertyMutation('Change ramp interpolation', before)
     },
-    [activeStopId, locked, stops, handleChange]
+    [activeStopId, locked, stops, op.inputs.stops]
   )
+
+  const handleDeleteActiveStop = useCallback(() => {
+    if (!activeStopId || locked || stops.length <= 2) return
+    const before = captureOperatorInputs()
+    op.inputs.stops.setValue(stops.filter(s => s.id !== activeStopId))
+    firePropertyMutation('Delete ramp stop', before)
+  }, [activeStopId, locked, stops, op.inputs.stops])
+
+  const canDelete = !!activeStop && stops.length > 2
 
   return (
     <div
@@ -712,14 +767,44 @@ function RampOpComponent({
           disabled={locked}
           handle={PAR_HANDLE_OPTIONS}
         />
-        <div style={{ padding: '4px 0' }}>
+        <div style={{ position: 'relative', padding: '4px 0' }}>
           <RampEditor
             stops={stops}
             onChange={handleChange}
+            onStructuralChange={handleStructuralChange}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
             disabled={locked}
             activeStopId={activeStopId}
             onActivate={handleActivate}
           />
+          {canDelete && !locked && (
+            <button
+              type="button"
+              title="Delete stop"
+              onClick={handleDeleteActiveStop}
+              style={{
+                position: 'absolute',
+                top: 8,
+                right: 4,
+                width: 16,
+                height: 16,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 0,
+                background: 'rgba(30,38,52,0.85)',
+                border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: 3,
+                color: '#e2dede',
+                cursor: 'pointer',
+                fontSize: 14,
+                lineHeight: 1,
+              }}
+            >
+              −
+            </button>
+          )}
         </div>
         <div className={s.fieldWrapper}>
           <label className={s.fieldLabel} style={{ whiteSpace: 'nowrap' }}>
