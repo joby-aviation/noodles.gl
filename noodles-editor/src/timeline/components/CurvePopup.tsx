@@ -611,7 +611,7 @@ export function CurvePopup({
             onHandlesChange={handleHandlesChange}
             onHandlesCommit={handleHandlesCommit}
           />
-          <div className={s.curvePopupPresetLabel}>
+          <div className={s.curvePopupPresetLabel} data-testid="preset-label">
             {currentK1.interpolation === 'hold'
               ? 'Hold'
               : matchingPreset
