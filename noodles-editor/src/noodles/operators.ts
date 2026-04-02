@@ -5771,11 +5771,17 @@ export class ExpressionOp extends Operator<ExpressionOp> {
 export type RampInterpType = 'linear' | 'smooth' | 'hold'
 
 // Tangent slopes matching D3's curveMonotoneX (Fritsch-Carlson algorithm)
-// so the smooth computation result matches the visual curve exactly
+// so the smooth computation result matches the visual curve exactly.
+// For n=2, D3 draws a straight line, so we return the chord slope at both endpoints.
 export function monotoneSlopes(stops: Array<{ pos: number; val: number }>): number[] {
   const n = stops.length
   const m = new Array<number>(n).fill(0)
   if (n < 2) return m
+  if (n === 2) {
+    const h = stops[1].pos - stops[0].pos
+    const s = h !== 0 ? (stops[1].val - stops[0].val) / h : 0
+    return [s, s]
+  }
 
   // Interior slopes — D3 slope3 formula
   for (let i = 1; i < n - 1; i++) {
@@ -5815,7 +5821,7 @@ function interpolateRamp(
   const h = s1.pos - s0.pos
   if (h === 0) return s0.val
 
-  const interp = s0.interp ?? 'linear'
+  const interp = s0.interp ?? 'smooth'
 
   if (interp === 'hold') return s0.val
 
@@ -5860,8 +5866,8 @@ export class RampOp extends Operator<RampOp> {
     const rampStops: Array<{ pos: number; val: number; interp?: RampInterpType }> =
       !stops || (stops as unknown[]).length === 0
         ? [
-            { pos: 0, val: 0 },
-            { pos: 1, val: 1 },
+            { pos: 0, val: 0, interp: 'smooth' as RampInterpType },
+            { pos: 1, val: 1, interp: 'smooth' as RampInterpType },
           ]
         : [...(stops as Array<{ pos: number; val: number; interp?: RampInterpType }>)].sort(
             (a, b) => a.pos - b.pos

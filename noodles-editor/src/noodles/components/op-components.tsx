@@ -603,8 +603,8 @@ function NodeComponent({
 
 function makeDefaultStops(): RampStop[] {
   return [
-    { id: crypto.randomUUID(), pos: 0, val: 0 },
-    { id: crypto.randomUUID(), pos: 1, val: 1 },
+    { id: crypto.randomUUID(), pos: 0, val: 0, interp: 'smooth' },
+    { id: crypto.randomUUID(), pos: 1, val: 1, interp: 'smooth' },
   ]
 }
 
@@ -665,6 +665,10 @@ function RampOpComponent({
   const handlePosChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       if (!activeStopId || locked) return
+      const sorted = [...stops].sort((a, b) => a.pos - b.pos)
+      const isFirst = sorted[0]?.id === activeStopId
+      const isLast = sorted[sorted.length - 1]?.id === activeStopId
+      if (isFirst || isLast) return
       const pos = Math.max(0, Math.min(1, Number.parseFloat(e.target.value)))
       if (Number.isNaN(pos)) return
       handleChange(
@@ -677,7 +681,7 @@ function RampOpComponent({
   const handleValChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       if (!activeStopId || locked) return
-      const val = Number.parseFloat(e.target.value)
+      const val = Math.max(0, Math.min(1, Number.parseFloat(e.target.value)))
       if (Number.isNaN(val)) return
       handleChange(stops.map(s => (s.id === activeStopId ? { ...s, val } : s)))
     },
@@ -722,7 +726,13 @@ function RampOpComponent({
             {activeStop ? `stop ${stops.indexOf(activeStop) + 1}` : 'stop'}
           </label>
           <div className={cx(s.fieldInputWrapper, s.fieldInputWrapperVector)}>
-            <label className={cx(s.fieldLabel, s.fieldLabelVector)}>p</label>
+            <label
+              className={cx(s.fieldLabel, s.fieldLabelVector)}
+              title="position"
+              style={{ cursor: 'default' }}
+            >
+              p
+            </label>
             <input
               type="number"
               className={cx(s.fieldInput, s.fieldInputVector)}
@@ -732,37 +742,64 @@ function RampOpComponent({
               step={0.001}
               disabled={locked || !activeStop}
               onChange={handlePosChange}
+              style={{ minWidth: 52 }}
             />
-            <label className={cx(s.fieldLabel, s.fieldLabelVector)}>v</label>
+            <label
+              className={cx(s.fieldLabel, s.fieldLabelVector)}
+              title="value"
+              style={{ cursor: 'default' }}
+            >
+              v
+            </label>
             <input
               type="number"
               className={cx(s.fieldInput, s.fieldInputVector)}
               value={activeStop?.val.toFixed(3) ?? ''}
+              min={0}
+              max={1}
               step={0.001}
               disabled={locked || !activeStop}
               onChange={handleValChange}
+              style={{ minWidth: 52 }}
             />
           </div>
         </div>
         <div className={s.fieldWrapper}>
           <label className={s.fieldLabel}>interp</label>
-          <div style={{ display: 'flex', gap: 2 }}>
-            {(['linear', 'smooth', 'hold'] as RampInterpType[]).map(type => (
-              <button
-                key={type}
-                type="button"
-                className={s.fieldInputButton}
-                style={{
-                  padding: '2px 6px',
-                  opacity: !activeStop ? 0.4 : (activeStop.interp ?? 'linear') === type ? 1 : 0.5,
-                  fontWeight: (activeStop?.interp ?? 'linear') === type ? 600 : 400,
-                }}
-                disabled={locked || !activeStop}
-                onClick={() => handleInterpChange(type)}
-              >
-                {type}
-              </button>
-            ))}
+          <div
+            style={{
+              display: 'flex',
+              borderRadius: 12,
+              overflow: 'hidden',
+              border: '1px solid rgba(255,255,255,0.15)',
+              opacity: !activeStop ? 0.4 : 1,
+            }}
+          >
+            {(['linear', 'smooth', 'hold'] as RampInterpType[]).map((type, i) => {
+              const active = (activeStop?.interp ?? 'smooth') === type
+              return (
+                <button
+                  key={type}
+                  type="button"
+                  style={{
+                    flex: 1,
+                    padding: '3px 0',
+                    fontSize: '0.75em',
+                    fontWeight: active ? 600 : 400,
+                    cursor: locked || !activeStop ? 'default' : 'pointer',
+                    background: active ? '#3b82f6' : 'transparent',
+                    color: active ? '#fff' : 'rgba(255,255,255,0.55)',
+                    border: 'none',
+                    borderLeft: i > 0 ? '1px solid rgba(255,255,255,0.15)' : 'none',
+                    transition: 'background 0.1s, color 0.1s',
+                  }}
+                  disabled={locked || !activeStop}
+                  onClick={() => handleInterpChange(type)}
+                >
+                  {type}
+                </button>
+              )
+            })}
           </div>
         </div>
         <div className={s.outputHandleContainer}>

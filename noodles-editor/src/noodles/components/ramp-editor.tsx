@@ -115,8 +115,8 @@ export default function RampEditor({
       const x = e.clientX - rect.left
       const y = e.clientY - rect.top
       const pos = Math.max(0, Math.min(1, xScale.invert(x)))
-      const val = yScale.invert(y)
-      const newStop: RampStop = { id: crypto.randomUUID(), pos, val }
+      const val = Math.max(0, Math.min(1, yScale.invert(y)))
+      const newStop: RampStop = { id: crypto.randomUUID(), pos, val, interp: 'smooth' }
       const newStops = [...stopsRef.current, newStop].sort((a, b) => a.pos - b.pos)
       onChange(newStops)
     },
@@ -133,13 +133,17 @@ export default function RampEditor({
       const capturedYScale = yScale.copy()
       setDraggingId(stopId)
 
+      const sorted = [...stopsRef.current].sort((a, b) => a.pos - b.pos)
+      const isFirst = sorted[0]?.id === stopId
+      const isLast = sorted[sorted.length - 1]?.id === stopId
+
       const onMouseMove = (moveEvent: MouseEvent) => {
         if (!svgRef.current) return
         const rect = svgRef.current.getBoundingClientRect()
         const x = moveEvent.clientX - rect.left
         const y = moveEvent.clientY - rect.top
-        const newPos = Math.max(0, Math.min(1, capturedXScale.invert(x)))
-        const newVal = capturedYScale.invert(y)
+        const newPos = isFirst ? 0 : isLast ? 1 : Math.max(0, Math.min(1, capturedXScale.invert(x)))
+        const newVal = Math.max(0, Math.min(1, capturedYScale.invert(y)))
         const updated = stopsRef.current
           .map(s => (s.id === stopId ? { ...s, pos: newPos, val: newVal } : s))
           .sort((a, b) => a.pos - b.pos)
