@@ -210,6 +210,7 @@ function KeyframeTrackLabel({
             ref={trackMenuRef}
             className={s.handleTypeMenu}
             style={{ top: contextMenu.y, left: contextMenu.x }}
+            onMouseDown={e => e.stopPropagation()}
           >
             <button type="button" onClick={handleMakeStatic}>
               Make static
@@ -694,7 +695,7 @@ function KeyframeDiamond({
             ref={menuRef}
             className={s.handleTypeMenu}
             style={{ top: contextMenu.y, left: contextMenu.x }}
-            onPointerDown={e => e.stopPropagation()}
+            onMouseDown={e => e.stopPropagation()}
           >
             <button type="button" onClick={handleDelete}>
               Delete keyframe
