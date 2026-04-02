@@ -5788,6 +5788,67 @@ function linearInterpolateRamp(
   return 0
 }
 
+// Tangent slopes matching D3's curveMonotoneX (Fritsch-Carlson algorithm)
+// so the smooth computation result matches the visual curve exactly
+function monotoneSlopes(stops: Array<{ pos: number; val: number }>): number[] {
+  const n = stops.length
+  const m = new Array<number>(n).fill(0)
+  if (n < 2) return m
+
+  // Interior slopes — D3 slope3 formula
+  for (let i = 1; i < n - 1; i++) {
+    const h0 = stops[i].pos - stops[i - 1].pos
+    const h1 = stops[i + 1].pos - stops[i].pos
+    const s0 = h0 !== 0 ? (stops[i].val - stops[i - 1].val) / h0 : 0
+    const s1 = h1 !== 0 ? (stops[i + 1].val - stops[i].val) / h1 : 0
+    const p = (s0 * h1 + s1 * h0) / (h0 + h1)
+    const sign = (v: number) => (v < 0 ? -1 : v > 0 ? 1 : 0)
+    m[i] = (sign(s0) + sign(s1)) * Math.min(Math.abs(s0), Math.abs(s1), 0.5 * Math.abs(p)) || 0
+  }
+
+  // Endpoint slopes — D3 slope2 formula
+  const h0 = stops[1].pos - stops[0].pos
+  const hN = stops[n - 1].pos - stops[n - 2].pos
+  m[0] = h0 !== 0 ? ((3 * (stops[1].val - stops[0].val)) / h0 - m[1]) / 2 : m[1]
+  m[n - 1] = hN !== 0 ? ((3 * (stops[n - 1].val - stops[n - 2].val)) / hN - m[n - 2]) / 2 : m[n - 2]
+
+  return m
+}
+
+function smoothInterpolateRamp(
+  position: number,
+  sortedStops: Array<{ pos: number; val: number }>
+): number {
+  const n = sortedStops.length
+  if (n === 1) return sortedStops[0].val
+  if (position <= sortedStops[0].pos) return sortedStops[0].val
+  if (position >= sortedStops[n - 1].pos) return sortedStops[n - 1].val
+
+  let i = 0
+  while (i < n - 2 && position >= sortedStops[i + 1].pos) i++
+
+  const x0 = sortedStops[i].pos
+  const x1 = sortedStops[i + 1].pos
+  const y0 = sortedStops[i].val
+  const y1 = sortedStops[i + 1].val
+  const h = x1 - x0
+  if (h === 0) return y0
+
+  const slopes = monotoneSlopes(sortedStops)
+  const t = (position - x0) / h
+  const t2 = t * t
+  const t3 = t2 * t
+  // Cubic Hermite basis functions
+  return (
+    (2 * t3 - 3 * t2 + 1) * y0 +
+    (t3 - 2 * t2 + t) * h * slopes[i] +
+    (-2 * t3 + 3 * t2) * y1 +
+    (t3 - t2) * h * slopes[i + 1]
+  )
+}
+
+export type RampCurveType = 'linear' | 'smooth'
+
 export class RampOp extends Operator<RampOp> {
   static displayName = 'Ramp'
   static description = 'Map a position (0–1) to a value using a user-defined curve'
@@ -5796,6 +5857,9 @@ export class RampOp extends Operator<RampOp> {
     return {
       // softMin/softMax suggests 0-1 in the UI without hard-clamping accessor functions
       position: new NumberField(0, { softMin: 0, softMax: 1, step: 0.01, accessor: true }),
+      curveType: new StringLiteralField('linear' as RampCurveType, {
+        values: ['linear', 'smooth'] as const,
+      }),
       stops: new DataField(),
     }
   }
@@ -5809,6 +5873,7 @@ export class RampOp extends Operator<RampOp> {
   execute({
     position,
     stops,
+    curveType,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const rampStops: Array<{ pos: number; val: number }> =
       !stops || (stops as unknown[]).length === 0
@@ -5818,7 +5883,8 @@ export class RampOp extends Operator<RampOp> {
           ]
         : [...(stops as Array<{ pos: number; val: number }>)].sort((a, b) => a.pos - b.pos)
 
-    const value = composeAccessor(position, (p: number) => linearInterpolateRamp(p, rampStops))
+    const interpolate = curveType === 'smooth' ? smoothInterpolateRamp : linearInterpolateRamp
+    const value = composeAccessor(position, (p: number) => interpolate(p, rampStops))
     return { value }
   }
 }

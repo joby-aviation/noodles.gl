@@ -49,6 +49,7 @@ import {
   Operator,
   type OutOp,
   opTypes,
+  type RampCurveType,
   type RampOp,
   type RerouteOp,
   type TableEditorOp,
@@ -623,17 +624,28 @@ function RampOpComponent({
     const v = op.inputs.stops.value as RampStop[] | null
     return v && v.length > 0 ? v : makeDefaultStops()
   })
+  const [activeStopId, setActiveStopId] = useState<string | null>(null)
+  const [curveType, setCurveType] = useState<RampCurveType>(
+    (op.inputs.curveType.value as RampCurveType) ?? 'linear'
+  )
 
-  // Subscribe to stops changes to handle undo/redo and project load
+  // Subscribe to stops and curveType to handle undo/redo and project load
   useEffect(() => {
-    const sub = op.inputs.stops.subscribe(newVal => {
+    const stopsSub = op.inputs.stops.subscribe(newVal => {
       const v = newVal as RampStop[] | null
-      setStops(v && v.length > 0 ? v : makeDefaultStops())
+      const nextStops = v && v.length > 0 ? v : makeDefaultStops()
+      setStops(nextStops)
+      // Clear active stop if it no longer exists
+      setActiveStopId(prev => (nextStops.find(s => s.id === prev) ? prev : null))
     })
-    return () => sub.unsubscribe()
-  }, [op.inputs.stops])
+    const curveSub = op.inputs.curveType.subscribe(v => setCurveType(v as RampCurveType))
+    return () => {
+      stopsSub.unsubscribe()
+      curveSub.unsubscribe()
+    }
+  }, [op.inputs.stops, op.inputs.curveType])
 
-  // Seed default stops into the field on first render if empty
+  // Seed default stops on first render if empty
   useEffect(() => {
     const v = op.inputs.stops.value as RampStop[] | null
     if (!v || v.length === 0) op.inputs.stops.setValue(makeDefaultStops())
@@ -645,6 +657,32 @@ function RampOpComponent({
       op.inputs.stops.setValue(newStops)
     },
     [op.inputs.stops, locked]
+  )
+
+  const activeStop = stops.find(s => s.id === activeStopId) ?? null
+
+  const handleActivate = useCallback((stopId: string) => setActiveStopId(stopId), [])
+
+  const handlePosChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (!activeStopId || locked) return
+      const pos = Math.max(0, Math.min(1, Number.parseFloat(e.target.value)))
+      if (Number.isNaN(pos)) return
+      handleChange(
+        stops.map(s => (s.id === activeStopId ? { ...s, pos } : s)).sort((a, b) => a.pos - b.pos)
+      )
+    },
+    [activeStopId, locked, stops, handleChange]
+  )
+
+  const handleValChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (!activeStopId || locked) return
+      const val = Number.parseFloat(e.target.value)
+      if (Number.isNaN(val)) return
+      handleChange(stops.map(s => (s.id === activeStopId ? { ...s, val } : s)))
+    },
+    [activeStopId, locked, stops, handleChange]
   )
 
   return (
@@ -663,8 +701,49 @@ function RampOpComponent({
           disabled={locked}
           handle={PAR_HANDLE_OPTIONS}
         />
+        <FieldComponent
+          id="curveType"
+          field={op.inputs.curveType}
+          disabled={locked}
+          handle={PAR_HANDLE_OPTIONS}
+        />
         <div style={{ padding: '4px 0' }}>
-          <RampEditor stops={stops} onChange={handleChange} disabled={locked} />
+          <RampEditor
+            stops={stops}
+            onChange={handleChange}
+            disabled={locked}
+            curveType={curveType}
+            activeStopId={activeStopId}
+            onActivate={handleActivate}
+          />
+        </div>
+        <div className={s.fieldWrapper}>
+          <label className={s.fieldLabel}>pos</label>
+          <div className={s.fieldInputWrapper}>
+            <input
+              type="number"
+              className={s.fieldInput}
+              value={activeStop?.pos.toFixed(3) ?? ''}
+              min={0}
+              max={1}
+              step={0.001}
+              disabled={locked || !activeStop}
+              onChange={handlePosChange}
+            />
+          </div>
+        </div>
+        <div className={s.fieldWrapper}>
+          <label className={s.fieldLabel}>val</label>
+          <div className={s.fieldInputWrapper}>
+            <input
+              type="number"
+              className={s.fieldInput}
+              value={activeStop?.val.toFixed(3) ?? ''}
+              step={0.001}
+              disabled={locked || !activeStop}
+              onChange={handleValChange}
+            />
+          </div>
         </div>
         <div className={s.outputHandleContainer}>
           <OutputHandle id="value" field={op.outputs.value} />

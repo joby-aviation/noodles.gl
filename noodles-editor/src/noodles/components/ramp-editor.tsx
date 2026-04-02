@@ -1,5 +1,6 @@
-import { curveLinear, line, scaleLinear } from 'd3'
+import { curveLinear, curveMonotoneX, line, scaleLinear } from 'd3'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { RampCurveType } from '../operators'
 
 export interface RampStop {
   id: string
@@ -13,6 +14,14 @@ interface RampEditorProps {
   disabled?: boolean
   width?: number
   height?: number
+  curveType?: RampCurveType
+  activeStopId?: string | null
+  onActivate?: (id: string) => void
+}
+
+const curveMap = {
+  linear: curveLinear,
+  smooth: curveMonotoneX,
 }
 
 const PAD = 12
@@ -23,6 +32,9 @@ export default function RampEditor({
   disabled = false,
   width = 220,
   height = 100,
+  curveType = 'linear',
+  activeStopId,
+  onActivate,
 }: RampEditorProps) {
   const stops = stopsProp.length > 0 ? stopsProp : []
 
@@ -50,8 +62,8 @@ export default function RampEditor({
       line<RampStop>()
         .x(d => xScale(d.pos))
         .y(d => yScale(d.val))
-        .curve(curveLinear),
-    [xScale, yScale]
+        .curve(curveMap[curveType]),
+    [xScale, yScale, curveType]
   )
 
   const svgRef = useRef<SVGSVGElement>(null)
@@ -87,6 +99,7 @@ export default function RampEditor({
     (e: React.MouseEvent<SVGCircleElement>, stopId: string) => {
       if (disabled) return
       e.stopPropagation()
+      onActivate?.(stopId)
       // Capture scales at drag start — avoids jank when y-axis auto-rescales during drag
       const capturedXScale = xScale.copy()
       const capturedYScale = yScale.copy()
@@ -159,13 +172,13 @@ export default function RampEditor({
             onMouseDown={e => handleStopMouseDown(e, stop.id)}
             onDoubleClick={e => handleStopDoubleClick(e, stop.id)}
           />
-          {/* Visible control point */}
+          {/* Visible control point — white when active, blue otherwise */}
           <circle
             cx={xScale(stop.pos)}
             cy={yScale(stop.val)}
-            r={4}
-            fill={draggingId === stop.id ? '#60a5fa' : '#3b82f6'}
-            stroke="#1e3a8a"
+            r={activeStopId === stop.id ? 5 : 4}
+            fill={activeStopId === stop.id ? '#ffffff' : draggingId === stop.id ? '#60a5fa' : '#3b82f6'}
+            stroke={activeStopId === stop.id ? '#3b82f6' : '#1e3a8a'}
             strokeWidth={1.5}
             pointerEvents="none"
           />
