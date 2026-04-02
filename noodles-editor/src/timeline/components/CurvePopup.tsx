@@ -1,7 +1,7 @@
 // Popup for editing bezier easing between two keyframes
 // Shows preset library with hover preview and inline bezier handle editor
 
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { EASING_PRESETS, findMatchingPreset } from '../easing-presets'
 import { evaluateCubicBezier } from '../interpolation'
@@ -26,7 +26,7 @@ export interface CurvePopupProps {
 }
 
 const POPUP_WIDTH = 420
-const POPUP_HEIGHT = 280
+const POPUP_HEIGHT = 300
 const CURVE_WIDTH = 240
 const CURVE_HEIGHT = 200
 
@@ -249,6 +249,131 @@ function InlineCurveEditor({
   )
 }
 
+function round3(n: number) {
+  return Math.round(n * 1000) / 1000
+}
+
+function formatCubicBezier(handles: BezierHandles): string {
+  return `cubic-bezier(${round3(handles.left[0])}, ${round3(handles.left[1])}, ${round3(handles.right[0])}, ${round3(handles.right[1])})`
+}
+
+function clampX(n: number) {
+  return Math.max(0, Math.min(1, n))
+}
+
+function parseCubicBezier(text: string): BezierHandles | null {
+  // Try cubic-bezier(x1, y1, x2, y2) format
+  const cbMatch = text.match(
+    /cubic-bezier\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*,\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)/i
+  )
+  if (cbMatch) {
+    const nums = [cbMatch[1], cbMatch[2], cbMatch[3], cbMatch[4]].map(parseFloat)
+    if (!nums.some(isNaN)) {
+      return {
+        left: [clampX(nums[0]), nums[1]] as [number, number],
+        right: [clampX(nums[2]), nums[3]] as [number, number],
+        type: 'free',
+      }
+    }
+  }
+  // Try bare "x1, y1, x2, y2" format
+  const parts = text.split(',').map(str => parseFloat(str.trim()))
+  if (parts.length === 4 && !parts.some(isNaN)) {
+    return {
+      left: [clampX(parts[0]), parts[1]] as [number, number],
+      right: [clampX(parts[2]), parts[3]] as [number, number],
+      type: 'free',
+    }
+  }
+  return null
+}
+
+// x1/y1/x2/y2 number inputs
+function CoordEditor({
+  handles,
+  disabled,
+  onHandlesChange,
+  onHandlesCommit,
+}: {
+  handles: BezierHandles
+  disabled: boolean
+  onHandlesChange: (h: BezierHandles) => void
+  onHandlesCommit: () => void
+}) {
+  const [vals, setVals] = useState(() => ({
+    x1: String(round3(handles.left[0])),
+    y1: String(round3(handles.left[1])),
+    x2: String(round3(handles.right[0])),
+    y2: String(round3(handles.right[1])),
+  }))
+  const focusedRef = useRef(false)
+
+  // Sync from external handle changes (drag) when no input is focused
+  useEffect(() => {
+    if (!focusedRef.current) {
+      setVals({
+        x1: String(round3(handles.left[0])),
+        y1: String(round3(handles.left[1])),
+        x2: String(round3(handles.right[0])),
+        y2: String(round3(handles.right[1])),
+      })
+    }
+  }, [handles])
+
+  function applyVal(key: 'x1' | 'y1' | 'x2' | 'y2', raw: string) {
+    const num = parseFloat(raw)
+    if (isNaN(num)) return
+    const isX = key === 'x1' || key === 'x2'
+    const val = isX ? clampX(num) : num
+    const next = { ...handles }
+    if (key === 'x1') next.left = [val, handles.left[1]]
+    else if (key === 'y1') next.left = [handles.left[0], val]
+    else if (key === 'x2') next.right = [val, handles.right[1]]
+    else next.right = [handles.right[0], val]
+    next.type = 'free'
+    onHandlesChange(next)
+    onHandlesCommit()
+  }
+
+  const coords: { label: string; key: 'x1' | 'y1' | 'x2' | 'y2' }[] = [
+    { label: 'x1', key: 'x1' },
+    { label: 'y1', key: 'y1' },
+    { label: 'x2', key: 'x2' },
+    { label: 'y2', key: 'y2' },
+  ]
+
+  return (
+    <div className={s.curvePopupCoordEditor}>
+      <div className={s.curvePopupCoordGrid}>
+        {coords.map(({ label, key }) => (
+          <div key={key} className={s.curvePopupCoordField}>
+            <span className={s.curvePopupCoordLabel}>{label}</span>
+            <input
+              type="number"
+              className={s.curvePopupCoordInput}
+              value={vals[key]}
+              step={0.001}
+              disabled={disabled}
+              onChange={e => setVals(v => ({ ...v, [key]: e.target.value }))}
+              onFocus={() => { focusedRef.current = true }}
+              onBlur={e => {
+                focusedRef.current = false
+                applyVal(key, e.target.value)
+              }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  applyVal(key, (e.target as HTMLInputElement).value)
+                  ;(e.target as HTMLInputElement).blur()
+                }
+              }}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function CurvePopup({
   trackId,
   k1,
@@ -280,6 +405,8 @@ export function CurvePopup({
     type: 'aligned',
   }
 
+  const disabled = currentK1.interpolation === 'hold'
+
   // Find matching preset based on current keyframe state
   const matchingPreset = useMemo(() => {
     if (currentK1.interpolation === 'hold') {
@@ -291,6 +418,27 @@ export function CurvePopup({
     }
     return null
   }, [currentK1.interpolation, activeHandles])
+
+  // Edit input (cubic-bezier text, shown via pencil toggle)
+  const [showEdit, setShowEdit] = useState(false)
+  const [editText, setEditText] = useState(() => formatCubicBezier(activeHandles))
+  const editFocusedRef = useRef(false)
+
+  useEffect(() => {
+    if (!editFocusedRef.current) {
+      setEditText(formatCubicBezier(activeHandles))
+    }
+  }, [activeHandles])
+
+  function applyEditText(text: string) {
+    const parsed = parseCubicBezier(text)
+    if (parsed) {
+      handleHandlesChange(parsed)
+      handleHandlesCommit()
+    } else {
+      setEditText(formatCubicBezier(activeHandles))
+    }
+  }
 
   // Restore original state on close if not committed
   const handleClose = useCallback(() => {
@@ -410,6 +558,17 @@ export function CurvePopup({
       <div className={s.curvePopupBody}>
         {/* Left: preset list */}
         <div className={s.curvePopupPresets}>
+          {/* Custom entry — active when curve doesn't match any preset */}
+          <div
+            className={`${s.curvePopupPresetItem} ${s.curvePopupCustomItem} ${!matchingPreset && currentK1.interpolation !== 'hold' ? s.active : ''}`}
+            title="Custom bezier curve"
+          >
+            <PresetPreview
+              preset={{ name: 'Custom', interpolation: 'bezier', handles: activeHandles }}
+              isSelected={!matchingPreset && currentK1.interpolation !== 'hold'}
+            />
+            <span className={s.curvePopupPresetName}>Custom</span>
+          </div>
           {ALL_PRESETS.map(preset => (
             <button
               key={preset.name}
@@ -433,13 +592,63 @@ export function CurvePopup({
             onHandlesChange={handleHandlesChange}
             onHandlesCommit={handleHandlesCommit}
           />
-          <div className={s.curvePopupPresetLabel}>
-            {currentK1.interpolation === 'hold'
-              ? 'Hold'
-              : matchingPreset
-                ? matchingPreset.name
-                : 'Custom'}
+          <div className={s.curvePopupEditorHeader} data-testid="preset-label">
+            <span className={s.curvePopupPresetLabelText}>
+              {disabled ? 'Hold' : matchingPreset ? matchingPreset.name : 'Custom'}
+            </span>
+            <button
+              type="button"
+              className={`${s.curvePopupIconBtn} ${showEdit ? s.active : ''}`}
+              disabled={disabled}
+              title={showEdit ? 'Hide edit field' : 'Edit cubic-bezier value'}
+              onClick={() => setShowEdit(v => !v)}
+            >
+              <svg width="11" height="11" viewBox="0 0 11 11" fill="none" aria-hidden="true">
+                <path d="M8 1.5L9.5 3L4 8.5H2.5V7L8 1.5Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" fill="none" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className={s.curvePopupIconBtn}
+              disabled={disabled}
+              title="Copy cubic-bezier value"
+              onClick={() => navigator.clipboard.writeText(formatCubicBezier(activeHandles))}
+            >
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+                <rect x="4" y="4" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.2" fill="none" />
+                <path d="M2 9H1.5A1.5 1.5 0 0 1 0 7.5v-6A1.5 1.5 0 0 1 1.5 0h6A1.5 1.5 0 0 1 9 1.5V2" stroke="currentColor" strokeWidth="1.2" fill="none" />
+              </svg>
+            </button>
           </div>
+          {showEdit && (
+            <input
+              type="text"
+              className={s.curvePopupEditInput}
+              value={editText}
+              onChange={e => setEditText(e.target.value)}
+              onFocus={e => {
+                editFocusedRef.current = true
+                e.target.select()
+              }}
+              onBlur={e => {
+                editFocusedRef.current = false
+                applyEditText(e.target.value)
+              }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  applyEditText((e.target as HTMLInputElement).value)
+                  ;(e.target as HTMLInputElement).blur()
+                }
+                if (e.key === 'Escape') setShowEdit(false)
+              }}
+            />
+          )}
+          <CoordEditor
+            handles={activeHandles}
+            disabled={disabled}
+            onHandlesChange={handleHandlesChange}
+            onHandlesCommit={handleHandlesCommit}
+          />
         </div>
       </div>
     </div>,
