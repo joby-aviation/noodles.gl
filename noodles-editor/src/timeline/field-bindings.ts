@@ -268,7 +268,7 @@ export function bindFieldToTimeline(
     position => {
       if (op.locked?.value || updating) return
 
-      const value = timelineStore.evaluateTrack(fieldPath)
+      const value = timelineStore.evaluateTrack(fieldPath, position)
       debugBinding('pos=%s eval %s → %O', position.toFixed(3), fieldPath, value)
       if (value === undefined) return
 
@@ -458,7 +458,7 @@ function bindVecChannelToTimeline(
     position => {
       if (op.locked?.value || updating) return
 
-      const value = timelineStore.evaluateTrack(fieldPath) as number | undefined
+      const value = timelineStore.evaluateTrack(fieldPath, position) as number | undefined
       debugBinding('pos=%s eval %s → %O', position.toFixed(3), fieldPath, value)
       if (value === undefined) return
 
@@ -471,6 +471,9 @@ function bindVecChannelToTimeline(
       updating = true
       try {
         if (getChannel() !== value) {
+          // Note: setChannel fans out to sibling fieldSub callbacks for every channel
+          // on this field (e.g. Vec3 → 2 extra callbacks per scrub step). All siblings
+          // are guarded by lastKfValue so no spurious keyframes are created.
           debugBinding('setChannel %s.%s.%s → %O', op.id, fieldName, channelKey, value)
           setChannel(value)
         }
@@ -482,7 +485,7 @@ function bindVecChannelToTimeline(
   )
 
   // Initial evaluation — sync channel to current position when binding is established
-  const initialValue = timelineStore.evaluateTrack(fieldPath) as number | undefined
+  const initialValue = timelineStore.evaluateTrack(fieldPath, getTimelineStore().position) as number | undefined
   debugBinding('initial eval %s → %O', fieldPath, initialValue)
   if (initialValue !== undefined) {
     updating = true
@@ -494,6 +497,9 @@ function bindVecChannelToTimeline(
     }
     updating = false
   }
+  // Seed the guard so sibling fieldSub callbacks are filtered immediately,
+  // even on tracks with no keyframes (where initialValue is undefined)
+  if (lastKfValue === undefined) lastKfValue = getChannel()
 
   // Subscribe to field value changes -> update or create a keyframe on the channel track
   // Fires for any change to the Vec2/Vec3 field; we extract only our channel's value
