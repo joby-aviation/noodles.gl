@@ -65,13 +65,17 @@ function KeyframeTrackLabel({
   const reactFlow = useReactFlow()
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+  const trackMenuRef = useRef<HTMLDivElement>(null)
 
   // Close context menu on outside click or Escape
   useEffect(() => {
     if (!contextMenu) return
-    const close = () => setContextMenu(null)
+    const close = (e: PointerEvent) => {
+      if (trackMenuRef.current?.contains(e.target as Node)) return
+      setContextMenu(null)
+    }
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close()
+      if (e.key === 'Escape') setContextMenu(null)
     }
     document.addEventListener('pointerdown', close)
     document.addEventListener('keydown', handleKey)
@@ -203,9 +207,9 @@ function KeyframeTrackLabel({
       {contextMenu &&
         createPortal(
           <div
+            ref={trackMenuRef}
             className={s.handleTypeMenu}
             style={{ top: contextMenu.y, left: contextMenu.x }}
-            onPointerDown={e => e.stopPropagation()}
           >
             <button type="button" onClick={handleMakeStatic}>
               Make static
@@ -527,8 +531,11 @@ function KeyframeDiamond({
 
   useEffect(() => {
     if (!contextMenu) return
-    const close = () => setContextMenu(null)
-    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close() }
+    const close = (e: PointerEvent) => {
+      if (menuRef.current?.contains(e.target as Node)) return
+      setContextMenu(null)
+    }
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setContextMenu(null) }
     document.addEventListener('pointerdown', close)
     document.addEventListener('keydown', handleKey)
     return () => {
