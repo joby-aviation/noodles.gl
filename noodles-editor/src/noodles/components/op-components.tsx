@@ -727,7 +727,7 @@ function RampOpComponent({
           </label>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 2, minWidth: 0 }}>
             <label
-              className={cx(s.fieldLabel, s.fieldLabelVector)}
+              className={s.fieldLabelVector}
               title="position"
               style={{ cursor: 'default', flexShrink: 0 }}
             >
@@ -745,7 +745,7 @@ function RampOpComponent({
               style={{ flex: 1, minWidth: 0 }}
             />
             <label
-              className={cx(s.fieldLabel, s.fieldLabelVector)}
+              className={s.fieldLabelVector}
               title="value"
               style={{ cursor: 'default', flexShrink: 0 }}
             >
