@@ -1,7 +1,7 @@
 // Keyframe track component - renders a single track with its keyframes
 
 import { useReactFlow } from '@xyflow/react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   captureTimelineState,
@@ -513,6 +513,17 @@ function KeyframeDiamond({
   const beforeStateRef = useRef<string>('')
   const [isHovered, setIsHovered] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  // Nudge the menu back into the viewport if it overflows at right/bottom edges
+  useLayoutEffect(() => {
+    if (!contextMenu || !menuRef.current) return
+    const rect = menuRef.current.getBoundingClientRect()
+    let { x, y } = contextMenu
+    if (rect.right > window.innerWidth) x = window.innerWidth - rect.width - 4
+    if (rect.bottom > window.innerHeight) y = window.innerHeight - rect.height - 4
+    if (x !== contextMenu.x || y !== contextMenu.y) setContextMenu({ x, y })
+  }, [contextMenu])
 
   useEffect(() => {
     if (!contextMenu) return
@@ -673,6 +684,7 @@ function KeyframeDiamond({
       {contextMenu &&
         createPortal(
           <div
+            ref={menuRef}
             className={s.handleTypeMenu}
             style={{ top: contextMenu.y, left: contextMenu.x }}
             onPointerDown={e => e.stopPropagation()}

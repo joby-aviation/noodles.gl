@@ -312,7 +312,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
       if (
         target.tagName === 'INPUT' ||
         target.tagName === 'TEXTAREA' ||
-        target.contentEditable === 'true'
+        target.isContentEditable
       ) return
 
       if (selectedMarkerId) {
@@ -327,7 +327,9 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
       if (store.selectedKeyframeIds.size > 0) {
         e.preventDefault()
         e.stopImmediatePropagation()
+        const before = captureTimelineState()
         store.deleteSelectedKeyframes()
+        fireTimelineMutation('Delete keyframe', before)
       }
     }
     document.addEventListener('keydown', handleKey, { capture: true })
