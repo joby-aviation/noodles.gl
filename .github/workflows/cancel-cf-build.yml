@@ -19,6 +19,10 @@ jobs:
           BRANCH: ${{ github.ref_name }}
         run: |
           set -euo pipefail
+          if [ -z "$CF_API_TOKEN" ] || [ -z "$CF_ACCOUNT_ID" ] || [ -z "$CF_PROJECT" ]; then
+            echo "CF secrets not configured — skipping cancellation"
+            exit 0
+          fi
           page=1
           while true; do
             response=$(curl -sf \
