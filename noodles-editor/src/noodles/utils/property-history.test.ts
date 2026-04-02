@@ -3,6 +3,7 @@ import {
   applyOperatorInputs,
   captureOperatorInputs,
   firePropertyMutation,
+  getLastCommittedBeforeState,
   registerPropertyMutationCallback,
 } from './property-history'
 
@@ -233,6 +234,62 @@ describe('registerPropertyMutationCallback and firePropertyMutation', () => {
 
     expect(cb1).not.toHaveBeenCalled()
     expect(cb2).toHaveBeenCalledTimes(1)
+  })
+
+  it('saves the before state for crash recovery after a successful mutation', () => {
+    const callback = vi.fn()
+    registerPropertyMutationCallback(callback)
+
+    const before = JSON.stringify({ '/op': { x: 5 } })
+    mockedGetAllOps.mockReturnValue([
+      { id: '/op', inputs: { x: { serialize: () => 10 } } } as never,
+    ])
+
+    firePropertyMutation('Change value', before)
+
+    expect(getLastCommittedBeforeState()).toBe(before)
+  })
+
+  it('does not update crash recovery state when before and after are identical', () => {
+    const callback = vi.fn()
+    registerPropertyMutationCallback(callback)
+
+    // Set a known before state via a successful mutation
+    const firstBefore = JSON.stringify({ '/op': { x: 0 } })
+    mockedGetAllOps.mockReturnValue([
+      { id: '/op', inputs: { x: { serialize: () => 1 } } } as never,
+    ])
+    firePropertyMutation('First change', firstBefore)
+    const stateAfterFirst = getLastCommittedBeforeState()
+
+    // Now fire a mutation where before === after (no actual change)
+    const field = mockField(42)
+    const op = mockOp('/op2', { x: field })
+    mockedGetAllOps.mockReturnValue([op as never])
+    const unchanged = captureOperatorInputs()
+    firePropertyMutation('No change', unchanged)
+
+    // Crash recovery state should not have changed
+    expect(getLastCommittedBeforeState()).toBe(stateAfterFirst)
+  })
+
+  it('does not update crash recovery state when no callback is registered', () => {
+    // Register then immediately unregister
+    registerPropertyMutationCallback(vi.fn())
+    const beforeFirst = JSON.stringify({ '/op': { x: 99 } })
+    mockedGetAllOps.mockReturnValue([
+      { id: '/op', inputs: { x: { serialize: () => 100 } } } as never,
+    ])
+    firePropertyMutation('Setup', beforeFirst)
+    const stateAfterSetup = getLastCommittedBeforeState()
+
+    // Unregister callback
+    registerPropertyMutationCallback(undefined)
+
+    // Fire another mutation — should be ignored
+    firePropertyMutation('Ignored', JSON.stringify({ '/op': { x: 0 } }))
+
+    expect(getLastCommittedBeforeState()).toBe(stateAfterSetup)
   })
 })
 

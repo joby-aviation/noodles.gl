@@ -91,6 +91,7 @@ import {
 import { edgeId, nodeId } from './utils/id-utils'
 import { migrateProject } from './utils/migrate-schema'
 import { getParentPath, parseHandleId } from './utils/path-utils'
+import { applyOperatorInputs, getLastCommittedBeforeState } from './utils/property-history'
 import {
   EMPTY_PROJECT,
   NOODLES_VERSION,
@@ -1362,7 +1363,12 @@ export function getNoodles(): Visualization {
   )
 
   const flowGraph = (
-    <ErrorBoundary>
+    <ErrorBoundary
+      onUndo={() => {
+        const before = getLastCommittedBeforeState()
+        if (before != null) applyOperatorInputs(before)
+      }}
+    >
       {/* biome-ignore lint/a11y/noStaticElementInteractions: canvas wrapper needs mouse tracking */}
       <div
         className={cx('react-flow-wrapper', !showOverlay && 'react-flow-wrapper-hidden')}
@@ -1518,6 +1524,8 @@ export function getNoodles(): Visualization {
               return new deck[type]({
                 ...layer,
                 ...(instantiatedExtensions ? { extensions: instantiatedExtensions } : {}),
+                // Prevent deck.gl layer errors from crashing the GPU process
+                onError: (e: Error) => debugVis('Layer error in %s: %o', type, e),
               })
             }) || []
 
