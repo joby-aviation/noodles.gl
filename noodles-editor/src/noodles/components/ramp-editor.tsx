@@ -1,11 +1,13 @@
-import { curveLinear, curveMonotoneX, line, scaleLinear } from 'd3'
+import { scaleLinear } from 'd3'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { RampCurveType } from '../operators'
+import { monotoneSlopes } from '../operators'
+import type { RampInterpType } from '../operators'
 
 export interface RampStop {
   id: string
   pos: number
   val: number
+  interp?: RampInterpType
 }
 
 interface RampEditorProps {
@@ -14,17 +16,53 @@ interface RampEditorProps {
   disabled?: boolean
   width?: number
   height?: number
-  curveType?: RampCurveType
   activeStopId?: string | null
   onActivate?: (id: string) => void
 }
 
-const curveMap = {
-  linear: curveLinear,
-  smooth: curveMonotoneX,
-}
-
 const PAD = 12
+
+// Build an SVG path string for the ramp curve, segment by segment.
+// Each segment uses the interp type of the left (earlier) stop.
+function buildRampPath(
+  sortedStops: RampStop[],
+  xScale: (v: number) => number,
+  yScale: (v: number) => number
+): string {
+  if (sortedStops.length < 2) return ''
+
+  const slopes = monotoneSlopes(sortedStops)
+  const parts: string[] = [`M ${xScale(sortedStops[0].pos)} ${yScale(sortedStops[0].val)}`]
+
+  for (let i = 0; i < sortedStops.length - 1; i++) {
+    const s0 = sortedStops[i]
+    const s1 = sortedStops[i + 1]
+    const x0 = xScale(s0.pos)
+    const y0 = yScale(s0.val)
+    const x1 = xScale(s1.pos)
+    const y1 = yScale(s1.val)
+    const interp = s0.interp ?? 'linear'
+
+    if (interp === 'hold') {
+      // Step: horizontal then vertical
+      parts.push(`L ${x1} ${y0} L ${x1} ${y1}`)
+    } else if (interp === 'smooth') {
+      // Cubic bezier from PCHIP slopes, converted to pixel space.
+      // Data-space control points: (x0 + h/3, y0 + m0*h/3) and (x1 - h/3, y1 - m1*h/3)
+      const h = s1.pos - s0.pos
+      const cp1x = xScale(s0.pos + h / 3)
+      const cp1y = yScale(s0.val + slopes[i] * (h / 3))
+      const cp2x = xScale(s1.pos - h / 3)
+      const cp2y = yScale(s1.val - slopes[i + 1] * (h / 3))
+      parts.push(`C ${cp1x} ${cp1y} ${cp2x} ${cp2y} ${x1} ${y1}`)
+    } else {
+      // linear
+      parts.push(`L ${x1} ${y1}`)
+    }
+  }
+
+  return parts.join(' ')
+}
 
 export default function RampEditor({
   stops: stopsProp,
@@ -32,7 +70,6 @@ export default function RampEditor({
   disabled = false,
   width = 220,
   height = 100,
-  curveType = 'linear',
   activeStopId,
   onActivate,
 }: RampEditorProps) {
@@ -55,15 +92,6 @@ export default function RampEditor({
   const yScale = useMemo(
     () => scaleLinear().domain([yMin, yMax]).range([height - PAD, PAD]),
     [yMin, yMax, height]
-  )
-
-  const lineGen = useMemo(
-    () =>
-      line<RampStop>()
-        .x(d => xScale(d.pos))
-        .y(d => yScale(d.val))
-        .curve(curveMap[curveType]),
-    [xScale, yScale, curveType]
   )
 
   const svgRef = useRef<SVGSVGElement>(null)
@@ -141,6 +169,10 @@ export default function RampEditor({
   )
 
   const sortedStops = useMemo(() => [...stops].sort((a, b) => a.pos - b.pos), [stops])
+  const pathD = useMemo(
+    () => buildRampPath(sortedStops, xScale, yScale),
+    [sortedStops, xScale, yScale]
+  )
 
   return (
     <svg
@@ -158,7 +190,7 @@ export default function RampEditor({
       {/* Clickable background to add stops */}
       <rect x={0} y={0} width={width} height={height} fill="transparent" onClick={handleBgClick} />
       {sortedStops.length >= 2 && (
-        <path d={lineGen(sortedStops) ?? undefined} fill="none" stroke="#3b82f6" strokeWidth={1.5} />
+        <path d={pathD} fill="none" stroke="#3b82f6" strokeWidth={1.5} />
       )}
       {sortedStops.map(stop => (
         <g key={stop.id}>

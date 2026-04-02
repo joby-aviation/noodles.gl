@@ -5768,29 +5768,11 @@ export class ExpressionOp extends Operator<ExpressionOp> {
   }
 }
 
-function linearInterpolateRamp(
-  position: number,
-  sortedStops: Array<{ pos: number; val: number }>
-): number {
-  if (sortedStops.length === 1) return sortedStops[0].val
-  if (position <= sortedStops[0].pos) return sortedStops[0].val
-  if (position >= sortedStops[sortedStops.length - 1].pos)
-    return sortedStops[sortedStops.length - 1].val
-  for (let i = 0; i < sortedStops.length - 1; i++) {
-    const lo = sortedStops[i]
-    const hi = sortedStops[i + 1]
-    if (position >= lo.pos && position <= hi.pos) {
-      const range = hi.pos - lo.pos
-      if (range === 0) return lo.val
-      return lo.val + ((position - lo.pos) / range) * (hi.val - lo.val)
-    }
-  }
-  return 0
-}
+export type RampInterpType = 'linear' | 'smooth' | 'hold'
 
 // Tangent slopes matching D3's curveMonotoneX (Fritsch-Carlson algorithm)
 // so the smooth computation result matches the visual curve exactly
-function monotoneSlopes(stops: Array<{ pos: number; val: number }>): number[] {
+export function monotoneSlopes(stops: Array<{ pos: number; val: number }>): number[] {
   const n = stops.length
   const m = new Array<number>(n).fill(0)
   if (n < 2) return m
@@ -5815,9 +5797,10 @@ function monotoneSlopes(stops: Array<{ pos: number; val: number }>): number[] {
   return m
 }
 
-function smoothInterpolateRamp(
+// Per-segment interpolation: uses each stop's interp type for the segment that follows it
+function interpolateRamp(
   position: number,
-  sortedStops: Array<{ pos: number; val: number }>
+  sortedStops: Array<{ pos: number; val: number; interp?: RampInterpType }>
 ): number {
   const n = sortedStops.length
   if (n === 1) return sortedStops[0].val
@@ -5827,27 +5810,30 @@ function smoothInterpolateRamp(
   let i = 0
   while (i < n - 2 && position >= sortedStops[i + 1].pos) i++
 
-  const x0 = sortedStops[i].pos
-  const x1 = sortedStops[i + 1].pos
-  const y0 = sortedStops[i].val
-  const y1 = sortedStops[i + 1].val
-  const h = x1 - x0
-  if (h === 0) return y0
+  const s0 = sortedStops[i]
+  const s1 = sortedStops[i + 1]
+  const h = s1.pos - s0.pos
+  if (h === 0) return s0.val
 
+  const interp = s0.interp ?? 'linear'
+
+  if (interp === 'hold') return s0.val
+
+  const t = (position - s0.pos) / h
+
+  if (interp === 'linear') return s0.val + t * (s1.val - s0.val)
+
+  // smooth: cubic Hermite with PCHIP slopes
   const slopes = monotoneSlopes(sortedStops)
-  const t = (position - x0) / h
   const t2 = t * t
   const t3 = t2 * t
-  // Cubic Hermite basis functions
   return (
-    (2 * t3 - 3 * t2 + 1) * y0 +
+    (2 * t3 - 3 * t2 + 1) * s0.val +
     (t3 - 2 * t2 + t) * h * slopes[i] +
-    (-2 * t3 + 3 * t2) * y1 +
+    (-2 * t3 + 3 * t2) * s1.val +
     (t3 - t2) * h * slopes[i + 1]
   )
 }
-
-export type RampCurveType = 'linear' | 'smooth'
 
 export class RampOp extends Operator<RampOp> {
   static displayName = 'Ramp'
@@ -5857,9 +5843,6 @@ export class RampOp extends Operator<RampOp> {
     return {
       // softMin/softMax suggests 0-1 in the UI without hard-clamping accessor functions
       position: new NumberField(0, { softMin: 0, softMax: 1, step: 0.01, accessor: true }),
-      curveType: new StringLiteralField('linear' as RampCurveType, {
-        values: ['linear', 'smooth'] as const,
-      }),
       stops: new DataField(),
     }
   }
@@ -5873,18 +5856,18 @@ export class RampOp extends Operator<RampOp> {
   execute({
     position,
     stops,
-    curveType,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const rampStops: Array<{ pos: number; val: number }> =
+    const rampStops: Array<{ pos: number; val: number; interp?: RampInterpType }> =
       !stops || (stops as unknown[]).length === 0
         ? [
             { pos: 0, val: 0 },
             { pos: 1, val: 1 },
           ]
-        : [...(stops as Array<{ pos: number; val: number }>)].sort((a, b) => a.pos - b.pos)
+        : [...(stops as Array<{ pos: number; val: number; interp?: RampInterpType }>)].sort(
+            (a, b) => a.pos - b.pos
+          )
 
-    const interpolate = curveType === 'smooth' ? smoothInterpolateRamp : linearInterpolateRamp
-    const value = composeAccessor(position, (p: number) => interpolate(p, rampStops))
+    const value = composeAccessor(position, (p: number) => interpolateRamp(p, rampStops))
     return { value }
   }
 }

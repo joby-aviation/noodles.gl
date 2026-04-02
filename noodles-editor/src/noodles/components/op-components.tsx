@@ -49,7 +49,7 @@ import {
   Operator,
   type OutOp,
   opTypes,
-  type RampCurveType,
+  type RampInterpType,
   type RampOp,
   type RerouteOp,
   type TableEditorOp,
@@ -624,26 +624,25 @@ function RampOpComponent({
     const v = op.inputs.stops.value as RampStop[] | null
     return v && v.length > 0 ? v : makeDefaultStops()
   })
-  const [activeStopId, setActiveStopId] = useState<string | null>(null)
-  const [curveType, setCurveType] = useState<RampCurveType>(
-    (op.inputs.curveType.value as RampCurveType) ?? 'linear'
-  )
+  const [activeStopId, setActiveStopId] = useState<string | null>(() => {
+    const v = op.inputs.stops.value as RampStop[] | null
+    const s = v && v.length > 0 ? v : makeDefaultStops()
+    return s[0]?.id ?? null
+  })
 
-  // Subscribe to stops and curveType to handle undo/redo and project load
+  // Subscribe to stops to handle undo/redo and project load
   useEffect(() => {
     const stopsSub = op.inputs.stops.subscribe(newVal => {
       const v = newVal as RampStop[] | null
       const nextStops = v && v.length > 0 ? v : makeDefaultStops()
       setStops(nextStops)
-      // Clear active stop if it no longer exists
-      setActiveStopId(prev => (nextStops.find(s => s.id === prev) ? prev : null))
+      // Keep active stop if still present, otherwise fall back to first
+      setActiveStopId(prev =>
+        nextStops.find(s => s.id === prev) ? prev : (nextStops[0]?.id ?? null)
+      )
     })
-    const curveSub = op.inputs.curveType.subscribe(v => setCurveType(v as RampCurveType))
-    return () => {
-      stopsSub.unsubscribe()
-      curveSub.unsubscribe()
-    }
-  }, [op.inputs.stops, op.inputs.curveType])
+    return () => stopsSub.unsubscribe()
+  }, [op.inputs.stops])
 
   // Seed default stops on first render if empty
   useEffect(() => {
@@ -685,6 +684,14 @@ function RampOpComponent({
     [activeStopId, locked, stops, handleChange]
   )
 
+  const handleInterpChange = useCallback(
+    (interp: RampInterpType) => {
+      if (!activeStopId || locked) return
+      handleChange(stops.map(s => (s.id === activeStopId ? { ...s, interp } : s)))
+    },
+    [activeStopId, locked, stops, handleChange]
+  )
+
   return (
     <div
       className={cx(s.wrapper, {
@@ -701,28 +708,24 @@ function RampOpComponent({
           disabled={locked}
           handle={PAR_HANDLE_OPTIONS}
         />
-        <FieldComponent
-          id="curveType"
-          field={op.inputs.curveType}
-          disabled={locked}
-          handle={PAR_HANDLE_OPTIONS}
-        />
         <div style={{ padding: '4px 0' }}>
           <RampEditor
             stops={stops}
             onChange={handleChange}
             disabled={locked}
-            curveType={curveType}
             activeStopId={activeStopId}
             onActivate={handleActivate}
           />
         </div>
         <div className={s.fieldWrapper}>
-          <label className={s.fieldLabel}>pos</label>
-          <div className={s.fieldInputWrapper}>
+          <label className={s.fieldLabel} style={{ whiteSpace: 'nowrap' }}>
+            {activeStop ? `stop ${stops.indexOf(activeStop) + 1}` : 'stop'}
+          </label>
+          <div className={cx(s.fieldInputWrapper, s.fieldInputWrapperVector)}>
+            <label className={cx(s.fieldLabel, s.fieldLabelVector)}>p</label>
             <input
               type="number"
-              className={s.fieldInput}
+              className={cx(s.fieldInput, s.fieldInputVector)}
               value={activeStop?.pos.toFixed(3) ?? ''}
               min={0}
               max={1}
@@ -730,19 +733,36 @@ function RampOpComponent({
               disabled={locked || !activeStop}
               onChange={handlePosChange}
             />
-          </div>
-        </div>
-        <div className={s.fieldWrapper}>
-          <label className={s.fieldLabel}>val</label>
-          <div className={s.fieldInputWrapper}>
+            <label className={cx(s.fieldLabel, s.fieldLabelVector)}>v</label>
             <input
               type="number"
-              className={s.fieldInput}
+              className={cx(s.fieldInput, s.fieldInputVector)}
               value={activeStop?.val.toFixed(3) ?? ''}
               step={0.001}
               disabled={locked || !activeStop}
               onChange={handleValChange}
             />
+          </div>
+        </div>
+        <div className={s.fieldWrapper}>
+          <label className={s.fieldLabel}>interp</label>
+          <div style={{ display: 'flex', gap: 2 }}>
+            {(['linear', 'smooth', 'hold'] as RampInterpType[]).map(type => (
+              <button
+                key={type}
+                type="button"
+                className={s.fieldInputButton}
+                style={{
+                  padding: '2px 6px',
+                  opacity: !activeStop ? 0.4 : (activeStop.interp ?? 'linear') === type ? 1 : 0.5,
+                  fontWeight: (activeStop?.interp ?? 'linear') === type ? 600 : 400,
+                }}
+                disabled={locked || !activeStop}
+                onClick={() => handleInterpChange(type)}
+              >
+                {type}
+              </button>
+            ))}
           </div>
         </div>
         <div className={s.outputHandleContainer}>
