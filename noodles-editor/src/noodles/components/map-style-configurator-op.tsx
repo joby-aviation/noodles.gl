@@ -388,7 +388,7 @@ export function MapStyleConfiguratorOpComponent({
   type: 'MapStyleConfiguratorOp'
 }) {
   const op = getOp(id as string)
-  if (!op) throw new Error(`Operator with id ${id} not found`)
+  if (!op) return null
 
   const isDimmed = useNodeDimmed(id)
   const locked = useLocked(op as Operator<IOperator>)
