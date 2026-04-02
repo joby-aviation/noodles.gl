@@ -388,6 +388,7 @@ export function useUndoRedo() {
         const timelineStore = getTimelineStore()
         timelineStore.fromTheatreJSON(JSON.parse(entry.timelineStateBefore))
       } catch (e) {
+        console.error('[Noodles] Failed to restore timeline state:', e)
         debugHistory('Failed to restore timeline state during undo', e)
       }
     }
@@ -489,6 +490,7 @@ export function useUndoRedo() {
         const timelineStore = getTimelineStore()
         timelineStore.fromTheatreJSON(JSON.parse(entry.timelineStateAfter))
       } catch (e) {
+        console.error('[Noodles] Failed to restore timeline state:', e)
         debugHistory('Failed to restore timeline state during redo', e)
       }
     }
