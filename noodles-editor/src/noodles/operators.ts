@@ -57,9 +57,6 @@ import type {
   TextLayerProps,
 } from '@deck.gl/layers'
 import type { ScenegraphLayerProps, SimpleMeshLayerProps } from '@deck.gl/mesh-layers'
-import { CesiumIonLoader, Tiles3DLoader } from '@loaders.gl/3d-tiles'
-import { OBJLoader } from '@loaders.gl/obj'
-import { PLYLoader } from '@loaders.gl/ply'
 import type { Tileset3D } from '@loaders.gl/tiles'
 import { brightnessContrast, hueSaturation, vibrance } from '@luma.gl/effects'
 import { fitBounds } from '@math.gl/web-mercator'
@@ -4679,8 +4676,12 @@ export class SimpleMeshLayerOp extends Operator<SimpleMeshLayerOp> {
       layer: new LayerField<SimpleMeshLayerProps>(),
     }
   }
-  execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  async execute(props: ExtractProps<typeof this.inputs>) {
     const ext = extname(props.mesh || '')
+    const [{ OBJLoader }, { PLYLoader }] = await Promise.all([
+      import('@loaders.gl/obj'),
+      import('@loaders.gl/ply'),
+    ])
     const layer = {
       ...parseLayerProps<SimpleMeshLayerProps>(props),
       loaders: [ext === '.obj' ? OBJLoader : PLYLoader],
@@ -5204,7 +5205,7 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
       layer: new LayerField<Tile3DLayerProps>(),
     }
   }
-  execute({
+  async execute({
     flatLighting,
     provider,
     tilesetUrl,
@@ -5212,7 +5213,7 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
     maxMemoryUsage,
     maxScreenSpaceError,
     ...props
-  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  }: ExtractProps<typeof this.inputs>) {
     const GOOGLE_TILESET_URL = 'https://tile.googleapis.com/v1/3dtiles/root.json'
     const NYC_CESIUM_TILESET_URL = 'https://assets.ion.cesium.com/242005/tileset.json'
 
@@ -5232,6 +5233,7 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
     const defaultUrl = provider === 'Cesium' ? NYC_CESIUM_TILESET_URL : GOOGLE_TILESET_URL
     const data = tilesetUrl || defaultUrl
 
+    const { CesiumIonLoader, Tiles3DLoader } = await import('@loaders.gl/3d-tiles')
     const loader = provider === 'Cesium' ? CesiumIonLoader : Tiles3DLoader
 
     const _subLayerProps = flatLighting ? { scenegraph: { _lighting: 'flat' } } : undefined
@@ -5902,8 +5904,8 @@ export class KmlToGeoJsonOp extends Operator<KmlToGeoJsonOp> {
       geojson: new DataField(),
     }
   }
-  execute({ kml }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const geojson = utils.kmlToGeoJson(kml)
+  async execute({ kml }: ExtractProps<typeof this.inputs>) {
+    const geojson = await utils.kmlToGeoJson(kml)
     return { geojson }
   }
 }

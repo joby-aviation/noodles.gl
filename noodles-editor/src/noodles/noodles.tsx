@@ -23,11 +23,10 @@ import {
 import cx from 'classnames'
 import type { LayerExtension } from 'deck.gl'
 import * as deck from 'deck.gl'
-import JSZip, { type JSZipObject } from 'jszip'
+import type { JSZipObject } from 'jszip'
 import { PrimeReactProvider } from 'primereact/api'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useParams } from 'wouter'
-import { ChatPanel } from '../ai-chat/chat-panel'
 import { globalContextManager } from '../ai-chat/global-context-manager'
 import { getPendingQuickStartAction } from '../components/quick-start-modal'
 import { analytics } from '../utils/analytics'
@@ -102,6 +101,8 @@ import {
   serializeNodes,
 } from './utils/serialization'
 import { calculateViewerPosition } from './utils/viewer-position'
+
+const ChatPanel = lazy(() => import('../ai-chat/chat-panel').then(m => ({ default: m.ChatPanel })))
 
 /*
  * CSS Architecture:
@@ -219,12 +220,17 @@ export function getNoodles(): Visualization {
     [onEdgesChangeBase]
   )
 
-  // Eagerly start loading AI context bundles on app start
+  const contextLoadStarted = useRef(false)
+
+  // Start loading AI context bundles when the chat panel is first opened
   useEffect(() => {
-    globalContextManager.startLoading().catch(error => {
-      debugApp('Failed to preload AI context:', error)
-    })
-  }, [])
+    if (showChatPanel && !contextLoadStarted.current) {
+      contextLoadStarted.current = true
+      globalContextManager.startLoading().catch(error => {
+        debugApp('Failed to preload AI context:', error)
+      })
+    }
+  }, [showChatPanel])
 
   // Warn before leaving page with unsaved changes
   useEffect(() => {
@@ -1145,6 +1151,7 @@ export function getNoodles(): Visualization {
 
       if (isZip) {
         // Handle ZIP import
+        const { default: JSZip } = await import('jszip')
         const zip = await JSZip.loadAsync(await file.arrayBuffer())
 
         // Find the shallowest noodles.json in the ZIP (could be at root or in a subfolder)
@@ -1404,15 +1411,17 @@ export function getNoodles(): Visualization {
               <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />
               <CopyControls ref={copyControlsRef} />
               <UndoRedoHandler ref={undoRedoRef} />
-              <ChatPanel
-                project={{ nodes, edges }}
-                onClose={() => {
-                  setShowChatPanel(false)
-                  setChatInitialMessage(undefined)
-                }}
-                isVisible={showChatPanel}
-                initialMessage={chatInitialMessage}
-              />
+              <Suspense fallback={null}>
+                <ChatPanel
+                  project={{ nodes, edges }}
+                  onClose={() => {
+                    setShowChatPanel(false)
+                    setChatInitialMessage(undefined)
+                  }}
+                  isVisible={showChatPanel}
+                  initialMessage={chatInitialMessage}
+                />
+              </Suspense>
               {showDebugInfo && <NodeInfoOverlay />}
               {showDebugInfo && <ViewportInfoPanel />}
             </ReactFlow>

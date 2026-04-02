@@ -1,4 +1,3 @@
-import { CodeiumEditor } from '@codeium/react-code-editor'
 import type { OnMount } from '@monaco-editor/react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
@@ -7,7 +6,21 @@ import cx from 'classnames'
 import type { ScaleLinear, ScaleOrdinal } from 'd3'
 import { Button } from 'primereact/button'
 import { InputText } from 'primereact/inputtext'
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  Fragment,
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+
+const CodeiumEditor = lazy(() =>
+  import('@codeium/react-code-editor').then(m => ({ default: m.CodeiumEditor }))
+)
 import { Temporal } from 'temporal-polyfill'
 import { getFieldPath } from '../../timeline/field-bindings'
 import { VectorKeyframeIndicator } from '../../timeline/components/KeyframeIndicator'
@@ -678,26 +691,36 @@ export function CodeFieldComponent({
   return (
     <div className={cx(s.fieldWrapper, s.fieldWrapperCode)} ref={containerRef}>
       <div className={s.fieldInputWrapperCodeEditor}>
-        <CodeiumEditor
-          language={field.language}
-          options={{
-            tabSize: 2,
-            scrollBeyondLastLine: false,
-            minimap: { enabled: false },
-            automaticLayout: true,
-            fixedOverflowWidgets: true,
-            scrollbar: {
-              vertical: 'visible',
-              horizontal: 'visible',
-            },
-          }}
-          theme="vs-dark"
-          width="100%"
-          height={nodeHeight - 80}
-          defaultValue={field.value}
-          onChange={handleEditorChange}
-          onMount={handleEditorDidMount}
-        />
+        <Suspense
+          fallback={
+            <textarea
+              style={{ width: '100%', height: nodeHeight - 80, background: '#1e1e1e', color: '#d4d4d4' }}
+              value={value}
+              onChange={e => field.setValue(e.target.value)}
+            />
+          }
+        >
+          <CodeiumEditor
+            language={field.language}
+            options={{
+              tabSize: 2,
+              scrollBeyondLastLine: false,
+              minimap: { enabled: false },
+              automaticLayout: true,
+              fixedOverflowWidgets: true,
+              scrollbar: {
+                vertical: 'visible',
+                horizontal: 'visible',
+              },
+            }}
+            theme="vs-dark"
+            width="100%"
+            height={nodeHeight - 80}
+            defaultValue={field.value}
+            onChange={handleEditorChange}
+            onMount={handleEditorDidMount}
+          />
+        </Suspense>
       </div>
     </div>
   )
