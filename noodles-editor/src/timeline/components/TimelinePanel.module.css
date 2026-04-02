@@ -770,6 +770,7 @@
 
 .curvePopupBody {
   display: flex;
+  height: 268px;
 }
 
 .curvePopupPresets {
