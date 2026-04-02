@@ -547,11 +547,15 @@
 
 .fieldInputWrapperVector {
   display: flex;
-  gap: 5px;
+  gap: 3px;
+}
+
+.fieldInputWrapperVector .fieldInputNumber {
+  margin-right: 0;
 }
 
 .fieldInputVector {
-  width: 50px;
+  width: 32px;
 }
 
 .fieldLookupButton {

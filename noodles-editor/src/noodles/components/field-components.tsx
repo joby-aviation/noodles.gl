@@ -10,6 +10,7 @@ import { InputText } from 'primereact/inputtext'
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Temporal } from 'temporal-polyfill'
 import { getFieldPath } from '../../timeline/field-bindings'
+import { VectorKeyframeIndicator } from '../../timeline/components/KeyframeIndicator'
 import { useTimelineStore } from '../../timeline/timeline-store'
 import {
   type BezierCurveField,
@@ -29,8 +30,8 @@ import {
   Point2DField,
   Point3DField,
   StringLiteralField,
-  Vec2Field,
-  Vec3Field,
+  type Vec2Field,
+  type Vec3Field,
 } from '../fields'
 import { useFileSystemStore } from '../filesystem-store'
 import type { Edge as GraphEdge } from '../graph-executor'
@@ -398,10 +399,16 @@ export function VectorFieldComponent({
   id,
   field,
   disabled,
+  opId,
+  fieldName,
+  expandTimeline,
 }: {
   id: OpId
   field: Vec2Field | Vec3Field | Point2DField | Point3DField
   disabled: boolean
+  opId?: string
+  fieldName?: string
+  expandTimeline?: () => void
 }) {
   const [value, setValue] = useState<
     { [key: string]: number } | [number, number] | [number, number, number]
@@ -412,16 +419,7 @@ export function VectorFieldComponent({
   const isPointField = field instanceof Point2DField || field instanceof Point3DField
   const isPoint3D = field instanceof Point3DField
 
-  const keys =
-    field instanceof Point3DField
-      ? ['lng', 'lat', 'alt']
-      : field instanceof Point2DField
-        ? ['lng', 'lat']
-        : field instanceof Vec2Field
-          ? ['x', 'y']
-          : field instanceof Vec3Field
-            ? ['x', 'y', 'z']
-            : Object.keys(value)
+  const keys = (field.constructor as typeof Vec2Field).channelKeys ?? Object.keys(value)
 
   // Track the latest value in a ref for onCommit
   const latestValueRef = useRef(value)
@@ -500,7 +498,7 @@ export function VectorFieldComponent({
       <label className={s.fieldLabel} htmlFor={id}>
         {id}
       </label>
-      <div id={id} className={s.fieldInputWrapper}>
+      <div id={id} className={cx(s.fieldInputWrapper, s.fieldInputWrapperVector)}>
         {keys.map((key, i) => {
           const objectKey = field.returnType === 'tuple' ? i : key
           return (
@@ -529,6 +527,17 @@ export function VectorFieldComponent({
             disabled={disabled}
             severity="secondary"
             text
+          />
+        )}
+        {opId && fieldName && (
+          <VectorKeyframeIndicator
+            opId={opId}
+            fieldName={fieldName}
+            keys={keys}
+            value={value as Record<string | number, number>}
+            returnType={field.returnType}
+            disabled={disabled}
+            onKeyframeAdded={expandTimeline}
           />
         )}
       </div>

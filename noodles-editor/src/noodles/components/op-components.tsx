@@ -221,14 +221,7 @@ function DefaultEdgeComponent({
         ? s.targetedEdge
         : s.targetedEdgeIncompatible
       : undefined
-  return (
-    <BaseEdge
-      path={edgePath}
-      markerEnd={markerEnd}
-      style={style}
-      className={edgeClassName}
-    />
-  )
+  return <BaseEdge path={edgePath} markerEnd={markerEnd} style={style} className={edgeClassName} />
 }
 
 function ReferenceEdgeComponent({
