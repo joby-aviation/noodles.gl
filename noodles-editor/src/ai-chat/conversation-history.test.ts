@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   clearAllHistory,
   deleteConversation,
@@ -25,15 +25,18 @@ const makeLocalStorageMock = () => {
 }
 
 describe('conversation-history', () => {
-  let localStorageMock: ReturnType<typeof makeLocalStorageMock>
+  const localStorageMock = makeLocalStorageMock()
 
-  beforeEach(() => {
-    localStorageMock = makeLocalStorageMock()
+  beforeAll(() => {
     vi.stubGlobal('localStorage', localStorageMock)
   })
 
-  afterEach(() => {
+  afterAll(() => {
     vi.unstubAllGlobals()
+  })
+
+  beforeEach(() => {
+    localStorageMock.clear()
   })
 
   describe('saveConversation', () => {
