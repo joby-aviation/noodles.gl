@@ -939,6 +939,48 @@
   box-shadow: 0 0 0 1px var(--node-execution-error-color);
 }
 
+.errorPopover {
+  position: relative;
+  background: #1a1a2e;
+  border: 1px solid var(--node-execution-error-color);
+  border-radius: 6px;
+  padding: 7px 26px 7px 10px;
+  max-width: 300px;
+  font-size: 11px;
+  color: #fca5a5;
+  z-index: 9999;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.errorPopoverMessage {
+  display: block;
+  white-space: pre-wrap;
+}
+
+.errorPopoverClose {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: none;
+  border: none;
+  color: #fca5a5;
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 9px;
+  opacity: 0.6;
+  line-height: 1;
+}
+
+.errorPopoverClose:hover {
+  opacity: 1;
+}
+
+.errorPopoverArrow {
+  fill: var(--node-execution-error-color);
+}
+
 .wrapperExecuting {
   box-shadow: 0 0 0 1px var(--node-execution-executing-color);
 }
