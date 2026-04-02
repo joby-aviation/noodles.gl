@@ -81,6 +81,7 @@ import {
 } from './store'
 import { transformGraph } from './transform-graph'
 import { canConnect } from './utils/can-connect'
+import { createProjectFromSQL, validateSQL } from './utils/create-from-sql'
 import { directoryHandleCache } from './utils/directory-handle-cache'
 import {
   fileExists,
@@ -1059,6 +1060,40 @@ export function getNoodles(): Visualization {
 
   const onNewProject = useCallback(async () => {
     try {
+      // Check for createFromSQL query parameter
+      const urlParams = new URLSearchParams(window.location.search)
+      const sqlParam = urlParams.get('createFromSQL')
+
+      let projectToCreate: NoodlesProjectJSON
+
+      if (sqlParam) {
+        // Validate SQL
+        const validation = validateSQL(sqlParam)
+        if (!validation.valid) {
+          console.error('Invalid SQL query:', validation.error)
+          alert(`Invalid SQL query: ${validation.error}`)
+          // Fall through to normal new project flow
+          projectToCreate = {
+            ...newProjectJSON,
+            version: NOODLES_VERSION,
+          } as NoodlesProjectJSON
+        } else {
+          // Generate project from SQL
+          projectToCreate = createProjectFromSQL({ sql: sqlParam })
+
+          // Remove query parameter from URL
+          urlParams.delete('createFromSQL')
+          const newUrl = `${window.location.pathname}${urlParams.toString() ? `?${urlParams.toString()}` : ''}`
+          window.history.replaceState({}, '', newUrl)
+        }
+      } else {
+        // Normal new project flow
+        projectToCreate = {
+          ...newProjectJSON,
+          version: NOODLES_VERSION,
+        } as NoodlesProjectJSON
+      }
+
       // Prompt user to select/create a directory for the new project
       const directoryHandle = await selectDirectory()
       const directoryName = directoryHandle.name
@@ -1070,12 +1105,8 @@ export function getNoodles(): Visualization {
         return
       }
 
-      // Write starter project to noodles.json
-      const starterProject = {
-        ...newProjectJSON,
-        version: NOODLES_VERSION,
-      } as NoodlesProjectJSON
-      await writeFileToDirectory(directoryHandle, 'noodles.json', safeStringify(starterProject))
+      // Write project to noodles.json
+      await writeFileToDirectory(directoryHandle, 'noodles.json', safeStringify(projectToCreate))
 
       // Cache the directory handle
       await directoryHandleCache.cacheHandle(directoryName, directoryHandle, directoryHandle.name)
@@ -1086,9 +1117,11 @@ export function getNoodles(): Visualization {
 
       // Load the project directly (already in memory, no need to reload from disk)
       // Always navigate to /projects since this is a user project
-      loadProjectFile(starterProject, directoryName, '/projects')
+      loadProjectFile(projectToCreate, directoryName, '/projects')
 
-      analytics.track('project_created', { method: 'new' })
+      analytics.track('project_created', {
+        method: sqlParam && validateSQL(sqlParam).valid ? 'createFromSQL' : 'new',
+      })
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         // User cancelled the picker
