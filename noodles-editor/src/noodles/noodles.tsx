@@ -80,7 +80,7 @@ import {
   useUIStore,
 } from './store'
 import { transformGraph } from './transform-graph'
-import { canConnect } from './utils/can-connect'
+import { canConnectCached } from './utils/can-connect'
 import { directoryHandleCache } from './utils/directory-handle-cache'
 import {
   fileExists,
@@ -90,7 +90,7 @@ import {
 } from './utils/filesystem'
 import { edgeId, nodeId } from './utils/id-utils'
 import { migrateProject } from './utils/migrate-schema'
-import { getParentPath } from './utils/path-utils'
+import { getParentPath, parseHandleId } from './utils/path-utils'
 import { applyOperatorInputs, getLastCommittedBeforeState } from './utils/property-history'
 import {
   EMPTY_PROJECT,
@@ -343,7 +343,7 @@ export function getNoodles(): Visualization {
   // Track connection drag state for dimming unconnectable nodes
   const setConnectionDragState = useUIStore(state => state.setConnectionDragState)
   const connectionDragState = useUIStore(state => state.connectionDragState)
-  const setTargetedEdgeId = useUIStore(state => state.setTargetedEdgeId)
+  const setTargetedEdge = useUIStore(state => state.setTargetedEdge)
   const onConnectStart: OnConnectStart = useCallback(
     (_event, params) => {
       if (!params.nodeId || !params.handleId) return
@@ -371,8 +371,8 @@ export function getNoodles(): Visualization {
         const targetFields = isOutput ? op.inputs : op.outputs
         for (const targetField of Object.values(targetFields)) {
           const compatible = isOutput
-            ? canConnect(sourceField, targetField)
-            : canConnect(targetField, sourceField)
+            ? canConnectCached(sourceField, targetField)
+            : canConnectCached(targetField, sourceField)
           if (compatible) {
             compatibleNodeIds.add(nodeId)
             break
@@ -380,13 +380,32 @@ export function getNoodles(): Visualization {
         }
       }
 
+      // Calculate which existing edges the dragged source is compatible with (computed once,
+      // used to vary hit area size and highlight style during mousemove)
+      const compatibleEdgeIds = new Set<string>()
+      for (const edge of edges) {
+        if (edge.type === 'ReferenceEdge') continue
+        if (edge.source === params.nodeId || edge.target === params.nodeId) continue
+        const targetHandleInfo = parseHandleId(edge.targetHandle || '')
+        if (!targetHandleInfo) continue
+        const targetOp = getOp(edge.target)
+        if (!targetOp) continue
+        const targetField = targetOp.inputs[targetHandleInfo.fieldName]
+        if (!targetField) continue
+        const compatible = isOutput
+          ? canConnectCached(sourceField, targetField)
+          : canConnectCached(targetField, sourceField)
+        if (compatible) compatibleEdgeIds.add(edge.id)
+      }
+
       setConnectionDragState({
         sourceNodeId: params.nodeId,
         sourceHandleId: params.handleId,
         compatibleNodeIds,
+        compatibleEdgeIds,
       })
     },
-    [setConnectionDragState]
+    [setConnectionDragState, edges]
   )
 
   const { onConnectEnd: onConnectionDropEnd } = useConnectionDropOnEdge({
@@ -401,9 +420,9 @@ export function getNoodles(): Visualization {
     (event, connectionState) => {
       onConnectionDropEnd(event, connectionState)
       setConnectionDragState(null)
-      setTargetedEdgeId(null)
+      setTargetedEdge(null)
     },
-    [onConnectionDropEnd, setConnectionDragState, setTargetedEdgeId]
+    [onConnectionDropEnd, setConnectionDragState, setTargetedEdge]
   )
 
   const onMouseMove = useCallback(
@@ -418,11 +437,16 @@ export function getNoodles(): Visualization {
         pos,
         connectionDragState.sourceNodeId,
         () => nodes,
-        () => edges
+        () => edges,
+        connectionDragState.compatibleEdgeIds
       )
-      setTargetedEdgeId(edge?.id ?? null)
+      setTargetedEdge(
+        edge
+          ? { id: edge.id, compatible: connectionDragState.compatibleEdgeIds.has(edge.id) }
+          : null
+      )
     },
-    [connectionDragState, nodes, edges, setTargetedEdgeId]
+    [connectionDragState, nodes, edges, setTargetedEdge]
   )
 
   // Hook for dropping nodes onto edges to insert them
