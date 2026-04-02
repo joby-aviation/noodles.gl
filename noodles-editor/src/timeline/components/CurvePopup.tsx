@@ -444,11 +444,9 @@ export function CurvePopup({
   const handleClose = useCallback(() => {
     if (!committedRef.current) {
       // Restore original state (ephemeral preview was not committed)
-      // Preserve position since fromTheatreJSON always resets it to 0
-      const currentPosition = useTimelineStore.getState().position
+      // keepPosition: true preserves the playhead since fromTheatreJSON always resets it to 0
       const originalData = JSON.parse(originalStateRef.current)
-      useTimelineStore.getState().fromTheatreJSON(originalData)
-      useTimelineStore.getState().setPosition(currentPosition)
+      useTimelineStore.getState().fromTheatreJSON(originalData, { keepPosition: true })
     }
     onClose()
   }, [onClose])
@@ -499,11 +497,9 @@ export function CurvePopup({
   // Leave hover: restore original (if not committed yet)
   const handlePresetLeave = useCallback(() => {
     if (!committedRef.current) {
-      // Preserve position since fromTheatreJSON always resets it to 0
-      const currentPosition = useTimelineStore.getState().position
+      // keepPosition: true preserves the playhead since fromTheatreJSON always resets it to 0
       const originalData = JSON.parse(originalStateRef.current)
-      useTimelineStore.getState().fromTheatreJSON(originalData)
-      useTimelineStore.getState().setPosition(currentPosition)
+      useTimelineStore.getState().fromTheatreJSON(originalData, { keepPosition: true })
     }
   }, [])
 
