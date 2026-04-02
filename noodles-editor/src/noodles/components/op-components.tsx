@@ -206,7 +206,7 @@ function DefaultEdgeComponent({
   style = {},
   markerEnd,
 }: EdgeProps) {
-  const targetedEdgeId = useUIStore(s => s.targetedEdgeId)
+  const targetedEdge = useUIStore(s => s.targetedEdge)
   const [edgePath] = getBezierPath({
     sourceX,
     sourceY,
@@ -215,12 +215,18 @@ function DefaultEdgeComponent({
     sourcePosition,
     targetPosition,
   })
+  const edgeClassName =
+    targetedEdge?.id === id
+      ? targetedEdge.compatible
+        ? s.targetedEdge
+        : s.targetedEdgeIncompatible
+      : undefined
   return (
     <BaseEdge
       path={edgePath}
       markerEnd={markerEnd}
       style={style}
-      className={id === targetedEdgeId ? s.targetedEdge : undefined}
+      className={edgeClassName}
     />
   )
 }

@@ -775,6 +775,11 @@
   animation: edgeTargetPulse 0.8s ease-in-out infinite;
 }
 
+.targetedEdgeIncompatible {
+  stroke: #9a8878;
+  stroke-width: 2;
+}
+
 @keyframes edgeTargetPulse {
   0%,
   100% {

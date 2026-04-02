@@ -180,3 +180,15 @@ export function validateConnection(from: Field, to: Field): ConnectionValidation
 export function canConnect(from: Field, to: Field): boolean {
   return validateConnection(from, to).valid
 }
+
+// Module-level cache keyed by field class pair — valid since schemasAreCompatible is structural
+const canConnectCache = new Map<string, boolean>()
+
+export function canConnectCached(from: Field, to: Field): boolean {
+  const key = `${from.constructor.name}:${to.constructor.name}`
+  const cached = canConnectCache.get(key)
+  if (cached !== undefined) return cached
+  const result = canConnect(from, to)
+  canConnectCache.set(key, result)
+  return result
+}
