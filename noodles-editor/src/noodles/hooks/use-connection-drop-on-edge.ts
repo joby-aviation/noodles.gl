@@ -90,7 +90,13 @@ export function useConnectionDropOnEdge(options: UseConnectionDropOnEdgeOptions)
 
       // connectionState.to is in screen/container coordinates — convert to flow space
       const flowPos = screenToFlowPosition(connectionState.to)
-      const edge = findEdgeAtPosition(flowPos, sourceNodeId, getNodes, getEdges, dragState.compatibleEdgeIds)
+      const edge = findEdgeAtPosition(
+        flowPos,
+        sourceNodeId,
+        getNodes,
+        getEdges,
+        dragState.compatibleEdgeIds
+      )
       if (!edge) return
 
       // Call onConnect with the swapped source — this handles field wiring and replaces

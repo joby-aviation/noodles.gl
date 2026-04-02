@@ -536,7 +536,9 @@ function KeyframeDiamond({
       if (menuRef.current?.contains(e.target as Node)) return
       setContextMenu(null)
     }
-    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setContextMenu(null) }
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setContextMenu(null)
+    }
     document.addEventListener('pointerdown', close)
     document.addEventListener('keydown', handleKey)
     return () => {

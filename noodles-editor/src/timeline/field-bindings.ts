@@ -485,7 +485,9 @@ function bindVecChannelToTimeline(
   )
 
   // Initial evaluation — sync channel to current position when binding is established
-  const initialValue = timelineStore.evaluateTrack(fieldPath, getTimelineStore().position) as number | undefined
+  const initialValue = timelineStore.evaluateTrack(fieldPath, getTimelineStore().position) as
+    | number
+    | undefined
   debugBinding('initial eval %s → %O', fieldPath, initialValue)
   if (initialValue !== undefined) {
     updating = true
