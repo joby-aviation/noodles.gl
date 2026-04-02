@@ -2,7 +2,7 @@
 // Toolbar button for opening the external control sharing dialog
 
 import type React from 'react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { sessionManager } from '../session-manager'
 import s from './external-control-button.module.css'
 import { SharingDialog } from './sharing-dialog'
@@ -10,6 +10,11 @@ import { SharingDialog } from './sharing-dialog'
 export const ExternalControlButton: React.FC = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [hasActiveSessions, setHasActiveSessions] = useState(false)
+
+  const checkActiveSessions = useCallback(() => {
+    const sessions = sessionManager.getActiveSessions()
+    setHasActiveSessions(sessions.length > 0)
+  }, [])
 
   useEffect(() => {
     // Load persisted sessions on mount
@@ -22,14 +27,10 @@ export const ExternalControlButton: React.FC = () => {
     return () => clearInterval(interval)
   }, [checkActiveSessions])
 
-  const checkActiveSessions = () => {
-    const sessions = sessionManager.getActiveSessions()
-    setHasActiveSessions(sessions.length > 0)
-  }
-
   return (
     <>
       <button
+        type="button"
         onClick={() => setIsDialogOpen(true)}
         className={s.externalControlButton}
         title="External Control - Share with AI tools"

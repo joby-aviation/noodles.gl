@@ -1,4 +1,10 @@
 import { BehaviorSubject } from 'rxjs'
+import {
+  debugHistory,
+  debugHistoryRedo,
+  debugHistorySnapshot,
+  debugHistoryUndo,
+} from '../../utils/debug'
 import type { NodesProjectJSON } from './serialization'
 
 export interface UndoRedoSnapshot {
@@ -31,14 +37,14 @@ export class UndoRedoManager {
 
   // Take a snapshot of the current state before making changes
   takeSnapshot(description: string): void {
-    console.info(`Taking snapshot: ${description}`)
+    debugHistorySnapshot('Taking snapshot: %s', description)
     const currentState = this.getCurrentState()
 
     // Don't take snapshot if state hasn't changed
     if (this.history.length > 0 && this.currentIndex >= 0) {
       const lastSnapshot = this.history[this.currentIndex]
       if (JSON.stringify(lastSnapshot.projectState) === JSON.stringify(currentState)) {
-        console.info('Skipping duplicate snapshot')
+        debugHistorySnapshot('Skipping duplicate snapshot')
         return
       }
     }
@@ -57,8 +63,10 @@ export class UndoRedoManager {
     this.history.push(snapshot)
     this.currentIndex = this.history.length - 1
 
-    console.info(
-      `Snapshot added. History length: ${this.history.length}, current index: ${this.currentIndex}`
+    debugHistorySnapshot(
+      'Snapshot added. History length: %d, current index: %d',
+      this.history.length,
+      this.currentIndex
     )
 
     // Limit history size
@@ -73,14 +81,14 @@ export class UndoRedoManager {
   // Undo the last action
   undo(): void {
     if (!this.canUndo()) {
-      console.log('Cannot undo - no history available')
+      debugHistoryUndo('Cannot undo - no history available')
       return
     }
 
-    console.info(`Undoing to index ${this.currentIndex - 1}`)
+    debugHistoryUndo('Undoing to index %d', this.currentIndex - 1)
     this.currentIndex--
     const snapshot = this.history[this.currentIndex]
-    console.info(`Restoring snapshot: ${snapshot.description}`)
+    debugHistoryUndo('Restoring snapshot: %s', snapshot.description)
     this.restoreState(snapshot.projectState)
     this.updateState()
   }
@@ -89,10 +97,10 @@ export class UndoRedoManager {
   redo(): void {
     if (!this.canRedo()) return
 
-    console.info(`Redoing to index ${this.currentIndex + 1}`)
+    debugHistoryRedo('Redoing to index %d', this.currentIndex + 1)
     this.currentIndex++
     const snapshot = this.history[this.currentIndex]
-    console.info(`Restoring snapshot: ${snapshot.description}`)
+    debugHistoryRedo('Restoring snapshot: %s', snapshot.description)
     this.restoreState(snapshot.projectState)
     this.updateState()
   }
@@ -100,8 +108,11 @@ export class UndoRedoManager {
   // Check if undo is available
   canUndo(): boolean {
     const result = this.currentIndex > 0
-    console.info(
-      `canUndo: current=${this.currentIndex}, length=${this.history.length}, result=${result}`
+    debugHistory(
+      'canUndo: current=%d, length=%d, result=%s',
+      this.currentIndex,
+      this.history.length,
+      result
     )
     return result
   }

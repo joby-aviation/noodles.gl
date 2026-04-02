@@ -90,18 +90,18 @@ export function createNodesForType(
     nodes.push(beginNode)
     nodes.push(endNode)
     nodes.push(metaNode)
-    // Connect ForLoopBegin.d -> ForLoopEnd.d (default connection)
+    // Connect ForLoopBegin.item -> ForLoopEnd.item (default connection)
     edges.push({
       id: edgeId({
         source: beginNode.id,
-        sourceHandle: 'out.d',
+        sourceHandle: 'out.item',
         target: endNode.id,
-        targetHandle: 'par.d',
+        targetHandle: 'par.item',
       }),
       source: beginNode.id,
       target: endNode.id,
-      sourceHandle: 'out.d',
-      targetHandle: 'par.d',
+      sourceHandle: 'out.item',
+      targetHandle: 'par.item',
     })
   } else if (type === 'ContainerOp') {
     const id = nodeId('container', currentContainerId)

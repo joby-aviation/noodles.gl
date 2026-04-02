@@ -2,8 +2,9 @@
 // React component to initialize and manage external control
 
 import type React from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ExternalControl } from './api'
+import s from './index.module.css'
 
 export interface ExternalControlProps {
   enabled?: boolean
@@ -30,6 +31,15 @@ export const ExternalControlProvider: React.FC<ExternalControlProps> = ({
   const [isConnected, setIsConnected] = useState(false)
   const [error, setError] = useState<Error | null>(null)
 
+  // Use refs to keep latest callbacks without triggering re-initialization
+  const onStatusChangeRef = useRef(onStatusChange)
+  const onErrorRef = useRef(onError)
+
+  useEffect(() => {
+    onStatusChangeRef.current = onStatusChange
+    onErrorRef.current = onError
+  }, [onStatusChange, onError])
+
   useEffect(() => {
     if (!enabled) return
 
@@ -47,12 +57,12 @@ export const ExternalControlProvider: React.FC<ExternalControlProps> = ({
         // Set up event handlers
         control.onStatusChange(connected => {
           setIsConnected(connected)
-          onStatusChange?.(connected)
+          onStatusChangeRef.current?.(connected)
         })
 
         control.onError(err => {
           setError(err)
-          onError?.(err)
+          onErrorRef.current?.(err)
         })
 
         // Initialize the control
@@ -61,12 +71,12 @@ export const ExternalControlProvider: React.FC<ExternalControlProps> = ({
 
         // Make it available globally for debugging
         if (debug) {
-          ;(window as any).__externalControl = control
+          ;(window as Window & { __externalControl?: ExternalControl }).__externalControl = control
         }
       } catch (err) {
         const error = err instanceof Error ? err : new Error(String(err))
         setError(error)
-        onError?.(error)
+        onErrorRef.current?.(error)
       }
     }
 
@@ -77,31 +87,18 @@ export const ExternalControlProvider: React.FC<ExternalControlProps> = ({
       if (control) {
         control.dispose()
         if (debug) {
-          delete (window as any).__externalControl
+          delete (window as Window & { __externalControl?: ExternalControl }).__externalControl
         }
       }
     }
-  }, [enabled, autoConnect, host, port, debug, onError, onStatusChange])
+  }, [enabled, autoConnect, host, port, debug])
 
   // Render status indicator if in debug mode
   if (!debug) return null
 
+  const statusClass = isConnected ? s.connected : error ? s.error : s.disconnected
   return (
-    <div
-      style={{
-        position: 'fixed',
-        bottom: 10,
-        right: 10,
-        padding: '8px 12px',
-        background: isConnected ? '#4CAF50' : error ? '#f44336' : '#666',
-        color: 'white',
-        borderRadius: 4,
-        fontSize: 12,
-        fontFamily: 'monospace',
-        zIndex: 10000,
-        pointerEvents: 'none',
-      }}
-    >
+    <div className={`${s.indicator} ${statusClass}`}>
       External Control:{' '}
       {isConnected
         ? 'Connected'

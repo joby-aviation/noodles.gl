@@ -9,7 +9,6 @@ This guide covers development workflows, testing strategies, and contribution gu
 ### Prerequisites
 
 - **Node.js** (version pinned in `.nvmrc`) - [Download from nodejs.org](https://nodejs.org/en/download)
-- **Yarn** (version managed by Corepack, pinned in `package.json`)
 - Modern browser with WebGL support
 
 ### Setup
@@ -18,18 +17,14 @@ This guide covers development workflows, testing strategies, and contribution gu
 # Clone the repository
 git clone <repository-url>
 
-# Enable Corepack to manage Yarn version
-corepack enable yarn
-
-# Verify versions match project requirements
+# Verify Node.js version matches project requirements
 node -v  # Check against .nvmrc
-yarn -v  # Check against package.json
 
 # Install dependencies
-yarn install
+npm install
 
 # Start development server
-yarn start
+npm start
 ```
 
 ### Development URLs
@@ -54,11 +49,11 @@ For complete development commands and code style guidelines, see [Development Gu
 Key commands:
 
 ```bash
-yarn start          # Development server
-yarn build          # Production build
-yarn test           # Run all tests
-yarn lint           # Check code quality
-yarn fix-lint       # Auto-fix linting issues
+npm start           # Development server
+npm run build       # Production build
+npm test            # Run all tests
+npm run lint        # Check code quality
+npm run fix-lint    # Auto-fix linting issues
 ```
 
 ## 🧪 Testing
@@ -71,8 +66,8 @@ We use **Vitest** for testing with these patterns:
 
 ```bash
 # Run specific test patterns
-yarn test src/utils/color.test.ts
-yarn test src/visualizations/noodles/
+npm test src/utils/color.test.ts
+npm test src/visualizations/noodles/
 ```
 
 ## 🎨 Architecture Overview
@@ -82,7 +77,7 @@ For detailed architecture information, see [Architecture Guide](https://github.c
 Key concepts:
 
 - **Node-based system** for visual programming
-- **[Theatre.js](https://www.theatrejs.com/)** integration for timeline control
+- **Native timeline system** with bezier interpolation for keyframe animation
 - **[Deck.gl](https://deck.gl/) + [MapLibre](https://maplibre.org/)** for 3D visualizations
 
 ## 🌟 Contributing Guidelines
@@ -99,8 +94,8 @@ Key concepts:
 2. **Write tests** for new functionality
 3. **Migration Scripts**: Add any necessary migrations
 4. **Update documentation** if needed
-5. **Run linting** before committing: `yarn fix-lint`
-6. **Ensure tests pass**: `yarn test`
+5. **Run linting** before committing: `npm run fix-lint`
+6. **Ensure tests pass**: `npm test`
 
 ### Pull Request Process
 
@@ -116,7 +111,7 @@ Use clear, descriptive commit messages:
 
 ```
 feat: add new geospatial visualization node
-fix: resolve Theatre.js timeline synchronization issue
+fix: resolve timeline keyframe interpolation issue
 docs: update API documentation for operators
 refactor: improve performance of arc geometry calculations
 ```

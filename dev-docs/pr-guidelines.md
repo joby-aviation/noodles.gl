@@ -179,8 +179,8 @@ Always include a `noodles.json` file that reviewers can save and load:
 Before requesting review, ensure:
 
 - [ ] All tests pass locally
-- [ ] Linter passes (`yarn lint` or `yarn fix-lint`)
-- [ ] Type checker passes (`yarn typecheck`)
+- [ ] Linter passes (`npm run lint` or `npm run fix-lint`)
+- [ ] Type checker passes (`npm run typecheck`)
 - [ ] Manual testing completed (if applicable)
 - [ ] Documentation updated (if applicable)
 - [ ] Test runbook provided (for user-facing changes)

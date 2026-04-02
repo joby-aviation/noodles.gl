@@ -1,7 +1,16 @@
 import type { Node as ReactFlowNode } from '@xyflow/react'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import type { Edge } from './noodles'
-import { type IOperator, MathOp, NumberOp, type Operator } from './operators'
+import {
+  type CodeOp,
+  type DeckRendererOp,
+  type GeoJsonLayerOp,
+  type IOperator,
+  MathOp,
+  NumberOp,
+  type Operator,
+} from './operators'
+import { clearOps, getOpStore } from './store'
 import { transformGraph } from './transform-graph'
 import { edgeId } from './utils/id-utils'
 
@@ -121,5 +130,700 @@ describe('transform-graph', () => {
     // Verify that the reference connection was established
     expect(add.inputs.a.subscriptions.size).toBe(1)
     expect(add.inputs.a.subscriptions.has('/num.out.val->/add.par.a')).toBe(true)
+  })
+
+  it('does not report type mismatch errors for ReferenceEdges', () => {
+    // NumberOp (number) referenced by CodeOp.par.code (CodeField/string) — should be error-free
+    const graph: {
+      nodes: ReactFlowNode<Record<string, unknown>>[]
+      edges: (Edge<Operator<IOperator>, Operator<IOperator>> & { type?: string })[]
+    } = {
+      nodes: [
+        { id: '/num', type: 'NumberOp', data: { inputs: { val: 5 } }, position: { x: 0, y: 0 } },
+        {
+          id: '/code',
+          type: 'CodeOp',
+          data: { inputs: { code: 'return op("/num").out.val' } },
+          position: { x: 0, y: 0 },
+        },
+      ],
+      edges: [
+        {
+          id: '/num.out.val->/code.par.code',
+          type: 'ReferenceEdge',
+          source: '/num',
+          target: '/code',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.code',
+        } as Edge<Operator<IOperator>, Operator<IOperator>> & { type: string },
+      ],
+    }
+
+    const instances = transformGraph(graph)
+    const code = instances.find(op => op.id === '/code') as CodeOp
+    expect(code.hasConnectionErrors()).toBe(false)
+  })
+
+  it('still reports type mismatch errors for regular value edges', () => {
+    // Same operators and fields, but as a plain value edge — should still produce an error
+    const graph: {
+      nodes: ReactFlowNode<Record<string, unknown>>[]
+      edges: Edge<Operator<IOperator>, Operator<IOperator>>[]
+    } = {
+      nodes: [
+        { id: '/num', type: 'NumberOp', data: { inputs: { val: 5 } }, position: { x: 0, y: 0 } },
+        {
+          id: '/code',
+          type: 'CodeOp',
+          data: { inputs: { code: '' } },
+          position: { x: 0, y: 0 },
+        },
+      ],
+      edges: [
+        {
+          id: '/num.out.val->/code.par.code',
+          source: '/num',
+          target: '/code',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.code',
+        },
+      ],
+    }
+
+    const instances = transformGraph(graph)
+    const code = instances.find(op => op.id === '/code') as CodeOp
+    expect(code.hasConnectionErrors()).toBe(true)
+    const errorMessage = code.connectionErrors.value.get('/num.out.val->/code.par.code')
+    expect(errorMessage).toContain('Type mismatch')
+  })
+
+  it('tracks connection errors for incompatible types', () => {
+    // Connect a StringOp output to a MathOp number input - type mismatch
+    const graph: {
+      nodes: ReactFlowNode<Record<string, unknown>>[]
+      edges: Edge<Operator<IOperator>, Operator<IOperator>>[]
+    } = {
+      nodes: [
+        {
+          id: '/str',
+          type: 'StringOp',
+          data: { inputs: { val: 'hello' } },
+          position: { x: 0, y: 0 },
+        },
+        {
+          id: '/add',
+          type: 'MathOp',
+          data: { inputs: { operator: 'add', b: 10 } },
+          position: { x: 0, y: 0 },
+        },
+      ],
+      edges: [
+        {
+          source: '/str',
+          target: '/add',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.a',
+          id: '/str.out.val->/add.par.a',
+        },
+      ],
+    }
+
+    const instances = transformGraph(graph)
+    const add = instances.find(op => op.id === '/add') as MathOp
+
+    // Connection should be established despite type mismatch
+    expect(add.inputs.a.subscriptions.size).toBe(1)
+
+    // Connection error should be tracked
+    expect(add.hasConnectionErrors()).toBe(true)
+    expect(add.connectionErrors.value.size).toBe(1)
+    const errorMessage = add.connectionErrors.value.get('/str.out.val->/add.par.a')
+    expect(errorMessage).toContain('Type mismatch')
+  })
+
+  it('clears connection errors when valid connection replaces invalid one', () => {
+    // First create an invalid connection
+    const graphWithInvalidConnection: {
+      nodes: ReactFlowNode<Record<string, unknown>>[]
+      edges: Edge<Operator<IOperator>, Operator<IOperator>>[]
+    } = {
+      nodes: [
+        {
+          id: '/str',
+          type: 'StringOp',
+          data: { inputs: { val: 'hello' } },
+          position: { x: 0, y: 0 },
+        },
+        { id: '/num', type: 'NumberOp', data: { inputs: { val: 5 } }, position: { x: 0, y: 0 } },
+        {
+          id: '/add',
+          type: 'MathOp',
+          data: { inputs: { operator: 'add', b: 10 } },
+          position: { x: 0, y: 0 },
+        },
+      ],
+      edges: [
+        {
+          source: '/str',
+          target: '/add',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.a',
+          id: '/str.out.val->/add.par.a',
+        },
+      ],
+    }
+
+    transformGraph(graphWithInvalidConnection)
+
+    // Now replace with a valid connection (NumberOp -> MathOp)
+    const graphWithValidConnection: {
+      nodes: ReactFlowNode<Record<string, unknown>>[]
+      edges: Edge<Operator<IOperator>, Operator<IOperator>>[]
+    } = {
+      nodes: [
+        {
+          id: '/str',
+          type: 'StringOp',
+          data: { inputs: { val: 'hello' } },
+          position: { x: 0, y: 0 },
+        },
+        { id: '/num', type: 'NumberOp', data: { inputs: { val: 5 } }, position: { x: 0, y: 0 } },
+        {
+          id: '/add',
+          type: 'MathOp',
+          data: { inputs: { operator: 'add', b: 10 } },
+          position: { x: 0, y: 0 },
+        },
+      ],
+      edges: [
+        {
+          source: '/num',
+          target: '/add',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.a',
+          id: '/num.out.val->/add.par.a',
+        },
+      ],
+    }
+
+    const instances = transformGraph(graphWithValidConnection)
+    const add = instances.find(op => op.id === '/add') as MathOp
+
+    // Valid connection should be established
+    expect(add.inputs.a.subscriptions.size).toBe(1)
+
+    // No connection errors should remain
+    expect(add.hasConnectionErrors()).toBe(false)
+    expect(add.connectionErrors.value.size).toBe(0)
+  })
+
+  it('clears connection errors when edge is removed', () => {
+    // First create an invalid connection
+    const graphWithConnection: {
+      nodes: ReactFlowNode<Record<string, unknown>>[]
+      edges: Edge<Operator<IOperator>, Operator<IOperator>>[]
+    } = {
+      nodes: [
+        {
+          id: '/str',
+          type: 'StringOp',
+          data: { inputs: { val: 'hello' } },
+          position: { x: 0, y: 0 },
+        },
+        {
+          id: '/add',
+          type: 'MathOp',
+          data: { inputs: { operator: 'add', b: 10 } },
+          position: { x: 0, y: 0 },
+        },
+      ],
+      edges: [
+        {
+          source: '/str',
+          target: '/add',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.a',
+          id: '/str.out.val->/add.par.a',
+        },
+      ],
+    }
+
+    transformGraph(graphWithConnection)
+
+    // Now remove the edge
+    const graphWithoutConnection: {
+      nodes: ReactFlowNode<Record<string, unknown>>[]
+      edges: Edge<Operator<IOperator>, Operator<IOperator>>[]
+    } = {
+      nodes: [
+        {
+          id: '/str',
+          type: 'StringOp',
+          data: { inputs: { val: 'hello' } },
+          position: { x: 0, y: 0 },
+        },
+        {
+          id: '/add',
+          type: 'MathOp',
+          data: { inputs: { operator: 'add', b: 10 } },
+          position: { x: 0, y: 0 },
+        },
+      ],
+      edges: [], // No edges
+    }
+
+    const instances = transformGraph(graphWithoutConnection)
+    const add = instances.find(op => op.id === '/add') as MathOp
+
+    // No subscriptions should exist
+    expect(add.inputs.a.subscriptions.size).toBe(0)
+
+    // Connection errors should be cleared
+    expect(add.hasConnectionErrors()).toBe(false)
+    expect(add.connectionErrors.value.size).toBe(0)
+  })
+})
+
+describe('Field visibility restoration from saved data', () => {
+  afterEach(() => {
+    clearOps()
+  })
+
+  describe('visibleInputs as full set', () => {
+    it('uses visibleInputs directly as the full set of visible fields', () => {
+      // DeckRendererOp has 'effects' field with showByDefault: false
+      // visibleInputs specifies the FULL set of visible fields
+      const nodes = [
+        {
+          id: '/deck-0',
+          type: 'DeckRendererOp',
+          data: {
+            inputs: {},
+            visibleInputs: ['effects', 'layers'], // Full set - both should be visible
+          },
+          position: { x: 0, y: 0 },
+        },
+      ]
+
+      transformGraph({ nodes, edges: [] })
+
+      const { getOp } = getOpStore()
+      const op = getOp('/deck-0')
+      expect(op).toBeDefined()
+      expect(op!.visibleFields.value).toBeInstanceOf(Set)
+      // Both fields should be visible (from visibleInputs)
+      expect(op!.visibleFields.value!.has('effects')).toBe(true)
+      expect(op!.visibleFields.value!.has('layers')).toBe(true)
+      // visibleFields should have exactly these two fields
+      expect(op!.visibleFields.value!.size).toBe(2)
+    })
+
+    it('visibleInputs with subset of fields hides non-included showByDefault fields', () => {
+      // DeckRendererOp has 'layers' with showByDefault: true
+      // visibleInputs only includes 'effects', so 'layers' should NOT be visible
+      const nodes = [
+        {
+          id: '/deck-0',
+          type: 'DeckRendererOp',
+          data: {
+            inputs: {},
+            visibleInputs: ['effects'], // Only effects, NOT layers
+          },
+          position: { x: 0, y: 0 },
+        },
+      ]
+
+      transformGraph({ nodes, edges: [] })
+
+      const { getOp } = getOpStore()
+      const op = getOp('/deck-0')
+      expect(op).toBeDefined()
+      expect(op!.visibleFields.value).toBeInstanceOf(Set)
+      // 'effects' should be visible (from visibleInputs)
+      expect(op!.visibleFields.value!.has('effects')).toBe(true)
+      // 'layers' should NOT be visible (not in visibleInputs)
+      expect(op!.visibleFields.value!.has('layers')).toBe(false)
+    })
+
+    it('empty visibleInputs array results in no visible fields', () => {
+      const nodes = [
+        {
+          id: '/geojson-0',
+          type: 'GeoJsonLayerOp',
+          data: {
+            inputs: {},
+            visibleInputs: [], // Empty - no fields visible
+          },
+          position: { x: 0, y: 0 },
+        },
+      ]
+
+      transformGraph({ nodes, edges: [] })
+
+      const { getOp } = getOpStore()
+      const op = getOp('/geojson-0') as GeoJsonLayerOp
+      expect(op).toBeDefined()
+      // visibleFields should be an empty Set (explicit visibility with nothing visible)
+      expect(op.visibleFields.value).toBeInstanceOf(Set)
+      expect(op.visibleFields.value!.size).toBe(0)
+    })
+  })
+
+  describe('heuristic-based visibility (no visibleInputs)', () => {
+    it('keeps visibleFields.value null when no custom values or connections', () => {
+      const nodes = [
+        {
+          id: '/geojson-0',
+          type: 'GeoJsonLayerOp',
+          data: {
+            inputs: {},
+          },
+          position: { x: 0, y: 0 },
+        },
+      ]
+
+      transformGraph({ nodes, edges: [] })
+
+      const { getOp } = getOpStore()
+      const op = getOp('/geojson-0') as GeoJsonLayerOp
+      expect(op).toBeDefined()
+      expect(op.visibleFields.value).toBe(null)
+    })
+
+    it('derives visibility from custom values for showByDefault:false fields', () => {
+      // DeckRendererOp has 'effects' field with showByDefault: false
+      const nodes = [
+        {
+          id: '/deck-0',
+          type: 'DeckRendererOp',
+          data: {
+            inputs: {
+              effects: [{ type: 'lighting' }], // Custom value for showByDefault:false field
+            },
+          },
+          position: { x: 0, y: 0 },
+        },
+      ]
+
+      transformGraph({ nodes, edges: [] })
+
+      const { getOp } = getOpStore()
+      const op = getOp('/deck-0')
+      expect(op).toBeDefined()
+      // visibleFields should be set because 'effects' has showByDefault:false but has a value
+      expect(op!.visibleFields.value).toBeInstanceOf(Set)
+      expect(op!.visibleFields.value!.has('effects')).toBe(true)
+      // Should also include showByDefault:true fields
+      expect(op!.visibleFields.value!.has('layers')).toBe(true)
+    })
+
+    it('derives visibility from connections for showByDefault:false fields', () => {
+      // DeckRendererOp has 'effects' field with showByDefault: false
+      const nodes = [
+        {
+          id: '/source-0',
+          type: 'NumberOp',
+          data: { inputs: {} },
+          position: { x: 0, y: 0 },
+        },
+        {
+          id: '/deck-0',
+          type: 'DeckRendererOp',
+          data: { inputs: {} },
+          position: { x: 100, y: 0 },
+        },
+      ]
+
+      const edges = [
+        {
+          id: '/source-0.out.val->/deck-0.par.effects',
+          source: '/source-0',
+          target: '/deck-0',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.effects',
+        },
+      ]
+
+      transformGraph({ nodes, edges })
+
+      const { getOp } = getOpStore()
+      const op = getOp('/deck-0')
+      expect(op).toBeDefined()
+      // visibleFields should be set because 'effects' has showByDefault:false but has a connection
+      expect(op!.visibleFields.value).toBeInstanceOf(Set)
+      expect(op!.visibleFields.value!.has('effects')).toBe(true)
+    })
+
+    it('does not set visibleFields when only showByDefault:true fields have values', () => {
+      const nodes = [
+        {
+          id: '/num-0',
+          type: 'NumberOp',
+          data: {
+            inputs: {
+              val: 42, // 'val' has showByDefault: true
+            },
+          },
+          position: { x: 0, y: 0 },
+        },
+      ]
+
+      transformGraph({ nodes, edges: [] })
+
+      const { getOp } = getOpStore()
+      const op = getOp('/num-0')
+      expect(op).toBeDefined()
+      // visibleFields should remain null because the heuristic matches defaults
+      expect(op!.visibleFields.value).toBe(null)
+    })
+  })
+
+  describe('auto-show fields on connection', () => {
+    it('auto-shows hidden field when it receives a data connection', () => {
+      // DeckRendererOp has 'effects' field with showByDefault: false
+      const nodes = [
+        {
+          id: '/source-0',
+          type: 'NumberOp',
+          data: { inputs: {} },
+          position: { x: 0, y: 0 },
+        },
+        {
+          id: '/deck-0',
+          type: 'DeckRendererOp',
+          data: { inputs: {} },
+          position: { x: 100, y: 0 },
+        },
+      ]
+
+      // First create without connection
+      transformGraph({ nodes, edges: [] })
+
+      const { getOp } = getOpStore()
+      const op = getOp('/deck-0')
+      expect(op).toBeDefined()
+      // 'effects' is hidden by default
+      expect(op!.inputs.effects.showByDefault).toBe(false)
+
+      // Now add a connection to the hidden 'effects' field
+      const edges = [
+        {
+          id: '/source-0.out.val->/deck-0.par.effects',
+          source: '/source-0',
+          target: '/deck-0',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.effects',
+        },
+      ]
+
+      transformGraph({ nodes, edges })
+
+      // Field should now be visible due to auto-show on connection
+      expect(op!.isFieldVisible('effects')).toBe(true)
+      expect(op!.visibleFields.value).toBeInstanceOf(Set)
+      expect(op!.visibleFields.value!.has('effects')).toBe(true)
+    })
+
+    it('does not auto-show for ReferenceEdge connections', () => {
+      const nodes = [
+        {
+          id: '/num',
+          type: 'NumberOp',
+          data: { inputs: { val: 5 } },
+          position: { x: 0, y: 0 },
+        },
+        {
+          id: '/deck-0',
+          type: 'DeckRendererOp',
+          data: { inputs: {} },
+          position: { x: 100, y: 0 },
+        },
+      ]
+
+      // Create with a ReferenceEdge to hidden field
+      const edges = [
+        {
+          id: '/num.out.val->/deck-0.par.effects',
+          source: '/num',
+          target: '/deck-0',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.effects',
+          type: 'ReferenceEdge',
+        },
+      ]
+
+      transformGraph({ nodes, edges })
+
+      const { getOp } = getOpStore()
+      const op = getOp('/deck-0')
+      expect(op).toBeDefined()
+
+      // ReferenceEdges should not trigger auto-show
+      // visibleFields should remain null (using defaults)
+      expect(op!.visibleFields.value).toBe(null)
+      // 'effects' should still be hidden
+      expect(op!.isFieldVisible('effects')).toBe(false)
+    })
+  })
+})
+
+// Tests for the fix: skip connection errors when source field value is undefined.
+// Background: the graphStructureKey optimization means transformGraph only runs on structural
+// changes. On initial project load, operators haven't executed yet, so output fields with
+// `defaultValue = undefined` (e.g. LayerField) have no value. Previously, React Flow dimension
+// change events would re-run transformGraph after ops had executed (clearing the false error).
+// Now it doesn't, so we must skip validation when the source value is undefined.
+describe('connection error suppression for undefined source fields', () => {
+  afterEach(() => {
+    clearOps()
+  })
+
+  it('no false type mismatch for valid layer→list connection when op has not yet executed', () => {
+    // ScatterplotLayerOp.out.layer (LayerField, defaultValue=undefined) → DeckRendererOp.par.layers
+    // This is a valid connection. LayerField starts with undefined (no defaultValue), and
+    // createListeners() executes async, so at transformGraph time the value is still undefined.
+    const nodes = [
+      {
+        id: '/scatter',
+        type: 'ScatterplotLayerOp',
+        data: { inputs: {} },
+        position: { x: 0, y: 0 },
+      },
+      {
+        id: '/deck',
+        type: 'DeckRendererOp',
+        data: { inputs: {} },
+        position: { x: 100, y: 0 },
+      },
+    ]
+    const edges = [
+      {
+        id: '/scatter.out.layer->/deck.par.layers',
+        source: '/scatter',
+        target: '/deck',
+        sourceHandle: 'out.layer',
+        targetHandle: 'par.layers',
+      },
+    ]
+
+    const instances = transformGraph({ nodes, edges })
+    const deck = instances.find(op => op.id === '/deck') as DeckRendererOp
+
+    expect(deck.hasConnectionErrors()).toBe(false)
+  })
+
+  it('no false type mismatch for incompatible connection when source has not yet executed', () => {
+    // Even a genuinely incompatible connection (layer→number) should not produce an error
+    // when the source field value is undefined, since we cannot confirm incompatibility yet.
+    // LayerField.defaultValue = undefined; execution is async via createListeners().
+    const nodes = [
+      {
+        id: '/scatter',
+        type: 'ScatterplotLayerOp',
+        data: { inputs: {} },
+        position: { x: 0, y: 0 },
+      },
+      {
+        id: '/add',
+        type: 'MathOp',
+        data: { inputs: { operator: 'add', b: 0 } },
+        position: { x: 100, y: 0 },
+      },
+    ]
+    const edges = [
+      {
+        id: '/scatter.out.layer->/add.par.a',
+        source: '/scatter',
+        target: '/add',
+        sourceHandle: 'out.layer',
+        targetHandle: 'par.a',
+      },
+    ]
+
+    const instances = transformGraph({ nodes, edges })
+    const add = instances.find(op => op.id === '/add') as MathOp
+
+    expect(add.hasConnectionErrors()).toBe(false)
+  })
+
+  it('real type mismatch IS detected when source field has a defined default value', () => {
+    // StringField has static defaultValue = '' which is set synchronously in the Field
+    // constructor, so the output value is non-undefined even before execution.
+    // Connecting a string output to a number input should still produce an error.
+    const nodes = [
+      {
+        id: '/str',
+        type: 'StringOp',
+        data: { inputs: { val: 'hello' } },
+        position: { x: 0, y: 0 },
+      },
+      {
+        id: '/add',
+        type: 'MathOp',
+        data: { inputs: { operator: 'add', b: 10 } },
+        position: { x: 100, y: 0 },
+      },
+    ]
+    const edges = [
+      {
+        id: '/str.out.val->/add.par.a',
+        source: '/str',
+        target: '/add',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.a',
+      },
+    ]
+
+    const instances = transformGraph({ nodes, edges })
+    const add = instances.find(op => op.id === '/add') as MathOp
+
+    expect(add.hasConnectionErrors()).toBe(true)
+    expect(add.connectionErrors.value.get('/str.out.val->/add.par.a')).toContain('Type mismatch')
+  })
+
+  it('stale connection error is cleared when source value becomes undefined on re-run', () => {
+    // If an error was set previously, and then the source field resets to undefined
+    // (simulated via BehaviorSubject.next), the error should be cleared on the next
+    // transformGraph run rather than being falsely preserved.
+    const nodes = [
+      {
+        id: '/str',
+        type: 'StringOp',
+        data: { inputs: { val: 'hello' } },
+        position: { x: 0, y: 0 },
+      },
+      {
+        id: '/add',
+        type: 'MathOp',
+        data: { inputs: { operator: 'add', b: 10 } },
+        position: { x: 100, y: 0 },
+      },
+    ]
+    const edges = [
+      {
+        id: '/str.out.val->/add.par.a',
+        source: '/str',
+        target: '/add',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.a',
+      },
+    ]
+
+    // First run: StringOp has value 'hello' → type mismatch error set
+    transformGraph({ nodes, edges })
+    const { getOp } = getOpStore()
+    const add = getOp('/add') as MathOp
+    expect(add.hasConnectionErrors()).toBe(true)
+
+    // Simulate source field resetting to undefined (e.g. operator disposed and recreated)
+    // BehaviorSubject.next() sets the raw value, bypassing Field.setValue validation
+    const str = getOp('/str')!
+    str.outputs.val.next(undefined as unknown as string)
+
+    // Second run: same structure, but source field now has undefined value
+    transformGraph({ nodes, edges })
+
+    // Error should be cleared — source has no value, so we cannot confirm the mismatch
+    expect(add.hasConnectionErrors()).toBe(false)
   })
 })

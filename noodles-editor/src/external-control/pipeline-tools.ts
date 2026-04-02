@@ -1,6 +1,7 @@
 // Pipeline-specific tools for automated data pipeline creation and testing
 
 import { opTypes } from '../noodles/operators'
+import { debugExternal } from '../utils/debug'
 import { toolRegistry } from './tool-adapter'
 
 export interface PipelineSpec {
@@ -9,7 +10,7 @@ export interface PipelineSpec {
     type: string
     position?: { x: number; y: number }
     data?: {
-      inputs?: Record<string, any>
+      inputs?: Record<string, unknown>
     }
   }>
   edges: Array<{
@@ -31,13 +32,13 @@ export interface PipelineHandle {
 export interface TestResult {
   pipelineId: string
   success: boolean
-  outputs: Record<string, any>
+  outputs: Record<string, unknown>
   errors: Array<{
     nodeId: string
     error: string
   }>
   executionTime: number
-  intermediateResults?: Record<string, any>
+  intermediateResults?: Record<string, unknown>
 }
 
 export interface ValidationResult {
@@ -183,7 +184,10 @@ export class PipelineManager {
   ): Promise<PipelineHandle> {
     const nodeIds: string[] = []
     const edgeIds: string[] = []
-    const modifications: any = {
+    const modifications: {
+      nodes: Array<{ type: 'add'; node: unknown }>
+      edges: Array<{ type: 'add'; edge: unknown }>
+    } = {
       nodes: [],
       edges: [],
     }
@@ -244,7 +248,7 @@ export class PipelineManager {
   // Test a pipeline with sample data
   async testPipeline(
     pipelineId: string,
-    testData: any[],
+    testData: unknown[],
     options = {
       timeout: 30000,
       captureIntermediateResults: false,
@@ -275,7 +279,7 @@ export class PipelineManager {
       if (sourceNodeId) {
         // TODO: Implement actual data injection
         // This would require modifying the source node's input data
-        console.log('Injecting test data into', sourceNodeId, testData)
+        debugExternal('Injecting test data into', sourceNodeId, testData)
       }
 
       // Wait for pipeline execution (with timeout)
@@ -357,11 +361,14 @@ export class PipelineManager {
       }
     }
 
-    const { nodes, edges } = projectState.result
+    const { nodes, edges } = projectState.result as {
+      nodes: Array<{ id: string }>
+      edges: Array<{ id: string; source: string; target: string }>
+    }
 
     // Check all pipeline nodes exist
     for (const nodeId of pipeline.nodes) {
-      const node = nodes.find((n: any) => n.id === nodeId)
+      const node = nodes.find(n => n.id === nodeId)
       if (!node) {
         errors.push({
           type: 'invalid_config',
@@ -373,7 +380,7 @@ export class PipelineManager {
 
     // Check all edges are valid
     for (const edgeId of pipeline.edges) {
-      const edge = edges.find((e: any) => e.id === edgeId)
+      const edge = edges.find(e => e.id === edgeId)
       if (!edge) {
         errors.push({
           type: 'missing_connection',
@@ -391,7 +398,7 @@ export class PipelineManager {
       visited.add(nodeId)
       recursionStack.add(nodeId)
 
-      const outgoingEdges = edges.filter((e: any) => e.source === nodeId)
+      const outgoingEdges = edges.filter(e => e.source === nodeId)
       for (const edge of outgoingEdges) {
         if (!visited.has(edge.target)) {
           if (hasCycle(edge.target)) return true

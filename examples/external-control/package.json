@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Examples for controlling Noodles externally via WebSocket and MCP",
   "private": true,
+  "type": "module",
   "scripts": {
     "server": "node server-example.js",
     "mcp-proxy": "node mcp-proxy.js",

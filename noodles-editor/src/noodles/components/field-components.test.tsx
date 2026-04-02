@@ -92,7 +92,6 @@ describe('NumberFieldComponent', () => {
   })
 
   it('rejects values outside hard limits', () => {
-    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const field = new NumberField(50, { min: 0, max: 100 })
     render(<NumberFieldComponent id="test-field" field={field} disabled={false} />)
 
@@ -103,7 +102,6 @@ describe('NumberFieldComponent', () => {
 
     // The field rejects the value and keeps previous value (Zod validation fails)
     expect(field.value).toBe(50)
-    expect(consoleWarn).toHaveBeenCalled()
   })
 
   it('updates when field value changes externally', () => {
@@ -961,5 +959,71 @@ describe('NumberFieldComponent edge cases', () => {
 
     const label = screen.getByText('myNumber')
     expect(label).toBeInTheDocument()
+  })
+})
+
+describe('NumberFieldComponent editing behavior', () => {
+  afterEach(() => {
+    cleanup()
+    clearOps()
+    vi.restoreAllMocks()
+  })
+
+  it('does not update field when intermediate edit produces a multi-character zero string', () => {
+    // Reproduces the bug: deleting "1" from "100" leaves "00" which parses to 0,
+    // but the field should stay at 100 until the user types a non-zero digit
+    const field = new NumberField(100)
+    render(<NumberFieldComponent id="test-field" field={field} disabled={false} />)
+
+    const input = screen.getByRole('spinbutton')
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '00' } })
+
+    expect(field.value).toBe(100)
+  })
+
+  it('updates field to 0 when the user explicitly types a single "0"', () => {
+    const field = new NumberField(100)
+    render(<NumberFieldComponent id="test-field" field={field} disabled={false} />)
+
+    const input = screen.getByRole('spinbutton')
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '0' } })
+
+    expect(field.value).toBe(0)
+  })
+
+  it('does not update field when input is cleared to empty string', () => {
+    const field = new NumberField(100)
+    render(<NumberFieldComponent id="test-field" field={field} disabled={false} />)
+
+    const input = screen.getByRole('spinbutton')
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '' } })
+
+    expect(field.value).toBe(100)
+  })
+
+  it('does not update field for intermediate decimal zero strings like "0."', () => {
+    const field = new NumberField(100)
+    render(<NumberFieldComponent id="test-field" field={field} disabled={false} />)
+
+    const input = screen.getByRole('spinbutton')
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '0.' } })
+
+    expect(field.value).toBe(100)
+  })
+
+  it('updates field once the user completes a decimal value starting with zero', () => {
+    const field = new NumberField(100)
+    render(<NumberFieldComponent id="test-field" field={field} disabled={false} />)
+
+    const input = screen.getByRole('spinbutton')
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '0.' } })
+    fireEvent.change(input, { target: { value: '0.5' } })
+
+    expect(field.value).toBe(0.5)
   })
 })

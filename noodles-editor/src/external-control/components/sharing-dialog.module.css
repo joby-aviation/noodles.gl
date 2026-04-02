@@ -1,7 +1,7 @@
 .overlay {
   position: fixed;
   inset: 0;
-  z-index: 10000;
+  z-index: var(--z-index-backdrop);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -10,9 +10,12 @@
 }
 
 .dialog {
+  z-index: var(--z-index-modal);
   background: var(--color-bg-base);
   border-radius: 8px;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  box-shadow:
+    0 20px 25px -5px rgba(0, 0, 0, 0.1),
+    0 10px 10px -5px rgba(0, 0, 0, 0.04);
   width: 100%;
   max-width: 640px;
   max-height: 80vh;

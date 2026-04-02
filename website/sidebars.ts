@@ -42,6 +42,7 @@ const sidebars: SidebarsConfig = {
         'developers/framework-extension',
       ],
     },
+    'changelog',
   ],
 }
 

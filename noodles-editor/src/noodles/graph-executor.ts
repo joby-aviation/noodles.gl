@@ -1,42 +1,11 @@
 // GraphExecutor - Execution engine for the operator graph
-// Manages operator execution with topological sorting, dirty tracking, and RAF loop
+// Manages operator execution with topological sorting, dirty tracking, and a worker timer loop
 
-import type { IOperator, Operator } from './operators'
+import { debugExecutor } from '../utils/debug'
+import { visibilityAdaptiveLoop } from '../utils/worker-timer'
+import type { ForLoopBeginOp, ForLoopEndOp, ForLoopMetaOp, IOperator, Operator } from './operators'
 import { getAllOps } from './store'
 import type { OpId } from './utils/id-utils'
-
-// ForLoop operator type definitions for type checking during execution
-// These are defined here to avoid circular dependencies with operators.ts
-type ForLoopBeginOp = Operator<IOperator> & {
-  inputs: { data: { value: unknown[] } }
-  outputs: {
-    d: { next: (v: unknown) => void }
-    index: { next: (v: number) => void }
-    total: { next: (v: number) => void }
-  }
-}
-type ForLoopEndOp = Operator<IOperator> & {
-  inputs: { d: { value: unknown } }
-  outputs: { data: { next: (v: unknown[]) => void } }
-}
-type ForLoopMetaOp = Operator<IOperator> & {
-  inputs: { initialValue: { value: unknown }; currentValue: { value: unknown } }
-  outputs: {
-    accumulator: { next: (v: unknown) => void }
-    index: { next: (v: number) => void }
-    total: { next: (v: number) => void }
-    isFirst: { next: (v: boolean) => void }
-    isLast: { next: (v: boolean) => void }
-  }
-}
-
-// Simple types for execution
-export type ComputeState = {
-  time: number
-  frame: number
-  context: Map<string, unknown>
-  scope?: GraphScope
-}
 
 export type ComputeResult<T = unknown> = {
   value: T
@@ -174,9 +143,11 @@ export class GraphExecutor {
   private executionLevels: string[][] = []
   private isDirty = true
   private options: Required<ExecutorOptions>
+  // Track nodes added directly via addNode() (not from store sync)
+  private manuallyAddedNodes: Set<string> = new Set()
 
-  // RAF loop state
-  private rafId: number | null = null
+  // Loop cancel function — RAF when visible, worker timer when hidden
+  private cancelLoop: (() => void) | null = null
   private isPulling = false
   private lastFrameTime = 0
   private frameInterval: number
@@ -205,29 +176,26 @@ export class GraphExecutor {
 
   // Start the execution loop
   start(): void {
-    if (this.rafId !== null) return
+    if (this.cancelLoop !== null) return
     this.lastFrameTime = performance.now()
-    this.loop()
+    this.cancelLoop = visibilityAdaptiveLoop(this.loop, this.frameInterval)
   }
 
   // Stop the execution loop
   stop(): void {
-    if (this.rafId !== null) {
-      cancelAnimationFrame(this.rafId)
-      this.rafId = null
-    }
+    this.cancelLoop?.()
+    this.cancelLoop = null
     if (this.batchTimeout !== null) {
       clearTimeout(this.batchTimeout)
       this.batchTimeout = null
     }
   }
 
-  // Main loop - runs on animation frame
-  private loop = (): void => {
-    const currentTime = performance.now()
+  // Main loop - runs via RAF when visible (vsync-coordinated), worker timer when hidden
+  private loop = (currentTime: number): void => {
     const deltaTime = currentTime - this.lastFrameTime
 
-    // Throttle to target FPS
+    // Guard against the interval firing more frequently than expected
     if (deltaTime >= this.frameInterval) {
       this.lastFrameTime = currentTime - (deltaTime % this.frameInterval)
 
@@ -238,23 +206,23 @@ export class GraphExecutor {
         })
       }
     }
-
-    this.rafId = requestAnimationFrame(this.loop)
   }
 
   get isRunning(): boolean {
-    return this.rafId !== null
+    return this.cancelLoop !== null
   }
 
   // Add a node to the graph
   addNode(node: Operator<IOperator>): void {
     this.nodes.set(node.id, node)
+    this.manuallyAddedNodes.add(node.id) // Track manually added nodes
     this.isDirty = true
   }
 
   // Remove a node and all its connections
   removeNode(nodeId: string): void {
     this.nodes.delete(nodeId)
+    this.manuallyAddedNodes.delete(nodeId) // Also remove from tracking
     this.edges = this.edges.filter(edge => edge.source !== nodeId && edge.target !== nodeId)
     this.upstream.delete(nodeId)
     this.downstream.delete(nodeId)
@@ -336,7 +304,7 @@ export class GraphExecutor {
     const { sorted, cycles } = topologicalSort(this.nodes, this.edges)
 
     if (cycles.length > 0) {
-      console.warn('Cycles detected in graph:', cycles)
+      debugExecutor('Cycles detected in graph:', cycles)
     }
 
     this.sortedOrder = sorted
@@ -392,14 +360,51 @@ export class GraphExecutor {
     this.syncNodesFromStore()
     this.updateSort()
 
+    debugExecutor(
+      'executeFrame: nodes=%d, edges=%d, dirty=%d',
+      this.nodes.size,
+      this.edges.length,
+      this.dirtyNodes.size
+    )
+
     // Reset frame metrics
     if (this.options.enableProfiling) {
       this.metrics.executionCount = 0
       this.metrics.dirtyCount = this.dirtyNodes.size
     }
 
+    // Find and execute ForLoop scopes first
+    // ForLoop scopes need to complete their iterations before downstream operators can pull their results
+    const forLoopScopes = this.findForLoopScopes()
+
+    for (const scope of forLoopScopes) {
+      try {
+        const loopResults = await this.executeForLoopScope(
+          scope.beginOp,
+          scope.endOp,
+          scope.scopeNodeIds,
+          scope.metaOp
+        )
+        results.set(scope.endOp.id, { value: { data: loopResults }, changed: true })
+      } catch (error) {
+        results.set(scope.endOp.id, {
+          value: null,
+          changed: false,
+          error: error instanceof Error ? error : new Error(String(error)),
+        })
+      }
+    }
+
     // Find root operators to pull from (sinks like DeckRenderer, Viewer, etc.)
+    // ForLoopEndOp may have downstream roots that will pull from its cached results
     const roots = this.findRootOperators()
+
+    debugExecutor(
+      'Pulling roots: %d dirty nodes, %d roots %O',
+      this.dirtyNodes.size,
+      roots.length,
+      roots.map(op => op.id)
+    )
 
     // Pull from roots - this recursively executes all upstream dependencies
     if (this.options.parallel) {
@@ -437,45 +442,9 @@ export class GraphExecutor {
     this.metrics.executionCount = results.size
     this.metrics.totalOperators = this.nodes.size
 
+    debugExecutor('Frame complete: %dms', this.metrics.frameTime.toFixed(2))
+
     return results
-  }
-
-  // Execute a single node
-  private async executeNode(
-    node: Operator<IOperator>,
-    _state: ComputeState
-  ): Promise<ComputeResult> {
-    try {
-      // Get input values
-      const inputs = {}
-      for (const [key, field] of Object.entries(node.inputs)) {
-        inputs[key] = field.value
-      }
-
-      // Execute the operator
-      const outputs = await node.execute(inputs)
-
-      // Update output fields
-      if (outputs) {
-        for (const [key, value] of Object.entries(outputs)) {
-          if (key in node.outputs) {
-            node.outputs[key].setValue(value)
-          }
-        }
-      }
-
-      return {
-        value: outputs,
-        changed: true,
-      }
-    } catch (error) {
-      console.error(`Error executing node ${node.id}:`, error)
-      return {
-        value: null,
-        changed: false,
-        error: error instanceof Error ? error : new Error(String(error)),
-      }
-    }
   }
 
   // Mark specific nodes as dirty
@@ -563,10 +532,14 @@ export class GraphExecutor {
   syncNodesFromStore(): void {
     const ops = getAllOps()
 
-    // Remove nodes that no longer exist in store
+    let changed = false
+
+    // Remove nodes that no longer exist in store (but preserve manually added nodes)
     for (const [id] of this.nodes) {
-      if (!ops.find(op => op.id === id)) {
+      // Don't remove nodes that were manually added via addNode()
+      if (!this.manuallyAddedNodes.has(id) && !ops.find(op => op.id === id)) {
         this.nodes.delete(id)
+        changed = true
       }
     }
 
@@ -578,10 +551,11 @@ export class GraphExecutor {
         if (op.dirty) {
           this.dirtyNodes.add(op.id)
         }
+        changed = true
       }
     }
 
-    this.isDirty = true
+    if (changed) this.isDirty = true
   }
 
   // Find root operators (sinks - DeckRenderer, Out, Viewer, etc.)
@@ -589,7 +563,7 @@ export class GraphExecutor {
     const roots: Operator<IOperator>[] = []
 
     for (const [_, op] of this.nodes) {
-      const opType = (op.constructor as any).displayName
+      const opType = (op.constructor as { displayName?: string }).displayName
 
       if (
         opType === 'DeckRenderer' ||
@@ -614,20 +588,40 @@ export class GraphExecutor {
   }
 
   // Execute a ForLoop scope - handles iteration with accumulator (reduce-like semantics)
-  // The scope body is defined by nodes with parentNode pointing to the group node
+  // Uses pull-based execution with caching to ensure correct iteration values propagate
   async executeForLoopScope(
     beginOp: ForLoopBeginOp,
     endOp: ForLoopEndOp,
     scopeNodeIds: string[],
     metaOp?: ForLoopMetaOp
   ): Promise<unknown[]> {
+    // First pull beginOp to get the input data
+    await beginOp.pull()
+
     const data = beginOp.inputs.data.value
-    if (!Array.isArray(data)) {
+    if (!Array.isArray(data) || data.length === 0) {
+      endOp.outputs.data.next([])
+      endOp.setCachedOutput({ data: [] })
       return []
     }
 
     const total = data.length
     const results: unknown[] = []
+
+    // Get intermediate nodes (excluding begin, meta, end)
+    const intermediateNodeIds = scopeNodeIds.filter(
+      id => id !== beginOp.id && id !== endOp.id && id !== metaOp?.id
+    )
+
+    // Sort intermediate nodes topologically for execution order
+    const scopeNodes = new Map(
+      intermediateNodeIds
+        .map(id => [id, this.nodes.get(id)] as const)
+        .filter((entry): entry is [string, Operator<IOperator>] => entry[1] !== undefined)
+    )
+    const scopeEdges = this.edges.filter(e => scopeNodes.has(e.source) && scopeNodes.has(e.target))
+    const { sorted } = topologicalSort(scopeNodes, scopeEdges)
+    const executionOrder = sorted.map(id => this.nodes.get(id)!).filter(Boolean)
 
     // Get initial accumulator value if meta op exists
     let accumulator: unknown = metaOp?.inputs.initialValue.value ?? null
@@ -637,10 +631,14 @@ export class GraphExecutor {
       const isFirst = index === 0
       const isLast = index === total - 1
 
-      // Set iteration values on ForLoopBeginOp
-      beginOp.outputs.d.next(item)
+      // Set iteration values on ForLoopBeginOp outputs
+      beginOp.outputs.item.next(item)
       beginOp.outputs.index.next(index)
       beginOp.outputs.total.next(total)
+
+      // CRITICAL: Cache BeginOp so downstream pulls return iteration values
+      // Without this, pulling intermediate ops re-executes BeginOp and gets arr[0]
+      beginOp.setCachedOutput({ item, index, total })
 
       // Set iteration metadata on ForLoopMetaOp if present
       if (metaOp) {
@@ -649,44 +647,21 @@ export class GraphExecutor {
         metaOp.outputs.total.next(total)
         metaOp.outputs.isFirst.next(isFirst)
         metaOp.outputs.isLast.next(isLast)
+        metaOp.setCachedOutput({ accumulator, index, total, isFirst, isLast })
       }
 
-      // Mark all scope nodes as dirty for this iteration
-      for (const nodeId of scopeNodeIds) {
-        const node = this.nodes.get(nodeId)
-        if (node) {
-          node.dirty = true
-          this.dirtyNodes.add(nodeId)
-        }
+      // Mark intermediate operators dirty for this iteration
+      for (const op of executionOrder) {
+        op.markDirty()
       }
 
-      // Execute scope body nodes in topological order
-      const scopeNodes = new Map(
-        scopeNodeIds
-          .map(id => [id, this.nodes.get(id)] as const)
-          .filter((entry): entry is [string, Operator<IOperator>] => entry[1] !== undefined)
-      )
-      const scopeEdges = this.edges.filter(
-        e => scopeNodeIds.includes(e.source) && scopeNodeIds.includes(e.target)
-      )
-      const { sorted } = topologicalSort(scopeNodes, scopeEdges)
-
-      for (const nodeId of sorted) {
-        const node = this.nodes.get(nodeId)
-        if (node && this.dirtyNodes.has(nodeId)) {
-          await this.executeNode(node, {
-            time: performance.now(),
-            frame: index,
-            context: new Map([['iteration', { index, total, isFirst, isLast, accumulator }]]),
-          })
-          this.dirtyNodes.delete(nodeId)
-          node.dirty = false
-        }
+      // Pull each intermediate operator in order
+      for (const op of executionOrder) {
+        await op.pull()
       }
 
       // Collect result from this iteration
-      const iterationResult = endOp.inputs.d.value
-      results.push(iterationResult)
+      results.push(endOp.inputs.item.value)
 
       // Update accumulator from meta op's currentValue input for next iteration
       if (metaOp) {
@@ -696,6 +671,7 @@ export class GraphExecutor {
 
     // Set final results on ForLoopEndOp
     endOp.outputs.data.next(results)
+    endOp.setCachedOutput({ data: results })
 
     return results
   }
@@ -718,7 +694,7 @@ export class GraphExecutor {
 
     // Find all ForLoopBeginOp nodes
     for (const [_, op] of this.nodes) {
-      const opType = (op.constructor as any).displayName
+      const opType = (op.constructor as { displayName?: string }).displayName
       if (opType === 'ForLoopBegin') {
         // Find the corresponding ForLoopEndOp by traversing downstream
         const visited = new Set<string>()
@@ -737,7 +713,8 @@ export class GraphExecutor {
             const downstreamNode = this.nodes.get(downstreamId)
             if (!downstreamNode) continue
 
-            const downstreamType = (downstreamNode.constructor as any).displayName
+            const downstreamType = (downstreamNode.constructor as { displayName?: string })
+              .displayName
             if (downstreamType === 'ForLoopEnd') {
               endOp = downstreamNode as ForLoopEndOp
               scopeNodeIds.push(downstreamId)
@@ -797,14 +774,7 @@ export class GraphScope {
   }
 
   // Execute this scope with given input
-  async execute(input: unknown, state: ComputeState): Promise<ComputeResult> {
-    // Create scoped state
-    const _scopedState: ComputeState = {
-      ...state,
-      scope: this,
-      context: new Map([...state.context, ...this.context]),
-    }
-
+  async execute(input: unknown): Promise<ComputeResult> {
     // Set input in context
     this.setContext('input', input)
 
@@ -876,10 +846,12 @@ let globalExecutor: GraphExecutor | null = null
 
 // Initialize the execution system
 export function initializeExecutor(options?: ExecutorOptions): GraphExecutor {
+  // Stop the previous executor before replacing it to prevent RAF leaks
+  globalExecutor?.stop()
   globalExecutor = new GraphExecutor(options)
 
   if (typeof window !== 'undefined') {
-    ;(window as any).__noodlesExecutor = globalExecutor
+    ;(window as Window & { __noodlesExecutor?: GraphExecutor }).__noodlesExecutor = globalExecutor
   }
 
   return globalExecutor
@@ -913,6 +885,10 @@ export function updateGraph(edges: Edge[]): void {
     globalExecutor.syncNodesFromStore()
     // Build edge relationships
     globalExecutor.buildFromEdges(edges)
+    // Start the RAF loop if not already running
+    if (!globalExecutor.isRunning) {
+      globalExecutor.start()
+    }
   }
 }
 

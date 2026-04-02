@@ -1,4 +1,5 @@
 import { getKeysStore } from '../noodles/keys-store'
+import { debugGeocode } from './debug'
 
 export interface GeocodingResult {
   place_name: string
@@ -66,11 +67,11 @@ export async function loadGoogleMapsAPI(apiKey: string): Promise<void> {
   googleMapsPromise = new Promise<void>((resolve, reject) => {
     const callbackName = `googleMapsCallback_${Date.now()}`
 
-    ;(window as any)[callbackName] = () => {
+    window[callbackName] = () => {
       googleMapsLoaded = true
       loadingApiKey = null
       resolve()
-      delete (window as any)[callbackName]
+      delete window[callbackName]
     }
 
     const params = new URLSearchParams({
@@ -95,7 +96,8 @@ export async function loadGoogleMapsAPI(apiKey: string): Promise<void> {
 // Geocode using Google Places AutocompleteSuggestion API (recommended)
 // Returns autocomplete predictions for a search query
 export async function geocodeWithGooglePlaces(query: string): Promise<GeocodingResult[]> {
-  const apiKey = getKeysStore().getKey('googleMaps')
+  const keysStore = getKeysStore()
+  const apiKey = keysStore.getKey('googleMaps')
   if (!apiKey) {
     throw new Error('Google Maps API key not configured')
   }
@@ -146,14 +148,14 @@ export async function geocodeWithGooglePlaces(query: string): Promise<GeocodingR
           }
         }
       } catch (error) {
-        console.error('Error fetching place details:', error)
+        debugGeocode('Error fetching place details:', error)
         // Continue with other suggestions even if one fails
       }
     }
 
     return results
   } catch (error) {
-    console.error('Google Places API error:', error)
+    debugGeocode('Google Places API error:', error)
     throw error
   }
 }
@@ -176,7 +178,7 @@ export async function geocodeWithMapbox(query: string, apiKey: string): Promise<
     }
     return []
   } catch (error) {
-    console.error('Mapbox geocoding error:', error)
+    debugGeocode('Mapbox geocoding error:', error)
     return []
   }
 }
@@ -199,7 +201,7 @@ export async function geocodeWithPhoton(query: string): Promise<GeocodingResult[
     }
     return []
   } catch (error) {
-    console.error('Photon geocoding error:', error)
+    debugGeocode('Photon geocoding error:', error)
     return []
   }
 }

@@ -4,6 +4,7 @@
 import { globalContextManager } from '../ai-chat/global-context-manager'
 import { MCPTools } from '../ai-chat/mcp-tools'
 import { getOpStore } from '../noodles/store'
+import { debugExternal } from '../utils/debug'
 import {
   createErrorMessage,
   createMessage,
@@ -23,13 +24,21 @@ let worker: Worker | null = null
 let isInitialized = false
 
 // Event handlers
-const eventHandlers = new Map<string, Set<(data: any) => void>>()
+const eventHandlers = new Map<string, Set<(data: unknown) => void>>()
 
 // Tool executor instance
 let toolExecutor: MCPTools | null = null
 
-// Helper to check if message type requires authentication
+// Helper to check if message type requires authentication.
+// Auth is skipped on localhost since external control connections are already local
+// and auth tokens require production setup. Use `?externalControl=true` to enable.
 const requiresAuth = (type: MessageType): boolean => {
+  const isLocalhost =
+    typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+
+  if (isLocalhost) return false
+
   // These message types don't require auth
   const publicTypes = [
     MessageType.CONNECT,
@@ -61,14 +70,14 @@ export const initializeWorkerBridge = async (): Promise<void> => {
 
     // Set up error handler
     worker.onerror = error => {
-      console.error('[Bridge] Worker error:', error)
+      debugExternal('[Bridge] Worker error:', error)
       emit('error', { error })
     }
 
     isInitialized = true
     emit('initialized', {})
   } catch (error) {
-    console.error('[Bridge] Failed to initialize worker:', error)
+    debugExternal('[Bridge] Failed to initialize worker:', error)
     throw error
   }
 }
@@ -99,9 +108,10 @@ const handleWorkerMessage = async (event: MessageEvent) => {
     const token = message.payload?.token || message.payload?.auth?.token
 
     if (!token || !sessionManager.validateToken(token)) {
-      sendToWorker(
-        createErrorMessage('Invalid or expired session token', 'AUTH_FAILED', message.id)
-      )
+      sendToWorker({
+        ...createErrorMessage('Invalid or expired session token', 'AUTH_FAILED'),
+        id: message.id, // Preserve original message ID so client can match the response
+      })
       return
     }
   }
@@ -139,8 +149,29 @@ const handleWorkerMessage = async (event: MessageEvent) => {
       await handleStateRequest(message)
       break
 
+    case MessageType.CONNECT:
+      // External client connected - acknowledge
+      debugExternal('[Bridge] External client connected:', message.payload)
+      emit('clientConnected', message.payload)
+      break
+
+    case MessageType.DISCONNECT:
+      // External client disconnected
+      debugExternal('[Bridge] External client disconnected')
+      emit('clientDisconnected', message.payload)
+      break
+
+    case MessageType.PING:
+      // Respond to ping with pong
+      sendToWorker(createMessage(MessageType.PONG, {}, message.id))
+      break
+
+    case MessageType.PONG:
+      // Pong received, nothing to do
+      break
+
     default:
-      console.log('[Bridge] Unhandled message type:', message.type)
+      debugExternal('[Bridge] Unhandled message type:', message.type)
   }
 }
 
@@ -191,10 +222,12 @@ const handleToolCall = async (message: ToolCallMessage) => {
 const executeTool = async (
   executor: MCPTools,
   toolName: string,
-  args: Record<string, any>
-): Promise<any> => {
+  args: Record<string, unknown>
+): Promise<unknown> => {
   // Get the tool method
-  const tool = (executor as any)[toolName]
+  const tool = (executor as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>)[
+    toolName
+  ]
   if (typeof tool !== 'function') {
     throw new Error(`Unknown tool: ${toolName}`)
   }
@@ -204,75 +237,148 @@ const executeTool = async (
 }
 
 // Handle pipeline creation
+// Supports two formats:
+// 1. Direct nodes/edges: { nodes: [...], edges: [...] }
+// 2. High-level spec: { dataSource, transformations, output }
 const handlePipelineCreate = async (message: PipelineCreateMessage) => {
-  const { spec, options } = message.payload
-  const _store = getOpStore()
+  const payload = message.payload as {
+    spec?: { dataSource?: unknown; transformations?: unknown[]; output?: unknown }
+    nodes?: Array<{
+      id: string
+      type: string
+      position?: { x: number; y: number }
+      data?: { inputs?: Record<string, unknown> }
+    }>
+    edges?: Array<{
+      id?: string
+      source: string
+      target: string
+      sourceHandle: string
+      targetHandle: string
+    }>
+    pipelineId?: string
+    options?: { validateFirst?: boolean; autoConnect?: boolean }
+  }
 
   try {
-    const nodes: any[] = []
-    const edges: any[] = []
-    let yPosition = 100
+    let pipelineId = ''
+    let nodes: Array<{
+      id: string
+      type: string
+      position: { x: number; y: number }
+      data: { inputs: Record<string, unknown> }
+    }> = []
+    let edges: Array<{
+      id: string
+      source: string
+      target: string
+      sourceHandle: string
+      targetHandle: string
+    }> = []
 
-    // Create data source node
-    const sourceNode = {
-      id: `/source-${Date.now()}`,
-      type: spec.dataSource.type,
-      position: { x: 100, y: yPosition },
-      data: {
-        inputs: spec.dataSource.config,
-      },
-    }
-    nodes.push(sourceNode)
-    yPosition += 150
+    // Disambiguate: direct format uses top-level nodes/edges,
+    // high-level format uses spec.dataSource/transformations/output.
+    if (payload.nodes && Array.isArray(payload.nodes)) {
+      // Direct format - use nodes and edges as provided
+      nodes = (
+        payload.nodes as Array<{
+          id: string
+          type: string
+          position?: { x: number; y: number }
+          data?: { inputs?: Record<string, unknown> }
+        }>
+      ).map(n => ({
+        id: n.id,
+        type: n.type,
+        position: n.position || { x: 100, y: 100 },
+        data: { inputs: n.data?.inputs || {} },
+      }))
 
-    // Create transformation nodes
-    let previousNodeId = sourceNode.id
-    for (const transform of spec.transformations) {
-      const transformNode = {
-        id: `/transform-${Date.now()}-${Math.random()}`,
-        type: transform.type,
-        position: { x: 100, y: yPosition },
-        data: {
-          inputs: transform.config,
-        },
+      edges = (
+        (payload.edges || []) as Array<{
+          id?: string
+          source: string
+          target: string
+          sourceHandle: string
+          targetHandle: string
+        }>
+      ).map(e => ({
+        id: e.id || `${e.source}.${e.sourceHandle}->${e.target}.${e.targetHandle}`,
+        source: e.source,
+        target: e.target,
+        sourceHandle: e.sourceHandle,
+        targetHandle: e.targetHandle,
+      }))
+      // Caller can specify which node represents the pipeline output
+      pipelineId = payload.pipelineId || nodes[nodes.length - 1]?.id || 'unknown'
+    } else if (payload.spec?.dataSource) {
+      // High-level spec format - convert to nodes/edges
+      const spec = payload.spec as {
+        dataSource: { type: string; config: Record<string, unknown> }
+        transformations: Array<{ type: string; config: Record<string, unknown> }>
+        output: { type: string; config: Record<string, unknown> }
       }
-      nodes.push(transformNode)
+      const options = payload.options
+      let yPosition = 100
 
-      // Create edge from previous node
-      if (options?.autoConnect !== false) {
+      // Create data source node
+      const sourceNode = {
+        id: `/source-${Date.now()}`,
+        type: spec.dataSource.type,
+        position: { x: 100, y: yPosition },
+        data: { inputs: spec.dataSource.config },
+      }
+      nodes.push(sourceNode)
+      yPosition += 150
+
+      // Create transformation nodes
+      let previousNodeId = sourceNode.id
+      for (const transform of spec.transformations || []) {
+        const transformNode = {
+          id: `/transform-${Date.now()}-${Math.random()}`,
+          type: transform.type,
+          position: { x: 100, y: yPosition },
+          data: { inputs: transform.config },
+        }
+        nodes.push(transformNode)
+
+        if (options?.autoConnect !== false) {
+          edges.push({
+            id: `${previousNodeId}.out.data->${transformNode.id}.par.data`,
+            source: previousNodeId,
+            target: transformNode.id,
+            sourceHandle: 'out.data',
+            targetHandle: 'par.data',
+          })
+        }
+
+        previousNodeId = transformNode.id
+        yPosition += 150
+      }
+
+      // Create output node
+      const outputNode = {
+        id: `/output-${Date.now()}`,
+        type: spec.output.type,
+        position: { x: 100, y: yPosition },
+        data: { inputs: spec.output.config },
+      }
+      nodes.push(outputNode)
+      pipelineId = outputNode.id
+
+      if (options?.autoConnect !== false && previousNodeId) {
         edges.push({
-          id: `${previousNodeId}.out.data->${transformNode.id}.par.data`,
+          id: `${previousNodeId}.out.data->${outputNode.id}.par.data`,
           source: previousNodeId,
-          target: transformNode.id,
+          target: outputNode.id,
           sourceHandle: 'out.data',
           targetHandle: 'par.data',
         })
       }
-
-      previousNodeId = transformNode.id
-      yPosition += 150
-    }
-
-    // Create output node
-    const outputNode = {
-      id: `/output-${Date.now()}`,
-      type: spec.output.type,
-      position: { x: 100, y: yPosition },
-      data: {
-        inputs: spec.output.config,
-      },
-    }
-    nodes.push(outputNode)
-
-    // Connect to output
-    if (options?.autoConnect !== false && previousNodeId) {
-      edges.push({
-        id: `${previousNodeId}.out.data->${outputNode.id}.par.data`,
-        source: previousNodeId,
-        target: outputNode.id,
-        sourceHandle: 'out.data',
-        targetHandle: 'par.data',
-      })
+    } else {
+      throw new Error(
+        'Invalid pipeline spec: must provide either nodes/edges or spec with dataSource/transformations/output'
+      )
     }
 
     // Apply modifications to create the pipeline
@@ -292,7 +398,7 @@ const handlePipelineCreate = async (message: PipelineCreateMessage) => {
         {
           tool: 'createPipeline',
           result: {
-            pipelineId: outputNode.id,
+            pipelineId,
             nodes: nodes.map(n => n.id),
             edges: edges.map(e => e.id),
           },
@@ -302,19 +408,21 @@ const handlePipelineCreate = async (message: PipelineCreateMessage) => {
       )
     )
   } catch (error) {
-    sendToWorker(
-      createErrorMessage(
+    sendToWorker({
+      ...createErrorMessage(
         error instanceof Error ? error : 'Failed to create pipeline',
-        'PIPELINE_CREATE_ERROR',
-        { spec }
-      )
-    )
+        'PIPELINE_CREATE_ERROR'
+      ),
+      id: message.id,
+    })
   }
 }
 
 // Handle pipeline test
 const handlePipelineTest = async (message: PipelineTestMessage) => {
-  const { pipelineId, testData, options } = message.payload
+  const { pipelineId } = message.payload
+  // testData and options are destructured but not used yet - they will be used when implementing test data injection
+  // const { testData, options } = message.payload
 
   try {
     // Get the pipeline node
@@ -379,7 +487,7 @@ const handleDataUpload = async (message: DataUploadMessage) => {
     const fileUrl = `data://${filename}`
 
     // TODO: Integrate with actual storage system
-    console.log('[Bridge] Data upload:', filename, mimeType, data)
+    debugExternal('[Bridge] Data upload:', filename, mimeType, data)
 
     sendToWorker(
       createMessage(
@@ -431,14 +539,14 @@ const handleStateRequest = async (message: Message) => {
 // Send message to worker
 const sendToWorker = (message: Message) => {
   if (!worker) {
-    console.error('[Bridge] Worker not initialized')
+    debugExternal('[Bridge] Worker not initialized')
     return
   }
   worker.postMessage(message)
 }
 
 // Subscribe to events
-export const on = (event: string, handler: (data: any) => void): void => {
+export const on = (event: string, handler: (data: unknown) => void): void => {
   if (!eventHandlers.has(event)) {
     eventHandlers.set(event, new Set())
   }
@@ -446,7 +554,7 @@ export const on = (event: string, handler: (data: any) => void): void => {
 }
 
 // Unsubscribe from events
-export const off = (event: string, handler: (data: any) => void): void => {
+export const off = (event: string, handler: (data: unknown) => void): void => {
   const handlers = eventHandlers.get(event)
   if (handlers) {
     handlers.delete(handler)
@@ -454,10 +562,12 @@ export const off = (event: string, handler: (data: any) => void): void => {
 }
 
 // Emit event
-const emit = (event: string, data: any): void => {
+const emit = (event: string, data: unknown): void => {
   const handlers = eventHandlers.get(event)
   if (handlers) {
-    handlers.forEach(handler => handler(data))
+    handlers.forEach(handler => {
+      handler(data)
+    })
   }
 }
 

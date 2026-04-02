@@ -6,10 +6,10 @@
 
 ```bash
 # Install dependencies
-yarn install:all
+npm run install:all
 
 # Start development server
-yarn start:app            # or cd noodles-editor && yarn start
+npm run start:app         # or cd noodles-editor && npm start
 ```
 
 ### Development URLs
@@ -22,29 +22,29 @@ yarn start:app            # or cd noodles-editor && yarn start
 
 ```bash
 # Run tests
-cd noodles-editor && yarn test
+cd noodles-editor && npm test
 
 # Run specific test file
-yarn test src/visualizations/noodles/noodles.test.ts
+npm test src/visualizations/noodles/noodles.test.ts
 
 # Run test with specific name
-yarn test -t "should transform graph"
+npm test -- -t "should transform graph"
 
 # Build for production
-yarn build:all
+npm run build:all
 ```
 
 ### Linting & Formatting
 
 ```bash
 # Run linter
-cd noodles-editor && yarn lint
+cd noodles-editor && npm run lint
 
 # Automatically fix linting issues
-cd noodles-editor && yarn fix-lint
+cd noodles-editor && npm run fix-lint
 
 # Type checking
-yarn typecheck
+npm run typecheck
 ```
 
 ## Environment Setup
@@ -129,4 +129,4 @@ batch(() => {
 - Visualizations are composed of nodes with inputs/outputs
 - Operators (Op) define the behavior of nodes
 - React Flow used for node graph visualization
-- TheatreJS used for animation timeline
+- Native timeline system used for keyframe animation

@@ -9,7 +9,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: var(--z-index-menu);
+  z-index: var(--z-index-modal);
   backdrop-filter: blur(4px);
   isolation: isolate;
 }

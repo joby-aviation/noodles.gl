@@ -1,0 +1,714 @@
+// Field bindings for the native timeline system
+// Handles two-way synchronization between operator fields and timeline tracks
+
+import { Temporal } from 'temporal-polyfill'
+import { isHexColor } from 'validator'
+
+import {
+  BooleanField,
+  ColorField,
+  CompoundPropsField,
+  DateField,
+  type Field,
+  ListField,
+  NumberField,
+  Point2DField,
+  Point3DField,
+  StringField,
+  StringLiteralField,
+  Vec2Field,
+  Vec3Field,
+} from '../noodles/fields'
+import type { IOperator, Operator } from '../noodles/operators'
+import { type RGBA as ColorRGBA, colorToRgba, hexToRgba, rgbaToHex } from '../utils/color'
+import { debugBinding, debugKeyframe, debugTimeline } from '../utils/debug'
+import type { TimelineStore } from './timeline-store'
+import { getTimelineStore, useTimelineStore } from './timeline-store'
+import type { KeyframeValue, Point2D, Point3D, RGBA, Vec2, Vec3 } from './types'
+
+// Use a type alias to simplify field typing
+// biome-ignore lint/suspicious/noExplicitAny: Field type requires generic parameter
+type AnyField = Field<any>
+
+// ============================================================================
+// Type Guards
+// ============================================================================
+
+// Check if a field type can be animated
+export function isAnimatableField(field: AnyField): boolean {
+  return (
+    field instanceof NumberField ||
+    field instanceof BooleanField ||
+    field instanceof StringField ||
+    field instanceof StringLiteralField ||
+    field instanceof ColorField ||
+    field instanceof DateField ||
+    field instanceof Vec2Field ||
+    field instanceof Vec3Field ||
+    field instanceof Point2DField ||
+    field instanceof Point3DField ||
+    field instanceof CompoundPropsField ||
+    field instanceof ListField
+  )
+}
+
+// ============================================================================
+// Type Conversions
+// ============================================================================
+
+// Convert a field value to a keyframe value
+export function fieldValueToKeyframeValue(
+  field: AnyField,
+  // biome-ignore lint/suspicious/noExplicitAny: Field values can be any type
+  value: any
+): KeyframeValue {
+  // Number field - direct passthrough
+  if (field instanceof NumberField) {
+    return value as number
+  }
+
+  // Boolean field - direct passthrough
+  if (field instanceof BooleanField) {
+    return value as boolean
+  }
+
+  // String fields - direct passthrough
+  if (field instanceof StringField || field instanceof StringLiteralField) {
+    return value as string
+  }
+
+  // Color field - hex to RGBA (0-1 range)
+  if (field instanceof ColorField) {
+    if (typeof value === 'string' && isHexColor(value)) {
+      return hexToRgba(value) as RGBA
+    }
+    if (Array.isArray(value)) {
+      return colorToRgba(value) as RGBA
+    }
+    return value as RGBA
+  }
+
+  // Date field - Temporal to epoch milliseconds
+  if (field instanceof DateField) {
+    if (
+      value instanceof Temporal.PlainDateTime ||
+      (value && typeof value.toZonedDateTime === 'function')
+    ) {
+      const instant = (value as Temporal.PlainDateTime).toZonedDateTime('UTC').toInstant()
+      return instant.epochMilliseconds
+    }
+    return value as number
+  }
+
+  // Vec2 field - normalize to object format
+  if (field instanceof Vec2Field) {
+    if (Array.isArray(value)) {
+      return { x: value[0], y: value[1] } as Vec2
+    }
+    return { x: value.x, y: value.y } as Vec2
+  }
+
+  // Vec3 field - normalize to object format
+  if (field instanceof Vec3Field) {
+    if (Array.isArray(value)) {
+      return { x: value[0], y: value[1], z: value[2] } as Vec3
+    }
+    return { x: value.x, y: value.y, z: value.z } as Vec3
+  }
+
+  // Point2D field - normalize to object format
+  if (field instanceof Point2DField) {
+    if (Array.isArray(value)) {
+      return { lng: value[0], lat: value[1] } as Point2D
+    }
+    return { lng: value.lng, lat: value.lat } as Point2D
+  }
+
+  // Point3D field - normalize to object format
+  if (field instanceof Point3DField) {
+    if (Array.isArray(value)) {
+      return { lng: value[0], lat: value[1], alt: value[2] } as Point3D
+    }
+    return { lng: value.lng, lat: value.lat, alt: value.alt } as Point3D
+  }
+
+  // Compound field - recursive conversion
+  if (field instanceof CompoundPropsField) {
+    const result: Record<string, KeyframeValue> = {}
+    for (const [key, subField] of Object.entries(field.fields)) {
+      if (value && key in value) {
+        result[key] = fieldValueToKeyframeValue(subField as AnyField, value[key])
+      }
+    }
+    return result
+  }
+
+  // Default: return as-is
+  return value
+}
+
+// Convert a keyframe value back to a field value
+export function keyframeValueToFieldValue(
+  field: AnyField,
+  kfValue: KeyframeValue
+  // biome-ignore lint/suspicious/noExplicitAny: Field values can be any type
+): any {
+  // Number field - direct passthrough
+  if (field instanceof NumberField) {
+    return kfValue as number
+  }
+
+  // Boolean field - direct passthrough
+  if (field instanceof BooleanField) {
+    return kfValue as boolean
+  }
+
+  // String fields - direct passthrough
+  if (field instanceof StringField || field instanceof StringLiteralField) {
+    return kfValue as string
+  }
+
+  // Color field - RGBA to hex
+  if (field instanceof ColorField) {
+    const rgba = kfValue as RGBA
+    return rgbaToHex(rgba as ColorRGBA)
+  }
+
+  // Date field - epoch milliseconds to Temporal
+  if (field instanceof DateField) {
+    const epochMs = Math.round(kfValue as number)
+    return Temporal.Instant.fromEpochMilliseconds(epochMs)
+      .toZonedDateTimeISO('UTC')
+      .toPlainDateTime()
+  }
+
+  // Vec2/Vec3/Point fields - return as object (fields accept both)
+  if (
+    field instanceof Vec2Field ||
+    field instanceof Vec3Field ||
+    field instanceof Point2DField ||
+    field instanceof Point3DField
+  ) {
+    return kfValue
+  }
+
+  // Compound field - recursive conversion
+  if (field instanceof CompoundPropsField) {
+    const kfObj = kfValue as Record<string, KeyframeValue>
+    const result: Record<string, unknown> = {}
+    for (const [key, subField] of Object.entries(field.fields)) {
+      if (key in kfObj) {
+        result[key] = keyframeValueToFieldValue(subField as AnyField, kfObj[key])
+      }
+    }
+    return result
+  }
+
+  // Default: return as-is
+  return kfValue
+}
+
+// Get the default keyframe value for a field
+export function getFieldDefaultKeyframeValue(field: AnyField): KeyframeValue {
+  return fieldValueToKeyframeValue(field, field.value)
+}
+
+// ============================================================================
+// Path Utilities
+// ============================================================================
+
+// Convert operator ID to Theatre.js object name format
+// "/my-operator" -> "my-operator", "/container/nested" -> "container / nested"
+export function opIdToObjectName(opId: string): string {
+  return opId.slice(1).split('/').join(' / ')
+}
+
+// Build the field path for timeline track
+// Uses Theatre.js format: "objectName / fieldName / subField"
+export function getFieldPath(opId: string, fieldName: string, subPath?: string[]): string {
+  const objectName = opIdToObjectName(opId)
+  const parts = [objectName, fieldName, ...(subPath || [])]
+  return parts.join(' / ')
+}
+
+// ============================================================================
+// Binding Management
+// ============================================================================
+
+// Track active bindings for cleanup
+const activeBindings = new Map<string, () => void>()
+
+// Bind a single field to the timeline
+// Sets up two-way synchronization between field and timeline track, returns cleanup function
+export function bindFieldToTimeline(
+  op: Operator<IOperator>,
+  fieldName: string,
+  field: AnyField,
+  store?: TimelineStore,
+  subPath?: string[]
+): () => void {
+  const timelineStore = store || useTimelineStore.getState()
+  const fieldPath = getFieldPath(op.id, fieldName, subPath)
+
+  debugBinding('bind %s.%s → track %s', op.id, fieldName, fieldPath)
+
+  // Track binding state to prevent infinite loops
+  let updating = false
+
+  // Cache for last known keyframe value
+  let lastKeyframeValue: KeyframeValue | undefined
+
+  // Get or create track for this field
+  const defaultValue = getFieldDefaultKeyframeValue(field)
+  timelineStore.getOrCreateTrack(fieldPath, defaultValue)
+
+  // Subscribe to timeline position changes -> update field
+  const unsubscribePosition = useTimelineStore.subscribe(
+    state => state.position,
+    position => {
+      if (op.locked?.value || updating) return
+
+      const value = timelineStore.evaluateTrack(fieldPath, position)
+      debugBinding('pos=%s eval %s → %O', position.toFixed(3), fieldPath, value)
+      if (value === undefined) return
+
+      // Skip if value hasn't changed
+      if (
+        lastKeyframeValue !== undefined &&
+        JSON.stringify(value) === JSON.stringify(lastKeyframeValue)
+      ) {
+        debugBinding('skip %s: value unchanged (%O)', fieldPath, value)
+        return
+      }
+      lastKeyframeValue = value
+
+      updating = true
+      try {
+        const fieldValue = keyframeValueToFieldValue(field, value)
+        if (field.value !== fieldValue && fieldValue !== undefined) {
+          debugBinding('setValue %s.%s → %O', op.id, fieldName, fieldValue)
+          field.setValue(fieldValue)
+        } else {
+          debugBinding('skip setValue %s.%s: field already %O', op.id, fieldName, field.value)
+        }
+      } catch (e) {
+        debugTimeline(`Error syncing timeline to field for ${op.id}.${fieldName}:`, e)
+      }
+      updating = false
+    }
+  )
+
+  // Initial evaluation — sync field to current position when binding is established
+  const initialValue = timelineStore.evaluateTrack(fieldPath)
+  debugBinding('initial eval %s → %O', fieldPath, initialValue)
+  if (initialValue !== undefined) {
+    updating = true
+    try {
+      const fieldValue = keyframeValueToFieldValue(field, initialValue)
+      if (fieldValue !== undefined) {
+        field.setValue(fieldValue)
+        lastKeyframeValue = initialValue
+      }
+    } catch (e) {
+      debugTimeline(`Error in initial field sync for ${op.id}.${fieldName}:`, e)
+    }
+    updating = false
+  }
+
+  // Subscribe to field value changes -> update or create keyframe
+  const fieldSub = field.subscribe((value_: unknown) => {
+    debugKeyframe('field change %s.%s = %O (updating=%s)', op.id, fieldName, value_, updating)
+
+    if (op.locked?.value || updating) {
+      debugKeyframe(
+        'skip %s.%s: updating=%s locked=%s',
+        op.id,
+        fieldName,
+        updating,
+        op.locked?.value
+      )
+      return
+    }
+
+    // Skip compound field updates to avoid infinite loops
+    if (field instanceof CompoundPropsField) {
+      return
+    }
+
+    updating = true
+    try {
+      const kfValue = fieldValueToKeyframeValue(field, value_)
+
+      // Check if there's a keyframe at the current position
+      const track = timelineStore.getTrack(fieldPath)
+      // Read position from the live store — timelineStore is a snapshot and its
+      // .position property would be stale if the playhead moved after bind
+      const { position } = getTimelineStore()
+      const epsilon = 0.001
+
+      debugKeyframe(
+        '%s: track=%s kfs=%s pos=%s',
+        fieldPath,
+        !!track,
+        track?.keyframes.length ?? 0,
+        position.toFixed(3)
+      )
+
+      const existingKf = track?.keyframes.find(kf => Math.abs(kf.position - position) < epsilon)
+
+      if (existingKf) {
+        // Update existing keyframe
+        if (JSON.stringify(existingKf.value) !== JSON.stringify(kfValue)) {
+          debugKeyframe(
+            'update kf %s @ pos=%s id=%s %O → %O',
+            fieldPath,
+            position.toFixed(3),
+            existingKf.id,
+            existingKf.value,
+            kfValue
+          )
+          timelineStore.updateKeyframe(fieldPath, existingKf.id, { value: kfValue })
+        } else {
+          debugKeyframe('skip update %s: value unchanged %O', fieldPath, kfValue)
+        }
+      } else if (track && track.keyframes.length > 0) {
+        // Only insert keyframe if value differs from what's currently interpolated —
+        // this prevents redundant keyframes when the user sets the same value
+        const currentInterpolated = timelineStore.evaluateTrack(fieldPath)
+        if (JSON.stringify(kfValue) !== JSON.stringify(currentInterpolated)) {
+          debugKeyframe('add kf %s @ pos=%s value=%O', fieldPath, position.toFixed(3), kfValue)
+          timelineStore.addKeyframe(fieldPath, {
+            position,
+            value: kfValue,
+            interpolation: 'bezier',
+          })
+        } else {
+          debugKeyframe(
+            'skip add %s: value same as interpolated %O',
+            fieldPath,
+            currentInterpolated
+          )
+        }
+      } else {
+        // Note: If track has no keyframes, we don't auto-create
+        // User should explicitly click the keyframe indicator to start animating
+        debugKeyframe(
+          'skip %s: no keyframes on track (use keyframe indicator to start animating)',
+          fieldPath
+        )
+      }
+
+      lastKeyframeValue = kfValue
+    } catch (e) {
+      debugTimeline(`Error syncing field to timeline for ${op.id}.${fieldName}:`, e)
+    }
+    updating = false
+  })
+
+  // Return cleanup function
+  return () => {
+    unsubscribePosition()
+    fieldSub.unsubscribe()
+  }
+}
+
+// Bind a single channel of a vector-like field to an individual number track
+// Creates per-channel tracks like "op / position / x" or "op / center / lng" so each
+// component can be keyframed independently
+function bindVecChannelToTimeline(
+  op: Operator<IOperator>,
+  fieldName: string,
+  field: Vec2Field | Vec3Field | Point2DField | Point3DField,
+  channelKey: string,
+  store?: TimelineStore
+): () => void {
+  const timelineStore = store || useTimelineStore.getState()
+  const fieldPath = getFieldPath(op.id, fieldName, [channelKey])
+
+  debugBinding('bind %s.%s.%s → track %s', op.id, fieldName, channelKey, fieldPath)
+
+  let updating = false
+  let lastKfValue: number | undefined
+
+  const channelKeys = (field.constructor as typeof Vec2Field).channelKeys
+  const channelIndex = channelKeys.indexOf(channelKey as (typeof channelKeys)[number])
+
+  const getChannel = (): number =>
+    field.returnType === 'tuple'
+      ? ((field.value as number[])[channelIndex] ?? 0)
+      : ((field.value as Record<string, number>)[channelKey] ?? 0)
+
+  const setChannel = (val: number): void => {
+    if (field.returnType === 'tuple') {
+      const t = [...(field.value as number[])]
+      t[channelIndex] = val
+      // biome-ignore lint/suspicious/noExplicitAny: updating tuple value with channel override
+      field.setValue(t as any)
+    } else {
+      // biome-ignore lint/suspicious/noExplicitAny: spreading vector value with channel override
+      field.setValue({ ...field.value, [channelKey]: val } as any)
+    }
+  }
+
+  timelineStore.getOrCreateTrack(fieldPath, getChannel())
+
+  // Subscribe to timeline position changes -> update the field's channel
+  const unsubscribePosition = useTimelineStore.subscribe(
+    state => state.position,
+    position => {
+      if (op.locked?.value || updating) return
+
+      const value = timelineStore.evaluateTrack(fieldPath, position) as number | undefined
+      debugBinding('pos=%s eval %s → %O', position.toFixed(3), fieldPath, value)
+      if (value === undefined) return
+
+      if (lastKfValue !== undefined && value === lastKfValue) {
+        debugBinding('skip %s: value unchanged (%O)', fieldPath, value)
+        return
+      }
+      lastKfValue = value
+
+      updating = true
+      try {
+        if (getChannel() !== value) {
+          // Note: setChannel fans out to sibling fieldSub callbacks for every channel
+          // on this field (e.g. Vec3 → 2 extra callbacks per scrub step). All siblings
+          // are guarded by lastKfValue so no spurious keyframes are created.
+          debugBinding('setChannel %s.%s.%s → %O', op.id, fieldName, channelKey, value)
+          setChannel(value)
+        }
+      } catch (e) {
+        debugTimeline(`Error syncing timeline to vec channel ${fieldPath}:`, e)
+      }
+      updating = false
+    }
+  )
+
+  // Initial evaluation — sync channel to current position when binding is established
+  const initialValue = timelineStore.evaluateTrack(fieldPath, getTimelineStore().position) as
+    | number
+    | undefined
+  debugBinding('initial eval %s → %O', fieldPath, initialValue)
+  if (initialValue !== undefined) {
+    updating = true
+    try {
+      setChannel(initialValue)
+      lastKfValue = initialValue
+    } catch (e) {
+      debugTimeline(`Error in initial vec channel sync ${fieldPath}:`, e)
+    }
+    updating = false
+  }
+  // Seed the guard so sibling fieldSub callbacks are filtered immediately,
+  // even on tracks with no keyframes (where initialValue is undefined)
+  if (lastKfValue === undefined) lastKfValue = getChannel()
+
+  // Subscribe to field value changes -> update or create a keyframe on the channel track
+  // Fires for any change to the Vec2/Vec3 field; we extract only our channel's value
+  const fieldSub = field.subscribe((vecValue: unknown) => {
+    if (op.locked?.value || updating) return
+
+    const kfValue =
+      field.returnType === 'tuple'
+        ? ((vecValue as number[])[channelIndex] ?? 0)
+        : ((vecValue as Record<string, number>)[channelKey] ?? 0)
+
+    // Skip if this channel's value hasn't changed — the Vec2/Vec3 update was caused
+    // by a different channel being modified (e.g. x changed but y is still the same)
+    if (lastKfValue !== undefined && kfValue === lastKfValue) return
+
+    updating = true
+    try {
+      const track = timelineStore.getTrack(fieldPath)
+      const { position } = getTimelineStore()
+      const epsilon = 0.001
+
+      debugKeyframe(
+        '%s: track=%s kfs=%s pos=%s',
+        fieldPath,
+        !!track,
+        track?.keyframes.length ?? 0,
+        position.toFixed(3)
+      )
+
+      const existingKf = track?.keyframes.find(kf => Math.abs(kf.position - position) < epsilon)
+
+      if (existingKf) {
+        if (existingKf.value !== kfValue) {
+          debugKeyframe(
+            'update kf %s @ pos=%s id=%s %O → %O',
+            fieldPath,
+            position.toFixed(3),
+            existingKf.id,
+            existingKf.value,
+            kfValue
+          )
+          timelineStore.updateKeyframe(fieldPath, existingKf.id, { value: kfValue })
+        } else {
+          debugKeyframe('skip update %s: value unchanged %O', fieldPath, kfValue)
+        }
+      } else if (track && track.keyframes.length > 0) {
+        // Only insert if value differs from what the track currently interpolates —
+        // this prevents redundant keyframes when another channel caused the vec update
+        const currentInterpolated = timelineStore.evaluateTrack(fieldPath)
+        if (kfValue !== currentInterpolated) {
+          debugKeyframe('add kf %s @ pos=%s value=%O', fieldPath, position.toFixed(3), kfValue)
+          timelineStore.addKeyframe(fieldPath, {
+            position,
+            value: kfValue,
+            interpolation: 'bezier',
+          })
+        } else {
+          debugKeyframe(
+            'skip add %s: value same as interpolated %O',
+            fieldPath,
+            currentInterpolated
+          )
+        }
+      } else {
+        debugKeyframe(
+          'skip %s: no keyframes on track (use keyframe indicator to start animating)',
+          fieldPath
+        )
+      }
+
+      lastKfValue = kfValue
+    } catch (e) {
+      debugTimeline(`Error syncing vec channel to timeline ${fieldPath}:`, e)
+    }
+    updating = false
+  })
+
+  return () => {
+    unsubscribePosition()
+    fieldSub.unsubscribe()
+  }
+}
+
+// Bind all animatable fields for an operator to the timeline, returns cleanup function
+export function bindOperatorToTimeline(op: Operator<IOperator>, store?: TimelineStore): () => void {
+  const cleanupFns: Array<() => void> = []
+
+  for (const [fieldName, field] of Object.entries(op.inputs)) {
+    // Skip non-animatable fields
+    if (typeof field.value === 'function') continue
+    if (!isAnimatableField(field as AnyField)) continue
+
+    // Vec2/Vec3 and Point2D/Point3D fields: bind each channel as an individual number
+    // track so components can be keyframed independently (e.g. "op / position / x",
+    // "op / center / lng")
+    if (
+      field instanceof Vec2Field ||
+      field instanceof Vec3Field ||
+      field instanceof Point2DField ||
+      field instanceof Point3DField
+    ) {
+      const { channelKeys } = field.constructor as typeof Vec2Field
+      for (const key of channelKeys) {
+        const cleanup = bindVecChannelToTimeline(
+          op,
+          fieldName,
+          field as Vec2Field | Vec3Field | Point2DField | Point3DField,
+          key,
+          store
+        )
+        cleanupFns.push(cleanup)
+        activeBindings.set(`${op.id}.${fieldName}.${key}`, cleanup)
+      }
+      continue
+    }
+
+    // CompoundPropsField: bind each animatable sub-field individually so that
+    // per-property sub-path tracks (e.g. "viewState / zoom") are evaluated
+    // during scrubbing instead of the non-existent parent track.
+    if (field instanceof CompoundPropsField) {
+      for (const [subName, subField] of Object.entries(field.fields)) {
+        if (subField instanceof CompoundPropsField || !isAnimatableField(subField as AnyField))
+          continue
+        const cleanup = bindFieldToTimeline(op, fieldName, subField as AnyField, store, [subName])
+        cleanupFns.push(cleanup)
+        activeBindings.set(`${op.id}.${fieldName}.${subName}`, cleanup)
+      }
+      continue
+    }
+
+    // For ListField, bind the inner field
+    const actualField = field instanceof ListField ? field.field : field
+
+    const cleanup = bindFieldToTimeline(op, fieldName, actualField as AnyField, store)
+    cleanupFns.push(cleanup)
+
+    // Track binding for later cleanup
+    const bindingKey = `${op.id}.${fieldName}`
+    activeBindings.set(bindingKey, cleanup)
+  }
+
+  return () => {
+    for (const cleanup of cleanupFns) {
+      cleanup()
+    }
+  }
+}
+
+// Unbind an operator from the timeline
+export function unbindOperatorFromTimeline(opId: string): void {
+  // Find and remove all bindings for this operator
+  const keysToRemove: string[] = []
+  for (const [key, cleanup] of activeBindings) {
+    if (key.startsWith(`${opId}.`)) {
+      cleanup()
+      keysToRemove.push(key)
+    }
+  }
+  for (const key of keysToRemove) {
+    activeBindings.delete(key)
+  }
+}
+
+// Bind all operators to the timeline, returns map of cleanup functions by operator ID
+export function bindAllOperatorsToTimeline(
+  operators: Operator<IOperator>[],
+  store?: TimelineStore
+): Map<string, () => void> {
+  const cleanupFns = new Map<string, () => void>()
+
+  for (const op of operators) {
+    // Skip special operators
+    if (op.id === '/out') continue
+
+    const cleanup = bindOperatorToTimeline(op, store)
+    cleanupFns.set(op.id, cleanup)
+  }
+
+  return cleanupFns
+}
+
+// Cleanup bindings for removed operators
+export function cleanupRemovedOperators(
+  currentOperatorIds: Set<string>,
+  _store?: TimelineStore
+): void {
+  const keysToRemove: string[] = []
+
+  for (const [key, cleanup] of activeBindings) {
+    // key format is "${op.id}.${fieldName}" or "${op.id}.${fieldName}.${subName}"
+    // e.g. "/my-op.value" or "/my-op.viewState.zoom" -> opId = "/my-op"
+    const opId = key.split('.')[0]
+    if (!currentOperatorIds.has(opId)) {
+      cleanup()
+      keysToRemove.push(key)
+    }
+  }
+
+  for (const key of keysToRemove) {
+    activeBindings.delete(key)
+  }
+}
+
+// Clear all bindings (for cleanup on unmount)
+export function clearAllBindings(): void {
+  for (const cleanup of activeBindings.values()) {
+    cleanup()
+  }
+  activeBindings.clear()
+}

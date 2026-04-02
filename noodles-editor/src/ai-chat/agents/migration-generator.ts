@@ -1,9 +1,7 @@
-/**
- * Migration Generator Agent
- *
- * Generates schema migration files for operator changes.
- * This is a CLI tool for developers, not usable from AI chat.
- */
+// Migration Generator Agent
+//
+// Generates schema migration files for operator changes.
+// This is a CLI tool for developers, not usable from AI chat.
 
 export interface MigrationParams {
   operatorType: string
@@ -29,9 +27,7 @@ export interface GeneratedMigration {
 }
 
 export class MigrationGeneratorAgent {
-  /**
-   * Generate a migration file for an operator change
-   */
+  // Generate a migration file for an operator change
   generateMigration(params: MigrationParams, nextVersion: number): GeneratedMigration {
     const { operatorType, changeType, changes } = params
 
@@ -74,9 +70,7 @@ export class MigrationGeneratorAgent {
     }
   }
 
-  /**
-   * Get the next migration version number
-   */
+  // Get the next migration version number
   getNextVersion(existingMigrations: string[]): number {
     const versions = existingMigrations
       .map(file => {

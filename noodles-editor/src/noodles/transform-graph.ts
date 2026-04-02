@@ -1,21 +1,18 @@
 import { getIncomers, type Node as ReactFlowNode } from '@xyflow/react'
-import {
-  type ComputeResult,
-  type ComputeState,
-  type Edge as ExecutorEdge,
-  updateGraph,
-} from './graph-executor'
+import { debugExecutor } from '../utils/debug'
+import { type Edge as ExecutorEdge, updateGraph } from './graph-executor'
 import type { Edge } from './noodles'
 import type { IOperator, Operator, OpType } from './operators'
 import { ContainerOp, ForLoopEndOp, GraphInputOp, opTypes } from './operators'
 import { getOpStore } from './store'
+import { validateConnection } from './utils/can-connect'
 import { memoize } from './utils/memoize'
 import { getParentPath, isDirectChild, parseHandleId } from './utils/path-utils'
+import { computeVisibilityHeuristic } from './utils/visibility-heuristic'
 
 // Re-export GraphExecutor and related types for use elsewhere
 export {
   type ComputeResult,
-  type ComputeState,
   forceUpdate,
   GraphExecutor,
   GraphScope,
@@ -27,8 +24,6 @@ export {
   stopExecutor,
   wouldCreateCycle,
 } from './graph-executor'
-
-import type { ExtractProps } from './utils/extract-props'
 
 // Local type definitions for ReactFlow node data using Operator class constraint
 // Simplified to avoid complex type resolution that causes memory issues
@@ -118,26 +113,53 @@ export function transformGraph<
         created.push(op)
         // Store operator in store using fully qualified path
         store.setOp(id, op)
+
+        // Restore field visibility from saved data or derive from heuristic
+        const visibleInputs = (data as { visibleInputs?: string[] })?.visibleInputs
+
+        if (visibleInputs && Array.isArray(visibleInputs)) {
+          // Explicit visibility saved - use it directly as the full set
+          op.visibleFields.next(new Set(visibleInputs))
+        } else {
+          // No saved visibility - derive from heuristic
+          const customValues = data?.inputs ?? {}
+          // ReferenceEdges are filtered because they're operator references in code,
+          // not data connections that should affect field visibility
+          const connectedFields = new Set(
+            edges
+              .filter(edge => edge.target === id && edge.type !== 'ReferenceEdge')
+              .map(edge => parseHandleId(String(edge.targetHandle))?.fieldName)
+              .filter((name): name is string => name !== undefined)
+          )
+
+          const { visibleFields: heuristicVisible, differsFromDefaults } =
+            computeVisibilityHeuristic(op, customValues, connectedFields)
+
+          if (differsFromDefaults) {
+            // Heuristic differs from defaults, need to set explicitly
+            op.visibleFields.next(heuristicVisible)
+          }
+          // else: leave visibleFields as null, showByDefault defaults will work
+        }
       }
 
       return op
     }) as OP[]
   })
 
-  for (const op of created) {
-    op.createListeners()
-  }
-
   // Update dependency graph
   updateGraph(edges as unknown as ExecutorEdge[])
 
   // Remove any connections that are not in the edges array
+  // Also clear connection errors for removed edges
   for (const op of instances) {
     for (const [_key, field] of Object.entries(op.inputs)) {
       for (const [id] of field.subscriptions) {
         const edge = edges.find(edge => edge.id === id)
         if (!edge) {
           field.removeConnection(id, 'reference')
+          // Also remove any connection error for this edge
+          op.removeConnectionError(id)
         }
       }
     }
@@ -172,8 +194,7 @@ export function transformGraph<
       const targetField =
         targetOp[targetNamespace === 'par' ? 'inputs' : 'outputs'][targetFieldName]
       if (!sourceField || !targetField) {
-        console.warn('Invalid connection')
-        debugger
+        debugExecutor('Invalid connection')
         continue
       }
 
@@ -181,6 +202,23 @@ export function transformGraph<
       const connectionType =
         (edge as Edge<OP, OP> & { type?: string }).type === 'ReferenceEdge' ? 'reference' : 'value'
       targetField.addConnection(edge.id, sourceField, connectionType)
+
+      // Auto-show fields when they receive data connections (for programmatic/AI connections)
+      // ReferenceEdges are operator references in code, not data flow, so don't auto-show
+      if (connectionType === 'value') {
+        targetOp.showField(targetFieldName)
+
+        // ReferenceEdges mark reactive dependencies only — type checking doesn't apply
+        // Only validate when the source field has produced a value; skip if the operator hasn't
+        // executed yet (value === undefined) to avoid false "type mismatch" errors on initial load
+        const validation = validateConnection(sourceField, targetField)
+        if (!validation.valid && validation.error && sourceField.value !== undefined) {
+          targetOp.addConnectionError(edge.id, validation.error)
+        } else {
+          // Clear any existing error for this edge if it's now valid (or not yet computed)
+          targetOp.removeConnectionError(edge.id)
+        }
+      }
 
       // Update operator dependencies for pull-based execution
       sourceOp.addDownstreamDependent(targetOp)
@@ -237,86 +275,4 @@ export function transformGraph<
   }
 
   return instances
-}
-
-// External compute function that operates on operators
-// This replaces the need for a compute() method on Operator class
-export async function compute(
-  operators: Operator<IOperator>[],
-  _state: ComputeState
-): Promise<Map<string, ComputeResult>> {
-  const results = new Map<string, ComputeResult>()
-
-  // Sort operators topologically using edges from connections
-  const edges: Array<{ source: string; target: string }> = []
-
-  // Extract edges from operator connections
-  for (const op of operators) {
-    for (const [_, field] of Object.entries(op.inputs)) {
-      const connections = field.getConnections()
-      for (const connection of connections) {
-        if (connection.sourceOp) {
-          edges.push({
-            source: connection.sourceOp.id,
-            target: op.id,
-          })
-        }
-      }
-    }
-  }
-
-  // Build node map for topological sort
-  const nodeMap = new Map(operators.map(op => [op.id, op]))
-
-  // Use existing topological sort (convert to work with operators)
-  const nodes = operators.map(op => ({
-    id: op.id,
-    type: (op.constructor as any).displayName || 'Unknown',
-    data: {},
-  })) as NodeJSON<OpType>[]
-
-  const sortedNodes = topologicalSort(nodes, edges as any)
-
-  // Execute each operator in sorted order
-  for (const node of sortedNodes) {
-    const op = nodeMap.get(node.id)
-    if (!op || !op.dirty) continue
-
-    try {
-      // Get input values
-      const inputs: Record<string, unknown> = {}
-      for (const [key, field] of Object.entries(op.inputs)) {
-        inputs[key] = field.value
-      }
-
-      // Execute the operator
-      const output = op.execute(inputs as ExtractProps<typeof op.inputs>)
-      const finalOutput = output instanceof Promise ? await output : output
-
-      // Update output fields
-      if (finalOutput) {
-        for (const [key, value] of Object.entries(finalOutput)) {
-          if (key in op.outputs) {
-            ;(op.outputs as any)[key].setValue(value)
-          }
-        }
-      }
-
-      results.set(node.id, {
-        value: finalOutput,
-        changed: true,
-      })
-
-      // Clear dirty flag
-      op.dirty = false
-    } catch (error) {
-      results.set(node.id, {
-        value: null,
-        changed: false,
-        error: error instanceof Error ? error : new Error(String(error)),
-      })
-    }
-  }
-
-  return results
 }

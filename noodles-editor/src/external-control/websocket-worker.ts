@@ -1,6 +1,9 @@
 // Web Worker for handling WebSocket connections to external tools
 // Runs in a separate thread to avoid blocking the main UI
 
+// console is used here instead of the debug package because this file runs in a
+// Web Worker, which has no access to localStorage — the debug package would be
+// permanently silenced with no way to enable it.
 import {
   createErrorMessage,
   createMessage,
@@ -13,7 +16,6 @@ import {
 
 // Worker state
 let ws: WebSocket | null = null
-let _isConnected = false
 let reconnectTimer: number | null = null
 let pingInterval: number | null = null
 const matcher = new MessageMatcher()
@@ -46,10 +48,11 @@ const connect = (url: string) => {
   disconnect()
 
   // Extract token from URL if present
-  let _token: string | null = null
+  let token: string | null = null
   try {
     const urlObj = new URL(url)
-    _token = urlObj.searchParams.get('token')
+    token = urlObj.searchParams.get('token')
+    console.log('[Worker] Extracted token from URL:', token)
   } catch (error) {
     console.error('[Worker] Invalid URL:', error)
   }
@@ -59,7 +62,6 @@ const connect = (url: string) => {
 
     ws.onopen = () => {
       console.log('[Worker] WebSocket connected to', url)
-      _isConnected = true
 
       // Send connection status to main thread
       postToMain(
@@ -76,10 +78,17 @@ const connect = (url: string) => {
       }, CONFIG.pingInterval) as unknown as number
     }
 
-    ws.onmessage = event => {
-      const message = parseMessage(event.data)
+    ws.onmessage = async event => {
+      let data = event.data
+
+      // Handle Blob data (WebSocket may return Blob)
+      if (data instanceof Blob) {
+        data = await data.text()
+      }
+
+      const message = parseMessage(data)
       if (!message) {
-        console.error('[Worker] Invalid message received:', event.data)
+        console.error('[Worker] Invalid message received:', data)
         return
       }
 
@@ -105,7 +114,6 @@ const connect = (url: string) => {
 
     ws.onclose = event => {
       console.log('[Worker] WebSocket closed:', event.code, event.reason)
-      _isConnected = false
 
       // Clear ping interval
       if (pingInterval) {
@@ -156,7 +164,6 @@ const disconnect = () => {
     ws = null
   }
 
-  _isConnected = false
   matcher.clear()
 }
 
@@ -177,8 +184,9 @@ self.onmessage = async (event: MessageEvent) => {
 
   switch (message.type) {
     case MessageType.CONNECT: {
+      const messageWithPayload = message as { payload?: { host?: string; port?: number } }
       const { host = CONFIG.defaultHost, port = CONFIG.defaultPort } =
-        (message as any).payload || {}
+        messageWithPayload.payload || {}
       const url = `ws://${host}:${port}`
       connect(url)
       break

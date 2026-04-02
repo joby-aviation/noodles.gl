@@ -6,7 +6,7 @@ const DB_VERSION = 1
 const STORE_NAME = 'handles'
 
 // Cache entry stored in IndexedDB (serializable version)
-interface CachedHandleEntry {
+export interface CachedHandleEntry {
   projectName: string
   handle: FileSystemDirectoryHandle
   path: string
@@ -175,6 +175,17 @@ export class DirectoryHandleCache {
 
       request.onerror = () => reject(new Error('Failed to retrieve cached handles'))
     })
+  }
+
+  // Rename a project (update cache entry with new name and handle)
+  async renameProject(
+    oldName: string,
+    newName: string,
+    newHandle: FileSystemDirectoryHandle
+  ): Promise<void> {
+    // Remove old entry and add new entry
+    await this.removeHandle(oldName)
+    await this.cacheHandle(newName, newHandle, newHandle.name)
   }
 }
 

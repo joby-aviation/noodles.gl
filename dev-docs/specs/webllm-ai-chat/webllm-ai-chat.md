@@ -729,7 +729,7 @@ async function generateRagEmbeddings() {
 {
   "scripts": {
     "generate:rag": "tsx scripts/generate-rag-embeddings.ts",
-    "prebuild": "yarn generate:context && yarn generate:rag"
+    "prebuild": "npm run generate:context && npm run generate:rag"
   }
 }
 ```
@@ -1224,7 +1224,7 @@ function loadServiceAccountFromPath(path: string | undefined): string | null {
     const fs = require('fs')
     return fs.readFileSync(path, 'utf-8')
   } catch (err) {
-    console.warn('Failed to load service account key from path:', path, err)
+    console.error('Failed to load service account key from path:', path, err)
     return null
   }
 }
