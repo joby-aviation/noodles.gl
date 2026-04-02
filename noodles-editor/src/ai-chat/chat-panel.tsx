@@ -237,6 +237,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     if (messages.length > 0 && !currentConversationId) {
       try {
         const id = saveConversation(messages)
+        setCurrentConversationId(id) // prevent duplicate saves on repeated close
         console.log('Auto-saved conversation on close:', id)
       } catch (error) {
         console.warn('Failed to auto-save conversation on close:', error)

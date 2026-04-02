@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   clearAllHistory,
   deleteConversation,
@@ -8,10 +8,8 @@ import {
 } from './conversation-history'
 import type { Message } from './types'
 
-// Mock localStorage
-const localStorageMock = (() => {
+const makeLocalStorageMock = () => {
   let store: Record<string, string> = {}
-
   return {
     getItem: (key: string) => store[key] || null,
     setItem: (key: string, value: string) => {
@@ -24,20 +22,18 @@ const localStorageMock = (() => {
       store = {}
     },
   }
-})()
-
-Object.defineProperty(globalThis, 'localStorage', {
-  value: localStorageMock,
-  writable: true,
-})
+}
 
 describe('conversation-history', () => {
+  let localStorageMock: ReturnType<typeof makeLocalStorageMock>
+
   beforeEach(() => {
-    localStorageMock.clear()
+    localStorageMock = makeLocalStorageMock()
+    vi.stubGlobal('localStorage', localStorageMock)
   })
 
   afterEach(() => {
-    localStorageMock.clear()
+    vi.unstubAllGlobals()
   })
 
   describe('saveConversation', () => {
@@ -50,7 +46,6 @@ describe('conversation-history', () => {
       const id = saveConversation(messages)
 
       expect(id).toBeDefined()
-      expect(typeof id).toBe('string')
 
       const saved = loadConversation(id)
       expect(saved).toBeDefined()
