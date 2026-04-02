@@ -43,6 +43,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
   const containerRef = useRef<HTMLDivElement>(null)
   const timelineAreaRef = useRef<HTMLDivElement>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
+  const trackLabelsRef = useRef<HTMLDivElement>(null)
 
   const { isRendering } = useExportActions()
 
@@ -114,9 +115,21 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
     }
   }, [])
 
-  // Handle scroll
+  // Handle scroll on the right (keyframe) panel — keep the left labels panel in sync
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     setScrollLeft(e.currentTarget.scrollLeft)
+    const scrollTop = e.currentTarget.scrollTop
+    if (trackLabelsRef.current && trackLabelsRef.current.scrollTop !== scrollTop) {
+      trackLabelsRef.current.scrollTop = scrollTop
+    }
+  }, [])
+
+  // Handle scroll on the left (labels) panel — keep the right keyframe panel in sync
+  const handleLabelsScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const scrollTop = e.currentTarget.scrollTop
+    if (scrollAreaRef.current && scrollAreaRef.current.scrollTop !== scrollTop) {
+      scrollAreaRef.current.scrollTop = scrollTop
+    }
   }, [])
 
   // Calculate time from mouse event, snapped to the nearest frame
@@ -309,11 +322,8 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
     const handleKey = (e: KeyboardEvent) => {
       if (e.key !== 'Delete' && e.key !== 'Backspace') return
       const target = e.target as HTMLElement
-      if (
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.isContentEditable
-      ) return
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+        return
 
       if (selectedMarkerId) {
         e.preventDefault()
@@ -491,7 +501,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
       {/* Main timeline area */}
       <div className={s.timelineBody}>
         {/* Track labels column */}
-        <div className={s.timelineTrackLabels}>
+        <div ref={trackLabelsRef} className={s.timelineTrackLabels} onScroll={handleLabelsScroll}>
           <div className={s.timelineTrackLabelsHeader}>
             <span className={s.timelineTrackLabelsTitle}>Properties</span>
           </div>

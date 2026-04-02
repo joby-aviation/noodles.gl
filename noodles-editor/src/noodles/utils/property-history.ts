@@ -7,6 +7,7 @@ import type { OpId } from './id-utils'
 type PropertyMutationCallback = (description: string, before: string, after: string) => void
 
 let _propertyMutationCallback: PropertyMutationCallback | undefined
+let _lastCommittedBeforeState: string | null = null
 
 export function registerPropertyMutationCallback(cb: PropertyMutationCallback | undefined) {
   _propertyMutationCallback = cb
@@ -60,8 +61,13 @@ export function firePropertyMutation(description: string, before: string): void 
   if (!_propertyMutationCallback) return
   const after = captureOperatorInputs()
   if (before === after) return
+  _lastCommittedBeforeState = before
   debugHistorySnapshot('Firing property mutation: %s', description)
   _propertyMutationCallback(description, before, after)
+}
+
+export function getLastCommittedBeforeState(): string | null {
+  return _lastCommittedBeforeState
 }
 
 // React hook that provides captureStart/commitChange for use in field components.

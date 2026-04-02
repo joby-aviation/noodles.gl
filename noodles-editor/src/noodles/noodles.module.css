@@ -547,11 +547,15 @@
 
 .fieldInputWrapperVector {
   display: flex;
-  gap: 5px;
+  gap: 3px;
+}
+
+.fieldInputWrapperVector .fieldInputNumber {
+  margin-right: 0;
 }
 
 .fieldInputVector {
-  width: 50px;
+  width: 32px;
 }
 
 .fieldLookupButton {
@@ -823,6 +827,11 @@
   stroke-width: 3;
   filter: drop-shadow(0 0 6px rgba(59, 130, 246, 0.7));
   animation: edgeTargetPulse 0.8s ease-in-out infinite;
+}
+
+.targetedEdgeIncompatible {
+  stroke: #9a8878;
+  stroke-width: 2;
 }
 
 @keyframes edgeTargetPulse {

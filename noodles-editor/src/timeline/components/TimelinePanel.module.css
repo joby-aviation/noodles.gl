@@ -152,6 +152,8 @@
 .timelineTrackLabels {
   width: 250px;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
   background: linear-gradient(180deg, rgb(27 34 46 / 0.96) 0%, rgb(20 27 37 / 0.96) 100%);
   border-right: 1px solid var(--tl-border);
   overflow-y: auto;
@@ -166,6 +168,10 @@
   padding: 0 12px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  flex-shrink: 0;
 }
 
 .timelineTrackLabelsTitle {
@@ -175,13 +181,13 @@
 }
 
 .timelineTrackLabelsEmpty {
-  min-height: 100%;
+  flex: 1;
 }
 
 .timelineScrollArea {
   flex: 1;
   overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: auto;
 }
 
 .timelineKeyframeArea {
@@ -770,7 +776,7 @@
 
 .curvePopupBody {
   display: flex;
-  height: 248px;
+  height: 268px;
 }
 
 .curvePopupPresets {
@@ -833,15 +839,150 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   padding: 8px;
   gap: 6px;
 }
 
-.curvePopupPresetLabel {
+.curvePopupCustomItem {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.curvePopupCustomItem.active {
+  opacity: 1;
+}
+
+.curvePopupCustomItem:hover {
+  background: transparent;
+  color: #8a96ad;
+}
+
+.curvePopupCustomItem.active:hover {
+  background: rgb(72 198 207 / 0.18);
+  color: #d9fdff;
+}
+
+.curvePopupCoordEditor {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.curvePopupCoordGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 8px;
+  width: 100%;
+}
+
+.curvePopupCoordField {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.curvePopupCoordLabel {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #5a6880;
+}
+
+.curvePopupCoordInput {
+  width: 100%;
+  background: #111720;
+  border: 1px solid #2a3544;
+  border-radius: 3px;
+  color: #b9c3cf;
+  font-family: 'Fira Mono', 'Consolas', monospace;
+  font-size: 10px;
+  padding: 2px 4px;
+  outline: none;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.curvePopupCoordInput::-webkit-outer-spin-button,
+.curvePopupCoordInput::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.curvePopupCoordInput:focus {
+  border-color: #48c6cf;
+}
+
+.curvePopupCoordInput:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.curvePopupEditorHeader {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  border-top: 1px solid #2a3544;
+  padding-top: 4px;
+}
+
+.curvePopupPresetLabelText {
+  flex: 1;
   font-size: 10px;
   color: #6e7a8f;
-  text-align: center;
+}
+
+.curvePopupIconBtn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: #5a6880;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.08s, color 0.08s, border-color 0.08s;
+}
+
+.curvePopupIconBtn:hover {
+  background: rgb(72 198 207 / 0.1);
+  border-color: #2a3544;
+  color: #b9c3cf;
+}
+
+.curvePopupIconBtn.active {
+  background: rgb(72 198 207 / 0.15);
+  border-color: #48c6cf55;
+  color: #48c6cf;
+}
+
+.curvePopupIconBtn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.curvePopupEditInput {
+  width: 100%;
+  background: #111720;
+  border: 1px solid #2a3544;
+  border-radius: 3px;
+  color: #8a96ad;
+  font-family: 'Fira Mono', 'Consolas', monospace;
+  font-size: 9px;
+  padding: 3px 5px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.curvePopupEditInput:focus {
+  border-color: #48c6cf;
+  color: #b9c3cf;
 }
 
 /* Curve view mode / view toggle */

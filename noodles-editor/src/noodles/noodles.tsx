@@ -23,11 +23,10 @@ import {
 import cx from 'classnames'
 import type { LayerExtension } from 'deck.gl'
 import * as deck from 'deck.gl'
-import JSZip, { type JSZipObject } from 'jszip'
+import type { JSZipObject } from 'jszip'
 import { PrimeReactProvider } from 'primereact/api'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useParams } from 'wouter'
-import { ChatPanel } from '../ai-chat/chat-panel'
 import { globalContextManager } from '../ai-chat/global-context-manager'
 import { getPendingQuickStartAction } from '../components/quick-start-modal'
 import { analytics } from '../utils/analytics'
@@ -80,7 +79,7 @@ import {
   useUIStore,
 } from './store'
 import { transformGraph } from './transform-graph'
-import { canConnect } from './utils/can-connect'
+import { canConnectCached } from './utils/can-connect'
 import { directoryHandleCache } from './utils/directory-handle-cache'
 import {
   fileExists,
@@ -90,7 +89,8 @@ import {
 } from './utils/filesystem'
 import { edgeId, nodeId } from './utils/id-utils'
 import { migrateProject } from './utils/migrate-schema'
-import { getParentPath } from './utils/path-utils'
+import { getParentPath, parseHandleId } from './utils/path-utils'
+import { applyOperatorInputs, getLastCommittedBeforeState } from './utils/property-history'
 import {
   EMPTY_PROJECT,
   NOODLES_VERSION,
@@ -101,6 +101,8 @@ import {
   serializeNodes,
 } from './utils/serialization'
 import { calculateViewerPosition } from './utils/viewer-position'
+
+const ChatPanel = lazy(() => import('../ai-chat/chat-panel').then(m => ({ default: m.ChatPanel })))
 
 /*
  * CSS Architecture:
@@ -218,12 +220,17 @@ export function getNoodles(): Visualization {
     [onEdgesChangeBase]
   )
 
-  // Eagerly start loading AI context bundles on app start
+  const contextLoadStarted = useRef(false)
+
+  // Start loading AI context bundles when the chat panel is first opened
   useEffect(() => {
-    globalContextManager.startLoading().catch(error => {
-      debugApp('Failed to preload AI context:', error)
-    })
-  }, [])
+    if (showChatPanel && !contextLoadStarted.current) {
+      contextLoadStarted.current = true
+      globalContextManager.startLoading().catch(error => {
+        debugApp('Failed to preload AI context:', error)
+      })
+    }
+  }, [showChatPanel])
 
   // Warn before leaving page with unsaved changes
   useEffect(() => {
@@ -342,7 +349,7 @@ export function getNoodles(): Visualization {
   // Track connection drag state for dimming unconnectable nodes
   const setConnectionDragState = useUIStore(state => state.setConnectionDragState)
   const connectionDragState = useUIStore(state => state.connectionDragState)
-  const setTargetedEdgeId = useUIStore(state => state.setTargetedEdgeId)
+  const setTargetedEdge = useUIStore(state => state.setTargetedEdge)
   const onConnectStart: OnConnectStart = useCallback(
     (_event, params) => {
       if (!params.nodeId || !params.handleId) return
@@ -370,8 +377,8 @@ export function getNoodles(): Visualization {
         const targetFields = isOutput ? op.inputs : op.outputs
         for (const targetField of Object.values(targetFields)) {
           const compatible = isOutput
-            ? canConnect(sourceField, targetField)
-            : canConnect(targetField, sourceField)
+            ? canConnectCached(sourceField, targetField)
+            : canConnectCached(targetField, sourceField)
           if (compatible) {
             compatibleNodeIds.add(nodeId)
             break
@@ -379,13 +386,32 @@ export function getNoodles(): Visualization {
         }
       }
 
+      // Calculate which existing edges the dragged source is compatible with (computed once,
+      // used to vary hit area size and highlight style during mousemove)
+      const compatibleEdgeIds = new Set<string>()
+      for (const edge of edges) {
+        if (edge.type === 'ReferenceEdge') continue
+        if (edge.source === params.nodeId || edge.target === params.nodeId) continue
+        const targetHandleInfo = parseHandleId(edge.targetHandle || '')
+        if (!targetHandleInfo) continue
+        const targetOp = getOp(edge.target)
+        if (!targetOp) continue
+        const targetField = targetOp.inputs[targetHandleInfo.fieldName]
+        if (!targetField) continue
+        const compatible = isOutput
+          ? canConnectCached(sourceField, targetField)
+          : canConnectCached(targetField, sourceField)
+        if (compatible) compatibleEdgeIds.add(edge.id)
+      }
+
       setConnectionDragState({
         sourceNodeId: params.nodeId,
         sourceHandleId: params.handleId,
         compatibleNodeIds,
+        compatibleEdgeIds,
       })
     },
-    [setConnectionDragState]
+    [setConnectionDragState, edges]
   )
 
   const { onConnectEnd: onConnectionDropEnd } = useConnectionDropOnEdge({
@@ -400,9 +426,9 @@ export function getNoodles(): Visualization {
     (event, connectionState) => {
       onConnectionDropEnd(event, connectionState)
       setConnectionDragState(null)
-      setTargetedEdgeId(null)
+      setTargetedEdge(null)
     },
-    [onConnectionDropEnd, setConnectionDragState, setTargetedEdgeId]
+    [onConnectionDropEnd, setConnectionDragState, setTargetedEdge]
   )
 
   const onMouseMove = useCallback(
@@ -417,11 +443,16 @@ export function getNoodles(): Visualization {
         pos,
         connectionDragState.sourceNodeId,
         () => nodes,
-        () => edges
+        () => edges,
+        connectionDragState.compatibleEdgeIds
       )
-      setTargetedEdgeId(edge?.id ?? null)
+      setTargetedEdge(
+        edge
+          ? { id: edge.id, compatible: connectionDragState.compatibleEdgeIds.has(edge.id) }
+          : null
+      )
     },
-    [connectionDragState, nodes, edges, setTargetedEdgeId]
+    [connectionDragState, nodes, edges, setTargetedEdge]
   )
 
   // Hook for dropping nodes onto edges to insert them
@@ -1120,6 +1151,7 @@ export function getNoodles(): Visualization {
 
       if (isZip) {
         // Handle ZIP import
+        const { default: JSZip } = await import('jszip')
         const zip = await JSZip.loadAsync(await file.arrayBuffer())
 
         // Find the shallowest noodles.json in the ZIP (could be at root or in a subfolder)
@@ -1338,7 +1370,12 @@ export function getNoodles(): Visualization {
   )
 
   const flowGraph = (
-    <ErrorBoundary>
+    <ErrorBoundary
+      onUndo={() => {
+        const before = getLastCommittedBeforeState()
+        if (before != null) applyOperatorInputs(before)
+      }}
+    >
       {/* biome-ignore lint/a11y/noStaticElementInteractions: canvas wrapper needs mouse tracking */}
       <div
         className={cx('react-flow-wrapper', !showOverlay && 'react-flow-wrapper-hidden')}
@@ -1374,15 +1411,17 @@ export function getNoodles(): Visualization {
               <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />
               <CopyControls ref={copyControlsRef} />
               <UndoRedoHandler ref={undoRedoRef} />
-              <ChatPanel
-                project={{ nodes, edges }}
-                onClose={() => {
-                  setShowChatPanel(false)
-                  setChatInitialMessage(undefined)
-                }}
-                isVisible={showChatPanel}
-                initialMessage={chatInitialMessage}
-              />
+              <Suspense fallback={null}>
+                <ChatPanel
+                  project={{ nodes, edges }}
+                  onClose={() => {
+                    setShowChatPanel(false)
+                    setChatInitialMessage(undefined)
+                  }}
+                  isVisible={showChatPanel}
+                  initialMessage={chatInitialMessage}
+                />
+              </Suspense>
               {showDebugInfo && <NodeInfoOverlay />}
               {showDebugInfo && <ViewportInfoPanel />}
             </ReactFlow>
@@ -1494,6 +1533,8 @@ export function getNoodles(): Visualization {
               return new deck[type]({
                 ...layer,
                 ...(instantiatedExtensions ? { extensions: instantiatedExtensions } : {}),
+                // Prevent deck.gl layer errors from crashing the GPU process
+                onError: (e: Error) => debugVis('Layer error in %s: %o', type, e),
               })
             }) || []
 
