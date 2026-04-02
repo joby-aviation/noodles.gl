@@ -5650,9 +5650,14 @@ export class AccessorOp extends Operator<AccessorOp> {
     )
     // https://deck.gl/docs/developer-guide/using-layers#accessors
     const accessor = (d: unknown, dInfo: { index: number; data: unknown; target: number[] }) => {
-      // Create a context-aware getOp function for the accessor execution
       const contextualGetOp = (path: string) => getOp(path, this.id)
-      return fn(d, dInfo.index, dInfo.data, contextualGetOp, ...Object.values(freeExports))
+      try {
+        return fn(d, dInfo.index, dInfo.data, contextualGetOp, ...Object.values(freeExports))
+      } catch (_e) {
+        // Swallow per-row errors — returning undefined lets deck.gl skip the item
+        // rather than crashing the GPU process
+        return undefined
+      }
     }
     return { accessor }
   }

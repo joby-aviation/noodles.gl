@@ -1524,6 +1524,8 @@ export function getNoodles(): Visualization {
               return new deck[type]({
                 ...layer,
                 ...(instantiatedExtensions ? { extensions: instantiatedExtensions } : {}),
+                // Prevent deck.gl layer errors from crashing the GPU process
+                onError: (e: Error) => debugVis('Layer error in %s: %o', type, e),
               })
             }) || []
 
