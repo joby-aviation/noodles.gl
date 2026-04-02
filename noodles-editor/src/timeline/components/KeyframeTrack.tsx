@@ -668,6 +668,18 @@ function KeyframeDiamond({
     [isSelected, keyframe.id, onSelect]
   )
 
+  const hasCopiedKeyframes = useTimelineStore(s => s.copiedKeyframes.length > 0)
+
+  const handleCopy = useCallback(() => {
+    setContextMenu(null)
+    getTimelineStore().copySelectedKeyframes()
+  }, [])
+
+  const handlePaste = useCallback(() => {
+    setContextMenu(null)
+    getTimelineStore().pasteKeyframes()
+  }, [])
+
   const handleDelete = useCallback(() => {
     setContextMenu(null)
     const before = captureTimelineState()
@@ -699,8 +711,16 @@ function KeyframeDiamond({
             style={{ top: contextMenu.y, left: contextMenu.x }}
             onMouseDown={e => e.stopPropagation()}
           >
+            <button type="button" onClick={handleCopy}>
+              Copy
+            </button>
+            {hasCopiedKeyframes && (
+              <button type="button" onClick={handlePaste}>
+                Paste
+              </button>
+            )}
             <button type="button" onClick={handleDelete}>
-              Delete keyframe
+              Delete
             </button>
           </div>,
           document.body
