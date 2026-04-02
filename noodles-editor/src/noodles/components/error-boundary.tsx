@@ -135,8 +135,8 @@ export class ErrorBoundary extends Component<Props, State> {
             )}
             {canReset && resetCount > 0 && (
               <p className={s.warning}>
-                Warning: Error has occurred {resetCount} time{resetCount > 1 ? 's' : ''}. If
-                this persists, try refreshing the page.
+                Warning: Error has occurred {resetCount} time{resetCount > 1 ? 's' : ''}. If this
+                persists, try refreshing the page.
               </p>
             )}
           </div>
