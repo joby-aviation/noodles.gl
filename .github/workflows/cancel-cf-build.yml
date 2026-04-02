@@ -1,0 +1,52 @@
+name: Cancel CloudFlare Pages Build
+
+on:
+  push:
+    branches:
+      - '**'
+
+permissions: {}
+
+jobs:
+  cancel:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel in-progress CF Pages deployments for this branch
+        env:
+          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CF_PROJECT: ${{ secrets.CLOUDFLARE_PAGES_PROJECT_NAME }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [ -z "$CF_API_TOKEN" ] || [ -z "$CF_ACCOUNT_ID" ] || [ -z "$CF_PROJECT" ]; then
+            echo "CF secrets not configured — skipping cancellation"
+            exit 0
+          fi
+          page=1
+          while true; do
+            response=$(curl -sf \
+              "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/pages/projects/$CF_PROJECT/deployments?per_page=25&page=$page" \
+              -H "Authorization: Bearer $CF_API_TOKEN")
+
+            echo "$response" | jq -r \
+              --arg branch "$BRANCH" \
+              '.result[] | select(
+                .deployment_trigger.metadata.branch == $branch and
+                (.latest_stage.status == "active" or .latest_stage.status == "queued")
+              ) | .id' \
+            | while read -r id; do
+                echo "Cancelling deployment $id for branch $BRANCH"
+                curl -sf -X POST \
+                  "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/pages/projects/$CF_PROJECT/deployments/$id/cancel" \
+                  -H "Authorization: Bearer $CF_API_TOKEN" \
+                  -H "Content-Type: application/json"
+              done
+
+            total=$(echo "$response" | jq '.result_info.total_count')
+            per_page=$(echo "$response" | jq '.result_info.per_page')
+            if [ $((page * per_page)) -ge "$total" ]; then
+              break
+            fi
+            page=$((page + 1))
+          done
