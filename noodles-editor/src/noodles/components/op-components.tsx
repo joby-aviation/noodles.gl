@@ -25,6 +25,7 @@ import { InputText } from 'primereact/inputtext'
 import {
   type ComponentType,
   memo,
+  type ReactNode,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -596,6 +597,35 @@ function NodeComponent({
   )
 }
 
+// Renders a popover anchored directly to the trigger element via position:absolute
+// so it stays inside the ReactFlow canvas coordinate space (avoids fixed-positioning
+// issues caused by CSS transforms on the ReactFlow viewport).
+function ErrorPopover({
+  error,
+  trigger,
+  open,
+  onDismiss,
+}: {
+  error: string
+  trigger: ReactNode
+  open: boolean
+  onDismiss: () => void
+}) {
+  return (
+    <div className={s.errorPopoverAnchor}>
+      {trigger}
+      {open && (
+        <div className={s.errorPopover}>
+          <span className={s.errorPopoverMessage}>{error}</span>
+          <button className={s.errorPopoverClose} onClick={onDismiss} type="button">
+            <i className="pi pi-times" />
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 const ExecutionIndicator = ({ status, error, executionTime }: ExecutionState) => {
   switch (status) {
     case 'executing':
@@ -609,10 +639,7 @@ const ExecutionIndicator = ({ status, error, executionTime }: ExecutionState) =>
       )
     case 'error':
       return (
-        <div
-          className={cx(s.executionIndicator, s.executionIndicatorError)}
-          title={`Error: ${error}`}
-        >
+        <div className={cx(s.executionIndicator, s.executionIndicatorError)}>
           <i className="pi pi-exclamation-triangle" />
         </div>
       )
@@ -644,6 +671,42 @@ function NodeHeader({
   const [locked, setLocked] = useState(op.locked.value)
   const executionState = useExecutionState(op)
   const hasConnectionErrors = connectionErrors && connectionErrors.size > 0
+
+  // Popover visibility state for execution errors
+  const [execAutoShow, setExecAutoShow] = useState(false)
+  const [execDismissed, setExecDismissed] = useState(false)
+  // Popover visibility state for connection errors
+  const [connAutoShow, setConnAutoShow] = useState(false)
+  const [connDismissed, setConnDismissed] = useState(false)
+  const [headerHovered, setHeaderHovered] = useState(false)
+
+  const execErrorKey = executionState.status === 'error' ? executionState.error ?? '' : null
+  const connErrorKey = hasConnectionErrors ? Array.from(connectionErrors!.values()).join('\n') : null
+
+  useEffect(() => {
+    if (execErrorKey !== null) {
+      setExecAutoShow(true)
+      setExecDismissed(false)
+      const t = setTimeout(() => setExecAutoShow(false), 10_000)
+      return () => clearTimeout(t)
+    }
+    setExecAutoShow(false)
+    setExecDismissed(false)
+  }, [execErrorKey])
+
+  useEffect(() => {
+    if (connErrorKey !== null) {
+      setConnAutoShow(true)
+      setConnDismissed(false)
+      const t = setTimeout(() => setConnAutoShow(false), 10_000)
+      return () => clearTimeout(t)
+    }
+    setConnAutoShow(false)
+    setConnDismissed(false)
+  }, [connErrorKey])
+
+  const execPopoverOpen = execErrorKey !== null && ((execAutoShow && !execDismissed) || headerHovered)
+  const connPopoverOpen = connErrorKey !== null && ((connAutoShow && !connDismissed) || headerHovered)
 
   const toggleLock = () => {
     op.locked.next(!op.locked.value)
@@ -797,24 +860,36 @@ function NodeHeader({
 
   const { displayName } = op.constructor as typeof Operator
 
-  // Format connection error tooltip
-  const connectionErrorTooltip = hasConnectionErrors
-    ? Array.from(connectionErrors!.values()).join('\n')
-    : ''
-
   return (
-    <div className={cx(s.header, s.dragHandle, headerClass(type))}>
+    <div
+      className={cx(s.header, s.dragHandle, headerClass(type))}
+      onMouseEnter={() => setHeaderHovered(true)}
+      onMouseLeave={() => setHeaderHovered(false)}
+    >
       <div className={s.headerTitle} title={`${id} (${displayName})`}>
         {editableId} ({displayName})
       </div>
-      <ExecutionIndicator {...executionState} />
-      {hasConnectionErrors && (
-        <div
-          className={cx(s.executionIndicator, s.executionIndicatorError)}
-          title={connectionErrorTooltip}
-        >
-          <i className="pi pi-link" />
-        </div>
+      {execErrorKey !== null ? (
+        <ErrorPopover
+          error={`Error: ${execErrorKey}`}
+          open={execPopoverOpen}
+          onDismiss={() => setExecDismissed(true)}
+          trigger={<ExecutionIndicator {...executionState} />}
+        />
+      ) : (
+        <ExecutionIndicator {...executionState} />
+      )}
+      {hasConnectionErrors && connErrorKey && (
+        <ErrorPopover
+          error={connErrorKey}
+          open={connPopoverOpen}
+          onDismiss={() => setConnDismissed(true)}
+          trigger={
+            <div className={cx(s.executionIndicator, s.executionIndicatorError)}>
+              <i className="pi pi-link" />
+            </div>
+          }
+        />
       )}
       <div className={s.headerActions}>
         {downloadable && (

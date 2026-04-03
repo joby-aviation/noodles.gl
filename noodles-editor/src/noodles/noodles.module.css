@@ -939,6 +939,56 @@
   box-shadow: 0 0 0 1px var(--node-execution-error-color);
 }
 
+/* Wrapper gives the absolute-positioned popover an anchor point */
+.errorPopoverAnchor {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.errorPopover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1a1a2e;
+  border: 1px solid var(--node-execution-error-color);
+  border-radius: 6px;
+  padding: 7px 26px 7px 10px;
+  min-width: 160px;
+  max-width: 300px;
+  font-size: 11px;
+  color: #fca5a5;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+  line-height: 1.5;
+  word-break: break-word;
+  pointer-events: all;
+}
+
+.errorPopoverMessage {
+  display: block;
+  white-space: pre-wrap;
+}
+
+.errorPopoverClose {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: none;
+  border: none;
+  color: #fca5a5;
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 9px;
+  opacity: 0.6;
+  line-height: 1;
+}
+
+.errorPopoverClose:hover {
+  opacity: 1;
+}
+
 .wrapperExecuting {
   box-shadow: 0 0 0 1px var(--node-execution-executing-color);
 }
