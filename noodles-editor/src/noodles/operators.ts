@@ -3897,6 +3897,7 @@ export class LegendWidgetOp extends Operator<LegendWidgetOp> {
         values: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
       }),
       steps: new NumberField(12, { min: 2, max: 32, step: 1, showByDefault: false }),
+      scale: new NumberField(1, { min: 0.25, max: 4, step: 0.25 }),
     }
   }
 
@@ -3913,6 +3914,7 @@ export class LegendWidgetOp extends Operator<LegendWidgetOp> {
     maxValue,
     placement,
     steps,
+    scale,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const colorStops: string[] = []
     for (let i = 0; i < steps; i++) {
@@ -3926,6 +3928,7 @@ export class LegendWidgetOp extends Operator<LegendWidgetOp> {
       minValue,
       maxValue,
       placement,
+      scale,
     }
     return { widget }
   }
