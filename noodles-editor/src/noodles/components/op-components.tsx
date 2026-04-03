@@ -847,8 +847,23 @@ function NodeHeader({
   const downloadable = Boolean(op.asDownload)
   const createDownload = useCallback(() => {
     if (!op.asDownload) return
-    // TODO: make this more generic, or have the op handle it
     const data = op.asDownload()
+
+    if (data instanceof Element) {
+      const svgEl = data instanceof SVGElement ? data : data.querySelector('svg')
+      if (svgEl) {
+        const svgStr = new XMLSerializer().serializeToString(svgEl)
+        const blob = new Blob([svgStr], { type: 'image/svg+xml' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${baseName}.svg`
+        a.click()
+        URL.revokeObjectURL(url)
+        return
+      }
+    }
+
     const blob = new Blob([JSON.stringify(data)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
