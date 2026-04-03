@@ -8,6 +8,7 @@ export type LegendWidgetProps = WidgetProps & {
   label?: string
   minValue?: number
   maxValue?: number
+  scale?: number
 }
 
 export class LegendWidget extends Widget<LegendWidgetProps> {
@@ -20,6 +21,7 @@ export class LegendWidget extends Widget<LegendWidgetProps> {
     label: '',
     minValue: 0,
     maxValue: 1,
+    scale: 1,
   }
 
   className = 'deck-widget-legend'
@@ -37,7 +39,16 @@ export class LegendWidget extends Widget<LegendWidgetProps> {
   }
 
   onRenderHTML(rootElement: HTMLElement): void {
-    const {colorStops = [], label = '', minValue = 0, maxValue = 1} = this.props
+    const {colorStops = [], label = '', minValue = 0, maxValue = 1, scale = 1, placement = 'bottom-right'} = this.props
+
+    const originMap: Record<string, string> = {
+      'top-left': 'top left',
+      'top-right': 'top right',
+      'bottom-left': 'bottom left',
+      'bottom-right': 'bottom right',
+    }
+    rootElement.style.transform = `scale(${scale})`
+    rootElement.style.transformOrigin = originMap[placement] ?? 'bottom right'
 
     // Outer container styles
     rootElement.style.background = 'rgba(20, 20, 20, 0.82)'
