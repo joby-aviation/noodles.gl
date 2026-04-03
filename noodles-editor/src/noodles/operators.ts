@@ -1360,6 +1360,7 @@ export class ColorRampOp extends Operator<ColorRampOp> {
   createOutputs() {
     return {
       color: new ColorField(),
+      colorRamp: new ColorRampField(),
     }
   }
   execute({
@@ -1367,18 +1368,17 @@ export class ColorRampOp extends Operator<ColorRampOp> {
     colorScheme: _,
     value,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const scale = (val: number) => {
-      const color = colorRamp(val)
-
-      // Some return values are in rgb, some are in hex. Convert them all to be safe
-      // TODO: VIS-813: Make all colors d3 Colors?
-      return d3Color(color)?.formatHex()
+    // Normalize all color formats to hex for consistency
+    // TODO: VIS-813: Make all colors d3 Colors?
+    const normalizedRamp = (val: number) => {
+      const c = colorRamp(val)
+      return d3Color(c)?.formatHex() ?? c
     }
 
     // Use composeAccessor helper to handle both static values and accessor functions
-    const color = composeAccessor(value, scale)
+    const color = composeAccessor(value, normalizedRamp)
 
-    return { color }
+    return { color, colorRamp: normalizedRamp }
   }
 }
 
@@ -3878,6 +3878,54 @@ export class ScreenshotWidgetOp extends Operator<ScreenshotWidgetOp> {
       type: '_ScreenshotWidget',
       placement,
       ...(viewId && viewId !== '' ? { viewId } : {}),
+    }
+    return { widget }
+  }
+}
+
+export class LegendWidgetOp extends Operator<LegendWidgetOp> {
+  static displayName = 'LegendWidget'
+  static description = 'Display a color scale legend overlay on the visualization'
+
+  createInputs() {
+    return {
+      colorRamp: new ColorRampField(),
+      label: new StringField(''),
+      minValue: new NumberField(0),
+      maxValue: new NumberField(1),
+      placement: new StringLiteralField('bottom-right', {
+        values: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+      }),
+      steps: new NumberField(12, { min: 2, max: 32, step: 1, showByDefault: false }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      widget: new WidgetField(),
+    }
+  }
+
+  execute({
+    colorRamp,
+    label,
+    minValue,
+    maxValue,
+    placement,
+    steps,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const colorStops: string[] = []
+    for (let i = 0; i < steps; i++) {
+      colorStops.push(colorRamp(i / (steps - 1)))
+    }
+    const widget = {
+      id: this.id,
+      type: 'LegendWidget',
+      colorStops,
+      label,
+      minValue,
+      maxValue,
+      placement,
     }
     return { widget }
   }
@@ -7081,6 +7129,7 @@ export const opTypes = {
   JSONOp,
   KmlToGeoJsonOp,
   LayerPropsOp,
+  LegendWidgetOp,
   LineLayerOp,
   MaplibreBasemapOp,
   MapRangeOp,

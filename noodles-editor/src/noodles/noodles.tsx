@@ -32,6 +32,7 @@ import { getPendingQuickStartAction } from '../components/quick-start-modal'
 import { analytics } from '../utils/analytics'
 import { getKeysForProject, getKeysStore } from './keys-store'
 import newProjectJSON from './new.json'
+import { LegendWidget, type LegendWidgetProps } from './widgets/legend-widget'
 
 // Get URLs for all example noodles.json files (lazy-loaded)
 const exampleProjectUrls = import.meta.glob('../examples/**/noodles.json', {
@@ -1566,8 +1567,12 @@ export function getNoodles(): Visualization {
             deckProps: {
               ...deckProps,
               layers: instantiatedLayers,
-              // biome-ignore lint/performance/noDynamicNamespaceImportAccess: We intentionally support all deck.gl widget types dynamically
-              widgets: widgets?.map(({ type, ...widget }) => new deckWidgets[type](widget)),
+              widgets: widgets?.map(({ type, ...widget }) => {
+                if (type === 'LegendWidget')
+                  return new LegendWidget(widget as unknown as LegendWidgetProps)
+                // biome-ignore lint/performance/noDynamicNamespaceImportAccess: We intentionally support all deck.gl widget types dynamically
+                return new deckWidgets[type](widget)
+              }),
             },
             mapProps,
           })
