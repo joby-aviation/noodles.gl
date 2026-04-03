@@ -1360,6 +1360,7 @@ export class ColorRampOp extends Operator<ColorRampOp> {
   createOutputs() {
     return {
       color: new ColorField(),
+      colorRamp: new ColorRampField(),
     }
   }
   execute({
@@ -1367,18 +1368,17 @@ export class ColorRampOp extends Operator<ColorRampOp> {
     colorScheme: _,
     value,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const scale = (val: number) => {
-      const color = colorRamp(val)
-
-      // Some return values are in rgb, some are in hex. Convert them all to be safe
-      // TODO: VIS-813: Make all colors d3 Colors?
-      return d3Color(color)?.formatHex()
+    // Normalize all color formats to hex for consistency
+    // TODO: VIS-813: Make all colors d3 Colors?
+    const normalizedRamp = (val: number) => {
+      const c = colorRamp(val)
+      return d3Color(c)?.formatHex() ?? c
     }
 
     // Use composeAccessor helper to handle both static values and accessor functions
-    const color = composeAccessor(value, scale)
+    const color = composeAccessor(value, normalizedRamp)
 
-    return { color }
+    return { color, colorRamp: normalizedRamp }
   }
 }
 
