@@ -3699,9 +3699,13 @@ export class GlobeViewOp extends Operator<GlobeViewOp> {
     return {
       ...createBaseViewFields(),
       ...createGeoViewFields(),
+      resolution: new NumberField(10, { min: 1, max: 90, step: 1 }),
+      controller: new BooleanField(true),
       viewState: new CompoundPropsField({
         ...createGeoViewStateFields(),
         zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
+        bearing: new NumberField(0, { optional: true }),
+        pitch: new NumberField(0, { min: 0, max: 60, optional: true }),
       }),
     }
   }
@@ -3714,7 +3718,14 @@ export class GlobeViewOp extends Operator<GlobeViewOp> {
 
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     validateViewState(props.viewState)
-    return { view: new GlobeView({ id: this.id, ...props }) }
+    const { controller, ...viewProps } = props
+    return {
+      view: new GlobeView({
+        id: this.id,
+        ...viewProps,
+        controller: controller ? { touchRotate: true } : false,
+      }),
+    }
   }
 }
 
