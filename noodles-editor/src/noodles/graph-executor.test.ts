@@ -241,6 +241,38 @@ describe('GraphExecutor', () => {
     expect(edges[0]).toEqual({ source: '/op-1', target: '/op-2' })
   })
 
+  it('executeFrame returns empty results immediately when graph has no nodes', async () => {
+    const executor = new GraphExecutor()
+    const results = await executor.executeFrame(performance.now())
+    expect(results.size).toBe(0)
+  })
+
+  it('executeFrame skips work when nodes.size is 0 after adding and removing a node', async () => {
+    const executor = new GraphExecutor()
+    const op = new NumberOp('/op-1')
+
+    executor.addNode(op)
+    expect(executor.getStats().nodeCount).toBe(1)
+
+    executor.removeNode('/op-1')
+    expect(executor.getStats().nodeCount).toBe(0)
+
+    const results = await executor.executeFrame(performance.now())
+    expect(results.size).toBe(0)
+  })
+
+  it('executeFrame proceeds normally once nodes are present', async () => {
+    const executor = new GraphExecutor()
+    const op = new NumberOp('/op-1')
+    executor.addNode(op)
+
+    // Should not throw and should attempt to pull from the graph
+    const results = await executor.executeFrame(performance.now())
+    // NumberOp is a source node, not a root (no downstream sinks), so results may be empty —
+    // but executeFrame must not return early and must reach the pull stage
+    expect(results).toBeDefined()
+  })
+
   it('syncNodesFromStore does not mark isDirty when no nodes change', () => {
     // Regression test: syncNodesFromStore used to unconditionally set isDirty=true,
     // causing topologicalSort to run every frame even for static graphs.

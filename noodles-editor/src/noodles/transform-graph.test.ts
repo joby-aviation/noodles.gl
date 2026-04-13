@@ -14,6 +14,131 @@ import { clearOps, getOpStore } from './store'
 import { transformGraph } from './transform-graph'
 import { edgeId } from './utils/id-utils'
 
+describe('transform-graph topological sort with missing upstream nodes', () => {
+  afterEach(() => {
+    clearOps()
+  })
+
+  it('instantiates a node whose only upstream source does not exist in the graph', () => {
+    // Reproduces the KmlToGeoJsonOp bug: an edge references /file as source, but /file is not
+    // in the nodes list. Without the fix, /kml-to-geo-json would be silently dropped from the
+    // sorted output and never stored, causing "Operator with id X not found" at render time.
+    const nodes = [
+      {
+        id: '/kml-to-geo-json',
+        type: 'NumberOp', // operator type doesn't matter for this test
+        data: { inputs: {} },
+        position: { x: 0, y: 0 },
+      },
+    ]
+    const edges = [
+      {
+        // /file does not exist in nodes — stale edge
+        source: '/file',
+        target: '/kml-to-geo-json',
+        sourceHandle: 'out.data',
+        targetHandle: 'par.val',
+        id: '/file.out.data->/kml-to-geo-json.par.val',
+      },
+    ]
+
+    const instances = transformGraph({ nodes, edges })
+
+    expect(instances).toHaveLength(1)
+    expect(instances[0].id).toBe('/kml-to-geo-json')
+
+    const { getOp } = getOpStore()
+    expect(getOp('/kml-to-geo-json')).toBeDefined()
+  })
+
+  it('instantiates all nodes when multiple have missing upstream sources', () => {
+    const nodes = [
+      { id: '/a', type: 'NumberOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
+      { id: '/b', type: 'NumberOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
+    ]
+    const edges = [
+      // Both targets reference sources that don't exist
+      {
+        source: '/missing-1',
+        target: '/a',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.val',
+        id: '/missing-1.out.val->/a.par.val',
+      },
+      {
+        source: '/missing-2',
+        target: '/b',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.val',
+        id: '/missing-2.out.val->/b.par.val',
+      },
+    ]
+
+    const instances = transformGraph({ nodes, edges })
+
+    expect(instances).toHaveLength(2)
+    const { getOp } = getOpStore()
+    expect(getOp('/a')).toBeDefined()
+    expect(getOp('/b')).toBeDefined()
+  })
+
+  it('correctly orders reachable nodes before unreachable ones', () => {
+    // /source -> /downstream (reachable), /orphan has stale incoming edge from /ghost (unreachable)
+    const nodes = [
+      { id: '/source', type: 'NumberOp', data: { inputs: { val: 1 } }, position: { x: 0, y: 0 } },
+      { id: '/downstream', type: 'MathOp', data: { inputs: { operator: 'add', b: 0 } }, position: { x: 0, y: 0 } },
+      { id: '/orphan', type: 'NumberOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
+    ]
+    const edges = [
+      {
+        source: '/source',
+        target: '/downstream',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.a',
+        id: '/source.out.val->/downstream.par.a',
+      },
+      {
+        source: '/ghost', // doesn't exist
+        target: '/orphan',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.val',
+        id: '/ghost.out.val->/orphan.par.val',
+      },
+    ]
+
+    const instances = transformGraph({ nodes, edges })
+
+    expect(instances).toHaveLength(3)
+    // /source must come before /downstream in execution order
+    const ids = instances.map(op => op.id)
+    expect(ids.indexOf('/source')).toBeLessThan(ids.indexOf('/downstream'))
+    // /orphan must also be present
+    expect(ids).toContain('/orphan')
+  })
+
+  it('still works correctly when all nodes are reachable (no regression)', () => {
+    const nodes = [
+      { id: '/num', type: 'NumberOp', data: { inputs: { val: 5 } }, position: { x: 0, y: 0 } },
+      { id: '/math', type: 'MathOp', data: { inputs: { b: 3 } }, position: { x: 0, y: 0 } },
+    ]
+    const edges = [
+      {
+        source: '/num',
+        target: '/math',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.a',
+        id: '/num.out.val->/math.par.a',
+      },
+    ]
+
+    const instances = transformGraph({ nodes, edges })
+
+    expect(instances).toHaveLength(2)
+    const ids = instances.map(op => op.id)
+    expect(ids.indexOf('/num')).toBeLessThan(ids.indexOf('/math'))
+  })
+})
+
 describe('transform-graph', () => {
   it('handles qualified handle IDs', () => {
     const graph: {

@@ -70,6 +70,16 @@ function topologicalSort<N extends Operator<IOperator>>(
     traverse(node)
   }
 
+  // Include nodes that weren't reachable from any source — this happens when an edge references
+  // a source node that no longer exists in the graph (e.g. a stale edge after a node is deleted).
+  // Without this, those downstream nodes would be silently dropped from the sorted output and
+  // never instantiated, causing "Operator with id X not found" errors at render time.
+  for (const node of nodes) {
+    if (!visitedNodes.has(node.id)) {
+      sortedNodes.push(node)
+    }
+  }
+
   // TODO: check for cycles, and throw an error if one is found
   // TODO: Fix reversed order
   return sortedNodes.reverse()
