@@ -1,5 +1,5 @@
 // Test file for GraphExecutor implementation
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { GraphExecutor, GraphScope, topologicalSort } from './graph-executor'
 import type { IOperator, Operator } from './operators'
 import {
@@ -239,6 +239,40 @@ describe('GraphExecutor', () => {
     const edges = executor.getEdges()
     expect(edges).toHaveLength(1)
     expect(edges[0]).toEqual({ source: '/op-1', target: '/op-2' })
+  })
+
+  it('executeFrame returns empty results immediately when graph has no nodes', async () => {
+    const executor = new GraphExecutor()
+    const results = await executor.executeFrame(performance.now())
+    expect(results.size).toBe(0)
+  })
+
+  it('executeFrame skips work when nodes.size is 0 after adding and removing a node', async () => {
+    const executor = new GraphExecutor()
+    const op = new NumberOp('/op-1')
+
+    executor.addNode(op)
+    expect(executor.getStats().nodeCount).toBe(1)
+
+    executor.removeNode('/op-1')
+    expect(executor.getStats().nodeCount).toBe(0)
+
+    const results = await executor.executeFrame(performance.now())
+    expect(results.size).toBe(0)
+  })
+
+  it('executeFrame proceeds normally once nodes are present', async () => {
+    const executor = new GraphExecutor()
+    const op = new NumberOp('/op-1')
+    executor.addNode(op)
+
+    // Spy on findRootOperators to confirm executeFrame reaches the pull stage
+    // (i.e. does not return early due to empty graph)
+    const spy = vi.spyOn(executor, 'findRootOperators')
+
+    await executor.executeFrame(performance.now())
+
+    expect(spy).toHaveBeenCalled()
   })
 
   it('syncNodesFromStore does not mark isDirty when no nodes change', () => {
