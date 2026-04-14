@@ -93,21 +93,22 @@ export function transformGraph<
   const nodes = _nodes.filter(n => opTypes[n.type as T] !== undefined) as NodeJSON<OpType>[]
   const store = getOpStore()
 
-  // Warn about unknown node types — nodes present in the project file that aren't registered
+  // Error about unknown node types — nodes present in the project file that aren't registered
   // operators. Intentional special types like 'group' (React Flow group nodes) are excluded.
   const specialNodeTypes = new Set<string>(['group'] satisfies SpecialNodeType[])
   for (const node of _nodes) {
     if (opTypes[node.type as T] === undefined && !specialNodeTypes.has(node.type as string)) {
-      console.warn(
+      console.error(
         `[noodles] Unknown operator type "${node.type}" for node "${(node as { id: string }).id}". ` +
           `This node will be skipped. Is the operator registered in opTypes?`
       )
     }
   }
 
-  // Warn about stale edges — edges that reference nodes not present in the graph.
+  // Error about stale edges — edges that reference nodes not present in the graph.
   // This typically indicates a failed node rename where edges weren't updated to match the new ID.
-  const nodeIds = new Set(nodes.map(n => n.id))
+  // Use _nodes (unfiltered) to build nodeIds so unknown-type nodes don't also trigger stale-edge errors.
+  const nodeIds = new Set(_nodes.map(n => (n as { id: string }).id))
   for (const edge of edges) {
     const missingSource = !nodeIds.has(edge.source)
     const missingTarget = !nodeIds.has(edge.target)
@@ -118,7 +119,7 @@ export function transformGraph<
       ]
         .filter(Boolean)
         .join(', ')
-      console.warn(
+      console.error(
         `[noodles] Stale edge detected: edge "${edge.id}" references missing node(s): ${missing}. ` +
           `This may be caused by a failed node rename. The graph will load, but affected connections will be missing.`
       )

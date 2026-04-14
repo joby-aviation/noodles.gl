@@ -1,5 +1,5 @@
 // Test file for GraphExecutor implementation
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { GraphExecutor, GraphScope, topologicalSort } from './graph-executor'
 import type { IOperator, Operator } from './operators'
 import {
@@ -266,11 +266,13 @@ describe('GraphExecutor', () => {
     const op = new NumberOp('/op-1')
     executor.addNode(op)
 
-    // Should not throw and should attempt to pull from the graph
-    const results = await executor.executeFrame(performance.now())
-    // NumberOp is a source node, not a root (no downstream sinks), so results may be empty —
-    // but executeFrame must not return early and must reach the pull stage
-    expect(results).toBeDefined()
+    // Spy on findRootOperators to confirm executeFrame reaches the pull stage
+    // (i.e. does not return early due to empty graph)
+    const spy = vi.spyOn(executor, 'findRootOperators')
+
+    await executor.executeFrame(performance.now())
+
+    expect(spy).toHaveBeenCalled()
   })
 
   it('syncNodesFromStore does not mark isDirty when no nodes change', () => {

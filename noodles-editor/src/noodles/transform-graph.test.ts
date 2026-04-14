@@ -140,18 +140,18 @@ describe('transform-graph topological sort with missing upstream nodes', () => {
 })
 
 describe('transform-graph stale edge and unknown type warnings', () => {
-  let warnSpy: ReturnType<typeof vi.spyOn>
+  let errorSpy: ReturnType<typeof vi.spyOn>
 
   beforeEach(() => {
-    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
   })
 
   afterEach(() => {
-    warnSpy.mockRestore()
+    errorSpy.mockRestore()
     clearOps()
   })
 
-  it('warns when an edge source node does not exist', () => {
+  it('errors when an edge source node does not exist', () => {
     const nodes = [{ id: '/b', type: 'NumberOp', data: { inputs: {} }, position: { x: 0, y: 0 } }]
     const edges = [
       {
@@ -165,11 +165,11 @@ describe('transform-graph stale edge and unknown type warnings', () => {
 
     transformGraph({ nodes, edges })
 
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Stale edge detected'))
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('"/missing"'))
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Stale edge detected'))
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('"/missing"'))
   })
 
-  it('warns when an edge target node does not exist', () => {
+  it('errors when an edge target node does not exist', () => {
     const nodes = [{ id: '/a', type: 'NumberOp', data: { inputs: {} }, position: { x: 0, y: 0 } }]
     const edges = [
       {
@@ -183,11 +183,11 @@ describe('transform-graph stale edge and unknown type warnings', () => {
 
     transformGraph({ nodes, edges })
 
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Stale edge detected'))
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('"/missing"'))
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Stale edge detected'))
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('"/missing"'))
   })
 
-  it('emits one warning per stale edge', () => {
+  it('emits one error per stale edge', () => {
     const nodes = [{ id: '/b', type: 'NumberOp', data: { inputs: {} }, position: { x: 0, y: 0 } }]
     const edges = [
       {
@@ -208,13 +208,13 @@ describe('transform-graph stale edge and unknown type warnings', () => {
 
     transformGraph({ nodes, edges })
 
-    const staleWarnings = warnSpy.mock.calls.filter(call =>
+    const staleErrors = errorSpy.mock.calls.filter(call =>
       String(call[0]).includes('Stale edge detected')
     )
-    expect(staleWarnings).toHaveLength(2)
+    expect(staleErrors).toHaveLength(2)
   })
 
-  it('does not warn for a clean graph with no stale edges', () => {
+  it('does not error for a clean graph with no stale edges', () => {
     const nodes = [
       { id: '/a', type: 'NumberOp', data: { inputs: { val: 1 } }, position: { x: 0, y: 0 } },
       { id: '/b', type: 'MathOp', data: { inputs: { operator: 'add', b: 0 } }, position: { x: 0, y: 0 } },
@@ -231,24 +231,24 @@ describe('transform-graph stale edge and unknown type warnings', () => {
 
     transformGraph({ nodes, edges })
 
-    const staleWarnings = warnSpy.mock.calls.filter(call =>
+    const staleErrors = errorSpy.mock.calls.filter(call =>
       String(call[0]).includes('Stale edge detected')
     )
-    expect(staleWarnings).toHaveLength(0)
+    expect(staleErrors).toHaveLength(0)
   })
 
-  it('warns about unknown operator types', () => {
+  it('errors about unknown operator types', () => {
     const nodes = [
       { id: '/unknown-op', type: 'NonExistentOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
     ]
 
     transformGraph({ nodes, edges: [] })
 
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Unknown operator type'))
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('"NonExistentOp"'))
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Unknown operator type'))
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('"NonExistentOp"'))
   })
 
-  it('does not warn for "group" special node type (React Flow group nodes)', () => {
+  it('does not error for "group" special node type (React Flow group nodes)', () => {
     const nodes = [
       { id: 'for-loop-scope', type: 'group', data: {}, position: { x: 0, y: 0 } },
       { id: '/num', type: 'NumberOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
@@ -256,10 +256,40 @@ describe('transform-graph stale edge and unknown type warnings', () => {
 
     transformGraph({ nodes, edges: [] })
 
-    const unknownTypeWarnings = warnSpy.mock.calls.filter(call =>
+    const unknownTypeErrors = errorSpy.mock.calls.filter(call =>
       String(call[0]).includes('Unknown operator type')
     )
-    expect(unknownTypeWarnings).toHaveLength(0)
+    expect(unknownTypeErrors).toHaveLength(0)
+  })
+
+  it('does not fire stale-edge error for edges to unknown-type nodes', () => {
+    // An edge connecting to a node with an unknown type should only fire the "Unknown operator
+    // type" error, not a second "Stale edge detected" error for the same missing node ID.
+    const nodes = [
+      { id: '/a', type: 'NumberOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
+      { id: '/b', type: 'NonExistentOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
+    ]
+    const edges = [
+      {
+        source: '/a',
+        target: '/b',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.val',
+        id: '/a.out.val->/b.par.val',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+
+    const staleErrors = errorSpy.mock.calls.filter(call =>
+      String(call[0]).includes('Stale edge detected')
+    )
+    expect(staleErrors).toHaveLength(0)
+    // The unknown-type error should still fire
+    const unknownTypeErrors = errorSpy.mock.calls.filter(call =>
+      String(call[0]).includes('Unknown operator type')
+    )
+    expect(unknownTypeErrors).toHaveLength(1)
   })
 })
 
