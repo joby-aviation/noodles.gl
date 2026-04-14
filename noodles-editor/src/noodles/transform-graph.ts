@@ -3,7 +3,7 @@ import { debugExecutor } from '../utils/debug'
 import { type Edge as ExecutorEdge, updateGraph } from './graph-executor'
 import type { Edge } from './noodles'
 import type { IOperator, Operator, OpType } from './operators'
-import { ContainerOp, ForLoopEndOp, GraphInputOp, opTypes } from './operators'
+import { ContainerOp, ForLoopEndOp, GraphInputOp, opTypes, type SpecialNodeType } from './operators'
 import { getOpStore } from './store'
 import { validateConnection } from './utils/can-connect'
 import { memoize } from './utils/memoize'
@@ -92,6 +92,39 @@ export function transformGraph<
 >({ nodes: _nodes, edges }: { nodes: NodeJSON<unknown>[]; edges: E[] }): OP[] {
   const nodes = _nodes.filter(n => opTypes[n.type as T] !== undefined) as NodeJSON<OpType>[]
   const store = getOpStore()
+
+  // Warn about unknown node types — nodes present in the project file that aren't registered
+  // operators. Intentional special types like 'group' (React Flow group nodes) are excluded.
+  const specialNodeTypes = new Set<string>(['group'] satisfies SpecialNodeType[])
+  for (const node of _nodes) {
+    if (opTypes[node.type as T] === undefined && !specialNodeTypes.has(node.type as string)) {
+      console.warn(
+        `[noodles] Unknown operator type "${node.type}" for node "${(node as { id: string }).id}". ` +
+          `This node will be skipped. Is the operator registered in opTypes?`
+      )
+    }
+  }
+
+  // Warn about stale edges — edges that reference nodes not present in the graph.
+  // This typically indicates a failed node rename where edges weren't updated to match the new ID.
+  const nodeIds = new Set(nodes.map(n => n.id))
+  for (const edge of edges) {
+    const missingSource = !nodeIds.has(edge.source)
+    const missingTarget = !nodeIds.has(edge.target)
+    if (missingSource || missingTarget) {
+      const missing = [
+        missingSource ? `source "${edge.source}"` : null,
+        missingTarget ? `target "${edge.target}"` : null,
+      ]
+        .filter(Boolean)
+        .join(', ')
+      console.warn(
+        `[noodles] Stale edge detected: edge "${edge.id}" references missing node(s): ${missing}. ` +
+          `This may be caused by a failed node rename. The graph will load, but affected connections will be missing.`
+      )
+      debugExecutor('Stale edge: %s (missing: %s)', edge.id, missing)
+    }
+  }
 
   const sortedNodes = topologicalSort(nodes, edges)
   const created: Operator<IOperator>[] = []
