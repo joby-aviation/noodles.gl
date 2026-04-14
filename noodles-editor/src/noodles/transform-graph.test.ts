@@ -86,7 +86,12 @@ describe('transform-graph topological sort with missing upstream nodes', () => {
     // /source -> /downstream (reachable), /orphan has stale incoming edge from /ghost (unreachable)
     const nodes = [
       { id: '/source', type: 'NumberOp', data: { inputs: { val: 1 } }, position: { x: 0, y: 0 } },
-      { id: '/downstream', type: 'MathOp', data: { inputs: { operator: 'add', b: 0 } }, position: { x: 0, y: 0 } },
+      {
+        id: '/downstream',
+        type: 'MathOp',
+        data: { inputs: { operator: 'add', b: 0 } },
+        position: { x: 0, y: 0 },
+      },
       { id: '/orphan', type: 'NumberOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
     ]
     const edges = [
@@ -217,7 +222,12 @@ describe('transform-graph stale edge and unknown type warnings', () => {
   it('does not error for a clean graph with no stale edges', () => {
     const nodes = [
       { id: '/a', type: 'NumberOp', data: { inputs: { val: 1 } }, position: { x: 0, y: 0 } },
-      { id: '/b', type: 'MathOp', data: { inputs: { operator: 'add', b: 0 } }, position: { x: 0, y: 0 } },
+      {
+        id: '/b',
+        type: 'MathOp',
+        data: { inputs: { operator: 'add', b: 0 } },
+        position: { x: 0, y: 0 },
+      },
     ]
     const edges = [
       {
