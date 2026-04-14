@@ -262,6 +262,52 @@ describe('transform-graph stale edge and unknown type warnings', () => {
     expect(unknownTypeErrors).toHaveLength(0)
   })
 
+  it('sets a connection error on the target operator when source node is missing', () => {
+    const nodes = [{ id: '/b', type: 'NumberOp', data: { inputs: {} }, position: { x: 0, y: 0 } }]
+    const edges = [
+      {
+        source: '/missing',
+        target: '/b',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.val',
+        id: '/missing.out.val->/b.par.val',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+
+    const { getOp } = getOpStore()
+    const op = getOp('/b') as NumberOp
+    expect(op.hasConnectionErrors()).toBe(true)
+    const msgs = op.getConnectionErrorMessages()
+    expect(msgs[0]).toContain('Broken connection')
+    expect(msgs[0]).toContain('"/missing"')
+  })
+
+  it('clears the broken-connection error when the stale edge is removed', () => {
+    const nodes = [{ id: '/b', type: 'NumberOp', data: { inputs: {} }, position: { x: 0, y: 0 } }]
+    const edges = [
+      {
+        source: '/missing',
+        target: '/b',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.val',
+        id: '/missing.out.val->/b.par.val',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+
+    // Confirm error is set
+    const { getOp } = getOpStore()
+    expect(getOp('/b')!.hasConnectionErrors()).toBe(true)
+
+    // Remove the stale edge
+    transformGraph({ nodes, edges: [] })
+
+    expect(getOp('/b')!.hasConnectionErrors()).toBe(false)
+  })
+
   it('does not fire stale-edge error for edges to unknown-type nodes', () => {
     // An edge connecting to a node with an unknown type should only fire the "Unknown operator
     // type" error, not a second "Stale edge detected" error for the same missing node ID.
