@@ -51,7 +51,7 @@ import type { Edge as GraphEdge } from '../graph-executor'
 import type { Edge } from '../noodles'
 import s from '../noodles.module.css'
 import { getFriendlyErrorMessage, type IOperator, type Operator } from '../operators'
-import { checkAssetExists, writeAsset } from '../storage'
+import { checkAssetExists, getAssetFileHandle, writeAsset } from '../storage'
 import { useEdgeConnectionStore } from '../store'
 import { getExpressionContext } from '../utils/expression-context'
 import { projectScheme } from '../utils/filesystem'
@@ -815,6 +815,15 @@ export function FileUrlFieldComponent({
 
     const exists = await checkAssetExists(activeStorageType, currentProjectName, file.name)
     if (exists) {
+      // If the user picked the exact same file already in the data directory, just use it
+      const existingHandle = await getAssetFileHandle(activeStorageType, currentProjectName, file.name)
+      if (existingHandle && await fileHandle.isSameEntry(existingHandle)) {
+        captureStart()
+        field.setValue(projectScheme + file.name)
+        setValue(projectScheme + file.name)
+        commitChange('Change file')
+        return
+      }
       captureStart()
       setPendingFile({ name: file.name, contents })
       setReplaceDialogOpen(true)
