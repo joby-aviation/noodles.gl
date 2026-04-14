@@ -100,7 +100,7 @@ export function transformGraph<
     if (opTypes[node.type as T] === undefined && !specialNodeTypes.has(node.type as string)) {
       console.error(
         `[noodles] Unknown operator type "${node.type}" for node "${(node as { id: string }).id}". ` +
-          `This node will be skipped. Is the operator registered in opTypes?`
+          'This node will be skipped. Is the operator registered in opTypes?'
       )
     }
   }
@@ -121,7 +121,7 @@ export function transformGraph<
         .join(', ')
       console.error(
         `[noodles] Stale edge detected: edge "${edge.id}" references missing node(s): ${missing}. ` +
-          `This may be caused by a failed node rename. The graph will load, but affected connections will be missing.`
+          'This may be caused by a failed node rename. The graph will load, but affected connections will be missing.'
       )
       debugExecutor('Stale edge: %s (missing: %s)', edge.id, missing)
     }
