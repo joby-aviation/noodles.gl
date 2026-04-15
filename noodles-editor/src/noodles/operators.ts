@@ -61,6 +61,7 @@ import type { Tileset3D } from '@loaders.gl/tiles'
 import { brightnessContrast, hueSaturation, vibrance } from '@luma.gl/effects'
 import { fitBounds } from '@math.gl/web-mercator'
 import * as Plot from '@observablehq/plot'
+import Supercluster from 'supercluster'
 import * as turf from '@turf/turf'
 import * as d3 from 'd3'
 import {
@@ -6013,6 +6014,102 @@ export class GeoJsonTransformOp extends Operator<GeoJsonTransformOp> {
   }
 }
 
+// ==================== Clustering ====================
+
+export class ClusterOp extends Operator<ClusterOp> {
+  static displayName = 'Cluster'
+  static description = 'Cluster an array of geo-points using Supercluster'
+
+  private index: Supercluster | null = null
+  private lastDataHash = 0
+
+  createInputs() {
+    return {
+      data: new DataField(),
+      zoom: new NumberField(0, { min: 0, max: 24, step: 0.1 }),
+      radius: new NumberField(60, { min: 1, softMax: 200, step: 1 }),
+      maxZoom: new NumberField(16, { min: 0, max: 24, step: 1 }),
+      minPoints: new NumberField(2, { min: 1, softMax: 10, step: 1 }),
+      getCoordinates: new UnknownField(undefined, { accessor: true }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      clusters: new DataField(),
+    }
+  }
+
+  execute({
+    data,
+    zoom,
+    radius,
+    maxZoom,
+    minPoints,
+    getCoordinates,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!Array.isArray(data) || data.length === 0) {
+      return { clusters: [] }
+    }
+
+    // Default coordinate accessor: [lng, lat] array or {lng, lat} / {longitude, latitude}
+    const coordFn =
+      typeof getCoordinates === 'function'
+        ? getCoordinates
+        : (d: Record<string, unknown>) => {
+            if (Array.isArray(d)) return d
+            if (d.coordinates) return d.coordinates
+            if (d.position) return d.position
+            if (d.lng != null && d.lat != null) return [d.lng, d.lat]
+            if (d.longitude != null && d.latitude != null) return [d.longitude, d.latitude]
+            return [0, 0]
+          }
+
+    // Re-index only when data changes (cheap hash: length + first/last element ref)
+    const hash = data.length + (data.length > 0 ? (data[0] as unknown as number) : 0)
+    if (!this.index || hash !== this.lastDataHash) {
+      const features = data.map((d: unknown) => {
+        const coords = (coordFn as (d: unknown) => [number, number])(d)
+        return {
+          type: 'Feature' as const,
+          geometry: {
+            type: 'Point' as const,
+            coordinates: [coords[0], coords[1]],
+          },
+          properties: { _source: d },
+        }
+      })
+
+      this.index = new Supercluster({ radius, maxZoom, minPoints })
+      this.index.load(features as Supercluster.PointFeature<{ _source: unknown }>[])
+      this.lastDataHash = hash
+    }
+
+    const raw = this.index.getClusters([-180, -90, 180, 90], Math.floor(zoom))
+
+    const clusters = raw.map((f) => {
+      const [lng, lat] = f.geometry.coordinates
+      if (f.properties.cluster) {
+        return {
+          cluster: true,
+          clusterId: f.properties.cluster_id,
+          coordinates: [lng, lat],
+          pointCount: f.properties.point_count,
+          expansionZoom: this.index!.getClusterExpansionZoom(f.properties.cluster_id),
+        }
+      }
+      return {
+        cluster: false,
+        coordinates: [lng, lat],
+        pointCount: 1,
+        source: (f.properties as { _source: unknown })._source,
+      }
+    })
+
+    return { clusters }
+  }
+}
+
 // ==================== Core Layers (@deck.gl/layers) ====================
 
 export class BitmapLayerOp extends Operator<BitmapLayerOp> {
@@ -7082,6 +7179,7 @@ export const opTypes = {
   CategoricalColorRampOp,
   ChartOp,
   ClipExtensionOp,
+  ClusterOp,
   CodeOp,
   CollisionFilterExtensionOp,
   CompassWidgetOp,
