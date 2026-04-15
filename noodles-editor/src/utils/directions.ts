@@ -70,6 +70,8 @@ async function getDrivingDirectionsOSRM({
   origin: { lat: number; lng: number }
   destination: { lat: number; lng: number }
 }): Promise<AnimatedDirections> {
+  // NOTE: router.project-osrm.org is a public demo server — not for production traffic.
+  // Replace with a self-hosted or commercial OSRM endpoint before shipping.
   const res = await fetch(
     `https://router.project-osrm.org/route/v1/driving/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?overview=full&geometries=geojson`
   )
@@ -99,7 +101,7 @@ async function getDrivingDirectionsOSRM({
     distance,
     duration,
     durationFormatted,
-    path: coords.map(([lng, lat]) => [lng, lat]),
+    path: coords as number[][], // already [lng, lat] — no swap needed
     timestamps,
   }
 }
