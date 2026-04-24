@@ -2485,7 +2485,7 @@ export class SwitchOp extends Operator<SwitchOp> {
   createInputs() {
     return {
       values: new ListField(new DataField()),
-      index: new NumberField(0, { min: 0, step: 1 }),
+      index: new NumberField(0, { min: 0, step: 1, accessor: true }),
       blend: new BooleanField(false),
     }
   }
@@ -2499,44 +2499,48 @@ export class SwitchOp extends Operator<SwitchOp> {
     index,
     blend,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    if (!blend) {
-      const value = values[Math.floor(Math.min(index, values.length - 1))]
+    // Define helper functions
+    const selectValue = (values: unknown[], index: number): unknown => {
+      if (values.length === 0) return undefined
+      const clampedIndex = Math.max(0, Math.min(index, values.length - 1))
+      return values[Math.floor(clampedIndex)]
+    }
+
+    const blendValues = (values: unknown[], index: number): unknown => {
+      if (values.length === 0) return undefined
+      if (values.length === 1) return values[0]
+
+      const clampedIndex = Math.max(0, Math.min(index, values.length - 1))
+      const lowerIndex = Math.floor(clampedIndex)
+      const upperIndex = Math.ceil(clampedIndex)
+
+      if (lowerIndex === upperIndex) return values[lowerIndex]
+
+      const t = clampedIndex - lowerIndex
+      const lowerValue = values[lowerIndex]
+      const upperValue = values[upperIndex]
+
+      if (isTemporal(lowerValue) && isTemporal(upperValue)) {
+        return interpolateTemporal(lowerValue, upperValue, t)
+      }
+
+      return interpolate(lowerValue, upperValue)(t)
+    }
+
+    // Choose function based on blend mode
+    const selectFn = blend ? blendValues : selectValue
+
+    // Handle accessor input
+    if (isAccessor(index)) {
+      const value = (...args: unknown[]) => {
+        const idx = (index as (...args: unknown[]) => number)(...args)
+        return selectFn(values, idx)
+      }
       return { value }
     }
 
-    if (values.length === 0) {
-      return { value: undefined }
-    }
-
-    if (values.length === 1) {
-      return { value: values[0] }
-    }
-
-    // For multiple values, we need to find which two values to interpolate between
-    // and calculate the interpolation factor
-    const clampedIndex = Math.min(index, values.length - 1)
-    const lowerIndex = Math.floor(clampedIndex)
-    const upperIndex = Math.ceil(clampedIndex)
-
-    // If we're exactly on an index, return that value
-    if (lowerIndex === upperIndex) {
-      return { value: values[lowerIndex] }
-    }
-
-    // Calculate the interpolation factor between the two values
-    const t = clampedIndex - lowerIndex
-
-    // Check if we're dealing with Temporal objects
-    const lowerValue = values[lowerIndex]
-    const upperValue = values[upperIndex]
-
-    if (isTemporal(lowerValue) && isTemporal(upperValue)) {
-      const value = interpolateTemporal(lowerValue, upperValue, t)
-      return { value }
-    }
-
-    // Fall back to d3's interpolate for other types
-    const value = interpolate(lowerValue, upperValue)(t)
+    // Handle static input (unchanged behavior)
+    const value = selectFn(values, index as number)
     return { value }
   }
 }

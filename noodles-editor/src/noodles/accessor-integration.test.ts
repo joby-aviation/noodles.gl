@@ -1,5 +1,6 @@
+import { Temporal } from 'temporal-polyfill'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { ColorRampOp, MapRangeOp, ScatterplotLayerOp } from './operators'
+import { ColorRampOp, MapRangeOp, ScatterplotLayerOp, SwitchOp } from './operators'
 
 describe('Accessor Integration Tests', () => {
   describe('ColorRampOp with accessors', () => {
@@ -342,6 +343,183 @@ describe('Accessor Integration Tests', () => {
       expect(positionFn(low)).toEqual([1, 1, 0])
       expect(positionFn(mid)).toEqual([2, 2, 0])
       expect(positionFn(high)).toEqual([3, 3, 0])
+    })
+  })
+
+  describe('SwitchOp with accessors', () => {
+    let op: SwitchOp
+
+    beforeEach(() => {
+      op = new SwitchOp('/test/switch')
+      op.createListeners()
+    })
+
+    it('should handle static index without blend', () => {
+      op.inputs.values.setValue(['red', 'green', 'blue'])
+      op.inputs.index.setValue(1)
+      op.inputs.blend.setValue(false)
+
+      const result = op.execute(op.data)
+      expect(result.value).toBe('green')
+    })
+
+    it('should handle static index with blend', () => {
+      op.inputs.values.setValue([0, 100, 200])
+      op.inputs.index.setValue(1.5)
+      op.inputs.blend.setValue(true)
+
+      const result = op.execute(op.data)
+      expect(result.value).toBe(150)
+    })
+
+    it('should handle accessor index without blend', () => {
+      const indexAccessor = (d: { category: number }) => d.category
+      op.inputs.values.setValue(['red', 'green', 'blue'])
+      op.inputs.index.setValue(indexAccessor)
+      op.inputs.blend.setValue(false)
+
+      const result = op.execute(op.data)
+      expect(typeof result.value).toBe('function')
+
+      const valueFn = result.value as (d: { category: number }) => string
+      expect(valueFn({ category: 0 })).toBe('red')
+      expect(valueFn({ category: 1 })).toBe('green')
+      expect(valueFn({ category: 2 })).toBe('blue')
+    })
+
+    it('should handle accessor index with blend', () => {
+      const indexAccessor = (d: { progress: number }) => d.progress
+      op.inputs.values.setValue([0, 100, 200])
+      op.inputs.index.setValue(indexAccessor)
+      op.inputs.blend.setValue(true)
+
+      const result = op.execute(op.data)
+      expect(typeof result.value).toBe('function')
+
+      const valueFn = result.value as (d: { progress: number }) => number
+      expect(valueFn({ progress: 0 })).toBe(0)
+      expect(valueFn({ progress: 1 })).toBe(100)
+      expect(valueFn({ progress: 1.5 })).toBe(150)
+      expect(valueFn({ progress: 2 })).toBe(200)
+    })
+
+    it('should handle empty values array', () => {
+      const indexAccessor = (d: { idx: number }) => d.idx
+      op.inputs.values.setValue([])
+      op.inputs.index.setValue(indexAccessor)
+      op.inputs.blend.setValue(false)
+
+      const result = op.execute(op.data)
+      const valueFn = result.value as (d: { idx: number }) => unknown
+      expect(valueFn({ idx: 0 })).toBeUndefined()
+    })
+
+    it('should clamp negative indices to 0', () => {
+      const indexAccessor = (d: { idx: number }) => d.idx
+      op.inputs.values.setValue(['first', 'second', 'third'])
+      op.inputs.index.setValue(indexAccessor)
+      op.inputs.blend.setValue(false)
+
+      const result = op.execute(op.data)
+      const valueFn = result.value as (d: { idx: number }) => string
+      expect(valueFn({ idx: -1 })).toBe('first')
+      expect(valueFn({ idx: -10 })).toBe('first')
+    })
+
+    it('should clamp indices beyond bounds', () => {
+      const indexAccessor = (d: { idx: number }) => d.idx
+      op.inputs.values.setValue(['first', 'second', 'third'])
+      op.inputs.index.setValue(indexAccessor)
+      op.inputs.blend.setValue(false)
+
+      const result = op.execute(op.data)
+      const valueFn = result.value as (d: { idx: number }) => string
+      expect(valueFn({ idx: 5 })).toBe('third')
+      expect(valueFn({ idx: 100 })).toBe('third')
+    })
+
+    it('should handle single value array', () => {
+      const indexAccessor = (d: { idx: number }) => d.idx
+      op.inputs.values.setValue(['only'])
+      op.inputs.index.setValue(indexAccessor)
+      op.inputs.blend.setValue(true)
+
+      const result = op.execute(op.data)
+      const valueFn = result.value as (d: { idx: number }) => string
+      expect(valueFn({ idx: 0 })).toBe('only')
+      expect(valueFn({ idx: 5 })).toBe('only')
+    })
+
+    it('should interpolate Temporal objects with accessor', () => {
+      const indexAccessor = (d: { progress: number }) => d.progress
+      const start = Temporal.Instant.from('2024-01-01T00:00:00Z')
+      const end = Temporal.Instant.from('2024-01-02T00:00:00Z')
+
+      op.inputs.values.setValue([start, end])
+      op.inputs.index.setValue(indexAccessor)
+      op.inputs.blend.setValue(true)
+
+      const result = op.execute(op.data)
+      const valueFn = result.value as (d: { progress: number }) => typeof start
+      const midpoint = valueFn({ progress: 0.5 })
+
+      expect(midpoint).toBeInstanceOf(Temporal.Instant)
+      expect(midpoint.toString()).toBe('2024-01-01T12:00:00Z')
+    })
+
+    it('should chain with MapRangeOp', () => {
+      // MapRange: normalize 0-100 to 0-2 (for selecting from 3 values)
+      const mapRange = new MapRangeOp('/test/map-range')
+      mapRange.createListeners()
+      const countAccessor = (d: { count: number }) => d.count
+      mapRange.inputs.val.setValue(countAccessor)
+      mapRange.inputs.inMin.setValue(0)
+      mapRange.inputs.inMax.setValue(100)
+      mapRange.inputs.outMin.setValue(0)
+      mapRange.inputs.outMax.setValue(2)
+
+      const { scaled } = mapRange.execute(mapRange.data)
+
+      // Switch: select color based on normalized value
+      op.inputs.values.setValue(['red', 'yellow', 'green'])
+      op.inputs.index.setValue(scaled)
+      op.inputs.blend.setValue(false)
+
+      const result = op.execute(op.data)
+      const colorFn = result.value as (d: { count: number }) => string
+
+      expect(colorFn({ count: 0 })).toBe('red')
+      expect(colorFn({ count: 50 })).toBe('yellow')
+      expect(colorFn({ count: 100 })).toBe('green')
+    })
+
+    it('should work with deck.gl ScatterplotLayer', () => {
+      const categoryAccessor = (d: { category: number }) => d.category
+      op.inputs.values.setValue(['#ff0000', '#00ff00', '#0000ff'])
+      op.inputs.index.setValue(categoryAccessor)
+      op.inputs.blend.setValue(false)
+
+      const { value: colorAccessor } = op.execute(op.data)
+
+      const scatterplot = new ScatterplotLayerOp('/test/scatterplot')
+      scatterplot.createListeners()
+      scatterplot.inputs.data.setValue([
+        { category: 0, pos: [0, 0] },
+        { category: 1, pos: [1, 1] },
+        { category: 2, pos: [2, 2] },
+      ])
+      scatterplot.inputs.getFillColor.setValue(colorAccessor)
+      scatterplot.inputs.getPosition.setValue((d: { pos: number[] }) => d.pos)
+
+      const { layer } = scatterplot.execute(scatterplot.data)
+
+      expect(typeof layer.getFillColor).toBe('function')
+
+      // Test that the accessor works correctly with actual data
+      const fillColorFn = layer.getFillColor as (d: { category: number; pos: number[] }) => number[]
+      expect(fillColorFn({ category: 0, pos: [0, 0] })).toEqual([255, 0, 0, 255])
+      expect(fillColorFn({ category: 1, pos: [1, 1] })).toEqual([0, 255, 0, 255])
+      expect(fillColorFn({ category: 2, pos: [2, 2] })).toEqual([0, 0, 255, 255])
     })
   })
 })
