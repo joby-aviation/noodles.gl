@@ -869,6 +869,82 @@ describe('MaplibreBasemapOp', () => {
     })
     expect(result.maplibre.mapStyle).toBe('')
   })
+
+  it('accepts and passes through style objects', () => {
+    const op = new MaplibreBasemapOp('/maplibre-0')
+    const styleObject = {
+      version: 8,
+      sources: {
+        osm: {
+          type: 'raster',
+          tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+          tileSize: 256,
+        },
+      },
+      layers: [
+        {
+          id: 'osm',
+          type: 'raster',
+          source: 'osm',
+        },
+      ],
+    }
+
+    const result = op.execute({
+      mapStyle: styleObject as unknown as string,
+      projection: 'mercator',
+      viewState: { latitude: 37, longitude: -122, zoom: 10, pitch: 0, bearing: 0 },
+      sky: {
+        enabled: false,
+        skyColor: '#88C6FC',
+        horizonColor: '#ffffff',
+        skyHorizonBlend: 0.8,
+        atmosphereBlend: 0.5,
+      },
+      light: { anchor: 'viewport', azimuthal: 210, polar: 30 },
+    })
+
+    expect(result.maplibre.mapStyle).toEqual(styleObject)
+    expect(typeof result.maplibre.mapStyle).toBe('object')
+  })
+
+  it('output field accepts both strings and objects', () => {
+    const op = new MaplibreBasemapOp('/maplibre-0')
+
+    // Test with string
+    const resultString = op.execute({
+      mapStyle: 'https://example.com/style.json',
+      projection: 'mercator',
+      viewState: { latitude: 0, longitude: 0, zoom: 0, pitch: 0, bearing: 0 },
+      sky: {
+        enabled: false,
+        skyColor: '#88C6FC',
+        horizonColor: '#ffffff',
+        skyHorizonBlend: 0.8,
+        atmosphereBlend: 0.5,
+      },
+      light: { anchor: 'viewport', azimuthal: 210, polar: 30 },
+    })
+    expect(typeof resultString.maplibre.mapStyle).toBe('string')
+
+    // Test with object
+    const styleObj = { version: 8, sources: {}, layers: [] }
+    const resultObject = op.execute({
+      mapStyle: styleObj as unknown as string,
+      projection: 'mercator',
+      viewState: { latitude: 0, longitude: 0, zoom: 0, pitch: 0, bearing: 0 },
+      sky: {
+        enabled: false,
+        skyColor: '#88C6FC',
+        horizonColor: '#ffffff',
+        skyHorizonBlend: 0.8,
+        atmosphereBlend: 0.5,
+      },
+      light: { anchor: 'viewport', azimuthal: 210, polar: 30 },
+    })
+    expect(typeof resultObject.maplibre.mapStyle).toBe('object')
+    expect(resultObject.maplibre.mapStyle).toEqual(styleObj)
+  })
 })
 
 describe('MapViewOp', () => {

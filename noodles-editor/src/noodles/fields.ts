@@ -278,6 +278,31 @@ export class FileUrlField extends Field<z.ZodString, FileUrlFieldOptions> {
   }
 }
 
+export interface MapStyleFieldOptions extends BaseFieldOptions {
+  accept?: string
+  suggestions?: { value: string | Record<string, unknown>; label: string }[]
+}
+
+export class MapStyleField extends Field<
+  z.ZodUnion<[z.ZodString, z.ZodRecord<z.ZodString, z.ZodUnknown>]>,
+  MapStyleFieldOptions
+> {
+  static type = 'map-style'
+  static defaultValue = ''
+  accept?: string
+  suggestions: { value: string; label: string }[]
+
+  constructor(defaultValue = '', options?: Partial<MapStyleFieldOptions>) {
+    super(defaultValue, options)
+    this.accept = options?.accept
+    this.suggestions = options?.suggestions ?? []
+  }
+
+  createSchema(_options?: Partial<MapStyleFieldOptions>) {
+    return z.union([z.string(), z.record(z.string(), z.unknown())])
+  }
+}
+
 export const IN_NS = 'par'
 export const OUT_NS = 'out'
 export type InOut = typeof IN_NS | typeof OUT_NS

@@ -352,6 +352,7 @@ const handleClasses = {
   'geopoint-3d': s.handleVector,
   layer: s.handleLayer,
   list: s.handleList,
+  'map-style': s.handleString,
   number: s.handleNumber,
   string: s.handleString,
   'string-literal': s.handleString,
