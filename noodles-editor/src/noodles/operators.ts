@@ -162,6 +162,7 @@ import {
   type InOut,
   LayerField,
   ListField,
+  MapStyleField,
   mustacheRe,
   NumberField,
   OUT_NS,
@@ -3415,7 +3416,14 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
 
   createInputs() {
     return {
-      mapStyle: new FileUrlField(CARTO_DARK, { accept: '.json' }),
+      mapStyle: new MapStyleField(CARTO_DARK, {
+        accept: '.json',
+        suggestions: [
+          { value: CARTO_DARK, label: 'Carto Dark' },
+          { value: MAP_STYLES.CARTO_LIGHT, label: 'Carto Light' },
+          { value: MAP_STYLES.CARTO_VOYAGER, label: 'Carto Voyager' },
+        ],
+      }),
       projection: new StringLiteralField('mercator', {
         values: ['mercator', 'globe'],
         showByDefault: false,
@@ -3451,7 +3459,7 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
   createOutputs() {
     return {
       maplibre: new CompoundPropsField({
-        mapStyle: new FileUrlField(),
+        mapStyle: new MapStyleField(),
         projection: new StringField(),
         longitude: new NumberField(),
         latitude: new NumberField(),

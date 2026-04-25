@@ -39,6 +39,7 @@ import {
   type FileUrlField,
   getFieldReferences,
   type IField,
+  type MapStyleField,
   type NumberField,
   Point2DField,
   Point3DField,
@@ -94,6 +95,7 @@ export const inputComponents = {
   'geopoint-3d': VectorFieldComponent,
   layer: EmptyFieldComponent,
   list: EmptyFieldComponent,
+  'map-style': MapStyleFieldComponent,
   number: NumberFieldComponent,
   string: TextFieldComponent,
   'string-literal': TextFieldComponent,
@@ -892,6 +894,192 @@ export function FileUrlFieldComponent({
             onClick={onUpload}
             title="Upload File"
             size="small"
+          />
+        </div>
+      </div>
+
+      <Dialog.Root open={replaceDialogOpen} onOpenChange={setReplaceDialogOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className={menuStyles.dialogOverlay} />
+          <Dialog.Content className={menuStyles.dialogContent}>
+            <Dialog.Title className={menuStyles.dialogTitle}>Replace file</Dialog.Title>
+            <Dialog.Description className={menuStyles.dialogDescription}>
+              A file named "{pendingFile?.name}" already exists. Do you want to replace it?
+            </Dialog.Description>
+            <div className={menuStyles.dialogRightSlot}>
+              <Dialog.Close asChild>
+                <button type="button" className={menuStyles.dialogButton} onClick={onCancelReplace}>
+                  Cancel
+                </button>
+              </Dialog.Close>
+              <button
+                type="button"
+                className={cx(menuStyles.dialogButton, menuStyles.red)}
+                onClick={onConfirmReplace}
+              >
+                Replace
+              </button>
+            </div>
+            <Dialog.Close asChild onClick={onCancelReplace}>
+              <button type="button" className={menuStyles.dialogIconButton} aria-label="Close">
+                <Cross2Icon />
+              </button>
+            </Dialog.Close>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+    </>
+  )
+}
+
+export function MapStyleFieldComponent({
+  id,
+  field,
+  disabled,
+}: {
+  id: OpId
+  field: MapStyleField
+  disabled: boolean
+}) {
+  const [value, setValue] = useState(guardAccessorFallback(field.value))
+  const { captureStart, commitChange } = usePropertyHistory()
+
+  useEffect(() => {
+    const sub = field.subscribe(newVal => {
+      if (typeof newVal === 'function') return
+      setValue(newVal)
+    })
+    return () => sub.unsubscribe()
+  }, [field])
+
+  const isObject = typeof value === 'object' && value !== null
+  const displayValue = isObject ? '[Style Object]' : value
+
+  const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.currentTarget.value
+    if (val !== field.value) {
+      setValue(val)
+    }
+  }
+
+  const onBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    const val = e.currentTarget.value
+    if (val !== field.value) {
+      field.setValue(val)
+    }
+    commitChange('Change map style')
+  }
+
+  const [replaceDialogOpen, setReplaceDialogOpen] = useState(false)
+  const [pendingFile, setPendingFile] = useState<{ name: string; contents: Blob } | null>(null)
+
+  const onUpload = async () => {
+    try {
+      await doUpload()
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return
+      throw err
+    }
+  }
+
+  const doUpload = async () => {
+    const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
+    if (!currentProjectName) {
+      throw new Error('No project loaded. Please save or load a project first.')
+    }
+
+    const pickerOpts: OpenFilePickerOptions = field.accept
+      ? {
+          types: [{ description: 'Files', accept: extToMimeTypes(field.accept) }],
+          excludeAcceptAllOption: true,
+          multiple: false,
+        }
+      : { multiple: false }
+
+    const [fileHandle] = await window.showOpenFilePicker(pickerOpts)
+    const file = await fileHandle.getFile()
+    const buffer = await file.arrayBuffer()
+    const contents = new Blob([buffer], { type: file.type })
+
+    const exists = await checkAssetExists(activeStorageType, currentProjectName, file.name)
+    if (exists) {
+      const existingHandle = await getAssetFileHandle(activeStorageType, currentProjectName, file.name)
+      if (existingHandle && await fileHandle.isSameEntry(existingHandle)) {
+        captureStart()
+        field.setValue(projectScheme + file.name)
+        setValue(projectScheme + file.name)
+        commitChange('Change map style')
+        return
+      }
+      captureStart()
+      setPendingFile({ name: file.name, contents })
+      setReplaceDialogOpen(true)
+      return
+    }
+
+    const result = await writeAsset(activeStorageType, currentProjectName, file.name, contents)
+    if (!result.success) {
+      throw new Error(result.error?.message || `Failed to write file: ${file.name}`)
+    }
+
+    captureStart()
+    field.setValue(projectScheme + file.name)
+    setValue(projectScheme + file.name)
+    commitChange('Change map style')
+  }
+
+  const onConfirmReplace = async () => {
+    if (!pendingFile) return
+
+    const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
+    if (!currentProjectName) return
+
+    const result = await writeAsset(
+      activeStorageType,
+      currentProjectName,
+      pendingFile.name,
+      pendingFile.contents
+    )
+    if (!result.success) {
+      throw new Error(result.error?.message || `Failed to write file: ${pendingFile.name}`)
+    }
+
+    field.setValue(projectScheme + pendingFile.name)
+    setValue(projectScheme + pendingFile.name)
+    commitChange('Change map style')
+    setReplaceDialogOpen(false)
+    setPendingFile(null)
+  }
+
+  const onCancelReplace = () => {
+    setReplaceDialogOpen(false)
+    setPendingFile(null)
+  }
+
+  return (
+    <>
+      <div className={s.nodeFieldWrapper}>
+        <label className={s.nodeFieldLabel} htmlFor={id}>
+          {id}
+        </label>
+        <div className={cx('p-inputgroup', s.fieldFileInputGroup)}>
+          <InputText
+            id={id}
+            placeholder={isObject ? '' : 'https://'}
+            className={cx(s.fieldInput, s.fieldInputFileUrl)}
+            value={displayValue}
+            onFocus={captureStart}
+            onBlur={onBlur}
+            onChange={onChange}
+            disabled={disabled || isObject}
+          />
+          <Button
+            icon="pi pi-upload"
+            className={s.fieldInputUploadButton}
+            onClick={onUpload}
+            title="Upload File"
+            size="small"
+            disabled={isObject}
           />
         </div>
       </div>
