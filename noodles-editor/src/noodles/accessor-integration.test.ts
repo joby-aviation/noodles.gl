@@ -372,6 +372,15 @@ describe('Accessor Integration Tests', () => {
       expect(result.value).toBe(150)
     })
 
+    it('should clamp static negative index to 0', () => {
+      op.inputs.values.setValue(['first', 'second', 'third'])
+      op.inputs.index.setValue(-1)
+      op.inputs.blend.setValue(false)
+
+      const result = op.execute(op.data)
+      expect(result.value).toBe('first')
+    })
+
     it('should handle accessor index without blend', () => {
       const indexAccessor = (d: { category: number }) => d.category
       op.inputs.values.setValue(['red', 'green', 'blue'])
