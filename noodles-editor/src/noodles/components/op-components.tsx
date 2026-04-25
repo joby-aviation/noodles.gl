@@ -1,5 +1,6 @@
 import MapboxGeocoder from '@mapbox/mapbox-gl-geocoder'
 import ReactJson from '@microlink/react-json-view'
+import * as ContextMenu from '@radix-ui/react-context-menu'
 import * as Tooltip from '@radix-ui/react-tooltip'
 import {
   BaseEdge,
@@ -573,6 +574,7 @@ function NodeComponent({
     throw new Error(`Operator with id ${id} not found`)
   }
   const locked = useLocked(op)
+  const [breakpointEnabled, toggleBreakpoint] = useBreakpoint(op)
   const executionState = useExecutionState(op)
   const connectionErrors = useConnectionErrors(op)
   const hasConnectionErrors = connectionErrors.size > 0
@@ -580,13 +582,15 @@ function NodeComponent({
   useFieldVisibility(op)
 
   return (
-    <div
-      className={cx(s.wrapper, {
-        [s.wrapperError]: executionState.status === 'error' || hasConnectionErrors,
-        [s.wrapperExecuting]: executionState.status === 'executing',
-        [s.wrapperDimmed]: isDimmed,
-      })}
-    >
+    <ContextMenu.Root>
+      <ContextMenu.Trigger asChild>
+        <div
+          className={cx(s.wrapper, {
+            [s.wrapperError]: executionState.status === 'error' || hasConnectionErrors,
+            [s.wrapperExecuting]: executionState.status === 'executing',
+            [s.wrapperDimmed]: isDimmed,
+          })}
+        >
       <NodeHeader id={id} type={type} op={op} connectionErrors={connectionErrors} />
       {resizeableNodes.includes(type) && (
         <NodeResizer isVisible={selected} minWidth={200} minHeight={100} />
@@ -609,7 +613,24 @@ function NodeComponent({
           ))}
         </div>
       </div>
-    </div>
+      </div>
+      </ContextMenu.Trigger>
+
+      <ContextMenu.Portal>
+        <ContextMenu.Content className={s.contextMenu} sideOffset={5}>
+          <ContextMenu.CheckboxItem
+            className={s.contextMenuItem}
+            checked={breakpointEnabled}
+            onCheckedChange={toggleBreakpoint}
+          >
+            <ContextMenu.ItemIndicator className={s.contextMenuIndicator}>
+              <i className="pi pi-check" style={{ fontSize: '12px' }} />
+            </ContextMenu.ItemIndicator>
+            Debug Breakpoint
+          </ContextMenu.CheckboxItem>
+        </ContextMenu.Content>
+      </ContextMenu.Portal>
+    </ContextMenu.Root>
   )
 }
 
@@ -685,7 +706,6 @@ function NodeHeader({
   connectionErrors?: Map<string, string>
 }) {
   const [locked, setLocked] = useState(op.locked.value)
-  const [breakpointEnabled, toggleBreakpoint] = useBreakpoint(op)
   const executionState = useExecutionState(op)
   const hasConnectionErrors = connectionErrors && connectionErrors.size > 0
 
@@ -939,14 +959,6 @@ function NodeHeader({
           className={cx(s.headerLock, locked && s.headerLockLocked)}
           onClick={toggleLock}
           title="Toggle lock"
-          rounded
-          text
-        />
-        <Button
-          icon={`pi ${breakpointEnabled ? 'pi-stop-circle' : 'pi-circle'}`}
-          className={cx(s.headerDebug, breakpointEnabled && s.headerDebugEnabled)}
-          onClick={toggleBreakpoint}
-          title={breakpointEnabled ? 'Disable breakpoint' : 'Enable breakpoint'}
           rounded
           text
         />
