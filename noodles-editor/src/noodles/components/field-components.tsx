@@ -957,14 +957,14 @@ export function MapStyleFieldComponent({
 
   const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.currentTarget.value
-    if (val !== field.value) {
+    if (typeof field.value !== 'object' && val !== field.value) {
       setValue(val)
     }
   }
 
   const onBlur = (e: React.FocusEvent<HTMLInputElement>) => {
     const val = e.currentTarget.value
-    if (val !== field.value) {
+    if (typeof field.value !== 'object' && val !== field.value) {
       field.setValue(val)
     }
     commitChange('Change map style')

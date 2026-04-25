@@ -280,7 +280,7 @@ export class FileUrlField extends Field<z.ZodString, FileUrlFieldOptions> {
 
 export interface MapStyleFieldOptions extends BaseFieldOptions {
   accept?: string
-  suggestions?: { value: string; label: string }[]
+  suggestions?: { value: string | Record<string, unknown>; label: string }[]
 }
 
 export class MapStyleField extends Field<
