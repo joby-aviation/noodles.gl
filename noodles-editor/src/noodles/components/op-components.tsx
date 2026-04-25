@@ -390,6 +390,21 @@ function useLocked(op: Operator<IOperator>) {
   return locked
 }
 
+function useBreakpoint(op: Operator<IOperator>): [boolean, () => void] {
+  const [enabled, setEnabled] = useState(op.breakpointEnabled.value)
+
+  useEffect(() => {
+    const subscription = op.breakpointEnabled.subscribe(setEnabled)
+    return () => subscription.unsubscribe()
+  }, [op])
+
+  const toggle = useCallback(() => {
+    op.breakpointEnabled.next(!op.breakpointEnabled.value)
+  }, [op])
+
+  return [enabled, toggle]
+}
+
 // Hook to subscribe to field visibility changes and trigger re-render
 function useFieldVisibility(op: Operator<IOperator>) {
   const [, setVisibility] = useState(op.visibleFields.value)
@@ -670,6 +685,7 @@ function NodeHeader({
   connectionErrors?: Map<string, string>
 }) {
   const [locked, setLocked] = useState(op.locked.value)
+  const [breakpointEnabled, toggleBreakpoint] = useBreakpoint(op)
   const executionState = useExecutionState(op)
   const hasConnectionErrors = connectionErrors && connectionErrors.size > 0
 
@@ -923,6 +939,14 @@ function NodeHeader({
           className={cx(s.headerLock, locked && s.headerLockLocked)}
           onClick={toggleLock}
           title="Toggle lock"
+          rounded
+          text
+        />
+        <Button
+          icon={`pi ${breakpointEnabled ? 'pi-stop-circle' : 'pi-circle'}`}
+          className={cx(s.headerDebug, breakpointEnabled && s.headerDebugEnabled)}
+          onClick={toggleBreakpoint}
+          title={breakpointEnabled ? 'Disable breakpoint' : 'Enable breakpoint'}
           rounded
           text
         />

@@ -232,6 +232,17 @@
   filter: brightness(0.5);
 }
 
+.headerDebug {
+  font-size: 10px;
+  padding: 0;
+  width: 22px;
+  height: 22px;
+}
+
+.headerDebugEnabled {
+  color: #ef4444;
+}
+
 .headerDownload {
   font-size: 10px;
   padding: 0;
