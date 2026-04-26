@@ -2,10 +2,10 @@
 // This provides a UX similar to Houdini, Blender, and TouchDesigner
 
 import type { Edge as ReactFlowEdge, Node as ReactFlowNode, XYPosition } from '@xyflow/react'
-import { useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
 import { analytics } from '../../utils/analytics'
 import type { IOperator, Operator } from '../operators'
-import { getOp } from '../store'
+import { getOp, useUIStore } from '../store'
 import { canConnect } from '../utils/can-connect'
 import { getNodeCenter, pointToLineDistance } from '../utils/edge-geometry'
 import { edgeId } from '../utils/id-utils'
@@ -121,6 +121,12 @@ function canInsertNode(
 
 export function useNodeDropOnEdge(options: UseNodeDropOnEdgeOptions) {
   const { getNodes, getEdges, setEdges } = options
+  const setNodeDragState = useUIStore(s => s.setNodeDragState)
+
+  // Clear drag state on unmount or when edges change
+  useEffect(() => {
+    return () => setNodeDragState(null)
+  }, [setNodeDragState])
 
   // Find the edge closest to the dropped node, if within threshold
   const findEdgeAtPosition = useCallback(
@@ -239,16 +245,61 @@ export function useNodeDropOnEdge(options: UseNodeDropOnEdgeOptions) {
     [findEdgeAtPosition, setEdges]
   )
 
+  // Callback for node drag (update visual feedback)
+  const onNodeDrag = useCallback(
+    (_event: React.MouseEvent, node: ReactFlowNode) => {
+      const nodeCenter = getNodeCenter(node)
+      const edge = findEdgeAtPosition(node.id, nodeCenter)
+
+      if (!edge) {
+        setNodeDragState(null)
+        return
+      }
+
+      // Check if node has existing connections
+      const edges = getEdges()
+      const hasExistingConnections = edges.some(
+        e => e.source === node.id || e.target === node.id
+      )
+
+      // Check if we can insert this node
+      const { canInsert } = canInsertNode(edge, node.id)
+
+      setNodeDragState({
+        nodeId: node.id,
+        hasExistingConnections,
+        targetedEdge: { id: edge.id, canInsert },
+      })
+    },
+    [findEdgeAtPosition, getEdges, setNodeDragState]
+  )
+
   // Callback to be used with ReactFlow's onNodeDragStop
   // Returns the result of the drop operation (or null if no insertion happened)
+  // Requires Shift key for nodes with existing connections
   const onNodeDragStop = useCallback(
-    (_event: React.MouseEvent, node: ReactFlowNode): NodeDropResult | null => {
+    (event: React.MouseEvent, node: ReactFlowNode): NodeDropResult | null => {
+      // Clear drag state
+      setNodeDragState(null)
+
+      // Check if node has existing connections
+      const edges = getEdges()
+      const hasExistingConnections = edges.some(
+        e => e.source === node.id || e.target === node.id
+      )
+
+      // Require Shift key for nodes with existing connections to prevent accidental drops
+      if (hasExistingConnections && !event.shiftKey) {
+        return null
+      }
+
       return handleNodeDropOnEdge(node)
     },
-    [handleNodeDropOnEdge]
+    [handleNodeDropOnEdge, getEdges, setNodeDragState]
   )
 
   return {
+    onNodeDrag,
     onNodeDragStop,
     handleNodeDropOnEdge,
     findEdgeAtPosition,

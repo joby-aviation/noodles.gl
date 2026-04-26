@@ -487,11 +487,19 @@ export function getNoodles(): Visualization {
   )
 
   // Hook for dropping nodes onto edges to insert them
-  const { onNodeDragStop: onNodeDragStopBase } = useNodeDropOnEdge({
+  const { onNodeDrag: onNodeDragBase, onNodeDragStop: onNodeDragStopBase } = useNodeDropOnEdge({
     getNodes: useCallback(() => nodesRef.current, []),
     getEdges: useCallback(() => edgesRef.current, []),
     setEdges,
   })
+
+  // Track node drag for visual feedback
+  const onNodeDrag = useCallback(
+    (event: React.MouseEvent, node: ReactFlowNode) => {
+      onNodeDragBase(event, node)
+    },
+    [onNodeDragBase]
+  )
 
   // Wrap onNodeDragStop to mark unsaved changes when a node is inserted
   const onNodeDragStop = useCallback(
@@ -1425,6 +1433,7 @@ export function getNoodles(): Visualization {
               onConnectEnd={onConnectEnd}
               onReconnect={onReconnect}
               onNodesDelete={onNodesDelete}
+              onNodeDrag={onNodeDrag}
               onNodeDragStop={onNodeDragStop}
               onPaneContextMenu={onPaneContextMenu}
               onPaneClick={onPaneClick}

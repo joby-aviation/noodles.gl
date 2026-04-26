@@ -208,6 +208,7 @@ function DefaultEdgeComponent({
   markerEnd,
 }: EdgeProps) {
   const targetedEdge = useUIStore(s => s.targetedEdge)
+  const nodeDragState = useUIStore(s => s.nodeDragState)
   const [edgePath] = getBezierPath({
     sourceX,
     sourceY,
@@ -216,12 +217,19 @@ function DefaultEdgeComponent({
     sourcePosition,
     targetPosition,
   })
-  const edgeClassName =
-    targetedEdge?.id === id
-      ? targetedEdge.compatible
-        ? s.targetedEdge
-        : s.targetedEdgeIncompatible
-      : undefined
+
+  // Edge is targeted if either connection drag or node drag is targeting it
+  const isConnectionTarget = targetedEdge?.id === id
+  const isNodeDropTarget = nodeDragState?.targetedEdge?.id === id
+  const isTarget = isConnectionTarget || isNodeDropTarget
+
+  let edgeClassName: string | undefined
+  if (isConnectionTarget) {
+    edgeClassName = targetedEdge.compatible ? s.targetedEdge : s.targetedEdgeIncompatible
+  } else if (isNodeDropTarget) {
+    edgeClassName = nodeDragState.targetedEdge.canInsert ? s.targetedEdge : s.targetedEdgeIncompatible
+  }
+
   return <BaseEdge path={edgePath} markerEnd={markerEnd} style={style} className={edgeClassName} />
 }
 
@@ -562,6 +570,7 @@ function NodeComponent({
   const connectionErrors = useConnectionErrors(op)
   const hasConnectionErrors = connectionErrors.size > 0
   const isDimmed = useNodeDimmed(id)
+  const isDropTarget = useUIStore(s => s.nodeDragState?.nodeId === id && s.nodeDragState?.targetedEdge !== null)
   useFieldVisibility(op)
 
   return (
@@ -570,6 +579,7 @@ function NodeComponent({
         [s.wrapperError]: executionState.status === 'error' || hasConnectionErrors,
         [s.wrapperExecuting]: executionState.status === 'executing',
         [s.wrapperDimmed]: isDimmed,
+        [s.nodeDropTarget]: isDropTarget,
       })}
     >
       <NodeHeader id={id} type={type} op={op} connectionErrors={connectionErrors} />
