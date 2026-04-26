@@ -14,7 +14,15 @@ import {
   useTimelineStore,
 } from '../../timeline/timeline-store'
 import type { KeyframeValue } from '../../timeline/types'
-import { CompoundPropsField, type Field, type IField, IN_NS, ListField, OUT_NS } from '../fields'
+import {
+  CompoundPropsField,
+  type Field,
+  type IField,
+  IN_NS,
+  ListField,
+  OUT_NS,
+  type Vec2Field,
+} from '../fields'
 import type { IOperator, Operator } from '../operators'
 import { OutOp } from '../operators'
 import { getOpStore, useUIStore } from '../store'
@@ -225,19 +233,31 @@ function FieldInputWithHighlight({
   fieldName,
   field,
   subPath,
+  expandTimeline,
 }: {
   opId: string
   fieldName: string
   field: Field
   subPath?: string[]
+  expandTimeline?: () => void
 }) {
-  const hasKeyframes = useTimelineStore(state => {
-    const track = state.tracks.get(getFieldPath(opId, fieldName, subPath))
-    return track ? track.keyframes.length > 0 : false
-  })
+  const channelKeys = (field.constructor as typeof Vec2Field).channelKeys ?? null
+  const hasKeyframes = useTimelineStore(state =>
+    channelKeys
+      ? channelKeys.some(
+          k => (state.tracks.get(getFieldPath(opId, fieldName, [k]))?.keyframes.length ?? 0) > 0
+        )
+      : (state.tracks.get(getFieldPath(opId, fieldName, subPath))?.keyframes.length ?? 0) > 0
+  )
   return (
     <div className={cx(s.editableFieldContent, { [s.keyframedField]: hasKeyframes })}>
-      <EditableFieldInput fieldName={subPath?.[0] ?? fieldName} field={field} disabled={false} />
+      <EditableFieldInput
+        fieldName={subPath?.[0] ?? fieldName}
+        field={field}
+        disabled={false}
+        opId={opId}
+        expandTimeline={expandTimeline}
+      />
     </div>
   )
 }
@@ -247,10 +267,14 @@ function EditableFieldInput({
   fieldName,
   field,
   disabled,
+  opId,
+  expandTimeline,
 }: {
   fieldName: string
   field: Field
   disabled: boolean
+  opId?: string
+  expandTimeline?: () => void
 }) {
   const { type } = field.constructor as typeof Field
 
@@ -274,9 +298,20 @@ function EditableFieldInput({
     case 'vec2':
     case 'vec3':
     case 'geopoint-2d':
-    case 'geopoint-3d':
+    case 'geopoint-3d': {
       // biome-ignore lint/suspicious/noExplicitAny: Type checked at runtime
-      return <VectorFieldComponent id={fieldName} field={field as any} disabled={disabled} />
+      const vecField = field as any
+      return (
+        <VectorFieldComponent
+          id={fieldName}
+          field={vecField}
+          disabled={disabled}
+          opId={opId}
+          fieldName={fieldName}
+          expandTimeline={expandTimeline}
+        />
+      )
+    }
     default:
       // For other animatable types that don't have specialized components, show a placeholder
       return (
@@ -382,6 +417,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
     mustacheRef: string
     fieldPath?: string
     inputName?: string // field name for "Reset to default"
+    keyframeEntries?: Array<{ path: string; value: KeyframeValue }> // for "Sequence"
     listFieldInputName?: string // field name when it's a ListField with connections
   } | null>(null)
   const descriptionRef = useRef<HTMLDivElement>(null)
@@ -662,21 +698,37 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                   className={cx(s.property, { [s.propertyWithAction]: isEditMode })}
                   onContextMenu={e => {
                     e.preventDefault()
+                    const isAnimatable = isValueField(input.field) && incomers.length === 0
+                    const channelKeys = isAnimatable
+                      ? ((input.field.constructor as typeof Vec2Field).channelKeys ?? null)
+                      : null
+                    let keyframeEntries: Array<{ path: string; value: KeyframeValue }> | undefined
+                    if (isAnimatable) {
+                      if (channelKeys) {
+                        const raw = input.field.value as Record<string, number> | number[]
+                        keyframeEntries = channelKeys.map((k, i) => ({
+                          path: getFieldPath(op.id, input.name, [k]),
+                          value: (Array.isArray(raw) ? raw[i] : raw[k]) as number,
+                        }))
+                      } else {
+                        keyframeEntries = [
+                          { path: getFieldPath(op.id, input.name), value: fieldCurrentValue! },
+                        ]
+                      }
+                    }
                     setContextMenu({
                       x: e.clientX,
                       y: e.clientY,
                       codeRef: input.codeRef,
                       mustacheRef: input.mustacheRef,
-                      fieldPath:
-                        isValueField(input.field) && incomers.length === 0
-                          ? getFieldPath(op.id, input.name)
-                          : undefined,
+                      fieldPath: isAnimatable ? getFieldPath(op.id, input.name) : undefined,
                       inputName:
                         incomers.length === 0 &&
                         input.field.defaultValue !== undefined &&
                         hasNonDefaultValue(input.field)
                           ? input.name
                           : undefined,
+                      keyframeEntries,
                       listFieldInputName:
                         input.field instanceof ListField && incomers.length > 0
                           ? input.name
@@ -715,15 +767,19 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                           opId={op.id}
                           fieldName={input.name}
                           field={input.field}
+                          expandTimeline={expandTimeline}
                         />
-                        <KeyframeIndicator
-                          opId={op.id}
-                          fieldName={input.name}
-                          currentValue={fieldCurrentValue!}
-                          disabled={false}
-                          size="small"
-                          onKeyframeAdded={expandTimeline}
-                        />
+                        {/* Vec fields render per-channel indicators inside VectorFieldComponent */}
+                        {!(input.field.constructor as typeof Vec2Field).channelKeys && (
+                          <KeyframeIndicator
+                            opId={op.id}
+                            fieldName={input.name}
+                            currentValue={fieldCurrentValue!}
+                            disabled={false}
+                            size="small"
+                            onKeyframeAdded={expandTimeline}
+                          />
+                        )}
                       </>
                     )}
                   </div>
@@ -977,6 +1033,29 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
             >
               Copy mustache path
             </button>
+            {contextMenu.keyframeEntries && (
+              <>
+                <div className={s.contextMenuSeparator} />
+                <button
+                  type="button"
+                  className={s.contextMenuItem}
+                  onClick={() => {
+                    const store = getTimelineStore()
+                    const position = store.position
+                    const before = captureTimelineState()
+                    for (const { path, value } of contextMenu.keyframeEntries!) {
+                      store.getOrCreateTrack(path, value)
+                      store.addKeyframe(path, { position, value, interpolation: 'bezier' })
+                    }
+                    fireTimelineMutation('Add keyframe', before)
+                    expandTimeline()
+                    setContextMenu(null)
+                  }}
+                >
+                  Sequence
+                </button>
+              </>
+            )}
             {contextMenu.inputName && (
               <>
                 <div className={s.contextMenuSeparator} />

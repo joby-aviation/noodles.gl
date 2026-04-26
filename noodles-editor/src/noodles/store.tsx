@@ -108,6 +108,7 @@ export interface ConnectionDragState {
   sourceNodeId: string
   sourceHandleId: string
   compatibleNodeIds: Set<string>
+  compatibleEdgeIds: Set<string>
 }
 
 interface UIStoreState {
@@ -115,8 +116,8 @@ interface UIStoreState {
   setHoveredOutputHandle: (handle: { nodeId: string; handleId: string } | null) => void
   connectionDragState: ConnectionDragState | null
   setConnectionDragState: (state: ConnectionDragState | null) => void
-  targetedEdgeId: string | null
-  setTargetedEdgeId: (id: string | null) => void
+  targetedEdge: { id: string; compatible: boolean } | null
+  setTargetedEdge: (edge: { id: string; compatible: boolean } | null) => void
   sidebarVisible: boolean
   setSidebarVisible: (visible: boolean) => void
   sidebarSearchFocusTrigger: number
@@ -136,8 +137,8 @@ export const useUIStore = create<UIStoreState>(set => ({
   setHoveredOutputHandle: handle => set({ hoveredOutputHandle: handle }),
   connectionDragState: null,
   setConnectionDragState: state => set({ connectionDragState: state }),
-  targetedEdgeId: null,
-  setTargetedEdgeId: id => set({ targetedEdgeId: id }),
+  targetedEdge: null,
+  setTargetedEdge: edge => set({ targetedEdge: edge }),
   sidebarVisible: false,
   setSidebarVisible: visible => set({ sidebarVisible: visible }),
   sidebarSearchFocusTrigger: 0,

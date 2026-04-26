@@ -9,6 +9,10 @@ import { analytics } from './utils/analytics'
 // Initialize analytics
 analytics.initialize()
 
+// Log uncaught errors and unhandled promise rejections to the console
+window.addEventListener('error', e => console.error('[Noodles] uncaught error:', e.error ?? e.message))
+window.addEventListener('unhandledrejection', e => console.error('[Noodles] unhandled rejection:', e.reason))
+
 // Initialize keyboard manager
 keyboardManager.init()
 

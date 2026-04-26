@@ -15,12 +15,14 @@ import {
   getFieldReferences,
   LayerField,
   ListField,
+  MapStyleField,
   NumberField,
   Point2DField,
   Point3DField,
   parseChoices,
   StringField,
   StringLiteralField,
+  UnknownField,
 } from './fields'
 import { NumberOp } from './operators'
 import { clearOps, setOp } from './store'
@@ -244,6 +246,117 @@ describe('FileUrlField', () => {
 
     const noAccept = new FileUrlField()
     expect(noAccept.accept).toBeUndefined()
+  })
+})
+
+describe('MapStyleField', () => {
+  it('accepts string values (URLs)', () => {
+    const field = new MapStyleField('https://example.com/style.json')
+    expect(field.value).toEqual('https://example.com/style.json')
+
+    field.setValue('@/style.json')
+    expect(field.value).toEqual('@/style.json')
+
+    field.setValue('mapbox://styles/mapbox/streets-v11')
+    expect(field.value).toEqual('mapbox://styles/mapbox/streets-v11')
+  })
+
+  it('accepts style objects', () => {
+    const styleObject = {
+      version: 8,
+      sources: {},
+      layers: [],
+    }
+    const field = new MapStyleField()
+
+    field.setValue(styleObject)
+    expect(field.value).toEqual(styleObject)
+  })
+
+  it('accepts string values from connected fields', () => {
+    const stringField = new StringField('https://example.com/style.json')
+    const mapStyleField = new MapStyleField()
+
+    expect(canConnect(stringField, mapStyleField)).toBe(true)
+    mapStyleField.addConnection('field', stringField, 'value')
+
+    expect(mapStyleField.value).toEqual('https://example.com/style.json')
+  })
+
+  it('accepts object values from connected fields', () => {
+    const unknownField = new UnknownField({ version: 8, sources: {}, layers: [] })
+    const mapStyleField = new MapStyleField()
+
+    expect(canConnect(unknownField, mapStyleField)).toBe(true)
+    mapStyleField.addConnection('field', unknownField, 'value')
+
+    expect(mapStyleField.value).toEqual({ version: 8, sources: {}, layers: [] })
+  })
+
+  it('rejects invalid types (numbers)', () => {
+    const field = new MapStyleField()
+
+    field.setValue(123 as unknown as string)
+    // Should not update value on validation failure
+    expect(field.value).toEqual('')
+  })
+
+  it('rejects invalid types (arrays)', () => {
+    const field = new MapStyleField()
+
+    field.setValue([1, 2, 3] as unknown as string)
+    // Should not update value on validation failure
+    expect(field.value).toEqual('')
+  })
+
+  it('stores options on the instance', () => {
+    const field = new MapStyleField('', {
+      accept: '.json',
+      suggestions: [
+        { value: 'https://example.com/style1.json', label: 'Style 1' },
+        { value: 'https://example.com/style2.json', label: 'Style 2' },
+      ],
+    })
+
+    expect(field.accept).toEqual('.json')
+    expect(field.suggestions).toHaveLength(2)
+    expect(field.suggestions[0]).toEqual({
+      value: 'https://example.com/style1.json',
+      label: 'Style 1',
+    })
+  })
+
+  it('defaults to empty array for suggestions', () => {
+    const field = new MapStyleField()
+    expect(field.suggestions).toEqual([])
+  })
+
+  it('serializes and deserializes string values correctly', () => {
+    const field = new MapStyleField('https://example.com/style.json')
+    const serialized = JSON.parse(JSON.stringify(field.value))
+
+    expect(serialized).toEqual('https://example.com/style.json')
+
+    const newField = new MapStyleField()
+    newField.setValue(serialized)
+    expect(newField.value).toEqual('https://example.com/style.json')
+  })
+
+  it('serializes and deserializes object values correctly', () => {
+    const styleObject = {
+      version: 8,
+      sources: { osm: { type: 'vector', url: 'mapbox://mapbox.mapbox-streets-v8' } },
+      layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#000' } }],
+    }
+    const field = new MapStyleField()
+    field.setValue(styleObject)
+
+    const serialized = JSON.parse(JSON.stringify(field.value))
+    expect(serialized).toEqual(styleObject)
+
+    const newField = new MapStyleField()
+    newField.setValue(serialized)
+    expect(newField.value).toEqual(styleObject)
   })
 })
 
@@ -815,6 +928,64 @@ describe('Field references', () => {
     const references = getFieldReferences(src)
     expect(references.length).toEqual(1)
     expect(references[0].opId).toEqual('../../grandparent/sibling')
+  })
+})
+
+describe('getFieldReferences self-parameter shorthand', () => {
+  it('should extract self-parameter reference from shorthand syntax', () => {
+    const refs = getFieldReferences('return d * {{par.val}}', '/code')
+    expect(refs).toHaveLength(1)
+    expect(refs[0].opId).toBe('/code')
+    expect(refs[0].inOut).toBe('par')
+    expect(refs[0].fieldPath).toBe('val')
+    expect(refs[0].handleId).toBe('par.val')
+  })
+
+  it('should return empty for shorthand without thisOpId context', () => {
+    const refs = getFieldReferences('return d * {{par.val}}')
+    expect(refs).toHaveLength(0)
+  })
+
+  it('should handle mixed shorthand and standard references', () => {
+    const refs = getFieldReferences('{{par.a}} + {{/other.par.b}}', '/code')
+    expect(refs).toHaveLength(2)
+    expect(refs.find(r => r.fieldPath === 'a')?.opId).toBe('/code')
+    expect(refs.find(r => r.fieldPath === 'b')?.opId).toBe('/other')
+  })
+
+  it('should handle multiple self-parameter references', () => {
+    const refs = getFieldReferences('{{par.scale}} * x + {{par.offset}}', '/code')
+    expect(refs).toHaveLength(2)
+    expect(refs[0].opId).toBe('/code')
+    expect(refs[0].fieldPath).toBe('scale')
+    expect(refs[1].opId).toBe('/code')
+    expect(refs[1].fieldPath).toBe('offset')
+  })
+
+  it('should deduplicate self-parameter references', () => {
+    const refs = getFieldReferences('{{par.val}} + {{par.val}} + {{par.val}}', '/code')
+    expect(refs).toHaveLength(1)
+    expect(refs[0].fieldPath).toBe('val')
+  })
+
+  it('should handle nested property access in self-parameter shorthand', () => {
+    const refs = getFieldReferences('{{par.location.lng}}', '/code')
+    expect(refs).toHaveLength(1)
+    // Only the first part of the path is the field path
+    expect(refs[0].fieldPath).toBe('location')
+  })
+
+  it('should not conflict with standard mustache syntax', () => {
+    // Self-parameter shorthand + sibling reference + absolute path
+    const refs = getFieldReferences('{{par.a}} + {{sibling.par.b}} + {{/other.par.c}}', '/code')
+    expect(refs).toHaveLength(3)
+    // All should resolve to their correct opIds
+    const aRef = refs.find(r => r.fieldPath === 'a')
+    const bRef = refs.find(r => r.fieldPath === 'b')
+    const cRef = refs.find(r => r.fieldPath === 'c')
+    expect(aRef?.opId).toBe('/code') // Self-reference shorthand
+    expect(bRef?.opId).toBe('/sibling') // Sibling operator
+    expect(cRef?.opId).toBe('/other') // Absolute path
   })
 })
 

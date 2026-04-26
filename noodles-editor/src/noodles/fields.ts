@@ -261,20 +261,48 @@ export class StringField extends Field<z.ZodString> {
 
 type FileUrlFieldOptions = BaseFieldOptions & {
   accept?: string // e.g. '.glb,.gltf' — controls file picker filter and shows upload button
+  suggestions?: { value: string; label: string }[] // typeahead suggestions shown in input
 }
 
 export class FileUrlField extends Field<z.ZodString, FileUrlFieldOptions> {
   static type = 'file-url'
   static defaultValue = ''
   accept?: string
+  suggestions: { value: string; label: string }[]
 
   constructor(initialValue?: string, options?: Partial<FileUrlFieldOptions>) {
     super(initialValue, options)
     this.accept = options?.accept
+    this.suggestions = options?.suggestions ?? []
   }
 
   createSchema(_options?: Partial<FileUrlFieldOptions>) {
     return z.string()
+  }
+}
+
+export interface MapStyleFieldOptions extends BaseFieldOptions {
+  accept?: string
+  suggestions?: { value: string | Record<string, unknown>; label: string }[]
+}
+
+export class MapStyleField extends Field<
+  z.ZodUnion<[z.ZodString, z.ZodRecord<z.ZodString, z.ZodUnknown>]>,
+  MapStyleFieldOptions
+> {
+  static type = 'map-style'
+  static defaultValue = ''
+  accept?: string
+  suggestions: { value: string; label: string }[]
+
+  constructor(defaultValue = '', options?: Partial<MapStyleFieldOptions>) {
+    super(defaultValue, options)
+    this.accept = options?.accept
+    this.suggestions = options?.suggestions ?? []
+  }
+
+  createSchema(_options?: Partial<MapStyleFieldOptions>) {
+    return z.union([z.string(), z.record(z.string(), z.unknown())])
   }
 }
 
@@ -315,8 +343,13 @@ export const fnRe = new RegExp(
   'g'
 )
 
+// Self-reference shorthand: {{par.fieldPath}} (references current operator's own parameter)
+export const selfParMustacheRe = /{{(?<inOut>par)\.(?<fieldPath>[\w-.]+)}}/g
+
 export function getFieldReferences(text: string, thisOpId?: string) {
   const fieldReferences = new Map<string, FieldReference>()
+
+  // Match standard references (with operator ID)
   for (const { groups } of [...text.matchAll(mustacheRe), ...text.matchAll(fnRe)]) {
     const fieldPath = groups?.fieldPath.split('.')[0]
     const opId = thisOpId ? resolvePath(groups?.opId || '', thisOpId) : groups?.opId
@@ -336,6 +369,24 @@ export function getFieldReferences(text: string, thisOpId?: string) {
     const ref = { fieldPath, opId, inOut: groups?.inOut as InOut, handleId } as FieldReference
     fieldReferences.set(fullPath, ref)
   }
+
+  // Match self-parameter shorthand ({{par.fieldPath}})
+  if (thisOpId) {
+    for (const { groups } of text.matchAll(selfParMustacheRe)) {
+      const fieldPath = groups?.fieldPath.split('.')[0]
+      const inOut = groups?.inOut as InOut // Always 'par'
+
+      if (!groups || !fieldPath) continue
+
+      const handleId = `${inOut}.${fieldPath}`
+      const fullPath = `${thisOpId}.${handleId}`
+      if (fieldReferences.has(fullPath)) continue
+
+      const ref = { fieldPath, opId: thisOpId, inOut, handleId } as FieldReference
+      fieldReferences.set(fullPath, ref)
+    }
+  }
+
   return Array.from(fieldReferences.values())
 }
 
@@ -654,6 +705,7 @@ export class Point3DField extends Field<
 > {
   static type = 'geopoint-3d'
   static defaultValue = { lng: 0, lat: 0, alt: 0 }
+  static channelKeys = ['lng', 'lat', 'alt'] as const
 
   returnType: 'object' | 'tuple' = 'object'
 
@@ -716,6 +768,7 @@ export class Point2DField extends Field<
 > {
   static type = 'geopoint-2d'
   static defaultValue = { lng: 0, lat: 0 }
+  static channelKeys = ['lng', 'lat'] as const
 
   returnType: 'object' | 'tuple' = 'object'
 
@@ -757,6 +810,7 @@ export class Vec2Field extends Field<
 > {
   static type = 'vec2'
   static defaultValue = { x: 0, y: 0 }
+  static channelKeys = ['x', 'y'] as const
   returnType: 'object' | 'tuple' = 'object'
   constructor(override?: Vec2FieldOverride, options?: Vec2FieldOptions) {
     super(override, options)
@@ -792,6 +846,7 @@ export class Vec3Field extends Field<
 > {
   static type = 'vec3'
   static defaultValue = { x: 0, y: 0, z: 0 }
+  static channelKeys = ['x', 'y', 'z'] as const
   returnType: 'object' | 'tuple' = 'object'
   constructor(override?: Vec3FieldOverride, options?: Vec2FieldOptions) {
     super(override, options)
@@ -1389,4 +1444,26 @@ export class BezierCurveField extends Field<z.ZodType<BezierCurveData>> {
     }
     return segments
   }
+}
+
+// Mapping of field type strings to Field class constructors
+// Used for creating custom fields dynamically
+// Using any to avoid TypeScript variance issues with Field<T> generics
+export const fieldTypeToClass: Record<string, any> = {
+  number: NumberField,
+  string: StringField,
+  boolean: BooleanField,
+  color: ColorField,
+  vec2: Vec2Field,
+  vec3: Vec3Field,
+  vec4: Vec4Field,
+  'geopoint-2d': Point2DField,
+  'geopoint-3d': Point3DField,
+  date: DateField,
+  expression: ExpressionField,
+  code: CodeField,
+  'bezier-curve': BezierCurveField,
+  'string-literal': StringLiteralField,
+  data: DataField,
+  unknown: UnknownField,
 }

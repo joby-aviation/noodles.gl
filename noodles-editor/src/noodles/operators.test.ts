@@ -283,6 +283,123 @@ describe('CodeOp', () => {
   })
 })
 
+describe('CodeOp self-parameter references', () => {
+  it('should allow CodeOp to reference its own custom parameter with shorthand syntax', async () => {
+    const codeOp = new CodeOp('/code-self')
+    setOp('/code-self', codeOp)
+
+    codeOp.addCustomInput({
+      id: 'val-id',
+      name: 'val',
+      type: 'number',
+      order: 0,
+      defaultValue: 5,
+    })
+
+    codeOp.inputs.val.setValue(10)
+
+    const result = await codeOp.execute({
+      data: [[1, 2, 3]],
+      code: 'return d.map(x => x * {{par.val}})',
+    })
+    expect(result.data).toEqual([10, 20, 30])
+  })
+
+  it('should allow CodeOp to reference its own custom parameter with simple relative syntax', async () => {
+    const codeOp = new CodeOp('/code-self-rel')
+    setOp('/code-self-rel', codeOp)
+
+    codeOp.addCustomInput({
+      id: 'multiplier-id',
+      name: 'multiplier',
+      type: 'number',
+      order: 0,
+      defaultValue: 1,
+    })
+
+    codeOp.inputs.multiplier.setValue(5)
+
+    // Using the operator ID directly (simple relative syntax, equivalent to ./code-self-rel)
+    const result = await codeOp.execute({
+      data: [[2, 4, 6]],
+      code: 'return d.map(x => x * {{code-self-rel.par.multiplier}})',
+    })
+    expect(result.data).toEqual([10, 20, 30])
+  })
+
+  it('should allow CodeOp to reference its own custom parameter with absolute syntax', async () => {
+    const codeOp = new CodeOp('/code-self-abs')
+    setOp('/code-self-abs', codeOp)
+
+    codeOp.addCustomInput({
+      id: 'offset-id',
+      name: 'offset',
+      type: 'number',
+      order: 0,
+      defaultValue: 0,
+    })
+
+    codeOp.inputs.offset.setValue(100)
+
+    const result = await codeOp.execute({
+      data: [[1, 2, 3]],
+      code: 'return d.map(x => x + {{/code-self-abs.par.offset}})',
+    })
+    expect(result.data).toEqual([101, 102, 103])
+  })
+
+  it('should work with multiple self-parameter references', async () => {
+    const codeOp = new CodeOp('/code-multi')
+    setOp('/code-multi', codeOp)
+
+    codeOp.addCustomInput({
+      id: 'scale-id',
+      name: 'scale',
+      type: 'number',
+      order: 0,
+      defaultValue: 1,
+    })
+
+    codeOp.addCustomInput({
+      id: 'offset-id',
+      name: 'offset',
+      type: 'number',
+      order: 1,
+      defaultValue: 0,
+    })
+
+    codeOp.inputs.scale.setValue(2)
+    codeOp.inputs.offset.setValue(10)
+
+    const result = await codeOp.execute({
+      data: [[1, 2, 3]],
+      code: 'return d.map(x => x * {{par.scale}} + {{par.offset}})',
+    })
+    expect(result.data).toEqual([12, 14, 16])
+  })
+
+  it('should work with string custom parameters', async () => {
+    const codeOp = new CodeOp('/code-string')
+    setOp('/code-string', codeOp)
+
+    codeOp.addCustomInput({
+      id: 'prefix-id',
+      name: 'prefix',
+      type: 'string',
+      order: 0,
+      defaultValue: '',
+    })
+
+    codeOp.inputs.prefix.setValue('item_')
+
+    const result = await codeOp.execute({
+      data: [['a', 'b', 'c']],
+      code: 'return d.map(x => {{par.prefix}} + x)',
+    })
+    expect(result.data).toEqual(['item_a', 'item_b', 'item_c'])
+  })
+})
+
 describe('JSONOp', () => {
   it('executes a JSONOp', () => {
     const text = '{"a": 1}'
@@ -869,6 +986,82 @@ describe('MaplibreBasemapOp', () => {
       light: { anchor: 'viewport', azimuthal: 210, polar: 30 },
     })
     expect(result.maplibre.mapStyle).toBe('')
+  })
+
+  it('accepts and passes through style objects', () => {
+    const op = new MaplibreBasemapOp('/maplibre-0')
+    const styleObject = {
+      version: 8,
+      sources: {
+        osm: {
+          type: 'raster',
+          tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+          tileSize: 256,
+        },
+      },
+      layers: [
+        {
+          id: 'osm',
+          type: 'raster',
+          source: 'osm',
+        },
+      ],
+    }
+
+    const result = op.execute({
+      mapStyle: styleObject as unknown as string,
+      projection: 'mercator',
+      viewState: { latitude: 37, longitude: -122, zoom: 10, pitch: 0, bearing: 0 },
+      sky: {
+        enabled: false,
+        skyColor: '#88C6FC',
+        horizonColor: '#ffffff',
+        skyHorizonBlend: 0.8,
+        atmosphereBlend: 0.5,
+      },
+      light: { anchor: 'viewport', azimuthal: 210, polar: 30 },
+    })
+
+    expect(result.maplibre.mapStyle).toEqual(styleObject)
+    expect(typeof result.maplibre.mapStyle).toBe('object')
+  })
+
+  it('output field accepts both strings and objects', () => {
+    const op = new MaplibreBasemapOp('/maplibre-0')
+
+    // Test with string
+    const resultString = op.execute({
+      mapStyle: 'https://example.com/style.json',
+      projection: 'mercator',
+      viewState: { latitude: 0, longitude: 0, zoom: 0, pitch: 0, bearing: 0 },
+      sky: {
+        enabled: false,
+        skyColor: '#88C6FC',
+        horizonColor: '#ffffff',
+        skyHorizonBlend: 0.8,
+        atmosphereBlend: 0.5,
+      },
+      light: { anchor: 'viewport', azimuthal: 210, polar: 30 },
+    })
+    expect(typeof resultString.maplibre.mapStyle).toBe('string')
+
+    // Test with object
+    const styleObj = { version: 8, sources: {}, layers: [] }
+    const resultObject = op.execute({
+      mapStyle: styleObj as unknown as string,
+      projection: 'mercator',
+      viewState: { latitude: 0, longitude: 0, zoom: 0, pitch: 0, bearing: 0 },
+      sky: {
+        enabled: false,
+        skyColor: '#88C6FC',
+        horizonColor: '#ffffff',
+        skyHorizonBlend: 0.8,
+        atmosphereBlend: 0.5,
+      },
+      light: { anchor: 'viewport', azimuthal: 210, polar: 30 },
+    })
+    expect(typeof resultObject.maplibre.mapStyle).toBe('object')
+    expect(resultObject.maplibre.mapStyle).toEqual(styleObj)
   })
 })
 
@@ -1978,7 +2171,7 @@ describe('TimeSeriesOp', () => {
 })
 
 describe('KmlToGeoJsonOp', () => {
-  it('should convert KML to GeoJSON', () => {
+  it('should convert KML to GeoJSON', async () => {
     const operator = new KmlToGeoJsonOp('/kml-to-geojson-0')
 
     const kml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -1993,7 +2186,7 @@ describe('KmlToGeoJsonOp', () => {
   </Document>
 </kml>`
 
-    const result = operator.execute({ kml })
+    const result = await operator.execute({ kml })
 
     expect(result.geojson.type).toBe('FeatureCollection')
     expect(result.geojson.features).toHaveLength(1)
@@ -2276,6 +2469,186 @@ describe('FileOp', () => {
   })
 })
 
+describe('Custom Fields', () => {
+  it('adds custom input definitions', () => {
+    const operator = new CodeOp('/code-custom')
+
+    expect(operator.customInputDefinitions).toEqual([])
+
+    const def = {
+      id: 'test-id',
+      name: 'myParam',
+      type: 'number',
+      order: 0,
+      defaultValue: 42,
+    }
+
+    operator.addCustomInput(def)
+
+    expect(operator.customInputDefinitions).toHaveLength(1)
+    expect(operator.customInputDefinitions[0]).toEqual(def)
+    expect(operator.inputs.myParam).toBeDefined()
+    expect(operator.inputs.myParam.value).toBe(42)
+  })
+
+  it('removes custom input definitions', () => {
+    const operator = new CodeOp('/code-custom')
+
+    operator.addCustomInput({
+      id: 'id-1',
+      name: 'param1',
+      type: 'number',
+      order: 0,
+      defaultValue: 1,
+    })
+    operator.addCustomInput({
+      id: 'id-2',
+      name: 'param2',
+      type: 'string',
+      order: 1,
+      defaultValue: 'hello',
+    })
+
+    expect(operator.customInputDefinitions).toHaveLength(2)
+
+    operator.removeCustomInput('id-1')
+
+    expect(operator.customInputDefinitions).toHaveLength(1)
+    expect(operator.customInputDefinitions[0].name).toBe('param2')
+    expect(operator.inputs.param1).toBeUndefined()
+    expect(operator.inputs.param2).toBeDefined()
+  })
+
+  it('validates custom field names', () => {
+    const operator = new CodeOp('/code-custom')
+
+    // Empty name
+    expect(operator.validateCustomFieldName('')).toBe('Name is required')
+
+    // Invalid identifier
+    expect(operator.validateCustomFieldName('123abc')).toBe(
+      'Invalid identifier (use only letters, numbers, _, $)'
+    )
+    expect(operator.validateCustomFieldName('my-param')).toBe(
+      'Invalid identifier (use only letters, numbers, _, $)'
+    )
+
+    // Conflicts with built-in field
+    expect(operator.validateCustomFieldName('data')).toBe('Name conflicts with built-in field')
+    expect(operator.validateCustomFieldName('code')).toBe('Name conflicts with built-in field')
+
+    // Valid names
+    expect(operator.validateCustomFieldName('myParam')).toBeNull()
+    expect(operator.validateCustomFieldName('_private')).toBeNull()
+    expect(operator.validateCustomFieldName('$special')).toBeNull()
+  })
+
+  it('emits customFieldsChanged on rebuildInputs', () => {
+    const operator = new CodeOp('/code-custom')
+    const changes: Array<typeof operator.customInputDefinitions> = []
+
+    const subscription = operator.customFieldsChanged.subscribe(defs => {
+      changes.push([...defs])
+    })
+
+    operator.addCustomInput({
+      id: 'id-1',
+      name: 'param1',
+      type: 'number',
+      order: 0,
+      defaultValue: 1,
+    })
+
+    operator.addCustomInput({
+      id: 'id-2',
+      name: 'param2',
+      type: 'boolean',
+      order: 1,
+      defaultValue: false,
+    })
+
+    subscription.unsubscribe()
+
+    // Each addCustomInput calls rebuildInputs which emits
+    expect(changes).toHaveLength(2)
+    expect(changes[0]).toHaveLength(1)
+    expect(changes[1]).toHaveLength(2)
+  })
+
+  it('preserves values when rebuilding inputs', () => {
+    const operator = new CodeOp('/code-custom')
+
+    operator.addCustomInput({
+      id: 'id-1',
+      name: 'myNumber',
+      type: 'number',
+      order: 0,
+      defaultValue: 0,
+    })
+
+    // Set a non-default value
+    operator.inputs.myNumber.setValue(999)
+    expect(operator.inputs.myNumber.value).toBe(999)
+
+    // Add another custom input (triggers rebuild)
+    operator.addCustomInput({
+      id: 'id-2',
+      name: 'myString',
+      type: 'string',
+      order: 1,
+      defaultValue: '',
+    })
+
+    // Original value should be preserved
+    expect(operator.inputs.myNumber.value).toBe(999)
+  })
+
+  it('getAllInputs returns built-in and custom inputs', () => {
+    const operator = new CodeOp('/code-custom')
+
+    operator.addCustomInput({
+      id: 'id-1',
+      name: 'customParam',
+      type: 'number',
+      order: 0,
+      defaultValue: 42,
+    })
+
+    const allInputs = operator.getAllInputs()
+
+    // Built-in inputs
+    expect(allInputs.data).toBeDefined()
+    expect(allInputs.code).toBeDefined()
+
+    // Custom input
+    expect(allInputs.customParam).toBeDefined()
+    expect(allInputs.customParam.value).toBe(42)
+  })
+
+  it('supports enableExpression in custom field definition', () => {
+    const operator = new CodeOp('/code-custom')
+
+    operator.addCustomInput({
+      id: 'id-1',
+      name: 'mode',
+      type: 'string',
+      order: 0,
+      defaultValue: 'simple',
+    })
+
+    operator.addCustomInput({
+      id: 'id-2',
+      name: 'advancedSetting',
+      type: 'number',
+      order: 1,
+      defaultValue: 100,
+      enableExpression: "par.mode === 'advanced'",
+    })
+
+    expect(operator.customInputDefinitions[1].enableExpression).toBe("par.mode === 'advanced'")
+  })
+})
+
 describe('Operator field visibility', () => {
   describe('isFieldVisible', () => {
     it('returns true by default when visibleFields.value is null', () => {
@@ -2398,35 +2771,35 @@ describe('Tile3DLayerOp', () => {
   const GOOGLE_URL = 'https://tile.googleapis.com/v1/3dtiles/root.json'
   const CESIUM_URL = 'https://assets.ion.cesium.com/242005/tileset.json'
 
-  it('defaults to the Google tileset URL when provider is Google', () => {
+  it('defaults to the Google tileset URL when provider is Google', async () => {
     const op = new Tile3DLayerOp('/tile3d-0')
-    const { layer } = op.execute({})
+    const { layer } = await op.execute({})
     expect(layer.type).toEqual('Tile3DLayer')
     expect(layer.data).toEqual(GOOGLE_URL)
   })
 
-  it('uses the Cesium tileset URL when provider is Cesium', () => {
+  it('uses the Cesium tileset URL when provider is Cesium', async () => {
     const op = new Tile3DLayerOp('/tile3d-0')
-    const { layer } = op.execute({ provider: 'Cesium' })
+    const { layer } = await op.execute({ provider: 'Cesium' })
     expect(layer.data).toEqual(CESIUM_URL)
   })
 
-  it('uses a custom tilesetUrl when provided, regardless of provider', () => {
+  it('uses a custom tilesetUrl when provided, regardless of provider', async () => {
     const op = new Tile3DLayerOp('/tile3d-0')
     const custom = 'https://example.com/custom/tileset.json'
-    const { layer: googleLayer } = op.execute({ tilesetUrl: custom, provider: 'Google' })
+    const { layer: googleLayer } = await op.execute({ tilesetUrl: custom, provider: 'Google' })
     expect(googleLayer.data).toEqual(custom)
 
-    const { layer: cesiumLayer } = op.execute({ tilesetUrl: custom, provider: 'Cesium' })
+    const { layer: cesiumLayer } = await op.execute({ tilesetUrl: custom, provider: 'Cesium' })
     expect(cesiumLayer.data).toEqual(custom)
 
-    const { layer: genericLayer } = op.execute({ tilesetUrl: custom, provider: 'Generic' })
+    const { layer: genericLayer } = await op.execute({ tilesetUrl: custom, provider: 'Generic' })
     expect(genericLayer.data).toEqual(custom)
   })
 
-  it('falls back to the provider default when tilesetUrl is empty', () => {
+  it('falls back to the provider default when tilesetUrl is empty', async () => {
     const op = new Tile3DLayerOp('/tile3d-0')
-    const { layer } = op.execute({ tilesetUrl: '', provider: 'Cesium' })
+    const { layer } = await op.execute({ tilesetUrl: '', provider: 'Cesium' })
     expect(layer.data).toEqual(CESIUM_URL)
   })
 
@@ -2557,5 +2930,36 @@ describe('RampOp', () => {
     ]
     const op = new RampOp('/ramp-0')
     expect(op.execute({ position: 0.5, stops }).value).toBe(5)
+  })
+})
+
+describe('Operator debugging', () => {
+  it('has a breakpointEnabled property', () => {
+    const op = new NumberOp('/num-0')
+    expect(op.breakpointEnabled).toBeDefined()
+    expect(op.breakpointEnabled.value).toBe(false)
+  })
+
+  it('can toggle breakpoint state', () => {
+    const op = new NumberOp('/num-0')
+    expect(op.breakpointEnabled.value).toBe(false)
+
+    op.breakpointEnabled.next(true)
+    expect(op.breakpointEnabled.value).toBe(true)
+
+    op.breakpointEnabled.next(false)
+    expect(op.breakpointEnabled.value).toBe(false)
+  })
+
+  it('breakpoint state is observable', async () => {
+    const op = new NumberOp('/num-0')
+    const states: boolean[] = []
+
+    op.breakpointEnabled.subscribe(state => states.push(state))
+
+    op.breakpointEnabled.next(true)
+    op.breakpointEnabled.next(false)
+
+    expect(states).toEqual([false, true, false])
   })
 })

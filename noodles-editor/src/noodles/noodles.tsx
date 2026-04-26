@@ -23,16 +23,16 @@ import {
 import cx from 'classnames'
 import type { LayerExtension } from 'deck.gl'
 import * as deck from 'deck.gl'
-import JSZip, { type JSZipObject } from 'jszip'
+import type { JSZipObject } from 'jszip'
 import { PrimeReactProvider } from 'primereact/api'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useParams } from 'wouter'
-import { ChatPanel } from '../ai-chat/chat-panel'
 import { globalContextManager } from '../ai-chat/global-context-manager'
 import { getPendingQuickStartAction } from '../components/quick-start-modal'
 import { analytics } from '../utils/analytics'
 import { getKeysForProject, getKeysStore } from './keys-store'
 import newProjectJSON from './new.json'
+import { LegendWidget, type LegendWidgetProps } from './widgets/legend-widget'
 
 // Get URLs for all example noodles.json files (lazy-loaded)
 const exampleProjectUrls = import.meta.glob('../examples/**/noodles.json', {
@@ -58,6 +58,7 @@ import { ExampleNotFoundDialog } from './components/example-not-found-dialog'
 import { PropertyPanel } from './components/node-properties'
 import { NodeTreeSidebar } from './components/node-tree-sidebar'
 import { edgeComponents, nodeComponents } from './components/op-components'
+import { ParameterEditorDialog } from './components/parameter-editor-dialog'
 import { ProjectNotFoundDialog } from './components/project-not-found-dialog'
 import { RenameDialog } from './components/rename-dialog'
 import { SaveAsDialog } from './components/save-as-dialog'
@@ -80,7 +81,7 @@ import {
   useUIStore,
 } from './store'
 import { transformGraph } from './transform-graph'
-import { canConnect } from './utils/can-connect'
+import { canConnectCached } from './utils/can-connect'
 import { directoryHandleCache } from './utils/directory-handle-cache'
 import {
   fileExists,
@@ -90,7 +91,8 @@ import {
 } from './utils/filesystem'
 import { edgeId, nodeId } from './utils/id-utils'
 import { migrateProject } from './utils/migrate-schema'
-import { getParentPath } from './utils/path-utils'
+import { getParentPath, parseHandleId } from './utils/path-utils'
+import { applyOperatorInputs, getLastCommittedBeforeState } from './utils/property-history'
 import {
   EMPTY_PROJECT,
   NOODLES_VERSION,
@@ -102,6 +104,8 @@ import {
 } from './utils/serialization'
 import { calculateViewerPosition } from './utils/viewer-position'
 
+const ChatPanel = lazy(() => import('../ai-chat/chat-panel').then(m => ({ default: m.ChatPanel })))
+
 /*
  * CSS Architecture:
  * - layers.css: Establishes CSS layers and imports vendor CSS into 'vendors' layer
@@ -111,7 +115,7 @@ import { calculateViewerPosition } from './utils/viewer-position'
  * work reliably regardless of import order (prevents linting from breaking styles).
  */
 import './layers.css'
-import { debugApp, debugVis } from '../utils/debug'
+import { debugApp, debugParams, debugVis } from '../utils/debug'
 import s from './noodles.module.css'
 
 export type Edge<N1 extends Operator<IOperator>, N2 extends Operator<IOperator>> = {
@@ -180,6 +184,13 @@ export function getNoodles(): Visualization {
   const [showChatPanel, setShowChatPanel] = useState(false)
   const [chatInitialMessage, setChatInitialMessage] = useState<string | undefined>(undefined)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [parameterEditorState, setParameterEditorState] = useState<{
+    open: boolean
+    operatorId: string | null
+  }>({ open: false, operatorId: null })
+  const [paramEditorError, setParamEditorError] = useState<Error | null>(null)
+  // Throw during render so the ErrorBoundary catches it with a descriptive message
+  if (paramEditorError) throw paramEditorError
 
   // Wrap onNodesChange to track node selection and mark unsaved changes
   const onNodesChange = useCallback(
@@ -218,12 +229,17 @@ export function getNoodles(): Visualization {
     [onEdgesChangeBase]
   )
 
-  // Eagerly start loading AI context bundles on app start
+  const contextLoadStarted = useRef(false)
+
+  // Start loading AI context bundles when the chat panel is first opened
   useEffect(() => {
-    globalContextManager.startLoading().catch(error => {
-      debugApp('Failed to preload AI context:', error)
-    })
-  }, [])
+    if (showChatPanel && !contextLoadStarted.current) {
+      contextLoadStarted.current = true
+      globalContextManager.startLoading().catch(error => {
+        debugApp('Failed to preload AI context:', error)
+      })
+    }
+  }, [showChatPanel])
 
   // Warn before leaving page with unsaved changes
   useEffect(() => {
@@ -342,7 +358,7 @@ export function getNoodles(): Visualization {
   // Track connection drag state for dimming unconnectable nodes
   const setConnectionDragState = useUIStore(state => state.setConnectionDragState)
   const connectionDragState = useUIStore(state => state.connectionDragState)
-  const setTargetedEdgeId = useUIStore(state => state.setTargetedEdgeId)
+  const setTargetedEdge = useUIStore(state => state.setTargetedEdge)
   const onConnectStart: OnConnectStart = useCallback(
     (_event, params) => {
       if (!params.nodeId || !params.handleId) return
@@ -370,8 +386,8 @@ export function getNoodles(): Visualization {
         const targetFields = isOutput ? op.inputs : op.outputs
         for (const targetField of Object.values(targetFields)) {
           const compatible = isOutput
-            ? canConnect(sourceField, targetField)
-            : canConnect(targetField, sourceField)
+            ? canConnectCached(sourceField, targetField)
+            : canConnectCached(targetField, sourceField)
           if (compatible) {
             compatibleNodeIds.add(nodeId)
             break
@@ -379,13 +395,32 @@ export function getNoodles(): Visualization {
         }
       }
 
+      // Calculate which existing edges the dragged source is compatible with (computed once,
+      // used to vary hit area size and highlight style during mousemove)
+      const compatibleEdgeIds = new Set<string>()
+      for (const edge of edges) {
+        if (edge.type === 'ReferenceEdge') continue
+        if (edge.source === params.nodeId || edge.target === params.nodeId) continue
+        const targetHandleInfo = parseHandleId(edge.targetHandle || '')
+        if (!targetHandleInfo) continue
+        const targetOp = getOp(edge.target)
+        if (!targetOp) continue
+        const targetField = targetOp.inputs[targetHandleInfo.fieldName]
+        if (!targetField) continue
+        const compatible = isOutput
+          ? canConnectCached(sourceField, targetField)
+          : canConnectCached(targetField, sourceField)
+        if (compatible) compatibleEdgeIds.add(edge.id)
+      }
+
       setConnectionDragState({
         sourceNodeId: params.nodeId,
         sourceHandleId: params.handleId,
         compatibleNodeIds,
+        compatibleEdgeIds,
       })
     },
-    [setConnectionDragState]
+    [setConnectionDragState, edges]
   )
 
   const { onConnectEnd: onConnectionDropEnd } = useConnectionDropOnEdge({
@@ -400,9 +435,9 @@ export function getNoodles(): Visualization {
     (event, connectionState) => {
       onConnectionDropEnd(event, connectionState)
       setConnectionDragState(null)
-      setTargetedEdgeId(null)
+      setTargetedEdge(null)
     },
-    [onConnectionDropEnd, setConnectionDragState, setTargetedEdgeId]
+    [onConnectionDropEnd, setConnectionDragState, setTargetedEdge]
   )
 
   const onMouseMove = useCallback(
@@ -417,11 +452,16 @@ export function getNoodles(): Visualization {
         pos,
         connectionDragState.sourceNodeId,
         () => nodes,
-        () => edges
+        () => edges,
+        connectionDragState.compatibleEdgeIds
       )
-      setTargetedEdgeId(edge?.id ?? null)
+      setTargetedEdge(
+        edge
+          ? { id: edge.id, compatible: connectionDragState.compatibleEdgeIds.has(edge.id) }
+          : null
+      )
     },
-    [connectionDragState, nodes, edges, setTargetedEdgeId]
+    [connectionDragState, nodes, edges, setTargetedEdge]
   )
 
   // Hook for dropping nodes onto edges to insert them
@@ -443,6 +483,16 @@ export function getNoodles(): Visualization {
     [onNodeDragStopBase]
   )
 
+  const onNodeContextMenu = useCallback(
+    (event: React.MouseEvent, node: ReactFlowNode<Record<string, unknown>>) => {
+      event.preventDefault()
+      const op = getOp(node.id)
+      if (op && (op.constructor as typeof Operator).supportsCustomFields) {
+        setParameterEditorState({ open: true, operatorId: node.id })
+      }
+    },
+    []
+  )
   const reactFlowRef = useRef<HTMLDivElement>(null)
   const reactFlowInstanceRef = useRef<ReactFlowInstance | null>(null)
   const blockLibraryRef = useRef<BlockLibraryRef>(null)
@@ -1120,6 +1170,7 @@ export function getNoodles(): Visualization {
 
       if (isZip) {
         // Handle ZIP import
+        const { default: JSZip } = await import('jszip')
         const zip = await JSZip.loadAsync(await file.arrayBuffer())
 
         // Find the shallowest noodles.json in the ZIP (could be at root or in a subfolder)
@@ -1338,7 +1389,12 @@ export function getNoodles(): Visualization {
   )
 
   const flowGraph = (
-    <ErrorBoundary>
+    <ErrorBoundary
+      onUndo={() => {
+        const before = getLastCommittedBeforeState()
+        if (before != null) applyOperatorInputs(before)
+      }}
+    >
       {/* biome-ignore lint/a11y/noStaticElementInteractions: canvas wrapper needs mouse tracking */}
       <div
         className={cx('react-flow-wrapper', !showOverlay && 'react-flow-wrapper-hidden')}
@@ -1356,6 +1412,7 @@ export function getNoodles(): Visualization {
               onConnectStart={onConnectStart}
               onConnectEnd={onConnectEnd}
               onReconnect={onReconnect}
+              onNodeContextMenu={onNodeContextMenu}
               onNodesDelete={onNodesDelete}
               onNodeDragStop={onNodeDragStop}
               onPaneContextMenu={onPaneContextMenu}
@@ -1374,20 +1431,52 @@ export function getNoodles(): Visualization {
               <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />
               <CopyControls ref={copyControlsRef} />
               <UndoRedoHandler ref={undoRedoRef} />
-              <ChatPanel
-                project={{ nodes, edges }}
-                onClose={() => {
-                  setShowChatPanel(false)
-                  setChatInitialMessage(undefined)
-                }}
-                isVisible={showChatPanel}
-                initialMessage={chatInitialMessage}
-              />
+              <Suspense fallback={null}>
+                <ChatPanel
+                  project={{ nodes, edges }}
+                  onClose={() => {
+                    setShowChatPanel(false)
+                    setChatInitialMessage(undefined)
+                  }}
+                  isVisible={showChatPanel}
+                  initialMessage={chatInitialMessage}
+                />
+              </Suspense>
               {showDebugInfo && <NodeInfoOverlay />}
               {showDebugInfo && <ViewportInfoPanel />}
             </ReactFlow>
           </TimelineProvider>
         </PrimeReactProvider>
+        {parameterEditorState.operatorId && (
+          <ParameterEditorDialog
+            open={parameterEditorState.open}
+            onOpenChange={open => {
+              setParameterEditorState({ open, operatorId: null })
+              if (!open) setParamEditorError(null)
+            }}
+            operator={getOp(parameterEditorState.operatorId)!}
+            onSave={definitions => {
+              debugParams(
+                'onSave for op %s, %d definitions',
+                parameterEditorState.operatorId,
+                definitions.length
+              )
+              const op = getOp(parameterEditorState.operatorId!)
+              if (op) {
+                try {
+                  op.customInputDefinitions = definitions
+                  debugParams('calling rebuildInputs on %s', op.id)
+                  op.rebuildInputs()
+                  debugParams('rebuildInputs complete, forcing re-render')
+                  setNodes(nodes => [...nodes]) // Force re-render
+                } catch (err) {
+                  debugParams('rebuildInputs threw: %O', err)
+                  setParamEditorError(err instanceof Error ? err : new Error(String(err)))
+                }
+              }
+            }}
+          />
+        )}
         <ProjectNotFoundDialog
           projectName={projectName || ''}
           open={showProjectNotFoundDialog}
@@ -1494,6 +1583,8 @@ export function getNoodles(): Visualization {
               return new deck[type]({
                 ...layer,
                 ...(instantiatedExtensions ? { extensions: instantiatedExtensions } : {}),
+                // Prevent deck.gl layer errors from crashing the GPU process
+                onError: (e: Error) => debugVis('Layer error in %s: %o', type, e),
               })
             }) || []
 
@@ -1525,8 +1616,12 @@ export function getNoodles(): Visualization {
             deckProps: {
               ...deckProps,
               layers: instantiatedLayers,
-              // biome-ignore lint/performance/noDynamicNamespaceImportAccess: We intentionally support all deck.gl widget types dynamically
-              widgets: widgets?.map(({ type, ...widget }) => new deckWidgets[type](widget)),
+              widgets: widgets?.map(({ type, ...widget }) => {
+                if (type === 'LegendWidget')
+                  return new LegendWidget(widget as unknown as LegendWidgetProps)
+                // biome-ignore lint/performance/noDynamicNamespaceImportAccess: We intentionally support all deck.gl widget types dynamically
+                return new deckWidgets[type](widget)
+              }),
             },
             mapProps,
           })
