@@ -239,9 +239,6 @@ export abstract class Operator<OP extends IOperator> {
 
   // If the operator allows its data to be downloaded, override this method
   asDownload?: () => Blob | string | ArrayBuffer
-
-  // Should the execute function be memoized? Ops that store state elsewhere might not want to be cached.
-  static cacheable = true
   public containerId?: string
 
   // Custom field definitions for dynamic parameters
@@ -4686,7 +4683,6 @@ export class BlendingOp extends Operator<BlendingOp> {
 export class PathLayerOp extends Operator<PathLayerOp> {
   static displayName = 'PathLayer'
   static description = 'Render a path on the map'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(
@@ -4737,7 +4733,6 @@ export class PathLayerOp extends Operator<PathLayerOp> {
 export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
   static displayName = 'ScatterplotLayer'
   static description = 'Render a scatterplot of points as circles on the map'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -4787,7 +4782,6 @@ export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
 export class TripsLayerOp extends Operator<TripsLayerOp> {
   static displayName = 'TripsLayer'
   static description = 'Render a set of trips with timestamps for animation on the map'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(
@@ -4845,7 +4839,6 @@ export class TripsLayerOp extends Operator<TripsLayerOp> {
 export class SolidPolygonLayerOp extends Operator<SolidPolygonLayerOp> {
   static displayName = 'SolidPolygonLayer'
   static description = 'Render a set of solid polygons on the map'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -4883,7 +4876,6 @@ export class SolidPolygonLayerOp extends Operator<SolidPolygonLayerOp> {
 export class TextLayerOp extends Operator<TextLayerOp> {
   static displayName = 'TextLayer'
   static description = 'Render a set of text labels on the map'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -4959,7 +4951,6 @@ export class TextLayerOp extends Operator<TextLayerOp> {
 export class IconLayerOp extends Operator<IconLayerOp> {
   static displayName = 'IconLayer'
   static description = 'Render a set of icons on the map'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -5029,7 +5020,6 @@ export class IconLayerOp extends Operator<IconLayerOp> {
 export class ScenegraphLayerOp extends Operator<ScenegraphLayerOp> {
   static displayName = 'ScenegraphLayer'
   static description = 'Render a 3D model on the map'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -5079,7 +5069,6 @@ export class ScenegraphLayerOp extends Operator<ScenegraphLayerOp> {
 export class SimpleMeshLayerOp extends Operator<SimpleMeshLayerOp> {
   static displayName = 'SimpleMeshLayer'
   static description = 'Render simple 3D meshes/models at specified positions'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -5135,7 +5124,6 @@ export class SimpleMeshLayerOp extends Operator<SimpleMeshLayerOp> {
 export class H3HexagonLayerOp extends Operator<H3HexagonLayerOp> {
   static displayName = 'H3HexagonLayer'
   static description = 'Render a hexagon grid on the map using the H3 grid system'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -5174,7 +5162,6 @@ export class A5LayerOp extends Operator<A5LayerOp> {
   static displayName = 'A5Layer'
   static description =
     'Render filled and/or stroked polygons using the A5 geospatial indexing system'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -5214,7 +5201,6 @@ export class A5LayerOp extends Operator<A5LayerOp> {
 export class HeatmapLayerOp extends Operator<HeatmapLayerOp> {
   static displayName = 'HeatmapLayer'
   static description = 'Render a heatmap from points on the map'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -5254,7 +5240,6 @@ export class HeatmapLayerOp extends Operator<HeatmapLayerOp> {
 export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
   static displayName = 'GeoJsonLayer'
   static description = 'Render GeoJSON data with points, lines, and polygons'
-  static cacheable = false
   createInputs() {
     return {
       // Core fields (visible by default)
@@ -5392,7 +5377,6 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
 export class ArcLayerOp extends Operator<ArcLayerOp> {
   static displayName = 'ArcLayer'
   static description = 'Render a set of arcs on the map'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -5446,7 +5430,6 @@ const DEFAULT_COLOR_RANGE = [
 export class GridLayerOp extends Operator<GridLayerOp> {
   static displayName = 'GridLayer'
   static description = 'Aggregate data into a grid and render as columns'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -5530,7 +5513,6 @@ export class GridLayerOp extends Operator<GridLayerOp> {
 export class HexagonLayerOp extends Operator<HexagonLayerOp> {
   static displayName = 'HexagonLayer'
   static description = 'Aggregate data into hexagonal bins and render as hexagonal columns'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -5613,7 +5595,6 @@ export class HexagonLayerOp extends Operator<HexagonLayerOp> {
 export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
   static displayName = 'Tile3DLayer'
   static description = 'Render 3D tiles on the map (Google, Cesium, or a custom tileset URL)'
-  static cacheable = false
   createInputs() {
     return {
       visible: new BooleanField(true),
@@ -5831,7 +5812,6 @@ class TerrainExtensionOp extends Operator<TerrainExtensionOp> {
 class RasterTileLayerOp extends Operator<RasterTileLayerOp> {
   static displayName = 'RasterTileLayer'
   static description = 'Render a raster tile layer on the map'
-  static cacheable = false
   createInputs() {
     return {
       visible: new BooleanField(true),
@@ -6524,7 +6504,6 @@ export class GeoJsonTransformOp extends Operator<GeoJsonTransformOp> {
 export class BitmapLayerOp extends Operator<BitmapLayerOp> {
   static displayName = 'BitmapLayer'
   static description = 'Render a raster image at specified boundaries'
-  static cacheable = false
   createInputs() {
     return {
       visible: new BooleanField(true),
@@ -6573,7 +6552,6 @@ export class BitmapLayerOp extends Operator<BitmapLayerOp> {
 export class ColumnLayerOp extends Operator<ColumnLayerOp> {
   static displayName = 'ColumnLayer'
   static description = 'Render extruded cylinders (columns) at given positions'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -6634,7 +6612,6 @@ export class ColumnLayerOp extends Operator<ColumnLayerOp> {
 export class GridCellLayerOp extends Operator<GridCellLayerOp> {
   static displayName = 'GridCellLayer'
   static description = 'Render a grid of cells at specified coordinates'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -6679,7 +6656,6 @@ export class GridCellLayerOp extends Operator<GridCellLayerOp> {
 export class LineLayerOp extends Operator<LineLayerOp> {
   static displayName = 'LineLayer'
   static description = 'Render straight lines between source and target coordinates'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -6724,7 +6700,6 @@ export class LineLayerOp extends Operator<LineLayerOp> {
 export class PointCloudLayerOp extends Operator<PointCloudLayerOp> {
   static displayName = 'PointCloudLayer'
   static description = 'Render a point cloud with millions of 3D points'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -6770,7 +6745,6 @@ export class PointCloudLayerOp extends Operator<PointCloudLayerOp> {
 export class PolygonLayerOp extends Operator<PolygonLayerOp> {
   static displayName = 'PolygonLayer'
   static description = 'Render filled and/or stroked polygons'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -6825,7 +6799,6 @@ export class PolygonLayerOp extends Operator<PolygonLayerOp> {
 export class ContourLayerOp extends Operator<ContourLayerOp> {
   static displayName = 'ContourLayer'
   static description = 'Aggregate data and render contour lines or filled contour bands'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -6870,7 +6843,6 @@ export class ContourLayerOp extends Operator<ContourLayerOp> {
 export class ScreenGridLayerOp extends Operator<ScreenGridLayerOp> {
   static displayName = 'ScreenGridLayer'
   static description = 'Aggregate data into a grid in screen space and visualize as a heatmap'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -6913,7 +6885,6 @@ export class ScreenGridLayerOp extends Operator<ScreenGridLayerOp> {
 export class GreatCircleLayerOp extends Operator<GreatCircleLayerOp> {
   static displayName = 'GreatCircleLayer'
   static description = 'Render great circle arcs between pairs of source and target coordinates'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -6960,7 +6931,6 @@ export class GreatCircleLayerOp extends Operator<GreatCircleLayerOp> {
 export class H3ClusterLayerOp extends Operator<H3ClusterLayerOp> {
   static displayName = 'H3ClusterLayer'
   static description = 'Render hexagons from H3 hexagon indices and cluster them by density'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -6998,7 +6968,6 @@ export class H3ClusterLayerOp extends Operator<H3ClusterLayerOp> {
 export class GeohashLayerOp extends Operator<GeohashLayerOp> {
   static displayName = 'GeohashLayer'
   static description = 'Render filled and/or stroked polygons based on geohash strings'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -7041,7 +7010,6 @@ export class GeohashLayerOp extends Operator<GeohashLayerOp> {
 export class S2LayerOp extends Operator<S2LayerOp> {
   static displayName = 'S2Layer'
   static description = 'Render filled and/or stroked polygons based on S2 tokens'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -7084,7 +7052,6 @@ export class S2LayerOp extends Operator<S2LayerOp> {
 export class QuadkeyLayerOp extends Operator<QuadkeyLayerOp> {
   static displayName = 'QuadkeyLayer'
   static description = 'Render filled and/or stroked polygons based on quadkey strings'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -7127,7 +7094,6 @@ export class QuadkeyLayerOp extends Operator<QuadkeyLayerOp> {
 export class MVTLayerOp extends Operator<MVTLayerOp> {
   static displayName = 'MVTLayer'
   static description = 'Render Mapbox Vector Tiles (MVT)'
-  static cacheable = false
   createInputs() {
     return {
       data: new StringField('https://example.com/tiles/{z}/{x}/{y}.mvt'),
@@ -7175,7 +7141,6 @@ export class MVTLayerOp extends Operator<MVTLayerOp> {
 export class TerrainLayerOp extends Operator<TerrainLayerOp> {
   static displayName = 'TerrainLayer'
   static description = 'Render a terrain mesh from heightmap tiles'
-  static cacheable = false
   createInputs() {
     return {
       elevationData: new StringField('https://example.com/elevation/{z}/{x}/{y}.png'),
@@ -7220,7 +7185,6 @@ export class TerrainLayerOp extends Operator<TerrainLayerOp> {
 export class TileLayerOp extends Operator<TileLayerOp> {
   static displayName = 'TileLayer'
   static description = 'Render data organized in a tiled format (generic tile layer)'
-  static cacheable = false
   createInputs() {
     return {
       data: new StringField('https://example.com/tiles/{z}/{x}/{y}'),

@@ -916,6 +916,23 @@
   }
 }
 
+.nodeDropTarget {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.6);
+  animation: nodeDropPulse 0.8s ease-in-out infinite;
+}
+
+@keyframes nodeDropPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.6);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(59, 130, 246, 0.8), 0 0 20px rgba(59, 130, 246, 0.4);
+    transform: scale(1.02);
+  }
+}
+
 /* Mapbox geocoder */
 :global(.mapboxgl-ctrl-geocoder--input) {
   min-width: 200px;
