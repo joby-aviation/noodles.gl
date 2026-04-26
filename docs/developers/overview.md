@@ -23,13 +23,13 @@ You can also read about [prior art with node-based tools](./node-based-tools.md)
 ### Getting Started
 ```bash
 # Install dependencies
-yarn install:all
+npm run install:all
 
 # Start development server with hot reload
-yarn start:app
+npm run start:app
 
 # Run tests
-yarn test:app
+npm run test:app
 ```
 
 ## Core Concepts for Developers

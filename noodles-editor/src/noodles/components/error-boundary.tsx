@@ -8,6 +8,7 @@ interface Props {
   title?: string
   maxResets?: number
   resetTimeout?: number
+  onUndo?: () => void
 }
 
 interface State {
@@ -36,6 +37,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('[Noodles] Node graph error:', error, errorInfo)
     debugUI('Node graph error:', error, errorInfo)
 
     // Increment reset count if error occurs within timeout period
@@ -71,6 +73,16 @@ export class ErrorBoundary extends Component<Props, State> {
     })
   }
 
+  handleUndoAndReset = () => {
+    this.props.onUndo?.()
+    this.setState({
+      hasError: false,
+      error: null,
+      resetCount: 0,
+      lastResetTime: Date.now(),
+    })
+  }
+
   render() {
     if (this.state.hasError) {
       const { resetCount } = this.state
@@ -96,23 +108,17 @@ export class ErrorBoundary extends Component<Props, State> {
             </details>
           )}
           <div className={s.actions}>
-            {canReset ? (
-              <>
+            <div className={s.buttonRow}>
+              {this.props.onUndo && (
+                <button type="button" onClick={this.handleUndoAndReset} className={s.undoButton}>
+                  Undo Last Change
+                </button>
+              )}
+              {canReset ? (
                 <button type="button" onClick={this.handleReset} className={s.button}>
                   Reset {resetCount > 0 && `(${resetCount}/${maxResets})`}
                 </button>
-                {resetCount > 0 && (
-                  <p className={s.warning}>
-                    Warning: Error has occurred {resetCount} time{resetCount > 1 ? 's' : ''}. If
-                    this persists, try refreshing the page.
-                  </p>
-                )}
-              </>
-            ) : (
-              <>
-                <p className={s.errorMessage}>
-                  Maximum reset attempts reached. Please refresh the page.
-                </p>
+              ) : (
                 <button
                   type="button"
                   onClick={() => window.location.reload()}
@@ -120,7 +126,18 @@ export class ErrorBoundary extends Component<Props, State> {
                 >
                   Refresh Page
                 </button>
-              </>
+              )}
+            </div>
+            {!canReset && (
+              <p className={s.errorMessage}>
+                Maximum reset attempts reached. Please refresh the page.
+              </p>
+            )}
+            {canReset && resetCount > 0 && (
+              <p className={s.warning}>
+                Warning: Error has occurred {resetCount} time{resetCount > 1 ? 's' : ''}. If this
+                persists, try refreshing the page.
+              </p>
             )}
           </div>
         </div>

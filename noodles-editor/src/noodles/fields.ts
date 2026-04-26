@@ -278,6 +278,31 @@ export class FileUrlField extends Field<z.ZodString, FileUrlFieldOptions> {
   }
 }
 
+export interface MapStyleFieldOptions extends BaseFieldOptions {
+  accept?: string
+  suggestions?: { value: string | Record<string, unknown>; label: string }[]
+}
+
+export class MapStyleField extends Field<
+  z.ZodUnion<[z.ZodString, z.ZodRecord<z.ZodString, z.ZodUnknown>]>,
+  MapStyleFieldOptions
+> {
+  static type = 'map-style'
+  static defaultValue = ''
+  accept?: string
+  suggestions: { value: string; label: string }[]
+
+  constructor(defaultValue = '', options?: Partial<MapStyleFieldOptions>) {
+    super(defaultValue, options)
+    this.accept = options?.accept
+    this.suggestions = options?.suggestions ?? []
+  }
+
+  createSchema(_options?: Partial<MapStyleFieldOptions>) {
+    return z.union([z.string(), z.record(z.string(), z.unknown())])
+  }
+}
+
 export const IN_NS = 'par'
 export const OUT_NS = 'out'
 export type InOut = typeof IN_NS | typeof OUT_NS
@@ -588,19 +613,15 @@ export class DateField extends Field<
         'Expected Temporal.PlainDateTime'
       ),
       // Convert Date to Temporal.PlainDateTime in UTC
-      z
-        .date()
-        .transform(date => {
-          return Temporal.Instant.fromEpochMilliseconds(date.getTime())
-            .toZonedDateTimeISO('UTC')
-            .toPlainDateTime()
-        }),
+      z.date().transform(date => {
+        return Temporal.Instant.fromEpochMilliseconds(date.getTime())
+          .toZonedDateTimeISO('UTC')
+          .toPlainDateTime()
+      }),
       // Parse ISO datetime string from project files to Temporal
-      z.iso
-        .datetime({ offset: true, local: true })
-        .transform(str => {
-          return Temporal.PlainDateTime.from(str)
-        }),
+      z.iso.datetime({ offset: true, local: true }).transform(str => {
+        return Temporal.PlainDateTime.from(str)
+      }),
     ])
   }
   static deserialize(value: string) {
@@ -681,6 +702,7 @@ export class Point3DField extends Field<
 > {
   static type = 'geopoint-3d'
   static defaultValue = { lng: 0, lat: 0, alt: 0 }
+  static channelKeys = ['lng', 'lat', 'alt'] as const
 
   returnType: 'object' | 'tuple' = 'object'
 
@@ -743,6 +765,7 @@ export class Point2DField extends Field<
 > {
   static type = 'geopoint-2d'
   static defaultValue = { lng: 0, lat: 0 }
+  static channelKeys = ['lng', 'lat'] as const
 
   returnType: 'object' | 'tuple' = 'object'
 
@@ -784,6 +807,7 @@ export class Vec2Field extends Field<
 > {
   static type = 'vec2'
   static defaultValue = { x: 0, y: 0 }
+  static channelKeys = ['x', 'y'] as const
   returnType: 'object' | 'tuple' = 'object'
   constructor(override?: Vec2FieldOverride, options?: Vec2FieldOptions) {
     super(override, options)
@@ -819,6 +843,7 @@ export class Vec3Field extends Field<
 > {
   static type = 'vec3'
   static defaultValue = { x: 0, y: 0, z: 0 }
+  static channelKeys = ['x', 'y', 'z'] as const
   returnType: 'object' | 'tuple' = 'object'
   constructor(override?: Vec3FieldOverride, options?: Vec2FieldOptions) {
     super(override, options)

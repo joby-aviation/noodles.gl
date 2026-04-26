@@ -57,9 +57,6 @@ import type {
   TextLayerProps,
 } from '@deck.gl/layers'
 import type { ScenegraphLayerProps, SimpleMeshLayerProps } from '@deck.gl/mesh-layers'
-import { CesiumIonLoader, Tiles3DLoader } from '@loaders.gl/3d-tiles'
-import { OBJLoader } from '@loaders.gl/obj'
-import { PLYLoader } from '@loaders.gl/ply'
 import type { Tileset3D } from '@loaders.gl/tiles'
 import { brightnessContrast, hueSaturation, vibrance } from '@luma.gl/effects'
 import { fitBounds } from '@math.gl/web-mercator'
@@ -166,6 +163,7 @@ import {
   type InOut,
   LayerField,
   ListField,
+  MapStyleField,
   mustacheRe,
   NumberField,
   OUT_NS,
@@ -1581,6 +1579,7 @@ export class ColorRampOp extends Operator<ColorRampOp> {
   createOutputs() {
     return {
       color: new ColorField(),
+      colorRamp: new ColorRampField(),
     }
   }
   execute({
@@ -1588,18 +1587,17 @@ export class ColorRampOp extends Operator<ColorRampOp> {
     colorScheme: _,
     value,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const scale = (val: number) => {
-      const color = colorRamp(val)
-
-      // Some return values are in rgb, some are in hex. Convert them all to be safe
-      // TODO: VIS-813: Make all colors d3 Colors?
-      return d3Color(color)?.formatHex()
+    // Normalize all color formats to hex for consistency
+    // TODO: VIS-813: Make all colors d3 Colors?
+    const normalizedRamp = (val: number) => {
+      const c = colorRamp(val)
+      return d3Color(c)?.formatHex() ?? c
     }
 
     // Use composeAccessor helper to handle both static values and accessor functions
-    const color = composeAccessor(value, scale)
+    const color = composeAccessor(value, normalizedRamp)
 
-    return { color }
+    return { color, colorRamp: normalizedRamp }
   }
 }
 
@@ -1782,7 +1780,7 @@ export class FileOp extends Operator<FileOp> {
   createInputs() {
     return {
       format: new StringLiteralField('json', { values: ['json', 'csv', 'tsv', 'text', 'binary'] }),
-      url: new FileUrlField('', { accept: '.csv,.json,.geojson' }),
+      url: new FileUrlField(),
       text: new StringField(),
       autoType: new BooleanField(true), // TODO: Make this only available for csv
       pulse: new NumberField(0, { min: 0, step: 1 }),
@@ -3636,7 +3634,14 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
 
   createInputs() {
     return {
-      mapStyle: new FileUrlField(CARTO_DARK),
+      mapStyle: new MapStyleField(CARTO_DARK, {
+        accept: '.json',
+        suggestions: [
+          { value: CARTO_DARK, label: 'Carto Dark' },
+          { value: MAP_STYLES.CARTO_LIGHT, label: 'Carto Light' },
+          { value: MAP_STYLES.CARTO_VOYAGER, label: 'Carto Voyager' },
+        ],
+      }),
       projection: new StringLiteralField('mercator', {
         values: ['mercator', 'globe'],
         showByDefault: false,
@@ -3672,7 +3677,7 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
   createOutputs() {
     return {
       maplibre: new CompoundPropsField({
-        mapStyle: new FileUrlField(),
+        mapStyle: new MapStyleField(),
         projection: new StringField(),
         longitude: new NumberField(),
         latitude: new NumberField(),
@@ -4078,6 +4083,189 @@ export class FpsWidgetOp extends Operator<FpsWidgetOp> {
       type: '_FpsWidget',
       placement,
       ...(viewId && viewId !== '' ? { viewId } : {}),
+    }
+    return { widget }
+  }
+}
+
+export class FullscreenWidgetOp extends Operator<FullscreenWidgetOp> {
+  static displayName = 'FullscreenWidget'
+  static description = 'Enter/exit fullscreen widget'
+
+  createInputs() {
+    return {
+      placement: new StringLiteralField('top-right', {
+        values: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+      }),
+      viewId: new StringField('', { optional: true }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      widget: new WidgetField(),
+    }
+  }
+
+  execute({
+    placement,
+    viewId,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const widget = {
+      id: this.id,
+      type: '_FullscreenWidget',
+      placement,
+      ...(viewId && viewId !== '' ? { viewId } : {}),
+    }
+    return { widget }
+  }
+}
+
+export class ZoomWidgetOp extends Operator<ZoomWidgetOp> {
+  static displayName = 'ZoomWidget'
+  static description = 'Zoom in/out buttons widget'
+
+  createInputs() {
+    return {
+      placement: new StringLiteralField('top-right', {
+        values: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+      }),
+      viewId: new StringField('', { optional: true }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      widget: new WidgetField(),
+    }
+  }
+
+  execute({
+    placement,
+    viewId,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const widget = {
+      id: this.id,
+      type: '_ZoomWidget',
+      placement,
+      ...(viewId && viewId !== '' ? { viewId } : {}),
+    }
+    return { widget }
+  }
+}
+
+export class CompassWidgetOp extends Operator<CompassWidgetOp> {
+  static displayName = 'CompassWidget'
+  static description = 'Compass and bearing reset widget'
+
+  createInputs() {
+    return {
+      placement: new StringLiteralField('top-right', {
+        values: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+      }),
+      viewId: new StringField('', { optional: true }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      widget: new WidgetField(),
+    }
+  }
+
+  execute({
+    placement,
+    viewId,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const widget = {
+      id: this.id,
+      type: '_CompassWidget',
+      placement,
+      ...(viewId && viewId !== '' ? { viewId } : {}),
+    }
+    return { widget }
+  }
+}
+
+export class ScreenshotWidgetOp extends Operator<ScreenshotWidgetOp> {
+  static displayName = 'ScreenshotWidget'
+  static description = 'Download current frame as PNG widget'
+
+  createInputs() {
+    return {
+      placement: new StringLiteralField('top-right', {
+        values: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+      }),
+      viewId: new StringField('', { optional: true }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      widget: new WidgetField(),
+    }
+  }
+
+  execute({
+    placement,
+    viewId,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const widget = {
+      id: this.id,
+      type: '_ScreenshotWidget',
+      placement,
+      ...(viewId && viewId !== '' ? { viewId } : {}),
+    }
+    return { widget }
+  }
+}
+
+export class LegendWidgetOp extends Operator<LegendWidgetOp> {
+  static displayName = 'LegendWidget'
+  static description = 'Display a color scale legend overlay on the visualization'
+
+  createInputs() {
+    return {
+      colorRamp: new ColorRampField(),
+      label: new StringField(''),
+      minValue: new NumberField(0),
+      maxValue: new NumberField(1),
+      placement: new StringLiteralField('bottom-right', {
+        values: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+      }),
+      steps: new NumberField(12, { min: 2, max: 32, step: 1, showByDefault: false }),
+      scale: new NumberField(1, { min: 0.25, max: 4, step: 0.25 }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      widget: new WidgetField(),
+    }
+  }
+
+  execute({
+    colorRamp,
+    label,
+    minValue,
+    maxValue,
+    placement,
+    steps,
+    scale,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const colorStops: string[] = []
+    for (let i = 0; i < steps; i++) {
+      colorStops.push(colorRamp(i / (steps - 1)))
+    }
+    const widget = {
+      id: this.id,
+      type: 'LegendWidget',
+      colorStops,
+      label,
+      minValue,
+      maxValue,
+      placement,
+      scale,
     }
     return { widget }
   }
@@ -4697,6 +4885,7 @@ export class TextLayerOp extends Operator<TextLayerOp> {
         },
         { showByDefault: false }
       ),
+      backgroundBorderRadius: new NumberField(0, { min: 0, optional: true }),
       extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
@@ -4732,7 +4921,7 @@ export class IconLayerOp extends Operator<IconLayerOp> {
       ),
       iconMapping: new FileUrlField(
         'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.json',
-        { showByDefault: false }
+        { showByDefault: false, accept: '.json' }
       ),
       billboard: new BooleanField(true),
       getIcon: new UnknownField(null, { accessor: true }), // Union of { url: string, width: number, height: number } or url: string, plus accessors
@@ -4750,6 +4939,10 @@ export class IconLayerOp extends Operator<IconLayerOp> {
       ),
       getColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
       getAngle: new NumberField(0, { accessor: true, showByDefault: false }),
+      sizeBasis: new StringLiteralField('pixels', {
+        values: ['pixels', 'meters', 'common'],
+        optional: true,
+      }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -4871,8 +5064,12 @@ export class SimpleMeshLayerOp extends Operator<SimpleMeshLayerOp> {
       layer: new LayerField<SimpleMeshLayerProps>(),
     }
   }
-  execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  async execute(props: ExtractProps<typeof this.inputs>) {
     const ext = extname(props.mesh || '')
+    const [{ OBJLoader }, { PLYLoader }] = await Promise.all([
+      import('@loaders.gl/obj'),
+      import('@loaders.gl/ply'),
+    ])
     const layer = {
       ...parseLayerProps<SimpleMeshLayerProps>(props),
       loaders: [ext === '.obj' ? OBJLoader : PLYLoader],
@@ -5159,6 +5356,8 @@ export class ArcLayerOp extends Operator<ArcLayerOp> {
         showByDefault: false,
       }),
       getWidth: new NumberField(1, { min: 0, softMax: 100, accessor: true }),
+      getHeight: new NumberField(1, { min: 0, softMax: 10, accessor: true, showByDefault: false }),
+      getTilt: new NumberField(0, { min: -90, max: 90, accessor: true, showByDefault: false }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -5394,7 +5593,7 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
       layer: new LayerField<Tile3DLayerProps>(),
     }
   }
-  execute({
+  async execute({
     flatLighting,
     provider,
     tilesetUrl,
@@ -5402,7 +5601,7 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
     maxMemoryUsage,
     maxScreenSpaceError,
     ...props
-  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  }: ExtractProps<typeof this.inputs>) {
     const GOOGLE_TILESET_URL = 'https://tile.googleapis.com/v1/3dtiles/root.json'
     const NYC_CESIUM_TILESET_URL = 'https://assets.ion.cesium.com/242005/tileset.json'
 
@@ -5422,6 +5621,7 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
     const defaultUrl = provider === 'Cesium' ? NYC_CESIUM_TILESET_URL : GOOGLE_TILESET_URL
     const data = tilesetUrl || defaultUrl
 
+    const { CesiumIonLoader, Tiles3DLoader } = await import('@loaders.gl/3d-tiles')
     const loader = provider === 'Cesium' ? CesiumIonLoader : Tiles3DLoader
 
     const _subLayerProps = flatLighting ? { scenegraph: { _lighting: 'flat' } } : undefined
@@ -5840,9 +6040,14 @@ export class AccessorOp extends Operator<AccessorOp> {
     )
     // https://deck.gl/docs/developer-guide/using-layers#accessors
     const accessor = (d: unknown, dInfo: { index: number; data: unknown; target: number[] }) => {
-      // Create a context-aware getOp function for the accessor execution
       const contextualGetOp = (path: string) => getOp(path, this.id)
-      return fn(d, dInfo.index, dInfo.data, contextualGetOp, ...Object.values(freeExports))
+      try {
+        return fn(d, dInfo.index, dInfo.data, contextualGetOp, ...Object.values(freeExports))
+      } catch (_e) {
+        // Swallow per-row errors — returning undefined lets deck.gl skip the item
+        // rather than crashing the GPU process
+        return undefined
+      }
     }
     return { accessor }
   }
@@ -6095,8 +6300,8 @@ export class KmlToGeoJsonOp extends Operator<KmlToGeoJsonOp> {
       geojson: new DataField(),
     }
   }
-  execute({ kml }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const geojson = utils.kmlToGeoJson(kml)
+  async execute({ kml }: ExtractProps<typeof this.inputs>) {
+    const geojson = await utils.kmlToGeoJson(kml)
     return { geojson }
   }
 }
@@ -6780,6 +6985,7 @@ export class MVTLayerOp extends Operator<MVTLayerOp> {
         values: ['pixels', 'meters'],
         showByDefault: false,
       }),
+      autoLabels: new BooleanField(false, { optional: true }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -7223,6 +7429,7 @@ export const opTypes = {
   ClipExtensionOp,
   CodeOp,
   CollisionFilterExtensionOp,
+  CompassWidgetOp,
   ColorOp,
   ColorRampOp,
   ColumnLayerOp,
@@ -7248,6 +7455,7 @@ export const opTypes = {
   ForLoopEndOp,
   ForLoopMetaOp,
   FpsWidgetOp,
+  FullscreenWidgetOp,
   GeocoderOp,
   GeohashLayerOp,
   GeoJsonOp,
@@ -7269,6 +7477,7 @@ export const opTypes = {
   JSONOp,
   KmlToGeoJsonOp,
   LayerPropsOp,
+  LegendWidgetOp,
   LineLayerOp,
   MaplibreBasemapOp,
   MapRangeOp,
@@ -7302,6 +7511,7 @@ export const opTypes = {
   ScatterplotLayerOp,
   ScenegraphLayerOp,
   ScreenGridLayerOp,
+  ScreenshotWidgetOp,
   SimpleMeshLayerOp,
   SelectOp,
   SliceOp,
@@ -7325,6 +7535,7 @@ export const opTypes = {
   UnprojectOp,
   VibranceExtensionOp,
   ViewerOp,
+  ZoomWidgetOp,
 } as const // as Record<OpType, typeof Operator>
 
 // Execution state for visual debugging

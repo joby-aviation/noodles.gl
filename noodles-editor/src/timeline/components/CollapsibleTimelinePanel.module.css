@@ -10,9 +10,11 @@
   border-top: 1px solid #2f3b4c;
   color: #748095;
   cursor: pointer;
-  font-family: Inter, 'Segoe UI', 'SF Pro Text', system-ui, sans-serif;
+  font-family: Inter, "Segoe UI", "SF Pro Text", system-ui, sans-serif;
   font-size: 11px;
-  transition: background 0.12s ease, color 0.12s ease;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
 }
 
 .timelineCollapseTab:hover {
@@ -29,4 +31,18 @@
   flex-direction: column;
   background: #11161e;
   border-top: 1px solid #2f3b4c;
+}
+
+.resizeHandle {
+  flex-shrink: 0;
+  height: 4px;
+  margin: 0;
+  border: none;
+  cursor: ns-resize;
+  background: #2f3b4c;
+  transition: background 0.12s ease;
+}
+
+.resizeHandle:hover {
+  background: #3b82f6;
 }

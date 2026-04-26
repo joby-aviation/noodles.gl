@@ -37,7 +37,7 @@ export class ContextLoader {
       debugAiChat(
         'Context bundles not available. Advanced features (code search, operator schemas) will be disabled.'
       )
-      debugAiChat('To enable these features, run: yarn generate:context')
+      debugAiChat('To enable these features, run: npm run generate:context')
       // Continue without context - basic chat will still work
       onProgress?.({
         stage: 'complete',

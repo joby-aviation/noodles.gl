@@ -15,12 +15,14 @@ import {
   getFieldReferences,
   LayerField,
   ListField,
+  MapStyleField,
   NumberField,
   Point2DField,
   Point3DField,
   parseChoices,
   StringField,
   StringLiteralField,
+  UnknownField,
 } from './fields'
 import { NumberOp } from './operators'
 import { clearOps, setOp } from './store'
@@ -244,6 +246,117 @@ describe('FileUrlField', () => {
 
     const noAccept = new FileUrlField()
     expect(noAccept.accept).toBeUndefined()
+  })
+})
+
+describe('MapStyleField', () => {
+  it('accepts string values (URLs)', () => {
+    const field = new MapStyleField('https://example.com/style.json')
+    expect(field.value).toEqual('https://example.com/style.json')
+
+    field.setValue('@/style.json')
+    expect(field.value).toEqual('@/style.json')
+
+    field.setValue('mapbox://styles/mapbox/streets-v11')
+    expect(field.value).toEqual('mapbox://styles/mapbox/streets-v11')
+  })
+
+  it('accepts style objects', () => {
+    const styleObject = {
+      version: 8,
+      sources: {},
+      layers: [],
+    }
+    const field = new MapStyleField()
+
+    field.setValue(styleObject)
+    expect(field.value).toEqual(styleObject)
+  })
+
+  it('accepts string values from connected fields', () => {
+    const stringField = new StringField('https://example.com/style.json')
+    const mapStyleField = new MapStyleField()
+
+    expect(canConnect(stringField, mapStyleField)).toBe(true)
+    mapStyleField.addConnection('field', stringField, 'value')
+
+    expect(mapStyleField.value).toEqual('https://example.com/style.json')
+  })
+
+  it('accepts object values from connected fields', () => {
+    const unknownField = new UnknownField({ version: 8, sources: {}, layers: [] })
+    const mapStyleField = new MapStyleField()
+
+    expect(canConnect(unknownField, mapStyleField)).toBe(true)
+    mapStyleField.addConnection('field', unknownField, 'value')
+
+    expect(mapStyleField.value).toEqual({ version: 8, sources: {}, layers: [] })
+  })
+
+  it('rejects invalid types (numbers)', () => {
+    const field = new MapStyleField()
+
+    field.setValue(123 as unknown as string)
+    // Should not update value on validation failure
+    expect(field.value).toEqual('')
+  })
+
+  it('rejects invalid types (arrays)', () => {
+    const field = new MapStyleField()
+
+    field.setValue([1, 2, 3] as unknown as string)
+    // Should not update value on validation failure
+    expect(field.value).toEqual('')
+  })
+
+  it('stores options on the instance', () => {
+    const field = new MapStyleField('', {
+      accept: '.json',
+      suggestions: [
+        { value: 'https://example.com/style1.json', label: 'Style 1' },
+        { value: 'https://example.com/style2.json', label: 'Style 2' },
+      ],
+    })
+
+    expect(field.accept).toEqual('.json')
+    expect(field.suggestions).toHaveLength(2)
+    expect(field.suggestions[0]).toEqual({
+      value: 'https://example.com/style1.json',
+      label: 'Style 1',
+    })
+  })
+
+  it('defaults to empty array for suggestions', () => {
+    const field = new MapStyleField()
+    expect(field.suggestions).toEqual([])
+  })
+
+  it('serializes and deserializes string values correctly', () => {
+    const field = new MapStyleField('https://example.com/style.json')
+    const serialized = JSON.parse(JSON.stringify(field.value))
+
+    expect(serialized).toEqual('https://example.com/style.json')
+
+    const newField = new MapStyleField()
+    newField.setValue(serialized)
+    expect(newField.value).toEqual('https://example.com/style.json')
+  })
+
+  it('serializes and deserializes object values correctly', () => {
+    const styleObject = {
+      version: 8,
+      sources: { osm: { type: 'vector', url: 'mapbox://mapbox.mapbox-streets-v8' } },
+      layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#000' } }],
+    }
+    const field = new MapStyleField()
+    field.setValue(styleObject)
+
+    const serialized = JSON.parse(JSON.stringify(field.value))
+    expect(serialized).toEqual(styleObject)
+
+    const newField = new MapStyleField()
+    newField.setValue(serialized)
+    expect(newField.value).toEqual(styleObject)
   })
 })
 

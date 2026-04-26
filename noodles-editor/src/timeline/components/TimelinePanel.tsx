@@ -43,6 +43,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
   const containerRef = useRef<HTMLDivElement>(null)
   const timelineAreaRef = useRef<HTMLDivElement>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
+  const trackLabelsRef = useRef<HTMLDivElement>(null)
 
   const { isRendering } = useExportActions()
 
@@ -114,9 +115,21 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
     }
   }, [])
 
-  // Handle scroll
+  // Handle scroll on the right (keyframe) panel — keep the left labels panel in sync
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     setScrollLeft(e.currentTarget.scrollLeft)
+    const scrollTop = e.currentTarget.scrollTop
+    if (trackLabelsRef.current && trackLabelsRef.current.scrollTop !== scrollTop) {
+      trackLabelsRef.current.scrollTop = scrollTop
+    }
+  }, [])
+
+  // Handle scroll on the left (labels) panel — keep the right keyframe panel in sync
+  const handleLabelsScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const scrollTop = e.currentTarget.scrollTop
+    if (scrollAreaRef.current && scrollAreaRef.current.scrollTop !== scrollTop) {
+      scrollAreaRef.current.scrollTop = scrollTop
+    }
   }, [])
 
   // Calculate time from mouse event, snapped to the nearest frame
@@ -303,27 +316,39 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
     }
   }, [])
 
-  // Delete selected keyframes/markers on Delete/Backspace key, T to cycle handle type
+  // Intercept Delete/Backspace in capture phase so keyframe/marker deletion fires before
+  // ReactFlow's global handler (which would otherwise delete the selected operator node)
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+        return
+
+      if (selectedMarkerId) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        const before = captureTimelineState()
+        deleteMarker(selectedMarkerId)
+        fireTimelineMutation('Delete marker', before)
+        return
+      }
+      const store = getTimelineStore()
+      if (store.selectedKeyframeIds.size > 0) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        const before = captureTimelineState()
+        store.deleteSelectedKeyframes()
+        fireTimelineMutation('Delete keyframe', before)
+      }
+    }
+    document.addEventListener('keydown', handleKey, { capture: true })
+    return () => document.removeEventListener('keydown', handleKey, { capture: true })
+  }, [selectedMarkerId, deleteMarker])
+
+  // T to cycle handle type, Cmd/Ctrl+A to select all keyframes
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        // Delete selected marker if one is selected
-        if (selectedMarkerId) {
-          e.preventDefault()
-          const before = captureTimelineState()
-          deleteMarker(selectedMarkerId)
-          fireTimelineMutation('Delete marker', before)
-          return
-        }
-        // Delete selected keyframes
-        if (selectedKeyframeIds.size > 0) {
-          e.preventDefault()
-          const store = getTimelineStore()
-          store.deleteSelectedKeyframes()
-          return
-        }
-      }
-
       // Cmd/Ctrl+A to select all keyframes
       if ((e.key === 'a' || e.key === 'A') && (e.metaKey || e.ctrlKey)) {
         e.preventDefault()
@@ -351,7 +376,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
         fireTimelineMutation('Cycle handle type', before)
       }
     },
-    [selectedKeyframeIds, selectedMarkerId, deleteMarker]
+    [selectedKeyframeIds]
   )
 
   // Handle spacebar for play/pause and arrow keys for frame stepping globally
@@ -476,7 +501,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
       {/* Main timeline area */}
       <div className={s.timelineBody}>
         {/* Track labels column */}
-        <div className={s.timelineTrackLabels}>
+        <div ref={trackLabelsRef} className={s.timelineTrackLabels} onScroll={handleLabelsScroll}>
           <div className={s.timelineTrackLabelsHeader}>
             <span className={s.timelineTrackLabelsTitle}>Properties</span>
           </div>

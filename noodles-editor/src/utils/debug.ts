@@ -7,7 +7,8 @@ export const debugHistoryUndo = createDebug('noodles:history:undo') // undo oper
 export const debugHistoryRedo = createDebug('noodles:history:redo') // redo operations
 
 // Graph execution namespaces
-export const debugExecutor = createDebug('noodles:executor') // graph execution frame loop
+export const debugExecutor = createDebug('noodles:executor') // graph execution significant events (cycles, etc.)
+export const debugExecutorFrame = createDebug('noodles:executor:frame') // per-frame stats (noisy — fires every tick)
 export const debugPull = createDebug('noodles:executor:pull') // pull-based operator execution
 export const debugExecute = createDebug('noodles:executor:execute') // operator execute calls
 

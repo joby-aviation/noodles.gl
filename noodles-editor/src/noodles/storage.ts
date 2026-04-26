@@ -527,6 +527,25 @@ export async function checkAssetExists(
   }
 }
 
+// Returns the FileSystemFileHandle for an existing asset, or null if unavailable
+export async function getAssetFileHandle(
+  type: StorageType,
+  projectName: string,
+  fileName: string
+): Promise<FileSystemFileHandle | null> {
+  if (type !== 'fileSystemAccess') return null
+  const projectDirectory = await getProjectDirectoryHandle(type, projectName, false)
+  if (!projectDirectory.success) return null
+  try {
+    const hasDataDir = await directoryExists(projectDirectory.data, DATA_DIRECTORY_NAME)
+    if (!hasDataDir) return null
+    const dataDirectory = await projectDirectory.data.getDirectoryHandle(DATA_DIRECTORY_NAME)
+    return await dataDirectory.getFileHandle(fileName)
+  } catch {
+    return null
+  }
+}
+
 // Write an asset file to a project's data directory
 export async function writeAsset(
   type: StorageType,

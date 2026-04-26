@@ -4,9 +4,6 @@ import type {
   ReactFlowJsonObject,
   Node as ReactFlowNode,
 } from '@xyflow/react'
-import JSZip from 'jszip'
-import { isEqual } from 'lodash'
-
 import { debugSerialize } from '../../utils/debug'
 import { resizeableNodes } from '../components/op-components'
 import type { useOperatorStore } from '../store'
@@ -101,6 +98,16 @@ export type SerializeNodesOptions = {
   forClipboard?: boolean
 }
 
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true
+  if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return false
+  if (Array.isArray(a) !== Array.isArray(b)) return false
+  const keysA = Object.keys(a as object)
+  const keysB = Object.keys(b as object)
+  if (keysA.length !== keysB.length) return false
+  return keysA.every(k => deepEqual((a as any)[k], (b as any)[k]))
+}
+
 // Check if two sets have the same elements
 function setsEqual(a: Set<string>, b: Set<string>): boolean {
   if (a.size !== b.size) return false
@@ -158,7 +165,7 @@ export function serializeNodes(
         // If parsing fails, use the raw default value
       }
       const hasNonDefaultValue =
-        serialized !== undefined && !isEqual(field.value, normalizedDefault)
+        serialized !== undefined && !deepEqual(field.value, normalizedDefault)
       if (hasNonDefaultValue && !incomers.has(name)) {
         inputs[name] = serialized
       }
@@ -265,6 +272,7 @@ export async function saveProjectLocally(
   storageType: 'fileSystemAccess' | 'opfs' | 'publicFolder'
 ) {
   debugSerialize('saveProjectLocally: %s (storage: %s)', projectName, storageType)
+  const { default: JSZip } = await import('jszip')
   const zip = new JSZip()
 
   // Create a folder with the project name

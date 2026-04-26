@@ -68,7 +68,6 @@
   --xy-controls-button-color-hover: #262626;
 
   --timeline-accent: #48c6cf;
-
 }
 
 :root {
@@ -548,11 +547,15 @@
 
 .fieldInputWrapperVector {
   display: flex;
-  gap: 5px;
+  gap: 3px;
+}
+
+.fieldInputWrapperVector .fieldInputNumber {
+  margin-right: 0;
 }
 
 .fieldInputVector {
-  width: 50px;
+  width: 32px;
 }
 
 .fieldLookupButton {
@@ -769,6 +772,30 @@
   stroke: #888;
 }
 
+.targetedEdge {
+  stroke: #3b82f6;
+  stroke-width: 3;
+  filter: drop-shadow(0 0 6px rgba(59, 130, 246, 0.7));
+  animation: edgeTargetPulse 0.8s ease-in-out infinite;
+}
+
+.targetedEdgeIncompatible {
+  stroke: #9a8878;
+  stroke-width: 2;
+}
+
+@keyframes edgeTargetPulse {
+  0%,
+  100% {
+    stroke-opacity: 1;
+    filter: drop-shadow(0 0 6px rgba(59, 130, 246, 0.7));
+  }
+  50% {
+    stroke-opacity: 0.7;
+    filter: drop-shadow(0 0 12px rgba(59, 130, 246, 0.9));
+  }
+}
+
 /* Mapbox geocoder */
 :global(.mapboxgl-ctrl-geocoder--input) {
   min-width: 200px;
@@ -910,6 +937,56 @@
 
 .wrapperError {
   box-shadow: 0 0 0 1px var(--node-execution-error-color);
+}
+
+/* Wrapper gives the absolute-positioned popover an anchor point */
+.errorPopoverAnchor {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.errorPopover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1a1a2e;
+  border: 1px solid var(--node-execution-error-color);
+  border-radius: 6px;
+  padding: 7px 26px 7px 10px;
+  min-width: 160px;
+  max-width: 300px;
+  font-size: 11px;
+  color: #fca5a5;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+  line-height: 1.5;
+  word-break: break-word;
+  pointer-events: all;
+}
+
+.errorPopoverMessage {
+  display: block;
+  white-space: pre-wrap;
+}
+
+.errorPopoverClose {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: none;
+  border: none;
+  color: #fca5a5;
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 9px;
+  opacity: 0.6;
+  line-height: 1;
+}
+
+.errorPopoverClose:hover {
+  opacity: 1;
 }
 
 .wrapperExecuting {
