@@ -29,6 +29,14 @@ export {
 export type NodeDataJSON<_T extends Operator<IOperator> = Operator<IOperator>> = {
   inputs?: Record<string, unknown>
   locked?: boolean
+  customInputs?: Array<{
+    id: string
+    name: string
+    type: string
+    order: number
+    options?: Record<string, unknown>
+    defaultValue?: unknown
+  }>
 }
 
 export type NodeJSON<T extends OpType> = ReactFlowNode<
@@ -150,6 +158,13 @@ export function transformGraph<
         const containerId = getParentPath(id)
         // Create operator with fully qualified path as id and store containerId
         op = new ctor(id, data?.inputs, data?.locked, containerId) as unknown as OP
+
+        // Restore custom field definitions if present
+        if (data?.customInputs && Array.isArray(data.customInputs)) {
+          op.customInputDefinitions = data.customInputs
+          op.rebuildInputs()
+        }
+
         created.push(op)
         // Store operator in store using fully qualified path
         store.setOp(id, op)
@@ -267,8 +282,13 @@ export function transformGraph<
       }
 
       // Update operator dependencies for pull-based execution
-      sourceOp.addDownstreamDependent(targetOp)
-      targetOp.addUpstreamDependency(sourceOp)
+      // Skip self-references to parameters (not true cycles - output depends on input value)
+      const isSelfParameterReference = edge.source === edge.target && sourceNamespace === 'par'
+
+      if (!isSelfParameterReference) {
+        sourceOp.addDownstreamDependent(targetOp)
+        targetOp.addUpstreamDependency(sourceOp)
+      }
     } else if (targetOp && !sourceOp) {
       // Source node doesn't exist — surface a broken-connection error on the target operator
       // so it appears in the UI via the error popover on the node header.
@@ -317,11 +337,25 @@ export function transformGraph<
       const containerOp = op
       for (const childOp of store.getAllOps()) {
         if (childOp instanceof GraphInputOp && isDirectChild(childOp.id, containerOp.id)) {
+          // Set up parent container relationship (triggers output rebuild)
+          childOp.setParentContainer(containerOp)
+
+          // Wire the base 'in' field to GraphInputOp's parentValue
           const parentValueField = childOp.inputs.parentValue
           const containerInField = containerOp.inputs.in
-
           const connectionId = `container_in_to_child_${childOp.id}`
           parentValueField.addConnection(connectionId, containerInField, 'value')
+
+          // Wire container's custom inputs to GraphInputOp's dynamic inputs
+          // This allows values to flow: container input → GraphInputOp input → execute() → GraphInputOp output
+          for (const def of containerOp.customInputDefinitions) {
+            const containerCustomField = containerOp.inputs[def.name]
+            const graphInputInputField = childOp.inputs[def.name]
+            if (containerCustomField && graphInputInputField) {
+              const customConnectionId = `container_custom_${def.name}_to_child_${childOp.id}`
+              graphInputInputField.addConnection(customConnectionId, containerCustomField, 'value')
+            }
+          }
         }
       }
     }

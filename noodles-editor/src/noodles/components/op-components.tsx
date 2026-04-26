@@ -66,12 +66,14 @@ import {
 } from '../store'
 import type { NodeDataJSON } from '../transform-graph'
 import { canConnect } from '../utils/can-connect'
+import { evaluateEnableExpression } from '../utils/enable-expression-evaluator'
 import type { NodeType } from '../utils/node-creation-utils'
 import { generateQualifiedPath, getBaseName, getParentPath } from '../utils/path-utils'
 import { categories as baseCategories, nodeTypeToDisplayName } from './categories'
 import { FieldComponent, type inputComponents } from './field-components'
 import previewStyles from './handle-preview.module.css'
 import { useObservable } from '../hooks/use-observable'
+import { MapStyleConfiguratorOpComponent } from './map-style-configurator-op'
 
 const isPlainObject = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype
@@ -100,7 +102,7 @@ function useConnectionErrors(op: Operator<IOperator>): Map<string, string> {
 }
 
 // Hook to check if a node should be dimmed during connection drag
-function useNodeDimmed(nodeId: string): boolean {
+export function useNodeDimmed(nodeId: string): boolean {
   return useUIStore(state => {
     const drag = state.connectionDragState
     if (!drag) return false
@@ -181,6 +183,7 @@ for (const key of Object.keys(opTypes)) {
 export const nodeComponents = {
   ...defaultNodeComponents,
   GeocoderOp: memo(GeocoderOpComponent, nodePropsAreEqual),
+  MapStyleConfiguratorOp: memo(MapStyleConfiguratorOpComponent, nodePropsAreEqual),
   DirectionsOp: memo(DirectionsOpComponent, nodePropsAreEqual),
   MouseOp: memo(MouseOpComponent, nodePropsAreEqual),
   OutOp: memo(OutOpComponent, nodePropsAreEqual),
@@ -389,7 +392,7 @@ export const OUT_NAMESPACE = 'out'
 // Stable constant - avoids creating a new object on every render inside .map()
 export const PAR_HANDLE_OPTIONS = { type: TARGET_HANDLE, namespace: PAR_NAMESPACE } as const
 
-function useLocked(op: Operator<IOperator>) {
+export function useLocked(op: Operator<IOperator>) {
   const [locked, setLocked] = useState(op.locked.value)
   useEffect(() => {
     const subscription = op.locked.subscribe(setLocked)
@@ -399,7 +402,7 @@ function useLocked(op: Operator<IOperator>) {
 }
 
 // Hook to subscribe to field visibility changes and trigger re-render
-function useFieldVisibility(op: Operator<IOperator>) {
+export function useFieldVisibility(op: Operator<IOperator>) {
   const [, setVisibility] = useState(op.visibleFields.value)
   useEffect(() => {
     const subscription = op.visibleFields.subscribe(setVisibility)
@@ -477,7 +480,7 @@ function HandlePreviewContent({ data, name, type }: { data: unknown; name: strin
 }
 
 // Output handle component that renders just a handle (no label, no input UI)
-function OutputHandle({ id, field }: { id: string; field: Field<IField> }) {
+export function OutputHandle({ id, field }: { id: string; field: Field<IField> }) {
   const nid = useNodeId()
   const qualifiedFieldId = `${OUT_NAMESPACE}.${id}`
   const isHandleDimmed = useHandleDimmed(nid ?? '', qualifiedFieldId)
@@ -556,6 +559,27 @@ function OutputHandle({ id, field }: { id: string; field: Field<IField> }) {
   )
 }
 
+// Hook to subscribe to all field value changes for reactive enable expressions
+function useFieldValueChanges(op: Operator<IOperator>) {
+  const [, forceUpdate] = useState(0)
+
+  useEffect(() => {
+    const allInputs = (op.constructor as typeof Operator).supportsCustomFields
+      ? op.getAllInputs()
+      : op.inputs
+
+    const subscriptions = Object.values(allInputs).map(field =>
+      field.subscribe(() => forceUpdate(n => n + 1))
+    )
+
+    return () => {
+      subscriptions.forEach(sub => {
+        sub.unsubscribe()
+      })
+    }
+  }, [op])
+}
+
 function NodeComponent({
   id,
   type,
@@ -573,22 +597,83 @@ function NodeComponent({
   const isDropTarget = useUIStore(s => s.nodeDragState?.nodeId === id && s.nodeDragState?.targetedEdge !== null)
   useFieldVisibility(op)
 
+  // Subscribe to field value changes for reactive enable expressions
+  useFieldValueChanges(op)
+
+  // Get all inputs (including custom fields for operators that support them)
+  const allInputs = (op.constructor as typeof Operator).supportsCustomFields
+    ? op.getAllInputs()
+    : op.inputs
+
+  // Get custom field definitions for enable expression checking
+  const customFieldDefs = op.customInputDefinitions
+  const builtInFieldNames = Object.keys(op.createInputs())
+
+  // Track enable expression errors
+  const [enableExpressionErrors, setEnableExpressionErrors] = useState<Map<string, string>>(
+    new Map()
+  )
+
+  // Check if a field should be visible based on its enable expression
+  const isFieldEnabled = useCallback(
+    (fieldName: string): boolean => {
+      // Built-in fields are always enabled
+      if (builtInFieldNames.includes(fieldName)) {
+        return true
+      }
+      // Find the custom field definition
+      const def = customFieldDefs.find(d => d.name === fieldName)
+      if (!def || !def.enableExpression) {
+        return true // No expression means always enabled
+      }
+      const result = evaluateEnableExpression(def.enableExpression, op, getOp)
+
+      // Track errors for display
+      if (result.error) {
+        setEnableExpressionErrors(prev => {
+          const next = new Map(prev)
+          next.set(fieldName, result.error!)
+          return next
+        })
+      } else {
+        setEnableExpressionErrors(prev => {
+          if (prev.has(fieldName)) {
+            const next = new Map(prev)
+            next.delete(fieldName)
+            return next
+          }
+          return prev
+        })
+      }
+
+      return result.enabled
+    },
+    [builtInFieldNames, customFieldDefs, op]
+  )
+
   return (
     <div
       className={cx(s.wrapper, {
-        [s.wrapperError]: executionState.status === 'error' || hasConnectionErrors,
+        [s.wrapperError]:
+          executionState.status === 'error' || hasConnectionErrors || enableExpressionErrors.size > 0,
         [s.wrapperExecuting]: executionState.status === 'executing',
         [s.wrapperDimmed]: isDimmed,
         [s.nodeDropTarget]: isDropTarget,
       })}
     >
-      <NodeHeader id={id} type={type} op={op} connectionErrors={connectionErrors} />
-      {resizeableNodes.includes(type) && (
+      <NodeHeader
+        id={id}
+        type={type}
+        op={op}
+        connectionErrors={connectionErrors}
+        enableExpressionErrors={enableExpressionErrors}
+      />
+      {(resizeableNodes as readonly string[]).includes(type) && (
         <NodeResizer isVisible={selected} minWidth={200} minHeight={100} />
       )}
       <div className={s.content}>
-        {Object.entries(op.inputs)
-          .filter(([key]) => op.isFieldVisible(key))
+        {Object.entries(allInputs)
+          .filter(([key]) => op.isFieldVisible(key) && isFieldEnabled(key))
           .map(([key, field]) => (
             <FieldComponent
               key={key}
@@ -668,20 +753,23 @@ const ExecutionIndicator = ({ status, error, executionTime }: ExecutionState) =>
   }
 }
 
-function NodeHeader({
+export function NodeHeader({
   id,
   type,
   op,
   connectionErrors,
+  enableExpressionErrors,
 }: {
   id: string
   type: OpType
   op: Operator<IOperator>
   connectionErrors?: Map<string, string>
+  enableExpressionErrors?: Map<string, string>
 }) {
   const [locked, setLocked] = useState(op.locked.value)
   const executionState = useExecutionState(op)
   const hasConnectionErrors = connectionErrors && connectionErrors.size > 0
+  const hasEnableExpressionErrors = enableExpressionErrors && enableExpressionErrors.size > 0
 
   // Popover visibility state for execution errors
   const [execAutoShow, setExecAutoShow] = useState(false)
@@ -689,10 +777,18 @@ function NodeHeader({
   // Popover visibility state for connection errors
   const [connAutoShow, setConnAutoShow] = useState(false)
   const [connDismissed, setConnDismissed] = useState(false)
+  // Popover visibility state for enable expression errors
+  const [exprAutoShow, setExprAutoShow] = useState(false)
+  const [exprDismissed, setExprDismissed] = useState(false)
   const [headerHovered, setHeaderHovered] = useState(false)
 
   const execErrorKey = executionState.status === 'error' ? executionState.error ?? '' : null
   const connErrorKey = hasConnectionErrors ? Array.from(connectionErrors!.values()).join('\n') : null
+  const exprErrorKey = hasEnableExpressionErrors
+    ? Array.from(enableExpressionErrors!.entries())
+        .map(([field, error]) => `${field}: ${error}`)
+        .join('\n')
+    : null
 
   useEffect(() => {
     if (execErrorKey !== null) {
@@ -716,8 +812,20 @@ function NodeHeader({
     setConnDismissed(false)
   }, [connErrorKey])
 
+  useEffect(() => {
+    if (exprErrorKey !== null) {
+      setExprAutoShow(true)
+      setExprDismissed(false)
+      const t = setTimeout(() => setExprAutoShow(false), 10_000)
+      return () => clearTimeout(t)
+    }
+    setExprAutoShow(false)
+    setExprDismissed(false)
+  }, [exprErrorKey])
+
   const execPopoverOpen = execErrorKey !== null && ((execAutoShow && !execDismissed) || headerHovered)
   const connPopoverOpen = connErrorKey !== null && ((connAutoShow && !connDismissed) || headerHovered)
+  const exprPopoverOpen = exprErrorKey !== null && ((exprAutoShow && !exprDismissed) || headerHovered)
 
   const toggleLock = () => {
     op.locked.next(!op.locked.value)
@@ -913,6 +1021,18 @@ function NodeHeader({
           trigger={
             <div className={cx(s.executionIndicator, s.executionIndicatorError)}>
               <i className="pi pi-link" />
+            </div>
+          }
+        />
+      )}
+      {hasEnableExpressionErrors && exprErrorKey && (
+        <ErrorPopover
+          error={`Enable expression error:\n${exprErrorKey}`}
+          open={exprPopoverOpen}
+          onDismiss={() => setExprDismissed(true)}
+          trigger={
+            <div className={cx(s.executionIndicator, s.executionIndicatorError)}>
+              <i className="pi pi-eye-slash" />
             </div>
           }
         />
