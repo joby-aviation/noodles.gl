@@ -591,29 +591,29 @@ function NodeComponent({
             [s.wrapperDimmed]: isDimmed,
           })}
         >
-      <NodeHeader id={id} type={type} op={op} connectionErrors={connectionErrors} />
-      {resizeableNodes.includes(type) && (
-        <NodeResizer isVisible={selected} minWidth={200} minHeight={100} />
-      )}
-      <div className={s.content}>
-        {Object.entries(op.inputs)
-          .filter(([key]) => op.isFieldVisible(key))
-          .map(([key, field]) => (
-            <FieldComponent
-              key={key}
-              id={key}
-              field={field}
-              disabled={locked}
-              handle={PAR_HANDLE_OPTIONS}
-            />
-          ))}
-        <div className={s.outputHandleContainer}>
-          {Object.entries(op.outputs).map(([key, field]) => (
-            <OutputHandle key={key} id={key} field={field} />
-          ))}
+          <NodeHeader id={id} type={type} op={op} connectionErrors={connectionErrors} />
+          {resizeableNodes.includes(type) && (
+            <NodeResizer isVisible={selected} minWidth={200} minHeight={100} />
+          )}
+          <div className={s.content}>
+            {Object.entries(op.inputs)
+              .filter(([key]) => op.isFieldVisible(key))
+              .map(([key, field]) => (
+                <FieldComponent
+                  key={key}
+                  id={key}
+                  field={field}
+                  disabled={locked}
+                  handle={PAR_HANDLE_OPTIONS}
+                />
+              ))}
+            <div className={s.outputHandleContainer}>
+              {Object.entries(op.outputs).map(([key, field]) => (
+                <OutputHandle key={key} id={key} field={field} />
+              ))}
+            </div>
+          </div>
         </div>
-      </div>
-      </div>
       </ContextMenu.Trigger>
 
       <ContextMenu.Portal>
