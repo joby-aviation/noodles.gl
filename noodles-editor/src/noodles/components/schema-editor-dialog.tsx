@@ -49,6 +49,8 @@ function ColumnEditor({ column, onChange, onDelete, onMoveUp, onMoveDown }: Colu
         <Dropdown
           value={column.type}
           options={COLUMN_TYPES}
+          optionLabel="label"
+          optionValue="value"
           onChange={(e) => {
             const newType = e.value as ColumnType
             onChange({
