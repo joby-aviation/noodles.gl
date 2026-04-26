@@ -39,7 +39,7 @@ import { analytics } from '../../utils/analytics'
 import { ArrayField, type Field, type IField, ListField } from '../fields'
 import { useKeysStore } from '../keys-store'
 import s from '../noodles.module.css'
-import type { TableSchema } from '../table-schema'
+import { inferSchema, type TableSchema } from '../table-schema'
 import type { ExecutionState, IOperator, OpType } from '../operators'
 import {
   type ContainerOp,
@@ -1281,7 +1281,6 @@ function TableEditorOpComponent({
     if (outputSchema && typeof outputSchema === 'object' && 'columns' in outputSchema) {
       return outputSchema as TableSchema
     }
-    const { inferSchema } = require('../table-schema')
     return inferSchema(data)
   })
 

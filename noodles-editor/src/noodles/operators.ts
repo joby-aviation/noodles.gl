@@ -2200,21 +2200,11 @@ export class TableEditorOp extends Operator<TableEditorOp> {
   }
 
   execute({ data, schema }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // Lazy import to avoid circular dependency
-    const { inferSchema, validateTableData } = require('./table-schema')
-
-    // Infer schema from data if not provided
-    const effectiveSchema =
-      schema && typeof schema === 'object' && 'columns' in schema && Array.isArray(schema.columns)
-        ? schema
-        : inferSchema(data)
-
-    // Validate data against schema (warns on validation errors, applies defaults)
-    const validatedData = validateTableData(data, effectiveSchema)
-
+    // Simple pass-through - schema inference and validation happen in component
+    // This avoids circular dependency issues and keeps execute() synchronous
     return {
-      data: validatedData,
-      schema: effectiveSchema,
+      data,
+      schema: schema || null,
     }
   }
 }
