@@ -2182,23 +2182,40 @@ export class ViewerOp extends Operator<ViewerOp> {
 
 export class TableEditorOp extends Operator<TableEditorOp> {
   static displayName = 'TableEditor'
-  static description = 'Edit a table in the viewer'
+  static description = 'Edit a table with typed columns'
   asDownload = () => this.outputData
+
   createInputs() {
     return {
       data: new DataField(),
+      schema: new UnknownField(null), // TableSchema | null - optional schema override
     }
   }
 
   createOutputs() {
     return {
       data: new DataField(),
+      schema: new UnknownField(null), // Computed schema (inferred or explicit)
     }
   }
 
-  execute({ data }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // This is a special-case because it's essentially a pass-through. The TableEditor component will handle the data
-    return { data }
+  execute({ data, schema }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    // Lazy import to avoid circular dependency
+    const { inferSchema, validateTableData } = require('./table-schema')
+
+    // Infer schema from data if not provided
+    const effectiveSchema =
+      schema && typeof schema === 'object' && 'columns' in schema && Array.isArray(schema.columns)
+        ? schema
+        : inferSchema(data)
+
+    // Validate data against schema (warns on validation errors, applies defaults)
+    const validatedData = validateTableData(data, effectiveSchema)
+
+    return {
+      data: validatedData,
+      schema: effectiveSchema,
+    }
   }
 }
 
