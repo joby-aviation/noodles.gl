@@ -128,6 +128,12 @@ export function useNodeDropOnEdge(options: UseNodeDropOnEdgeOptions) {
       const nodes = getNodes()
       const edges = getEdges()
 
+      // Quick win: Create a Map for O(1) node lookups instead of O(n) find() calls
+      const nodeMap = new Map<string, ReactFlowNode>()
+      for (const node of nodes) {
+        nodeMap.set(node.id, node)
+      }
+
       let closestEdge: ReactFlowEdge | null = null
       let closestDistance = EDGE_DROP_THRESHOLD
 
@@ -137,8 +143,9 @@ export function useNodeDropOnEdge(options: UseNodeDropOnEdgeOptions) {
           continue
         }
 
-        const sourceNode = nodes.find(n => n.id === edge.source)
-        const targetNode = nodes.find(n => n.id === edge.target)
+        // Quick win: Use Map.get() instead of Array.find() for O(1) lookup
+        const sourceNode = nodeMap.get(edge.source)
+        const targetNode = nodeMap.get(edge.target)
 
         if (!sourceNode || !targetNode) {
           continue
@@ -154,6 +161,11 @@ export function useNodeDropOnEdge(options: UseNodeDropOnEdgeOptions) {
         if (distance < closestDistance) {
           closestDistance = distance
           closestEdge = edge
+
+          // Quick win: Early exit if we found a very close edge (within 5 pixels)
+          if (closestDistance < 5) {
+            break
+          }
         }
       }
 
