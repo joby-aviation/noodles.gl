@@ -32,6 +32,7 @@ import { getPendingQuickStartAction } from '../components/quick-start-modal'
 import { analytics } from '../utils/analytics'
 import { getKeysForProject, getKeysStore } from './keys-store'
 import newProjectJSON from './new.json'
+import { LegendWidget, type LegendWidgetProps } from './widgets/legend-widget'
 
 // Get URLs for all example noodles.json files (lazy-loaded)
 const exampleProjectUrls = import.meta.glob('../examples/**/noodles.json', {
@@ -57,6 +58,7 @@ import { ExampleNotFoundDialog } from './components/example-not-found-dialog'
 import { PropertyPanel } from './components/node-properties'
 import { NodeTreeSidebar } from './components/node-tree-sidebar'
 import { edgeComponents, nodeComponents } from './components/op-components'
+import { ParameterEditorDialog } from './components/parameter-editor-dialog'
 import { ProjectNotFoundDialog } from './components/project-not-found-dialog'
 import { RenameDialog } from './components/rename-dialog'
 import { SaveAsDialog } from './components/save-as-dialog'
@@ -113,7 +115,7 @@ const ChatPanel = lazy(() => import('../ai-chat/chat-panel').then(m => ({ defaul
  * work reliably regardless of import order (prevents linting from breaking styles).
  */
 import './layers.css'
-import { debugApp, debugVis } from '../utils/debug'
+import { debugApp, debugParams, debugVis } from '../utils/debug'
 import s from './noodles.module.css'
 
 export type Edge<N1 extends Operator<IOperator>, N2 extends Operator<IOperator>> = {
@@ -182,6 +184,13 @@ export function getNoodles(): Visualization {
   const [showChatPanel, setShowChatPanel] = useState(false)
   const [chatInitialMessage, setChatInitialMessage] = useState<string | undefined>(undefined)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [parameterEditorState, setParameterEditorState] = useState<{
+    open: boolean
+    operatorId: string | null
+  }>({ open: false, operatorId: null })
+  const [paramEditorError, setParamEditorError] = useState<Error | null>(null)
+  // Throw during render so the ErrorBoundary catches it with a descriptive message
+  if (paramEditorError) throw paramEditorError
 
   // Wrap onNodesChange to track node selection and mark unsaved changes
   const onNodesChange = useCallback(
@@ -474,6 +483,16 @@ export function getNoodles(): Visualization {
     [onNodeDragStopBase]
   )
 
+  const onNodeContextMenu = useCallback(
+    (event: React.MouseEvent, node: ReactFlowNode<Record<string, unknown>>) => {
+      event.preventDefault()
+      const op = getOp(node.id)
+      if (op && (op.constructor as typeof Operator).supportsCustomFields) {
+        setParameterEditorState({ open: true, operatorId: node.id })
+      }
+    },
+    []
+  )
   const reactFlowRef = useRef<HTMLDivElement>(null)
   const reactFlowInstanceRef = useRef<ReactFlowInstance | null>(null)
   const blockLibraryRef = useRef<BlockLibraryRef>(null)
@@ -1393,6 +1412,7 @@ export function getNoodles(): Visualization {
               onConnectStart={onConnectStart}
               onConnectEnd={onConnectEnd}
               onReconnect={onReconnect}
+              onNodeContextMenu={onNodeContextMenu}
               onNodesDelete={onNodesDelete}
               onNodeDragStop={onNodeDragStop}
               onPaneContextMenu={onPaneContextMenu}
@@ -1427,6 +1447,36 @@ export function getNoodles(): Visualization {
             </ReactFlow>
           </TimelineProvider>
         </PrimeReactProvider>
+        {parameterEditorState.operatorId && (
+          <ParameterEditorDialog
+            open={parameterEditorState.open}
+            onOpenChange={open => {
+              setParameterEditorState({ open, operatorId: null })
+              if (!open) setParamEditorError(null)
+            }}
+            operator={getOp(parameterEditorState.operatorId)!}
+            onSave={definitions => {
+              debugParams(
+                'onSave for op %s, %d definitions',
+                parameterEditorState.operatorId,
+                definitions.length
+              )
+              const op = getOp(parameterEditorState.operatorId!)
+              if (op) {
+                try {
+                  op.customInputDefinitions = definitions
+                  debugParams('calling rebuildInputs on %s', op.id)
+                  op.rebuildInputs()
+                  debugParams('rebuildInputs complete, forcing re-render')
+                  setNodes(nodes => [...nodes]) // Force re-render
+                } catch (err) {
+                  debugParams('rebuildInputs threw: %O', err)
+                  setParamEditorError(err instanceof Error ? err : new Error(String(err)))
+                }
+              }
+            }}
+          />
+        )}
         <ProjectNotFoundDialog
           projectName={projectName || ''}
           open={showProjectNotFoundDialog}
@@ -1566,8 +1616,12 @@ export function getNoodles(): Visualization {
             deckProps: {
               ...deckProps,
               layers: instantiatedLayers,
-              // biome-ignore lint/performance/noDynamicNamespaceImportAccess: We intentionally support all deck.gl widget types dynamically
-              widgets: widgets?.map(({ type, ...widget }) => new deckWidgets[type](widget)),
+              widgets: widgets?.map(({ type, ...widget }) => {
+                if (type === 'LegendWidget')
+                  return new LegendWidget(widget as unknown as LegendWidgetProps)
+                // biome-ignore lint/performance/noDynamicNamespaceImportAccess: We intentionally support all deck.gl widget types dynamically
+                return new deckWidgets[type](widget)
+              }),
             },
             mapProps,
           })

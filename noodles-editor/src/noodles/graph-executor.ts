@@ -1,7 +1,7 @@
 // GraphExecutor - Execution engine for the operator graph
 // Manages operator execution with topological sorting, dirty tracking, and a worker timer loop
 
-import { debugExecutor } from '../utils/debug'
+import { debugExecutor, debugExecutorFrame } from '../utils/debug'
 import { visibilityAdaptiveLoop } from '../utils/worker-timer'
 import type { ForLoopBeginOp, ForLoopEndOp, ForLoopMetaOp, IOperator, Operator } from './operators'
 import { getAllOps } from './store'
@@ -268,6 +268,14 @@ export class GraphExecutor {
     this.downstream.clear()
 
     for (const edge of edges) {
+      // Skip self-referencing parameter edges (not true cycles - output depends on input value)
+      const isSelfParameterReference =
+        edge.source === edge.target && edge.sourceHandle?.startsWith('par.')
+
+      if (isSelfParameterReference) {
+        continue
+      }
+
       this.edges.push({ source: edge.source, target: edge.target })
 
       if (!this.downstream.has(edge.source)) this.downstream.set(edge.source, new Set())
@@ -360,7 +368,10 @@ export class GraphExecutor {
     this.syncNodesFromStore()
     this.updateSort()
 
-    debugExecutor(
+    // Nothing to execute yet — skip silently until the graph is populated
+    if (this.nodes.size === 0) return results
+
+    debugExecutorFrame(
       'executeFrame: nodes=%d, edges=%d, dirty=%d',
       this.nodes.size,
       this.edges.length,
@@ -387,6 +398,7 @@ export class GraphExecutor {
         )
         results.set(scope.endOp.id, { value: { data: loopResults }, changed: true })
       } catch (error) {
+        console.error('[Noodles] ForLoop execution error:', error)
         results.set(scope.endOp.id, {
           value: null,
           changed: false,
@@ -399,7 +411,7 @@ export class GraphExecutor {
     // ForLoopEndOp may have downstream roots that will pull from its cached results
     const roots = this.findRootOperators()
 
-    debugExecutor(
+    debugExecutorFrame(
       'Pulling roots: %d dirty nodes, %d roots %O',
       this.dirtyNodes.size,
       roots.length,
@@ -414,6 +426,7 @@ export class GraphExecutor {
             const output = await op.pull()
             results.set(op.id, { value: output, changed: true })
           } catch (error) {
+            console.error('[Noodles] Operator execution error:', op.id, error)
             results.set(op.id, {
               value: null,
               changed: false,
@@ -428,6 +441,7 @@ export class GraphExecutor {
           const output = await op.pull()
           results.set(op.id, { value: output, changed: true })
         } catch (error) {
+          console.error('[Noodles] Operator execution error:', op.id, error)
           results.set(op.id, {
             value: null,
             changed: false,
@@ -442,7 +456,7 @@ export class GraphExecutor {
     this.metrics.executionCount = results.size
     this.metrics.totalOperators = this.nodes.size
 
-    debugExecutor('Frame complete: %dms', this.metrics.frameTime.toFixed(2))
+    debugExecutorFrame('Frame complete: %dms', this.metrics.frameTime.toFixed(2))
 
     return results
   }
