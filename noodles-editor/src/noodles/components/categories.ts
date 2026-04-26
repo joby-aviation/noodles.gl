@@ -86,6 +86,7 @@ export const categories = {
     'Boolean',
     'Console',
     'LayerProps',
+    'MapStyleConfigurator',
     'Mouse',
     'Project',
     'Reroute',

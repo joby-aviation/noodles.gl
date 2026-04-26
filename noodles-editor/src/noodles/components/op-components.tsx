@@ -73,6 +73,7 @@ import { categories as baseCategories, nodeTypeToDisplayName } from './categorie
 import { FieldComponent, type inputComponents } from './field-components'
 import previewStyles from './handle-preview.module.css'
 import { useObservable } from '../hooks/use-observable'
+import { MapStyleConfiguratorOpComponent } from './map-style-configurator-op'
 
 const isPlainObject = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype
@@ -101,7 +102,7 @@ function useConnectionErrors(op: Operator<IOperator>): Map<string, string> {
 }
 
 // Hook to check if a node should be dimmed during connection drag
-function useNodeDimmed(nodeId: string): boolean {
+export function useNodeDimmed(nodeId: string): boolean {
   return useUIStore(state => {
     const drag = state.connectionDragState
     if (!drag) return false
@@ -182,6 +183,7 @@ for (const key of Object.keys(opTypes)) {
 export const nodeComponents = {
   ...defaultNodeComponents,
   GeocoderOp: memo(GeocoderOpComponent, nodePropsAreEqual),
+  MapStyleConfiguratorOp: memo(MapStyleConfiguratorOpComponent, nodePropsAreEqual),
   DirectionsOp: memo(DirectionsOpComponent, nodePropsAreEqual),
   MouseOp: memo(MouseOpComponent, nodePropsAreEqual),
   OutOp: memo(OutOpComponent, nodePropsAreEqual),
@@ -382,7 +384,7 @@ export const OUT_NAMESPACE = 'out'
 // Stable constant - avoids creating a new object on every render inside .map()
 export const PAR_HANDLE_OPTIONS = { type: TARGET_HANDLE, namespace: PAR_NAMESPACE } as const
 
-function useLocked(op: Operator<IOperator>) {
+export function useLocked(op: Operator<IOperator>) {
   const [locked, setLocked] = useState(op.locked.value)
   useEffect(() => {
     const subscription = op.locked.subscribe(setLocked)
@@ -392,7 +394,7 @@ function useLocked(op: Operator<IOperator>) {
 }
 
 // Hook to subscribe to field visibility changes and trigger re-render
-function useFieldVisibility(op: Operator<IOperator>) {
+export function useFieldVisibility(op: Operator<IOperator>) {
   const [, setVisibility] = useState(op.visibleFields.value)
   useEffect(() => {
     const subscription = op.visibleFields.subscribe(setVisibility)
@@ -470,7 +472,7 @@ function HandlePreviewContent({ data, name, type }: { data: unknown; name: strin
 }
 
 // Output handle component that renders just a handle (no label, no input UI)
-function OutputHandle({ id, field }: { id: string; field: Field<IField> }) {
+export function OutputHandle({ id, field }: { id: string; field: Field<IField> }) {
   const nid = useNodeId()
   const qualifiedFieldId = `${OUT_NAMESPACE}.${id}`
   const isHandleDimmed = useHandleDimmed(nid ?? '', qualifiedFieldId)
@@ -741,7 +743,7 @@ const ExecutionIndicator = ({ status, error, executionTime }: ExecutionState) =>
   }
 }
 
-function NodeHeader({
+export function NodeHeader({
   id,
   type,
   op,
