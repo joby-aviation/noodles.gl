@@ -392,6 +392,31 @@ export function TableEditorV2({
     setTableData(data)
   }, [data])
 
+  const addRow = () => {
+    const newRow: Record<string, unknown> = {}
+    for (const col of schema.columns) {
+      newRow[col.name] = col.defaultValue ?? getDefaultValue(col)
+    }
+    const newData = [...tableData, newRow]
+    setTableData(newData)
+    onDataChange(newData)
+  }
+
+  const handleSchemaChange = (newSchema: TableSchema) => {
+    // Update data to match new schema
+    const newData = tableData.map((row) => {
+      const newRow: Record<string, unknown> = {}
+      for (const col of newSchema.columns) {
+        newRow[col.name] = row[col.name] ?? col.defaultValue ?? getDefaultValue(col)
+      }
+      return newRow
+    })
+
+    onSchemaChange(newSchema)
+    setTableData(newData)
+    onDataChange(newData)
+  }
+
   const columnHelper = createColumnHelper<Record<string, unknown>>()
 
   // Add row number column and action column
@@ -410,11 +435,13 @@ export function TableEditorV2({
     ),
     columnHelper.display({
       id: '_actions',
-      header: '',
+      header: () => (
+        <SchemaEditorDialog schema={schema} onChange={handleSchemaChange} />
+      ),
       cell: (props) => (
         <Button
           icon="pi pi-trash"
-          className="p-button-text p-button-sm p-button-danger"
+          className={`p-button-text p-button-sm ${s.deleteButton}`}
           onClick={() => props.table.options.meta?.deleteRow(props.row.index)}
           tooltip="Delete row"
         />
@@ -445,46 +472,6 @@ export function TableEditorV2({
       schema,
     },
   })
-
-  const addRow = () => {
-    const newRow: Record<string, unknown> = {}
-    for (const col of schema.columns) {
-      newRow[col.name] = col.defaultValue ?? getDefaultValue(col)
-    }
-    const newData = [...tableData, newRow]
-    setTableData(newData)
-    onDataChange(newData)
-  }
-
-  const deleteColumn = (columnName: string) => {
-    const newSchema: TableSchema = {
-      columns: schema.columns.filter((col) => col.name !== columnName),
-    }
-
-    const newData = tableData.map((row) => {
-      const { [columnName]: _, ...rest } = row
-      return rest
-    })
-
-    onSchemaChange(newSchema)
-    setTableData(newData)
-    onDataChange(newData)
-  }
-
-  const handleSchemaChange = (newSchema: TableSchema) => {
-    // Update data to match new schema
-    const newData = tableData.map((row) => {
-      const newRow: Record<string, unknown> = {}
-      for (const col of newSchema.columns) {
-        newRow[col.name] = row[col.name] ?? col.defaultValue ?? getDefaultValue(col)
-      }
-      return newRow
-    })
-
-    onSchemaChange(newSchema)
-    setTableData(newData)
-    onDataChange(newData)
-  }
 
   if (!tableData || tableData.length === 0) {
     return (
@@ -527,8 +514,12 @@ export function TableEditorV2({
         </table>
       </div>
       <div className={s.toolbar}>
-        <Button label="Add Row" icon="pi pi-plus" onClick={addRow} className="p-button-sm" />
-        <SchemaEditorDialog schema={schema} onChange={handleSchemaChange} />
+        <Button
+          label="Add Row"
+          icon="pi pi-plus"
+          onClick={addRow}
+          className={`p-button-sm p-button-text ${s.addRowButton}`}
+        />
         <div className={s.stats}>
           {tableData.length} row{tableData.length !== 1 ? 's' : ''} × {schema.columns.length}{' '}
           column{schema.columns.length !== 1 ? 's' : ''}

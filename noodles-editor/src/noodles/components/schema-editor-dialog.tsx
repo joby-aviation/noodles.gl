@@ -257,7 +257,12 @@ export function SchemaEditorDialog({ schema, onChange, onClose }: SchemaEditorDi
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Trigger asChild>
-        <Button label="Edit Schema" icon="pi pi-cog" onClick={handleOpen} className={s.trigger} />
+        <Button
+          icon="pi pi-cog"
+          onClick={handleOpen}
+          className={`p-button-text p-button-sm ${s.trigger}`}
+          tooltip="Edit Schema"
+        />
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className={s.overlay} />

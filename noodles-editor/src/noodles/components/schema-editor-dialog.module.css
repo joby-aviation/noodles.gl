@@ -1,5 +1,11 @@
 .trigger {
-  /* Styled by PrimeReact */
+  color: var(--text-color-secondary) !important;
+  opacity: 0.6;
+}
+
+.trigger:hover {
+  opacity: 1;
+  color: var(--text-color) !important;
 }
 
 .overlay {

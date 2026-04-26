@@ -149,3 +149,17 @@
   margin: 0;
   font-size: 1rem;
 }
+
+.deleteButton {
+  color: var(--text-color-secondary) !important;
+  opacity: 0.6;
+}
+
+.deleteButton:hover {
+  opacity: 1;
+  color: var(--text-color) !important;
+}
+
+.addRowButton {
+  color: var(--text-color-secondary) !important;
+}
