@@ -1,5 +1,4 @@
-import { cleanup, render } from '@testing-library/react'
-import { userEvent } from '@testing-library/user-event'
+import { cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TableEditorOp } from '../operators'
 import type { TableSchema } from '../table-schema'
@@ -78,10 +77,9 @@ describe('TableEditorV2', () => {
     expect(getByText(/2 rows × 2 columns/i)).toBeDefined()
   })
 
-  it('should call onDataChange when adding row', async () => {
+  it('should call onDataChange when adding row', () => {
     const onDataChange = vi.fn()
     const onSchemaChange = vi.fn()
-    const user = userEvent.setup()
 
     const { getByRole } = render(
       <TableEditorV2
@@ -94,7 +92,7 @@ describe('TableEditorV2', () => {
     )
 
     const addButton = getByRole('button', { name: /add row/i })
-    await user.click(addButton)
+    fireEvent.click(addButton)
 
     expect(onDataChange).toHaveBeenCalledWith([
       { name: 'Alice', count: 10 },
