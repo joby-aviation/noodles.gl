@@ -40,3 +40,6 @@ export const debugAnalytics = createDebug('noodles:analytics') // analytics trac
 
 // UI namespace
 export const debugUI = createDebug('noodles:ui') // UI component interactions and errors
+
+// Parameter editor namespace
+export const debugParams = createDebug('noodles:params')

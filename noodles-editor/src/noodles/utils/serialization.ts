@@ -213,10 +213,15 @@ export function serializeNodes(
 
     preparedNodes.push({
       ...cleanedNode,
-      ...(resizeableNodes.includes(node.type) ? { width, height, measured } : {}),
+      ...(node.type && (resizeableNodes as readonly string[]).includes(node.type)
+        ? { width, height, measured }
+        : {}),
       data: {
         inputs,
         locked: op.locked.value,
+        ...(op.customInputDefinitions?.length > 0
+          ? { customInputs: op.customInputDefinitions }
+          : {}),
         ...visibilityData,
       },
     })

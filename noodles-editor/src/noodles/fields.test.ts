@@ -931,6 +931,64 @@ describe('Field references', () => {
   })
 })
 
+describe('getFieldReferences self-parameter shorthand', () => {
+  it('should extract self-parameter reference from shorthand syntax', () => {
+    const refs = getFieldReferences('return d * {{par.val}}', '/code')
+    expect(refs).toHaveLength(1)
+    expect(refs[0].opId).toBe('/code')
+    expect(refs[0].inOut).toBe('par')
+    expect(refs[0].fieldPath).toBe('val')
+    expect(refs[0].handleId).toBe('par.val')
+  })
+
+  it('should return empty for shorthand without thisOpId context', () => {
+    const refs = getFieldReferences('return d * {{par.val}}')
+    expect(refs).toHaveLength(0)
+  })
+
+  it('should handle mixed shorthand and standard references', () => {
+    const refs = getFieldReferences('{{par.a}} + {{/other.par.b}}', '/code')
+    expect(refs).toHaveLength(2)
+    expect(refs.find(r => r.fieldPath === 'a')?.opId).toBe('/code')
+    expect(refs.find(r => r.fieldPath === 'b')?.opId).toBe('/other')
+  })
+
+  it('should handle multiple self-parameter references', () => {
+    const refs = getFieldReferences('{{par.scale}} * x + {{par.offset}}', '/code')
+    expect(refs).toHaveLength(2)
+    expect(refs[0].opId).toBe('/code')
+    expect(refs[0].fieldPath).toBe('scale')
+    expect(refs[1].opId).toBe('/code')
+    expect(refs[1].fieldPath).toBe('offset')
+  })
+
+  it('should deduplicate self-parameter references', () => {
+    const refs = getFieldReferences('{{par.val}} + {{par.val}} + {{par.val}}', '/code')
+    expect(refs).toHaveLength(1)
+    expect(refs[0].fieldPath).toBe('val')
+  })
+
+  it('should handle nested property access in self-parameter shorthand', () => {
+    const refs = getFieldReferences('{{par.location.lng}}', '/code')
+    expect(refs).toHaveLength(1)
+    // Only the first part of the path is the field path
+    expect(refs[0].fieldPath).toBe('location')
+  })
+
+  it('should not conflict with standard mustache syntax', () => {
+    // Self-parameter shorthand + sibling reference + absolute path
+    const refs = getFieldReferences('{{par.a}} + {{sibling.par.b}} + {{/other.par.c}}', '/code')
+    expect(refs).toHaveLength(3)
+    // All should resolve to their correct opIds
+    const aRef = refs.find(r => r.fieldPath === 'a')
+    const bRef = refs.find(r => r.fieldPath === 'b')
+    const cRef = refs.find(r => r.fieldPath === 'c')
+    expect(aRef?.opId).toBe('/code') // Self-reference shorthand
+    expect(bRef?.opId).toBe('/sibling') // Sibling operator
+    expect(cRef?.opId).toBe('/other') // Absolute path
+  })
+})
+
 describe('LayerField', () => {
   it('contains layer type and id', () => {
     const field = new LayerField()

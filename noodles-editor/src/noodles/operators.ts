@@ -121,7 +121,7 @@ import {
   tsvParse,
 } from 'd3'
 import * as deck from 'deck.gl'
-import { BehaviorSubject, combineLatest, type Subscription } from 'rxjs'
+import { BehaviorSubject, combineLatest, Subject, type Subscription } from 'rxjs'
 import { filter, mergeMap } from 'rxjs/operators'
 import { Temporal } from 'temporal-polyfill'
 import type z from 'zod/v4'
@@ -133,7 +133,7 @@ import { subscribeToPosition } from '../timeline/timeline-store'
 import * as utils from '../utils'
 import { getArc } from '../utils/arc-geometry'
 import { colorToHex, hexToColor } from '../utils/color'
-import { debugDirty, debugExecute, debugPull } from '../utils/debug'
+import { debugDirty, debugExecute, debugParams, debugPull } from '../utils/debug'
 import { getDirections } from '../utils/directions'
 import { CARTO_DARK, MAP_STYLES } from '../utils/map-styles'
 import { mulberry32 } from '../utils/random'
@@ -157,6 +157,7 @@ import {
   type FieldReference,
   FileUrlField,
   FunctionField,
+  fieldTypeToClass,
   GeoJsonField,
   IN_NS,
   type InOut,
@@ -170,6 +171,7 @@ import {
   Point3DField,
   StringField,
   StringLiteralField,
+  selfParMustacheRe,
   UnknownField,
   Vec2Field,
   Vec3Field,
@@ -195,6 +197,17 @@ export interface IOperator {
   createOutputs(): Record<string, Field<z.ZodType>>
 }
 
+// Custom field definition for dynamic parameters
+export interface CustomFieldDefinition {
+  id: string // UUID
+  name: string // Field name (valid JS identifier)
+  type: string // Field type ('number', 'string', 'boolean', etc.)
+  order: number // Display order
+  options?: Record<string, unknown> // Type-specific options (min, max, step, etc.)
+  defaultValue?: unknown // Default value
+  enableExpression?: string // JavaScript expression for conditional visibility (e.g., "par.mode === 'advanced'")
+}
+
 // Pull-based execution status
 export enum PullExecutionStatus {
   CLEAN = 'clean', // Valid cached output
@@ -209,6 +222,9 @@ export abstract class Operator<OP extends IOperator> {
   static displayName = 'Operator'
   static description = ''
 
+  // Opt-in flag for operators that support custom fields
+  static supportsCustomFields = false
+
   inputs: ReturnType<OP['createInputs']>
   outputs: ReturnType<OP['createOutputs']>
 
@@ -222,6 +238,12 @@ export abstract class Operator<OP extends IOperator> {
   // Should the execute function be memoized? Ops that store state elsewhere might not want to be cached.
   static cacheable = true
   public containerId?: string
+
+  // Custom field definitions for dynamic parameters
+  customInputDefinitions: CustomFieldDefinition[] = []
+
+  // Emits when custom field definitions change (for reactive updates like GraphInputOp)
+  customFieldsChanged = new Subject<CustomFieldDefinition[]>()
 
   abstract createInputs(): ReturnType<OP['createInputs']>
   abstract createOutputs(): ReturnType<OP['createOutputs']>
@@ -672,9 +694,205 @@ export abstract class Operator<OP extends IOperator> {
     }
   }
 
+  // === Custom Field Management ===
+
+  // Get all inputs (built-in + custom)
+  getAllInputs(): Record<string, Field> {
+    const builtIn = this.inputs
+    const custom = this.getCustomInputFields()
+    return { ...builtIn, ...custom }
+  }
+
+  // Get custom input fields as Field instances
+  getCustomInputFields(): Record<string, Field> {
+    debugParams(
+      'getCustomInputFields %s: %d definitions',
+      this.id,
+      this.customInputDefinitions.length
+    )
+    const fields: Record<string, Field> = {}
+    for (const def of this.customInputDefinitions) {
+      const field = this.createFieldFromDefinition(def)
+      debugParams('created field "%s" type=%s value=%O', def.name, def.type, field.value)
+      fields[def.name] = field
+    }
+    return fields
+  }
+
+  // Create a Field instance from a custom field definition
+  protected createFieldFromDefinition(def: CustomFieldDefinition): Field {
+    debugParams(
+      'createFieldFromDefinition type=%s name=%s defaultValue=%O',
+      def.type,
+      def.name,
+      def.defaultValue
+    )
+    const FieldClass = fieldTypeToClass[def.type]
+    if (!FieldClass) {
+      debugParams('unknown field type: %s', def.type)
+      throw new Error(`Unknown field type: ${def.type}`)
+    }
+    const field = new FieldClass(def.defaultValue, def.options)
+    // If value is still undefined, the defaultValue passed was invalid for this field type
+    if (field.value === undefined) {
+      debugParams(
+        'field value undefined after construction: type=%s name=%s defaultValue=%O',
+        def.type,
+        def.name,
+        def.defaultValue
+      )
+      throw new Error(
+        `Invalid default value for field "${def.name}" (type: ${def.type}): ${JSON.stringify(def.defaultValue)}`
+      )
+    }
+    return field
+  }
+
+  // Validate custom field name
+  validateCustomFieldName(name: string, excludeId?: string): string | null {
+    if (!name.trim()) {
+      return 'Name is required'
+    }
+    if (!/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(name)) {
+      return 'Invalid identifier (use only letters, numbers, _, $)'
+    }
+    const builtInFieldNames = Object.keys(this.createInputs())
+    if (builtInFieldNames.includes(name)) {
+      return 'Name conflicts with built-in field'
+    }
+    if (this.customInputDefinitions.some(d => d.id !== excludeId && d.name === name)) {
+      return 'Name already exists'
+    }
+    return null
+  }
+
+  // Add custom field
+  addCustomInput(def: CustomFieldDefinition): void {
+    const error = this.validateCustomFieldName(def.name, def.id)
+    if (error) {
+      throw new Error(error)
+    }
+    this.customInputDefinitions.push(def)
+    this.rebuildInputs()
+    this.markDirty()
+  }
+
+  // Remove custom field
+  removeCustomInput(id: string): void {
+    this.customInputDefinitions = this.customInputDefinitions.filter(d => d.id !== id)
+    this.rebuildInputs()
+    this.markDirty()
+  }
+
+  // Update custom field definition
+  updateCustomInput(id: string, updates: Partial<CustomFieldDefinition>): void {
+    const index = this.customInputDefinitions.findIndex(d => d.id === id)
+    if (index >= 0) {
+      const updated = { ...this.customInputDefinitions[index], ...updates }
+      if (updates.name) {
+        const error = this.validateCustomFieldName(updates.name, id)
+        if (error) {
+          throw new Error(error)
+        }
+      }
+      this.customInputDefinitions[index] = updated
+      this.rebuildInputs()
+      this.markDirty()
+    }
+  }
+
+  // Reorder custom fields
+  reorderCustomInputs(fromIndex: number, toIndex: number): void {
+    const defs = [...this.customInputDefinitions]
+    const [moved] = defs.splice(fromIndex, 1)
+    defs.splice(toIndex, 0, moved)
+    // Update order property
+    defs.forEach((def, index) => {
+      def.order = index
+    })
+    this.customInputDefinitions = defs
+    // No need to rebuild inputs, just update order
+  }
+
+  // Rebuild inputs when custom fields change
+  rebuildInputs(): void {
+    debugParams(
+      'rebuildInputs start %s, %d custom definitions',
+      this.id,
+      this.customInputDefinitions.length
+    )
+    // Preserve existing field values and connections
+    const oldValues = new Map<string, unknown>()
+    const oldConnections = new Map<
+      string,
+      Array<{ id: string; field: Field; connectionType: 'reference' | 'value' }>
+    >()
+
+    for (const [name, field] of Object.entries(this.inputs)) {
+      oldValues.set(name, field.value)
+      const connections = []
+      for (const [id, _subscription] of field.subscriptions) {
+        // We can't easily get the field reference, so we'll need to rely on transform-graph to reconnect
+        connections.push({ id, field: field, connectionType: 'value' })
+      }
+      if (connections.length > 0) {
+        oldConnections.set(name, connections)
+      }
+    }
+
+    // Recreate inputs (built-in + custom)
+    const builtInInputs = this.createInputs()
+    const customInputs = this.getCustomInputFields() // may throw on invalid field definitions
+    debugParams(
+      'rebuildInputs built %d custom inputs for %s',
+      Object.keys(customInputs).length,
+      this.id
+    )
+
+    this.inputs = { ...builtInInputs, ...customInputs } as ReturnType<OP['createInputs']>
+
+    // Restore values
+    for (const [name, field] of Object.entries(this.inputs)) {
+      if (oldValues.has(name)) {
+        try {
+          field.setValue(oldValues.get(name))
+        } catch (err) {
+          console.warn(`Failed to restore value for field ${name}:`, err)
+        }
+      }
+    }
+
+    // Re-assign pathToProps for all fields
+    const assignPathToProps = (field: Field, key: string, parentPath: string[] = []) => {
+      const currentPath = [...parentPath, key]
+      field.pathToProps = currentPath
+      field.op = this
+
+      if (field.field !== undefined) {
+        field.field.pathToProps = currentPath
+      }
+      if (field instanceof CompoundPropsField) {
+        for (const [k, f] of Object.entries(field.fields)) {
+          assignPathToProps(f, k, currentPath)
+        }
+      }
+    }
+
+    for (const [key, field] of Object.entries(this.inputs)) {
+      assignPathToProps(field, key, [this.id, IN_NS])
+    }
+
+    // Note: Connections will be restored by transform-graph.ts when edges are re-applied
+
+    // Notify listeners that custom fields have changed
+    this.customFieldsChanged.next(this.customInputDefinitions)
+    debugParams('rebuildInputs complete %s', this.id)
+  }
+
   dispose() {
     this.unsubscribeListeners()
     this.executionState.complete()
+    this.customFieldsChanged.complete()
   }
 }
 
@@ -3668,6 +3886,7 @@ export class MapViewOp extends Operator<MapViewOp> {
 export class GraphInputOp extends Operator<GraphInputOp> {
   static displayName = 'GraphInput'
   static description = 'Receives input from the parent Container.'
+  private _containerSub: Subscription | null = null
 
   createInputs() {
     return { parentValue: new UnknownField(null, { optional: true }) }
@@ -3677,8 +3896,118 @@ export class GraphInputOp extends Operator<GraphInputOp> {
     return { value: new UnknownField(null, { optional: true }) }
   }
 
-  execute({ parentValue }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    return { value: parentValue }
+  execute(inputs: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const result: Record<string, unknown> = { value: inputs.parentValue }
+    // Pass through all custom field values from inputs to outputs
+    for (const key of Object.keys(this.outputs)) {
+      if (key !== 'value' && key in inputs) {
+        result[key] = inputs[key]
+      }
+    }
+    return result as ExtractProps<typeof this.outputs>
+  }
+
+  /**
+   * Set the parent ContainerOp and subscribe to custom field changes.
+   * When container custom fields change, rebuild outputs to mirror them.
+   */
+  setParentContainer(containerOp: ContainerOp | null) {
+    // Unsubscribe from previous container
+    if (this._containerSub) {
+      this._containerSub.unsubscribe()
+      this._containerSub = null
+    }
+
+    if (containerOp) {
+      // Initial sync
+      this.rebuildFromContainer(containerOp)
+
+      // Subscribe to future changes
+      this._containerSub = containerOp.customFieldsChanged.subscribe(() => {
+        this.rebuildFromContainer(containerOp)
+      })
+    }
+  }
+
+  /**
+   * Rebuild both inputs and outputs to mirror the parent ContainerOp's custom input fields.
+   * Creates an input and output for each custom field on the container.
+   * This allows values to flow: container input → GraphInputOp input → execute() → GraphInputOp output
+   */
+  rebuildFromContainer(containerOp: ContainerOp) {
+    // Preserve old values where possible
+    const oldInputValues = new Map<string, unknown>()
+    for (const [name, field] of Object.entries(this.inputs)) {
+      oldInputValues.set(name, field.value)
+    }
+    const oldOutputValues = new Map<string, unknown>()
+    for (const [name, field] of Object.entries(this.outputs)) {
+      oldOutputValues.set(name, field.value)
+    }
+
+    // Rebuild inputs: parentValue + custom fields
+    const newInputs: Record<string, Field> = {
+      parentValue: new UnknownField(null, { optional: true }),
+    }
+    for (const def of containerOp.customInputDefinitions) {
+      const field = this.createFieldFromDefinition(def)
+      newInputs[def.name] = field
+    }
+    this.inputs = newInputs as ReturnType<GraphInputOp['createInputs']>
+
+    // Rebuild outputs: value + custom fields
+    const newOutputs: Record<string, Field> = {
+      value: new UnknownField(null, { optional: true }),
+    }
+    for (const def of containerOp.customInputDefinitions) {
+      const field = this.createFieldFromDefinition(def)
+      newOutputs[def.name] = field
+    }
+    this.outputs = newOutputs as ReturnType<GraphInputOp['createOutputs']>
+
+    // Restore input values where field names match
+    for (const [name, field] of Object.entries(this.inputs)) {
+      if (oldInputValues.has(name)) {
+        try {
+          field.setValue(oldInputValues.get(name))
+        } catch (_err) {
+          // Type mismatch, skip
+        }
+      }
+    }
+
+    // Restore output values where field names match
+    for (const [name, field] of Object.entries(this.outputs)) {
+      if (oldOutputValues.has(name)) {
+        try {
+          field.setValue(oldOutputValues.get(name))
+        } catch (_err) {
+          // Type mismatch, skip
+        }
+      }
+    }
+
+    // Re-assign pathToProps for inputs
+    for (const [key, field] of Object.entries(this.inputs)) {
+      field.pathToProps = [this.id, IN_NS, key]
+      field.op = this
+    }
+
+    // Re-assign pathToProps for outputs
+    for (const [key, field] of Object.entries(this.outputs)) {
+      field.pathToProps = [this.id, OUT_NS, key]
+      field.op = this
+    }
+
+    // Notify that fields changed
+    this.markDirty()
+  }
+
+  dispose() {
+    if (this._containerSub) {
+      this._containerSub.unsubscribe()
+    }
+    super.dispose()
   }
 }
 
@@ -5728,6 +6057,7 @@ export class CodeOp extends Operator<CodeOp> {
   static displayName = 'Code'
   static description =
     'Run custom JavaScript code to transform your data. Available variables: `data` (all input data), `d` (first element), `op()` (access other operators). Includes d3, turf, and other utilities. Use `this` to store state between executions.'
+  static supportsCustomFields = true
   asDownload = () => this.outputs.data.value
   createInputs() {
     return {
@@ -5744,12 +6074,18 @@ export class CodeOp extends Operator<CodeOp> {
     data,
     code: codeString,
   }: ExtractProps<typeof this.inputs>): Promise<ExtractProps<typeof this.outputs>> {
-    // Replace mustache references with op() calls, handling relative paths
-    const processedCode = codeString
+    // Replace self-parameter shorthand {{par.field}} with op() calls referencing this operator
+    let processedCode = codeString
       .trim()
-      .replace(mustacheRe, (_match, opId, inOut, fieldPath) => {
-        return `op('${opId}').${inOut}.${fieldPath}`
+      .replace(selfParMustacheRe, (_match, _inOut, fieldPath) => {
+        return `op('${this.id}').par.${fieldPath}`
       })
+
+    // Replace standard mustache references with op() calls, handling relative paths
+    processedCode = processedCode.replace(mustacheRe, (_match, opId, inOut, fieldPath) => {
+      return `op('${opId}').${inOut}.${fieldPath}`
+    })
+
     // Create a context-aware getOp function for the code execution
     const contextualGetOp = (path: string) => getOp(path, this.id)
     const fn = fnWithSource(
@@ -5766,6 +6102,7 @@ export class CodeOp extends Operator<CodeOp> {
 export class ContainerOp extends Operator<ContainerOp> {
   static displayName = 'Container'
   static description = 'Encapsulates a subgraph of operators. Visually groups child nodes.'
+  static supportsCustomFields = true
 
   createInputs() {
     return { in: new UnknownField(null, { optional: true }) }
