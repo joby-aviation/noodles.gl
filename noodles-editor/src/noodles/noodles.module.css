@@ -733,8 +733,58 @@
   width: unset;
 }
 
+.fieldFileInputGroupSuggestions {
+  position: relative;
+}
+
 .fieldInputFileUrl {
   padding: 0 1em;
+}
+
+.fileUrlSuggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: var(--z-index-modal);
+  margin: 2px 0 0;
+  padding: 4px 0;
+  list-style: none;
+  background: rgba(22, 22, 24, 0.98);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.fileUrlSuggestion {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.fileUrlSuggestion:hover,
+.fileUrlSuggestionActive {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.fileUrlSuggestionLabel {
+  font-size: 11px;
+  color: var(--node-text-color, rgba(255, 255, 255, 0.9));
+  font-weight: 500;
+}
+
+.fileUrlSuggestionUrl {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.35);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .fieldInputButton {
