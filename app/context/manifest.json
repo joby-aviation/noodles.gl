@@ -1,12 +1,12 @@
 {
   "version": "1.0.0",
-  "generated": "2026-04-26T15:35:46.858Z",
-  "commit": "0f3cfd7",
+  "generated": "2026-04-26T15:52:06.626Z",
+  "commit": "d7c3b2a",
   "bundles": {
     "operatorRegistry": {
-      "file": "operator-registry.fed453beea.json",
-      "size": 151015,
-      "hash": "fed453beea"
+      "file": "operator-registry.ba0deb7338.json",
+      "size": 150503,
+      "hash": "ba0deb7338"
     },
     "docsIndex": {
       "file": "docs-index.ba03b11c55.json",
@@ -19,9 +19,9 @@
       "hash": "268aa1bdae"
     },
     "codeIndex": {
-      "file": "code-index.8e597db842.json",
-      "size": 837985,
-      "hash": "8e597db842"
+      "file": "code-index.b245791ddc.json",
+      "size": 836641,
+      "hash": "b245791ddc"
     }
   }
 }
