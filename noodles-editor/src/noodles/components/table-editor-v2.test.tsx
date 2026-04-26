@@ -1,12 +1,17 @@
-import { render } from '@testing-library/react'
+import { cleanup, render } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TableEditorOp } from '../operators'
 import type { TableSchema } from '../table-schema'
 import { TableEditorV2 } from './table-editor-v2'
 
 describe('TableEditorV2', () => {
   const mockOp = new TableEditorOp('/test-table')
+
+  // Clean up after each test to prevent DOM pollution
+  afterEach(() => {
+    cleanup()
+  })
 
   const simpleSchema: TableSchema = {
     columns: [
