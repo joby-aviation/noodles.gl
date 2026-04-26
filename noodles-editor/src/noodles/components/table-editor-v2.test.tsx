@@ -153,7 +153,7 @@ describe('TableEditorV2', () => {
     const onDataChange = vi.fn()
     const onSchemaChange = vi.fn()
 
-    const { getByRole } = render(
+    const { container } = render(
       <TableEditorV2
         op={mockOp}
         data={simpleData}
@@ -163,6 +163,8 @@ describe('TableEditorV2', () => {
       />
     )
 
-    expect(getByRole('button', { name: /edit schema/i })).toBeDefined()
+    // Schema editor is now a gear icon in the actions column header
+    const schemaButton = container.querySelector('.pi-cog')
+    expect(schemaButton).toBeDefined()
   })
 })
