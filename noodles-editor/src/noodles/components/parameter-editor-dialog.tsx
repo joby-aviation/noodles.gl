@@ -12,6 +12,10 @@ import { useCallback, useState } from 'react'
 import type { CustomFieldDefinition, IOperator, Operator } from '../operators'
 import { fieldTypeToClass } from '../fields'
 import { findFieldReferences } from '../utils/field-references'
+import {
+  getEnableExpressionDependencies,
+  validateEnableExpression,
+} from '../utils/enable-expression-evaluator'
 import { debugParams } from '../../utils/debug'
 import s from './parameter-editor-dialog.module.css'
 
@@ -351,6 +355,8 @@ function FieldEditor({ definition, onUpdate, onValidate, error }: FieldEditorPro
   const [localName, setLocalName] = useState(definition.name)
   const [localError, setLocalError] = useState<string | null>(error || null)
   const [showEnableExpression, setShowEnableExpression] = useState(!!definition.enableExpression)
+  const [expressionError, setExpressionError] = useState<string | null>(null)
+  const [expressionDeps, setExpressionDeps] = useState<string[]>([])
 
   const handleNameChange = (newName: string) => {
     setLocalName(newName)
@@ -373,8 +379,30 @@ function FieldEditor({ definition, onUpdate, onValidate, error }: FieldEditorPro
     if (showEnableExpression) {
       // Turning off - clear the expression
       onUpdate({ enableExpression: undefined })
+      setExpressionError(null)
+      setExpressionDeps([])
     }
     setShowEnableExpression(!showEnableExpression)
+  }
+
+  const handleExpressionChange = (expr: string) => {
+    onUpdate({ enableExpression: expr || undefined })
+
+    // Validate expression
+    const validationError = validateEnableExpression(expr)
+    setExpressionError(validationError)
+
+    // Extract dependencies
+    if (!validationError && expr) {
+      try {
+        const deps = getEnableExpressionDependencies(expr)
+        setExpressionDeps(deps.map(d => d.raw))
+      } catch {
+        setExpressionDeps([])
+      }
+    } else {
+      setExpressionDeps([])
+    }
   }
 
   return (
@@ -442,13 +470,22 @@ function FieldEditor({ definition, onUpdate, onValidate, error }: FieldEditorPro
             <input
               type="text"
               value={definition.enableExpression || ''}
-              onChange={e => onUpdate({ enableExpression: e.target.value || undefined })}
-              className={s.input}
+              onChange={e => handleExpressionChange(e.target.value)}
+              className={expressionError ? s.inputError : s.input}
               placeholder="par.showAdvanced === true"
             />
+            {expressionError && <span className={s.errorText}>Syntax error: {expressionError}</span>}
             <span className={s.hintText}>
               JavaScript expression to conditionally show this field
+              <br />
+              Available: <code>par.fieldName</code>, <code>op('/path').par.field</code>,{' '}
+              <code>op('/path').out.field</code>
             </span>
+            {expressionDeps.length > 0 && (
+              <div className={s.dependenciesInfo}>
+                <strong>Dependencies:</strong> {expressionDeps.join(', ')}
+              </div>
+            )}
           </>
         )}
       </div>

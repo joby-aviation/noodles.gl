@@ -258,6 +258,30 @@
   font-size: 11px;
   font-weight: 400;
   font-style: italic;
+  line-height: 1.4;
+}
+
+.hintText code {
+  background: var(--color-surface-4, #3a3a3a);
+  padding: 2px 4px;
+  border-radius: 2px;
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+  font-size: 10px;
+  font-style: normal;
+}
+
+.dependenciesInfo {
+  font-size: 11px;
+  color: var(--color-text-secondary, #a0a0a0);
+  background: var(--color-surface-4, #3a3a3a);
+  padding: 6px 8px;
+  border-radius: 4px;
+  margin-top: 4px;
+}
+
+.dependenciesInfo strong {
+  color: var(--color-text, #e0e0e0);
+  font-weight: 600;
 }
 
 /* Conditional show toggle */
