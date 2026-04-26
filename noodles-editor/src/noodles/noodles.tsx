@@ -68,6 +68,7 @@ import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
 import { findEdgeAtPosition, useConnectionDropOnEdge } from './hooks/use-connection-drop-on-edge'
 import { useKeyboardShortcut } from './hooks/use-keyboard-shortcut'
 import { useNodeDropOnEdge } from './hooks/use-node-drop-on-edge'
+import { EdgeSpatialIndex } from './utils/spatial-index'
 import { useProjectModifications } from './hooks/use-project-modifications'
 import type { IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
@@ -181,6 +182,34 @@ export function getNoodles(): Visualization {
   const [nodes, setNodes, onNodesChangeBase] = useNodesState<AnyNodeJSON>([])
   const [edges, setEdges, onEdgesChangeBase] = useEdgesState<ReactFlowEdge<unknown>>([])
   const [defaultViewport, setDefaultViewport] = useState({ x: 0, y: 0, zoom: 1 })
+
+  // Refs to access current nodes/edges without triggering callback recreations
+  const nodesRef = useRef(nodes)
+  const edgesRef = useRef(edges)
+
+  // Spatial index for fast edge proximity queries (R-tree)
+  const spatialIndexRef = useRef<EdgeSpatialIndex | null>(null)
+
+  // Keep refs in sync with state
+  useEffect(() => {
+    nodesRef.current = nodes
+  }, [nodes])
+
+  useEffect(() => {
+    edgesRef.current = edges
+  }, [edges])
+
+  // Update spatial index when nodes or edges change
+  useEffect(() => {
+    if (!spatialIndexRef.current) {
+      spatialIndexRef.current = new EdgeSpatialIndex()
+    }
+
+    // Rebuild index if nodes/edges changed
+    if (spatialIndexRef.current.needsRebuild(nodes, edges)) {
+      spatialIndexRef.current.build(nodes, edges)
+    }
+  }, [nodes, edges])
   const [showChatPanel, setShowChatPanel] = useState(false)
   const [chatInitialMessage, setChatInitialMessage] = useState<string | undefined>(undefined)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
@@ -451,9 +480,10 @@ export function getNoodles(): Visualization {
       const edge = findEdgeAtPosition(
         pos,
         connectionDragState.sourceNodeId,
-        () => nodes,
-        () => edges,
-        connectionDragState.compatibleEdgeIds
+        () => nodesRef.current,
+        () => edgesRef.current,
+        connectionDragState.compatibleEdgeIds,
+        spatialIndexRef.current || undefined
       )
       setTargetedEdge(
         edge
@@ -461,15 +491,23 @@ export function getNoodles(): Visualization {
           : null
       )
     },
-    [connectionDragState, nodes, edges, setTargetedEdge]
+    [connectionDragState, setTargetedEdge]
   )
 
   // Hook for dropping nodes onto edges to insert them
-  const { onNodeDragStop: onNodeDragStopBase } = useNodeDropOnEdge({
-    getNodes: useCallback(() => nodes, [nodes]),
-    getEdges: useCallback(() => edges, [edges]),
+  const { onNodeDrag: onNodeDragBase, onNodeDragStop: onNodeDragStopBase } = useNodeDropOnEdge({
+    getNodes: useCallback(() => nodesRef.current, []),
+    getEdges: useCallback(() => edgesRef.current, []),
     setEdges,
   })
+
+  // Track node drag for visual feedback
+  const onNodeDrag = useCallback(
+    (event: React.MouseEvent, node: ReactFlowNode) => {
+      onNodeDragBase(event, node)
+    },
+    [onNodeDragBase]
+  )
 
   // Wrap onNodeDragStop to mark unsaved changes when a node is inserted
   const onNodeDragStop = useCallback(
@@ -1414,6 +1452,7 @@ export function getNoodles(): Visualization {
               onReconnect={onReconnect}
               onNodeContextMenu={onNodeContextMenu}
               onNodesDelete={onNodesDelete}
+              onNodeDrag={onNodeDrag}
               onNodeDragStop={onNodeDragStop}
               onPaneContextMenu={onPaneContextMenu}
               onPaneClick={onPaneClick}

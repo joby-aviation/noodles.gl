@@ -232,6 +232,52 @@
   filter: brightness(0.5);
 }
 
+/* Context Menu Styles */
+.contextMenu {
+  min-width: 180px;
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 4px;
+  box-shadow:
+    0 10px 38px -10px rgba(0, 0, 0, 0.35),
+    0 10px 20px -15px rgba(0, 0, 0, 0.2);
+  z-index: var(--z-index-chrome);
+}
+
+.contextMenuItem {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  padding-left: 28px;
+  font-size: 13px;
+  color: var(--color-text-primary);
+  border-radius: 3px;
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+  transition: background-color 0.15s;
+  position: relative;
+}
+
+.contextMenuItem:hover {
+  background: var(--color-bg-hover);
+}
+
+.contextMenuItem:focus {
+  background: var(--color-bg-hover);
+}
+
+.contextMenuIndicator {
+  position: absolute;
+  left: 8px;
+  width: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-primary);
+}
+
 .headerDownload {
   font-size: 10px;
   padding: 0;
@@ -635,6 +681,30 @@
   background-color: var(--color-value);
 }
 
+/* Button to open the Map Style Configurator dialog from within a node */
+.configureButton {
+  width: 100%;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  margin: 0.25rem 0;
+  font-family: inherit;
+  transition: background-color 0.15s;
+}
+
+.configureButton:hover {
+  background-color: #2563eb;
+}
+
+.configureButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Portal wrapper for the color picker — position/z-index here, top/left set dynamically */
 .colorPickerPortal {
   position: fixed;
@@ -709,8 +779,58 @@
   width: unset;
 }
 
+.fieldFileInputGroupSuggestions {
+  position: relative;
+}
+
 .fieldInputFileUrl {
   padding: 0 1em;
+}
+
+.fileUrlSuggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: var(--z-index-modal);
+  margin: 2px 0 0;
+  padding: 4px 0;
+  list-style: none;
+  background: rgba(22, 22, 24, 0.98);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.fileUrlSuggestion {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.fileUrlSuggestion:hover,
+.fileUrlSuggestionActive {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.fileUrlSuggestionLabel {
+  font-size: 11px;
+  color: var(--node-text-color, rgba(255, 255, 255, 0.9));
+  font-weight: 500;
+}
+
+.fileUrlSuggestionUrl {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.35);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .fieldInputButton {
@@ -793,6 +913,23 @@
   50% {
     stroke-opacity: 0.7;
     filter: drop-shadow(0 0 12px rgba(59, 130, 246, 0.9));
+  }
+}
+
+.nodeDropTarget {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.6);
+  animation: nodeDropPulse 0.8s ease-in-out infinite;
+}
+
+@keyframes nodeDropPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.6);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(59, 130, 246, 0.8), 0 0 20px rgba(59, 130, 246, 0.4);
+    transform: scale(1.02);
   }
 }
 

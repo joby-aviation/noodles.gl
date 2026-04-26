@@ -24,6 +24,7 @@ import {
   NumberOp,
   Operator,
   ProjectOp,
+  RampOp,
   RectangleOp,
   RerouteOp,
   ScatterplotLayerOp,
@@ -2832,5 +2833,133 @@ describe('RerouteOp', () => {
     const op = new RerouteOp('/reroute-0')
     expect(Object.keys(op.inputs)).toEqual(['value'])
     expect(Object.keys(op.outputs)).toEqual(['value'])
+  })
+})
+
+describe('RampOp', () => {
+  const linear = 'linear' as const
+  const smooth = 'smooth' as const
+
+  const linearStops2 = [
+    { id: 'a', pos: 0, val: 0, interp: linear },
+    { id: 'b', pos: 1, val: 1, interp: linear },
+  ]
+
+  it('uses default smooth ramp when stops are empty', () => {
+    const op = new RampOp('/ramp-0')
+    expect(op.execute({ position: 0, stops: [] }).value).toBe(0)
+    expect(op.execute({ position: 1, stops: [] }).value).toBe(1)
+    // smooth symmetric ramp: midpoint equals 0.5
+    expect(op.execute({ position: 0.5, stops: [] }).value).toBeCloseTo(0.5, 5)
+  })
+
+  it('interpolates linearly between two stops with interp=linear', () => {
+    const op = new RampOp('/ramp-0')
+    expect(op.execute({ position: 0, stops: linearStops2 }).value).toBe(0)
+    expect(op.execute({ position: 0.25, stops: linearStops2 }).value).toBe(0.25)
+    expect(op.execute({ position: 0.5, stops: linearStops2 }).value).toBe(0.5)
+    expect(op.execute({ position: 1, stops: linearStops2 }).value).toBe(1)
+  })
+
+  it('clamps below the first stop position', () => {
+    const stops = [
+      { id: 'a', pos: 0.2, val: 5, interp: linear },
+      { id: 'b', pos: 0.8, val: 10, interp: linear },
+    ]
+    const op = new RampOp('/ramp-0')
+    expect(op.execute({ position: 0, stops }).value).toBe(5)
+    expect(op.execute({ position: 0.1, stops }).value).toBe(5)
+  })
+
+  it('clamps above the last stop position', () => {
+    const stops = [
+      { id: 'a', pos: 0.2, val: 5, interp: linear },
+      { id: 'b', pos: 0.8, val: 10, interp: linear },
+    ]
+    const op = new RampOp('/ramp-0')
+    expect(op.execute({ position: 1, stops }).value).toBe(10)
+    expect(op.execute({ position: 0.9, stops }).value).toBe(10)
+  })
+
+  it('interpolates linearly across multiple stops', () => {
+    const stops = [
+      { id: 'a', pos: 0, val: 0, interp: linear },
+      { id: 'b', pos: 0.5, val: 10, interp: linear },
+      { id: 'c', pos: 1, val: 0, interp: linear },
+    ]
+    const op = new RampOp('/ramp-0')
+    expect(op.execute({ position: 0.25, stops }).value).toBe(5)
+    expect(op.execute({ position: 0.75, stops }).value).toBe(5)
+  })
+
+  it('hold interp returns left stop value until next stop', () => {
+    const stops = [
+      { id: 'a', pos: 0, val: 0, interp: 'hold' as const },
+      { id: 'b', pos: 0.5, val: 10, interp: 'hold' as const },
+      { id: 'c', pos: 1, val: 20, interp: 'hold' as const },
+    ]
+    const op = new RampOp('/ramp-0')
+    expect(op.execute({ position: 0.25, stops }).value).toBe(0)
+    expect(op.execute({ position: 0.75, stops }).value).toBe(10)
+    expect(op.execute({ position: 1, stops }).value).toBe(20)
+  })
+
+  it('smooth interp passes through endpoints and is symmetric', () => {
+    const stops = [
+      { id: 'a', pos: 0, val: 0, interp: smooth },
+      { id: 'b', pos: 1, val: 1, interp: smooth },
+    ]
+    const op = new RampOp('/ramp-0')
+    expect(op.execute({ position: 0, stops }).value).toBeCloseTo(0, 5)
+    expect(op.execute({ position: 1, stops }).value).toBeCloseTo(1, 5)
+    expect(op.execute({ position: 0.5, stops }).value).toBeCloseTo(0.5, 5)
+  })
+
+  it('returns the only stop val for a single stop at any position', () => {
+    const stops = [{ id: 'a', pos: 0.5, val: 42 }]
+    const op = new RampOp('/ramp-0')
+    expect(op.execute({ position: 0, stops }).value).toBe(42)
+    expect(op.execute({ position: 0.5, stops }).value).toBe(42)
+    expect(op.execute({ position: 1, stops }).value).toBe(42)
+  })
+
+  it('sorts unsorted stops before interpolating', () => {
+    const stops = [
+      { id: 'b', pos: 1, val: 10, interp: linear },
+      { id: 'a', pos: 0, val: 0, interp: linear },
+    ]
+    const op = new RampOp('/ramp-0')
+    expect(op.execute({ position: 0.5, stops }).value).toBe(5)
+  })
+})
+
+describe('Operator debugging', () => {
+  it('has a breakpointEnabled property', () => {
+    const op = new NumberOp('/num-0')
+    expect(op.breakpointEnabled).toBeDefined()
+    expect(op.breakpointEnabled.value).toBe(false)
+  })
+
+  it('can toggle breakpoint state', () => {
+    const op = new NumberOp('/num-0')
+    expect(op.breakpointEnabled.value).toBe(false)
+
+    op.breakpointEnabled.next(true)
+    expect(op.breakpointEnabled.value).toBe(true)
+
+    op.breakpointEnabled.next(false)
+    expect(op.breakpointEnabled.value).toBe(false)
+  })
+
+  it('breakpoint state is observable', async () => {
+    const op = new NumberOp('/num-0')
+    const states: boolean[] = []
+
+    op.breakpointEnabled.subscribe(state => states.push(state))
+
+    op.breakpointEnabled.next(true)
+    op.breakpointEnabled.next(false)
+
+    expect(states).toEqual([false, true, false])
   })
 })

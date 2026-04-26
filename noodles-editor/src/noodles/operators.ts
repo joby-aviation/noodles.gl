@@ -135,6 +135,11 @@ import { getArc } from '../utils/arc-geometry'
 import { colorToHex, hexToColor } from '../utils/color'
 import { debugDirty, debugExecute, debugParams, debugPull } from '../utils/debug'
 import { getDirections } from '../utils/directions'
+import {
+  applyStyleOverrides,
+  type MaplibreStyle,
+  type StyleConfiguratorData,
+} from '../utils/map-style-utils'
 import { CARTO_DARK, MAP_STYLES } from '../utils/map-styles'
 import { mulberry32 } from '../utils/random'
 import { FilterColorExtension } from './extensions/filter-color-extension'
@@ -234,9 +239,6 @@ export abstract class Operator<OP extends IOperator> {
 
   // If the operator allows its data to be downloaded, override this method
   asDownload?: () => Blob | string | ArrayBuffer
-
-  // Should the execute function be memoized? Ops that store state elsewhere might not want to be cached.
-  static cacheable = true
   public containerId?: string
 
   // Custom field definitions for dynamic parameters
@@ -254,6 +256,9 @@ export abstract class Operator<OP extends IOperator> {
   subs: Subscription[] = []
 
   locked = new BehaviorSubject<boolean>(false)
+
+  // Debug breakpoint - when enabled, execution pauses at this operator
+  breakpointEnabled = new BehaviorSubject<boolean>(false)
 
   // Execution state for visual debugging
   executionState = new BehaviorSubject<ExecutionState>({ status: 'idle' })
@@ -491,6 +496,15 @@ export abstract class Operator<OP extends IOperator> {
       // Get current input values
       const inputValues = this.data
 
+      // Debug breakpoint - pause execution if enabled
+      if (this.breakpointEnabled.value) {
+        console.log(`[Breakpoint] Pausing execution at operator: ${this.id}`, {
+          inputs: inputValues,
+          operator: this,
+        })
+        debugger
+      }
+
       // Execute the operator
       const result = this.execute(inputValues)
       const finalResult = result instanceof Promise ? await result : result
@@ -641,6 +655,15 @@ export abstract class Operator<OP extends IOperator> {
           this.executionState.next({ status: 'executing' })
 
           try {
+            // Debug breakpoint - pause execution if enabled
+            if (this.breakpointEnabled.value) {
+              console.log(`[Breakpoint] Pausing execution at operator: ${this.id}`, {
+                inputs: inputValues,
+                operator: this,
+              })
+              debugger
+            }
+
             const result = this.execute(inputValues)
             const finalResult = result instanceof Promise ? await result : result
 
@@ -2711,7 +2734,7 @@ export class SwitchOp extends Operator<SwitchOp> {
   createInputs() {
     return {
       values: new ListField(new DataField()),
-      index: new NumberField(0, { min: 0, step: 1 }),
+      index: new NumberField(0, { min: 0, step: 1, accessor: true }),
       blend: new BooleanField(false),
     }
   }
@@ -2725,44 +2748,48 @@ export class SwitchOp extends Operator<SwitchOp> {
     index,
     blend,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    if (!blend) {
-      const value = values[Math.floor(Math.min(index, values.length - 1))]
+    // Define helper functions
+    const selectValue = (values: unknown[], index: number): unknown => {
+      if (values.length === 0) return undefined
+      const clampedIndex = Math.max(0, Math.min(index, values.length - 1))
+      return values[Math.floor(clampedIndex)]
+    }
+
+    const blendValues = (values: unknown[], index: number): unknown => {
+      if (values.length === 0) return undefined
+      if (values.length === 1) return values[0]
+
+      const clampedIndex = Math.max(0, Math.min(index, values.length - 1))
+      const lowerIndex = Math.floor(clampedIndex)
+      const upperIndex = Math.ceil(clampedIndex)
+
+      if (lowerIndex === upperIndex) return values[lowerIndex]
+
+      const t = clampedIndex - lowerIndex
+      const lowerValue = values[lowerIndex]
+      const upperValue = values[upperIndex]
+
+      if (isTemporal(lowerValue) && isTemporal(upperValue)) {
+        return interpolateTemporal(lowerValue, upperValue, t)
+      }
+
+      return interpolate(lowerValue, upperValue)(t)
+    }
+
+    // Choose function based on blend mode
+    const selectFn = blend ? blendValues : selectValue
+
+    // Handle accessor input
+    if (isAccessor(index)) {
+      const value = (...args: unknown[]) => {
+        const idx = (index as (...args: unknown[]) => number)(...args)
+        return selectFn(values, idx)
+      }
       return { value }
     }
 
-    if (values.length === 0) {
-      return { value: undefined }
-    }
-
-    if (values.length === 1) {
-      return { value: values[0] }
-    }
-
-    // For multiple values, we need to find which two values to interpolate between
-    // and calculate the interpolation factor
-    const clampedIndex = Math.min(index, values.length - 1)
-    const lowerIndex = Math.floor(clampedIndex)
-    const upperIndex = Math.ceil(clampedIndex)
-
-    // If we're exactly on an index, return that value
-    if (lowerIndex === upperIndex) {
-      return { value: values[lowerIndex] }
-    }
-
-    // Calculate the interpolation factor between the two values
-    const t = clampedIndex - lowerIndex
-
-    // Check if we're dealing with Temporal objects
-    const lowerValue = values[lowerIndex]
-    const upperValue = values[upperIndex]
-
-    if (isTemporal(lowerValue) && isTemporal(upperValue)) {
-      const value = interpolateTemporal(lowerValue, upperValue, t)
-      return { value }
-    }
-
-    // Fall back to d3's interpolate for other types
-    const value = interpolate(lowerValue, upperValue)(t)
+    // Handle static input (unchanged behavior)
+    const value = selectFn(values, index as number)
     return { value }
   }
 }
@@ -3466,29 +3493,6 @@ export class MouseOp extends Operator<MouseOp> {
   }
 }
 
-class MapStyleOp extends Operator<MapStyleOp> {
-  static displayName = 'MapStyle'
-  static description = 'Map style for MapLibre'
-  createInputs() {
-    return {
-      mapStyle: new StringLiteralField(CARTO_DARK, {
-        values: Object.entries(MAP_STYLES).map(([url, name]) => ({
-          label: name,
-          value: url as string,
-        })),
-      }),
-    }
-  }
-  createOutputs() {
-    return {
-      mapStyle: new StringField(),
-    }
-  }
-  execute({ mapStyle }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    return { mapStyle }
-  }
-}
-
 export class ProjectOp extends Operator<ProjectOp> {
   static displayName = 'Project'
   static description =
@@ -3643,11 +3647,7 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
     return {
       mapStyle: new MapStyleField(CARTO_DARK, {
         accept: '.json',
-        suggestions: [
-          { value: CARTO_DARK, label: 'Carto Dark' },
-          { value: MAP_STYLES.CARTO_LIGHT, label: 'Carto Light' },
-          { value: MAP_STYLES.CARTO_VOYAGER, label: 'Carto Voyager' },
-        ],
+        suggestions: Object.entries(MAP_STYLES).map(([url, name]) => ({ value: url, label: name })),
       }),
       projection: new StringLiteralField('mercator', {
         values: ['mercator', 'globe'],
@@ -3714,6 +3714,54 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
         sky,
       },
     }
+  }
+}
+
+export class MapStyleConfiguratorOp extends Operator<MapStyleConfiguratorOp> {
+  static displayName = 'MapStyleConfigurator'
+  static description =
+    'Visually edit Maplibre style layer colors, fonts, and visibility. Connect the output to MaplibreBasemap.'
+
+  // Cache to avoid re-fetching the same style URL on every override change
+  private _cachedStyleUrl: string | null = null
+  private _cachedStyle: MaplibreStyle | null = null
+
+  createInputs() {
+    return {
+      baseStyle: new FileUrlField(CARTO_DARK, { accept: '.json' }),
+      // Stores layer + global overrides as { layers: LayerOverride[], global: StyleGlobalOverrides }
+      overrides: new UnknownField({ layers: [], global: {} }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      // UnknownField because execute() returns a full style object, not just a URL string
+      mapStyle: new UnknownField(),
+    }
+  }
+
+  async execute({
+    baseStyle,
+    overrides,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!baseStyle) return { mapStyle: '' }
+
+    let styleObj: MaplibreStyle
+    if (typeof baseStyle === 'string') {
+      if (this._cachedStyleUrl !== baseStyle) {
+        const resp = await fetch(baseStyle)
+        if (!resp.ok) throw new Error(`Failed to fetch map style: ${resp.statusText}`)
+        this._cachedStyle = await resp.json()
+        this._cachedStyleUrl = baseStyle
+      }
+      styleObj = this._cachedStyle!
+    } else {
+      styleObj = baseStyle as MaplibreStyle
+    }
+
+    const config = (overrides ?? { layers: [], global: {} }) as StyleConfiguratorData
+    return { mapStyle: applyStyleOverrides(styleObj, config) }
   }
 }
 
@@ -4642,7 +4690,6 @@ export class BlendingOp extends Operator<BlendingOp> {
 export class PathLayerOp extends Operator<PathLayerOp> {
   static displayName = 'PathLayer'
   static description = 'Render a path on the map'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(
@@ -4693,7 +4740,6 @@ export class PathLayerOp extends Operator<PathLayerOp> {
 export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
   static displayName = 'ScatterplotLayer'
   static description = 'Render a scatterplot of points as circles on the map'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -4743,7 +4789,6 @@ export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
 export class TripsLayerOp extends Operator<TripsLayerOp> {
   static displayName = 'TripsLayer'
   static description = 'Render a set of trips with timestamps for animation on the map'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(
@@ -4801,7 +4846,6 @@ export class TripsLayerOp extends Operator<TripsLayerOp> {
 export class SolidPolygonLayerOp extends Operator<SolidPolygonLayerOp> {
   static displayName = 'SolidPolygonLayer'
   static description = 'Render a set of solid polygons on the map'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -4839,7 +4883,6 @@ export class SolidPolygonLayerOp extends Operator<SolidPolygonLayerOp> {
 export class TextLayerOp extends Operator<TextLayerOp> {
   static displayName = 'TextLayer'
   static description = 'Render a set of text labels on the map'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -4915,7 +4958,6 @@ export class TextLayerOp extends Operator<TextLayerOp> {
 export class IconLayerOp extends Operator<IconLayerOp> {
   static displayName = 'IconLayer'
   static description = 'Render a set of icons on the map'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -4985,7 +5027,6 @@ export class IconLayerOp extends Operator<IconLayerOp> {
 export class ScenegraphLayerOp extends Operator<ScenegraphLayerOp> {
   static displayName = 'ScenegraphLayer'
   static description = 'Render a 3D model on the map'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -5035,7 +5076,6 @@ export class ScenegraphLayerOp extends Operator<ScenegraphLayerOp> {
 export class SimpleMeshLayerOp extends Operator<SimpleMeshLayerOp> {
   static displayName = 'SimpleMeshLayer'
   static description = 'Render simple 3D meshes/models at specified positions'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -5091,7 +5131,6 @@ export class SimpleMeshLayerOp extends Operator<SimpleMeshLayerOp> {
 export class H3HexagonLayerOp extends Operator<H3HexagonLayerOp> {
   static displayName = 'H3HexagonLayer'
   static description = 'Render a hexagon grid on the map using the H3 grid system'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -5130,7 +5169,6 @@ export class A5LayerOp extends Operator<A5LayerOp> {
   static displayName = 'A5Layer'
   static description =
     'Render filled and/or stroked polygons using the A5 geospatial indexing system'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -5170,7 +5208,6 @@ export class A5LayerOp extends Operator<A5LayerOp> {
 export class HeatmapLayerOp extends Operator<HeatmapLayerOp> {
   static displayName = 'HeatmapLayer'
   static description = 'Render a heatmap from points on the map'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -5210,7 +5247,6 @@ export class HeatmapLayerOp extends Operator<HeatmapLayerOp> {
 export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
   static displayName = 'GeoJsonLayer'
   static description = 'Render GeoJSON data with points, lines, and polygons'
-  static cacheable = false
   createInputs() {
     return {
       // Core fields (visible by default)
@@ -5348,7 +5384,6 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
 export class ArcLayerOp extends Operator<ArcLayerOp> {
   static displayName = 'ArcLayer'
   static description = 'Render a set of arcs on the map'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -5402,7 +5437,6 @@ const DEFAULT_COLOR_RANGE = [
 export class GridLayerOp extends Operator<GridLayerOp> {
   static displayName = 'GridLayer'
   static description = 'Aggregate data into a grid and render as columns'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -5486,7 +5520,6 @@ export class GridLayerOp extends Operator<GridLayerOp> {
 export class HexagonLayerOp extends Operator<HexagonLayerOp> {
   static displayName = 'HexagonLayer'
   static description = 'Aggregate data into hexagonal bins and render as hexagonal columns'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -5569,7 +5602,6 @@ export class HexagonLayerOp extends Operator<HexagonLayerOp> {
 export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
   static displayName = 'Tile3DLayer'
   static description = 'Render 3D tiles on the map (Google, Cesium, or a custom tileset URL)'
-  static cacheable = false
   createInputs() {
     return {
       visible: new BooleanField(true),
@@ -5787,7 +5819,6 @@ class TerrainExtensionOp extends Operator<TerrainExtensionOp> {
 class RasterTileLayerOp extends Operator<RasterTileLayerOp> {
   static displayName = 'RasterTileLayer'
   static description = 'Render a raster tile layer on the map'
-  static cacheable = false
   createInputs() {
     return {
       visible: new BooleanField(true),
@@ -6178,6 +6209,116 @@ export class ExpressionOp extends Operator<ExpressionOp> {
   }
 }
 
+export type RampInterpType = 'linear' | 'smooth' | 'hold'
+
+// Tangent slopes matching D3's curveMonotoneX (Fritsch-Carlson algorithm)
+// so the smooth computation result matches the visual curve exactly.
+// For n=2, D3 draws a straight line, so we return the chord slope at both endpoints.
+export function monotoneSlopes(stops: Array<{ pos: number; val: number }>): number[] {
+  const n = stops.length
+  const m = new Array<number>(n).fill(0)
+  if (n < 2) return m
+  if (n === 2) {
+    const h = stops[1].pos - stops[0].pos
+    const s = h !== 0 ? (stops[1].val - stops[0].val) / h : 0
+    return [s, s]
+  }
+
+  // Interior slopes — D3 slope3 formula
+  for (let i = 1; i < n - 1; i++) {
+    const h0 = stops[i].pos - stops[i - 1].pos
+    const h1 = stops[i + 1].pos - stops[i].pos
+    const s0 = h0 !== 0 ? (stops[i].val - stops[i - 1].val) / h0 : 0
+    const s1 = h1 !== 0 ? (stops[i + 1].val - stops[i].val) / h1 : 0
+    const p = (s0 * h1 + s1 * h0) / (h0 + h1)
+    const sign = (v: number) => (v < 0 ? -1 : v > 0 ? 1 : 0)
+    m[i] = (sign(s0) + sign(s1)) * Math.min(Math.abs(s0), Math.abs(s1), 0.5 * Math.abs(p)) || 0
+  }
+
+  // Endpoint slopes — D3 slope2 formula
+  const h0 = stops[1].pos - stops[0].pos
+  const hN = stops[n - 1].pos - stops[n - 2].pos
+  m[0] = h0 !== 0 ? ((3 * (stops[1].val - stops[0].val)) / h0 - m[1]) / 2 : m[1]
+  m[n - 1] = hN !== 0 ? ((3 * (stops[n - 1].val - stops[n - 2].val)) / hN - m[n - 2]) / 2 : m[n - 2]
+
+  return m
+}
+
+// Per-segment interpolation: uses each stop's interp type for the segment that follows it
+function interpolateRamp(
+  position: number,
+  sortedStops: Array<{ pos: number; val: number; interp?: RampInterpType }>
+): number {
+  const n = sortedStops.length
+  if (n === 1) return sortedStops[0].val
+  if (position <= sortedStops[0].pos) return sortedStops[0].val
+  if (position >= sortedStops[n - 1].pos) return sortedStops[n - 1].val
+
+  let i = 0
+  while (i < n - 2 && position >= sortedStops[i + 1].pos) i++
+
+  const s0 = sortedStops[i]
+  const s1 = sortedStops[i + 1]
+  const h = s1.pos - s0.pos
+  if (h === 0) return s0.val
+
+  const interp = s0.interp ?? 'smooth'
+
+  if (interp === 'hold') return s0.val
+
+  const t = (position - s0.pos) / h
+
+  if (interp === 'linear') return s0.val + t * (s1.val - s0.val)
+
+  // smooth: cubic Hermite with PCHIP slopes
+  const slopes = monotoneSlopes(sortedStops)
+  const t2 = t * t
+  const t3 = t2 * t
+  return (
+    (2 * t3 - 3 * t2 + 1) * s0.val +
+    (t3 - 2 * t2 + t) * h * slopes[i] +
+    (-2 * t3 + 3 * t2) * s1.val +
+    (t3 - t2) * h * slopes[i + 1]
+  )
+}
+
+export class RampOp extends Operator<RampOp> {
+  static displayName = 'Ramp'
+  static description = 'Map a position (0–1) to a value using a user-defined curve'
+
+  createInputs() {
+    return {
+      // softMin/softMax suggests 0-1 in the UI without hard-clamping accessor functions
+      position: new NumberField(0, { softMin: 0, softMax: 1, step: 0.01, accessor: true }),
+      stops: new DataField(),
+    }
+  }
+
+  createOutputs() {
+    return {
+      value: new NumberField(),
+    }
+  }
+
+  execute({
+    position,
+    stops,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const rampStops: Array<{ pos: number; val: number; interp?: RampInterpType }> =
+      !stops || (stops as unknown[]).length === 0
+        ? [
+            { pos: 0, val: 0, interp: 'smooth' as RampInterpType },
+            { pos: 1, val: 1, interp: 'smooth' as RampInterpType },
+          ]
+        : [...(stops as Array<{ pos: number; val: number; interp?: RampInterpType }>)].sort(
+            (a, b) => a.pos - b.pos
+          )
+
+    const value = composeAccessor(position, (p: number) => interpolateRamp(p, rampStops))
+    return { value }
+  }
+}
+
 export class RectangleOp extends Operator<RectangleOp> {
   static displayName = 'Rectangle'
   static description =
@@ -6370,7 +6511,6 @@ export class GeoJsonTransformOp extends Operator<GeoJsonTransformOp> {
 export class BitmapLayerOp extends Operator<BitmapLayerOp> {
   static displayName = 'BitmapLayer'
   static description = 'Render a raster image at specified boundaries'
-  static cacheable = false
   createInputs() {
     return {
       visible: new BooleanField(true),
@@ -6419,7 +6559,6 @@ export class BitmapLayerOp extends Operator<BitmapLayerOp> {
 export class ColumnLayerOp extends Operator<ColumnLayerOp> {
   static displayName = 'ColumnLayer'
   static description = 'Render extruded cylinders (columns) at given positions'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -6480,7 +6619,6 @@ export class ColumnLayerOp extends Operator<ColumnLayerOp> {
 export class GridCellLayerOp extends Operator<GridCellLayerOp> {
   static displayName = 'GridCellLayer'
   static description = 'Render a grid of cells at specified coordinates'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -6525,7 +6663,6 @@ export class GridCellLayerOp extends Operator<GridCellLayerOp> {
 export class LineLayerOp extends Operator<LineLayerOp> {
   static displayName = 'LineLayer'
   static description = 'Render straight lines between source and target coordinates'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -6570,7 +6707,6 @@ export class LineLayerOp extends Operator<LineLayerOp> {
 export class PointCloudLayerOp extends Operator<PointCloudLayerOp> {
   static displayName = 'PointCloudLayer'
   static description = 'Render a point cloud with millions of 3D points'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -6616,7 +6752,6 @@ export class PointCloudLayerOp extends Operator<PointCloudLayerOp> {
 export class PolygonLayerOp extends Operator<PolygonLayerOp> {
   static displayName = 'PolygonLayer'
   static description = 'Render filled and/or stroked polygons'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -6671,7 +6806,6 @@ export class PolygonLayerOp extends Operator<PolygonLayerOp> {
 export class ContourLayerOp extends Operator<ContourLayerOp> {
   static displayName = 'ContourLayer'
   static description = 'Aggregate data and render contour lines or filled contour bands'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -6716,7 +6850,6 @@ export class ContourLayerOp extends Operator<ContourLayerOp> {
 export class ScreenGridLayerOp extends Operator<ScreenGridLayerOp> {
   static displayName = 'ScreenGridLayer'
   static description = 'Aggregate data into a grid in screen space and visualize as a heatmap'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -6759,7 +6892,6 @@ export class ScreenGridLayerOp extends Operator<ScreenGridLayerOp> {
 export class GreatCircleLayerOp extends Operator<GreatCircleLayerOp> {
   static displayName = 'GreatCircleLayer'
   static description = 'Render great circle arcs between pairs of source and target coordinates'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -6806,7 +6938,6 @@ export class GreatCircleLayerOp extends Operator<GreatCircleLayerOp> {
 export class H3ClusterLayerOp extends Operator<H3ClusterLayerOp> {
   static displayName = 'H3ClusterLayer'
   static description = 'Render hexagons from H3 hexagon indices and cluster them by density'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -6844,7 +6975,6 @@ export class H3ClusterLayerOp extends Operator<H3ClusterLayerOp> {
 export class GeohashLayerOp extends Operator<GeohashLayerOp> {
   static displayName = 'GeohashLayer'
   static description = 'Render filled and/or stroked polygons based on geohash strings'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -6887,7 +7017,6 @@ export class GeohashLayerOp extends Operator<GeohashLayerOp> {
 export class S2LayerOp extends Operator<S2LayerOp> {
   static displayName = 'S2Layer'
   static description = 'Render filled and/or stroked polygons based on S2 tokens'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -6930,7 +7059,6 @@ export class S2LayerOp extends Operator<S2LayerOp> {
 export class QuadkeyLayerOp extends Operator<QuadkeyLayerOp> {
   static displayName = 'QuadkeyLayer'
   static description = 'Render filled and/or stroked polygons based on quadkey strings'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -6973,7 +7101,6 @@ export class QuadkeyLayerOp extends Operator<QuadkeyLayerOp> {
 export class MVTLayerOp extends Operator<MVTLayerOp> {
   static displayName = 'MVTLayer'
   static description = 'Render Mapbox Vector Tiles (MVT)'
-  static cacheable = false
   createInputs() {
     return {
       data: new StringField('https://example.com/tiles/{z}/{x}/{y}.mvt'),
@@ -7021,7 +7148,6 @@ export class MVTLayerOp extends Operator<MVTLayerOp> {
 export class TerrainLayerOp extends Operator<TerrainLayerOp> {
   static displayName = 'TerrainLayer'
   static description = 'Render a terrain mesh from heightmap tiles'
-  static cacheable = false
   createInputs() {
     return {
       elevationData: new StringField('https://example.com/elevation/{z}/{x}/{y}.png'),
@@ -7066,7 +7192,6 @@ export class TerrainLayerOp extends Operator<TerrainLayerOp> {
 export class TileLayerOp extends Operator<TileLayerOp> {
   static displayName = 'TileLayer'
   static description = 'Render data organized in a tiled format (generic tile layer)'
-  static cacheable = false
   createInputs() {
     return {
       data: new StringField('https://example.com/tiles/{z}/{x}/{y}'),
@@ -7488,7 +7613,7 @@ export const opTypes = {
   LineLayerOp,
   MaplibreBasemapOp,
   MapRangeOp,
-  MapStyleOp,
+  MapStyleConfiguratorOp,
   MapViewOp,
   MapViewStateOp,
   Mask3DExtensionOp,
@@ -7509,6 +7634,7 @@ export const opTypes = {
   PolygonLayerOp,
   ProjectOp,
   QuadkeyLayerOp,
+  RampOp,
   RandomizeAttributeOp,
   RasterTileLayerOp,
   RectangleOp,

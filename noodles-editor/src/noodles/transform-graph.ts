@@ -6,7 +6,6 @@ import type { IOperator, Operator, OpType } from './operators'
 import { ContainerOp, ForLoopEndOp, GraphInputOp, opTypes, type SpecialNodeType } from './operators'
 import { getOpStore } from './store'
 import { validateConnection } from './utils/can-connect'
-import { memoize } from './utils/memoize'
 import { getParentPath, isDirectChild, parseHandleId } from './utils/path-utils'
 import { computeVisibilityHeuristic } from './utils/visibility-heuristic'
 
@@ -166,9 +165,6 @@ export function transformGraph<
           op.rebuildInputs()
         }
 
-        if (ctor.cacheable) {
-          op.execute = memoize(op.execute)
-        }
         created.push(op)
         // Store operator in store using fully qualified path
         store.setOp(id, op)
