@@ -1,5 +1,6 @@
 import MapboxGeocoder from '@mapbox/mapbox-gl-geocoder'
 import ReactJson from '@microlink/react-json-view'
+import * as ContextMenu from '@radix-ui/react-context-menu'
 import * as Tooltip from '@radix-ui/react-tooltip'
 import {
   BaseEdge,
@@ -393,6 +394,21 @@ export function useLocked(op: Operator<IOperator>) {
   return locked
 }
 
+function useBreakpoint(op: Operator<IOperator>): [boolean, (checked: boolean) => void] {
+  const [enabled, setEnabled] = useState(op.breakpointEnabled.value)
+
+  useEffect(() => {
+    const subscription = op.breakpointEnabled.subscribe(setEnabled)
+    return () => subscription.unsubscribe()
+  }, [op])
+
+  const toggle = useCallback((checked: boolean) => {
+    op.breakpointEnabled.next(checked)
+  }, [op])
+
+  return [enabled, toggle]
+}
+
 // Hook to subscribe to field visibility changes and trigger re-render
 export function useFieldVisibility(op: Operator<IOperator>) {
   const [, setVisibility] = useState(op.visibleFields.value)
@@ -582,6 +598,7 @@ function NodeComponent({
     throw new Error(`Operator with id ${id} not found`)
   }
   const locked = useLocked(op)
+  const [breakpointEnabled, toggleBreakpoint] = useBreakpoint(op)
   const executionState = useExecutionState(op)
   const connectionErrors = useConnectionErrors(op)
   const hasConnectionErrors = connectionErrors.size > 0
@@ -643,43 +660,62 @@ function NodeComponent({
   )
 
   return (
-    <div
-      className={cx(s.wrapper, {
-        [s.wrapperError]:
-          executionState.status === 'error' || hasConnectionErrors || enableExpressionErrors.size > 0,
-        [s.wrapperExecuting]: executionState.status === 'executing',
-        [s.wrapperDimmed]: isDimmed,
-      })}
-    >
-      <NodeHeader
-        id={id}
-        type={type}
-        op={op}
-        connectionErrors={connectionErrors}
-        enableExpressionErrors={enableExpressionErrors}
-      />
-      {(resizeableNodes as readonly string[]).includes(type) && (
-        <NodeResizer isVisible={selected} minWidth={200} minHeight={100} />
-      )}
-      <div className={s.content}>
-        {Object.entries(allInputs)
-          .filter(([key]) => op.isFieldVisible(key) && isFieldEnabled(key))
-          .map(([key, field]) => (
-            <FieldComponent
-              key={key}
-              id={key}
-              field={field}
-              disabled={locked}
-              handle={PAR_HANDLE_OPTIONS}
-            />
-          ))}
-        <div className={s.outputHandleContainer}>
-          {Object.entries(op.outputs).map(([key, field]) => (
-            <OutputHandle key={key} id={key} field={field} />
-          ))}
+    <ContextMenu.Root>
+      <ContextMenu.Trigger asChild>
+        <div
+          className={cx(s.wrapper, {
+            [s.wrapperError]:
+              executionState.status === 'error' || hasConnectionErrors || enableExpressionErrors.size > 0,
+            [s.wrapperExecuting]: executionState.status === 'executing',
+            [s.wrapperDimmed]: isDimmed,
+          })}
+        >
+          <NodeHeader
+            id={id}
+            type={type}
+            op={op}
+            connectionErrors={connectionErrors}
+            enableExpressionErrors={enableExpressionErrors}
+          />
+          {(resizeableNodes as readonly string[]).includes(type) && (
+            <NodeResizer isVisible={selected} minWidth={200} minHeight={100} />
+          )}
+          <div className={s.content}>
+            {Object.entries(allInputs)
+              .filter(([key]) => op.isFieldVisible(key) && isFieldEnabled(key))
+              .map(([key, field]) => (
+                <FieldComponent
+                  key={key}
+                  id={key}
+                  field={field}
+                  disabled={locked}
+                  handle={PAR_HANDLE_OPTIONS}
+                />
+              ))}
+            <div className={s.outputHandleContainer}>
+              {Object.entries(op.outputs).map(([key, field]) => (
+                <OutputHandle key={key} id={key} field={field} />
+              ))}
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
+      </ContextMenu.Trigger>
+
+      <ContextMenu.Portal>
+        <ContextMenu.Content className={s.contextMenu} sideOffset={5}>
+          <ContextMenu.CheckboxItem
+            className={s.contextMenuItem}
+            checked={breakpointEnabled}
+            onCheckedChange={toggleBreakpoint}
+          >
+            <ContextMenu.ItemIndicator className={s.contextMenuIndicator}>
+              <i className="pi pi-check" style={{ fontSize: '12px' }} />
+            </ContextMenu.ItemIndicator>
+            Debug Breakpoint
+          </ContextMenu.CheckboxItem>
+        </ContextMenu.Content>
+      </ContextMenu.Portal>
+    </ContextMenu.Root>
   )
 }
 

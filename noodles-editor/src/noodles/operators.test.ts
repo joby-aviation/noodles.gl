@@ -2834,3 +2834,34 @@ describe('RerouteOp', () => {
     expect(Object.keys(op.outputs)).toEqual(['value'])
   })
 })
+
+describe('Operator debugging', () => {
+  it('has a breakpointEnabled property', () => {
+    const op = new NumberOp('/num-0')
+    expect(op.breakpointEnabled).toBeDefined()
+    expect(op.breakpointEnabled.value).toBe(false)
+  })
+
+  it('can toggle breakpoint state', () => {
+    const op = new NumberOp('/num-0')
+    expect(op.breakpointEnabled.value).toBe(false)
+
+    op.breakpointEnabled.next(true)
+    expect(op.breakpointEnabled.value).toBe(true)
+
+    op.breakpointEnabled.next(false)
+    expect(op.breakpointEnabled.value).toBe(false)
+  })
+
+  it('breakpoint state is observable', async () => {
+    const op = new NumberOp('/num-0')
+    const states: boolean[] = []
+
+    op.breakpointEnabled.subscribe(state => states.push(state))
+
+    op.breakpointEnabled.next(true)
+    op.breakpointEnabled.next(false)
+
+    expect(states).toEqual([false, true, false])
+  })
+})

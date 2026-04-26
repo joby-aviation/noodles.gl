@@ -260,6 +260,9 @@ export abstract class Operator<OP extends IOperator> {
 
   locked = new BehaviorSubject<boolean>(false)
 
+  // Debug breakpoint - when enabled, execution pauses at this operator
+  breakpointEnabled = new BehaviorSubject<boolean>(false)
+
   // Execution state for visual debugging
   executionState = new BehaviorSubject<ExecutionState>({ status: 'idle' })
 
@@ -496,6 +499,15 @@ export abstract class Operator<OP extends IOperator> {
       // Get current input values
       const inputValues = this.data
 
+      // Debug breakpoint - pause execution if enabled
+      if (this.breakpointEnabled.value) {
+        console.log(`[Breakpoint] Pausing execution at operator: ${this.id}`, {
+          inputs: inputValues,
+          operator: this,
+        })
+        debugger
+      }
+
       // Execute the operator
       const result = this.execute(inputValues)
       const finalResult = result instanceof Promise ? await result : result
@@ -646,6 +658,15 @@ export abstract class Operator<OP extends IOperator> {
           this.executionState.next({ status: 'executing' })
 
           try {
+            // Debug breakpoint - pause execution if enabled
+            if (this.breakpointEnabled.value) {
+              console.log(`[Breakpoint] Pausing execution at operator: ${this.id}`, {
+                inputs: inputValues,
+                operator: this,
+              })
+              debugger
+            }
+
             const result = this.execute(inputValues)
             const finalResult = result instanceof Promise ? await result : result
 

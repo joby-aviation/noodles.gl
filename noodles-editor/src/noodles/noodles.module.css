@@ -232,6 +232,52 @@
   filter: brightness(0.5);
 }
 
+/* Context Menu Styles */
+.contextMenu {
+  min-width: 180px;
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 4px;
+  box-shadow:
+    0 10px 38px -10px rgba(0, 0, 0, 0.35),
+    0 10px 20px -15px rgba(0, 0, 0, 0.2);
+  z-index: var(--z-index-chrome);
+}
+
+.contextMenuItem {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  padding-left: 28px;
+  font-size: 13px;
+  color: var(--color-text-primary);
+  border-radius: 3px;
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+  transition: background-color 0.15s;
+  position: relative;
+}
+
+.contextMenuItem:hover {
+  background: var(--color-bg-hover);
+}
+
+.contextMenuItem:focus {
+  background: var(--color-bg-hover);
+}
+
+.contextMenuIndicator {
+  position: absolute;
+  left: 8px;
+  width: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-primary);
+}
+
 .headerDownload {
   font-size: 10px;
   padding: 0;
