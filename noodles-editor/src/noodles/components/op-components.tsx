@@ -391,7 +391,7 @@ function useLocked(op: Operator<IOperator>) {
   return locked
 }
 
-function useBreakpoint(op: Operator<IOperator>): [boolean, () => void] {
+function useBreakpoint(op: Operator<IOperator>): [boolean, (checked: boolean) => void] {
   const [enabled, setEnabled] = useState(op.breakpointEnabled.value)
 
   useEffect(() => {
@@ -399,8 +399,8 @@ function useBreakpoint(op: Operator<IOperator>): [boolean, () => void] {
     return () => subscription.unsubscribe()
   }, [op])
 
-  const toggle = useCallback(() => {
-    op.breakpointEnabled.next(!op.breakpointEnabled.value)
+  const toggle = useCallback((checked: boolean) => {
+    op.breakpointEnabled.next(checked)
   }, [op])
 
   return [enabled, toggle]
