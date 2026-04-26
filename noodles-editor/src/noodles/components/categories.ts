@@ -91,7 +91,6 @@ export const categories = {
     'Project',
     'Reroute',
     'Unproject',
-    'MapStyle',
   ],
   vector: ['CombineXY', 'CombineXYZ', 'SplitXY', 'SplitXYZ'],
   view: [

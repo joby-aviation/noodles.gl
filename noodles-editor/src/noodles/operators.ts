@@ -257,6 +257,9 @@ export abstract class Operator<OP extends IOperator> {
 
   locked = new BehaviorSubject<boolean>(false)
 
+  // Debug breakpoint - when enabled, execution pauses at this operator
+  breakpointEnabled = new BehaviorSubject<boolean>(false)
+
   // Execution state for visual debugging
   executionState = new BehaviorSubject<ExecutionState>({ status: 'idle' })
 
@@ -493,6 +496,15 @@ export abstract class Operator<OP extends IOperator> {
       // Get current input values
       const inputValues = this.data
 
+      // Debug breakpoint - pause execution if enabled
+      if (this.breakpointEnabled.value) {
+        console.log(`[Breakpoint] Pausing execution at operator: ${this.id}`, {
+          inputs: inputValues,
+          operator: this,
+        })
+        debugger
+      }
+
       // Execute the operator
       const result = this.execute(inputValues)
       const finalResult = result instanceof Promise ? await result : result
@@ -643,6 +655,15 @@ export abstract class Operator<OP extends IOperator> {
           this.executionState.next({ status: 'executing' })
 
           try {
+            // Debug breakpoint - pause execution if enabled
+            if (this.breakpointEnabled.value) {
+              console.log(`[Breakpoint] Pausing execution at operator: ${this.id}`, {
+                inputs: inputValues,
+                operator: this,
+              })
+              debugger
+            }
+
             const result = this.execute(inputValues)
             const finalResult = result instanceof Promise ? await result : result
 
@@ -3465,29 +3486,6 @@ export class MouseOp extends Operator<MouseOp> {
   }
 }
 
-class MapStyleOp extends Operator<MapStyleOp> {
-  static displayName = 'MapStyle'
-  static description = 'Map style for MapLibre'
-  createInputs() {
-    return {
-      mapStyle: new StringLiteralField(CARTO_DARK, {
-        values: Object.entries(MAP_STYLES).map(([url, name]) => ({
-          label: name,
-          value: url as string,
-        })),
-      }),
-    }
-  }
-  createOutputs() {
-    return {
-      mapStyle: new StringField(),
-    }
-  }
-  execute({ mapStyle }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    return { mapStyle }
-  }
-}
-
 export class ProjectOp extends Operator<ProjectOp> {
   static displayName = 'Project'
   static description =
@@ -3642,11 +3640,7 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
     return {
       mapStyle: new MapStyleField(CARTO_DARK, {
         accept: '.json',
-        suggestions: [
-          { value: CARTO_DARK, label: 'Carto Dark' },
-          { value: MAP_STYLES.CARTO_LIGHT, label: 'Carto Light' },
-          { value: MAP_STYLES.CARTO_VOYAGER, label: 'Carto Voyager' },
-        ],
+        suggestions: Object.entries(MAP_STYLES).map(([url, name]) => ({ value: url, label: name })),
       }),
       projection: new StringLiteralField('mercator', {
         values: ['mercator', 'globe'],
@@ -7503,7 +7497,6 @@ export const opTypes = {
   MaplibreBasemapOp,
   MapRangeOp,
   MapStyleConfiguratorOp,
-  MapStyleOp,
   MapViewOp,
   MapViewStateOp,
   Mask3DExtensionOp,
