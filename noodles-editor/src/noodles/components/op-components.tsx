@@ -1606,7 +1606,7 @@ function MouseOpComponent({
   )
 }
 
-function TableEditorOpComponent({
+export function TableEditorOpComponent({
   id,
   type,
   selected,
