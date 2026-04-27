@@ -13,7 +13,7 @@ import { InputText } from 'primereact/inputtext'
 import { useEffect, useState } from 'react'
 import type { TableEditorOp } from '../operators'
 import type { ColumnSchema, ColumnType, TableSchema } from '../table-schema'
-import { getDefaultValue } from '../table-schema'
+import { convertValue, getDefaultValue } from '../table-schema'
 import { ColorSwatch } from './color-swatch'
 import { SchemaEditorDialog } from './schema-editor-dialog'
 import s from './table-editor-v2.module.css'
@@ -407,7 +407,13 @@ export function TableEditorV2({
     const newData = tableData.map((row) => {
       const newRow: Record<string, unknown> = {}
       for (const col of newSchema.columns) {
-        newRow[col.name] = row[col.name] ?? col.defaultValue ?? getDefaultValue(col)
+        const existingValue = row[col.name]
+        // Convert existing value to new type, or use default if missing
+        if (existingValue !== undefined) {
+          newRow[col.name] = convertValue(existingValue, col.type)
+        } else {
+          newRow[col.name] = col.defaultValue ?? getDefaultValue(col)
+        }
       }
       return newRow
     })

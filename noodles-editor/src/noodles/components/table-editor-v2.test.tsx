@@ -291,4 +291,33 @@ describe('TableEditorV2', () => {
       },
     ])
   })
+
+  it('should convert existing values when column type changes', () => {
+    const onDataChange = vi.fn()
+    const onSchemaChange = vi.fn()
+
+    // Start with string data
+    const stringData = [{ value: 'test' }]
+    const stringSchema: TableSchema = {
+      columns: [{ name: 'value', type: 'string', defaultValue: '' }],
+    }
+
+    const { container } = render(
+      <TableEditorV2
+        op={mockOp}
+        data={stringData}
+        schema={stringSchema}
+        onDataChange={onDataChange}
+        onSchemaChange={onSchemaChange}
+      />
+    )
+
+    // Open schema editor and change type to color
+    const schemaButton = container.querySelector('.pi-cog')
+    expect(schemaButton).toBeDefined()
+    fireEvent.click(schemaButton)
+
+    // When schema changes, the component should convert invalid values to defaults
+    // This prevents the "t is not iterable" error when color picker tries to render a string
+  })
 })

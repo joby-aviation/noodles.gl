@@ -157,6 +157,17 @@ export function getDefaultValue(schema: ColumnSchema): unknown {
   }
 }
 
+// Convert a value to match the target column type
+export function convertValue(value: unknown, targetType: ColumnType): unknown {
+  // If value is already valid for the target type, return as-is
+  if (validateValue(value, { name: '', type: targetType })) {
+    return value
+  }
+
+  // Otherwise convert to default value for the target type
+  return getDefaultValue({ name: '', type: targetType })
+}
+
 // Validate a value against a column schema
 export function validateValue(value: unknown, schema: ColumnSchema): boolean {
   switch (schema.type) {

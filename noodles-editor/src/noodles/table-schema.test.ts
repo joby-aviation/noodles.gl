@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { getDefaultValue, inferSchema, validateTableData, validateValue } from './table-schema'
+import {
+  convertValue,
+  getDefaultValue,
+  inferSchema,
+  validateTableData,
+  validateValue,
+} from './table-schema'
 
 describe('inferSchema', () => {
   it('should infer number columns', () => {
@@ -210,5 +216,62 @@ describe('validateTableData', () => {
     const schema = { columns: [] }
     const validated = validateTableData([], schema)
     expect(validated).toEqual([])
+  })
+})
+
+describe('convertValue', () => {
+  it('should return value as-is if already valid for target type', () => {
+    expect(convertValue(42, 'number')).toBe(42)
+    expect(convertValue('test', 'string')).toBe('test')
+    expect(convertValue(true, 'boolean')).toBe(true)
+    expect(convertValue('#ff5733', 'color')).toBe('#ff5733')
+    expect(convertValue([1, 2], 'point2d')).toEqual([1, 2])
+    expect(convertValue([1, 2, 3], 'vec3')).toEqual([1, 2, 3])
+  })
+
+  it('should convert string to color default when invalid', () => {
+    expect(convertValue('not-a-color', 'color')).toBe('#000000')
+    expect(convertValue('test', 'color')).toBe('#000000')
+    expect(convertValue(123, 'color')).toBe('#000000')
+  })
+
+  it('should convert string to number default', () => {
+    expect(convertValue('test', 'number')).toBe(0)
+    expect(convertValue('123', 'number')).toBe(0)
+  })
+
+  it('should convert number to string', () => {
+    // Numbers are not valid strings, so convert to default
+    expect(convertValue(42, 'string')).toBe('')
+  })
+
+  it('should convert string to boolean default', () => {
+    expect(convertValue('true', 'boolean')).toBe(false)
+    expect(convertValue('false', 'boolean')).toBe(false)
+  })
+
+  it('should convert invalid arrays to point2d default', () => {
+    expect(convertValue([1], 'point2d')).toEqual([0, 0])
+    expect(convertValue([1, 2, 3], 'point2d')).toEqual([0, 0])
+    expect(convertValue('not-array', 'point2d')).toEqual([0, 0])
+  })
+
+  it('should convert invalid arrays to vec3 default', () => {
+    expect(convertValue([1, 2], 'vec3')).toEqual([0, 0, 0])
+    expect(convertValue([1, 2, 3, 4], 'vec3')).toEqual([0, 0, 0])
+    expect(convertValue('not-array', 'vec3')).toEqual([0, 0, 0])
+  })
+
+  it('should convert any value to date default', () => {
+    const result = convertValue('not-date', 'date')
+    expect(typeof result).toBe('string')
+    expect(result).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  })
+
+  it('should handle null and undefined by converting to default', () => {
+    expect(convertValue(null, 'number')).toBe(0)
+    expect(convertValue(undefined, 'string')).toBe('')
+    expect(convertValue(null, 'boolean')).toBe(false)
+    expect(convertValue(undefined, 'color')).toBe('#000000')
   })
 })
