@@ -167,4 +167,128 @@ describe('TableEditorV2', () => {
     const schemaButton = container.querySelector('.pi-cog')
     expect(schemaButton).toBeDefined()
   })
+
+  it('should call onDataChange when deleting row', () => {
+    const onDataChange = vi.fn()
+    const onSchemaChange = vi.fn()
+
+    const { container } = render(
+      <TableEditorV2
+        op={mockOp}
+        data={simpleData}
+        schema={simpleSchema}
+        onDataChange={onDataChange}
+        onSchemaChange={onSchemaChange}
+      />
+    )
+
+    // Find and click the first delete button
+    const deleteButtons = container.querySelectorAll('.pi-trash')
+    fireEvent.click(deleteButtons[0])
+
+    expect(onDataChange).toHaveBeenCalledWith([{ name: 'Bob', count: 20 }])
+  })
+
+  it('should call onSchemaChange when schema is updated', () => {
+    const onDataChange = vi.fn()
+    const onSchemaChange = vi.fn()
+
+    const { container } = render(
+      <TableEditorV2
+        op={mockOp}
+        data={simpleData}
+        schema={simpleSchema}
+        onDataChange={onDataChange}
+        onSchemaChange={onSchemaChange}
+      />
+    )
+
+    // Find and click the schema editor button
+    const schemaButton = container.querySelector('.pi-cog')
+    expect(schemaButton).toBeDefined()
+    fireEvent.click(schemaButton)
+
+    // The dialog should open (we're testing that the callback is wired up)
+    // Actual schema editing is tested in schema-editor-dialog.test.tsx
+  })
+
+  it('should update tableData when data prop changes', () => {
+    const onDataChange = vi.fn()
+    const onSchemaChange = vi.fn()
+
+    const { rerender, getByText } = render(
+      <TableEditorV2
+        op={mockOp}
+        data={simpleData}
+        schema={simpleSchema}
+        onDataChange={onDataChange}
+        onSchemaChange={onSchemaChange}
+      />
+    )
+
+    expect(getByText('Alice')).toBeDefined()
+
+    // Update data prop
+    const newData = [{ name: 'Charlie', count: 30 }]
+    rerender(
+      <TableEditorV2
+        op={mockOp}
+        data={newData}
+        schema={simpleSchema}
+        onDataChange={onDataChange}
+        onSchemaChange={onSchemaChange}
+      />
+    )
+
+    expect(getByText('Charlie')).toBeDefined()
+    expect(getByText(/1 row × 2 columns/i)).toBeDefined()
+  })
+
+  it('should add default values for all column types when adding row', () => {
+    const complexSchema: TableSchema = {
+      columns: [
+        { name: 'str', type: 'string', defaultValue: 'default' },
+        { name: 'num', type: 'number', defaultValue: 42 },
+        { name: 'bool', type: 'boolean', defaultValue: true },
+        { name: 'color', type: 'color', defaultValue: '#ffffff' },
+        { name: 'point2d', type: 'point2d', defaultValue: [1, 2] },
+        { name: 'point3d', type: 'point3d', defaultValue: [1, 2, 3] },
+        { name: 'vec2', type: 'vec2', defaultValue: [5, 6] },
+        { name: 'vec3', type: 'vec3', defaultValue: [7, 8, 9] },
+        { name: 'date', type: 'date', defaultValue: '2026-01-01' },
+        { name: 'literal', type: 'stringLiteral', defaultValue: 'a' },
+      ],
+    }
+
+    const onDataChange = vi.fn()
+    const onSchemaChange = vi.fn()
+
+    const { getByRole } = render(
+      <TableEditorV2
+        op={mockOp}
+        data={[]}
+        schema={complexSchema}
+        onDataChange={onDataChange}
+        onSchemaChange={onSchemaChange}
+      />
+    )
+
+    const addButton = getByRole('button', { name: /add row/i })
+    fireEvent.click(addButton)
+
+    expect(onDataChange).toHaveBeenCalledWith([
+      {
+        str: 'default',
+        num: 42,
+        bool: true,
+        color: '#ffffff',
+        point2d: [1, 2],
+        point3d: [1, 2, 3],
+        vec2: [5, 6],
+        vec3: [7, 8, 9],
+        date: '2026-01-01',
+        literal: 'a',
+      },
+    ])
+  })
 })

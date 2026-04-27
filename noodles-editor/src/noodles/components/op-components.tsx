@@ -1648,10 +1648,12 @@ function TableEditorOpComponent({
 
   const handleDataChange = (newData: unknown[]) => {
     op.inputs.data.setValue(newData)
+    op.outputs.data.setValue(newData)
   }
 
   const handleSchemaChange = (newSchema: TableSchema) => {
     op.inputs.schema.setValue(newSchema)
+    op.outputs.schema.setValue(newSchema)
     setSchema(newSchema)
   }
 

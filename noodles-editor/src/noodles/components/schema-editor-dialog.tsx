@@ -60,6 +60,7 @@ function ColumnEditor({ column, onChange, onDelete, onMoveUp, onMoveDown }: Colu
               options: undefined, // Reset options when type changes
             })
           }}
+          appendTo="self"
           className={s.typeDropdown}
         />
         <div className={s.actions}>
