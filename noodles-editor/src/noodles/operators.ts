@@ -3394,6 +3394,25 @@ export class ConcatOp extends Operator<ConcatOp> {
   }
 }
 
+export class CrossOp extends Operator<CrossOp> {
+  static displayName = 'Cross'
+  static description =
+    'Generate all unique pairs from an array. For example, [1, 2, 3] produces [[1, 2], [1, 3], [2, 3]]'
+  createInputs() {
+    return {
+      data: new DataField(),
+    }
+  }
+  createOutputs() {
+    return {
+      pairs: new DataField(),
+    }
+  }
+  execute({ data }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    return { pairs: utils.cross(data) }
+  }
+}
+
 export class MergeOp extends Operator<MergeOp> {
   static displayName = 'Merge'
   static description = 'Merge multiple objects into one (think Object.assign)'
@@ -7604,6 +7623,7 @@ export const opTypes = {
   CombineXYOp,
   CombineXYZOp,
   ConcatOp,
+  CrossOp,
   ConsoleOp,
   ContainerOp,
   ContourLayerOp,
