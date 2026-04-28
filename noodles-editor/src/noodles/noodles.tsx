@@ -68,7 +68,6 @@ import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
 import { findEdgeAtPosition, useConnectionDropOnEdge } from './hooks/use-connection-drop-on-edge'
 import { useKeyboardShortcut } from './hooks/use-keyboard-shortcut'
 import { useNodeDropOnEdge } from './hooks/use-node-drop-on-edge'
-import { EdgeSpatialIndex } from './utils/spatial-index'
 import { useProjectModifications } from './hooks/use-project-modifications'
 import type { IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
@@ -103,6 +102,7 @@ import {
   serializeEdges,
   serializeNodes,
 } from './utils/serialization'
+import { EdgeSpatialIndex } from './utils/spatial-index'
 import { calculateViewerPosition } from './utils/viewer-position'
 
 const ChatPanel = lazy(() => import('../ai-chat/chat-panel').then(m => ({ default: m.ChatPanel })))
