@@ -6499,6 +6499,41 @@ export class GeoJsonTransformOp extends Operator<GeoJsonTransformOp> {
   }
 }
 
+export class SimplifyOp extends Operator<SimplifyOp> {
+  static displayName = 'Simplify'
+  static description = 'Simplify GeoJSON geometries using Ramer-Douglas-Peucker algorithm'
+  asDownload = () => this.outputData
+
+  createInputs() {
+    return {
+      feature: new GeoJsonField(),
+      tolerance: new NumberField(0.01, { min: 0.0001, softMax: 1, step: 0.01 }),
+      highQuality: new BooleanField(false),
+    }
+  }
+
+  createOutputs() {
+    return {
+      feature: new GeoJsonField(),
+    }
+  }
+
+  execute({
+    feature,
+    tolerance,
+    highQuality,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    // Apply Ramer-Douglas-Peucker simplification
+    const simplified = turf.simplify(feature, {
+      tolerance,
+      highQuality,
+      mutate: false, // Never mutate input to avoid side effects
+    })
+
+    return { feature: simplified }
+  }
+}
+
 // ==================== Core Layers (@deck.gl/layers) ====================
 
 export class BitmapLayerOp extends Operator<BitmapLayerOp> {
@@ -7639,6 +7674,7 @@ export const opTypes = {
   ScreenGridLayerOp,
   ScreenshotWidgetOp,
   SimpleMeshLayerOp,
+  SimplifyOp,
   SelectOp,
   SliceOp,
   SolidPolygonLayerOp,
