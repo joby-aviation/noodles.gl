@@ -1037,6 +1037,64 @@ describe('Point2DField', () => {
   it('defaultValue is correct', () => {
     expect(Point2DField.defaultValue).toEqual({ lng: 0, lat: 0 })
   })
+
+  it('normalizes Longitude/Latitude column names', () => {
+    const field = new Point2DField(undefined, { returnType: 'object' })
+    field.setValue({ Longitude: 1, Latitude: 2 })
+    expect(field.value).toEqual({ lng: 1, lat: 2 })
+  })
+
+  it('normalizes case-insensitive column names', () => {
+    const field = new Point2DField(undefined, { returnType: 'object' })
+    field.setValue({ LONGITUDE: 1, LATITUDE: 2 })
+    expect(field.value).toEqual({ lng: 1, lat: 2 })
+  })
+
+  it('normalizes lowercase longitude/latitude', () => {
+    const field = new Point2DField(undefined, { returnType: 'object' })
+    field.setValue({ longitude: 1, latitude: 2 })
+    expect(field.value).toEqual({ lng: 1, lat: 2 })
+  })
+
+  it('normalizes mixed case column names', () => {
+    const field = new Point2DField(undefined, { returnType: 'object' })
+    field.setValue({ longitude: 1, Latitude: 2 })
+    expect(field.value).toEqual({ lng: 1, lat: 2 })
+  })
+
+  it('normalizes lon abbreviation', () => {
+    const field = new Point2DField(undefined, { returnType: 'object' })
+    field.setValue({ lon: 1, lat: 2 })
+    expect(field.value).toEqual({ lng: 1, lat: 2 })
+  })
+
+  it('preserves backward compatibility with lng/lat', () => {
+    const field = new Point2DField(undefined, { returnType: 'object' })
+    field.setValue({ lng: 1, lat: 2 })
+    expect(field.value).toEqual({ lng: 1, lat: 2 })
+  })
+
+  it('normalizes with extra properties preserved', () => {
+    const field = new Point2DField(undefined, { returnType: 'object' })
+    field.setValue({ Longitude: 1, Latitude: 2, name: 'Test', value: 42 })
+    expect(field.value).toEqual({ lng: 1, lat: 2, name: 'Test', value: 42 })
+  })
+
+  it('normalizes Longitude/Latitude to tuple', () => {
+    const field = new Point2DField(undefined, { returnType: 'tuple' })
+    field.setValue({ Longitude: 1, Latitude: 2 })
+    expect(field.value).toEqual([1, 2])
+  })
+
+  it('still accepts tuple formats', () => {
+    const field1 = new Point2DField(undefined, { returnType: 'object' })
+    field1.setValue([1, 2])
+    expect(field1.value).toEqual({ lng: 1, lat: 2 })
+
+    const field2 = new Point2DField(undefined, { returnType: 'object' })
+    field2.setValue([1, 2, 3])
+    expect(field2.value).toEqual({ lng: 1, lat: 2 })
+  })
 })
 
 describe('Point3DField', () => {
@@ -1084,6 +1142,42 @@ describe('Point3DField', () => {
 
   it('defaultValue is correct', () => {
     expect(Point3DField.defaultValue).toEqual({ lng: 0, lat: 0, alt: 0 })
+  })
+
+  it('normalizes Longitude/Latitude/Altitude column names', () => {
+    const field = new Point3DField(undefined, { returnType: 'object' })
+    field.setValue({ Longitude: 1, Latitude: 2, Altitude: 3 })
+    expect(field.value).toEqual({ lng: 1, lat: 2, alt: 3 })
+  })
+
+  it('normalizes case-insensitive column names', () => {
+    const field = new Point3DField(undefined, { returnType: 'object' })
+    field.setValue({ LONGITUDE: 1, LATITUDE: 2, ALTITUDE: 3 })
+    expect(field.value).toEqual({ lng: 1, lat: 2, alt: 3 })
+  })
+
+  it('normalizes Longitude/Latitude without Altitude', () => {
+    const field = new Point3DField(undefined, { returnType: 'object' })
+    field.setValue({ Longitude: 1, Latitude: 2 })
+    expect(field.value).toEqual({ lng: 1, lat: 2, alt: 0 })
+  })
+
+  it('preserves backward compatibility with lng/lat/alt', () => {
+    const field = new Point3DField(undefined, { returnType: 'object' })
+    field.setValue({ lng: 1, lat: 2, alt: 3 })
+    expect(field.value).toEqual({ lng: 1, lat: 2, alt: 3 })
+  })
+
+  it('normalizes with extra properties preserved', () => {
+    const field = new Point3DField(undefined, { returnType: 'object' })
+    field.setValue({ Longitude: 1, Latitude: 2, Altitude: 3, name: 'Test' })
+    expect(field.value).toEqual({ lng: 1, lat: 2, alt: 3, name: 'Test' })
+  })
+
+  it('normalizes Longitude/Latitude/Altitude to tuple', () => {
+    const field = new Point3DField(undefined, { returnType: 'tuple' })
+    field.setValue({ Longitude: 1, Latitude: 2, Altitude: 3 })
+    expect(field.value).toEqual([1, 2, 3])
   })
 })
 
