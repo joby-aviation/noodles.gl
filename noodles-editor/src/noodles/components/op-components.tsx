@@ -40,6 +40,7 @@ import { analytics } from '../../utils/analytics'
 import { ArrayField, type Field, type IField, ListField } from '../fields'
 import { useKeysStore } from '../keys-store'
 import s from '../noodles.module.css'
+import { inferSchema, type TableSchema } from '../table-schema'
 import type { ExecutionState, IOperator, OpType } from '../operators'
 import {
   type ContainerOp,
@@ -81,6 +82,7 @@ import { categories as baseCategories, nodeTypeToDisplayName } from './categorie
 import { FieldComponent, type inputComponents } from './field-components'
 import previewStyles from './handle-preview.module.css'
 import RampEditor, { type RampStop } from './ramp-editor'
+import { TableEditorV2 } from './table-editor-v2'
 import { useObservable } from '../hooks/use-observable'
 import { MapStyleConfiguratorOpComponent } from './map-style-configurator-op'
 
@@ -1604,7 +1606,7 @@ function MouseOpComponent({
   )
 }
 
-function TableEditorOpComponent({
+export function TableEditorOpComponent({
   id,
   type,
   selected,
@@ -1615,73 +1617,53 @@ function TableEditorOpComponent({
   }
 
   const isDimmed = useNodeDimmed(id)
-  const [dataArray, setDataArray] = useState(op.inputs.data.value as unknown[])
-  useEffect(() => {
-    const sub = op.inputs.data.subscribe(newVal => {
-      setDataArray(newVal as unknown[])
-    })
-    return () => sub.unsubscribe()
-  }, [op])
-
-  const columns =
-    dataArray?.length > 0
-      ? Object.keys(dataArray[0]).map(field => ({
-          field,
-          header: field,
-        }))
-      : []
-
-  const onCellEditComplete = e => {
-    const { rowData, newValue, field, newRowData, rowIndex } = e
-
-    // In the future we can have custom formatters, like for dates, currency, etc.
-    // if (field === '....')
-
-    // Set the value for the DataTable. The API wants us to mutate the row
-    rowData[field] = newValue
-
-    // Update the row data in the state
-    op.inputs.data.setValue([
-      ...dataArray.slice(0, rowIndex),
-      newRowData,
-      ...dataArray.slice(rowIndex + 1),
-    ])
-  }
-
-  const addColumn = () => {
-    const field = prompt('Enter the column name')
-    const newData = dataArray.map(row => ({ ...row, [field]: '' }))
-    op.inputs.data.setValue(newData)
-  }
-
-  const cellEditor = options => {
-    return typeof options.value === 'number' ? (
-      <InputNumber
-        value={options.value}
-        minFractionDigits={1}
-        onValueChange={e => options.editorCallback(e.value)}
-        onKeyDown={e => e.stopPropagation()}
-      />
-    ) : (
-      <InputText
-        type="text"
-        value={options.value}
-        onChange={e => options.editorCallback(e.target.value)}
-        onKeyDown={e => e.stopPropagation()}
-      />
-    )
-  }
-
   const locked = useLocked(op)
   useFieldVisibility(op)
+
+  const [data, setData] = useState(op.inputs.data.value as unknown[])
+  const [schema, setSchema] = useState(() => {
+    // Get schema from output or infer from data
+    const outputSchema = op.outputs.schema.value
+    if (outputSchema && typeof outputSchema === 'object' && 'columns' in outputSchema) {
+      return outputSchema as TableSchema
+    }
+    return inferSchema(data)
+  })
+
+  // Subscribe to data and schema changes
+  useEffect(() => {
+    const dataSub = op.inputs.data.subscribe((newData) => {
+      setData(newData as unknown[])
+    })
+    const schemaSub = op.outputs.schema.subscribe((newSchema) => {
+      if (newSchema && typeof newSchema === 'object' && 'columns' in newSchema) {
+        setSchema(newSchema as TableSchema)
+      }
+    })
+    return () => {
+      dataSub.unsubscribe()
+      schemaSub.unsubscribe()
+    }
+  }, [op])
+
+  const handleDataChange = (newData: unknown[]) => {
+    op.inputs.data.setValue(newData)
+    op.outputs.data.setValue(newData)
+  }
+
+  const handleSchemaChange = (newSchema: TableSchema) => {
+    op.inputs.schema.setValue(newSchema)
+    op.outputs.schema.setValue(newSchema)
+    setSchema(newSchema)
+  }
 
   return (
     <div className={cx(s.wrapper, { [s.wrapperDimmed]: isDimmed })}>
       <NodeHeader id={id} type={type} op={op} />
-      <NodeResizer isVisible={selected} minWidth={400} minHeight={200} />
+      <NodeResizer isVisible={selected} minWidth={500} minHeight={300} />
       <div className={s.content}>
         {Object.entries(op.inputs)
-          .filter(([key]) => op.isFieldVisible(key))
+          .filter(([key]) => op.isFieldVisible(key) && key !== 'data')
           .map(([key, field]) => (
             <FieldComponent
               key={key}
@@ -1691,47 +1673,13 @@ function TableEditorOpComponent({
               handle={PAR_HANDLE_OPTIONS}
             />
           ))}
-        <div className="card p-fluid">
-          <DataTable
-            value={dataArray}
-            editMode="cell"
-            size="small"
-            resizableColumns
-            reorderableRows
-            onRowReorder={e => {
-              op.inputs.data.setValue(e.value.slice())
-            }}
-            showGridlines
-            stripedRows
-            scrollable
-            scrollHeight="400px"
-            tableStyle={{ minWidth: '50rem' }}
-          >
-            <Column rowReorder style={{ width: '3rem' }} />
-            {columns.map((col, _i) => (
-              <Column
-                key={col.field}
-                field={col.field}
-                header={col.header}
-                editor={options => cellEditor(options)}
-                onCellEditComplete={onCellEditComplete}
-                sortable
-              />
-            ))}
-            <Column
-              header={
-                columns.length ? (
-                  <Button
-                    label="+"
-                    icon="pi pi-plus"
-                    className="p-button-success mr-2"
-                    onClick={addColumn}
-                  />
-                ) : null
-              }
-            />
-          </DataTable>
-        </div>
+        <TableEditorV2
+          op={op}
+          data={data}
+          schema={schema}
+          onDataChange={handleDataChange}
+          onSchemaChange={handleSchemaChange}
+        />
         <div className={s.outputHandleContainer}>
           {Object.entries(op.outputs).map(([key, field]) => (
             <OutputHandle key={key} id={key} field={field} />

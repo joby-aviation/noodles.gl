@@ -2205,23 +2205,30 @@ export class ViewerOp extends Operator<ViewerOp> {
 
 export class TableEditorOp extends Operator<TableEditorOp> {
   static displayName = 'TableEditor'
-  static description = 'Edit a table in the viewer'
+  static description = 'Edit a table with typed columns'
   asDownload = () => this.outputData
+
   createInputs() {
     return {
       data: new DataField(),
+      schema: new UnknownField(null), // TableSchema | null - optional schema override
     }
   }
 
   createOutputs() {
     return {
       data: new DataField(),
+      schema: new UnknownField(null), // Computed schema (inferred or explicit)
     }
   }
 
-  execute({ data }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // This is a special-case because it's essentially a pass-through. The TableEditor component will handle the data
-    return { data }
+  execute({ data, schema }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    // Simple pass-through - schema inference and validation happen in component
+    // This avoids circular dependency issues and keeps execute() synchronous
+    return {
+      data,
+      schema: schema || null,
+    }
   }
 }
 

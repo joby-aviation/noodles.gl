@@ -1,0 +1,165 @@
+.tableContainer {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tableWrapper {
+  flex: 1;
+  overflow: auto;
+  border: 1px solid var(--surface-border);
+  border-radius: 4px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.header {
+  background: var(--surface-ground);
+  padding: 8px 12px;
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 2px solid var(--surface-border);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.row {
+  border-bottom: 1px solid var(--surface-border);
+}
+
+.row:hover {
+  background: var(--surface-hover);
+}
+
+.cellContainer {
+  padding: 0;
+  border-right: 1px solid var(--surface-border);
+}
+
+.cellContainer:last-child {
+  border-right: none;
+}
+
+.cell {
+  padding: 8px 12px;
+  min-height: 36px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.cell:hover {
+  background: var(--surface-hover);
+}
+
+.cell:focus {
+  outline: 2px solid var(--primary-color);
+  outline-offset: -2px;
+}
+
+.editing {
+  background: var(--surface-section);
+  padding: 4px;
+}
+
+.cellEditor {
+  width: 100%;
+}
+
+.colorDisplay {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.colorSwatch {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--surface-border);
+  border-radius: 2px;
+}
+
+.point2dEditor,
+.vec3Editor {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.coordInput,
+.vecInput {
+  flex: 1;
+  min-width: 60px;
+}
+
+.geocoderButton {
+  background: var(--surface-ground);
+  border: 1px solid var(--surface-border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.geocoderButton:hover {
+  background: var(--surface-hover);
+}
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  background: var(--surface-ground);
+  border-radius: 4px;
+  align-items: center;
+}
+
+.stats {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--text-color-secondary);
+}
+
+.rowNumber {
+  text-align: center;
+  color: var(--text-color-secondary);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 48px;
+  text-align: center;
+  color: var(--text-color-secondary);
+}
+
+.emptyState p {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.deleteButton {
+  color: var(--text-color-secondary) !important;
+  opacity: 0.6;
+}
+
+.deleteButton:hover {
+  opacity: 1;
+  color: var(--text-color) !important;
+}
+
+.addRowButton {
+  color: var(--text-color-secondary) !important;
+}
