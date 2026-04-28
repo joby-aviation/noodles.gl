@@ -444,8 +444,9 @@ export function CurvePopup({
   const handleClose = useCallback(() => {
     if (!committedRef.current) {
       // Restore original state (ephemeral preview was not committed)
+      // keepPosition: true preserves the playhead since fromTheatreJSON always resets it to 0
       const originalData = JSON.parse(originalStateRef.current)
-      useTimelineStore.getState().fromTheatreJSON(originalData)
+      useTimelineStore.getState().fromTheatreJSON(originalData, { keepPosition: true })
     }
     onClose()
   }, [onClose])
@@ -496,8 +497,9 @@ export function CurvePopup({
   // Leave hover: restore original (if not committed yet)
   const handlePresetLeave = useCallback(() => {
     if (!committedRef.current) {
+      // keepPosition: true preserves the playhead since fromTheatreJSON always resets it to 0
       const originalData = JSON.parse(originalStateRef.current)
-      useTimelineStore.getState().fromTheatreJSON(originalData)
+      useTimelineStore.getState().fromTheatreJSON(originalData, { keepPosition: true })
     }
   }, [])
 
@@ -551,7 +553,8 @@ export function CurvePopup({
   }, [applyToSelected, trackId, k1.id])
 
   return createPortal(
-    <div ref={popupRef} className={s.curvePopup} style={style}>
+    // biome-ignore lint/a11y/noStaticElementInteractions: stopPropagation prevents portal mousedown from bubbling through React tree to timeline scrub handler
+    <div ref={popupRef} className={s.curvePopup} style={style} onMouseDown={e => e.stopPropagation()}>
       {applyToSelected && selectedCount > 1 && (
         <div className={s.curvePopupMultiHint}>Applying to {selectedCount} keyframes</div>
       )}

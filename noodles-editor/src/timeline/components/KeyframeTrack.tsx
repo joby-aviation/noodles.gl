@@ -482,6 +482,7 @@ function KeyframeBar({
       className={s.timelineKeyframeBar}
       style={{ left, width }}
       onPointerDown={handlePointerDown}
+      onMouseDown={e => e.stopPropagation()}
       onClick={handleClick}
     />
   )

@@ -116,7 +116,7 @@ export interface TimelineStore {
 
   // === Serialization (Theatre.js compatible) ===
   toTheatreJSON: () => TheatreTimelineData
-  fromTheatreJSON: (json: TheatreTimelineData) => void
+  fromTheatreJSON: (json: TheatreTimelineData, opts?: { keepPosition?: boolean }) => void
   reset: () => void
 }
 
@@ -688,7 +688,7 @@ export const useTimelineStore = create<TimelineStore>()(
       }
     },
 
-    fromTheatreJSON: json => {
+    fromTheatreJSON: (json, opts) => {
       const emptyTimelineState = {
         sequence: { ...DEFAULT_SEQUENCE_STATE },
         tracks: new Map<string, Track>(),
@@ -774,7 +774,7 @@ export const useTimelineStore = create<TimelineStore>()(
         },
         tracks: newTracks,
         markers,
-        position: 0,
+        position: opts?.keepPosition ? get().position : 0,
         playing: false,
         selectedKeyframeIds: new Set(),
         selectedTrackIds: new Set(),
