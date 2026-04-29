@@ -3,6 +3,7 @@
 
 import { debugExecutor, debugExecutorFrame } from '../utils/debug'
 import { visibilityAdaptiveLoop } from '../utils/worker-timer'
+import type { Field } from './fields'
 import type { ForLoopBeginOp, ForLoopEndOp, ForLoopMetaOp, IOperator, Operator } from './operators'
 import { getAllOps } from './store'
 import type { OpId } from './utils/id-utils'
@@ -675,7 +676,11 @@ export class GraphExecutor {
       }
 
       // Collect result from this iteration
-      results.push(endOp.inputs.item.value)
+      // Read from cached output of the last intermediate operator instead of relying on field propagation
+      const resultValue = executionOrder.length > 0
+        ? this.getOutputValueForField(executionOrder[executionOrder.length - 1], endOp.inputs.item)
+        : beginOp.outputs.item.value
+      results.push(resultValue)
 
       // Update accumulator from meta op's currentValue input for next iteration
       if (metaOp) {
@@ -756,6 +761,47 @@ export class GraphExecutor {
     }
 
     return scopes
+  }
+
+  // Helper method to get the output value from a source operator that connects to a target field
+  // Used in ForLoop execution to read from cached output instead of relying on field propagation
+  private getOutputValueForField(
+    sourceOp: Operator<IOperator>,
+    targetField: Field<unknown>
+  ): unknown {
+    // Find which output field of sourceOp connects to targetField by checking edges
+    const targetHandle = this.getFieldHandle(targetField)
+    const connectingEdge = this.edges.find(
+      edge => edge.source === sourceOp.id && edge.targetHandle === targetHandle
+    )
+
+    if (connectingEdge && sourceOp._cachedOutput) {
+      // Extract the output field key from the sourceHandle (format: "out.fieldName")
+      const outputKey = connectingEdge.sourceHandle.split('.')[1]
+      if (outputKey && outputKey in sourceOp._cachedOutput) {
+        return sourceOp._cachedOutput[outputKey]
+      }
+    }
+
+    // Fallback: read the field value directly (for cases where edges aren't tracked)
+    return targetField.value
+  }
+
+  // Helper to get the field handle string for a given field
+  private getFieldHandle(field: Field<unknown>): string {
+    // Fields are stored in operator.inputs or operator.outputs
+    // The handle format is "par.fieldName" or "out.fieldName"
+    const op = field.op
+    if (!op) return ''
+
+    for (const [key, f] of Object.entries(op.inputs)) {
+      if (f === field) return `par.${key}`
+    }
+    for (const [key, f] of Object.entries(op.outputs)) {
+      if (f === field) return `out.${key}`
+    }
+
+    return ''
   }
 }
 

@@ -1290,3 +1290,288 @@ describe('ForLoop execution via GraphExecutor.executeFrame()', () => {
     expect(scopes[0].endOp).toBe(endOp)
   })
 })
+
+describe('GraphExecutor - ForLoop execution with executeForLoopScope', () => {
+  it('should execute ForLoop with single intermediate operator via GraphExecutor', async () => {
+    // Setup: [1, 2, 3] -> ForLoopBegin -> MathOp(add 1) -> ForLoopEnd
+    // Expected output: [2, 3, 4]
+    const executor = new GraphExecutor()
+
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const mathOp = new MathOp('/math')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    // Add operators to executor
+    executor.nodes.set(beginOp.id, beginOp)
+    executor.nodes.set(mathOp.id, mathOp)
+    executor.nodes.set(endOp.id, endOp)
+
+    // Setup edges for connection tracking
+    executor.edges.push({
+      id: 'begin-to-math',
+      source: beginOp.id,
+      target: mathOp.id,
+      sourceHandle: 'out.item',
+      targetHandle: 'par.a',
+    })
+    executor.edges.push({
+      id: 'math-to-end',
+      source: mathOp.id,
+      target: endOp.id,
+      sourceHandle: 'out.result',
+      targetHandle: 'par.item',
+    })
+
+    // Setup operator connections
+    beginOp.inputs.data.setValue([1, 2, 3])
+    mathOp.inputs.a.addConnection('begin-to-math', beginOp.outputs.item)
+    mathOp.inputs.b.setValue(1)
+    mathOp.inputs.operator.setValue('add')
+    mathOp.addUpstreamDependency(beginOp)
+    beginOp.addDownstreamDependent(mathOp)
+
+    endOp.inputs.item.addConnection('math-to-end', mathOp.outputs.result)
+    endOp.addUpstreamDependency(mathOp)
+    mathOp.addDownstreamDependent(endOp)
+
+    // Execute via GraphExecutor.executeForLoopScope (the pull-based path)
+    const results = await executor.executeForLoopScope(
+      beginOp,
+      endOp,
+      [beginOp.id, mathOp.id, endOp.id]
+    )
+
+    expect(results).toEqual([2, 3, 4])
+    expect(endOp.outputs.data.value).toEqual([2, 3, 4])
+  })
+
+  it('should handle multiple intermediate operators', async () => {
+    // [10, 20, 30] -> Begin -> Multiply(2) -> Add(5) -> End
+    // Expected: [25, 45, 65] (10*2+5=25, 20*2+5=45, 30*2+5=65)
+    const executor = new GraphExecutor()
+
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const multiplyOp = new MathOp('/multiply')
+    const addOp = new MathOp('/add')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    executor.nodes.set(beginOp.id, beginOp)
+    executor.nodes.set(multiplyOp.id, multiplyOp)
+    executor.nodes.set(addOp.id, addOp)
+    executor.nodes.set(endOp.id, endOp)
+
+    executor.edges.push(
+      {
+        id: 'begin-to-mult',
+        source: beginOp.id,
+        target: multiplyOp.id,
+        sourceHandle: 'out.item',
+        targetHandle: 'par.a',
+      },
+      {
+        id: 'mult-to-add',
+        source: multiplyOp.id,
+        target: addOp.id,
+        sourceHandle: 'out.result',
+        targetHandle: 'par.a',
+      },
+      {
+        id: 'add-to-end',
+        source: addOp.id,
+        target: endOp.id,
+        sourceHandle: 'out.result',
+        targetHandle: 'par.item',
+      }
+    )
+
+    beginOp.inputs.data.setValue([10, 20, 30])
+
+    multiplyOp.inputs.a.addConnection('begin-to-mult', beginOp.outputs.item)
+    multiplyOp.inputs.b.setValue(2)
+    multiplyOp.inputs.operator.setValue('multiply')
+    multiplyOp.addUpstreamDependency(beginOp)
+
+    addOp.inputs.a.addConnection('mult-to-add', multiplyOp.outputs.result)
+    addOp.inputs.b.setValue(5)
+    addOp.inputs.operator.setValue('add')
+    addOp.addUpstreamDependency(multiplyOp)
+
+    endOp.inputs.item.addConnection('add-to-end', addOp.outputs.result)
+    endOp.addUpstreamDependency(addOp)
+
+    const results = await executor.executeForLoopScope(
+      beginOp,
+      endOp,
+      [beginOp.id, multiplyOp.id, addOp.id, endOp.id]
+    )
+
+    expect(results).toEqual([25, 45, 65])
+  })
+
+  it('should handle direct connection (no intermediate operators)', async () => {
+    // [1, 2, 3] -> Begin -> End (direct passthrough)
+    // Expected: [1, 2, 3]
+    const executor = new GraphExecutor()
+
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    executor.nodes.set(beginOp.id, beginOp)
+    executor.nodes.set(endOp.id, endOp)
+
+    executor.edges.push({
+      id: 'begin-to-end',
+      source: beginOp.id,
+      target: endOp.id,
+      sourceHandle: 'out.item',
+      targetHandle: 'par.item',
+    })
+
+    beginOp.inputs.data.setValue([1, 2, 3])
+
+    endOp.inputs.item.addConnection('begin-to-end', beginOp.outputs.item)
+    endOp.addUpstreamDependency(beginOp)
+    beginOp.addDownstreamDependent(endOp)
+
+    const results = await executor.executeForLoopScope(beginOp, endOp, [beginOp.id, endOp.id])
+
+    expect(results).toEqual([1, 2, 3])
+  })
+
+  it('should handle empty array input', async () => {
+    const executor = new GraphExecutor()
+
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const mathOp = new MathOp('/math')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    executor.nodes.set(beginOp.id, beginOp)
+    executor.nodes.set(mathOp.id, mathOp)
+    executor.nodes.set(endOp.id, endOp)
+
+    executor.edges.push(
+      {
+        id: 'begin-to-math',
+        source: beginOp.id,
+        target: mathOp.id,
+        sourceHandle: 'out.item',
+        targetHandle: 'par.a',
+      },
+      {
+        id: 'math-to-end',
+        source: mathOp.id,
+        target: endOp.id,
+        sourceHandle: 'out.result',
+        targetHandle: 'par.item',
+      }
+    )
+
+    beginOp.inputs.data.setValue([])
+    mathOp.inputs.a.addConnection('begin-to-math', beginOp.outputs.item)
+    mathOp.inputs.b.setValue(1)
+    mathOp.inputs.operator.setValue('add')
+    endOp.inputs.item.addConnection('math-to-end', mathOp.outputs.result)
+
+    const results = await executor.executeForLoopScope(
+      beginOp,
+      endOp,
+      [beginOp.id, mathOp.id, endOp.id]
+    )
+
+    expect(results).toEqual([])
+  })
+
+  it('should work with ForLoopMetaOp accumulator', async () => {
+    // Test reduce-like behavior: sum of [1, 2, 3, 4] = 10
+    const executor = new GraphExecutor()
+
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const metaOp = new ForLoopMetaOp('/forloop-meta')
+    const mathOp = new MathOp('/math')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    executor.nodes.set(beginOp.id, beginOp)
+    executor.nodes.set(metaOp.id, metaOp)
+    executor.nodes.set(mathOp.id, mathOp)
+    executor.nodes.set(endOp.id, endOp)
+
+    executor.edges.push(
+      {
+        id: 'begin-to-math-a',
+        source: beginOp.id,
+        target: mathOp.id,
+        sourceHandle: 'out.item',
+        targetHandle: 'par.a',
+      },
+      {
+        id: 'meta-to-math-b',
+        source: metaOp.id,
+        target: mathOp.id,
+        sourceHandle: 'out.accumulator',
+        targetHandle: 'par.b',
+      },
+      {
+        id: 'math-to-meta',
+        source: mathOp.id,
+        target: metaOp.id,
+        sourceHandle: 'out.result',
+        targetHandle: 'par.currentValue',
+      },
+      {
+        id: 'math-to-end',
+        source: mathOp.id,
+        target: endOp.id,
+        sourceHandle: 'out.result',
+        targetHandle: 'par.item',
+      }
+    )
+
+    beginOp.inputs.data.setValue([1, 2, 3, 4])
+    metaOp.inputs.initialValue.setValue(0)
+
+    mathOp.inputs.a.addConnection('begin-to-math-a', beginOp.outputs.item)
+    mathOp.inputs.b.addConnection('meta-to-math-b', metaOp.outputs.accumulator)
+    mathOp.inputs.operator.setValue('add')
+
+    metaOp.inputs.currentValue.addConnection('math-to-meta', mathOp.outputs.result)
+    endOp.inputs.item.addConnection('math-to-end', mathOp.outputs.result)
+
+    const results = await executor.executeForLoopScope(
+      beginOp,
+      endOp,
+      [beginOp.id, metaOp.id, mathOp.id, endOp.id],
+      metaOp
+    )
+
+    // Each iteration: 0+1=1, 1+2=3, 3+3=6, 6+4=10
+    expect(results).toEqual([1, 3, 6, 10])
+  })
+
+  it('should handle objects in iteration', async () => {
+    const executor = new GraphExecutor()
+
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    executor.nodes.set(beginOp.id, beginOp)
+    executor.nodes.set(endOp.id, endOp)
+
+    executor.edges.push({
+      id: 'begin-to-end',
+      source: beginOp.id,
+      target: endOp.id,
+      sourceHandle: 'out.item',
+      targetHandle: 'par.item',
+    })
+
+    const inputData = [{ name: 'Alice', age: 30 }, { name: 'Bob', age: 25 }]
+    beginOp.inputs.data.setValue(inputData)
+
+    endOp.inputs.item.addConnection('begin-to-end', beginOp.outputs.item)
+    endOp.addUpstreamDependency(beginOp)
+
+    const results = await executor.executeForLoopScope(beginOp, endOp, [beginOp.id, endOp.id])
+
+    expect(results).toEqual(inputData)
+  })
+})
