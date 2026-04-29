@@ -726,7 +726,7 @@ export class Point3DField extends Field<
             const normalized: Record<string, unknown> = {}
             let hasLng = false
             let hasLat = false
-            let hasAlt = false
+            let _hasAlt = false
 
             for (const [key, value] of Object.entries(obj)) {
               const lowerKey = key.toLowerCase()
@@ -743,7 +743,7 @@ export class Point3DField extends Field<
               // Map altitude variants to alt
               else if (lowerKey === 'altitude') {
                 normalized.alt = value
-                hasAlt = true
+                _hasAlt = true
               }
               // Keep existing lng/lat/alt as-is (for backward compatibility)
               else if (lowerKey === 'lng') {
@@ -754,7 +754,7 @@ export class Point3DField extends Field<
                 hasLat = true
               } else if (lowerKey === 'alt') {
                 normalized.alt = value
-                hasAlt = true
+                _hasAlt = true
               }
               // Pass through all other properties
               else {
@@ -762,8 +762,8 @@ export class Point3DField extends Field<
               }
             }
 
-            // Only return normalized object if we found coordinate fields
-            if (hasLng || hasLat || hasAlt) {
+            // Only return normalized object if we have required coordinate fields (lng and lat)
+            if (hasLng && hasLat) {
               return normalized
             }
           }
@@ -806,7 +806,7 @@ export class Point3DField extends Field<
               }
             }
 
-            if (hasLng || hasLat) {
+            if (hasLng && hasLat) {
               return normalized
             }
           }
@@ -905,8 +905,8 @@ export class Point2DField extends Field<
               }
             }
 
-            // Only return normalized object if we found coordinate fields
-            if (hasLng || hasLat) {
+            // Only return normalized object if we found required coordinate fields (lng and lat)
+            if (hasLng && hasLat) {
               return normalized
             }
           }
