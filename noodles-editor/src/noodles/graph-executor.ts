@@ -806,7 +806,7 @@ export class GraphExecutor {
     // Field not found in enumerable properties - could be non-enumerable, Map-stored, or inherited
     console.warn(
       `[GraphExecutor] getFieldHandle could not find field in operator ${op.id} inputs/outputs. ` +
-        `This may indicate non-enumerable properties or unconventional field storage.`
+        'This may indicate non-enumerable properties or unconventional field storage.'
     )
     return ''
   }
