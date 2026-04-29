@@ -6599,12 +6599,10 @@ export class BitmapLayerOp extends Operator<BitmapLayerOp> {
       // Legacy nested array format from old projects
       boundsArray = bounds as number[][]
     } else {
-      // Unexpected format - warn and use default
-      console.warn('[BitmapLayerOp] Unexpected bounds format, using default SF bounds', bounds)
-      boundsArray = [
-        [-122.5, 37.7],
-        [-122.3, 37.9],
-      ]
+      // Unexpected format - throw error
+      throw new Error(
+        `[BitmapLayerOp] Invalid bounds format. Expected [minLng, minLat, maxLng, maxLat] or [[minLng, minLat], [maxLng, maxLat]], got: ${JSON.stringify(bounds)}`
+      )
     }
     const layer = {
       ...parseLayerProps<BitmapLayerProps>(restProps as Omit<typeof props, 'bounds'>),
