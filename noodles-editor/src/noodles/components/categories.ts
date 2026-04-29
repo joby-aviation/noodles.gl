@@ -95,6 +95,7 @@ export const categories = {
   ],
   vector: ['CombineXY', 'CombineXYZ', 'SplitXY', 'SplitXYZ'],
   view: [
+    'Custom MapLibre Layer',
     'FirstPersonView',
     'GlobeView',
     'MaplibreBasemap',

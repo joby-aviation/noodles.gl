@@ -2,7 +2,7 @@ import type { Deck, DeckProps } from '@deck.gl/core'
 import { MapboxOverlay, type MapboxOverlayProps } from '@deck.gl/mapbox'
 import { DeckGL } from '@deck.gl/react'
 import { ReactFlowProvider } from '@xyflow/react'
-import type { Map as MapLibre } from 'maplibre-gl'
+import type { CustomLayerInterface, Map as MapLibre } from 'maplibre-gl'
 import { forwardRef, useCallback, useEffect, useRef, useState } from 'react'
 import ReactMapGL, { type MapProps, useControl } from 'react-map-gl/maplibre'
 import { Layout } from './layout'
@@ -71,6 +71,7 @@ export default function TimelineEditor() {
   const isRenderingRef = useRef(false)
   // Session-only handle set by selectRendersDirectory; takes priority over project subdir
   const rendersDirectoryHandleRef = useRef<FileSystemDirectoryHandle | null>(null)
+  const customLayersRef = useRef<Set<string>>(new Set())
 
   // Trigger a redraw of React, mapbox and deck when the renderer state changes,
   // to ensure that the VideoStreamReader in renderer.ts runs
@@ -208,6 +209,122 @@ export default function TimelineEditor() {
       map.setSky(undefined)
     }
   }, [light, sky])
+
+  // Helper function to evaluate MapLibre layer code
+  const evaluateMapLibreLayerCode = (
+    code: string,
+    params: Record<string, unknown>,
+    layerId: string,
+    map: MapLibre
+  ): Partial<CustomLayerInterface> => {
+    try {
+      const fn = new Function('params', 'map', ['// Layer ID: ' + layerId, 'return ' + code].join('\n'))
+
+      const result = fn(params, map)
+
+      if (typeof result !== 'object' || result === null) {
+        throw new Error('Layer code must return an object')
+      }
+
+      if (typeof result.render !== 'function') {
+        throw new Error('Layer code must define a render() method')
+      }
+
+      return result as Partial<CustomLayerInterface>
+    } catch (e) {
+      const error = e instanceof Error ? e : new Error(String(e))
+      throw new Error(`Failed to evaluate MapLibre layer code for "${layerId}": ${error.message}`)
+    }
+  }
+
+  // Manage custom MapLibre layers
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !map.isStyleLoaded()) return
+
+    const layerConfigs = visualization.maplibreLayers || []
+    const desiredLayerIds = new Set(layerConfigs.map(config => config.id))
+
+    // Remove layers that are no longer in the config
+    for (const existingId of customLayersRef.current) {
+      if (!desiredLayerIds.has(existingId)) {
+        try {
+          if (map.getLayer(existingId)) {
+            map.removeLayer(existingId)
+            debugRender('Removed custom MapLibre layer: %s', existingId)
+          }
+        } catch (e) {
+          debugRender('Error removing custom MapLibre layer %s: %o', existingId, e)
+        }
+      }
+    }
+
+    // Add or update layers
+    for (const config of layerConfigs) {
+      try {
+        const existingLayer = map.getLayer(config.id)
+
+        if (existingLayer) {
+          map.removeLayer(config.id)
+        }
+
+        const layerImpl = evaluateMapLibreLayerCode(config.code, config.params || {}, config.id, map)
+
+        const customLayer: CustomLayerInterface = {
+          ...layerImpl,
+          id: config.id,
+          type: 'custom',
+          renderingMode: config.renderingMode || '3d',
+        }
+
+        map.addLayer(customLayer, config.beforeId)
+        customLayersRef.current.add(config.id)
+
+        debugRender('Added/updated custom MapLibre layer: %s', config.id)
+      } catch (e) {
+        const error = e instanceof Error ? e : new Error(String(e))
+        debugRender('Error adding custom MapLibre layer %s: %o', config.id, error)
+      }
+    }
+
+    customLayersRef.current = desiredLayerIds
+  }, [visualization.maplibreLayers])
+
+  // Clean up custom layers on unmount
+  useEffect(() => {
+    return () => {
+      const map = mapRef.current
+      if (!map) return
+
+      for (const layerId of customLayersRef.current) {
+        try {
+          if (map.getLayer(layerId)) {
+            map.removeLayer(layerId)
+          }
+        } catch (e) {
+          debugRender('Error removing layer on cleanup: %o', e)
+        }
+      }
+      customLayersRef.current.clear()
+    }
+  }, [])
+
+  // Handle map style changes - clear layer tracking so they get re-added
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+
+    const handleStyleData = () => {
+      customLayersRef.current.clear()
+    }
+
+    map.on('styledata', handleStyleData)
+
+    return () => {
+      map.off('styledata', handleStyleData)
+    }
+  }, [])
+
   // Expose deck.gl canvas and instance for Claude AI visual debugging
   useEffect(() => {
     if (deckRef.current) {
