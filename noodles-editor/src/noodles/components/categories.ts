@@ -104,7 +104,7 @@ export const categories = {
     'SplitMapViewState',
   ],
   widget: [
-    'Bitmap Overlay',
+    'BitmapOverlayWidget',
     'CompassWidget',
     'FpsWidget',
     'FullscreenWidget',

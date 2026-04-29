@@ -1,5 +1,6 @@
 import type { WidgetPlacement, WidgetProps } from '@deck.gl/core'
 import { Widget } from '@deck.gl/core'
+import { escapeHtml } from './utils'
 
 export type BitmapOverlayWidgetProps = WidgetProps & {
   placement?: WidgetPlacement | 'fill'
@@ -29,7 +30,7 @@ export class BitmapOverlayWidget extends Widget<BitmapOverlayWidgetProps> {
   }
 
   className = 'deck-widget-bitmap-overlay'
-  placement: WidgetPlacement = 'top-right'
+  placement: WidgetPlacement | 'fill' = 'top-right'
 
   constructor(props: BitmapOverlayWidgetProps = {}) {
     super(props)
@@ -71,7 +72,10 @@ export class BitmapOverlayWidget extends Widget<BitmapOverlayWidgetProps> {
       rootElement.style.transformOrigin = 'center'
       rootElement.style.margin = '0'
     } else {
-      // Corner placement with optional offsets
+      // Corner placement with optional offsets - clear fill-specific styles
+      rootElement.style.position = ''
+      rootElement.style.left = ''
+      rootElement.style.top = ''
       rootElement.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`
       rootElement.style.transformOrigin = originMap[placement] ?? 'top right'
       rootElement.style.margin = '8px'
@@ -100,12 +104,4 @@ export class BitmapOverlayWidget extends Widget<BitmapOverlayWidgetProps> {
       />
     `
   }
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
 }
