@@ -7,6 +7,7 @@ import {
   ChartOp,
   CodeOp,
   ConcatOp,
+  CrossOp,
   DeckRendererOp,
   DuckDbOp,
   ExpressionOp,
@@ -1727,6 +1728,46 @@ describe('Viral Accessor Tests', () => {
       expect(
         (result.data as unknown as (d: { dynamic: number[] }) => number[])({ dynamic: [3, 4] })
       ).toEqual([1, 2, 3, 4, 5, 6])
+    })
+  })
+
+  describe('CrossOp', () => {
+    it('should generate all unique pairs from array', () => {
+      const op = new CrossOp('test-cross-1')
+      const result = op.execute({ data: [1, 2, 3] })
+      expect(result.pairs).toEqual([
+        [1, 2],
+        [1, 3],
+        [2, 3],
+      ])
+    })
+
+    it('should handle empty array', () => {
+      const op = new CrossOp('test-cross-2')
+      const result = op.execute({ data: [] })
+      expect(result.pairs).toEqual([])
+    })
+
+    it('should handle single element array', () => {
+      const op = new CrossOp('test-cross-3')
+      const result = op.execute({ data: [1] })
+      expect(result.pairs).toEqual([])
+    })
+
+    it('should preserve element types', () => {
+      const op = new CrossOp('test-cross-4')
+      const result = op.execute({
+        data: [{ id: 1 }, { id: 2 }, { id: 3 }],
+      })
+      expect(result.pairs.length).toBe(3)
+      expect(result.pairs[0][0]).toEqual({ id: 1 })
+      expect(result.pairs[0][1]).toEqual({ id: 2 })
+    })
+
+    it('should handle two elements', () => {
+      const op = new CrossOp('test-cross-5')
+      const result = op.execute({ data: ['a', 'b'] })
+      expect(result.pairs).toEqual([['a', 'b']])
     })
   })
 
