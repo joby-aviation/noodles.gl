@@ -641,6 +641,25 @@ export class GraphExecutor {
     // Get initial accumulator value if meta op exists
     let accumulator: unknown = metaOp?.inputs.initialValue.value ?? null
 
+    // Hoist edge lookup out of the loop for O(1) per-iteration performance
+    // Instead of calling getOutputValueForField() every iteration (O(edges) scan)
+    const lastIntermediateOp = executionOrder[executionOrder.length - 1]
+    let resultOutputKey: string | null = null
+    if (lastIntermediateOp) {
+      const targetHandle = this.getFieldHandle(endOp.inputs.item)
+      if (!targetHandle) {
+        console.warn(
+          `[GraphExecutor] getFieldHandle returned empty for endOp.inputs.item in ForLoop ${beginOp.id}`
+        )
+      }
+      const connectingEdge = this.edges.find(
+        edge => edge.source === lastIntermediateOp.id && edge.targetHandle === targetHandle
+      )
+      if (connectingEdge) {
+        resultOutputKey = connectingEdge.sourceHandle.split('.')[1] || null
+      }
+    }
+
     for (let index = 0; index < total; index++) {
       const item = data[index]
       const isFirst = index === 0
@@ -675,15 +694,13 @@ export class GraphExecutor {
         await op.pull()
       }
 
-      // Collect result from this iteration
-      // Read from cached output of the last intermediate operator instead of relying on field propagation
+      // Collect result from this iteration using pre-computed output key
       const resultValue =
-        executionOrder.length > 0
-          ? this.getOutputValueForField(
-              executionOrder[executionOrder.length - 1],
-              endOp.inputs.item
-            )
-          : beginOp.outputs.item.value
+        lastIntermediateOp && resultOutputKey && lastIntermediateOp._cachedOutput
+          ? (lastIntermediateOp._cachedOutput[resultOutputKey] ?? endOp.inputs.item.value)
+          : executionOrder.length > 0
+            ? endOp.inputs.item.value
+            : beginOp.outputs.item.value
       results.push(resultValue)
 
       // Update accumulator from meta op's currentValue input for next iteration
@@ -767,44 +784,30 @@ export class GraphExecutor {
     return scopes
   }
 
-  // Helper method to get the output value from a source operator that connects to a target field
-  // Used in ForLoop execution to read from cached output instead of relying on field propagation
-  private getOutputValueForField(
-    sourceOp: Operator<IOperator>,
-    targetField: Field<unknown>
-  ): unknown {
-    // Find which output field of sourceOp connects to targetField by checking edges
-    const targetHandle = this.getFieldHandle(targetField)
-    const connectingEdge = this.edges.find(
-      edge => edge.source === sourceOp.id && edge.targetHandle === targetHandle
-    )
-
-    if (connectingEdge && sourceOp._cachedOutput) {
-      // Extract the output field key from the sourceHandle (format: "out.fieldName")
-      const outputKey = connectingEdge.sourceHandle.split('.')[1]
-      if (outputKey && outputKey in sourceOp._cachedOutput) {
-        return sourceOp._cachedOutput[outputKey]
-      }
-    }
-
-    // Fallback: read the field value directly (for cases where edges aren't tracked)
-    return targetField.value
-  }
-
   // Helper to get the field handle string for a given field
   private getFieldHandle(field: Field<unknown>): string {
     // Fields are stored in operator.inputs or operator.outputs
     // The handle format is "par.fieldName" or "out.fieldName"
     const op = field.op
-    if (!op) return ''
+    if (!op) {
+      console.warn('[GraphExecutor] getFieldHandle called with field that has no op reference')
+      return ''
+    }
 
+    // Check inputs
     for (const [key, f] of Object.entries(op.inputs)) {
       if (f === field) return `par.${key}`
     }
+    // Check outputs
     for (const [key, f] of Object.entries(op.outputs)) {
       if (f === field) return `out.${key}`
     }
 
+    // Field not found in enumerable properties - could be non-enumerable, Map-stored, or inherited
+    console.warn(
+      `[GraphExecutor] getFieldHandle could not find field in operator ${op.id} inputs/outputs. ` +
+        `This may indicate non-enumerable properties or unconventional field storage.`
+    )
     return ''
   }
 }
