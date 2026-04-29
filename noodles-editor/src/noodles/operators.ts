@@ -4345,6 +4345,84 @@ export class LegendWidgetOp extends Operator<LegendWidgetOp> {
   }
 }
 
+export class BitmapOverlayWidgetOp extends Operator<BitmapOverlayWidgetOp> {
+  static displayName = 'Bitmap Overlay'
+  static description = 'Display a bitmap image as a screen-space overlay'
+
+  createInputs() {
+    return {
+      image: new FileUrlField('', {
+        accept: '.png,.jpg,.jpeg,.gif,.webp,.svg',
+      }),
+      placement: new StringLiteralField('top-right', {
+        values: ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'fill'],
+      }),
+      width: new NumberField(200, { min: 1, max: 2000, step: 1 }),
+      height: new NumberField(200, { min: 1, max: 2000, step: 1 }),
+      opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
+      scale: new NumberField(1, { min: 0.25, max: 4, step: 0.25 }),
+      offsetX: new NumberField(0, { min: -2000, max: 2000, step: 1, showByDefault: false }),
+      offsetY: new NumberField(0, { min: -2000, max: 2000, step: 1, showByDefault: false }),
+      viewId: new StringField('', { optional: true }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      widget: new WidgetField(),
+    }
+  }
+
+  async execute({
+    image,
+    placement,
+    width,
+    height,
+    opacity,
+    scale,
+    offsetX,
+    offsetY,
+    viewId,
+  }: ExtractProps<typeof this.inputs>): Promise<ExtractProps<typeof this.outputs>> {
+    // Resolve project-relative paths (@/) to blob URLs
+    let resolvedImage = image
+    if (image?.startsWith(projectScheme)) {
+      const { readAssetBinary } = await import('./storage')
+      const { useFileSystemStore } = await import('./filesystem-store')
+
+      const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
+      if (!currentProjectName) {
+        throw new Error('No project loaded. Please save or load a project first.')
+      }
+
+      const fileName = image.substring(projectScheme.length)
+      const result = await readAssetBinary(activeStorageType, currentProjectName, fileName)
+      if (!result.success) {
+        throw new Error(result.error.message)
+      }
+
+      // Create blob URL from the binary data
+      const blob = new Blob([result.data])
+      resolvedImage = URL.createObjectURL(blob)
+    }
+
+    const widget = {
+      id: this.id,
+      type: 'BitmapOverlay',
+      image: resolvedImage,
+      placement,
+      width,
+      height,
+      opacity,
+      scale,
+      offsetX,
+      offsetY,
+      ...(viewId && viewId !== '' ? { viewId } : {}),
+    }
+    return { widget }
+  }
+}
+
 function createFrustumViewFields() {
   return {
     near: new NumberField(0.1, { min: 0, softMax: 1_000_000, step: 0.1, showByDefault: false }),
@@ -7604,6 +7682,7 @@ export const opTypes = {
   ArcLayerOp,
   BezierCurveOp,
   BitmapLayerOp,
+  BitmapOverlayWidgetOp,
   BlendingOp,
   BooleanOp,
   BoundingBoxOp,

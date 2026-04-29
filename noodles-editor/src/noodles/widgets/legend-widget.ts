@@ -1,5 +1,6 @@
-import {Widget} from '@deck.gl/core'
-import type {WidgetPlacement, WidgetProps} from '@deck.gl/core'
+import type { WidgetPlacement, WidgetProps } from '@deck.gl/core'
+import { Widget } from '@deck.gl/core'
+import { escapeHtml } from './utils'
 
 export type LegendWidgetProps = WidgetProps & {
   placement?: WidgetPlacement
@@ -83,8 +84,4 @@ function formatValue(v: number): string {
   if (!Number.isFinite(v)) return String(v)
   const s = v.toPrecision(4)
   return String(parseFloat(s))
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
