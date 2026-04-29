@@ -4354,7 +4354,7 @@ export class BitmapOverlayWidgetOp extends Operator<BitmapOverlayWidgetOp> {
     }
   }
 
-  execute({
+  async execute({
     image,
     placement,
     width,
@@ -4364,11 +4364,33 @@ export class BitmapOverlayWidgetOp extends Operator<BitmapOverlayWidgetOp> {
     offsetX,
     offsetY,
     viewId,
-  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  }: ExtractProps<typeof this.inputs>): Promise<ExtractProps<typeof this.outputs>> {
+    // Resolve project-relative paths (@/) to blob URLs
+    let resolvedImage = image
+    if (image?.startsWith(projectScheme)) {
+      const { readAssetBinary } = await import('./storage')
+      const { useFileSystemStore } = await import('./filesystem-store')
+
+      const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
+      if (!currentProjectName) {
+        throw new Error('No project loaded. Please save or load a project first.')
+      }
+
+      const fileName = image.substring(projectScheme.length)
+      const result = await readAssetBinary(activeStorageType, currentProjectName, fileName)
+      if (!result.success) {
+        throw new Error(result.error.message)
+      }
+
+      // Create blob URL from the binary data
+      const blob = new Blob([result.data])
+      resolvedImage = URL.createObjectURL(blob)
+    }
+
     const widget = {
       id: this.id,
       type: 'BitmapOverlay',
-      image,
+      image: resolvedImage,
       placement,
       width,
       height,
