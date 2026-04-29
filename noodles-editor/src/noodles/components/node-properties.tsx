@@ -665,38 +665,38 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
               const visibleInputs = inputs.filter(input => op.isFieldVisible(input.name))
               const hiddenInputs = inputs.filter(input => !op.isFieldVisible(input.name))
 
-            const handleShowField = (fieldName: string) => {
-              op.showField(fieldName)
-            }
-
-            const handleHideField = (fieldName: string) => {
-              const field = op.inputs[fieldName]
-              // Check if field has a non-default value - warn before losing data
-              if (field && hasNonDefaultValue(field)) {
-                setPendingHideField(fieldName)
-                return
+              const handleShowField = (fieldName: string) => {
+                op.showField(fieldName)
               }
-              hideField(op, fieldName)
-            }
 
-            const renderInput = (input: (typeof inputs)[0], isVisible: boolean) => {
-              const incomers = edges.filter(
-                e =>
-                  e.target === nodeId &&
-                  (e.targetHandle === input.name || e.targetHandle === `par.${input.name}`)
-              )
-              const hideCheck = canHideField(op, input.name, edges)
-              const canHide = hideCheck.canHide
-              let fieldCurrentValue: KeyframeValue | undefined
-              if (isValueField(input.field)) {
-                try {
-                  fieldCurrentValue = fieldValueToKeyframeValue(
-                    input.field,
-                    input.field.value
-                  ) as KeyframeValue
-                } catch {
-                  fieldCurrentValue = input.field.value as KeyframeValue
+              const handleHideField = (fieldName: string) => {
+                const field = op.inputs[fieldName]
+                // Check if field has a non-default value - warn before losing data
+                if (field && hasNonDefaultValue(field)) {
+                  setPendingHideField(fieldName)
+                  return
                 }
+                hideField(op, fieldName)
+              }
+
+              const renderInput = (input: (typeof inputs)[0], isVisible: boolean) => {
+                const incomers = edges.filter(
+                  e =>
+                    e.target === nodeId &&
+                    (e.targetHandle === input.name || e.targetHandle === `par.${input.name}`)
+                )
+                const hideCheck = canHideField(op, input.name, edges)
+                const canHide = hideCheck.canHide
+                let fieldCurrentValue: KeyframeValue | undefined
+                if (isValueField(input.field)) {
+                  try {
+                    fieldCurrentValue = fieldValueToKeyframeValue(
+                      input.field,
+                      input.field.value
+                    ) as KeyframeValue
+                  } catch {
+                    fieldCurrentValue = input.field.value as KeyframeValue
+                  }
               }
 
               return (

@@ -6583,17 +6583,29 @@ export class BitmapLayerOp extends Operator<BitmapLayerOp> {
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const { bounds, ...restProps } = props
-    const boundsArray = Array.isArray(bounds)
-      ? bounds.length === 4
-        ? [
-            [bounds[0], bounds[1]],
-            [bounds[2], bounds[3]],
-          ]
-        : bounds
-      : [
-          [-122.5, 37.7],
-          [-122.3, 37.9],
-        ]
+    let boundsArray: number[][]
+    if (Array.isArray(bounds) && bounds.length === 4) {
+      // Vec4Field format: [minLng, minLat, maxLng, maxLat]
+      boundsArray = [
+        [bounds[0], bounds[1]],
+        [bounds[2], bounds[3]],
+      ]
+    } else if (
+      Array.isArray(bounds) &&
+      bounds.length === 2 &&
+      Array.isArray(bounds[0]) &&
+      Array.isArray(bounds[1])
+    ) {
+      // Legacy nested array format from old projects
+      boundsArray = bounds as number[][]
+    } else {
+      // Unexpected format - warn and use default
+      console.warn('[BitmapLayerOp] Unexpected bounds format, using default SF bounds', bounds)
+      boundsArray = [
+        [-122.5, 37.7],
+        [-122.3, 37.9],
+      ]
+    }
     const layer = {
       ...parseLayerProps<BitmapLayerProps>(restProps as Omit<typeof props, 'bounds'>),
       bounds: boundsArray,

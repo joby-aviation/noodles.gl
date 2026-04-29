@@ -9,7 +9,6 @@ interface Props {
   maxResets?: number
   resetTimeout?: number
   onUndo?: () => void
-  compact?: boolean
 }
 
 interface State {
@@ -95,15 +94,10 @@ export class ErrorBoundary extends Component<Props, State> {
         return this.props.fallback
       }
 
-      const title = this.props.title ?? 'Node Graph Error'
-      const description = this.props.compact
-        ? 'An error occurred. Check the console for details.'
-        : 'An error occurred in the node graph. Check the console for details.'
-
       return (
         <div className={s.container}>
-          <h3 className={s.title}>{title}</h3>
-          <p>{description}</p>
+          <h3 className={s.title}>{this.props.title ?? 'Node Graph Error'}</h3>
+          <p>An error occurred in the node graph. Check the console for details.</p>
           {this.state.error && (
             <details className={s.details}>
               <summary className={s.summary}>Error details</summary>
