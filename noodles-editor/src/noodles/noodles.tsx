@@ -1673,14 +1673,20 @@ export function getNoodles(): Visualization {
   }, [outOp, selectedGeoJsonFeatures])
 
   const propertiesPanel = (
-    <div className={s.rightPanel}>
-      <PropertyPanel />
-    </div>
+    <ErrorBoundary title="Property Panel Error">
+      <div className={s.rightPanel}>
+        <PropertyPanel />
+      </div>
+    </ErrorBoundary>
   )
 
   return {
     flowGraph,
-    nodeSidebar: <NodeTreeSidebar updateOperatorId={updateOperatorId} />,
+    nodeSidebar: (
+      <ErrorBoundary title="Node Tree Error">
+        <NodeTreeSidebar updateOperatorId={updateOperatorId} />
+      </ErrorBoundary>
+    ),
     propertiesPanel,
     layoutMode,
     showOverlay,

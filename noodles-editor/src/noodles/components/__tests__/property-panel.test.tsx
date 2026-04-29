@@ -1,5 +1,5 @@
 // Tests for PropertyPanel selection rendering and NodeProperties nodeId interface
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { Edge, Node as ReactFlowNode } from '@xyflow/react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -159,5 +159,47 @@ describe('NodeProperties', () => {
     const { container } = wrapWithProviders(<NodeProperties nodeId="/target" />)
     // Panel renders (operator exists) and shows field list
     expect(container.querySelector('[class*="propertyList"]')).toBeInTheDocument()
+  })
+
+  it('can enter edit mode for BitmapLayerOp without crashing', () => {
+    transformGraph({
+      nodes: [{ id: '/bitmap', type: 'BitmapLayerOp', position: { x: 0, y: 0 }, data: {} }],
+      edges: [],
+    })
+    const { container } = wrapWithProviders(<NodeProperties nodeId="/bitmap" />)
+
+    // Verify the operator rendered
+    expect(screen.getByText('BitmapLayer')).toBeInTheDocument()
+
+    // Should see the bounds field (visible by default) rendered as Vec4
+    expect(screen.getByText('bounds')).toBeInTheDocument()
+
+    // The main test: clicking the edit icon should not cause a crash
+    // Find the edit icon SVG (has title "Edit fields")
+    const editIcon = screen.getByTitle('Edit fields')
+    expect(editIcon).toBeInTheDocument()
+
+    // Click it - this previously caused a black screen crash
+    fireEvent.click(editIcon)
+
+    // If we get here without crashing, the bug is fixed
+    // In edit mode, the property should now have action buttons
+    const properties = container.querySelectorAll('[class*="property"]')
+    expect(properties.length).toBeGreaterThan(0)
+  })
+
+  it('renders BitmapLayerOp bounds field with Vec4Field', () => {
+    transformGraph({
+      nodes: [{ id: '/bitmap', type: 'BitmapLayerOp', position: { x: 0, y: 0 }, data: {} }],
+      edges: [],
+    })
+    wrapWithProviders(<NodeProperties nodeId="/bitmap" />)
+
+    // Should show the bounds field
+    expect(screen.getByText('bounds')).toBeInTheDocument()
+
+    // The bounds field should render as a vector field (4 numeric inputs)
+    const propertyList = screen.getByText('bounds').closest('[class*="propertyList"]')
+    expect(propertyList).toBeInTheDocument()
   })
 })

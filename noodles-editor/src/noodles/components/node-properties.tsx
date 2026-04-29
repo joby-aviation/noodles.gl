@@ -37,6 +37,7 @@ import {
 } from './field-components'
 import menuStyles from './menu.module.css'
 import s from './node-properties.module.css'
+import { ErrorBoundary } from './error-boundary'
 import { handleClass, headerClass, typeCategory } from './op-components'
 import { RenderSettingsPanel } from './render-settings-panel'
 
@@ -651,10 +652,18 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
           )}
         </div>
         <div className={s.propertyList}>
-          {(() => {
-            // Filter inputs by visibility
-            const visibleInputs = inputs.filter(input => op.isFieldVisible(input.name))
-            const hiddenInputs = inputs.filter(input => !op.isFieldVisible(input.name))
+          <ErrorBoundary
+            title="Field Rendering Error"
+            fallback={
+              <div style={{ padding: '1rem', color: 'var(--color-text-secondary)' }}>
+                <p>Error rendering fields. Try resetting field visibility or refreshing the page.</p>
+              </div>
+            }
+          >
+            {(() => {
+              // Filter inputs by visibility
+              const visibleInputs = inputs.filter(input => op.isFieldVisible(input.name))
+              const hiddenInputs = inputs.filter(input => !op.isFieldVisible(input.name))
 
             const handleShowField = (fieldName: string) => {
               op.showField(fieldName)
@@ -871,6 +880,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
               </>
             )
           })()}
+          </ErrorBoundary>
         </div>
       </div>
       <div className={s.section}>

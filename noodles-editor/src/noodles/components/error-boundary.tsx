@@ -9,6 +9,7 @@ interface Props {
   maxResets?: number
   resetTimeout?: number
   onUndo?: () => void
+  compact?: boolean
 }
 
 interface State {
@@ -37,8 +38,9 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('[Noodles] Node graph error:', error, errorInfo)
-    debugUI('Node graph error:', error, errorInfo)
+    const title = this.props.title || 'Component error'
+    console.error(`[Noodles] ${title}:`, error, errorInfo)
+    debugUI(`${title}:`, error, errorInfo)
 
     // Increment reset count if error occurs within timeout period
     const now = Date.now()
@@ -93,10 +95,15 @@ export class ErrorBoundary extends Component<Props, State> {
         return this.props.fallback
       }
 
+      const title = this.props.title ?? 'Node Graph Error'
+      const description = this.props.compact
+        ? 'An error occurred. Check the console for details.'
+        : 'An error occurred in the node graph. Check the console for details.'
+
       return (
         <div className={s.container}>
-          <h3 className={s.title}>{this.props.title ?? 'Node Graph Error'}</h3>
-          <p>An error occurred in the node graph. Check the console for details.</p>
+          <h3 className={s.title}>{title}</h3>
+          <p>{description}</p>
           {this.state.error && (
             <details className={s.details}>
               <summary className={s.summary}>Error details</summary>

@@ -180,6 +180,7 @@ import {
   UnknownField,
   Vec2Field,
   Vec3Field,
+  Vec4Field,
   ViewField,
   VisualizationField,
   WidgetField,
@@ -6551,10 +6552,10 @@ export class BitmapLayerOp extends Operator<BitmapLayerOp> {
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       image: new StringField(''),
-      bounds: new UnknownField([
-        [-122.5, 37.7],
-        [-122.3, 37.9],
-      ]), // [[minLng, minLat], [maxLng, maxLat]] - defaults to SF area
+      bounds: new Vec4Field([-122.5, 37.7, -122.3, 37.9], {
+        label: 'Bounds [minLng, minLat, maxLng, maxLat]',
+        channelKeys: ['minLng', 'minLat', 'maxLng', 'maxLat'],
+      }),
       desaturate: new NumberField(0, { min: 0, max: 1, step: 0.01, showByDefault: false }),
       transparentColor: new ColorField(null, {
         optional: true,
@@ -6581,8 +6582,21 @@ export class BitmapLayerOp extends Operator<BitmapLayerOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const { bounds, ...restProps } = props
+    const boundsArray = Array.isArray(bounds)
+      ? bounds.length === 4
+        ? [
+            [bounds[0], bounds[1]],
+            [bounds[2], bounds[3]],
+          ]
+        : bounds
+      : [
+          [-122.5, 37.7],
+          [-122.3, 37.9],
+        ]
     const layer = {
-      ...parseLayerProps<BitmapLayerProps>(props),
+      ...parseLayerProps<BitmapLayerProps>(restProps as Omit<typeof props, 'bounds'>),
+      bounds: boundsArray,
       type: 'BitmapLayer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
