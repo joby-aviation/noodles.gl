@@ -32,6 +32,7 @@ import { getPendingQuickStartAction } from '../components/quick-start-modal'
 import { analytics } from '../utils/analytics'
 import { getKeysForProject, getKeysStore } from './keys-store'
 import newProjectJSON from './new.json'
+import { BitmapOverlayWidget, type BitmapOverlayWidgetProps } from './widgets/bitmap-overlay-widget'
 import { LegendWidget, type LegendWidgetProps } from './widgets/legend-widget'
 
 // Get URLs for all example noodles.json files (lazy-loaded)
@@ -1658,6 +1659,8 @@ export function getNoodles(): Visualization {
               widgets: widgets?.map(({ type, ...widget }) => {
                 if (type === 'LegendWidget')
                   return new LegendWidget(widget as unknown as LegendWidgetProps)
+                if (type === 'BitmapOverlay')
+                  return new BitmapOverlayWidget(widget as unknown as BitmapOverlayWidgetProps)
                 // biome-ignore lint/performance/noDynamicNamespaceImportAccess: We intentionally support all deck.gl widget types dynamically
                 return new deckWidgets[type](widget)
               }),

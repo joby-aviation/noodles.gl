@@ -103,7 +103,15 @@ export const categories = {
     'OrthographicView',
     'SplitMapViewState',
   ],
-  widget: ['CompassWidget', 'FpsWidget', 'FullscreenWidget', 'LegendWidget', 'ScreenshotWidget', 'ZoomWidget'],
+  widget: [
+    'Bitmap Overlay',
+    'CompassWidget',
+    'FpsWidget',
+    'FullscreenWidget',
+    'LegendWidget',
+    'ScreenshotWidget',
+    'ZoomWidget',
+  ],
 } as const
 
 // TODO: Remove this function when we fully migrate to operator displayNames

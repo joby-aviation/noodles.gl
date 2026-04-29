@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NumberField } from './fields'
 import {
   AccessorOp,
+  BitmapOverlayWidgetOp,
   BoundingBoxOp,
   ChartOp,
   CodeOp,
@@ -2961,5 +2962,103 @@ describe('Operator debugging', () => {
     op.breakpointEnabled.next(false)
 
     expect(states).toEqual([false, true, false])
+  })
+})
+
+describe('BitmapOverlayWidgetOp', () => {
+  it('creates a widget with default values', async () => {
+    const op = new BitmapOverlayWidgetOp('/bitmap-overlay-0')
+    await op.pull()
+    expect(op.outputData.widget).toBeDefined()
+    expect(op.outputData.widget.id).toBe('/bitmap-overlay-0')
+    expect(op.outputData.widget.type).toBe('BitmapOverlay')
+    expect(op.outputData.widget.placement).toBe('top-right')
+    expect(op.outputData.widget.width).toBe(200)
+    expect(op.outputData.widget.height).toBe(200)
+    expect(op.outputData.widget.opacity).toBe(1)
+    expect(op.outputData.widget.scale).toBe(1)
+  })
+
+  it('accepts custom image URL', async () => {
+    const op = new BitmapOverlayWidgetOp('/bitmap-overlay-0')
+    op.inputs.image.setValue('https://example.com/image.png')
+    await op.pull()
+    expect(op.outputData.widget.image).toBe('https://example.com/image.png')
+  })
+
+  it('accepts placement values', async () => {
+    const op = new BitmapOverlayWidgetOp('/bitmap-overlay-0')
+    op.inputs.placement.setValue('bottom-left')
+    await op.pull()
+    expect(op.outputData.widget.placement).toBe('bottom-left')
+  })
+
+  it('accepts custom dimensions', async () => {
+    const op = new BitmapOverlayWidgetOp('/bitmap-overlay-0')
+    op.inputs.width.setValue(300)
+    op.inputs.height.setValue(400)
+    await op.pull()
+    expect(op.outputData.widget.width).toBe(300)
+    expect(op.outputData.widget.height).toBe(400)
+  })
+
+  it('accepts opacity values', async () => {
+    const op = new BitmapOverlayWidgetOp('/bitmap-overlay-0')
+    op.inputs.opacity.setValue(0.5)
+    await op.pull()
+    expect(op.outputData.widget.opacity).toBe(0.5)
+  })
+
+  it('accepts scale values', async () => {
+    const op = new BitmapOverlayWidgetOp('/bitmap-overlay-0')
+    op.inputs.scale.setValue(2)
+    await op.pull()
+    expect(op.outputData.widget.scale).toBe(2)
+  })
+
+  it('includes viewId when provided', async () => {
+    const op = new BitmapOverlayWidgetOp('/bitmap-overlay-0')
+    op.inputs.viewId.setValue('map-view')
+    await op.pull()
+    expect(op.outputData.widget.viewId).toBe('map-view')
+  })
+
+  it('excludes viewId when empty', async () => {
+    const op = new BitmapOverlayWidgetOp('/bitmap-overlay-0')
+    op.inputs.viewId.setValue('')
+    await op.pull()
+    expect(op.outputData.widget.viewId).toBeUndefined()
+  })
+
+  it('supports fill placement for center positioning', async () => {
+    const op = new BitmapOverlayWidgetOp('/bitmap-overlay-0')
+    op.inputs.placement.setValue('fill')
+    await op.pull()
+    expect(op.outputData.widget.placement).toBe('fill')
+  })
+
+  it('accepts offsetX values', async () => {
+    const op = new BitmapOverlayWidgetOp('/bitmap-overlay-0')
+    op.inputs.offsetX.setValue(100)
+    await op.pull()
+    expect(op.outputData.widget.offsetX).toBe(100)
+  })
+
+  it('accepts offsetY values', async () => {
+    const op = new BitmapOverlayWidgetOp('/bitmap-overlay-0')
+    op.inputs.offsetY.setValue(-50)
+    await op.pull()
+    expect(op.outputData.widget.offsetY).toBe(-50)
+  })
+
+  it('combines fill placement with offsets', async () => {
+    const op = new BitmapOverlayWidgetOp('/bitmap-overlay-0')
+    op.inputs.placement.setValue('fill')
+    op.inputs.offsetX.setValue(100)
+    op.inputs.offsetY.setValue(50)
+    await op.pull()
+    expect(op.outputData.widget.placement).toBe('fill')
+    expect(op.outputData.widget.offsetX).toBe(100)
+    expect(op.outputData.widget.offsetY).toBe(50)
   })
 })
