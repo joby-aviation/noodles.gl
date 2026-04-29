@@ -1335,11 +1335,11 @@ describe('GraphExecutor - ForLoop execution with executeForLoopScope', () => {
     mathOp.addDownstreamDependent(endOp)
 
     // Execute via GraphExecutor.executeForLoopScope (the pull-based path)
-    const results = await executor.executeForLoopScope(
-      beginOp,
-      endOp,
-      [beginOp.id, mathOp.id, endOp.id]
-    )
+    const results = await executor.executeForLoopScope(beginOp, endOp, [
+      beginOp.id,
+      mathOp.id,
+      endOp.id,
+    ])
 
     expect(results).toEqual([2, 3, 4])
     expect(endOp.outputs.data.value).toEqual([2, 3, 4])
@@ -1399,11 +1399,12 @@ describe('GraphExecutor - ForLoop execution with executeForLoopScope', () => {
     endOp.inputs.item.addConnection('add-to-end', addOp.outputs.result)
     endOp.addUpstreamDependency(addOp)
 
-    const results = await executor.executeForLoopScope(
-      beginOp,
-      endOp,
-      [beginOp.id, multiplyOp.id, addOp.id, endOp.id]
-    )
+    const results = await executor.executeForLoopScope(beginOp, endOp, [
+      beginOp.id,
+      multiplyOp.id,
+      addOp.id,
+      endOp.id,
+    ])
 
     expect(results).toEqual([25, 45, 65])
   })
@@ -1472,11 +1473,11 @@ describe('GraphExecutor - ForLoop execution with executeForLoopScope', () => {
     mathOp.inputs.operator.setValue('add')
     endOp.inputs.item.addConnection('math-to-end', mathOp.outputs.result)
 
-    const results = await executor.executeForLoopScope(
-      beginOp,
-      endOp,
-      [beginOp.id, mathOp.id, endOp.id]
-    )
+    const results = await executor.executeForLoopScope(beginOp, endOp, [
+      beginOp.id,
+      mathOp.id,
+      endOp.id,
+    ])
 
     expect(results).toEqual([])
   })
@@ -1564,7 +1565,10 @@ describe('GraphExecutor - ForLoop execution with executeForLoopScope', () => {
       targetHandle: 'par.item',
     })
 
-    const inputData = [{ name: 'Alice', age: 30 }, { name: 'Bob', age: 25 }]
+    const inputData = [
+      { name: 'Alice', age: 30 },
+      { name: 'Bob', age: 25 },
+    ]
     beginOp.inputs.data.setValue(inputData)
 
     endOp.inputs.item.addConnection('begin-to-end', beginOp.outputs.item)
@@ -1613,11 +1617,11 @@ describe('GraphExecutor - ForLoop execution with executeForLoopScope', () => {
     endOp.addUpstreamDependency(mathOp)
 
     // First execution: add 10
-    const results1 = await executor.executeForLoopScope(
-      beginOp,
-      endOp,
-      [beginOp.id, mathOp.id, endOp.id]
-    )
+    const results1 = await executor.executeForLoopScope(beginOp, endOp, [
+      beginOp.id,
+      mathOp.id,
+      endOp.id,
+    ])
     expect(results1).toEqual([11, 12, 13])
 
     // Change the parameter (simulating a keyframe change)
@@ -1625,11 +1629,11 @@ describe('GraphExecutor - ForLoop execution with executeForLoopScope', () => {
     mathOp.markDirty()
 
     // Second execution: add 100
-    const results2 = await executor.executeForLoopScope(
-      beginOp,
-      endOp,
-      [beginOp.id, mathOp.id, endOp.id]
-    )
+    const results2 = await executor.executeForLoopScope(beginOp, endOp, [
+      beginOp.id,
+      mathOp.id,
+      endOp.id,
+    ])
     expect(results2).toEqual([101, 102, 103])
   })
 
@@ -1682,11 +1686,11 @@ describe('GraphExecutor - ForLoop execution with executeForLoopScope', () => {
     endOp.addUpstreamDependency(mathOp)
 
     // First execution: add 5
-    const results1 = await executor.executeForLoopScope(
-      beginOp,
-      endOp,
-      [beginOp.id, mathOp.id, endOp.id]
-    )
+    const results1 = await executor.executeForLoopScope(beginOp, endOp, [
+      beginOp.id,
+      mathOp.id,
+      endOp.id,
+    ])
     expect(results1).toEqual([15, 25, 35])
 
     // Change upstream NumberOp (simulating keyframe or user input)
@@ -1695,11 +1699,11 @@ describe('GraphExecutor - ForLoop execution with executeForLoopScope', () => {
     mathOp.markDirty()
 
     // Second execution: add 50
-    const results2 = await executor.executeForLoopScope(
-      beginOp,
-      endOp,
-      [beginOp.id, mathOp.id, endOp.id]
-    )
+    const results2 = await executor.executeForLoopScope(beginOp, endOp, [
+      beginOp.id,
+      mathOp.id,
+      endOp.id,
+    ])
     expect(results2).toEqual([60, 70, 80])
   })
 
@@ -1757,11 +1761,12 @@ describe('GraphExecutor - ForLoop execution with executeForLoopScope', () => {
     endOp.addUpstreamDependency(addOp)
 
     // First: (x * 2) + 5
-    const results1 = await executor.executeForLoopScope(
-      beginOp,
-      endOp,
-      [beginOp.id, multiplyOp.id, addOp.id, endOp.id]
-    )
+    const results1 = await executor.executeForLoopScope(beginOp, endOp, [
+      beginOp.id,
+      multiplyOp.id,
+      addOp.id,
+      endOp.id,
+    ])
     expect(results1).toEqual([7, 9, 11]) // (1*2+5, 2*2+5, 3*2+5)
 
     // Change multiply factor
@@ -1770,11 +1775,12 @@ describe('GraphExecutor - ForLoop execution with executeForLoopScope', () => {
     addOp.markDirty()
 
     // Second: (x * 10) + 5
-    const results2 = await executor.executeForLoopScope(
-      beginOp,
-      endOp,
-      [beginOp.id, multiplyOp.id, addOp.id, endOp.id]
-    )
+    const results2 = await executor.executeForLoopScope(beginOp, endOp, [
+      beginOp.id,
+      multiplyOp.id,
+      addOp.id,
+      endOp.id,
+    ])
     expect(results2).toEqual([15, 25, 35]) // (1*10+5, 2*10+5, 3*10+5)
 
     // Change both parameters
@@ -1784,11 +1790,12 @@ describe('GraphExecutor - ForLoop execution with executeForLoopScope', () => {
     addOp.markDirty()
 
     // Third: (x * 3) + 100
-    const results3 = await executor.executeForLoopScope(
-      beginOp,
-      endOp,
-      [beginOp.id, multiplyOp.id, addOp.id, endOp.id]
-    )
+    const results3 = await executor.executeForLoopScope(beginOp, endOp, [
+      beginOp.id,
+      multiplyOp.id,
+      addOp.id,
+      endOp.id,
+    ])
     expect(results3).toEqual([103, 106, 109]) // (1*3+100, 2*3+100, 3*3+100)
   })
 
@@ -1828,11 +1835,11 @@ describe('GraphExecutor - ForLoop execution with executeForLoopScope', () => {
     endOp.inputs.item.addConnection('math-to-end', mathOp.outputs.result)
     endOp.addUpstreamDependency(mathOp)
 
-    const results = await executor.executeForLoopScope(
-      beginOp,
-      endOp,
-      [beginOp.id, mathOp.id, endOp.id]
-    )
+    const results = await executor.executeForLoopScope(beginOp, endOp, [
+      beginOp.id,
+      mathOp.id,
+      endOp.id,
+    ])
 
     expect(results).toEqual([50])
   })
@@ -1876,11 +1883,11 @@ describe('GraphExecutor - ForLoop execution with executeForLoopScope', () => {
     endOp.addUpstreamDependency(mathOp)
 
     const startTime = performance.now()
-    const results = await executor.executeForLoopScope(
-      beginOp,
-      endOp,
-      [beginOp.id, mathOp.id, endOp.id]
-    )
+    const results = await executor.executeForLoopScope(beginOp, endOp, [
+      beginOp.id,
+      mathOp.id,
+      endOp.id,
+    ])
     const duration = performance.now() - startTime
 
     expect(results).toHaveLength(100)
@@ -1935,14 +1942,7 @@ describe('GraphExecutor - ForLoop execution with executeForLoopScope', () => {
       targetHandle: 'par.item',
     })
 
-    const inputData = [
-      42,
-      'string',
-      { key: 'value' },
-      [1, 2, 3],
-      true,
-      null,
-    ]
+    const inputData = [42, 'string', { key: 'value' }, [1, 2, 3], true, null]
     beginOp.inputs.data.setValue(inputData)
     endOp.inputs.item.addConnection('begin-to-end', beginOp.outputs.item)
     endOp.addUpstreamDependency(beginOp)

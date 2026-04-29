@@ -677,9 +677,13 @@ export class GraphExecutor {
 
       // Collect result from this iteration
       // Read from cached output of the last intermediate operator instead of relying on field propagation
-      const resultValue = executionOrder.length > 0
-        ? this.getOutputValueForField(executionOrder[executionOrder.length - 1], endOp.inputs.item)
-        : beginOp.outputs.item.value
+      const resultValue =
+        executionOrder.length > 0
+          ? this.getOutputValueForField(
+              executionOrder[executionOrder.length - 1],
+              endOp.inputs.item
+            )
+          : beginOp.outputs.item.value
       results.push(resultValue)
 
       // Update accumulator from meta op's currentValue input for next iteration
