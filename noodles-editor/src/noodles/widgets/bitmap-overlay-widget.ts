@@ -31,6 +31,7 @@ export class BitmapOverlayWidget extends Widget<BitmapOverlayWidgetProps> {
 
   className = 'deck-widget-bitmap-overlay'
   placement: WidgetPlacement | 'fill' = 'top-right'
+  private imgElement: HTMLImageElement | null = null
 
   constructor(props: BitmapOverlayWidgetProps = {}) {
     super(props)
@@ -85,23 +86,33 @@ export class BitmapOverlayWidget extends Widget<BitmapOverlayWidgetProps> {
     rootElement.style.userSelect = 'none'
 
     if (!image) {
-      rootElement.innerHTML = ''
+      // Clear image if no URL provided
+      if (this.imgElement) {
+        this.imgElement.remove()
+        this.imgElement = null
+      }
       return
     }
 
-    rootElement.innerHTML = `
-      <img
-        src="${escapeHtml(image)}"
-        style="
-          display: block;
-          width: ${width}px;
-          height: ${height}px;
-          opacity: ${opacity};
-          object-fit: contain;
-          border-radius: 4px;
-        "
-        alt="Bitmap overlay"
-      />
-    `
+    // Reconciliation: reuse existing img element and only update changed props
+    if (!this.imgElement) {
+      // Create new img element
+      this.imgElement = document.createElement('img')
+      this.imgElement.alt = 'Bitmap overlay'
+      this.imgElement.style.display = 'block'
+      this.imgElement.style.objectFit = 'contain'
+      this.imgElement.style.borderRadius = '4px'
+      rootElement.appendChild(this.imgElement)
+    }
+
+    // Only update src if it changed (avoids reload flicker)
+    if (this.imgElement.src !== image) {
+      this.imgElement.src = image
+    }
+
+    // Update styles that may have changed
+    this.imgElement.style.width = `${width}px`
+    this.imgElement.style.height = `${height}px`
+    this.imgElement.style.opacity = `${opacity}`
   }
 }
