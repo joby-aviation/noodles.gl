@@ -6189,7 +6189,7 @@ function formatSyntaxError(error: Error, id: string, body: string): string {
 }
 
 // Create a function with a source property for debugging
-function fnWithSource(args: string[], body: string, id: string): FunctionWithSource {
+export function fnWithSource(args: string[], body: string, id: string): FunctionWithSource {
   try {
     // Duck typing to check if the function is async
     const isAsync = /\bawait\b/.test(body)

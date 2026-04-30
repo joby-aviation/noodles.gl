@@ -13,6 +13,7 @@ import { useActiveStorageType, useCurrentDirectory } from './noodles/filesystem-
 import { useActiveOutOp } from './noodles/hooks/use-active-outop'
 import { useRenderSettings } from './noodles/hooks/use-render-settings'
 import { getNoodles } from './noodles/noodles'
+import { fnWithSource } from './noodles/operators'
 import type { RenderSettings } from './noodles/utils/serialization'
 import { useDeckDrawLoop } from './render/draw-loop'
 import { captureScreenshot, useRenderer } from './render/renderer'
@@ -210,31 +211,25 @@ export default function TimelineEditor() {
     }
   }, [light, sky])
 
-  // Helper function to evaluate MapLibre layer code
+  // Helper function to evaluate MapLibre layer code using shared fnWithSource utility
   const evaluateMapLibreLayerCode = (
     code: string,
     params: Record<string, unknown>,
     layerId: string,
     map: MapLibre
   ): Partial<CustomLayerInterface> => {
-    try {
-      const fn = new Function('params', 'map', ['// Layer ID: ' + layerId, 'return ' + code].join('\n'))
+    const fn = fnWithSource(['params', 'map'], code, layerId)
+    const result = fn(params, map)
 
-      const result = fn(params, map)
-
-      if (typeof result !== 'object' || result === null) {
-        throw new Error('Layer code must return an object')
-      }
-
-      if (typeof result.render !== 'function') {
-        throw new Error('Layer code must define a render() method')
-      }
-
-      return result as Partial<CustomLayerInterface>
-    } catch (e) {
-      const error = e instanceof Error ? e : new Error(String(e))
-      throw new Error(`Failed to evaluate MapLibre layer code for "${layerId}": ${error.message}`)
+    if (typeof result !== 'object' || result === null) {
+      throw new Error('Layer code must return an object')
     }
+
+    if (typeof result.render !== 'function') {
+      throw new Error('Layer code must define a render() method')
+    }
+
+    return result as Partial<CustomLayerInterface>
   }
 
   // Manage custom MapLibre layers
