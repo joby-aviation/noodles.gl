@@ -718,17 +718,106 @@ export class Point3DField extends Field<
     const noop = (val: unknown) => val
     return z.union([
       z
-        .looseObject({
-          lng: z.number(),
-          lat: z.number(),
-          alt: z.number(),
+        .unknown()
+        .transform(val => {
+          // Normalize column names: support Longitude/Latitude, longitude/latitude, lon/lat
+          if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
+            const obj = val as Record<string, unknown>
+            const normalized: Record<string, unknown> = {}
+            let hasLng = false
+            let hasLat = false
+            let _hasAlt = false
+
+            for (const [key, value] of Object.entries(obj)) {
+              const lowerKey = key.toLowerCase()
+              // Map longitude variants to lng
+              if (lowerKey === 'longitude' || lowerKey === 'lon') {
+                normalized.lng = value
+                hasLng = true
+              }
+              // Map latitude variants to lat
+              else if (lowerKey === 'latitude') {
+                normalized.lat = value
+                hasLat = true
+              }
+              // Map altitude variants to alt
+              else if (lowerKey === 'altitude') {
+                normalized.alt = value
+                _hasAlt = true
+              }
+              // Keep existing lng/lat/alt as-is (for backward compatibility)
+              else if (lowerKey === 'lng') {
+                normalized.lng = value
+                hasLng = true
+              } else if (lowerKey === 'lat') {
+                normalized.lat = value
+                hasLat = true
+              } else if (lowerKey === 'alt') {
+                normalized.alt = value
+                _hasAlt = true
+              }
+              // Pass through all other properties
+              else {
+                normalized[key] = value
+              }
+            }
+
+            // Only return normalized object if we have required coordinate fields (lng and lat)
+            if (hasLng && hasLat) {
+              return normalized
+            }
+          }
+          return val
         })
+        .pipe(
+          z.looseObject({
+            lng: z.number(),
+            lat: z.number(),
+            alt: z.number(),
+          })
+        )
         .transform(returnType === 'tuple' ? val => [val.lng, val.lat, val.alt] : noop),
       z
-        .looseObject({
-          lng: z.number(),
-          lat: z.number(),
+        .unknown()
+        .transform(val => {
+          // Normalize column names for 2D variant
+          if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
+            const obj = val as Record<string, unknown>
+            const normalized: Record<string, unknown> = {}
+            let hasLng = false
+            let hasLat = false
+
+            for (const [key, value] of Object.entries(obj)) {
+              const lowerKey = key.toLowerCase()
+              if (lowerKey === 'longitude' || lowerKey === 'lon') {
+                normalized.lng = value
+                hasLng = true
+              } else if (lowerKey === 'latitude') {
+                normalized.lat = value
+                hasLat = true
+              } else if (lowerKey === 'lng') {
+                normalized.lng = value
+                hasLng = true
+              } else if (lowerKey === 'lat') {
+                normalized.lat = value
+                hasLat = true
+              } else {
+                normalized[key] = value
+              }
+            }
+
+            if (hasLng && hasLat) {
+              return normalized
+            }
+          }
+          return val
         })
+        .pipe(
+          z.looseObject({
+            lng: z.number(),
+            lat: z.number(),
+          })
+        )
         .transform(
           returnType === 'tuple' ? val => [val.lng, val.lat, 0] : val => ({ ...val, alt: 0 })
         ),
@@ -781,10 +870,54 @@ export class Point2DField extends Field<
     const noop = (val: unknown) => val
     return z.union([
       z
-        .looseObject({
-          lng: z.number(),
-          lat: z.number(),
+        .unknown()
+        .transform(val => {
+          // Normalize column names: support Longitude/Latitude, longitude/latitude, lon/lat
+          if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
+            const obj = val as Record<string, unknown>
+            const normalized: Record<string, unknown> = {}
+            let hasLng = false
+            let hasLat = false
+
+            for (const [key, value] of Object.entries(obj)) {
+              const lowerKey = key.toLowerCase()
+              // Map longitude variants to lng
+              if (lowerKey === 'longitude' || lowerKey === 'lon') {
+                normalized.lng = value
+                hasLng = true
+              }
+              // Map latitude variants to lat
+              else if (lowerKey === 'latitude') {
+                normalized.lat = value
+                hasLat = true
+              }
+              // Keep existing lng/lat as-is (for backward compatibility)
+              else if (lowerKey === 'lng') {
+                normalized.lng = value
+                hasLng = true
+              } else if (lowerKey === 'lat') {
+                normalized.lat = value
+                hasLat = true
+              }
+              // Pass through all other properties
+              else {
+                normalized[key] = value
+              }
+            }
+
+            // Only return normalized object if we found required coordinate fields (lng and lat)
+            if (hasLng && hasLat) {
+              return normalized
+            }
+          }
+          return val
         })
+        .pipe(
+          z.looseObject({
+            lng: z.number(),
+            lat: z.number(),
+          })
+        )
         .transform(returnType === 'tuple' ? val => [val.lng, val.lat] : noop),
       z
         .tuple([z.number(), z.number(), z.number()])
@@ -1448,8 +1581,7 @@ export class BezierCurveField extends Field<z.ZodType<BezierCurveData>> {
 
 // Mapping of field type strings to Field class constructors
 // Used for creating custom fields dynamically
-// Using any to avoid TypeScript variance issues with Field<T> generics
-export const fieldTypeToClass: Record<string, any> = {
+export const fieldTypeToClass = {
   number: NumberField,
   string: StringField,
   boolean: BooleanField,
@@ -1466,4 +1598,4 @@ export const fieldTypeToClass: Record<string, any> = {
   'string-literal': StringLiteralField,
   data: DataField,
   unknown: UnknownField,
-}
+} as const satisfies Record<string, typeof Field>
