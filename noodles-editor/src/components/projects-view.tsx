@@ -2,12 +2,9 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { ChevronLeftIcon } from '@radix-ui/react-icons'
 import { useCallback, useEffect, useState } from 'react'
 import { useLocation } from 'wouter'
-import newProjectJSON from '../noodles/new.json'
 import type { CachedHandleEntry } from '../noodles/utils/directory-handle-cache'
 import { directoryHandleCache } from '../noodles/utils/directory-handle-cache'
 import { checkFileSystemSupport, getOPFSRoot, selectDirectory } from '../noodles/utils/filesystem'
-import { generateDraftId, memoryProjectStore } from '../noodles/utils/memory-project-store'
-import { NOODLES_VERSION, type NoodlesProjectJSON } from '../noodles/utils/serialization'
 import { analytics } from '../utils/analytics'
 import { debugUI } from '../utils/debug'
 import s from './quick-start-modal.module.css'
@@ -98,8 +95,6 @@ export function ProjectsView({ onBack, onClose }: ProjectsViewProps) {
   }, [fileSystemSupport.fileSystemAccess, fileSystemSupport.opfs])
 
   const handleNewProject = useCallback(() => {
-    const starterProject = { ...newProjectJSON, version: NOODLES_VERSION } as NoodlesProjectJSON
-    memoryProjectStore.setProjectJson('new', starterProject)
     analytics.track('quick_start_new_project')
     onClose()
     navigate('/projects/new')

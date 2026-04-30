@@ -148,6 +148,53 @@ describe('MemoryProjectStore', () => {
     })
   })
 
+  describe('displayName', () => {
+    it('returns null for unknown project', () => {
+      expect(memoryProjectStore.getDisplayName('nonexistent')).toBeNull()
+    })
+
+    it('returns null when no display name is set', () => {
+      memoryProjectStore.setProjectJson('test-1', STUB_PROJECT)
+      expect(memoryProjectStore.getDisplayName('test-1')).toBeNull()
+    })
+
+    it('stores and retrieves display name', () => {
+      memoryProjectStore.setDisplayName('nyc-taxis', 'NYC Taxis')
+      expect(memoryProjectStore.getDisplayName('nyc-taxis')).toBe('NYC Taxis')
+    })
+
+    it('allows setting display name before project JSON', () => {
+      memoryProjectStore.setDisplayName('test-1', 'Test Project')
+      expect(memoryProjectStore.getDisplayName('test-1')).toBe('Test Project')
+      expect(memoryProjectStore.getProjectJson('test-1')).toBeNull()
+    })
+
+    it('preserves display name when setting project JSON', () => {
+      memoryProjectStore.setDisplayName('test-1', 'Test Project')
+      memoryProjectStore.setProjectJson('test-1', STUB_PROJECT)
+      expect(memoryProjectStore.getDisplayName('test-1')).toBe('Test Project')
+    })
+
+    it('allows updating display name', () => {
+      memoryProjectStore.setDisplayName('test-1', 'Old Name')
+      memoryProjectStore.setDisplayName('test-1', 'New Name')
+      expect(memoryProjectStore.getDisplayName('test-1')).toBe('New Name')
+    })
+
+    it('isolates display names by project id', () => {
+      memoryProjectStore.setDisplayName('test-1', 'Project One')
+      memoryProjectStore.setDisplayName('test-2', 'Project Two')
+      expect(memoryProjectStore.getDisplayName('test-1')).toBe('Project One')
+      expect(memoryProjectStore.getDisplayName('test-2')).toBe('Project Two')
+    })
+
+    it('removes display name on deleteProject', () => {
+      memoryProjectStore.setDisplayName('test-1', 'Test Project')
+      memoryProjectStore.deleteProject('test-1')
+      expect(memoryProjectStore.getDisplayName('test-1')).toBeNull()
+    })
+  })
+
   describe('lifecycle', () => {
     it('has() returns false for missing project', () => {
       expect(memoryProjectStore.has('nonexistent')).toBe(false)
@@ -166,10 +213,12 @@ describe('MemoryProjectStore', () => {
     it('deleteProject removes everything', () => {
       memoryProjectStore.setProjectJson('test-1', STUB_PROJECT)
       memoryProjectStore.writeAsset('test-1', 'data.csv', 'x')
+      memoryProjectStore.setDisplayName('test-1', 'Test')
       memoryProjectStore.deleteProject('test-1')
       expect(memoryProjectStore.has('test-1')).toBe(false)
       expect(memoryProjectStore.getProjectJson('test-1')).toBeNull()
       expect(memoryProjectStore.checkAssetExists('test-1', 'data.csv')).toBe(false)
+      expect(memoryProjectStore.getDisplayName('test-1')).toBeNull()
     })
 
     it('getOrCreate creates a fresh entry', () => {
@@ -177,6 +226,7 @@ describe('MemoryProjectStore', () => {
       expect(project.projectJson).toBeNull()
       expect(project.assets.size).toBe(0)
       expect(project.createdAt).toBeGreaterThan(0)
+      expect(project.displayName).toBeUndefined()
     })
   })
 })
