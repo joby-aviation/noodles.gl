@@ -5,9 +5,9 @@ import type {
   Keyframe,
   KeyframeValue,
   SequenceState,
+  TimelineData,
   TimelineKeyframe,
   TimelineSequenceData,
-  TimelineData,
   TimelineTrackData,
   Track,
 } from './types'

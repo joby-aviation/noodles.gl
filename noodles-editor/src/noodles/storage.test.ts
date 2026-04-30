@@ -738,7 +738,9 @@ describe('storage.ts', () => {
         memoryProjectStore.writeAsset(PROJECT_ID, 'data.csv', 'in-memory')
 
         vi.mocked(directoryHandleCache.getCachedHandle).mockResolvedValue(null)
-        vi.mocked(filesystem.selectDirectory).mockResolvedValue(null as unknown as FileSystemDirectoryHandle)
+        vi.mocked(filesystem.selectDirectory).mockResolvedValue(
+          null as unknown as FileSystemDirectoryHandle
+        )
 
         const result = await readAsset('fileSystemAccess', PROJECT_ID, 'data.csv')
         expect(result.success).toBe(false)
