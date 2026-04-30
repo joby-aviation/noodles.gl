@@ -168,6 +168,7 @@ import {
   type InOut,
   LayerField,
   ListField,
+  MapLibreLayerField,
   MapStyleField,
   mustacheRe,
   NumberField,
