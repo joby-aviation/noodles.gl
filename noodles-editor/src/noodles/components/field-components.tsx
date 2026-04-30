@@ -34,6 +34,7 @@ import {
   type ColorRampField,
   type CompoundPropsField,
   type DateField,
+  type DurationField,
   type ExpressionField,
   type Field,
   type FileUrlField,
@@ -86,6 +87,7 @@ export const inputComponents = {
   compound: CompoundFieldComponent,
   data: EmptyFieldComponent,
   date: DateFieldComponent,
+  duration: DurationFieldComponent,
   effect: EmptyFieldComponent,
   expression: ExpressionFieldComponent,
   'file-url': FileUrlFieldComponent,
@@ -1707,6 +1709,77 @@ export function DateFieldComponent({
           disabled={disabled}
           step={0.001}
         />
+      </div>
+    </div>
+  )
+}
+
+export function DurationFieldComponent({
+  id,
+  field,
+  disabled,
+}: {
+  id: OpId
+  field: DurationField
+  disabled: boolean
+}) {
+  const [value, setValue] = useState(guardAccessorFallback(field.value))
+  const { captureStart, commitChange } = usePropertyHistory()
+
+  useEffect(() => {
+    const sub = field.subscribe(newVal => {
+      if (typeof newVal === 'function') return
+      setValue(newVal)
+    })
+    return () => sub.unsubscribe()
+  }, [field])
+
+  const onValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const numValue = Number.parseFloat(e.currentTarget.value)
+    if (!Number.isNaN(numValue)) {
+      captureStart()
+      field.setValue({ ...value, value: numValue })
+      commitChange('Change duration value')
+    }
+  }
+
+  const onUnitChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    captureStart()
+    field.setValue({ ...value, unit: e.currentTarget.value })
+    commitChange('Change duration unit')
+  }
+
+  return (
+    <div className={s.fieldWrapper}>
+      <label className={s.fieldLabel} htmlFor={id}>
+        {id}
+      </label>
+      <div className={s.fieldInputWrapper} style={{ display: 'flex', gap: '4px' }}>
+        <input
+          id={id}
+          type="number"
+          className={s.fieldInput}
+          value={value?.value ?? 0}
+          onChange={onValueChange}
+          disabled={disabled}
+          style={{ flex: '1' }}
+        />
+        <select
+          className={s.fieldInput}
+          value={value?.unit ?? 'milliseconds'}
+          onChange={onUnitChange}
+          disabled={disabled}
+          style={{ flex: '1' }}
+        >
+          <option value="years">years</option>
+          <option value="months">months</option>
+          <option value="weeks">weeks</option>
+          <option value="days">days</option>
+          <option value="hours">hours</option>
+          <option value="minutes">minutes</option>
+          <option value="seconds">seconds</option>
+          <option value="milliseconds">milliseconds</option>
+        </select>
       </div>
     </div>
   )

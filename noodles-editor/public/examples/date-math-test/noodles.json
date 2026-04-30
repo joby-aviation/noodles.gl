@@ -1,0 +1,168 @@
+{
+  "version": 6,
+  "nodes": [
+    {
+      "id": "/base-date",
+      "type": "DateTimeOp",
+      "position": {"x": 100, "y": 100},
+      "data": {
+        "inputs": {
+          "date": "2026-01-01T00:00:00"
+        }
+      }
+    },
+    {
+      "id": "/add-days",
+      "type": "DateMathOp",
+      "position": {"x": 400, "y": 100},
+      "data": {
+        "inputs": {
+          "operator": "add",
+          "duration": {
+            "value": 5,
+            "unit": "days"
+          }
+        }
+      }
+    },
+    {
+      "id": "/subtract-hours",
+      "type": "DateMathOp",
+      "position": {"x": 100, "y": 250},
+      "data": {
+        "inputs": {
+          "operator": "subtract",
+          "duration": {
+            "value": 2,
+            "unit": "hours"
+          }
+        }
+      }
+    },
+    {
+      "id": "/compare-date",
+      "type": "DateTimeOp",
+      "position": {"x": 400, "y": 350},
+      "data": {
+        "inputs": {
+          "date": "2026-01-03T00:00:00"
+        }
+      }
+    },
+    {
+      "id": "/is-before",
+      "type": "DateMathOp",
+      "position": {"x": 700, "y": 250},
+      "data": {
+        "inputs": {
+          "operator": "isBefore"
+        }
+      }
+    },
+    {
+      "id": "/format-date",
+      "type": "DateMathOp",
+      "position": {"x": 700, "y": 100},
+      "data": {
+        "inputs": {
+          "operator": "format",
+          "formatString": "YYYY-MM-DD HH:mm:ss"
+        }
+      }
+    },
+    {
+      "id": "/extract-year",
+      "type": "DateMathOp",
+      "position": {"x": 700, "y": 400},
+      "data": {
+        "inputs": {
+          "operator": "year"
+        }
+      }
+    },
+    {
+      "id": "/display-formatted",
+      "type": "ConsoleOp",
+      "position": {"x": 1000, "y": 100},
+      "data": {}
+    },
+    {
+      "id": "/display-comparison",
+      "type": "ConsoleOp",
+      "position": {"x": 1000, "y": 250},
+      "data": {}
+    },
+    {
+      "id": "/display-year",
+      "type": "ConsoleOp",
+      "position": {"x": 1000, "y": 400},
+      "data": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "/base-date.out.date->/add-days.par.date",
+      "source": "/base-date",
+      "target": "/add-days",
+      "sourceHandle": "out.date",
+      "targetHandle": "par.date"
+    },
+    {
+      "id": "/base-date.out.date->/subtract-hours.par.date",
+      "source": "/base-date",
+      "target": "/subtract-hours",
+      "sourceHandle": "out.date",
+      "targetHandle": "par.date"
+    },
+    {
+      "id": "/add-days.out.result->/format-date.par.date",
+      "source": "/add-days",
+      "target": "/format-date",
+      "sourceHandle": "out.result",
+      "targetHandle": "par.date"
+    },
+    {
+      "id": "/subtract-hours.out.result->/is-before.par.date",
+      "source": "/subtract-hours",
+      "target": "/is-before",
+      "sourceHandle": "out.result",
+      "targetHandle": "par.date"
+    },
+    {
+      "id": "/compare-date.out.date->/is-before.par.dateB",
+      "source": "/compare-date",
+      "target": "/is-before",
+      "sourceHandle": "out.date",
+      "targetHandle": "par.dateB"
+    },
+    {
+      "id": "/base-date.out.date->/extract-year.par.date",
+      "source": "/base-date",
+      "target": "/extract-year",
+      "sourceHandle": "out.date",
+      "targetHandle": "par.date"
+    },
+    {
+      "id": "/format-date.out.result->/display-formatted.par.data",
+      "source": "/format-date",
+      "target": "/display-formatted",
+      "sourceHandle": "out.result",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/is-before.out.result->/display-comparison.par.data",
+      "source": "/is-before",
+      "target": "/display-comparison",
+      "sourceHandle": "out.result",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/extract-year.out.result->/display-year.par.data",
+      "source": "/extract-year",
+      "target": "/display-year",
+      "sourceHandle": "out.result",
+      "targetHandle": "par.data"
+    }
+  ],
+  "viewport": {"x": 0, "y": 0, "zoom": 1}
+}

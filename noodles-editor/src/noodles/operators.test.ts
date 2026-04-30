@@ -5,6 +5,7 @@ import {
   AccessorOp,
   BitmapOverlayWidgetOp,
   BoundingBoxOp,
+  DateMathOp,
   ChartOp,
   CodeOp,
   ConcatOp,
@@ -3101,5 +3102,222 @@ describe('BitmapOverlayWidgetOp', () => {
     expect(op.outputData.widget.placement).toBe('fill')
     expect(op.outputData.widget.offsetX).toBe(100)
     expect(op.outputData.widget.offsetY).toBe(50)
+  })
+})
+
+describe('DateMathOp', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('adds duration to date', async () => {
+    const op = new DateMathOp('/date-math')
+    op.inputs.operator.setValue('add')
+    op.inputs.date.setValue(Temporal.PlainDateTime.from('2026-04-30T12:00:00'))
+    op.inputs.duration.setValue({ value: 5, unit: 'days' })
+
+    await op.pull()
+    expect(op.outputData.result.toString()).toBe('2026-05-05T12:00:00')
+  })
+
+  it('subtracts duration from date', async () => {
+    const op = new DateMathOp('/date-math')
+    op.inputs.operator.setValue('subtract')
+    op.inputs.date.setValue(Temporal.PlainDateTime.from('2026-04-30T12:00:00'))
+    op.inputs.duration.setValue({ value: 2, unit: 'hours' })
+
+    await op.pull()
+    expect(op.outputData.result.toString()).toBe('2026-04-30T10:00:00')
+  })
+
+  it('calculates difference between dates in days', async () => {
+    const op = new DateMathOp('/date-math')
+    op.inputs.operator.setValue('difference')
+    op.inputs.date.setValue(Temporal.PlainDateTime.from('2026-04-30T12:00:00'))
+    op.inputs.dateB.setValue(Temporal.PlainDateTime.from('2026-05-07T12:00:00'))
+    op.inputs.duration.setValue({ value: 0, unit: 'days' })
+
+    await op.pull()
+    expect(op.outputData.result).toBe(7)
+  })
+
+  it('calculates difference between dates in hours', async () => {
+    const op = new DateMathOp('/date-math')
+    op.inputs.operator.setValue('difference')
+    op.inputs.date.setValue(Temporal.PlainDateTime.from('2026-04-30T12:00:00'))
+    op.inputs.dateB.setValue(Temporal.PlainDateTime.from('2026-04-30T15:30:00'))
+    op.inputs.duration.setValue({ value: 0, unit: 'hours' })
+
+    await op.pull()
+    expect(op.outputData.result).toBe(3)
+  })
+
+  it('compares dates with isBefore', async () => {
+    const op = new DateMathOp('/date-math')
+    op.inputs.operator.setValue('isBefore')
+    op.inputs.date.setValue(Temporal.PlainDateTime.from('2026-04-30T12:00:00'))
+    op.inputs.dateB.setValue(Temporal.PlainDateTime.from('2026-05-01T12:00:00'))
+
+    await op.pull()
+    expect(op.outputData.result).toBe(true)
+  })
+
+  it('compares dates with isAfter', async () => {
+    const op = new DateMathOp('/date-math')
+    op.inputs.operator.setValue('isAfter')
+    op.inputs.date.setValue(Temporal.PlainDateTime.from('2026-05-01T12:00:00'))
+    op.inputs.dateB.setValue(Temporal.PlainDateTime.from('2026-04-30T12:00:00'))
+
+    await op.pull()
+    expect(op.outputData.result).toBe(true)
+  })
+
+  it('compares dates with equals', async () => {
+    const op = new DateMathOp('/date-math')
+    op.inputs.operator.setValue('equals')
+    op.inputs.date.setValue(Temporal.PlainDateTime.from('2026-04-30T12:00:00'))
+    op.inputs.dateB.setValue(Temporal.PlainDateTime.from('2026-04-30T12:00:00'))
+
+    await op.pull()
+    expect(op.outputData.result).toBe(true)
+  })
+
+  it('formats date with custom format string', async () => {
+    const op = new DateMathOp('/date-math')
+    op.inputs.operator.setValue('format')
+    op.inputs.date.setValue(Temporal.PlainDateTime.from('2026-04-30T12:34:56'))
+    op.inputs.formatString.setValue('YYYY-MM-DD HH:mm:ss')
+
+    await op.pull()
+    expect(op.outputData.result).toBe('2026-04-30 12:34:56')
+  })
+
+  it('formats date as ISO string by default', async () => {
+    const op = new DateMathOp('/date-math')
+    op.inputs.operator.setValue('format')
+    op.inputs.date.setValue(Temporal.PlainDateTime.from('2026-04-30T12:34:56'))
+    op.inputs.formatString.setValue('')
+
+    await op.pull()
+    expect(op.outputData.result).toBe('2026-04-30T12:34:56')
+  })
+
+  it('extracts year component', async () => {
+    const op = new DateMathOp('/date-math')
+    op.inputs.operator.setValue('year')
+    op.inputs.date.setValue(Temporal.PlainDateTime.from('2026-04-30T12:00:00'))
+
+    await op.pull()
+    expect(op.outputData.result).toBe(2026)
+  })
+
+  it('extracts month component', async () => {
+    const op = new DateMathOp('/date-math')
+    op.inputs.operator.setValue('month')
+    op.inputs.date.setValue(Temporal.PlainDateTime.from('2026-04-30T12:00:00'))
+
+    await op.pull()
+    expect(op.outputData.result).toBe(4)
+  })
+
+  it('extracts day component', async () => {
+    const op = new DateMathOp('/date-math')
+    op.inputs.operator.setValue('day')
+    op.inputs.date.setValue(Temporal.PlainDateTime.from('2026-04-30T12:00:00'))
+
+    await op.pull()
+    expect(op.outputData.result).toBe(30)
+  })
+
+  it('extracts hour component', async () => {
+    const op = new DateMathOp('/date-math')
+    op.inputs.operator.setValue('hour')
+    op.inputs.date.setValue(Temporal.PlainDateTime.from('2026-04-30T12:00:00'))
+
+    await op.pull()
+    expect(op.outputData.result).toBe(12)
+  })
+
+  it('extracts dayOfWeek', async () => {
+    const op = new DateMathOp('/date-math')
+    op.inputs.operator.setValue('dayOfWeek')
+    op.inputs.date.setValue(Temporal.PlainDateTime.from('2026-04-30T12:00:00'))
+
+    await op.pull()
+    expect(op.outputData.result).toBe(4)
+  })
+
+  it('works with accessor functions for add', async () => {
+    const op = new DateMathOp('/date-math')
+    op.inputs.operator.setValue('add')
+    op.inputs.date.setValue((d: { date: Temporal.PlainDateTime }) => d.date)
+    op.inputs.duration.setValue({ value: 1, unit: 'days' })
+
+    await op.pull()
+    expect(isAccessor(op.outputData.result)).toBe(true)
+
+    const result = (op.outputData.result as (d: { date: Temporal.PlainDateTime }) => Temporal.PlainDateTime)({
+      date: Temporal.PlainDateTime.from('2026-04-30T12:00:00'),
+    })
+    expect(result.toString()).toBe('2026-05-01T12:00:00')
+  })
+
+  it('works with accessor functions for difference', async () => {
+    const op = new DateMathOp('/date-math')
+    op.inputs.operator.setValue('difference')
+    op.inputs.date.setValue((d: { start: Temporal.PlainDateTime }) => d.start)
+    op.inputs.dateB.setValue((d: { end: Temporal.PlainDateTime }) => d.end)
+    op.inputs.duration.setValue({ value: 0, unit: 'days' })
+
+    await op.pull()
+    expect(isAccessor(op.outputData.result)).toBe(true)
+
+    const result = (op.outputData.result as (d: {
+      start: Temporal.PlainDateTime
+      end: Temporal.PlainDateTime
+    }) => number)({
+      start: Temporal.PlainDateTime.from('2026-04-30T12:00:00'),
+      end: Temporal.PlainDateTime.from('2026-05-05T12:00:00'),
+    })
+    expect(result).toBe(5)
+  })
+
+  it('works with mixed static and accessor inputs', async () => {
+    const op = new DateMathOp('/date-math')
+    op.inputs.operator.setValue('isBefore')
+    op.inputs.date.setValue((d: { date: Temporal.PlainDateTime }) => d.date)
+    op.inputs.dateB.setValue(Temporal.PlainDateTime.from('2026-05-01T00:00:00'))
+
+    await op.pull()
+    expect(isAccessor(op.outputData.result)).toBe(true)
+
+    const result = (op.outputData.result as (d: { date: Temporal.PlainDateTime }) => boolean)({
+      date: Temporal.PlainDateTime.from('2026-04-30T12:00:00'),
+    })
+    expect(result).toBe(true)
+  })
+
+  it('adds months correctly', async () => {
+    const op = new DateMathOp('/date-math')
+    op.inputs.operator.setValue('add')
+    op.inputs.date.setValue(Temporal.PlainDateTime.from('2026-01-31T12:00:00'))
+    op.inputs.duration.setValue({ value: 1, unit: 'months' })
+
+    await op.pull()
+    expect(op.outputData.result.toString()).toBe('2026-02-28T12:00:00')
+  })
+
+  it('adds years correctly', async () => {
+    const op = new DateMathOp('/date-math')
+    op.inputs.operator.setValue('add')
+    op.inputs.date.setValue(Temporal.PlainDateTime.from('2024-02-29T12:00:00'))
+    op.inputs.duration.setValue({ value: 1, unit: 'years' })
+
+    await op.pull()
+    expect(op.outputData.result.toString()).toBe('2025-02-28T12:00:00')
   })
 })

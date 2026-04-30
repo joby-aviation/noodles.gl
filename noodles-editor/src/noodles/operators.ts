@@ -155,6 +155,7 @@ import {
   CompoundPropsField,
   DataField,
   DateField,
+  DurationField,
   EffectField,
   ExpressionField,
   ExtensionField,
@@ -1291,6 +1292,175 @@ export class DateTimeOp extends Operator<DateTimeOp> {
   }
   execute({ date }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     return { date }
+  }
+}
+
+// Date/time math operator supporting arithmetic, comparisons, formatting, and component extraction
+// Operations:
+// - add/subtract: Add or subtract duration from date (returns date)
+// - difference: Calculate time between two dates (returns number in specified units)
+// - isBefore/isAfter/equals: Compare dates (returns boolean)
+// - format: Format date as string using YYYY-MM-DD HH:mm:ss pattern
+// - year/month/day/hour/minute/second/millisecond: Extract date components (returns number)
+// - dayOfWeek/dayOfYear/weekOfYear: Computed date properties (returns number)
+//
+// Inputs:
+// - date: Base date for operation (always required)
+// - dateB: Second date for difference/comparison operations (required for difference, isBefore, isAfter, equals)
+// - duration: {value, unit} for add/subtract/difference operations
+// - formatString: Custom format pattern for format operation (e.g., 'YYYY-MM-DD HH:mm:ss')
+//
+// Supports accessor functions for per-item date calculations in data pipelines
+export class DateMathOp extends Operator<DateMathOp> {
+  static displayName = 'Date Math'
+  static description = 'Perform date/time arithmetic and comparisons'
+  public createInputs() {
+    return {
+      operator: new StringLiteralField('add', {
+        values: [
+          'add',
+          'subtract',
+          'difference',
+          'isBefore',
+          'isAfter',
+          'equals',
+          'format',
+          'year',
+          'month',
+          'day',
+          'hour',
+          'minute',
+          'second',
+          'millisecond',
+          'dayOfWeek',
+          'dayOfYear',
+          'weekOfYear',
+        ],
+      }),
+      date: new DateField(Temporal.Now.plainDateTimeISO(), { accessor: true }),
+      dateB: new DateField(Temporal.Now.plainDateTimeISO(), { accessor: true }),
+      duration: new DurationField(),
+      formatString: new StringField(''),
+    }
+  }
+  createOutputs() {
+    return {
+      result: new UnknownField(),
+    }
+  }
+  execute({
+    operator,
+    date,
+    dateB,
+    duration,
+    formatString,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const dateIsAccessor = isAccessor(date)
+    const dateBIsAccessor = isAccessor(dateB)
+
+    const transform = (
+      dateVal: Temporal.PlainDateTime,
+      dateBVal?: Temporal.PlainDateTime
+    ): unknown => {
+      switch (operator) {
+        case 'add': {
+          const dur = Temporal.Duration.from({ [duration.unit]: duration.value })
+          return dateVal.add(dur)
+        }
+        case 'subtract': {
+          const dur = Temporal.Duration.from({ [duration.unit]: duration.value })
+          return dateVal.subtract(dur)
+        }
+        case 'difference': {
+          if (!dateBVal) throw new Error('dateB required for difference operation')
+          const diff = dateVal.until(dateBVal, { largestUnit: duration.unit as Temporal.DateTimeUnit })
+          return diff[duration.unit]
+        }
+        case 'isBefore': {
+          if (!dateBVal) throw new Error('dateB required for isBefore operation')
+          return Temporal.PlainDateTime.compare(dateVal, dateBVal) < 0
+        }
+        case 'isAfter': {
+          if (!dateBVal) throw new Error('dateB required for isAfter operation')
+          return Temporal.PlainDateTime.compare(dateVal, dateBVal) > 0
+        }
+        case 'equals': {
+          if (!dateBVal) throw new Error('dateB required for equals operation')
+          return Temporal.PlainDateTime.compare(dateVal, dateBVal) === 0
+        }
+        case 'format': {
+          if (formatString) {
+            return formatString
+              .replace('YYYY', dateVal.year.toString().padStart(4, '0'))
+              .replace('MM', dateVal.month.toString().padStart(2, '0'))
+              .replace('DD', dateVal.day.toString().padStart(2, '0'))
+              .replace('HH', dateVal.hour.toString().padStart(2, '0'))
+              .replace('mm', dateVal.minute.toString().padStart(2, '0'))
+              .replace('ss', dateVal.second.toString().padStart(2, '0'))
+          }
+          return dateVal.toString()
+        }
+        case 'year':
+          return dateVal.year
+        case 'month':
+          return dateVal.month
+        case 'day':
+          return dateVal.day
+        case 'hour':
+          return dateVal.hour
+        case 'minute':
+          return dateVal.minute
+        case 'second':
+          return dateVal.second
+        case 'millisecond':
+          return dateVal.millisecond
+        case 'dayOfWeek':
+          return dateVal.dayOfWeek
+        case 'dayOfYear':
+          return dateVal.dayOfYear
+        case 'weekOfYear':
+          return dateVal.weekOfYear
+        default:
+          throw new Error(`Unknown operator: ${operator}`)
+      }
+    }
+
+    const needsDateB = new Set(['difference', 'isBefore', 'isAfter', 'equals'])
+    const requiresDateB = needsDateB.has(operator)
+
+    if (!dateIsAccessor && (!requiresDateB || !dateBIsAccessor)) {
+      return {
+        result: transform(
+          date as Temporal.PlainDateTime,
+          requiresDateB ? (dateB as Temporal.PlainDateTime) : undefined
+        ),
+      }
+    }
+
+    if (dateIsAccessor && (!requiresDateB || dateBIsAccessor)) {
+      const result = (...args: unknown[]) => {
+        const dateVal = (date as (...args: unknown[]) => Temporal.PlainDateTime)(...args)
+        const dateBVal = requiresDateB
+          ? (dateB as (...args: unknown[]) => Temporal.PlainDateTime)(...args)
+          : undefined
+        return transform(dateVal, dateBVal)
+      }
+      return { result }
+    }
+
+    const result = (...args: unknown[]) => {
+      const dateVal = dateIsAccessor
+        ? (date as (...args: unknown[]) => Temporal.PlainDateTime)(...args)
+        : (date as Temporal.PlainDateTime)
+      const dateBVal =
+        requiresDateB && dateBIsAccessor
+          ? (dateB as (...args: unknown[]) => Temporal.PlainDateTime)(...args)
+          : requiresDateB
+            ? (dateB as Temporal.PlainDateTime)
+            : undefined
+      return transform(dateVal, dateBVal)
+    }
+    return { result }
   }
 }
 
@@ -8018,6 +8188,7 @@ export const opTypes = {
   ContourLayerOp,
   CrossOp,
   DataFilterExtensionOp,
+  DateMathOp,
   DateTimeOp,
   DeckRendererOp,
   DirectionsOp,
