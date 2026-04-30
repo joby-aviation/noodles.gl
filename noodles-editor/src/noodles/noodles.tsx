@@ -42,46 +42,6 @@ const exampleProjectUrls = import.meta.glob('../examples/**/noodles.json', {
   import: 'default',
 })
 
-// Get README files for example display names
-const exampleReadmes = import.meta.glob('../examples/**/README.md', {
-  eager: true,
-  query: '?raw',
-  import: 'default',
-})
-
-const ACRONYMS: Record<string, string> = {
-  nyc: 'NYC',
-  usa: 'USA',
-  uk: 'UK',
-  api: 'API',
-  json: 'JSON',
-  csv: 'CSV',
-}
-
-function formatProjectName(name: string): string {
-  return name
-    .replace(/-/g, ' ')
-    .replace(
-      /\b\w+\b/g,
-      word => ACRONYMS[word.toLowerCase()] || word.charAt(0).toUpperCase() + word.slice(1)
-    )
-}
-
-function getExampleDisplayName(exampleId: string): string | null {
-  const readmePath = `../examples/${exampleId}/README.md`
-  const readme = exampleReadmes[readmePath] as string | undefined
-
-  if (readme) {
-    const firstLine = readme.split('\n')[0]
-    const match = firstLine.match(/^#\s+(.*)/)
-    if (match?.[1]) {
-      return match[1].trim()
-    }
-  }
-
-  return formatProjectName(exampleId)
-}
-
 import {
   bindOperatorToTimeline,
   cleanupRemovedOperators as cleanupRemovedOperatorsNative,
@@ -880,12 +840,11 @@ export function getNoodles(): Visualization {
               ...EMPTY_PROJECT,
               ...noodlesFile,
             } as NoodlesProjectJSON)
-            // Store in memory with example name as ID and set display name
+            // Store in memory with example name as ID and set display name from project JSON
             memoryProjectStore.setProjectJson(projectName, project)
-            memoryProjectStore.setDisplayName(
-              projectName,
-              getExampleDisplayName(projectName) || projectName
-            )
+            if (project.name) {
+              memoryProjectStore.setDisplayName(projectName, project.name)
+            }
             await copyExampleAssetsToMemory(projectName, projectName)
             setCurrentDirectory(null, projectName)
             setActiveStorageType('memory')

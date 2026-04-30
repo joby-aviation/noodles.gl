@@ -50,6 +50,7 @@ export const DEFAULT_RENDER_SETTINGS: RenderSettings = {
 export type NoodlesProjectJSON = ReactFlowJsonObject & {
   version: number
   timeline: Record<string, unknown>
+  name?: string
   editorSettings?: EditorSettings
   renderSettings?: Partial<RenderSettings>
   apiKeys?: {

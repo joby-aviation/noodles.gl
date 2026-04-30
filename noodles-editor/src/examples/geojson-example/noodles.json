@@ -196,5 +196,6 @@
       "hPcEOr80dLTuA80M"
     ]
   },
-  "version": 6
+  "version": 6,
+  "name": "GeoJSON BART Stations"
 }

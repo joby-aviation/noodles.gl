@@ -237,5 +237,6 @@
     "definitionVersion": "0.4.0",
     "revisionHistory": []
   },
-  "version": 7
+  "version": 7,
+  "name": "US County Unemployment"
 }

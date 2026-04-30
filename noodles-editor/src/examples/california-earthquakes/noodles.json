@@ -257,8 +257,8 @@
       }
     },
     "definitionVersion": "0.4.0",
-    "revisionHistory": [
-    ]
+    "revisionHistory": []
   },
-  "version": 6
+  "version": 6,
+  "name": "California Earthquakes"
 }
