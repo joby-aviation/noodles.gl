@@ -1,4 +1,4 @@
-import { Component, type ReactNode, Suspense, lazy, useEffect } from 'react'
+import { Component, lazy, type ReactNode, Suspense, useEffect } from 'react'
 import { Redirect, Route, Router, Switch, useRoute, useSearchParams } from 'wouter'
 import { AnalyticsConsentBanner } from './components/analytics-consent-banner'
 import { type ModalView, QuickStartModal } from './components/quick-start-modal'
@@ -62,11 +62,14 @@ function App() {
         </Suspense>
       )}
       <Switch>
-        {/* Project routes - /examples/:projectId and /projects/:projectId (most specific first) */}
+        {/* Project routes - /examples/:projectId, /projects/:projectId, /drafts/:projectId (most specific first) */}
         <Route path="/examples/:projectId">
           <TimelineEditor />
         </Route>
         <Route path="/projects/:projectId">
+          <TimelineEditor />
+        </Route>
+        <Route path="/drafts/:projectId">
           <TimelineEditor />
         </Route>
 

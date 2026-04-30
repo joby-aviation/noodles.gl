@@ -5,19 +5,9 @@ import { useLocation } from 'wouter'
 import newProjectJSON from '../noodles/new.json'
 import type { CachedHandleEntry } from '../noodles/utils/directory-handle-cache'
 import { directoryHandleCache } from '../noodles/utils/directory-handle-cache'
-import {
-  checkFileSystemSupport,
-  fileExists,
-  getOPFSRoot,
-  requestPermission,
-  selectDirectory,
-  writeFileToDirectory,
-} from '../noodles/utils/filesystem'
-import {
-  NOODLES_VERSION,
-  type NoodlesProjectJSON,
-  safeStringify,
-} from '../noodles/utils/serialization'
+import { checkFileSystemSupport, getOPFSRoot, selectDirectory } from '../noodles/utils/filesystem'
+import { generateDraftId, memoryProjectStore } from '../noodles/utils/memory-project-store'
+import { NOODLES_VERSION, type NoodlesProjectJSON } from '../noodles/utils/serialization'
 import { analytics } from '../utils/analytics'
 import { debugUI } from '../utils/debug'
 import s from './quick-start-modal.module.css'
@@ -107,43 +97,13 @@ export function ProjectsView({ onBack, onClose }: ProjectsViewProps) {
     loadAllProjects()
   }, [fileSystemSupport.fileSystemAccess, fileSystemSupport.opfs])
 
-  const handleNewProject = useCallback(async () => {
-    try {
-      const directoryHandle = await selectDirectory()
-      const hasPermission = await requestPermission(directoryHandle, 'readwrite')
-      if (!hasPermission) return
-
-      // If a noodles.json already exists, open that project instead of overwriting
-      const alreadyExists = await fileExists(directoryHandle, 'noodles.json')
-      if (alreadyExists) {
-        await directoryHandleCache.cacheHandle(
-          directoryHandle.name,
-          directoryHandle,
-          directoryHandle.name
-        )
-        onClose()
-        navigate(`/projects/${directoryHandle.name}`)
-        return
-      }
-
-      const starterProject = { ...newProjectJSON, version: NOODLES_VERSION } as NoodlesProjectJSON
-      await writeFileToDirectory(
-        directoryHandle,
-        'noodles.json',
-        safeStringify(starterProject as Record<string, unknown>)
-      )
-      await directoryHandleCache.cacheHandle(
-        directoryHandle.name,
-        directoryHandle,
-        directoryHandle.name
-      )
-      analytics.track('quick_start_new_project')
-      onClose()
-      navigate(`/projects/${directoryHandle.name}`)
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') return
-      console.error('Failed to create new project:', error)
-    }
+  const handleNewProject = useCallback(() => {
+    const draftId = generateDraftId()
+    const starterProject = { ...newProjectJSON, version: NOODLES_VERSION } as NoodlesProjectJSON
+    memoryProjectStore.setProjectJson(draftId, starterProject)
+    analytics.track('quick_start_new_project')
+    onClose()
+    navigate(`/drafts/${draftId}`)
   }, [navigate, onClose])
 
   const handleOpenFolder = useCallback(async () => {
