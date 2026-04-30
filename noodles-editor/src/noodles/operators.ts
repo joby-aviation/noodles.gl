@@ -3737,7 +3737,7 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
 }
 
 export class CustomMapLibreLayerOp extends Operator<CustomMapLibreLayerOp> {
-  static displayName = 'Custom MapLibre Layer'
+  static displayName = 'CustomMapLibreLayer'
   static description =
     'Define a custom MapLibre GL layer with WebGL rendering. ' +
     'The code must return an object with onAdd, render, and onRemove methods. ' +
