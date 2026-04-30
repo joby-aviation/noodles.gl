@@ -11,6 +11,7 @@ import {
   selectDirectory,
   writeFileToDirectory,
 } from './utils/filesystem'
+import { memoryProjectStore } from './utils/memory-project-store'
 import { EMPTY_PROJECT, type NoodlesProjectJSON, safeStringify } from './utils/serialization'
 
 // Pre-load all example asset URLs at build time using import.meta.glob
@@ -198,13 +199,13 @@ export async function getProjectDirectoryHandle(
       }
     }
 
-    case 'publicFolder': {
-      // Public folder projects don't have directory handles
+    case 'publicFolder':
+    case 'memory': {
       return {
         success: false,
         error: {
           type: 'not-found',
-          message: 'Public folder projects do not have directory handles',
+          message: `${type} projects do not have directory handles`,
         },
       }
     }
@@ -229,6 +230,19 @@ export async function save(
   projectName: string,
   projectData: NoodlesProjectJSON
 ): Promise<FileSystemResult<FileSystemProject>> {
+  if (type === 'memory') {
+    memoryProjectStore.setProjectJson(projectName, projectData)
+    return {
+      success: true,
+      data: {
+        directoryHandle: null as unknown as FileSystemDirectoryHandle,
+        projectFileHandle: null as unknown as FileSystemFileHandle,
+        name: projectName,
+        projectData,
+      },
+    }
+  }
+
   const result = await getProjectDirectoryHandle(type, projectName, true)
   if (!result.success) {
     return result
@@ -267,6 +281,26 @@ export async function load(
   type: StorageType,
   fromProject: string | FileSystemDirectoryHandle
 ): Promise<FileSystemResult<FileSystemProject>> {
+  if (type === 'memory' && typeof fromProject === 'string') {
+    const projectJson = memoryProjectStore.getProjectJson(fromProject)
+    if (!projectJson) {
+      return {
+        success: false,
+        error: { type: 'not-found', message: `Memory project not found: ${fromProject}` },
+      }
+    }
+    const projectData = { ...EMPTY_PROJECT, ...projectJson } as NoodlesProjectJSON
+    return {
+      success: true,
+      data: {
+        directoryHandle: null as unknown as FileSystemDirectoryHandle,
+        projectFileHandle: null as unknown as FileSystemFileHandle,
+        name: fromProject,
+        projectData,
+      },
+    }
+  }
+
   let projectDirectory: FileSystemDirectoryHandle
   let projectName: string
 
@@ -333,6 +367,17 @@ export async function readAsset(
   projectName: string,
   fileName: string
 ): Promise<FileSystemResult<string>> {
+  if (type === 'memory') {
+    const data = await memoryProjectStore.readAsset(projectName, fileName)
+    if (data === null) {
+      return {
+        success: false,
+        error: { type: 'not-found', message: `Asset not found in memory: ${fileName}` },
+      }
+    }
+    return { success: true, data }
+  }
+
   // For public folder projects, fetch from asset URLs
   if (type === 'publicFolder') {
     try {
@@ -418,6 +463,17 @@ export async function readAssetBinary(
   projectName: string,
   fileName: string
 ): Promise<FileSystemResult<ArrayBuffer>> {
+  if (type === 'memory') {
+    const data = await memoryProjectStore.readAssetBinary(projectName, fileName)
+    if (data === null) {
+      return {
+        success: false,
+        error: { type: 'not-found', message: `Asset not found in memory: ${fileName}` },
+      }
+    }
+    return { success: true, data }
+  }
+
   // For public folder projects, fetch from asset URLs
   if (type === 'publicFolder') {
     try {
@@ -503,6 +559,10 @@ export async function checkAssetExists(
   projectName: string,
   fileName: string
 ): Promise<boolean> {
+  if (type === 'memory') {
+    return memoryProjectStore.checkAssetExists(projectName, fileName)
+  }
+
   // For public folder projects, check if asset exists in URL map
   if (type === 'publicFolder') {
     const assetKey = `../examples/${projectName}/${fileName}`
@@ -553,6 +613,11 @@ export async function writeAsset(
   fileName: string,
   contents: string | Blob
 ): Promise<FileSystemResult<void>> {
+  if (type === 'memory') {
+    memoryProjectStore.writeAsset(projectName, fileName, contents)
+    return { success: true, data: undefined }
+  }
+
   // Public folder projects are read-only
   if (type === 'publicFolder') {
     return {
@@ -594,6 +659,10 @@ export async function writeAsset(
 
 // Check if a project has a data directory with files
 export async function hasDataDirectory(type: StorageType, projectName: string): Promise<boolean> {
+  if (type === 'memory') {
+    return memoryProjectStore.hasDataDirectory(projectName)
+  }
+
   // For public folder projects, check if any data files exist in URL map
   if (type === 'publicFolder') {
     const prefix = `../examples/${projectName}/data/`
@@ -627,6 +696,10 @@ export async function listDataFiles(
   type: StorageType,
   projectName: string
 ): Promise<FileSystemResult<string[]>> {
+  if (type === 'memory') {
+    return { success: true, data: memoryProjectStore.listDataFiles(projectName) }
+  }
+
   // For public folder projects, list from URL map
   if (type === 'publicFolder') {
     const prefix = `../examples/${projectName}/data/`
@@ -777,6 +850,65 @@ export async function copyPublicFolderData(
     return {
       success: false,
       error: handleError(error, 'copy public folder data'),
+    }
+  }
+}
+
+// Copy in-memory assets to a target directory on disk
+export async function copyMemoryDataToDirectory(
+  projectId: string,
+  targetDirectory: FileSystemDirectoryHandle
+): Promise<FileSystemResult<void>> {
+  try {
+    const assets = memoryProjectStore.getAllAssets(projectId)
+    if (assets.size === 0) {
+      return { success: true, data: undefined }
+    }
+
+    const targetDataDir = await targetDirectory.getDirectoryHandle(DATA_DIRECTORY_NAME, {
+      create: true,
+    })
+
+    for (const [fileName, blob] of assets) {
+      const pathParts = fileName.split('/')
+      const baseName = pathParts.pop()!
+
+      let currentDir = targetDataDir
+      for (const part of pathParts) {
+        currentDir = await currentDir.getDirectoryHandle(part, { create: true })
+      }
+
+      const contents = await blob.arrayBuffer()
+      await writeFileToDirectory(currentDir, baseName, contents)
+    }
+
+    return { success: true, data: undefined }
+  } catch (error) {
+    return {
+      success: false,
+      error: handleError(error, 'copy memory data to directory'),
+    }
+  }
+}
+
+// Copy bundled example assets into an in-memory project so examples become editable
+export async function copyExampleAssetsToMemory(
+  exampleName: string,
+  memoryProjectId: string
+): Promise<void> {
+  const prefix = `../examples/${exampleName}/`
+  for (const [key, url] of Object.entries(exampleAssetUrls)) {
+    if (key.startsWith(prefix) && !key.endsWith('noodles.json') && !key.endsWith('README.md')) {
+      try {
+        const response = await fetch(url)
+        if (response.ok) {
+          const blob = await response.blob()
+          const relativePath = key.substring(prefix.length)
+          memoryProjectStore.writeAsset(memoryProjectId, relativePath, blob)
+        }
+      } catch {
+        debugSerialize(`Failed to copy example asset: ${key}`)
+      }
     }
   }
 }

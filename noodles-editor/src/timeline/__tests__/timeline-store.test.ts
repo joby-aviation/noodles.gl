@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { useTimelineStore } from '../timeline-store'
-import type { TheatreTimelineData } from '../types'
+import type { TimelineData } from '../types'
 import { DEFAULT_SEQUENCE_STATE } from '../types'
 
 describe('TimelineStore', () => {
@@ -487,7 +487,7 @@ describe('TimelineStore', () => {
   })
 
   describe('serialization', () => {
-    it('toTheatreJSON produces Theatre.js compatible format', () => {
+    it('toTimelineJSON produces timeline compatible format', () => {
       useTimelineStore.getState().setLength(5)
       useTimelineStore.getState().setFps(24)
       useTimelineStore.getState().getOrCreateTrack('myop / zoom', 1)
@@ -505,15 +505,15 @@ describe('TimelineStore', () => {
         interpolation: 'hold',
       })
 
-      const json = useTimelineStore.getState().toTheatreJSON()
+      const json = useTimelineStore.getState().toTimelineJSON()
 
       expect(json.sheetsById.Noodles.sequence.length).toBe(5)
       expect(json.sheetsById.Noodles.sequence.subUnitsPerUnit).toBe(24)
       expect(json.sheetsById.Noodles.sequence.tracksByObject['myop']).toBeDefined()
     })
 
-    it('fromTheatreJSON restores state from Theatre.js format', () => {
-      const theatreData: TheatreTimelineData = {
+    it('fromTimelineJSON restores state from timeline format', () => {
+      const timelineData: TimelineData = {
         sheetsById: {
           Noodles: {
             sequence: {
@@ -552,7 +552,7 @@ describe('TimelineStore', () => {
         },
       }
 
-      useTimelineStore.getState().fromTheatreJSON(theatreData)
+      useTimelineStore.getState().fromTimelineJSON(timelineData)
 
       const state = useTimelineStore.getState()
       expect(state.sequence.length).toBe(8)
@@ -565,8 +565,8 @@ describe('TimelineStore', () => {
       expect(track?.keyframes[1].interpolation).toBe('hold')
     })
 
-    it('fromTheatreJSON parses Theatre.js JSON array prop path format', () => {
-      const theatreData: TheatreTimelineData = {
+    it('fromTimelineJSON parses timeline JSON array prop path format', () => {
+      const timelineData: TimelineData = {
         sheetsById: {
           Noodles: {
             sequence: {
@@ -625,7 +625,7 @@ describe('TimelineStore', () => {
         },
       }
 
-      useTimelineStore.getState().fromTheatreJSON(theatreData)
+      useTimelineStore.getState().fromTimelineJSON(timelineData)
       const state = useTimelineStore.getState()
 
       // Track keys must use plain field name, not JSON array syntax
@@ -641,7 +641,7 @@ describe('TimelineStore', () => {
       expect(state.tracks.get('map-view-state / ["pitch"]')).toBeUndefined()
     })
 
-    it('round-trips through Theatre.js format', () => {
+    it('round-trips through timeline format', () => {
       useTimelineStore.getState().setLength(12)
       useTimelineStore.getState().setFps(30)
       useTimelineStore.getState().getOrCreateTrack('op / value', 0)
@@ -656,9 +656,9 @@ describe('TimelineStore', () => {
         interpolation: 'linear',
       })
 
-      const exported = useTimelineStore.getState().toTheatreJSON()
+      const exported = useTimelineStore.getState().toTimelineJSON()
       useTimelineStore.getState().reset()
-      useTimelineStore.getState().fromTheatreJSON(exported)
+      useTimelineStore.getState().fromTimelineJSON(exported)
 
       const state = useTimelineStore.getState()
       expect(state.sequence.length).toBe(12)
@@ -677,7 +677,7 @@ describe('TimelineStore', () => {
         interpolation: 'linear',
       })
 
-      const theatreData = {
+      const timelineData = {
         sheetsById: {
           Noodles: {
             staticOverrides: {
@@ -691,9 +691,9 @@ describe('TimelineStore', () => {
         },
         definitionVersion: '0.4.0',
         revisionHistory: [],
-      } as unknown as TheatreTimelineData
+      } as unknown as TimelineData
 
-      expect(() => useTimelineStore.getState().fromTheatreJSON(theatreData)).not.toThrow()
+      expect(() => useTimelineStore.getState().fromTimelineJSON(timelineData)).not.toThrow()
 
       const state = useTimelineStore.getState()
       expect(state.sequence.length).toBe(DEFAULT_SEQUENCE_STATE.length)

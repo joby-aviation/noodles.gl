@@ -6,6 +6,7 @@ import { clearOps, getOpStore, setOp } from '../store'
 import { edgeId } from './id-utils'
 import {
   NOODLES_VERSION,
+  type NoodlesProjectJSON,
   safeStringify,
   saveProjectLocally,
   serializeEdges,
@@ -51,6 +52,33 @@ describe('safeStringify', () => {
     arr.push(arr)
     const result = safeStringify({ arr })
     expect(result).toContain('"arr": [\n    null\n  ]')
+  })
+
+  it('preserves optional name field in project JSON', () => {
+    const projectWithName: NoodlesProjectJSON = {
+      version: NOODLES_VERSION,
+      name: 'NYC Taxis',
+      nodes: [],
+      edges: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      timeline: {},
+    }
+    const result = safeStringify(projectWithName)
+    const parsed = JSON.parse(result)
+    expect(parsed.name).toBe('NYC Taxis')
+  })
+
+  it('allows project JSON without name field', () => {
+    const projectWithoutName: NoodlesProjectJSON = {
+      version: NOODLES_VERSION,
+      nodes: [],
+      edges: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      timeline: {},
+    }
+    const result = safeStringify(projectWithoutName)
+    const parsed = JSON.parse(result)
+    expect(parsed.name).toBeUndefined()
   })
 })
 

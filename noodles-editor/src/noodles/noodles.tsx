@@ -72,7 +72,15 @@ import { useNodeDropOnEdge } from './hooks/use-node-drop-on-edge'
 import { useProjectModifications } from './hooks/use-project-modifications'
 import type { IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
-import { copyDataDirectory, copyPublicFolderData, hasDataDirectory, load, save } from './storage'
+import {
+  copyDataDirectory,
+  copyExampleAssetsToMemory,
+  copyMemoryDataToDirectory,
+  copyPublicFolderData,
+  hasDataDirectory,
+  load,
+  save,
+} from './storage'
 import {
   getOp,
   getOpStore,
@@ -91,6 +99,7 @@ import {
   writeFileToDirectory,
 } from './utils/filesystem'
 import { edgeId, nodeId } from './utils/id-utils'
+import { generateDraftId, memoryProjectStore } from './utils/memory-project-store'
 import { migrateProject } from './utils/migrate-schema'
 import { getParentPath, parseHandleId } from './utils/path-utils'
 import { applyOperatorInputs, getLastCommittedBeforeState } from './utils/property-history'
@@ -162,6 +171,8 @@ export function getNoodles(): Visualization {
   // Detect if we're on /projects or /examples route to preserve it when navigating
   const routePrefix = location.startsWith('/projects/') ? '/projects' : '/examples'
   const isExamplesRoute = routePrefix === '/examples'
+  const isNewProjectRoute = projectName === 'new'
+  const isProjectsRoute = routePrefix === '/projects' && !isNewProjectRoute
 
   const [showProjectNotFoundDialog, setShowProjectNotFoundDialog] = useState(false)
   const [showSaveAsDialog, setShowSaveAsDialog] = useState(false)
@@ -177,8 +188,8 @@ export function getNoodles(): Visualization {
     useFileSystemStore()
   const timelineStore = getTimelineStore()
   const getTimelineJson = useCallback((): Record<string, unknown> => {
-    return timelineStore.toTheatreJSON() as unknown as Record<string, unknown>
-  }, [timelineStore.toTheatreJSON])
+    return timelineStore.toTimelineJSON() as unknown as Record<string, unknown>
+  }, [timelineStore.toTimelineJSON])
 
   const [nodes, setNodes, onNodesChangeBase] = useNodesState<AnyNodeJSON>([])
   const [edges, setEdges, onEdgesChangeBase] = useEdgesState<ReactFlowEdge<unknown>>([])
@@ -274,20 +285,23 @@ export function getNoodles(): Visualization {
   // Warn before leaving page with unsaved changes
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (hasUnsavedChanges) {
+      if (hasUnsavedChanges || storageType === 'memory') {
         e.preventDefault()
-        // Modern browsers require returnValue to be set
         e.returnValue = ''
       }
     }
 
-    document.title = projectName
-      ? `Noodles.gl - ${projectName}${hasUnsavedChanges ? ' *' : ''}`
+    const displayName =
+      storageType === 'memory'
+        ? memoryProjectStore.getDisplayName(projectName || '') || 'Untitled'
+        : projectName
+    document.title = displayName
+      ? `Noodles.gl - ${displayName}${hasUnsavedChanges || storageType === 'memory' ? ' *' : ''}`
       : 'Noodles.gl'
 
     window.addEventListener('beforeunload', handleBeforeUnload)
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
-  }, [hasUnsavedChanges, projectName])
+  }, [hasUnsavedChanges, projectName, storageType])
 
   // Only changes when graph structure changes (nodes added/removed/type changed, edges reconnected)
   // Intentionally excludes node position so dragging does NOT re-run transformGraph
@@ -712,9 +726,9 @@ export function getNoodles(): Visualization {
       const hasTimeline = timeline && Object.keys(timeline).length > 0
       if (hasTimeline) {
         try {
-          // Timeline data uses a Theatre.js-compatible JSON format for backwards compatibility.
-          timelineStore.fromTheatreJSON(
-            timeline as unknown as import('../timeline/types').TheatreTimelineData
+          // Timeline data uses a timeline JSON format.
+          timelineStore.fromTimelineJSON(
+            timeline as unknown as import('../timeline/types').TimelineData
           )
         } catch (error) {
           console.error('Failed to load timeline:', error)
@@ -753,7 +767,7 @@ export function getNoodles(): Visualization {
 
       setHasUnsavedChanges(false)
     },
-    [setNodes, setEdges, navigate, routePrefix, timelineStore.fromTheatreJSON, timelineStore.reset]
+    [setNodes, setEdges, navigate, routePrefix, timelineStore.fromTimelineJSON, timelineStore.reset]
   )
 
   // Assign to ref for undo/redo system
@@ -772,7 +786,7 @@ export function getNoodles(): Visualization {
       }
 
       // If no projectName, load the default new project
-      if (!projectName || projectName === 'new') {
+      if (!projectName) {
         try {
           loadProjectFile(newProjectJSON as NoodlesProjectJSON)
           return
@@ -782,9 +796,36 @@ export function getNoodles(): Visualization {
         return
       }
 
-      // Route-based loading: /examples only loads static examples, /projects only loads from storage
+      // Handle /projects/new route - load new project into memory
+      if (isNewProjectRoute) {
+        const existingProject = memoryProjectStore.getProjectJson('new')
+        if (existingProject) {
+          const project = await migrateProject(existingProject)
+          setCurrentDirectory(null, 'new')
+          setActiveStorageType('memory')
+          loadProjectFile(project, 'new')
+        } else {
+          const starter = { ...newProjectJSON, version: NOODLES_VERSION } as NoodlesProjectJSON
+          memoryProjectStore.setProjectJson('new', starter)
+          setCurrentDirectory(null, 'new')
+          setActiveStorageType('memory')
+          loadProjectFile(starter, 'new')
+        }
+        return
+      }
+
       if (isExamplesRoute) {
-        // For /examples route: ONLY load from static bundled examples
+        // For /examples route: check memory first, then load from bundled examples
+        const existingInMemory = memoryProjectStore.getProjectJson(projectName)
+        if (existingInMemory) {
+          const project = await migrateProject(existingInMemory)
+          setCurrentDirectory(null, projectName)
+          setActiveStorageType('memory')
+          loadProjectFile(project, projectName)
+          return
+        }
+
+        // Not in memory, load from static bundled examples and copy into memory for editing
         const projectKey = `../examples/${projectName}/noodles.json`
         const projectUrl = exampleProjectUrls[projectKey] as string | undefined
 
@@ -799,9 +840,14 @@ export function getNoodles(): Visualization {
               ...EMPTY_PROJECT,
               ...noodlesFile,
             } as NoodlesProjectJSON)
-            // Set project name and storage type for public projects so @/ asset paths work
+            // Store in memory with example name as ID and set display name from project JSON
+            memoryProjectStore.setProjectJson(projectName, project)
+            if (project.name) {
+              memoryProjectStore.setDisplayName(projectName, project.name)
+            }
+            await copyExampleAssetsToMemory(projectName, projectName)
             setCurrentDirectory(null, projectName)
-            setActiveStorageType('publicFolder')
+            setActiveStorageType('memory')
             loadProjectFile(project, projectName)
             return
           } catch (error) {
@@ -811,7 +857,7 @@ export function getNoodles(): Visualization {
 
         // Example not found - show dialog with navigation options
         setShowExampleNotFoundDialog(true)
-      } else {
+      } else if (isProjectsRoute) {
         // For /projects route: ONLY load from user storage (OPFS or File System Access API)
         try {
           const result = await load(storageType, projectName)
@@ -839,7 +885,7 @@ export function getNoodles(): Visualization {
         }
       }
     })()
-  }, [projectName, isExamplesRoute])
+  }, [projectName, isExamplesRoute, isNewProjectRoute, isProjectsRoute])
 
   // Handle pending quick start actions (file upload or LLM question from quick start modal)
   const pendingActionHandledRef = useRef(false)
@@ -898,7 +944,7 @@ export function getNoodles(): Visualization {
   // File menu callbacks
   const getNoodlesProjectJson = useCallback((): NoodlesProjectJSON => {
     const store = getOpStore()
-    const timeline = timelineStore.toTheatreJSON() as unknown as Record<string, unknown>
+    const timeline = timelineStore.toTimelineJSON() as unknown as Record<string, unknown>
     const viewport = reactFlowInstanceRef.current?.getViewport() || { x: 0, y: 0, zoom: 1 }
     const projectKeys = getKeysForProject()
     // Render settings are now stored as OutOp inputs, serialized with the node
@@ -916,11 +962,46 @@ export function getNoodles(): Visualization {
       },
       ...(projectKeys ? { apiKeys: projectKeys } : {}),
     }
-  }, [nodes, edges, layoutMode, showOverlay, showDebugInfo, timelineStore.toTheatreJSON])
+  }, [nodes, edges, layoutMode, showOverlay, showDebugInfo, timelineStore.toTimelineJSON])
 
   const onMenuSave = useCallback(async () => {
     if (!projectName) return
     const noodlesProjectJson = getNoodlesProjectJson()
+
+    if (storageType === 'memory') {
+      try {
+        const directoryHandle = await selectDirectory()
+        const hasPermission = await requestPermission(directoryHandle, 'readwrite')
+        if (!hasPermission) return
+
+        const directoryName = directoryHandle.name
+        await writeFileToDirectory(
+          directoryHandle,
+          'noodles.json',
+          safeStringify(noodlesProjectJson)
+        )
+        await copyMemoryDataToDirectory(projectName, directoryHandle)
+        await directoryHandleCache.cacheHandle(directoryName, directoryHandle, directoryName)
+
+        const oldProjectName = projectName
+        setCurrentDirectory(directoryHandle, directoryName)
+        setActiveStorageType('fileSystemAccess')
+        navigate(`/projects/${directoryName}`, { replace: true })
+        memoryProjectStore.deleteProject(oldProjectName)
+        setHasUnsavedChanges(false)
+        analytics.track('project_saved', { storageType: 'memory', promoted: true })
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') return
+        setError({
+          type: 'unknown',
+          message: 'Error saving project',
+          details: error instanceof Error ? error.message : 'Unknown error',
+          originalError: error,
+        })
+      }
+      return
+    }
+
     const result = await save(storageType, projectName, noodlesProjectJson)
     if (result.success) {
       setCurrentDirectory(result.data.directoryHandle, projectName)
@@ -929,7 +1010,15 @@ export function getNoodles(): Visualization {
     } else {
       setError(result.error)
     }
-  }, [projectName, getNoodlesProjectJson, storageType, setCurrentDirectory, setError])
+  }, [
+    projectName,
+    getNoodlesProjectJson,
+    storageType,
+    setCurrentDirectory,
+    setActiveStorageType,
+    setError,
+    navigate,
+  ])
 
   // Step 1 of Save As: Select directory and check conditions
   const onSaveAs = useCallback(async () => {
@@ -988,11 +1077,18 @@ export function getNoodles(): Visualization {
 
       // Copy data files if requested
       if (options.copyDataFiles && projectName) {
-        if (storageType === 'publicFolder') {
+        if (storageType === 'memory') {
+          await copyMemoryDataToDirectory(projectName, directoryHandle)
+        } else if (storageType === 'publicFolder') {
           await copyPublicFolderData(projectName, directoryHandle)
         } else if (currentDirectory) {
           await copyDataDirectory(currentDirectory, directoryHandle)
         }
+      }
+
+      // Clean up memory project if promoting from memory
+      if (storageType === 'memory') {
+        memoryProjectStore.deleteProject(projectName!)
       }
 
       // Cache the directory handle
@@ -1031,7 +1127,7 @@ export function getNoodles(): Visualization {
 
   // Open rename dialog
   const onRename = useCallback(() => {
-    if (!projectName || storageType === 'publicFolder') return
+    if (!projectName || storageType === 'publicFolder' || storageType === 'memory') return
     setShowRenameDialog(true)
   }, [projectName, storageType])
 
@@ -1123,7 +1219,7 @@ export function getNoodles(): Visualization {
       // mod+shift+a for Rename Project
       if (isMod && isShift && key === 'a') {
         e.preventDefault()
-        if (projectName && storageType !== 'publicFolder') {
+        if (projectName && storageType !== 'publicFolder' && storageType !== 'memory') {
           setShowRenameDialog(true)
         }
       }
@@ -1147,44 +1243,14 @@ export function getNoodles(): Visualization {
   }, [])
 
   const onNewProject = useCallback(async () => {
-    try {
-      // Prompt user to select/create a directory for the new project
-      const directoryHandle = await selectDirectory()
-      const directoryName = directoryHandle.name
+    const starterProject = { ...newProjectJSON, version: NOODLES_VERSION } as NoodlesProjectJSON
+    memoryProjectStore.setProjectJson('new', starterProject)
 
-      // Ensure we have write permission
-      const hasPermission = await requestPermission(directoryHandle, 'readwrite')
-      if (!hasPermission) {
-        debugApp('Permission denied to write to directory')
-        return
-      }
+    setCurrentDirectory(null, 'new')
+    setActiveStorageType('memory')
+    loadProjectFile(starterProject, 'new', '/projects')
 
-      // Write starter project to noodles.json
-      const starterProject = {
-        ...newProjectJSON,
-        version: NOODLES_VERSION,
-      } as NoodlesProjectJSON
-      await writeFileToDirectory(directoryHandle, 'noodles.json', safeStringify(starterProject))
-
-      // Cache the directory handle
-      await directoryHandleCache.cacheHandle(directoryName, directoryHandle, directoryHandle.name)
-
-      // Update store with directory handle and storage type
-      setCurrentDirectory(directoryHandle, directoryName)
-      setActiveStorageType('fileSystemAccess')
-
-      // Load the project directly (already in memory, no need to reload from disk)
-      // Always navigate to /projects since this is a user project
-      loadProjectFile(starterProject, directoryName, '/projects')
-
-      analytics.track('project_created', { method: 'new' })
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        // User cancelled the picker
-        return
-      }
-      debugApp('Failed to create new project:', error)
-    }
+    analytics.track('project_created', { method: 'new' })
   }, [setCurrentDirectory, setActiveStorageType, loadProjectFile])
 
   const onImport = useCallback(async () => {
@@ -1290,52 +1356,20 @@ export function getNoodles(): Visualization {
         filesToWrite.set('noodles.json', safeStringify(projectData))
       }
 
-      // Now prompt for directory to save the imported project
-      const directoryHandle = await selectDirectory()
-      const directoryName = directoryHandle.name
+      // Load imported project into memory (user can save to disk later via Cmd+S)
+      const draftId = generateDraftId('import')
+      memoryProjectStore.setProjectJson(draftId, projectData)
 
-      // Ensure we have write permission
-      const hasPermission = await requestPermission(directoryHandle, 'readwrite')
-      if (!hasPermission) {
-        debugApp('Permission denied to write to directory')
-        return
-      }
-
-      // Write all files to directory
+      // Write non-noodles.json files as in-memory assets
       for (const [path, content] of filesToWrite.entries()) {
-        // Handle nested paths (e.g., data/file.csv)
-        if (path.includes('/')) {
-          const parts = path.split('/')
-          const fileName = parts.pop()!
-          const subfolders = parts
-
-          // Create nested directory structure
-          let currentDir = directoryHandle
-          for (const folder of subfolders) {
-            currentDir = await currentDir.getDirectoryHandle(folder, { create: true })
-          }
-
-          // Write file in the nested directory
-          const fileHandle = await currentDir.getFileHandle(fileName, { create: true })
-          const writable = await fileHandle.createWritable()
-          await writable.write(content)
-          await writable.close()
-        } else {
-          // Write file at root level
-          await writeFileToDirectory(directoryHandle, path, content)
-        }
+        if (path === 'noodles.json') continue
+        const blob = content instanceof ArrayBuffer ? new Blob([content]) : new Blob([content])
+        memoryProjectStore.writeAsset(draftId, path, blob)
       }
 
-      // Cache the directory handle
-      await directoryHandleCache.cacheHandle(directoryName, directoryHandle, directoryHandle.name)
-
-      // Update store with directory handle and storage type
-      setCurrentDirectory(directoryHandle, directoryName)
-      setActiveStorageType('fileSystemAccess')
-
-      // Load the project directly (already in memory, no need to reload from disk)
-      // Always navigate to /projects since this is a user project
-      loadProjectFile(projectData, directoryName, '/projects')
+      setCurrentDirectory(null, draftId)
+      setActiveStorageType('memory')
+      loadProjectFile(projectData, draftId, '/projects')
 
       analytics.track('project_imported', { format: isZip ? 'zip' : 'json' })
     } catch (error) {
@@ -1699,11 +1733,14 @@ export function getNoodles(): Visualization {
     onChangeShowDebugInfo: setShowDebugInfo,
     // Render settings are now read from OutOp via useRenderSettings() hook
     // Export these so timeline-editor can create the menu with render actions
-    projectName,
+    projectName:
+      storageType === 'memory'
+        ? memoryProjectStore.getDisplayName(projectName || '') || null
+        : projectName,
     getTimelineJson,
     onSaveProject: onMenuSave,
     onSaveAs,
-    onRename: storageType !== 'publicFolder' ? onRename : undefined,
+    onRename: storageType !== 'publicFolder' && storageType !== 'memory' ? onRename : undefined,
     onDownload,
     onNewProject,
     onImport,

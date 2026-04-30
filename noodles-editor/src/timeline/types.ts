@@ -1,5 +1,4 @@
 // Core type definitions for the native timeline system
-// These types are designed to be compatible with Theatre.js format for easier migration
 
 // ============================================================================
 // Value Types (matching field types from fields.ts)
@@ -75,7 +74,7 @@ export interface Keyframe {
 
 export interface Track {
   id: string // Same as fieldPath for simplicity
-  fieldPath: string // Theatre.js format: "maplibre-basemap / viewState / zoom"
+  fieldPath: string // timeline format: "maplibre-basemap / viewState / zoom"
   keyframes: Keyframe[] // Always sorted by position
   defaultValue: KeyframeValue
 }
@@ -139,7 +138,7 @@ export interface TimeMarker {
   connectedKeyframes: TimeMarkerConnection[]
 }
 
-// Serialized format for Theatre.js JSON
+// Serialized format for timeline JSON
 export interface SerializedTimeMarker {
   id: string
   position: number
@@ -151,17 +150,17 @@ export interface SerializedTimeMarker {
 }
 
 // ============================================================================
-// Serialization Types (Theatre.js compatible)
+// Serialization Types
 // ============================================================================
 
-// Theatre.js track data format
-export interface TheatreTrackData {
+// Serialized track data format
+export interface TimelineTrackData {
   type: string
   __debugName?: string
-  keyframes: TheatreKeyframe[]
+  keyframes: TimelineKeyframe[]
 }
 
-export interface TheatreKeyframe {
+export interface TimelineKeyframe {
   id: string
   position: number
   connectedRight: boolean
@@ -170,25 +169,25 @@ export interface TheatreKeyframe {
   value: unknown
 }
 
-// Theatre.js sequence format (what we read/write from timeline field)
-export interface TheatreSequenceData {
+// Serialized sequence format (what we read/write from timeline field)
+export interface TimelineSequenceData {
   length: number
   subUnitsPerUnit: number // fps
   tracksByObject: Record<
     string,
     {
       trackIdByPropPath: Record<string, string>
-      trackData: Record<string, TheatreTrackData>
+      trackData: Record<string, TimelineTrackData>
     }
   >
   markers?: SerializedTimeMarker[]
 }
 
-// Top-level Theatre.js timeline format
-export interface TheatreTimelineData {
+// Top-level serialized timeline format
+export interface TimelineData {
   sheetsById: {
     Noodles: {
-      sequence: TheatreSequenceData
+      sequence: TimelineSequenceData
       staticOverrides?: { byObject: Record<string, unknown> }
     }
   }

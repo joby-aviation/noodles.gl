@@ -330,5 +330,6 @@
     "definitionVersion": "0.4.0",
     "revisionHistory": []
   },
-  "version": 6
+  "version": 6,
+  "name": "UK Commute Patterns"
 }

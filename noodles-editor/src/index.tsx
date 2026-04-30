@@ -1,4 +1,6 @@
 /// <reference types="./index.d.ts" />
+import 'primeicons/primeicons.css'
+import 'primereact/resources/themes/viva-dark/theme.css'
 import ReactDOM from 'react-dom/client'
 import App from './app'
 import './index.css'
