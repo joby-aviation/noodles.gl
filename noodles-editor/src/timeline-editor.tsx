@@ -73,6 +73,8 @@ export default function TimelineEditor() {
   // Session-only handle set by selectRendersDirectory; takes priority over project subdir
   const rendersDirectoryHandleRef = useRef<FileSystemDirectoryHandle | null>(null)
   const customLayersRef = useRef<Set<string>>(new Set())
+  // Track style version to trigger layer re-addition after style changes
+  const [styleVersion, setStyleVersion] = useState(0)
 
   // Trigger a redraw of React, mapbox and deck when the renderer state changes,
   // to ensure that the VideoStreamReader in renderer.ts runs
@@ -283,7 +285,7 @@ export default function TimelineEditor() {
     }
 
     customLayersRef.current = desiredLayerIds
-  }, [visualization.maplibreLayers])
+  }, [visualization.maplibreLayers, styleVersion])
 
   // Clean up custom layers on unmount
   useEffect(() => {
@@ -304,13 +306,14 @@ export default function TimelineEditor() {
     }
   }, [])
 
-  // Handle map style changes - clear layer tracking so they get re-added
+  // Handle map style changes - increment styleVersion to trigger layer re-addition
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
 
     const handleStyleData = () => {
       customLayersRef.current.clear()
+      setStyleVersion(v => v + 1)
     }
 
     map.on('styledata', handleStyleData)
