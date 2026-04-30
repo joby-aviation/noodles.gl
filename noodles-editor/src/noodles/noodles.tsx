@@ -90,6 +90,7 @@ import {
   selectDirectory,
   writeFileToDirectory,
 } from './utils/filesystem'
+import { calculateGroupBoundsFromChildren } from './utils/group-utils'
 import { edgeId, nodeId } from './utils/id-utils'
 import { migrateProject } from './utils/migrate-schema'
 import { getParentPath, parseHandleId } from './utils/path-utils'
@@ -367,13 +368,101 @@ export function getNoodles(): Visualization {
     [onConnectBase]
   )
 
-  // Wrap onNodesDelete to mark unsaved changes
+  // Helper to shrink a group node to fit its children
+  // Returns updated nodes array if shrinking occurred, or the same array if not.
+  // NOTE: Requires child nodes to have measured dimensions from ReactFlow.
+  // Call this inside requestAnimationFrame after drag/delete operations with
+  // measurements merged from ReactFlow's store.
+  const shrinkGroupToFitChildren = useCallback(
+    (groupId: string, currentNodes: ReactFlowNode<unknown>[]): ReactFlowNode<unknown>[] => {
+      const parentGroup = currentNodes.find(n => n.id === groupId && n.type === 'group')
+      if (!parentGroup) return currentNodes
+
+      const newBounds = calculateGroupBoundsFromChildren(groupId, currentNodes)
+      if (!newBounds) {
+        console.log(
+          '[ForLoop shrink] No bounds calculated for',
+          groupId,
+          '- children may not be measured yet'
+        )
+        return currentNodes
+      }
+
+      const styleWidth = parentGroup.style?.width
+      const styleHeight = parentGroup.style?.height
+      const currentWidth = typeof styleWidth === 'number' ? styleWidth : Infinity
+      const currentHeight = typeof styleHeight === 'number' ? styleHeight : Infinity
+
+      // Only shrink, never expand (expandParent handles expansion)
+      if (newBounds.width < currentWidth || newBounds.height < currentHeight) {
+        console.log(
+          '[ForLoop shrink] Shrinking',
+          groupId,
+          'from',
+          { currentWidth, currentHeight },
+          'to',
+          newBounds
+        )
+        return currentNodes.map(n =>
+          n.id === groupId
+            ? {
+                ...n,
+                style: {
+                  ...n.style,
+                  width: Math.min(newBounds.width, currentWidth),
+                  height: Math.min(newBounds.height, currentHeight),
+                },
+              }
+            : n
+        )
+      }
+      console.log('[ForLoop shrink] Not shrinking', groupId, '- new bounds not smaller', {
+        newBounds,
+        currentWidth,
+        currentHeight,
+      })
+      return currentNodes
+    },
+    []
+  )
+
+  // Wrap onNodesDelete to mark unsaved changes and shrink affected groups
   const onNodesDelete = useCallback(
     (deleted: ReactFlowNode[]) => {
+      // Collect unique parent group IDs from deleted nodes
+      const affectedGroupIds = new Set<string>()
+      for (const node of deleted) {
+        if (node.parentId) {
+          affectedGroupIds.add(node.parentId)
+        }
+      }
+
       onNodesDeleteBase(deleted)
       setHasUnsavedChanges(true)
+
+      // Shrink any affected groups after deletion
+      // Use RAF to ensure remaining nodes are measured before calculating bounds
+      if (affectedGroupIds.size > 0) {
+        requestAnimationFrame(() => {
+          // Get latest measurements from ReactFlow's internal store
+          const nodeInternals = store.getState().nodeLookup
+          setNodes(currentNodes => {
+            // Merge measurements into current nodes
+            const nodesWithMeasurements = currentNodes.map(n => {
+              const measured =
+                nodeInternals.get(n.id)?.measured || nodeInternals.get(n.id)?.dimensions
+              return measured ? { ...n, measured } : n
+            })
+            let updatedNodes = nodesWithMeasurements
+            for (const groupId of affectedGroupIds) {
+              updatedNodes = shrinkGroupToFitChildren(groupId, updatedNodes)
+            }
+            return updatedNodes
+          })
+        })
+      }
     },
-    [onNodesDeleteBase]
+    [onNodesDeleteBase, shrinkGroupToFitChildren, setNodes]
   )
 
   // Wrap onReconnect to mark unsaved changes
@@ -510,16 +599,35 @@ export function getNoodles(): Visualization {
     [onNodeDragBase]
   )
 
-  // Wrap onNodeDragStop to mark unsaved changes when a node is inserted
+  // Wrap onNodeDragStop to handle edge insertion, unsaved changes, and group auto-shrink
   const onNodeDragStop = useCallback(
-    (event: React.MouseEvent, node: ReactFlowNode) => {
+    (event: React.MouseEvent, node: ReactFlowNode<unknown>) => {
       const result = onNodeDragStopBase(event, node)
       // Mark as unsaved if a node was inserted into an edge
       if (result) {
         setHasUnsavedChanges(true)
       }
+
+      // Auto-shrink group nodes when children are dragged back inside bounds
+      // Use RAF to ensure ReactFlow has measured nodes before calculating bounds
+      if (node.parentId) {
+        const parentId = node.parentId
+        requestAnimationFrame(() => {
+          // Get latest measurements from ReactFlow's internal store
+          const nodeInternals = store.getState().nodeLookup
+          setNodes(nodes => {
+            // Merge measurements into current nodes
+            const nodesWithMeasurements = nodes.map(n => {
+              const measured =
+                nodeInternals.get(n.id)?.measured || nodeInternals.get(n.id)?.dimensions
+              return measured ? { ...n, measured } : n
+            })
+            return shrinkGroupToFitChildren(parentId, nodesWithMeasurements)
+          })
+        })
+      }
     },
-    [onNodeDragStopBase]
+    [onNodeDragStopBase, setNodes, shrinkGroupToFitChildren]
   )
 
   const onNodeContextMenu = useCallback(
