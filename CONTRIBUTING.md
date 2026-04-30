@@ -20,12 +20,14 @@ git clone <repository-url>
 # Verify Node.js version matches project requirements
 node -v  # Check against .nvmrc
 
-# Install dependencies
-npm install
+# Install dependencies (use npm ci to ensure exact versions from lockfile)
+npm ci
 
 # Start development server
 npm start
 ```
+
+> **Note**: Always use `npm ci` instead of `npm install` to ensure you have the exact dependency versions specified in `package-lock.json`. This prevents formatting and tooling inconsistencies between local development and CI environments.
 
 ### Development URLs
 
@@ -41,6 +43,17 @@ For detailed information about the codebase structure and architecture, see:
 - [Technology Stack](https://github.com/joby-aviation/noodles.gl/blob/main/dev-docs/tech-stack.md) - Full tech stack details
 
 ## 🛠️ Development Workflow
+
+### Dependency Management
+
+**Important**: Always use `npm ci` (not `npm install`) to install dependencies. This ensures:
+- Exact versions from `package-lock.json` are installed
+- Consistency between local development and CI
+- Matching formatter/linter behavior across environments
+
+```bash
+npm ci              # Install exact versions from lockfile
+```
 
 ### Available Commands
 
