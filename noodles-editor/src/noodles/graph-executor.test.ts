@@ -2022,3 +2022,355 @@ describe('GraphExecutor - ForLoop execution with executeForLoopScope', () => {
     expect(results[2]).toEqual([7, 8, 9])
   })
 })
+
+describe('GraphExecutor - ForLoopMetaOp accumulator and iteration metadata', () => {
+  it('should reset accumulator when loop is re-run', async () => {
+    // Test that accumulator starts fresh on each loop execution
+    const executor = new GraphExecutor()
+
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const metaOp = new ForLoopMetaOp('/forloop-meta')
+    const mathOp = new MathOp('/math')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    executor.nodes.set(beginOp.id, beginOp)
+    executor.nodes.set(metaOp.id, metaOp)
+    executor.nodes.set(mathOp.id, mathOp)
+    executor.nodes.set(endOp.id, endOp)
+
+    executor.edges.push(
+      {
+        id: 'begin-to-math-a',
+        source: beginOp.id,
+        target: mathOp.id,
+        sourceHandle: 'out.item',
+        targetHandle: 'par.a',
+      },
+      {
+        id: 'meta-to-math-b',
+        source: metaOp.id,
+        target: mathOp.id,
+        sourceHandle: 'out.accumulator',
+        targetHandle: 'par.b',
+      },
+      {
+        id: 'math-to-meta',
+        source: mathOp.id,
+        target: metaOp.id,
+        sourceHandle: 'out.result',
+        targetHandle: 'par.currentValue',
+      },
+      {
+        id: 'math-to-end',
+        source: mathOp.id,
+        target: endOp.id,
+        sourceHandle: 'out.result',
+        targetHandle: 'par.item',
+      }
+    )
+
+    beginOp.inputs.data.setValue([1, 2, 3])
+    metaOp.inputs.initialValue.setValue(0)
+
+    mathOp.inputs.a.addConnection('begin-to-math-a', beginOp.outputs.item)
+    mathOp.inputs.b.addConnection('meta-to-math-b', metaOp.outputs.accumulator)
+    mathOp.inputs.operator.setValue('add')
+
+    metaOp.inputs.currentValue.addConnection('math-to-meta', mathOp.outputs.result)
+    endOp.inputs.item.addConnection('math-to-end', mathOp.outputs.result)
+
+    // First execution: sum of [1, 2, 3] = [1, 3, 6]
+    const results1 = await executor.executeForLoopScope(
+      beginOp,
+      endOp,
+      [beginOp.id, metaOp.id, mathOp.id, endOp.id],
+      metaOp
+    )
+    expect(results1).toEqual([1, 3, 6])
+
+    // Change input data and re-run
+    beginOp.inputs.data.setValue([10, 20, 30])
+    beginOp.markDirty()
+
+    // Second execution: should reset accumulator to 0, sum of [10, 20, 30] = [10, 30, 60]
+    // NOT [16, 36, 66] which would indicate accumulator wasn't reset
+    const results2 = await executor.executeForLoopScope(
+      beginOp,
+      endOp,
+      [beginOp.id, metaOp.id, mathOp.id, endOp.id],
+      metaOp
+    )
+    expect(results2).toEqual([10, 30, 60])
+  })
+
+  it('should correctly set isFirst and isLast flags', async () => {
+    // Track isFirst and isLast values during iteration
+    const isFirstValues: boolean[] = []
+    const isLastValues: boolean[] = []
+
+    const executor = new GraphExecutor()
+
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const metaOp = new ForLoopMetaOp('/forloop-meta')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    executor.nodes.set(beginOp.id, beginOp)
+    executor.nodes.set(metaOp.id, metaOp)
+    executor.nodes.set(endOp.id, endOp)
+
+    executor.edges.push({
+      id: 'begin-to-end',
+      source: beginOp.id,
+      target: endOp.id,
+      sourceHandle: 'out.item',
+      targetHandle: 'par.item',
+    })
+
+    beginOp.inputs.data.setValue(['a', 'b', 'c', 'd'])
+    metaOp.inputs.initialValue.setValue(null)
+
+    // Subscribe to track isFirst/isLast changes
+    metaOp.outputs.isFirst.subscribe(val => isFirstValues.push(val))
+    metaOp.outputs.isLast.subscribe(val => isLastValues.push(val))
+
+    endOp.inputs.item.addConnection('begin-to-end', beginOp.outputs.item)
+    endOp.addUpstreamDependency(beginOp)
+
+    await executor.executeForLoopScope(beginOp, endOp, [beginOp.id, metaOp.id, endOp.id], metaOp)
+
+    // isFirst should be: [initial false, true, false, false, false]
+    // Filter out initial value and check iteration values
+    const iterationIsFirst = isFirstValues.slice(-4)
+    expect(iterationIsFirst).toEqual([true, false, false, false])
+
+    // isLast should be: [initial false, false, false, false, true]
+    const iterationIsLast = isLastValues.slice(-4)
+    expect(iterationIsLast).toEqual([false, false, false, true])
+  })
+
+  it('should provide correct index and total in ForLoopMetaOp', async () => {
+    const indexValues: number[] = []
+    const totalValues: number[] = []
+
+    const executor = new GraphExecutor()
+
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const metaOp = new ForLoopMetaOp('/forloop-meta')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    executor.nodes.set(beginOp.id, beginOp)
+    executor.nodes.set(metaOp.id, metaOp)
+    executor.nodes.set(endOp.id, endOp)
+
+    executor.edges.push({
+      id: 'begin-to-end',
+      source: beginOp.id,
+      target: endOp.id,
+      sourceHandle: 'out.item',
+      targetHandle: 'par.item',
+    })
+
+    beginOp.inputs.data.setValue([10, 20, 30])
+    metaOp.inputs.initialValue.setValue(0)
+
+    metaOp.outputs.index.subscribe(val => indexValues.push(val))
+    metaOp.outputs.total.subscribe(val => totalValues.push(val))
+
+    endOp.inputs.item.addConnection('begin-to-end', beginOp.outputs.item)
+    endOp.addUpstreamDependency(beginOp)
+
+    await executor.executeForLoopScope(beginOp, endOp, [beginOp.id, metaOp.id, endOp.id], metaOp)
+
+    // index should be: [0 (initial), 0, 1, 2]
+    const iterationIndices = indexValues.slice(-3)
+    expect(iterationIndices).toEqual([0, 1, 2])
+
+    // total should always be 3
+    const iterationTotals = totalValues.slice(-3)
+    expect(iterationTotals).toEqual([3, 3, 3])
+  })
+
+  it('should handle accumulator with different initial values', async () => {
+    const executor = new GraphExecutor()
+
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const metaOp = new ForLoopMetaOp('/forloop-meta')
+    const mathOp = new MathOp('/math')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    executor.nodes.set(beginOp.id, beginOp)
+    executor.nodes.set(metaOp.id, metaOp)
+    executor.nodes.set(mathOp.id, mathOp)
+    executor.nodes.set(endOp.id, endOp)
+
+    executor.edges.push(
+      {
+        id: 'begin-to-math-a',
+        source: beginOp.id,
+        target: mathOp.id,
+        sourceHandle: 'out.item',
+        targetHandle: 'par.a',
+      },
+      {
+        id: 'meta-to-math-b',
+        source: metaOp.id,
+        target: mathOp.id,
+        sourceHandle: 'out.accumulator',
+        targetHandle: 'par.b',
+      },
+      {
+        id: 'math-to-meta',
+        source: mathOp.id,
+        target: metaOp.id,
+        sourceHandle: 'out.result',
+        targetHandle: 'par.currentValue',
+      },
+      {
+        id: 'math-to-end',
+        source: mathOp.id,
+        target: endOp.id,
+        sourceHandle: 'out.result',
+        targetHandle: 'par.item',
+      }
+    )
+
+    beginOp.inputs.data.setValue([1, 2, 3])
+    metaOp.inputs.initialValue.setValue(100) // Start with 100 instead of 0
+
+    mathOp.inputs.a.addConnection('begin-to-math-a', beginOp.outputs.item)
+    mathOp.inputs.b.addConnection('meta-to-math-b', metaOp.outputs.accumulator)
+    mathOp.inputs.operator.setValue('add')
+
+    metaOp.inputs.currentValue.addConnection('math-to-meta', mathOp.outputs.result)
+    endOp.inputs.item.addConnection('math-to-end', mathOp.outputs.result)
+
+    const results = await executor.executeForLoopScope(
+      beginOp,
+      endOp,
+      [beginOp.id, metaOp.id, mathOp.id, endOp.id],
+      metaOp
+    )
+
+    // Starting with 100: 100+1=101, 101+2=103, 103+3=106
+    expect(results).toEqual([101, 103, 106])
+  })
+
+  it('should handle accumulator reset when initialValue changes between runs', async () => {
+    const executor = new GraphExecutor()
+
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const metaOp = new ForLoopMetaOp('/forloop-meta')
+    const mathOp = new MathOp('/math')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    executor.nodes.set(beginOp.id, beginOp)
+    executor.nodes.set(metaOp.id, metaOp)
+    executor.nodes.set(mathOp.id, mathOp)
+    executor.nodes.set(endOp.id, endOp)
+
+    executor.edges.push(
+      {
+        id: 'begin-to-math-a',
+        source: beginOp.id,
+        target: mathOp.id,
+        sourceHandle: 'out.item',
+        targetHandle: 'par.a',
+      },
+      {
+        id: 'meta-to-math-b',
+        source: metaOp.id,
+        target: mathOp.id,
+        sourceHandle: 'out.accumulator',
+        targetHandle: 'par.b',
+      },
+      {
+        id: 'math-to-meta',
+        source: mathOp.id,
+        target: metaOp.id,
+        sourceHandle: 'out.result',
+        targetHandle: 'par.currentValue',
+      },
+      {
+        id: 'math-to-end',
+        source: mathOp.id,
+        target: endOp.id,
+        sourceHandle: 'out.result',
+        targetHandle: 'par.item',
+      }
+    )
+
+    beginOp.inputs.data.setValue([5, 10])
+    metaOp.inputs.initialValue.setValue(0)
+
+    mathOp.inputs.a.addConnection('begin-to-math-a', beginOp.outputs.item)
+    mathOp.inputs.b.addConnection('meta-to-math-b', metaOp.outputs.accumulator)
+    mathOp.inputs.operator.setValue('add')
+
+    metaOp.inputs.currentValue.addConnection('math-to-meta', mathOp.outputs.result)
+    endOp.inputs.item.addConnection('math-to-end', mathOp.outputs.result)
+
+    // First run with initialValue=0: [0+5=5, 5+10=15]
+    const results1 = await executor.executeForLoopScope(
+      beginOp,
+      endOp,
+      [beginOp.id, metaOp.id, mathOp.id, endOp.id],
+      metaOp
+    )
+    expect(results1).toEqual([5, 15])
+
+    // Change initialValue and re-run
+    metaOp.inputs.initialValue.setValue(50)
+    metaOp.markDirty()
+
+    // Second run with initialValue=50: [50+5=55, 55+10=65]
+    // Should NOT continue from 15 (the last accumulator value)
+    const results2 = await executor.executeForLoopScope(
+      beginOp,
+      endOp,
+      [beginOp.id, metaOp.id, mathOp.id, endOp.id],
+      metaOp
+    )
+    expect(results2).toEqual([55, 65])
+  })
+
+  it('should handle single-item array with correct isFirst and isLast', async () => {
+    const isFirstValues: boolean[] = []
+    const isLastValues: boolean[] = []
+
+    const executor = new GraphExecutor()
+
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const metaOp = new ForLoopMetaOp('/forloop-meta')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    executor.nodes.set(beginOp.id, beginOp)
+    executor.nodes.set(metaOp.id, metaOp)
+    executor.nodes.set(endOp.id, endOp)
+
+    executor.edges.push({
+      id: 'begin-to-end',
+      source: beginOp.id,
+      target: endOp.id,
+      sourceHandle: 'out.item',
+      targetHandle: 'par.item',
+    })
+
+    beginOp.inputs.data.setValue([42]) // Single element
+    metaOp.inputs.initialValue.setValue(null)
+
+    metaOp.outputs.isFirst.subscribe(val => isFirstValues.push(val))
+    metaOp.outputs.isLast.subscribe(val => isLastValues.push(val))
+
+    endOp.inputs.item.addConnection('begin-to-end', beginOp.outputs.item)
+    endOp.addUpstreamDependency(beginOp)
+
+    await executor.executeForLoopScope(beginOp, endOp, [beginOp.id, metaOp.id, endOp.id], metaOp)
+
+    // For single element, both isFirst and isLast should be true
+    const lastIsFirst = isFirstValues[isFirstValues.length - 1]
+    const lastIsLast = isLastValues[isLastValues.length - 1]
+
+    expect(lastIsFirst).toBe(true)
+    expect(lastIsLast).toBe(true)
+  })
+})
