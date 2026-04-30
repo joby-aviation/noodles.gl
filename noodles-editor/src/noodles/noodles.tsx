@@ -42,6 +42,46 @@ const exampleProjectUrls = import.meta.glob('../examples/**/noodles.json', {
   import: 'default',
 })
 
+// Get README files for example display names
+const exampleReadmes = import.meta.glob('../examples/**/README.md', {
+  eager: true,
+  query: '?raw',
+  import: 'default',
+})
+
+const ACRONYMS: Record<string, string> = {
+  nyc: 'NYC',
+  usa: 'USA',
+  uk: 'UK',
+  api: 'API',
+  json: 'JSON',
+  csv: 'CSV',
+}
+
+function formatProjectName(name: string): string {
+  return name
+    .replace(/-/g, ' ')
+    .replace(
+      /\b\w+\b/g,
+      word => ACRONYMS[word.toLowerCase()] || word.charAt(0).toUpperCase() + word.slice(1)
+    )
+}
+
+function getExampleDisplayName(exampleId: string): string | null {
+  const readmePath = `../examples/${exampleId}/README.md`
+  const readme = exampleReadmes[readmePath] as string | undefined
+
+  if (readme) {
+    const firstLine = readme.split('\n')[0]
+    const match = firstLine.match(/^#\s+(.*)/)
+    if (match?.[1]) {
+      return match[1].trim()
+    }
+  }
+
+  return formatProjectName(exampleId)
+}
+
 import {
   bindOperatorToTimeline,
   cleanupRemovedOperators as cleanupRemovedOperatorsNative,
@@ -168,14 +208,11 @@ export function getNoodles(): Visualization {
   // Get projectId from route params (/examples/:projectId or /projects/:projectId) - router is single source of truth
   const projectName = params.projectId ?? null
 
-  // Detect if we're on /projects, /drafts, or /examples route to preserve it when navigating
-  const routePrefix = location.startsWith('/projects/')
-    ? '/projects'
-    : location.startsWith('/drafts/')
-      ? '/drafts'
-      : '/examples'
+  // Detect if we're on /projects or /examples route to preserve it when navigating
+  const routePrefix = location.startsWith('/projects/') ? '/projects' : '/examples'
   const isExamplesRoute = routePrefix === '/examples'
-  const isDraftsRoute = routePrefix === '/drafts'
+  const isNewProjectRoute = location === '/projects/new'
+  const isProjectsRoute = routePrefix === '/projects' && !isNewProjectRoute
 
   const [showProjectNotFoundDialog, setShowProjectNotFoundDialog] = useState(false)
   const [showSaveAsDialog, setShowSaveAsDialog] = useState(false)
@@ -294,7 +331,10 @@ export function getNoodles(): Visualization {
       }
     }
 
-    const displayName = storageType === 'memory' ? 'Untitled' : projectName
+    const displayName =
+      storageType === 'memory'
+        ? memoryProjectStore.getDisplayName(projectName || '') || 'Untitled'
+        : projectName
     document.title = displayName
       ? `Noodles.gl - ${displayName}${hasUnsavedChanges || storageType === 'memory' ? ' *' : ''}`
       : 'Noodles.gl'
@@ -786,7 +826,7 @@ export function getNoodles(): Visualization {
       }
 
       // If no projectName, load the default new project
-      if (!projectName || projectName === 'new') {
+      if (!projectName) {
         try {
           loadProjectFile(newProjectJSON as NoodlesProjectJSON)
           return
@@ -796,22 +836,36 @@ export function getNoodles(): Visualization {
         return
       }
 
-      if (isDraftsRoute) {
-        // For /drafts route: load from in-memory store
-        const memoryJson = memoryProjectStore.getProjectJson(projectName)
-        if (memoryJson) {
-          const project = await migrateProject(memoryJson)
-          setCurrentDirectory(null, projectName)
+      // Handle /projects/new route - load new project into memory
+      if (isNewProjectRoute && projectName === 'new') {
+        const existingProject = memoryProjectStore.getProjectJson('new')
+        if (existingProject) {
+          const project = await migrateProject(existingProject)
+          setCurrentDirectory(null, 'new')
           setActiveStorageType('memory')
-          loadProjectFile(project, projectName)
+          loadProjectFile(project, 'new')
         } else {
-          setShowProjectNotFoundDialog(true)
+          const starter = { ...newProjectJSON, version: NOODLES_VERSION } as NoodlesProjectJSON
+          memoryProjectStore.setProjectJson('new', starter)
+          setCurrentDirectory(null, 'new')
+          setActiveStorageType('memory')
+          loadProjectFile(starter, 'new')
         }
         return
       }
 
       if (isExamplesRoute) {
-        // For /examples route: load from static bundled examples, copy into memory for editing
+        // For /examples route: check memory first, then load from bundled examples
+        const existingInMemory = memoryProjectStore.getProjectJson(projectName)
+        if (existingInMemory) {
+          const project = await migrateProject(existingInMemory)
+          setCurrentDirectory(null, projectName)
+          setActiveStorageType('memory')
+          loadProjectFile(project, projectName)
+          return
+        }
+
+        // Not in memory, load from static bundled examples and copy into memory for editing
         const projectKey = `../examples/${projectName}/noodles.json`
         const projectUrl = exampleProjectUrls[projectKey] as string | undefined
 
@@ -826,13 +880,16 @@ export function getNoodles(): Visualization {
               ...EMPTY_PROJECT,
               ...noodlesFile,
             } as NoodlesProjectJSON)
-            // Copy example into memory so it becomes editable
-            const draftId = generateDraftId('example')
-            memoryProjectStore.setProjectJson(draftId, project)
-            await copyExampleAssetsToMemory(projectName, draftId)
-            setCurrentDirectory(null, draftId)
+            // Store in memory with example name as ID and set display name
+            memoryProjectStore.setProjectJson(projectName, project)
+            memoryProjectStore.setDisplayName(
+              projectName,
+              getExampleDisplayName(projectName) || projectName
+            )
+            await copyExampleAssetsToMemory(projectName, projectName)
+            setCurrentDirectory(null, projectName)
             setActiveStorageType('memory')
-            loadProjectFile(project, draftId, '/drafts')
+            loadProjectFile(project, projectName)
             return
           } catch (error) {
             debugApp('Failed to load example project:', error)
@@ -841,7 +898,7 @@ export function getNoodles(): Visualization {
 
         // Example not found - show dialog with navigation options
         setShowExampleNotFoundDialog(true)
-      } else {
+      } else if (isProjectsRoute) {
         // For /projects route: ONLY load from user storage (OPFS or File System Access API)
         try {
           const result = await load(storageType, projectName)
@@ -869,7 +926,7 @@ export function getNoodles(): Visualization {
         }
       }
     })()
-  }, [projectName, isExamplesRoute, isDraftsRoute])
+  }, [projectName, isExamplesRoute, isNewProjectRoute, isProjectsRoute])
 
   // Handle pending quick start actions (file upload or LLM question from quick start modal)
   const pendingActionHandledRef = useRef(false)
@@ -1227,13 +1284,12 @@ export function getNoodles(): Visualization {
   }, [])
 
   const onNewProject = useCallback(async () => {
-    const draftId = generateDraftId()
     const starterProject = { ...newProjectJSON, version: NOODLES_VERSION } as NoodlesProjectJSON
-    memoryProjectStore.setProjectJson(draftId, starterProject)
+    memoryProjectStore.setProjectJson('new', starterProject)
 
-    setCurrentDirectory(null, draftId)
+    setCurrentDirectory(null, 'new')
     setActiveStorageType('memory')
-    loadProjectFile(starterProject, draftId, '/drafts')
+    loadProjectFile(starterProject, 'new', '/projects')
 
     analytics.track('project_created', { method: 'new' })
   }, [setCurrentDirectory, setActiveStorageType, loadProjectFile])
@@ -1354,7 +1410,7 @@ export function getNoodles(): Visualization {
 
       setCurrentDirectory(null, draftId)
       setActiveStorageType('memory')
-      loadProjectFile(projectData, draftId, '/drafts')
+      loadProjectFile(projectData, draftId, '/projects')
 
       analytics.track('project_imported', { format: isZip ? 'zip' : 'json' })
     } catch (error) {
@@ -1718,7 +1774,10 @@ export function getNoodles(): Visualization {
     onChangeShowDebugInfo: setShowDebugInfo,
     // Render settings are now read from OutOp via useRenderSettings() hook
     // Export these so timeline-editor can create the menu with render actions
-    projectName: storageType === 'memory' ? null : projectName,
+    projectName:
+      storageType === 'memory'
+        ? memoryProjectStore.getDisplayName(projectName || '') || null
+        : projectName,
     getTimelineJson,
     onSaveProject: onMenuSave,
     onSaveAs,

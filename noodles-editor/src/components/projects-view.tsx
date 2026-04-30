@@ -98,12 +98,11 @@ export function ProjectsView({ onBack, onClose }: ProjectsViewProps) {
   }, [fileSystemSupport.fileSystemAccess, fileSystemSupport.opfs])
 
   const handleNewProject = useCallback(() => {
-    const draftId = generateDraftId()
     const starterProject = { ...newProjectJSON, version: NOODLES_VERSION } as NoodlesProjectJSON
-    memoryProjectStore.setProjectJson(draftId, starterProject)
+    memoryProjectStore.setProjectJson('new', starterProject)
     analytics.track('quick_start_new_project')
     onClose()
-    navigate(`/drafts/${draftId}`)
+    navigate('/projects/new')
   }, [navigate, onClose])
 
   const handleOpenFolder = useCallback(async () => {

@@ -4,6 +4,7 @@ interface MemoryProject {
   projectJson: NoodlesProjectJSON | null
   assets: Map<string, Blob>
   createdAt: number
+  displayName?: string
 }
 
 class MemoryProjectStore {
@@ -72,6 +73,14 @@ class MemoryProjectStore {
 
   has(projectId: string): boolean {
     return this.projects.has(projectId)
+  }
+
+  setDisplayName(projectId: string, displayName: string): void {
+    this.getOrCreate(projectId).displayName = displayName
+  }
+
+  getDisplayName(projectId: string): string | null {
+    return this.projects.get(projectId)?.displayName ?? null
   }
 
   private getBlob(projectId: string, fileName: string): Blob | undefined {

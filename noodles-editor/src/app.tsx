@@ -62,14 +62,14 @@ function App() {
         </Suspense>
       )}
       <Switch>
-        {/* Project routes - /examples/:projectId, /projects/:projectId, /drafts/:projectId (most specific first) */}
+        {/* Project routes - /examples/:projectId, /projects/:projectId, /projects/new (most specific first) */}
         <Route path="/examples/:projectId">
           <TimelineEditor />
         </Route>
-        <Route path="/projects/:projectId">
+        <Route path="/projects/new">
           <TimelineEditor />
         </Route>
-        <Route path="/drafts/:projectId">
+        <Route path="/projects/:projectId">
           <TimelineEditor />
         </Route>
 
