@@ -171,7 +171,7 @@ export function getNoodles(): Visualization {
   // Detect if we're on /projects or /examples route to preserve it when navigating
   const routePrefix = location.startsWith('/projects/') ? '/projects' : '/examples'
   const isExamplesRoute = routePrefix === '/examples'
-  const isNewProjectRoute = location === '/projects/new'
+  const isNewProjectRoute = projectName === 'new'
   const isProjectsRoute = routePrefix === '/projects' && !isNewProjectRoute
 
   const [showProjectNotFoundDialog, setShowProjectNotFoundDialog] = useState(false)
@@ -797,7 +797,7 @@ export function getNoodles(): Visualization {
       }
 
       // Handle /projects/new route - load new project into memory
-      if (isNewProjectRoute && projectName === 'new') {
+      if (isNewProjectRoute) {
         const existingProject = memoryProjectStore.getProjectJson('new')
         if (existingProject) {
           const project = await migrateProject(existingProject)
