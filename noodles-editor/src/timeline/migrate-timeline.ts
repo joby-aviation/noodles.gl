@@ -1,14 +1,14 @@
-// Migration utility to convert Theatre.js timeline data to native format
+// Migration utility to convert legacy timeline timeline data to native format
 
 import type {
   BezierHandles,
   Keyframe,
   KeyframeValue,
   SequenceState,
-  TheatreKeyframe,
-  TheatreSequenceData,
-  TheatreTimelineData,
-  TheatreTrackData,
+  TimelineKeyframe,
+  TimelineSequenceData,
+  TimelineData,
+  TimelineTrackData,
   Track,
 } from './types'
 import { DEFAULT_BEZIER_HANDLES, DEFAULT_SEQUENCE_STATE } from './types'
@@ -17,9 +17,9 @@ import { DEFAULT_BEZIER_HANDLES, DEFAULT_SEQUENCE_STATE } from './types'
 // Object Name Conversion
 // ============================================================================
 
-// Theatre.js uses format like "maplibre-basemap / viewState / zoom"
+// legacy timeline uses format like "maplibre-basemap / viewState / zoom"
 // We use format like "/maplibre-basemap.viewState.zoom"
-export function theatreObjectNameToFieldPath(objectName: string): string {
+export function objectNameToFieldPath(objectName: string): string {
   // Split by " / " and join with "."
   const parts = objectName.split(' / ')
   // First part becomes the operator ID with leading slash
@@ -34,7 +34,7 @@ export function theatreObjectNameToFieldPath(objectName: string): string {
 }
 
 // Reverse conversion for compatibility
-export function fieldPathToTheatreObjectName(fieldPath: string): string {
+export function fieldPathToObjectName(fieldPath: string): string {
   // Remove leading slash and ".par." prefix
   let path = fieldPath
   if (path.startsWith('/')) {
@@ -57,19 +57,19 @@ export function fieldPathToTheatreObjectName(fieldPath: string): string {
 // Handle Conversion
 // ============================================================================
 
-// Theatre.js uses [leftX, leftY, rightX, rightY] in 0-1 space
+// legacy timeline uses [leftX, leftY, rightX, rightY] in 0-1 space
 // We use { left: [x, y], right: [x, y], type }
-export function theatreHandlesToBezierHandles(
+export function serializedHandlesToBezierHandles(
   handles: [number, number, number, number]
 ): BezierHandles {
   return {
     left: [handles[0], handles[1]],
     right: [handles[2], handles[3]],
-    type: 'aligned', // Default to aligned, Theatre.js determines this from connected edges
+    type: 'aligned', // Default to aligned, legacy timeline determines this from connected edges
   }
 }
 
-export function bezierHandlesToTheatreHandles(
+export function bezierHandlesToSerializedHandles(
   handles: BezierHandles
 ): [number, number, number, number] {
   return [handles.left[0], handles.left[1], handles.right[0], handles.right[1]]
@@ -79,8 +79,8 @@ export function bezierHandlesToTheatreHandles(
 // Value Conversion
 // ============================================================================
 
-// Theatre.js stores values directly, but compound values need special handling
-export function theatreValueToKeyframeValue(value: unknown, _propType?: string): KeyframeValue {
+// legacy timeline stores values directly, but compound values need special handling
+export function rawValueToKeyframeValue(value: unknown, _propType?: string): KeyframeValue {
   if (value === null || value === undefined) {
     return 0
   }
@@ -125,7 +125,7 @@ export function theatreValueToKeyframeValue(value: unknown, _propType?: string):
     // Generic compound value - recurse
     const result: Record<string, KeyframeValue> = {}
     for (const [k, v] of Object.entries(value)) {
-      result[k] = theatreValueToKeyframeValue(v)
+      result[k] = rawValueToKeyframeValue(v)
     }
     return result
   }
@@ -138,15 +138,15 @@ export function theatreValueToKeyframeValue(value: unknown, _propType?: string):
 // Keyframe Conversion
 // ============================================================================
 
-export function theatreKeyframeToKeyframe(theatreKf: TheatreKeyframe, propType?: string): Keyframe {
-  const handles = theatreHandlesToBezierHandles(theatreKf.handles)
+export function serializedKeyframeToKeyframe(kf: TimelineKeyframe, propType?: string): Keyframe {
+  const handles = serializedHandlesToBezierHandles(kf.handles)
 
   // Determine interpolation type based on handles
   // Linear: handles are at diagonal (0,0) to (1,1)
   // Hold: connectedRight is false
   let interpolation: 'bezier' | 'linear' | 'hold' = 'bezier'
 
-  if (!theatreKf.connectedRight) {
+  if (!kf.connectedRight) {
     interpolation = 'hold'
   } else {
     // Check if handles form a linear curve
@@ -161,22 +161,22 @@ export function theatreKeyframeToKeyframe(theatreKf: TheatreKeyframe, propType?:
   }
 
   return {
-    id: theatreKf.id,
-    position: theatreKf.position,
-    value: theatreValueToKeyframeValue(theatreKf.value, propType),
+    id: kf.id,
+    position: kf.position,
+    value: rawValueToKeyframeValue(kf.value, propType),
     interpolation,
     handles: interpolation === 'bezier' ? handles : undefined,
   }
 }
 
-export function keyframeToTheatreKeyframe(kf: Keyframe): TheatreKeyframe {
+export function keyframeToSerializedKeyframe(kf: Keyframe): TimelineKeyframe {
   const handles = kf.handles ?? DEFAULT_BEZIER_HANDLES
 
   return {
     id: kf.id,
     position: kf.position,
     connectedRight: kf.interpolation !== 'hold',
-    handles: bezierHandlesToTheatreHandles(handles),
+    handles: bezierHandlesToSerializedHandles(handles),
     value: kf.value,
   }
 }
@@ -185,14 +185,14 @@ export function keyframeToTheatreKeyframe(kf: Keyframe): TheatreKeyframe {
 // Track Conversion
 // ============================================================================
 
-export function theatreTrackDataToTrack(
+export function trackDataToTrack(
   objectName: string,
   propPath: string,
-  trackData: TheatreTrackData
+  trackData: TimelineTrackData
 ): Track {
-  const fieldPath = theatreObjectNameToFieldPath(`${objectName} / ${propPath}`)
+  const fieldPath = objectNameToFieldPath(`${objectName} / ${propPath}`)
 
-  const keyframes = trackData.keyframes.map(kf => theatreKeyframeToKeyframe(kf, trackData.type))
+  const keyframes = trackData.keyframes.map(kf => serializedKeyframeToKeyframe(kf, trackData.type))
 
   // Sort keyframes by position
   keyframes.sort((a, b) => a.position - b.position)
@@ -217,8 +217,8 @@ export interface NativeTimelineData {
   tracks: Record<string, Track>
 }
 
-export function migrateTheatreTimeline(theatreData: TheatreTimelineData): NativeTimelineData {
-  const noodlesSheet = theatreData.sheetsById?.Noodles
+export function migrateTimelineData(timelineData: TimelineData): NativeTimelineData {
+  const noodlesSheet = timelineData.sheetsById?.Noodles
   if (!noodlesSheet) {
     // No timeline data, return defaults
     return {
@@ -255,7 +255,7 @@ export function migrateTheatreTimeline(theatreData: TheatreTimelineData): Native
       const data = trackData[trackId]
       if (!data) continue
 
-      const track = theatreTrackDataToTrack(objectName, propPath, data)
+      const track = trackDataToTrack(objectName, propPath, data)
       tracks[track.id] = track
     }
   }
@@ -263,15 +263,15 @@ export function migrateTheatreTimeline(theatreData: TheatreTimelineData): Native
   return { sequence, tracks }
 }
 
-// Convert native format back to Theatre.js format (for backwards compatibility)
-export function exportToTheatreFormat(data: NativeTimelineData): TheatreTimelineData {
-  const tracksByObject: TheatreSequenceData['tracksByObject'] = {}
+// Convert native format back to legacy timeline format (for backwards compatibility)
+export function exportToTimelineFormat(data: NativeTimelineData): TimelineData {
+  const tracksByObject: TimelineSequenceData['tracksByObject'] = {}
 
   for (const track of Object.values(data.tracks)) {
-    const theatreObjectName = fieldPathToTheatreObjectName(track.fieldPath)
+    const fullObjectName = fieldPathToObjectName(track.fieldPath)
 
     // Split into object name and prop path
-    const parts = theatreObjectName.split(' / ')
+    const parts = fullObjectName.split(' / ')
     const objectName = parts[0]
     const propPath = parts.slice(1).join(' / ')
 
@@ -290,11 +290,11 @@ export function exportToTheatreFormat(data: NativeTimelineData): TheatreTimeline
     tracksByObject[objectName].trackIdByPropPath[propPath] = trackId
 
     // Convert keyframes
-    const theatreKeyframes = track.keyframes.map(keyframeToTheatreKeyframe)
+    const serializedKeyframes = track.keyframes.map(keyframeToSerializedKeyframe)
 
     tracksByObject[objectName].trackData[trackId] = {
       type: detectValueType(track.defaultValue),
-      keyframes: theatreKeyframes,
+      keyframes: serializedKeyframes,
     }
   }
 
@@ -313,7 +313,7 @@ export function exportToTheatreFormat(data: NativeTimelineData): TheatreTimeline
   }
 }
 
-// Detect Theatre.js type string from value
+// Detect legacy timeline type string from value
 function detectValueType(value: KeyframeValue): string {
   if (typeof value === 'number') return 'number'
   if (typeof value === 'boolean') return 'boolean'
@@ -340,7 +340,7 @@ export interface ValidationResult {
   warnings: string[]
 }
 
-export function validateTheatreData(data: unknown): ValidationResult {
+export function validateTimelineData(data: unknown): ValidationResult {
   const errors: string[] = []
   const warnings: string[] = []
 
@@ -349,20 +349,20 @@ export function validateTheatreData(data: unknown): ValidationResult {
     return { valid: false, errors, warnings }
   }
 
-  const theatreData = data as TheatreTimelineData
+  const timelineData = data as TimelineData
 
   // Check for required structure
-  if (!theatreData.sheetsById) {
+  if (!timelineData.sheetsById) {
     warnings.push('No sheetsById found, using empty timeline')
     return { valid: true, errors, warnings }
   }
 
-  if (!theatreData.sheetsById.Noodles) {
+  if (!timelineData.sheetsById.Noodles) {
     warnings.push('No Noodles sheet found, using empty timeline')
     return { valid: true, errors, warnings }
   }
 
-  const sheet = theatreData.sheetsById.Noodles
+  const sheet = timelineData.sheetsById.Noodles
   if (!sheet.sequence) {
     warnings.push('No sequence data found, using defaults')
     return { valid: true, errors, warnings }

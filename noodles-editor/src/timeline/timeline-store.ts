@@ -1,5 +1,5 @@
 // Zustand store for native timeline state management
-// Provides Theatre.js-compatible serialization for project files
+// Provides timeline-compatible serialization for project files
 
 import { nanoid } from 'nanoid'
 import { create } from 'zustand'
@@ -14,10 +14,10 @@ import type {
   KeyframeValue,
   SequenceState,
   SerializedTimeMarker,
-  TheatreKeyframe,
-  TheatreSequenceData,
-  TheatreTimelineData,
-  TheatreTrackData,
+  TimelineKeyframe,
+  TimelineSequenceData,
+  TimelineData,
+  TimelineTrackData,
   TimeMarker,
   Track,
 } from './types'
@@ -114,9 +114,9 @@ export interface TimelineStore {
   evaluateTrack: (trackId: string, time?: number) => KeyframeValue | undefined
   evaluateAllTracks: (time?: number) => Map<string, KeyframeValue>
 
-  // === Serialization (Theatre.js compatible) ===
-  toTheatreJSON: () => TheatreTimelineData
-  fromTheatreJSON: (json: TheatreTimelineData, opts?: { keepPosition?: boolean }) => void
+  // === Serialization (timeline compatible) ===
+  toTimelineJSON: () => TimelineData
+  fromTimelineJSON: (json: TimelineData, opts?: { keepPosition?: boolean }) => void
   reset: () => void
 }
 
@@ -141,13 +141,13 @@ function sortKeyframes(keyframes: Keyframe[]): Keyframe[] {
   return [...keyframes].sort((a, b) => a.position - b.position)
 }
 
-// Convert native handles to Theatre.js format [leftX, leftY, rightX, rightY]
-function handlesToTheatre(handles: BezierHandles): [number, number, number, number] {
+// Convert native handles to timeline format [leftX, leftY, rightX, rightY]
+function handlesToSerialized(handles: BezierHandles): [number, number, number, number] {
   return [handles.left[0], handles.left[1], handles.right[0], handles.right[1]]
 }
 
-// Convert Theatre.js handles to native format
-function theatreToHandles(handles: [number, number, number, number]): BezierHandles {
+// Convert timeline handles to native format
+function serializedToHandles(handles: [number, number, number, number]): BezierHandles {
   return {
     left: [handles[0], handles[1]],
     right: [handles[2], handles[3]],
@@ -155,29 +155,29 @@ function theatreToHandles(handles: [number, number, number, number]): BezierHand
   }
 }
 
-// Convert native keyframe to Theatre.js format
-function keyframeToTheatre(kf: Keyframe, index: number, total: number): TheatreKeyframe {
+// Convert native keyframe to timeline format
+function keyframeToSerialized(kf: Keyframe, index: number, total: number): TimelineKeyframe {
   return {
     id: kf.id,
     position: kf.position,
     connectedRight: index < total - 1 && kf.interpolation !== 'hold',
-    handles: handlesToTheatre(kf.handles || DEFAULT_BEZIER_HANDLES),
+    handles: handlesToSerialized(kf.handles || DEFAULT_BEZIER_HANDLES),
     value: kf.value,
   }
 }
 
-// Convert Theatre.js keyframe to native format
-function theatreToKeyframe(tkf: TheatreKeyframe): Keyframe {
+// Convert timeline keyframe to native format
+function serializedToKeyframe(tkf: TimelineKeyframe): Keyframe {
   return {
     id: tkf.id,
     position: tkf.position,
     value: tkf.value as KeyframeValue,
     interpolation: tkf.connectedRight ? 'bezier' : 'hold',
-    handles: theatreToHandles(tkf.handles),
+    handles: serializedToHandles(tkf.handles),
   }
 }
 
-// Detect value type for Theatre.js track data
+// Detect value type for timeline track data
 function detectValueType(value: KeyframeValue): string {
   if (typeof value === 'number') return 'BasicKeyframedTrack'
   if (typeof value === 'boolean') return 'BasicKeyframedTrack'
@@ -629,11 +629,11 @@ export const useTimelineStore = create<TimelineStore>()(
     },
 
     // === Serialization ===
-    toTheatreJSON: () => {
+    toTimelineJSON: () => {
       const { sequence, tracks, markers } = get()
 
       // Group tracks by object name (operator path)
-      const tracksByObject: TheatreSequenceData['tracksByObject'] = {}
+      const tracksByObject: TimelineSequenceData['tracksByObject'] = {}
 
       for (const [fieldPath, track] of tracks) {
         if (track.keyframes.length === 0) continue
@@ -653,9 +653,9 @@ export const useTimelineStore = create<TimelineStore>()(
         const trackDataId = generateTrackId()
         tracksByObject[objectName].trackIdByPropPath[propPath] = trackDataId
 
-        const trackData: TheatreTrackData = {
+        const trackData: TimelineTrackData = {
           type: detectValueType(track.defaultValue),
-          keyframes: track.keyframes.map((kf, i, arr) => keyframeToTheatre(kf, i, arr.length)),
+          keyframes: track.keyframes.map((kf, i, arr) => keyframeToSerialized(kf, i, arr.length)),
         }
         tracksByObject[objectName].trackData[trackDataId] = trackData
       }
@@ -688,7 +688,7 @@ export const useTimelineStore = create<TimelineStore>()(
       }
     },
 
-    fromTheatreJSON: (json, opts) => {
+    fromTimelineJSON: (json, opts) => {
       const emptyTimelineState = {
         sequence: { ...DEFAULT_SEQUENCE_STATE },
         tracks: new Map<string, Track>(),
@@ -702,13 +702,13 @@ export const useTimelineStore = create<TimelineStore>()(
       }
 
       if (!json || typeof json !== 'object' || !json.sheetsById?.Noodles) {
-        debugTimeline('Invalid Theatre.js timeline data')
+        debugTimeline('Invalid timeline timeline data')
         set(emptyTimelineState)
         return
       }
 
-      const theatreSeq = json.sheetsById.Noodles.sequence
-      if (!theatreSeq) {
+      const seq = json.sheetsById.Noodles.sequence
+      if (!seq) {
         // Some legacy projects only persist static overrides without a sequence.
         // Treat this as "no animated timeline" instead of an invalid project.
         set(emptyTimelineState)
@@ -718,7 +718,7 @@ export const useTimelineStore = create<TimelineStore>()(
       const newTracks = new Map<string, Track>()
 
       // Parse each object's tracks
-      for (const [objectName, objectData] of Object.entries(theatreSeq.tracksByObject ?? {})) {
+      for (const [objectName, objectData] of Object.entries(seq.tracksByObject ?? {})) {
         const trackIdByPropPath = objectData?.trackIdByPropPath ?? {}
         const trackDataById = objectData?.trackData ?? {}
 
@@ -726,7 +726,7 @@ export const useTimelineStore = create<TimelineStore>()(
           const trackData = trackDataById[trackDataId]
           if (!trackData) continue
 
-          // Theatre.js stores prop paths as JSON arrays: '["pitch"]' or '["viewState","zoom"]'
+          // timeline stores prop paths as JSON arrays: '["pitch"]' or '["viewState","zoom"]'
           // Fall back to dot-splitting for native-format paths like "viewState.zoom"
           let propPathParts: string[]
           try {
@@ -737,7 +737,7 @@ export const useTimelineStore = create<TimelineStore>()(
           }
           const fieldPath = [objectName, ...propPathParts].join(' / ')
 
-          const keyframes = (trackData.keyframes ?? []).map(theatreToKeyframe)
+          const keyframes = (trackData.keyframes ?? []).map(serializedToKeyframe)
           const defaultValue = keyframes[0]?.value ?? 0
 
           const track: Track = {
@@ -751,7 +751,7 @@ export const useTimelineStore = create<TimelineStore>()(
       }
 
       // Deserialize markers
-      const markers: TimeMarker[] = (theatreSeq.markers ?? []).map(m => ({
+      const markers: TimeMarker[] = (seq.markers ?? []).map(m => ({
         id: m.id,
         position: m.position,
         connectedKeyframes: (m.connections ?? []).map(c => ({
@@ -764,12 +764,12 @@ export const useTimelineStore = create<TimelineStore>()(
       set({
         sequence: {
           length:
-            typeof theatreSeq.length === 'number' && theatreSeq.length > 0
-              ? theatreSeq.length
+            typeof seq.length === 'number' && seq.length > 0
+              ? seq.length
               : DEFAULT_SEQUENCE_STATE.length,
           fps:
-            typeof theatreSeq.subUnitsPerUnit === 'number' && theatreSeq.subUnitsPerUnit > 0
-              ? Math.round(theatreSeq.subUnitsPerUnit)
+            typeof seq.subUnitsPerUnit === 'number' && seq.subUnitsPerUnit > 0
+              ? Math.round(seq.subUnitsPerUnit)
               : DEFAULT_SEQUENCE_STATE.fps,
         },
         tracks: newTracks,
@@ -833,7 +833,7 @@ export function registerTimelineMutationCallback(
 
 // Capture the current timeline state as a JSON string for history snapshots
 export function captureTimelineState(): string {
-  return JSON.stringify(useTimelineStore.getState().toTheatreJSON())
+  return JSON.stringify(useTimelineStore.getState().toTimelineJSON())
 }
 
 // Fire a history entry for a completed mutation. Pass beforeJson captured before

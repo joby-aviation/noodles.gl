@@ -63,7 +63,6 @@ import { ParameterEditorDialog } from './components/parameter-editor-dialog'
 import { ProjectNotFoundDialog } from './components/project-not-found-dialog'
 import { RenameDialog } from './components/rename-dialog'
 import { SaveAsDialog } from './components/save-as-dialog'
-import { SaveReminderToast } from './components/save-reminder-toast'
 import { StorageErrorHandler } from './components/storage-error-handler'
 import { UndoRedoHandler, type UndoRedoHandlerRef } from './components/UndoRedoHandler'
 import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
@@ -1460,7 +1459,6 @@ export function getNoodles(): Visualization {
         onMouseMove={onMouseMove}
       >
         <PrimeReactProvider>
-          <SaveReminderToast hasUnsavedChanges={hasUnsavedChanges} onSave={onMenuSave} />
           <TimelineProvider>
             <ReactFlow
               ref={reactFlowRef}
