@@ -1,5 +1,4 @@
 // Core type definitions for the native timeline system
-// These types are designed to be compatible with timeline format for easier migration
 
 // ============================================================================
 // Value Types (matching field types from fields.ts)
@@ -151,7 +150,7 @@ export interface SerializedTimeMarker {
 }
 
 // ============================================================================
-// Serialization Types (timeline compatible)
+// Serialization Types
 // ============================================================================
 
 // Serialized track data format

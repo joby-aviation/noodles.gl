@@ -1,5 +1,4 @@
 // Zustand store for native timeline state management
-// Provides timeline-compatible serialization for project files
 
 import { nanoid } from 'nanoid'
 import { create } from 'zustand'
@@ -114,7 +113,7 @@ export interface TimelineStore {
   evaluateTrack: (trackId: string, time?: number) => KeyframeValue | undefined
   evaluateAllTracks: (time?: number) => Map<string, KeyframeValue>
 
-  // === Serialization (timeline compatible) ===
+  // === Serialization ===
   toTimelineJSON: () => TimelineData
   fromTimelineJSON: (json: TimelineData, opts?: { keepPosition?: boolean }) => void
   reset: () => void
