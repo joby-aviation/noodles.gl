@@ -1314,6 +1314,42 @@ export class DateTimeOp extends Operator<DateTimeOp> {
 export class DateMathOp extends Operator<DateMathOp> {
   static displayName = 'DateMath'
   static description = 'Perform date/time arithmetic and comparisons'
+
+  constructor(id: OpId, inputs?: unknown, locked?: boolean) {
+    super(id, inputs, locked)
+
+    // Subscribe to operator changes to update visible fields
+    const sub = this.inputs.operator.subscribe((operator: string) => {
+      const visible = new Set<string>(['operator', 'date'])
+
+      // Operations that need dateB
+      if (['difference', 'isBefore', 'isAfter', 'equals', 'interpolate'].includes(operator)) {
+        visible.add('dateB')
+      }
+
+      // Operations that need duration
+      if (['add', 'subtract', 'difference'].includes(operator)) {
+        visible.add('duration')
+      }
+
+      // Format operation needs formatString
+      if (operator === 'format') {
+        visible.add('formatString')
+      }
+
+      // Interpolate operation needs t
+      if (operator === 'interpolate') {
+        visible.add('t')
+      }
+
+      // Extraction operations (year, month, etc.) only need date
+      // No additional fields needed
+
+      this.visibleFields.next(visible)
+    })
+    this.subs.push(sub)
+  }
+
   public createInputs() {
     return {
       operator: new StringLiteralField('add', {
@@ -1339,10 +1375,10 @@ export class DateMathOp extends Operator<DateMathOp> {
         ],
       }),
       date: new DateField(Temporal.Now.plainDateTimeISO(), { accessor: true }),
-      dateB: new DateField(Temporal.Now.plainDateTimeISO(), { accessor: true }),
-      duration: new DurationField(),
-      formatString: new StringField(''),
-      t: new NumberField(0, { min: 0, max: 1, step: 0.01, accessor: true }),
+      dateB: new DateField(Temporal.Now.plainDateTimeISO(), { accessor: true, showByDefault: false }),
+      duration: new DurationField({ showByDefault: false }),
+      formatString: new StringField('', { showByDefault: false }),
+      t: new NumberField(0, { min: 0, max: 1, step: 0.01, accessor: true, showByDefault: false }),
     }
   }
   createOutputs() {
