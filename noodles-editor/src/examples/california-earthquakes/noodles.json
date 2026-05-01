@@ -223,7 +223,7 @@
       },
       "data": {
         "inputs": {
-          "code": "return data.filter(d => {\n  const dateStr = d.DateTime.replace(' ', 'T')\n  const earthquakeDate = Temporal.PlainDateTime.from(dateStr)\n  const cutoffDate = op('/cutoff-date').out.date\n  const daysSince = earthquakeDate.until(cutoffDate, { largestUnit: 'days' }).days\n  return daysSince >= 0\n})"
+          "code": "return d.filter(row => {\n  const dateStr = row.DateTime.replace(/\\//g, '-').replace(' ', 'T')\n  const earthquakeDate = Temporal.PlainDateTime.from(dateStr)\n  const cutoffDate = op('/cutoff-date').out.date\n  const daysSince = earthquakeDate.until(cutoffDate, { largestUnit: 'days' }).days\n  return daysSince >= 0\n})"
         },
         "locked": false
       }

@@ -63,8 +63,8 @@ The visualization animates through 58 years of earthquake data (1967-2024) using
 Instead of using FilterOp (which only supports column-based comparisons like "greater than"), this example uses `CodeOp` for custom temporal logic:
 
 ```javascript
-return data.filter(d => {
-  const dateStr = d.DateTime.replace(' ', 'T')
+return d.filter(row => {
+  const dateStr = row.DateTime.replace(/\//g, '-').replace(' ', 'T')
   const earthquakeDate = Temporal.PlainDateTime.from(dateStr)
   const cutoffDate = op('/cutoff-date').out.date
   const daysSince = earthquakeDate.until(cutoffDate, { largestUnit: 'days' }).days
@@ -79,11 +79,15 @@ return data.filter(d => {
 - The keyframed `/cutoff-date` is accessed dynamically via `op('/cutoff-date').out.date`
 
 **How it works:**
-1. Parse each earthquake's DateTime string to `Temporal.PlainDateTime`
-2. Get the current animated cutoff date from the keyframed DateTimeOp
-3. Calculate days between earthquake and cutoff using Temporal's `until()` method
-4. Filter: keep earthquakes where days >= 0 (earthquake occurred before or at cutoff)
-5. Return filtered array to ScatterplotLayer
+1. Loop over data rows (`d` is the input data, `row` is each earthquake)
+2. Convert DateTime format `1967/08/01 10:33:50.47` to ISO format `1967-01-01T10:33:50.47`
+   - Replace `/` with `-` for date separators
+   - Replace space with `T` for ISO datetime format
+3. Parse to `Temporal.PlainDateTime`
+4. Get the current animated cutoff date from the keyframed DateTimeOp via `op('/cutoff-date').out.date`
+5. Calculate days between earthquake and cutoff using Temporal's `until()` method
+6. Filter: keep earthquakes where days >= 0 (earthquake occurred before or at cutoff)
+7. Return filtered array to ScatterplotLayer
 
 ### DateMathOp Demonstration
 The example includes DateMathOp nodes to show the API (though not used in the visualization):
