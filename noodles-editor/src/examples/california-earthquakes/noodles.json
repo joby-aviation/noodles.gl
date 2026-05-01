@@ -245,10 +245,10 @@
       "targetHandle": "par.data"
     },
     {
-      "id": "/filter-by-cutoff.out.result->/scatterplot-layer.par.data",
+      "id": "/filter-by-cutoff.out.data->/scatterplot-layer.par.data",
       "source": "/filter-by-cutoff",
       "target": "/scatterplot-layer",
-      "sourceHandle": "out.result",
+      "sourceHandle": "out.data",
       "targetHandle": "par.data"
     },
     {
