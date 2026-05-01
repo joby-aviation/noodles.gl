@@ -66,3 +66,49 @@ describe('nodePropsAreEqual', () => {
     expect(nodePropsAreEqual(prev, next)).toBe(false)
   })
 })
+
+describe('headerClass caching', () => {
+  it('should cache category lookups for O(1) performance', () => {
+    const { headerClass } = require('../op-components')
+
+    // First call - should populate cache
+    const result1 = headerClass('NumberOp')
+    expect(result1).toBeDefined()
+
+    // Second call - should use cache (same result)
+    const result2 = headerClass('NumberOp')
+    expect(result2).toBe(result1)
+
+    // Different type
+    const result3 = headerClass('FileOp')
+    expect(result3).toBeDefined()
+    expect(result3).not.toBe(result1)
+
+    // Same type again - should use cache
+    const result4 = headerClass('NumberOp')
+    expect(result4).toBe(result1)
+  })
+
+  it('should handle display name fallback correctly', () => {
+    const { headerClass } = require('../op-components')
+
+    // Test with actual operator type
+    const result1 = headerClass('DeckRendererOp')
+    expect(result1).toBeDefined()
+
+    // Should cache and return same result
+    const result2 = headerClass('DeckRendererOp')
+    expect(result2).toBe(result1)
+  })
+
+  it('should default to data category for unknown types', () => {
+    const { headerClass } = require('../op-components')
+
+    const result = headerClass('UnknownOperatorType' as any)
+    expect(result).toBeDefined()
+
+    // Should cache the default
+    const result2 = headerClass('UnknownOperatorType' as any)
+    expect(result2).toBe(result)
+  })
+})

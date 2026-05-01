@@ -6,6 +6,7 @@ import {
   getConnectedEdges,
   getIncomers,
   getOutgoers,
+  reconnectEdge,
   type OnConnect,
   type Edge as ReactFlowEdge,
   type Node as ReactFlowNode,
@@ -762,10 +763,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         if (existing && !(targetField instanceof ListField)) {
           // Clear any previous error for the replaced edge
           targetOp.removeConnectionError(existing.id)
-          return applyEdgeChanges(
-            [{ type: 'replace', id: existing.id, item: newEdge }],
-            eds as ReactFlowEdge[]
-          )
+          return reconnectEdge(existing, newEdge, eds as ReactFlowEdge[])
         }
         return reactFlowAddEdge(newEdge, eds as ReactFlowEdge[])
       })

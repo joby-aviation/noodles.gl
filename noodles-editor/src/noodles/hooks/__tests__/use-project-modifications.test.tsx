@@ -768,4 +768,206 @@ describe('useProjectModifications', () => {
       expect(edges[0].target).toBe('/target')
     })
   })
+
+  describe('edge replacement with updateEdge', () => {
+    it('should replace existing edge when connecting to non-ListField input', () => {
+      const op1 = new NumberOp('/source-1', { val: 1 })
+      const op2 = new NumberOp('/source-2', { val: 2 })
+      const op3 = new NumberOp('/target', { val: 0 })
+      setOp('/source-1', op1)
+      setOp('/source-2', op2)
+      setOp('/target', op3)
+
+      const { result } = renderHook(() =>
+        useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
+      )
+
+      act(() => {
+        result.current.addNode({
+          id: '/source-1',
+          type: 'NumberOp',
+          position: { x: 0, y: 0 },
+          data: {},
+        })
+        result.current.addNode({
+          id: '/source-2',
+          type: 'NumberOp',
+          position: { x: 0, y: 100 },
+          data: {},
+        })
+        result.current.addNode({
+          id: '/target',
+          type: 'NumberOp',
+          position: { x: 200, y: 50 },
+          data: {},
+        })
+      })
+
+      // Create first connection
+      act(() => {
+        result.current.onConnect({
+          source: '/source-1',
+          target: '/target',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.val',
+        })
+      })
+
+      expect(edges).toHaveLength(1)
+      expect(edges[0].source).toBe('/source-1')
+      expect(edges[0].target).toBe('/target')
+      const firstEdgeId = edges[0].id
+
+      // Create second connection to same input - should replace first
+      act(() => {
+        result.current.onConnect({
+          source: '/source-2',
+          target: '/target',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.val',
+        })
+      })
+
+      // Should still have only 1 edge (replaced)
+      expect(edges).toHaveLength(1)
+      expect(edges[0].source).toBe('/source-2')
+      expect(edges[0].target).toBe('/target')
+      expect(edges[0].id).not.toBe(firstEdgeId)
+    })
+
+    it('should use updateEdge atomically without intermediate state', () => {
+      const op1 = new NumberOp('/source-1', { val: 1 })
+      const op2 = new NumberOp('/source-2', { val: 2 })
+      const op3 = new NumberOp('/target', { val: 0 })
+      setOp('/source-1', op1)
+      setOp('/source-2', op2)
+      setOp('/target', op3)
+
+      const { result } = renderHook(() =>
+        useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
+      )
+
+      act(() => {
+        result.current.addNode({
+          id: '/source-1',
+          type: 'NumberOp',
+          position: { x: 0, y: 0 },
+          data: {},
+        })
+        result.current.addNode({
+          id: '/source-2',
+          type: 'NumberOp',
+          position: { x: 0, y: 100 },
+          data: {},
+        })
+        result.current.addNode({
+          id: '/target',
+          type: 'NumberOp',
+          position: { x: 200, y: 50 },
+          data: {},
+        })
+      })
+
+      // Track edge changes
+      let edgeChangeCount = 0
+      let edgeLengths: number[] = []
+      const originalSetEdges = setEdges
+      setEdges = (update: ReactFlowEdge[] | ((edges: ReactFlowEdge[]) => ReactFlowEdge[])) => {
+        edgeChangeCount++
+        const newEdges = typeof update === 'function' ? update(edges) : update
+        edgeLengths.push(newEdges.length)
+        return originalSetEdges(newEdges)
+      }
+
+      // Create first connection
+      act(() => {
+        result.current.onConnect({
+          source: '/source-1',
+          target: '/target',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.val',
+        })
+      })
+
+      const firstChangeCount = edgeChangeCount
+
+      // Create second connection - should be atomic (single state update)
+      act(() => {
+        result.current.onConnect({
+          source: '/source-2',
+          target: '/target',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.val',
+        })
+      })
+
+      // Verify atomic update - only one setEdges call for replacement
+      expect(edgeChangeCount).toBe(firstChangeCount + 1)
+      // Should never have 0 or 2 edges during replacement (atomic)
+      expect(edgeLengths).not.toContain(0)
+      expect(edgeLengths).not.toContain(2)
+      expect(edges).toHaveLength(1)
+      expect(edges[0].source).toBe('/source-2')
+    })
+
+    it('should preserve edge metadata during updateEdge', () => {
+      const op1 = new NumberOp('/source-1', { val: 1 })
+      const op2 = new NumberOp('/source-2', { val: 2 })
+      const op3 = new NumberOp('/target', { val: 0 })
+      setOp('/source-1', op1)
+      setOp('/source-2', op2)
+      setOp('/target', op3)
+
+      const { result } = renderHook(() =>
+        useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
+      )
+
+      act(() => {
+        result.current.addNode({
+          id: '/source-1',
+          type: 'NumberOp',
+          position: { x: 0, y: 0 },
+          data: {},
+        })
+        result.current.addNode({
+          id: '/source-2',
+          type: 'NumberOp',
+          position: { x: 0, y: 100 },
+          data: {},
+        })
+        result.current.addNode({
+          id: '/target',
+          type: 'NumberOp',
+          position: { x: 200, y: 50 },
+          data: {},
+        })
+      })
+
+      // Create first connection
+      act(() => {
+        result.current.onConnect({
+          source: '/source-1',
+          target: '/target',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.val',
+        })
+      })
+
+      const originalTargetHandle = edges[0].targetHandle
+
+      // Replace connection
+      act(() => {
+        result.current.onConnect({
+          source: '/source-2',
+          target: '/target',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.val',
+        })
+      })
+
+      // Verify metadata preserved
+      expect(edges[0].targetHandle).toBe(originalTargetHandle)
+      expect(edges[0].target).toBe('/target')
+    })
+  })
 })

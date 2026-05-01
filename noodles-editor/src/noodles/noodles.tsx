@@ -148,13 +148,21 @@ const defaultEdgeOptions: DefaultEdgeOptions = {
 // Syncs edge data from React Flow store to centralized EdgeConnectionStore for O(1) lookups
 function EdgeConnectionSynchronizer() {
   const store = useStoreApi()
+  const prevEdgesRef = useRef<ReactFlowEdge[] | null>(null)
 
   useEffect(() => {
     const unsubscribe = store.subscribe(state => {
+      // Skip if edges array identity hasn't changed (position-only updates)
+      if (prevEdgesRef.current === state.edges) {
+        return
+      }
+      prevEdgesRef.current = state.edges
       useEdgeConnectionStore.getState().updateFromEdges(state.edges)
     })
     // Initial sync
-    useEdgeConnectionStore.getState().updateFromEdges(store.getState().edges)
+    const currentEdges = store.getState().edges
+    prevEdgesRef.current = currentEdges
+    useEdgeConnectionStore.getState().updateFromEdges(currentEdges)
     return unsubscribe
   }, [store])
 
@@ -1485,6 +1493,10 @@ export function getNoodles(): Visualization {
               onConnectStart={onConnectStart}
               onConnectEnd={onConnectEnd}
               onReconnect={onReconnect}
+              onEdgeUpdate={(oldEdge, newConnection) => {
+                setEdges(els => reconnectEdge(oldEdge, newConnection, els))
+                setHasUnsavedChanges(true)
+              }}
               onNodeContextMenu={onNodeContextMenu}
               onNodesDelete={onNodesDelete}
               onNodeDrag={onNodeDrag}

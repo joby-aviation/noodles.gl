@@ -30,6 +30,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react'
@@ -70,7 +71,10 @@ import {
 } from '../store'
 import type { NodeDataJSON } from '../transform-graph'
 import { canConnect } from '../utils/can-connect'
-import { evaluateEnableExpression } from '../utils/enable-expression-evaluator'
+import {
+  evaluateEnableExpression,
+  getEnableExpressionDependencies,
+} from '../utils/enable-expression-evaluator'
 import type { NodeType } from '../utils/node-creation-utils'
 import { generateQualifiedPath, getBaseName, getParentPath } from '../utils/path-utils'
 import {
@@ -340,10 +344,18 @@ const headerClasses = {
   widget: s.headerWidget,
 } as const as Record<keyof typeof categories, string>
 
+const categoryCache = new Map<string, string>()
+
 export function headerClass(type: NodeType) {
+  // Check cache first for O(1) lookup
+  if (categoryCache.has(type)) {
+    return headerClasses[categoryCache.get(type) as keyof typeof categories]
+  }
+
   // Check for type directly first (handles mathOps like AddOp, MultiplyOp, etc.)
   for (const [category, types] of Object.entries(categories)) {
     if ((types as readonly string[]).includes(type)) {
+      categoryCache.set(type, category)
       return headerClasses[category]
     }
   }
@@ -351,9 +363,11 @@ export function headerClass(type: NodeType) {
   const displayName = nodeTypeToDisplayName(type)
   for (const [category, types] of Object.entries(categories)) {
     if ((types as readonly string[]).includes(displayName)) {
+      categoryCache.set(type, category)
       return headerClasses[category]
     }
   }
+  categoryCache.set(type, 'data')
   return s.headerData
 }
 
@@ -591,24 +605,44 @@ export function OutputHandle({ id, field }: { id: string; field: Field<IField> }
   )
 }
 
-// Hook to subscribe to all field value changes for reactive enable expressions
+// Hook to subscribe to field value changes for reactive enable expressions
+// Only subscribes to fields referenced in enable expressions for performance
 function useFieldValueChanges(op: Operator<IOperator>) {
   const [, forceUpdate] = useState(0)
 
   useEffect(() => {
+    const customFieldDefs = op.customInputDefinitions
+    if (!customFieldDefs || customFieldDefs.length === 0) {
+      return
+    }
+
+    // Collect fields referenced in enable expressions
+    const referencedFields = new Set<string>()
+    for (const def of customFieldDefs) {
+      if (def.enableExpression) {
+        const deps = getEnableExpressionDependencies(def.enableExpression)
+        for (const dep of deps) {
+          if (dep.type === 'local-par') {
+            referencedFields.add(dep.field)
+          }
+        }
+      }
+    }
+
+    if (referencedFields.size === 0) {
+      return
+    }
+
+    // Subscribe only to referenced fields
     const allInputs = (op.constructor as typeof Operator).supportsCustomFields
       ? op.getAllInputs()
       : op.inputs
+    const subscriptions = Array.from(referencedFields)
+      .map(fieldName => allInputs[fieldName])
+      .filter(Boolean)
+      .map(field => field.subscribe(() => forceUpdate(n => n + 1)))
 
-    const subscriptions = Object.values(allInputs).map(field =>
-      field.subscribe(() => forceUpdate(n => n + 1))
-    )
-
-    return () => {
-      subscriptions.forEach(sub => {
-        sub.unsubscribe()
-      })
-    }
+    return () => subscriptions.forEach(sub => sub.unsubscribe())
   }, [op])
 }
 
@@ -617,10 +651,14 @@ function NodeComponent({
   type,
   selected,
 }: ReactFlowNodeProps<NodeDataJSON<Operator<IOperator>>> & { type: OpType }) {
-  const op = getOp(id as string)
-  if (!op) {
-    throw new Error(`Operator with id ${id} not found`)
-  }
+  // Memoize operator lookup to avoid redundant store access in hooks
+  const op = useMemo(() => {
+    const operator = getOp(id as string)
+    if (!operator) {
+      throw new Error(`Operator with id ${id} not found`)
+    }
+    return operator
+  }, [id])
   const locked = useLocked(op)
   const [breakpointEnabled, toggleBreakpoint] = useBreakpoint(op)
   const executionState = useExecutionState(op)
@@ -1367,11 +1405,15 @@ export function NodeHeader({
 
   const { displayName } = op.constructor as typeof Operator
 
+  // Memoize event handlers to avoid recreating on every render
+  const handleMouseEnter = useCallback(() => setHeaderHovered(true), [])
+  const handleMouseLeave = useCallback(() => setHeaderHovered(false), [])
+
   return (
     <div
       className={cx(s.header, s.dragHandle, headerClass(type))}
-      onMouseEnter={() => setHeaderHovered(true)}
-      onMouseLeave={() => setHeaderHovered(false)}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
       <div className={s.headerTitle} title={`${id} (${displayName})`}>
         {editableId} ({displayName})
