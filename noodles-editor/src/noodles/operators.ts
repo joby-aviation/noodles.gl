@@ -1466,6 +1466,45 @@ export class DateMathOp extends Operator<DateMathOp> {
   }
 }
 
+export class DateInterpolateOp extends Operator<DateInterpolateOp> {
+  static displayName = 'DateInterpolate'
+  static description = 'Interpolate between two dates using a normalized value (0-1)'
+  createInputs() {
+    return {
+      startDate: new DateField(Temporal.PlainDateTime.from('2020-01-01T00:00:00')),
+      endDate: new DateField(Temporal.Now.plainDateTimeISO()),
+      t: new NumberField(0, { min: 0, max: 1, step: 0.01, accessor: true }),
+    }
+  }
+  createOutputs() {
+    return {
+      date: new DateField(),
+    }
+  }
+  execute({
+    startDate,
+    endDate,
+    t,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const tIsAccessor = isAccessor(t)
+
+    if (!tIsAccessor) {
+      // Static t value
+      const clampedT = Math.max(0, Math.min(1, t as number))
+      const date = interpolateTemporal(startDate, endDate, clampedT) as Temporal.PlainDateTime
+      return { date }
+    }
+
+    // t is an accessor - return accessor function
+    const date = (...args: unknown[]) => {
+      const tVal = (t as (...args: unknown[]) => number)(...args)
+      const clampedT = Math.max(0, Math.min(1, tVal))
+      return interpolateTemporal(startDate, endDate, clampedT) as Temporal.PlainDateTime
+    }
+    return { date }
+  }
+}
+
 export class CombineXYOp extends Operator<CombineXYOp> {
   static displayName = 'CombineXY'
   static description = 'Combine x and y into a 2D vector'
@@ -1963,8 +2002,14 @@ export class TimeOp extends Operator<TimeOp> {
   }
 
   execute(_: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // Outputs are driven by the BehaviorSubject, not by execute()
-    return null
+    // Outputs are driven by the BehaviorSubject via subscriptions,
+    // but we return the current state so pull-based execution works
+    const state = this.timeState$.value
+    return {
+      now: state.now,
+      sequenceTime: state.sequenceTime,
+      tick: state.tick,
+    }
   }
 }
 
@@ -8190,6 +8235,7 @@ export const opTypes = {
   ContourLayerOp,
   CrossOp,
   DataFilterExtensionOp,
+  DateInterpolateOp,
   DateMathOp,
   DateTimeOp,
   DeckRendererOp,

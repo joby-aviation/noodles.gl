@@ -194,7 +194,7 @@
       "type": "TimeOp",
       "id": "/time",
       "position": {
-        "x": -400,
+        "x": -600,
         "y": 0
       },
       "data": {
@@ -203,14 +203,34 @@
       }
     },
     {
-      "type": "DateTimeOp",
-      "id": "/cutoff-date",
+      "type": "MapRangeOp",
+      "id": "/normalize-time",
       "position": {
-        "x": -400,
-        "y": -100
+        "x": -300,
+        "y": 0
       },
       "data": {
-        "inputs": {},
+        "inputs": {
+          "inMin": 0,
+          "inMax": 60,
+          "outMin": 0,
+          "outMax": 1
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "DateInterpolateOp",
+      "id": "/date-interpolate",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "inputs": {
+          "startDate": "1967-01-01T00:00:00",
+          "endDate": "2024-12-31T23:59:59"
+        },
         "locked": false
       }
     },
@@ -223,19 +243,9 @@
       },
       "data": {
         "inputs": {
-          "code": "return d.filter(row => {\n  const dateStr = row.DateTime.replace(/\\//g, '-').replace(' ', 'T')\n  const earthquakeDate = Temporal.PlainDateTime.from(dateStr)\n  const daysSince = earthquakeDate.until(cutoffDate, { largestUnit: 'days' }).days\n  return daysSince >= 0\n})",
-          "cutoffDate": "2024-01-01T00:00:00"
+          "code": "const cutoffDate = op('/date-interpolate').out.date\nreturn d.filter(row => {\n  const dateStr = row.DateTime.replace(/\\//g, '-').replace(' ', 'T')\n  const earthquakeDate = Temporal.PlainDateTime.from(dateStr)\n  const daysSince = earthquakeDate.until(cutoffDate, { largestUnit: 'days' }).days\n  return daysSince >= 0\n})"
         },
-        "locked": false,
-        "customFields": [
-          {
-            "id": "cutoffDate",
-            "name": "cutoffDate",
-            "type": "date",
-            "order": 2,
-            "defaultValue": "2024-01-01T00:00:00"
-          }
-        ]
+        "locked": false
       }
     }
   ],
@@ -318,11 +328,18 @@
       "id": "/magnitude-accessor.out.accessor->/multiply.par.a"
     },
     {
-      "id": "/cutoff-date.out.date->/filter-by-cutoff.par.cutoffDate",
-      "source": "/cutoff-date",
-      "target": "/filter-by-cutoff",
-      "sourceHandle": "out.date",
-      "targetHandle": "par.cutoffDate"
+      "id": "/time.out.sequenceTime->/normalize-time.par.val",
+      "source": "/time",
+      "target": "/normalize-time",
+      "sourceHandle": "out.sequenceTime",
+      "targetHandle": "par.val"
+    },
+    {
+      "id": "/normalize-time.out.scaled->/date-interpolate.par.t",
+      "source": "/normalize-time",
+      "target": "/date-interpolate",
+      "sourceHandle": "out.scaled",
+      "targetHandle": "par.t"
     }
   ],
   "viewport": {
@@ -336,35 +353,7 @@
         "sequence": {
           "length": 60,
           "subUnitsPerUnit": 30,
-          "tracksByObject": {
-            "/cutoff-date": {
-              "trackData": {
-                "7JWQ7Tl3zS": {
-                  "type": "BasicKeyframedTrack",
-                  "__meta": {
-                    "sanitizedPath": ["inputs", "date"]
-                  },
-                  "keyframes": [
-                    {
-                      "id": "start",
-                      "position": 0,
-                      "connectedRight": true,
-                      "value": "1967-01-01T00:00:00"
-                    },
-                    {
-                      "id": "end",
-                      "position": 60,
-                      "connectedRight": false,
-                      "value": "2024-12-31T23:59:59"
-                    }
-                  ]
-                }
-              },
-              "trackIdByPropPath": {
-                "[\"inputs\",\"date\"]": "7JWQ7Tl3zS"
-              }
-            }
-          }
+          "tracksByObject": {}
         },
         "staticOverrides": {
           "byObject": {}
