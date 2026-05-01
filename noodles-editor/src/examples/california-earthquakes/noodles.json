@@ -220,7 +220,7 @@
       }
     },
     {
-      "type": "DateInterpolateOp",
+      "type": "DateMathOp",
       "id": "/date-interpolate",
       "position": {
         "x": 0,
@@ -228,8 +228,9 @@
       },
       "data": {
         "inputs": {
-          "startDate": "1967-01-01T00:00:00",
-          "endDate": "2024-12-31T23:59:59"
+          "operator": "interpolate",
+          "date": "1967-01-01T00:00:00",
+          "dateB": "2024-12-31T23:59:59"
         },
         "locked": false
       }
@@ -243,7 +244,7 @@
       },
       "data": {
         "inputs": {
-          "code": "const cutoffDate = op('/date-interpolate').out.date\nreturn d.filter(row => {\n  const dateStr = row.DateTime.replace(/\\//g, '-').replace(' ', 'T')\n  const earthquakeDate = Temporal.PlainDateTime.from(dateStr)\n  const daysSince = earthquakeDate.until(cutoffDate, { largestUnit: 'days' }).days\n  return daysSince >= 0\n})"
+          "code": "const cutoffDate = op('/date-interpolate').out.result\nreturn data.filter(row => {\n  const dateStr = row.DateTime.replace(/\\//g, '-').replace(' ', 'T')\n  const earthquakeDate = Temporal.PlainDateTime.from(dateStr)\n  const daysSince = earthquakeDate.until(cutoffDate, { largestUnit: 'days' }).days\n  return daysSince >= 0\n})"
         },
         "locked": false
       }

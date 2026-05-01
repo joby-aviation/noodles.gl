@@ -1325,6 +1325,7 @@ export class DateMathOp extends Operator<DateMathOp> {
           'isAfter',
           'equals',
           'format',
+          'interpolate',
           'year',
           'month',
           'day',
@@ -1341,6 +1342,7 @@ export class DateMathOp extends Operator<DateMathOp> {
       dateB: new DateField(Temporal.Now.plainDateTimeISO(), { accessor: true }),
       duration: new DurationField(),
       formatString: new StringField(''),
+      t: new NumberField(0, { min: 0, max: 1, step: 0.01, accessor: true }),
     }
   }
   createOutputs() {
@@ -1354,13 +1356,16 @@ export class DateMathOp extends Operator<DateMathOp> {
     dateB,
     duration,
     formatString,
+    t,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const dateIsAccessor = isAccessor(date)
     const dateBIsAccessor = isAccessor(dateB)
+    const tIsAccessor = isAccessor(t)
 
     const transform = (
       dateVal: Temporal.PlainDateTime,
-      dateBVal?: Temporal.PlainDateTime
+      dateBVal?: Temporal.PlainDateTime,
+      tVal?: number
     ): unknown => {
       switch (operator) {
         case 'add': {
@@ -1402,6 +1407,12 @@ export class DateMathOp extends Operator<DateMathOp> {
           }
           return dateVal.toString()
         }
+        case 'interpolate': {
+          if (!dateBVal) throw new Error('dateB required for interpolate operation')
+          if (tVal === undefined) throw new Error('t required for interpolate operation')
+          const clampedT = Math.max(0, Math.min(1, tVal))
+          return interpolateTemporal(dateVal, dateBVal, clampedT)
+        }
         case 'year':
           return dateVal.year
         case 'month':
@@ -1427,83 +1438,51 @@ export class DateMathOp extends Operator<DateMathOp> {
       }
     }
 
-    const needsDateB = new Set(['difference', 'isBefore', 'isAfter', 'equals'])
+    const needsDateB = new Set(['difference', 'isBefore', 'isAfter', 'equals', 'interpolate'])
     const requiresDateB = needsDateB.has(operator)
 
-    if (!dateIsAccessor && (!requiresDateB || !dateBIsAccessor)) {
+    if (!dateIsAccessor && (!requiresDateB || !dateBIsAccessor) && !tIsAccessor) {
       return {
         result: transform(
           date as Temporal.PlainDateTime,
-          requiresDateB ? (dateB as Temporal.PlainDateTime) : undefined
+          requiresDateB ? (dateB as Temporal.PlainDateTime) : undefined,
+          operator === 'interpolate' ? (t as number) : undefined
         ),
       }
     }
 
-    if (dateIsAccessor && (!requiresDateB || dateBIsAccessor)) {
+    if (dateIsAccessor || dateBIsAccessor || tIsAccessor) {
       const result = (...args: unknown[]) => {
-        const dateVal = (date as (...args: unknown[]) => Temporal.PlainDateTime)(...args)
-        const dateBVal = requiresDateB
-          ? (dateB as (...args: unknown[]) => Temporal.PlainDateTime)(...args)
-          : undefined
-        return transform(dateVal, dateBVal)
+        const dateVal = dateIsAccessor
+          ? (date as (...args: unknown[]) => Temporal.PlainDateTime)(...args)
+          : (date as Temporal.PlainDateTime)
+        const dateBVal =
+          requiresDateB && dateBIsAccessor
+            ? (dateB as (...args: unknown[]) => Temporal.PlainDateTime)(...args)
+            : requiresDateB
+              ? (dateB as Temporal.PlainDateTime)
+              : undefined
+        const tValue =
+          operator === 'interpolate' && tIsAccessor
+            ? (t as (...args: unknown[]) => number)(...args)
+            : operator === 'interpolate'
+              ? (t as number)
+              : undefined
+        return transform(dateVal, dateBVal, tValue)
       }
       return { result }
     }
 
-    const result = (...args: unknown[]) => {
-      const dateVal = dateIsAccessor
-        ? (date as (...args: unknown[]) => Temporal.PlainDateTime)(...args)
-        : (date as Temporal.PlainDateTime)
-      const dateBVal =
-        requiresDateB && dateBIsAccessor
-          ? (dateB as (...args: unknown[]) => Temporal.PlainDateTime)(...args)
-          : requiresDateB
-            ? (dateB as Temporal.PlainDateTime)
-            : undefined
-      return transform(dateVal, dateBVal)
+    return {
+      result: transform(
+        date as Temporal.PlainDateTime,
+        requiresDateB ? (dateB as Temporal.PlainDateTime) : undefined,
+        operator === 'interpolate' ? (t as number) : undefined
+      ),
     }
-    return { result }
   }
 }
 
-export class DateInterpolateOp extends Operator<DateInterpolateOp> {
-  static displayName = 'DateInterpolate'
-  static description = 'Interpolate between two dates using a normalized value (0-1)'
-  createInputs() {
-    return {
-      startDate: new DateField(Temporal.PlainDateTime.from('2020-01-01T00:00:00')),
-      endDate: new DateField(Temporal.Now.plainDateTimeISO()),
-      t: new NumberField(0, { min: 0, max: 1, step: 0.01, accessor: true }),
-    }
-  }
-  createOutputs() {
-    return {
-      date: new DateField(),
-    }
-  }
-  execute({
-    startDate,
-    endDate,
-    t,
-  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const tIsAccessor = isAccessor(t)
-
-    if (!tIsAccessor) {
-      // Static t value
-      const clampedT = Math.max(0, Math.min(1, t as number))
-      const date = interpolateTemporal(startDate, endDate, clampedT) as Temporal.PlainDateTime
-      return { date }
-    }
-
-    // t is an accessor - return accessor function
-    const date = (...args: unknown[]) => {
-      const tVal = (t as (...args: unknown[]) => number)(...args)
-      const clampedT = Math.max(0, Math.min(1, tVal))
-      return interpolateTemporal(startDate, endDate, clampedT) as Temporal.PlainDateTime
-    }
-    return { date }
-  }
-}
 
 export class CombineXYOp extends Operator<CombineXYOp> {
   static displayName = 'CombineXY'
@@ -2002,14 +1981,9 @@ export class TimeOp extends Operator<TimeOp> {
   }
 
   execute(_: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // Outputs are driven by the BehaviorSubject via subscriptions,
-    // but we return the current state so pull-based execution works
-    const state = this.timeState$.value
-    return {
-      now: state.now,
-      sequenceTime: state.sequenceTime,
-      tick: state.tick,
-    }
+    // Outputs are driven by BehaviorSubject subscriptions, not execute()
+    // Returning null prevents continuous downstream re-execution
+    return null
   }
 }
 
@@ -8235,7 +8209,6 @@ export const opTypes = {
   ContourLayerOp,
   CrossOp,
   DataFilterExtensionOp,
-  DateInterpolateOp,
   DateMathOp,
   DateTimeOp,
   DeckRendererOp,
