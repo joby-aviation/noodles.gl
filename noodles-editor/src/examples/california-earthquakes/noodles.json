@@ -9,7 +9,7 @@
         "locked": false
       },
       "position": {
-        "x": 1200,
+        "x": 1334.8677228500817,
         "y": 200
       }
     },
@@ -21,7 +21,7 @@
         "locked": false
       },
       "position": {
-        "x": 1500,
+        "x": 1628.9176762537547,
         "y": 200
       }
     },
@@ -36,8 +36,8 @@
         "locked": false
       },
       "position": {
-        "x": -900,
-        "y": 100
+        "x": -896.0333022691152,
+        "y": 0.8325567278810091
       }
     },
     {
@@ -64,8 +64,8 @@
         ]
       },
       "position": {
-        "x": 850,
-        "y": 200
+        "x": 869.8334886544237,
+        "y": 110.74930105509291
       }
     },
     {
@@ -106,8 +106,8 @@
         "locked": false
       },
       "position": {
-        "x": -600,
-        "y": 350
+        "x": -603.9666977308848,
+        "y": 459.0841875993309
       }
     },
     {
@@ -162,40 +162,11 @@
       }
     },
     {
-      "type": "AccessorOp",
-      "id": "/datetime-string-accessor",
-      "position": {
-        "x": -600,
-        "y": 650
-      },
-      "data": {
-        "inputs": {
-          "expression": "d.DateTime.replace(' ', 'T')"
-        },
-        "locked": false
-      }
-    },
-    {
-      "type": "DateMathOp",
-      "id": "/parse-datetime",
-      "position": {
-        "x": -300,
-        "y": 650
-      },
-      "data": {
-        "inputs": {
-          "operator": "format",
-          "formatString": ""
-        },
-        "locked": false
-      }
-    },
-    {
       "type": "DateMathOp",
       "id": "/extract-year",
       "position": {
-        "x": 50,
-        "y": 600
+        "x": -114.6179558317175,
+        "y": 627.7668841161933
       },
       "data": {
         "inputs": {
@@ -208,8 +179,8 @@
       "type": "DateMathOp",
       "id": "/format-date",
       "position": {
-        "x": 50,
-        "y": 700
+        "x": -114.61795583171755,
+        "y": 828.9176762537547
       },
       "data": {
         "inputs": {
@@ -224,7 +195,7 @@
       "id": "/time",
       "position": {
         "x": -900,
-        "y": 950
+        "y": 1130.4847467552568
       },
       "data": {
         "inputs": {},
@@ -235,57 +206,25 @@
       "type": "DateTimeOp",
       "id": "/cutoff-date",
       "position": {
-        "x": -600,
-        "y": 950
-      },
-      "data": {
-        "inputs": {
-          "date": "1967-01-01T00:00:00"
-        },
-        "locked": false
-      }
-    },
-    {
-      "type": "DateMathOp",
-      "id": "/days-since",
-      "position": {
-        "x": -300,
-        "y": 850
-      },
-      "data": {
-        "inputs": {
-          "operator": "difference",
-          "duration": {
-            "value": 0,
-            "unit": "days"
-          }
-        },
-        "locked": false
-      }
-    },
-    {
-      "type": "AccessorOp",
-      "id": "/filter-by-date",
-      "position": {
-        "x": 50,
-        "y": 850
-      },
-      "data": {
-        "inputs": {
-          "expression": "d >= 0"
-        },
-        "locked": false
-      }
-    },
-    {
-      "type": "FilterOp",
-      "id": "/filter",
-      "position": {
-        "x": 400,
-        "y": 200
+        "x": -615.866790923539,
+        "y": 1124.5347001589296
       },
       "data": {
         "inputs": {},
+        "locked": false
+      }
+    },
+    {
+      "type": "CodeOp",
+      "id": "/filter-by-cutoff",
+      "position": {
+        "x": 400,
+        "y": 21.162255930219736
+      },
+      "data": {
+        "inputs": {
+          "code": "return data.filter(d => {\n  const dateStr = d.DateTime.replace(' ', 'T')\n  const earthquakeDate = Temporal.PlainDateTime.from(dateStr)\n  const cutoffDate = op('/cutoff-date').out.date\n  const daysSince = earthquakeDate.until(cutoffDate, { largestUnit: 'days' }).days\n  return daysSince >= 0\n})"
+        },
         "locked": false
       }
     }
@@ -299,17 +238,17 @@
       "targetHandle": "par.vis"
     },
     {
-      "id": "/data-source.out.data->/filter.par.data",
+      "id": "/data-source.out.data->/filter-by-cutoff.par.data",
       "source": "/data-source",
-      "target": "/filter",
+      "target": "/filter-by-cutoff",
       "sourceHandle": "out.data",
       "targetHandle": "par.data"
     },
     {
-      "id": "/filter.out.data->/scatterplot-layer.par.data",
-      "source": "/filter",
+      "id": "/filter-by-cutoff.out.result->/scatterplot-layer.par.data",
+      "source": "/filter-by-cutoff",
       "target": "/scatterplot-layer",
-      "sourceHandle": "out.data",
+      "sourceHandle": "out.result",
       "targetHandle": "par.data"
     },
     {
@@ -367,61 +306,12 @@
       "target": "/multiply",
       "targetHandle": "par.a",
       "id": "/magnitude-accessor.out.accessor->/multiply.par.a"
-    },
-    {
-      "source": "/datetime-string-accessor",
-      "sourceHandle": "out.accessor",
-      "target": "/parse-datetime",
-      "targetHandle": "par.date",
-      "id": "/datetime-string-accessor.out.accessor->/parse-datetime.par.date"
-    },
-    {
-      "source": "/parse-datetime",
-      "sourceHandle": "out.result",
-      "target": "/extract-year",
-      "targetHandle": "par.date",
-      "id": "/parse-datetime.out.result->/extract-year.par.date"
-    },
-    {
-      "source": "/parse-datetime",
-      "sourceHandle": "out.result",
-      "target": "/format-date",
-      "targetHandle": "par.date",
-      "id": "/parse-datetime.out.result->/format-date.par.date"
-    },
-    {
-      "source": "/parse-datetime",
-      "sourceHandle": "out.result",
-      "target": "/days-since",
-      "targetHandle": "par.date",
-      "id": "/parse-datetime.out.result->/days-since.par.date"
-    },
-    {
-      "source": "/cutoff-date",
-      "sourceHandle": "out.date",
-      "target": "/days-since",
-      "targetHandle": "par.dateB",
-      "id": "/cutoff-date.out.date->/days-since.par.dateB"
-    },
-    {
-      "source": "/days-since",
-      "sourceHandle": "out.result",
-      "target": "/filter-by-date",
-      "targetHandle": "par.data",
-      "id": "/days-since.out.result->/filter-by-date.par.data"
-    },
-    {
-      "source": "/filter-by-date",
-      "sourceHandle": "out.accessor",
-      "target": "/filter",
-      "targetHandle": "par.condition",
-      "id": "/filter-by-date.out.accessor->/filter.par.condition"
     }
   ],
   "viewport": {
-    "x": 600,
-    "y": 0,
-    "zoom": 0.6
+    "x": 354.55196565867254,
+    "y": -46.17423339119955,
+    "zoom": 0.5794567912356104
   },
   "timeline": {
     "sheetsById": {

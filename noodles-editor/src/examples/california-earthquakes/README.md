@@ -8,16 +8,18 @@ This animated example visualizes California earthquake data from 1967-2024, prog
 ## Key Techniques
 - **Data source**: `FileOp` loads earthquake data from CSV
 - **Timeline animation**: `DateTimeOp` keyframed from 1967 to 2024 controls cutoff date
-- **Date string extraction**: `AccessorOp` extracts and cleans DateTime strings (`d.DateTime.replace(' ', 'T')`)
-- **Date parsing**: `DateMathOp` with `format` operator parses ISO strings to Temporal dates (accessor mode)
-- **Time difference**: `DateMathOp` calculates days between earthquake date and cutoff date
-- **Temporal filtering**: `FilterOp` only shows earthquakes before the animated cutoff date
+- **Temporal filtering**: `CodeOp` filters data based on earthquake date vs. animated cutoff
+  - Parses DateTime strings with `Temporal.PlainDateTime.from()`
+  - Calculates days difference with Temporal's `until()` method
+  - References keyframed `/cutoff-date` via `op()` function
+  - Returns filtered array showing only earthquakes before cutoff
 - **Position accessor**: `AccessorOp` with expression `[d.Longitude, d.Latitude]` extracts coordinates
 - **Magnitude accessor**: `AccessorOp` with expression `d.Magnitude` extracts magnitude value
 - **Value normalization**: `MapRangeOp` scales magnitude from 2.5-7 range to 0-1
 - **Color mapping**: `ColorRampOp` maps normalized values to turbo gradient
-- **Radius calculation**: `MathOp` with sqrt and multiply for perceptually better sizing
+- **Radius calculation**: `MathOp` with multiply for perceptually better sizing
 - **Layer**: `ScatterplotLayerOp` displays the circles
+- **DateMathOp demonstration**: `extract-year` and `format-date` show DateMathOp API (not used in visualization)
 
 ## Data Structure
 The CSV file contains earthquake records with fields:
@@ -31,27 +33,25 @@ The CSV file contains earthquake records with fields:
 
 ## Node Graph Flow
 ```
-Timeline Animation:
-TimeOp (unused, for reference)
-DateTimeOp (cutoff-date) [KEYFRAMED 1967→2024] → DateMathOp (difference) → Filter
-
-Date Processing Pipeline:
-Data → DateTime String Accessor (d.DateTime.replace) 
-    → DateMathOp (parse via format operator)
-    → DateMathOp (extract year) → [available for grouping]
-    → DateMathOp (format date) → [available for labels]
-    → DateMathOp (days since cutoff) → Filter Accessor (d >= 0) → FilterOp
+Timeline Animation & Filtering:
+DateTimeOp (/cutoff-date) [KEYFRAMED 1967→2024]
+    ↓ (referenced via op('/cutoff-date'))
+Data → CodeOp (temporal filter) → ScatterplotLayer → DeckRenderer
+    ↓ (unused, for demonstration)
+    DateMathOp (extract year) → [available for grouping]
+    DateMathOp (format date) → [available for labels]
 
 Visualization Pipeline:
-Data → FilterOp → ScatterplotLayer → DeckRenderer
-     → Position Accessor → Layer (getPosition)
-     → Magnitude Accessor → MapRange → ColorRamp → Layer (getFillColor)
-                          → sqrt → multiply → Layer (getRadius)
+FilteredData → Position Accessor → Layer (getPosition)
+            → Magnitude Accessor → MapRange → ColorRamp → Layer (getFillColor)
+                                 → multiply → Layer (getRadius)
+
+TimeOp (unused, for reference)
 ```
 
 ## Date/Time Features & Timeline Animation
 
-This example demonstrates **DateMathOp** for temporal filtering and animation:
+This example demonstrates timeline animation with temporal filtering using `CodeOp`:
 
 ### Timeline Animation
 The visualization animates through 58 years of earthquake data (1967-2024) using a keyframed `DateTimeOp`:
@@ -59,27 +59,38 @@ The visualization animates through 58 years of earthquake data (1967-2024) using
 - **End keyframe** (position 60): `2024-12-31T23:59:59`
 - Press **Play** in the timeline to see earthquakes appear chronologically
 
-### DateTime String Processing (Split Pipeline)
-Instead of combining string manipulation and parsing in one accessor, we split it into two steps:
+### Temporal Filtering with CodeOp
+Instead of using FilterOp (which only supports column-based comparisons like "greater than"), this example uses `CodeOp` for custom temporal logic:
 
-1. **AccessorOp** extracts and cleans the DateTime string:
-   ```javascript
-   d.DateTime.replace(' ', 'T')
-   ```
+```javascript
+return data.filter(d => {
+  const dateStr = d.DateTime.replace(' ', 'T')
+  const earthquakeDate = Temporal.PlainDateTime.from(dateStr)
+  const cutoffDate = op('/cutoff-date').out.date
+  const daysSince = earthquakeDate.until(cutoffDate, { largestUnit: 'days' }).days
+  return daysSince >= 0
+})
+```
 
-2. **DateMathOp** (format operator with empty string) parses the ISO string to `Temporal.PlainDateTime` in accessor mode
+**Why CodeOp instead of FilterOp?**
+- FilterOp expects a StringLiteralField condition ('equals', 'greater than') and operates on columns
+- Our temporal filtering needs per-row logic comparing parsed Temporal dates
+- CodeOp allows full JavaScript access to the Temporal API and op() references
+- The keyframed `/cutoff-date` is accessed dynamically via `op('/cutoff-date').out.date`
 
-This split allows DateField to handle the Temporal conversion, keeping string logic separate.
+**How it works:**
+1. Parse each earthquake's DateTime string to `Temporal.PlainDateTime`
+2. Get the current animated cutoff date from the keyframed DateTimeOp
+3. Calculate days between earthquake and cutoff using Temporal's `until()` method
+4. Filter: keep earthquakes where days >= 0 (earthquake occurred before or at cutoff)
+5. Return filtered array to ScatterplotLayer
 
-### Temporal Filtering
-The core animation logic uses `DateMathOp` with `difference` operator:
-1. Calculate days between each earthquake's date and the animated cutoff date
-2. Filter accessor checks if difference is >= 0 (earthquake occurred before cutoff)
-3. `FilterOp` only passes earthquakes that meet the condition
-
-### Additional Date Operations
+### DateMathOp Demonstration
+The example includes DateMathOp nodes to show the API (though not used in the visualization):
 - **Year extraction**: `DateMathOp` with operator `year` for temporal grouping
 - **Date formatting**: `DateMathOp` with operator `format` and pattern `YYYY-MM-DD` for display
+
+These demonstrate how DateMathOp can extract components and format dates for labels/tooltips in other projects.
 
 ## Use Cases
 This pattern is useful for visualizing:

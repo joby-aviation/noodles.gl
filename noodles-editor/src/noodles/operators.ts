@@ -1282,7 +1282,7 @@ export class DateTimeOp extends Operator<DateTimeOp> {
   static description = 'A date and time'
   createInputs() {
     return {
-      date: new DateField(),
+      date: new DateField(Temporal.Now.plainDateTimeISO()),
     }
   }
   createOutputs() {
