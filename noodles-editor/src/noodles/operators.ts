@@ -1312,7 +1312,7 @@ export class DateTimeOp extends Operator<DateTimeOp> {
 //
 // Supports accessor functions for per-item date calculations in data pipelines
 export class DateMathOp extends Operator<DateMathOp> {
-  static displayName = 'Date Math'
+  static displayName = 'DateMath'
   static description = 'Perform date/time arithmetic and comparisons'
   public createInputs() {
     return {

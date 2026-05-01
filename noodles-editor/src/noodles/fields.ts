@@ -642,14 +642,14 @@ export class DurationField extends Field<
     value: z.ZodNumber
     unit: z.ZodUnion<
       readonly [
-        z.ZodLiteral<string>,
-        z.ZodLiteral<string>,
-        z.ZodLiteral<string>,
-        z.ZodLiteral<string>,
-        z.ZodLiteral<string>,
-        z.ZodLiteral<string>,
-        z.ZodLiteral<string>,
-        z.ZodLiteral<string>,
+        z.ZodLiteral<'years'>,
+        z.ZodLiteral<'months'>,
+        z.ZodLiteral<'weeks'>,
+        z.ZodLiteral<'days'>,
+        z.ZodLiteral<'hours'>,
+        z.ZodLiteral<'minutes'>,
+        z.ZodLiteral<'seconds'>,
+        z.ZodLiteral<'milliseconds'>,
       ]
     >
   }>
