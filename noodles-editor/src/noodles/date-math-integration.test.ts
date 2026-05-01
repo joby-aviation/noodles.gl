@@ -1,6 +1,6 @@
 import { Temporal } from 'temporal-polyfill'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { DateMathOp, DateTimeOp, TimeOp } from './operators'
+import { DateMathOp, DateTimeOp } from './operators'
 import { setOp } from './store'
 
 describe('DateMathOp Timeline Integration', () => {

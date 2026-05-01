@@ -1373,7 +1373,9 @@ export class DateMathOp extends Operator<DateMathOp> {
         }
         case 'difference': {
           if (!dateBVal) throw new Error('dateB required for difference operation')
-          const diff = dateVal.until(dateBVal, { largestUnit: duration.unit as Temporal.DateTimeUnit })
+          const diff = dateVal.until(dateBVal, {
+            largestUnit: duration.unit as Temporal.DateTimeUnit,
+          })
           return diff[duration.unit]
         }
         case 'isBefore': {

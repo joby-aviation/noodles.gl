@@ -5,11 +5,11 @@ import {
   AccessorOp,
   BitmapOverlayWidgetOp,
   BoundingBoxOp,
-  DateMathOp,
   ChartOp,
   CodeOp,
   ConcatOp,
   CrossOp,
+  DateMathOp,
   DeckRendererOp,
   DuckDbOp,
   ExpressionOp,
@@ -3260,7 +3260,9 @@ describe('DateMathOp', () => {
     await op.pull()
     expect(isAccessor(op.outputData.result)).toBe(true)
 
-    const result = (op.outputData.result as (d: { date: Temporal.PlainDateTime }) => Temporal.PlainDateTime)({
+    const result = (
+      op.outputData.result as (d: { date: Temporal.PlainDateTime }) => Temporal.PlainDateTime
+    )({
       date: Temporal.PlainDateTime.from('2026-04-30T12:00:00'),
     })
     expect(result.toString()).toBe('2026-05-01T12:00:00')
@@ -3276,10 +3278,12 @@ describe('DateMathOp', () => {
     await op.pull()
     expect(isAccessor(op.outputData.result)).toBe(true)
 
-    const result = (op.outputData.result as (d: {
-      start: Temporal.PlainDateTime
-      end: Temporal.PlainDateTime
-    }) => number)({
+    const result = (
+      op.outputData.result as (d: {
+        start: Temporal.PlainDateTime
+        end: Temporal.PlainDateTime
+      }) => number
+    )({
       start: Temporal.PlainDateTime.from('2026-04-30T12:00:00'),
       end: Temporal.PlainDateTime.from('2026-05-05T12:00:00'),
     })
