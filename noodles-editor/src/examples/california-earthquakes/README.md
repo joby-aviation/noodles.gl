@@ -3,18 +3,21 @@
 _Adapted from [Kepler.gl example](https://kepler.gl/demo/earthquakes)_
 
 ## Overview
-This example visualizes California earthquake data where both the size and color of each point are driven by magnitude values. Larger earthquakes appear as bigger circles with more intense colors, using a square root scale for perceptually accurate sizing and a normalized color ramp to map magnitude values to a gradient. This demonstrates data-driven styling where a single metric (magnitude) controls multiple visual properties.
+This animated example visualizes California earthquake data from 1967-2024, progressively revealing earthquakes as they occurred through timeline animation. The size and color of each point are driven by magnitude values, demonstrating data-driven styling, temporal filtering with DateMathOp, and keyframed timeline animation.
 
 ## Key Techniques
 - **Data source**: `FileOp` loads earthquake data from CSV
+- **Timeline animation**: `DateTimeOp` keyframed from 1967 to 2024 controls cutoff date
+- **Date string extraction**: `AccessorOp` extracts and cleans DateTime strings (`d.DateTime.replace(' ', 'T')`)
+- **Date parsing**: `DateMathOp` with `format` operator parses ISO strings to Temporal dates (accessor mode)
+- **Time difference**: `DateMathOp` calculates days between earthquake date and cutoff date
+- **Temporal filtering**: `FilterOp` only shows earthquakes before the animated cutoff date
 - **Position accessor**: `AccessorOp` with expression `[d.Longitude, d.Latitude]` extracts coordinates
 - **Magnitude accessor**: `AccessorOp` with expression `d.Magnitude` extracts magnitude value
-- **Radius calculation**: `AccessorOp` with expression `Math.sqrt(d.Magnitude) * 15` for perceptually better sizing
-- **Value normalization**: `MapRangeOp` scales magnitude from 0-5 range to 0-1
-- **Color mapping**: `ColorRampOp` maps normalized values to a color gradient
+- **Value normalization**: `MapRangeOp` scales magnitude from 2.5-7 range to 0-1
+- **Color mapping**: `ColorRampOp` maps normalized values to turbo gradient
+- **Radius calculation**: `MathOp` with sqrt and multiply for perceptually better sizing
 - **Layer**: `ScatterplotLayerOp` displays the circles
-- **Date/time parsing**: `AccessorOp` converts DateTime strings to Temporal.PlainDateTime objects
-- **Date math operations**: `DateMathOp` extracts year, formats dates, and calculates time differences
 
 ## Data Structure
 The CSV file contains earthquake records with fields:
@@ -28,39 +31,55 @@ The CSV file contains earthquake records with fields:
 
 ## Node Graph Flow
 ```
-Data → Magnitude Accessor → MapRange → ColorRamp → Layer (getFillColor)
-                          ↘
-                           Radius Accessor → Layer (getRadius)
+Timeline Animation:
+TimeOp (unused, for reference)
+DateTimeOp (cutoff-date) [KEYFRAMED 1967→2024] → DateMathOp (difference) → Filter
+
+Date Processing Pipeline:
+Data → DateTime String Accessor (d.DateTime.replace) 
+    → DateMathOp (parse via format operator)
+    → DateMathOp (extract year) → [available for grouping]
+    → DateMathOp (format date) → [available for labels]
+    → DateMathOp (days since cutoff) → Filter Accessor (d >= 0) → FilterOp
+
+Visualization Pipeline:
+Data → FilterOp → ScatterplotLayer → DeckRenderer
      → Position Accessor → Layer (getPosition)
-     
-Data → DateTime Accessor → DateMathOp (extract year) → [available for filtering/grouping]
-                         → DateMathOp (format date) → [available for labels]
-                         → DateMathOp (days since) → [available for temporal analysis]
-                         
-Current Date → DateMathOp (difference calculation)
+     → Magnitude Accessor → MapRange → ColorRamp → Layer (getFillColor)
+                          → sqrt → multiply → Layer (getRadius)
 ```
 
-## Date/Time Features
+## Date/Time Features & Timeline Animation
 
-This example demonstrates **DateMathOp** for temporal data analysis:
+This example demonstrates **DateMathOp** for temporal filtering and animation:
 
-### DateTime Parsing
-An `AccessorOp` converts CSV date strings to Temporal dates:
-```javascript
-Temporal.PlainDateTime.from(d.DateTime.replace(' ', 'T'))
-```
+### Timeline Animation
+The visualization animates through 58 years of earthquake data (1967-2024) using a keyframed `DateTimeOp`:
+- **Start keyframe** (position 0): `1967-01-01T00:00:00`
+- **End keyframe** (position 60): `2024-12-31T23:59:59`
+- Press **Play** in the timeline to see earthquakes appear chronologically
 
-### Year Extraction
-`DateMathOp` with operator `year` extracts the year component for temporal grouping or filtering.
+### DateTime String Processing (Split Pipeline)
+Instead of combining string manipulation and parsing in one accessor, we split it into two steps:
 
-### Date Formatting
-`DateMathOp` with operator `format` and pattern `YYYY-MM-DD` formats dates for display in labels or tooltips.
+1. **AccessorOp** extracts and cleans the DateTime string:
+   ```javascript
+   d.DateTime.replace(' ', 'T')
+   ```
 
-### Time Difference Calculation
-`DateMathOp` with operator `difference` calculates days between earthquake date and current date, useful for:
-- Filtering recent vs. historical earthquakes
-- Creating time-based animations
-- Temporal decay calculations
+2. **DateMathOp** (format operator with empty string) parses the ISO string to `Temporal.PlainDateTime` in accessor mode
+
+This split allows DateField to handle the Temporal conversion, keeping string logic separate.
+
+### Temporal Filtering
+The core animation logic uses `DateMathOp` with `difference` operator:
+1. Calculate days between each earthquake's date and the animated cutoff date
+2. Filter accessor checks if difference is >= 0 (earthquake occurred before cutoff)
+3. `FilterOp` only passes earthquakes that meet the condition
+
+### Additional Date Operations
+- **Year extraction**: `DateMathOp` with operator `year` for temporal grouping
+- **Date formatting**: `DateMathOp` with operator `format` and pattern `YYYY-MM-DD` for display
 
 ## Use Cases
 This pattern is useful for visualizing:

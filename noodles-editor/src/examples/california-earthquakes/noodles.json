@@ -1,4 +1,5 @@
 {
+  "version": 14,
   "nodes": [
     {
       "id": "/deck",
@@ -35,8 +36,8 @@
         "locked": false
       },
       "position": {
-        "x": -30.281922090095136,
-        "y": -18.432474315710078
+        "x": -900,
+        "y": 100
       }
     },
     {
@@ -46,14 +47,25 @@
         "inputs": {
           "stroked": false,
           "billboard": true,
-          "getLineColor": "#ffffffff",
           "radiusUnits": "meters"
         },
-        "locked": false
+        "locked": false,
+        "visibleInputs": [
+          "data",
+          "visible",
+          "opacity",
+          "stroked",
+          "billboard",
+          "getPosition",
+          "getFillColor",
+          "getLineColor",
+          "getRadius",
+          "radiusUnits"
+        ]
       },
       "position": {
-        "x": 660.3778338957691,
-        "y": 152.6642123306002
+        "x": 850,
+        "y": 200
       }
     },
     {
@@ -66,8 +78,8 @@
         "locked": false
       },
       "position": {
-        "x": -58.11664384808154,
-        "y": 231.6605308265006
+        "x": -600,
+        "y": 200
       }
     },
     {
@@ -80,8 +92,8 @@
         "locked": false
       },
       "position": {
-        "x": 239.2501455353884,
-        "y": 321.2516952166614
+        "x": 250,
+        "y": 350
       }
     },
     {
@@ -94,16 +106,16 @@
         "locked": false
       },
       "position": {
-        "x": -471.58272967234626,
-        "y": 390.13392481159116
+        "x": -600,
+        "y": 350
       }
     },
     {
       "type": "MaplibreBasemapOp",
       "id": "/maplibre-basemap",
       "position": {
-        "x": 562.9490410841586,
-        "y": 576.4871147356512
+        "x": 850,
+        "y": 450
       },
       "data": {
         "inputs": {
@@ -123,27 +135,13 @@
       "type": "MapRangeOp",
       "id": "/map-range",
       "position": {
-        "x": -77.87578429545218,
-        "y": 323.1939851432402
+        "x": -100,
+        "y": 350
       },
       "data": {
         "inputs": {
           "inMin": 2.5,
           "inMax": 7
-        },
-        "locked": false
-      }
-    },
-    {
-      "type": "MathOp",
-      "id": "/sqrt",
-      "position": {
-        "x": -74.586918742845,
-        "y": 555.6638521710034
-      },
-      "data": {
-        "inputs": {
-          "operator": "sqrt"
         },
         "locked": false
       }
@@ -159,20 +157,35 @@
         "locked": false
       },
       "position": {
-        "x": 235.19973882458825,
-        "y": 548.5423198131313
+        "x": 250,
+        "y": 500
       }
     },
     {
       "type": "AccessorOp",
-      "id": "/datetime-accessor",
+      "id": "/datetime-string-accessor",
       "position": {
-        "x": -471.58,
-        "y": 690
+        "x": -600,
+        "y": 650
       },
       "data": {
         "inputs": {
-          "expression": "Temporal.PlainDateTime.from(d.DateTime.replace(' ', 'T'))"
+          "expression": "d.DateTime.replace(' ', 'T')"
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "DateMathOp",
+      "id": "/parse-datetime",
+      "position": {
+        "x": -300,
+        "y": 650
+      },
+      "data": {
+        "inputs": {
+          "operator": "format",
+          "formatString": ""
         },
         "locked": false
       }
@@ -181,8 +194,8 @@
       "type": "DateMathOp",
       "id": "/extract-year",
       "position": {
-        "x": -77.88,
-        "y": 690
+        "x": 50,
+        "y": 600
       },
       "data": {
         "inputs": {
@@ -195,8 +208,8 @@
       "type": "DateMathOp",
       "id": "/format-date",
       "position": {
-        "x": -77.88,
-        "y": 800
+        "x": 50,
+        "y": 700
       },
       "data": {
         "inputs": {
@@ -207,15 +220,27 @@
       }
     },
     {
-      "type": "DateTimeOp",
-      "id": "/current-date",
+      "type": "TimeOp",
+      "id": "/time",
       "position": {
-        "x": -471.58,
-        "y": 910
+        "x": -900,
+        "y": 950
+      },
+      "data": {
+        "inputs": {},
+        "locked": false
+      }
+    },
+    {
+      "type": "DateTimeOp",
+      "id": "/cutoff-date",
+      "position": {
+        "x": -600,
+        "y": 950
       },
       "data": {
         "inputs": {
-          "date": "2024-01-01T00:00:00"
+          "date": "1967-01-01T00:00:00"
         },
         "locked": false
       }
@@ -224,8 +249,8 @@
       "type": "DateMathOp",
       "id": "/days-since",
       "position": {
-        "x": -77.88,
-        "y": 910
+        "x": -300,
+        "y": 850
       },
       "data": {
         "inputs": {
@@ -235,6 +260,32 @@
             "unit": "days"
           }
         },
+        "locked": false
+      }
+    },
+    {
+      "type": "AccessorOp",
+      "id": "/filter-by-date",
+      "position": {
+        "x": 50,
+        "y": 850
+      },
+      "data": {
+        "inputs": {
+          "expression": "d >= 0"
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "FilterOp",
+      "id": "/filter",
+      "position": {
+        "x": 400,
+        "y": 200
+      },
+      "data": {
+        "inputs": {},
         "locked": false
       }
     }
@@ -248,8 +299,15 @@
       "targetHandle": "par.vis"
     },
     {
-      "id": "/data-source.out.data->/scatterplot-layer.par.data",
+      "id": "/data-source.out.data->/filter.par.data",
       "source": "/data-source",
+      "target": "/filter",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/filter.out.data->/scatterplot-layer.par.data",
+      "source": "/filter",
       "target": "/scatterplot-layer",
       "sourceHandle": "out.data",
       "targetHandle": "par.data"
@@ -306,54 +364,101 @@
     {
       "source": "/magnitude-accessor",
       "sourceHandle": "out.accessor",
-      "target": "/sqrt",
-      "targetHandle": "par.a",
-      "id": "/magnitude-accessor.out.accessor->/sqrt.par.a"
-    },
-    {
-      "source": "/magnitude-accessor",
-      "sourceHandle": "out.accessor",
       "target": "/multiply",
       "targetHandle": "par.a",
       "id": "/magnitude-accessor.out.accessor->/multiply.par.a"
     },
     {
-      "source": "/datetime-accessor",
+      "source": "/datetime-string-accessor",
       "sourceHandle": "out.accessor",
+      "target": "/parse-datetime",
+      "targetHandle": "par.date",
+      "id": "/datetime-string-accessor.out.accessor->/parse-datetime.par.date"
+    },
+    {
+      "source": "/parse-datetime",
+      "sourceHandle": "out.result",
       "target": "/extract-year",
       "targetHandle": "par.date",
-      "id": "/datetime-accessor.out.accessor->/extract-year.par.date"
+      "id": "/parse-datetime.out.result->/extract-year.par.date"
     },
     {
-      "source": "/datetime-accessor",
-      "sourceHandle": "out.accessor",
+      "source": "/parse-datetime",
+      "sourceHandle": "out.result",
       "target": "/format-date",
       "targetHandle": "par.date",
-      "id": "/datetime-accessor.out.accessor->/format-date.par.date"
+      "id": "/parse-datetime.out.result->/format-date.par.date"
     },
     {
-      "source": "/datetime-accessor",
-      "sourceHandle": "out.accessor",
+      "source": "/parse-datetime",
+      "sourceHandle": "out.result",
       "target": "/days-since",
       "targetHandle": "par.date",
-      "id": "/datetime-accessor.out.accessor->/days-since.par.date"
+      "id": "/parse-datetime.out.result->/days-since.par.date"
     },
     {
-      "source": "/current-date",
+      "source": "/cutoff-date",
       "sourceHandle": "out.date",
       "target": "/days-since",
       "targetHandle": "par.dateB",
-      "id": "/current-date.out.date->/days-since.par.dateB"
+      "id": "/cutoff-date.out.date->/days-since.par.dateB"
+    },
+    {
+      "source": "/days-since",
+      "sourceHandle": "out.result",
+      "target": "/filter-by-date",
+      "targetHandle": "par.data",
+      "id": "/days-since.out.result->/filter-by-date.par.data"
+    },
+    {
+      "source": "/filter-by-date",
+      "sourceHandle": "out.accessor",
+      "target": "/filter",
+      "targetHandle": "par.condition",
+      "id": "/filter-by-date.out.accessor->/filter.par.condition"
     }
   ],
   "viewport": {
-    "x": 143.291766562843,
-    "y": 172.88548024794358,
-    "zoom": 0.4813563009649149
+    "x": 600,
+    "y": 0,
+    "zoom": 0.6
   },
   "timeline": {
     "sheetsById": {
       "Noodles": {
+        "sequence": {
+          "length": 60,
+          "subUnitsPerUnit": 30,
+          "tracksByObject": {
+            "/cutoff-date": {
+              "trackData": {
+                "7JWQ7Tl3zS": {
+                  "type": "BasicKeyframedTrack",
+                  "__meta": {
+                    "sanitizedPath": ["inputs", "date"]
+                  },
+                  "keyframes": [
+                    {
+                      "id": "start",
+                      "position": 0,
+                      "connectedRight": true,
+                      "value": "1967-01-01T00:00:00"
+                    },
+                    {
+                      "id": "end",
+                      "position": 60,
+                      "connectedRight": false,
+                      "value": "2024-12-31T23:59:59"
+                    }
+                  ]
+                }
+              },
+              "trackIdByPropPath": {
+                "[\"inputs\",\"date\"]": "7JWQ7Tl3zS"
+              }
+            }
+          }
+        },
         "staticOverrides": {
           "byObject": {}
         }
@@ -362,6 +467,9 @@
     "definitionVersion": "0.4.0",
     "revisionHistory": []
   },
-  "version": 6,
-  "name": "California Earthquakes"
+  "editorSettings": {
+    "layoutMode": "noodles-on-top",
+    "showOverlay": true,
+    "showDebugInfo": false
+  }
 }
