@@ -59,8 +59,8 @@ describe('ReactFlow optimizations integration', () => {
   })
 
   describe('edge update atomicity', () => {
-    it('should use updateEdge for atomic edge replacement', () => {
-      // This test verifies the edge replacement logic uses updateEdge
+    it('should use reconnectEdge for atomic edge replacement', () => {
+      // This test verifies the edge replacement logic uses reconnectEdge
       // instead of manual array manipulation
 
       const nodes: Node[] = [
@@ -79,8 +79,8 @@ describe('ReactFlow optimizations integration', () => {
         },
       ]
 
-      // Simulate updateEdge behavior
-      const updateEdge = (
+      // Simulate reconnectEdge behavior
+      const reconnectEdge = (
         oldEdge: Edge,
         newConnection: { source: string; target: string },
         currentEdges: Edge[]
@@ -103,7 +103,7 @@ describe('ReactFlow optimizations integration', () => {
         target: '/target',
       }
 
-      edges = updateEdge(oldEdge, newConnection, edges)
+      edges = reconnectEdge(oldEdge, newConnection, edges)
 
       // Verify atomic update
       expect(edges).toHaveLength(1)
@@ -125,7 +125,7 @@ describe('ReactFlow optimizations integration', () => {
 
       const edges = [edge]
 
-      const updateEdge = (
+      const reconnectEdge = (
         oldEdge: Edge,
         newConnection: { source: string },
         currentEdges: Edge[]
@@ -140,7 +140,7 @@ describe('ReactFlow optimizations integration', () => {
         )
       }
 
-      const updated = updateEdge(edge, { source: '/source-2' }, edges)
+      const updated = reconnectEdge(edge, { source: '/source-2' }, edges)
 
       expect(updated[0].source).toBe('/source-2')
       expect(updated[0].targetHandle).toBe('par.val') // Preserved

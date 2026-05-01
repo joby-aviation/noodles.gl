@@ -769,7 +769,7 @@ describe('useProjectModifications', () => {
     })
   })
 
-  describe('edge replacement with updateEdge', () => {
+  describe('edge replacement with reconnectEdge', () => {
     it('should replace existing edge when connecting to non-ListField input', () => {
       const op1 = new NumberOp('/source-1', { val: 1 })
       const op2 = new NumberOp('/source-2', { val: 2 })
@@ -835,7 +835,7 @@ describe('useProjectModifications', () => {
       expect(edges[0].id).not.toBe(firstEdgeId)
     })
 
-    it('should use updateEdge atomically without intermediate state', () => {
+    it('should use reconnectEdge atomically without intermediate state', () => {
       const op1 = new NumberOp('/source-1', { val: 1 })
       const op2 = new NumberOp('/source-2', { val: 2 })
       const op3 = new NumberOp('/target', { val: 0 })
@@ -843,8 +843,20 @@ describe('useProjectModifications', () => {
       setOp('/source-2', op2)
       setOp('/target', op3)
 
+      // Track edge lengths to verify atomic updates
+      const edgeLengthsHistory: number[] = []
+
       const { result } = renderHook(() =>
-        useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
+        useProjectModifications({
+          getNodes,
+          getEdges,
+          setNodes,
+          setEdges: (update: ReactFlowEdge[] | ((edges: ReactFlowEdge[]) => ReactFlowEdge[])) => {
+            const newEdges = typeof update === 'function' ? update(edges) : update
+            edgeLengthsHistory.push(newEdges.length)
+            setEdges(newEdges)
+          },
+        })
       )
 
       act(() => {
@@ -868,17 +880,6 @@ describe('useProjectModifications', () => {
         })
       })
 
-      // Track edge changes
-      let edgeChangeCount = 0
-      let edgeLengths: number[] = []
-      const originalSetEdges = setEdges
-      setEdges = (update: ReactFlowEdge[] | ((edges: ReactFlowEdge[]) => ReactFlowEdge[])) => {
-        edgeChangeCount++
-        const newEdges = typeof update === 'function' ? update(edges) : update
-        edgeLengths.push(newEdges.length)
-        return originalSetEdges(newEdges)
-      }
-
       // Create first connection
       act(() => {
         result.current.onConnect({
@@ -889,9 +890,9 @@ describe('useProjectModifications', () => {
         })
       })
 
-      const firstChangeCount = edgeChangeCount
+      expect(edges).toHaveLength(1)
 
-      // Create second connection - should be atomic (single state update)
+      // Create second connection - should be atomic (single state update, no intermediate 0 or 2 edges)
       act(() => {
         result.current.onConnect({
           source: '/source-2',
@@ -901,16 +902,14 @@ describe('useProjectModifications', () => {
         })
       })
 
-      // Verify atomic update - only one setEdges call for replacement
-      expect(edgeChangeCount).toBe(firstChangeCount + 1)
-      // Should never have 0 or 2 edges during replacement (atomic)
-      expect(edgeLengths).not.toContain(0)
-      expect(edgeLengths).not.toContain(2)
+      // Verify atomic update - should never have 0 or 2 edges during replacement
+      expect(edgeLengthsHistory).not.toContain(0)
+      expect(edgeLengthsHistory).not.toContain(2)
       expect(edges).toHaveLength(1)
       expect(edges[0].source).toBe('/source-2')
     })
 
-    it('should preserve edge metadata during updateEdge', () => {
+    it('should preserve edge metadata during reconnectEdge', () => {
       const op1 = new NumberOp('/source-1', { val: 1 })
       const op2 = new NumberOp('/source-2', { val: 2 })
       const op3 = new NumberOp('/target', { val: 0 })

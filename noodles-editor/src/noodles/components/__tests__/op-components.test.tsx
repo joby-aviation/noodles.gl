@@ -1,7 +1,7 @@
 // Unit tests for op-components utilities
 import type { NodeProps as ReactFlowNodeProps } from '@xyflow/react'
 import { describe, expect, it } from 'vitest'
-import { nodePropsAreEqual } from '../op-components'
+import { headerClass, nodePropsAreEqual } from '../op-components'
 
 // Minimal ReactFlowNodeProps for testing — only the fields nodePropsAreEqual cares about
 const makeProps = (overrides: Partial<ReactFlowNodeProps> = {}): ReactFlowNodeProps =>
@@ -69,8 +69,6 @@ describe('nodePropsAreEqual', () => {
 
 describe('headerClass caching', () => {
   it('should cache category lookups for O(1) performance', () => {
-    const { headerClass } = require('../op-components')
-
     // First call - should populate cache
     const result1 = headerClass('NumberOp')
     expect(result1).toBeDefined()
@@ -90,8 +88,6 @@ describe('headerClass caching', () => {
   })
 
   it('should handle display name fallback correctly', () => {
-    const { headerClass } = require('../op-components')
-
     // Test with actual operator type
     const result1 = headerClass('DeckRendererOp')
     expect(result1).toBeDefined()
@@ -102,8 +98,6 @@ describe('headerClass caching', () => {
   })
 
   it('should default to data category for unknown types', () => {
-    const { headerClass } = require('../op-components')
-
     const result = headerClass('UnknownOperatorType' as any)
     expect(result).toBeDefined()
 
