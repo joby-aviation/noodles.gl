@@ -194,8 +194,8 @@
       "type": "TimeOp",
       "id": "/time",
       "position": {
-        "x": -900,
-        "y": 1130.4847467552568
+        "x": -400,
+        "y": 0
       },
       "data": {
         "inputs": {},
@@ -206,8 +206,8 @@
       "type": "DateTimeOp",
       "id": "/cutoff-date",
       "position": {
-        "x": -615.866790923539,
-        "y": 1124.5347001589296
+        "x": -400,
+        "y": -100
       },
       "data": {
         "inputs": {},
@@ -223,9 +223,19 @@
       },
       "data": {
         "inputs": {
-          "code": "return d.filter(row => {\n  const dateStr = row.DateTime.replace(/\\//g, '-').replace(' ', 'T')\n  const earthquakeDate = Temporal.PlainDateTime.from(dateStr)\n  const cutoffDate = op('/cutoff-date').out.date\n  const daysSince = earthquakeDate.until(cutoffDate, { largestUnit: 'days' }).days\n  return daysSince >= 0\n})"
+          "code": "return d.filter(row => {\n  const dateStr = row.DateTime.replace(/\\//g, '-').replace(' ', 'T')\n  const earthquakeDate = Temporal.PlainDateTime.from(dateStr)\n  const daysSince = earthquakeDate.until(cutoffDate, { largestUnit: 'days' }).days\n  return daysSince >= 0\n})",
+          "cutoffDate": "2024-01-01T00:00:00"
         },
-        "locked": false
+        "locked": false,
+        "customFields": [
+          {
+            "id": "cutoffDate",
+            "name": "cutoffDate",
+            "type": "date",
+            "order": 2,
+            "defaultValue": "2024-01-01T00:00:00"
+          }
+        ]
       }
     }
   ],
@@ -306,6 +316,13 @@
       "target": "/multiply",
       "targetHandle": "par.a",
       "id": "/magnitude-accessor.out.accessor->/multiply.par.a"
+    },
+    {
+      "id": "/cutoff-date.out.date->/filter-by-cutoff.par.cutoffDate",
+      "source": "/cutoff-date",
+      "target": "/filter-by-cutoff",
+      "sourceHandle": "out.date",
+      "targetHandle": "par.cutoffDate"
     }
   ],
   "viewport": {
