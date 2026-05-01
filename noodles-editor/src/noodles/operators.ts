@@ -168,6 +168,7 @@ import {
   type InOut,
   LayerField,
   ListField,
+  MapLibreLayerField,
   MapStyleField,
   mustacheRe,
   NumberField,
@@ -3737,6 +3738,64 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
   }
 }
 
+export class CustomMapLibreLayerOp extends Operator<CustomMapLibreLayerOp> {
+  static displayName = 'CustomMapLibreLayer'
+  static description =
+    'Define a custom MapLibre GL layer with WebGL rendering. ' +
+    'The code must return an object with onAdd, render, and onRemove methods. ' +
+    'Access parameters via `params` object and map instance via `map`.'
+
+  createInputs() {
+    return {
+      id: new StringField('custom-layer'),
+      code: new CodeField('', { language: 'javascript' }),
+      renderingMode: new StringLiteralField('3d', {
+        values: ['2d', '3d'],
+      }),
+      beforeId: new StringField('', {
+        optional: true,
+        showByDefault: false,
+      }),
+      params: new UnknownField(
+        {},
+        {
+          optional: true,
+          showByDefault: false,
+        }
+      ),
+    }
+  }
+
+  createOutputs() {
+    return {
+      layer: new MapLibreLayerField(),
+    }
+  }
+
+  execute({
+    id,
+    code: codeString,
+    renderingMode,
+    beforeId,
+    params,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!codeString || codeString.trim() === '') {
+      throw new Error('CustomMapLibreLayer code cannot be empty')
+    }
+
+    return {
+      layer: {
+        id,
+        type: 'custom',
+        code: codeString,
+        renderingMode: renderingMode || '3d',
+        beforeId,
+        params: params || {},
+      },
+    }
+  }
+}
+
 export class MapStyleConfiguratorOp extends Operator<MapStyleConfiguratorOp> {
   static displayName = 'MapStyleConfigurator'
   static description =
@@ -3817,6 +3876,10 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
       //   bearing: new NumberField(0, { optional: true }),
       // }, { optional: true }),
       viewState: new UnknownField({}, { showByDefault: false }),
+      maplibreLayers: new ListField(new MapLibreLayerField(), {
+        optional: true,
+        showByDefault: false,
+      }),
     }
   }
   createOutputs() {
@@ -3832,6 +3895,7 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
     basemap,
     views,
     layerFilter,
+    maplibreLayers,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     // Validate the ViewState to ensure lat/lng are within valid bounds
     validateViewState(viewState)
@@ -3867,6 +3931,7 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
       vis: {
         deckProps,
         mapProps,
+        maplibreLayers: maplibreLayers || [],
       },
     }
   }
@@ -6126,7 +6191,7 @@ function formatSyntaxError(error: Error, id: string, body: string): string {
 }
 
 // Create a function with a source property for debugging
-function fnWithSource(args: string[], body: string, id: string): FunctionWithSource {
+export function fnWithSource(args: string[], body: string, id: string): FunctionWithSource {
   try {
     // Duck typing to check if the function is async
     const isAsync = /\bawait\b/.test(body)
@@ -7725,6 +7790,7 @@ export const opTypes = {
   CombineRGBAOp,
   CombineXYOp,
   ConcatOp,
+  CustomMapLibreLayerOp,
   ConsoleOp,
   ContainerOp,
   ContourLayerOp,

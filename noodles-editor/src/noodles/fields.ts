@@ -1249,14 +1249,47 @@ export class ViewField extends Field<
   }
 }
 
+export class MapLibreLayerField extends Field<
+  z.ZodType<{
+    id: string
+    type: 'custom'
+    code: string
+    renderingMode?: '2d' | '3d'
+    beforeId?: string
+    params?: Record<string, unknown>
+  }>
+> {
+  static type = 'maplibre-layer'
+  static defaultValue = undefined
+
+  createSchema() {
+    return z.strictObject({
+      id: z.string(),
+      type: z.literal('custom'),
+      code: z.string(),
+      renderingMode: z.enum(['2d', '3d']).optional(),
+      beforeId: z.string().optional(),
+      params: z.record(z.unknown()).optional(),
+    })
+  }
+}
+
 export class VisualizationField extends Field<
   z.ZodType<{
     deckProps: { layers: (LayerProps & { type: string })[] } & BetterDeckProps
     mapProps?: BetterMapProps
+    maplibreLayers?: Array<{
+      id: string
+      type: 'custom'
+      code: string
+      renderingMode?: '2d' | '3d'
+      beforeId?: string
+      params?: Record<string, unknown>
+    }>
   }>
 > {
   static type = 'visualization'
-  static defaultValue = { deckProps: {}, mapProps: undefined }
+  static defaultValue = { deckProps: {}, mapProps: undefined, maplibreLayers: [] }
   createSchema() {
     return z.looseObject({
       deckProps: z.looseObject({
@@ -1274,6 +1307,18 @@ export class VisualizationField extends Field<
           latitude: z.number(),
           zoom: z.number(),
         })
+        .optional(),
+      maplibreLayers: z
+        .array(
+          z.strictObject({
+            id: z.string(),
+            type: z.literal('custom'),
+            code: z.string(),
+            renderingMode: z.enum(['2d', '3d']).optional(),
+            beforeId: z.string().optional(),
+            params: z.record(z.unknown()).optional(),
+          })
+        )
         .optional(),
     })
   }
