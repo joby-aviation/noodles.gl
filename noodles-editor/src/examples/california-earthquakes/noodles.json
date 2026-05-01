@@ -162,6 +162,81 @@
         "x": 235.19973882458825,
         "y": 548.5423198131313
       }
+    },
+    {
+      "type": "AccessorOp",
+      "id": "/datetime-accessor",
+      "position": {
+        "x": -471.58,
+        "y": 690
+      },
+      "data": {
+        "inputs": {
+          "expression": "Temporal.PlainDateTime.from(d.DateTime.replace(' ', 'T'))"
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "DateMathOp",
+      "id": "/extract-year",
+      "position": {
+        "x": -77.88,
+        "y": 690
+      },
+      "data": {
+        "inputs": {
+          "operator": "year"
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "DateMathOp",
+      "id": "/format-date",
+      "position": {
+        "x": -77.88,
+        "y": 800
+      },
+      "data": {
+        "inputs": {
+          "operator": "format",
+          "formatString": "YYYY-MM-DD"
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "DateTimeOp",
+      "id": "/current-date",
+      "position": {
+        "x": -471.58,
+        "y": 910
+      },
+      "data": {
+        "inputs": {
+          "date": "2024-01-01T00:00:00"
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "DateMathOp",
+      "id": "/days-since",
+      "position": {
+        "x": -77.88,
+        "y": 910
+      },
+      "data": {
+        "inputs": {
+          "operator": "difference",
+          "duration": {
+            "value": 0,
+            "unit": "days"
+          }
+        },
+        "locked": false
+      }
     }
   ],
   "edges": [
@@ -241,6 +316,34 @@
       "target": "/multiply",
       "targetHandle": "par.a",
       "id": "/magnitude-accessor.out.accessor->/multiply.par.a"
+    },
+    {
+      "source": "/datetime-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/extract-year",
+      "targetHandle": "par.date",
+      "id": "/datetime-accessor.out.accessor->/extract-year.par.date"
+    },
+    {
+      "source": "/datetime-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/format-date",
+      "targetHandle": "par.date",
+      "id": "/datetime-accessor.out.accessor->/format-date.par.date"
+    },
+    {
+      "source": "/datetime-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/days-since",
+      "targetHandle": "par.date",
+      "id": "/datetime-accessor.out.accessor->/days-since.par.date"
+    },
+    {
+      "source": "/current-date",
+      "sourceHandle": "out.date",
+      "target": "/days-since",
+      "targetHandle": "par.dateB",
+      "id": "/current-date.out.date->/days-since.par.dateB"
     }
   ],
   "viewport": {
