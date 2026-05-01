@@ -1493,10 +1493,6 @@ export function getNoodles(): Visualization {
               onConnectStart={onConnectStart}
               onConnectEnd={onConnectEnd}
               onReconnect={onReconnect}
-              onEdgeUpdate={(oldEdge, newConnection) => {
-                setEdges(els => reconnectEdge(oldEdge, newConnection, els))
-                setHasUnsavedChanges(true)
-              }}
               onNodeContextMenu={onNodeContextMenu}
               onNodesDelete={onNodesDelete}
               onNodeDrag={onNodeDrag}
