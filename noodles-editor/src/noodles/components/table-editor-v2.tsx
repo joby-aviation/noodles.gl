@@ -211,6 +211,26 @@ function DateCellEditor({ value, onChange, onComplete }: CellEditorProps) {
   )
 }
 
+function DateTimeCellEditor({ value, onChange, onComplete }: CellEditorProps) {
+  return (
+    <InputText
+      type="datetime-local"
+      step={0.001} // Enable millisecond precision
+      value={value as string}
+      onChange={(e) => onChange(e.target.value)}
+      onBlur={onComplete}
+      onKeyDown={(e) => {
+        e.stopPropagation()
+        if (e.key === 'Enter' || e.key === 'Escape') {
+          onComplete()
+        }
+      }}
+      autoFocus
+      className={s.cellEditor}
+    />
+  )
+}
+
 // Get cell editor component for column type
 function getCellEditor(type: ColumnType) {
   switch (type) {
@@ -232,6 +252,8 @@ function getCellEditor(type: ColumnType) {
       return Vec3CellEditor
     case 'date':
       return DateCellEditor
+    case 'dateTime':
+      return DateTimeCellEditor
     default:
       return StringCellEditor
   }
@@ -276,6 +298,13 @@ function renderDateCell(value: unknown): string {
   return ''
 }
 
+function renderDateTimeCell(value: unknown): string {
+  if (typeof value === 'string') {
+    return value // Display ISO datetime string as-is
+  }
+  return ''
+}
+
 function renderStringCell(value: unknown): string {
   return String(value ?? '')
 }
@@ -297,6 +326,8 @@ function getCellRenderer(type: ColumnType) {
       return renderVec3Cell
     case 'date':
       return renderDateCell
+    case 'dateTime':
+      return renderDateTimeCell
     case 'string':
     case 'stringLiteral':
     default:

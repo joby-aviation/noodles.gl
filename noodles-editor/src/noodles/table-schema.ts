@@ -10,6 +10,7 @@ export type ColumnType =
   | 'vec2'
   | 'vec3'
   | 'date'
+  | 'dateTime'
   | 'stringLiteral'
 
 export interface ColumnSchema {
@@ -150,6 +151,9 @@ export function getDefaultValue(schema: ColumnSchema): unknown {
       return [0, 0, 0]
     case 'date':
       return new Date().toISOString().split('T')[0] // YYYY-MM-DD
+    case 'dateTime':
+      // Current datetime with milliseconds, strip 'Z' for datetime-local compatibility
+      return new Date().toISOString().slice(0, 23)
     case 'stringLiteral':
       return schema.options?.values?.[0] ?? ''
     default:
@@ -217,6 +221,23 @@ export function validateValue(value: unknown, schema: ColumnSchema): boolean {
         return /^\d{4}-\d{2}-\d{2}$/.test(value)
       }
       return value instanceof Date && !Number.isNaN(value.getTime())
+
+    case 'dateTime': {
+      if (typeof value === 'string') {
+        // Accept ISO datetime: YYYY-MM-DDTHH:mm or YYYY-MM-DDTHH:mm:ss.SSS
+        const dateTimeRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?$/
+        if (!dateTimeRegex.test(value)) {
+          return false
+        }
+        // Verify it's a valid datetime
+        const date = new Date(value)
+        return !Number.isNaN(date.getTime())
+      }
+      if (value instanceof Date) {
+        return !Number.isNaN(value.getTime())
+      }
+      return false
+    }
 
     case 'stringLiteral':
       if (typeof value !== 'string') {
