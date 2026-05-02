@@ -2019,9 +2019,14 @@ export class TimeOp extends Operator<TimeOp> {
   }
 
   execute(_: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // Outputs are driven by BehaviorSubject subscriptions, not execute()
-    // Returning null prevents continuous downstream re-execution
-    return null
+    // Return current BehaviorSubject values for pull-based execution
+    // Outputs continue to be driven by RAF loop subscriptions
+    const current = this.timeState$.value
+    return {
+      now: current.now,
+      tick: current.tick,
+      sequenceTime: current.sequenceTime,
+    }
   }
 }
 
@@ -2741,8 +2746,11 @@ export class GeocoderOp extends Operator<GeocoderOp> {
     }
   }
   async execute(_: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // This is a special-case because it's essentially a pass-through. The Geocoder component will handle the API call
-    return null
+    // Return current output value for pull-based execution
+    // The Geocoder component handles the actual API call
+    return {
+      location: this.outputs.location.value,
+    }
 
     /*
     const response = await fetch(
@@ -3763,8 +3771,11 @@ export class MouseOp extends Operator<MouseOp> {
   }
 
   execute(_: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // Output is driven by the BehaviorSubject, not by execute()
-    return null
+    // Return current BehaviorSubject value for pull-based execution
+    // Outputs continue to be driven by mouse event subscriptions
+    return {
+      position: this.mousePosition$.value,
+    }
   }
 }
 
