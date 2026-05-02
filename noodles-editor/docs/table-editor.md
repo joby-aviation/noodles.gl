@@ -1,8 +1,8 @@
-# TableEditorOp v2: Typed Schema System
+# TableEditorOp: Typed Schema System
 
 ## Overview
 
-The TableEditorOp v2 is a complete rewrite of the table editor with a typed schema system, providing an Airtable-like experience with Noodles-native field types.
+The TableEditorOp provides a typed schema system, offering an Airtable-like experience with Noodles-native field types.
 
 ## Features
 
@@ -21,6 +21,7 @@ Each column has a specific type with validation and specialized editors:
 | `vec2` | 2D vectors | Dual number inputs | `[1.0, 2.0]` |
 | `vec3` | 3D vectors | Triple number inputs | `[1.0, 2.0, 3.0]` |
 | `date` | Date values | Date picker | `"2024-01-15"` |
+| `dateTime` | Date and time values | DateTime picker with milliseconds | `"2026-05-02T14:30:45.123"` |
 | `stringLiteral` | Enum values | Dropdown | `"option1"` |
 
 ### Schema System

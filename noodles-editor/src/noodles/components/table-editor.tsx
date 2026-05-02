@@ -16,7 +16,7 @@ import type { ColumnSchema, ColumnType, TableSchema } from '../table-schema'
 import { convertValue, getDefaultValue } from '../table-schema'
 import { ColorSwatch } from './color-swatch'
 import { SchemaEditorDialog } from './schema-editor-dialog'
-import s from './table-editor-v2.module.css'
+import s from './table-editor.module.css'
 
 // Cell editor components for each column type
 
@@ -402,7 +402,7 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
 
 // Main table component
 
-interface TableEditorV2Props {
+interface TableEditorProps {
   op: TableEditorOp
   data: unknown[]
   schema: TableSchema
@@ -410,13 +410,13 @@ interface TableEditorV2Props {
   onSchemaChange: (schema: TableSchema) => void
 }
 
-export function TableEditorV2({
+export function TableEditor({
   op,
   data,
   schema,
   onDataChange,
   onSchemaChange,
-}: TableEditorV2Props) {
+}: TableEditorProps) {
   const [tableData, setTableData] = useState(data)
 
   useEffect(() => {

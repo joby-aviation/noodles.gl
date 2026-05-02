@@ -2,9 +2,9 @@ import { cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TableEditorOp } from '../operators'
 import type { TableSchema } from '../table-schema'
-import { TableEditorV2 } from './table-editor-v2'
+import { TableEditor } from './table-editor'
 
-describe('TableEditorV2', () => {
+describe('TableEditor', () => {
   const mockOp = new TableEditorOp('/test-table')
 
   // Clean up after each test to prevent DOM pollution
@@ -29,7 +29,7 @@ describe('TableEditorV2', () => {
     const onSchemaChange = vi.fn()
 
     const { getByText, getByRole } = render(
-      <TableEditorV2
+      <TableEditor
         op={mockOp}
         data={[]}
         schema={simpleSchema}
@@ -47,7 +47,7 @@ describe('TableEditorV2', () => {
     const onSchemaChange = vi.fn()
 
     const { getByText } = render(
-      <TableEditorV2
+      <TableEditor
         op={mockOp}
         data={simpleData}
         schema={simpleSchema}
@@ -65,7 +65,7 @@ describe('TableEditorV2', () => {
     const onSchemaChange = vi.fn()
 
     const { getByText } = render(
-      <TableEditorV2
+      <TableEditor
         op={mockOp}
         data={simpleData}
         schema={simpleSchema}
@@ -82,7 +82,7 @@ describe('TableEditorV2', () => {
     const onSchemaChange = vi.fn()
 
     const { getByRole } = render(
-      <TableEditorV2
+      <TableEditor
         op={mockOp}
         data={simpleData}
         schema={simpleSchema}
@@ -126,7 +126,7 @@ describe('TableEditorV2', () => {
     const onSchemaChange = vi.fn()
 
     const { getByText } = render(
-      <TableEditorV2
+      <TableEditor
         op={mockOp}
         data={complexData}
         schema={complexSchema}
@@ -154,7 +154,7 @@ describe('TableEditorV2', () => {
     const onSchemaChange = vi.fn()
 
     const { container } = render(
-      <TableEditorV2
+      <TableEditor
         op={mockOp}
         data={simpleData}
         schema={simpleSchema}
@@ -173,7 +173,7 @@ describe('TableEditorV2', () => {
     const onSchemaChange = vi.fn()
 
     const { container } = render(
-      <TableEditorV2
+      <TableEditor
         op={mockOp}
         data={simpleData}
         schema={simpleSchema}
@@ -194,7 +194,7 @@ describe('TableEditorV2', () => {
     const onSchemaChange = vi.fn()
 
     const { container } = render(
-      <TableEditorV2
+      <TableEditor
         op={mockOp}
         data={simpleData}
         schema={simpleSchema}
@@ -217,7 +217,7 @@ describe('TableEditorV2', () => {
     const onSchemaChange = vi.fn()
 
     const { rerender, getByText } = render(
-      <TableEditorV2
+      <TableEditor
         op={mockOp}
         data={simpleData}
         schema={simpleSchema}
@@ -231,7 +231,7 @@ describe('TableEditorV2', () => {
     // Update data prop
     const newData = [{ name: 'Charlie', count: 30 }]
     rerender(
-      <TableEditorV2
+      <TableEditor
         op={mockOp}
         data={newData}
         schema={simpleSchema}
@@ -264,7 +264,7 @@ describe('TableEditorV2', () => {
     const onSchemaChange = vi.fn()
 
     const { getByRole } = render(
-      <TableEditorV2
+      <TableEditor
         op={mockOp}
         data={[]}
         schema={complexSchema}
@@ -303,7 +303,7 @@ describe('TableEditorV2', () => {
     }
 
     const { container } = render(
-      <TableEditorV2
+      <TableEditor
         op={mockOp}
         data={stringData}
         schema={stringSchema}

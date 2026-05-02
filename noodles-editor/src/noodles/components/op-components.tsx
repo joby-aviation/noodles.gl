@@ -82,7 +82,7 @@ import { categories as baseCategories, nodeTypeToDisplayName } from './categorie
 import { FieldComponent, type inputComponents } from './field-components'
 import previewStyles from './handle-preview.module.css'
 import RampEditor, { type RampStop } from './ramp-editor'
-import { TableEditorV2 } from './table-editor-v2'
+import { TableEditor } from './table-editor'
 import { useObservable } from '../hooks/use-observable'
 import { MapStyleConfiguratorOpComponent } from './map-style-configurator-op'
 
@@ -1673,7 +1673,7 @@ export function TableEditorOpComponent({
               handle={PAR_HANDLE_OPTIONS}
             />
           ))}
-        <TableEditorV2
+        <TableEditor
           op={op}
           data={data}
           schema={schema}
