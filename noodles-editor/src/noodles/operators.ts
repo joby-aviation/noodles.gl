@@ -5127,16 +5127,20 @@ export class IconLayerOp extends Operator<IconLayerOp> {
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
-      iconAtlas: new StringField(
+      iconAtlas: new FileUrlField(
         'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.png',
-        { showByDefault: false }
+        { showByDefault: false, accept: '.png,.jpg,.jpeg,.gif,.webp,.svg' }
       ),
       iconMapping: new FileUrlField(
         'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.json',
         { showByDefault: false, accept: '.json' }
       ),
       billboard: new BooleanField(true),
-      getIcon: new UnknownField(null, { accessor: true }), // Union of { url: string, width: number, height: number } or url: string, plus accessors
+      getIcon: new FileUrlField('', {
+        accessor: true,
+        optional: true,
+        accept: '.png,.jpg,.jpeg,.gif,.webp,.svg',
+      }), // Can be: uploaded file URL, external URL, or accessor function returning {url, width?, height?}
       getSize: new NumberField(1, { min: 0, softMax: 100, accessor: true }),
       sizeUnits: new StringLiteralField('pixels', {
         values: ['pixels', 'meters'],
@@ -5169,12 +5173,54 @@ export class IconLayerOp extends Operator<IconLayerOp> {
       layer: new LayerField<IconLayerProps>(),
     }
   }
-  execute(_props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  async execute(
+    _props: ExtractProps<typeof this.inputs>
+  ): Promise<ExtractProps<typeof this.outputs>> {
     const { getIcon, iconMapping, iconAtlas, ...rest } = _props
+
+    // Helper to resolve @/ URLs to blob URLs
+    const resolveProjectUrl = async (url: string): Promise<string> => {
+      if (!url?.startsWith(projectScheme)) {
+        return url
+      }
+
+      const { readAssetBinary } = await import('./storage')
+      const { useFileSystemStore } = await import('./filesystem-store')
+
+      const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
+      if (!currentProjectName) {
+        throw new Error('No project loaded. Please save or load a project first.')
+      }
+
+      const fileName = url.substring(projectScheme.length)
+      const result = await readAssetBinary(activeStorageType, currentProjectName, fileName)
+      if (!result.success) {
+        throw new Error(result.error.message)
+      }
+
+      const blob = new Blob([result.data])
+      return URL.createObjectURL(blob)
+    }
+
+    // Determine icon mode and resolve URLs as needed
+    let iconProps: Partial<IconLayerProps>
+
+    if (typeof getIcon === 'function') {
+      // Accessor function mode - pass through
+      iconProps = { getIcon }
+    } else if (getIcon && typeof getIcon === 'string') {
+      // Simple single-icon mode - resolve URL and create accessor
+      const resolvedIconUrl = await resolveProjectUrl(getIcon)
+      iconProps = { getIcon: () => resolvedIconUrl }
+    } else {
+      // Atlas mode - resolve atlas URL
+      const resolvedIconAtlas = await resolveProjectUrl(iconAtlas)
+      iconProps = { iconMapping, iconAtlas: resolvedIconAtlas }
+    }
 
     const props: IconLayerProps = {
       ...rest,
-      ...(typeof getIcon === 'function' ? { getIcon } : { iconMapping, iconAtlas }),
+      ...iconProps,
     }
 
     const layer = {
