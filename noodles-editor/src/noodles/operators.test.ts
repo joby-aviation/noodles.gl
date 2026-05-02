@@ -9,7 +9,6 @@ import {
   CodeOp,
   ConcatOp,
   CrossOp,
-  DateInterpolateOp,
   DateMathOp,
   DeckRendererOp,
   DuckDbOp,

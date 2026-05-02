@@ -1375,7 +1375,10 @@ export class DateMathOp extends Operator<DateMathOp> {
         ],
       }),
       date: new DateField(Temporal.Now.plainDateTimeISO(), { accessor: true }),
-      dateB: new DateField(Temporal.Now.plainDateTimeISO(), { accessor: true, showByDefault: false }),
+      dateB: new DateField(Temporal.Now.plainDateTimeISO(), {
+        accessor: true,
+        showByDefault: false,
+      }),
       duration: new DurationField({ showByDefault: false }),
       formatString: new StringField('', { showByDefault: false }),
       t: new NumberField(0, { min: 0, max: 1, step: 0.01, accessor: true, showByDefault: false }),
@@ -1518,7 +1521,6 @@ export class DateMathOp extends Operator<DateMathOp> {
     }
   }
 }
-
 
 export class CombineXYOp extends Operator<CombineXYOp> {
   static displayName = 'CombineXY'
