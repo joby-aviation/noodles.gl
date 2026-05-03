@@ -13,6 +13,7 @@ import {
   Point2DField,
   StringField,
   UnknownField,
+  VisualizationField,
 } from '../fields'
 import { canConnect, schemasAreCompatible, validateConnection } from './can-connect'
 
@@ -151,6 +152,17 @@ describe('CanConnect', () => {
     expect(canConnect(field6, field1), 'ArrayField with String can connect to UnknownField').toBe(
       true
     )
+  })
+
+  it('allows VisualizationField to connect to VisualizationField (DeckRendererOp → OutOp)', () => {
+    // This is the exact connection that was failing in user projects
+    const sourceVis = new VisualizationField()
+    const targetVis = new VisualizationField()
+
+    expect(
+      canConnect(sourceVis, targetVis),
+      'VisualizationField should connect to VisualizationField'
+    ).toBe(true)
   })
 })
 
@@ -321,6 +333,17 @@ describe('schemasAreCompatible', () => {
     expect(schemasAreCompatible(z.number().optional(), z.number())).toBe(true)
     expect(schemasAreCompatible(z.number(), z.number().optional())).toBe(true)
     expect(schemasAreCompatible(z.string().optional(), z.number())).toBe(false)
+  })
+
+  it('optional vs optional with same inner type are compatible', () => {
+    expect(schemasAreCompatible(z.number().optional(), z.number().optional())).toBe(true)
+    expect(schemasAreCompatible(z.string().optional(), z.string().optional())).toBe(true)
+    expect(
+      schemasAreCompatible(
+        z.looseObject({ a: z.number() }).optional(),
+        z.looseObject({ a: z.number() }).optional()
+      )
+    ).toBe(true)
   })
 
   it('nullable wrappers are unwrapped for comparison', () => {

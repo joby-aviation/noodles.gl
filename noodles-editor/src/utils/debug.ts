@@ -43,3 +43,6 @@ export const debugUI = createDebug('noodles:ui') // UI component interactions an
 
 // Parameter editor namespace
 export const debugParams = createDebug('noodles:params')
+
+// Connection validation namespace
+export const debugConnect = createDebug('noodles:connect') // connection validation and schema compatibility
