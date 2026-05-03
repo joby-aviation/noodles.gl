@@ -10,9 +10,7 @@ export interface TimelineContext {
   }
 }
 
-export type TimelineVariable = 'sequenceTime' | 'frame' | 'totalFrames' | 'sequence'
-
-// Get current timeline values without tracking
+// Get current timeline values
 export function getTimelineContext(): TimelineContext {
   const store = useTimelineStore.getState()
   return {
@@ -24,20 +22,4 @@ export function getTimelineContext(): TimelineContext {
       fps: store.sequence.fps,
     },
   }
-}
-
-// Create a proxy that tracks property access
-export function createTrackedTimelineContext(
-  onAccess: (variable: TimelineVariable) => void
-): TimelineContext {
-  const context = getTimelineContext()
-
-  return new Proxy(context, {
-    get(target, prop: string | symbol) {
-      if (typeof prop === 'string' && prop in target) {
-        onAccess(prop as TimelineVariable)
-      }
-      return target[prop as keyof TimelineContext]
-    },
-  })
 }

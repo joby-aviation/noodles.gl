@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { useTimelineStore } from '../../timeline/timeline-store'
-import { timelineDependencyManager } from './timeline-dependencies'
+import {
+  subscribeOpToTimeline,
+  unsubscribeOpFromTimeline,
+  useTimelineDependencyStore,
+} from './timeline-dependencies'
 import { CodeOp } from '../operators'
 
 describe('timeline-dependencies', () => {
@@ -17,32 +21,29 @@ describe('timeline-dependencies', () => {
   afterEach(() => {
     // Clean up all created operators
     for (const op of createdOps) {
-      timelineDependencyManager.unsubscribe(op.id)
+      unsubscribeOpFromTimeline(op.id)
     }
     createdOps.length = 0
   })
 
-  describe('TimelineDependencyManager', () => {
-    it('tracks dependencies for an operator', () => {
+  describe('Timeline subscriptions', () => {
+    it('subscribes an operator to timeline changes', () => {
       const op = new CodeOp('/test-op', { code: 'return sequenceTime' })
       createdOps.push(op)
-      const deps = new Set(['sequenceTime'])
 
-      timelineDependencyManager.trackDependencies(op.id, deps)
+      subscribeOpToTimeline(op)
 
-      const tracked = timelineDependencyManager.getDependencies(op.id)
-      expect(tracked).toEqual(deps)
+      const subscriptions = useTimelineDependencyStore.getState().subscriptions
+      expect(subscriptions.has(op.id)).toBe(true)
     })
 
-    it('subscribes to position changes for sequenceTime dependency', () => {
+    it('marks operator dirty on position changes', () => {
       const op = new CodeOp('/test-op', { code: 'return sequenceTime' })
       createdOps.push(op)
-      const deps = new Set(['sequenceTime'])
 
       const markDirtySpy = vi.spyOn(op, 'markDirty')
 
-      timelineDependencyManager.trackDependencies(op.id, deps)
-      timelineDependencyManager.subscribe(op)
+      subscribeOpToTimeline(op)
 
       // Change position - Zustand subscriptions are synchronous
       const store = useTimelineStore.getState()
@@ -51,81 +52,46 @@ describe('timeline-dependencies', () => {
       expect(markDirtySpy).toHaveBeenCalled()
     })
 
-    it('subscribes to position changes for frame dependency', () => {
+    it('marks operator dirty on FPS changes', () => {
       const op = new CodeOp('/test-op', { code: 'return frame' })
       createdOps.push(op)
-      const deps = new Set(['frame'])
 
       const markDirtySpy = vi.spyOn(op, 'markDirty')
 
-      timelineDependencyManager.trackDependencies(op.id, deps)
-      timelineDependencyManager.subscribe(op)
+      subscribeOpToTimeline(op)
 
-      // Change position
-      const store = useTimelineStore.getState()
-      store.setPosition(2)
-
-      expect(markDirtySpy).toHaveBeenCalled()
-    })
-
-    it('subscribes to position changes for totalFrames dependency', () => {
-      const op = new CodeOp('/test-op', { code: 'return totalFrames' })
-      createdOps.push(op)
-      const deps = new Set(['totalFrames'])
-
-      const markDirtySpy = vi.spyOn(op, 'markDirty')
-
-      timelineDependencyManager.trackDependencies(op.id, deps)
-      timelineDependencyManager.subscribe(op)
-
-      // Change FPS (affects totalFrames)
+      // Change FPS
       const store = useTimelineStore.getState()
       store.setFps(60)
 
       expect(markDirtySpy).toHaveBeenCalled()
     })
 
-    it('subscribes to sequence changes for sequence dependency', () => {
-      const op = new CodeOp('/test-op', { code: 'return sequence.length' })
+    it('marks operator dirty on sequence length changes', () => {
+      const op = new CodeOp('/test-op', { code: 'return totalFrames' })
       createdOps.push(op)
-      const deps = new Set(['sequence'])
 
       const markDirtySpy = vi.spyOn(op, 'markDirty')
 
-      timelineDependencyManager.trackDependencies(op.id, deps)
-      timelineDependencyManager.subscribe(op)
+      subscribeOpToTimeline(op)
 
-      // Change sequence length
+      // Change sequence length (affects totalFrames)
       const store = useTimelineStore.getState()
       store.setLength(20)
 
       expect(markDirtySpy).toHaveBeenCalled()
     })
 
-    it('does not subscribe if no dependencies', () => {
-      const op = new CodeOp('/test-op', { code: 'return 42' })
-      createdOps.push(op)
-      const deps = new Set([])
-
-      timelineDependencyManager.trackDependencies(op.id, deps)
-      timelineDependencyManager.subscribe(op)
-
-      // Should not crash or create subscriptions
-      expect(timelineDependencyManager.getDependencies(op.id)).toEqual(deps)
-    })
-
     it('unsubscribes and cleans up', () => {
       const op = new CodeOp('/test-op', { code: 'return sequenceTime' })
       createdOps.push(op)
-      const deps = new Set(['sequenceTime'])
 
       const markDirtySpy = vi.spyOn(op, 'markDirty')
 
-      timelineDependencyManager.trackDependencies(op.id, deps)
-      timelineDependencyManager.subscribe(op)
+      subscribeOpToTimeline(op)
 
       // Unsubscribe
-      timelineDependencyManager.unsubscribe(op.id)
+      unsubscribeOpFromTimeline(op.id)
 
       // Change position - should not trigger markDirty
       const store = useTimelineStore.getState()
@@ -134,86 +100,21 @@ describe('timeline-dependencies', () => {
       expect(markDirtySpy).not.toHaveBeenCalled()
     })
 
-    it('handles multiple dependencies', () => {
-      const op = new CodeOp('/test-op', {
-        code: 'return sequenceTime + sequence.length',
-      })
-      createdOps.push(op)
-      const deps = new Set(['sequenceTime', 'sequence'])
-
-      const markDirtySpy = vi.spyOn(op, 'markDirty')
-
-      timelineDependencyManager.trackDependencies(op.id, deps)
-      timelineDependencyManager.subscribe(op)
-
-      // Change position
-      const store = useTimelineStore.getState()
-      store.setPosition(3)
-
-      expect(markDirtySpy).toHaveBeenCalled()
-
-      markDirtySpy.mockClear()
-
-      // Change sequence
-      store.setLength(20)
-
-      expect(markDirtySpy).toHaveBeenCalled()
-    })
-
-    it('handles re-subscription with different dependencies', () => {
-      const op = new CodeOp('/test-op', { code: 'return sequenceTime' })
-      createdOps.push(op)
-
-      // First subscription
-      const deps1 = new Set(['sequenceTime'])
-      timelineDependencyManager.trackDependencies(op.id, deps1)
-      timelineDependencyManager.subscribe(op)
-
-      // Re-subscribe with different dependencies
-      const deps2 = new Set(['sequence'])
-      timelineDependencyManager.trackDependencies(op.id, deps2)
-      timelineDependencyManager.subscribe(op)
-
-      const markDirtySpy = vi.spyOn(op, 'markDirty')
-
-      // Change position - should NOT trigger (no longer subscribed)
-      const store = useTimelineStore.getState()
-      store.setPosition(5)
-      expect(markDirtySpy).not.toHaveBeenCalled()
-
-      markDirtySpy.mockClear()
-
-      // Change sequence - SHOULD trigger
-      store.setLength(20)
-      expect(markDirtySpy).toHaveBeenCalled()
-    })
-
-    it('handles multiple operators with different dependencies', () => {
+    it('handles multiple operators independently', () => {
       const op1 = new CodeOp('/op1', { code: 'return sequenceTime' })
       const op2 = new CodeOp('/op2', { code: 'return sequence.length' })
       createdOps.push(op1, op2)
 
-      timelineDependencyManager.trackDependencies(op1.id, new Set(['sequenceTime']))
-      timelineDependencyManager.subscribe(op1)
-
-      timelineDependencyManager.trackDependencies(op2.id, new Set(['sequence']))
-      timelineDependencyManager.subscribe(op2)
+      subscribeOpToTimeline(op1)
+      subscribeOpToTimeline(op2)
 
       const markDirty1Spy = vi.spyOn(op1, 'markDirty')
       const markDirty2Spy = vi.spyOn(op2, 'markDirty')
 
-      // Change position - only op1 should be marked dirty
+      // Change position - both should be marked dirty (both subscribe to all timeline changes)
       const store = useTimelineStore.getState()
       store.setPosition(3)
       expect(markDirty1Spy).toHaveBeenCalled()
-      expect(markDirty2Spy).not.toHaveBeenCalled()
-
-      markDirty1Spy.mockClear()
-      markDirty2Spy.mockClear()
-
-      // Change sequence - only op2 should be marked dirty
-      store.setLength(20)
-      expect(markDirty1Spy).not.toHaveBeenCalled()
       expect(markDirty2Spy).toHaveBeenCalled()
     })
   })

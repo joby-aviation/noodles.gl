@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTimelineStore } from '../timeline/timeline-store'
-import { CodeOp, ExpressionOp, AccessorOp } from './operators'
-import { timelineDependencyManager } from './utils/timeline-dependencies'
+import { AccessorOp, CodeOp, ExpressionOp } from './operators'
+import { unsubscribeOpFromTimeline } from './utils/timeline-dependencies'
 
 describe('Timeline Variables Integration', () => {
   beforeEach(() => {
@@ -154,7 +154,7 @@ describe('Timeline Variables Integration', () => {
 
       const op = new CodeOp('/test', { code: 'return sequenceTime' })
 
-      // First execution - establishes dependencies
+      // First execution - establishes subscriptions
       let result = await op.execute({ data: [], code: 'return sequenceTime' })
       expect(result.data).toBe(1)
 
@@ -170,7 +170,7 @@ describe('Timeline Variables Integration', () => {
       result = await op.execute({ data: [], code: 'return sequenceTime' })
       expect(result.data).toBe(5)
 
-      timelineDependencyManager.unsubscribe(op.id)
+      unsubscribeOpFromTimeline(op.id)
     })
   })
 
@@ -298,31 +298,19 @@ describe('Timeline Variables Integration', () => {
 
   describe('Operator disposal cleanup', () => {
     it('cleans up timeline subscriptions on dispose', async () => {
-      const op = new CodeOp('/test', { code: 'return sequenceTime' })
-      await op.execute({ data: [], code: 'return sequenceTime' })
-
-      // Dispose operator
-      op.dispose()
-
-      // Dependencies should be cleaned up
-      const depsAfter = timelineDependencyManager.getDependencies(op.id)
-      expect(depsAfter).toBeUndefined()
-    })
-
-    it('does not trigger markDirty after disposal', async () => {
       const store = useTimelineStore.getState()
       const op = new CodeOp('/test', { code: 'return sequenceTime' })
       await op.execute({ data: [], code: 'return sequenceTime' })
 
       const markDirtySpy = vi.spyOn(op, 'markDirty')
 
-      // Dispose
+      // Dispose operator
       op.dispose()
 
       // Change timeline
       store.setPosition(10)
 
-      // Should not have been called
+      // Should not trigger markDirty after disposal
       expect(markDirtySpy).not.toHaveBeenCalled()
     })
   })
@@ -372,16 +360,8 @@ describe('Timeline Variables Integration', () => {
     })
   })
 
-  describe('Performance', () => {
-    it('does not subscribe operators without timeline references', async () => {
-      const op = new CodeOp('/test', { code: 'return data.length' })
-      await op.execute({ data: [1, 2, 3], code: 'return data.length' })
-
-      const deps = timelineDependencyManager.getDependencies(op.id)
-      expect(deps?.size || 0).toBe(0)
-    })
-
-    it('provides values when accessed', async () => {
+  describe('Timeline reactivity', () => {
+    it('provides current values on each execution', async () => {
       const store = useTimelineStore.getState()
       store.setPosition(4)
 

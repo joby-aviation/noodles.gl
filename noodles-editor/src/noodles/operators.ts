@@ -196,8 +196,8 @@ import { projectScheme } from './utils/filesystem'
 import type { OpId } from './utils/id-utils'
 import { isDirectChild } from './utils/path-utils'
 import { pick } from './utils/pick'
-import { createTrackedTimelineContext } from './utils/timeline-context'
-import { timelineDependencyManager } from './utils/timeline-dependencies'
+import { getTimelineContext } from './utils/timeline-context'
+import { subscribeOpToTimeline, unsubscribeOpFromTimeline } from './utils/timeline-dependencies'
 import { validateViewState } from './utils/viewstate-helpers'
 
 // https://stackoverflow.com/questions/66044717/typescript-infer-type-of-abstract-methods-implementation
@@ -942,7 +942,7 @@ export abstract class Operator<OP extends IOperator> {
     this.customFieldsChanged.complete()
 
     // Cleanup timeline subscriptions
-    timelineDependencyManager.unsubscribe(this.id)
+    unsubscribeOpFromTimeline(this.id)
   }
 }
 
@@ -6366,12 +6366,6 @@ export class AccessorOp extends Operator<AccessorOp> {
     }
   }
   execute({ expression }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // Create timeline context with dependency tracking
-    const accessedTimelineVars = new Set<string>()
-    const timelineContext = createTrackedTimelineContext((variable: string) => {
-      accessedTimelineVars.add(variable)
-    })
-
     const fn = fnWithSource(
       [
         'd',
@@ -6387,9 +6381,15 @@ export class AccessorOp extends Operator<AccessorOp> {
       `return ${expression}`,
       this.id
     )
+
+    // Subscribe to timeline changes - accessor will get fresh values on each call
+    subscribeOpToTimeline(this)
+
     // https://deck.gl/docs/developer-guide/using-layers#accessors
     const accessor = (d: unknown, dInfo: { index: number; data: unknown; target: number[] }) => {
       const contextualGetOp = (path: string) => getOp(path, this.id)
+      // Get fresh timeline values for each accessor call
+      const timelineContext = getTimelineContext()
       try {
         return fn(
           d,
@@ -6407,12 +6407,6 @@ export class AccessorOp extends Operator<AccessorOp> {
         // rather than crashing the GPU process
         return undefined
       }
-    }
-
-    // Register timeline dependencies after execution
-    if (accessedTimelineVars.size > 0) {
-      timelineDependencyManager.trackDependencies(this.id, accessedTimelineVars)
-      timelineDependencyManager.subscribe(this)
     }
 
     return { accessor }
@@ -6452,11 +6446,11 @@ export class CodeOp extends Operator<CodeOp> {
       return `op('${opId}').${inOut}.${fieldPath}`
     })
 
-    // Create timeline context with dependency tracking
-    const accessedTimelineVars = new Set<string>()
-    const timelineContext = createTrackedTimelineContext((variable: string) => {
-      accessedTimelineVars.add(variable)
-    })
+    // Get current timeline values
+    const timelineContext = getTimelineContext()
+
+    // Subscribe to timeline changes for reactive updates
+    subscribeOpToTimeline(this)
 
     // Create a context-aware getOp function for the code execution
     const contextualGetOp = (path: string) => getOp(path, this.id)
@@ -6485,12 +6479,6 @@ export class CodeOp extends Operator<CodeOp> {
       timelineContext.sequence,
       ...Object.values(freeExports)
     )
-
-    // Register timeline dependencies after execution
-    if (accessedTimelineVars.size > 0) {
-      timelineDependencyManager.trackDependencies(this.id, accessedTimelineVars)
-      timelineDependencyManager.subscribe(this)
-    }
 
     const output = result instanceof Promise ? await result : result
     return { data: output }
@@ -6543,11 +6531,11 @@ export class ExpressionOp extends Operator<ExpressionOp> {
     data,
     expression,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // Create timeline context with dependency tracking
-    const accessedTimelineVars = new Set<string>()
-    const timelineContext = createTrackedTimelineContext((variable: string) => {
-      accessedTimelineVars.add(variable)
-    })
+    // Get current timeline values
+    const timelineContext = getTimelineContext()
+
+    // Subscribe to timeline changes for reactive updates
+    subscribeOpToTimeline(this)
 
     const fn = fnWithSource(
       [
@@ -6573,22 +6561,18 @@ export class ExpressionOp extends Operator<ExpressionOp> {
       // Return an accessor function that evaluates all data items and applies the expression
       const result = (...args: unknown[]) => {
         const evaluatedData = data.map(item => (isAccessor(item) ? item(...args) : item))
+        // Get fresh timeline values for each accessor call
+        const freshTimeline = getTimelineContext()
         return fn(
           evaluatedData,
           evaluatedData[0],
           contextualGetOp,
-          timelineContext.sequenceTime,
-          timelineContext.frame,
-          timelineContext.totalFrames,
-          timelineContext.sequence,
+          freshTimeline.sequenceTime,
+          freshTimeline.frame,
+          freshTimeline.totalFrames,
+          freshTimeline.sequence,
           ...Object.values(freeExports)
         )
-      }
-
-      // Register timeline dependencies
-      if (accessedTimelineVars.size > 0) {
-        timelineDependencyManager.trackDependencies(this.id, accessedTimelineVars)
-        timelineDependencyManager.subscribe(this)
       }
 
       return { data: result }
@@ -6605,12 +6589,6 @@ export class ExpressionOp extends Operator<ExpressionOp> {
       timelineContext.sequence,
       ...Object.values(freeExports)
     )
-
-    // Register timeline dependencies
-    if (accessedTimelineVars.size > 0) {
-      timelineDependencyManager.trackDependencies(this.id, accessedTimelineVars)
-      timelineDependencyManager.subscribe(this)
-    }
 
     return { data: result }
   }

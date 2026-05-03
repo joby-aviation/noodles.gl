@@ -1,69 +1,70 @@
+import { create } from 'zustand'
 import { debugDirty } from '../../utils/debug'
 import { useTimelineStore } from '../../timeline/timeline-store'
 import type { Operator, IOperator } from '../operators'
-import type { TimelineVariable } from './timeline-context'
 
-class TimelineDependencyManager {
-  private dependencies = new Map<string, Set<TimelineVariable>>()
-  private subscriptions = new Map<string, (() => void)[]>()
+interface TimelineDependencyState {
+  subscriptions: Map<string, (() => void)[]>
+  subscribe: (op: Operator<IOperator>) => void
+  unsubscribe: (opId: string) => void
+}
 
-  trackDependencies(opId: string, variables: Set<TimelineVariable>): void {
-    this.dependencies.set(opId, variables)
-  }
+export const useTimelineDependencyStore = create<TimelineDependencyState>((set, get) => ({
+  subscriptions: new Map(),
 
-  subscribe(op: Operator<IOperator>): void {
-    const dependencies = this.dependencies.get(op.id)
-    if (!dependencies || dependencies.size === 0) return
+  subscribe: (op: Operator<IOperator>) => {
+    const { subscriptions, unsubscribe } = get()
 
-    this.unsubscribe(op.id)
+    // Clean up any existing subscriptions
+    unsubscribe(op.id)
 
     const cleanupFns: (() => void)[] = []
 
-    // Subscribe to position changes if sequenceTime, frame, or totalFrames is used
-    if (
-      dependencies.has('sequenceTime') ||
-      dependencies.has('frame') ||
-      dependencies.has('totalFrames')
-    ) {
-      const unsub = useTimelineStore.subscribe(
-        (state) => ({ position: state.position, fps: state.sequence.fps }),
-        () => {
-          debugDirty('%s marked dirty by timeline position change', op.id)
-          op.markDirty()
-        },
-        { equalityFn: (a, b) => a.position === b.position && a.fps === b.fps }
-      )
-      cleanupFns.push(unsub)
-    }
+    // Subscribe to position changes (affects sequenceTime, frame, totalFrames)
+    const posUnsub = useTimelineStore.subscribe(
+      (state) => ({ position: state.position, fps: state.sequence.fps }),
+      () => {
+        debugDirty('%s marked dirty by timeline position/fps change', op.id)
+        op.markDirty()
+      },
+      { equalityFn: (a, b) => a.position === b.position && a.fps === b.fps }
+    )
+    cleanupFns.push(posUnsub)
 
-    // Subscribe to sequence changes if sequence is used
-    if (dependencies.has('sequence')) {
-      const unsub = useTimelineStore.subscribe(
-        (state) => state.sequence,
-        () => {
-          debugDirty('%s marked dirty by timeline sequence change', op.id)
-          op.markDirty()
-        },
-        { equalityFn: (a, b) => a.length === b.length && a.fps === b.fps }
-      )
-      cleanupFns.push(unsub)
-    }
+    // Subscribe to sequence changes (affects sequence, totalFrames)
+    const seqUnsub = useTimelineStore.subscribe(
+      (state) => state.sequence,
+      () => {
+        debugDirty('%s marked dirty by timeline sequence change', op.id)
+        op.markDirty()
+      },
+      { equalityFn: (a, b) => a.length === b.length && a.fps === b.fps }
+    )
+    cleanupFns.push(seqUnsub)
 
-    this.subscriptions.set(op.id, cleanupFns)
-  }
+    set((state) => ({
+      subscriptions: new Map(state.subscriptions).set(op.id, cleanupFns),
+    }))
+  },
 
-  unsubscribe(opId: string): void {
-    const cleanupFns = this.subscriptions.get(opId)
+  unsubscribe: (opId: string) => {
+    const { subscriptions } = get()
+    const cleanupFns = subscriptions.get(opId)
     if (cleanupFns) {
       cleanupFns.forEach((fn) => fn())
-      this.subscriptions.delete(opId)
+      const newSubscriptions = new Map(subscriptions)
+      newSubscriptions.delete(opId)
+      set({ subscriptions: newSubscriptions })
     }
-    this.dependencies.delete(opId)
-  }
+  },
+}))
 
-  getDependencies(opId: string): Set<TimelineVariable> | undefined {
-    return this.dependencies.get(opId)
-  }
+// Helper to subscribe an operator to timeline changes
+export function subscribeOpToTimeline(op: Operator<IOperator>): void {
+  useTimelineDependencyStore.getState().subscribe(op)
 }
 
-export const timelineDependencyManager = new TimelineDependencyManager()
+// Helper to unsubscribe an operator from timeline changes
+export function unsubscribeOpFromTimeline(opId: string): void {
+  useTimelineDependencyStore.getState().unsubscribe(opId)
+}
