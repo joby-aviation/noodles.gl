@@ -30,10 +30,9 @@ const COLUMN_TYPES: Array<{ label: string; value: ColumnType }> = [
   { label: 'String Literal', value: 'stringLiteral' },
 ]
 
-// Get all IANA timezones, with common ones at the top
-const COMMON_TIMEZONES = [
+// Common timezones (without local - computed at render time to avoid SSR issues)
+const COMMON_TIMEZONES_BASE = [
   'UTC',
-  Intl.DateTimeFormat().resolvedOptions().timeZone, // User's local timezone
   'America/New_York',
   'America/Chicago',
   'America/Denver',
@@ -48,11 +47,17 @@ const COMMON_TIMEZONES = [
 // Get all supported timezones from Intl API
 const ALL_TIMEZONES = Intl.supportedValuesOf('timeZone')
 
-// Sort: common timezones first, then alphabetically
-const TIMEZONE_OPTIONS = [
-  ...COMMON_TIMEZONES.filter((tz) => ALL_TIMEZONES.includes(tz)),
-  ...ALL_TIMEZONES.filter((tz) => !COMMON_TIMEZONES.includes(tz)).sort(),
-]
+// Build timezone options list with common timezones first, then alphabetically
+// Local timezone is computed at render time to avoid SSR hydration mismatches
+function getTimezoneOptions(): string[] {
+  const localTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  const commonTimezones = Array.from(new Set(['UTC', localTimezone, ...COMMON_TIMEZONES_BASE]))
+
+  return [
+    ...commonTimezones.filter((tz) => ALL_TIMEZONES.includes(tz)),
+    ...ALL_TIMEZONES.filter((tz) => !commonTimezones.includes(tz)).sort(),
+  ]
+}
 
 interface ColumnEditorProps {
   column: ColumnSchema
@@ -63,7 +68,8 @@ interface ColumnEditorProps {
 }
 
 function ColumnEditor({ column, onChange, onDelete, onMoveUp, onMoveDown }: ColumnEditorProps) {
-  const [filteredTimezones, setFilteredTimezones] = useState<string[]>(TIMEZONE_OPTIONS)
+  const timezoneOptions = useState(() => getTimezoneOptions())[0]
+  const [filteredTimezones, setFilteredTimezones] = useState<string[]>(timezoneOptions)
 
   return (
     <div className={s.columnRow}>
@@ -190,16 +196,19 @@ function ColumnEditor({ column, onChange, onDelete, onMoveUp, onMoveDown }: Colu
                 // Filter timezones based on search query
                 const query = e.query.toLowerCase()
                 const filtered = query
-                  ? TIMEZONE_OPTIONS.filter((tz) => tz.toLowerCase().includes(query))
-                  : TIMEZONE_OPTIONS
+                  ? timezoneOptions.filter((tz) => tz.toLowerCase().includes(query))
+                  : timezoneOptions
                 setFilteredTimezones(filtered)
               }}
-              onChange={(e) =>
-                onChange({
-                  ...column,
-                  options: { ...column.options, timezone: e.value },
-                })
-              }
+              onSelect={(e) => {
+                // Only update when a valid timezone is selected
+                if (e.value && typeof e.value === 'string') {
+                  onChange({
+                    ...column,
+                    options: { ...column.options, timezone: e.value },
+                  })
+                }
+              }}
               dropdown
               forceSelection
               placeholder="Search timezone..."

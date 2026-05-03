@@ -340,6 +340,24 @@ describe('stringToTemporal', () => {
     expect(result.millisecond).toBe(123)
   })
 
+  it('should handle invalid timezone by falling back to UTC', () => {
+    const result = stringToTemporal('2024-01-15T10:30:45', 'Invalid/Timezone')
+    expect(result).toBeInstanceOf(Temporal.ZonedDateTime)
+    expect(result.timeZoneId).toBe('UTC')
+  })
+
+  it('should handle partial timezone string by falling back to UTC', () => {
+    const result = stringToTemporal('2024-01-15T10:30:45', 'Amer')
+    expect(result).toBeInstanceOf(Temporal.ZonedDateTime)
+    expect(result.timeZoneId).toBe('UTC')
+  })
+
+  it('should handle empty timezone string by falling back to UTC', () => {
+    const result = stringToTemporal('2024-01-15T10:30:45', '')
+    expect(result).toBeInstanceOf(Temporal.ZonedDateTime)
+    expect(result.timeZoneId).toBe('UTC')
+  })
+
   it('should handle different timezones', () => {
     const result = stringToTemporal('2024-01-15T10:30:45', 'America/New_York')
     expect(result.timeZoneId).toBe('America/New_York')
@@ -515,6 +533,30 @@ describe('prepareTableDataForOutput', () => {
 
     expect((row.created_utc as Temporal.ZonedDateTime).timeZoneId).toBe('UTC')
     expect((row.created_ny as Temporal.ZonedDateTime).timeZoneId).toBe('America/New_York')
+  })
+
+  it('should fall back to UTC for invalid timezone in column schema', () => {
+    const data = [{ time: '2024-01-15T10:30:45' }]
+    const schema = {
+      columns: [{ name: 'time', type: 'dateTime' as const, options: { timezone: 'Invalid/Zone' } }],
+    }
+
+    const result = prepareTableDataForOutput(data, schema)
+    const row = result[0] as Record<string, unknown>
+
+    expect((row.time as Temporal.ZonedDateTime).timeZoneId).toBe('UTC')
+  })
+
+  it('should fall back to UTC for partial timezone string in column schema', () => {
+    const data = [{ time: '2024-01-15T10:30:45' }]
+    const schema = {
+      columns: [{ name: 'time', type: 'dateTime' as const, options: { timezone: 'Amer' } }],
+    }
+
+    const result = prepareTableDataForOutput(data, schema)
+    const row = result[0] as Record<string, unknown>
+
+    expect((row.time as Temporal.ZonedDateTime).timeZoneId).toBe('UTC')
   })
 })
 

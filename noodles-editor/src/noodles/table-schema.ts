@@ -318,8 +318,9 @@ export function stringToTemporal(value: string, timezone: string): Temporal.Zone
     return plainDateTime.toZonedDateTime(timezone)
   } catch (error) {
     console.warn(`Failed to parse datetime "${value}" with timezone ${timezone}:`, error)
-    // Fallback: use current time
-    return Temporal.Now.zonedDateTimeISO(timezone)
+    // Fallback: use current time in a safe timezone
+    const safeTimezone = isValidTimezone(timezone) ? timezone : 'UTC'
+    return Temporal.Now.zonedDateTimeISO(safeTimezone)
   }
 }
 
@@ -346,7 +347,8 @@ export function prepareTableDataForOutput(data: unknown[], schema: TableSchema):
     for (const col of schema.columns) {
       if (col.type === 'dateTime') {
         const value = (row as Record<string, unknown>)[col.name]
-        const timezone = col.options?.timezone ?? 'UTC'
+        const rawTz = col.options?.timezone ?? 'UTC'
+        const timezone = isValidTimezone(rawTz) ? rawTz : 'UTC'
 
         if (typeof value === 'string') {
           // Convert string to Temporal.ZonedDateTime
