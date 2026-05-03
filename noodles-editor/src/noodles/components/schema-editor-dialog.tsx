@@ -1,4 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog'
+import { AutoComplete } from 'primereact/autocomplete'
 import { Button } from 'primereact/button'
 import { Dropdown } from 'primereact/dropdown'
 import { InputNumber } from 'primereact/inputnumber'
@@ -29,18 +30,28 @@ const COLUMN_TYPES: Array<{ label: string; value: ColumnType }> = [
   { label: 'String Literal', value: 'stringLiteral' },
 ]
 
+// Get all IANA timezones, with common ones at the top
+const COMMON_TIMEZONES = [
+  'UTC',
+  Intl.DateTimeFormat().resolvedOptions().timeZone, // User's local timezone
+  'America/New_York',
+  'America/Chicago',
+  'America/Denver',
+  'America/Los_Angeles',
+  'Europe/London',
+  'Europe/Paris',
+  'Asia/Tokyo',
+  'Asia/Shanghai',
+  'Australia/Sydney',
+]
+
+// Get all supported timezones from Intl API
+const ALL_TIMEZONES = Intl.supportedValuesOf('timeZone')
+
+// Sort: common timezones first, then alphabetically
 const TIMEZONE_OPTIONS = [
-  { label: 'UTC', value: 'UTC' },
-  { label: 'Local', value: Intl.DateTimeFormat().resolvedOptions().timeZone },
-  { label: 'America/New_York (EST/EDT)', value: 'America/New_York' },
-  { label: 'America/Chicago (CST/CDT)', value: 'America/Chicago' },
-  { label: 'America/Denver (MST/MDT)', value: 'America/Denver' },
-  { label: 'America/Los_Angeles (PST/PDT)', value: 'America/Los_Angeles' },
-  { label: 'Europe/London', value: 'Europe/London' },
-  { label: 'Europe/Paris (CET/CEST)', value: 'Europe/Paris' },
-  { label: 'Asia/Tokyo (JST)', value: 'Asia/Tokyo' },
-  { label: 'Asia/Shanghai (CST)', value: 'Asia/Shanghai' },
-  { label: 'Australia/Sydney (AEST/AEDT)', value: 'Australia/Sydney' },
+  ...COMMON_TIMEZONES.filter((tz) => ALL_TIMEZONES.includes(tz)),
+  ...ALL_TIMEZONES.filter((tz) => !COMMON_TIMEZONES.includes(tz)).sort(),
 ]
 
 interface ColumnEditorProps {
@@ -52,6 +63,8 @@ interface ColumnEditorProps {
 }
 
 function ColumnEditor({ column, onChange, onDelete, onMoveUp, onMoveDown }: ColumnEditorProps) {
+  const [filteredTimezones, setFilteredTimezones] = useState<string[]>(TIMEZONE_OPTIONS)
+
   return (
     <div className={s.columnRow}>
       <div className={s.columnControls}>
@@ -170,18 +183,26 @@ function ColumnEditor({ column, onChange, onDelete, onMoveUp, onMoveDown }: Colu
         <div className={s.typeOptions}>
           <label>
             Timezone:
-            <Dropdown
+            <AutoComplete
               value={column.options?.timezone ?? 'UTC'}
-              options={TIMEZONE_OPTIONS}
-              optionLabel="label"
-              optionValue="value"
+              suggestions={filteredTimezones}
+              completeMethod={(e) => {
+                // Filter timezones based on search query
+                const query = e.query.toLowerCase()
+                const filtered = query
+                  ? TIMEZONE_OPTIONS.filter((tz) => tz.toLowerCase().includes(query))
+                  : TIMEZONE_OPTIONS
+                setFilteredTimezones(filtered)
+              }}
               onChange={(e) =>
                 onChange({
                   ...column,
                   options: { ...column.options, timezone: e.value },
                 })
               }
-              appendTo="self"
+              dropdown
+              forceSelection
+              placeholder="Search timezone..."
               className={s.optionInput}
             />
           </label>
