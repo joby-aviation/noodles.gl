@@ -196,6 +196,8 @@ import { projectScheme } from './utils/filesystem'
 import type { OpId } from './utils/id-utils'
 import { isDirectChild } from './utils/path-utils'
 import { pick } from './utils/pick'
+import { createTrackedTimelineContext } from './utils/timeline-context'
+import { timelineDependencyManager } from './utils/timeline-dependencies'
 import { validateViewState } from './utils/viewstate-helpers'
 
 // https://stackoverflow.com/questions/66044717/typescript-infer-type-of-abstract-methods-implementation
@@ -940,9 +942,7 @@ export abstract class Operator<OP extends IOperator> {
     this.customFieldsChanged.complete()
 
     // Cleanup timeline subscriptions
-    import('./utils/timeline-dependencies').then(({ timelineDependencyManager }) => {
-      timelineDependencyManager.unsubscribe(this.id)
-    })
+    timelineDependencyManager.unsubscribe(this.id)
   }
 }
 
@@ -6367,8 +6367,6 @@ export class AccessorOp extends Operator<AccessorOp> {
   }
   execute({ expression }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     // Create timeline context with dependency tracking
-    const { createTrackedTimelineContext } = require('./utils/timeline-context')
-    const { timelineDependencyManager } = require('./utils/timeline-dependencies')
     const accessedTimelineVars = new Set<string>()
     const timelineContext = createTrackedTimelineContext((variable: string) => {
       accessedTimelineVars.add(variable)
@@ -6455,8 +6453,6 @@ export class CodeOp extends Operator<CodeOp> {
     })
 
     // Create timeline context with dependency tracking
-    const { createTrackedTimelineContext } = require('./utils/timeline-context')
-    const { timelineDependencyManager } = require('./utils/timeline-dependencies')
     const accessedTimelineVars = new Set<string>()
     const timelineContext = createTrackedTimelineContext((variable: string) => {
       accessedTimelineVars.add(variable)
@@ -6548,8 +6544,6 @@ export class ExpressionOp extends Operator<ExpressionOp> {
     expression,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     // Create timeline context with dependency tracking
-    const { createTrackedTimelineContext } = require('./utils/timeline-context')
-    const { timelineDependencyManager } = require('./utils/timeline-dependencies')
     const accessedTimelineVars = new Set<string>()
     const timelineContext = createTrackedTimelineContext((variable: string) => {
       accessedTimelineVars.add(variable)
