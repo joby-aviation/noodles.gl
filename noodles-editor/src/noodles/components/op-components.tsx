@@ -754,13 +754,39 @@ function ErrorPopover({
   open: boolean
   onDismiss: () => void
 }) {
+  const handleTriggerClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      navigator.clipboard
+        .writeText(error)
+        .then(() => {
+          console.log('[Noodles] Error copied to clipboard')
+        })
+        .catch(err => {
+          console.error('[Noodles] Failed to copy error:', err)
+        })
+    },
+    [error]
+  )
+
+  const handleCloseClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      e.preventDefault()
+      onDismiss()
+    },
+    [onDismiss]
+  )
+
   return (
     <div className={s.errorPopoverAnchor}>
-      {trigger}
+      <div onClick={handleTriggerClick} style={{ cursor: 'pointer' }} title="Click to copy error">
+        {trigger}
+      </div>
       {open && (
         <div className={s.errorPopover}>
           <span className={s.errorPopoverMessage}>{error}</span>
-          <button className={s.errorPopoverClose} onClick={onDismiss} type="button">
+          <button className={s.errorPopoverClose} onClick={handleCloseClick} type="button">
             <i className="pi pi-times" />
           </button>
         </div>

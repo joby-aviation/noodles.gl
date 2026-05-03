@@ -533,6 +533,12 @@ export abstract class Operator<OP extends IOperator> {
         executionTime: this._lastExecutionTime,
       })
 
+      // Clear any stale connection errors on successful execution
+      // This handles cases where validation errors were added during transient failures
+      if (this.connectionErrors.value.size > 0) {
+        this.connectionErrors.next(new Map())
+      }
+
       // Update output fields for UI/debugging purposes only
       // In pull mode, this is not for propagation but for inspection
       for (const [key, field] of Object.entries(this.outputs)) {
