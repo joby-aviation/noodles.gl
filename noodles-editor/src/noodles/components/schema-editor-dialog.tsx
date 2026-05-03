@@ -25,6 +25,7 @@ const COLUMN_TYPES: Array<{ label: string; value: ColumnType }> = [
   { label: 'Vector 2D', value: 'vec2' },
   { label: 'Vector 3D', value: 'vec3' },
   { label: 'Date', value: 'date' },
+  { label: 'Date & Time', value: 'dateTime' },
   { label: 'String Literal', value: 'stringLiteral' },
 ]
 

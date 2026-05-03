@@ -16,7 +16,7 @@ import type { ColumnSchema, ColumnType, TableSchema } from '../table-schema'
 import { convertValue, getDefaultValue } from '../table-schema'
 import { ColorSwatch } from './color-swatch'
 import { SchemaEditorDialog } from './schema-editor-dialog'
-import s from './table-editor-v2.module.css'
+import s from './table-editor.module.css'
 
 // Cell editor components for each column type
 
@@ -211,6 +211,26 @@ function DateCellEditor({ value, onChange, onComplete }: CellEditorProps) {
   )
 }
 
+function DateTimeCellEditor({ value, onChange, onComplete }: CellEditorProps) {
+  return (
+    <InputText
+      type="datetime-local"
+      step={0.001} // Enable millisecond precision
+      value={value as string}
+      onChange={(e) => onChange(e.target.value)}
+      onBlur={onComplete}
+      onKeyDown={(e) => {
+        e.stopPropagation()
+        if (e.key === 'Enter' || e.key === 'Escape') {
+          onComplete()
+        }
+      }}
+      autoFocus
+      className={s.cellEditor}
+    />
+  )
+}
+
 // Get cell editor component for column type
 function getCellEditor(type: ColumnType) {
   switch (type) {
@@ -232,6 +252,8 @@ function getCellEditor(type: ColumnType) {
       return Vec3CellEditor
     case 'date':
       return DateCellEditor
+    case 'dateTime':
+      return DateTimeCellEditor
     default:
       return StringCellEditor
   }
@@ -276,6 +298,12 @@ function renderDateCell(value: unknown): string {
   return ''
 }
 
+function renderDateTimeCell(value: unknown): string {
+  if (typeof value === 'string') return value
+  if (value instanceof Date) return value.toISOString().slice(0, 23)
+  return ''
+}
+
 function renderStringCell(value: unknown): string {
   return String(value ?? '')
 }
@@ -297,6 +325,8 @@ function getCellRenderer(type: ColumnType) {
       return renderVec3Cell
     case 'date':
       return renderDateCell
+    case 'dateTime':
+      return renderDateTimeCell
     case 'string':
     case 'stringLiteral':
     default:
@@ -371,7 +401,7 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
 
 // Main table component
 
-interface TableEditorV2Props {
+interface TableEditorProps {
   op: TableEditorOp
   data: unknown[]
   schema: TableSchema
@@ -379,13 +409,13 @@ interface TableEditorV2Props {
   onSchemaChange: (schema: TableSchema) => void
 }
 
-export function TableEditorV2({
+export function TableEditor({
   op,
   data,
   schema,
   onDataChange,
   onSchemaChange,
-}: TableEditorV2Props) {
+}: TableEditorProps) {
   const [tableData, setTableData] = useState(data)
 
   useEffect(() => {
