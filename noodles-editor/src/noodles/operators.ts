@@ -282,6 +282,7 @@ export abstract class Operator<OP extends IOperator> {
   private _cachedOutput: ExtractProps<(typeof this)['outputs']> | null = null
   private _lastExecutionTime = 0
   private _computingPromise: Promise<ExtractProps<(typeof this)['outputs']>> | null = null
+  private _lastLoggedError: string | null = null
 
   // Dependency tracking for pull-based model
   private _upstreamDependencies: Set<Operator<IOperator>> = new Set()
@@ -532,6 +533,12 @@ export abstract class Operator<OP extends IOperator> {
         executionTime: this._lastExecutionTime,
       })
 
+      // Clear any stale connection errors on successful execution
+      // This handles cases where validation errors were added during transient failures
+      if (this.connectionErrors.value.size > 0) {
+        this.connectionErrors.next(new Map())
+      }
+
       // Update output fields for UI/debugging purposes only
       // In pull mode, this is not for propagation but for inspection
       for (const [key, field] of Object.entries(this.outputs)) {
@@ -543,11 +550,17 @@ export abstract class Operator<OP extends IOperator> {
       return finalResult
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err))
-      debugExecute('%s: ERROR - %s', this.id, error.message)
-      debugPull(
-        `Pull execution failure in [${this.id} (${(this.constructor as typeof Operator).displayName})]:`,
-        error.message
-      )
+
+      // Only log if this is a new/different error
+      if (this._lastLoggedError !== error.message) {
+        debugExecute('%s: ERROR - %s', this.id, error.message)
+        debugPull(
+          `Pull execution failure in [${this.id} (${(this.constructor as typeof Operator).displayName})]:`,
+          error.message
+        )
+        console.error(`[Noodles] Operator ${this.id} error:`, error)
+        this._lastLoggedError = error.message
+      }
 
       this._pullExecutionStatus = PullExecutionStatus.ERROR
       this._cachedOutput = null
@@ -584,6 +597,13 @@ export abstract class Operator<OP extends IOperator> {
       debugDirty('%s already dirty, skipping', this.id)
       return // Already dirty
     }
+
+    // Log recovery from error state
+    if (this._pullExecutionStatus === PullExecutionStatus.ERROR) {
+      debugDirty('%s cleared from error state', this.id)
+      this._lastLoggedError = null
+    }
+
     debugDirty(
       '%s marked dirty, propagating to %d downstream',
       this.id,

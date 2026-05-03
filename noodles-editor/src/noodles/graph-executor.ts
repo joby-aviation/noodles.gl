@@ -427,7 +427,6 @@ export class GraphExecutor {
             const output = await op.pull()
             results.set(op.id, { value: output, changed: true })
           } catch (error) {
-            console.error('[Noodles] Operator execution error:', op.id, error)
             results.set(op.id, {
               value: null,
               changed: false,
@@ -442,7 +441,6 @@ export class GraphExecutor {
           const output = await op.pull()
           results.set(op.id, { value: output, changed: true })
         } catch (error) {
-          console.error('[Noodles] Operator execution error:', op.id, error)
           results.set(op.id, {
             value: null,
             changed: false,
