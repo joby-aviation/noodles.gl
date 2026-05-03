@@ -5148,7 +5148,7 @@ export class IconLayerOp extends Operator<IconLayerOp> {
       }),
       sizeScale: new NumberField(1, { min: 0, softMax: 10_000, showByDefault: false }),
       sizeMinPixels: new NumberField(0, { min: 0, softMax: 10_000, showByDefault: false }),
-      sizeMaxPixels: new NumberField(100, { min: 0, softMax: 10_000, showByDefault: false }),
+      sizeMaxPixels: new NumberField(256, { min: 0, softMax: 10_000, showByDefault: false }),
       getPixelOffset: new Vec2Field(
         { x: 0, y: 0 },
         { returnType: 'tuple', accessor: true, showByDefault: false }
@@ -5176,7 +5176,7 @@ export class IconLayerOp extends Operator<IconLayerOp> {
   async execute(
     _props: ExtractProps<typeof this.inputs>
   ): Promise<ExtractProps<typeof this.outputs>> {
-    const { getIcon, iconMapping, iconAtlas, ...rest } = _props
+    const { getIcon, iconMapping, iconAtlas, sizeMaxPixels, ...rest } = _props
 
     // Helper to resolve @/ URLs to blob URLs with proper MIME type
     const resolveProjectUrl = async (url: string): Promise<string> => {
@@ -5216,7 +5216,8 @@ export class IconLayerOp extends Operator<IconLayerOp> {
 
     // Helper to resolve image URL and extract dimensions
     const resolveImageWithDimensions = async (
-      url: string
+      url: string,
+      maxDisplaySize: number
     ): Promise<{ url: string; width: number; height: number; id: string }> => {
       const resolvedUrl = await resolveProjectUrl(url)
 
@@ -5227,13 +5228,15 @@ export class IconLayerOp extends Operator<IconLayerOp> {
           const naturalWidth = img.naturalWidth
           const naturalHeight = img.naturalHeight
 
-          // Normalize dimensions to max 128px while preserving aspect ratio
-          // This prevents issues with deck.gl's auto-packing when using very large images
-          const maxDimension = 128
+          // Calculate max texture dimension based on display size
+          // Use 2x for quality buffer (like Retina), but cap at 512px to limit memory
+          const maxDimension = Math.min(maxDisplaySize * 2, 512)
           const aspectRatio = naturalWidth / naturalHeight
           let width = naturalWidth
           let height = naturalHeight
 
+          // Normalize to max dimension while preserving aspect ratio
+          // This prevents deck.gl auto-packing issues with very large images
           if (width > maxDimension || height > maxDimension) {
             if (width > height) {
               width = maxDimension
@@ -5253,6 +5256,7 @@ export class IconLayerOp extends Operator<IconLayerOp> {
           console.log('[IconLayerOp] Extracted dimensions:', {
             natural: `${naturalWidth}x${naturalHeight}`,
             normalized: `${width}x${height}`,
+            maxDisplaySize,
             aspectRatio: aspectRatio.toFixed(2),
           })
           resolve(iconData)
@@ -5272,7 +5276,7 @@ export class IconLayerOp extends Operator<IconLayerOp> {
       iconProps = { getIcon }
     } else if (getIcon && typeof getIcon === 'string') {
       // Simple single-icon mode - resolve URL and extract dimensions automatically
-      const iconData = await resolveImageWithDimensions(getIcon)
+      const iconData = await resolveImageWithDimensions(getIcon, sizeMaxPixels)
       iconProps = { getIcon: () => iconData }
     } else {
       // Atlas mode - resolve atlas URL
@@ -5283,6 +5287,7 @@ export class IconLayerOp extends Operator<IconLayerOp> {
     const props: IconLayerProps = {
       ...rest,
       ...iconProps,
+      sizeMaxPixels,
     }
 
     const layer = {

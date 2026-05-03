@@ -88,7 +88,7 @@ describe('IconLayerOp Upload Support', () => {
         sizeUnits: 'pixels',
         sizeScale: 1,
         sizeMinPixels: 0,
-        sizeMaxPixels: 100,
+        sizeMaxPixels: 256,
         getPixelOffset: [0, 0],
         getColor: [255, 255, 255, 255],
         getAngle: 0,
@@ -122,7 +122,7 @@ describe('IconLayerOp Upload Support', () => {
         sizeUnits: 'pixels',
         sizeScale: 1,
         sizeMinPixels: 0,
-        sizeMaxPixels: 100,
+        sizeMaxPixels: 256,
         getPixelOffset: [0, 0],
         getColor: [255, 255, 255, 255],
         getAngle: 0,
@@ -151,7 +151,7 @@ describe('IconLayerOp Upload Support', () => {
           sizeUnits: 'pixels',
           sizeScale: 1,
           sizeMinPixels: 0,
-          sizeMaxPixels: 100,
+          sizeMaxPixels: 256,
           getPixelOffset: [0, 0],
           getColor: [255, 255, 255, 255],
           getAngle: 0,
@@ -242,7 +242,7 @@ describe('IconLayerOp Upload Support', () => {
         sizeUnits: 'pixels',
         sizeScale: 1,
         sizeMinPixels: 0,
-        sizeMaxPixels: 100,
+        sizeMaxPixels: 256,
         getPixelOffset: [0, 0],
         getColor: [255, 255, 255, 255],
         getAngle: 0,
@@ -255,11 +255,10 @@ describe('IconLayerOp Upload Support', () => {
       expect(typeof result.layer.getIcon).toBe('function')
 
       const iconData = (result.layer.getIcon as () => any)()
-      expect(iconData).toEqual({
-        url: 'https://example.com/marker.png',
-        width: 64,
-        height: 64,
-      })
+      expect(iconData.url).toBe('https://example.com/marker.png')
+      expect(iconData.width).toBe(64)
+      expect(iconData.height).toBe(64)
+      expect(iconData.id).toBe('https://example.com/marker.png')
     })
 
     it('should handle different image dimensions', async () => {
@@ -281,7 +280,7 @@ describe('IconLayerOp Upload Support', () => {
         sizeUnits: 'pixels',
         sizeScale: 1,
         sizeMinPixels: 0,
-        sizeMaxPixels: 100,
+        sizeMaxPixels: 256,
         getPixelOffset: [0, 0],
         getColor: [255, 255, 255, 255],
         getAngle: 0,
@@ -291,11 +290,80 @@ describe('IconLayerOp Upload Support', () => {
       })
 
       const iconData = (result.layer.getIcon as () => any)()
-      expect(iconData).toEqual({
-        url: 'https://example.com/wide-marker.png',
-        width: 128,
-        height: 32,
+      expect(iconData.url).toBe('https://example.com/wide-marker.png')
+      expect(iconData.width).toBe(128)
+      expect(iconData.height).toBe(32)
+      expect(iconData.id).toBe('https://example.com/wide-marker.png')
+    })
+
+    it('should normalize large images while preserving aspect ratio', async () => {
+      const op = new IconLayerOp('/test-icon-layer')
+      mockWidth = 4003
+      mockHeight = 2155
+      shouldSucceed = true
+
+      const result = await op.execute({
+        data: [],
+        visible: true,
+        opacity: 1,
+        getPosition: [0, 0],
+        iconAtlas: '',
+        iconMapping: {},
+        billboard: true,
+        getIcon: 'https://example.com/large-aircraft.png',
+        getSize: 1,
+        sizeUnits: 'pixels',
+        sizeScale: 1,
+        sizeMinPixels: 0,
+        sizeMaxPixels: 256,
+        getPixelOffset: [0, 0],
+        getColor: [255, 255, 255, 255],
+        getAngle: 0,
+        sizeBasis: 'pixels',
+        parameters: { depthTest: true },
+        extensions: [],
       })
+
+      const iconData = (result.layer.getIcon as () => any)()
+      // Should normalize to 512px max (sizeMaxPixels * 2, capped at 512)
+      expect(iconData.width).toBe(512)
+      // Height should maintain aspect ratio: 512 / (4003/2155) ≈ 276
+      expect(iconData.height).toBe(276)
+      expect(iconData.id).toBe('https://example.com/large-aircraft.png')
+    })
+
+    it('should respect sizeMaxPixels for texture quality', async () => {
+      const op = new IconLayerOp('/test-icon-layer')
+      mockWidth = 1000
+      mockHeight = 1000
+      shouldSucceed = true
+
+      const result = await op.execute({
+        data: [],
+        visible: true,
+        opacity: 1,
+        getPosition: [0, 0],
+        iconAtlas: '',
+        iconMapping: {},
+        billboard: true,
+        getIcon: 'https://example.com/icon.png',
+        getSize: 1,
+        sizeUnits: 'pixels',
+        sizeScale: 1,
+        sizeMinPixels: 0,
+        sizeMaxPixels: 64,
+        getPixelOffset: [0, 0],
+        getColor: [255, 255, 255, 255],
+        getAngle: 0,
+        sizeBasis: 'pixels',
+        parameters: { depthTest: true },
+        extensions: [],
+      })
+
+      const iconData = (result.layer.getIcon as () => any)()
+      // sizeMaxPixels=64 → 128px texture (64 * 2)
+      expect(iconData.width).toBe(128)
+      expect(iconData.height).toBe(128)
     })
 
     it('should reject when image fails to load', async () => {
@@ -316,7 +384,7 @@ describe('IconLayerOp Upload Support', () => {
           sizeUnits: 'pixels',
           sizeScale: 1,
           sizeMinPixels: 0,
-          sizeMaxPixels: 100,
+          sizeMaxPixels: 256,
           getPixelOffset: [0, 0],
           getColor: [255, 255, 255, 255],
           getAngle: 0,
@@ -344,7 +412,7 @@ describe('IconLayerOp Upload Support', () => {
           sizeUnits: 'pixels',
           sizeScale: 1,
           sizeMinPixels: 0,
-          sizeMaxPixels: 100,
+          sizeMaxPixels: 256,
           getPixelOffset: [0, 0],
           getColor: [255, 255, 255, 255],
           getAngle: 0,
@@ -379,7 +447,7 @@ describe('IconLayerOp Upload Support', () => {
         sizeUnits: 'pixels',
         sizeScale: 1,
         sizeMinPixels: 0,
-        sizeMaxPixels: 100,
+        sizeMaxPixels: 256,
         getPixelOffset: [0, 0],
         getColor: [255, 255, 255, 255],
         getAngle: 0,
@@ -410,7 +478,7 @@ describe('IconLayerOp Upload Support', () => {
         sizeUnits: 'pixels',
         sizeScale: 1,
         sizeMinPixels: 0,
-        sizeMaxPixels: 100,
+        sizeMaxPixels: 256,
         getPixelOffset: [0, 0],
         getColor: [255, 255, 255, 255],
         getAngle: 0,
@@ -443,7 +511,7 @@ describe('IconLayerOp Upload Support', () => {
         sizeUnits: 'pixels',
         sizeScale: 1,
         sizeMinPixels: 0,
-        sizeMaxPixels: 100,
+        sizeMaxPixels: 256,
         getPixelOffset: [0, 0],
         getColor: [255, 255, 255, 255],
         getAngle: 0,
@@ -473,7 +541,7 @@ describe('IconLayerOp Upload Support', () => {
         sizeUnits: 'pixels',
         sizeScale: 1,
         sizeMinPixels: 0,
-        sizeMaxPixels: 100,
+        sizeMaxPixels: 256,
         getPixelOffset: [0, 0],
         getColor: [255, 255, 255, 255],
         getAngle: 0,
