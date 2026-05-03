@@ -6375,7 +6375,17 @@ export class AccessorOp extends Operator<AccessorOp> {
     })
 
     const fn = fnWithSource(
-      ['d', 'i', 'data', 'op', 'sequenceTime', 'frame', 'totalFrames', 'sequence', ...Object.keys(freeExports)],
+      [
+        'd',
+        'i',
+        'data',
+        'op',
+        'sequenceTime',
+        'frame',
+        'totalFrames',
+        'sequence',
+        ...Object.keys(freeExports),
+      ],
       `return ${expression}`,
       this.id
     )
@@ -6455,7 +6465,16 @@ export class CodeOp extends Operator<CodeOp> {
     // Create a context-aware getOp function for the code execution
     const contextualGetOp = (path: string) => getOp(path, this.id)
     const fn = fnWithSource(
-      ['data', 'd', 'op', 'sequenceTime', 'frame', 'totalFrames', 'sequence', ...Object.keys(freeExports)],
+      [
+        'data',
+        'd',
+        'op',
+        'sequenceTime',
+        'frame',
+        'totalFrames',
+        'sequence',
+        ...Object.keys(freeExports),
+      ],
       processedCode,
       this.id
     )
@@ -6537,7 +6556,16 @@ export class ExpressionOp extends Operator<ExpressionOp> {
     })
 
     const fn = fnWithSource(
-      ['data', 'd', 'op', 'sequenceTime', 'frame', 'totalFrames', 'sequence', ...Object.keys(freeExports)],
+      [
+        'data',
+        'd',
+        'op',
+        'sequenceTime',
+        'frame',
+        'totalFrames',
+        'sequence',
+        ...Object.keys(freeExports),
+      ],
       `return ${expression}`,
       this.id
     )
