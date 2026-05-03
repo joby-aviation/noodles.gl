@@ -5253,12 +5253,6 @@ export class IconLayerOp extends Operator<IconLayerOp> {
             height,
             id: url, // Use original URL as unique ID for deduplication
           }
-          console.log('[IconLayerOp] Extracted dimensions:', {
-            natural: `${naturalWidth}x${naturalHeight}`,
-            normalized: `${width}x${height}`,
-            maxDisplaySize,
-            aspectRatio: aspectRatio.toFixed(2),
-          })
           resolve(iconData)
         }
         img.onerror = () => {
