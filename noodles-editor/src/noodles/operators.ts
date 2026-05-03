@@ -5146,15 +5146,15 @@ export class IconLayerOp extends Operator<IconLayerOp> {
         values: ['pixels', 'meters'],
         showByDefault: false,
       }),
-      sizeScale: new NumberField(1, { min: 0, softMax: 10_000, showByDefault: false }),
+      sizeScale: new NumberField(1, { min: 0, softMax: 10_000 }),
       sizeMinPixels: new NumberField(0, { min: 0, softMax: 10_000, showByDefault: false }),
-      sizeMaxPixels: new NumberField(256, { min: 0, softMax: 10_000, showByDefault: false }),
+      sizeMaxPixels: new NumberField(2048, { min: 0, softMax: 10_000, showByDefault: false }),
       getPixelOffset: new Vec2Field(
         { x: 0, y: 0 },
         { returnType: 'tuple', accessor: true, showByDefault: false }
       ),
       getColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
-      getAngle: new NumberField(0, { accessor: true, showByDefault: false }),
+      getAngle: new NumberField(0, { accessor: true }),
       sizeBasis: new StringLiteralField('pixels', {
         values: ['pixels', 'meters', 'common'],
         optional: true,
