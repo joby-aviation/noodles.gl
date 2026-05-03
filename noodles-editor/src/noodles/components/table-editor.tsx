@@ -6,15 +6,17 @@ import {
   useReactTable,
 } from '@tanstack/react-table'
 import cx from 'classnames'
+import { AutoComplete } from 'primereact/autocomplete'
 import { Button } from 'primereact/button'
 import { InputNumber } from 'primereact/inputnumber'
 import { InputSwitch } from 'primereact/inputswitch'
 import { InputText } from 'primereact/inputtext'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Temporal } from 'temporal-polyfill'
 import type { TableEditorOp } from '../operators'
 import type { ColumnSchema, ColumnType, TableSchema } from '../table-schema'
 import { convertValue, getDefaultValue, temporalToString } from '../table-schema'
+import { getTimezoneOptions } from '../utils/timezone-utils'
 import { ColorSwatch } from './color-swatch'
 import { SchemaEditorDialog } from './schema-editor-dialog'
 import s from './table-editor.module.css'
@@ -25,6 +27,7 @@ interface CellEditorProps {
   value: unknown
   onChange: (value: unknown) => void
   onComplete: () => void
+  onUpdate?: (column: ColumnSchema) => void
   column: ColumnSchema
 }
 
@@ -212,8 +215,12 @@ function DateCellEditor({ value, onChange, onComplete }: CellEditorProps) {
   )
 }
 
-function DateTimeCellEditor({ value, onChange, onComplete, column }: CellEditorProps) {
+function DateTimeCellEditor({ value, onChange, onComplete, onUpdate, column }: CellEditorProps) {
   const timezone = column.options?.timezone ?? 'UTC'
+  const timezoneOptions = useState(() => getTimezoneOptions())[0]
+  const [filteredTimezones, setFilteredTimezones] = useState<string[]>(timezoneOptions)
+  const [timezoneInputValue, setTimezoneInputValue] = useState<string>(timezone)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   // Convert value to string for datetime-local input
   let stringValue = ''
@@ -230,14 +237,31 @@ function DateTimeCellEditor({ value, onChange, onComplete, column }: CellEditorP
 
   const tzAbbrev = timezone === 'UTC' ? 'UTC' : timezone.split('/').pop() ?? timezone
 
+  // Handle blur - check if focus is moving to AutoComplete panel
+  const handleBlur = (e: React.FocusEvent) => {
+    // Use setTimeout to allow new focus target to be set
+    setTimeout(() => {
+      const activeElement = document.activeElement
+      const container = containerRef.current
+
+      // Check if focus moved to AutoComplete dropdown panel
+      const isInAutocompletePanel = activeElement?.closest('.p-autocomplete-panel')
+      const isInContainer = container && container.contains(activeElement)
+
+      // Only complete if focus truly left (not in container and not in dropdown panel)
+      if (!isInContainer && !isInAutocompletePanel) {
+        onComplete()
+      }
+    }, 0)
+  }
+
   return (
-    <div className={s.dateTimeCellEditor}>
+    <div ref={containerRef} className={s.dateTimeCellEditor} onBlur={handleBlur}>
       <InputText
         type="datetime-local"
         step={0.001}
         value={stringValue}
         onChange={(e) => onChange(e.target.value)}
-        onBlur={onComplete}
         onKeyDown={(e) => {
           e.stopPropagation()
           if (e.key === 'Enter' || e.key === 'Escape') {
@@ -247,9 +271,39 @@ function DateTimeCellEditor({ value, onChange, onComplete, column }: CellEditorP
         autoFocus
         className={s.cellEditor}
       />
-      <span className={s.timezoneIndicator} title={`Timezone: ${timezone}`}>
-        {tzAbbrev}
-      </span>
+      <AutoComplete
+        value={timezoneInputValue}
+        suggestions={filteredTimezones}
+        completeMethod={(e) => {
+          const query = e.query.toLowerCase()
+          const filtered = query
+            ? timezoneOptions.filter((tz) => tz.toLowerCase().includes(query))
+            : timezoneOptions
+          setFilteredTimezones(filtered)
+        }}
+        onChange={(e) => {
+          setTimezoneInputValue(e.value)
+        }}
+        onSelect={(e) => {
+          console.log('Timezone selected:', e.value)
+          if (e.value && typeof e.value === 'string' && timezoneOptions.includes(e.value)) {
+            const updatedColumn = {
+              ...column,
+              options: { ...column.options, timezone: e.value },
+            }
+            console.log('Calling onUpdate with:', updatedColumn)
+            if (onUpdate) {
+              onUpdate(updatedColumn)
+            }
+            setTimezoneInputValue(e.value)
+          }
+        }}
+        dropdown
+        forceSelection
+        placeholder="TZ"
+        className={s.timezoneDropdown}
+        panelClassName={s.timezonePanel}
+      />
     </div>
   )
 }
@@ -324,6 +378,7 @@ function renderDateCell(value: unknown): string {
 function renderDateTimeCell(value: unknown, column: ColumnSchema): string {
   const timezone = column.options?.timezone ?? 'UTC'
   const tzAbbrev = timezone === 'UTC' ? 'UTC' : timezone.split('/').pop() ?? timezone
+  console.log('renderDateTimeCell - column:', column.name, 'timezone:', timezone, 'abbrev:', tzAbbrev)
 
   let dateStr = ''
   if (typeof value === 'string') {
@@ -378,6 +433,7 @@ interface EditableCellProps {
       meta?: {
         updateData: (rowIndex: number, columnId: string, value: unknown) => void
         deleteRow: (rowIndex: number) => void
+        updateColumn: (columnId: string, column: ColumnSchema) => void
         schema: TableSchema
       }
     }
@@ -404,6 +460,10 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
     }
   }
 
+  const handleUpdateColumn = (updatedColumn: ColumnSchema) => {
+    table.options.meta?.updateColumn(column.id, updatedColumn)
+  }
+
   if (isEditing) {
     return (
       <div className={cx(s.cell, s.editing)}>
@@ -411,6 +471,7 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
           value={value}
           onChange={setValue}
           onComplete={handleComplete}
+          onUpdate={handleUpdateColumn}
           column={colSchema}
         />
       </div>
@@ -542,6 +603,17 @@ export function TableEditor({
         const newData = tableData.filter((_, index) => index !== rowIndex)
         setTableData(newData)
         onDataChange(newData)
+      },
+      updateColumn: (columnId: string, updatedColumn: ColumnSchema) => {
+        console.log('updateColumn called:', columnId, updatedColumn)
+        const newSchema = {
+          ...schema,
+          columns: schema.columns.map((col) =>
+            col.name === columnId ? updatedColumn : col
+          ),
+        }
+        console.log('New schema:', newSchema)
+        onSchemaChange(newSchema)
       },
       schema,
     },

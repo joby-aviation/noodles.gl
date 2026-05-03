@@ -8,6 +8,7 @@ import { InputText } from 'primereact/inputtext'
 import { useEffect, useState } from 'react'
 import type { ColumnSchema, ColumnType, TableSchema } from '../table-schema'
 import { getDefaultValue } from '../table-schema'
+import { getTimezoneOptions } from '../utils/timezone-utils'
 import s from './schema-editor-dialog.module.css'
 
 interface SchemaEditorDialogProps {
@@ -30,34 +31,6 @@ const COLUMN_TYPES: Array<{ label: string; value: ColumnType }> = [
   { label: 'String Literal', value: 'stringLiteral' },
 ]
 
-// Common timezones (without local - computed at render time to avoid SSR issues)
-const COMMON_TIMEZONES_BASE = [
-  'UTC',
-  'America/New_York',
-  'America/Chicago',
-  'America/Denver',
-  'America/Los_Angeles',
-  'Europe/London',
-  'Europe/Paris',
-  'Asia/Tokyo',
-  'Asia/Shanghai',
-  'Australia/Sydney',
-]
-
-// Get all supported timezones from Intl API
-const ALL_TIMEZONES = Intl.supportedValuesOf('timeZone')
-
-// Build timezone options list with common timezones first, then alphabetically
-// Local timezone is computed at render time to avoid SSR hydration mismatches
-function getTimezoneOptions(): string[] {
-  const localTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
-  const commonTimezones = Array.from(new Set(['UTC', localTimezone, ...COMMON_TIMEZONES_BASE]))
-
-  return [
-    ...commonTimezones.filter((tz) => ALL_TIMEZONES.includes(tz)),
-    ...ALL_TIMEZONES.filter((tz) => !commonTimezones.includes(tz)).sort(),
-  ]
-}
 
 interface ColumnEditorProps {
   column: ColumnSchema

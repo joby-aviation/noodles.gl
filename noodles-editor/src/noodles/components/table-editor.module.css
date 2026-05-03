@@ -130,6 +130,21 @@
   border-radius: 2px;
 }
 
+.timezoneDropdown {
+  width: 120px;
+  font-size: 0.75rem;
+}
+
+.timezoneDropdown :global(.p-inputtext) {
+  font-size: 0.75rem;
+  padding: 2px 4px;
+}
+
+.timezonePanel {
+  font-size: 0.75rem;
+  max-height: 300px;
+}
+
 .toolbar {
   display: flex;
   gap: 8px;
