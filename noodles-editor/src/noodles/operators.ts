@@ -938,6 +938,11 @@ export abstract class Operator<OP extends IOperator> {
     this.unsubscribeListeners()
     this.executionState.complete()
     this.customFieldsChanged.complete()
+
+    // Cleanup timeline subscriptions
+    import('./utils/timeline-dependencies').then(({ timelineDependencyManager }) => {
+      timelineDependencyManager.unsubscribe(this.id)
+    })
   }
 }
 
@@ -6349,7 +6354,7 @@ export function fnWithSource(args: string[], body: string, id: string): Function
 export class AccessorOp extends Operator<AccessorOp> {
   static displayName = 'Accessor'
   static description =
-    'A function called for each row of your data and passed to Deck.gl layer properties. The current row is passed as the `d` variable (e.g., `d.population`, `d.properties.color`). Returns a value that controls visual properties like position, color, or size.'
+    'A function called for each row of your data and passed to Deck.gl layer properties. The current row is passed as the `d` variable (e.g., `d.population`, `d.properties.color`). Available variables: `d` (current row), `i` (index), `data` (all rows), `op()` (access operators), `sequenceTime` (timeline position), `frame` (current frame), `totalFrames`, `sequence` (timeline metadata). Includes d3, turf, and other utilities.'
   createInputs() {
     return {
       expression: new ExpressionField(),
@@ -6361,8 +6366,16 @@ export class AccessorOp extends Operator<AccessorOp> {
     }
   }
   execute({ expression }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    // Create timeline context with dependency tracking
+    const { createTrackedTimelineContext } = require('./utils/timeline-context')
+    const { timelineDependencyManager } = require('./utils/timeline-dependencies')
+    const accessedTimelineVars = new Set<string>()
+    const timelineContext = createTrackedTimelineContext((variable: string) => {
+      accessedTimelineVars.add(variable)
+    })
+
     const fn = fnWithSource(
-      ['d', 'i', 'data', 'op', ...Object.keys(freeExports)],
+      ['d', 'i', 'data', 'op', 'sequenceTime', 'frame', 'totalFrames', 'sequence', ...Object.keys(freeExports)],
       `return ${expression}`,
       this.id
     )
@@ -6370,13 +6383,30 @@ export class AccessorOp extends Operator<AccessorOp> {
     const accessor = (d: unknown, dInfo: { index: number; data: unknown; target: number[] }) => {
       const contextualGetOp = (path: string) => getOp(path, this.id)
       try {
-        return fn(d, dInfo.index, dInfo.data, contextualGetOp, ...Object.values(freeExports))
+        return fn(
+          d,
+          dInfo.index,
+          dInfo.data,
+          contextualGetOp,
+          timelineContext.sequenceTime,
+          timelineContext.frame,
+          timelineContext.totalFrames,
+          timelineContext.sequence,
+          ...Object.values(freeExports)
+        )
       } catch (_e) {
         // Swallow per-row errors — returning undefined lets deck.gl skip the item
         // rather than crashing the GPU process
         return undefined
       }
     }
+
+    // Register timeline dependencies after execution
+    if (accessedTimelineVars.size > 0) {
+      timelineDependencyManager.trackDependencies(this.id, accessedTimelineVars)
+      timelineDependencyManager.subscribe(this)
+    }
+
     return { accessor }
   }
 }
@@ -6384,7 +6414,7 @@ export class AccessorOp extends Operator<AccessorOp> {
 export class CodeOp extends Operator<CodeOp> {
   static displayName = 'Code'
   static description =
-    'Run custom JavaScript code to transform your data. Available variables: `data` (all input data), `d` (first element), `op()` (access other operators). Includes d3, turf, and other utilities. Use `this` to store state between executions.'
+    'Run custom JavaScript code to transform your data. Available variables: `data` (all input data), `d` (first element), `op()` (access other operators), `sequenceTime` (timeline position), `frame` (current frame), `totalFrames`, `sequence` (timeline metadata). Includes d3, turf, and other utilities. Use `this` to store state between executions.'
   static supportsCustomFields = true
   asDownload = () => this.outputs.data.value
   createInputs() {
@@ -6414,14 +6444,39 @@ export class CodeOp extends Operator<CodeOp> {
       return `op('${opId}').${inOut}.${fieldPath}`
     })
 
+    // Create timeline context with dependency tracking
+    const { createTrackedTimelineContext } = require('./utils/timeline-context')
+    const { timelineDependencyManager } = require('./utils/timeline-dependencies')
+    const accessedTimelineVars = new Set<string>()
+    const timelineContext = createTrackedTimelineContext((variable: string) => {
+      accessedTimelineVars.add(variable)
+    })
+
     // Create a context-aware getOp function for the code execution
     const contextualGetOp = (path: string) => getOp(path, this.id)
     const fn = fnWithSource(
-      ['data', 'd', 'op', ...Object.keys(freeExports)],
+      ['data', 'd', 'op', 'sequenceTime', 'frame', 'totalFrames', 'sequence', ...Object.keys(freeExports)],
       processedCode,
       this.id
     )
-    const result = fn.call(this, data, data[0], contextualGetOp, ...Object.values(freeExports))
+    const result = fn.call(
+      this,
+      data,
+      data[0],
+      contextualGetOp,
+      timelineContext.sequenceTime,
+      timelineContext.frame,
+      timelineContext.totalFrames,
+      timelineContext.sequence,
+      ...Object.values(freeExports)
+    )
+
+    // Register timeline dependencies after execution
+    if (accessedTimelineVars.size > 0) {
+      timelineDependencyManager.trackDependencies(this.id, accessedTimelineVars)
+      timelineDependencyManager.subscribe(this)
+    }
+
     const output = result instanceof Promise ? await result : result
     return { data: output }
   }
@@ -6457,7 +6512,7 @@ export class ContainerOp extends Operator<ContainerOp> {
 export class ExpressionOp extends Operator<ExpressionOp> {
   static displayName = 'Expression'
   static description =
-    'Evaluate a JavaScript expression to compute a single value. Available variables: `data` (all input data), `d` (first element), `op()` (access other operators). Includes d3, turf, and other utilities.'
+    'Evaluate a JavaScript expression to compute a single value. Available variables: `data` (all input data), `d` (first element), `op()` (access other operators), `sequenceTime` (timeline position), `frame` (current frame), `totalFrames`, `sequence` (timeline metadata). Includes d3, turf, and other utilities.'
   createInputs() {
     return {
       data: new ListField(new DataField()),
@@ -6473,8 +6528,16 @@ export class ExpressionOp extends Operator<ExpressionOp> {
     data,
     expression,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    // Create timeline context with dependency tracking
+    const { createTrackedTimelineContext } = require('./utils/timeline-context')
+    const { timelineDependencyManager } = require('./utils/timeline-dependencies')
+    const accessedTimelineVars = new Set<string>()
+    const timelineContext = createTrackedTimelineContext((variable: string) => {
+      accessedTimelineVars.add(variable)
+    })
+
     const fn = fnWithSource(
-      ['data', 'd', 'op', ...Object.keys(freeExports)],
+      ['data', 'd', 'op', 'sequenceTime', 'frame', 'totalFrames', 'sequence', ...Object.keys(freeExports)],
       `return ${expression}`,
       this.id
     )
@@ -6488,13 +6551,45 @@ export class ExpressionOp extends Operator<ExpressionOp> {
       // Return an accessor function that evaluates all data items and applies the expression
       const result = (...args: unknown[]) => {
         const evaluatedData = data.map(item => (isAccessor(item) ? item(...args) : item))
-        return fn(evaluatedData, evaluatedData[0], contextualGetOp, ...Object.values(freeExports))
+        return fn(
+          evaluatedData,
+          evaluatedData[0],
+          contextualGetOp,
+          timelineContext.sequenceTime,
+          timelineContext.frame,
+          timelineContext.totalFrames,
+          timelineContext.sequence,
+          ...Object.values(freeExports)
+        )
       }
+
+      // Register timeline dependencies
+      if (accessedTimelineVars.size > 0) {
+        timelineDependencyManager.trackDependencies(this.id, accessedTimelineVars)
+        timelineDependencyManager.subscribe(this)
+      }
+
       return { data: result }
     }
 
     // Static evaluation
-    const result = fn(data, data[0], contextualGetOp, ...Object.values(freeExports))
+    const result = fn(
+      data,
+      data[0],
+      contextualGetOp,
+      timelineContext.sequenceTime,
+      timelineContext.frame,
+      timelineContext.totalFrames,
+      timelineContext.sequence,
+      ...Object.values(freeExports)
+    )
+
+    // Register timeline dependencies
+    if (accessedTimelineVars.size > 0) {
+      timelineDependencyManager.trackDependencies(this.id, accessedTimelineVars)
+      timelineDependencyManager.subscribe(this)
+    }
+
     return { data: result }
   }
 }
