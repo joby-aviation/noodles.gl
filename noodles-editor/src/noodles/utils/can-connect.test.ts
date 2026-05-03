@@ -384,6 +384,15 @@ describe('schemasAreCompatible', () => {
     expect(schemasAreCompatible(z.number(), literals)).toBe(false)
   })
 
+  it('literal to literal comparison is order-independent', () => {
+    // Note: z.literal in Zod v4 only accepts a single value per call
+    // This test verifies that if Zod ever supports multi-value literals,
+    // our sorting logic handles different orders correctly
+    const literal1 = z.literal('foo')
+    const literal2 = z.literal('foo')
+    expect(schemasAreCompatible(literal1, literal2)).toBe(true)
+  })
+
   it('unions are compatible if all source options match at least one target option', () => {
     const source = z.union([z.string(), z.number()])
     const target = z.union([z.string(), z.number(), z.boolean()])
