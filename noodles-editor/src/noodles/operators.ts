@@ -5127,30 +5127,34 @@ export class IconLayerOp extends Operator<IconLayerOp> {
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
-      iconAtlas: new StringField(
+      iconAtlas: new FileUrlField(
         'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.png',
-        { showByDefault: false }
+        { showByDefault: false, accept: '.png,.jpg,.jpeg,.gif,.webp,.svg' }
       ),
       iconMapping: new FileUrlField(
         'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.json',
         { showByDefault: false, accept: '.json' }
       ),
       billboard: new BooleanField(true),
-      getIcon: new UnknownField(null, { accessor: true }), // Union of { url: string, width: number, height: number } or url: string, plus accessors
+      getIcon: new FileUrlField('', {
+        accessor: true,
+        optional: true,
+        accept: '.png,.jpg,.jpeg,.gif,.webp,.svg',
+      }), // Can be: uploaded file URL, external URL, or accessor function returning {url, width?, height?}
       getSize: new NumberField(1, { min: 0, softMax: 100, accessor: true }),
       sizeUnits: new StringLiteralField('pixels', {
         values: ['pixels', 'meters'],
         showByDefault: false,
       }),
-      sizeScale: new NumberField(1, { min: 0, softMax: 10_000, showByDefault: false }),
+      sizeScale: new NumberField(1, { min: 0, softMax: 10_000 }),
       sizeMinPixels: new NumberField(0, { min: 0, softMax: 10_000, showByDefault: false }),
-      sizeMaxPixels: new NumberField(100, { min: 0, softMax: 10_000, showByDefault: false }),
+      sizeMaxPixels: new NumberField(2048, { min: 0, softMax: 10_000, showByDefault: false }),
       getPixelOffset: new Vec2Field(
         { x: 0, y: 0 },
         { returnType: 'tuple', accessor: true, showByDefault: false }
       ),
       getColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
-      getAngle: new NumberField(0, { accessor: true, showByDefault: false }),
+      getAngle: new NumberField(0, { accessor: true }),
       sizeBasis: new StringLiteralField('pixels', {
         values: ['pixels', 'meters', 'common'],
         optional: true,
@@ -5169,12 +5173,115 @@ export class IconLayerOp extends Operator<IconLayerOp> {
       layer: new LayerField<IconLayerProps>(),
     }
   }
-  execute(_props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const { getIcon, iconMapping, iconAtlas, ...rest } = _props
+  async execute(
+    _props: ExtractProps<typeof this.inputs>
+  ): Promise<ExtractProps<typeof this.outputs>> {
+    const { getIcon, iconMapping, iconAtlas, sizeMaxPixels, ...rest } = _props
+
+    // Helper to resolve @/ URLs to blob URLs with proper MIME type
+    const resolveProjectUrl = async (url: string): Promise<string> => {
+      if (!url?.startsWith(projectScheme)) {
+        return url
+      }
+
+      const { readAssetBinary } = await import('./storage')
+      const { useFileSystemStore } = await import('./filesystem-store')
+
+      const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
+      if (!currentProjectName) {
+        throw new Error('No project loaded. Please save or load a project first.')
+      }
+
+      const fileName = url.substring(projectScheme.length)
+      const result = await readAssetBinary(activeStorageType, currentProjectName, fileName)
+      if (!result.success) {
+        throw new Error(result.error.message)
+      }
+
+      // Infer MIME type from file extension for loaders.gl
+      const ext = fileName.toLowerCase().split('.').pop()
+      const mimeTypes: Record<string, string> = {
+        png: 'image/png',
+        jpg: 'image/jpeg',
+        jpeg: 'image/jpeg',
+        gif: 'image/gif',
+        webp: 'image/webp',
+        svg: 'image/svg+xml',
+      }
+      const mimeType = mimeTypes[ext || ''] || 'application/octet-stream'
+
+      const blob = new Blob([result.data], { type: mimeType })
+      return URL.createObjectURL(blob)
+    }
+
+    // Helper to resolve image URL and extract dimensions
+    const resolveImageWithDimensions = async (
+      url: string,
+      maxDisplaySize: number
+    ): Promise<{ url: string; width: number; height: number; id: string }> => {
+      const resolvedUrl = await resolveProjectUrl(url)
+
+      // Load image to get natural dimensions
+      return new Promise((resolve, reject) => {
+        const img = new Image()
+        img.onload = () => {
+          const naturalWidth = img.naturalWidth
+          const naturalHeight = img.naturalHeight
+
+          // Calculate max texture dimension based on display size
+          // Use 2x for quality buffer (like Retina), but cap at 512px to limit memory
+          const maxDimension = Math.min(maxDisplaySize * 2, 512)
+          const aspectRatio = naturalWidth / naturalHeight
+          let width = naturalWidth
+          let height = naturalHeight
+
+          // Normalize to max dimension while preserving aspect ratio
+          // This prevents deck.gl auto-packing issues with very large images
+          if (width > maxDimension || height > maxDimension) {
+            if (width > height) {
+              width = maxDimension
+              height = Math.round(maxDimension / aspectRatio)
+            } else {
+              height = maxDimension
+              width = Math.round(maxDimension * aspectRatio)
+            }
+          }
+
+          const iconData = {
+            url: resolvedUrl,
+            width,
+            height,
+            id: url, // Use original URL as unique ID for deduplication
+          }
+          resolve(iconData)
+        }
+        img.onerror = () => {
+          reject(new Error(`Failed to load image from ${url}`))
+        }
+        img.src = resolvedUrl
+      })
+    }
+
+    // Determine icon mode and resolve URLs as needed
+    let iconProps: Partial<IconLayerProps>
+
+    if (typeof getIcon === 'function') {
+      // Accessor function mode - pass through
+      iconProps = { getIcon }
+    } else if (getIcon && typeof getIcon === 'string') {
+      // Simple single-icon mode - resolve URL and extract dimensions automatically
+      const iconData = await resolveImageWithDimensions(getIcon, sizeMaxPixels)
+      iconProps = { getIcon: () => iconData }
+    } else {
+      // Atlas mode - resolve atlas URL
+      const resolvedIconAtlas = await resolveProjectUrl(iconAtlas)
+      iconProps = { iconMapping, iconAtlas: resolvedIconAtlas }
+    }
 
     const props: IconLayerProps = {
       ...rest,
-      ...(typeof getIcon === 'function' ? { getIcon } : { iconMapping, iconAtlas }),
+      ...iconProps,
+      sizeMaxPixels,
     }
 
     const layer = {
