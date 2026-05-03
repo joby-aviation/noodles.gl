@@ -299,9 +299,8 @@ function renderDateCell(value: unknown): string {
 }
 
 function renderDateTimeCell(value: unknown): string {
-  if (typeof value === 'string') {
-    return value // Display ISO datetime string as-is
-  }
+  if (typeof value === 'string') return value
+  if (value instanceof Date) return value.toISOString().slice(0, 23)
   return ''
 }
 
