@@ -5,7 +5,7 @@ import { Dropdown } from 'primereact/dropdown'
 import { InputNumber } from 'primereact/inputnumber'
 import { InputSwitch } from 'primereact/inputswitch'
 import { InputText } from 'primereact/inputtext'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ColumnSchema, ColumnType, TableSchema } from '../table-schema'
 import { getDefaultValue } from '../table-schema'
 import s from './schema-editor-dialog.module.css'
@@ -70,6 +70,14 @@ interface ColumnEditorProps {
 function ColumnEditor({ column, onChange, onDelete, onMoveUp, onMoveDown }: ColumnEditorProps) {
   const timezoneOptions = useState(() => getTimezoneOptions())[0]
   const [filteredTimezones, setFilteredTimezones] = useState<string[]>(timezoneOptions)
+  const [timezoneInputValue, setTimezoneInputValue] = useState<string>(
+    column.options?.timezone ?? 'UTC'
+  )
+
+  // Sync local input state when column changes externally (e.g., type change resets options)
+  useEffect(() => {
+    setTimezoneInputValue(column.options?.timezone ?? 'UTC')
+  }, [column.options?.timezone])
 
   return (
     <div className={s.columnRow}>
@@ -190,7 +198,7 @@ function ColumnEditor({ column, onChange, onDelete, onMoveUp, onMoveDown }: Colu
           <label>
             Timezone:
             <AutoComplete
-              value={column.options?.timezone ?? 'UTC'}
+              value={timezoneInputValue}
               suggestions={filteredTimezones}
               completeMethod={(e) => {
                 // Filter timezones based on search query
@@ -200,13 +208,25 @@ function ColumnEditor({ column, onChange, onDelete, onMoveUp, onMoveDown }: Colu
                   : timezoneOptions
                 setFilteredTimezones(filtered)
               }}
+              onChange={(e) => {
+                // Update local input value for visual feedback as user types
+                setTimezoneInputValue(e.value)
+              }}
               onSelect={(e) => {
-                // Only update when a valid timezone is selected
-                if (e.value && typeof e.value === 'string') {
+                // Only persist to schema when a valid timezone is selected from suggestions
+                if (e.value && typeof e.value === 'string' && timezoneOptions.includes(e.value)) {
                   onChange({
                     ...column,
                     options: { ...column.options, timezone: e.value },
                   })
+                  setTimezoneInputValue(e.value)
+                }
+              }}
+              onBlur={() => {
+                // On blur, if input is not a valid timezone, revert to stored value
+                const storedTz = column.options?.timezone ?? 'UTC'
+                if (!timezoneOptions.includes(timezoneInputValue)) {
+                  setTimezoneInputValue(storedTz)
                 }
               }}
               dropdown
