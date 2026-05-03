@@ -197,6 +197,7 @@ import type { OpId } from './utils/id-utils'
 import { isDirectChild } from './utils/path-utils'
 import { pick } from './utils/pick'
 import { validateViewState } from './utils/viewstate-helpers'
+import { prepareTableDataForOutput, type TableSchema } from './table-schema'
 
 // https://stackoverflow.com/questions/66044717/typescript-infer-type-of-abstract-methods-implementation
 export interface IOperator {
@@ -2245,10 +2246,14 @@ export class TableEditorOp extends Operator<TableEditorOp> {
   }
 
   execute({ data, schema }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // Simple pass-through - schema inference and validation happen in component
-    // This avoids circular dependency issues and keeps execute() synchronous
+    // Convert dateTime strings to Temporal.ZonedDateTime for output
+    // This happens at the operator boundary: internal storage = strings, output = Temporal
+    const outputData = schema
+      ? prepareTableDataForOutput(data, schema as TableSchema)
+      : data
+
     return {
-      data,
+      data: outputData,
       schema: schema || null,
     }
   }

@@ -112,6 +112,24 @@
   background: var(--surface-hover);
 }
 
+.dateTimeCellEditor {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.timezoneIndicator {
+  font-size: 0.7rem;
+  color: var(--text-color-secondary);
+  white-space: nowrap;
+  opacity: 0.7;
+  font-weight: 500;
+  padding: 2px 4px;
+  background: var(--surface-ground);
+  border-radius: 2px;
+}
+
 .toolbar {
   display: flex;
   gap: 8px;

@@ -29,6 +29,20 @@ const COLUMN_TYPES: Array<{ label: string; value: ColumnType }> = [
   { label: 'String Literal', value: 'stringLiteral' },
 ]
 
+const TIMEZONE_OPTIONS = [
+  { label: 'UTC', value: 'UTC' },
+  { label: 'Local', value: Intl.DateTimeFormat().resolvedOptions().timeZone },
+  { label: 'America/New_York (EST/EDT)', value: 'America/New_York' },
+  { label: 'America/Chicago (CST/CDT)', value: 'America/Chicago' },
+  { label: 'America/Denver (MST/MDT)', value: 'America/Denver' },
+  { label: 'America/Los_Angeles (PST/PDT)', value: 'America/Los_Angeles' },
+  { label: 'Europe/London', value: 'Europe/London' },
+  { label: 'Europe/Paris (CET/CEST)', value: 'Europe/Paris' },
+  { label: 'Asia/Tokyo (JST)', value: 'Asia/Tokyo' },
+  { label: 'Asia/Shanghai (CST)', value: 'Asia/Shanghai' },
+  { label: 'Australia/Sydney (AEST/AEDT)', value: 'Australia/Sydney' },
+]
+
 interface ColumnEditorProps {
   column: ColumnSchema
   onChange: (column: ColumnSchema) => void
@@ -147,6 +161,28 @@ function ColumnEditor({ column, onChange, onDelete, onMoveUp, onMoveDown }: Colu
                   options: { ...column.options, geocoder: e.value },
                 })
               }
+            />
+          </label>
+        </div>
+      )}
+
+      {column.type === 'dateTime' && (
+        <div className={s.typeOptions}>
+          <label>
+            Timezone:
+            <Dropdown
+              value={column.options?.timezone ?? 'UTC'}
+              options={TIMEZONE_OPTIONS}
+              optionLabel="label"
+              optionValue="value"
+              onChange={(e) =>
+                onChange({
+                  ...column,
+                  options: { ...column.options, timezone: e.value },
+                })
+              }
+              appendTo="self"
+              className={s.optionInput}
             />
           </label>
         </div>
