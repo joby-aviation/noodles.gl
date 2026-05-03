@@ -63,6 +63,7 @@ type CompoundPropsFieldOptions = BaseFieldOptions &
 
 type StringLiteralFieldOptions = BaseFieldOptions & {
   values: string[] | Record<string, unknown> | { value: unknown; label: string }[]
+  freeform?: boolean
 }
 
 type CodeFieldOptions = BaseFieldOptions & {
@@ -487,10 +488,11 @@ export class StringLiteralField extends Field<
   choices: StringLiteralOption[] = []
   createSchema(options: Partial<StringLiteralFieldOptions>) {
     const values = (options.values || []) as StringLiteralOption[]
+    const freeform = options.freeform ?? false
     // TODO: use zod enum? transform StringLiteralOption input type to string?
-    return values.length > 0
-      ? z.union(values.map(({ value }: StringLiteralOption) => z.literal(value)))
-      : z.string()
+    return freeform || values.length === 0
+      ? z.string()
+      : z.union(values.map(({ value }: StringLiteralOption) => z.literal(value)))
   }
 
   constructor(

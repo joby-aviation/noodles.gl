@@ -69,6 +69,90 @@ function StringCellEditor({ value, onChange, onComplete }: CellEditorProps) {
   )
 }
 
+function StringLiteralCellEditor({ value, onChange, onComplete, column }: CellEditorProps) {
+  const [localValue, setLocalValue] = useState(value as string)
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false)
+
+  const values = column.options?.values || []
+  const freeform = column.options?.freeform ?? false
+
+  if (!freeform && values.length > 0) {
+    return (
+      <select
+        value={localValue}
+        onChange={(e) => {
+          onChange(e.target.value)
+          onComplete()
+        }}
+        onKeyDown={(e) => {
+          e.stopPropagation()
+          if (e.key === 'Escape') onComplete()
+        }}
+        autoFocus
+        className={s.cellEditor}
+      >
+        {values.map((val) => (
+          <option key={val} value={val}>
+            {val}
+          </option>
+        ))}
+      </select>
+    )
+  }
+
+  const filteredValues = values.filter((v) =>
+    v.toLowerCase().includes(localValue.toLowerCase())
+  )
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <InputText
+        value={localValue}
+        onChange={(e) => {
+          setLocalValue(e.target.value)
+          onChange(e.target.value)
+          setSuggestionsOpen(true)
+        }}
+        onFocus={() => setSuggestionsOpen(true)}
+        onBlur={() => {
+          setTimeout(() => setSuggestionsOpen(false), 150)
+          onComplete()
+        }}
+        onKeyDown={(e) => {
+          e.stopPropagation()
+          if (e.key === 'Enter') {
+            onComplete()
+          }
+          if (e.key === 'Escape') {
+            onComplete()
+          }
+        }}
+        autoFocus
+        className={s.cellEditor}
+        placeholder="Type or select..."
+      />
+      {suggestionsOpen && filteredValues.length > 0 && (
+        <ul className={s.cellSuggestions}>
+          {filteredValues.map((val) => (
+            <li
+              key={val}
+              onMouseDown={() => {
+                setLocalValue(val)
+                onChange(val)
+                setSuggestionsOpen(false)
+                onComplete()
+              }}
+              className={s.cellSuggestion}
+            >
+              {val}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 function BooleanCellEditor({ value, onChange, onComplete }: CellEditorProps) {
   return (
     <InputSwitch
@@ -237,8 +321,9 @@ function getCellEditor(type: ColumnType) {
     case 'number':
       return NumberCellEditor
     case 'string':
-    case 'stringLiteral':
       return StringCellEditor
+    case 'stringLiteral':
+      return StringLiteralCellEditor
     case 'boolean':
       return BooleanCellEditor
     case 'color':

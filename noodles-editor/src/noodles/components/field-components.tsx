@@ -120,6 +120,104 @@ const formatText = (val: unknown) =>
       ? val
       : JSON.stringify(val, null, 2)
 
+function StringLiteralTypeaheadInput({
+  id,
+  field,
+  value,
+  onChange,
+  disabled,
+  captureStart,
+  commitChange,
+}: {
+  id: OpId
+  field: StringLiteralField
+  value: string
+  onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void
+  disabled: boolean
+  captureStart: () => void
+  commitChange: (message: string) => void
+}) {
+  const [localValue, setLocalValue] = useState(value)
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    setLocalValue(value)
+  }, [value])
+
+  const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value
+    setLocalValue(newValue)
+    const syntheticEvent = {
+      ...e,
+      currentTarget: { value: newValue } as HTMLTextAreaElement,
+      target: { value: newValue } as HTMLTextAreaElement,
+    } as React.ChangeEvent<HTMLTextAreaElement>
+    onChange(syntheticEvent)
+  }
+
+  const onFocus = () => {
+    captureStart()
+    setSuggestionsOpen(true)
+  }
+
+  const onBlur = () => {
+    commitChange('Change value')
+    setTimeout(() => setSuggestionsOpen(false), 150)
+  }
+
+  const onSuggestionSelect = (selectedValue: string) => {
+    captureStart()
+    setLocalValue(selectedValue)
+    field.setValue(selectedValue)
+    commitChange('Change value')
+    setSuggestionsOpen(false)
+    inputRef.current?.focus()
+  }
+
+  const filteredSuggestions = field.choices.filter(
+    ({ value: v, label }) =>
+      v.toLowerCase().includes(localValue.toLowerCase()) ||
+      label.toLowerCase().includes(localValue.toLowerCase())
+  )
+
+  const showSuggestions = suggestionsOpen && filteredSuggestions.length > 0
+
+  return (
+    <div className={s.fieldInputWrapperTypeahead}>
+      <input
+        ref={inputRef}
+        id={id}
+        type="text"
+        className={cx(s.fieldInput, s.fieldInputTypeahead)}
+        value={localValue}
+        onChange={onInputChange}
+        onFocus={onFocus}
+        onBlur={onBlur}
+        disabled={disabled}
+        placeholder="Type or select..."
+      />
+      {showSuggestions && (
+        <ul className={s.stringLiteralSuggestions}>
+          {filteredSuggestions.map(({ value: v, label }) => (
+            <li
+              key={v}
+              role="option"
+              aria-selected={v === localValue}
+              className={cx(s.stringLiteralSuggestion, {
+                [s.stringLiteralSuggestionActive]: v === localValue,
+              })}
+              onMouseDown={() => onSuggestionSelect(v)}
+            >
+              {label}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 export function TextFieldComponent({
   id,
   field,
@@ -151,27 +249,62 @@ export function TextFieldComponent({
 
   let input = null
   if (field instanceof StringLiteralField) {
-    // Select dropdown: capture before + commit after inline since change is atomic
-    const onSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-      captureStart()
-      onChange(e)
-      commitChange('Change value')
+    const useTypeahead = field.choices.length > 0 && field.options?.freeform === true
+
+    if (useTypeahead) {
+      input = (
+        <StringLiteralTypeaheadInput
+          id={id}
+          field={field}
+          value={value}
+          onChange={onChange}
+          disabled={disabled}
+          captureStart={captureStart}
+          commitChange={commitChange}
+        />
+      )
+    } else if (field.choices.length > 0) {
+      // Select dropdown: capture before + commit after inline since change is atomic
+      const onSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        captureStart()
+        onChange(e)
+        commitChange('Change value')
+      }
+      input = (
+        <select
+          id={id}
+          className={cx(s.fieldInput, s.fieldInputSelect)}
+          value={value}
+          onChange={onSelectChange}
+          disabled={disabled}
+        >
+          {field.choices.map(({ label, value }) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      )
+    } else {
+      // No choices - use plain text input
+      const lineCount = typeof value === 'string' ? value.split('\n').length : 1
+      input = (
+        <textarea
+          id={id}
+          className={cx(s.fieldInput, s.fieldTextarea)}
+          title={value}
+          value={value}
+          onFocus={captureStart}
+          onBlur={e => {
+            onChange(e)
+            commitChange('Change text')
+          }}
+          onChange={onChange}
+          disabled={disabled}
+          rows={lineCount}
+        />
+      )
     }
-    input = (
-      <select
-        id={id}
-        className={cx(s.fieldInput, s.fieldInputSelect)}
-        value={value}
-        onChange={onSelectChange}
-        disabled={disabled}
-      >
-        {field.choices.map(({ label, value }) => (
-          <option key={value} value={value}>
-            {label}
-          </option>
-        ))}
-      </select>
-    )
   } else {
     // Always use textarea - handles both single-line and multiline naturally
     const lineCount = typeof value === 'string' ? value.split('\n').length : 1

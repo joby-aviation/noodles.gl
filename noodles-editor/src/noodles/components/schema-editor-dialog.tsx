@@ -174,6 +174,19 @@ function ColumnEditor({ column, onChange, onDelete, onMoveUp, onMoveDown }: Colu
               className={s.fullWidthInput}
             />
           </label>
+
+          <label className={s.switchLabel}>
+            <span>Freeform input:</span>
+            <InputSwitch
+              checked={column.options?.freeform ?? false}
+              onChange={(e) =>
+                onChange({
+                  ...column,
+                  options: { ...column.options, freeform: e.value },
+                })
+              }
+            />
+          </label>
         </div>
       )}
     </div>
