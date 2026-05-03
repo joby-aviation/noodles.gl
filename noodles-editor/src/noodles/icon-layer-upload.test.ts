@@ -165,7 +165,7 @@ describe('IconLayerOp Upload Support', () => {
 
   describe('Single Icon Mode with Dimension Extraction', () => {
     let originalImage: typeof Image
-    let mockImageInstance: any
+    let _mockImageInstance: any
     let MockImageConstructor: any
     let shouldSucceed: boolean
     let mockWidth: number
@@ -210,7 +210,7 @@ describe('IconLayerOp Upload Support', () => {
           },
         })
 
-        mockImageInstance = instance
+        _mockImageInstance = instance
         return instance
       }
 
@@ -463,7 +463,7 @@ describe('IconLayerOp Upload Support', () => {
     it('should not attempt dimension extraction for accessor functions', async () => {
       const op = new IconLayerOp('/test-icon-layer')
 
-      const getIconFn = (d: any) => 'icon-name'
+      const getIconFn = (_d: any) => 'icon-name'
 
       const result = await op.execute({
         data: [],
