@@ -336,7 +336,7 @@ export function prepareTableDataForOutput(data: unknown[], schema: TableSchema):
     return []
   }
 
-  return data.map((row) => {
+  return data.map(row => {
     if (typeof row !== 'object' || row === null || Array.isArray(row)) {
       return row
     }

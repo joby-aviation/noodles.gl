@@ -11,7 +11,7 @@ import { InputNumber } from 'primereact/inputnumber'
 import { InputSwitch } from 'primereact/inputswitch'
 import { InputText } from 'primereact/inputtext'
 import { useEffect, useState } from 'react'
-import { Temporal } from 'temporal-polyfill'
+import type { Temporal } from 'temporal-polyfill'
 import type { TableEditorOp } from '../operators'
 import type { ColumnSchema, ColumnType, TableSchema } from '../table-schema'
 import { convertValue, getDefaultValue, temporalToString } from '../table-schema'
@@ -363,8 +363,6 @@ function getCellRenderer(type: ColumnType) {
       return renderDateCell
     case 'dateTime':
       return renderDateTimeCell
-    case 'string':
-    case 'stringLiteral':
     default:
       return renderStringCell
   }
@@ -451,7 +449,6 @@ interface TableEditorProps {
 }
 
 export function TableEditor({
-  op,
   data,
   schema,
   onDataChange,

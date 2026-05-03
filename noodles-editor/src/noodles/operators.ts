@@ -189,6 +189,7 @@ import {
 import { DEFAULT_LATITUDE, DEFAULT_LONGITUDE, safeMode } from './globals'
 import { getKeysStore } from './keys-store'
 import { getAllOps, getOp } from './store'
+import { prepareTableDataForOutput, type TableSchema } from './table-schema'
 import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
 import { composeAccessor, isAccessor } from './utils/accessor-helpers'
 import type { ExtractProps } from './utils/extract-props'
@@ -197,7 +198,6 @@ import type { OpId } from './utils/id-utils'
 import { isDirectChild } from './utils/path-utils'
 import { pick } from './utils/pick'
 import { validateViewState } from './utils/viewstate-helpers'
-import { prepareTableDataForOutput, type TableSchema } from './table-schema'
 
 // https://stackoverflow.com/questions/66044717/typescript-infer-type-of-abstract-methods-implementation
 export interface IOperator {
@@ -2248,9 +2248,7 @@ export class TableEditorOp extends Operator<TableEditorOp> {
   execute({ data, schema }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     // Convert dateTime strings to Temporal.ZonedDateTime for output
     // This happens at the operator boundary: internal storage = strings, output = Temporal
-    const outputData = schema
-      ? prepareTableDataForOutput(data, schema as TableSchema)
-      : data
+    const outputData = schema ? prepareTableDataForOutput(data, schema as TableSchema) : data
 
     return {
       data: outputData,
