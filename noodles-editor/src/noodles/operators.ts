@@ -552,7 +552,7 @@ export abstract class Operator<OP extends IOperator> {
           `Pull execution failure in [${this.id} (${(this.constructor as typeof Operator).displayName})]:`,
           error.message
         )
-        console.error(`[Noodles] Operator ${this.id} error:`, error.message)
+        console.error(`[Noodles] Operator ${this.id} error:`, error)
         this._lastLoggedError = error.message
       }
 
@@ -594,7 +594,7 @@ export abstract class Operator<OP extends IOperator> {
 
     // Log recovery from error state
     if (this._pullExecutionStatus === PullExecutionStatus.ERROR) {
-      console.log(`[Noodles] Operator ${this.id} cleared from error state`)
+      debugDirty('%s cleared from error state', this.id)
       this._lastLoggedError = null
     }
 
