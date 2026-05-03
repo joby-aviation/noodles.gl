@@ -5178,7 +5178,7 @@ export class IconLayerOp extends Operator<IconLayerOp> {
   ): Promise<ExtractProps<typeof this.outputs>> {
     const { getIcon, iconMapping, iconAtlas, ...rest } = _props
 
-    // Helper to resolve @/ URLs to blob URLs
+    // Helper to resolve @/ URLs to blob URLs with proper MIME type
     const resolveProjectUrl = async (url: string): Promise<string> => {
       if (!url?.startsWith(projectScheme)) {
         return url
@@ -5198,8 +5198,43 @@ export class IconLayerOp extends Operator<IconLayerOp> {
         throw new Error(result.error.message)
       }
 
-      const blob = new Blob([result.data])
+      // Infer MIME type from file extension for loaders.gl
+      const ext = fileName.toLowerCase().split('.').pop()
+      const mimeTypes: Record<string, string> = {
+        png: 'image/png',
+        jpg: 'image/jpeg',
+        jpeg: 'image/jpeg',
+        gif: 'image/gif',
+        webp: 'image/webp',
+        svg: 'image/svg+xml',
+      }
+      const mimeType = mimeTypes[ext || ''] || 'application/octet-stream'
+
+      const blob = new Blob([result.data], { type: mimeType })
       return URL.createObjectURL(blob)
+    }
+
+    // Helper to resolve image URL and extract dimensions
+    const resolveImageWithDimensions = async (
+      url: string
+    ): Promise<{ url: string; width: number; height: number }> => {
+      const resolvedUrl = await resolveProjectUrl(url)
+
+      // Load image to get natural dimensions
+      return new Promise((resolve, reject) => {
+        const img = new Image()
+        img.onload = () => {
+          resolve({
+            url: resolvedUrl,
+            width: img.naturalWidth,
+            height: img.naturalHeight,
+          })
+        }
+        img.onerror = () => {
+          reject(new Error(`Failed to load image from ${url}`))
+        }
+        img.src = resolvedUrl
+      })
     }
 
     // Determine icon mode and resolve URLs as needed
@@ -5209,9 +5244,9 @@ export class IconLayerOp extends Operator<IconLayerOp> {
       // Accessor function mode - pass through
       iconProps = { getIcon }
     } else if (getIcon && typeof getIcon === 'string') {
-      // Simple single-icon mode - resolve URL and create accessor
-      const resolvedIconUrl = await resolveProjectUrl(getIcon)
-      iconProps = { getIcon: () => resolvedIconUrl }
+      // Simple single-icon mode - resolve URL and extract dimensions automatically
+      const iconData = await resolveImageWithDimensions(getIcon)
+      iconProps = { getIcon: () => iconData }
     } else {
       // Atlas mode - resolve atlas URL
       const resolvedIconAtlas = await resolveProjectUrl(iconAtlas)

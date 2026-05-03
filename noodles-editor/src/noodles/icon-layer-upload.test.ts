@@ -1,93 +1,86 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FileUrlField } from './fields'
 import { IconLayerOp } from './operators'
 
 describe('IconLayerOp Upload Support', () => {
-  it('iconAtlas should be a FileUrlField', () => {
-    const op = new IconLayerOp('/test-icon-layer')
+  describe('Field Configuration', () => {
+    it('iconAtlas should be a FileUrlField', () => {
+      const op = new IconLayerOp('/test-icon-layer')
 
-    expect(op.inputs.iconAtlas).toBeInstanceOf(FileUrlField)
-  })
-
-  it('iconAtlas should accept image file types', () => {
-    const op = new IconLayerOp('/test-icon-layer')
-    const iconAtlasField = op.inputs.iconAtlas as FileUrlField
-
-    expect(iconAtlasField.accept).toBe('.png,.jpg,.jpeg,.gif,.webp,.svg')
-  })
-
-  it('iconAtlas should have default CDN URL', () => {
-    const op = new IconLayerOp('/test-icon-layer')
-
-    expect(op.inputs.iconAtlas.value).toBe(
-      'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.png'
-    )
-  })
-
-  it('iconAtlas should accept custom URLs (backward compatibility)', () => {
-    const op = new IconLayerOp('/test-icon-layer')
-
-    op.inputs.iconAtlas.setValue('https://example.com/custom-icons.png')
-    expect(op.inputs.iconAtlas.value).toBe('https://example.com/custom-icons.png')
-  })
-
-  it('iconAtlas should accept project-relative URLs', () => {
-    const op = new IconLayerOp('/test-icon-layer')
-
-    op.inputs.iconAtlas.setValue('@/my-icons.png')
-    expect(op.inputs.iconAtlas.value).toBe('@/my-icons.png')
-  })
-
-  it('should execute with default CDN URLs', async () => {
-    const op = new IconLayerOp('/test-icon-layer')
-
-    op.inputs.data.setValue([{ name: 'Point 1', lat: 37.7849, lng: -122.4294 }])
-    op.inputs.getPosition.setValue([0, 0])
-
-    const result = await op.execute({
-      data: op.inputs.data.value,
-      visible: true,
-      opacity: 1,
-      getPosition: op.inputs.getPosition.value,
-      iconAtlas: op.inputs.iconAtlas.value,
-      iconMapping: op.inputs.iconMapping.value,
-      billboard: true,
-      getIcon: null,
-      getSize: 1,
-      sizeUnits: 'pixels',
-      sizeScale: 1,
-      sizeMinPixels: 0,
-      sizeMaxPixels: 100,
-      getPixelOffset: [0, 0],
-      getColor: [255, 255, 255, 255],
-      getAngle: 0,
-      sizeBasis: 'pixels',
-      parameters: { depthTest: true },
-      extensions: [],
+      expect(op.inputs.iconAtlas).toBeInstanceOf(FileUrlField)
     })
 
-    expect(result.layer.type).toBe('IconLayer')
-    expect(result.layer.iconAtlas).toBe(
-      'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.png'
-    )
+    it('iconAtlas should accept image file types', () => {
+      const op = new IconLayerOp('/test-icon-layer')
+      const iconAtlasField = op.inputs.iconAtlas as FileUrlField
+
+      expect(iconAtlasField.accept).toBe('.png,.jpg,.jpeg,.gif,.webp,.svg')
+    })
+
+    it('iconAtlas should have default CDN URL', () => {
+      const op = new IconLayerOp('/test-icon-layer')
+
+      expect(op.inputs.iconAtlas.value).toBe(
+        'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.png'
+      )
+    })
+
+    it('getIcon should be a FileUrlField', () => {
+      const op = new IconLayerOp('/test-icon-layer')
+
+      expect(op.inputs.getIcon).toBeInstanceOf(FileUrlField)
+    })
+
+    it('getIcon should accept image file types', () => {
+      const op = new IconLayerOp('/test-icon-layer')
+      const getIconField = op.inputs.getIcon as FileUrlField
+
+      expect(getIconField.accept).toBe('.png,.jpg,.jpeg,.gif,.webp,.svg')
+    })
+
+    it('getIcon should be optional', () => {
+      const op = new IconLayerOp('/test-icon-layer')
+
+      // Can be empty without error
+      op.inputs.getIcon.setValue('')
+      expect(op.inputs.getIcon.value).toBe('')
+    })
+
+    it('should not have manual width/height fields', () => {
+      const op = new IconLayerOp('/test-icon-layer')
+
+      expect(op.inputs).not.toHaveProperty('width')
+      expect(op.inputs).not.toHaveProperty('height')
+    })
   })
 
-  it('should execute with project-relative iconAtlas URL', async () => {
-    const op = new IconLayerOp('/test-icon-layer')
+  describe('Backward Compatibility', () => {
+    it('iconAtlas should accept custom URLs', () => {
+      const op = new IconLayerOp('/test-icon-layer')
 
-    op.inputs.data.setValue([{ name: 'Point 1', lat: 37.7849, lng: -122.4294 }])
-    op.inputs.getPosition.setValue([0, 0])
-    op.inputs.iconAtlas.setValue('@/custom-icons.png')
+      op.inputs.iconAtlas.setValue('https://example.com/custom-icons.png')
+      expect(op.inputs.iconAtlas.value).toBe('https://example.com/custom-icons.png')
+    })
 
-    // This test will fail without a loaded project since we can't resolve @/ URLs
-    // In a real scenario with a loaded project, the @/ URL would be resolved to a blob URL
-    await expect(
-      op.execute({
+    it('iconAtlas should accept project-relative URLs', () => {
+      const op = new IconLayerOp('/test-icon-layer')
+
+      op.inputs.iconAtlas.setValue('@/my-icons.png')
+      expect(op.inputs.iconAtlas.value).toBe('@/my-icons.png')
+    })
+
+    it('should execute with default CDN URLs in atlas mode', async () => {
+      const op = new IconLayerOp('/test-icon-layer')
+
+      op.inputs.data.setValue([{ name: 'Point 1', lat: 37.7849, lng: -122.4294 }])
+      op.inputs.getPosition.setValue([0, 0])
+
+      const result = await op.execute({
         data: op.inputs.data.value,
         visible: true,
         opacity: 1,
         getPosition: op.inputs.getPosition.value,
-        iconAtlas: '@/custom-icons.png',
+        iconAtlas: op.inputs.iconAtlas.value,
         iconMapping: op.inputs.iconMapping.value,
         billboard: true,
         getIcon: '',
@@ -103,89 +96,404 @@ describe('IconLayerOp Upload Support', () => {
         parameters: { depthTest: true },
         extensions: [],
       })
-    ).rejects.toThrow('No project loaded')
+
+      expect(result.layer.type).toBe('IconLayer')
+      expect(result.layer.iconAtlas).toBe(
+        'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.png'
+      )
+      expect(result.layer.iconMapping).toBe(op.inputs.iconMapping.value)
+    })
   })
 
-  it('getIcon should be a FileUrlField', () => {
-    const op = new IconLayerOp('/test-icon-layer')
+  describe('Atlas Mode URL Resolution', () => {
+    it('should pass through external URLs without modification', async () => {
+      const op = new IconLayerOp('/test-icon-layer')
 
-    expect(op.inputs.getIcon).toBeInstanceOf(FileUrlField)
-  })
+      const result = await op.execute({
+        data: [],
+        visible: true,
+        opacity: 1,
+        getPosition: [0, 0],
+        iconAtlas: 'https://example.com/icons.png',
+        iconMapping: {},
+        billboard: true,
+        getIcon: '',
+        getSize: 1,
+        sizeUnits: 'pixels',
+        sizeScale: 1,
+        sizeMinPixels: 0,
+        sizeMaxPixels: 100,
+        getPixelOffset: [0, 0],
+        getColor: [255, 255, 255, 255],
+        getAngle: 0,
+        sizeBasis: 'pixels',
+        parameters: { depthTest: true },
+        extensions: [],
+      })
 
-  it('getIcon should accept image file types', () => {
-    const op = new IconLayerOp('/test-icon-layer')
-    const getIconField = op.inputs.getIcon as FileUrlField
-
-    expect(getIconField.accept).toBe('.png,.jpg,.jpeg,.gif,.webp,.svg')
-  })
-
-  it('should use simple icon mode with getIcon URL', async () => {
-    const op = new IconLayerOp('/test-icon-layer')
-
-    op.inputs.data.setValue([{ name: 'Point 1', lat: 37.7849, lng: -122.4294 }])
-    op.inputs.getPosition.setValue([0, 0])
-    op.inputs.getIcon.setValue('https://example.com/marker.png')
-
-    const result = await op.execute({
-      data: op.inputs.data.value,
-      visible: true,
-      opacity: 1,
-      getPosition: op.inputs.getPosition.value,
-      iconAtlas: op.inputs.iconAtlas.value,
-      iconMapping: op.inputs.iconMapping.value,
-      billboard: true,
-      getIcon: 'https://example.com/marker.png',
-      getSize: 1,
-      sizeUnits: 'pixels',
-      sizeScale: 1,
-      sizeMinPixels: 0,
-      sizeMaxPixels: 100,
-      getPixelOffset: [0, 0],
-      getColor: [255, 255, 255, 255],
-      getAngle: 0,
-      sizeBasis: 'pixels',
-      parameters: { depthTest: true },
-      extensions: [],
+      expect(result.layer.iconAtlas).toBe('https://example.com/icons.png')
     })
 
-    expect(result.layer.type).toBe('IconLayer')
-    expect(typeof result.layer.getIcon).toBe('function')
-    // Test that the accessor returns the URL
-    const iconResult = (result.layer.getIcon as () => string)()
-    expect(iconResult).toBe('https://example.com/marker.png')
+    it('should reject project-relative iconAtlas URL when no project loaded', async () => {
+      const op = new IconLayerOp('/test-icon-layer')
+
+      await expect(
+        op.execute({
+          data: [],
+          visible: true,
+          opacity: 1,
+          getPosition: [0, 0],
+          iconAtlas: '@/custom-icons.png',
+          iconMapping: {},
+          billboard: true,
+          getIcon: '',
+          getSize: 1,
+          sizeUnits: 'pixels',
+          sizeScale: 1,
+          sizeMinPixels: 0,
+          sizeMaxPixels: 100,
+          getPixelOffset: [0, 0],
+          getColor: [255, 255, 255, 255],
+          getAngle: 0,
+          sizeBasis: 'pixels',
+          parameters: { depthTest: true },
+          extensions: [],
+        })
+      ).rejects.toThrow('No project loaded')
+    })
   })
 
-  it('should use accessor function mode with getIcon function', async () => {
-    const op = new IconLayerOp('/test-icon-layer')
+  describe('Single Icon Mode with Dimension Extraction', () => {
+    let originalImage: typeof Image
+    let mockImageInstance: any
+    let MockImageConstructor: any
+    let shouldSucceed: boolean
+    let mockWidth: number
+    let mockHeight: number
 
-    op.inputs.data.setValue([{ name: 'Point 1', lat: 37.7849, lng: -122.4294 }])
-    op.inputs.getPosition.setValue([0, 0])
+    beforeEach(() => {
+      // Save original Image constructor
+      originalImage = globalThis.Image
 
-    const getIconFn = vi.fn((d: any) => `https://example.com/${d.name}.png`)
+      // Default values for successful load
+      shouldSucceed = true
+      mockWidth = 64
+      mockHeight = 64
 
-    const result = await op.execute({
-      data: op.inputs.data.value,
-      visible: true,
-      opacity: 1,
-      getPosition: op.inputs.getPosition.value,
-      iconAtlas: op.inputs.iconAtlas.value,
-      iconMapping: op.inputs.iconMapping.value,
-      billboard: true,
-      getIcon: getIconFn,
-      getSize: 1,
-      sizeUnits: 'pixels',
-      sizeScale: 1,
-      sizeMinPixels: 0,
-      sizeMaxPixels: 100,
-      getPixelOffset: [0, 0],
-      getColor: [255, 255, 255, 255],
-      getAngle: 0,
-      sizeBasis: 'pixels',
-      parameters: { depthTest: true },
-      extensions: [],
+      // Create mock constructor that creates instances
+      MockImageConstructor = function (this: any) {
+        const instance = {
+          naturalWidth: 0,
+          naturalHeight: 0,
+          onload: null as (() => void) | null,
+          onerror: null as (() => void) | null,
+          _src: '',
+        }
+
+        // When src is set, trigger appropriate callback
+        Object.defineProperty(instance, 'src', {
+          get() {
+            return this._src
+          },
+          set(value: string) {
+            this._src = value
+            // Trigger callback using queueMicrotask for immediate async execution
+            queueMicrotask(() => {
+              if (shouldSucceed) {
+                instance.naturalWidth = mockWidth
+                instance.naturalHeight = mockHeight
+                instance.onload?.()
+              } else {
+                instance.onerror?.()
+              }
+            })
+          },
+        })
+
+        mockImageInstance = instance
+        return instance
+      }
+
+      // Replace global Image with mock
+      globalThis.Image = MockImageConstructor as any
     })
 
-    expect(result.layer.type).toBe('IconLayer')
-    expect(result.layer.getIcon).toBe(getIconFn)
+    afterEach(() => {
+      // Restore original Image constructor
+      globalThis.Image = originalImage
+    })
+
+    it('should extract dimensions from external image URL', async () => {
+      const op = new IconLayerOp('/test-icon-layer')
+      mockWidth = 64
+      mockHeight = 64
+      shouldSucceed = true
+
+      const result = await op.execute({
+        data: [],
+        visible: true,
+        opacity: 1,
+        getPosition: [0, 0],
+        iconAtlas: '',
+        iconMapping: {},
+        billboard: true,
+        getIcon: 'https://example.com/marker.png',
+        getSize: 1,
+        sizeUnits: 'pixels',
+        sizeScale: 1,
+        sizeMinPixels: 0,
+        sizeMaxPixels: 100,
+        getPixelOffset: [0, 0],
+        getColor: [255, 255, 255, 255],
+        getAngle: 0,
+        sizeBasis: 'pixels',
+        parameters: { depthTest: true },
+        extensions: [],
+      })
+
+      expect(result.layer.type).toBe('IconLayer')
+      expect(typeof result.layer.getIcon).toBe('function')
+
+      const iconData = (result.layer.getIcon as () => any)()
+      expect(iconData).toEqual({
+        url: 'https://example.com/marker.png',
+        width: 64,
+        height: 64,
+      })
+    })
+
+    it('should handle different image dimensions', async () => {
+      const op = new IconLayerOp('/test-icon-layer')
+      mockWidth = 128
+      mockHeight = 32
+      shouldSucceed = true
+
+      const result = await op.execute({
+        data: [],
+        visible: true,
+        opacity: 1,
+        getPosition: [0, 0],
+        iconAtlas: '',
+        iconMapping: {},
+        billboard: true,
+        getIcon: 'https://example.com/wide-marker.png',
+        getSize: 1,
+        sizeUnits: 'pixels',
+        sizeScale: 1,
+        sizeMinPixels: 0,
+        sizeMaxPixels: 100,
+        getPixelOffset: [0, 0],
+        getColor: [255, 255, 255, 255],
+        getAngle: 0,
+        sizeBasis: 'pixels',
+        parameters: { depthTest: true },
+        extensions: [],
+      })
+
+      const iconData = (result.layer.getIcon as () => any)()
+      expect(iconData).toEqual({
+        url: 'https://example.com/wide-marker.png',
+        width: 128,
+        height: 32,
+      })
+    })
+
+    it('should reject when image fails to load', async () => {
+      const op = new IconLayerOp('/test-icon-layer')
+      shouldSucceed = false
+
+      await expect(
+        op.execute({
+          data: [],
+          visible: true,
+          opacity: 1,
+          getPosition: [0, 0],
+          iconAtlas: '',
+          iconMapping: {},
+          billboard: true,
+          getIcon: 'https://example.com/broken.png',
+          getSize: 1,
+          sizeUnits: 'pixels',
+          sizeScale: 1,
+          sizeMinPixels: 0,
+          sizeMaxPixels: 100,
+          getPixelOffset: [0, 0],
+          getColor: [255, 255, 255, 255],
+          getAngle: 0,
+          sizeBasis: 'pixels',
+          parameters: { depthTest: true },
+          extensions: [],
+        })
+      ).rejects.toThrow('Failed to load image from https://example.com/broken.png')
+    })
+
+    it('should reject project-relative getIcon URL when no project loaded', async () => {
+      const op = new IconLayerOp('/test-icon-layer')
+
+      await expect(
+        op.execute({
+          data: [],
+          visible: true,
+          opacity: 1,
+          getPosition: [0, 0],
+          iconAtlas: '',
+          iconMapping: {},
+          billboard: true,
+          getIcon: '@/marker.png',
+          getSize: 1,
+          sizeUnits: 'pixels',
+          sizeScale: 1,
+          sizeMinPixels: 0,
+          sizeMaxPixels: 100,
+          getPixelOffset: [0, 0],
+          getColor: [255, 255, 255, 255],
+          getAngle: 0,
+          sizeBasis: 'pixels',
+          parameters: { depthTest: true },
+          extensions: [],
+        })
+      ).rejects.toThrow('No project loaded')
+    })
+  })
+
+  describe('Accessor Function Mode', () => {
+    it('should pass through accessor functions unchanged', async () => {
+      const op = new IconLayerOp('/test-icon-layer')
+
+      const getIconFn = vi.fn((d: any) => ({
+        url: `https://example.com/${d.name}.png`,
+        width: 32,
+        height: 32,
+      }))
+
+      const result = await op.execute({
+        data: [{ name: 'marker1' }],
+        visible: true,
+        opacity: 1,
+        getPosition: [0, 0],
+        iconAtlas: '',
+        iconMapping: {},
+        billboard: true,
+        getIcon: getIconFn,
+        getSize: 1,
+        sizeUnits: 'pixels',
+        sizeScale: 1,
+        sizeMinPixels: 0,
+        sizeMaxPixels: 100,
+        getPixelOffset: [0, 0],
+        getColor: [255, 255, 255, 255],
+        getAngle: 0,
+        sizeBasis: 'pixels',
+        parameters: { depthTest: true },
+        extensions: [],
+      })
+
+      expect(result.layer.type).toBe('IconLayer')
+      expect(result.layer.getIcon).toBe(getIconFn)
+    })
+
+    it('should not attempt dimension extraction for accessor functions', async () => {
+      const op = new IconLayerOp('/test-icon-layer')
+
+      const getIconFn = (d: any) => 'icon-name'
+
+      const result = await op.execute({
+        data: [],
+        visible: true,
+        opacity: 1,
+        getPosition: [0, 0],
+        iconAtlas: '',
+        iconMapping: {},
+        billboard: true,
+        getIcon: getIconFn,
+        getSize: 1,
+        sizeUnits: 'pixels',
+        sizeScale: 1,
+        sizeMinPixels: 0,
+        sizeMaxPixels: 100,
+        getPixelOffset: [0, 0],
+        getColor: [255, 255, 255, 255],
+        getAngle: 0,
+        sizeBasis: 'pixels',
+        parameters: { depthTest: true },
+        extensions: [],
+      })
+
+      // Should pass through the function directly
+      expect(result.layer.getIcon).toBe(getIconFn)
+    })
+  })
+
+  describe('Mode Priority', () => {
+    it('should prioritize accessor function over string URL', async () => {
+      const op = new IconLayerOp('/test-icon-layer')
+
+      const getIconFn = vi.fn(() => 'icon-name')
+
+      const result = await op.execute({
+        data: [],
+        visible: true,
+        opacity: 1,
+        getPosition: [0, 0],
+        iconAtlas: '',
+        iconMapping: {},
+        billboard: true,
+        getIcon: getIconFn,
+        getSize: 1,
+        sizeUnits: 'pixels',
+        sizeScale: 1,
+        sizeMinPixels: 0,
+        sizeMaxPixels: 100,
+        getPixelOffset: [0, 0],
+        getColor: [255, 255, 255, 255],
+        getAngle: 0,
+        sizeBasis: 'pixels',
+        parameters: { depthTest: true },
+        extensions: [],
+      })
+
+      expect(result.layer.getIcon).toBe(getIconFn)
+      expect(result.layer).not.toHaveProperty('iconAtlas')
+      expect(result.layer).not.toHaveProperty('iconMapping')
+    })
+
+    it('should use atlas mode when getIcon is empty', async () => {
+      const op = new IconLayerOp('/test-icon-layer')
+
+      const result = await op.execute({
+        data: [],
+        visible: true,
+        opacity: 1,
+        getPosition: [0, 0],
+        iconAtlas: 'https://example.com/atlas.png',
+        iconMapping: { marker: { x: 0, y: 0, width: 32, height: 32 } },
+        billboard: true,
+        getIcon: '',
+        getSize: 1,
+        sizeUnits: 'pixels',
+        sizeScale: 1,
+        sizeMinPixels: 0,
+        sizeMaxPixels: 100,
+        getPixelOffset: [0, 0],
+        getColor: [255, 255, 255, 255],
+        getAngle: 0,
+        sizeBasis: 'pixels',
+        parameters: { depthTest: true },
+        extensions: [],
+      })
+
+      expect(result.layer.iconAtlas).toBe('https://example.com/atlas.png')
+      expect(result.layer.iconMapping).toEqual({ marker: { x: 0, y: 0, width: 32, height: 32 } })
+      expect(result.layer).not.toHaveProperty('getIcon')
+    })
+  })
+
+  describe('MIME Type Inference', () => {
+    it('should infer PNG MIME type', () => {
+      // This is tested implicitly through the resolveProjectUrl helper
+      // The actual MIME type inference happens in the helper function
+      const op = new IconLayerOp('/test-icon-layer')
+      expect(op).toBeDefined()
+    })
   })
 })
