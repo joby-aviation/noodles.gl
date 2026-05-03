@@ -5217,18 +5217,45 @@ export class IconLayerOp extends Operator<IconLayerOp> {
     // Helper to resolve image URL and extract dimensions
     const resolveImageWithDimensions = async (
       url: string
-    ): Promise<{ url: string; width: number; height: number }> => {
+    ): Promise<{ url: string; width: number; height: number; id: string }> => {
       const resolvedUrl = await resolveProjectUrl(url)
 
       // Load image to get natural dimensions
       return new Promise((resolve, reject) => {
         const img = new Image()
         img.onload = () => {
-          resolve({
+          const naturalWidth = img.naturalWidth
+          const naturalHeight = img.naturalHeight
+
+          // Normalize dimensions to max 128px while preserving aspect ratio
+          // This prevents issues with deck.gl's auto-packing when using very large images
+          const maxDimension = 128
+          const aspectRatio = naturalWidth / naturalHeight
+          let width = naturalWidth
+          let height = naturalHeight
+
+          if (width > maxDimension || height > maxDimension) {
+            if (width > height) {
+              width = maxDimension
+              height = Math.round(maxDimension / aspectRatio)
+            } else {
+              height = maxDimension
+              width = Math.round(maxDimension * aspectRatio)
+            }
+          }
+
+          const iconData = {
             url: resolvedUrl,
-            width: img.naturalWidth,
-            height: img.naturalHeight,
+            width,
+            height,
+            id: url, // Use original URL as unique ID for deduplication
+          }
+          console.log('[IconLayerOp] Extracted dimensions:', {
+            natural: `${naturalWidth}x${naturalHeight}`,
+            normalized: `${width}x${height}`,
+            aspectRatio: aspectRatio.toFixed(2),
           })
+          resolve(iconData)
         }
         img.onerror = () => {
           reject(new Error(`Failed to load image from ${url}`))
