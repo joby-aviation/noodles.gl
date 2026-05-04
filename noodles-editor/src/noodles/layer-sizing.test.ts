@@ -135,6 +135,9 @@ describe('Layer Sizing and Width Units', () => {
       const result = await arcLayer.execute(getInputProps(arcLayer))
 
       expect(result.layer.widthUnits).toBe('meters')
+      expect(result.layer.widthScale).toBe(1)
+      expect(result.layer.widthMinPixels).toBe(0)
+      expect(result.layer.widthMaxPixels).toBe(100)
     })
   })
 
