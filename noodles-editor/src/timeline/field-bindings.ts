@@ -20,6 +20,7 @@ import {
   Vec3Field,
 } from '../noodles/fields'
 import type { IOperator, Operator } from '../noodles/operators'
+import { getOp } from '../noodles/store'
 import { type RGBA as ColorRGBA, colorToRgba, hexToRgba, rgbaToHex } from '../utils/color'
 import { debugBinding, debugKeyframe, debugTimeline } from '../utils/debug'
 import type { TimelineStore } from './timeline-store'
@@ -231,6 +232,40 @@ export function getFieldPath(opId: string, fieldName: string, subPath?: string[]
   return parts.join(' / ')
 }
 
+// Parse a track ID and return the corresponding operator and field
+// Returns null if operator/field not found
+export function getFieldFromTrackPath(fieldPath: string): {
+  operator: Operator<IOperator>
+  fieldName: string
+  subPath?: string[]
+  field: AnyField
+} | null {
+  const parts = fieldPath.split(' / ')
+  if (parts.length < 2) return null
+
+  // Reconstruct operator ID: "maplibre-basemap" → "/maplibre-basemap"
+  const opId = `/${parts[0].replace(/ \/ /g, '/')}`
+
+  const operator = getOp(opId)
+  if (!operator) return null
+
+  const fieldName = parts[1]
+  const subPath = parts.slice(2)
+
+  // Navigate to the field
+  let field: AnyField | undefined = operator.inputs[fieldName] as AnyField
+  if (!field) return null
+
+  // For compound fields, navigate to sub-field
+  if (subPath.length > 0 && field instanceof CompoundPropsField) {
+    field = field.fields[subPath[0]] as AnyField
+  }
+
+  if (!field) return null
+
+  return { operator, fieldName, subPath: subPath.length > 0 ? subPath : undefined, field }
+}
+
 // ============================================================================
 // Binding Management
 // ============================================================================
@@ -295,6 +330,47 @@ export function bindFieldToTimeline(
         debugTimeline(`Error syncing timeline to field for ${op.id}.${fieldName}:`, e)
       }
       updating = false
+    }
+  )
+
+  // Subscribe to track keyframe changes -> update field
+  // Handles undo/redo and any other keyframe modifications
+  const unsubscribeTracks = useTimelineStore.subscribe(
+    state => {
+      const track = state.tracks.get(fieldPath)
+      return track?.keyframes
+    },
+    _keyframes => {
+      if (op.locked?.value || updating) return
+
+      // Re-evaluate at current position
+      const position = getTimelineStore().position
+      const value = timelineStore.evaluateTrack(fieldPath, position)
+
+      if (value !== undefined) {
+        // Skip if value hasn't changed
+        if (
+          lastKeyframeValue !== undefined &&
+          JSON.stringify(value) === JSON.stringify(lastKeyframeValue)
+        ) {
+          return
+        }
+        lastKeyframeValue = value
+
+        updating = true
+        try {
+          const fieldValue = keyframeValueToFieldValue(field, value)
+          if (fieldValue !== undefined && field.value !== fieldValue) {
+            field.setValue(fieldValue)
+          }
+        } catch (e) {
+          debugTimeline(`Error syncing track changes to field for ${op.id}.${fieldName}:`, e)
+        }
+        updating = false
+      }
+    },
+    {
+      equalityFn: (a, b) => JSON.stringify(a) === JSON.stringify(b),
     }
   )
 
@@ -408,6 +484,7 @@ export function bindFieldToTimeline(
   // Return cleanup function
   return () => {
     unsubscribePosition()
+    unsubscribeTracks()
     fieldSub.unsubscribe()
   }
 }
@@ -481,6 +558,40 @@ function bindVecChannelToTimeline(
         debugTimeline(`Error syncing timeline to vec channel ${fieldPath}:`, e)
       }
       updating = false
+    }
+  )
+
+  // Subscribe to track keyframe changes -> update channel
+  const unsubscribeTracks = useTimelineStore.subscribe(
+    state => {
+      const track = state.tracks.get(fieldPath)
+      return track?.keyframes
+    },
+    _keyframes => {
+      if (op.locked?.value || updating) return
+
+      const position = getTimelineStore().position
+      const value = timelineStore.evaluateTrack(fieldPath, position) as number | undefined
+
+      if (value !== undefined) {
+        if (lastKfValue !== undefined && value === lastKfValue) {
+          return
+        }
+        lastKfValue = value
+
+        updating = true
+        try {
+          if (getChannel() !== value) {
+            setChannel(value)
+          }
+        } catch (e) {
+          debugTimeline(`Error syncing track changes to vec channel ${fieldPath}:`, e)
+        }
+        updating = false
+      }
+    },
+    {
+      equalityFn: (a, b) => JSON.stringify(a) === JSON.stringify(b),
     }
   )
 
@@ -581,6 +692,7 @@ function bindVecChannelToTimeline(
 
   return () => {
     unsubscribePosition()
+    unsubscribeTracks()
     fieldSub.unsubscribe()
   }
 }
