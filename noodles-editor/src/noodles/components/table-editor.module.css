@@ -137,7 +137,14 @@
 
 .timezoneDropdown :global(.p-inputtext) {
   font-size: 0.75rem;
-  padding: 2px 4px;
+  padding: 4px 6px;
+}
+
+.timezoneDropdown :global(.p-autocomplete-dropdown) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
 }
 
 .timezonePanel {

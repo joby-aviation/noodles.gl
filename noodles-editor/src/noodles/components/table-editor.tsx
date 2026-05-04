@@ -275,14 +275,21 @@ function DateTimeCellEditor({ value, onChange, onComplete, onUpdate, column }: C
         value={timezoneInputValue}
         suggestions={filteredTimezones}
         completeMethod={(e) => {
+          console.log('completeMethod called with query:', e.query)
           const query = e.query.toLowerCase()
           const filtered = query
             ? timezoneOptions.filter((tz) => tz.toLowerCase().includes(query))
             : timezoneOptions
+          console.log('Setting filtered timezones:', filtered.length)
           setFilteredTimezones(filtered)
         }}
         onChange={(e) => {
+          console.log('onChange:', e.value)
           setTimezoneInputValue(e.value)
+        }}
+        onDropdownClick={() => {
+          console.log('Dropdown clicked, showing all timezones')
+          setFilteredTimezones(timezoneOptions)
         }}
         onSelect={(e) => {
           console.log('Timezone selected:', e.value)
