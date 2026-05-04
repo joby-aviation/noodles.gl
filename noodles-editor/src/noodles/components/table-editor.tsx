@@ -451,21 +451,32 @@ interface EditableCellProps {
 }
 
 function EditableCell({ getValue, row, column, table }: EditableCellProps) {
-  const initialValue = getValue()
+  const currentValue = getValue()
   const [isEditing, setIsEditing] = useState(false)
-  const [value, setValue] = useState(initialValue)
+  const [value, setValue] = useState(currentValue)
+  const prevValueRef = useRef(currentValue)
+
+  // Sync state with current value when not editing
+  if (!isEditing && currentValue !== prevValueRef.current) {
+    setValue(currentValue)
+    prevValueRef.current = currentValue
+  }
 
   const colSchema = table.options.meta?.schema.columns.find((col) => col.name === column.id)
   if (!colSchema) {
-    return <div className={s.cell}>{String(initialValue)}</div>
+    return <div className={s.cell}>{String(currentValue)}</div>
   }
 
   const EditorComponent = getCellEditor(colSchema.type)
   const renderer = getCellRenderer(colSchema.type)
 
+  const startEditing = () => {
+    setIsEditing(true)
+  }
+
   const handleComplete = () => {
     setIsEditing(false)
-    if (value !== initialValue) {
+    if (value !== currentValue) {
       table.options.meta?.updateData(row.index, column.id, value)
     }
   }
@@ -485,16 +496,16 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
 
   // Render cell - dateTime renderer needs column schema for timezone
   const renderedValue = colSchema.type === 'dateTime'
-    ? (renderer as (value: unknown, column: ColumnSchema) => React.ReactNode)(initialValue, colSchema)
-    : (renderer as (value: unknown) => React.ReactNode)(initialValue)
+    ? (renderer as (value: unknown, column: ColumnSchema) => React.ReactNode)(currentValue, colSchema)
+    : (renderer as (value: unknown) => React.ReactNode)(currentValue)
 
   return (
     <div
       className={s.cell}
-      onClick={() => setIsEditing(true)}
+      onClick={startEditing}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
-          setIsEditing(true)
+          startEditing()
         }
       }}
       tabIndex={0}
