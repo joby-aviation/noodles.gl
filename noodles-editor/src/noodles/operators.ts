@@ -546,8 +546,18 @@ export abstract class Operator<OP extends IOperator> {
       // Update output fields for UI/debugging purposes only
       // In pull mode, this is not for propagation but for inspection
       for (const [key, field] of Object.entries(this.outputs)) {
-        if (field.value !== finalResult[key]) {
-          field.next(finalResult[key])
+        const newValue = finalResult[key]
+        const currentValue = field.value
+
+        // Use deep equality for fields that opt-in, otherwise use reference equality
+        const hasChanged = field.useDeepEquality
+          ? typeof newValue === 'object' && newValue !== null
+            ? !deepEqual(currentValue, newValue)
+            : currentValue !== newValue
+          : currentValue !== newValue
+
+        if (hasChanged) {
+          field.next(newValue)
         }
       }
 
@@ -3743,18 +3753,21 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
   }
 
   createOutputs() {
+    const maplibreField = new CompoundPropsField({
+      mapStyle: new MapStyleField(),
+      projection: new StringField(),
+      longitude: new NumberField(),
+      latitude: new NumberField(),
+      zoom: new NumberField(),
+      pitch: new NumberField(),
+      bearing: new NumberField(),
+      light: new UnknownField(),
+      sky: new UnknownField(),
+    })
+    // Enable deep equality to prevent unnecessary map reloads when style/props unchanged
+    maplibreField.useDeepEquality = true
     return {
-      maplibre: new CompoundPropsField({
-        mapStyle: new MapStyleField(),
-        projection: new StringField(),
-        longitude: new NumberField(),
-        latitude: new NumberField(),
-        zoom: new NumberField(),
-        pitch: new NumberField(),
-        bearing: new NumberField(),
-        light: new UnknownField(),
-        sky: new UnknownField(),
-      }),
+      maplibre: maplibreField,
     }
   }
   execute({

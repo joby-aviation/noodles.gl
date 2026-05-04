@@ -100,6 +100,11 @@ export abstract class Field<
   // Should this field be shown by default in the UI? Defaults to true.
   showByDefault = true
 
+  // Use deep equality when comparing values to prevent unnecessary updates
+  // Only enable for fields with stable, value-typed data (plain objects, arrays, primitives)
+  // Do not enable for fields containing class instances, Date, Map, Set with identity semantics
+  useDeepEquality = false
+
   // Hold a reference to the operator that owns this field. Only used for debugging at the moment.
   op!: Operator<IOperator>
 
