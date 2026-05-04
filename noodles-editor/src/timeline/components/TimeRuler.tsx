@@ -338,6 +338,32 @@ export function TimeRuler({
     }
   }, [])
 
+  // In/Out point handlers
+  const handleInPointMove = useCallback(
+    (newPosition: number) => {
+      useTimelineStore.getState().setInPoint(newPosition)
+    },
+    []
+  )
+
+  const handleOutPointMove = useCallback(
+    (newPosition: number) => {
+      useTimelineStore.getState().setOutPoint(newPosition)
+    },
+    []
+  )
+
+  const handleInPointMoveStart = useCallback(() => {
+    beforeStateRef.current = captureTimelineState()
+  }, [])
+
+  const handleInPointMoveEnd = useCallback(() => {
+    if (beforeStateRef.current) {
+      fireTimelineMutation('Move in/out point', beforeStateRef.current)
+      beforeStateRef.current = ''
+    }
+  }, [])
+
   const handleStartConnection = useCallback(
     (markerId: string, clientX: number, clientY: number) => {
       onStartMarkerConnection?.(markerId, clientX, clientY)
@@ -375,30 +401,32 @@ export function TimeRuler({
 
       {/* In Point Marker */}
       {inPoint > 0 && (
-        <div
-          className={s.inOutMarker}
-          data-type="in"
-          style={{
-            left: `${inPoint * pixelsPerSecond}px`,
-          }}
-        >
-          <div className={s.inOutMarkerLine} />
-          <div className={s.inOutMarkerLabel}>IN</div>
-        </div>
+        <InOutMarker
+          type="in"
+          position={inPoint}
+          pixelsPerSecond={pixelsPerSecond}
+          sequenceLength={sequenceLength}
+          outPoint={outPoint}
+          fps={fps}
+          onMove={handleInPointMove}
+          onMoveStart={handleInPointMoveStart}
+          onMoveEnd={handleInPointMoveEnd}
+        />
       )}
 
       {/* Out Point Marker */}
       {outPoint < sequenceLength && (
-        <div
-          className={s.inOutMarker}
-          data-type="out"
-          style={{
-            left: `${outPoint * pixelsPerSecond}px`,
-          }}
-        >
-          <div className={s.inOutMarkerLine} />
-          <div className={s.inOutMarkerLabel}>OUT</div>
-        </div>
+        <InOutMarker
+          type="out"
+          position={outPoint}
+          pixelsPerSecond={pixelsPerSecond}
+          sequenceLength={sequenceLength}
+          inPoint={inPoint}
+          fps={fps}
+          onMove={handleOutPointMove}
+          onMoveStart={handleInPointMoveStart}
+          onMoveEnd={handleInPointMoveEnd}
+        />
       )}
 
       {/* End-of-sequence marker */}
@@ -486,6 +514,96 @@ export function TimeRuler({
           </div>,
           document.body
         )}
+    </div>
+  )
+}
+
+// In/Out Point Marker component with drag support
+interface InOutMarkerProps {
+  type: 'in' | 'out'
+  position: number
+  pixelsPerSecond: number
+  sequenceLength: number
+  inPoint?: number
+  outPoint?: number
+  fps: number
+  onMove: (newPosition: number) => void
+  onMoveStart?: () => void
+  onMoveEnd?: () => void
+}
+
+function InOutMarker({
+  type,
+  position,
+  pixelsPerSecond,
+  sequenceLength,
+  inPoint = 0,
+  outPoint,
+  fps,
+  onMove,
+  onMoveStart,
+  onMoveEnd,
+}: InOutMarkerProps) {
+  const [isHovered, setIsHovered] = useState(false)
+  const dragStateRef = useRef<{ startX: number; startPosition: number } | null>(null)
+
+  const x = position * pixelsPerSecond
+
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (e.button !== 0) return
+      e.stopPropagation()
+      e.preventDefault()
+
+      e.currentTarget.setPointerCapture(e.pointerId)
+      dragStateRef.current = {
+        startX: e.clientX,
+        startPosition: position,
+      }
+      onMoveStart?.()
+
+      const handleMove = (moveEvent: PointerEvent) => {
+        if (!dragStateRef.current) return
+        const delta = (moveEvent.clientX - dragStateRef.current.startX) / pixelsPerSecond
+        let newPosition = snapToFrame(dragStateRef.current.startPosition + delta, fps)
+
+        // Clamp based on type
+        if (type === 'in') {
+          newPosition = Math.max(0, Math.min(newPosition, outPoint ?? sequenceLength))
+        } else {
+          newPosition = Math.max(inPoint, Math.min(newPosition, sequenceLength))
+        }
+
+        onMove(newPosition)
+      }
+
+      const handleUp = () => {
+        dragStateRef.current = null
+        onMoveEnd?.()
+        document.removeEventListener('pointermove', handleMove)
+        document.removeEventListener('pointerup', handleUp)
+      }
+
+      document.addEventListener('pointermove', handleMove)
+      document.addEventListener('pointerup', handleUp)
+    },
+    [position, pixelsPerSecond, fps, type, inPoint, outPoint, sequenceLength, onMove, onMoveStart, onMoveEnd]
+  )
+
+  return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: Marker supports pointer drag
+    <div
+      className={`${s.inOutMarker} ${isHovered ? s.hovered : ''}`}
+      data-type={type}
+      style={{ left: x, cursor: 'ew-resize' }}
+      onPointerDown={handlePointerDown}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      title={`Drag to adjust ${type === 'in' ? 'in' : 'out'} point`}
+    >
+      <div className={s.inOutMarkerLine} />
+      <div className={s.inOutMarkerLabel}>{type === 'in' ? 'IN' : 'OUT'}</div>
+      <div className={s.inOutMarkerHandle} />
     </div>
   )
 }

@@ -1483,8 +1483,9 @@
   position: absolute;
   top: 0;
   height: 100%;
-  pointer-events: none;
+  pointer-events: auto;
   z-index: 10;
+  cursor: ew-resize;
 }
 
 .inOutMarker[data-type="in"] .inOutMarkerLine {
@@ -1497,6 +1498,7 @@
 
 .inOutMarkerLine {
   height: 100%;
+  pointer-events: none;
 }
 
 .inOutMarkerLabel {
@@ -1509,6 +1511,25 @@
   background: rgba(0, 0, 0, 0.6);
   padding: 1px 4px;
   border-radius: 2px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.inOutMarkerHandle {
+  position: absolute;
+  top: 0;
+  left: -4px;
+  width: 8px;
+  height: 100%;
+  cursor: ew-resize;
+}
+
+.inOutMarker:hover .inOutMarkerLine {
+  opacity: 0.8;
+}
+
+.inOutMarker:hover .inOutMarkerLabel {
+  background: rgba(0, 0, 0, 0.8);
 }
 
 /* Dimming overlay for non-active timeline sections */

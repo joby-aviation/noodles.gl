@@ -36,6 +36,7 @@ export interface TimelineStore {
   position: number
   playing: boolean
   loop: boolean
+  loopInOut: boolean
   playbackSpeed: number
   selectedKeyframeIds: Set<string>
   selectedTrackIds: Set<string>
@@ -57,6 +58,7 @@ export interface TimelineStore {
   pause: () => void
   togglePlay: () => void
   toggleLoop: () => void
+  toggleLoopInOut: () => void
   setPlaybackSpeed: (speed: number) => void
   stepForward: (frames?: number) => void
   stepBackward: (frames?: number) => void
@@ -205,6 +207,7 @@ export const useTimelineStore = create<TimelineStore>()(
     position: 0,
     playing: false,
     loop: true,
+    loopInOut: false,
     playbackSpeed: 1,
     selectedKeyframeIds: new Set(),
     selectedTrackIds: new Set(),
@@ -266,6 +269,7 @@ export const useTimelineStore = create<TimelineStore>()(
     pause: () => set({ playing: false }),
     togglePlay: () => set(state => ({ playing: !state.playing })),
     toggleLoop: () => set(state => ({ loop: !state.loop })),
+    toggleLoopInOut: () => set(state => ({ loopInOut: !state.loopInOut })),
 
     setPlaybackSpeed: speed => {
       set({ playbackSpeed: Math.max(0.1, Math.min(10, speed)) })
