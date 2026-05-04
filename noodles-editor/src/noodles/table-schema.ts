@@ -31,9 +31,6 @@ export interface ColumnSchema {
 
     // Point2D options
     geocoder?: boolean
-
-    // DateTime options
-    timezone?: string // IANA timezone name, e.g. 'UTC', 'America/New_York'
   }
   defaultValue?: unknown
 }
@@ -157,19 +154,9 @@ export function getDefaultValue(schema: ColumnSchema): unknown {
     case 'date':
       return new Date().toISOString().split('T')[0] // YYYY-MM-DD
     case 'dateTime': {
-      // Return object with datetime and timezone
-      // Default to UTC if no timezone specified in column options
-      const timezone = schema.options?.timezone ?? 'UTC'
-      if (!isValidTimezone(timezone)) {
-        console.warn(`Invalid timezone "${timezone}", falling back to UTC`)
-        return {
-          datetime: new Date().toISOString().slice(0, 23),
-          timezone: 'UTC',
-        }
-      }
-      // Get current time in the specified timezone
+      // Return object with datetime and timezone (always default to UTC for new cells)
+      const timezone = 'UTC'
       const now = Temporal.Now.zonedDateTimeISO(timezone)
-      // Return as object with datetime string and timezone
       return {
         datetime: now.toPlainDateTime().toString({ smallestUnit: 'millisecond' }),
         timezone: timezone,
@@ -366,19 +353,23 @@ export function prepareTableDataForOutput(data: unknown[], schema: TableSchema):
     for (const col of schema.columns) {
       if (col.type === 'dateTime') {
         const value = (row as Record<string, unknown>)[col.name]
-        const rawTz = col.options?.timezone ?? 'UTC'
-        const timezone = isValidTimezone(rawTz) ? rawTz : 'UTC'
 
-        if (typeof value === 'string') {
-          // Convert string to Temporal.ZonedDateTime
-          outputRow[col.name] = stringToTemporal(value, timezone)
+        // Handle new format: { datetime: "...", timezone: "..." }
+        if (value && typeof value === 'object' && 'datetime' in value) {
+          const obj = value as { datetime: string; timezone: string }
+          const timezone = obj.timezone && isValidTimezone(obj.timezone) ? obj.timezone : 'UTC'
+          // Convert to Temporal.ZonedDateTime
+          outputRow[col.name] = stringToTemporal(obj.datetime, timezone)
+        } else if (typeof value === 'string') {
+          // Legacy format: plain string (assume UTC)
+          outputRow[col.name] = stringToTemporal(value, 'UTC')
         } else if (value && typeof value === 'object' && 'timeZoneId' in value) {
           // Already a ZonedDateTime, keep as-is
           outputRow[col.name] = value
         } else if (value instanceof Date) {
-          // Convert Date to ZonedDateTime
+          // Convert Date to ZonedDateTime (assume UTC)
           const instant = Temporal.Instant.fromEpochMilliseconds(value.getTime())
-          outputRow[col.name] = instant.toZonedDateTimeISO(timezone)
+          outputRow[col.name] = instant.toZonedDateTimeISO('UTC')
         }
       }
     }

@@ -430,10 +430,9 @@ function renderDateTimeCell(value: unknown, column: ColumnSchema): string {
     dateStr = value.datetime as string
     timezone = value.timezone as string || 'UTC'
   } else if (typeof value === 'string') {
-    // Legacy format: plain string
+    // Legacy format: plain string (assume UTC)
     dateStr = value
-    // Try to get timezone from column options for backwards compatibility
-    timezone = column.options?.timezone ?? 'UTC'
+    timezone = 'UTC'
   } else if (value && typeof value === 'object' && 'timeZoneId' in value) {
     // Temporal.ZonedDateTime
     dateStr = temporalToString(value as Temporal.ZonedDateTime)
