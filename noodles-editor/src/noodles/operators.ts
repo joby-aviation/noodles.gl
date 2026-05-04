@@ -5149,6 +5149,14 @@ export class TextLayerOp extends Operator<TextLayerOp> {
 export class IconLayerOp extends Operator<IconLayerOp> {
   static displayName = 'IconLayer'
   static description = 'Render a set of icons on the map'
+  private _iconCache = new Map<
+    string,
+    {
+      data: { url: string; width: number; height: number; id: string }
+      accessor: () => { url: string; width: number; height: number; id: string }
+    }
+  >()
+  private readonly MAX_CACHE_SIZE = 50
   createInputs() {
     return {
       data: new DataField(),
@@ -5257,7 +5265,8 @@ export class IconLayerOp extends Operator<IconLayerOp> {
           const naturalHeight = img.naturalHeight
 
           // Calculate max texture dimension based on display size
-          // Use 2x for quality buffer (like Retina), but cap at 512px to limit memory
+          // Use 2x for quality buffer (like Retina), cap at 512 to avoid
+          // Deck.gl icon atlas packing issues with large dimensions
           const maxDimension = Math.min(maxDisplaySize * 2, 512)
           const aspectRatio = naturalWidth / naturalHeight
           let width = naturalWidth
@@ -5297,9 +5306,39 @@ export class IconLayerOp extends Operator<IconLayerOp> {
       // Accessor function mode - pass through
       iconProps = { getIcon }
     } else if (getIcon && typeof getIcon === 'string') {
-      // Simple single-icon mode - resolve URL and extract dimensions automatically
-      const iconData = await resolveImageWithDimensions(getIcon, sizeMaxPixels)
-      iconProps = { getIcon: () => iconData }
+      // Single-icon mode - cache resolved icon data to avoid re-resolving every frame
+      // Skip caching for project-local URLs (@/) since they may change on disk
+      const isProjectLocal = getIcon.startsWith(projectScheme)
+
+      if (isProjectLocal) {
+        // Always re-resolve project-local assets to reflect updates
+        const iconData = await resolveImageWithDimensions(getIcon, sizeMaxPixels)
+        iconProps = { getIcon: () => iconData }
+      } else {
+        // Cache external URLs with stable accessor reference
+        const cacheKey = `${getIcon}:${sizeMaxPixels}`
+        let cached = this._iconCache.get(cacheKey)
+
+        if (!cached) {
+          const iconData = await resolveImageWithDimensions(getIcon, sizeMaxPixels)
+          const accessor = () => iconData
+          cached = { data: iconData, accessor }
+
+          // Simple LRU: if cache is full, delete oldest entry (first in Map)
+          if (this._iconCache.size >= this.MAX_CACHE_SIZE) {
+            const firstKey = this._iconCache.keys().next().value
+            this._iconCache.delete(firstKey)
+          }
+
+          this._iconCache.set(cacheKey, cached)
+        } else {
+          // Move to end for LRU (delete + re-add)
+          this._iconCache.delete(cacheKey)
+          this._iconCache.set(cacheKey, cached)
+        }
+
+        iconProps = { getIcon: cached.accessor }
+      }
     } else {
       // Atlas mode - resolve atlas URL
       const resolvedIconAtlas = await resolveProjectUrl(iconAtlas)
