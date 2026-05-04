@@ -833,23 +833,12 @@
   text-overflow: ellipsis;
 }
 
-.fieldInputWrapperTypeahead {
-  position: relative;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
 .fieldInputTypeahead {
   width: 100%;
   padding: 0 0.5em;
 }
 
 .stringLiteralSuggestions {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
   z-index: var(--z-index-modal);
   margin: 2px 0 0;
   padding: 4px 0;

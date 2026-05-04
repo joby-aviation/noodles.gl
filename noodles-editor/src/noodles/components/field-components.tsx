@@ -17,6 +17,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { createPortal } from 'react-dom'
 
 const CodeiumEditor = lazy(() =>
   import('@codeium/react-code-editor').then(m => ({ default: m.CodeiumEditor }))
@@ -139,11 +140,23 @@ function StringLiteralTypeaheadInput({
 }) {
   const [localValue, setLocalValue] = useState(value)
   const [suggestionsOpen, setSuggestionsOpen] = useState(false)
+  const [position, setPosition] = useState({ top: 0, left: 0, width: 0 })
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     setLocalValue(value)
   }, [value])
+
+  useEffect(() => {
+    if (suggestionsOpen && inputRef.current) {
+      const rect = inputRef.current.getBoundingClientRect()
+      setPosition({
+        top: rect.bottom + window.scrollY,
+        left: rect.left + window.scrollX,
+        width: rect.width,
+      })
+    }
+  }, [suggestionsOpen])
 
   const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value
@@ -184,7 +197,7 @@ function StringLiteralTypeaheadInput({
   const showSuggestions = suggestionsOpen && filteredSuggestions.length > 0
 
   return (
-    <div className={s.fieldInputWrapperTypeahead}>
+    <>
       <input
         ref={inputRef}
         id={id}
@@ -197,24 +210,34 @@ function StringLiteralTypeaheadInput({
         disabled={disabled}
         placeholder="Type or select..."
       />
-      {showSuggestions && (
-        <ul className={s.stringLiteralSuggestions}>
-          {filteredSuggestions.map(({ value: v, label }) => (
-            <li
-              key={v}
-              role="option"
-              aria-selected={v === localValue}
-              className={cx(s.stringLiteralSuggestion, {
-                [s.stringLiteralSuggestionActive]: v === localValue,
-              })}
-              onMouseDown={() => onSuggestionSelect(v)}
-            >
-              {label}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+      {showSuggestions &&
+        createPortal(
+          <ul
+            className={s.stringLiteralSuggestions}
+            style={{
+              position: 'fixed',
+              top: `${position.top}px`,
+              left: `${position.left}px`,
+              width: `${position.width}px`,
+            }}
+          >
+            {filteredSuggestions.map(({ value: v, label }) => (
+              <li
+                key={v}
+                role="option"
+                aria-selected={v === localValue}
+                className={cx(s.stringLiteralSuggestion, {
+                  [s.stringLiteralSuggestionActive]: v === localValue,
+                })}
+                onMouseDown={() => onSuggestionSelect(v)}
+              >
+                {label}
+              </li>
+            ))}
+          </ul>,
+          document.body
+        )}
+    </>
   )
 }
 
