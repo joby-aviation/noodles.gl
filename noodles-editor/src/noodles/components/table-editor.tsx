@@ -27,7 +27,6 @@ interface CellEditorProps {
   value: unknown
   onChange: (value: unknown) => void
   onComplete: () => void
-  onUpdate?: (column: ColumnSchema) => void
   column: ColumnSchema
 }
 
@@ -215,7 +214,7 @@ function DateCellEditor({ value, onChange, onComplete }: CellEditorProps) {
   )
 }
 
-function DateTimeCellEditor({ value, onChange, onComplete, onUpdate, column }: CellEditorProps) {
+function DateTimeCellEditor({ value, onChange, onComplete, column }: CellEditorProps) {
   const timezoneOptions = useState(() => getTimezoneOptions())[0]
 
   // Extract datetime and timezone from DateTimeValue
@@ -229,13 +228,9 @@ function DateTimeCellEditor({ value, onChange, onComplete, onUpdate, column }: C
   const [datetimeValue, setDatetimeValue] = useState<string>(dateTimeValue.datetime)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const tzAbbrev = dateTimeValue.timezone === 'UTC' ? 'UTC' : dateTimeValue.timezone.split('/').pop() ?? dateTimeValue.timezone
-
   // Apply pending timezone change to cell value
   const applyTimezoneChange = () => {
-    console.log('applyTimezoneChange - pending:', pendingTimezone, 'current:', dateTimeValue.timezone)
     if (pendingTimezone && pendingTimezone !== dateTimeValue.timezone && timezoneOptions.includes(pendingTimezone)) {
-      console.log('Applying timezone change to:', pendingTimezone)
       // Update cell value with new timezone
       const newValue: DateTimeValue = {
         datetime: datetimeValue,
@@ -266,8 +261,6 @@ function DateTimeCellEditor({ value, onChange, onComplete, onUpdate, column }: C
       const isInAutocompletePanel = activeElement?.closest('.p-autocomplete-panel')
       const isInContainer = container && container.contains(activeElement)
 
-      console.log('Blur check - isInContainer:', isInContainer, 'isInAutocompletePanel:', !!isInAutocompletePanel)
-
       // Only complete if focus truly left (not in container and not in dropdown panel)
       if (!isInContainer && !isInAutocompletePanel) {
         applyTimezoneChange()
@@ -296,25 +289,20 @@ function DateTimeCellEditor({ value, onChange, onComplete, onUpdate, column }: C
         value={timezoneInputValue}
         suggestions={filteredTimezones}
         completeMethod={(e) => {
-          console.log('completeMethod called with query:', e.query)
           const query = e.query.toLowerCase()
           const filtered = query
             ? timezoneOptions.filter((tz) => tz.toLowerCase().includes(query))
             : timezoneOptions
-          console.log('Setting filtered timezones:', filtered.length)
           // Always set suggestions immediately to avoid spinner
           setFilteredTimezones(filtered.length > 0 ? filtered : timezoneOptions)
         }}
         onChange={(e) => {
-          console.log('onChange:', e.value)
-          setTimezoneInputValue(e.value || timezone)
+          setTimezoneInputValue(e.value || dateTimeValue.timezone)
         }}
         onDropdownClick={() => {
-          console.log('Dropdown clicked, showing all timezones')
           setFilteredTimezones(timezoneOptions)
         }}
         onSelect={(e) => {
-          console.log('Timezone selected via click:', e.value)
           if (e.value && typeof e.value === 'string' && timezoneOptions.includes(e.value)) {
             setPendingTimezone(e.value)
             setTimezoneInputValue(e.value)
@@ -328,7 +316,6 @@ function DateTimeCellEditor({ value, onChange, onComplete, onUpdate, column }: C
         itemTemplate={(item) => (
           <div
             onMouseDown={() => {
-              console.log('Item mousedown:', item)
               setPendingTimezone(item)
             }}
           >
@@ -414,7 +401,6 @@ function renderDateTimeCell(value: unknown, column: ColumnSchema): string {
     const tzAbbrev = dateTimeValue.timezone === 'UTC'
       ? 'UTC'
       : dateTimeValue.timezone.split('/').pop() ?? dateTimeValue.timezone
-    console.log('renderDateTimeCell - column:', column.name, 'timezone:', dateTimeValue.timezone, 'abbrev:', tzAbbrev)
     return `${dateTimeValue.datetime} ${tzAbbrev}`
   }
   return ''
@@ -458,7 +444,6 @@ interface EditableCellProps {
       meta?: {
         updateData: (rowIndex: number, columnId: string, value: unknown) => void
         deleteRow: (rowIndex: number) => void
-        updateColumn: (columnId: string, column: ColumnSchema) => void
         schema: TableSchema
       }
     }
@@ -485,10 +470,6 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
     }
   }
 
-  const handleUpdateColumn = (updatedColumn: ColumnSchema) => {
-    table.options.meta?.updateColumn(column.id, updatedColumn)
-  }
-
   if (isEditing) {
     return (
       <div className={cx(s.cell, s.editing)}>
@@ -496,7 +477,6 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
           value={value}
           onChange={setValue}
           onComplete={handleComplete}
-          onUpdate={handleUpdateColumn}
           column={colSchema}
         />
       </div>
@@ -628,17 +608,6 @@ export function TableEditor({
         const newData = tableData.filter((_, index) => index !== rowIndex)
         setTableData(newData)
         onDataChange(newData)
-      },
-      updateColumn: (columnId: string, updatedColumn: ColumnSchema) => {
-        console.log('updateColumn called:', columnId, updatedColumn)
-        const newSchema = {
-          ...schema,
-          columns: schema.columns.map((col) =>
-            col.name === columnId ? updatedColumn : col
-          ),
-        }
-        console.log('New schema:', newSchema)
-        onSchemaChange(newSchema)
       },
       schema,
     },
