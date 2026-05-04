@@ -6,14 +6,17 @@ import {
   useReactTable,
 } from '@tanstack/react-table'
 import cx from 'classnames'
+import { AutoComplete } from 'primereact/autocomplete'
 import { Button } from 'primereact/button'
 import { InputNumber } from 'primereact/inputnumber'
 import { InputSwitch } from 'primereact/inputswitch'
 import { InputText } from 'primereact/inputtext'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import type { Temporal } from 'temporal-polyfill'
 import type { TableEditorOp } from '../operators'
-import type { ColumnSchema, ColumnType, TableSchema } from '../table-schema'
-import { convertValue, getDefaultValue } from '../table-schema'
+import type { ColumnSchema, ColumnType, DateTimeValue, TableSchema } from '../table-schema'
+import { convertValue, getDefaultValue, temporalToString } from '../table-schema'
+import { getTimezoneOptions } from '../utils/timezone-utils'
 import { ColorSwatch } from './color-swatch'
 import { SchemaEditorDialog } from './schema-editor-dialog'
 import s from './table-editor.module.css'
@@ -211,23 +214,116 @@ function DateCellEditor({ value, onChange, onComplete }: CellEditorProps) {
   )
 }
 
-function DateTimeCellEditor({ value, onChange, onComplete }: CellEditorProps) {
+function DateTimeCellEditor({ value, onChange, onComplete, column }: CellEditorProps) {
+  const timezoneOptions = useState(() => getTimezoneOptions())[0]
+
+  // Extract datetime and timezone from DateTimeValue
+  const dateTimeValue = (value && typeof value === 'object' && 'datetime' in value && 'timezone' in value)
+    ? value as DateTimeValue
+    : { datetime: '', timezone: 'UTC' }
+
+  const [filteredTimezones, setFilteredTimezones] = useState<string[]>(timezoneOptions)
+  const [timezoneInputValue, setTimezoneInputValue] = useState<string>(dateTimeValue.timezone)
+  const [pendingTimezone, setPendingTimezone] = useState<string>(dateTimeValue.timezone)
+  const [datetimeValue, setDatetimeValue] = useState<string>(dateTimeValue.datetime)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // Apply pending timezone change to cell value
+  const applyTimezoneChange = () => {
+    if (pendingTimezone && pendingTimezone !== dateTimeValue.timezone && timezoneOptions.includes(pendingTimezone)) {
+      // Update cell value with new timezone
+      const newValue: DateTimeValue = {
+        datetime: datetimeValue,
+        timezone: pendingTimezone,
+      }
+      onChange(newValue)
+    }
+  }
+
+  // Update cell value when datetime changes
+  const handleDatetimeChange = (newDatetime: string) => {
+    setDatetimeValue(newDatetime)
+    const newValue: DateTimeValue = {
+      datetime: newDatetime,
+      timezone: pendingTimezone,
+    }
+    onChange(newValue)
+  }
+
+  // Handle blur - check if focus is moving to AutoComplete panel
+  const handleBlur = (e: React.FocusEvent) => {
+    // Use setTimeout to allow new focus target to be set
+    setTimeout(() => {
+      const activeElement = document.activeElement
+      const container = containerRef.current
+
+      // Check if focus moved to AutoComplete dropdown panel
+      const isInAutocompletePanel = activeElement?.closest('.p-autocomplete-panel')
+      const isInContainer = container && container.contains(activeElement)
+
+      // Only complete if focus truly left (not in container and not in dropdown panel)
+      if (!isInContainer && !isInAutocompletePanel) {
+        applyTimezoneChange()
+        onComplete()
+      }
+    }, 0)
+  }
+
   return (
-    <InputText
-      type="datetime-local"
-      step={0.001} // Enable millisecond precision
-      value={value as string}
-      onChange={(e) => onChange(e.target.value)}
-      onBlur={onComplete}
-      onKeyDown={(e) => {
-        e.stopPropagation()
-        if (e.key === 'Enter' || e.key === 'Escape') {
-          onComplete()
-        }
-      }}
-      autoFocus
-      className={s.cellEditor}
-    />
+    <div ref={containerRef} className={s.dateTimeCellEditor} onBlur={handleBlur}>
+      <InputText
+        type="datetime-local"
+        step={0.001}
+        value={datetimeValue}
+        onChange={(e) => handleDatetimeChange(e.target.value)}
+        onKeyDown={(e) => {
+          e.stopPropagation()
+          if (e.key === 'Enter' || e.key === 'Escape') {
+            onComplete()
+          }
+        }}
+        autoFocus
+        className={s.cellEditor}
+      />
+      <AutoComplete
+        value={timezoneInputValue}
+        suggestions={filteredTimezones}
+        completeMethod={(e) => {
+          const query = e.query.toLowerCase()
+          const filtered = query
+            ? timezoneOptions.filter((tz) => tz.toLowerCase().includes(query))
+            : timezoneOptions
+          // Always set suggestions immediately to avoid spinner
+          setFilteredTimezones(filtered.length > 0 ? filtered : timezoneOptions)
+        }}
+        onChange={(e) => {
+          setTimezoneInputValue(e.value || dateTimeValue.timezone)
+        }}
+        onDropdownClick={() => {
+          setFilteredTimezones(timezoneOptions)
+        }}
+        onSelect={(e) => {
+          if (e.value && typeof e.value === 'string' && timezoneOptions.includes(e.value)) {
+            setPendingTimezone(e.value)
+            setTimezoneInputValue(e.value)
+          }
+        }}
+        dropdown
+        autoHighlight={false}
+        placeholder="TZ"
+        className={s.timezoneDropdown}
+        panelClassName={s.timezonePanel}
+        itemTemplate={(item) => (
+          <div
+            onMouseDown={() => {
+              setPendingTimezone(item)
+            }}
+          >
+            {item}
+          </div>
+        )}
+      />
+    </div>
   )
 }
 
@@ -261,7 +357,7 @@ function getCellEditor(type: ColumnType) {
 
 // Cell renderer functions for display mode
 
-function renderNumberCell(value: unknown): string {
+function renderNumberCell(value: unknown): React.ReactNode {
   if (typeof value !== 'number') return '0'
   return value.toLocaleString()
 }
@@ -270,7 +366,7 @@ function renderBooleanCell(value: unknown): string {
   return value ? '✓' : '✗'
 }
 
-function renderColorCell(value: unknown): JSX.Element {
+function renderColorCell(value: unknown): React.ReactNode {
   const color = typeof value === 'string' ? value : '#000000'
   return (
     <div className={s.colorDisplay}>
@@ -298,9 +394,15 @@ function renderDateCell(value: unknown): string {
   return ''
 }
 
-function renderDateTimeCell(value: unknown): string {
-  if (typeof value === 'string') return value
-  if (value instanceof Date) return value.toISOString().slice(0, 23)
+function renderDateTimeCell(value: unknown, column: ColumnSchema): string {
+  // Only handle DateTimeValue format
+  if (value && typeof value === 'object' && 'datetime' in value && 'timezone' in value) {
+    const dateTimeValue = value as DateTimeValue
+    const tzAbbrev = dateTimeValue.timezone === 'UTC'
+      ? 'UTC'
+      : dateTimeValue.timezone.split('/').pop() ?? dateTimeValue.timezone
+    return `${dateTimeValue.datetime} ${tzAbbrev}`
+  }
   return ''
 }
 
@@ -327,8 +429,6 @@ function getCellRenderer(type: ColumnType) {
       return renderDateCell
     case 'dateTime':
       return renderDateTimeCell
-    case 'string':
-    case 'stringLiteral':
     default:
       return renderStringCell
   }
@@ -383,6 +483,11 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
     )
   }
 
+  // Render cell - dateTime renderer needs column schema for timezone
+  const renderedValue = colSchema.type === 'dateTime'
+    ? (renderer as (value: unknown, column: ColumnSchema) => React.ReactNode)(initialValue, colSchema)
+    : (renderer as (value: unknown) => React.ReactNode)(initialValue)
+
   return (
     <div
       className={s.cell}
@@ -394,7 +499,7 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
       }}
       tabIndex={0}
     >
-      {renderer(initialValue)}
+      {renderedValue}
     </div>
   )
 }
@@ -410,7 +515,6 @@ interface TableEditorProps {
 }
 
 export function TableEditor({
-  op,
   data,
   schema,
   onDataChange,

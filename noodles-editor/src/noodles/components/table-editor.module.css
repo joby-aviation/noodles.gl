@@ -112,6 +112,46 @@
   background: var(--surface-hover);
 }
 
+.dateTimeCellEditor {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.timezoneIndicator {
+  font-size: 0.7rem;
+  color: var(--text-color-secondary);
+  white-space: nowrap;
+  opacity: 0.7;
+  font-weight: 500;
+  padding: 2px 4px;
+  background: var(--surface-ground);
+  border-radius: 2px;
+}
+
+.timezoneDropdown {
+  width: 120px;
+  font-size: 0.75rem;
+}
+
+.timezoneDropdown :global(.p-inputtext) {
+  font-size: 0.75rem;
+  padding: 4px 6px;
+}
+
+.timezoneDropdown :global(.p-autocomplete-dropdown) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.timezonePanel {
+  font-size: 0.75rem;
+  max-height: 300px;
+}
+
 .toolbar {
   display: flex;
   gap: 8px;

@@ -29,6 +29,7 @@ const COLUMN_TYPES: Array<{ label: string; value: ColumnType }> = [
   { label: 'String Literal', value: 'stringLiteral' },
 ]
 
+
 interface ColumnEditorProps {
   column: ColumnSchema
   onChange: (column: ColumnSchema) => void

@@ -1,5 +1,7 @@
 // Table schema types and utilities for TableEditorOp
 
+import { Temporal } from 'temporal-polyfill'
+
 export type ColumnType =
   | 'number'
   | 'string'
@@ -12,6 +14,12 @@ export type ColumnType =
   | 'date'
   | 'dateTime'
   | 'stringLiteral'
+
+// DateTime cell value format
+export interface DateTimeValue {
+  datetime: string // ISO 8601 datetime string (YYYY-MM-DDTHH:mm:ss.SSS)
+  timezone: string // IANA timezone identifier (e.g., 'UTC', 'America/New_York')
+}
 
 export interface ColumnSchema {
   name: string
@@ -151,13 +159,30 @@ export function getDefaultValue(schema: ColumnSchema): unknown {
       return [0, 0, 0]
     case 'date':
       return new Date().toISOString().split('T')[0] // YYYY-MM-DD
-    case 'dateTime':
-      // Current datetime with milliseconds, strip 'Z' for datetime-local compatibility
-      return new Date().toISOString().slice(0, 23)
+    case 'dateTime': {
+      // Return DateTimeValue object (always default to UTC for new cells)
+      const timezone = 'UTC'
+      const now = Temporal.Now.zonedDateTimeISO(timezone)
+      const result: DateTimeValue = {
+        datetime: now.toPlainDateTime().toString({ smallestUnit: 'millisecond' }),
+        timezone: timezone,
+      }
+      return result
+    }
     case 'stringLiteral':
       return schema.options?.values?.[0] ?? ''
     default:
       return null
+  }
+}
+
+// Validate IANA timezone identifier
+export function isValidTimezone(tz: string): boolean {
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: tz })
+    return true
+  } catch {
+    return false
   }
 }
 
@@ -223,18 +248,21 @@ export function validateValue(value: unknown, schema: ColumnSchema): boolean {
       return value instanceof Date && !Number.isNaN(value.getTime())
 
     case 'dateTime': {
-      if (typeof value === 'string') {
-        // Accept ISO datetime: YYYY-MM-DDTHH:mm or YYYY-MM-DDTHH:mm:ss.SSS
-        const dateTimeRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?$/
-        if (!dateTimeRegex.test(value)) {
+      // Only accept { datetime: "...", timezone: "..." } format
+      if (value && typeof value === 'object' && 'datetime' in value && 'timezone' in value) {
+        const obj = value as DateTimeValue
+        // Validate types
+        if (typeof obj.datetime !== 'string') return false
+        if (typeof obj.timezone !== 'string') return false
+        // Validate datetime string format
+        try {
+          Temporal.PlainDateTime.from(obj.datetime)
+        } catch {
           return false
         }
-        // Verify it's a valid datetime
-        const date = new Date(value)
-        return !Number.isNaN(date.getTime())
-      }
-      if (value instanceof Date) {
-        return !Number.isNaN(value.getTime())
+        // Validate timezone
+        if (!isValidTimezone(obj.timezone)) return false
+        return true
       }
       return false
     }
@@ -251,6 +279,74 @@ export function validateValue(value: unknown, schema: ColumnSchema): boolean {
     default:
       return true
   }
+}
+
+// Convert datetime string to Temporal.ZonedDateTime for output
+export function stringToTemporal(value: string, timezone: string): Temporal.ZonedDateTime {
+  // Handle various input formats:
+  // 1. datetime-local format: "2026-05-03T14:30:45.123"
+  // 2. ISO 8601 with timezone: "2026-05-03T14:30:45.123+05:00[Asia/Tokyo]"
+  // 3. ISO 8601 with Z suffix: "2026-05-03T14:30:45.123Z"
+
+  try {
+    // If value has explicit timezone annotation [TimeZone], use it
+    if (value.includes('[')) {
+      return Temporal.ZonedDateTime.from(value)
+    }
+
+    // If value has Z suffix or offset (+/-), parse as instant then convert to target timezone
+    if (value.includes('Z') || /[+-]\d{2}:\d{2}/.test(value)) {
+      const instant = Temporal.Instant.from(value)
+      return instant.toZonedDateTimeISO(timezone)
+    }
+
+    // Otherwise, parse as PlainDateTime and add timezone
+    const plainDateTime = Temporal.PlainDateTime.from(value)
+    return plainDateTime.toZonedDateTime(timezone)
+  } catch (error) {
+    console.warn(`Failed to parse datetime "${value}" with timezone ${timezone}:`, error)
+    // Fallback: use current time in a safe timezone
+    const safeTimezone = isValidTimezone(timezone) ? timezone : 'UTC'
+    return Temporal.Now.zonedDateTimeISO(safeTimezone)
+  }
+}
+
+// Convert Temporal.ZonedDateTime to string for storage
+export function temporalToString(value: Temporal.ZonedDateTime): string {
+  // Store as PlainDateTime string (no timezone suffix) for datetime-local compatibility
+  // The timezone is stored in column schema
+  return value.toPlainDateTime().toString({ smallestUnit: 'millisecond' })
+}
+
+// Convert table data for output: strings → Temporal for dateTime columns
+export function prepareTableDataForOutput(data: unknown[], schema: TableSchema): unknown[] {
+  if (!data || data.length === 0) {
+    return []
+  }
+
+  return data.map(row => {
+    if (typeof row !== 'object' || row === null || Array.isArray(row)) {
+      return row
+    }
+
+    const outputRow: Record<string, unknown> = { ...row }
+
+    for (const col of schema.columns) {
+      if (col.type === 'dateTime') {
+        const value = (row as Record<string, unknown>)[col.name]
+
+        // Only handle DateTimeValue format
+        if (value && typeof value === 'object' && 'datetime' in value && 'timezone' in value) {
+          const dateTimeValue = value as DateTimeValue
+          const timezone = isValidTimezone(dateTimeValue.timezone) ? dateTimeValue.timezone : 'UTC'
+          // Convert to Temporal.ZonedDateTime
+          outputRow[col.name] = stringToTemporal(dateTimeValue.datetime, timezone)
+        }
+      }
+    }
+
+    return outputRow
+  })
 }
 
 // Validate entire table data against schema
