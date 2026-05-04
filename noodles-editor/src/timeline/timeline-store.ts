@@ -313,9 +313,13 @@ export const useTimelineStore = create<TimelineStore>()(
         return
       }
 
+      const before = captureTimelineState()
+
       const tracks = new Map(get().tracks)
       const markers = [...get().markers]
+      const selectedTrackIds = get().selectedTrackIds
       let changed = false
+      let markersChanged = false
 
       // Convert operator ID to object name for matching
       // "/my-op" -> "my-op"
@@ -330,7 +334,7 @@ export const useTimelineStore = create<TimelineStore>()(
         childOperatorIds?.map(id => id.slice(1).split('/').join(' / ')) || []
       )
 
-      // Track ID mappings for marker updates
+      // Track ID mappings for marker and selection updates
       const trackIdMap = new Map<string, string>()
 
       // Iterate through all tracks and rename matching ones
@@ -396,12 +400,33 @@ export const useTimelineStore = create<TimelineStore>()(
             )
           ) {
             markers[i] = { ...marker, connectedKeyframes: updatedConnections }
+            markersChanged = true
           }
         }
       }
 
       if (changed) {
-        set({ tracks, markers })
+        // Update selectedTrackIds to use new track IDs
+        const newSelectedTrackIds = new Set<string>()
+        for (const oldTrackId of selectedTrackIds) {
+          const newTrackId = trackIdMap.get(oldTrackId)
+          if (newTrackId) {
+            newSelectedTrackIds.add(newTrackId)
+          } else if (tracks.has(oldTrackId)) {
+            // Track wasn't renamed, keep the old ID
+            newSelectedTrackIds.add(oldTrackId)
+          }
+          // If track was deleted, don't add to new selection
+        }
+
+        // Only update markers if they actually changed
+        if (markersChanged) {
+          set({ tracks, markers, selectedTrackIds: newSelectedTrackIds })
+        } else {
+          set({ tracks, selectedTrackIds: newSelectedTrackIds })
+        }
+
+        fireTimelineMutation('Rename operator tracks', before)
       }
     },
 
