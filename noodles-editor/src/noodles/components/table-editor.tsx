@@ -286,6 +286,11 @@ function DateTimeCellEditor({ value, onChange, onComplete, onUpdate, column }: C
         onChange={(e) => {
           console.log('onChange:', e.value)
           setTimezoneInputValue(e.value)
+
+          // If user clears the field, reset to current timezone
+          if (!e.value || e.value === null) {
+            setTimezoneInputValue(timezone)
+          }
         }}
         onDropdownClick={() => {
           console.log('Dropdown clicked, showing all timezones')
@@ -305,8 +310,29 @@ function DateTimeCellEditor({ value, onChange, onComplete, onUpdate, column }: C
             setTimezoneInputValue(e.value)
           }
         }}
+        onFocus={() => {
+          console.log('AutoComplete focused')
+        }}
+        onHide={() => {
+          console.log('Dropdown hidden, current value:', timezoneInputValue)
+          // When dropdown closes, if the value changed and is valid, update
+          if (timezoneInputValue && timezoneInputValue !== timezone && timezoneOptions.includes(timezoneInputValue)) {
+            console.log('Valid timezone entered, updating to:', timezoneInputValue)
+            const updatedColumn = {
+              ...column,
+              options: { ...column.options, timezone: timezoneInputValue },
+            }
+            if (onUpdate) {
+              onUpdate(updatedColumn)
+            }
+          } else if (!timezoneOptions.includes(timezoneInputValue)) {
+            // Invalid value, revert
+            console.log('Invalid timezone, reverting to:', timezone)
+            setTimezoneInputValue(timezone)
+          }
+        }}
         dropdown
-        forceSelection
+        forceSelection={false}
         placeholder="TZ"
         className={s.timezoneDropdown}
         panelClassName={s.timezonePanel}
