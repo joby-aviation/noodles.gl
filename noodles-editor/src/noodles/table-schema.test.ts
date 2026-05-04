@@ -179,22 +179,7 @@ describe('validateValue', () => {
     expect(validateValue('invalid-date', schema)).toBe(false)
   })
 
-  it('should validate dateTime string values', () => {
-    const schema = { name: 'test', type: 'dateTime' as const }
-    expect(validateValue('2024-01-15T10:30:45', schema)).toBe(true)
-    expect(validateValue('2024-01-15T10:30:45.123', schema)).toBe(true)
-    expect(validateValue('2024-01-15T10:30', schema)).toBe(true)
-    expect(validateValue(new Date(), schema)).toBe(true)
-    expect(validateValue('invalid', schema)).toBe(false)
-  })
-
-  it('should validate Temporal.ZonedDateTime values', () => {
-    const schema = { name: 'test', type: 'dateTime' as const }
-    const zonedDateTime = Temporal.ZonedDateTime.from('2024-01-15T10:30:45[America/New_York]')
-    expect(validateValue(zonedDateTime, schema)).toBe(true)
-  })
-
-  it('should validate dateTime with new object format', () => {
+  it('should validate dateTime with DateTimeValue object format', () => {
     const schema = {
       name: 'test',
       type: 'dateTime' as const,
@@ -205,6 +190,14 @@ describe('validateValue', () => {
     expect(
       validateValue({ datetime: '2024-01-15T10:30:45.123', timezone: 'UTC' }, schema)
     ).toBe(true)
+  })
+
+  it('should reject non-DateTimeValue formats', () => {
+    const schema = { name: 'test', type: 'dateTime' as const }
+    expect(validateValue('2024-01-15T10:30:45', schema)).toBe(false)  // Plain string
+    expect(validateValue(new Date(), schema)).toBe(false)  // Date object
+    const zonedDateTime = Temporal.ZonedDateTime.from('2024-01-15T10:30:45[America/New_York]')
+    expect(validateValue(zonedDateTime, schema)).toBe(false)  // Temporal object
   })
 })
 
@@ -448,18 +441,6 @@ describe('prepareTableDataForOutput', () => {
     expect((row.time as Temporal.ZonedDateTime).timeZoneId).toBe('America/New_York')
   })
 
-  it('should handle legacy string format with UTC default', () => {
-    const data = [{ time: '2024-01-15T10:30:45' }]
-    const schema = {
-      columns: [{ name: 'time', type: 'dateTime' as const }],
-    }
-
-    const result = prepareTableDataForOutput(data, schema)
-    const row = result[0] as Record<string, unknown>
-
-    expect((row.time as Temporal.ZonedDateTime).timeZoneId).toBe('UTC')
-  })
-
   it('should preserve non-dateTime columns unchanged', () => {
     const data = [{ id: 42, name: 'test', active: true, time: { datetime: '2024-01-15T10:30:45', timezone: 'UTC' } }]
     const schema = {
@@ -478,33 +459,6 @@ describe('prepareTableDataForOutput', () => {
     expect(row.name).toBe('test')
     expect(row.active).toBe(true)
     expect(row.time).toBeInstanceOf(Temporal.ZonedDateTime)
-  })
-
-  it('should handle Date objects by converting to ZonedDateTime', () => {
-    const date = new Date('2024-01-15T10:30:45.123Z')
-    const data = [{ time: date }]
-    const schema = {
-      columns: [{ name: 'time', type: 'dateTime' as const,  }],
-    }
-
-    const result = prepareTableDataForOutput(data, schema)
-    const row = result[0] as Record<string, unknown>
-
-    expect(row.time).toBeInstanceOf(Temporal.ZonedDateTime)
-    expect((row.time as Temporal.ZonedDateTime).timeZoneId).toBe('UTC')
-  })
-
-  it('should preserve already-converted Temporal.ZonedDateTime', () => {
-    const zonedDateTime = Temporal.ZonedDateTime.from('2024-01-15T10:30:45[Asia/Tokyo]')
-    const data = [{ time: zonedDateTime }]
-    const schema = {
-      columns: [{ name: 'time', type: 'dateTime' as const,  }],
-    }
-
-    const result = prepareTableDataForOutput(data, schema)
-    const row = result[0] as Record<string, unknown>
-
-    expect(row.time).toBe(zonedDateTime)
   })
 
   it('should handle empty data', () => {
@@ -556,5 +510,118 @@ describe('getDefaultValue with dateTime', () => {
     expect(result).toHaveProperty('timezone')
     expect((result as {timezone: string}).timezone).toBe('UTC')
     expect((result as {datetime: string}).datetime).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}$/)
+  })
+})
+
+describe('DateTimeValue validation', () => {
+  const schema = { name: 'test', type: 'dateTime' as const }
+
+  it('should accept valid DateTimeValue with UTC', () => {
+    expect(validateValue({ datetime: '2024-01-15T10:30:45.123', timezone: 'UTC' }, schema)).toBe(true)
+  })
+
+  it('should accept valid DateTimeValue with any IANA timezone', () => {
+    expect(validateValue({ datetime: '2024-01-15T10:30:45', timezone: 'America/New_York' }, schema)).toBe(true)
+    expect(validateValue({ datetime: '2024-01-15T10:30:45', timezone: 'Europe/London' }, schema)).toBe(true)
+    expect(validateValue({ datetime: '2024-01-15T10:30:45', timezone: 'Asia/Tokyo' }, schema)).toBe(true)
+  })
+
+  it('should reject DateTimeValue with invalid timezone', () => {
+    expect(validateValue({ datetime: '2024-01-15T10:30:45', timezone: 'Invalid/Zone' }, schema)).toBe(false)
+    expect(validateValue({ datetime: '2024-01-15T10:30:45', timezone: 'NotAZone' }, schema)).toBe(false)
+    expect(validateValue({ datetime: '2024-01-15T10:30:45', timezone: '' }, schema)).toBe(false)
+  })
+
+  it('should reject DateTimeValue with invalid datetime string', () => {
+    expect(validateValue({ datetime: 'not-a-date', timezone: 'UTC' }, schema)).toBe(false)
+    expect(validateValue({ datetime: '2024-13-45', timezone: 'UTC' }, schema)).toBe(false)
+    expect(validateValue({ datetime: '', timezone: 'UTC' }, schema)).toBe(false)
+  })
+
+  it('should reject DateTimeValue with wrong types', () => {
+    expect(validateValue({ datetime: 123, timezone: 'UTC' }, schema)).toBe(false)
+    expect(validateValue({ datetime: '2024-01-15T10:30:45', timezone: 123 }, schema)).toBe(false)
+    expect(validateValue({ datetime: null, timezone: 'UTC' }, schema)).toBe(false)
+  })
+
+  it('should reject objects missing datetime field', () => {
+    expect(validateValue({ timezone: 'UTC' }, schema)).toBe(false)
+  })
+
+  it('should reject objects missing timezone field', () => {
+    expect(validateValue({ datetime: '2024-01-15T10:30:45' }, schema)).toBe(false)
+  })
+
+  it('should reject plain strings', () => {
+    expect(validateValue('2024-01-15T10:30:45', schema)).toBe(false)
+  })
+
+  it('should reject Date objects', () => {
+    expect(validateValue(new Date(), schema)).toBe(false)
+  })
+
+  it('should reject null and undefined', () => {
+    expect(validateValue(null, schema)).toBe(false)
+    expect(validateValue(undefined, schema)).toBe(false)
+  })
+})
+
+describe('prepareTableDataForOutput with DateTimeValue', () => {
+  it('should convert DateTimeValue to Temporal.ZonedDateTime with correct timezone', () => {
+    const data = [
+      { time: { datetime: '2024-01-15T10:30:45.123', timezone: 'America/New_York' } }
+    ]
+    const schema = {
+      columns: [{ name: 'time', type: 'dateTime' as const }],
+    }
+
+    const result = prepareTableDataForOutput(data, schema)
+    const zonedDateTime = result[0].time as Temporal.ZonedDateTime
+
+    expect(zonedDateTime).toBeInstanceOf(Temporal.ZonedDateTime)
+    expect(zonedDateTime.timeZoneId).toBe('America/New_York')
+    expect(zonedDateTime.year).toBe(2024)
+    expect(zonedDateTime.month).toBe(1)
+    expect(zonedDateTime.day).toBe(15)
+  })
+
+  it('should handle invalid timezone by falling back to UTC', () => {
+    const data = [
+      { time: { datetime: '2024-01-15T10:30:45', timezone: 'Invalid/Zone' } }
+    ]
+    const schema = {
+      columns: [{ name: 'time', type: 'dateTime' as const }],
+    }
+
+    const result = prepareTableDataForOutput(data, schema)
+    const zonedDateTime = result[0].time as Temporal.ZonedDateTime
+
+    expect(zonedDateTime.timeZoneId).toBe('UTC')
+  })
+
+  it('should skip invalid DateTimeValue objects', () => {
+    const data = [
+      { time: { datetime: 'invalid' } }  // Missing timezone
+    ]
+    const schema = {
+      columns: [{ name: 'time', type: 'dateTime' as const }],
+    }
+
+    const result = prepareTableDataForOutput(data, schema)
+    expect(result[0].time).toEqual({ datetime: 'invalid' })  // Unchanged
+  })
+
+  it('should preserve milliseconds in conversion', () => {
+    const data = [
+      { time: { datetime: '2024-01-15T10:30:45.456', timezone: 'UTC' } }
+    ]
+    const schema = {
+      columns: [{ name: 'time', type: 'dateTime' as const }],
+    }
+
+    const result = prepareTableDataForOutput(data, schema)
+    const zonedDateTime = result[0].time as Temporal.ZonedDateTime
+
+    expect(zonedDateTime.millisecond).toBe(456)
   })
 })

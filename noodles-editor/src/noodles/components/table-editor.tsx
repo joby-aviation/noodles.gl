@@ -14,7 +14,7 @@ import { InputText } from 'primereact/inputtext'
 import { useEffect, useRef, useState } from 'react'
 import type { Temporal } from 'temporal-polyfill'
 import type { TableEditorOp } from '../operators'
-import type { ColumnSchema, ColumnType, TableSchema } from '../table-schema'
+import type { ColumnSchema, ColumnType, DateTimeValue, TableSchema } from '../table-schema'
 import { convertValue, getDefaultValue, temporalToString } from '../table-schema'
 import { getTimezoneOptions } from '../utils/timezone-utils'
 import { ColorSwatch } from './color-swatch'
@@ -218,55 +218,41 @@ function DateCellEditor({ value, onChange, onComplete }: CellEditorProps) {
 function DateTimeCellEditor({ value, onChange, onComplete, onUpdate, column }: CellEditorProps) {
   const timezoneOptions = useState(() => getTimezoneOptions())[0]
 
-  // Extract datetime and timezone from value (support both object and string formats)
-  let datetimeStr = ''
-  let currentTimezone = 'UTC'
-
-  if (value && typeof value === 'object' && 'datetime' in value) {
-    // New format: { datetime: "...", timezone: "..." }
-    datetimeStr = value.datetime as string
-    currentTimezone = value.timezone as string || 'UTC'
-  } else if (typeof value === 'string') {
-    // Legacy format: plain string
-    datetimeStr = value
-  } else if (value && typeof value === 'object' && 'timeZoneId' in value) {
-    // Temporal.ZonedDateTime - convert to string
-    datetimeStr = temporalToString(value as Temporal.ZonedDateTime)
-    currentTimezone = (value as Temporal.ZonedDateTime).timeZoneId || 'UTC'
-  } else if (value instanceof Date) {
-    datetimeStr = new Date(value.getTime() - value.getTimezoneOffset() * 60000)
-      .toISOString()
-      .slice(0, 23)
-  }
+  // Extract datetime and timezone from DateTimeValue
+  const dateTimeValue = (value && typeof value === 'object' && 'datetime' in value && 'timezone' in value)
+    ? value as DateTimeValue
+    : { datetime: '', timezone: 'UTC' }
 
   const [filteredTimezones, setFilteredTimezones] = useState<string[]>(timezoneOptions)
-  const [timezoneInputValue, setTimezoneInputValue] = useState<string>(currentTimezone)
-  const [pendingTimezone, setPendingTimezone] = useState<string>(currentTimezone)
-  const [datetimeValue, setDatetimeValue] = useState<string>(datetimeStr)
+  const [timezoneInputValue, setTimezoneInputValue] = useState<string>(dateTimeValue.timezone)
+  const [pendingTimezone, setPendingTimezone] = useState<string>(dateTimeValue.timezone)
+  const [datetimeValue, setDatetimeValue] = useState<string>(dateTimeValue.datetime)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const tzAbbrev = currentTimezone === 'UTC' ? 'UTC' : currentTimezone.split('/').pop() ?? currentTimezone
+  const tzAbbrev = dateTimeValue.timezone === 'UTC' ? 'UTC' : dateTimeValue.timezone.split('/').pop() ?? dateTimeValue.timezone
 
   // Apply pending timezone change to cell value
   const applyTimezoneChange = () => {
-    console.log('applyTimezoneChange - pending:', pendingTimezone, 'current:', currentTimezone)
-    if (pendingTimezone && pendingTimezone !== currentTimezone && timezoneOptions.includes(pendingTimezone)) {
+    console.log('applyTimezoneChange - pending:', pendingTimezone, 'current:', dateTimeValue.timezone)
+    if (pendingTimezone && pendingTimezone !== dateTimeValue.timezone && timezoneOptions.includes(pendingTimezone)) {
       console.log('Applying timezone change to:', pendingTimezone)
       // Update cell value with new timezone
-      onChange({
+      const newValue: DateTimeValue = {
         datetime: datetimeValue,
         timezone: pendingTimezone,
-      })
+      }
+      onChange(newValue)
     }
   }
 
   // Update cell value when datetime changes
   const handleDatetimeChange = (newDatetime: string) => {
     setDatetimeValue(newDatetime)
-    onChange({
+    const newValue: DateTimeValue = {
       datetime: newDatetime,
       timezone: pendingTimezone,
-    })
+    }
+    onChange(newValue)
   }
 
   // Handle blur - check if focus is moving to AutoComplete panel
@@ -422,31 +408,16 @@ function renderDateCell(value: unknown): string {
 }
 
 function renderDateTimeCell(value: unknown, column: ColumnSchema): string {
-  let dateStr = ''
-  let timezone = 'UTC'
-
-  // New format: { datetime: "...", timezone: "..." }
-  if (value && typeof value === 'object' && 'datetime' in value) {
-    dateStr = value.datetime as string
-    timezone = value.timezone as string || 'UTC'
-  } else if (typeof value === 'string') {
-    // Legacy format: plain string (assume UTC)
-    dateStr = value
-    timezone = 'UTC'
-  } else if (value && typeof value === 'object' && 'timeZoneId' in value) {
-    // Temporal.ZonedDateTime
-    dateStr = temporalToString(value as Temporal.ZonedDateTime)
-    timezone = (value as Temporal.ZonedDateTime).timeZoneId || 'UTC'
-  } else if (value instanceof Date) {
-    dateStr = value.toISOString().slice(0, 23)
-  } else {
-    return ''
+  // Only handle DateTimeValue format
+  if (value && typeof value === 'object' && 'datetime' in value && 'timezone' in value) {
+    const dateTimeValue = value as DateTimeValue
+    const tzAbbrev = dateTimeValue.timezone === 'UTC'
+      ? 'UTC'
+      : dateTimeValue.timezone.split('/').pop() ?? dateTimeValue.timezone
+    console.log('renderDateTimeCell - column:', column.name, 'timezone:', dateTimeValue.timezone, 'abbrev:', tzAbbrev)
+    return `${dateTimeValue.datetime} ${tzAbbrev}`
   }
-
-  const tzAbbrev = timezone === 'UTC' ? 'UTC' : timezone.split('/').pop() ?? timezone
-  console.log('renderDateTimeCell - column:', column.name, 'timezone:', timezone, 'abbrev:', tzAbbrev)
-
-  return `${dateStr} ${tzAbbrev}`
+  return ''
 }
 
 function renderStringCell(value: unknown): string {
