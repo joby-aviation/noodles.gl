@@ -157,17 +157,23 @@ export function getDefaultValue(schema: ColumnSchema): unknown {
     case 'date':
       return new Date().toISOString().split('T')[0] // YYYY-MM-DD
     case 'dateTime': {
-      // Current datetime with milliseconds, strip 'Z' for datetime-local compatibility
-      // Store as string for internal table storage (UI compatibility)
+      // Return object with datetime and timezone
+      // Default to UTC if no timezone specified in column options
       const timezone = schema.options?.timezone ?? 'UTC'
       if (!isValidTimezone(timezone)) {
         console.warn(`Invalid timezone "${timezone}", falling back to UTC`)
-        return new Date().toISOString().slice(0, 23)
+        return {
+          datetime: new Date().toISOString().slice(0, 23),
+          timezone: 'UTC',
+        }
       }
       // Get current time in the specified timezone
       const now = Temporal.Now.zonedDateTimeISO(timezone)
-      // Format as datetime-local string (without timezone suffix)
-      return now.toPlainDateTime().toString({ smallestUnit: 'millisecond' })
+      // Return as object with datetime string and timezone
+      return {
+        datetime: now.toPlainDateTime().toString({ smallestUnit: 'millisecond' }),
+        timezone: timezone,
+      }
     }
     case 'stringLiteral':
       return schema.options?.values?.[0] ?? ''
@@ -248,11 +254,24 @@ export function validateValue(value: unknown, schema: ColumnSchema): boolean {
       return value instanceof Date && !Number.isNaN(value.getTime())
 
     case 'dateTime': {
+      // Accept new format: { datetime: "...", timezone: "..." }
+      if (value && typeof value === 'object' && 'datetime' in value) {
+        const obj = value as { datetime: unknown; timezone?: unknown }
+        if (typeof obj.datetime !== 'string') return false
+        if (obj.timezone && typeof obj.timezone !== 'string') return false
+        // Validate datetime string
+        try {
+          Temporal.PlainDateTime.from(obj.datetime)
+          return true
+        } catch {
+          return false
+        }
+      }
       // Accept Temporal.ZonedDateTime (runtime type)
       if (value && typeof value === 'object' && 'timeZoneId' in value) {
         return true
       }
-      // Accept ISO datetime strings
+      // Accept ISO datetime strings (legacy format)
       if (typeof value === 'string') {
         try {
           // Try parsing with Temporal (handles multiple formats)
