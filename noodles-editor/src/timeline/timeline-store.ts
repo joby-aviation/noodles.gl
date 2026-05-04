@@ -64,6 +64,11 @@ export interface TimelineStore {
   getTrackById: (trackId: string) => Track | undefined
   deleteTrack: (trackId: string) => void
   deleteTracksForOperators: (operatorIds: string[]) => void
+  renameTracksForOperator: (
+    oldOperatorId: string,
+    newOperatorId: string,
+    childOperatorIds?: string[]
+  ) => void
   hasKeyframesForField: (fieldPath: string) => boolean
 
   // === Marker Actions ===
@@ -300,6 +305,104 @@ export const useTimelineStore = create<TimelineStore>()(
         }
       }
       if (changed) set({ tracks })
+    },
+
+    renameTracksForOperator: (oldOperatorId, newOperatorId, childOperatorIds) => {
+      // Skip if IDs are the same (idempotent)
+      if (oldOperatorId === newOperatorId) {
+        return
+      }
+
+      const tracks = new Map(get().tracks)
+      const markers = [...get().markers]
+      let changed = false
+
+      // Convert operator ID to object name for matching
+      // "/my-op" -> "my-op"
+      // "/container/child" -> "container / child"
+      const oldObjectName = oldOperatorId.slice(1).split('/').join(' / ')
+
+      // Build the prefix to match
+      const oldPrefix = `${oldObjectName} / `
+
+      // If child operator IDs are provided, convert them to object names for checking
+      const childObjectNames = new Set(
+        childOperatorIds?.map(id => id.slice(1).split('/').join(' / ')) || []
+      )
+
+      // Track ID mappings for marker updates
+      const trackIdMap = new Map<string, string>()
+
+      // Iterate through all tracks and rename matching ones
+      for (const [oldTrackId, track] of tracks) {
+        if (oldTrackId.startsWith(oldPrefix)) {
+          const oldOpSegments = oldOperatorId.slice(1).split('/')
+          const trackSegments = oldTrackId.split(' / ')
+
+          // Check if the first N segments of the track match our operator path
+          let isExactMatch = trackSegments.length > oldOpSegments.length
+          for (let i = 0; i < oldOpSegments.length && isExactMatch; i++) {
+            if (trackSegments[i] !== oldOpSegments[i]) {
+              isExactMatch = false
+            }
+          }
+
+          if (isExactMatch) {
+            const fieldSegments = trackSegments.slice(oldOpSegments.length)
+
+            // Check if this track belongs to a child operator
+            // If we have child operator IDs, use them for exact matching
+            let belongsToChild = false
+            if (childObjectNames.size > 0 && fieldSegments.length >= 2) {
+              // Check if adding the first field segment would form a child operator
+              const potentialChildObjectName = [
+                ...trackSegments.slice(0, oldOpSegments.length + 1),
+              ].join(' / ')
+              belongsToChild = childObjectNames.has(potentialChildObjectName)
+            }
+
+            if (!belongsToChild) {
+              // This track belongs to this specific operator
+              const newOpSegments = newOperatorId.slice(1).split('/')
+              const newTrackId = [...newOpSegments, ...fieldSegments].join(' / ')
+
+              const renamedTrack: Track = {
+                ...track,
+                id: newTrackId,
+                fieldPath: newTrackId,
+              }
+
+              tracks.set(newTrackId, renamedTrack)
+              tracks.delete(oldTrackId)
+              trackIdMap.set(oldTrackId, newTrackId)
+              changed = true
+            }
+          }
+        }
+      }
+
+      // Update marker connections to reference new track IDs
+      if (trackIdMap.size > 0) {
+        for (let i = 0; i < markers.length; i++) {
+          const marker = markers[i]
+          const updatedConnections = marker.connectedKeyframes.map(conn => {
+            const newTrackId = trackIdMap.get(conn.trackId)
+            return newTrackId ? { ...conn, trackId: newTrackId } : conn
+          })
+
+          if (
+            updatedConnections.some(
+              (c, idx) => c.trackId !== marker.connectedKeyframes[idx].trackId
+            )
+          ) {
+            markers[i] = { ...marker, connectedKeyframes: updatedConnections }
+          }
+        }
+      }
+
+      if (changed) {
+        set({ tracks, markers })
+      }
     },
 
     hasKeyframesForField: fieldPath => {
