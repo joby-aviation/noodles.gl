@@ -46,6 +46,11 @@ export interface TimelineStore {
   setLength: (length: number) => void
   setFps: (fps: number) => void
 
+  // === In/Out Point Actions ===
+  setInPoint: (time: number) => void
+  setOutPoint: (time: number) => void
+  clearInOutPoints: () => void
+
   // === Playback Actions ===
   setPosition: (position: number) => void
   play: () => void
@@ -209,7 +214,11 @@ export const useTimelineStore = create<TimelineStore>()(
     // === Sequence Actions ===
     setLength: length => {
       set(state => ({
-        sequence: { ...state.sequence, length: Math.max(0.1, length) },
+        sequence: {
+          ...state.sequence,
+          length: Math.max(0.1, length),
+          outPoint: Math.min(state.sequence.outPoint, length),
+        },
         position: Math.min(state.position, length),
       }))
     },
@@ -217,6 +226,33 @@ export const useTimelineStore = create<TimelineStore>()(
     setFps: fps => {
       set(state => ({
         sequence: { ...state.sequence, fps: Math.max(1, Math.round(fps)) },
+      }))
+    },
+
+    // === In/Out Point Actions ===
+    setInPoint: time => {
+      set(state => {
+        const { sequence } = state
+        const clamped = Math.max(0, Math.min(time, sequence.outPoint))
+        return {
+          sequence: { ...sequence, inPoint: clamped },
+        }
+      })
+    },
+
+    setOutPoint: time => {
+      set(state => {
+        const { sequence } = state
+        const clamped = Math.max(sequence.inPoint, Math.min(time, sequence.length))
+        return {
+          sequence: { ...sequence, outPoint: clamped },
+        }
+      })
+    },
+
+    clearInOutPoints: () => {
+      set(state => ({
+        sequence: { ...state.sequence, inPoint: 0, outPoint: state.sequence.length },
       }))
     },
 
@@ -678,6 +714,8 @@ export const useTimelineStore = create<TimelineStore>()(
               subUnitsPerUnit: sequence.fps,
               tracksByObject,
               markers: serializedMarkers.length > 0 ? serializedMarkers : undefined,
+              inPoint: sequence.inPoint,
+              outPoint: sequence.outPoint,
             },
             staticOverrides: { byObject: {} },
           },
@@ -760,16 +798,20 @@ export const useTimelineStore = create<TimelineStore>()(
         })),
       }))
 
+      const length =
+        typeof seq.length === 'number' && seq.length > 0
+          ? seq.length
+          : DEFAULT_SEQUENCE_STATE.length
+
       set({
         sequence: {
-          length:
-            typeof seq.length === 'number' && seq.length > 0
-              ? seq.length
-              : DEFAULT_SEQUENCE_STATE.length,
+          length,
           fps:
             typeof seq.subUnitsPerUnit === 'number' && seq.subUnitsPerUnit > 0
               ? Math.round(seq.subUnitsPerUnit)
               : DEFAULT_SEQUENCE_STATE.fps,
+          inPoint: typeof seq.inPoint === 'number' ? seq.inPoint : 0,
+          outPoint: typeof seq.outPoint === 'number' ? seq.outPoint : length,
         },
         tracks: newTracks,
         markers,

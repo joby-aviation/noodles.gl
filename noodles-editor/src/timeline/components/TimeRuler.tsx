@@ -100,6 +100,10 @@ export function TimeRuler({
   const moveMarker = useTimelineStore(state => state.moveMarker)
   const selectMarker = useTimelineStore(state => state.selectMarker)
 
+  // Get in/out points from store
+  const inPoint = useTimelineStore(state => state.sequence.inPoint)
+  const outPoint = useTimelineStore(state => state.sequence.outPoint)
+
   // Close context menu on outside click or escape
   useEffect(() => {
     if (!contextMenu) return
@@ -369,6 +373,34 @@ export function TimeRuler({
         />
       ))}
 
+      {/* In Point Marker */}
+      {inPoint > 0 && (
+        <div
+          className={s.inOutMarker}
+          data-type="in"
+          style={{
+            left: `${inPoint * pixelsPerSecond}px`,
+          }}
+        >
+          <div className={s.inOutMarkerLine} />
+          <div className={s.inOutMarkerLabel}>IN</div>
+        </div>
+      )}
+
+      {/* Out Point Marker */}
+      {outPoint < sequenceLength && (
+        <div
+          className={s.inOutMarker}
+          data-type="out"
+          style={{
+            left: `${outPoint * pixelsPerSecond}px`,
+          }}
+        >
+          <div className={s.inOutMarkerLine} />
+          <div className={s.inOutMarkerLabel}>OUT</div>
+        </div>
+      )}
+
       {/* End-of-sequence marker */}
       {/* biome-ignore lint/a11y/noStaticElementInteractions: Marker supports pointer drag and double-click editing */}
       <div
@@ -415,6 +447,42 @@ export function TimeRuler({
                 </button>
               </>
             )}
+            <div className={s.rulerContextMenuDivider} />
+            <button
+              type="button"
+              onClick={() => {
+                beforeStateRef.current = captureTimelineState()
+                const snapped = snapToFrame(contextMenu.time, fps)
+                useTimelineStore.getState().setInPoint(snapped)
+                fireTimelineMutation('Set in point')
+                setContextMenu(null)
+              }}
+            >
+              Mark In
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                beforeStateRef.current = captureTimelineState()
+                const snapped = snapToFrame(contextMenu.time, fps)
+                useTimelineStore.getState().setOutPoint(snapped)
+                fireTimelineMutation('Set out point')
+                setContextMenu(null)
+              }}
+            >
+              Mark Out
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                beforeStateRef.current = captureTimelineState()
+                useTimelineStore.getState().clearInOutPoints()
+                fireTimelineMutation('Clear in/out points')
+                setContextMenu(null)
+              }}
+            >
+              Clear In/Out
+            </button>
           </div>,
           document.body
         )}

@@ -593,6 +593,25 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
                 mousePosition={connectionMousePos}
               />
               {boxSelectOverlay && <div className={s.timelineBoxSelect} style={boxSelectOverlay} />}
+              {/* Dim regions outside in/out range */}
+              {sequence.inPoint > 0 && (
+                <div
+                  className={s.timelineDimOverlay}
+                  style={{
+                    left: 0,
+                    width: `${sequence.inPoint * pixelsPerSecond}px`,
+                  }}
+                />
+              )}
+              {sequence.outPoint < sequence.length && (
+                <div
+                  className={s.timelineDimOverlay}
+                  style={{
+                    left: `${sequence.outPoint * pixelsPerSecond}px`,
+                    width: `${(sequence.length - sequence.outPoint) * pixelsPerSecond}px`,
+                  }}
+                />
+              )}
             </div>
           ) : (
             <CurveEditorView
