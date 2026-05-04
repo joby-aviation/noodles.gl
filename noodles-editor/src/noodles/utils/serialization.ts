@@ -43,7 +43,7 @@ export const DEFAULT_RENDER_SETTINGS: RenderSettings = {
   bitrateMode: 'constant',
   scaleControl: 0.3,
   framerate: 30,
-  captureDelay: 200,
+  captureDelay: 50,
   rendersDirectory: 'renders',
 }
 

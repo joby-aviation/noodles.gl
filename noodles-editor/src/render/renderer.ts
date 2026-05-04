@@ -223,7 +223,13 @@ export const useRenderer = ({
         return
       }
 
+      const frameStartTime = performance.now()
+      let totalWaitTime = 0
+      let totalCaptureTime = 0
+      let totalEncodeTime = 0
+
       for (; i < endFrame + 1; i++) {
+        const frameIterationStart = performance.now()
         const simTime = i / fps
         setPosition(simTime)
         redraw()
@@ -232,7 +238,10 @@ export const useRenderer = ({
         if (i % 10 === 0)
           debugRenderFrame('capturing frame %d/%d at simtime %d', i, endFrame, simTime)
 
+        const waitStart = performance.now()
         const canvasResult = await canvasFrameReady()
+        const waitEnd = performance.now()
+        totalWaitTime += waitEnd - waitStart
 
         if (canvasResult?.error) {
           debugRender('Error capturing canvas frame:', canvasResult.error)
@@ -243,19 +252,64 @@ export const useRenderer = ({
           recorder: ReturnType<typeof getCanvasRecorder>,
           container: Awaited<ReturnType<typeof getContainer>>
         ) => {
+          const captureStart = performance.now()
           // @ts-expect-error - typescript types not updated yet
           recorder.track.requestFrame()
           const result = await recorder.reader.read()
+          const captureEnd = performance.now()
+          totalCaptureTime += captureEnd - captureStart
+
           const frame = result.value
 
           assert(frame, 'frame is required - might be a problem with the browser')
 
+          const encodeStart = performance.now()
           await container?.encodeFrame(frame)
+          const encodeEnd = performance.now()
+          totalEncodeTime += encodeEnd - encodeStart
+
           frame.close()
         }
 
         await addRecorderFrame(mapRecorder, mapContainer)
+
+        if (i % 10 === 0) {
+          const frameIterationEnd = performance.now()
+          const frameTime = frameIterationEnd - frameIterationStart
+          debugRenderFrame(
+            'frame %d timing: total=%dms wait=%dms capture=%dms encode=%dms',
+            i,
+            frameTime.toFixed(1),
+            (waitEnd - waitStart).toFixed(1),
+            totalCaptureTime.toFixed(1),
+            totalEncodeTime.toFixed(1)
+          )
+        }
       }
+
+      const totalTime = performance.now() - frameStartTime
+      const frameCount = endFrame - startFrame + 1
+      const avgFrameTime = totalTime / frameCount
+      const targetFrameTime = 1000 / fps
+      const speedFactor = targetFrameTime / avgFrameTime
+
+      debugRender(
+        'Export complete: %d frames in %dms (avg %dms/frame, target %dms/frame, %dx realtime speed)',
+        frameCount,
+        totalTime.toFixed(0),
+        avgFrameTime.toFixed(1),
+        targetFrameTime.toFixed(1),
+        speedFactor.toFixed(2)
+      )
+      debugRender(
+        'Time breakdown: wait=%dms (%.1f%%), capture=%dms (%.1f%%), encode=%dms (%.1f%%)',
+        totalWaitTime.toFixed(0),
+        (totalWaitTime / totalTime) * 100,
+        totalCaptureTime.toFixed(0),
+        (totalCaptureTime / totalTime) * 100,
+        totalEncodeTime.toFixed(0),
+        (totalEncodeTime / totalTime) * 100
+      )
       finishEncoding()
       setIsRendering(false)
     },
@@ -336,9 +390,15 @@ export const useRenderer = ({
           })
 
       try {
+        const exportStartTime = performance.now()
+        let totalWaitTime = 0
+        let totalCaptureTime = 0
+        let totalConvertTime = 0
+
         for (let i = startFrame; i < endFrame + 1; i++) {
           onFrameStart?.(i - startFrame, totalFrames)
 
+          const frameIterationStart = performance.now()
           const simTime = i / fps
           setPosition(simTime)
           redraw()
@@ -348,7 +408,10 @@ export const useRenderer = ({
             debugRenderFrame('exporting frame %d/%d at simtime %d', i, endFrame, simTime)
 
           // Wait for frame to be ready (onAfterRender for pure-deck, onIdle for basemap)
+          const waitStart = performance.now()
           await canvasFrameReady()
+          const waitEnd = performance.now()
+          totalWaitTime += waitEnd - waitStart
 
           const frameNumber = String(i).padStart(padLength, '0')
           const filename = `${projectName}_${frameNumber}.png`
@@ -360,22 +423,67 @@ export const useRenderer = ({
 
           // Capture via compositor: requestFrame reads from the display buffer, not the
           // GL buffer (which may already be cleared). Draw into OffscreenCanvas for PNG.
+          const captureStart = performance.now()
           // @ts-expect-error - typescript types not updated yet
           track.requestFrame()
           const { value: frame } = await reader.read()
+          const captureEnd = performance.now()
+          totalCaptureTime += captureEnd - captureStart
+
           assert(frame, 'frame is required - might be a problem with the browser')
+
+          const convertStart = performance.now()
           const offscreen = new OffscreenCanvas(frame.displayWidth, frame.displayHeight)
           const ctx = offscreen.getContext('2d')!
           ctx.drawImage(frame, 0, 0)
           frame.close()
           const blob = await offscreen.convertToBlob({ type: 'image/png' })
+          const convertEnd = performance.now()
+          totalConvertTime += convertEnd - convertStart
 
           pendingWrites.push(writeFile(filename, blob))
 
           onFrameComplete?.(i - startFrame + 1, totalFrames)
+
+          if (i % 10 === 0) {
+            const frameIterationEnd = performance.now()
+            const frameTime = frameIterationEnd - frameIterationStart
+            debugRenderFrame(
+              'frame %d timing: total=%dms wait=%dms capture=%dms convert=%dms',
+              i,
+              frameTime.toFixed(1),
+              (waitEnd - waitStart).toFixed(1),
+              (captureEnd - captureStart).toFixed(1),
+              (convertEnd - convertStart).toFixed(1)
+            )
+          }
         }
 
         await Promise.all(pendingWrites)
+
+        const totalTime = performance.now() - exportStartTime
+        const frameCount = endFrame - startFrame + 1
+        const avgFrameTime = totalTime / frameCount
+        const targetFrameTime = 1000 / fps
+        const speedFactor = targetFrameTime / avgFrameTime
+
+        debugRender(
+          'Image sequence export complete: %d frames in %dms (avg %dms/frame, target %dms/frame, %dx realtime speed)',
+          frameCount,
+          totalTime.toFixed(0),
+          avgFrameTime.toFixed(1),
+          targetFrameTime.toFixed(1),
+          speedFactor.toFixed(2)
+        )
+        debugRender(
+          'Time breakdown: wait=%dms (%.1f%%), capture=%dms (%.1f%%), convert=%dms (%.1f%%)',
+          totalWaitTime.toFixed(0),
+          (totalWaitTime / totalTime) * 100,
+          totalCaptureTime.toFixed(0),
+          (totalCaptureTime / totalTime) * 100,
+          totalConvertTime.toFixed(0),
+          (totalConvertTime / totalTime) * 100
+        )
       } finally {
         reader.releaseLock()
         if (deck) {
