@@ -1,12 +1,14 @@
 #!/usr/bin/env tsx
 
-// Manual benchmark script for measuring export performance.
+// Theoretical benchmark script for export performance.
 // Run with: npm run benchmark:export
 //
-// This script measures actual export timing using headless browser automation.
-// Results can be tracked over time to detect performance regressions.
+// NOTE: This currently outputs theoretical calculations, not actual measurements.
+// To measure real performance, enable debug logging in browser console:
+// localStorage.debug = 'noodles:render*' and manually trigger exports.
+// Future work: Add Playwright automation to trigger actual exports and parse debug logs.
 
-import { chromium } from 'playwright'
+// import { chromium } from 'playwright' // TODO: Uncomment when implementing real browser automation
 
 interface BenchmarkResult {
   sceneName: string
@@ -22,67 +24,33 @@ interface BenchmarkResult {
 }
 
 async function runBenchmark(
-  projectPath: string,
+  _projectPath: string,
   sceneName: string,
   captureDelay: number,
   frameCount: number = 30
 ): Promise<BenchmarkResult | null> {
-  const browser = await chromium.launch({ headless: true })
-  const context = await browser.newContext({
-    viewport: { width: 1920, height: 1080 },
-    permissions: ['clipboard-read', 'clipboard-write'],
-  })
-  const page = await context.newPage()
+  // TODO: Implement actual browser automation to trigger exports and measure real timing.
+  // For now, this calculates theoretical performance based on the bottleneck analysis.
+  // Real implementation would need to:
+  // 1. Launch Playwright browser with chromium.launch()
+  // 2. Navigate to the project URL
+  // 3. Access window.store to set captureDelay (no require() in browser context)
+  // 4. Trigger export via UI or evaluate: window.exportActions.startRender()
+  // 5. Parse debug console logs for actual timing data
+  // 6. Return measured results instead of calculated estimates
 
-  // Enable debug logging
-  await page.evaluate(() => {
-    localStorage.setItem('debug', 'noodles:render*')
-  })
-
-  // Load the project
-  const url = `http://localhost:5173${projectPath}`
-  console.log(`Loading ${url}...`)
-  await page.goto(url, { waitUntil: 'networkidle' })
-
-  // Wait for app to be ready
-  await page.waitForTimeout(2000)
-
-  // Set captureDelay on the OutOp
-  await page.evaluate((delay) => {
-    const { getOp } = require('./noodles/store')
-    const outOp = getOp('/out')
-    if (outOp) {
-      outOp.inputs.captureDelay.setValue(delay)
-    }
-  }, captureDelay)
-
-  // Collect debug logs for timing data
-  const logs: string[] = []
-  page.on('console', (msg) => {
-    if (msg.text().includes('Export complete') || msg.text().includes('Time breakdown')) {
-      logs.push(msg.text())
-    }
-  })
-
-  // Trigger export via keyboard shortcut or UI
-  // This is a placeholder - actual implementation would depend on UI structure
-  console.log(`Starting export with captureDelay=${captureDelay}ms...`)
-
-  // For now, just simulate the timing based on our analysis
   const fps = 30
   const targetFrameTime = 1000 / fps
-  const renderTime = 33 // actual render + encode ~33ms
+  const renderTime = 33 // actual render + encode ~33ms (from analysis)
   const totalPerFrame = captureDelay + renderTime
   const totalTime = totalPerFrame * frameCount
   const avgFrameTime = totalPerFrame
   const speedFactor = targetFrameTime / avgFrameTime
 
-  // Simulate timing breakdown percentages
+  // Theoretical timing breakdown percentages
   const waitPercent = (captureDelay / totalPerFrame) * 100
   const capturePercent = 10 // ~10% for GPU capture
   const encodePercent = 100 - waitPercent - capturePercent
-
-  await browser.close()
 
   return {
     sceneName,

@@ -248,24 +248,30 @@ export const useRenderer = ({
           return
         }
 
+        // Lift timing variables outside closure for per-frame logging
+        let captureStart = 0
+        let captureEnd = 0
+        let encodeStart = 0
+        let encodeEnd = 0
+
         const addRecorderFrame = async (
           recorder: ReturnType<typeof getCanvasRecorder>,
           container: Awaited<ReturnType<typeof getContainer>>
         ) => {
-          const captureStart = performance.now()
+          captureStart = performance.now()
           // @ts-expect-error - typescript types not updated yet
           recorder.track.requestFrame()
           const result = await recorder.reader.read()
-          const captureEnd = performance.now()
+          captureEnd = performance.now()
           totalCaptureTime += captureEnd - captureStart
 
           const frame = result.value
 
           assert(frame, 'frame is required - might be a problem with the browser')
 
-          const encodeStart = performance.now()
+          encodeStart = performance.now()
           await container?.encodeFrame(frame)
-          const encodeEnd = performance.now()
+          encodeEnd = performance.now()
           totalEncodeTime += encodeEnd - encodeStart
 
           frame.close()
@@ -281,8 +287,8 @@ export const useRenderer = ({
             i,
             frameTime.toFixed(1),
             (waitEnd - waitStart).toFixed(1),
-            totalCaptureTime.toFixed(1),
-            totalEncodeTime.toFixed(1)
+            (captureEnd - captureStart).toFixed(1),
+            (encodeEnd - encodeStart).toFixed(1)
           )
         }
       }
