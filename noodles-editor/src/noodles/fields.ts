@@ -9,6 +9,7 @@ import { debugSetValue } from '../utils/debug'
 import type { BetterDeckProps, BetterMapProps } from '../visualizations'
 import type { inputComponents } from './components/field-components'
 import type { IOperator, Operator } from './operators'
+import { deepEqual } from './utils/deep-equal'
 import type { ExtractProps } from './utils/extract-props'
 import { resolvePath } from './utils/path-utils'
 
@@ -303,6 +304,16 @@ export class MapStyleField extends Field<
 
   createSchema(_options?: Partial<MapStyleFieldOptions>) {
     return z.union([z.string(), z.record(z.string(), z.unknown())])
+  }
+
+  // Skip update if object content is identical to avoid unnecessary downstream re-execution
+  setValue(value: z.input<typeof this.schema>): void {
+    if (typeof value === 'object' && value !== null &&
+        typeof this.value === 'object' && this.value !== null &&
+        deepEqual(this.value, value)) {
+      return
+    }
+    super.setValue(value)
   }
 }
 
