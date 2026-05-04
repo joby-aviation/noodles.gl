@@ -3936,8 +3936,11 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
     }
   }
   createOutputs() {
+    const visField = new VisualizationField()
+    // Enable deep equality to prevent unnecessary updates when vis content unchanged
+    visField.useDeepEquality = true
     return {
-      vis: new VisualizationField(),
+      vis: visField,
     }
   }
   execute({
@@ -5332,39 +5335,31 @@ export class IconLayerOp extends Operator<IconLayerOp> {
       // Accessor function mode - pass through
       iconProps = { getIcon }
     } else if (getIcon && typeof getIcon === 'string') {
-      // Single-icon mode - cache resolved icon data to avoid re-resolving every frame
-      // Skip caching for project-local URLs (@/) since they may change on disk
-      const isProjectLocal = getIcon.startsWith(projectScheme)
+      // Single-icon mode - cache resolved icon data AND accessor function
+      // to avoid re-resolving and creating new accessor references every frame
+      // (new accessor references trigger deck.gl updateTriggers and cause texture re-upload)
+      const cacheKey = `${getIcon}:${sizeMaxPixels}`
+      let cached = this._iconCache.get(cacheKey)
 
-      if (isProjectLocal) {
-        // Always re-resolve project-local assets to reflect updates
+      if (!cached) {
         const iconData = await resolveImageWithDimensions(getIcon, sizeMaxPixels)
-        iconProps = { getIcon: () => iconData }
-      } else {
-        // Cache external URLs with stable accessor reference
-        const cacheKey = `${getIcon}:${sizeMaxPixels}`
-        let cached = this._iconCache.get(cacheKey)
+        const accessor = () => iconData
+        cached = { data: iconData, accessor }
 
-        if (!cached) {
-          const iconData = await resolveImageWithDimensions(getIcon, sizeMaxPixels)
-          const accessor = () => iconData
-          cached = { data: iconData, accessor }
-
-          // Simple LRU: if cache is full, delete oldest entry (first in Map)
-          if (this._iconCache.size >= this.MAX_CACHE_SIZE) {
-            const firstKey = this._iconCache.keys().next().value
-            this._iconCache.delete(firstKey)
-          }
-
-          this._iconCache.set(cacheKey, cached)
-        } else {
-          // Move to end for LRU (delete + re-add)
-          this._iconCache.delete(cacheKey)
-          this._iconCache.set(cacheKey, cached)
+        // Simple LRU: if cache is full, delete oldest entry (first in Map)
+        if (this._iconCache.size >= this.MAX_CACHE_SIZE) {
+          const firstKey = this._iconCache.keys().next().value
+          this._iconCache.delete(firstKey)
         }
 
-        iconProps = { getIcon: cached.accessor }
+        this._iconCache.set(cacheKey, cached)
+      } else {
+        // Move to end for LRU (delete + re-add)
+        this._iconCache.delete(cacheKey)
+        this._iconCache.set(cacheKey, cached)
       }
+
+      iconProps = { getIcon: cached.accessor }
     } else {
       // Atlas mode - resolve atlas URL
       const resolvedIconAtlas = await resolveProjectUrl(iconAtlas)
