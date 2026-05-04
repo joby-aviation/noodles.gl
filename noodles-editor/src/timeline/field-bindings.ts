@@ -243,14 +243,24 @@ export function getFieldFromTrackPath(fieldPath: string): {
   const parts = fieldPath.split(' / ')
   if (parts.length < 2) return null
 
-  // Reconstruct operator ID: "maplibre-basemap" → "/maplibre-basemap"
-  const opId = `/${parts[0].replace(/ \/ /g, '/')}`
+  // Reconstruct operator ID by trying each split point
+  // "container / nested / fieldName" → try "/container/nested", then "/container"
+  let operator: Operator<IOperator> | null = null
+  let opPartCount = 0
 
-  const operator = getOp(opId)
+  for (let i = parts.length - 2; i >= 0; i--) {
+    const opId = `/${parts.slice(0, i + 1).join('/')}`
+    operator = getOp(opId)
+    if (operator) {
+      opPartCount = i + 1
+      break
+    }
+  }
+
   if (!operator) return null
 
-  const fieldName = parts[1]
-  const subPath = parts.slice(2)
+  const fieldName = parts[opPartCount]
+  const subPath = parts.slice(opPartCount + 1)
 
   // Navigate to the field
   let field: AnyField | undefined = operator.inputs[fieldName] as AnyField
@@ -370,7 +380,12 @@ export function bindFieldToTimeline(
       }
     },
     {
-      equalityFn: (a, b) => JSON.stringify(a) === JSON.stringify(b),
+      equalityFn: (a, b) => {
+        if (a === b) return true
+        if (!a || !b || a.length !== b.length) return false
+        // Shallow compare keyframes by reference - new array is created on mutation
+        return a.every((kf, i) => kf === b[i])
+      },
     }
   )
 
@@ -591,7 +606,12 @@ function bindVecChannelToTimeline(
       }
     },
     {
-      equalityFn: (a, b) => JSON.stringify(a) === JSON.stringify(b),
+      equalityFn: (a, b) => {
+        if (a === b) return true
+        if (!a || !b || a.length !== b.length) return false
+        // Shallow compare keyframes by reference - new array is created on mutation
+        return a.every((kf, i) => kf === b[i])
+      },
     }
   )
 

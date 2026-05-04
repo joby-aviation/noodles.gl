@@ -319,29 +319,29 @@ export function KeyframeValuePopup({
           const { field, subPath } = fieldInfo
 
           // Handle vec/point channel updates (e.g., "position / x")
-          if (subPath && subPath.length > 0) {
+          if (
+            subPath &&
+            subPath.length > 0 &&
+            (field instanceof Vec2Field ||
+              field instanceof Vec3Field ||
+              field instanceof Point2DField ||
+              field instanceof Point3DField)
+          ) {
             const channelKey = subPath[0]
             const channelValue = evaluatedValue as number
 
-            if (
-              field instanceof Vec2Field ||
-              field instanceof Vec3Field ||
-              field instanceof Point2DField ||
-              field instanceof Point3DField
-            ) {
-              // Update specific channel while preserving others
-              if (field.returnType === 'tuple') {
-                const channelKeys = (field.constructor as typeof Vec2Field).channelKeys
-                const idx = channelKeys.indexOf(channelKey as (typeof channelKeys)[number])
-                const tuple = [...(field.value as number[])]
-                tuple[idx] = channelValue
-                field.setValue(tuple as any)
-              } else {
-                field.setValue({ ...field.value, [channelKey]: channelValue } as any)
-              }
+            // Update specific channel while preserving others
+            if (field.returnType === 'tuple') {
+              const channelKeys = (field.constructor as typeof Vec2Field).channelKeys
+              const idx = channelKeys.indexOf(channelKey as (typeof channelKeys)[number])
+              const tuple = [...(field.value as number[])]
+              tuple[idx] = channelValue
+              field.setValue(tuple as any)
+            } else {
+              field.setValue({ ...field.value, [channelKey]: channelValue } as any)
             }
           } else {
-            // Regular field update (not a channel)
+            // Regular field update (not a vec/point channel)
             const fieldValue = keyframeValueToFieldValue(field, evaluatedValue)
             if (fieldValue !== undefined) {
               field.setValue(fieldValue)
