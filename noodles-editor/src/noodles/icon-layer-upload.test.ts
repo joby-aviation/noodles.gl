@@ -564,4 +564,164 @@ describe('IconLayerOp Upload Support', () => {
       expect(op).toBeDefined()
     })
   })
+
+  describe('Icon Resolution Caching', () => {
+    let originalImage: typeof Image
+    let _mockImageInstance: any
+    let MockImageConstructor: any
+    let shouldSucceed: boolean
+    let mockWidth: number
+    let mockHeight: number
+
+    const defaultInputs = {
+      data: [],
+      visible: true,
+      opacity: 1,
+      getPosition: [0, 0] as [number, number],
+      iconAtlas: '',
+      iconMapping: {},
+      billboard: true,
+      getSize: 1,
+      sizeUnits: 'pixels' as const,
+      sizeScale: 1,
+      sizeMinPixels: 0,
+      sizeMaxPixels: 256,
+      getPixelOffset: [0, 0] as [number, number],
+      getColor: [255, 255, 255, 255] as [number, number, number, number],
+      getAngle: 0,
+      sizeBasis: 'pixels' as const,
+      parameters: { depthTest: true },
+      extensions: [],
+    }
+
+    beforeEach(() => {
+      originalImage = globalThis.Image
+      shouldSucceed = true
+      mockWidth = 64
+      mockHeight = 64
+
+      MockImageConstructor = function (this: any) {
+        const instance = {
+          naturalWidth: 0,
+          naturalHeight: 0,
+          onload: null as (() => void) | null,
+          onerror: null as (() => void) | null,
+          _src: '',
+        }
+
+        Object.defineProperty(instance, 'src', {
+          get() {
+            return this._src
+          },
+          set(value: string) {
+            this._src = value
+            queueMicrotask(() => {
+              if (shouldSucceed) {
+                instance.naturalWidth = mockWidth
+                instance.naturalHeight = mockHeight
+                instance.onload?.()
+              } else {
+                instance.onerror?.()
+              }
+            })
+          },
+        })
+
+        _mockImageInstance = instance
+        return instance
+      }
+
+      globalThis.Image = MockImageConstructor as any
+    })
+
+    afterEach(() => {
+      globalThis.Image = originalImage
+    })
+
+    it('should return cached icon data on subsequent executions with same URL', async () => {
+      const op = new IconLayerOp('/test-icon-layer')
+      mockWidth = 64
+      mockHeight = 64
+      shouldSucceed = true
+
+      const result1 = await op.execute({
+        ...defaultInputs,
+        getIcon: 'https://example.com/aircraft.png',
+      })
+
+      const result2 = await op.execute({
+        ...defaultInputs,
+        getIcon: 'https://example.com/aircraft.png',
+      })
+
+      const iconData1 = (result1.layer.getIcon as () => any)()
+      const iconData2 = (result2.layer.getIcon as () => any)()
+
+      // Should be the exact same object reference (cached)
+      expect(iconData1).toBe(iconData2)
+    })
+
+    it('should resolve a new icon when URL changes', async () => {
+      const op = new IconLayerOp('/test-icon-layer')
+      mockWidth = 64
+      mockHeight = 64
+      shouldSucceed = true
+
+      const result1 = await op.execute({
+        ...defaultInputs,
+        getIcon: 'https://example.com/aircraft.png',
+      })
+
+      const result2 = await op.execute({
+        ...defaultInputs,
+        getIcon: 'https://example.com/helicopter.png',
+      })
+
+      const iconData1 = (result1.layer.getIcon as () => any)()
+      const iconData2 = (result2.layer.getIcon as () => any)()
+
+      // Should be different objects (different URLs)
+      expect(iconData1.id).toBe('https://example.com/aircraft.png')
+      expect(iconData2.id).toBe('https://example.com/helicopter.png')
+    })
+
+    it('should resolve a new icon when sizeMaxPixels changes', async () => {
+      const op = new IconLayerOp('/test-icon-layer')
+      mockWidth = 1000
+      mockHeight = 1000
+      shouldSucceed = true
+
+      const result1 = await op.execute({
+        ...defaultInputs,
+        getIcon: 'https://example.com/icon.png',
+        sizeMaxPixels: 64,
+      })
+
+      const result2 = await op.execute({
+        ...defaultInputs,
+        getIcon: 'https://example.com/icon.png',
+        sizeMaxPixels: 128,
+      })
+
+      const iconData1 = (result1.layer.getIcon as () => any)()
+      const iconData2 = (result2.layer.getIcon as () => any)()
+
+      // Different sizeMaxPixels → different cache key → different resolution
+      expect(iconData1.width).toBe(128) // 64 * 2
+      expect(iconData2.width).toBe(256) // 128 * 2
+    })
+
+    it('should not cache when getIcon is an accessor function', async () => {
+      const op = new IconLayerOp('/test-icon-layer')
+      const getIconFn = () => ({ url: 'test.png', width: 32, height: 32, id: 'test' })
+
+      const result = await op.execute({
+        ...defaultInputs,
+        getIcon: getIconFn,
+      })
+
+      // Accessor function should be passed through directly, not cached
+      expect(result.layer.getIcon).toBe(getIconFn)
+    })
+  })
 })

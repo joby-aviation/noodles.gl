@@ -5149,6 +5149,7 @@ export class TextLayerOp extends Operator<TextLayerOp> {
 export class IconLayerOp extends Operator<IconLayerOp> {
   static displayName = 'IconLayer'
   static description = 'Render a set of icons on the map'
+  private _iconCache = new Map<string, { url: string; width: number; height: number; id: string }>()
   createInputs() {
     return {
       data: new DataField(),
@@ -5257,7 +5258,8 @@ export class IconLayerOp extends Operator<IconLayerOp> {
           const naturalHeight = img.naturalHeight
 
           // Calculate max texture dimension based on display size
-          // Use 2x for quality buffer (like Retina), but cap at 512px to limit memory
+          // Use 2x for quality buffer (like Retina), cap at 512 to avoid
+          // Deck.gl icon atlas packing issues with large dimensions
           const maxDimension = Math.min(maxDisplaySize * 2, 512)
           const aspectRatio = naturalWidth / naturalHeight
           let width = naturalWidth
@@ -5297,8 +5299,13 @@ export class IconLayerOp extends Operator<IconLayerOp> {
       // Accessor function mode - pass through
       iconProps = { getIcon }
     } else if (getIcon && typeof getIcon === 'string') {
-      // Simple single-icon mode - resolve URL and extract dimensions automatically
-      const iconData = await resolveImageWithDimensions(getIcon, sizeMaxPixels)
+      // Single-icon mode - cache resolved icon data to avoid re-resolving every frame
+      const cacheKey = `${getIcon}:${sizeMaxPixels}`
+      let iconData = this._iconCache.get(cacheKey)
+      if (!iconData) {
+        iconData = await resolveImageWithDimensions(getIcon, sizeMaxPixels)
+        this._iconCache.set(cacheKey, iconData)
+      }
       iconProps = { getIcon: () => iconData }
     } else {
       // Atlas mode - resolve atlas URL
