@@ -319,6 +319,7 @@ function DateTimeCellEditor({ value, onChange, onComplete, onUpdate, column }: C
           }
         }}
         dropdown
+        autoHighlight={false}
         placeholder="TZ"
         className={s.timezoneDropdown}
         panelClassName={s.timezonePanel}
