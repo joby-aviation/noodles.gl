@@ -192,12 +192,12 @@ import { getAllOps, getOp } from './store'
 import { prepareTableDataForOutput, type TableSchema } from './table-schema'
 import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
 import { composeAccessor, isAccessor } from './utils/accessor-helpers'
+import { deepEqual } from './utils/deep-equal'
 import type { ExtractProps } from './utils/extract-props'
 import { projectScheme } from './utils/filesystem'
 import type { OpId } from './utils/id-utils'
 import { isDirectChild } from './utils/path-utils'
 import { pick } from './utils/pick'
-import { deepEqual } from './utils/deep-equal'
 import { getTimelineContext } from './utils/timeline-context'
 import { subscribeOpToTimeline, unsubscribeOpFromTimeline } from './utils/timeline-dependencies'
 import { validateViewState } from './utils/viewstate-helpers'
@@ -733,11 +733,10 @@ export abstract class Operator<OP extends IOperator> {
           // Use deep equality for CompoundPropsField and MapStyleField (when object)
           // to avoid unnecessary updates when object content is identical but reference differs
           const fieldType = (field.constructor as typeof Field).type
-          const isObjectField = fieldType === 'compound' ||
+          const isObjectField =
+            fieldType === 'compound' ||
             (fieldType === 'map-style' && typeof newValue === 'object' && newValue !== null)
-          const hasChanged = isObjectField
-            ? !deepEqual(oldValue, newValue)
-            : oldValue !== newValue
+          const hasChanged = isObjectField ? !deepEqual(oldValue, newValue) : oldValue !== newValue
 
           if (hasChanged) {
             // Skip schema validation on outputs

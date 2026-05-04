@@ -308,9 +308,13 @@ export class MapStyleField extends Field<
 
   // Skip update if object content is identical to avoid unnecessary downstream re-execution
   setValue(value: z.input<typeof this.schema>): void {
-    if (typeof value === 'object' && value !== null &&
-        typeof this.value === 'object' && this.value !== null &&
-        deepEqual(this.value, value)) {
+    if (
+      typeof value === 'object' &&
+      value !== null &&
+      typeof this.value === 'object' &&
+      this.value !== null &&
+      deepEqual(this.value, value)
+    ) {
       return
     }
     super.setValue(value)

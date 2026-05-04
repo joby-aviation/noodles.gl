@@ -3172,7 +3172,13 @@ describe('Operator output deep equality for CompoundPropsField', () => {
     const callCount1 = nextSpy.mock.calls.length
 
     // Change viewState to different values
-    op.inputs.viewState.setValue({ latitude: 40, longitude: -120, zoom: 12, pitch: 45, bearing: 90 })
+    op.inputs.viewState.setValue({
+      latitude: 40,
+      longitude: -120,
+      zoom: 12,
+      pitch: 45,
+      bearing: 90,
+    })
 
     await op.pull()
     const callCount2 = nextSpy.mock.calls.length
@@ -3315,7 +3321,13 @@ describe('Operator output deep equality for CompoundPropsField', () => {
 
     // Simulate viewState update (common during animation/interaction)
     // but mapStyle, projection, sky, light remain the same
-    op.inputs.viewState.setValue({ latitude: 37.1, longitude: -122.1, zoom: 10.5, pitch: 0, bearing: 0 })
+    op.inputs.viewState.setValue({
+      latitude: 37.1,
+      longitude: -122.1,
+      zoom: 10.5,
+      pitch: 0,
+      bearing: 0,
+    })
 
     await op.pull()
     const callCount2 = nextSpy.mock.calls.length
@@ -3324,7 +3336,13 @@ describe('Operator output deep equality for CompoundPropsField', () => {
     expect(callCount2).toBeGreaterThan(callCount1)
 
     // Now update viewState again with same values
-    op.inputs.viewState.setValue({ latitude: 37.1, longitude: -122.1, zoom: 10.5, pitch: 0, bearing: 0 })
+    op.inputs.viewState.setValue({
+      latitude: 37.1,
+      longitude: -122.1,
+      zoom: 10.5,
+      pitch: 0,
+      bearing: 0,
+    })
 
     await op.pull()
     const callCount3 = nextSpy.mock.calls.length
