@@ -408,6 +408,11 @@ function KeyframeBar({
   const isDraggingRef = useRef(false)
   const beforeStateRef = useRef('')
 
+  // Get in/out points for dimming
+  const inPoint = useTimelineStore(state => state.sequence.inPoint)
+  const outPoint = useTimelineStore(state => state.sequence.outPoint)
+  const isOutsideActiveRange = k1.position > outPoint || k2.position < inPoint
+
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
       if (e.button !== 0) return
@@ -480,7 +485,7 @@ function KeyframeBar({
     // biome-ignore lint/a11y/noStaticElementInteractions: Bar is a drag handle for selected keyframes and click target for curve popup
     <div
       className={s.timelineKeyframeBar}
-      style={{ left, width }}
+      style={{ left, width, opacity: isOutsideActiveRange ? 0.3 : 1 }}
       onPointerDown={handlePointerDown}
       onMouseDown={e => e.stopPropagation()}
       onClick={handleClick}
@@ -520,6 +525,11 @@ function KeyframeDiamond({
   const [isHovered, setIsHovered] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+
+  // Get in/out points for dimming
+  const inPoint = useTimelineStore(state => state.sequence.inPoint)
+  const outPoint = useTimelineStore(state => state.sequence.outPoint)
+  const isOutsideActiveRange = keyframe.position < inPoint || keyframe.position > outPoint
 
   // Nudge the menu back into the viewport if it overflows at right/bottom edges
   useLayoutEffect(() => {
@@ -683,7 +693,7 @@ function KeyframeDiamond({
       {/* biome-ignore lint/a11y/noStaticElementInteractions: Keyframe diamond is a drag handle */}
       <div
         className={`${s.timelineKeyframe} ${isSelected ? s.selected : ''} ${showDropTarget ? s.dropTarget : ''}`}
-        style={{ left: x }}
+        style={{ left: x, opacity: isOutsideActiveRange ? 0.3 : 1 }}
         onPointerDown={handlePointerDown}
         onClick={handleClick}
         onContextMenu={handleContextMenu}

@@ -1477,3 +1477,67 @@
 .timelineTrackLabelBtn.hasKeyframes:hover:not(:disabled) {
   color: var(--tl-accent-strong);
 }
+
+/* In/Out Point Markers */
+.inOutMarker {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  pointer-events: auto;
+  z-index: 10;
+  cursor: ew-resize;
+}
+
+.inOutMarker[data-type="in"] .inOutMarkerLine {
+  border-left: 2px solid #4ade80;
+}
+
+.inOutMarker[data-type="out"] .inOutMarkerLine {
+  border-left: 2px solid #f87171;
+}
+
+.inOutMarkerLine {
+  height: 100%;
+  pointer-events: none;
+}
+
+.inOutMarkerLabel {
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: currentColor;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 1px 4px;
+  border-radius: 2px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.inOutMarkerHandle {
+  position: absolute;
+  top: 0;
+  left: -4px;
+  width: 8px;
+  height: 100%;
+  cursor: ew-resize;
+}
+
+.inOutMarker:hover .inOutMarkerLine {
+  opacity: 0.8;
+}
+
+.inOutMarker:hover .inOutMarkerLabel {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+/* Dimming overlay for non-active timeline sections */
+.timelineDimOverlay {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  z-index: 5;
+}
