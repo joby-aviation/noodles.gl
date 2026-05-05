@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { IconLayerOp, PathLayerOp, TripsLayerOp, ArcLayerOp, LineLayerOp, GreatCircleLayerOp } from './operators'
+import {
+  IconLayerOp,
+  PathLayerOp,
+  TripsLayerOp,
+  ArcLayerOp,
+  LineLayerOp,
+  GreatCircleLayerOp,
+} from './operators'
 
 // Helper to get all input values from an operator
 function getInputProps(op: { inputs: Record<string, { value: unknown }> }) {
