@@ -4896,7 +4896,7 @@ export class PathLayerOp extends Operator<PathLayerOp> {
       getColor: new ColorField('#006ac6', { accessor: true, transform: hexToColor }),
       getWidth: new NumberField(8, { min: 0, softMax: 100, accessor: true }),
       widthUnits: new StringLiteralField('meters', {
-        values: ['pixels', 'meters'],
+        values: ['pixels', 'meters', 'common'],
         showByDefault: false,
       }),
       widthScale: new NumberField(20, { min: 0, softMax: 100, showByDefault: false }),
@@ -5004,7 +5004,7 @@ export class TripsLayerOp extends Operator<TripsLayerOp> {
       fadeTrail: new BooleanField(false),
       trailLength: new NumberField(120, { min: 0 }),
       widthUnits: new StringLiteralField('meters', {
-        values: ['pixels', 'meters'],
+        values: ['pixels', 'meters', 'common'],
         showByDefault: false,
       }),
       widthMinPixels: new NumberField(2, { min: 0, softMax: 100, showByDefault: false }),
@@ -5179,7 +5179,7 @@ export class IconLayerOp extends Operator<IconLayerOp> {
       }), // Can be: uploaded file URL, external URL, or accessor function returning {url, width?, height?}
       getSize: new NumberField(1, { min: 0, softMax: 100, accessor: true }),
       sizeUnits: new StringLiteralField('pixels', {
-        values: ['pixels', 'meters'],
+        values: ['pixels', 'meters', 'common'],
         showByDefault: false,
       }),
       sizeScale: new NumberField(1, { min: 0, softMax: 10_000 }),
@@ -5191,8 +5191,9 @@ export class IconLayerOp extends Operator<IconLayerOp> {
       ),
       getColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
       getAngle: new NumberField(0, { accessor: true }),
-      sizeBasis: new StringLiteralField('pixels', {
-        values: ['pixels', 'meters', 'common'],
+      sizeBasis: new StringLiteralField('height', {
+        values: ['height', 'width'],
+        showByDefault: false,
         optional: true,
       }),
       parameters: new CompoundPropsField(
@@ -5731,7 +5732,7 @@ export class ArcLayerOp extends Operator<ArcLayerOp> {
       getSourceColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
       getTargetColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
       widthUnits: new StringLiteralField('meters', {
-        values: ['pixels', 'meters'],
+        values: ['pixels', 'meters', 'common'],
         showByDefault: false,
       }),
       getWidth: new NumberField(1, { min: 0, softMax: 100, accessor: true }),
@@ -7154,7 +7155,7 @@ export class LineLayerOp extends Operator<LineLayerOp> {
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       widthUnits: new StringLiteralField('pixels', {
-        values: ['pixels', 'meters'],
+        values: ['pixels', 'meters', 'common'],
         showByDefault: false,
       }),
       widthScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
@@ -7384,7 +7385,7 @@ export class GreatCircleLayerOp extends Operator<GreatCircleLayerOp> {
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       numSegments: new NumberField(20, { min: 1, softMax: 100, showByDefault: false }),
       widthUnits: new StringLiteralField('pixels', {
-        values: ['pixels', 'meters'],
+        values: ['pixels', 'meters', 'common'],
         showByDefault: false,
       }),
       widthScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
