@@ -120,10 +120,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
 
       // Adjust scroll to keep playhead at same screen position
       const scrollDelta = playheadPxAfter - playheadPxBefore
-      scrollAreaRef.current.scrollLeft = Math.max(
-        0,
-        scrollAreaRef.current.scrollLeft + scrollDelta
-      )
+      scrollAreaRef.current.scrollLeft = Math.max(0, scrollAreaRef.current.scrollLeft + scrollDelta)
 
       setPixelsPerSecond(clampedZoom)
     },

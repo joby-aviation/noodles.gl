@@ -267,7 +267,12 @@ export default function TimelineEditor() {
           map.removeLayer(config.id)
         }
 
-        const layerImpl = evaluateMapLibreLayerCode(config.code, config.params || {}, config.id, map)
+        const layerImpl = evaluateMapLibreLayerCode(
+          config.code,
+          config.params || {},
+          config.id,
+          map
+        )
 
         const customLayer: CustomLayerInterface = {
           ...layerImpl,

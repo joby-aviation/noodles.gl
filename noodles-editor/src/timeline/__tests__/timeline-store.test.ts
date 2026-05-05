@@ -514,7 +514,9 @@ describe('TimelineStore', () => {
 
       // Rename intermediate container - only renames container's own tracks
       // Pass child operator IDs to avoid renaming their tracks
-      store.renameTracksForOperator('/root/container-a', '/root/container-b', ['/root/container-a/op-1'])
+      store.renameTracksForOperator('/root/container-a', '/root/container-b', [
+        '/root/container-a/op-1',
+      ])
 
       // Child tracks not affected until they are renamed separately
       expect(store.getTrack('root / container-b / op-1 / value')).toBeUndefined()

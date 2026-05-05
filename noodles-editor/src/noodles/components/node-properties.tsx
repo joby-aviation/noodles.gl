@@ -656,7 +656,9 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
             title="Field Rendering Error"
             fallback={
               <div style={{ padding: '1rem', color: 'var(--color-text-secondary)' }}>
-                <p>Error rendering fields. Try resetting field visibility or refreshing the page.</p>
+                <p>
+                  Error rendering fields. Try resetting field visibility or refreshing the page.
+                </p>
               </div>
             }
           >
@@ -697,189 +699,194 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                   } catch {
                     fieldCurrentValue = input.field.value as KeyframeValue
                   }
+                }
+
+                return (
+                  // biome-ignore lint/a11y/useSemanticElements: property list uses div containers for flex layout
+                  <div
+                    key={input.name}
+                    role="listitem"
+                    className={cx(s.property, { [s.propertyWithAction]: isEditMode })}
+                    onContextMenu={e => {
+                      e.preventDefault()
+                      const isAnimatable = isValueField(input.field) && incomers.length === 0
+                      const channelKeys = isAnimatable
+                        ? ((input.field.constructor as typeof Vec2Field).channelKeys ?? null)
+                        : null
+                      let keyframeEntries: Array<{ path: string; value: KeyframeValue }> | undefined
+                      if (isAnimatable) {
+                        if (channelKeys) {
+                          const raw = input.field.value as Record<string, number> | number[]
+                          keyframeEntries = channelKeys.map((k, i) => ({
+                            path: getFieldPath(op.id, input.name, [k]),
+                            value: (Array.isArray(raw) ? raw[i] : raw[k]) as number,
+                          }))
+                        } else {
+                          keyframeEntries = [
+                            { path: getFieldPath(op.id, input.name), value: fieldCurrentValue! },
+                          ]
+                        }
+                      }
+                      setContextMenu({
+                        x: e.clientX,
+                        y: e.clientY,
+                        codeRef: input.codeRef,
+                        mustacheRef: input.mustacheRef,
+                        fieldPath: isAnimatable ? getFieldPath(op.id, input.name) : undefined,
+                        inputName:
+                          incomers.length === 0 &&
+                          input.field.defaultValue !== undefined &&
+                          hasNonDefaultValue(input.field)
+                            ? input.name
+                            : undefined,
+                        keyframeEntries,
+                        listFieldInputName:
+                          input.field instanceof ListField && incomers.length > 0
+                            ? input.name
+                            : undefined,
+                      })
+                    }}
+                  >
+                    <div className={s.propertyRow}>
+                      {isEditMode && isVisible && (
+                        <Tooltip
+                          text={canHide ? 'Hide field' : hideCheck.reason || 'Cannot hide'}
+                          position="right"
+                        >
+                          <span>
+                            <AddRemoveButton
+                              type="remove"
+                              onClick={() => handleHideField(input.name)}
+                              disabled={!canHide}
+                            />
+                          </span>
+                        </Tooltip>
+                      )}
+                      {isEditMode && !isVisible && (
+                        <Tooltip text="Show field" position="right">
+                          <span>
+                            <AddRemoveButton
+                              type="add"
+                              onClick={() => handleShowField(input.name)}
+                            />
+                          </span>
+                        </Tooltip>
+                      )}
+                      <div className={cx(s.port, input.handleClass)} />
+                      <span className={s.propertyLabel}>{input.name}</span>
+                      {/* Value type, not connected: editable input + keyframe indicator */}
+                      {isValueField(input.field) && incomers.length === 0 && (
+                        <>
+                          <FieldInputWithHighlight
+                            opId={op.id}
+                            fieldName={input.name}
+                            field={input.field}
+                            expandTimeline={expandTimeline}
+                          />
+                          {/* Vec fields render per-channel indicators inside VectorFieldComponent */}
+                          {!(input.field.constructor as typeof Vec2Field).channelKeys && (
+                            <KeyframeIndicator
+                              opId={op.id}
+                              fieldName={input.name}
+                              currentValue={fieldCurrentValue!}
+                              disabled={false}
+                              size="small"
+                              onKeyframeAdded={expandTimeline}
+                            />
+                          )}
+                        </>
+                      )}
+                    </div>
+                    {/* Compound field: expand sub-fields inline */}
+                    {input.field instanceof CompoundPropsField && (
+                      <CompoundSubFields
+                        field={input.field}
+                        opId={op.id}
+                        fieldName={input.name}
+                        expandTimeline={expandTimeline}
+                      />
+                    )}
+                    {/* List field with connections: draggable reorder list */}
+                    {input.field instanceof ListField && incomers.length > 0 && (
+                      // biome-ignore lint/a11y/useSemanticElements: Drag-and-drop list requires div with role
+                      <div className={s.connections} role="list" onDragOver={handleDragOver}>
+                        {incomers.map((edge, index) => (
+                          // biome-ignore lint/a11y/useSemanticElements: Draggable list item requires div with role
+                          <div
+                            key={edge.id}
+                            className={s.connection}
+                            role="listitem"
+                            tabIndex={incomers.length > 1 ? 0 : -1}
+                            draggable={incomers.length > 1}
+                            onDragStart={e => handleDragStart(e, input.name, index)}
+                            onDragEnd={e => handleDragEnd(e, input.name, incomers)}
+                          >
+                            {incomers.length > 1 && <div className={s.dragHandle} />}
+                            <div className={s.connectionSource}>
+                              {getBaseName(edge.source)}.{edge.sourceHandle}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
               }
 
               return (
-                // biome-ignore lint/a11y/useSemanticElements: property list uses div containers for flex layout
-                <div
-                  key={input.name}
-                  role="listitem"
-                  className={cx(s.property, { [s.propertyWithAction]: isEditMode })}
-                  onContextMenu={e => {
-                    e.preventDefault()
-                    const isAnimatable = isValueField(input.field) && incomers.length === 0
-                    const channelKeys = isAnimatable
-                      ? ((input.field.constructor as typeof Vec2Field).channelKeys ?? null)
-                      : null
-                    let keyframeEntries: Array<{ path: string; value: KeyframeValue }> | undefined
-                    if (isAnimatable) {
-                      if (channelKeys) {
-                        const raw = input.field.value as Record<string, number> | number[]
-                        keyframeEntries = channelKeys.map((k, i) => ({
-                          path: getFieldPath(op.id, input.name, [k]),
-                          value: (Array.isArray(raw) ? raw[i] : raw[k]) as number,
-                        }))
-                      } else {
-                        keyframeEntries = [
-                          { path: getFieldPath(op.id, input.name), value: fieldCurrentValue! },
-                        ]
-                      }
-                    }
-                    setContextMenu({
-                      x: e.clientX,
-                      y: e.clientY,
-                      codeRef: input.codeRef,
-                      mustacheRef: input.mustacheRef,
-                      fieldPath: isAnimatable ? getFieldPath(op.id, input.name) : undefined,
-                      inputName:
-                        incomers.length === 0 &&
-                        input.field.defaultValue !== undefined &&
-                        hasNonDefaultValue(input.field)
-                          ? input.name
-                          : undefined,
-                      keyframeEntries,
-                      listFieldInputName:
-                        input.field instanceof ListField && incomers.length > 0
-                          ? input.name
-                          : undefined,
-                    })
-                  }}
-                >
-                  <div className={s.propertyRow}>
-                    {isEditMode && isVisible && (
-                      <Tooltip
-                        text={canHide ? 'Hide field' : hideCheck.reason || 'Cannot hide'}
-                        position="right"
-                      >
-                        <span>
-                          <AddRemoveButton
-                            type="remove"
-                            onClick={() => handleHideField(input.name)}
-                            disabled={!canHide}
-                          />
-                        </span>
-                      </Tooltip>
-                    )}
-                    {isEditMode && !isVisible && (
-                      <Tooltip text="Show field" position="right">
-                        <span>
-                          <AddRemoveButton type="add" onClick={() => handleShowField(input.name)} />
-                        </span>
-                      </Tooltip>
-                    )}
-                    <div className={cx(s.port, input.handleClass)} />
-                    <span className={s.propertyLabel}>{input.name}</span>
-                    {/* Value type, not connected: editable input + keyframe indicator */}
-                    {isValueField(input.field) && incomers.length === 0 && (
-                      <>
-                        <FieldInputWithHighlight
-                          opId={op.id}
-                          fieldName={input.name}
-                          field={input.field}
-                          expandTimeline={expandTimeline}
-                        />
-                        {/* Vec fields render per-channel indicators inside VectorFieldComponent */}
-                        {!(input.field.constructor as typeof Vec2Field).channelKeys && (
-                          <KeyframeIndicator
-                            opId={op.id}
-                            fieldName={input.name}
-                            currentValue={fieldCurrentValue!}
-                            disabled={false}
-                            size="small"
-                            onKeyframeAdded={expandTimeline}
-                          />
-                        )}
-                      </>
-                    )}
-                  </div>
-                  {/* Compound field: expand sub-fields inline */}
-                  {input.field instanceof CompoundPropsField && (
-                    <CompoundSubFields
-                      field={input.field}
-                      opId={op.id}
-                      fieldName={input.name}
-                      expandTimeline={expandTimeline}
-                    />
-                  )}
-                  {/* List field with connections: draggable reorder list */}
-                  {input.field instanceof ListField && incomers.length > 0 && (
-                    // biome-ignore lint/a11y/useSemanticElements: Drag-and-drop list requires div with role
-                    <div className={s.connections} role="list" onDragOver={handleDragOver}>
-                      {incomers.map((edge, index) => (
-                        // biome-ignore lint/a11y/useSemanticElements: Draggable list item requires div with role
-                        <div
-                          key={edge.id}
-                          className={s.connection}
-                          role="listitem"
-                          tabIndex={incomers.length > 1 ? 0 : -1}
-                          draggable={incomers.length > 1}
-                          onDragStart={e => handleDragStart(e, input.name, index)}
-                          onDragEnd={e => handleDragEnd(e, input.name, incomers)}
+                <>
+                  {/* Visible fields (with hide button in edit mode) */}
+                  {visibleInputs.map(input => renderInput(input, true))}
+
+                  {/* Divider and hidden fields (only in edit mode) */}
+                  {isEditMode && hiddenInputs.length > 0 && (
+                    <>
+                      <div className={s.fieldDivider}>
+                        <span>Hidden fields</span>
+                        <button
+                          type="button"
+                          className={s.showAllButton}
+                          onClick={() => {
+                            const fieldsToShow = hiddenFieldSearch
+                              ? hiddenInputs.filter(
+                                  input =>
+                                    input.name
+                                      .toLowerCase()
+                                      .includes(hiddenFieldSearch.toLowerCase()) ||
+                                    input.type
+                                      .toLowerCase()
+                                      .includes(hiddenFieldSearch.toLowerCase())
+                                )
+                              : hiddenInputs
+                            for (const input of fieldsToShow) {
+                              op.showField(input.name)
+                            }
+                            setHiddenFieldSearch('')
+                          }}
                         >
-                          {incomers.length > 1 && <div className={s.dragHandle} />}
-                          <div className={s.connectionSource}>
-                            {getBaseName(edge.source)}.{edge.sourceHandle}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                          {hiddenFieldSearch ? 'Show matches' : 'Show all'}
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        className={s.fieldSearch}
+                        placeholder="Search fields..."
+                        value={hiddenFieldSearch}
+                        onChange={e => setHiddenFieldSearch(e.target.value)}
+                      />
+                      {hiddenInputs
+                        .filter(
+                          input =>
+                            !hiddenFieldSearch ||
+                            input.name.toLowerCase().includes(hiddenFieldSearch.toLowerCase()) ||
+                            input.type.toLowerCase().includes(hiddenFieldSearch.toLowerCase())
+                        )
+                        .map(input => renderInput(input, false))}
+                    </>
                   )}
-                </div>
+                </>
               )
-            }
-
-            return (
-              <>
-                {/* Visible fields (with hide button in edit mode) */}
-                {visibleInputs.map(input => renderInput(input, true))}
-
-                {/* Divider and hidden fields (only in edit mode) */}
-                {isEditMode && hiddenInputs.length > 0 && (
-                  <>
-                    <div className={s.fieldDivider}>
-                      <span>Hidden fields</span>
-                      <button
-                        type="button"
-                        className={s.showAllButton}
-                        onClick={() => {
-                          const fieldsToShow = hiddenFieldSearch
-                            ? hiddenInputs.filter(
-                                input =>
-                                  input.name
-                                    .toLowerCase()
-                                    .includes(hiddenFieldSearch.toLowerCase()) ||
-                                  input.type.toLowerCase().includes(hiddenFieldSearch.toLowerCase())
-                              )
-                            : hiddenInputs
-                          for (const input of fieldsToShow) {
-                            op.showField(input.name)
-                          }
-                          setHiddenFieldSearch('')
-                        }}
-                      >
-                        {hiddenFieldSearch ? 'Show matches' : 'Show all'}
-                      </button>
-                    </div>
-                    <input
-                      type="text"
-                      className={s.fieldSearch}
-                      placeholder="Search fields..."
-                      value={hiddenFieldSearch}
-                      onChange={e => setHiddenFieldSearch(e.target.value)}
-                    />
-                    {hiddenInputs
-                      .filter(
-                        input =>
-                          !hiddenFieldSearch ||
-                          input.name.toLowerCase().includes(hiddenFieldSearch.toLowerCase()) ||
-                          input.type.toLowerCase().includes(hiddenFieldSearch.toLowerCase())
-                      )
-                      .map(input => renderInput(input, false))}
-                  </>
-                )}
-              </>
-            )
-          })()}
+            })()}
           </ErrorBoundary>
         </div>
       </div>

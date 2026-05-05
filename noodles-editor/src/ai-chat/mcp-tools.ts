@@ -277,7 +277,8 @@ export class MCPTools {
       }
 
       if (params.tag) {
-        results = results.filter(ex => ex.tags.includes(params.tag))
+        const tag = params.tag
+        results = results.filter(ex => ex.tags.includes(tag))
       }
 
       return {
@@ -674,15 +675,16 @@ export class MCPTools {
       }
 
       // Get the output data from the operator
-      // biome-ignore lint/suspicious/noExplicitAny: dynamic operator output structure
-      const outputData: any = {}
+      const outputData: Record<string, unknown> = {}
       // biome-ignore lint/suspicious/noExplicitAny: dynamic operator outputs object
       const outputs = (operator as any).outputs || {}
       const { displayName } = operator.constructor as typeof Operator
 
-      for (const [key, field] of Object.entries(outputs)) {
-        // biome-ignore lint/suspicious/noExplicitAny: dynamic field value access
-        const value = (field as any).value
+      for (const [key, field] of Object.entries(outputs) as [string, unknown][]) {
+        const value =
+          field && typeof field === 'object' && 'value' in field
+            ? (field as Record<string, unknown>).value
+            : undefined
         outputData[key] = value
       }
 
@@ -698,12 +700,13 @@ export class MCPTools {
         if (Array.isArray(data)) {
           totalRows = data.length
           sample = data.slice(0, maxRows)
-        } else if (data && typeof data === 'object' && data.features) {
+        } else if (data && typeof data === 'object' && 'features' in data) {
           // GeoJSON
-          totalRows = data.features.length
+          const geoJsonData = data as { features: unknown[] }
+          totalRows = geoJsonData.features.length
           sample = {
             ...data,
-            features: data.features.slice(0, maxRows),
+            features: geoJsonData.features.slice(0, maxRows),
           }
         }
 

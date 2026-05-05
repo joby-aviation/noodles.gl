@@ -73,6 +73,7 @@ export class NoodlesClient {
       port: config.port || 8765,
       reconnectDelay: config.reconnectDelay || 3000,
       debug: config.debug || false,
+      token: config.token || '',
     }
   }
 
@@ -205,7 +206,11 @@ export class NoodlesClient {
       throw new Error(response.payload.error.message)
     }
 
-    return response.payload.result
+    if (response.type === MessageType.TOOL_RESPONSE) {
+      return response.payload.result
+    }
+
+    throw new Error(`Unexpected response type: ${response.type}`)
   }
 
   // Test a pipeline with sample data
@@ -224,7 +229,11 @@ export class NoodlesClient {
       throw new Error(response.payload.error.message)
     }
 
-    return response.payload.result
+    if (response.type === MessageType.TOOL_RESPONSE) {
+      return response.payload.result
+    }
+
+    throw new Error(`Unexpected response type: ${response.type}`)
   }
 
   // Validate a pipeline
@@ -238,7 +247,11 @@ export class NoodlesClient {
       throw new Error(response.payload.error.message)
     }
 
-    return response.payload.result
+    if (response.type === MessageType.TOOL_RESPONSE) {
+      return response.payload.result
+    }
+
+    throw new Error(`Unexpected response type: ${response.type}`)
   }
 
   // ==================== Tool Operations ====================
@@ -256,7 +269,11 @@ export class NoodlesClient {
       throw new Error(response.payload.error.message)
     }
 
-    return response.payload.result
+    if (response.type === MessageType.TOOL_RESPONSE) {
+      return response.payload.result
+    }
+
+    throw new Error(`Unexpected response type: ${response.type}`)
   }
 
   // Get current project state
@@ -304,7 +321,11 @@ export class NoodlesClient {
       throw new Error(response.payload.error.message)
     }
 
-    return response.payload.result
+    if (response.type === MessageType.TOOL_RESPONSE) {
+      return response.payload.result
+    }
+
+    throw new Error(`Unexpected response type: ${response.type}`)
   }
 
   // ==================== State Operations ====================
