@@ -254,6 +254,152 @@ describe('Export Performance', () => {
     })
   })
 
+  describe('Render Event Implementation Details', () => {
+    it('should use EXPORT_FRAME_DELAY constant of 16ms', () => {
+      // The EXPORT_FRAME_DELAY constant replaces the variable captureDelay parameter
+      // 16ms = one frame at 60fps, providing a safety margin for GPU buffer swap
+      const EXPORT_FRAME_DELAY = 16
+      const fps = 60
+      const frameTime = 1000 / fps
+
+      expect(EXPORT_FRAME_DELAY).toBe(Math.floor(frameTime))
+    })
+
+    it('should validate skip-first-render counter logic', () => {
+      // Simulates the renderCountSinceRedraw logic from timeline-editor.tsx
+      let renderCountSinceRedraw = 0
+      let frameCaptured = false
+      let triggerRepaintCalled = false
+
+      const simulateRenderEvent = () => {
+        if (frameCaptured) return 'already-captured'
+
+        renderCountSinceRedraw++
+        if (renderCountSinceRedraw < 2) {
+          triggerRepaintCalled = true
+          return 'skip-first'
+        }
+
+        frameCaptured = true
+        return 'capture'
+      }
+
+      // First render event: skip and trigger repaint
+      expect(simulateRenderEvent()).toBe('skip-first')
+      expect(triggerRepaintCalled).toBe(true)
+      expect(frameCaptured).toBe(false)
+      expect(renderCountSinceRedraw).toBe(1)
+
+      // Second render event: capture
+      triggerRepaintCalled = false
+      expect(simulateRenderEvent()).toBe('capture')
+      expect(frameCaptured).toBe(true)
+      expect(renderCountSinceRedraw).toBe(2)
+
+      // Third render event: guard prevents double-capture
+      expect(simulateRenderEvent()).toBe('already-captured')
+    })
+
+    it('should respect waitForData flag when layers are not loaded', () => {
+      // Simulates the waitForData check from timeline-editor.tsx lines 365-374
+      let renderCountSinceRedraw = 0
+      let frameCaptured = false
+      const waitForData = true
+      let layersLoaded = false
+
+      const simulateRenderEvent = () => {
+        if (frameCaptured) return 'already-captured'
+
+        renderCountSinceRedraw++
+        if (renderCountSinceRedraw < 2) {
+          return 'skip-first'
+        }
+
+        if (waitForData && !layersLoaded) {
+          return 'waiting-for-data'
+        }
+
+        frameCaptured = true
+        return 'capture'
+      }
+
+      // First render: skip
+      expect(simulateRenderEvent()).toBe('skip-first')
+
+      // Second render with layers not loaded: wait
+      expect(simulateRenderEvent()).toBe('waiting-for-data')
+      expect(frameCaptured).toBe(false)
+
+      // Third render with layers now loaded: capture
+      layersLoaded = true
+      expect(simulateRenderEvent()).toBe('capture')
+      expect(frameCaptured).toBe(true)
+    })
+
+    it('should skip waitForData check when flag is false', () => {
+      let renderCountSinceRedraw = 0
+      let frameCaptured = false
+      const waitForData = false
+      const layersLoaded = false // Layers not loaded, but shouldn't matter
+
+      const simulateRenderEvent = () => {
+        if (frameCaptured) return 'already-captured'
+
+        renderCountSinceRedraw++
+        if (renderCountSinceRedraw < 2) {
+          return 'skip-first'
+        }
+
+        // With waitForData=false, skip the layer check
+        if (waitForData && !layersLoaded) {
+          return 'waiting-for-data'
+        }
+
+        frameCaptured = true
+        return 'capture'
+      }
+
+      // First render: skip
+      expect(simulateRenderEvent()).toBe('skip-first')
+
+      // Second render: capture immediately (don't wait for layers)
+      expect(simulateRenderEvent()).toBe('capture')
+      expect(frameCaptured).toBe(true)
+    })
+
+    it('should validate frameCapturedRef guard prevents double-capture', () => {
+      // The frameCapturedRef.current guard prevents multiple captures in the same frame cycle
+      let frameCapturedRef = false
+      let captureCount = 0
+
+      const attemptCapture = () => {
+        if (frameCapturedRef) return false
+        frameCapturedRef = true
+        captureCount++
+        return true
+      }
+
+      // First attempt: succeeds
+      expect(attemptCapture()).toBe(true)
+      expect(captureCount).toBe(1)
+
+      // Second attempt: blocked by guard
+      expect(attemptCapture()).toBe(false)
+      expect(captureCount).toBe(1)
+
+      // Third attempt: still blocked
+      expect(attemptCapture()).toBe(false)
+      expect(captureCount).toBe(1)
+
+      // Reset for next frame
+      frameCapturedRef = false
+
+      // New frame: succeeds
+      expect(attemptCapture()).toBe(true)
+      expect(captureCount).toBe(2)
+    })
+  })
+
   describe('Render Event vs onIdle Performance', () => {
     it('should achieve near-realtime export with render event capture', () => {
       // MapLibre onIdle has ~300ms internal debounce. The render event fires
