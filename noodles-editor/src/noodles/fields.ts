@@ -687,6 +687,19 @@ export class GeoJsonField<D extends Field = Field, TElement = unknown> extends F
   }
 }
 
+export class ArrowDataField extends Field<z.ZodUnknown> {
+  static type = 'arrow-data' as const
+  static defaultValue = null
+
+  createSchema() {
+    return z.unknown()
+  }
+
+  constructor() {
+    super(null)
+  }
+}
+
 type Point3DFieldValue =
   | { lng: number; lat: number; alt: number; [key: string]: unknown }
   | [number, number, number]
@@ -1642,5 +1655,6 @@ export const fieldTypeToClass = {
   'bezier-curve': BezierCurveField,
   'string-literal': StringLiteralField,
   data: DataField,
+  'arrow-data': ArrowDataField,
   unknown: UnknownField,
 } as const satisfies Record<string, typeof Field>

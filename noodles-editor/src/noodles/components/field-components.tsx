@@ -8,8 +8,8 @@ import { Button } from 'primereact/button'
 import { InputText } from 'primereact/inputtext'
 import {
   Fragment,
-  Suspense,
   lazy,
+  Suspense,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -21,9 +21,10 @@ import {
 const CodeiumEditor = lazy(() =>
   import('@codeium/react-code-editor').then(m => ({ default: m.CodeiumEditor }))
 )
+
 import { Temporal } from 'temporal-polyfill'
-import { getFieldPath } from '../../timeline/field-bindings'
 import { VectorKeyframeIndicator } from '../../timeline/components/KeyframeIndicator'
+import { getFieldPath } from '../../timeline/field-bindings'
 import { useTimelineStore } from '../../timeline/timeline-store'
 import {
   type BezierCurveField,
@@ -85,6 +86,7 @@ export const inputComponents = {
   code: CodeFieldComponent,
   compound: CompoundFieldComponent,
   data: EmptyFieldComponent,
+  'arrow-data': EmptyFieldComponent,
   date: DateFieldComponent,
   effect: EmptyFieldComponent,
   expression: ExpressionFieldComponent,
@@ -696,7 +698,12 @@ export function CodeFieldComponent({
         <Suspense
           fallback={
             <textarea
-              style={{ width: '100%', height: nodeHeight - 80, background: '#1e1e1e', color: '#d4d4d4' }}
+              style={{
+                width: '100%',
+                height: nodeHeight - 80,
+                background: '#1e1e1e',
+                color: '#d4d4d4',
+              }}
               value={value}
               onChange={e => field.setValue(e.target.value)}
             />
@@ -835,8 +842,12 @@ export function FileUrlFieldComponent({
     const exists = await checkAssetExists(activeStorageType, currentProjectName, file.name)
     if (exists) {
       // If the user picked the exact same file already in the data directory, just use it
-      const existingHandle = await getAssetFileHandle(activeStorageType, currentProjectName, file.name)
-      if (existingHandle && await fileHandle.isSameEntry(existingHandle)) {
+      const existingHandle = await getAssetFileHandle(
+        activeStorageType,
+        currentProjectName,
+        file.name
+      )
+      if (existingHandle && (await fileHandle.isSameEntry(existingHandle))) {
         captureStart()
         field.setValue(projectScheme + file.name)
         setValue(projectScheme + file.name)
@@ -894,13 +905,18 @@ export function FileUrlFieldComponent({
         <label className={s.nodeFieldLabel} htmlFor={id}>
           {id}
         </label>
-        <div className={cx('p-inputgroup', s.fieldFileInputGroup, s.fieldFileInputGroupSuggestions)}>
+        <div
+          className={cx('p-inputgroup', s.fieldFileInputGroup, s.fieldFileInputGroupSuggestions)}
+        >
           <InputText
             id={id}
             placeholder="https://"
             className={cx(s.fieldInput, s.fieldInputFileUrl)}
             value={value}
-            onFocus={() => { captureStart(); setSuggestionsOpen(true) }}
+            onFocus={() => {
+              captureStart()
+              setSuggestionsOpen(true)
+            }}
             onBlur={onBlur}
             onChange={onChange}
             disabled={disabled}
@@ -911,9 +927,10 @@ export function FileUrlFieldComponent({
                 // biome-ignore lint/a11y/useSemanticElements: custom combobox option
                 <li
                   key={val}
-                  role="option"
                   aria-selected={val === value}
-                  className={cx(s.fileUrlSuggestion, { [s.fileUrlSuggestionActive]: val === value })}
+                  className={cx(s.fileUrlSuggestion, {
+                    [s.fileUrlSuggestionActive]: val === value,
+                  })}
                   onMouseDown={() => onSuggestionSelect(val)}
                 >
                   <span className={s.fileUrlSuggestionLabel}>{label}</span>
@@ -1037,8 +1054,12 @@ export function MapStyleFieldComponent({
 
     const exists = await checkAssetExists(activeStorageType, currentProjectName, file.name)
     if (exists) {
-      const existingHandle = await getAssetFileHandle(activeStorageType, currentProjectName, file.name)
-      if (existingHandle && await fileHandle.isSameEntry(existingHandle)) {
+      const existingHandle = await getAssetFileHandle(
+        activeStorageType,
+        currentProjectName,
+        file.name
+      )
+      if (existingHandle && (await fileHandle.isSameEntry(existingHandle))) {
         captureStart()
         field.setValue(projectScheme + file.name)
         setValue(projectScheme + file.name)
@@ -1890,7 +1911,7 @@ export function BezierCurveFieldComponent({
       width: svgSize.width - padding.left - padding.right,
       height: svgSize.height - padding.top - padding.bottom,
     }),
-    []
+    [padding.bottom, padding.left, padding.right, padding.top, svgSize.height, svgSize.width]
   )
 
   // Convert SVG coordinates to curve coordinates (0-1, 0-1)
@@ -1903,7 +1924,7 @@ export function BezierCurveFieldComponent({
         y: Math.max(0, Math.min(1, curveY)),
       }
     },
-    [graphArea.width, graphArea.height]
+    [graphArea.width, graphArea.height, padding.left, padding.top]
   )
 
   // Convert curve coordinates to SVG coordinates
@@ -1912,7 +1933,7 @@ export function BezierCurveFieldComponent({
       x: padding.left + x * graphArea.width,
       y: padding.top + (1 - y) * graphArea.height, // Flip Y axis
     }),
-    [graphArea.width, graphArea.height]
+    [graphArea.width, graphArea.height, padding.left, padding.top]
   )
 
   // Generate SVG path for the bezier curve
@@ -1982,7 +2003,7 @@ export function BezierCurveFieldComponent({
     }
 
     return lines
-  }, [graphArea])
+  }, [graphArea, padding.left, padding.top])
 
   // Find what the user is trying to interact with
   const getInteractionTarget = useCallback(
