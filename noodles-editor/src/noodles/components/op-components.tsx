@@ -19,10 +19,6 @@ import {
 import cx from 'classnames'
 import { Layer } from 'deck.gl'
 import { Button } from 'primereact/button'
-import { Column } from 'primereact/column'
-import { DataTable } from 'primereact/datatable'
-import { InputNumber } from 'primereact/inputnumber'
-import { InputText } from 'primereact/inputtext'
 import {
   type ComponentType,
   memo,
@@ -39,9 +35,9 @@ import { Temporal } from 'temporal-polyfill'
 
 import { analytics } from '../../utils/analytics'
 import { ArrayField, type Field, type IField, ListField } from '../fields'
+import { useObservable } from '../hooks/use-observable'
 import { useKeysStore } from '../keys-store'
 import s from '../noodles.module.css'
-import { inferSchema, type TableSchema } from '../table-schema'
 import type { ExecutionState, IOperator, OpType } from '../operators'
 import { convertViewerToTableEditor } from '../utils/operator-conversion'
 import {
@@ -70,7 +66,16 @@ import {
   useOperatorStore,
   useUIStore,
 } from '../store'
+import { inferSchema, type TableSchema } from '../table-schema'
 import type { NodeDataJSON } from '../transform-graph'
+import {
+  arrowColumnNames,
+  arrowColumnTypes,
+  arrowNumRows,
+  arrowSlice,
+  arrowToRows,
+  isArrowTable,
+} from '../utils/arrow-utils'
 import { canConnect } from '../utils/can-connect'
 import {
   evaluateEnableExpression,
@@ -86,10 +91,9 @@ import {
 import { categories as baseCategories, nodeTypeToDisplayName } from './categories'
 import { FieldComponent, type inputComponents } from './field-components'
 import previewStyles from './handle-preview.module.css'
+import { MapStyleConfiguratorOpComponent } from './map-style-configurator-op'
 import RampEditor, { type RampStop } from './ramp-editor'
 import { TableEditor } from './table-editor'
-import { useObservable } from '../hooks/use-observable'
-import { MapStyleConfiguratorOpComponent } from './map-style-configurator-op'
 
 const isPlainObject = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype
@@ -241,7 +245,7 @@ function DefaultEdgeComponent({
   // Edge is targeted if either connection drag or node drag is targeting it
   const isConnectionTarget = targetedEdge?.id === id
   const isNodeDropTarget = nodeDragState?.targetedEdge?.id === id
-  const isTarget = isConnectionTarget || isNodeDropTarget
+  const _isTarget = isConnectionTarget || isNodeDropTarget
 
   let edgeClassName: string | undefined
   if (isConnectionTarget) {
@@ -469,6 +473,8 @@ function HandlePreviewContent({ data, name, type }: { data: unknown; name: strin
           <div className={previewStyles.handlePreviewEmpty}>No data</div>
         ) : data instanceof Element ? (
           <ViewerDOMContent content={data} />
+        ) : isArrowTable(data) ? (
+          <ArrowTablePreview table={data} maxRows={10} />
         ) : data instanceof Set ? (
           <ReactJson src={Array.from(data)} theme="twilight" collapsed={1} />
         ) : Array.isArray(data) &&
@@ -697,7 +703,7 @@ function NodeComponent({
       }
       // Find the custom field definition
       const def = customFieldDefs.find(d => d.name === fieldName)
-      if (!def || !def.enableExpression) {
+      if (!def?.enableExpression) {
         return true // No expression means always enabled
       }
       const result = evaluateEnableExpression(def.enableExpression, op, getOp)
@@ -1772,6 +1778,9 @@ export function TableEditorOpComponent({
 
 // Helper for ViewerOp to format Layer and Operator instances
 const viewerFormatter = (value: unknown) => {
+  if (isArrowTable(value)) {
+    return value
+  }
   if (value instanceof Layer) {
     // Guard against ReactJson crash since layer.props has no `hasOwnProperty` method
     const { lifecycle, count, isLoaded, props } = value
@@ -1815,6 +1824,49 @@ function ViewerDOMContent({ content }: { content: Element }) {
   return <div ref={contentRef} />
 }
 
+function ArrowTablePreview({ table, maxRows = 20 }: { table: unknown; maxRows?: number }) {
+  const t = table as Parameters<typeof arrowNumRows>[0]
+  const numRows = arrowNumRows(t)
+  const columns = arrowColumnNames(t)
+  const types = arrowColumnTypes(t)
+  const previewRows = arrowToRows(arrowSlice(t, 0, maxRows))
+
+  return (
+    <div>
+      <div style={{ fontSize: '11px', opacity: 0.7, marginBottom: 4 }}>
+        Arrow Table: {numRows.toLocaleString()} rows × {columns.length} cols
+      </div>
+      <table>
+        <thead>
+          <tr>
+            {columns.map(col => (
+              <th key={col} title={types[col]}>
+                {col}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {previewRows.map((row, i) => (
+            <tr key={i}>
+              {columns.map(col => (
+                <td key={col}>
+                  {typeof row[col] === 'string' ? row[col] : JSON.stringify(row[col])}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {numRows > maxRows && (
+        <div style={{ fontSize: '11px', opacity: 0.7, marginTop: 4 }}>
+          Showing {maxRows} of {numRows.toLocaleString()} rows
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ViewerOpComponent({
   id,
   type,
@@ -1850,6 +1902,8 @@ function ViewerOpComponent({
     content = <div>No data</div>
   } else if (viewerData instanceof Element) {
     content = <ViewerDOMContent content={viewerData} />
+  } else if (isArrowTable(viewerData)) {
+    content = <ArrowTablePreview table={viewerData} maxRows={20} />
   } else if (viewerData instanceof Set) {
     content = <ReactJson src={Array.from(viewerData)} theme="twilight" />
   } else if (

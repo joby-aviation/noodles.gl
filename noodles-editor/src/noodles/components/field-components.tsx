@@ -8,8 +8,8 @@ import { Button } from 'primereact/button'
 import { InputText } from 'primereact/inputtext'
 import {
   Fragment,
-  Suspense,
   lazy,
+  Suspense,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -21,9 +21,10 @@ import {
 const CodeiumEditor = lazy(() =>
   import('@codeium/react-code-editor').then(m => ({ default: m.CodeiumEditor }))
 )
+
 import { Temporal } from 'temporal-polyfill'
-import { getFieldPath } from '../../timeline/field-bindings'
 import { VectorKeyframeIndicator } from '../../timeline/components/KeyframeIndicator'
+import { getFieldPath } from '../../timeline/field-bindings'
 import { useTimelineStore } from '../../timeline/timeline-store'
 import {
   type BezierCurveField,
@@ -85,6 +86,7 @@ export const inputComponents = {
   code: CodeFieldComponent,
   compound: CompoundFieldComponent,
   data: EmptyFieldComponent,
+  'arrow-data': EmptyFieldComponent,
   date: DateFieldComponent,
   effect: EmptyFieldComponent,
   expression: ExpressionFieldComponent,
@@ -925,7 +927,6 @@ export function FileUrlFieldComponent({
                 // biome-ignore lint/a11y/useSemanticElements: custom combobox option
                 <li
                   key={val}
-                  role="option"
                   aria-selected={val === value}
                   className={cx(s.fileUrlSuggestion, {
                     [s.fileUrlSuggestionActive]: val === value,
@@ -1910,7 +1911,7 @@ export function BezierCurveFieldComponent({
       width: svgSize.width - padding.left - padding.right,
       height: svgSize.height - padding.top - padding.bottom,
     }),
-    []
+    [padding.bottom, padding.left, padding.right, padding.top, svgSize.height, svgSize.width]
   )
 
   // Convert SVG coordinates to curve coordinates (0-1, 0-1)
@@ -1923,7 +1924,7 @@ export function BezierCurveFieldComponent({
         y: Math.max(0, Math.min(1, curveY)),
       }
     },
-    [graphArea.width, graphArea.height]
+    [graphArea.width, graphArea.height, padding.left, padding.top]
   )
 
   // Convert curve coordinates to SVG coordinates
@@ -1932,7 +1933,7 @@ export function BezierCurveFieldComponent({
       x: padding.left + x * graphArea.width,
       y: padding.top + (1 - y) * graphArea.height, // Flip Y axis
     }),
-    [graphArea.width, graphArea.height]
+    [graphArea.width, graphArea.height, padding.left, padding.top]
   )
 
   // Generate SVG path for the bezier curve
@@ -2002,7 +2003,7 @@ export function BezierCurveFieldComponent({
     }
 
     return lines
-  }, [graphArea])
+  }, [graphArea, padding.left, padding.top])
 
   // Find what the user is trying to interact with
   const getInteractionTarget = useCallback(
