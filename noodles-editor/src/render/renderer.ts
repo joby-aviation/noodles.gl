@@ -369,7 +369,7 @@ export const useRenderer = ({
               debugRender('deck waiting for layers to load')
               return
             }
-            setTimeout(() => captureFrame(), captureDelay)
+            setTimeout(() => captureFrame(), 16)
           },
         })
       }

@@ -79,7 +79,13 @@ export default function TimelineEditor() {
   // Trigger a redraw of React, mapbox and deck when the renderer state changes,
   // to ensure that the VideoStreamReader in renderer.ts runs
   const [_, setRand] = useState(0)
+  const lastRedrawTime = useRef(0)
+  const frameCapturedRef = useRef(false)
+  const renderCountSinceRedraw = useRef(0)
   const redraw = useCallback(() => {
+    lastRedrawTime.current = performance.now()
+    frameCapturedRef.current = false
+    renderCountSinceRedraw.current = 0
     mapRef.current?.redraw()
     deckRef.current?.redraw()
     // Only trigger React re-renders outside of the render loop — during export this
@@ -337,16 +343,59 @@ export default function TimelineEditor() {
     }
   }, [])
 
-  // onIdle resolves when all data is loaded and drawing has settled.
+  // During export, use MapLibre's 'render' event for fast frame capture instead of 'idle'.
+  // MapLibre's onIdle has a ~300ms internal debounce designed for interactive use — too slow
+  // for sequential frame export. The 'render' event fires immediately after each render pass.
+  // We skip the first render after redraw() (may contain stale operator data) and capture on
+  // the second pass once operators have settled.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !isRendering) return
+
+    const handleRender = () => {
+      if (frameCapturedRef.current) return
+      if (!isMapReady(map)) return
+
+      renderCountSinceRedraw.current++
+      if (renderCountSinceRedraw.current < 2) {
+        map.triggerRepaint()
+        return
+      }
+
+      if (waitForData) {
+        const deck = deckRef.current
+        if (
+          deck &&
+          !deck.props.layers.every(layer => !layer || (!Array.isArray(layer) && layer.isLoaded))
+        ) {
+          map.triggerRepaint()
+          return
+        }
+      }
+
+      frameCapturedRef.current = true
+      debugRender(
+        'onRender ready %dms after redraw (pass %d)',
+        (performance.now() - lastRedrawTime.current).toFixed(1),
+        renderCountSinceRedraw.current
+      )
+      workerSetTimeout(() => captureFrame(), 16)
+    }
+
+    map.on('render', handleRender)
+    return () => {
+      map.off('render', handleRender)
+    }
+  }, [isRendering, waitForData, captureFrame])
+
+  // onIdle serves as a fallback during export (in case render event misses) and
+  // as the primary capture signal during interactive preview.
   mapProps.onIdle = ({ target: map }) => {
     mapRef.current = map
-    // Wait for map tiles to load before capturing.
     if (!isMapReady(map)) {
       debugRender('map waiting')
       return
     }
-    // During rendering with waitForData, also confirm deck layers have finished loading.
-    // mapIdle fires on map tile/style readiness only — it doesn't know about deck layer data.
     if (isRenderingRef.current && waitForData) {
       const deck = deckRef.current
       if (
@@ -357,11 +406,16 @@ export default function TimelineEditor() {
         return
       }
     }
-    // This should alert the renderer that the scene is ready to be captured
-    // Because onIdle can be synchronous, we need to defer the promise resolution to the next tick.
-    // TODO: Perhaps set up the promises refs before the render loop, and then later await the Promise.all?
-    // Delay rendering by 200ms so that deck and maplibre can settle before capturing.
-    // Use worker timer so this fires even when the tab is switched.
+    if (isRenderingRef.current) {
+      if (frameCapturedRef.current) return
+      frameCapturedRef.current = true
+      debugRender(
+        'onIdle fallback %dms after redraw',
+        (performance.now() - lastRedrawTime.current).toFixed(1)
+      )
+      workerSetTimeout(() => captureFrame(), 16)
+      return
+    }
     workerSetTimeout(() => captureFrame(), captureDelay)
   }
 
