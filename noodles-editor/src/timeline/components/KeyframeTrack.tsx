@@ -411,7 +411,8 @@ function KeyframeBar({
   // Get in/out points for dimming
   const inPoint = useTimelineStore(state => state.sequence.inPoint)
   const outPoint = useTimelineStore(state => state.sequence.outPoint)
-  const isOutsideActiveRange = k1.position > outPoint || k2.position < inPoint
+  const isOutsideActiveRange =
+    k1.position > (outPoint ?? sequenceLength) || k2.position < (inPoint ?? 0)
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -529,7 +530,8 @@ function KeyframeDiamond({
   // Get in/out points for dimming
   const inPoint = useTimelineStore(state => state.sequence.inPoint)
   const outPoint = useTimelineStore(state => state.sequence.outPoint)
-  const isOutsideActiveRange = keyframe.position < inPoint || keyframe.position > outPoint
+  const isOutsideActiveRange =
+    keyframe.position < (inPoint ?? 0) || keyframe.position > (outPoint ?? sequenceLength)
 
   // Nudge the menu back into the viewport if it overflows at right/bottom edges
   useLayoutEffect(() => {

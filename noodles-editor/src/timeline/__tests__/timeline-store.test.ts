@@ -118,6 +118,30 @@ describe('TimelineStore', () => {
       useTimelineStore.getState().setLength(30)
       expect(useTimelineStore.getState().sequence.outPoint).toBeUndefined()
     })
+
+    it('calculates correct frame range from in/out points for rendering', () => {
+      useTimelineStore.getState().setLength(10)
+      useTimelineStore.getState().setInPoint(2)
+      useTimelineStore.getState().setOutPoint(5)
+
+      const { inPoint, outPoint, length, fps } = useTimelineStore.getState().sequence
+      const startFrame = Math.floor((inPoint ?? 0) * fps)
+      const endFrame = Math.floor((outPoint ?? length) * fps)
+
+      expect(startFrame).toBe(60) // 2 seconds * 30 fps
+      expect(endFrame).toBe(150) // 5 seconds * 30 fps
+    })
+
+    it('calculates full sequence frame range when in/out points are undefined', () => {
+      useTimelineStore.getState().setLength(10)
+
+      const { inPoint, outPoint, length, fps } = useTimelineStore.getState().sequence
+      const startFrame = Math.floor((inPoint ?? 0) * fps)
+      const endFrame = Math.floor((outPoint ?? length) * fps)
+
+      expect(startFrame).toBe(0) // 0 seconds * 30 fps
+      expect(endFrame).toBe(300) // 10 seconds * 30 fps
+    })
   })
 
   describe('playback', () => {
