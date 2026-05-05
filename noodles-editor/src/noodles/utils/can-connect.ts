@@ -64,11 +64,7 @@ function unwrapSchema(schema: z.ZodType): z.ZodType {
 }
 
 // Check if source schema is structurally compatible with target schema
-export function schemasAreCompatible(
-  from: z.ZodType,
-  to: z.ZodType,
-  depth = 0
-): boolean {
+export function schemasAreCompatible(from: z.ZodType, to: z.ZodType, depth = 0): boolean {
   // biome-ignore lint/suspicious/noExplicitAny: Zod internal API access
   const fromDef = (unwrapSchema(from) as any)._zod.def as ZodDef
   // biome-ignore lint/suspicious/noExplicitAny: Zod internal API access

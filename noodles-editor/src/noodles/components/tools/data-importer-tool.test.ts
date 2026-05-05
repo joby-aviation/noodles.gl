@@ -13,7 +13,11 @@ describe('CSV Drag-and-Drop Integration', () => {
 
     // We can't import the function directly since it's not exported,
     // but we can test the expected structure based on the code we read
-    const createMockFileDropNodes = (url: string, format: string, basePosition: { x: number; y: number }) => {
+    const createMockFileDropNodes = (
+      url: string,
+      format: string,
+      basePosition: { x: number; y: number }
+    ) => {
       const dataId = '/data'
       const scatterId = '/scatter'
       const scatterPositionId = '/scatter-position'
@@ -190,9 +194,7 @@ describe('CSV Drag-and-Drop Integration', () => {
       it('connects FileOp to BoundingBoxOp', () => {
         const result = createMockFileDropNodes(url, format, basePosition)
 
-        const edge = result.edges.find(
-          e => e.source === '/data' && e.target === '/bbox'
-        )
+        const edge = result.edges.find(e => e.source === '/data' && e.target === '/bbox')
         expect(edge).toBeDefined()
         expect(edge?.sourceHandle).toBe('out.data')
         expect(edge?.targetHandle).toBe('par.data')

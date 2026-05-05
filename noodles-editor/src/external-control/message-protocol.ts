@@ -144,17 +144,88 @@ export interface ErrorMessage extends BaseMessage {
   }
 }
 
+export interface PingMessage extends BaseMessage {
+  type: MessageType.PING
+  payload?: Record<string, unknown>
+}
+
+export interface PongMessage extends BaseMessage {
+  type: MessageType.PONG
+  payload?: Record<string, unknown>
+}
+
+export interface StatusMessage extends BaseMessage {
+  type: MessageType.STATUS
+  payload: {
+    status: string
+    details?: unknown
+  }
+}
+
+export interface LogMessage extends BaseMessage {
+  type: MessageType.LOG
+  payload: {
+    level: 'info' | 'warn' | 'error' | 'debug'
+    message: string
+    data?: unknown
+  }
+}
+
+export interface DisconnectMessage extends BaseMessage {
+  type: MessageType.DISCONNECT
+  payload?: {
+    reason?: string
+  }
+}
+
+export interface StateRequestMessage extends BaseMessage {
+  type: MessageType.STATE_REQUEST
+  payload?: {
+    path?: string[]
+  }
+}
+
+export interface StateResponseMessage extends BaseMessage {
+  type: MessageType.STATE_RESPONSE
+  payload: {
+    state: unknown
+  }
+}
+
+export interface PipelineValidateMessage extends BaseMessage {
+  type: MessageType.PIPELINE_VALIDATE
+  payload: {
+    spec: unknown
+  }
+}
+
+export interface DataQueryMessage extends BaseMessage {
+  type: MessageType.DATA_QUERY
+  payload: {
+    query: string
+    params?: Record<string, unknown>
+  }
+}
+
 export type Message =
   | ConnectMessage
+  | DisconnectMessage
+  | PingMessage
+  | PongMessage
   | ToolCallMessage
   | ToolResponseMessage
   | ToolErrorMessage
   | StateChangeMessage
+  | StateRequestMessage
+  | StateResponseMessage
   | PipelineCreateMessage
   | PipelineTestMessage
+  | PipelineValidateMessage
   | DataUploadMessage
+  | DataQueryMessage
   | ErrorMessage
-  | BaseMessage
+  | StatusMessage
+  | LogMessage
 
 // Message factory functions
 export const createMessage = <T extends Message>(
@@ -201,13 +272,17 @@ export const generateMessageId = (): string => {
 }
 
 export const isValidMessage = (data: unknown): data is Message => {
+  if (typeof data !== 'object' || data === null) {
+    return false
+  }
+
+  const obj = data as Record<string, unknown>
+
   return (
-    typeof data === 'object' &&
-    data !== null &&
-    typeof data.id === 'string' &&
-    typeof data.type === 'string' &&
-    typeof data.timestamp === 'number' &&
-    Object.values(MessageType).includes(data.type)
+    typeof obj.id === 'string' &&
+    typeof obj.type === 'string' &&
+    typeof obj.timestamp === 'number' &&
+    Object.values(MessageType).includes(obj.type as MessageType)
   )
 }
 
