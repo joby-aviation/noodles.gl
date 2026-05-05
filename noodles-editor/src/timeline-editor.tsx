@@ -19,7 +19,7 @@ import { useDeckDrawLoop } from './render/draw-loop'
 import { captureScreenshot, useRenderer } from './render/renderer'
 import { TransformScale } from './render/transform-scale'
 import { CollapsibleTimelinePanel } from './timeline/components/CollapsibleTimelinePanel'
-import { useTimelineStore } from './timeline/timeline-store'
+import { getTimelineStore, useTimelineStore } from './timeline/timeline-store'
 import s from './timeline-editor.module.css'
 import { debugRender } from './utils/debug'
 import setRef from './utils/set-ref'
@@ -483,6 +483,8 @@ export default function TimelineEditor() {
       canvas = deckRef.current.canvas!
     }
 
+    const { inPoint, outPoint } = getTimelineStore().getState().sequence
+
     await startSequenceCapture({
       canvas,
       // Basemap scenes use mapProps.onIdle for frame readiness; pure-deck scenes need
@@ -491,8 +493,8 @@ export default function TimelineEditor() {
       directoryHandle: rendersDir,
       captureDelay,
       waitForData,
-      startFrame: 0,
-      endFrame: Math.floor(sequenceLength * framerate),
+      startFrame: Math.floor(inPoint * framerate),
+      endFrame: Math.floor(outPoint * framerate),
       onFrameStart: (frame, total) => debugRender('Exporting frame %d/%d', frame + 1, total),
       onFrameComplete: (frame, total) => debugRender('Completed frame %d/%d', frame, total),
     })
