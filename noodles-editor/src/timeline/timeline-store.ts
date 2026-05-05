@@ -944,8 +944,7 @@ export const useTimelineStore = create<TimelineStore>()(
           : DEFAULT_SEQUENCE_STATE.length
 
       const inPoint = typeof seq.inPoint === 'number' ? seq.inPoint : undefined
-      const outPoint =
-        typeof seq.outPoint === 'number' ? Math.min(seq.outPoint, length) : undefined
+      const outPoint = typeof seq.outPoint === 'number' ? Math.min(seq.outPoint, length) : undefined
 
       set({
         sequence: {
