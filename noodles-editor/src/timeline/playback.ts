@@ -116,8 +116,8 @@ export function connectPlaybackToTimeline(): () => void {
     let newPosition = position + deltaSeconds
 
     // Determine playback boundaries
-    const startBoundary = loopInOut ? sequence.inPoint : 0
-    const endBoundary = loopInOut ? sequence.outPoint : sequence.length
+    const startBoundary = loopInOut ? (sequence.inPoint ?? 0) : 0
+    const endBoundary = loopInOut ? (sequence.outPoint ?? sequence.length) : sequence.length
 
     // Handle end of playback range
     if (newPosition >= endBoundary) {

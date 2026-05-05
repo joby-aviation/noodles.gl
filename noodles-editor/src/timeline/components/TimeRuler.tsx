@@ -400,7 +400,7 @@ export function TimeRuler({
       ))}
 
       {/* In Point Marker */}
-      {inPoint > 0 && (
+      {inPoint !== undefined && inPoint > 0 && (
         <InOutMarker
           type="in"
           position={inPoint}
@@ -415,7 +415,7 @@ export function TimeRuler({
       )}
 
       {/* Out Point Marker */}
-      {outPoint < sequenceLength && (
+      {outPoint !== undefined && outPoint < sequenceLength && (
         <InOutMarker
           type="out"
           position={outPoint}

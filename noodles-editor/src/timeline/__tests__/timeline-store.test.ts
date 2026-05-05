@@ -47,10 +47,10 @@ describe('TimelineStore', () => {
   })
 
   describe('in/out points', () => {
-    it('has default in/out points', () => {
+    it('has default in/out points as undefined', () => {
       const { sequence } = useTimelineStore.getState()
-      expect(sequence.inPoint).toBe(0)
-      expect(sequence.outPoint).toBe(10) // matches default length
+      expect(sequence.inPoint).toBeUndefined()
+      expect(sequence.outPoint).toBeUndefined()
     })
 
     it('setInPoint updates in point', () => {
@@ -63,25 +63,25 @@ describe('TimelineStore', () => {
       expect(useTimelineStore.getState().sequence.outPoint).toBe(8)
     })
 
-    it('clearInOutPoints resets to sequence length', () => {
+    it('clearInOutPoints resets to undefined', () => {
       useTimelineStore.getState().setLength(15)
       useTimelineStore.getState().setInPoint(3)
       useTimelineStore.getState().setOutPoint(12)
       useTimelineStore.getState().clearInOutPoints()
 
       const { sequence } = useTimelineStore.getState()
-      expect(sequence.inPoint).toBe(0)
-      expect(sequence.outPoint).toBe(15) // matches current length
+      expect(sequence.inPoint).toBeUndefined()
+      expect(sequence.outPoint).toBeUndefined()
     })
 
-    it('setLength auto-updates outPoint when at default', () => {
-      // Initial state: outPoint === length (default)
-      expect(useTimelineStore.getState().sequence.outPoint).toBe(10)
+    it('setLength does not affect undefined outPoint', () => {
+      // Initial state: outPoint is undefined
+      expect(useTimelineStore.getState().sequence.outPoint).toBeUndefined()
 
       useTimelineStore.getState().setLength(20)
 
-      // outPoint should track the new length
-      expect(useTimelineStore.getState().sequence.outPoint).toBe(20)
+      // outPoint should remain undefined
+      expect(useTimelineStore.getState().sequence.outPoint).toBeUndefined()
     })
 
     it('setLength preserves user-set outPoint when extending', () => {
@@ -109,14 +109,14 @@ describe('TimelineStore', () => {
       useTimelineStore.getState().setLength(20)
       expect(useTimelineStore.getState().sequence.outPoint).toBe(8)
 
-      // Clear in/out points - resets to full length
+      // Clear in/out points - resets to undefined
       useTimelineStore.getState().clearInOutPoints()
-      expect(useTimelineStore.getState().sequence.inPoint).toBe(0)
-      expect(useTimelineStore.getState().sequence.outPoint).toBe(20)
+      expect(useTimelineStore.getState().sequence.inPoint).toBeUndefined()
+      expect(useTimelineStore.getState().sequence.outPoint).toBeUndefined()
 
-      // Extend again - outPoint should track length now
+      // Extend again - outPoint should remain undefined
       useTimelineStore.getState().setLength(30)
-      expect(useTimelineStore.getState().sequence.outPoint).toBe(30)
+      expect(useTimelineStore.getState().sequence.outPoint).toBeUndefined()
     })
   })
 
