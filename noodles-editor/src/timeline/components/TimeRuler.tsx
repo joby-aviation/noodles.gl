@@ -400,7 +400,7 @@ export function TimeRuler({
       ))}
 
       {/* In Point Marker */}
-      {inPoint > 0 && (
+      {inPoint !== undefined && inPoint > 0 && (
         <InOutMarker
           type="in"
           position={inPoint}
@@ -415,7 +415,7 @@ export function TimeRuler({
       )}
 
       {/* Out Point Marker */}
-      {outPoint < sequenceLength && (
+      {outPoint !== undefined && outPoint < sequenceLength && (
         <InOutMarker
           type="out"
           position={outPoint}
@@ -485,6 +485,7 @@ export function TimeRuler({
                 fireTimelineMutation('Set in point')
                 setContextMenu(null)
               }}
+              title="Sets the start point for loop playback and rendering"
             >
               Mark In
             </button>
@@ -497,6 +498,7 @@ export function TimeRuler({
                 fireTimelineMutation('Set out point')
                 setContextMenu(null)
               }}
+              title="Sets the end point for loop playback and rendering"
             >
               Mark Out
             </button>
@@ -599,7 +601,7 @@ function InOutMarker({
       onPointerDown={handlePointerDown}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      title={`Drag to adjust ${type === 'in' ? 'in' : 'out'} point`}
+      title={`${type === 'in' ? 'In' : 'Out'} point - controls loop playback and render range`}
     >
       <div className={s.inOutMarkerLine} />
       <div className={s.inOutMarkerLabel}>{type === 'in' ? 'IN' : 'OUT'}</div>

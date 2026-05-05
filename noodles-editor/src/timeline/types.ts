@@ -86,15 +86,15 @@ export interface Track {
 export interface SequenceState {
   length: number // Duration in seconds
   fps: number // Frames per second (default: 30)
-  inPoint: number // Render start time in seconds (default: 0)
-  outPoint: number // Render end time in seconds (default: length)
+  inPoint?: number // Render start time in seconds (undefined = 0)
+  outPoint?: number // Render end time in seconds (undefined = length)
 }
 
 export const DEFAULT_SEQUENCE_STATE: SequenceState = {
   length: 10,
   fps: 30,
-  inPoint: 0,
-  outPoint: 10,
+  inPoint: undefined,
+  outPoint: undefined,
 }
 
 // ============================================================================
