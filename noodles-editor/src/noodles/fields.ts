@@ -35,6 +35,7 @@ type BaseFieldOptions = {
   accessor?: boolean
   showByDefault?: boolean // Defaults to true. Set to false to hide field by default in UI.
   useDeepEquality?: boolean // Use deep equality when comparing values to prevent unnecessary updates
+  maxDepth?: number // Maximum depth for deep equality checks (Infinity = unlimited)
 }
 
 type PointFieldOptions = BaseFieldOptions & {
@@ -106,6 +107,10 @@ export abstract class Field<
   // Do not enable for fields containing class instances, Date, Map, Set with identity semantics
   useDeepEquality = false
 
+  // Maximum depth for deep equality checks (only relevant if useDeepEquality=true)
+  // Infinity = unlimited depth, 0 = reference equality only, 1 = shallow, 2+ = limited depth
+  maxDepth = Infinity
+
   // Hold a reference to the operator that owns this field. Only used for debugging at the moment.
   op!: Operator<IOperator>
 
@@ -148,7 +153,14 @@ export abstract class Field<
   }
 
   // Wrap schema in additional functionality like optional, transform, accessor etc.
-  enhanceSchema({ accessor, optional, transform, showByDefault, useDeepEquality }: Partial<O>) {
+  enhanceSchema({
+    accessor,
+    optional,
+    transform,
+    showByDefault,
+    useDeepEquality,
+    maxDepth,
+  }: Partial<O>) {
     let schema = this.schema
 
     // Set showByDefault (defaults to true if not specified)
@@ -159,6 +171,11 @@ export abstract class Field<
     // Set useDeepEquality if specified
     if (useDeepEquality !== undefined) {
       this.useDeepEquality = useDeepEquality
+    }
+
+    // Set maxDepth if specified
+    if (maxDepth !== undefined) {
+      this.maxDepth = maxDepth
     }
 
     if (accessor) {

@@ -552,7 +552,7 @@ export abstract class Operator<OP extends IOperator> {
         // Use deep equality for fields that opt-in, otherwise use reference equality
         const hasChanged = field.useDeepEquality
           ? typeof newValue === 'object' && newValue !== null
-            ? !deepEqual(currentValue, newValue)
+            ? !deepEqual(currentValue, newValue, field.maxDepth)
             : currentValue !== newValue
           : currentValue !== newValue
 
@@ -740,13 +740,12 @@ export abstract class Operator<OP extends IOperator> {
           const oldValue = field.value
           const newValue = outputValues[key]
 
-          // Use deep equality for CompoundPropsField and MapStyleField (when object)
-          // to avoid unnecessary updates when object content is identical but reference differs
-          const fieldType = (field.constructor as typeof Field).type
-          const isObjectField =
-            fieldType === 'compound' ||
-            (fieldType === 'map-style' && typeof newValue === 'object' && newValue !== null)
-          const hasChanged = isObjectField ? !deepEqual(oldValue, newValue) : oldValue !== newValue
+          // Use deep equality for fields that opt-in, otherwise use reference equality
+          const hasChanged = field.useDeepEquality
+            ? typeof newValue === 'object' && newValue !== null
+              ? !deepEqual(oldValue, newValue, field.maxDepth)
+              : oldValue !== newValue
+            : oldValue !== newValue
 
           if (hasChanged) {
             // Skip schema validation on outputs
@@ -3766,7 +3765,7 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
           light: new UnknownField(),
           sky: new UnknownField(),
         },
-        { useDeepEquality: true }
+        { useDeepEquality: true, maxDepth: 2 }
       ),
     }
   }
@@ -3937,7 +3936,7 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
   }
   createOutputs() {
     return {
-      vis: new VisualizationField(undefined, { useDeepEquality: true }),
+      vis: new VisualizationField(undefined, { useDeepEquality: true, maxDepth: 3 }),
     }
   }
   execute({
