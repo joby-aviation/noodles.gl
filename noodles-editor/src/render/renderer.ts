@@ -328,7 +328,7 @@ export const useRenderer = ({
       canvas,
       getDeck,
       directoryHandle,
-      captureDelay = 200,
+      captureDelay: _captureDelay = 200,
       waitForData = true,
       startFrame = 0,
       endFrame = Math.floor(sequenceLength * fps),

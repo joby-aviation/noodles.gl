@@ -33,8 +33,7 @@ describe('Rendering Smoke Tests', () => {
             position: { x: 100, y: 100 },
             data: {
               inputs: {
-                mapStyle:
-                  'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+                mapStyle: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
                 viewState: {
                   latitude: 37.7749,
                   longitude: -122.4194,

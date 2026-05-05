@@ -407,7 +407,7 @@ describe('Export Performance', () => {
       // With "skip first render, capture on second" strategy we add ~16ms safety margin.
 
       const fps = 30
-      const targetFrameTime = 1000 / fps // 33.3ms
+      const _targetFrameTime = 1000 / fps // 33.3ms (not used, kept for context)
 
       // Old approach: onIdle (~300ms debounce) + captureDelay (50ms)
       const onIdleLatency = 300
