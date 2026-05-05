@@ -46,6 +46,80 @@ describe('TimelineStore', () => {
     })
   })
 
+  describe('in/out points', () => {
+    it('has default in/out points', () => {
+      const { sequence } = useTimelineStore.getState()
+      expect(sequence.inPoint).toBe(0)
+      expect(sequence.outPoint).toBe(10) // matches default length
+    })
+
+    it('setInPoint updates in point', () => {
+      useTimelineStore.getState().setInPoint(2)
+      expect(useTimelineStore.getState().sequence.inPoint).toBe(2)
+    })
+
+    it('setOutPoint updates out point', () => {
+      useTimelineStore.getState().setOutPoint(8)
+      expect(useTimelineStore.getState().sequence.outPoint).toBe(8)
+    })
+
+    it('clearInOutPoints resets to sequence length', () => {
+      useTimelineStore.getState().setLength(15)
+      useTimelineStore.getState().setInPoint(3)
+      useTimelineStore.getState().setOutPoint(12)
+      useTimelineStore.getState().clearInOutPoints()
+
+      const { sequence } = useTimelineStore.getState()
+      expect(sequence.inPoint).toBe(0)
+      expect(sequence.outPoint).toBe(15) // matches current length
+    })
+
+    it('setLength auto-updates outPoint when at default', () => {
+      // Initial state: outPoint === length (default)
+      expect(useTimelineStore.getState().sequence.outPoint).toBe(10)
+
+      useTimelineStore.getState().setLength(20)
+
+      // outPoint should track the new length
+      expect(useTimelineStore.getState().sequence.outPoint).toBe(20)
+    })
+
+    it('setLength preserves user-set outPoint when extending', () => {
+      useTimelineStore.getState().setOutPoint(8)
+      useTimelineStore.getState().setLength(20)
+
+      // outPoint should stay at user-set value
+      expect(useTimelineStore.getState().sequence.outPoint).toBe(8)
+    })
+
+    it('setLength clamps outPoint when shrinking below it', () => {
+      useTimelineStore.getState().setOutPoint(8)
+      useTimelineStore.getState().setLength(5)
+
+      // outPoint should be clamped to new length
+      expect(useTimelineStore.getState().sequence.outPoint).toBe(5)
+    })
+
+    it('setLength handles the sequence: extend with user points, clear, extend again', () => {
+      // Set user in/out points
+      useTimelineStore.getState().setInPoint(2)
+      useTimelineStore.getState().setOutPoint(8)
+
+      // Extend sequence - user points should be preserved
+      useTimelineStore.getState().setLength(20)
+      expect(useTimelineStore.getState().sequence.outPoint).toBe(8)
+
+      // Clear in/out points - resets to full length
+      useTimelineStore.getState().clearInOutPoints()
+      expect(useTimelineStore.getState().sequence.inPoint).toBe(0)
+      expect(useTimelineStore.getState().sequence.outPoint).toBe(20)
+
+      // Extend again - outPoint should track length now
+      useTimelineStore.getState().setLength(30)
+      expect(useTimelineStore.getState().sequence.outPoint).toBe(30)
+    })
+  })
+
   describe('playback', () => {
     it('has default playback state', () => {
       const state = useTimelineStore.getState()
