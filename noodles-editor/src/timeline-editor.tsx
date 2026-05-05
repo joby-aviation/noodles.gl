@@ -408,8 +408,10 @@ export default function TimelineEditor() {
       codec,
       // This always scales the video to the specified value, regardless of `canvas` size
       ...resolution,
+      startFrame: Math.floor((inPoint ?? 0) * framerate),
+      endFrame: Math.floor((outPoint ?? sequenceLength) * framerate),
     })
-  }, [startCapture, codec, resolution, basemapEnabled])
+  }, [startCapture, codec, resolution, basemapEnabled, framerate, inPoint, outPoint, sequenceLength])
 
   const takeScreenshot = useCallback(async () => {
     if (!deckRef.current) {
