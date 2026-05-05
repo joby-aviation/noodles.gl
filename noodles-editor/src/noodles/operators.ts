@@ -6958,7 +6958,7 @@ export class SimplifyOp extends Operator<SimplifyOp> {
   createInputs() {
     return {
       feature: new GeoJsonField(),
-      tolerance: new NumberField(0.01, { softMax: 1, step: 0.01 }),
+      tolerance: new NumberField(0.01, { min: 0, softMax: 1, step: 0.01 }),
       highQuality: new BooleanField(false),
     }
   }
