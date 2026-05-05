@@ -476,9 +476,8 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
 
   const handleComplete = () => {
     setIsEditing(false)
-    if (value !== currentValue) {
-      table.options.meta?.updateData(row.index, column.id, value)
-    }
+    // Always update - let updateData handle whether it's actually changed
+    table.options.meta?.updateData(row.index, column.id, value)
   }
 
   if (isEditing) {
@@ -607,6 +606,11 @@ export function TableEditor({
     getCoreRowModel: getCoreRowModel(),
     meta: {
       updateData: (rowIndex: number, columnId: string, value: unknown) => {
+        // Only update if value actually changed
+        const currentValue = tableData[rowIndex]?.[columnId]
+        if (currentValue === value) {
+          return
+        }
         const newData = [...tableData]
         newData[rowIndex] = {
           ...newData[rowIndex],
