@@ -129,6 +129,13 @@ describe('Layer Sizing and Width Units', () => {
       result = await arcLayer.execute(getInputProps(arcLayer))
       expect(result.layer.widthUnits).toBe('common')
     })
+
+    it('should have correct default values', async () => {
+      const arcLayer = new ArcLayerOp('/test-arc')
+      const result = await arcLayer.execute(getInputProps(arcLayer))
+
+      expect(result.layer.widthUnits).toBe('meters')
+    })
   })
 
   describe('LineLayerOp', () => {
