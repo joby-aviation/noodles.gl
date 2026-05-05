@@ -10,6 +10,7 @@ import {
   MessageMatcher,
   MessageType,
   parseMessage,
+  type PingMessage,
   serializeMessage,
 } from './message-protocol'
 
@@ -71,7 +72,7 @@ describe('createMessage', () => {
     const msg = createMessage(MessageType.PING, { data: 'test' })
 
     expect(msg.type).toBe(MessageType.PING)
-    expect((msg as BaseMessage & { payload: unknown }).payload).toEqual({ data: 'test' })
+    expect((msg as PingMessage).payload).toEqual({ data: 'test' })
     expect(msg.id).toBeDefined()
     expect(msg.timestamp).toBeDefined()
     expect(typeof msg.timestamp).toBe('number')

@@ -164,7 +164,7 @@ export class RefactoringAssistantAgent {
           filePath,
           lines: file.lines,
           startLine: symbol.line,
-          endLine: symbol.endLine,
+          endLine: symbol.endLine || symbol.line + 50,
         }
       }
     }

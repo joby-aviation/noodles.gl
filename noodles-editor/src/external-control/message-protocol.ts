@@ -124,6 +124,16 @@ export interface PipelineTestMessage extends BaseMessage {
   }
 }
 
+export interface PipelineRunMessage extends BaseMessage {
+  type: MessageType.PIPELINE_RUN
+  payload: {
+    pipelineId: string
+    options?: {
+      timeout?: number
+    }
+  }
+}
+
 export interface DataUploadMessage extends BaseMessage {
   type: MessageType.DATA_UPLOAD
   payload: {
@@ -219,6 +229,7 @@ export type Message =
   | StateRequestMessage
   | StateResponseMessage
   | PipelineCreateMessage
+  | PipelineRunMessage
   | PipelineTestMessage
   | PipelineValidateMessage
   | DataUploadMessage
