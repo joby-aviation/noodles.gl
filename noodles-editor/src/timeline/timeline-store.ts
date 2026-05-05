@@ -221,14 +221,20 @@ export const useTimelineStore = create<TimelineStore>()(
 
     // === Sequence Actions ===
     setLength: length => {
-      set(state => ({
-        sequence: {
-          ...state.sequence,
-          length: Math.max(0.1, length),
-          outPoint: Math.min(state.sequence.outPoint, length),
-        },
-        position: Math.min(state.position, length),
-      }))
+      set(state => {
+        const newLength = Math.max(0.1, length)
+        const { outPoint } = state.sequence
+
+        return {
+          sequence: {
+            ...state.sequence,
+            length: newLength,
+            // If outPoint is set, clamp it; otherwise leave undefined
+            outPoint: outPoint !== undefined ? Math.min(outPoint, newLength) : undefined,
+          },
+          position: Math.min(state.position, newLength),
+        }
+      })
     },
 
     setFps: fps => {
@@ -241,7 +247,8 @@ export const useTimelineStore = create<TimelineStore>()(
     setInPoint: time => {
       set(state => {
         const { sequence } = state
-        const clamped = Math.max(0, Math.min(time, sequence.outPoint))
+        const max = sequence.outPoint ?? sequence.length
+        const clamped = Math.max(0, Math.min(time, max))
         return {
           sequence: { ...sequence, inPoint: clamped },
         }
@@ -251,7 +258,8 @@ export const useTimelineStore = create<TimelineStore>()(
     setOutPoint: time => {
       set(state => {
         const { sequence } = state
-        const clamped = Math.max(sequence.inPoint, Math.min(time, sequence.length))
+        const min = sequence.inPoint ?? 0
+        const clamped = Math.max(min, Math.min(time, sequence.length))
         return {
           sequence: { ...sequence, outPoint: clamped },
         }
@@ -260,7 +268,7 @@ export const useTimelineStore = create<TimelineStore>()(
 
     clearInOutPoints: () => {
       set(state => ({
-        sequence: { ...state.sequence, inPoint: 0, outPoint: state.sequence.length },
+        sequence: { ...state.sequence, inPoint: undefined, outPoint: undefined },
       }))
     },
 
@@ -935,6 +943,9 @@ export const useTimelineStore = create<TimelineStore>()(
           ? seq.length
           : DEFAULT_SEQUENCE_STATE.length
 
+      const inPoint = typeof seq.inPoint === 'number' ? seq.inPoint : undefined
+      const outPoint = typeof seq.outPoint === 'number' ? Math.min(seq.outPoint, length) : undefined
+
       set({
         sequence: {
           length,
@@ -942,8 +953,8 @@ export const useTimelineStore = create<TimelineStore>()(
             typeof seq.subUnitsPerUnit === 'number' && seq.subUnitsPerUnit > 0
               ? Math.round(seq.subUnitsPerUnit)
               : DEFAULT_SEQUENCE_STATE.fps,
-          inPoint: typeof seq.inPoint === 'number' ? seq.inPoint : 0,
-          outPoint: typeof seq.outPoint === 'number' ? seq.outPoint : length,
+          inPoint,
+          outPoint,
         },
         tracks: newTracks,
         markers,

@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+  ArcLayerOp,
+  GreatCircleLayerOp,
   IconLayerOp,
+  LineLayerOp,
   PathLayerOp,
   TripsLayerOp,
-  ArcLayerOp,
-  LineLayerOp,
-  GreatCircleLayerOp,
 } from './operators'
 
 // Helper to get all input values from an operator

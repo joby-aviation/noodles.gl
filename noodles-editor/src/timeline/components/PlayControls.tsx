@@ -19,7 +19,8 @@ export function PlayControls() {
   const goToEnd = useTimelineStore(state => state.goToEnd)
 
   // Only show loop in/out button when in/out points are active
-  const hasActiveInOut = inPoint > 0 || outPoint < sequenceLength
+  const hasActiveInOut =
+    (inPoint !== undefined && inPoint > 0) || (outPoint !== undefined && outPoint < sequenceLength)
 
   return (
     <div className={s.timelinePlayControls}>

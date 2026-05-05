@@ -483,7 +483,7 @@ export default function TimelineEditor() {
       canvas = deckRef.current.canvas!
     }
 
-    const { inPoint, outPoint } = getTimelineStore().getState().sequence
+    const { inPoint, outPoint, length } = getTimelineStore().getState().sequence
 
     await startSequenceCapture({
       canvas,
@@ -493,8 +493,8 @@ export default function TimelineEditor() {
       directoryHandle: rendersDir,
       captureDelay,
       waitForData,
-      startFrame: Math.floor(inPoint * framerate),
-      endFrame: Math.floor(outPoint * framerate),
+      startFrame: Math.floor((inPoint ?? 0) * framerate),
+      endFrame: Math.floor((outPoint ?? length) * framerate),
       onFrameStart: (frame, total) => debugRender('Exporting frame %d/%d', frame + 1, total),
       onFrameComplete: (frame, total) => debugRender('Completed frame %d/%d', frame, total),
     })
