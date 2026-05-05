@@ -99,6 +99,8 @@ export default function TimelineEditor() {
   const activeStorageType = useActiveStorageType()
 
   const sequenceLength = useSequenceLength()
+  const inPoint = useTimelineStore(state => state.sequence.inPoint)
+  const outPoint = useTimelineStore(state => state.sequence.outPoint)
 
   const {
     framerate,
@@ -401,17 +403,15 @@ export default function TimelineEditor() {
       return
     }
 
-    const { inPoint, outPoint, length } = getTimelineStore().getState().sequence
-
     await startCapture({
       canvas,
       codec,
       // This always scales the video to the specified value, regardless of `canvas` size
       ...resolution,
       startFrame: Math.floor((inPoint ?? 0) * framerate),
-      endFrame: Math.floor((outPoint ?? length) * framerate),
+      endFrame: Math.floor((outPoint ?? sequenceLength) * framerate),
     })
-  }, [startCapture, codec, resolution, basemapEnabled, framerate])
+  }, [startCapture, codec, resolution, basemapEnabled, framerate, inPoint, outPoint, sequenceLength])
 
   const takeScreenshot = useCallback(async () => {
     if (!deckRef.current) {
@@ -487,8 +487,6 @@ export default function TimelineEditor() {
       canvas = deckRef.current.canvas!
     }
 
-    const { inPoint, outPoint, length } = getTimelineStore().getState().sequence
-
     await startSequenceCapture({
       canvas,
       // Basemap scenes use mapProps.onIdle for frame readiness; pure-deck scenes need
@@ -498,13 +496,15 @@ export default function TimelineEditor() {
       captureDelay,
       waitForData,
       startFrame: Math.floor((inPoint ?? 0) * framerate),
-      endFrame: Math.floor((outPoint ?? length) * framerate),
+      endFrame: Math.floor((outPoint ?? sequenceLength) * framerate),
       onFrameStart: (frame, total) => debugRender('Exporting frame %d/%d', frame + 1, total),
       onFrameComplete: (frame, total) => debugRender('Completed frame %d/%d', frame, total),
     })
   }, [
     startSequenceCapture,
     sequenceLength,
+    inPoint,
+    outPoint,
     framerate,
     captureDelay,
     waitForData,
