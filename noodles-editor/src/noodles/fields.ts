@@ -34,6 +34,7 @@ type BaseFieldOptions = {
   transform?: (val: unknown, ...args: unknown[]) => unknown
   accessor?: boolean
   showByDefault?: boolean // Defaults to true. Set to false to hide field by default in UI.
+  useDeepEquality?: boolean // Use deep equality when comparing values to prevent unnecessary updates
 }
 
 type PointFieldOptions = BaseFieldOptions & {
@@ -147,12 +148,17 @@ export abstract class Field<
   }
 
   // Wrap schema in additional functionality like optional, transform, accessor etc.
-  enhanceSchema({ accessor, optional, transform, showByDefault }: Partial<O>) {
+  enhanceSchema({ accessor, optional, transform, showByDefault, useDeepEquality }: Partial<O>) {
     let schema = this.schema
 
     // Set showByDefault (defaults to true if not specified)
     if (showByDefault !== undefined) {
       this.showByDefault = showByDefault
+    }
+
+    // Set useDeepEquality if specified
+    if (useDeepEquality !== undefined) {
+      this.useDeepEquality = useDeepEquality
     }
 
     if (accessor) {

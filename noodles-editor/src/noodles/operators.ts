@@ -3753,21 +3753,21 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
   }
 
   createOutputs() {
-    const maplibreField = new CompoundPropsField({
-      mapStyle: new MapStyleField(),
-      projection: new StringField(),
-      longitude: new NumberField(),
-      latitude: new NumberField(),
-      zoom: new NumberField(),
-      pitch: new NumberField(),
-      bearing: new NumberField(),
-      light: new UnknownField(),
-      sky: new UnknownField(),
-    })
-    // Enable deep equality to prevent unnecessary map reloads when style/props unchanged
-    maplibreField.useDeepEquality = true
     return {
-      maplibre: maplibreField,
+      maplibre: new CompoundPropsField(
+        {
+          mapStyle: new MapStyleField(),
+          projection: new StringField(),
+          longitude: new NumberField(),
+          latitude: new NumberField(),
+          zoom: new NumberField(),
+          pitch: new NumberField(),
+          bearing: new NumberField(),
+          light: new UnknownField(),
+          sky: new UnknownField(),
+        },
+        { useDeepEquality: true }
+      ),
     }
   }
   execute({
@@ -3936,11 +3936,8 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
     }
   }
   createOutputs() {
-    const visField = new VisualizationField()
-    // Enable deep equality to prevent unnecessary updates when vis content unchanged
-    visField.useDeepEquality = true
     return {
-      vis: visField,
+      vis: new VisualizationField(undefined, { useDeepEquality: true }),
     }
   }
   execute({
