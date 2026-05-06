@@ -6971,14 +6971,14 @@ export class SimplifyOp extends Operator<SimplifyOp> {
 
 export class SmoothOp extends Operator<SmoothOp> {
   static displayName = 'Smooth'
-  static description = 'Apply smoothing to LineString coordinates using boxcar or Gaussian kernel'
+  static description = 'Apply smoothing to LineString coordinates using Gaussian or boxcar kernel'
   asDownload = () => this.outputData
 
   createInputs() {
     return {
       feature: new GeoJsonField(),
       windowSize: new NumberField(5, { min: 1, max: 100, step: 2 }),
-      method: new StringLiteralField('boxcar', ['boxcar', 'gaussian']),
+      method: new StringLiteralField('gaussian', ['gaussian', 'boxcar']),
     }
   }
 
