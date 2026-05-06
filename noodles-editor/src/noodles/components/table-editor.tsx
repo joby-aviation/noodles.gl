@@ -30,6 +30,83 @@ interface CellEditorProps {
   column: ColumnSchema
 }
 
+// Simplified draggable number input for table cells
+function DraggableNumberCellInput({
+  value,
+  onChange,
+  onBlur,
+  onKeyDown,
+  step = 1,
+  autoFocus,
+  className,
+}: {
+  value: string
+  onChange: (value: string) => void
+  onBlur: () => void
+  onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
+  step?: number
+  autoFocus?: boolean
+  className?: string
+}) {
+  const [isDragging, setIsDragging] = useState(false)
+  const [isActive, setIsActive] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const dragStartRef = useRef<{ x: number; value: number } | null>(null)
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLInputElement>) => {
+    if (isActive) return // Don't drag while editing text
+
+    const numValue = Number.parseFloat(value) || 0
+    dragStartRef.current = {
+      x: e.clientX,
+      value: numValue,
+    }
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!dragStartRef.current) return
+
+      const deltaX = moveEvent.clientX - dragStartRef.current.x
+      const valueChange = Math.round(deltaX) * step
+      const newValue = dragStartRef.current.value + valueChange
+
+      setIsDragging(true)
+      onChange(newValue.toString())
+    }
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+      dragStartRef.current = null
+      setIsDragging(false)
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+  }
+
+  return (
+    <input
+      ref={inputRef}
+      type="text"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onMouseDown={handleMouseDown}
+      onFocus={() => setIsActive(true)}
+      onBlur={() => {
+        setIsActive(false)
+        onBlur()
+      }}
+      onKeyDown={onKeyDown}
+      autoFocus={autoFocus}
+      className={`p-inputtext ${className || ''}`}
+      style={{
+        cursor: isActive ? 'text' : 'ew-resize',
+        userSelect: isDragging ? 'none' : 'auto',
+      }}
+    />
+  )
+}
+
 function NumberCellEditor({ value, onChange, onComplete, column }: CellEditorProps) {
   // Hold string value locally for editing
   const [stringValue, setStringValue] = useState(String(value ?? ''))
@@ -60,9 +137,9 @@ function NumberCellEditor({ value, onChange, onComplete, column }: CellEditorPro
   }
 
   return (
-    <InputText
+    <DraggableNumberCellInput
       value={stringValue}
-      onChange={(e) => handleChange(e.target.value)}
+      onChange={handleChange}
       onBlur={onComplete}
       onKeyDown={(e) => {
         e.stopPropagation()
@@ -77,6 +154,7 @@ function NumberCellEditor({ value, onChange, onComplete, column }: CellEditorPro
           requestAnimationFrame(() => onComplete())
         }
       }}
+      step={column.options?.step ?? 1}
       autoFocus
       className={s.cellEditor}
     />
