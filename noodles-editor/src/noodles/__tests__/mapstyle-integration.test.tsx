@@ -20,15 +20,15 @@ describe('MapStyle Integration Tests', () => {
           type: 'raster',
           tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
           tileSize: 256,
-        }
+        },
       },
       layers: [
         {
           id: 'test-layer',
           type: 'raster',
-          source: 'test-source'
-        }
-      ]
+          source: 'test-source',
+        },
+      ],
     }
 
     // Setup nodes - JSONOp parses JSON string to object
@@ -39,8 +39,8 @@ describe('MapStyle Integration Tests', () => {
         position: { x: 0, y: 0 },
         data: {
           inputs: {
-            text: JSON.stringify(styleObject)
-          }
+            text: JSON.stringify(styleObject),
+          },
         },
       },
       {
@@ -49,8 +49,8 @@ describe('MapStyle Integration Tests', () => {
         position: { x: 200, y: 0 },
         data: {
           inputs: {
-            viewState: { latitude: 0, longitude: 0, zoom: 1, pitch: 0, bearing: 0 }
-          }
+            viewState: { latitude: 0, longitude: 0, zoom: 1, pitch: 0, bearing: 0 },
+          },
         },
       },
     ]
@@ -95,7 +95,13 @@ describe('MapStyle Integration Tests', () => {
       mapStyle: mapStyleValue as unknown as string,
       projection: 'mercator',
       viewState: { latitude: 0, longitude: 0, zoom: 1, pitch: 0, bearing: 0 },
-      sky: { enabled: false, skyColor: '#88C6FC', horizonColor: '#ffffff', skyHorizonBlend: 0.8, atmosphereBlend: 0.5 },
+      sky: {
+        enabled: false,
+        skyColor: '#88C6FC',
+        horizonColor: '#ffffff',
+        skyHorizonBlend: 0.8,
+        atmosphereBlend: 0.5,
+      },
       light: { anchor: 'viewport', azimuthal: 210, polar: 30 },
     })
 
@@ -113,8 +119,8 @@ describe('MapStyle Integration Tests', () => {
         data: {
           inputs: {
             mapStyle: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
-            viewState: { latitude: 37, longitude: -122, zoom: 10, pitch: 0, bearing: 0 }
-          }
+            viewState: { latitude: 37, longitude: -122, zoom: 10, pitch: 0, bearing: 0 },
+          },
         },
       },
     ]
@@ -124,18 +130,28 @@ describe('MapStyle Integration Tests', () => {
     const maplibreOp = getOp('/maplibre') as MaplibreBasemapOp
 
     expect(typeof maplibreOp.inputs.mapStyle.value).toBe('string')
-    expect(maplibreOp.inputs.mapStyle.value).toBe('https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json')
+    expect(maplibreOp.inputs.mapStyle.value).toBe(
+      'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
+    )
 
     const result = maplibreOp.execute({
       mapStyle: maplibreOp.inputs.mapStyle.value,
       projection: 'mercator',
       viewState: { latitude: 37, longitude: -122, zoom: 10, pitch: 0, bearing: 0 },
-      sky: { enabled: false, skyColor: '#88C6FC', horizonColor: '#ffffff', skyHorizonBlend: 0.8, atmosphereBlend: 0.5 },
+      sky: {
+        enabled: false,
+        skyColor: '#88C6FC',
+        horizonColor: '#ffffff',
+        skyHorizonBlend: 0.8,
+        atmosphereBlend: 0.5,
+      },
       light: { anchor: 'viewport', azimuthal: 210, polar: 30 },
     })
 
     expect(typeof result.maplibre.mapStyle).toBe('string')
-    expect(result.maplibre.mapStyle).toBe('https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json')
+    expect(result.maplibre.mapStyle).toBe(
+      'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
+    )
   })
 
   it('rejects invalid types (prevents validation errors)', () => {
@@ -148,8 +164,8 @@ describe('MapStyle Integration Tests', () => {
         data: {
           inputs: {
             mapStyle: '',
-            viewState: { latitude: 0, longitude: 0, zoom: 1, pitch: 0, bearing: 0 }
-          }
+            viewState: { latitude: 0, longitude: 0, zoom: 1, pitch: 0, bearing: 0 },
+          },
         },
       },
     ]

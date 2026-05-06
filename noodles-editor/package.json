@@ -77,7 +77,8 @@
     "build:migrate-script": "vite build --config vite.config.migrate.ts",
     "migrate-projects": "npm run build:migrate-script && node dist/migrate-project-files.js",
     "generate:context": "tsx scripts/generate-context.ts",
-    "generate:migration": "tsx scripts/generate-migration.ts"
+    "generate:migration": "tsx scripts/generate-migration.ts",
+    "benchmark:export": "tsx scripts/benchmark-export.ts"
   },
   "browserslist": {
     "production": [

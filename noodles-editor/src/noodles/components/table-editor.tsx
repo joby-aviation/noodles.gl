@@ -165,9 +165,9 @@ function StringCellEditor({ value, onChange, onComplete }: CellEditorProps) {
   return (
     <InputText
       value={value as string}
-      onChange={(e) => onChange(e.target.value)}
+      onChange={e => onChange(e.target.value)}
       onBlur={onComplete}
-      onKeyDown={(e) => {
+      onKeyDown={e => {
         e.stopPropagation()
         if (e.key === 'Enter') {
           onComplete()
@@ -186,7 +186,7 @@ function BooleanCellEditor({ value, onChange, onComplete }: CellEditorProps) {
   return (
     <InputSwitch
       checked={value as boolean}
-      onChange={(e) => {
+      onChange={e => {
         onChange(e.value)
         onComplete()
       }}
@@ -199,7 +199,7 @@ function ColorCellEditor({ value, onChange, onComplete }: CellEditorProps) {
   return (
     <div
       onBlur={onComplete}
-      onKeyDown={(e) => {
+      onKeyDown={e => {
         if (e.key === 'Enter' || e.key === 'Escape') {
           onComplete()
         }
@@ -218,8 +218,8 @@ function Point2DCellEditor({ value, onChange, onComplete, column }: CellEditorPr
       <InputNumber
         value={lng}
         step={0.0001}
-        onValueChange={(e) => onChange([e.value ?? 0, lat])}
-        onKeyDown={(e) => {
+        onValueChange={e => onChange([e.value ?? 0, lat])}
+        onKeyDown={e => {
           e.stopPropagation()
           if (e.key === 'Enter' || e.key === 'Escape') {
             onComplete()
@@ -231,9 +231,9 @@ function Point2DCellEditor({ value, onChange, onComplete, column }: CellEditorPr
       <InputNumber
         value={lat}
         step={0.0001}
-        onValueChange={(e) => onChange([lng, e.value ?? 0])}
+        onValueChange={e => onChange([lng, e.value ?? 0])}
         onBlur={onComplete}
-        onKeyDown={(e) => {
+        onKeyDown={e => {
           e.stopPropagation()
           if (e.key === 'Enter' || e.key === 'Escape') {
             onComplete()
@@ -266,8 +266,8 @@ function Vec3CellEditor({ value, onChange, onComplete }: CellEditorProps) {
     <div className={s.vec3Editor}>
       <InputNumber
         value={x}
-        onValueChange={(e) => onChange([e.value ?? 0, y, z])}
-        onKeyDown={(e) => {
+        onValueChange={e => onChange([e.value ?? 0, y, z])}
+        onKeyDown={e => {
           e.stopPropagation()
           if (e.key === 'Enter' || e.key === 'Escape') {
             onComplete()
@@ -278,8 +278,8 @@ function Vec3CellEditor({ value, onChange, onComplete }: CellEditorProps) {
       />
       <InputNumber
         value={y}
-        onValueChange={(e) => onChange([x, e.value ?? 0, z])}
-        onKeyDown={(e) => {
+        onValueChange={e => onChange([x, e.value ?? 0, z])}
+        onKeyDown={e => {
           e.stopPropagation()
           if (e.key === 'Enter' || e.key === 'Escape') {
             onComplete()
@@ -290,9 +290,9 @@ function Vec3CellEditor({ value, onChange, onComplete }: CellEditorProps) {
       />
       <InputNumber
         value={z}
-        onValueChange={(e) => onChange([x, y, e.value ?? 0])}
+        onValueChange={e => onChange([x, y, e.value ?? 0])}
         onBlur={onComplete}
-        onKeyDown={(e) => {
+        onKeyDown={e => {
           e.stopPropagation()
           if (e.key === 'Enter' || e.key === 'Escape') {
             onComplete()
@@ -310,9 +310,9 @@ function DateCellEditor({ value, onChange, onComplete }: CellEditorProps) {
     <InputText
       type="date"
       value={value as string}
-      onChange={(e) => onChange(e.target.value)}
+      onChange={e => onChange(e.target.value)}
       onBlur={onComplete}
-      onKeyDown={(e) => {
+      onKeyDown={e => {
         e.stopPropagation()
         if (e.key === 'Enter' || e.key === 'Escape') {
           onComplete()
@@ -328,9 +328,10 @@ function DateTimeCellEditor({ value, onChange, onComplete, column }: CellEditorP
   const timezoneOptions = useState(() => getTimezoneOptions())[0]
 
   // Extract datetime and timezone from DateTimeValue
-  const dateTimeValue = (value && typeof value === 'object' && 'datetime' in value && 'timezone' in value)
-    ? value as DateTimeValue
-    : { datetime: '', timezone: 'UTC' }
+  const dateTimeValue =
+    value && typeof value === 'object' && 'datetime' in value && 'timezone' in value
+      ? (value as DateTimeValue)
+      : { datetime: '', timezone: 'UTC' }
 
   const [filteredTimezones, setFilteredTimezones] = useState<string[]>(timezoneOptions)
   const [timezoneInputValue, setTimezoneInputValue] = useState<string>(dateTimeValue.timezone)
@@ -340,7 +341,11 @@ function DateTimeCellEditor({ value, onChange, onComplete, column }: CellEditorP
 
   // Apply pending timezone change to cell value
   const applyTimezoneChange = () => {
-    if (pendingTimezone && pendingTimezone !== dateTimeValue.timezone && timezoneOptions.includes(pendingTimezone)) {
+    if (
+      pendingTimezone &&
+      pendingTimezone !== dateTimeValue.timezone &&
+      timezoneOptions.includes(pendingTimezone)
+    ) {
       // Update cell value with new timezone
       const newValue: DateTimeValue = {
         datetime: datetimeValue,
@@ -385,8 +390,8 @@ function DateTimeCellEditor({ value, onChange, onComplete, column }: CellEditorP
         type="datetime-local"
         step={0.001}
         value={datetimeValue}
-        onChange={(e) => handleDatetimeChange(e.target.value)}
-        onKeyDown={(e) => {
+        onChange={e => handleDatetimeChange(e.target.value)}
+        onKeyDown={e => {
           e.stopPropagation()
           if (e.key === 'Enter' || e.key === 'Escape') {
             onComplete()
@@ -398,21 +403,21 @@ function DateTimeCellEditor({ value, onChange, onComplete, column }: CellEditorP
       <AutoComplete
         value={timezoneInputValue}
         suggestions={filteredTimezones}
-        completeMethod={(e) => {
+        completeMethod={e => {
           const query = e.query.toLowerCase()
           const filtered = query
-            ? timezoneOptions.filter((tz) => tz.toLowerCase().includes(query))
+            ? timezoneOptions.filter(tz => tz.toLowerCase().includes(query))
             : timezoneOptions
           // Always set suggestions immediately to avoid spinner
           setFilteredTimezones(filtered.length > 0 ? filtered : timezoneOptions)
         }}
-        onChange={(e) => {
+        onChange={e => {
           setTimezoneInputValue(e.value || dateTimeValue.timezone)
         }}
         onDropdownClick={() => {
           setFilteredTimezones(timezoneOptions)
         }}
-        onSelect={(e) => {
+        onSelect={e => {
           if (e.value && typeof e.value === 'string' && timezoneOptions.includes(e.value)) {
             setPendingTimezone(e.value)
             setTimezoneInputValue(e.value)
@@ -423,7 +428,7 @@ function DateTimeCellEditor({ value, onChange, onComplete, column }: CellEditorP
         placeholder="TZ"
         className={s.timezoneDropdown}
         panelClassName={s.timezonePanel}
-        itemTemplate={(item) => (
+        itemTemplate={item => (
           <div
             onMouseDown={() => {
               setPendingTimezone(item)
@@ -508,9 +513,10 @@ function renderDateTimeCell(value: unknown, column: ColumnSchema): string {
   // Only handle DateTimeValue format
   if (value && typeof value === 'object' && 'datetime' in value && 'timezone' in value) {
     const dateTimeValue = value as DateTimeValue
-    const tzAbbrev = dateTimeValue.timezone === 'UTC'
-      ? 'UTC'
-      : dateTimeValue.timezone.split('/').pop() ?? dateTimeValue.timezone
+    const tzAbbrev =
+      dateTimeValue.timezone === 'UTC'
+        ? 'UTC'
+        : (dateTimeValue.timezone.split('/').pop() ?? dateTimeValue.timezone)
     return `${dateTimeValue.datetime} ${tzAbbrev}`
   }
   return ''
@@ -572,7 +578,7 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
     prevValueRef.current = currentValue
   }
 
-  const colSchema = table.options.meta?.schema.columns.find((col) => col.name === column.id)
+  const colSchema = table.options.meta?.schema.columns.find(col => col.name === column.id)
   if (!colSchema) {
     return <div className={s.cell}>{String(currentValue)}</div>
   }
@@ -604,15 +610,19 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
   }
 
   // Render cell - dateTime renderer needs column schema for timezone
-  const renderedValue = colSchema.type === 'dateTime'
-    ? (renderer as (value: unknown, column: ColumnSchema) => React.ReactNode)(currentValue, colSchema)
-    : (renderer as (value: unknown) => React.ReactNode)(currentValue)
+  const renderedValue =
+    colSchema.type === 'dateTime'
+      ? (renderer as (value: unknown, column: ColumnSchema) => React.ReactNode)(
+          currentValue,
+          colSchema
+        )
+      : (renderer as (value: unknown) => React.ReactNode)(currentValue)
 
   return (
     <div
       className={s.cell}
       onClick={startEditing}
-      onKeyDown={(e) => {
+      onKeyDown={e => {
         if (e.key === 'Enter' || e.key === ' ') {
           startEditing()
         }
@@ -634,12 +644,7 @@ interface TableEditorProps {
   onSchemaChange: (schema: TableSchema) => void
 }
 
-export function TableEditor({
-  data,
-  schema,
-  onDataChange,
-  onSchemaChange,
-}: TableEditorProps) {
+export function TableEditor({ data, schema, onDataChange, onSchemaChange }: TableEditorProps) {
   const [tableData, setTableData] = useState(data)
 
   useEffect(() => {
@@ -658,7 +663,7 @@ export function TableEditor({
 
   const handleSchemaChange = (newSchema: TableSchema) => {
     // Update data to match new schema
-    const newData = tableData.map((row) => {
+    const newData = tableData.map(row => {
       const newRow: Record<string, unknown> = {}
       for (const col of newSchema.columns) {
         const existingValue = row[col.name]
@@ -684,10 +689,10 @@ export function TableEditor({
     columnHelper.display({
       id: '_rowNumber',
       header: '#',
-      cell: (props) => <div className={s.rowNumber}>{props.row.index + 1}</div>,
+      cell: props => <div className={s.rowNumber}>{props.row.index + 1}</div>,
       size: 50,
     }),
-    ...schema.columns.map((colSchema) =>
+    ...schema.columns.map(colSchema =>
       columnHelper.accessor(colSchema.name, {
         header: colSchema.name,
         cell: EditableCell,
@@ -695,10 +700,8 @@ export function TableEditor({
     ),
     columnHelper.display({
       id: '_actions',
-      header: () => (
-        <SchemaEditorDialog schema={schema} onChange={handleSchemaChange} />
-      ),
-      cell: (props) => (
+      header: () => <SchemaEditorDialog schema={schema} onChange={handleSchemaChange} />,
+      cell: props => (
         <Button
           icon="pi pi-trash"
           className={`p-button-text p-button-sm ${s.deleteButton}`}
@@ -753,9 +756,9 @@ export function TableEditor({
       <div className={s.tableWrapper}>
         <table className={s.table}>
           <thead>
-            {table.getHeaderGroups().map((headerGroup) => (
+            {table.getHeaderGroups().map(headerGroup => (
               <tr key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
+                {headerGroup.headers.map(header => (
                   <th key={header.id} className={s.header}>
                     {header.isPlaceholder
                       ? null
@@ -766,9 +769,9 @@ export function TableEditor({
             ))}
           </thead>
           <tbody>
-            {table.getRowModel().rows.map((row) => (
+            {table.getRowModel().rows.map(row => (
               <tr key={row.id} className={s.row}>
-                {row.getVisibleCells().map((cell) => (
+                {row.getVisibleCells().map(cell => (
                   <td key={cell.id} className={s.cellContainer}>
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>
@@ -786,8 +789,8 @@ export function TableEditor({
           className={`p-button-sm p-button-text ${s.addRowButton}`}
         />
         <div className={s.stats}>
-          {tableData.length} row{tableData.length !== 1 ? 's' : ''} × {schema.columns.length}{' '}
-          column{schema.columns.length !== 1 ? 's' : ''}
+          {tableData.length} row{tableData.length !== 1 ? 's' : ''} × {schema.columns.length} column
+          {schema.columns.length !== 1 ? 's' : ''}
         </div>
       </div>
     </div>
