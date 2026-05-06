@@ -6970,6 +6970,97 @@ export class SimplifyOp extends Operator<SimplifyOp> {
   }
 }
 
+export class SmoothOp extends Operator<SmoothOp> {
+  static displayName = 'Smooth'
+  static description = 'Apply smoothing to LineString coordinates using Gaussian or boxcar kernel'
+  asDownload = () => this.outputData
+
+  createInputs() {
+    return {
+      feature: new GeoJsonField(),
+      windowSize: new NumberField(5, { min: 1, max: 100, step: 2 }),
+      method: new StringLiteralField('gaussian', ['gaussian', 'boxcar']),
+    }
+  }
+
+  createOutputs() {
+    return {
+      feature: new GeoJsonField(),
+    }
+  }
+
+  execute({
+    feature,
+    windowSize,
+    method,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    // Handle LineString
+    if (feature.geometry.type === 'LineString') {
+      if (feature.geometry.coordinates.length <= 1) {
+        return { feature }
+      }
+
+      const smoothedCoords = this.smoothCoordinates(
+        feature.geometry.coordinates,
+        windowSize,
+        method
+      )
+      return { feature: turf.lineString(smoothedCoords, feature.properties) }
+    }
+
+    // Handle MultiLineString
+    if (feature.geometry.type === 'MultiLineString') {
+      const smoothedLines = feature.geometry.coordinates.map(line =>
+        this.smoothCoordinates(line, windowSize, method)
+      )
+      return { feature: turf.multiLineString(smoothedLines, feature.properties) }
+    }
+
+    // Pass through other geometry types unchanged
+    return { feature }
+  }
+
+  private smoothCoordinates(
+    coords: number[][],
+    windowSize: number,
+    method: 'boxcar' | 'gaussian'
+  ): number[][] {
+    const radius = Math.floor(windowSize / 2)
+    const sigma = method === 'gaussian' ? windowSize / 6 : 0
+
+    return coords.map((pt, i) => {
+      let lonSum = 0
+      let latSum = 0
+      let weightSum = 0
+
+      // Iterate over window centered on current point
+      for (let j = i - radius; j <= i + radius; j++) {
+        if (j < 0 || j >= coords.length) continue
+
+        // Calculate weight based on smoothing method
+        let weight: number
+        if (method === 'gaussian') {
+          const distance = Math.abs(j - i)
+          weight = Math.exp(-0.5 * Math.pow(distance / sigma, 2))
+        } else {
+          weight = 1 // Boxcar: uniform weights
+        }
+
+        lonSum += coords[j][0] * weight
+        latSum += coords[j][1] * weight
+        weightSum += weight
+      }
+
+      // Return smoothed lon/lat plus preserved extra channels
+      return [
+        lonSum / weightSum,
+        latSum / weightSum,
+        ...pt.slice(2), // Preserve altitude, timestamps, etc.
+      ]
+    })
+  }
+}
+
 // ==================== Core Layers (@deck.gl/layers) ====================
 
 export class BitmapLayerOp extends Operator<BitmapLayerOp> {
@@ -8136,6 +8227,7 @@ export const opTypes = {
   ScreenshotWidgetOp,
   SimpleMeshLayerOp,
   SimplifyOp,
+  SmoothOp,
   SelectOp,
   SliceOp,
   SolidPolygonLayerOp,
