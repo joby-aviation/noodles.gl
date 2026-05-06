@@ -1,7 +1,7 @@
 // Keyframe track component - renders a single track with its keyframes
 
 import { useReactFlow } from '@xyflow/react'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   captureTimelineState,
@@ -10,6 +10,10 @@ import {
   useTimelineStore,
 } from '../timeline-store'
 import type { Keyframe, Track } from '../types'
+import {
+  type KeyframeShapeType,
+  getKeyframeShapeType,
+} from '../utils/keyframe-shape-utils'
 import { CurvePopup } from './CurvePopup'
 import { KeyframeValuePopup } from './KeyframeValuePopup'
 import s from './TimelinePanel.module.css'
@@ -341,10 +345,12 @@ export function KeyframeTrack({
           />
         ))}
         {/* Keyframe diamonds */}
-        {track.keyframes.map(keyframe => (
+        {track.keyframes.map((keyframe, index) => (
           <KeyframeDiamond
             key={keyframe.id}
             keyframe={keyframe}
+            prevKeyframe={track.keyframes[index - 1]}
+            nextKeyframe={track.keyframes[index + 1]}
             pixelsPerSecond={pixelsPerSecond}
             sequenceLength={sequenceLength}
             fps={fps}
@@ -494,9 +500,91 @@ function KeyframeBar({
   )
 }
 
+// SVG shape component for keyframe based on interpolation type
+function KeyframeShape({
+  shapeType,
+  isSelected,
+  isHovered,
+}: {
+  shapeType: KeyframeShapeType
+  isSelected: boolean
+  isHovered: boolean
+}) {
+  const size = 10
+  const strokeWidth = 1.5
+  const strokeColor = isSelected ? '#8aebef' : 'var(--tl-accent)'
+  const fillColor = isSelected ? 'var(--tl-accent)' : '#1f2632'
+
+  const path = useMemo(() => {
+    switch (shapeType) {
+      case 'linear':
+        // Diamond: rotated square
+        return 'M 5 1 L 9 5 L 5 9 L 1 5 Z'
+
+      case 'ease-in':
+        // Right chevron (flat left, curved right) - ease into next keyframe
+        return 'M 2 2 L 2 8 L 6 5 Z M 6 5 C 6 5 8 5 8 2.5 M 6 5 C 6 5 8 5 8 7.5'
+
+      case 'ease-out':
+        // Left chevron (curved left, flat right) - ease out from prev keyframe
+        return 'M 8 2 L 8 8 L 4 5 Z M 4 5 C 4 5 2 5 2 2.5 M 4 5 C 4 5 2 5 2 7.5'
+
+      case 'easy-ease':
+        // Hourglass/bowtie shape (curved both sides)
+        return 'M 2 2 C 4 3.5 4 3.5 5 5 C 6 6.5 6 6.5 8 8 M 2 8 C 4 6.5 4 6.5 5 5 C 6 3.5 6 3.5 8 2'
+
+      case 'hold':
+        // Square with rounded corners
+        return 'M 2.5 2 L 7.5 2 Q 8 2 8 2.5 L 8 7.5 Q 8 8 7.5 8 L 2.5 8 Q 2 8 2 7.5 L 2 2.5 Q 2 2 2.5 2 Z'
+
+      case 'hold-ease-out':
+        // Square with right curved notch (ease out)
+        return 'M 2.5 2 L 6.5 2 C 8 3.5 8 6.5 6.5 8 L 2.5 8 Q 2 8 2 7.5 L 2 2.5 Q 2 2 2.5 2 Z'
+
+      case 'hold-ease-in':
+        // Square with left curved notch (ease in)
+        return 'M 3.5 2 L 7.5 2 Q 8 2 8 2.5 L 8 7.5 Q 8 8 7.5 8 L 3.5 8 C 2 6.5 2 3.5 3.5 2 Z'
+
+      case 'hold-linear-out':
+        // Square with right sharp triangle
+        return 'M 2.5 2 L 6 2 L 8 5 L 6 8 L 2.5 8 Q 2 8 2 7.5 L 2 2.5 Q 2 2 2.5 2 Z'
+
+      case 'hold-linear-in':
+        // Square with left sharp triangle
+        return 'M 4 2 L 7.5 2 Q 8 2 8 2.5 L 8 7.5 Q 8 8 7.5 8 L 4 8 L 2 5 Z'
+
+      default:
+        return 'M 5 1 L 9 5 L 5 9 L 1 5 Z'
+    }
+  }, [shapeType])
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 10 10"
+      style={{
+        display: 'block',
+        overflow: 'visible',
+      }}
+    >
+      <path
+        d={path}
+        fill={fillColor}
+        stroke={strokeColor}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
 // Keyframe diamond with drag support
 interface KeyframeDiamondProps {
   keyframe: Keyframe
+  prevKeyframe?: Keyframe
+  nextKeyframe?: Keyframe
   pixelsPerSecond: number
   sequenceLength: number
   fps: number
@@ -510,6 +598,8 @@ interface KeyframeDiamondProps {
 
 function KeyframeDiamond({
   keyframe,
+  prevKeyframe,
+  nextKeyframe,
   pixelsPerSecond,
   sequenceLength,
   fps,
@@ -526,6 +616,11 @@ function KeyframeDiamond({
   const [isHovered, setIsHovered] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+
+  const shapeType = useMemo(
+    () => getKeyframeShapeType(keyframe, prevKeyframe, nextKeyframe),
+    [keyframe, prevKeyframe, nextKeyframe]
+  )
 
   // Get in/out points for dimming
   const inPoint = useTimelineStore(state => state.sequence.inPoint)
@@ -694,7 +789,7 @@ function KeyframeDiamond({
     <>
       {/* biome-ignore lint/a11y/noStaticElementInteractions: Keyframe diamond is a drag handle */}
       <div
-        className={`${s.timelineKeyframe} ${isSelected ? s.selected : ''} ${showDropTarget ? s.dropTarget : ''}`}
+        className={`${s.timelineKeyframe} ${s[`shape_${shapeType.replace(/-/g, '_')}`]} ${isSelected ? s.selected : ''} ${showDropTarget ? s.dropTarget : ''}`}
         style={{ left: x, opacity: isOutsideActiveRange ? 0.3 : 1 }}
         onPointerDown={handlePointerDown}
         onClick={handleClick}
@@ -702,8 +797,10 @@ function KeyframeDiamond({
         onPointerEnter={() => setIsHovered(true)}
         onPointerLeave={() => setIsHovered(false)}
         onPointerUp={handlePointerUp}
-        title={`${keyframe.position.toFixed(2)}s`}
-      />
+        title={`${keyframe.position.toFixed(2)}s - ${shapeType}`}
+      >
+        <KeyframeShape shapeType={shapeType} isSelected={isSelected} isHovered={isHovered} />
+      </div>
       {contextMenu &&
         createPortal(
           <div
