@@ -123,6 +123,7 @@ function ColumnEditor({ column, onChange, onDelete, onMoveUp, onMoveDown }: Colu
             Step:
             <InputNumber
               value={column.options?.step ?? 1}
+              step={0.001}
               onChange={e =>
                 onChange({
                   ...column,
