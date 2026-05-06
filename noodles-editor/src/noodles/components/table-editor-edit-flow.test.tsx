@@ -78,13 +78,20 @@ describe('TableEditor - Edit Flow', () => {
       const countCell = getByText('10')
       fireEvent.click(countCell)
 
-      // Verify number input editor appears
-      const input = container.querySelector('input.p-inputnumber-input')
+      // Verify input editor appears (now using InputText instead of InputNumber)
+      const input = container.querySelector('input.p-inputtext') as HTMLInputElement
       expect(input).not.toBeNull()
+      expect(input.value).toBe('10')
 
-      // Note: Testing PrimeReact InputNumber value changes requires
-      // complex mocking or browser automation. The component works correctly
-      // in actual usage. This test verifies the edit flow can be initiated.
+      // Change value
+      fireEvent.change(input, { target: { value: '20' } })
+      fireEvent.blur(input)
+
+      // Should commit on first blur
+      expect(onDataChange).toHaveBeenCalledWith([
+        { name: 'Alice', count: 20 },
+        { name: 'Bob', count: 20 },
+      ])
     })
   })
 
@@ -268,6 +275,133 @@ describe('TableEditor - Edit Flow', () => {
       fireEvent.blur(input)
 
       // Should NOT call onDataChange since we ended up with same value
+      expect(onDataChange).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('Number field string handling', () => {
+    it('should handle number field string editing without over-eager parsing', () => {
+      const onDataChange = vi.fn()
+      const onSchemaChange = vi.fn()
+      const schema: TableSchema = {
+        columns: [{ name: 'amount', type: 'number', defaultValue: 0 }],
+      }
+      const data = [{ amount: 500 }]
+
+      const { container, getByText } = render(
+        <TableEditor
+          op={mockOp}
+          data={data}
+          schema={schema}
+          onDataChange={onDataChange}
+          onSchemaChange={onSchemaChange}
+        />
+      )
+
+      // Start editing
+      const cell = getByText('500')
+      fireEvent.click(cell)
+
+      // Input should show "500" as string
+      const input = container.querySelector('input.p-inputtext') as HTMLInputElement
+      expect(input.value).toBe('500')
+
+      // Delete "5", type "4" → should allow "400"
+      fireEvent.change(input, { target: { value: '50' } })
+      expect(input.value).toBe('50')
+
+      fireEvent.change(input, { target: { value: '400' } })
+      expect(input.value).toBe('400')
+
+      // Blur to commit
+      fireEvent.blur(input)
+
+      // Should parse to 400
+      expect(onDataChange).toHaveBeenCalledWith(
+        expect.arrayContaining([{ amount: 400 }])
+      )
+    })
+
+    it('should handle number field parsing edge cases', () => {
+      const onDataChange = vi.fn()
+      const onSchemaChange = vi.fn()
+      const schema: TableSchema = {
+        columns: [
+          {
+            name: 'score',
+            type: 'number',
+            defaultValue: 0,
+            options: { min: 0, max: 100 },
+          },
+        ],
+      }
+      const data = [{ score: 50 }]
+
+      const { container, getByText } = render(
+        <TableEditor
+          op={mockOp}
+          data={data}
+          schema={schema}
+          onDataChange={onDataChange}
+          onSchemaChange={onSchemaChange}
+        />
+      )
+
+      const cell = getByText('50')
+
+      // Test invalid input defaults to 0
+      fireEvent.click(cell)
+      let input = container.querySelector('input.p-inputtext') as HTMLInputElement
+      fireEvent.change(input, { target: { value: 'abc' } })
+      fireEvent.blur(input)
+      expect(onDataChange).toHaveBeenCalledWith([{ score: 0 }])
+
+      onDataChange.mockClear()
+
+      // Test max clamping
+      fireEvent.click(cell)
+      input = container.querySelector('input.p-inputtext') as HTMLInputElement
+      fireEvent.change(input, { target: { value: '150' } })
+      fireEvent.blur(input)
+      expect(onDataChange).toHaveBeenCalledWith([{ score: 100 }])
+
+      onDataChange.mockClear()
+
+      // Test min clamping
+      fireEvent.click(cell)
+      input = container.querySelector('input.p-inputtext') as HTMLInputElement
+      fireEvent.change(input, { target: { value: '-10' } })
+      fireEvent.blur(input)
+      expect(onDataChange).toHaveBeenCalledWith([{ score: 0 }])
+    })
+
+    it('should handle escape key to cancel number edit', () => {
+      const onDataChange = vi.fn()
+      const onSchemaChange = vi.fn()
+      const schema: TableSchema = {
+        columns: [{ name: 'amount', type: 'number', defaultValue: 0 }],
+      }
+      const data = [{ amount: 500 }]
+
+      const { container, getByText } = render(
+        <TableEditor
+          op={mockOp}
+          data={data}
+          schema={schema}
+          onDataChange={onDataChange}
+          onSchemaChange={onSchemaChange}
+        />
+      )
+
+      const cell = getByText('500')
+      fireEvent.click(cell)
+
+      const input = container.querySelector('input.p-inputtext') as HTMLInputElement
+      fireEvent.change(input, { target: { value: '999' } })
+
+      // Press Escape - should revert and not commit
+      fireEvent.keyDown(input, { key: 'Escape' })
+
       expect(onDataChange).not.toHaveBeenCalled()
     })
   })

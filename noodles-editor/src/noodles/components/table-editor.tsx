@@ -31,18 +31,50 @@ interface CellEditorProps {
 }
 
 function NumberCellEditor({ value, onChange, onComplete, column }: CellEditorProps) {
+  // Hold string value locally for editing
+  const [stringValue, setStringValue] = useState(String(value ?? ''))
+  // Track the initial value for Escape key
+  const initialValueRef = useRef(value as number)
+
+  const parseAndApplyConstraints = (str: string) => {
+    const parsed = Number.parseFloat(str)
+    const finalValue = Number.isNaN(parsed) ? (column.defaultValue ?? 0) : parsed
+
+    // Apply min/max constraints
+    let constrainedValue = finalValue
+    if (column.options?.min !== undefined && constrainedValue < column.options.min) {
+      constrainedValue = column.options.min
+    }
+    if (column.options?.max !== undefined && constrainedValue > column.options.max) {
+      constrainedValue = column.options.max
+    }
+
+    return constrainedValue
+  }
+
+  const handleChange = (newStringValue: string) => {
+    setStringValue(newStringValue)
+    // Parse and update parent on every change
+    const parsedValue = parseAndApplyConstraints(newStringValue)
+    onChange(parsedValue)
+  }
+
   return (
-    <InputNumber
-      value={value as number}
-      min={column.options?.min}
-      max={column.options?.max}
-      step={column.options?.step ?? 1}
-      onValueChange={(e) => onChange(e.value ?? 0)}
+    <InputText
+      value={stringValue}
+      onChange={(e) => handleChange(e.target.value)}
       onBlur={onComplete}
       onKeyDown={(e) => {
         e.stopPropagation()
-        if (e.key === 'Enter' || e.key === 'Escape') {
+        if (e.key === 'Enter') {
           onComplete()
+        }
+        if (e.key === 'Escape') {
+          // Revert to initial value captured at mount
+          setStringValue(String(initialValueRef.current ?? ''))
+          onChange(initialValueRef.current)
+          // Give the onChange time to propagate before completing
+          requestAnimationFrame(() => onComplete())
         }
       }}
       autoFocus
