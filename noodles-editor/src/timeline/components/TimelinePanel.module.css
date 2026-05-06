@@ -297,6 +297,16 @@
   background: linear-gradient(90deg, rgb(102 235 237 / 0.55), rgb(102 235 237 / 0.7));
 }
 
+.timelineKeyframeEdgeBar {
+  position: absolute;
+  height: 4px;
+  background: linear-gradient(90deg, rgb(102 235 237 / 0.25), rgb(102 235 237 / 0.35));
+  top: 50%;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  pointer-events: none;
+}
+
 .timelineKeyframe {
   position: absolute;
   width: 10px;

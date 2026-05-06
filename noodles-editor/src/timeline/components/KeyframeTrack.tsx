@@ -239,6 +239,8 @@ export function KeyframeTrack({
   const selectedKeyframeIds = useTimelineStore(state => state.selectedKeyframeIds)
   const selectKeyframe = useTimelineStore(state => state.selectKeyframe)
   const addKeyframe = useTimelineStore(state => state.addKeyframe)
+  const inPoint = useTimelineStore(state => state.sequence.inPoint)
+  const outPoint = useTimelineStore(state => state.sequence.outPoint)
 
   const [openPopup, setOpenPopup] = useState<{
     k1: Keyframe
@@ -317,6 +319,36 @@ export function KeyframeTrack({
     })
   }
 
+  // Generate edge bars from sequence boundaries to first/last keyframes
+  const edgeBarSegments = []
+
+  if (track.keyframes.length > 0) {
+    const firstKf = track.keyframes[0]
+    const lastKf = track.keyframes[track.keyframes.length - 1]
+
+    // Bar from start (0) to first keyframe (if first keyframe is not at 0)
+    if (firstKf.position > 0) {
+      const startEdgeOutsideRange = firstKf.position < (inPoint ?? 0)
+      edgeBarSegments.push({
+        id: `edge-start-${firstKf.id}`,
+        left: 0,
+        width: firstKf.position * pixelsPerSecond,
+        isOutsideRange: startEdgeOutsideRange,
+      })
+    }
+
+    // Bar from last keyframe to sequence end (if last keyframe is not at sequenceLength)
+    if (lastKf.position < sequenceLength) {
+      const endEdgeOutsideRange = lastKf.position > (outPoint ?? sequenceLength)
+      edgeBarSegments.push({
+        id: `edge-end-${lastKf.id}`,
+        left: lastKf.position * pixelsPerSecond,
+        width: (sequenceLength - lastKf.position) * pixelsPerSecond,
+        isOutsideRange: endEdgeOutsideRange,
+      })
+    }
+  }
+
   // Render keyframe row
   return (
     <>
@@ -339,6 +371,14 @@ export function KeyframeTrack({
             fps={fps}
             selectedKeyframeIds={selectedKeyframeIds}
             onOpenPopup={handleBarClick}
+          />
+        ))}
+        {/* Edge bars from sequence boundaries to first/last keyframes */}
+        {edgeBarSegments.map(bar => (
+          <div
+            key={bar.id}
+            className={s.timelineKeyframeEdgeBar}
+            style={{ left: bar.left, width: bar.width, opacity: bar.isOutsideRange ? 0.3 : 1 }}
           />
         ))}
         {/* Keyframe diamonds */}
