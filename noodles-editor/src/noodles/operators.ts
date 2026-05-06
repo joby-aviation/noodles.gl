@@ -4891,6 +4891,7 @@ export class PathLayerOp extends Operator<PathLayerOp> {
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       billboard: new BooleanField(true, { showByDefault: false }),
       capRounded: new BooleanField(true, { showByDefault: false }),
+      jointRounded: new BooleanField(false, { showByDefault: false }),
       getPath: new UnknownField((d: unknown) => d?.path || [], { accessor: true }),
       // getPath: new ArrayField(new Point3DField([0, 0, 0], { returnType: 'tuple' }), { accessor: true }),
       getColor: new ColorField('#006ac6', { accessor: true, transform: hexToColor }),
