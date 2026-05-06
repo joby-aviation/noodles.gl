@@ -542,20 +542,20 @@ function KeyframeShape({
         return { filled: 'M 2.5 2 L 7.5 2 Q 8 2 8 2.5 L 8 7.5 Q 8 8 7.5 8 L 2.5 8 Q 2 8 2 7.5 L 2 2.5 Q 2 2 2.5 2 Z' }
 
       case 'hold-ease-out':
-        // Square with right curved notch (ease out) - wider left side
-        return { filled: 'M 2.5 2 L 7 2 C 8.5 3.5 8.5 6.5 7 8 L 2.5 8 Q 2 8 2 7.5 L 2 2.5 Q 2 2 2.5 2 Z' }
+        // Square with right curved notch (ease out) - prominent square left side
+        return { filled: 'M 2 2 L 6 2 L 6 3 C 7.5 4 7.5 6 6 7 L 6 8 L 2 8 Z' }
 
       case 'hold-ease-in':
-        // Square with left curved notch (ease in) - wider right side
-        return { filled: 'M 3 2 L 7.5 2 Q 8 2 8 2.5 L 8 7.5 Q 8 8 7.5 8 L 3 8 C 1.5 6.5 1.5 3.5 3 2 Z' }
+        // Square with left curved notch (ease in) - prominent square right side
+        return { filled: 'M 4 2 L 8 2 L 8 8 L 4 8 L 4 7 C 2.5 6 2.5 4 4 3 Z' }
 
       case 'hold-linear-out':
-        // Square with right sharp triangle - wider left side
-        return { filled: 'M 2.5 2 L 6.5 2 L 8.5 5 L 6.5 8 L 2.5 8 Q 2 8 2 7.5 L 2 2.5 Q 2 2 2.5 2 Z' }
+        // Square with right sharp triangle - prominent square left side
+        return { filled: 'M 2 2 L 6 2 L 8 5 L 6 8 L 2 8 Z' }
 
       case 'hold-linear-in':
-        // Square with left sharp triangle - wider right side
-        return { filled: 'M 3.5 2 L 7.5 2 Q 8 2 8 2.5 L 8 7.5 Q 8 8 7.5 8 L 3.5 8 L 1.5 5 Z' }
+        // Square with left sharp triangle - prominent square right side
+        return { filled: 'M 4 2 L 8 2 L 8 8 L 4 8 L 2 5 Z' }
 
       default:
         return { filled: 'M 5 1 L 9 5 L 5 9 L 1 5 Z' }
