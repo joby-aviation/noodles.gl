@@ -1,6 +1,6 @@
 // Utilities for determining keyframe visual shape based on interpolation type
 
-import type { BezierHandles, Keyframe } from '../types'
+import type { Keyframe } from '../types'
 import { DEFAULT_BEZIER_HANDLES } from '../types'
 
 export type KeyframeShapeType =

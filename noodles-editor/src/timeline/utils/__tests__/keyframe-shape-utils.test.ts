@@ -128,6 +128,68 @@ describe('getKeyframeShapeType', () => {
     })
   })
 
+  describe('custom bezier handles', () => {
+    it('classifies steep ease-in curve correctly', () => {
+      const steepEaseIn: BezierHandles = {
+        left: [0.05, 0.05],
+        right: [0.2, 1],
+        type: 'aligned',
+      }
+      const kf = createKeyframe('bezier', steepEaseIn)
+      expect(getKeyframeShapeType(kf)).toBe('ease-in')
+    })
+
+    it('classifies steep ease-out curve correctly', () => {
+      const steepEaseOut: BezierHandles = {
+        left: [0.8, 0],
+        right: [0.95, 0.95],
+        type: 'aligned',
+      }
+      const kf = createKeyframe('bezier', steepEaseOut)
+      expect(getKeyframeShapeType(kf)).toBe('ease-out')
+    })
+
+    it('classifies asymmetric easy-ease curve correctly', () => {
+      const asymmetricEase: BezierHandles = {
+        left: [0.3, 0.1],
+        right: [0.7, 0.9],
+        type: 'uneven',
+      }
+      const kf = createKeyframe('bezier', asymmetricEase)
+      expect(getKeyframeShapeType(kf)).toBe('easy-ease')
+    })
+
+    it('detects near-linear handles as linear', () => {
+      const nearLinear: BezierHandles = {
+        left: [0.02, 0.04],
+        right: [0.98, 0.96],
+        type: 'aligned',
+      }
+      const kf = createKeyframe('bezier', nearLinear)
+      expect(getKeyframeShapeType(kf)).toBe('linear')
+    })
+
+    it('detects handles just outside linear threshold as ease', () => {
+      const justOutsideLinear: BezierHandles = {
+        left: [0.1, 0],
+        right: [0.9, 1],
+        type: 'aligned',
+      }
+      const kf = createKeyframe('bezier', justOutsideLinear)
+      expect(getKeyframeShapeType(kf)).toBe('easy-ease')
+    })
+
+    it('handles extreme bezier curves (overshoot)', () => {
+      const overshoot: BezierHandles = {
+        left: [0.6, -0.28],
+        right: [0.735, 1.045],
+        type: 'free',
+      }
+      const kf = createKeyframe('bezier', overshoot)
+      expect(getKeyframeShapeType(kf)).toBe('easy-ease')
+    })
+  })
+
   describe('edge cases', () => {
     it('handles undefined prev keyframe', () => {
       const kf = createKeyframe('hold')
@@ -144,6 +206,12 @@ describe('getKeyframeShapeType', () => {
     it('returns hold when hold keyframe has no defined neighbors', () => {
       const kf = createKeyframe('hold')
       expect(getKeyframeShapeType(kf, undefined, undefined)).toBe('hold')
+    })
+
+    it('handles keyframe with no handles (uses defaults)', () => {
+      const kf = createKeyframe('bezier')
+      // Should use DEFAULT_BEZIER_HANDLES which are linear
+      expect(getKeyframeShapeType(kf)).toBe('linear')
     })
   })
 })
