@@ -52,31 +52,51 @@ export function getKeyframeShapeType(
     return currentEasing
   }
 
-  // Hold keyframes: check adjacent keyframes to determine variants
-  const prevEasing = getEasingType(prevKeyframe)
-  const nextEasing = getEasingType(nextKeyframe)
+  // Hold keyframes: check adjacent handles (not overall easing type)
+  // For hold variants, we care about the *adjacent* handle:
+  // - prevKeyframe.handles.right (what leaves the prev keyframe toward this hold)
+  // - nextKeyframe.handles.left (what arrives at the next keyframe from this hold)
+
+  const prevIsHold = !prevKeyframe || prevKeyframe.interpolation === 'hold'
+  const nextIsHold = !nextKeyframe || nextKeyframe.interpolation === 'hold'
+
+  // Check adjacent handles for linear vs eased transitions
+  let prevHandleIsLinear = true
+  if (prevKeyframe && prevKeyframe.interpolation !== 'hold') {
+    const prevRightHandle =
+      prevKeyframe.interpolation === 'linear'
+        ? [1, 1] as [number, number]
+        : (prevKeyframe.handles || DEFAULT_BEZIER_HANDLES).right
+    prevHandleIsLinear = isHandleLinear(prevRightHandle)
+  }
+
+  let nextHandleIsLinear = true
+  if (nextKeyframe && nextKeyframe.interpolation !== 'hold') {
+    const nextLeftHandle =
+      nextKeyframe.interpolation === 'linear'
+        ? [0, 0] as [number, number]
+        : (nextKeyframe.handles || DEFAULT_BEZIER_HANDLES).left
+    nextHandleIsLinear = isHandleLinear(nextLeftHandle)
+  }
 
   // Both sides hold or missing -> basic hold square
-  if (prevEasing === 'hold' && nextEasing === 'hold') {
+  if (prevIsHold && nextIsHold) {
     return 'hold'
   }
 
   // Left side has easing, right side hold
-  if (prevEasing !== 'hold' && nextEasing === 'hold') {
-    if (prevEasing === 'linear') return 'hold-linear-in'
-    return 'hold-ease-in'
+  if (!prevIsHold && nextIsHold) {
+    return prevHandleIsLinear ? 'hold-linear-in' : 'hold-ease-in'
   }
 
   // Left side hold, right side has easing
-  if (prevEasing === 'hold' && nextEasing !== 'hold') {
-    if (nextEasing === 'linear') return 'hold-linear-out'
-    return 'hold-ease-out'
+  if (prevIsHold && !nextIsHold) {
+    return nextHandleIsLinear ? 'hold-linear-out' : 'hold-ease-out'
   }
 
-  // Both sides have easing (unusual for hold, but handle it)
-  // Prioritize showing the right side since that's controlled by current keyframe
-  if (nextEasing === 'linear') return 'hold-linear-out'
-  if (nextEasing !== 'hold') return 'hold-ease-out'
-  if (prevEasing === 'linear') return 'hold-linear-in'
-  return 'hold-ease-in'
+  // Both sides have easing - prioritize right side
+  if (!nextHandleIsLinear) return 'hold-ease-out'
+  if (nextHandleIsLinear) return 'hold-linear-out'
+  if (!prevHandleIsLinear) return 'hold-ease-in'
+  return 'hold-linear-in'
 }

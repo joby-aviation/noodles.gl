@@ -510,46 +510,55 @@ function KeyframeShape({
   const strokeColor = isSelected ? '#8aebef' : 'var(--tl-accent)'
   const fillColor = isSelected ? 'var(--tl-accent)' : '#1f2632'
 
-  const path = useMemo(() => {
+  const paths = useMemo(() => {
     switch (shapeType) {
       case 'linear':
         // Diamond: rotated square
-        return 'M 5 1 L 9 5 L 5 9 L 1 5 Z'
+        return { filled: 'M 5 1 L 9 5 L 5 9 L 1 5 Z' }
 
       case 'ease-in':
         // Right chevron (flat left, curved right) - ease into next keyframe
-        return 'M 2 2 L 2 8 L 6 5 Z M 6 5 C 6 5 8 5 8 2.5 M 6 5 C 6 5 8 5 8 7.5'
+        return {
+          filled: 'M 2 2 L 2 8 L 6 5 Z',
+          stroked: 'M 6 5 C 6 5 8 5 8 2.5 M 6 5 C 6 5 8 5 8 7.5',
+        }
 
       case 'ease-out':
         // Left chevron (curved left, flat right) - ease out from prev keyframe
-        return 'M 8 2 L 8 8 L 4 5 Z M 4 5 C 4 5 2 5 2 2.5 M 4 5 C 4 5 2 5 2 7.5'
+        return {
+          filled: 'M 8 2 L 8 8 L 4 5 Z',
+          stroked: 'M 4 5 C 4 5 2 5 2 2.5 M 4 5 C 4 5 2 5 2 7.5',
+        }
 
       case 'easy-ease':
-        // Hourglass/bowtie shape (curved both sides)
-        return 'M 2 2 C 4 3.5 4 3.5 5 5 C 6 6.5 6 6.5 8 8 M 2 8 C 4 6.5 4 6.5 5 5 C 6 3.5 6 3.5 8 2'
+        // Hourglass/bowtie shape (curved both sides) - all stroked, no fill
+        return {
+          stroked:
+            'M 2 2 C 4 3.5 4 3.5 5 5 C 6 6.5 6 6.5 8 8 M 2 8 C 4 6.5 4 6.5 5 5 C 6 3.5 6 3.5 8 2',
+        }
 
       case 'hold':
         // Square with rounded corners
-        return 'M 2.5 2 L 7.5 2 Q 8 2 8 2.5 L 8 7.5 Q 8 8 7.5 8 L 2.5 8 Q 2 8 2 7.5 L 2 2.5 Q 2 2 2.5 2 Z'
+        return { filled: 'M 2.5 2 L 7.5 2 Q 8 2 8 2.5 L 8 7.5 Q 8 8 7.5 8 L 2.5 8 Q 2 8 2 7.5 L 2 2.5 Q 2 2 2.5 2 Z' }
 
       case 'hold-ease-out':
         // Square with right curved notch (ease out) - wider left side
-        return 'M 2.5 2 L 7 2 C 8.5 3.5 8.5 6.5 7 8 L 2.5 8 Q 2 8 2 7.5 L 2 2.5 Q 2 2 2.5 2 Z'
+        return { filled: 'M 2.5 2 L 7 2 C 8.5 3.5 8.5 6.5 7 8 L 2.5 8 Q 2 8 2 7.5 L 2 2.5 Q 2 2 2.5 2 Z' }
 
       case 'hold-ease-in':
         // Square with left curved notch (ease in) - wider right side
-        return 'M 3 2 L 7.5 2 Q 8 2 8 2.5 L 8 7.5 Q 8 8 7.5 8 L 3 8 C 1.5 6.5 1.5 3.5 3 2 Z'
+        return { filled: 'M 3 2 L 7.5 2 Q 8 2 8 2.5 L 8 7.5 Q 8 8 7.5 8 L 3 8 C 1.5 6.5 1.5 3.5 3 2 Z' }
 
       case 'hold-linear-out':
         // Square with right sharp triangle - wider left side
-        return 'M 2.5 2 L 6.5 2 L 8.5 5 L 6.5 8 L 2.5 8 Q 2 8 2 7.5 L 2 2.5 Q 2 2 2.5 2 Z'
+        return { filled: 'M 2.5 2 L 6.5 2 L 8.5 5 L 6.5 8 L 2.5 8 Q 2 8 2 7.5 L 2 2.5 Q 2 2 2.5 2 Z' }
 
       case 'hold-linear-in':
         // Square with left sharp triangle - wider right side
-        return 'M 3.5 2 L 7.5 2 Q 8 2 8 2.5 L 8 7.5 Q 8 8 7.5 8 L 3.5 8 L 1.5 5 Z'
+        return { filled: 'M 3.5 2 L 7.5 2 Q 8 2 8 2.5 L 8 7.5 Q 8 8 7.5 8 L 3.5 8 L 1.5 5 Z' }
 
       default:
-        return 'M 5 1 L 9 5 L 5 9 L 1 5 Z'
+        return { filled: 'M 5 1 L 9 5 L 5 9 L 1 5 Z' }
     }
   }, [shapeType])
 
@@ -565,14 +574,26 @@ function KeyframeShape({
       role="img"
       aria-label={`${shapeType} keyframe`}
     >
-      <path
-        d={path}
-        fill={fillColor}
-        stroke={strokeColor}
-        strokeWidth={strokeWidth}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      {paths.filled && (
+        <path
+          d={paths.filled}
+          fill={fillColor}
+          stroke={strokeColor}
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      )}
+      {paths.stroked && (
+        <path
+          d={paths.stroked}
+          fill="none"
+          stroke={strokeColor}
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      )}
     </svg>
   )
 }
@@ -782,8 +803,6 @@ function KeyframeDiamond({
 
   const showDropTarget = isConnectionDropTarget && isHovered
 
-  // Build className - avoid undefined by only including shape class if it exists in CSS
-  const shapeClassName = shapeType.replace(/-/g, '_')
   const className = [s.timelineKeyframe, isSelected && s.selected, showDropTarget && s.dropTarget]
     .filter(Boolean)
     .join(' ')
@@ -801,7 +820,6 @@ function KeyframeDiamond({
       {/* biome-ignore lint/a11y/noStaticElementInteractions: Keyframe diamond is a drag handle */}
       <div
         className={className}
-        data-shape={shapeClassName}
         style={{ left: x, opacity: isOutsideActiveRange ? 0.3 : 1 }}
         onPointerDown={handlePointerDown}
         onClick={handleClick}

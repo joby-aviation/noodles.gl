@@ -83,16 +83,30 @@ describe('getKeyframeShapeType', () => {
   })
 
   describe('hold keyframes with easing neighbors', () => {
-    it('returns hold-ease-out when next keyframe has easing', () => {
+    it('returns hold-linear-out when next keyframe is ease-in (linear left handle)', () => {
       const kf = createKeyframe('hold')
       const prev = createKeyframe('hold')
-      const next = createKeyframe('bezier', easeInHandles)
+      const next = createKeyframe('bezier', easeInHandles) // left: [0,0] is linear
+      expect(getKeyframeShapeType(kf, prev, next)).toBe('hold-linear-out')
+    })
+
+    it('returns hold-linear-in when prev keyframe is ease-out (linear right handle)', () => {
+      const kf = createKeyframe('hold')
+      const prev = createKeyframe('bezier', easeOutHandles) // right: [1,1] is linear
+      const next = createKeyframe('hold')
+      expect(getKeyframeShapeType(kf, prev, next)).toBe('hold-linear-in')
+    })
+
+    it('returns hold-ease-out when next keyframe has curved left handle', () => {
+      const kf = createKeyframe('hold')
+      const prev = createKeyframe('hold')
+      const next = createKeyframe('bezier', easeOutHandles) // left: [0.58,0] is curved
       expect(getKeyframeShapeType(kf, prev, next)).toBe('hold-ease-out')
     })
 
-    it('returns hold-ease-in when prev keyframe has easing', () => {
+    it('returns hold-ease-in when prev keyframe has curved right handle', () => {
       const kf = createKeyframe('hold')
-      const prev = createKeyframe('bezier', easeInHandles)
+      const prev = createKeyframe('bezier', easeInHandles) // right: [0.42,1] is curved
       const next = createKeyframe('hold')
       expect(getKeyframeShapeType(kf, prev, next)).toBe('hold-ease-in')
     })
@@ -113,17 +127,17 @@ describe('getKeyframeShapeType', () => {
   })
 
   describe('hold keyframes with easing on both sides', () => {
-    it('prioritizes right side (next keyframe) for ease-out', () => {
+    it('prioritizes right side when next has curved left handle', () => {
       const kf = createKeyframe('hold')
-      const prev = createKeyframe('bezier', easeInHandles)
-      const next = createKeyframe('bezier', easeInHandles)
+      const prev = createKeyframe('bezier', easeInHandles) // right: [0.42,1] curved
+      const next = createKeyframe('bezier', easeOutHandles) // left: [0.58,0] curved
       expect(getKeyframeShapeType(kf, prev, next)).toBe('hold-ease-out')
     })
 
-    it('prioritizes right side (next keyframe) for linear-out', () => {
+    it('shows linear-out when next has linear left handle despite prev having curve', () => {
       const kf = createKeyframe('hold')
-      const prev = createKeyframe('bezier', easeInHandles)
-      const next = createKeyframe('linear')
+      const prev = createKeyframe('bezier', easeInHandles) // right: [0.42,1] curved
+      const next = createKeyframe('bezier', easeInHandles) // left: [0,0] linear
       expect(getKeyframeShapeType(kf, prev, next)).toBe('hold-linear-out')
     })
   })
@@ -193,13 +207,13 @@ describe('getKeyframeShapeType', () => {
   describe('edge cases', () => {
     it('handles undefined prev keyframe', () => {
       const kf = createKeyframe('hold')
-      const next = createKeyframe('bezier', easeInHandles)
-      expect(getKeyframeShapeType(kf, undefined, next)).toBe('hold-ease-out')
+      const next = createKeyframe('bezier', easeInHandles) // left: [0,0] is linear
+      expect(getKeyframeShapeType(kf, undefined, next)).toBe('hold-linear-out')
     })
 
     it('handles undefined next keyframe', () => {
       const kf = createKeyframe('hold')
-      const prev = createKeyframe('bezier', easeInHandles)
+      const prev = createKeyframe('bezier', easeInHandles) // right: [0.42,1] is curved
       expect(getKeyframeShapeType(kf, prev, undefined)).toBe('hold-ease-in')
     })
 
