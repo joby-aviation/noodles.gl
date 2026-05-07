@@ -36,6 +36,7 @@ export interface TimelineStore {
   position: number
   playing: boolean
   loop: boolean
+  loopInOut: boolean
   playbackSpeed: number
   selectedKeyframeIds: Set<string>
   selectedTrackIds: Set<string>
@@ -46,12 +47,18 @@ export interface TimelineStore {
   setLength: (length: number) => void
   setFps: (fps: number) => void
 
+  // === In/Out Point Actions ===
+  setInPoint: (time: number) => void
+  setOutPoint: (time: number) => void
+  clearInOutPoints: () => void
+
   // === Playback Actions ===
   setPosition: (position: number) => void
   play: () => void
   pause: () => void
   togglePlay: () => void
   toggleLoop: () => void
+  toggleLoopInOut: () => void
   setPlaybackSpeed: (speed: number) => void
   stepForward: (frames?: number) => void
   stepBackward: (frames?: number) => void
@@ -64,6 +71,11 @@ export interface TimelineStore {
   getTrackById: (trackId: string) => Track | undefined
   deleteTrack: (trackId: string) => void
   deleteTracksForOperators: (operatorIds: string[]) => void
+  renameTracksForOperator: (
+    oldOperatorId: string,
+    newOperatorId: string,
+    childOperatorIds?: string[]
+  ) => void
   hasKeyframesForField: (fieldPath: string) => boolean
 
   // === Marker Actions ===
@@ -200,6 +212,7 @@ export const useTimelineStore = create<TimelineStore>()(
     position: 0,
     playing: false,
     loop: true,
+    loopInOut: false,
     playbackSpeed: 1,
     selectedKeyframeIds: new Set(),
     selectedTrackIds: new Set(),
@@ -208,15 +221,54 @@ export const useTimelineStore = create<TimelineStore>()(
 
     // === Sequence Actions ===
     setLength: length => {
-      set(state => ({
-        sequence: { ...state.sequence, length: Math.max(0.1, length) },
-        position: Math.min(state.position, length),
-      }))
+      set(state => {
+        const newLength = Math.max(0.1, length)
+        const { outPoint } = state.sequence
+
+        return {
+          sequence: {
+            ...state.sequence,
+            length: newLength,
+            // If outPoint is set, clamp it; otherwise leave undefined
+            outPoint: outPoint !== undefined ? Math.min(outPoint, newLength) : undefined,
+          },
+          position: Math.min(state.position, newLength),
+        }
+      })
     },
 
     setFps: fps => {
       set(state => ({
         sequence: { ...state.sequence, fps: Math.max(1, Math.round(fps)) },
+      }))
+    },
+
+    // === In/Out Point Actions ===
+    setInPoint: time => {
+      set(state => {
+        const { sequence } = state
+        const max = sequence.outPoint ?? sequence.length
+        const clamped = Math.max(0, Math.min(time, max))
+        return {
+          sequence: { ...sequence, inPoint: clamped },
+        }
+      })
+    },
+
+    setOutPoint: time => {
+      set(state => {
+        const { sequence } = state
+        const min = sequence.inPoint ?? 0
+        const clamped = Math.max(min, Math.min(time, sequence.length))
+        return {
+          sequence: { ...sequence, outPoint: clamped },
+        }
+      })
+    },
+
+    clearInOutPoints: () => {
+      set(state => ({
+        sequence: { ...state.sequence, inPoint: undefined, outPoint: undefined },
       }))
     },
 
@@ -230,6 +282,7 @@ export const useTimelineStore = create<TimelineStore>()(
     pause: () => set({ playing: false }),
     togglePlay: () => set(state => ({ playing: !state.playing })),
     toggleLoop: () => set(state => ({ loop: !state.loop })),
+    toggleLoopInOut: () => set(state => ({ loopInOut: !state.loopInOut })),
 
     setPlaybackSpeed: speed => {
       set({ playbackSpeed: Math.max(0.1, Math.min(10, speed)) })
@@ -300,6 +353,129 @@ export const useTimelineStore = create<TimelineStore>()(
         }
       }
       if (changed) set({ tracks })
+    },
+
+    renameTracksForOperator: (oldOperatorId, newOperatorId, childOperatorIds) => {
+      // Skip if IDs are the same (idempotent)
+      if (oldOperatorId === newOperatorId) {
+        return
+      }
+
+      const before = captureTimelineState()
+
+      const tracks = new Map(get().tracks)
+      const markers = [...get().markers]
+      const selectedTrackIds = get().selectedTrackIds
+      let changed = false
+      let markersChanged = false
+
+      // Convert operator ID to object name for matching
+      // "/my-op" -> "my-op"
+      // "/container/child" -> "container / child"
+      const oldObjectName = oldOperatorId.slice(1).split('/').join(' / ')
+
+      // Build the prefix to match
+      const oldPrefix = `${oldObjectName} / `
+
+      // If child operator IDs are provided, convert them to object names for checking
+      const childObjectNames = new Set(
+        childOperatorIds?.map(id => id.slice(1).split('/').join(' / ')) || []
+      )
+
+      // Track ID mappings for marker and selection updates
+      const trackIdMap = new Map<string, string>()
+
+      // Iterate through all tracks and rename matching ones
+      for (const [oldTrackId, track] of tracks) {
+        if (oldTrackId.startsWith(oldPrefix)) {
+          const oldOpSegments = oldOperatorId.slice(1).split('/')
+          const trackSegments = oldTrackId.split(' / ')
+
+          // Check if the first N segments of the track match our operator path
+          let isExactMatch = trackSegments.length > oldOpSegments.length
+          for (let i = 0; i < oldOpSegments.length && isExactMatch; i++) {
+            if (trackSegments[i] !== oldOpSegments[i]) {
+              isExactMatch = false
+            }
+          }
+
+          if (isExactMatch) {
+            const fieldSegments = trackSegments.slice(oldOpSegments.length)
+
+            // Check if this track belongs to a child operator
+            // If we have child operator IDs, use them for exact matching
+            let belongsToChild = false
+            if (childObjectNames.size > 0 && fieldSegments.length >= 2) {
+              // Check if adding the first field segment would form a child operator
+              const potentialChildObjectName = [
+                ...trackSegments.slice(0, oldOpSegments.length + 1),
+              ].join(' / ')
+              belongsToChild = childObjectNames.has(potentialChildObjectName)
+            }
+
+            if (!belongsToChild) {
+              // This track belongs to this specific operator
+              const newOpSegments = newOperatorId.slice(1).split('/')
+              const newTrackId = [...newOpSegments, ...fieldSegments].join(' / ')
+
+              const renamedTrack: Track = {
+                ...track,
+                id: newTrackId,
+                fieldPath: newTrackId,
+              }
+
+              tracks.set(newTrackId, renamedTrack)
+              tracks.delete(oldTrackId)
+              trackIdMap.set(oldTrackId, newTrackId)
+              changed = true
+            }
+          }
+        }
+      }
+
+      // Update marker connections to reference new track IDs
+      if (trackIdMap.size > 0) {
+        for (let i = 0; i < markers.length; i++) {
+          const marker = markers[i]
+          const updatedConnections = marker.connectedKeyframes.map(conn => {
+            const newTrackId = trackIdMap.get(conn.trackId)
+            return newTrackId ? { ...conn, trackId: newTrackId } : conn
+          })
+
+          if (
+            updatedConnections.some(
+              (c, idx) => c.trackId !== marker.connectedKeyframes[idx].trackId
+            )
+          ) {
+            markers[i] = { ...marker, connectedKeyframes: updatedConnections }
+            markersChanged = true
+          }
+        }
+      }
+
+      if (changed) {
+        // Update selectedTrackIds to use new track IDs
+        const newSelectedTrackIds = new Set<string>()
+        for (const oldTrackId of selectedTrackIds) {
+          const newTrackId = trackIdMap.get(oldTrackId)
+          if (newTrackId) {
+            newSelectedTrackIds.add(newTrackId)
+          } else if (tracks.has(oldTrackId)) {
+            // Track wasn't renamed, keep the old ID
+            newSelectedTrackIds.add(oldTrackId)
+          }
+          // If track was deleted, don't add to new selection
+        }
+
+        // Only update markers if they actually changed
+        if (markersChanged) {
+          set({ tracks, markers, selectedTrackIds: newSelectedTrackIds })
+        } else {
+          set({ tracks, selectedTrackIds: newSelectedTrackIds })
+        }
+
+        fireTimelineMutation('Rename operator tracks', before)
+      }
     },
 
     hasKeyframesForField: fieldPath => {
@@ -678,6 +854,8 @@ export const useTimelineStore = create<TimelineStore>()(
               subUnitsPerUnit: sequence.fps,
               tracksByObject,
               markers: serializedMarkers.length > 0 ? serializedMarkers : undefined,
+              inPoint: sequence.inPoint,
+              outPoint: sequence.outPoint,
             },
             staticOverrides: { byObject: {} },
           },
@@ -760,16 +938,23 @@ export const useTimelineStore = create<TimelineStore>()(
         })),
       }))
 
+      const length =
+        typeof seq.length === 'number' && seq.length > 0
+          ? seq.length
+          : DEFAULT_SEQUENCE_STATE.length
+
+      const inPoint = typeof seq.inPoint === 'number' ? seq.inPoint : undefined
+      const outPoint = typeof seq.outPoint === 'number' ? Math.min(seq.outPoint, length) : undefined
+
       set({
         sequence: {
-          length:
-            typeof seq.length === 'number' && seq.length > 0
-              ? seq.length
-              : DEFAULT_SEQUENCE_STATE.length,
+          length,
           fps:
             typeof seq.subUnitsPerUnit === 'number' && seq.subUnitsPerUnit > 0
               ? Math.round(seq.subUnitsPerUnit)
               : DEFAULT_SEQUENCE_STATE.fps,
+          inPoint,
+          outPoint,
         },
         tracks: newTracks,
         markers,

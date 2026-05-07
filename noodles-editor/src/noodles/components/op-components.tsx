@@ -242,7 +242,9 @@ function DefaultEdgeComponent({
   if (isConnectionTarget) {
     edgeClassName = targetedEdge.compatible ? s.targetedEdge : s.targetedEdgeIncompatible
   } else if (isNodeDropTarget) {
-    edgeClassName = nodeDragState.targetedEdge.canInsert ? s.targetedEdge : s.targetedEdgeIncompatible
+    edgeClassName = nodeDragState.targetedEdge.canInsert
+      ? s.targetedEdge
+      : s.targetedEdgeIncompatible
   }
 
   return <BaseEdge path={edgePath} markerEnd={markerEnd} style={style} className={edgeClassName} />
@@ -421,9 +423,12 @@ function useBreakpoint(op: Operator<IOperator>): [boolean, (checked: boolean) =>
     return () => subscription.unsubscribe()
   }, [op])
 
-  const toggle = useCallback((checked: boolean) => {
-    op.breakpointEnabled.next(checked)
-  }, [op])
+  const toggle = useCallback(
+    (checked: boolean) => {
+      op.breakpointEnabled.next(checked)
+    },
+    [op]
+  )
 
   return [enabled, toggle]
 }
@@ -622,7 +627,9 @@ function NodeComponent({
   const connectionErrors = useConnectionErrors(op)
   const hasConnectionErrors = connectionErrors.size > 0
   const isDimmed = useNodeDimmed(id)
-  const isDropTarget = useUIStore(s => s.nodeDragState?.nodeId === id && s.nodeDragState?.targetedEdge !== null)
+  const isDropTarget = useUIStore(
+    s => s.nodeDragState?.nodeId === id && s.nodeDragState?.targetedEdge !== null
+  )
   useFieldVisibility(op)
 
   // Subscribe to field value changes for reactive enable expressions
@@ -685,7 +692,9 @@ function NodeComponent({
         <div
           className={cx(s.wrapper, {
             [s.wrapperError]:
-              executionState.status === 'error' || hasConnectionErrors || enableExpressionErrors.size > 0,
+              executionState.status === 'error' ||
+              hasConnectionErrors ||
+              enableExpressionErrors.size > 0,
             [s.wrapperExecuting]: executionState.status === 'executing',
             [s.wrapperDimmed]: isDimmed,
             [s.nodeDropTarget]: isDropTarget,
@@ -868,10 +877,7 @@ function RampOpComponent({
   )
 
   const handleDragStart = useCallback(() => captureStart(), [captureStart])
-  const handleDragEnd = useCallback(
-    () => commitChange('Move ramp stop'),
-    [commitChange]
-  )
+  const handleDragEnd = useCallback(() => commitChange('Move ramp stop'), [commitChange])
 
   const activeStop = stops.find(s => s.id === activeStopId) ?? null
 
@@ -1144,8 +1150,10 @@ export function NodeHeader({
   const [exprDismissed, setExprDismissed] = useState(false)
   const [headerHovered, setHeaderHovered] = useState(false)
 
-  const execErrorKey = executionState.status === 'error' ? executionState.error ?? '' : null
-  const connErrorKey = hasConnectionErrors ? Array.from(connectionErrors!.values()).join('\n') : null
+  const execErrorKey = executionState.status === 'error' ? (executionState.error ?? '') : null
+  const connErrorKey = hasConnectionErrors
+    ? Array.from(connectionErrors!.values()).join('\n')
+    : null
   const exprErrorKey = hasEnableExpressionErrors
     ? Array.from(enableExpressionErrors!.entries())
         .map(([field, error]) => `${field}: ${error}`)
@@ -1185,9 +1193,12 @@ export function NodeHeader({
     setExprDismissed(false)
   }, [exprErrorKey])
 
-  const execPopoverOpen = execErrorKey !== null && ((execAutoShow && !execDismissed) || headerHovered)
-  const connPopoverOpen = connErrorKey !== null && ((connAutoShow && !connDismissed) || headerHovered)
-  const exprPopoverOpen = exprErrorKey !== null && ((exprAutoShow && !exprDismissed) || headerHovered)
+  const execPopoverOpen =
+    execErrorKey !== null && ((execAutoShow && !execDismissed) || headerHovered)
+  const connPopoverOpen =
+    connErrorKey !== null && ((connAutoShow && !connDismissed) || headerHovered)
+  const exprPopoverOpen =
+    exprErrorKey !== null && ((exprAutoShow && !exprDismissed) || headerHovered)
 
   const toggleLock = () => {
     op.locked.next(!op.locked.value)
@@ -1658,10 +1669,10 @@ export function TableEditorOpComponent({
 
   // Subscribe to data and schema changes
   useEffect(() => {
-    const dataSub = op.inputs.data.subscribe((newData) => {
+    const dataSub = op.inputs.data.subscribe(newData => {
       setData(newData as unknown[])
     })
-    const schemaSub = op.outputs.schema.subscribe((newSchema) => {
+    const schemaSub = op.outputs.schema.subscribe(newSchema => {
       if (newSchema && typeof newSchema === 'object' && 'columns' in newSchema) {
         setSchema(newSchema as TableSchema)
       }

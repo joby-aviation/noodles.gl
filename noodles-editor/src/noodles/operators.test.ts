@@ -1,3 +1,4 @@
+import * as turf from '@turf/turf'
 import { Temporal } from 'temporal-polyfill'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NumberField } from './fields'
@@ -31,6 +32,7 @@ import {
   RerouteOp,
   ScatterplotLayerOp,
   SelectOp,
+  SmoothOp,
   SwitchOp,
   Tile3DLayerOp,
   TimeSeriesOp,
@@ -1547,6 +1549,197 @@ describe('GeoJsonTransformOp', () => {
     expect(result.feature.geometry.coordinates).not.toEqual(inputFeature.geometry.coordinates)
     // Snapshot the transformed feature
     expect(result.feature).toMatchSnapshot()
+  })
+})
+
+describe('SmoothOp', () => {
+  it('should pass through unchanged with window size 1', () => {
+    const op = new SmoothOp('/smooth-0')
+    const inputFeature = turf.lineString([
+      [0, 0],
+      [1, 1],
+      [2, 0],
+      [3, 1],
+      [4, 0],
+    ])
+
+    const result = op.execute({
+      feature: inputFeature,
+      windowSize: 1,
+      method: 'boxcar',
+    })
+
+    expect(result.feature.geometry.coordinates).toEqual(inputFeature.geometry.coordinates)
+  })
+
+  it('should apply boxcar smoothing to LineString', () => {
+    const op = new SmoothOp('/smooth-1')
+    const inputFeature = turf.lineString([
+      [0, 0],
+      [1, 1],
+      [2, 0],
+      [3, 1],
+      [4, 0],
+    ])
+
+    const result = op.execute({
+      feature: inputFeature,
+      windowSize: 3,
+      method: 'boxcar',
+    })
+
+    expect(result.feature.type).toBe('Feature')
+    expect(result.feature.geometry.type).toBe('LineString')
+    // Middle point [2,0] should be average of [1,1], [2,0], [3,1]
+    // lon: (1+2+3)/3 = 2, lat: (1+0+1)/3 = 0.666...
+    expect(result.feature.geometry.coordinates[2][0]).toBeCloseTo(2, 5)
+    expect(result.feature.geometry.coordinates[2][1]).toBeCloseTo(2 / 3, 5)
+    expect(result.feature).toMatchSnapshot()
+  })
+
+  it('should preserve extra coordinate channels', () => {
+    const op = new SmoothOp('/smooth-2')
+    const inputFeature = turf.lineString([
+      [0, 0, 100],
+      [1, 1, 200],
+      [2, 0, 150],
+    ])
+
+    const result = op.execute({
+      feature: inputFeature,
+      windowSize: 3,
+      method: 'boxcar',
+    })
+
+    // Altitude values preserved (not smoothed)
+    expect(result.feature.geometry.coordinates[0][2]).toBe(100)
+    expect(result.feature.geometry.coordinates[1][2]).toBe(200)
+    expect(result.feature.geometry.coordinates[2][2]).toBe(150)
+  })
+
+  it('should apply Gaussian smoothing differently than boxcar', () => {
+    const op = new SmoothOp('/smooth-3')
+    const inputFeature = turf.lineString([
+      [0, 0],
+      [1, 1],
+      [2, 0],
+      [3, 1],
+      [4, 0],
+    ])
+
+    const boxcarResult = op.execute({
+      feature: inputFeature,
+      windowSize: 5,
+      method: 'boxcar',
+    })
+
+    const gaussianResult = op.execute({
+      feature: inputFeature,
+      windowSize: 5,
+      method: 'gaussian',
+    })
+
+    // Gaussian should weight center point more heavily
+    const boxcarY = boxcarResult.feature.geometry.coordinates[2][1]
+    const gaussianY = gaussianResult.feature.geometry.coordinates[2][1]
+    expect(gaussianY).not.toBeCloseTo(boxcarY, 5)
+  })
+
+  it('should handle MultiLineString', () => {
+    const op = new SmoothOp('/smooth-4')
+    const inputFeature = turf.multiLineString([
+      [
+        [0, 0],
+        [1, 1],
+        [2, 0],
+      ],
+      [
+        [5, 5],
+        [6, 6],
+        [7, 5],
+      ],
+    ])
+
+    const result = op.execute({
+      feature: inputFeature,
+      windowSize: 3,
+      method: 'boxcar',
+    })
+
+    expect(result.feature.geometry.type).toBe('MultiLineString')
+    expect(result.feature.geometry.coordinates).toHaveLength(2)
+  })
+
+  it('should pass through non-line geometries unchanged', () => {
+    const op = new SmoothOp('/smooth-5')
+    const pointFeature = turf.point([0, 0])
+
+    const result = op.execute({
+      feature: pointFeature,
+      windowSize: 5,
+      method: 'boxcar',
+    })
+
+    expect(result.feature).toEqual(pointFeature)
+  })
+
+  it('should preserve feature properties', () => {
+    const op = new SmoothOp('/smooth-6')
+    const inputFeature = turf.lineString(
+      [
+        [0, 0],
+        [1, 1],
+        [2, 0],
+      ],
+      { name: 'test-route', id: 123 }
+    )
+
+    const result = op.execute({
+      feature: inputFeature,
+      windowSize: 3,
+      method: 'boxcar',
+    })
+
+    expect(result.feature.properties).toEqual({ name: 'test-route', id: 123 })
+  })
+
+  it('should handle edge points with asymmetric windows', () => {
+    const op = new SmoothOp('/smooth-7')
+    const inputFeature = turf.lineString([
+      [0, 0],
+      [2, 2],
+      [4, 4],
+    ])
+
+    const result = op.execute({
+      feature: inputFeature,
+      windowSize: 5, // Larger than array
+      method: 'boxcar',
+    })
+
+    // First point should be average of available points (itself and neighbors)
+    // With window=5, radius=2, but only indices 0,1,2 exist
+    const firstPoint = result.feature.geometry.coordinates[0]
+    expect(firstPoint[0]).toBeCloseTo(2, 5) // (0+2+4)/3
+    expect(firstPoint[1]).toBeCloseTo(2, 5)
+  })
+
+  it('should handle two-point LineStrings', () => {
+    const op = new SmoothOp('/smooth-8')
+    const twoPointFeature = turf.lineString([
+      [0, 0],
+      [1, 1],
+    ])
+
+    const result = op.execute({
+      feature: twoPointFeature,
+      windowSize: 5,
+      method: 'boxcar',
+    })
+
+    // With only two points, smoothing should have minimal effect
+    expect(result.feature.geometry.type).toBe('LineString')
+    expect(result.feature.geometry.coordinates).toHaveLength(2)
   })
 })
 

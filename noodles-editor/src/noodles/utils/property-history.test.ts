@@ -256,9 +256,7 @@ describe('registerPropertyMutationCallback and firePropertyMutation', () => {
 
     // Set a known before state via a successful mutation
     const firstBefore = JSON.stringify({ '/op': { x: 0 } })
-    mockedGetAllOps.mockReturnValue([
-      { id: '/op', inputs: { x: { serialize: () => 1 } } } as never,
-    ])
+    mockedGetAllOps.mockReturnValue([{ id: '/op', inputs: { x: { serialize: () => 1 } } } as never])
     firePropertyMutation('First change', firstBefore)
     const stateAfterFirst = getLastCommittedBeforeState()
 

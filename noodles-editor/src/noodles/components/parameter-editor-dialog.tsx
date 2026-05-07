@@ -474,7 +474,9 @@ function FieldEditor({ definition, onUpdate, onValidate, error }: FieldEditorPro
               className={expressionError ? s.inputError : s.input}
               placeholder="par.showAdvanced === true"
             />
-            {expressionError && <span className={s.errorText}>Syntax error: {expressionError}</span>}
+            {expressionError && (
+              <span className={s.errorText}>Syntax error: {expressionError}</span>
+            )}
             <span className={s.hintText}>
               JavaScript expression to conditionally show this field
               <br />

@@ -6,9 +6,13 @@ export function AnalyticsConsentBanner() {
   const [showBanner, setShowBanner] = useState(false)
 
   useEffect(() => {
+    // Only show banner on production domain
+    const isProduction = window.location.hostname === 'noodles.gl'
+
     // Only show banner if user hasn't made a choice yet
     const hasSeenPrompt = analytics.hasSeenConsentPrompt()
-    setShowBanner(!hasSeenPrompt)
+
+    setShowBanner(isProduction && !hasSeenPrompt)
   }, [])
 
   const handleAccept = () => {

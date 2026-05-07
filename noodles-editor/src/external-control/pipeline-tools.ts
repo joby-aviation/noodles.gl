@@ -4,6 +4,17 @@ import { opTypes } from '../noodles/operators'
 import { debugExternal } from '../utils/debug'
 import { toolRegistry } from './tool-adapter'
 
+// Type guard for tool execution result
+function isSuccessResult(output: unknown): output is { success: true; result: unknown } {
+  return (
+    typeof output === 'object' &&
+    output !== null &&
+    'success' in output &&
+    (output as { success: unknown }).success === true &&
+    'result' in output
+  )
+}
+
 export interface PipelineSpec {
   nodes: Array<{
     id: string
@@ -298,7 +309,7 @@ export class PipelineManager {
             timeoutPromise,
           ])
 
-          if (output?.success) {
+          if (isSuccessResult(output)) {
             result.outputs[nodeId] = output.result
 
             if (options.captureIntermediateResults) {
@@ -440,7 +451,7 @@ export class PipelineManager {
       if (!node.type) {
         throw new Error(`Node ${node.id} must have a type`)
       }
-      if (!opTypes[node.type]) {
+      if (!(node.type in opTypes)) {
         throw new Error(`Unknown node type: ${node.type}`)
       }
     }

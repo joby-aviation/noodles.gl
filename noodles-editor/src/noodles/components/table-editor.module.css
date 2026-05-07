@@ -66,11 +66,28 @@
 
 .editing {
   background: var(--surface-section);
-  padding: 4px;
+  padding: 0;
 }
 
 .cellEditor {
   width: 100%;
+}
+
+/* Override PrimeReact input padding to match cell padding */
+.cellEditor :global(.p-inputtext) {
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+}
+
+.cellEditor :global(.p-inputnumber-input) {
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+}
+
+.cellEditor :global(.p-inputswitch) {
+  margin: 8px 12px;
 }
 
 .colorDisplay {
@@ -110,6 +127,46 @@
 
 .geocoderButton:hover {
   background: var(--surface-hover);
+}
+
+.dateTimeCellEditor {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.timezoneIndicator {
+  font-size: 0.7rem;
+  color: var(--text-color-secondary);
+  white-space: nowrap;
+  opacity: 0.7;
+  font-weight: 500;
+  padding: 2px 4px;
+  background: var(--surface-ground);
+  border-radius: 2px;
+}
+
+.timezoneDropdown {
+  width: 120px;
+  font-size: 0.75rem;
+}
+
+.timezoneDropdown :global(.p-inputtext) {
+  font-size: 0.75rem;
+  padding: 4px 6px;
+}
+
+.timezoneDropdown :global(.p-autocomplete-dropdown) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.timezonePanel {
+  font-size: 0.75rem;
+  max-height: 300px;
 }
 
 .toolbar {

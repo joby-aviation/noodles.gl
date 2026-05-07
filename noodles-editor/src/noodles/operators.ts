@@ -189,6 +189,7 @@ import {
 import { DEFAULT_LATITUDE, DEFAULT_LONGITUDE, safeMode } from './globals'
 import { getKeysStore } from './keys-store'
 import { getAllOps, getOp } from './store'
+import { prepareTableDataForOutput, type TableSchema } from './table-schema'
 import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
 import { composeAccessor, isAccessor } from './utils/accessor-helpers'
 import type { ExtractProps } from './utils/extract-props'
@@ -491,8 +492,9 @@ export abstract class Operator<OP extends IOperator> {
 
   // Internal pull execution logic
   private async _pullExecution(): Promise<ExtractProps<(typeof this)['outputs']>> {
-    const startTime = performance.now()
     debugExecute('%s: starting %O', this.id, { inputs: this.data })
+
+    let executionTime = 0
 
     try {
       // Pull upstream dependencies first
@@ -510,9 +512,11 @@ export abstract class Operator<OP extends IOperator> {
         debugger
       }
 
-      // Execute the operator
+      // Execute the operator - measure only own execution time
+      const startTime = performance.now()
       const result = this.execute(inputValues)
       const finalResult = result instanceof Promise ? await result : result
+      executionTime = performance.now() - startTime
 
       if (finalResult === null) {
         throw new Error(`Operator ${this.id} returned null`)
@@ -522,7 +526,7 @@ export abstract class Operator<OP extends IOperator> {
       this._cachedOutput = finalResult
       this._pullExecutionStatus = PullExecutionStatus.CLEAN
       this.dirty = false // Also clear the dirty flag for GraphExecutor
-      this._lastExecutionTime = performance.now() - startTime
+      this._lastExecutionTime = executionTime
 
       debugExecute('%s: %dms %O', this.id, this._lastExecutionTime.toFixed(2), {
         outputs: finalResult,
@@ -532,7 +536,7 @@ export abstract class Operator<OP extends IOperator> {
       this.executionState.next({
         status: 'success',
         lastExecuted: Date.now(),
-        executionTime: this._lastExecutionTime,
+        executionTime: executionTime,
       })
 
       // Clear any stale connection errors on successful execution
@@ -571,7 +575,7 @@ export abstract class Operator<OP extends IOperator> {
       this.executionState.next({
         status: 'error',
         lastExecuted: Date.now(),
-        executionTime: performance.now() - startTime,
+        executionTime: executionTime,
         error: error.message,
       })
 
@@ -2250,10 +2254,12 @@ export class TableEditorOp extends Operator<TableEditorOp> {
   }
 
   execute({ data, schema }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // Simple pass-through - schema inference and validation happen in component
-    // This avoids circular dependency issues and keeps execute() synchronous
+    // Convert dateTime strings to Temporal.ZonedDateTime for output
+    // This happens at the operator boundary: internal storage = strings, output = Temporal
+    const outputData = schema ? prepareTableDataForOutput(data, schema as TableSchema) : data
+
     return {
-      data,
+      data: outputData,
       schema: schema || null,
     }
   }
@@ -4633,7 +4639,7 @@ export class OutOp extends Operator<OutOp> {
       bitrateMode: new StringLiteralField('constant', ['constant', 'variable']),
       scaleControl: new NumberField(0.3, { min: 0.1, max: 1, step: 0.05 }),
       framerate: new NumberField(30, { min: 1, max: 120, step: 1 }),
-      captureDelay: new NumberField(200, { min: 0, max: 10000, step: 10 }),
+      captureDelay: new NumberField(50, { min: 0, max: 10000, step: 10 }),
       rendersDirectory: new StringField('renders'),
     }
   }
@@ -4888,12 +4894,13 @@ export class PathLayerOp extends Operator<PathLayerOp> {
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       billboard: new BooleanField(true, { showByDefault: false }),
       capRounded: new BooleanField(true, { showByDefault: false }),
+      jointRounded: new BooleanField(false, { showByDefault: false }),
       getPath: new UnknownField((d: unknown) => d?.path || [], { accessor: true }),
       // getPath: new ArrayField(new Point3DField([0, 0, 0], { returnType: 'tuple' }), { accessor: true }),
       getColor: new ColorField('#006ac6', { accessor: true, transform: hexToColor }),
       getWidth: new NumberField(8, { min: 0, softMax: 100, accessor: true }),
       widthUnits: new StringLiteralField('meters', {
-        values: ['pixels', 'meters'],
+        values: ['pixels', 'meters', 'common'],
         showByDefault: false,
       }),
       widthScale: new NumberField(20, { min: 0, softMax: 100, showByDefault: false }),
@@ -5001,7 +5008,7 @@ export class TripsLayerOp extends Operator<TripsLayerOp> {
       fadeTrail: new BooleanField(false),
       trailLength: new NumberField(120, { min: 0 }),
       widthUnits: new StringLiteralField('meters', {
-        values: ['pixels', 'meters'],
+        values: ['pixels', 'meters', 'common'],
         showByDefault: false,
       }),
       widthMinPixels: new NumberField(2, { min: 0, softMax: 100, showByDefault: false }),
@@ -5146,6 +5153,14 @@ export class TextLayerOp extends Operator<TextLayerOp> {
 export class IconLayerOp extends Operator<IconLayerOp> {
   static displayName = 'IconLayer'
   static description = 'Render a set of icons on the map'
+  private _iconCache = new Map<
+    string,
+    {
+      data: { url: string; width: number; height: number; id: string }
+      accessor: () => { url: string; width: number; height: number; id: string }
+    }
+  >()
+  private readonly MAX_CACHE_SIZE = 50
   createInputs() {
     return {
       data: new DataField(),
@@ -5168,7 +5183,7 @@ export class IconLayerOp extends Operator<IconLayerOp> {
       }), // Can be: uploaded file URL, external URL, or accessor function returning {url, width?, height?}
       getSize: new NumberField(1, { min: 0, softMax: 100, accessor: true }),
       sizeUnits: new StringLiteralField('pixels', {
-        values: ['pixels', 'meters'],
+        values: ['pixels', 'meters', 'common'],
         showByDefault: false,
       }),
       sizeScale: new NumberField(1, { min: 0, softMax: 10_000 }),
@@ -5180,8 +5195,9 @@ export class IconLayerOp extends Operator<IconLayerOp> {
       ),
       getColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
       getAngle: new NumberField(0, { accessor: true }),
-      sizeBasis: new StringLiteralField('pixels', {
-        values: ['pixels', 'meters', 'common'],
+      sizeBasis: new StringLiteralField('height', {
+        values: ['height', 'width'],
+        showByDefault: false,
         optional: true,
       }),
       parameters: new CompoundPropsField(
@@ -5254,7 +5270,8 @@ export class IconLayerOp extends Operator<IconLayerOp> {
           const naturalHeight = img.naturalHeight
 
           // Calculate max texture dimension based on display size
-          // Use 2x for quality buffer (like Retina), but cap at 512px to limit memory
+          // Use 2x for quality buffer (like Retina), cap at 512 to avoid
+          // Deck.gl icon atlas packing issues with large dimensions
           const maxDimension = Math.min(maxDisplaySize * 2, 512)
           const aspectRatio = naturalWidth / naturalHeight
           let width = naturalWidth
@@ -5294,9 +5311,39 @@ export class IconLayerOp extends Operator<IconLayerOp> {
       // Accessor function mode - pass through
       iconProps = { getIcon }
     } else if (getIcon && typeof getIcon === 'string') {
-      // Simple single-icon mode - resolve URL and extract dimensions automatically
-      const iconData = await resolveImageWithDimensions(getIcon, sizeMaxPixels)
-      iconProps = { getIcon: () => iconData }
+      // Single-icon mode - cache resolved icon data to avoid re-resolving every frame
+      // Skip caching for project-local URLs (@/) since they may change on disk
+      const isProjectLocal = getIcon.startsWith(projectScheme)
+
+      if (isProjectLocal) {
+        // Always re-resolve project-local assets to reflect updates
+        const iconData = await resolveImageWithDimensions(getIcon, sizeMaxPixels)
+        iconProps = { getIcon: () => iconData }
+      } else {
+        // Cache external URLs with stable accessor reference
+        const cacheKey = `${getIcon}:${sizeMaxPixels}`
+        let cached = this._iconCache.get(cacheKey)
+
+        if (!cached) {
+          const iconData = await resolveImageWithDimensions(getIcon, sizeMaxPixels)
+          const accessor = () => iconData
+          cached = { data: iconData, accessor }
+
+          // Simple LRU: if cache is full, delete oldest entry (first in Map)
+          if (this._iconCache.size >= this.MAX_CACHE_SIZE) {
+            const firstKey = this._iconCache.keys().next().value
+            this._iconCache.delete(firstKey)
+          }
+
+          this._iconCache.set(cacheKey, cached)
+        } else {
+          // Move to end for LRU (delete + re-add)
+          this._iconCache.delete(cacheKey)
+          this._iconCache.set(cacheKey, cached)
+        }
+
+        iconProps = { getIcon: cached.accessor }
+      }
     } else {
       // Atlas mode - resolve atlas URL
       const resolvedIconAtlas = await resolveProjectUrl(iconAtlas)
@@ -5689,7 +5736,7 @@ export class ArcLayerOp extends Operator<ArcLayerOp> {
       getSourceColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
       getTargetColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
       widthUnits: new StringLiteralField('meters', {
-        values: ['pixels', 'meters'],
+        values: ['pixels', 'meters', 'common'],
         showByDefault: false,
       }),
       getWidth: new NumberField(1, { min: 0, softMax: 100, accessor: true }),
@@ -6926,6 +6973,97 @@ export class SimplifyOp extends Operator<SimplifyOp> {
   }
 }
 
+export class SmoothOp extends Operator<SmoothOp> {
+  static displayName = 'Smooth'
+  static description = 'Apply smoothing to LineString coordinates using Gaussian or boxcar kernel'
+  asDownload = () => this.outputData
+
+  createInputs() {
+    return {
+      feature: new GeoJsonField(),
+      windowSize: new NumberField(5, { min: 1, max: 100, step: 2 }),
+      method: new StringLiteralField('gaussian', ['gaussian', 'boxcar']),
+    }
+  }
+
+  createOutputs() {
+    return {
+      feature: new GeoJsonField(),
+    }
+  }
+
+  execute({
+    feature,
+    windowSize,
+    method,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    // Handle LineString
+    if (feature.geometry.type === 'LineString') {
+      if (feature.geometry.coordinates.length <= 1) {
+        return { feature }
+      }
+
+      const smoothedCoords = this.smoothCoordinates(
+        feature.geometry.coordinates,
+        windowSize,
+        method
+      )
+      return { feature: turf.lineString(smoothedCoords, feature.properties) }
+    }
+
+    // Handle MultiLineString
+    if (feature.geometry.type === 'MultiLineString') {
+      const smoothedLines = feature.geometry.coordinates.map(line =>
+        this.smoothCoordinates(line, windowSize, method)
+      )
+      return { feature: turf.multiLineString(smoothedLines, feature.properties) }
+    }
+
+    // Pass through other geometry types unchanged
+    return { feature }
+  }
+
+  private smoothCoordinates(
+    coords: number[][],
+    windowSize: number,
+    method: 'boxcar' | 'gaussian'
+  ): number[][] {
+    const radius = Math.floor(windowSize / 2)
+    const sigma = method === 'gaussian' ? windowSize / 6 : 0
+
+    return coords.map((pt, i) => {
+      let lonSum = 0
+      let latSum = 0
+      let weightSum = 0
+
+      // Iterate over window centered on current point
+      for (let j = i - radius; j <= i + radius; j++) {
+        if (j < 0 || j >= coords.length) continue
+
+        // Calculate weight based on smoothing method
+        let weight: number
+        if (method === 'gaussian') {
+          const distance = Math.abs(j - i)
+          weight = Math.exp(-0.5 * Math.pow(distance / sigma, 2))
+        } else {
+          weight = 1 // Boxcar: uniform weights
+        }
+
+        lonSum += coords[j][0] * weight
+        latSum += coords[j][1] * weight
+        weightSum += weight
+      }
+
+      // Return smoothed lon/lat plus preserved extra channels
+      return [
+        lonSum / weightSum,
+        latSum / weightSum,
+        ...pt.slice(2), // Preserve altitude, timestamps, etc.
+      ]
+    })
+  }
+}
+
 // ==================== Core Layers (@deck.gl/layers) ====================
 
 export class BitmapLayerOp extends Operator<BitmapLayerOp> {
@@ -7112,7 +7250,7 @@ export class LineLayerOp extends Operator<LineLayerOp> {
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       widthUnits: new StringLiteralField('pixels', {
-        values: ['pixels', 'meters'],
+        values: ['pixels', 'meters', 'common'],
         showByDefault: false,
       }),
       widthScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
@@ -7342,7 +7480,7 @@ export class GreatCircleLayerOp extends Operator<GreatCircleLayerOp> {
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       numSegments: new NumberField(20, { min: 1, softMax: 100, showByDefault: false }),
       widthUnits: new StringLiteralField('pixels', {
-        values: ['pixels', 'meters'],
+        values: ['pixels', 'meters', 'common'],
         showByDefault: false,
       }),
       widthScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
@@ -8092,6 +8230,7 @@ export const opTypes = {
   ScreenshotWidgetOp,
   SimpleMeshLayerOp,
   SimplifyOp,
+  SmoothOp,
   SelectOp,
   SliceOp,
   SolidPolygonLayerOp,

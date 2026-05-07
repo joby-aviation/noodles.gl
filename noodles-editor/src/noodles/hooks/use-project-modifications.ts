@@ -12,6 +12,7 @@ import {
   addEdge as reactFlowAddEdge,
 } from '@xyflow/react'
 import { useCallback } from 'react'
+import { getTimelineStore } from '../../timeline/timeline-store'
 import { analytics } from '../../utils/analytics'
 import { debugUI } from '../../utils/debug'
 import { type Field, ListField } from '../fields'
@@ -849,14 +850,27 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
           childOp.id.startsWith(`${nodeId}/`)
         )
 
+        // Get child operator IDs for timeline track filtering
+        const childOpIds = childOps.map(childOp => childOp.id)
+
         for (const childOp of childOps) {
           const oldChildId = childOp.id
           // Replace only the exact container path at the start
           const newChildId = newQualifiedId + oldChildId.slice(nodeId.length)
           setOp(newChildId, childOp)
           childOp.id = newChildId
+
+          // Rename timeline tracks for child operator
+          getTimelineStore().renameTracksForOperator(oldChildId, newChildId)
+
           queueMicrotask(() => deleteOp(oldChildId))
         }
+
+        // Rename timeline tracks for the main operator, excluding child operators
+        getTimelineStore().renameTracksForOperator(nodeId, newQualifiedId, childOpIds)
+      } else {
+        // Rename timeline tracks for the main operator (no children)
+        getTimelineStore().renameTracksForOperator(nodeId, newQualifiedId)
       }
 
       // Give React time to update the component tree before deleting the old id

@@ -40,7 +40,14 @@ export class LegendWidget extends Widget<LegendWidgetProps> {
   }
 
   onRenderHTML(rootElement: HTMLElement): void {
-    const {colorStops = [], label = '', minValue = 0, maxValue = 1, scale = 1, placement = 'bottom-right'} = this.props
+    const {
+      colorStops = [],
+      label = '',
+      minValue = 0,
+      maxValue = 1,
+      scale = 1,
+      placement = 'bottom-right',
+    } = this.props
 
     const originMap: Record<string, string> = {
       'top-left': 'top left',

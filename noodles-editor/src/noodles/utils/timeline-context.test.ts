@@ -47,7 +47,6 @@ describe('timeline-context', () => {
     })
   })
 
-
   describe('edge cases', () => {
     it('handles zero position', () => {
       const store = useTimelineStore.getState()
