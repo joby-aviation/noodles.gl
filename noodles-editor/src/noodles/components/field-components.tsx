@@ -196,6 +196,16 @@ function StringLiteralTypeaheadInput({
 
   const showSuggestions = suggestionsOpen && filteredSuggestions.length > 0
 
+  useEffect(() => {
+    if (showSuggestions) {
+      console.log('Rendering suggestions:', {
+        count: filteredSuggestions.length,
+        position,
+        suggestions: filteredSuggestions,
+      })
+    }
+  }, [showSuggestions, position, filteredSuggestions])
+
   return (
     <>
       <input
@@ -219,6 +229,7 @@ function StringLiteralTypeaheadInput({
               top: `${position.top}px`,
               left: `${position.left}px`,
               width: `${position.width}px`,
+              background: 'red',
             }}
           >
             {filteredSuggestions.map(({ value: v, label }) => (
