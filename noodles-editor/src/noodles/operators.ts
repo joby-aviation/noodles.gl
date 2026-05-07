@@ -495,6 +495,7 @@ export abstract class Operator<OP extends IOperator> {
     debugExecute('%s: starting %O', this.id, { inputs: this.data })
 
     let executionTime = 0
+    let startTime = 0
 
     try {
       // Pull upstream dependencies first
@@ -513,7 +514,7 @@ export abstract class Operator<OP extends IOperator> {
       }
 
       // Execute the operator - measure only own execution time
-      const startTime = performance.now()
+      startTime = performance.now()
       const result = this.execute(inputValues)
       const finalResult = result instanceof Promise ? await result : result
       executionTime = performance.now() - startTime
@@ -556,6 +557,9 @@ export abstract class Operator<OP extends IOperator> {
       return finalResult
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err))
+
+      // Calculate actual elapsed time even on error
+      executionTime = performance.now() - startTime
 
       // Only log if this is a new/different error
       if (this._lastLoggedError !== error.message) {
