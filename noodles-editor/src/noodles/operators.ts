@@ -492,8 +492,9 @@ export abstract class Operator<OP extends IOperator> {
 
   // Internal pull execution logic
   private async _pullExecution(): Promise<ExtractProps<(typeof this)['outputs']>> {
-    const startTime = performance.now()
     debugExecute('%s: starting %O', this.id, { inputs: this.data })
+
+    let executionTime = 0
 
     try {
       // Pull upstream dependencies first
@@ -511,9 +512,11 @@ export abstract class Operator<OP extends IOperator> {
         debugger
       }
 
-      // Execute the operator
+      // Execute the operator - measure only own execution time
+      const startTime = performance.now()
       const result = this.execute(inputValues)
       const finalResult = result instanceof Promise ? await result : result
+      executionTime = performance.now() - startTime
 
       if (finalResult === null) {
         throw new Error(`Operator ${this.id} returned null`)
@@ -523,7 +526,7 @@ export abstract class Operator<OP extends IOperator> {
       this._cachedOutput = finalResult
       this._pullExecutionStatus = PullExecutionStatus.CLEAN
       this.dirty = false // Also clear the dirty flag for GraphExecutor
-      this._lastExecutionTime = performance.now() - startTime
+      this._lastExecutionTime = executionTime
 
       debugExecute('%s: %dms %O', this.id, this._lastExecutionTime.toFixed(2), {
         outputs: finalResult,
@@ -533,7 +536,7 @@ export abstract class Operator<OP extends IOperator> {
       this.executionState.next({
         status: 'success',
         lastExecuted: Date.now(),
-        executionTime: this._lastExecutionTime,
+        executionTime: executionTime,
       })
 
       // Clear any stale connection errors on successful execution
@@ -572,7 +575,7 @@ export abstract class Operator<OP extends IOperator> {
       this.executionState.next({
         status: 'error',
         lastExecuted: Date.now(),
-        executionTime: performance.now() - startTime,
+        executionTime: executionTime,
         error: error.message,
       })
 
