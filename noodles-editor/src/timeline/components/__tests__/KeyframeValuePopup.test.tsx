@@ -5,13 +5,10 @@ import type { Keyframe } from '../../types'
 import { KeyframeValuePopup } from '../KeyframeValuePopup'
 
 // Mock createPortal to render inline instead of to document.body
-vi.mock('react-dom', async () => {
-  const actual = await vi.importActual('react-dom')
-  return {
-    ...actual,
-    createPortal: (node: React.ReactNode) => node,
-  }
-})
+vi.mock('react-dom', () => ({
+  ...vi.importActual('react-dom'),
+  createPortal: (node: React.ReactNode) => node,
+}))
 
 describe('KeyframeValuePopup', () => {
   const mockOnClose = vi.fn()
