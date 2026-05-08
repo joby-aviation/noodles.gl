@@ -3336,6 +3336,8 @@ export class FilterOp extends Operator<FilterOp> {
     condition,
     value,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const rows = normalizeDataInput(data)
+
     let fn = (_d: unknown) => true
     switch (condition) {
       case 'equals':
@@ -3370,8 +3372,8 @@ export class FilterOp extends Operator<FilterOp> {
         break
     }
 
-    const result = data.filter(fn)
-    return { data: result }
+    const filteredRows = rows.filter(fn)
+    return { data: preserveDataFormat(data, filteredRows) }
   }
 }
 
@@ -5659,6 +5661,36 @@ function extractAttributeData(data: unknown): {
   }
 
   return { rows: Array.isArray(data) ? data : [], attributes: {} }
+}
+
+function normalizeDataInput(input: unknown): unknown[] {
+  if (!input) return []
+
+  if (isArrowTable(input)) {
+    return arrowToRows(input)
+  }
+
+  if (typeof input === 'object' && 'data' in input) {
+    const dataObj = input as { data?: unknown[] }
+    return Array.isArray(dataObj.data) ? dataObj.data : []
+  }
+
+  return Array.isArray(input) ? input : []
+}
+
+function preserveDataFormat(originalInput: unknown, newRows: unknown[]): unknown {
+  if (!originalInput || typeof originalInput !== 'object') {
+    return newRows
+  }
+
+  if ('data' in originalInput && 'attributes' in originalInput) {
+    return {
+      data: newRows,
+      attributes: (originalInput as { attributes: unknown }).attributes,
+    }
+  }
+
+  return newRows
 }
 
 // Deck layers can have extensions that are passed in as props, but the props to the extensions are not
