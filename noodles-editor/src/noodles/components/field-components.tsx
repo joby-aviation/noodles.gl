@@ -59,6 +59,7 @@ import { getExpressionContext } from '../utils/expression-context'
 import { projectScheme } from '../utils/filesystem'
 import { edgeId, type OpId } from '../utils/id-utils'
 import { usePropertyHistory } from '../utils/property-history'
+import { AttributeFieldWrapper } from './attribute-field-wrapper'
 import { ColorSwatch } from './color-swatch'
 import { ExpressionEditorOverlay } from './ExpressionEditorOverlay'
 import { GeocodingDialog } from './geocoding-dialog'
@@ -2481,6 +2482,28 @@ export function FieldComponent({
     ? { transform: 'translate(-17px, -50%)' }
     : { transform: 'translate(-17px, 15px)' }
 
+  const renderFieldInput = () => {
+    if (hasIncomingConnection) {
+      return <EmptyFieldComponent id={fieldId} field={field} />
+    }
+
+    const inputComponent = <InputComp id={fieldId} field={field} disabled={disabled} />
+
+    if (field.defaultAttribute) {
+      return (
+        <AttributeFieldWrapper id={fieldId} field={field} disabled={disabled}>
+          {inputComponent}
+        </AttributeFieldWrapper>
+      )
+    }
+
+    if (hasKeyframes) {
+      return <div className={s.keyframedFieldInput}>{inputComponent}</div>
+    }
+
+    return inputComponent
+  }
+
   return (
     <div style={{ position: 'relative' }}>
       {handle && (
@@ -2492,16 +2515,7 @@ export function FieldComponent({
           position={Position.Left}
         />
       )}
-      {renderInput &&
-        (hasIncomingConnection ? (
-          <EmptyFieldComponent id={fieldId} field={field} />
-        ) : hasKeyframes ? (
-          <div className={s.keyframedFieldInput}>
-            <InputComp id={fieldId} field={field} disabled={disabled} />
-          </div>
-        ) : (
-          <InputComp id={fieldId} field={field} disabled={disabled} />
-        ))}
+      {renderInput && renderFieldInput()}
     </div>
   )
 }
