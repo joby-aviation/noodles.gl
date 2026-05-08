@@ -1,0 +1,45 @@
+.toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-bg-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.toggle:hover:not(.disabled) {
+  background: var(--color-bg-hover);
+  border-color: var(--color-border-hover);
+}
+
+.toggle:active:not(.disabled) {
+  transform: scale(0.95);
+}
+
+.toggle.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.icon {
+  width: 14px;
+  height: 14px;
+  transition: color 0.15s ease;
+}
+
+.uniform .icon {
+  color: var(--color-text-secondary);
+}
+
+.attribute .icon {
+  color: #3b82f6;
+}
+
+.expression .icon {
+  color: #10b981;
+}
