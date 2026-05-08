@@ -195,7 +195,12 @@ import { getAllOps, getOp } from './store'
 import { prepareTableDataForOutput, type TableSchema } from './table-schema'
 import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
 import { composeAccessor, isAccessor } from './utils/accessor-helpers'
-import { arrowGetColumnAsTypedArray, isArrowTable } from './utils/arrow-utils'
+import {
+  arrowGetColumnAsTypedArray,
+  arrowGetNestedColumn,
+  arrowToRows,
+  isArrowTable,
+} from './utils/arrow-utils'
 import type { ExtractProps } from './utils/extract-props'
 import { projectScheme } from './utils/filesystem'
 import type { OpId } from './utils/id-utils'
@@ -4158,6 +4163,115 @@ export class RandomizeAttributeOp extends Operator<RandomizeAttributeOp> {
   }
 }
 
+export class CreateAttributeOp extends Operator<CreateAttributeOp> {
+  static displayName = 'Create Attribute'
+  static description =
+    'Create a named binary attribute from data for GPU rendering. Supports column references, expressions, or direct Arrow column extraction.'
+
+  createInputs() {
+    return {
+      data: new DataField(),
+      name: new StringField('position'),
+      source: new StringLiteralField('column', {
+        values: ['column', 'expression'],
+      }),
+      column: new StringField(''),
+      expression: new ExpressionField('d.value'),
+      type: new StringLiteralField('float', {
+        values: ['float', 'uint8'],
+      }),
+      size: new NumberField(1, { min: 1, max: 4, step: 1 }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      data: new DataField(),
+    }
+  }
+
+  execute({
+    data,
+    name,
+    source,
+    column,
+    expression,
+    type,
+    size,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!data || !name) {
+      return { data }
+    }
+
+    const attributeValues: number[] = []
+
+    if (source === 'column') {
+      if (isArrowTable(data)) {
+        const typedArray = column.includes('.')
+          ? arrowGetNestedColumn(data, column)
+          : arrowGetColumnAsTypedArray(data, column)
+
+        const existingAttributes = (data as unknown as { attributes?: Record<string, unknown> }).attributes || {}
+        return {
+          data: {
+            data: arrowToRows(data),
+            attributes: {
+              ...existingAttributes,
+              [name]: { values: typedArray, size },
+            },
+          },
+        }
+      }
+
+      const dataArray = Array.isArray(data) ? data : (data as { data: unknown[] }).data || []
+      for (const item of dataArray) {
+        const value = column.split('.').reduce((obj, key) => obj?.[key], item as Record<string, unknown>)
+        if (typeof value === 'number') {
+          attributeValues.push(value)
+        } else if (Array.isArray(value)) {
+          attributeValues.push(...value.slice(0, size))
+        } else {
+          for (let i = 0; i < size; i++) {
+            attributeValues.push(0)
+          }
+        }
+      }
+    } else {
+      const fn = fnWithSource(['d', 'i', 'data'], `return ${expression}`, this.id)
+      const dataArray = Array.isArray(data) ? data : (data as { data: unknown[] }).data || []
+
+      for (let i = 0; i < dataArray.length; i++) {
+        const result = fn(dataArray[i], i, dataArray)
+        if (typeof result === 'number') {
+          attributeValues.push(result)
+        } else if (Array.isArray(result)) {
+          attributeValues.push(...result.slice(0, size))
+        } else {
+          for (let j = 0; j < size; j++) {
+            attributeValues.push(0)
+          }
+        }
+      }
+    }
+
+    const TypedArrayClass = type === 'uint8' ? Uint8Array : Float32Array
+    const typedArray = new TypedArrayClass(attributeValues)
+
+    const existingData = (data as { data?: unknown[] }).data || data
+    const existingAttributes = (data as { attributes?: Record<string, unknown> }).attributes || {}
+
+    return {
+      data: {
+        data: existingData,
+        attributes: {
+          ...existingAttributes,
+          [name]: { values: typedArray, size },
+        },
+      },
+    }
+  }
+}
+
 export class ConcatOp extends Operator<ConcatOp> {
   static displayName = 'Concat'
   static description =
@@ -5527,6 +5641,26 @@ export const extensionMap: Record<
   VibranceExtension: { ExtensionClass: FilterColorExtension, args: vibrance },
 }
 
+function extractAttributeData(data: unknown): {
+  rows: unknown[]
+  attributes: Record<string, { values: Float32Array | Uint8Array; size: number }>
+} {
+  if (!data || typeof data !== 'object') {
+    return { rows: Array.isArray(data) ? data : [], attributes: {} }
+  }
+
+  const dataObj = data as { data?: unknown[]; attributes?: Record<string, unknown> }
+
+  if (dataObj.data && dataObj.attributes) {
+    return {
+      rows: dataObj.data,
+      attributes: dataObj.attributes as Record<string, { values: Float32Array | Uint8Array; size: number }>,
+    }
+  }
+
+  return { rows: Array.isArray(data) ? data : [], attributes: {} }
+}
+
 // Deck layers can have extensions that are passed in as props, but the props to the extensions are not
 // passed to the extension constructor, but rather to the root props on the layer.
 // Extensions are kept as POJOs here and will be instantiated later in the pipeline (in noodles.tsx).
@@ -5706,15 +5840,34 @@ export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       stroked: new BooleanField(true, { showByDefault: false }),
       billboard: new BooleanField(false, { showByDefault: false }),
-      getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
-      getFillColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
+      getPosition: new Point3DField([0, 0, 0], {
+        returnType: 'tuple',
+        accessor: true,
+        defaultAttribute: 'position',
+      }),
+      getFillColor: new ColorField('#fff', {
+        accessor: true,
+        transform: hexToColor,
+        defaultAttribute: 'fillColor',
+      }),
       getLineColor: new ColorField('#fff', {
         accessor: true,
         transform: hexToColor,
         showByDefault: false,
+        defaultAttribute: 'lineColor',
       }),
-      getRadius: new NumberField(20, { min: 0, softMax: 1_000_000, accessor: true }),
-      getLineWidth: new NumberField(0, { min: 0, accessor: true, showByDefault: false }),
+      getRadius: new NumberField(20, {
+        min: 0,
+        softMax: 1_000_000,
+        accessor: true,
+        defaultAttribute: 'radius',
+      }),
+      getLineWidth: new NumberField(0, {
+        min: 0,
+        accessor: true,
+        showByDefault: false,
+        defaultAttribute: 'lineWidth',
+      }),
       radiusScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
       radiusUnits: new StringLiteralField('pixels', {
         values: ['pixels', 'meters'],
@@ -5735,13 +5888,34 @@ export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const layer = {
-      ...parseLayerProps<ScatterplotLayerProps>(props),
+    const { rows, attributes } = extractAttributeData(props.data)
+
+    const layerProps = {
+      ...parseLayerProps<ScatterplotLayerProps>({ ...props, data: rows }),
       type: 'ScatterplotLayer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
     }
-    return { layer }
+
+    if (Object.keys(attributes).length > 0) {
+      if (attributes.position) {
+        layerProps.getPosition = attributes.position
+      }
+      if (attributes.fillColor) {
+        layerProps.getFillColor = attributes.fillColor
+      }
+      if (attributes.lineColor) {
+        layerProps.getLineColor = attributes.lineColor
+      }
+      if (attributes.radius) {
+        layerProps.getRadius = attributes.radius
+      }
+      if (attributes.lineWidth) {
+        layerProps.getLineWidth = attributes.lineWidth
+      }
+    }
+
+    return { layer: layerProps }
   }
 }
 
@@ -8928,6 +9102,7 @@ export const opTypes = {
   CombineRGBAOp,
   CombineXYOp,
   ConcatOp,
+  CreateAttributeOp,
   CustomMapLibreLayerOp,
   ConsoleOp,
   ContainerOp,

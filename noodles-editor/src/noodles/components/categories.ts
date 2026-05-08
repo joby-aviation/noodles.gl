@@ -12,6 +12,7 @@ export const categories = {
     'Chart',
     'Coalesce',
     'Concat',
+    'CreateAttribute',
     'Cross',
     'DateTime',
     'DeckRenderer',
