@@ -12,6 +12,16 @@ import type { IOperator, Operator } from './operators'
 import type { ExtractProps } from './utils/extract-props'
 import { resolvePath } from './utils/path-utils'
 
+export type AttributeValue = {
+  values: Float32Array | Float64Array | Int32Array | Uint8Array
+  size: number
+}
+
+export type AttributeEnhancedData = {
+  data: unknown[]
+  attributes?: Record<string, AttributeValue>
+}
+
 export interface IField<
   S extends z.ZodType = z.ZodType,
   O extends BaseFieldOptions = BaseFieldOptions,
@@ -95,6 +105,10 @@ export abstract class Field<
   // Can the field be used as an accessor? This is used to determine if the field can be used
   // as a callback function. For example, `getPosition`, `getLineColor`, `getFillColor` etc.
   accessor = false
+
+  // Name of the default attribute to read from data stream (e.g., 'position', 'color', 'radius')
+  // When set, enables 3-state toggle: Uniform | Attribute | Expression
+  defaultAttribute?: string
 
   // Should this field be shown by default in the UI? Defaults to true.
   showByDefault = true

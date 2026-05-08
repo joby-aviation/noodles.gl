@@ -10,6 +10,7 @@ export const categories = {
     'Bounds',
     'Chart',
     'Concat',
+    'CreateAttribute',
     'Cross',
     'DateTime',
     'DeckRenderer',
