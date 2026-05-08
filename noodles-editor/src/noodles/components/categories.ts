@@ -5,6 +5,7 @@ export const categories = {
   color: ['CategoricalColorRamp', 'Color', 'ColorRamp', 'CombineRGBA', 'HSL', 'SplitRGBA'],
   data: [
     'Arc',
+    'ArrowColumn',
     'BoundingBox',
     'Bounds',
     'Cast',

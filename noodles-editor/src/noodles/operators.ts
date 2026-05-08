@@ -148,6 +148,7 @@ import {
   ArrayField,
   ArrowDataField,
   BezierCurveField,
+  BinaryAttributeField,
   BooleanField,
   CategoricalColorRampField,
   CodeField,
@@ -194,6 +195,7 @@ import { getAllOps, getOp } from './store'
 import { prepareTableDataForOutput, type TableSchema } from './table-schema'
 import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
 import { composeAccessor, isAccessor } from './utils/accessor-helpers'
+import { arrowGetColumnAsTypedArray, isArrowTable } from './utils/arrow-utils'
 import type { ExtractProps } from './utils/extract-props'
 import { projectScheme } from './utils/filesystem'
 import type { OpId } from './utils/id-utils'
@@ -2192,6 +2194,49 @@ export class DuckDbOp extends Operator<DuckDbOp> {
         throw e
       }
       return null
+    }
+  }
+}
+
+export class ArrowColumnOp extends Operator<ArrowColumnOp> {
+  static displayName = 'Arrow Column'
+  static description = 'Extract a column from an Arrow table as a binary attribute for GPU rendering'
+
+  createInputs() {
+    return {
+      table: new ArrowDataField(),
+      columnName: new StringField(''),
+    }
+  }
+
+  createOutputs() {
+    return {
+      attribute: new BinaryAttributeField(),
+    }
+  }
+
+  execute({
+    table,
+    columnName,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> | null {
+    if (!table || !columnName) {
+      return { attribute: { values: new Float32Array(0), size: 1 } }
+    }
+
+    if (!isArrowTable(table)) {
+      throw new Error('Input must be an Arrow table')
+    }
+
+    try {
+      const values = arrowGetColumnAsTypedArray(table, columnName)
+      return {
+        attribute: {
+          values,
+          size: 1,
+        },
+      }
+    } catch (e) {
+      throw new Error(`Failed to extract column "${columnName}": ${e instanceof Error ? e.message : String(e)}`)
     }
   }
 }
@@ -8859,6 +8904,7 @@ export const opTypes = {
   A5LayerOp,
   ArcOp,
   ArcLayerOp,
+  ArrowColumnOp,
   BezierCurveOp,
   BitmapLayerOp,
   BitmapOverlayWidgetOp,

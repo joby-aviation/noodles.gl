@@ -738,6 +738,43 @@ export class ArrowDataField extends Field<z.ZodUnknown> {
   }
 }
 
+type BinaryAttributeValue = {
+  values: Float32Array | Float64Array | Int32Array | Uint8Array
+  size: number
+}
+
+export class BinaryAttributeField extends Field<
+  z.ZodObject<{
+    values: z.ZodUnion<
+      [
+        z.ZodType<Float32Array>,
+        z.ZodType<Float64Array>,
+        z.ZodType<Int32Array>,
+        z.ZodType<Uint8Array>,
+      ]
+    >
+    size: z.ZodNumber
+  }>
+> {
+  static type = 'binary-attribute' as const
+  static defaultValue: BinaryAttributeValue = {
+    values: new Float32Array(0),
+    size: 1,
+  }
+
+  createSchema() {
+    return z.object({
+      values: z.union([
+        z.instanceof(Float32Array),
+        z.instanceof(Float64Array),
+        z.instanceof(Int32Array),
+        z.instanceof(Uint8Array),
+      ]),
+      size: z.number().int().positive(),
+    })
+  }
+}
+
 type Point3DFieldValue =
   | { lng: number; lat: number; alt: number; [key: string]: unknown }
   | [number, number, number]
