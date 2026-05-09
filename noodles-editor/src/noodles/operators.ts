@@ -5874,6 +5874,7 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
         softMax: 100000,
         accessor: true,
         showByDefault: false,
+        defaultAttribute: 'radius',
       }),
       // pointType: circle
       pointRadiusUnits: new StringLiteralField('meters', {
@@ -5888,37 +5889,42 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
       // pointType: icon
 
       // pointType: text (hidden by default)
-      getText: new StringField('', { accessor: true, showByDefault: false }),
+      getText: new StringField('', { accessor: true, showByDefault: false, defaultAttribute: 'text' }),
       getTextSize: new NumberField(32, {
         min: 0,
         softMax: 200,
         accessor: true,
         showByDefault: false,
+        defaultAttribute: 'textSize',
       }),
       getTextColor: new ColorField('#000000', {
         accessor: true,
         transform: hexToColor,
         showByDefault: false,
+        defaultAttribute: 'textColor',
       }),
       getTextAngle: new NumberField(0, {
         softMin: 0,
         softMax: 360,
         accessor: true,
         showByDefault: false,
+        defaultAttribute: 'textAngle',
       }),
       getTextAnchor: new StringLiteralField('middle', {
         values: ['start', 'middle', 'end'],
         accessor: true,
         showByDefault: false,
+        defaultAttribute: 'textAnchor',
       }),
       getTextAlignmentBaseline: new StringLiteralField('center', {
         values: ['top', 'center', 'bottom'],
         accessor: true,
         showByDefault: false,
+        defaultAttribute: 'textAlignmentBaseline',
       }),
       getTextPixelOffset: new Vec2Field(
         { x: 0, y: 0 },
-        { returnType: 'tuple', accessor: true, showByDefault: false }
+        { returnType: 'tuple', accessor: true, showByDefault: false, defaultAttribute: 'textPixelOffset' }
       ),
       textSizeUnits: new StringLiteralField('pixels', {
         values: ['pixels', 'meters'],
@@ -5933,12 +5939,12 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
 
       // polygon (core fields visible by default)
       filled: new BooleanField(true),
-      getFillColor: new ColorField('#006ac6', { accessor: true, transform: hexToColor }),
+      getFillColor: new ColorField('#006ac6', { accessor: true, transform: hexToColor, defaultAttribute: 'fillColor' }),
 
       // line (core fields visible by default)
       stroked: new BooleanField(true),
-      getLineColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
-      getLineWidth: new NumberField(1, { min: 0, softMax: 100, accessor: true }),
+      getLineColor: new ColorField('#000000', { accessor: true, transform: hexToColor, defaultAttribute: 'lineColor' }),
+      getLineWidth: new NumberField(1, { min: 0, softMax: 100, accessor: true, defaultAttribute: 'lineWidth' }),
       // line (advanced fields hidden by default)
       lineWidthUnits: new StringLiteralField('meters', {
         values: ['pixels', 'meters'],
@@ -5960,6 +5966,7 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
         softMax: 100000,
         accessor: true,
         showByDefault: false,
+        defaultAttribute: 'elevation',
       }),
       elevationScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
       _full3d: new BooleanField(false, { showByDefault: false }),
@@ -5981,13 +5988,18 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const layer = {
-      ...parseLayerProps<GeoJsonLayerProps>(props),
+    const { rows, attributes } = extractAttributeData(props.data)
+
+    const baseLayerProps = {
+      ...parseLayerProps<GeoJsonLayerProps>({ ...props, data: rows }),
       type: 'GeoJsonLayer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
     }
-    return { layer }
+
+    const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
+
+    return { layer: layerProps }
   }
 }
 

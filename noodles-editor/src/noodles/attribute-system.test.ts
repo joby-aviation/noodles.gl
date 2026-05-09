@@ -1,6 +1,6 @@
 import { tableFromArrays } from 'apache-arrow'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { ArcLayerOp, CreateAttributeOp, IconLayerOp, ScatterplotLayerOp, TextLayerOp } from './operators'
+import { ArcLayerOp, CreateAttributeOp, GeoJsonLayerOp, IconLayerOp, ScatterplotLayerOp, TextLayerOp } from './operators'
 
 describe('Attribute System', () => {
   describe('CreateAttributeOp', () => {
@@ -420,6 +420,44 @@ describe('Attribute System', () => {
       expect(layerResult.layer.getSize).toHaveProperty('values')
 
       expect(Array.from(layerResult.layer.getSize.values)).toEqual([18, 24])
+    })
+
+    it('should use binary attributes with GeoJsonLayerOp', () => {
+      const data = [
+        { lng: -74.0, lat: 40.7, elevation: 100, fillR: 255, fillG: 0, fillB: 0 },
+        { lng: 2.3, lat: 48.8, elevation: 200, fillR: 0, fillG: 255, fillB: 0 },
+      ]
+
+      let enrichedData = data
+
+      const elevOp = new CreateAttributeOp('/test/elev')
+      elevOp.createListeners()
+      elevOp.inputs.data.setValue(enrichedData)
+      elevOp.inputs.name.setValue('elevation')
+      elevOp.inputs.source.setValue('column')
+      elevOp.inputs.column.setValue('elevation')
+      elevOp.inputs.size.setValue(1)
+      enrichedData = elevOp.execute(elevOp.data).data
+
+      const fillColorOp = new CreateAttributeOp('/test/fill')
+      fillColorOp.createListeners()
+      fillColorOp.inputs.data.setValue(enrichedData)
+      fillColorOp.inputs.name.setValue('fillColor')
+      fillColorOp.inputs.source.setValue('expression')
+      fillColorOp.inputs.expression.setValue('[d.fillR, d.fillG, d.fillB, 255]')
+      fillColorOp.inputs.type.setValue('uint8')
+      fillColorOp.inputs.size.setValue(4)
+      enrichedData = fillColorOp.execute(fillColorOp.data).data
+
+      const layerOp = new GeoJsonLayerOp('/test/layer')
+      layerOp.createListeners()
+      layerOp.inputs.data.setValue(enrichedData)
+
+      const layerResult = layerOp.execute(layerOp.data)
+
+      expect(layerResult.layer.getElevation).toHaveProperty('values')
+      expect(layerResult.layer.getFillColor).toHaveProperty('values')
+      expect(Array.from(layerResult.layer.getElevation.values)).toEqual([100, 200])
     })
   })
 })
