@@ -6089,10 +6089,10 @@ export class GridLayerOp extends Operator<GridLayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
+      getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'position' }),
       cellSize: new NumberField(1000, { min: 1, softMax: 100000 }),
 
-      getColorWeight: new NumberField(1, { min: 0, accessor: true }),
+      getColorWeight: new NumberField(1, { min: 0, accessor: true, defaultAttribute: 'colorWeight' }),
       colorAggregation: new StringLiteralField('SUM', {
         values: ['SUM', 'MEAN', 'MIN', 'MAX', 'COUNT'],
       }),
@@ -6111,7 +6111,7 @@ export class GridLayerOp extends Operator<GridLayerOp> {
       lowerPercentile: new NumberField(0, { min: 0, max: 100, step: 0.1, showByDefault: false }),
 
       extruded: new BooleanField(true),
-      getElevationWeight: new NumberField(1, { min: 0, accessor: true }),
+      getElevationWeight: new NumberField(1, { min: 0, accessor: true, defaultAttribute: 'elevationWeight' }),
       elevationAggregation: new StringLiteralField('SUM', {
         values: ['SUM', 'MEAN', 'MIN', 'MAX', 'COUNT'],
       }),
@@ -6153,14 +6153,18 @@ export class GridLayerOp extends Operator<GridLayerOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // debugger
-    const layer = {
-      ...parseLayerProps<GridLayerProps>(props),
+    const { rows, attributes } = extractAttributeData(props.data)
+
+    const baseLayerProps = {
+      ...parseLayerProps<GridLayerProps>({ ...props, data: rows }),
       type: 'GridLayer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
     }
-    return { layer }
+
+    const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
+
+    return { layer: layerProps }
   }
 }
 
@@ -6172,10 +6176,10 @@ export class HexagonLayerOp extends Operator<HexagonLayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
+      getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'position' }),
       radius: new NumberField(1000, { min: 1, softMax: 100000 }),
 
-      getColorWeight: new NumberField(1, { min: 0, accessor: true }),
+      getColorWeight: new NumberField(1, { min: 0, accessor: true, defaultAttribute: 'colorWeight' }),
       colorAggregation: new StringLiteralField('SUM', {
         values: ['SUM', 'MEAN', 'MIN', 'MAX', 'COUNT'],
       }),
@@ -6194,7 +6198,7 @@ export class HexagonLayerOp extends Operator<HexagonLayerOp> {
       lowerPercentile: new NumberField(0, { min: 0, max: 100, step: 0.1, showByDefault: false }),
 
       extruded: new BooleanField(false),
-      getElevationWeight: new NumberField(1, { min: 0, accessor: true }),
+      getElevationWeight: new NumberField(1, { min: 0, accessor: true, defaultAttribute: 'elevationWeight' }),
       elevationAggregation: new StringLiteralField('SUM', {
         values: ['SUM', 'MEAN', 'MIN', 'MAX', 'COUNT'],
       }),
@@ -6236,13 +6240,18 @@ export class HexagonLayerOp extends Operator<HexagonLayerOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const layer = {
-      ...parseLayerProps<HexagonLayerProps>(props),
+    const { rows, attributes } = extractAttributeData(props.data)
+
+    const baseLayerProps = {
+      ...parseLayerProps<HexagonLayerProps>({ ...props, data: rows }),
       type: 'HexagonLayer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
     }
-    return { layer }
+
+    const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
+
+    return { layer: layerProps }
   }
 }
 
@@ -7433,9 +7442,9 @@ export class GridCellLayerOp extends Operator<GridCellLayerOp> {
       stroked: new BooleanField(false),
       wireframe: new BooleanField(false, { showByDefault: false }),
       flatShading: new BooleanField(false, { showByDefault: false }),
-      getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
-      getColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
-      getElevation: new NumberField(1000, { min: 0, accessor: true }),
+      getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'position' }),
+      getColor: new ColorField('#000000', { accessor: true, transform: hexToColor, defaultAttribute: 'color' }),
+      getElevation: new NumberField(1000, { min: 0, accessor: true, defaultAttribute: 'elevation' }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -7451,13 +7460,18 @@ export class GridCellLayerOp extends Operator<GridCellLayerOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const layer = {
-      ...parseLayerProps<GridCellLayerProps>(props),
+    const { rows, attributes } = extractAttributeData(props.data)
+
+    const baseLayerProps = {
+      ...parseLayerProps<GridCellLayerProps>({ ...props, data: rows }),
       type: 'GridCellLayer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
     }
-    return { layer }
+
+    const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
+
+    return { layer: layerProps }
   }
 }
 
@@ -7637,8 +7651,8 @@ export class ContourLayerOp extends Operator<ContourLayerOp> {
         { threshold: 10, color: [0, 0, 255] },
       ]),
       zOffset: new NumberField(0.005, { min: 0, max: 1, step: 0.001, showByDefault: false }),
-      getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
-      getWeight: new NumberField(1, { min: 0, accessor: true }),
+      getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'position' }),
+      getWeight: new NumberField(1, { min: 0, accessor: true, defaultAttribute: 'weight' }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -7654,13 +7668,17 @@ export class ContourLayerOp extends Operator<ContourLayerOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const layer = {
-      ...parseLayerProps<ContourLayerProps>(props),
+    const { rows, attributes } = extractAttributeData(props.data)
+
+    const baseLayerProps = {
+      ...parseLayerProps<ContourLayerProps>({ ...props, data: rows }),
       type: 'ContourLayer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
     }
-    return { layer }
+
+    const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
+    return { layer: layerProps }
   }
 }
 
@@ -7677,8 +7695,8 @@ export class ScreenGridLayerOp extends Operator<ScreenGridLayerOp> {
       colorRange: new UnknownField(DEFAULT_COLOR_RANGE, { optional: true }),
       colorDomain: new UnknownField(null, { optional: true, showByDefault: false }),
       aggregation: new StringLiteralField('SUM', { values: ['SUM', 'MEAN', 'MIN', 'MAX'] }),
-      getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
-      getWeight: new NumberField(1, { min: 0, accessor: true }),
+      getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'position' }),
+      getWeight: new NumberField(1, { min: 0, accessor: true, defaultAttribute: 'weight' }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -7694,13 +7712,18 @@ export class ScreenGridLayerOp extends Operator<ScreenGridLayerOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const layer = {
-      ...parseLayerProps<ScreenGridLayerProps>(props),
+    const { rows, attributes } = extractAttributeData(props.data)
+
+    const baseLayerProps = {
+      ...parseLayerProps<ScreenGridLayerProps>({ ...props, data: rows }),
       type: 'ScreenGridLayer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
     }
-    return { layer }
+
+    const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
+
+    return { layer: layerProps }
   }
 }
 
