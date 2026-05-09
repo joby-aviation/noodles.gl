@@ -194,12 +194,7 @@ import { getAllOps, getOp } from './store'
 import { prepareTableDataForOutput, type TableSchema } from './table-schema'
 import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
 import { composeAccessor, isAccessor } from './utils/accessor-helpers'
-import {
-  arrowGetColumnAsTypedArray,
-  arrowGetNestedColumn,
-  arrowToRows,
-  isArrowTable,
-} from './utils/arrow-utils'
+import { arrowGetColumnAsTypedArray, arrowToRows, isArrowTable } from './utils/arrow-utils'
 import type { ExtractProps } from './utils/extract-props'
 import { projectScheme } from './utils/filesystem'
 import type { OpId } from './utils/id-utils'
@@ -3459,16 +3454,12 @@ export class RandomizeAttributeOp extends Operator<RandomizeAttributeOp> {
 export class CreateAttributeOp extends Operator<CreateAttributeOp> {
   static displayName = 'Create Attribute'
   static description =
-    'Create a named binary attribute from data for GPU rendering. Supports column references, expressions, or direct Arrow column extraction.'
+    'Create a named binary attribute from data for GPU rendering. Use JavaScript expressions to compute attributes (e.g., d.columnName for column access, [d.lng, d.lat, 0] for positions).'
 
   createInputs() {
     return {
       data: new DataField(),
       name: new StringField('position'),
-      source: new StringLiteralField('column', {
-        values: ['column', 'expression'],
-      }),
-      column: new StringField(''),
       expression: new ExpressionField('d.value'),
       type: new StringLiteralField('float', {
         values: ['float', 'uint8'],
@@ -3486,8 +3477,6 @@ export class CreateAttributeOp extends Operator<CreateAttributeOp> {
   execute({
     data,
     name,
-    source,
-    column,
     expression,
     type,
     size,
@@ -3496,65 +3485,42 @@ export class CreateAttributeOp extends Operator<CreateAttributeOp> {
       return { data }
     }
 
-    const attributeValues: number[] = []
+    let dataArray: unknown[]
+    let existingData: unknown
+    let existingAttributes: Record<string, unknown> = {}
 
-    if (source === 'column') {
-      if (isArrowTable(data)) {
-        const typedArray = column.includes('.')
-          ? arrowGetNestedColumn(data, column)
-          : arrowGetColumnAsTypedArray(data, column)
-
-        const existingAttributes =
-          (data as unknown as { attributes?: Record<string, unknown> }).attributes || {}
-        return {
-          data: {
-            data: arrowToRows(data),
-            attributes: {
-              ...existingAttributes,
-              [name]: { values: typedArray, size },
-            },
-          },
-        }
-      }
-
-      const dataArray = Array.isArray(data) ? data : (data as { data: unknown[] }).data || []
-      for (const item of dataArray) {
-        const value = column
-          .split('.')
-          .reduce((obj, key) => obj?.[key], item as Record<string, unknown>)
-        if (typeof value === 'number') {
-          attributeValues.push(value)
-        } else if (Array.isArray(value)) {
-          attributeValues.push(...value.slice(0, size))
-        } else {
-          for (let i = 0; i < size; i++) {
-            attributeValues.push(0)
-          }
-        }
-      }
+    if (isArrowTable(data)) {
+      dataArray = arrowToRows(data)
+      existingData = dataArray
+      existingAttributes =
+        (data as unknown as { attributes?: Record<string, unknown> }).attributes || {}
+    } else if (Array.isArray(data)) {
+      dataArray = data
+      existingData = data
     } else {
-      const fn = fnWithSource(['d', 'i', 'data'], `return ${expression}`, this.id)
-      const dataArray = Array.isArray(data) ? data : (data as { data: unknown[] }).data || []
+      dataArray = (data as { data: unknown[] }).data || []
+      existingData = (data as { data?: unknown[] }).data || data
+      existingAttributes = (data as { attributes?: Record<string, unknown> }).attributes || {}
+    }
 
-      for (let i = 0; i < dataArray.length; i++) {
-        const result = fn(dataArray[i], i, dataArray)
-        if (typeof result === 'number') {
-          attributeValues.push(result)
-        } else if (Array.isArray(result)) {
-          attributeValues.push(...result.slice(0, size))
-        } else {
-          for (let j = 0; j < size; j++) {
-            attributeValues.push(0)
-          }
+    const attributeValues: number[] = []
+    const fn = fnWithSource(['d', 'i', 'data'], `return ${expression}`, this.id)
+
+    for (let i = 0; i < dataArray.length; i++) {
+      const result = fn(dataArray[i], i, dataArray)
+      if (typeof result === 'number') {
+        attributeValues.push(result)
+      } else if (Array.isArray(result)) {
+        attributeValues.push(...result.slice(0, size))
+      } else {
+        for (let j = 0; j < size; j++) {
+          attributeValues.push(0)
         }
       }
     }
 
     const TypedArrayClass = type === 'uint8' ? Uint8Array : Float32Array
     const typedArray = new TypedArrayClass(attributeValues)
-
-    const existingData = (data as { data?: unknown[] }).data || data
-    const existingAttributes = (data as { attributes?: Record<string, unknown> }).attributes || {}
 
     return {
       data: {

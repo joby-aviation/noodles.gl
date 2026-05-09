@@ -55,7 +55,6 @@ describe('015-accessor-to-attribute migration', () => {
     expect(createAttrNode).toBeDefined()
     expect(createAttrNode?.data.inputs.name).toBe('position')
     expect(createAttrNode?.data.inputs.expression).toBe('[d.lng, d.lat, 0]')
-    expect(createAttrNode?.data.inputs.source).toBe('expression')
     expect(createAttrNode?.data.inputs.size).toBe(3)
 
     // Old accessor edge should be removed
