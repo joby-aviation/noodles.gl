@@ -5663,6 +5663,22 @@ function extractAttributeData(data: unknown): {
   return { rows: Array.isArray(data) ? data : [], attributes: {} }
 }
 
+function applyBinaryAttributes<P extends LayerProps>(
+  layerProps: P,
+  attributes: Record<string, { values: Float32Array | Uint8Array; size: number }>
+): P {
+  const result = { ...layerProps }
+
+  for (const [attrName, attrValue] of Object.entries(attributes)) {
+    const propName = `get${attrName.charAt(0).toUpperCase()}${attrName.slice(1)}` as keyof P
+    if (propName in result) {
+      result[propName] = attrValue as P[typeof propName]
+    }
+  }
+
+  return result
+}
+
 function normalizeDataInput(input: unknown): unknown[] {
   if (!input) return []
 
@@ -5825,10 +5841,10 @@ export class PathLayerOp extends Operator<PathLayerOp> {
       billboard: new BooleanField(true, { showByDefault: false }),
       capRounded: new BooleanField(true, { showByDefault: false }),
       jointRounded: new BooleanField(false, { showByDefault: false }),
-      getPath: new UnknownField((d: unknown) => d?.path || [], { accessor: true }),
+      getPath: new UnknownField((d: unknown) => d?.path || [], { accessor: true, defaultAttribute: 'path' }),
       // getPath: new ArrayField(new Point3DField([0, 0, 0], { returnType: 'tuple' }), { accessor: true }),
-      getColor: new ColorField('#006ac6', { accessor: true, transform: hexToColor }),
-      getWidth: new NumberField(8, { min: 0, softMax: 100, accessor: true }),
+      getColor: new ColorField('#006ac6', { accessor: true, transform: hexToColor, defaultAttribute: 'color' }),
+      getWidth: new NumberField(8, { min: 0, softMax: 100, accessor: true, defaultAttribute: 'width' }),
       widthUnits: new StringLiteralField('meters', {
         values: ['pixels', 'meters', 'common'],
         showByDefault: false,
@@ -5852,13 +5868,18 @@ export class PathLayerOp extends Operator<PathLayerOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const layer = {
-      ...parseLayerProps<PathLayerProps>(props),
+    const { rows, attributes } = extractAttributeData(props.data)
+
+    const baseLayerProps = {
+      ...parseLayerProps<PathLayerProps>({ ...props, data: rows }),
       type: 'PathLayer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
     }
-    return { layer }
+
+    const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
+
+    return { layer: layerProps }
   }
 }
 
@@ -5922,30 +5943,14 @@ export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const { rows, attributes } = extractAttributeData(props.data)
 
-    const layerProps = {
+    const baseLayerProps = {
       ...parseLayerProps<ScatterplotLayerProps>({ ...props, data: rows }),
       type: 'ScatterplotLayer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
     }
 
-    if (Object.keys(attributes).length > 0) {
-      if (attributes.position) {
-        layerProps.getPosition = attributes.position
-      }
-      if (attributes.fillColor) {
-        layerProps.getFillColor = attributes.fillColor
-      }
-      if (attributes.lineColor) {
-        layerProps.getLineColor = attributes.lineColor
-      }
-      if (attributes.radius) {
-        layerProps.getRadius = attributes.radius
-      }
-      if (attributes.lineWidth) {
-        layerProps.getLineWidth = attributes.lineWidth
-      }
-    }
+    const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
 
     return { layer: layerProps }
   }
