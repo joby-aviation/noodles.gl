@@ -2205,7 +2205,8 @@ export class DuckDbOp extends Operator<DuckDbOp> {
 
 export class ArrowColumnOp extends Operator<ArrowColumnOp> {
   static displayName = 'Arrow Column'
-  static description = 'Extract a column from an Arrow table as a binary attribute for GPU rendering'
+  static description =
+    'Extract a column from an Arrow table as a binary attribute for GPU rendering'
 
   createInputs() {
     return {
@@ -2241,7 +2242,9 @@ export class ArrowColumnOp extends Operator<ArrowColumnOp> {
         },
       }
     } catch (e) {
-      throw new Error(`Failed to extract column "${columnName}": ${e instanceof Error ? e.message : String(e)}`)
+      throw new Error(
+        `Failed to extract column "${columnName}": ${e instanceof Error ? e.message : String(e)}`
+      )
     }
   }
 }
@@ -4213,7 +4216,8 @@ export class CreateAttributeOp extends Operator<CreateAttributeOp> {
           ? arrowGetNestedColumn(data, column)
           : arrowGetColumnAsTypedArray(data, column)
 
-        const existingAttributes = (data as unknown as { attributes?: Record<string, unknown> }).attributes || {}
+        const existingAttributes =
+          (data as unknown as { attributes?: Record<string, unknown> }).attributes || {}
         return {
           data: {
             data: arrowToRows(data),
@@ -4227,7 +4231,9 @@ export class CreateAttributeOp extends Operator<CreateAttributeOp> {
 
       const dataArray = Array.isArray(data) ? data : (data as { data: unknown[] }).data || []
       for (const item of dataArray) {
-        const value = column.split('.').reduce((obj, key) => obj?.[key], item as Record<string, unknown>)
+        const value = column
+          .split('.')
+          .reduce((obj, key) => obj?.[key], item as Record<string, unknown>)
         if (typeof value === 'number') {
           attributeValues.push(value)
         } else if (Array.isArray(value)) {
@@ -5656,7 +5662,10 @@ function extractAttributeData(data: unknown): {
   if (dataObj.data && dataObj.attributes) {
     return {
       rows: dataObj.data,
-      attributes: dataObj.attributes as Record<string, { values: Float32Array | Uint8Array; size: number }>,
+      attributes: dataObj.attributes as Record<
+        string,
+        { values: Float32Array | Uint8Array; size: number }
+      >,
     }
   }
 
@@ -5841,10 +5850,22 @@ export class PathLayerOp extends Operator<PathLayerOp> {
       billboard: new BooleanField(true, { showByDefault: false }),
       capRounded: new BooleanField(true, { showByDefault: false }),
       jointRounded: new BooleanField(false, { showByDefault: false }),
-      getPath: new UnknownField((d: unknown) => d?.path || [], { accessor: true, defaultAttribute: 'path' }),
+      getPath: new UnknownField((d: unknown) => d?.path || [], {
+        accessor: true,
+        defaultAttribute: 'path',
+      }),
       // getPath: new ArrayField(new Point3DField([0, 0, 0], { returnType: 'tuple' }), { accessor: true }),
-      getColor: new ColorField('#006ac6', { accessor: true, transform: hexToColor, defaultAttribute: 'color' }),
-      getWidth: new NumberField(8, { min: 0, softMax: 100, accessor: true, defaultAttribute: 'width' }),
+      getColor: new ColorField('#006ac6', {
+        accessor: true,
+        transform: hexToColor,
+        defaultAttribute: 'color',
+      }),
+      getWidth: new NumberField(8, {
+        min: 0,
+        softMax: 100,
+        accessor: true,
+        defaultAttribute: 'width',
+      }),
       widthUnits: new StringLiteralField('meters', {
         values: ['pixels', 'meters', 'common'],
         showByDefault: false,
@@ -5970,12 +5991,27 @@ export class TripsLayerOp extends Operator<TripsLayerOp> {
       ),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      getPath: new UnknownField((d: unknown) => d?.path || [], { accessor: true, defaultAttribute: 'path' }),
-      getTimestamps: new UnknownField((d: unknown) => d?.timestamps || [], { accessor: true, defaultAttribute: 'timestamps' }),
+      getPath: new UnknownField((d: unknown) => d?.path || [], {
+        accessor: true,
+        defaultAttribute: 'path',
+      }),
+      getTimestamps: new UnknownField((d: unknown) => d?.timestamps || [], {
+        accessor: true,
+        defaultAttribute: 'timestamps',
+      }),
       // getPath: new ArrayField(new Point3DField([0, 0, 0], { returnType: 'tuple' }), { accessor: true }),
       // getTimestamps: new ArrayField(new NumberField(0, { min: 0, max: Number.MAX_SAFE_INTEGER }), { accessor: true }),
-      getColor: new ColorField('#bfcae3', { accessor: true, transform: hexToColor, defaultAttribute: 'color' }),
-      getWidth: new NumberField(8, { min: 0, softMax: 100, accessor: true, defaultAttribute: 'width' }),
+      getColor: new ColorField('#bfcae3', {
+        accessor: true,
+        transform: hexToColor,
+        defaultAttribute: 'color',
+      }),
+      getWidth: new NumberField(8, {
+        min: 0,
+        softMax: 100,
+        accessor: true,
+        defaultAttribute: 'width',
+      }),
       billboard: new BooleanField(false, { showByDefault: false }),
       capRounded: new BooleanField(true, { showByDefault: false }),
       jointRounded: new BooleanField(true, { showByDefault: false }),
@@ -6026,9 +6062,20 @@ export class SolidPolygonLayerOp extends Operator<SolidPolygonLayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      getPolygon: new UnknownField((d: unknown) => d?.polygon || [], { accessor: true, defaultAttribute: 'polygon' }),
-      getFillColor: new ColorField('#fff', { accessor: true, transform: hexToColor, defaultAttribute: 'fillColor' }),
-      getLineColor: new ColorField('#fff', { accessor: true, transform: hexToColor, defaultAttribute: 'lineColor' }),
+      getPolygon: new UnknownField((d: unknown) => d?.polygon || [], {
+        accessor: true,
+        defaultAttribute: 'polygon',
+      }),
+      getFillColor: new ColorField('#fff', {
+        accessor: true,
+        transform: hexToColor,
+        defaultAttribute: 'fillColor',
+      }),
+      getLineColor: new ColorField('#fff', {
+        accessor: true,
+        transform: hexToColor,
+        defaultAttribute: 'lineColor',
+      }),
       getLineWidth: new NumberField(0, { min: 0, accessor: true, defaultAttribute: 'lineWidth' }),
       parameters: new CompoundPropsField(
         {
@@ -6068,7 +6115,11 @@ export class TextLayerOp extends Operator<TextLayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'position' }),
+      getPosition: new Point3DField([0, 0, 0], {
+        returnType: 'tuple',
+        accessor: true,
+        defaultAttribute: 'position',
+      }),
       getText: new StringField('', { accessor: true, defaultAttribute: 'text' }),
       billboard: new BooleanField(true),
       fontFamily: new StringField('Inter'),
@@ -6077,8 +6128,17 @@ export class TextLayerOp extends Operator<TextLayerOp> {
         values: ['pixels', 'meters'],
         showByDefault: false,
       }),
-      getSize: new NumberField(48, { min: 0, softMax: 200, accessor: true, defaultAttribute: 'size' }),
-      getColor: new ColorField('#f0f0f0', { accessor: true, transform: hexToColor, defaultAttribute: 'color' }),
+      getSize: new NumberField(48, {
+        min: 0,
+        softMax: 200,
+        accessor: true,
+        defaultAttribute: 'size',
+      }),
+      getColor: new ColorField('#f0f0f0', {
+        accessor: true,
+        transform: hexToColor,
+        defaultAttribute: 'color',
+      }),
       getAngle: new NumberField(0, {
         softMin: 0,
         softMax: 360,
@@ -6093,7 +6153,12 @@ export class TextLayerOp extends Operator<TextLayerOp> {
       }),
       getPixelOffset: new Vec2Field(
         { x: 0, y: 0 },
-        { returnType: 'tuple', accessor: true, showByDefault: false, defaultAttribute: 'pixelOffset' }
+        {
+          returnType: 'tuple',
+          accessor: true,
+          showByDefault: false,
+          defaultAttribute: 'pixelOffset',
+        }
       ),
       getAlignmentBaseline: new StringLiteralField('center', {
         values: ['top', 'center', 'bottom'],
@@ -6159,7 +6224,11 @@ export class IconLayerOp extends Operator<IconLayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'position' }),
+      getPosition: new Point3DField([0, 0, 0], {
+        returnType: 'tuple',
+        accessor: true,
+        defaultAttribute: 'position',
+      }),
       iconAtlas: new FileUrlField(
         'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.png',
         { showByDefault: false, accept: '.png,.jpg,.jpeg,.gif,.webp,.svg' }
@@ -6175,7 +6244,12 @@ export class IconLayerOp extends Operator<IconLayerOp> {
         accept: '.png,.jpg,.jpeg,.gif,.webp,.svg',
         defaultAttribute: 'icon',
       }), // Can be: uploaded file URL, external URL, or accessor function returning {url, width?, height?}
-      getSize: new NumberField(1, { min: 0, softMax: 100, accessor: true, defaultAttribute: 'size' }),
+      getSize: new NumberField(1, {
+        min: 0,
+        softMax: 100,
+        accessor: true,
+        defaultAttribute: 'size',
+      }),
       sizeUnits: new StringLiteralField('pixels', {
         values: ['pixels', 'meters', 'common'],
         showByDefault: false,
@@ -6185,9 +6259,18 @@ export class IconLayerOp extends Operator<IconLayerOp> {
       sizeMaxPixels: new NumberField(2048, { min: 0, softMax: 10_000, showByDefault: false }),
       getPixelOffset: new Vec2Field(
         { x: 0, y: 0 },
-        { returnType: 'tuple', accessor: true, showByDefault: false, defaultAttribute: 'pixelOffset' }
+        {
+          returnType: 'tuple',
+          accessor: true,
+          showByDefault: false,
+          defaultAttribute: 'pixelOffset',
+        }
       ),
-      getColor: new ColorField('#fff', { accessor: true, transform: hexToColor, defaultAttribute: 'color' }),
+      getColor: new ColorField('#fff', {
+        accessor: true,
+        transform: hexToColor,
+        defaultAttribute: 'color',
+      }),
       getAngle: new NumberField(0, { accessor: true, defaultAttribute: 'angle' }),
       sizeBasis: new StringLiteralField('height', {
         values: ['height', 'width'],
@@ -6376,13 +6459,29 @@ export class ScenegraphLayerOp extends Operator<ScenegraphLayerOp> {
         'https://raw.githubusercontent.com/visgl/deck.gl-data/master/examples/scenegraph-layer/airplane.glb',
         { accept: '.glb,.gltf' }
       ),
-      getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'position' }),
-      getOrientation: new Vec3Field([0, 0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'orientation' }),
-      getScale: new Vec3Field([1, 1, 1], { returnType: 'tuple', accessor: true, defaultAttribute: 'scale' }),
+      getPosition: new Point3DField([0, 0, 0], {
+        returnType: 'tuple',
+        accessor: true,
+        defaultAttribute: 'position',
+      }),
+      getOrientation: new Vec3Field([0, 0, 0], {
+        returnType: 'tuple',
+        accessor: true,
+        defaultAttribute: 'orientation',
+      }),
+      getScale: new Vec3Field([1, 1, 1], {
+        returnType: 'tuple',
+        accessor: true,
+        defaultAttribute: 'scale',
+      }),
       sizeScale: new NumberField(1, { min: 0, softMax: 10_000, showByDefault: false }),
       sizeMinPixels: new NumberField(0, { min: 0, softMax: 100, showByDefault: false }),
       sizeMaxPixels: new NumberField(100, { min: 0, softMax: 100, showByDefault: false }),
-      getColor: new ColorField('#fff', { accessor: true, transform: hexToColor, defaultAttribute: 'color' }),
+      getColor: new ColorField('#fff', {
+        accessor: true,
+        transform: hexToColor,
+        defaultAttribute: 'color',
+      }),
       getTranslation: new Vec3Field([0, 0, 0], {
         returnType: 'tuple',
         accessor: true,
@@ -6433,10 +6532,26 @@ export class SimpleMeshLayerOp extends Operator<SimpleMeshLayerOp> {
       wireframe: new BooleanField(false, { showByDefault: false }),
       texture: new UnknownField(null, { optional: true, showByDefault: false }),
       textureParameters: new DataField(undefined, { showByDefault: false }),
-      getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'position' }),
-      getColor: new ColorField('#000000', { accessor: true, transform: hexToColor, defaultAttribute: 'color' }),
-      getOrientation: new Vec3Field([0, 0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'orientation' }),
-      getScale: new Vec3Field([1, 1, 1], { returnType: 'tuple', accessor: true, defaultAttribute: 'scale' }),
+      getPosition: new Point3DField([0, 0, 0], {
+        returnType: 'tuple',
+        accessor: true,
+        defaultAttribute: 'position',
+      }),
+      getColor: new ColorField('#000000', {
+        accessor: true,
+        transform: hexToColor,
+        defaultAttribute: 'color',
+      }),
+      getOrientation: new Vec3Field([0, 0, 0], {
+        returnType: 'tuple',
+        accessor: true,
+        defaultAttribute: 'orientation',
+      }),
+      getScale: new Vec3Field([1, 1, 1], {
+        returnType: 'tuple',
+        accessor: true,
+        defaultAttribute: 'scale',
+      }),
       sizeScale: new NumberField(1, { min: 0, softMax: 1000, showByDefault: false }),
       getTranslation: new Vec3Field([0, 0, 0], {
         returnType: 'tuple',
@@ -6490,7 +6605,11 @@ export class H3HexagonLayerOp extends Operator<H3HexagonLayerOp> {
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       getHexagon: new StringField('', { accessor: true, defaultAttribute: 'hexagon' }),
-      getFillColor: new ColorField('#fff', { accessor: true, transform: hexToColor, defaultAttribute: 'fillColor' }),
+      getFillColor: new ColorField('#fff', {
+        accessor: true,
+        transform: hexToColor,
+        defaultAttribute: 'fillColor',
+      }),
       getRadius: new NumberField(1, { min: 0, accessor: true, defaultAttribute: 'radius' }),
       getLineWidth: new NumberField(1, { min: 0, accessor: true, defaultAttribute: 'lineWidth' }),
       parameters: new CompoundPropsField(
@@ -6532,9 +6651,21 @@ export class A5LayerOp extends Operator<A5LayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      getPentagon: new UnknownField((d: unknown) => d?.pentagon || '', { accessor: true, defaultAttribute: 'pentagon' }),
-      getFillColor: new ColorField('#fff', { accessor: true, transform: hexToColor, defaultAttribute: 'fillColor' }),
-      getElevation: new NumberField(1000, { min: 0, softMax: 100000, accessor: true, defaultAttribute: 'elevation' }),
+      getPentagon: new UnknownField((d: unknown) => d?.pentagon || '', {
+        accessor: true,
+        defaultAttribute: 'pentagon',
+      }),
+      getFillColor: new ColorField('#fff', {
+        accessor: true,
+        transform: hexToColor,
+        defaultAttribute: 'fillColor',
+      }),
+      getElevation: new NumberField(1000, {
+        min: 0,
+        softMax: 100000,
+        accessor: true,
+        defaultAttribute: 'elevation',
+      }),
       elevationScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
       extruded: new BooleanField(false),
       pickable: new BooleanField(true, { showByDefault: false }),
@@ -6576,7 +6707,11 @@ export class HeatmapLayerOp extends Operator<HeatmapLayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      getPosition: new Point2DField([0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'position' }),
+      getPosition: new Point2DField([0, 0], {
+        returnType: 'tuple',
+        accessor: true,
+        defaultAttribute: 'position',
+      }),
       getWeight: new NumberField(1, { min: 0, accessor: true, defaultAttribute: 'weight' }),
       aggregation: new StringLiteralField('SUM', { values: ['SUM', 'MEAN'] }),
       radiusPixels: new NumberField(30, { min: 0, softMax: 10_000 }),
@@ -6647,7 +6782,11 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
       // pointType: icon
 
       // pointType: text (hidden by default)
-      getText: new StringField('', { accessor: true, showByDefault: false, defaultAttribute: 'text' }),
+      getText: new StringField('', {
+        accessor: true,
+        showByDefault: false,
+        defaultAttribute: 'text',
+      }),
       getTextSize: new NumberField(32, {
         min: 0,
         softMax: 200,
@@ -6682,7 +6821,12 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
       }),
       getTextPixelOffset: new Vec2Field(
         { x: 0, y: 0 },
-        { returnType: 'tuple', accessor: true, showByDefault: false, defaultAttribute: 'textPixelOffset' }
+        {
+          returnType: 'tuple',
+          accessor: true,
+          showByDefault: false,
+          defaultAttribute: 'textPixelOffset',
+        }
       ),
       textSizeUnits: new StringLiteralField('pixels', {
         values: ['pixels', 'meters'],
@@ -6697,12 +6841,25 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
 
       // polygon (core fields visible by default)
       filled: new BooleanField(true),
-      getFillColor: new ColorField('#006ac6', { accessor: true, transform: hexToColor, defaultAttribute: 'fillColor' }),
+      getFillColor: new ColorField('#006ac6', {
+        accessor: true,
+        transform: hexToColor,
+        defaultAttribute: 'fillColor',
+      }),
 
       // line (core fields visible by default)
       stroked: new BooleanField(true),
-      getLineColor: new ColorField('#000000', { accessor: true, transform: hexToColor, defaultAttribute: 'lineColor' }),
-      getLineWidth: new NumberField(1, { min: 0, softMax: 100, accessor: true, defaultAttribute: 'lineWidth' }),
+      getLineColor: new ColorField('#000000', {
+        accessor: true,
+        transform: hexToColor,
+        defaultAttribute: 'lineColor',
+      }),
+      getLineWidth: new NumberField(1, {
+        min: 0,
+        softMax: 100,
+        accessor: true,
+        defaultAttribute: 'lineWidth',
+      }),
       // line (advanced fields hidden by default)
       lineWidthUnits: new StringLiteralField('meters', {
         values: ['pixels', 'meters'],
@@ -6769,17 +6926,50 @@ export class ArcLayerOp extends Operator<ArcLayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      getSourcePosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'sourcePosition' }),
-      getTargetPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'targetPosition' }),
-      getSourceColor: new ColorField('#fff', { accessor: true, transform: hexToColor, defaultAttribute: 'sourceColor' }),
-      getTargetColor: new ColorField('#fff', { accessor: true, transform: hexToColor, defaultAttribute: 'targetColor' }),
+      getSourcePosition: new Point3DField([0, 0, 0], {
+        returnType: 'tuple',
+        accessor: true,
+        defaultAttribute: 'sourcePosition',
+      }),
+      getTargetPosition: new Point3DField([0, 0, 0], {
+        returnType: 'tuple',
+        accessor: true,
+        defaultAttribute: 'targetPosition',
+      }),
+      getSourceColor: new ColorField('#fff', {
+        accessor: true,
+        transform: hexToColor,
+        defaultAttribute: 'sourceColor',
+      }),
+      getTargetColor: new ColorField('#fff', {
+        accessor: true,
+        transform: hexToColor,
+        defaultAttribute: 'targetColor',
+      }),
       widthUnits: new StringLiteralField('meters', {
         values: ['pixels', 'meters', 'common'],
         showByDefault: false,
       }),
-      getWidth: new NumberField(1, { min: 0, softMax: 100, accessor: true, defaultAttribute: 'width' }),
-      getHeight: new NumberField(1, { min: 0, softMax: 10, accessor: true, showByDefault: false, defaultAttribute: 'height' }),
-      getTilt: new NumberField(0, { min: -90, max: 90, accessor: true, showByDefault: false, defaultAttribute: 'tilt' }),
+      getWidth: new NumberField(1, {
+        min: 0,
+        softMax: 100,
+        accessor: true,
+        defaultAttribute: 'width',
+      }),
+      getHeight: new NumberField(1, {
+        min: 0,
+        softMax: 10,
+        accessor: true,
+        showByDefault: false,
+        defaultAttribute: 'height',
+      }),
+      getTilt: new NumberField(0, {
+        min: -90,
+        max: 90,
+        accessor: true,
+        showByDefault: false,
+        defaultAttribute: 'tilt',
+      }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -6827,10 +7017,18 @@ export class GridLayerOp extends Operator<GridLayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'position' }),
+      getPosition: new Point3DField([0, 0, 0], {
+        returnType: 'tuple',
+        accessor: true,
+        defaultAttribute: 'position',
+      }),
       cellSize: new NumberField(1000, { min: 1, softMax: 100000 }),
 
-      getColorWeight: new NumberField(1, { min: 0, accessor: true, defaultAttribute: 'colorWeight' }),
+      getColorWeight: new NumberField(1, {
+        min: 0,
+        accessor: true,
+        defaultAttribute: 'colorWeight',
+      }),
       colorAggregation: new StringLiteralField('SUM', {
         values: ['SUM', 'MEAN', 'MIN', 'MAX', 'COUNT'],
       }),
@@ -6849,7 +7047,11 @@ export class GridLayerOp extends Operator<GridLayerOp> {
       lowerPercentile: new NumberField(0, { min: 0, max: 100, step: 0.1, showByDefault: false }),
 
       extruded: new BooleanField(true),
-      getElevationWeight: new NumberField(1, { min: 0, accessor: true, defaultAttribute: 'elevationWeight' }),
+      getElevationWeight: new NumberField(1, {
+        min: 0,
+        accessor: true,
+        defaultAttribute: 'elevationWeight',
+      }),
       elevationAggregation: new StringLiteralField('SUM', {
         values: ['SUM', 'MEAN', 'MIN', 'MAX', 'COUNT'],
       }),
@@ -6914,10 +7116,18 @@ export class HexagonLayerOp extends Operator<HexagonLayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'position' }),
+      getPosition: new Point3DField([0, 0, 0], {
+        returnType: 'tuple',
+        accessor: true,
+        defaultAttribute: 'position',
+      }),
       radius: new NumberField(1000, { min: 1, softMax: 100000 }),
 
-      getColorWeight: new NumberField(1, { min: 0, accessor: true, defaultAttribute: 'colorWeight' }),
+      getColorWeight: new NumberField(1, {
+        min: 0,
+        accessor: true,
+        defaultAttribute: 'colorWeight',
+      }),
       colorAggregation: new StringLiteralField('SUM', {
         values: ['SUM', 'MEAN', 'MIN', 'MAX', 'COUNT'],
       }),
@@ -6936,7 +7146,11 @@ export class HexagonLayerOp extends Operator<HexagonLayerOp> {
       lowerPercentile: new NumberField(0, { min: 0, max: 100, step: 0.1, showByDefault: false }),
 
       extruded: new BooleanField(false),
-      getElevationWeight: new NumberField(1, { min: 0, accessor: true, defaultAttribute: 'elevationWeight' }),
+      getElevationWeight: new NumberField(1, {
+        min: 0,
+        accessor: true,
+        defaultAttribute: 'elevationWeight',
+      }),
       elevationAggregation: new StringLiteralField('SUM', {
         values: ['SUM', 'MEAN', 'MIN', 'MAX', 'COUNT'],
       }),
@@ -8226,16 +8440,33 @@ export class ColumnLayerOp extends Operator<ColumnLayerOp> {
         values: ['pixels', 'meters'],
         showByDefault: false,
       }),
-      getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'position' }),
-      getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor, defaultAttribute: 'fillColor' }),
+      getPosition: new Point3DField([0, 0, 0], {
+        returnType: 'tuple',
+        accessor: true,
+        defaultAttribute: 'position',
+      }),
+      getFillColor: new ColorField('#000000', {
+        accessor: true,
+        transform: hexToColor,
+        defaultAttribute: 'fillColor',
+      }),
       getLineColor: new ColorField('#000000', {
         accessor: true,
         transform: hexToColor,
         showByDefault: false,
         defaultAttribute: 'lineColor',
       }),
-      getElevation: new NumberField(1000, { min: 0, accessor: true, defaultAttribute: 'elevation' }),
-      getLineWidth: new NumberField(1, { min: 0, accessor: true, showByDefault: false, defaultAttribute: 'lineWidth' }),
+      getElevation: new NumberField(1000, {
+        min: 0,
+        accessor: true,
+        defaultAttribute: 'elevation',
+      }),
+      getLineWidth: new NumberField(1, {
+        min: 0,
+        accessor: true,
+        showByDefault: false,
+        defaultAttribute: 'lineWidth',
+      }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -8282,9 +8513,21 @@ export class GridCellLayerOp extends Operator<GridCellLayerOp> {
       stroked: new BooleanField(false),
       wireframe: new BooleanField(false, { showByDefault: false }),
       flatShading: new BooleanField(false, { showByDefault: false }),
-      getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'position' }),
-      getColor: new ColorField('#000000', { accessor: true, transform: hexToColor, defaultAttribute: 'color' }),
-      getElevation: new NumberField(1000, { min: 0, accessor: true, defaultAttribute: 'elevation' }),
+      getPosition: new Point3DField([0, 0, 0], {
+        returnType: 'tuple',
+        accessor: true,
+        defaultAttribute: 'position',
+      }),
+      getColor: new ColorField('#000000', {
+        accessor: true,
+        transform: hexToColor,
+        defaultAttribute: 'color',
+      }),
+      getElevation: new NumberField(1000, {
+        min: 0,
+        accessor: true,
+        defaultAttribute: 'elevation',
+      }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -8330,9 +8573,21 @@ export class LineLayerOp extends Operator<LineLayerOp> {
       widthScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
       widthMinPixels: new NumberField(0, { min: 0, softMax: 100, showByDefault: false }),
       widthMaxPixels: new NumberField(100, { min: 0, softMax: 1000, showByDefault: false }),
-      getSourcePosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'sourcePosition' }),
-      getTargetPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'targetPosition' }),
-      getColor: new ColorField('#000000', { accessor: true, transform: hexToColor, defaultAttribute: 'color' }),
+      getSourcePosition: new Point3DField([0, 0, 0], {
+        returnType: 'tuple',
+        accessor: true,
+        defaultAttribute: 'sourcePosition',
+      }),
+      getTargetPosition: new Point3DField([0, 0, 0], {
+        returnType: 'tuple',
+        accessor: true,
+        defaultAttribute: 'targetPosition',
+      }),
+      getColor: new ColorField('#000000', {
+        accessor: true,
+        transform: hexToColor,
+        defaultAttribute: 'color',
+      }),
       getWidth: new NumberField(1, { min: 0, accessor: true, defaultAttribute: 'width' }),
       parameters: new CompoundPropsField(
         {
@@ -8377,14 +8632,22 @@ export class PointCloudLayerOp extends Operator<PointCloudLayerOp> {
         showByDefault: false,
       }),
       pointSize: new NumberField(10, { min: 0, max: 100 }),
-      getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'position' }),
+      getPosition: new Point3DField([0, 0, 0], {
+        returnType: 'tuple',
+        accessor: true,
+        defaultAttribute: 'position',
+      }),
       getNormal: new Vec3Field([0, 0, 1], {
         returnType: 'tuple',
         accessor: true,
         showByDefault: false,
         defaultAttribute: 'normal',
       }),
-      getColor: new ColorField('#000000', { accessor: true, transform: hexToColor, defaultAttribute: 'color' }),
+      getColor: new ColorField('#000000', {
+        accessor: true,
+        transform: hexToColor,
+        defaultAttribute: 'color',
+      }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -8437,11 +8700,26 @@ export class PolygonLayerOp extends Operator<PolygonLayerOp> {
       lineWidthMaxPixels: new NumberField(100, { min: 0, softMax: 1000, showByDefault: false }),
       lineJointRounded: new BooleanField(false, { showByDefault: false }),
       lineMiterLimit: new NumberField(4, { min: 0, softMax: 10, showByDefault: false }),
-      getPolygon: new UnknownField((d: unknown) => d?.polygon || [], { accessor: true, defaultAttribute: 'polygon' }),
-      getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor, defaultAttribute: 'fillColor' }),
-      getLineColor: new ColorField('#000000', { accessor: true, transform: hexToColor, defaultAttribute: 'lineColor' }),
+      getPolygon: new UnknownField((d: unknown) => d?.polygon || [], {
+        accessor: true,
+        defaultAttribute: 'polygon',
+      }),
+      getFillColor: new ColorField('#000000', {
+        accessor: true,
+        transform: hexToColor,
+        defaultAttribute: 'fillColor',
+      }),
+      getLineColor: new ColorField('#000000', {
+        accessor: true,
+        transform: hexToColor,
+        defaultAttribute: 'lineColor',
+      }),
       getLineWidth: new NumberField(1, { min: 0, accessor: true, defaultAttribute: 'lineWidth' }),
-      getElevation: new NumberField(1000, { min: 0, accessor: true, defaultAttribute: 'elevation' }),
+      getElevation: new NumberField(1000, {
+        min: 0,
+        accessor: true,
+        defaultAttribute: 'elevation',
+      }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -8491,7 +8769,11 @@ export class ContourLayerOp extends Operator<ContourLayerOp> {
         { threshold: 10, color: [0, 0, 255] },
       ]),
       zOffset: new NumberField(0.005, { min: 0, max: 1, step: 0.001, showByDefault: false }),
-      getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'position' }),
+      getPosition: new Point3DField([0, 0, 0], {
+        returnType: 'tuple',
+        accessor: true,
+        defaultAttribute: 'position',
+      }),
       getWeight: new NumberField(1, { min: 0, accessor: true, defaultAttribute: 'weight' }),
       parameters: new CompoundPropsField(
         {
@@ -8535,7 +8817,11 @@ export class ScreenGridLayerOp extends Operator<ScreenGridLayerOp> {
       colorRange: new UnknownField(DEFAULT_COLOR_RANGE, { optional: true }),
       colorDomain: new UnknownField(null, { optional: true, showByDefault: false }),
       aggregation: new StringLiteralField('SUM', { values: ['SUM', 'MEAN', 'MIN', 'MAX'] }),
-      getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'position' }),
+      getPosition: new Point3DField([0, 0, 0], {
+        returnType: 'tuple',
+        accessor: true,
+        defaultAttribute: 'position',
+      }),
       getWeight: new NumberField(1, { min: 0, accessor: true, defaultAttribute: 'weight' }),
       parameters: new CompoundPropsField(
         {
@@ -8585,10 +8871,26 @@ export class GreatCircleLayerOp extends Operator<GreatCircleLayerOp> {
       widthScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
       widthMinPixels: new NumberField(0, { min: 0, softMax: 100, showByDefault: false }),
       widthMaxPixels: new NumberField(100, { min: 0, softMax: 1000, showByDefault: false }),
-      getSourcePosition: new Point2DField([0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'sourcePosition' }),
-      getTargetPosition: new Point2DField([0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'targetPosition' }),
-      getSourceColor: new ColorField('#000000', { accessor: true, transform: hexToColor, defaultAttribute: 'sourceColor' }),
-      getTargetColor: new ColorField('#000000', { accessor: true, transform: hexToColor, defaultAttribute: 'targetColor' }),
+      getSourcePosition: new Point2DField([0, 0], {
+        returnType: 'tuple',
+        accessor: true,
+        defaultAttribute: 'sourcePosition',
+      }),
+      getTargetPosition: new Point2DField([0, 0], {
+        returnType: 'tuple',
+        accessor: true,
+        defaultAttribute: 'targetPosition',
+      }),
+      getSourceColor: new ColorField('#000000', {
+        accessor: true,
+        transform: hexToColor,
+        defaultAttribute: 'sourceColor',
+      }),
+      getTargetColor: new ColorField('#000000', {
+        accessor: true,
+        transform: hexToColor,
+        defaultAttribute: 'targetColor',
+      }),
       getWidth: new NumberField(1, { min: 0, accessor: true, defaultAttribute: 'width' }),
       parameters: new CompoundPropsField(
         {
@@ -8628,9 +8930,16 @@ export class H3ClusterLayerOp extends Operator<H3ClusterLayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      getHexagons: new UnknownField((d: unknown) => d?.hexagons || [], { accessor: true, defaultAttribute: 'hexagons' }),
+      getHexagons: new UnknownField((d: unknown) => d?.hexagons || [], {
+        accessor: true,
+        defaultAttribute: 'hexagons',
+      }),
       getLineWidth: new NumberField(1, { min: 0, accessor: true, defaultAttribute: 'lineWidth' }),
-      getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor, defaultAttribute: 'fillColor' }),
+      getFillColor: new ColorField('#000000', {
+        accessor: true,
+        transform: hexToColor,
+        defaultAttribute: 'fillColor',
+      }),
       getElevation: new NumberField(1000, { accessor: true, defaultAttribute: 'elevation' }),
       parameters: new CompoundPropsField(
         {
@@ -8671,8 +8980,16 @@ export class GeohashLayerOp extends Operator<GeohashLayerOp> {
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       getGeohash: new StringField('', { accessor: true, defaultAttribute: 'geohash' }),
-      getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor, defaultAttribute: 'fillColor' }),
-      getLineColor: new ColorField('#000000', { accessor: true, transform: hexToColor, defaultAttribute: 'lineColor' }),
+      getFillColor: new ColorField('#000000', {
+        accessor: true,
+        transform: hexToColor,
+        defaultAttribute: 'fillColor',
+      }),
+      getLineColor: new ColorField('#000000', {
+        accessor: true,
+        transform: hexToColor,
+        defaultAttribute: 'lineColor',
+      }),
       getElevation: new NumberField(1000, { accessor: true, defaultAttribute: 'elevation' }),
       getLineWidth: new NumberField(1, { min: 0, accessor: true, defaultAttribute: 'lineWidth' }),
       elevationScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
@@ -8718,8 +9035,16 @@ export class S2LayerOp extends Operator<S2LayerOp> {
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       getS2Token: new StringField('', { accessor: true, defaultAttribute: 's2Token' }),
-      getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor, defaultAttribute: 'fillColor' }),
-      getLineColor: new ColorField('#000000', { accessor: true, transform: hexToColor, defaultAttribute: 'lineColor' }),
+      getFillColor: new ColorField('#000000', {
+        accessor: true,
+        transform: hexToColor,
+        defaultAttribute: 'fillColor',
+      }),
+      getLineColor: new ColorField('#000000', {
+        accessor: true,
+        transform: hexToColor,
+        defaultAttribute: 'lineColor',
+      }),
       getElevation: new NumberField(1000, { accessor: true, defaultAttribute: 'elevation' }),
       getLineWidth: new NumberField(1, { min: 0, accessor: true, defaultAttribute: 'lineWidth' }),
       elevationScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
@@ -8765,8 +9090,16 @@ export class QuadkeyLayerOp extends Operator<QuadkeyLayerOp> {
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       getQuadkey: new StringField('', { accessor: true, defaultAttribute: 'quadkey' }),
-      getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor, defaultAttribute: 'fillColor' }),
-      getLineColor: new ColorField('#000000', { accessor: true, transform: hexToColor, defaultAttribute: 'lineColor' }),
+      getFillColor: new ColorField('#000000', {
+        accessor: true,
+        transform: hexToColor,
+        defaultAttribute: 'fillColor',
+      }),
+      getLineColor: new ColorField('#000000', {
+        accessor: true,
+        transform: hexToColor,
+        defaultAttribute: 'lineColor',
+      }),
       getElevation: new NumberField(1000, { accessor: true, defaultAttribute: 'elevation' }),
       getLineWidth: new NumberField(1, { min: 0, accessor: true, defaultAttribute: 'lineWidth' }),
       elevationScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
