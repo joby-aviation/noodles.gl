@@ -6466,10 +6466,10 @@ export class H3HexagonLayerOp extends Operator<H3HexagonLayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      getHexagon: new StringField('', { accessor: true }),
-      getFillColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
-      getRadius: new NumberField(1, { min: 0, accessor: true }),
-      getLineWidth: new NumberField(1, { min: 0, accessor: true }),
+      getHexagon: new StringField('', { accessor: true, defaultAttribute: 'hexagon' }),
+      getFillColor: new ColorField('#fff', { accessor: true, transform: hexToColor, defaultAttribute: 'fillColor' }),
+      getRadius: new NumberField(1, { min: 0, accessor: true, defaultAttribute: 'radius' }),
+      getLineWidth: new NumberField(1, { min: 0, accessor: true, defaultAttribute: 'lineWidth' }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -6485,13 +6485,18 @@ export class H3HexagonLayerOp extends Operator<H3HexagonLayerOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const layer = {
-      ...parseLayerProps<H3HexagonLayerProps>(props),
+    const { rows, attributes } = extractAttributeData(props.data)
+
+    const baseLayerProps = {
+      ...parseLayerProps<H3HexagonLayerProps>({ ...props, data: rows }),
       type: 'H3HexagonLayer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
     }
-    return { layer }
+
+    const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
+
+    return { layer: layerProps }
   }
 }
 
@@ -6543,8 +6548,8 @@ export class HeatmapLayerOp extends Operator<HeatmapLayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      getPosition: new Point2DField([0, 0], { returnType: 'tuple', accessor: true }),
-      getWeight: new NumberField(1, { min: 0, accessor: true }),
+      getPosition: new Point2DField([0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'position' }),
+      getWeight: new NumberField(1, { min: 0, accessor: true, defaultAttribute: 'weight' }),
       aggregation: new StringLiteralField('SUM', { values: ['SUM', 'MEAN'] }),
       radiusPixels: new NumberField(30, { min: 0, softMax: 10_000 }),
       intensity: new NumberField(1, { min: 0, max: 1, showByDefault: false }),
@@ -6564,13 +6569,18 @@ export class HeatmapLayerOp extends Operator<HeatmapLayerOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const layer = {
-      ...parseLayerProps<HeatmapLayerProps>(props),
+    const { rows, attributes } = extractAttributeData(props.data)
+
+    const baseLayerProps = {
+      ...parseLayerProps<HeatmapLayerProps>({ ...props, data: rows }),
       type: 'HeatmapLayer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
     }
-    return { layer }
+
+    const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
+
+    return { layer: layerProps }
   }
 }
 
@@ -8179,15 +8189,16 @@ export class ColumnLayerOp extends Operator<ColumnLayerOp> {
         values: ['pixels', 'meters'],
         showByDefault: false,
       }),
-      getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
-      getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
+      getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'position' }),
+      getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor, defaultAttribute: 'fillColor' }),
       getLineColor: new ColorField('#000000', {
         accessor: true,
         transform: hexToColor,
         showByDefault: false,
+        defaultAttribute: 'lineColor',
       }),
-      getElevation: new NumberField(1000, { min: 0, accessor: true }),
-      getLineWidth: new NumberField(1, { min: 0, accessor: true, showByDefault: false }),
+      getElevation: new NumberField(1000, { min: 0, accessor: true, defaultAttribute: 'elevation' }),
+      getLineWidth: new NumberField(1, { min: 0, accessor: true, showByDefault: false, defaultAttribute: 'lineWidth' }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -8203,13 +8214,18 @@ export class ColumnLayerOp extends Operator<ColumnLayerOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const layer = {
-      ...parseLayerProps<ColumnLayerProps>(props),
+    const { rows, attributes } = extractAttributeData(props.data)
+
+    const baseLayerProps = {
+      ...parseLayerProps<ColumnLayerProps>({ ...props, data: rows }),
       type: 'ColumnLayer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
     }
-    return { layer }
+
+    const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
+
+    return { layer: layerProps }
   }
 }
 
