@@ -1,12 +1,17 @@
 # Layer Migration Guide
 
-## Status: 2/30 layers migrated
+## Status: 8/30 layers migrated
 
 This guide documents how to migrate layer operators to support binary attributes.
 
 ## Completed Layers ✅
 - ScatterplotLayerOp
 - PathLayerOp
+- ArcLayerOp
+- IconLayerOp
+- TextLayerOp
+- GeoJsonLayerOp
+- PolygonLayerOp
 
 ## Pattern to Apply
 
@@ -66,11 +71,11 @@ execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outpu
 ### High Priority (Most Commonly Used):
 1. ✅ ScatterplotLayerOp - DONE
 2. ✅ PathLayerOp - DONE  
-3. ArcLayerOp - accessor fields: getSourcePosition, getTargetPosition, getSourceColor, getTargetColor, getWidth
-4. IconLayerOp - accessor fields: getPosition, getIcon, getSize, getColor, getAngle
-5. TextLayerOp - accessor fields: getPosition, getText, getSize, getColor, getAngle
-6. GeoJsonLayerOp - accessor fields: getPosition, getRadius, getFillColor, getLineColor, getLineWidth, getElevation
-7. PolygonLayerOp - accessor fields: getPolygon, getFillColor, getLineColor, getLineWidth, getElevation
+3. ✅ ArcLayerOp - DONE
+4. ✅ IconLayerOp - DONE
+5. ✅ TextLayerOp - DONE
+6. ✅ GeoJsonLayerOp - DONE
+7. ✅ PolygonLayerOp - DONE
 8. H3HexagonLayerOp - accessor fields: getHexagon, getFillColor, getElevation
 9. ColumnLayerOp - accessor fields: getPosition, getFillColor, getLineColor, getElevation, getRadius
 10. HeatmapLayerOp - accessor fields: getPosition, getWeight
