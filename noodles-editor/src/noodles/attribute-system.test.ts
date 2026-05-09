@@ -1,6 +1,6 @@
 import { tableFromArrays } from 'apache-arrow'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { ArcLayerOp, CreateAttributeOp, IconLayerOp, ScatterplotLayerOp } from './operators'
+import { ArcLayerOp, CreateAttributeOp, IconLayerOp, ScatterplotLayerOp, TextLayerOp } from './operators'
 
 describe('Attribute System', () => {
   describe('CreateAttributeOp', () => {
@@ -372,6 +372,54 @@ describe('Attribute System', () => {
 
       expect(Array.from(layerResult.layer.getSize.values)).toEqual([24, 32])
       expect(Array.from(layerResult.layer.getAngle.values)).toEqual([45, 90])
+    })
+
+    it('should use binary attributes with TextLayerOp', () => {
+      const data = [
+        { lng: -74.006, lat: 40.7128, label: 'New York', size: 18 },
+        { lng: 2.3522, lat: 48.8566, label: 'Paris', size: 24 },
+      ]
+
+      let enrichedData = data
+
+      const posOp = new CreateAttributeOp('/test/pos')
+      posOp.createListeners()
+      posOp.inputs.data.setValue(enrichedData)
+      posOp.inputs.name.setValue('position')
+      posOp.inputs.source.setValue('expression')
+      posOp.inputs.expression.setValue('[d.lng, d.lat, 0]')
+      posOp.inputs.size.setValue(3)
+      enrichedData = posOp.execute(posOp.data).data
+
+      const textOp = new CreateAttributeOp('/test/text')
+      textOp.createListeners()
+      textOp.inputs.data.setValue(enrichedData)
+      textOp.inputs.name.setValue('text')
+      textOp.inputs.source.setValue('column')
+      textOp.inputs.column.setValue('label')
+      textOp.inputs.size.setValue(1)
+      enrichedData = textOp.execute(textOp.data).data
+
+      const sizeOp = new CreateAttributeOp('/test/size')
+      sizeOp.createListeners()
+      sizeOp.inputs.data.setValue(enrichedData)
+      sizeOp.inputs.name.setValue('size')
+      sizeOp.inputs.source.setValue('column')
+      sizeOp.inputs.column.setValue('size')
+      sizeOp.inputs.size.setValue(1)
+      enrichedData = sizeOp.execute(sizeOp.data).data
+
+      const layerOp = new TextLayerOp('/test/layer')
+      layerOp.createListeners()
+      layerOp.inputs.data.setValue(enrichedData)
+
+      const layerResult = layerOp.execute(layerOp.data)
+
+      expect(layerResult.layer.getPosition).toHaveProperty('values')
+      expect(layerResult.layer.getText).toHaveProperty('values')
+      expect(layerResult.layer.getSize).toHaveProperty('values')
+
+      expect(Array.from(layerResult.layer.getSize.values)).toEqual([18, 24])
     })
   })
 })
