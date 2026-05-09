@@ -43,6 +43,7 @@ type BaseFieldOptions = {
   transform?: (val: unknown, ...args: unknown[]) => unknown
   accessor?: boolean
   showByDefault?: boolean // Defaults to true. Set to false to hide field by default in UI.
+  defaultAttribute?: string // Default attribute name for auto-detection (e.g., 'position', 'radius')
 }
 
 type PointFieldOptions = BaseFieldOptions & {
@@ -155,7 +156,7 @@ export abstract class Field<
   }
 
   // Wrap schema in additional functionality like optional, transform, accessor etc.
-  enhanceSchema({ accessor, optional, transform, showByDefault }: Partial<O>) {
+  enhanceSchema({ accessor, optional, transform, showByDefault, defaultAttribute }: Partial<O>) {
     let schema = this.schema
 
     // Set showByDefault (defaults to true if not specified)
@@ -163,24 +164,38 @@ export abstract class Field<
       this.showByDefault = showByDefault
     }
 
+    // Set defaultAttribute for auto-detection
+    if (defaultAttribute !== undefined) {
+      this.defaultAttribute = defaultAttribute
+    }
+
     if (accessor) {
       this.accessor = true
-      schema = schema.or(
-        z
-          .function()
-          .input(
-            z.union([
-              z.tuple([]),
-              z.tuple([z.unknown()]),
-              z.tuple([z.unknown(), z.unknown()]),
-              z.tuple([z.unknown(), z.unknown(), z.unknown()]),
-            ])
-          )
-          .output(z.unknown())
-      )
+      schema = schema
+        .or(
+          z
+            .function()
+            .input(
+              z.union([
+                z.tuple([]),
+                z.tuple([z.unknown()]),
+                z.tuple([z.unknown(), z.unknown()]),
+                z.tuple([z.unknown(), z.unknown(), z.unknown()]),
+              ])
+            )
+            .output(z.unknown())
+        )
+        .or(z.object({ attributeName: z.string() }))
+        .or(z.object({ expression: z.string() }))
 
       if (transform) {
         schema = schema.transform((val: unknown) => {
+          // Don't transform attribute/expression objects - they're metadata, not values
+          if (typeof val === 'object' && val !== null) {
+            if ('attributeName' in val || 'expression' in val) {
+              return val
+            }
+          }
           return typeof val === 'function'
             ? (...args: unknown[]) => transform(val(...args))
             : transform(val)

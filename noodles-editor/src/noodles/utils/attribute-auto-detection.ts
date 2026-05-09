@@ -121,6 +121,15 @@ export function autoFillLayerAccessors(
     const currentValue = field.value
     if (isAttributeOrExpression(currentValue)) continue
 
+    // Skip if user has manually changed the value from default (uniform value mode)
+    // Note: defaultValue might be pre-transform (e.g., '#fff') while value is post-transform ([255,255,255,255])
+    // So we check if values are primitives and different, or if they're the same object reference
+    const isPrimitive = (v: unknown) =>
+      typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean' || v === null
+    if (isPrimitive(currentValue) && currentValue !== field.defaultValue) {
+      continue
+    }
+
     // Special handling for position fields with lat/lng
     if (field.defaultAttribute === 'position' && latLngPair) {
       field.setValue({ expression: `[d.${latLngPair.lng}, d.${latLngPair.lat}, 0]` })

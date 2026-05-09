@@ -116,6 +116,23 @@ describe('Attribute Auto-Detection', () => {
       layerOp.createListeners()
     })
 
+    it('should allow setting expression on accessor field', () => {
+      // Test that the schema accepts attribute/expression objects
+      layerOp.inputs.getPosition.setValue({ expression: '[d.lng, d.lat, 0]' })
+      expect(layerOp.inputs.getPosition.value).toEqual({ expression: '[d.lng, d.lat, 0]' })
+    })
+
+    it('should allow setting attributeName on accessor field', () => {
+      layerOp.inputs.getRadius.setValue({ attributeName: 'size' })
+      expect(layerOp.inputs.getRadius.value).toEqual({ attributeName: 'size' })
+    })
+
+    it('should have defaultAttribute set on fields', () => {
+      expect(layerOp.inputs.getPosition.defaultAttribute).toBe('position')
+      expect(layerOp.inputs.getRadius.defaultAttribute).toBe('radius')
+      expect(layerOp.inputs.getFillColor.defaultAttribute).toBe('fillColor')
+    })
+
     it('should auto-fill position from lat/lng columns', () => {
       const data = [
         { lat: 40.7, lng: -74.0, value: 100 },
