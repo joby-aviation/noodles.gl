@@ -6519,9 +6519,9 @@ export class A5LayerOp extends Operator<A5LayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      getPentagon: new UnknownField((d: unknown) => d?.pentagon || '', { accessor: true }),
-      getFillColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
-      getElevation: new NumberField(1000, { min: 0, softMax: 100000, accessor: true }),
+      getPentagon: new UnknownField((d: unknown) => d?.pentagon || '', { accessor: true, defaultAttribute: 'pentagon' }),
+      getFillColor: new ColorField('#fff', { accessor: true, transform: hexToColor, defaultAttribute: 'fillColor' }),
+      getElevation: new NumberField(1000, { min: 0, softMax: 100000, accessor: true, defaultAttribute: 'elevation' }),
       elevationScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
       extruded: new BooleanField(false),
       pickable: new BooleanField(true, { showByDefault: false }),
@@ -6540,13 +6540,18 @@ export class A5LayerOp extends Operator<A5LayerOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const layer = {
-      ...parseLayerProps<A5LayerProps>(props),
+    const { rows, attributes } = extractAttributeData(props.data)
+
+    const baseLayerProps = {
+      ...parseLayerProps<A5LayerProps>({ ...props, data: rows }),
       type: 'A5Layer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
     }
-    return { layer }
+
+    const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
+
+    return { layer: layerProps }
   }
 }
 
@@ -8567,11 +8572,11 @@ export class GreatCircleLayerOp extends Operator<GreatCircleLayerOp> {
       widthScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
       widthMinPixels: new NumberField(0, { min: 0, softMax: 100, showByDefault: false }),
       widthMaxPixels: new NumberField(100, { min: 0, softMax: 1000, showByDefault: false }),
-      getSourcePosition: new Point2DField([0, 0], { returnType: 'tuple', accessor: true }),
-      getTargetPosition: new Point2DField([0, 0], { returnType: 'tuple', accessor: true }),
-      getSourceColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
-      getTargetColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
-      getWidth: new NumberField(1, { min: 0, accessor: true }),
+      getSourcePosition: new Point2DField([0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'sourcePosition' }),
+      getTargetPosition: new Point2DField([0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'targetPosition' }),
+      getSourceColor: new ColorField('#000000', { accessor: true, transform: hexToColor, defaultAttribute: 'sourceColor' }),
+      getTargetColor: new ColorField('#000000', { accessor: true, transform: hexToColor, defaultAttribute: 'targetColor' }),
+      getWidth: new NumberField(1, { min: 0, accessor: true, defaultAttribute: 'width' }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -8587,13 +8592,18 @@ export class GreatCircleLayerOp extends Operator<GreatCircleLayerOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const layer = {
-      ...parseLayerProps<GreatCircleLayerProps>(props),
+    const { rows, attributes } = extractAttributeData(props.data)
+
+    const baseLayerProps = {
+      ...parseLayerProps<GreatCircleLayerProps>({ ...props, data: rows }),
       type: 'GreatCircleLayer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
     }
-    return { layer }
+
+    const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
+
+    return { layer: layerProps }
   }
 }
 
@@ -8605,10 +8615,10 @@ export class H3ClusterLayerOp extends Operator<H3ClusterLayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      getHexagons: new UnknownField((d: unknown) => d?.hexagons || [], { accessor: true }),
-      getLineWidth: new NumberField(1, { min: 0, accessor: true }),
-      getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
-      getElevation: new NumberField(1000, { accessor: true }),
+      getHexagons: new UnknownField((d: unknown) => d?.hexagons || [], { accessor: true, defaultAttribute: 'hexagons' }),
+      getLineWidth: new NumberField(1, { min: 0, accessor: true, defaultAttribute: 'lineWidth' }),
+      getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor, defaultAttribute: 'fillColor' }),
+      getElevation: new NumberField(1000, { accessor: true, defaultAttribute: 'elevation' }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -8624,13 +8634,18 @@ export class H3ClusterLayerOp extends Operator<H3ClusterLayerOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const layer = {
-      ...parseLayerProps<H3ClusterLayerProps>(props),
+    const { rows, attributes } = extractAttributeData(props.data)
+
+    const baseLayerProps = {
+      ...parseLayerProps<H3ClusterLayerProps>({ ...props, data: rows }),
       type: 'H3ClusterLayer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
     }
-    return { layer }
+
+    const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
+
+    return { layer: layerProps }
   }
 }
 
@@ -8642,11 +8657,11 @@ export class GeohashLayerOp extends Operator<GeohashLayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      getGeohash: new StringField('', { accessor: true }),
-      getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
-      getLineColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
-      getElevation: new NumberField(1000, { accessor: true }),
-      getLineWidth: new NumberField(1, { min: 0, accessor: true }),
+      getGeohash: new StringField('', { accessor: true, defaultAttribute: 'geohash' }),
+      getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor, defaultAttribute: 'fillColor' }),
+      getLineColor: new ColorField('#000000', { accessor: true, transform: hexToColor, defaultAttribute: 'lineColor' }),
+      getElevation: new NumberField(1000, { accessor: true, defaultAttribute: 'elevation' }),
+      getLineWidth: new NumberField(1, { min: 0, accessor: true, defaultAttribute: 'lineWidth' }),
       elevationScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
       filled: new BooleanField(true),
       stroked: new BooleanField(false),
@@ -8666,13 +8681,18 @@ export class GeohashLayerOp extends Operator<GeohashLayerOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const layer = {
-      ...parseLayerProps<GeohashLayerProps>(props),
+    const { rows, attributes } = extractAttributeData(props.data)
+
+    const baseLayerProps = {
+      ...parseLayerProps<GeohashLayerProps>({ ...props, data: rows }),
       type: 'GeohashLayer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
     }
-    return { layer }
+
+    const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
+
+    return { layer: layerProps }
   }
 }
 
@@ -8684,11 +8704,11 @@ export class S2LayerOp extends Operator<S2LayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      getS2Token: new StringField('', { accessor: true }),
-      getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
-      getLineColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
-      getElevation: new NumberField(1000, { accessor: true }),
-      getLineWidth: new NumberField(1, { min: 0, accessor: true }),
+      getS2Token: new StringField('', { accessor: true, defaultAttribute: 's2Token' }),
+      getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor, defaultAttribute: 'fillColor' }),
+      getLineColor: new ColorField('#000000', { accessor: true, transform: hexToColor, defaultAttribute: 'lineColor' }),
+      getElevation: new NumberField(1000, { accessor: true, defaultAttribute: 'elevation' }),
+      getLineWidth: new NumberField(1, { min: 0, accessor: true, defaultAttribute: 'lineWidth' }),
       elevationScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
       filled: new BooleanField(true),
       stroked: new BooleanField(false),
@@ -8708,13 +8728,18 @@ export class S2LayerOp extends Operator<S2LayerOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const layer = {
-      ...parseLayerProps<S2LayerProps>(props),
+    const { rows, attributes } = extractAttributeData(props.data)
+
+    const baseLayerProps = {
+      ...parseLayerProps<S2LayerProps>({ ...props, data: rows }),
       type: 'S2Layer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
     }
-    return { layer }
+
+    const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
+
+    return { layer: layerProps }
   }
 }
 
@@ -8726,11 +8751,11 @@ export class QuadkeyLayerOp extends Operator<QuadkeyLayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      getQuadkey: new StringField('', { accessor: true }),
-      getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
-      getLineColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
-      getElevation: new NumberField(1000, { accessor: true }),
-      getLineWidth: new NumberField(1, { min: 0, accessor: true }),
+      getQuadkey: new StringField('', { accessor: true, defaultAttribute: 'quadkey' }),
+      getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor, defaultAttribute: 'fillColor' }),
+      getLineColor: new ColorField('#000000', { accessor: true, transform: hexToColor, defaultAttribute: 'lineColor' }),
+      getElevation: new NumberField(1000, { accessor: true, defaultAttribute: 'elevation' }),
+      getLineWidth: new NumberField(1, { min: 0, accessor: true, defaultAttribute: 'lineWidth' }),
       elevationScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
       filled: new BooleanField(true),
       stroked: new BooleanField(false),
@@ -8750,13 +8775,18 @@ export class QuadkeyLayerOp extends Operator<QuadkeyLayerOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const layer = {
-      ...parseLayerProps<QuadkeyLayerProps>(props),
+    const { rows, attributes } = extractAttributeData(props.data)
+
+    const baseLayerProps = {
+      ...parseLayerProps<QuadkeyLayerProps>({ ...props, data: rows }),
       type: 'QuadkeyLayer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
     }
-    return { layer }
+
+    const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
+
+    return { layer: layerProps }
   }
 }
 
