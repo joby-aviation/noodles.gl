@@ -8368,11 +8368,11 @@ export class PolygonLayerOp extends Operator<PolygonLayerOp> {
       lineWidthMaxPixels: new NumberField(100, { min: 0, softMax: 1000, showByDefault: false }),
       lineJointRounded: new BooleanField(false, { showByDefault: false }),
       lineMiterLimit: new NumberField(4, { min: 0, softMax: 10, showByDefault: false }),
-      getPolygon: new UnknownField((d: unknown) => d?.polygon || [], { accessor: true }),
-      getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
-      getLineColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
-      getLineWidth: new NumberField(1, { min: 0, accessor: true }),
-      getElevation: new NumberField(1000, { min: 0, accessor: true }),
+      getPolygon: new UnknownField((d: unknown) => d?.polygon || [], { accessor: true, defaultAttribute: 'polygon' }),
+      getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor, defaultAttribute: 'fillColor' }),
+      getLineColor: new ColorField('#000000', { accessor: true, transform: hexToColor, defaultAttribute: 'lineColor' }),
+      getLineWidth: new NumberField(1, { min: 0, accessor: true, defaultAttribute: 'lineWidth' }),
+      getElevation: new NumberField(1000, { min: 0, accessor: true, defaultAttribute: 'elevation' }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -8388,13 +8388,18 @@ export class PolygonLayerOp extends Operator<PolygonLayerOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const layer = {
-      ...parseLayerProps<PolygonLayerProps>(props),
+    const { rows, attributes } = extractAttributeData(props.data)
+
+    const baseLayerProps = {
+      ...parseLayerProps<PolygonLayerProps>({ ...props, data: rows }),
       type: 'PolygonLayer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
     }
-    return { layer }
+
+    const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
+
+    return { layer: layerProps }
   }
 }
 

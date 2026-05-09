@@ -1,6 +1,6 @@
 import { tableFromArrays } from 'apache-arrow'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { ArcLayerOp, CreateAttributeOp, GeoJsonLayerOp, IconLayerOp, ScatterplotLayerOp, TextLayerOp } from './operators'
+import { ArcLayerOp, CreateAttributeOp, GeoJsonLayerOp, IconLayerOp, PolygonLayerOp, ScatterplotLayerOp, TextLayerOp } from './operators'
 
 describe('Attribute System', () => {
   describe('CreateAttributeOp', () => {
@@ -458,6 +458,52 @@ describe('Attribute System', () => {
       expect(layerResult.layer.getElevation).toHaveProperty('values')
       expect(layerResult.layer.getFillColor).toHaveProperty('values')
       expect(Array.from(layerResult.layer.getElevation.values)).toEqual([100, 200])
+    })
+
+    it('should use binary attributes with PolygonLayerOp', () => {
+      const data = [
+        {
+          polygon: [[-74.0, 40.7], [-74.0, 40.8], [-73.9, 40.8], [-73.9, 40.7], [-74.0, 40.7]],
+          elevation: 50,
+          lineWidth: 2
+        },
+        {
+          polygon: [[2.3, 48.8], [2.3, 48.9], [2.4, 48.9], [2.4, 48.8], [2.3, 48.8]],
+          elevation: 150,
+          lineWidth: 5
+        },
+      ]
+
+      let enrichedData = data
+
+      const elevOp = new CreateAttributeOp('/test/elev')
+      elevOp.createListeners()
+      elevOp.inputs.data.setValue(enrichedData)
+      elevOp.inputs.name.setValue('elevation')
+      elevOp.inputs.source.setValue('column')
+      elevOp.inputs.column.setValue('elevation')
+      elevOp.inputs.size.setValue(1)
+      enrichedData = elevOp.execute(elevOp.data).data
+
+      const widthOp = new CreateAttributeOp('/test/width')
+      widthOp.createListeners()
+      widthOp.inputs.data.setValue(enrichedData)
+      widthOp.inputs.name.setValue('lineWidth')
+      widthOp.inputs.source.setValue('column')
+      widthOp.inputs.column.setValue('lineWidth')
+      widthOp.inputs.size.setValue(1)
+      enrichedData = widthOp.execute(widthOp.data).data
+
+      const layerOp = new PolygonLayerOp('/test/layer')
+      layerOp.createListeners()
+      layerOp.inputs.data.setValue(enrichedData)
+
+      const layerResult = layerOp.execute(layerOp.data)
+
+      expect(layerResult.layer.getElevation).toHaveProperty('values')
+      expect(layerResult.layer.getLineWidth).toHaveProperty('values')
+      expect(Array.from(layerResult.layer.getElevation.values)).toEqual([50, 150])
+      expect(Array.from(layerResult.layer.getLineWidth.values)).toEqual([2, 5])
     })
   })
 })
