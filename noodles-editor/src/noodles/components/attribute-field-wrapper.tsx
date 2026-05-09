@@ -66,6 +66,9 @@ export function AttributeFieldWrapper({
     (newMode: AttributeMode) => {
       captureStart()
 
+      // Batch setValue calls to prevent cascading updates
+      field.beginBatch()
+
       if (newMode === 'uniform') {
         const defaultValue = (field.constructor as typeof Field).defaultValue
         field.setValue(defaultValue)
@@ -78,6 +81,8 @@ export function AttributeFieldWrapper({
         setExpressionValue(defaultExpr)
         field.setValue({ expression: defaultExpr })
       }
+
+      field.endBatch()
 
       commitChange(`Change to ${newMode} mode`)
       setMode(newMode)
