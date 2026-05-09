@@ -6706,17 +6706,17 @@ export class ArcLayerOp extends Operator<ArcLayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      getSourcePosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
-      getTargetPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
-      getSourceColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
-      getTargetColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
+      getSourcePosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'sourcePosition' }),
+      getTargetPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'targetPosition' }),
+      getSourceColor: new ColorField('#fff', { accessor: true, transform: hexToColor, defaultAttribute: 'sourceColor' }),
+      getTargetColor: new ColorField('#fff', { accessor: true, transform: hexToColor, defaultAttribute: 'targetColor' }),
       widthUnits: new StringLiteralField('meters', {
         values: ['pixels', 'meters', 'common'],
         showByDefault: false,
       }),
-      getWidth: new NumberField(1, { min: 0, softMax: 100, accessor: true }),
-      getHeight: new NumberField(1, { min: 0, softMax: 10, accessor: true, showByDefault: false }),
-      getTilt: new NumberField(0, { min: -90, max: 90, accessor: true, showByDefault: false }),
+      getWidth: new NumberField(1, { min: 0, softMax: 100, accessor: true, defaultAttribute: 'width' }),
+      getHeight: new NumberField(1, { min: 0, softMax: 10, accessor: true, showByDefault: false, defaultAttribute: 'height' }),
+      getTilt: new NumberField(0, { min: -90, max: 90, accessor: true, showByDefault: false, defaultAttribute: 'tilt' }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -6732,13 +6732,18 @@ export class ArcLayerOp extends Operator<ArcLayerOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const layer = {
-      ...parseLayerProps<ArcLayerProps>(props),
+    const { rows, attributes } = extractAttributeData(props.data)
+
+    const baseLayerProps = {
+      ...parseLayerProps<ArcLayerProps>({ ...props, data: rows }),
       type: 'ArcLayer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
     }
-    return { layer }
+
+    const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
+
+    return { layer: layerProps }
   }
 }
 

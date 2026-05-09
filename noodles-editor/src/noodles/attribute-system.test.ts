@@ -1,6 +1,6 @@
 import { tableFromArrays } from 'apache-arrow'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { CreateAttributeOp, ScatterplotLayerOp } from './operators'
+import { ArcLayerOp, CreateAttributeOp, ScatterplotLayerOp } from './operators'
 
 describe('Attribute System', () => {
   describe('CreateAttributeOp', () => {
@@ -275,6 +275,54 @@ describe('Attribute System', () => {
         0,
         255,
       ])
+    })
+
+    it('should use binary attributes with ArcLayerOp', () => {
+      const data = [
+        { startLng: -74.006, startLat: 40.7128, endLng: -0.1278, endLat: 51.5074, width: 5 },
+        { startLng: 2.3522, startLat: 48.8566, endLng: 139.6917, endLat: 35.6895, width: 10 },
+      ]
+
+      let enrichedData = data
+
+      const sourceOp = new CreateAttributeOp('/test/source')
+      sourceOp.createListeners()
+      sourceOp.inputs.data.setValue(enrichedData)
+      sourceOp.inputs.name.setValue('sourcePosition')
+      sourceOp.inputs.source.setValue('expression')
+      sourceOp.inputs.expression.setValue('[d.startLng, d.startLat, 0]')
+      sourceOp.inputs.size.setValue(3)
+      enrichedData = sourceOp.execute(sourceOp.data).data
+
+      const targetOp = new CreateAttributeOp('/test/target')
+      targetOp.createListeners()
+      targetOp.inputs.data.setValue(enrichedData)
+      targetOp.inputs.name.setValue('targetPosition')
+      targetOp.inputs.source.setValue('expression')
+      targetOp.inputs.expression.setValue('[d.endLng, d.endLat, 0]')
+      targetOp.inputs.size.setValue(3)
+      enrichedData = targetOp.execute(targetOp.data).data
+
+      const widthOp = new CreateAttributeOp('/test/width')
+      widthOp.createListeners()
+      widthOp.inputs.data.setValue(enrichedData)
+      widthOp.inputs.name.setValue('width')
+      widthOp.inputs.source.setValue('column')
+      widthOp.inputs.column.setValue('width')
+      widthOp.inputs.size.setValue(1)
+      enrichedData = widthOp.execute(widthOp.data).data
+
+      const layerOp = new ArcLayerOp('/test/layer')
+      layerOp.createListeners()
+      layerOp.inputs.data.setValue(enrichedData)
+
+      const layerResult = layerOp.execute(layerOp.data)
+
+      expect(layerResult.layer.getSourcePosition).toHaveProperty('values')
+      expect(layerResult.layer.getTargetPosition).toHaveProperty('values')
+      expect(layerResult.layer.getWidth).toHaveProperty('values')
+
+      expect(Array.from(layerResult.layer.getWidth.values)).toEqual([5, 10])
     })
   })
 })
