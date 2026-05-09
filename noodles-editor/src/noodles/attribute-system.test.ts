@@ -1,6 +1,14 @@
 import { tableFromArrays } from 'apache-arrow'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { ArcLayerOp, CreateAttributeOp, GeoJsonLayerOp, IconLayerOp, PolygonLayerOp, ScatterplotLayerOp, TextLayerOp } from './operators'
+import {
+  ArcLayerOp,
+  CreateAttributeOp,
+  GeoJsonLayerOp,
+  IconLayerOp,
+  PolygonLayerOp,
+  ScatterplotLayerOp,
+  TextLayerOp,
+} from './operators'
 
 describe('Attribute System', () => {
   describe('CreateAttributeOp', () => {
@@ -35,11 +43,7 @@ describe('Attribute System', () => {
     })
 
     it('should create attribute from expression', () => {
-      const data = [
-        { value: 5 },
-        { value: 10 },
-        { value: 15 },
-      ]
+      const data = [{ value: 5 }, { value: 10 }, { value: 15 }]
 
       op.inputs.data.setValue(data)
       op.inputs.name.setValue('doubled')
@@ -88,7 +92,9 @@ describe('Attribute System', () => {
       const result = op.execute(op.data)
 
       expect(result.data.attributes.color.values).toBeInstanceOf(Uint8Array)
-      expect(Array.from(result.data.attributes.color.values)).toEqual([255, 0, 0, 255, 0, 255, 0, 255])
+      expect(Array.from(result.data.attributes.color.values)).toEqual([
+        255, 0, 0, 255, 0, 255, 0, 255,
+      ])
     })
 
     it('should extract column from Arrow table', () => {
@@ -266,14 +272,7 @@ describe('Attribute System', () => {
 
       expect(Array.from(layerResult.layer.getRadius.values)).toEqual([10, 20])
       expect(Array.from(layerResult.layer.getFillColor.values)).toEqual([
-        255,
-        0,
-        0,
-        255,
-        0,
-        255,
-        0,
-        255,
+        255, 0, 0, 255, 0, 255, 0, 255,
       ])
     })
 
@@ -463,14 +462,26 @@ describe('Attribute System', () => {
     it('should use binary attributes with PolygonLayerOp', () => {
       const data = [
         {
-          polygon: [[-74.0, 40.7], [-74.0, 40.8], [-73.9, 40.8], [-73.9, 40.7], [-74.0, 40.7]],
+          polygon: [
+            [-74.0, 40.7],
+            [-74.0, 40.8],
+            [-73.9, 40.8],
+            [-73.9, 40.7],
+            [-74.0, 40.7],
+          ],
           elevation: 50,
-          lineWidth: 2
+          lineWidth: 2,
         },
         {
-          polygon: [[2.3, 48.8], [2.3, 48.9], [2.4, 48.9], [2.4, 48.8], [2.3, 48.8]],
+          polygon: [
+            [2.3, 48.8],
+            [2.3, 48.9],
+            [2.4, 48.9],
+            [2.4, 48.8],
+            [2.3, 48.8],
+          ],
           elevation: 150,
-          lineWidth: 5
+          lineWidth: 5,
         },
       ]
 
