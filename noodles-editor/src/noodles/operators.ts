@@ -5656,17 +5656,18 @@ export class ScenegraphLayerOp extends Operator<ScenegraphLayerOp> {
         'https://raw.githubusercontent.com/visgl/deck.gl-data/master/examples/scenegraph-layer/airplane.glb',
         { accept: '.glb,.gltf' }
       ),
-      getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
-      getOrientation: new Vec3Field([0, 0, 0], { returnType: 'tuple', accessor: true }),
-      getScale: new Vec3Field([1, 1, 1], { returnType: 'tuple', accessor: true }),
+      getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'position' }),
+      getOrientation: new Vec3Field([0, 0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'orientation' }),
+      getScale: new Vec3Field([1, 1, 1], { returnType: 'tuple', accessor: true, defaultAttribute: 'scale' }),
       sizeScale: new NumberField(1, { min: 0, softMax: 10_000, showByDefault: false }),
       sizeMinPixels: new NumberField(0, { min: 0, softMax: 100, showByDefault: false }),
       sizeMaxPixels: new NumberField(100, { min: 0, softMax: 100, showByDefault: false }),
-      getColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
+      getColor: new ColorField('#fff', { accessor: true, transform: hexToColor, defaultAttribute: 'color' }),
       getTranslation: new Vec3Field([0, 0, 0], {
         returnType: 'tuple',
         accessor: true,
         showByDefault: false,
+        defaultAttribute: 'translation',
       }),
       parameters: new CompoundPropsField(
         {
@@ -5683,13 +5684,18 @@ export class ScenegraphLayerOp extends Operator<ScenegraphLayerOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const layer = {
-      ...parseLayerProps<ScenegraphLayerProps>(props),
+    const { rows, attributes } = extractAttributeData(props.data)
+
+    const baseLayerProps = {
+      ...parseLayerProps<ScenegraphLayerProps>({ ...props, data: rows }),
       type: 'ScenegraphLayer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
     }
-    return { layer }
+
+    const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
+
+    return { layer: layerProps }
   }
 }
 
@@ -5707,13 +5713,14 @@ export class SimpleMeshLayerOp extends Operator<SimpleMeshLayerOp> {
       wireframe: new BooleanField(false, { showByDefault: false }),
       texture: new UnknownField(null, { optional: true, showByDefault: false }),
       textureParameters: new DataField(undefined, { showByDefault: false }),
-      getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
-      getColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
-      getOrientation: new Vec3Field([0, 0, 0], { returnType: 'tuple', accessor: true }),
-      getScale: new Vec3Field([1, 1, 1], { returnType: 'tuple', accessor: true }),
+      getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'position' }),
+      getColor: new ColorField('#000000', { accessor: true, transform: hexToColor, defaultAttribute: 'color' }),
+      getOrientation: new Vec3Field([0, 0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'orientation' }),
+      getScale: new Vec3Field([1, 1, 1], { returnType: 'tuple', accessor: true, defaultAttribute: 'scale' }),
       sizeScale: new NumberField(1, { min: 0, softMax: 1000, showByDefault: false }),
       getTranslation: new Vec3Field([0, 0, 0], {
         returnType: 'tuple',
+        defaultAttribute: 'translation',
         accessor: true,
         showByDefault: false,
       }),
@@ -5732,19 +5739,25 @@ export class SimpleMeshLayerOp extends Operator<SimpleMeshLayerOp> {
     }
   }
   async execute(props: ExtractProps<typeof this.inputs>) {
+    const { rows, attributes } = extractAttributeData(props.data)
+
     const ext = extname(props.mesh || '')
     const [{ OBJLoader }, { PLYLoader }] = await Promise.all([
       import('@loaders.gl/obj'),
       import('@loaders.gl/ply'),
     ])
-    const layer = {
-      ...parseLayerProps<SimpleMeshLayerProps>(props),
+
+    const baseLayerProps = {
+      ...parseLayerProps<SimpleMeshLayerProps>({ ...props, data: rows }),
       loaders: [ext === '.obj' ? OBJLoader : PLYLoader],
       type: 'SimpleMeshLayer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
     }
-    return { layer }
+
+    const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
+
+    return { layer: layerProps }
   }
 }
 
