@@ -1,7 +1,7 @@
 import type { NoodlesProjectJSON } from '../utils/serialization'
 import { edgeId } from '../utils/id-utils'
 
-// Migration to convert AccessorOp nodes to CreateAttributeOp
+// Migration to convert AccessorOp nodes to CreateAttributeOp (expression-only mode)
 //
 // This migration transforms the old accessor-based pattern:
 //   Data -> AccessorOp(expression) -> Layer.getPosition
@@ -9,12 +9,11 @@ import { edgeId } from '../utils/id-utils'
 // Into the new attribute-based pattern:
 //   Data -> CreateAttributeOp(name, expression) -> Layer.data
 //
-// The migration:
-// 1. Identifies AccessorOp nodes connected to layer operator inputs
-// 2. Converts them to CreateAttributeOp nodes with appropriate settings
-// 3. Chains multiple CreateAttributeOps for the same data stream
+// Key improvements:
+// 1. Deduplicates CreateAttributeOps - creates ONE per unique AccessorOp/data source combo
+// 2. Uses expression-only mode (no source/column inputs)
+// 3. Shares CreateAttributeOp outputs across multiple layers
 // 4. Updates connections to pass attribute-enhanced data to layers
-// 5. Re-layouts graph to improve readability
 
 const LAYER_OPS = [
   'ScatterplotLayerOp',
@@ -59,10 +58,22 @@ const ACCESSOR_FIELD_TO_ATTRIBUTE: Record<string, string> = {
   getTimestamps: 'timestamps',
 }
 
+interface AccessorUsage {
+  accessorId: string
+  accessorNode: NoodlesProjectJSON['nodes'][0]
+  dataSourceId: string
+  dataSourceHandle: string
+  layers: Array<{
+    layerId: string
+    fieldName: string
+    edgeId: string
+  }>
+}
+
 export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSON> {
   const { nodes, edges } = project
 
-  // Find all AccessorOp nodes connected to layer inputs
+  // Find all AccessorOp nodes
   const accessorNodes = new Map(
     nodes.filter(n => n.type === 'AccessorOp').map(n => [n.id, n])
   )
@@ -75,22 +86,45 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
     nodes.filter(n => LAYER_OPS.includes(n.type as string)).map(n => [n.id, n])
   )
 
-  // Map: layer node ID -> list of accessor edges
-  const layerAccessors = new Map<string, Array<{ edge: typeof edges[0]; fieldName: string }>>()
+  // Group accessor usage by unique (accessorId, dataSource) combinations
+  // This ensures we deduplicate: same accessor + same data = one CreateAttributeOp
+  const accessorUsages = new Map<string, AccessorUsage>()
 
   for (const edge of edges) {
+    // Find AccessorOp -> Layer accessor field connections
     const targetNode = layerNodes.get(edge.target)
     const sourceNode = accessorNodes.get(edge.source)
 
-    if (targetNode && sourceNode && edge.targetHandle && edge.targetHandle.startsWith('par.get')) {
+    if (targetNode && sourceNode && edge.targetHandle?.startsWith('par.get')) {
+      const layerId = edge.target
+      const accessorId = edge.source
       const fieldName = edge.targetHandle.replace('par.', '')
-      const existing = layerAccessors.get(edge.target) || []
-      existing.push({ edge, fieldName })
-      layerAccessors.set(edge.target, existing)
+
+      // Find the data source for this layer
+      const dataEdge = edges.find(e => e.target === layerId && e.targetHandle === 'par.data')
+      if (!dataEdge) continue
+
+      // Key: unique combo of accessor + data source
+      const key = `${accessorId}:${dataEdge.source}:${dataEdge.sourceHandle}`
+
+      const existing = accessorUsages.get(key)
+      if (existing) {
+        // Add this layer to existing accessor usage
+        existing.layers.push({ layerId, fieldName, edgeId: edge.id })
+      } else {
+        // Create new accessor usage entry
+        accessorUsages.set(key, {
+          accessorId,
+          accessorNode: sourceNode,
+          dataSourceId: dataEdge.source,
+          dataSourceHandle: dataEdge.sourceHandle || 'out.data',
+          layers: [{ layerId, fieldName, edgeId: edge.id }],
+        })
+      }
     }
   }
 
-  if (layerAccessors.size === 0) {
+  if (accessorUsages.size === 0) {
     return project
   }
 
@@ -99,47 +133,49 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
   const nodesToRemove = new Set<string>()
   const edgesToRemove = new Set<string>()
 
-  // Process each layer
-  for (const [layerId, accessorEdges] of layerAccessors) {
-    const layerNode = layerNodes.get(layerId)!
+  // Map: layerId -> list of CreateAttributeOp chains to apply
+  const layerDataUpdates = new Map<string, { source: string; handle: string }>()
 
-    // Find the data source for this layer
-    const dataEdge = edges.find(e => e.target === layerId && e.targetHandle === 'par.data')
-    if (!dataEdge) continue
+  // Process each unique accessor usage
+  let createAttrIndex = 0
+  for (const [key, usage] of accessorUsages) {
+    const { accessorId, accessorNode, dataSourceId, dataSourceHandle, layers } = usage
 
-    let currentDataSource = dataEdge.source
-    let currentDataHandle = dataEdge.sourceHandle
+    // Collect all attribute names needed for this accessor across all layers
+    const attributeNames = new Set(
+      layers.map(l => ACCESSOR_FIELD_TO_ATTRIBUTE[l.fieldName] || l.fieldName.replace('get', '').toLowerCase())
+    )
 
-    // Create CreateAttributeOp for each accessor
-    for (const { edge, fieldName } of accessorEdges) {
-      const accessorNode = accessorNodes.get(edge.source)!
-      const expression = accessorNode.data.inputs?.expression || 'd'
-      const attributeName = ACCESSOR_FIELD_TO_ATTRIBUTE[fieldName] || fieldName.replace('get', '').toLowerCase()
+    const expression = (accessorNode.data.inputs?.expression as string) || 'd'
 
-      // Create CreateAttributeOp node
-      const createAttrNodeId = accessorNode.id.includes('/accessor-')
-        ? accessorNode.id.replace('/accessor-', '/create-attr-')
-        : `${accessorNode.id}-create-attr-${attributeName}`
+    // Create ONE CreateAttributeOp per unique attribute name
+    let currentDataSource = dataSourceId
+    let currentDataHandle = dataSourceHandle
+
+    for (const attributeName of attributeNames) {
+      // Determine type/size based on attribute name
+      const isColor = attributeName.includes('Color') || attributeName === 'color'
+      const isPosition = attributeName === 'position' || attributeName === 'sourcePosition' || attributeName === 'targetPosition'
+
+      const createAttrNodeId = `${accessorId.replace('/accessor-', '/attr-')}-${attributeName}`
+
       const createAttrNode = {
         id: createAttrNodeId,
         type: 'CreateAttributeOp',
         position: {
           x: accessorNode.position.x,
-          y: accessorNode.position.y,
+          y: accessorNode.position.y + createAttrIndex * 120,
         },
         data: {
           inputs: {
-            data: undefined, // Will be connected
             name: attributeName,
             expression,
-            type: fieldName.includes('Color') ? 'uint8' : 'float',
-            size: fieldName === 'getPosition' || fieldName === 'getSourcePosition' || fieldName === 'getTargetPosition' ? 3 :
-                  fieldName.includes('Color') ? 4 : 1,
           },
         },
       }
 
       newNodes.push(createAttrNode)
+      createAttrIndex++
 
       // Connect data source to CreateAttributeOp
       const dataInputEdge = {
@@ -156,16 +192,23 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
       }
       newEdges.push(dataInputEdge)
 
-      // Chain for next CreateAttributeOp
+      // Chain for next CreateAttributeOp (if multiple attributes from same accessor)
       currentDataSource = createAttrNodeId
       currentDataHandle = 'out.data'
-
-      // Mark accessor node for removal
-      nodesToRemove.add(edge.source)
-      edgesToRemove.add(edge.id)
     }
 
-    // Update layer's data connection to point to last CreateAttributeOp
+    // Update all layers using this accessor to read from the final CreateAttributeOp in chain
+    for (const { layerId, edgeId } of layers) {
+      layerDataUpdates.set(layerId, { source: currentDataSource, handle: currentDataHandle })
+      edgesToRemove.add(edgeId)
+    }
+
+    // Mark accessor node for removal
+    nodesToRemove.add(accessorId)
+  }
+
+  // Update layer data connections
+  for (const [layerId, { source, handle }] of layerDataUpdates) {
     const layerDataEdgeIndex = newEdges.findIndex(
       e => e.target === layerId && e.targetHandle === 'par.data'
     )
@@ -173,12 +216,12 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
       const oldEdge = newEdges[layerDataEdgeIndex]
       newEdges[layerDataEdgeIndex] = {
         ...oldEdge,
-        source: currentDataSource,
-        sourceHandle: currentDataHandle,
+        source,
+        sourceHandle: handle,
         id: edgeId({
-          source: currentDataSource,
+          source,
           target: layerId,
-          sourceHandle: currentDataHandle,
+          sourceHandle: handle,
           targetHandle: 'par.data',
         }),
       }
@@ -189,31 +232,9 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
   const filteredNodes = newNodes.filter(n => !nodesToRemove.has(n.id))
   const filteredEdges = newEdges.filter(e => !edgesToRemove.has(e.id))
 
-  // Re-layout: position CreateAttributeOp nodes vertically
-  const createAttrNodeIds = new Set(
-    filteredNodes.filter(n => n.type === 'CreateAttributeOp').map(n => n.id)
-  )
-
-  let createAttrIndex = 0
-  const finalNodes = filteredNodes.map(node => {
-    if (node.type === 'CreateAttributeOp') {
-      const yOffset = 120
-      const newY = node.position.y + createAttrIndex * yOffset
-      createAttrIndex++
-      return {
-        ...node,
-        position: {
-          ...node.position,
-          y: newY,
-        },
-      }
-    }
-    return node
-  })
-
   return {
     ...project,
-    nodes: finalNodes,
+    nodes: filteredNodes,
     edges: filteredEdges,
   }
 }

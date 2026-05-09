@@ -50,12 +50,13 @@ describe('015-accessor-to-attribute migration', () => {
     // AccessorOp should be removed
     expect(migrated.nodes.find(n => n.id === '/accessor-position')).toBeUndefined()
 
-    // CreateAttributeOp should be added
+    // CreateAttributeOp should be added (expression-only mode, no type/size)
     const createAttrNode = migrated.nodes.find(n => n.type === 'CreateAttributeOp')
     expect(createAttrNode).toBeDefined()
     expect(createAttrNode?.data.inputs.name).toBe('position')
     expect(createAttrNode?.data.inputs.expression).toBe('[d.lng, d.lat, 0]')
-    expect(createAttrNode?.data.inputs.size).toBe(3)
+    expect(createAttrNode?.data.inputs.type).toBeUndefined()
+    expect(createAttrNode?.data.inputs.size).toBeUndefined()
 
     // Old accessor edge should be removed
     expect(migrated.edges.find(e => e.sourceHandle === 'out.accessor')).toBeUndefined()
@@ -225,8 +226,9 @@ describe('015-accessor-to-attribute migration', () => {
     const migrated = await up(project)
 
     const createAttrNode = migrated.nodes.find(n => n.type === 'CreateAttributeOp')
-    expect(createAttrNode?.data.inputs.size).toBe(4)
     expect(createAttrNode?.data.inputs.name).toBe('color')
+    expect(createAttrNode?.data.inputs.type).toBeUndefined()
+    expect(createAttrNode?.data.inputs.size).toBeUndefined()
   })
 
   it('should not migrate if no AccessorOps present', async () => {
@@ -406,6 +408,87 @@ describe('015-accessor-to-attribute migration', () => {
 
     // Nodes should be vertically spaced by 120px
     expect(createAttrNodes[1].position.y).toBeGreaterThan(createAttrNodes[0].position.y)
+  })
+
+  it('should deduplicate CreateAttributeOps when same accessor is used by multiple layers', async () => {
+    // This is the NYC taxis scenario: /pickup-position feeds into multiple layers
+    const project: NoodlesProjectJSON = {
+      version: 14,
+      nodes: [
+        {
+          id: '/data',
+          type: 'FileOp',
+          position: { x: 0, y: 0 },
+          data: { inputs: { url: '@/data.csv' } },
+        },
+        {
+          id: '/accessor-position',
+          type: 'AccessorOp',
+          position: { x: 200, y: 0 },
+          data: { inputs: { expression: '[d.lng, d.lat, 0]' } },
+        },
+        {
+          id: '/layer1',
+          type: 'ScatterplotLayerOp',
+          position: { x: 400, y: -100 },
+          data: { inputs: {} },
+        },
+        {
+          id: '/layer2',
+          type: 'ScatterplotLayerOp',
+          position: { x: 400, y: 100 },
+          data: { inputs: {} },
+        },
+      ],
+      edges: [
+        {
+          id: '/data.out.data->/layer1.par.data',
+          source: '/data',
+          target: '/layer1',
+          sourceHandle: 'out.data',
+          targetHandle: 'par.data',
+        },
+        {
+          id: '/data.out.data->/layer2.par.data',
+          source: '/data',
+          target: '/layer2',
+          sourceHandle: 'out.data',
+          targetHandle: 'par.data',
+        },
+        {
+          id: '/accessor-position.out.accessor->/layer1.par.getPosition',
+          source: '/accessor-position',
+          target: '/layer1',
+          sourceHandle: 'out.accessor',
+          targetHandle: 'par.getPosition',
+        },
+        {
+          id: '/accessor-position.out.accessor->/layer2.par.getPosition',
+          source: '/accessor-position',
+          target: '/layer2',
+          sourceHandle: 'out.accessor',
+          targetHandle: 'par.getPosition',
+        },
+      ],
+      viewport: { x: 0, y: 0, zoom: 1 },
+    }
+
+    const migrated = await up(project)
+
+    // Should create only ONE CreateAttributeOp (not two)
+    const createAttrNodes = migrated.nodes.filter(n => n.type === 'CreateAttributeOp')
+    expect(createAttrNodes).toHaveLength(1)
+
+    const createAttrNode = createAttrNodes[0]
+    expect(createAttrNode.data.inputs.name).toBe('position')
+    expect(createAttrNode.data.inputs.expression).toBe('[d.lng, d.lat, 0]')
+
+    // Both layers should be connected to the same CreateAttributeOp
+    const layer1Data = migrated.edges.find(e => e.target === '/layer1' && e.targetHandle === 'par.data')
+    const layer2Data = migrated.edges.find(e => e.target === '/layer2' && e.targetHandle === 'par.data')
+
+    expect(layer1Data?.source).toBe(createAttrNode.id)
+    expect(layer2Data?.source).toBe(createAttrNode.id)
   })
 
   it('should return project unchanged for down migration', async () => {
