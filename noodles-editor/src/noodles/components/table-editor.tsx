@@ -30,21 +30,131 @@ interface CellEditorProps {
   column: ColumnSchema
 }
 
-function NumberCellEditor({ value, onChange, onComplete, column }: CellEditorProps) {
+// Simplified draggable number input for table cells
+function DraggableNumberCellInput({
+  value,
+  onChange,
+  onBlur,
+  onKeyDown,
+  step = 1,
+  autoFocus,
+  className,
+}: {
+  value: string
+  onChange: (value: string) => void
+  onBlur: () => void
+  onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
+  step?: number
+  autoFocus?: boolean
+  className?: string
+}) {
+  const [isDragging, setIsDragging] = useState(false)
+  const [isActive, setIsActive] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const dragStartRef = useRef<{ x: number; value: number } | null>(null)
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLInputElement>) => {
+    if (isActive) return // Don't drag while editing text
+
+    const numValue = Number.parseFloat(value) || 0
+    dragStartRef.current = {
+      x: e.clientX,
+      value: numValue,
+    }
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!dragStartRef.current) return
+
+      const deltaX = moveEvent.clientX - dragStartRef.current.x
+      const valueChange = Math.round(deltaX) * step
+      const newValue = dragStartRef.current.value + valueChange
+
+      setIsDragging(true)
+      onChange(newValue.toString())
+    }
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+      dragStartRef.current = null
+      setIsDragging(false)
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+  }
+
   return (
-    <InputNumber
-      value={value as number}
-      min={column.options?.min}
-      max={column.options?.max}
-      step={column.options?.step ?? 1}
-      onValueChange={(e) => onChange(e.value ?? 0)}
+    <input
+      ref={inputRef}
+      type="text"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onMouseDown={handleMouseDown}
+      onFocus={() => setIsActive(true)}
+      onBlur={() => {
+        setIsActive(false)
+        onBlur()
+      }}
+      onKeyDown={onKeyDown}
+      autoFocus={autoFocus}
+      className={`p-inputtext ${className || ''}`}
+      style={{
+        cursor: isActive ? 'text' : 'ew-resize',
+        userSelect: isDragging ? 'none' : 'auto',
+      }}
+    />
+  )
+}
+
+function NumberCellEditor({ value, onChange, onComplete, column }: CellEditorProps) {
+  // Hold string value locally for editing
+  const [stringValue, setStringValue] = useState(String(value ?? ''))
+  // Track the initial value for Escape key
+  const initialValueRef = useRef(value as number)
+
+  const parseAndApplyConstraints = (str: string) => {
+    const parsed = Number.parseFloat(str)
+    const finalValue = Number.isNaN(parsed) ? (column.defaultValue ?? 0) : parsed
+
+    // Apply min/max constraints
+    let constrainedValue = finalValue
+    if (column.options?.min !== undefined && constrainedValue < column.options.min) {
+      constrainedValue = column.options.min
+    }
+    if (column.options?.max !== undefined && constrainedValue > column.options.max) {
+      constrainedValue = column.options.max
+    }
+
+    return constrainedValue
+  }
+
+  const handleChange = (newStringValue: string) => {
+    setStringValue(newStringValue)
+    // Parse and update parent on every change
+    const parsedValue = parseAndApplyConstraints(newStringValue)
+    onChange(parsedValue)
+  }
+
+  return (
+    <DraggableNumberCellInput
+      value={stringValue}
+      onChange={handleChange}
       onBlur={onComplete}
       onKeyDown={(e) => {
         e.stopPropagation()
-        if (e.key === 'Enter' || e.key === 'Escape') {
+        if (e.key === 'Enter') {
           onComplete()
         }
+        if (e.key === 'Escape') {
+          // Revert to initial value captured at mount
+          setStringValue(String(initialValueRef.current ?? ''))
+          onChange(initialValueRef.current)
+          // Give the onChange time to propagate before completing
+          requestAnimationFrame(() => onComplete())
+        }
       }}
+      step={column.options?.step ?? 1}
       autoFocus
       className={s.cellEditor}
     />
@@ -55,9 +165,9 @@ function StringCellEditor({ value, onChange, onComplete }: CellEditorProps) {
   return (
     <InputText
       value={value as string}
-      onChange={(e) => onChange(e.target.value)}
+      onChange={e => onChange(e.target.value)}
       onBlur={onComplete}
-      onKeyDown={(e) => {
+      onKeyDown={e => {
         e.stopPropagation()
         if (e.key === 'Enter') {
           onComplete()
@@ -76,7 +186,7 @@ function BooleanCellEditor({ value, onChange, onComplete }: CellEditorProps) {
   return (
     <InputSwitch
       checked={value as boolean}
-      onChange={(e) => {
+      onChange={e => {
         onChange(e.value)
         onComplete()
       }}
@@ -89,7 +199,7 @@ function ColorCellEditor({ value, onChange, onComplete }: CellEditorProps) {
   return (
     <div
       onBlur={onComplete}
-      onKeyDown={(e) => {
+      onKeyDown={e => {
         if (e.key === 'Enter' || e.key === 'Escape') {
           onComplete()
         }
@@ -108,8 +218,8 @@ function Point2DCellEditor({ value, onChange, onComplete, column }: CellEditorPr
       <InputNumber
         value={lng}
         step={0.0001}
-        onValueChange={(e) => onChange([e.value ?? 0, lat])}
-        onKeyDown={(e) => {
+        onValueChange={e => onChange([e.value ?? 0, lat])}
+        onKeyDown={e => {
           e.stopPropagation()
           if (e.key === 'Enter' || e.key === 'Escape') {
             onComplete()
@@ -121,9 +231,9 @@ function Point2DCellEditor({ value, onChange, onComplete, column }: CellEditorPr
       <InputNumber
         value={lat}
         step={0.0001}
-        onValueChange={(e) => onChange([lng, e.value ?? 0])}
+        onValueChange={e => onChange([lng, e.value ?? 0])}
         onBlur={onComplete}
-        onKeyDown={(e) => {
+        onKeyDown={e => {
           e.stopPropagation()
           if (e.key === 'Enter' || e.key === 'Escape') {
             onComplete()
@@ -156,8 +266,8 @@ function Vec3CellEditor({ value, onChange, onComplete }: CellEditorProps) {
     <div className={s.vec3Editor}>
       <InputNumber
         value={x}
-        onValueChange={(e) => onChange([e.value ?? 0, y, z])}
-        onKeyDown={(e) => {
+        onValueChange={e => onChange([e.value ?? 0, y, z])}
+        onKeyDown={e => {
           e.stopPropagation()
           if (e.key === 'Enter' || e.key === 'Escape') {
             onComplete()
@@ -168,8 +278,8 @@ function Vec3CellEditor({ value, onChange, onComplete }: CellEditorProps) {
       />
       <InputNumber
         value={y}
-        onValueChange={(e) => onChange([x, e.value ?? 0, z])}
-        onKeyDown={(e) => {
+        onValueChange={e => onChange([x, e.value ?? 0, z])}
+        onKeyDown={e => {
           e.stopPropagation()
           if (e.key === 'Enter' || e.key === 'Escape') {
             onComplete()
@@ -180,9 +290,9 @@ function Vec3CellEditor({ value, onChange, onComplete }: CellEditorProps) {
       />
       <InputNumber
         value={z}
-        onValueChange={(e) => onChange([x, y, e.value ?? 0])}
+        onValueChange={e => onChange([x, y, e.value ?? 0])}
         onBlur={onComplete}
-        onKeyDown={(e) => {
+        onKeyDown={e => {
           e.stopPropagation()
           if (e.key === 'Enter' || e.key === 'Escape') {
             onComplete()
@@ -200,9 +310,9 @@ function DateCellEditor({ value, onChange, onComplete }: CellEditorProps) {
     <InputText
       type="date"
       value={value as string}
-      onChange={(e) => onChange(e.target.value)}
+      onChange={e => onChange(e.target.value)}
       onBlur={onComplete}
-      onKeyDown={(e) => {
+      onKeyDown={e => {
         e.stopPropagation()
         if (e.key === 'Enter' || e.key === 'Escape') {
           onComplete()
@@ -218,9 +328,10 @@ function DateTimeCellEditor({ value, onChange, onComplete, column }: CellEditorP
   const timezoneOptions = useState(() => getTimezoneOptions())[0]
 
   // Extract datetime and timezone from DateTimeValue
-  const dateTimeValue = (value && typeof value === 'object' && 'datetime' in value && 'timezone' in value)
-    ? value as DateTimeValue
-    : { datetime: '', timezone: 'UTC' }
+  const dateTimeValue =
+    value && typeof value === 'object' && 'datetime' in value && 'timezone' in value
+      ? (value as DateTimeValue)
+      : { datetime: '', timezone: 'UTC' }
 
   const [filteredTimezones, setFilteredTimezones] = useState<string[]>(timezoneOptions)
   const [timezoneInputValue, setTimezoneInputValue] = useState<string>(dateTimeValue.timezone)
@@ -230,7 +341,11 @@ function DateTimeCellEditor({ value, onChange, onComplete, column }: CellEditorP
 
   // Apply pending timezone change to cell value
   const applyTimezoneChange = () => {
-    if (pendingTimezone && pendingTimezone !== dateTimeValue.timezone && timezoneOptions.includes(pendingTimezone)) {
+    if (
+      pendingTimezone &&
+      pendingTimezone !== dateTimeValue.timezone &&
+      timezoneOptions.includes(pendingTimezone)
+    ) {
       // Update cell value with new timezone
       const newValue: DateTimeValue = {
         datetime: datetimeValue,
@@ -275,8 +390,8 @@ function DateTimeCellEditor({ value, onChange, onComplete, column }: CellEditorP
         type="datetime-local"
         step={0.001}
         value={datetimeValue}
-        onChange={(e) => handleDatetimeChange(e.target.value)}
-        onKeyDown={(e) => {
+        onChange={e => handleDatetimeChange(e.target.value)}
+        onKeyDown={e => {
           e.stopPropagation()
           if (e.key === 'Enter' || e.key === 'Escape') {
             onComplete()
@@ -288,21 +403,21 @@ function DateTimeCellEditor({ value, onChange, onComplete, column }: CellEditorP
       <AutoComplete
         value={timezoneInputValue}
         suggestions={filteredTimezones}
-        completeMethod={(e) => {
+        completeMethod={e => {
           const query = e.query.toLowerCase()
           const filtered = query
-            ? timezoneOptions.filter((tz) => tz.toLowerCase().includes(query))
+            ? timezoneOptions.filter(tz => tz.toLowerCase().includes(query))
             : timezoneOptions
           // Always set suggestions immediately to avoid spinner
           setFilteredTimezones(filtered.length > 0 ? filtered : timezoneOptions)
         }}
-        onChange={(e) => {
+        onChange={e => {
           setTimezoneInputValue(e.value || dateTimeValue.timezone)
         }}
         onDropdownClick={() => {
           setFilteredTimezones(timezoneOptions)
         }}
-        onSelect={(e) => {
+        onSelect={e => {
           if (e.value && typeof e.value === 'string' && timezoneOptions.includes(e.value)) {
             setPendingTimezone(e.value)
             setTimezoneInputValue(e.value)
@@ -313,7 +428,7 @@ function DateTimeCellEditor({ value, onChange, onComplete, column }: CellEditorP
         placeholder="TZ"
         className={s.timezoneDropdown}
         panelClassName={s.timezonePanel}
-        itemTemplate={(item) => (
+        itemTemplate={item => (
           <div
             onMouseDown={() => {
               setPendingTimezone(item)
@@ -398,9 +513,10 @@ function renderDateTimeCell(value: unknown, column: ColumnSchema): string {
   // Only handle DateTimeValue format
   if (value && typeof value === 'object' && 'datetime' in value && 'timezone' in value) {
     const dateTimeValue = value as DateTimeValue
-    const tzAbbrev = dateTimeValue.timezone === 'UTC'
-      ? 'UTC'
-      : dateTimeValue.timezone.split('/').pop() ?? dateTimeValue.timezone
+    const tzAbbrev =
+      dateTimeValue.timezone === 'UTC'
+        ? 'UTC'
+        : (dateTimeValue.timezone.split('/').pop() ?? dateTimeValue.timezone)
     return `${dateTimeValue.datetime} ${tzAbbrev}`
   }
   return ''
@@ -451,23 +567,33 @@ interface EditableCellProps {
 }
 
 function EditableCell({ getValue, row, column, table }: EditableCellProps) {
-  const initialValue = getValue()
+  const currentValue = getValue()
   const [isEditing, setIsEditing] = useState(false)
-  const [value, setValue] = useState(initialValue)
+  const [value, setValue] = useState(currentValue)
+  const prevValueRef = useRef(currentValue)
 
-  const colSchema = table.options.meta?.schema.columns.find((col) => col.name === column.id)
+  // Sync state with current value when not editing
+  if (!isEditing && currentValue !== prevValueRef.current) {
+    setValue(currentValue)
+    prevValueRef.current = currentValue
+  }
+
+  const colSchema = table.options.meta?.schema.columns.find(col => col.name === column.id)
   if (!colSchema) {
-    return <div className={s.cell}>{String(initialValue)}</div>
+    return <div className={s.cell}>{String(currentValue)}</div>
   }
 
   const EditorComponent = getCellEditor(colSchema.type)
   const renderer = getCellRenderer(colSchema.type)
 
+  const startEditing = () => {
+    setIsEditing(true)
+  }
+
   const handleComplete = () => {
     setIsEditing(false)
-    if (value !== initialValue) {
-      table.options.meta?.updateData(row.index, column.id, value)
-    }
+    // Always update - let updateData handle whether it's actually changed
+    table.options.meta?.updateData(row.index, column.id, value)
   }
 
   if (isEditing) {
@@ -484,17 +610,21 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
   }
 
   // Render cell - dateTime renderer needs column schema for timezone
-  const renderedValue = colSchema.type === 'dateTime'
-    ? (renderer as (value: unknown, column: ColumnSchema) => React.ReactNode)(initialValue, colSchema)
-    : (renderer as (value: unknown) => React.ReactNode)(initialValue)
+  const renderedValue =
+    colSchema.type === 'dateTime'
+      ? (renderer as (value: unknown, column: ColumnSchema) => React.ReactNode)(
+          currentValue,
+          colSchema
+        )
+      : (renderer as (value: unknown) => React.ReactNode)(currentValue)
 
   return (
     <div
       className={s.cell}
-      onClick={() => setIsEditing(true)}
-      onKeyDown={(e) => {
+      onClick={startEditing}
+      onKeyDown={e => {
         if (e.key === 'Enter' || e.key === ' ') {
-          setIsEditing(true)
+          startEditing()
         }
       }}
       tabIndex={0}
@@ -514,12 +644,7 @@ interface TableEditorProps {
   onSchemaChange: (schema: TableSchema) => void
 }
 
-export function TableEditor({
-  data,
-  schema,
-  onDataChange,
-  onSchemaChange,
-}: TableEditorProps) {
+export function TableEditor({ data, schema, onDataChange, onSchemaChange }: TableEditorProps) {
   const [tableData, setTableData] = useState(data)
 
   useEffect(() => {
@@ -538,7 +663,7 @@ export function TableEditor({
 
   const handleSchemaChange = (newSchema: TableSchema) => {
     // Update data to match new schema
-    const newData = tableData.map((row) => {
+    const newData = tableData.map(row => {
       const newRow: Record<string, unknown> = {}
       for (const col of newSchema.columns) {
         const existingValue = row[col.name]
@@ -564,10 +689,10 @@ export function TableEditor({
     columnHelper.display({
       id: '_rowNumber',
       header: '#',
-      cell: (props) => <div className={s.rowNumber}>{props.row.index + 1}</div>,
+      cell: props => <div className={s.rowNumber}>{props.row.index + 1}</div>,
       size: 50,
     }),
-    ...schema.columns.map((colSchema) =>
+    ...schema.columns.map(colSchema =>
       columnHelper.accessor(colSchema.name, {
         header: colSchema.name,
         cell: EditableCell,
@@ -575,10 +700,8 @@ export function TableEditor({
     ),
     columnHelper.display({
       id: '_actions',
-      header: () => (
-        <SchemaEditorDialog schema={schema} onChange={handleSchemaChange} />
-      ),
-      cell: (props) => (
+      header: () => <SchemaEditorDialog schema={schema} onChange={handleSchemaChange} />,
+      cell: props => (
         <Button
           icon="pi pi-trash"
           className={`p-button-text p-button-sm ${s.deleteButton}`}
@@ -596,6 +719,11 @@ export function TableEditor({
     getCoreRowModel: getCoreRowModel(),
     meta: {
       updateData: (rowIndex: number, columnId: string, value: unknown) => {
+        // Only update if value actually changed
+        const currentValue = tableData[rowIndex]?.[columnId]
+        if (currentValue === value) {
+          return
+        }
         const newData = [...tableData]
         newData[rowIndex] = {
           ...newData[rowIndex],
@@ -628,9 +756,9 @@ export function TableEditor({
       <div className={s.tableWrapper}>
         <table className={s.table}>
           <thead>
-            {table.getHeaderGroups().map((headerGroup) => (
+            {table.getHeaderGroups().map(headerGroup => (
               <tr key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
+                {headerGroup.headers.map(header => (
                   <th key={header.id} className={s.header}>
                     {header.isPlaceholder
                       ? null
@@ -641,9 +769,9 @@ export function TableEditor({
             ))}
           </thead>
           <tbody>
-            {table.getRowModel().rows.map((row) => (
+            {table.getRowModel().rows.map(row => (
               <tr key={row.id} className={s.row}>
-                {row.getVisibleCells().map((cell) => (
+                {row.getVisibleCells().map(cell => (
                   <td key={cell.id} className={s.cellContainer}>
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>
@@ -661,8 +789,8 @@ export function TableEditor({
           className={`p-button-sm p-button-text ${s.addRowButton}`}
         />
         <div className={s.stats}>
-          {tableData.length} row{tableData.length !== 1 ? 's' : ''} × {schema.columns.length}{' '}
-          column{schema.columns.length !== 1 ? 's' : ''}
+          {tableData.length} row{tableData.length !== 1 ? 's' : ''} × {schema.columns.length} column
+          {schema.columns.length !== 1 ? 's' : ''}
         </div>
       </div>
     </div>

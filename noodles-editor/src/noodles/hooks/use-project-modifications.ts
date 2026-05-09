@@ -6,6 +6,7 @@ import {
   getConnectedEdges,
   getIncomers,
   getOutgoers,
+  reconnectEdge,
   type OnConnect,
   type Edge as ReactFlowEdge,
   type Node as ReactFlowNode,
@@ -755,6 +756,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       const validation = validateConnection(sourceField, targetField)
 
       // Update edges - replace existing if target is not a ListField
+      let finalEdgeId = newEdge.id
       setEdges(eds => {
         const existing = eds.find(
           e => e.target === newEdge.target && e.targetHandle === newEdge.targetHandle
@@ -762,20 +764,20 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         if (existing && !(targetField instanceof ListField)) {
           // Clear any previous error for the replaced edge
           targetOp.removeConnectionError(existing.id)
-          return applyEdgeChanges(
-            [{ type: 'replace', id: existing.id, item: newEdge }],
-            eds as ReactFlowEdge[]
-          )
+          // reconnectEdge preserves the old edge ID
+          finalEdgeId = existing.id
+          return reconnectEdge(existing, newEdge, eds as ReactFlowEdge[])
         }
         return reactFlowAddEdge(newEdge, eds as ReactFlowEdge[])
       })
 
       // Track connection error if validation failed, or clear error if valid
+      // Use finalEdgeId which matches the actual edge ID in the store
       if (!validation.valid && validation.error) {
-        targetOp.addConnectionError(newEdge.id, validation.error)
+        targetOp.addConnectionError(finalEdgeId, validation.error)
       } else {
         // Clear any existing error for this edge if connection is now valid
-        targetOp.removeConnectionError(newEdge.id)
+        targetOp.removeConnectionError(finalEdgeId)
       }
 
       // Update target node with new input value

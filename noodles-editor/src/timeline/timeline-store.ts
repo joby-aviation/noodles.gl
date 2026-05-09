@@ -36,6 +36,7 @@ export interface TimelineStore {
   position: number
   playing: boolean
   loop: boolean
+  loopInOut: boolean
   playbackSpeed: number
   selectedKeyframeIds: Set<string>
   selectedTrackIds: Set<string>
@@ -46,12 +47,18 @@ export interface TimelineStore {
   setLength: (length: number) => void
   setFps: (fps: number) => void
 
+  // === In/Out Point Actions ===
+  setInPoint: (time: number) => void
+  setOutPoint: (time: number) => void
+  clearInOutPoints: () => void
+
   // === Playback Actions ===
   setPosition: (position: number) => void
   play: () => void
   pause: () => void
   togglePlay: () => void
   toggleLoop: () => void
+  toggleLoopInOut: () => void
   setPlaybackSpeed: (speed: number) => void
   stepForward: (frames?: number) => void
   stepBackward: (frames?: number) => void
@@ -205,6 +212,7 @@ export const useTimelineStore = create<TimelineStore>()(
     position: 0,
     playing: false,
     loop: true,
+    loopInOut: false,
     playbackSpeed: 1,
     selectedKeyframeIds: new Set(),
     selectedTrackIds: new Set(),
@@ -213,15 +221,54 @@ export const useTimelineStore = create<TimelineStore>()(
 
     // === Sequence Actions ===
     setLength: length => {
-      set(state => ({
-        sequence: { ...state.sequence, length: Math.max(0.1, length) },
-        position: Math.min(state.position, length),
-      }))
+      set(state => {
+        const newLength = Math.max(0.1, length)
+        const { outPoint } = state.sequence
+
+        return {
+          sequence: {
+            ...state.sequence,
+            length: newLength,
+            // If outPoint is set, clamp it; otherwise leave undefined
+            outPoint: outPoint !== undefined ? Math.min(outPoint, newLength) : undefined,
+          },
+          position: Math.min(state.position, newLength),
+        }
+      })
     },
 
     setFps: fps => {
       set(state => ({
         sequence: { ...state.sequence, fps: Math.max(1, Math.round(fps)) },
+      }))
+    },
+
+    // === In/Out Point Actions ===
+    setInPoint: time => {
+      set(state => {
+        const { sequence } = state
+        const max = sequence.outPoint ?? sequence.length
+        const clamped = Math.max(0, Math.min(time, max))
+        return {
+          sequence: { ...sequence, inPoint: clamped },
+        }
+      })
+    },
+
+    setOutPoint: time => {
+      set(state => {
+        const { sequence } = state
+        const min = sequence.inPoint ?? 0
+        const clamped = Math.max(min, Math.min(time, sequence.length))
+        return {
+          sequence: { ...sequence, outPoint: clamped },
+        }
+      })
+    },
+
+    clearInOutPoints: () => {
+      set(state => ({
+        sequence: { ...state.sequence, inPoint: undefined, outPoint: undefined },
       }))
     },
 
@@ -235,6 +282,7 @@ export const useTimelineStore = create<TimelineStore>()(
     pause: () => set({ playing: false }),
     togglePlay: () => set(state => ({ playing: !state.playing })),
     toggleLoop: () => set(state => ({ loop: !state.loop })),
+    toggleLoopInOut: () => set(state => ({ loopInOut: !state.loopInOut })),
 
     setPlaybackSpeed: speed => {
       set({ playbackSpeed: Math.max(0.1, Math.min(10, speed)) })
@@ -806,6 +854,8 @@ export const useTimelineStore = create<TimelineStore>()(
               subUnitsPerUnit: sequence.fps,
               tracksByObject,
               markers: serializedMarkers.length > 0 ? serializedMarkers : undefined,
+              inPoint: sequence.inPoint,
+              outPoint: sequence.outPoint,
             },
             staticOverrides: { byObject: {} },
           },
@@ -888,16 +938,23 @@ export const useTimelineStore = create<TimelineStore>()(
         })),
       }))
 
+      const length =
+        typeof seq.length === 'number' && seq.length > 0
+          ? seq.length
+          : DEFAULT_SEQUENCE_STATE.length
+
+      const inPoint = typeof seq.inPoint === 'number' ? seq.inPoint : undefined
+      const outPoint = typeof seq.outPoint === 'number' ? Math.min(seq.outPoint, length) : undefined
+
       set({
         sequence: {
-          length:
-            typeof seq.length === 'number' && seq.length > 0
-              ? seq.length
-              : DEFAULT_SEQUENCE_STATE.length,
+          length,
           fps:
             typeof seq.subUnitsPerUnit === 'number' && seq.subUnitsPerUnit > 0
               ? Math.round(seq.subUnitsPerUnit)
               : DEFAULT_SEQUENCE_STATE.fps,
+          inPoint,
+          outPoint,
         },
         tracks: newTracks,
         markers,

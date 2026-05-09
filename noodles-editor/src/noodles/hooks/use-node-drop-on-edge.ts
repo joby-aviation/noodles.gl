@@ -258,9 +258,7 @@ export function useNodeDropOnEdge(options: UseNodeDropOnEdgeOptions) {
 
       // Check if node has existing connections
       const edges = getEdges()
-      const hasExistingConnections = edges.some(
-        e => e.source === node.id || e.target === node.id
-      )
+      const hasExistingConnections = edges.some(e => e.source === node.id || e.target === node.id)
 
       // Check if we can insert this node
       const { canInsert } = canInsertNode(edge, node.id)
@@ -284,9 +282,7 @@ export function useNodeDropOnEdge(options: UseNodeDropOnEdgeOptions) {
 
       // Check if node has existing connections
       const edges = getEdges()
-      const hasExistingConnections = edges.some(
-        e => e.source === node.id || e.target === node.id
-      )
+      const hasExistingConnections = edges.some(e => e.source === node.id || e.target === node.id)
 
       // Require Shift key for nodes with existing connections to prevent accidental drops
       if (hasExistingConnections && !event.shiftKey) {

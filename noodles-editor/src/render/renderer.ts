@@ -113,7 +113,7 @@ export const useRenderer = ({
           frameRate: fps,
         })
 
-        let currentFrameIndex = startFrame
+        let currentFrameIndex = 0
         const videoEncoder = new VideoEncoder({
           output: (chunk, meta) => {
             // Use the simulated time as the timestamp, not the VideoFrame's real-time timestamp

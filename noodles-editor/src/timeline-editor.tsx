@@ -19,7 +19,7 @@ import { useDeckDrawLoop } from './render/draw-loop'
 import { captureScreenshot, useRenderer } from './render/renderer'
 import { TransformScale } from './render/transform-scale'
 import { CollapsibleTimelinePanel } from './timeline/components/CollapsibleTimelinePanel'
-import { useTimelineStore } from './timeline/timeline-store'
+import { getTimelineStore, useTimelineStore } from './timeline/timeline-store'
 import s from './timeline-editor.module.css'
 import { debugRender } from './utils/debug'
 import setRef from './utils/set-ref'
@@ -99,6 +99,8 @@ export default function TimelineEditor() {
   const activeStorageType = useActiveStorageType()
 
   const sequenceLength = useSequenceLength()
+  const inPoint = useTimelineStore(state => state.sequence.inPoint)
+  const outPoint = useTimelineStore(state => state.sequence.outPoint)
 
   const {
     framerate,
@@ -265,7 +267,12 @@ export default function TimelineEditor() {
           map.removeLayer(config.id)
         }
 
-        const layerImpl = evaluateMapLibreLayerCode(config.code, config.params || {}, config.id, map)
+        const layerImpl = evaluateMapLibreLayerCode(
+          config.code,
+          config.params || {},
+          config.id,
+          map
+        )
 
         const customLayer: CustomLayerInterface = {
           ...layerImpl,
@@ -406,8 +413,10 @@ export default function TimelineEditor() {
       codec,
       // This always scales the video to the specified value, regardless of `canvas` size
       ...resolution,
+      startFrame: Math.floor((inPoint ?? 0) * framerate),
+      endFrame: Math.floor((outPoint ?? sequenceLength) * framerate),
     })
-  }, [startCapture, codec, resolution, basemapEnabled])
+  }, [startCapture, codec, resolution, basemapEnabled, framerate, inPoint, outPoint, sequenceLength])
 
   const takeScreenshot = useCallback(async () => {
     if (!deckRef.current) {
@@ -491,14 +500,16 @@ export default function TimelineEditor() {
       directoryHandle: rendersDir,
       captureDelay,
       waitForData,
-      startFrame: 0,
-      endFrame: Math.floor(sequenceLength * framerate),
+      startFrame: Math.floor((inPoint ?? 0) * framerate),
+      endFrame: Math.floor((outPoint ?? sequenceLength) * framerate),
       onFrameStart: (frame, total) => debugRender('Exporting frame %d/%d', frame + 1, total),
       onFrameComplete: (frame, total) => debugRender('Completed frame %d/%d', frame, total),
     })
   }, [
     startSequenceCapture,
     sequenceLength,
+    inPoint,
+    outPoint,
     framerate,
     captureDelay,
     waitForData,

@@ -38,9 +38,11 @@ describe('enable-expression-evaluator', () => {
     })
 
     it('returns enabled:true for undefined expression', () => {
-      expect(evaluateEnableExpression(undefined as unknown as string, numberOp, mockGetOp)).toEqual({
-        enabled: true,
-      })
+      expect(evaluateEnableExpression(undefined as unknown as string, numberOp, mockGetOp)).toEqual(
+        {
+          enabled: true,
+        }
+      )
     })
 
     it('evaluates simple par.fieldName expressions', () => {
@@ -68,9 +70,9 @@ describe('enable-expression-evaluator', () => {
       expect(
         evaluateEnableExpression("op('/bool').par.val === true", numberOp, mockGetOp).enabled
       ).toBe(true)
-      expect(evaluateEnableExpression("op('/num').par.val > 40", booleanOp, mockGetOp).enabled).toBe(
-        true
-      )
+      expect(
+        evaluateEnableExpression("op('/num').par.val > 40", booleanOp, mockGetOp).enabled
+      ).toBe(true)
       expect(
         evaluateEnableExpression("op('/str').par.val === 'advanced'", numberOp, mockGetOp).enabled
       ).toBe(true)
@@ -113,9 +115,9 @@ describe('enable-expression-evaluator', () => {
 
     it('handles complex mathematical expressions', () => {
       expect(evaluateEnableExpression('par.val * 2 > 80', numberOp, mockGetOp).enabled).toBe(true)
-      expect(evaluateEnableExpression('Math.abs(par.val) === 42', numberOp, mockGetOp).enabled).toBe(
-        true
-      )
+      expect(
+        evaluateEnableExpression('Math.abs(par.val) === 42', numberOp, mockGetOp).enabled
+      ).toBe(true)
     })
 
     it('handles ternary expressions', () => {
@@ -134,11 +136,8 @@ describe('enable-expression-evaluator', () => {
     it('handles array includes expressions', () => {
       stringOp.inputs.val.setValue('option1')
       expect(
-        evaluateEnableExpression(
-          "['option1', 'option2'].includes(par.val)",
-          stringOp,
-          mockGetOp
-        ).enabled
+        evaluateEnableExpression("['option1', 'option2'].includes(par.val)", stringOp, mockGetOp)
+          .enabled
       ).toBe(true)
     })
 
@@ -229,9 +228,7 @@ describe('enable-expression-evaluator', () => {
     })
 
     it('handles method calls on cross-operator fields', () => {
-      const deps = getEnableExpressionDependencies(
-        "op('/x').par.field.toUpperCase() === 'TEST'"
-      )
+      const deps = getEnableExpressionDependencies("op('/x').par.field.toUpperCase() === 'TEST'")
       expect(deps).toHaveLength(1)
       expect(deps[0]).toMatchObject({
         type: 'remote-par',
@@ -320,9 +317,7 @@ describe('enable-expression-evaluator', () => {
 
     it('validates complex but valid expressions', () => {
       expect(
-        validateEnableExpression(
-          "par.value ? op('/a').par.b : op('/c').out.d || (par.e && par.f)"
-        )
+        validateEnableExpression("par.value ? op('/a').par.b : op('/c').out.d || (par.e && par.f)")
       ).toBeNull()
     })
   })
@@ -356,9 +351,7 @@ describe('enable-expression-evaluator', () => {
     })
 
     it('handles very long expressions', () => {
-      const longExpr = Array(100)
-        .fill('par.val > 0')
-        .join(' && ')
+      const longExpr = Array(100).fill('par.val > 0').join(' && ')
       const result = evaluateEnableExpression(longExpr, numberOp, mockGetOp)
       expect(result.enabled).toBe(true)
     })

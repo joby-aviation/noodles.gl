@@ -46,6 +46,104 @@ describe('TimelineStore', () => {
     })
   })
 
+  describe('in/out points', () => {
+    it('has default in/out points as undefined', () => {
+      const { sequence } = useTimelineStore.getState()
+      expect(sequence.inPoint).toBeUndefined()
+      expect(sequence.outPoint).toBeUndefined()
+    })
+
+    it('setInPoint updates in point', () => {
+      useTimelineStore.getState().setInPoint(2)
+      expect(useTimelineStore.getState().sequence.inPoint).toBe(2)
+    })
+
+    it('setOutPoint updates out point', () => {
+      useTimelineStore.getState().setOutPoint(8)
+      expect(useTimelineStore.getState().sequence.outPoint).toBe(8)
+    })
+
+    it('clearInOutPoints resets to undefined', () => {
+      useTimelineStore.getState().setLength(15)
+      useTimelineStore.getState().setInPoint(3)
+      useTimelineStore.getState().setOutPoint(12)
+      useTimelineStore.getState().clearInOutPoints()
+
+      const { sequence } = useTimelineStore.getState()
+      expect(sequence.inPoint).toBeUndefined()
+      expect(sequence.outPoint).toBeUndefined()
+    })
+
+    it('setLength does not affect undefined outPoint', () => {
+      // Initial state: outPoint is undefined
+      expect(useTimelineStore.getState().sequence.outPoint).toBeUndefined()
+
+      useTimelineStore.getState().setLength(20)
+
+      // outPoint should remain undefined
+      expect(useTimelineStore.getState().sequence.outPoint).toBeUndefined()
+    })
+
+    it('setLength preserves user-set outPoint when extending', () => {
+      useTimelineStore.getState().setOutPoint(8)
+      useTimelineStore.getState().setLength(20)
+
+      // outPoint should stay at user-set value
+      expect(useTimelineStore.getState().sequence.outPoint).toBe(8)
+    })
+
+    it('setLength clamps outPoint when shrinking below it', () => {
+      useTimelineStore.getState().setOutPoint(8)
+      useTimelineStore.getState().setLength(5)
+
+      // outPoint should be clamped to new length
+      expect(useTimelineStore.getState().sequence.outPoint).toBe(5)
+    })
+
+    it('setLength handles the sequence: extend with user points, clear, extend again', () => {
+      // Set user in/out points
+      useTimelineStore.getState().setInPoint(2)
+      useTimelineStore.getState().setOutPoint(8)
+
+      // Extend sequence - user points should be preserved
+      useTimelineStore.getState().setLength(20)
+      expect(useTimelineStore.getState().sequence.outPoint).toBe(8)
+
+      // Clear in/out points - resets to undefined
+      useTimelineStore.getState().clearInOutPoints()
+      expect(useTimelineStore.getState().sequence.inPoint).toBeUndefined()
+      expect(useTimelineStore.getState().sequence.outPoint).toBeUndefined()
+
+      // Extend again - outPoint should remain undefined
+      useTimelineStore.getState().setLength(30)
+      expect(useTimelineStore.getState().sequence.outPoint).toBeUndefined()
+    })
+
+    it('calculates correct frame range from in/out points for rendering', () => {
+      useTimelineStore.getState().setLength(10)
+      useTimelineStore.getState().setInPoint(2)
+      useTimelineStore.getState().setOutPoint(5)
+
+      const { inPoint, outPoint, length, fps } = useTimelineStore.getState().sequence
+      const startFrame = Math.floor((inPoint ?? 0) * fps)
+      const endFrame = Math.floor((outPoint ?? length) * fps)
+
+      expect(startFrame).toBe(60) // 2 seconds * 30 fps
+      expect(endFrame).toBe(150) // 5 seconds * 30 fps
+    })
+
+    it('calculates full sequence frame range when in/out points are undefined', () => {
+      useTimelineStore.getState().setLength(10)
+
+      const { inPoint, outPoint, length, fps } = useTimelineStore.getState().sequence
+      const startFrame = Math.floor((inPoint ?? 0) * fps)
+      const endFrame = Math.floor((outPoint ?? length) * fps)
+
+      expect(startFrame).toBe(0) // 0 seconds * 30 fps
+      expect(endFrame).toBe(300) // 10 seconds * 30 fps
+    })
+  })
+
   describe('playback', () => {
     it('has default playback state', () => {
       const state = useTimelineStore.getState()
@@ -416,7 +514,9 @@ describe('TimelineStore', () => {
 
       // Rename intermediate container - only renames container's own tracks
       // Pass child operator IDs to avoid renaming their tracks
-      store.renameTracksForOperator('/root/container-a', '/root/container-b', ['/root/container-a/op-1'])
+      store.renameTracksForOperator('/root/container-a', '/root/container-b', [
+        '/root/container-a/op-1',
+      ])
 
       // Child tracks not affected until they are renamed separately
       expect(store.getTrack('root / container-b / op-1 / value')).toBeUndefined()

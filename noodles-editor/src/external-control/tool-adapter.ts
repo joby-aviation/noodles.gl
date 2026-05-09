@@ -365,9 +365,7 @@ export class ToolRegistry {
 
     // Apply the modification
     await this.mcpTools.applyModifications({
-      modifications: {
-        nodes: [{ type: 'add' as const, node }],
-      },
+      modifications: [{ type: 'add_node', data: node }],
     })
 
     return {
@@ -397,9 +395,7 @@ export class ToolRegistry {
 
     // Apply the modification
     await this.mcpTools.applyModifications({
-      modifications: {
-        edges: [{ type: 'add' as const, edge }],
-      },
+      modifications: [{ type: 'add_edge', data: edge }],
     })
 
     return {
@@ -417,9 +413,7 @@ export class ToolRegistry {
 
     // Apply the modification
     await this.mcpTools.applyModifications({
-      modifications: {
-        nodes: [{ type: 'delete' as const, nodeId }],
-      },
+      modifications: [{ type: 'delete_node', data: { nodeId } }],
     })
 
     return {
