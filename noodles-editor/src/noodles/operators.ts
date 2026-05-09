@@ -5250,12 +5250,12 @@ export class TripsLayerOp extends Operator<TripsLayerOp> {
       ),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      getPath: new UnknownField((d: unknown) => d?.path || [], { accessor: true }),
-      getTimestamps: new UnknownField((d: unknown) => d?.timestamps || [], { accessor: true }),
+      getPath: new UnknownField((d: unknown) => d?.path || [], { accessor: true, defaultAttribute: 'path' }),
+      getTimestamps: new UnknownField((d: unknown) => d?.timestamps || [], { accessor: true, defaultAttribute: 'timestamps' }),
       // getPath: new ArrayField(new Point3DField([0, 0, 0], { returnType: 'tuple' }), { accessor: true }),
       // getTimestamps: new ArrayField(new NumberField(0, { min: 0, max: Number.MAX_SAFE_INTEGER }), { accessor: true }),
-      getColor: new ColorField('#bfcae3', { accessor: true, transform: hexToColor }),
-      getWidth: new NumberField(8, { min: 0, softMax: 100, accessor: true }),
+      getColor: new ColorField('#bfcae3', { accessor: true, transform: hexToColor, defaultAttribute: 'color' }),
+      getWidth: new NumberField(8, { min: 0, softMax: 100, accessor: true, defaultAttribute: 'width' }),
       billboard: new BooleanField(false, { showByDefault: false }),
       capRounded: new BooleanField(true, { showByDefault: false }),
       jointRounded: new BooleanField(true, { showByDefault: false }),
@@ -5283,13 +5283,18 @@ export class TripsLayerOp extends Operator<TripsLayerOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const layer = {
-      ...parseLayerProps<TripsLayerProps>(props),
+    const { rows, attributes } = extractAttributeData(props.data)
+
+    const baseLayerProps = {
+      ...parseLayerProps<TripsLayerProps>({ ...props, data: rows }),
       type: 'TripsLayer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
     }
-    return { layer }
+
+    const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
+
+    return { layer: layerProps }
   }
 }
 
@@ -5301,10 +5306,10 @@ export class SolidPolygonLayerOp extends Operator<SolidPolygonLayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      getPolygon: new UnknownField((d: unknown) => d?.polygon || [], { accessor: true }),
-      getFillColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
-      getLineColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
-      getLineWidth: new NumberField(0, { min: 0, accessor: true }),
+      getPolygon: new UnknownField((d: unknown) => d?.polygon || [], { accessor: true, defaultAttribute: 'polygon' }),
+      getFillColor: new ColorField('#fff', { accessor: true, transform: hexToColor, defaultAttribute: 'fillColor' }),
+      getLineColor: new ColorField('#fff', { accessor: true, transform: hexToColor, defaultAttribute: 'lineColor' }),
+      getLineWidth: new NumberField(0, { min: 0, accessor: true, defaultAttribute: 'lineWidth' }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -5320,13 +5325,18 @@ export class SolidPolygonLayerOp extends Operator<SolidPolygonLayerOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const layer = {
-      ...parseLayerProps<SolidPolygonLayerProps>(props),
+    const { rows, attributes } = extractAttributeData(props.data)
+
+    const baseLayerProps = {
+      ...parseLayerProps<SolidPolygonLayerProps>({ ...props, data: rows }),
       type: 'SolidPolygonLayer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
     }
-    return { layer }
+
+    const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
+
+    return { layer: layerProps }
   }
 }
 
@@ -7466,10 +7476,10 @@ export class LineLayerOp extends Operator<LineLayerOp> {
       widthScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
       widthMinPixels: new NumberField(0, { min: 0, softMax: 100, showByDefault: false }),
       widthMaxPixels: new NumberField(100, { min: 0, softMax: 1000, showByDefault: false }),
-      getSourcePosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
-      getTargetPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
-      getColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
-      getWidth: new NumberField(1, { min: 0, accessor: true }),
+      getSourcePosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'sourcePosition' }),
+      getTargetPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'targetPosition' }),
+      getColor: new ColorField('#000000', { accessor: true, transform: hexToColor, defaultAttribute: 'color' }),
+      getWidth: new NumberField(1, { min: 0, accessor: true, defaultAttribute: 'width' }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -7485,13 +7495,18 @@ export class LineLayerOp extends Operator<LineLayerOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const layer = {
-      ...parseLayerProps<LineLayerProps>(props),
+    const { rows, attributes } = extractAttributeData(props.data)
+
+    const baseLayerProps = {
+      ...parseLayerProps<LineLayerProps>({ ...props, data: rows }),
       type: 'LineLayer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
     }
-    return { layer }
+
+    const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
+
+    return { layer: layerProps }
   }
 }
 
@@ -7508,13 +7523,14 @@ export class PointCloudLayerOp extends Operator<PointCloudLayerOp> {
         showByDefault: false,
       }),
       pointSize: new NumberField(10, { min: 0, max: 100 }),
-      getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
+      getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'position' }),
       getNormal: new Vec3Field([0, 0, 1], {
         returnType: 'tuple',
         accessor: true,
         showByDefault: false,
+        defaultAttribute: 'normal',
       }),
-      getColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
+      getColor: new ColorField('#000000', { accessor: true, transform: hexToColor, defaultAttribute: 'color' }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -7530,13 +7546,18 @@ export class PointCloudLayerOp extends Operator<PointCloudLayerOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const layer = {
-      ...parseLayerProps<PointCloudLayerProps>(props),
+    const { rows, attributes } = extractAttributeData(props.data)
+
+    const baseLayerProps = {
+      ...parseLayerProps<PointCloudLayerProps>({ ...props, data: rows }),
       type: 'PointCloudLayer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
     }
-    return { layer }
+
+    const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
+
+    return { layer: layerProps }
   }
 }
 
