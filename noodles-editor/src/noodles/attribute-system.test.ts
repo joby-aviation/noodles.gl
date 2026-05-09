@@ -28,8 +28,7 @@ describe('Attribute System', () => {
 
       op.inputs.data.setValue(data)
       op.inputs.name.setValue('myValue')
-      op.inputs.source.setValue('column')
-      op.inputs.column.setValue('value')
+      op.inputs.expression.setValue('d.value')
       op.inputs.size.setValue(1)
 
       const result = op.execute(op.data)
@@ -47,7 +46,6 @@ describe('Attribute System', () => {
 
       op.inputs.data.setValue(data)
       op.inputs.name.setValue('doubled')
-      op.inputs.source.setValue('expression')
       op.inputs.expression.setValue('d.value * 2')
       op.inputs.size.setValue(1)
 
@@ -65,7 +63,6 @@ describe('Attribute System', () => {
 
       op.inputs.data.setValue(data)
       op.inputs.name.setValue('position')
-      op.inputs.source.setValue('expression')
       op.inputs.expression.setValue('[d.x, d.y, 0]')
       op.inputs.size.setValue(3)
 
@@ -84,7 +81,6 @@ describe('Attribute System', () => {
 
       op.inputs.data.setValue(data)
       op.inputs.name.setValue('color')
-      op.inputs.source.setValue('expression')
       op.inputs.expression.setValue('[d.r, d.g, d.b, 255]')
       op.inputs.type.setValue('uint8')
       op.inputs.size.setValue(4)
@@ -106,8 +102,7 @@ describe('Attribute System', () => {
 
       op.inputs.data.setValue(table)
       op.inputs.name.setValue('metric')
-      op.inputs.source.setValue('column')
-      op.inputs.column.setValue('value')
+      op.inputs.expression.setValue('d.value')
       op.inputs.size.setValue(1)
 
       const result = op.execute(op.data)
@@ -126,8 +121,7 @@ describe('Attribute System', () => {
 
       op.inputs.data.setValue(table)
       op.inputs.name.setValue('xCoord')
-      op.inputs.source.setValue('column')
-      op.inputs.column.setValue('coords.x')
+      op.inputs.expression.setValue('d.coords.x')
       op.inputs.size.setValue(1)
 
       const result = op.execute(op.data)
@@ -145,7 +139,6 @@ describe('Attribute System', () => {
       op1.createListeners()
       op1.inputs.data.setValue(data)
       op1.inputs.name.setValue('position')
-      op1.inputs.source.setValue('expression')
       op1.inputs.expression.setValue('[d.lng, d.lat, 0]')
       op1.inputs.size.setValue(3)
 
@@ -155,7 +148,6 @@ describe('Attribute System', () => {
       op2.createListeners()
       op2.inputs.data.setValue(result1.data)
       op2.inputs.name.setValue('radius')
-      op2.inputs.source.setValue('expression')
       op2.inputs.expression.setValue('d.value / 10')
       op2.inputs.size.setValue(1)
 
@@ -187,7 +179,6 @@ describe('Attribute System', () => {
 
       attrOp.inputs.data.setValue(data)
       attrOp.inputs.name.setValue('position')
-      attrOp.inputs.source.setValue('expression')
       attrOp.inputs.expression.setValue('[d.lng, d.lat, 0]')
       attrOp.inputs.size.setValue(3)
 
@@ -239,7 +230,6 @@ describe('Attribute System', () => {
       posOp.createListeners()
       posOp.inputs.data.setValue(enrichedData)
       posOp.inputs.name.setValue('position')
-      posOp.inputs.source.setValue('expression')
       posOp.inputs.expression.setValue('[d.lng, d.lat, 0]')
       posOp.inputs.size.setValue(3)
       enrichedData = posOp.execute(posOp.data).data
@@ -248,8 +238,7 @@ describe('Attribute System', () => {
       radiusOp.createListeners()
       radiusOp.inputs.data.setValue(enrichedData)
       radiusOp.inputs.name.setValue('radius')
-      radiusOp.inputs.source.setValue('column')
-      radiusOp.inputs.column.setValue('size')
+      radiusOp.inputs.expression.setValue('d.size')
       radiusOp.inputs.size.setValue(1)
       enrichedData = radiusOp.execute(radiusOp.data).data
 
@@ -257,7 +246,6 @@ describe('Attribute System', () => {
       colorOp.createListeners()
       colorOp.inputs.data.setValue(enrichedData)
       colorOp.inputs.name.setValue('fillColor')
-      colorOp.inputs.source.setValue('expression')
       colorOp.inputs.expression.setValue('[d.r, d.g, d.b, 255]')
       colorOp.inputs.type.setValue('uint8')
       colorOp.inputs.size.setValue(4)
@@ -288,7 +276,6 @@ describe('Attribute System', () => {
       sourceOp.createListeners()
       sourceOp.inputs.data.setValue(enrichedData)
       sourceOp.inputs.name.setValue('sourcePosition')
-      sourceOp.inputs.source.setValue('expression')
       sourceOp.inputs.expression.setValue('[d.startLng, d.startLat, 0]')
       sourceOp.inputs.size.setValue(3)
       enrichedData = sourceOp.execute(sourceOp.data).data
@@ -297,7 +284,6 @@ describe('Attribute System', () => {
       targetOp.createListeners()
       targetOp.inputs.data.setValue(enrichedData)
       targetOp.inputs.name.setValue('targetPosition')
-      targetOp.inputs.source.setValue('expression')
       targetOp.inputs.expression.setValue('[d.endLng, d.endLat, 0]')
       targetOp.inputs.size.setValue(3)
       enrichedData = targetOp.execute(targetOp.data).data
@@ -306,8 +292,7 @@ describe('Attribute System', () => {
       widthOp.createListeners()
       widthOp.inputs.data.setValue(enrichedData)
       widthOp.inputs.name.setValue('width')
-      widthOp.inputs.source.setValue('column')
-      widthOp.inputs.column.setValue('width')
+      widthOp.inputs.expression.setValue('d.width')
       widthOp.inputs.size.setValue(1)
       enrichedData = widthOp.execute(widthOp.data).data
 
@@ -336,7 +321,6 @@ describe('Attribute System', () => {
       posOp.createListeners()
       posOp.inputs.data.setValue(enrichedData)
       posOp.inputs.name.setValue('position')
-      posOp.inputs.source.setValue('expression')
       posOp.inputs.expression.setValue('[d.lng, d.lat, 0]')
       posOp.inputs.size.setValue(3)
       enrichedData = posOp.execute(posOp.data).data
@@ -345,8 +329,7 @@ describe('Attribute System', () => {
       sizeOp.createListeners()
       sizeOp.inputs.data.setValue(enrichedData)
       sizeOp.inputs.name.setValue('size')
-      sizeOp.inputs.source.setValue('column')
-      sizeOp.inputs.column.setValue('size')
+      sizeOp.inputs.expression.setValue('d.size')
       sizeOp.inputs.size.setValue(1)
       enrichedData = sizeOp.execute(sizeOp.data).data
 
@@ -354,8 +337,7 @@ describe('Attribute System', () => {
       angleOp.createListeners()
       angleOp.inputs.data.setValue(enrichedData)
       angleOp.inputs.name.setValue('angle')
-      angleOp.inputs.source.setValue('column')
-      angleOp.inputs.column.setValue('angle')
+      angleOp.inputs.expression.setValue('d.angle')
       angleOp.inputs.size.setValue(1)
       enrichedData = angleOp.execute(angleOp.data).data
 
@@ -385,7 +367,6 @@ describe('Attribute System', () => {
       posOp.createListeners()
       posOp.inputs.data.setValue(enrichedData)
       posOp.inputs.name.setValue('position')
-      posOp.inputs.source.setValue('expression')
       posOp.inputs.expression.setValue('[d.lng, d.lat, 0]')
       posOp.inputs.size.setValue(3)
       enrichedData = posOp.execute(posOp.data).data
@@ -394,8 +375,7 @@ describe('Attribute System', () => {
       textOp.createListeners()
       textOp.inputs.data.setValue(enrichedData)
       textOp.inputs.name.setValue('text')
-      textOp.inputs.source.setValue('column')
-      textOp.inputs.column.setValue('label')
+      textOp.inputs.expression.setValue('d.label')
       textOp.inputs.size.setValue(1)
       enrichedData = textOp.execute(textOp.data).data
 
@@ -403,8 +383,7 @@ describe('Attribute System', () => {
       sizeOp.createListeners()
       sizeOp.inputs.data.setValue(enrichedData)
       sizeOp.inputs.name.setValue('size')
-      sizeOp.inputs.source.setValue('column')
-      sizeOp.inputs.column.setValue('size')
+      sizeOp.inputs.expression.setValue('d.size')
       sizeOp.inputs.size.setValue(1)
       enrichedData = sizeOp.execute(sizeOp.data).data
 
@@ -433,8 +412,7 @@ describe('Attribute System', () => {
       elevOp.createListeners()
       elevOp.inputs.data.setValue(enrichedData)
       elevOp.inputs.name.setValue('elevation')
-      elevOp.inputs.source.setValue('column')
-      elevOp.inputs.column.setValue('elevation')
+      elevOp.inputs.expression.setValue('d.elevation')
       elevOp.inputs.size.setValue(1)
       enrichedData = elevOp.execute(elevOp.data).data
 
@@ -442,7 +420,6 @@ describe('Attribute System', () => {
       fillColorOp.createListeners()
       fillColorOp.inputs.data.setValue(enrichedData)
       fillColorOp.inputs.name.setValue('fillColor')
-      fillColorOp.inputs.source.setValue('expression')
       fillColorOp.inputs.expression.setValue('[d.fillR, d.fillG, d.fillB, 255]')
       fillColorOp.inputs.type.setValue('uint8')
       fillColorOp.inputs.size.setValue(4)
@@ -491,8 +468,7 @@ describe('Attribute System', () => {
       elevOp.createListeners()
       elevOp.inputs.data.setValue(enrichedData)
       elevOp.inputs.name.setValue('elevation')
-      elevOp.inputs.source.setValue('column')
-      elevOp.inputs.column.setValue('elevation')
+      elevOp.inputs.expression.setValue('d.elevation')
       elevOp.inputs.size.setValue(1)
       enrichedData = elevOp.execute(elevOp.data).data
 
@@ -500,8 +476,7 @@ describe('Attribute System', () => {
       widthOp.createListeners()
       widthOp.inputs.data.setValue(enrichedData)
       widthOp.inputs.name.setValue('lineWidth')
-      widthOp.inputs.source.setValue('column')
-      widthOp.inputs.column.setValue('lineWidth')
+      widthOp.inputs.expression.setValue('d.lineWidth')
       widthOp.inputs.size.setValue(1)
       enrichedData = widthOp.execute(widthOp.data).data
 

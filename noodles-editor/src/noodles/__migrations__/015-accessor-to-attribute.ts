@@ -131,8 +131,6 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
           inputs: {
             data: undefined, // Will be connected
             name: attributeName,
-            source: 'expression',
-            column: '',
             expression,
             type: fieldName.includes('Color') ? 'uint8' : 'float',
             size: fieldName === 'getPosition' || fieldName === 'getSourcePosition' || fieldName === 'getTargetPosition' ? 3 :
