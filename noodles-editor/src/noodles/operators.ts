@@ -6058,8 +6058,8 @@ export class TextLayerOp extends Operator<TextLayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
-      getText: new StringField('', { accessor: true }),
+      getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'position' }),
+      getText: new StringField('', { accessor: true, defaultAttribute: 'text' }),
       billboard: new BooleanField(true),
       fontFamily: new StringField('Inter'),
       fontWeight: new NumberField(400, { min: 100, max: 900, step: 100 }),
@@ -6067,26 +6067,29 @@ export class TextLayerOp extends Operator<TextLayerOp> {
         values: ['pixels', 'meters'],
         showByDefault: false,
       }),
-      getSize: new NumberField(48, { min: 0, softMax: 200, accessor: true }),
-      getColor: new ColorField('#f0f0f0', { accessor: true, transform: hexToColor }),
+      getSize: new NumberField(48, { min: 0, softMax: 200, accessor: true, defaultAttribute: 'size' }),
+      getColor: new ColorField('#f0f0f0', { accessor: true, transform: hexToColor, defaultAttribute: 'color' }),
       getAngle: new NumberField(0, {
         softMin: 0,
         softMax: 360,
         accessor: true,
         showByDefault: false,
+        defaultAttribute: 'angle',
       }),
       getTextAnchor: new StringLiteralField('middle', {
         values: ['start', 'middle', 'end'],
         accessor: true,
+        defaultAttribute: 'textAnchor',
       }),
       getPixelOffset: new Vec2Field(
         { x: 0, y: 0 },
-        { returnType: 'tuple', accessor: true, showByDefault: false }
+        { returnType: 'tuple', accessor: true, showByDefault: false, defaultAttribute: 'pixelOffset' }
       ),
       getAlignmentBaseline: new StringLiteralField('center', {
         values: ['top', 'center', 'bottom'],
         accessor: true,
         showByDefault: false,
+        defaultAttribute: 'alignmentBaseline',
       }),
       fontSettings: new CompoundPropsField({
         sdf: new BooleanField(false),
@@ -6115,13 +6118,18 @@ export class TextLayerOp extends Operator<TextLayerOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const layer = {
-      ...parseLayerProps<TextLayerProps>(props),
+    const { rows, attributes } = extractAttributeData(props.data)
+
+    const baseLayerProps = {
+      ...parseLayerProps<TextLayerProps>({ ...props, data: rows }),
       type: 'TextLayer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
     }
-    return { layer }
+
+    const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
+
+    return { layer: layerProps }
   }
 }
 
