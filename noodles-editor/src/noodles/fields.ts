@@ -122,6 +122,10 @@ export abstract class Field<
   // Allows this field to be used with Theatre, and debugging with zod
   pathToProps: string[] = []
 
+  // Batching support to prevent cascading updates
+  private _batchDepth = 0
+  private _pendingDirty = false
+
   constructor(initialValue?: z.input<S> | undefined | Partial<O>, options?: Partial<O>) {
     // This is fine since we set the value immediately after
     super(undefined as unknown as z.output<S>)
@@ -212,6 +216,18 @@ export abstract class Field<
     return schema
   }
 
+  beginBatch(): void {
+    this._batchDepth++
+  }
+
+  endBatch(): void {
+    this._batchDepth--
+    if (this._batchDepth === 0 && this._pendingDirty) {
+      this._pendingDirty = false
+      this.op?.markDirty()
+    }
+  }
+
   setValue(value: z.input<S>): void {
     const oldValue = this.value
     const path = this.pathToProps.join('.')
@@ -223,8 +239,12 @@ export abstract class Field<
       debugSetValue('%s: %O -> %O', path, oldValue, parsed.data)
       this.next(parsed.data)
 
-      // Mark the owning operator as dirty
-      this.op?.markDirty()
+      // Mark the owning operator as dirty (defer if batching)
+      if (this._batchDepth > 0) {
+        this._pendingDirty = true
+      } else {
+        this.op?.markDirty()
+      }
     } else {
       debugSetValue('%s: %O -> %O [PARSE FAILED]', path, oldValue, value)
       debugSetValue('Parse error', parsed.error.issues)
