@@ -6141,7 +6141,7 @@ export class IconLayerOp extends Operator<IconLayerOp> {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
+      getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true, defaultAttribute: 'position' }),
       iconAtlas: new FileUrlField(
         'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.png',
         { showByDefault: false, accept: '.png,.jpg,.jpeg,.gif,.webp,.svg' }
@@ -6155,8 +6155,9 @@ export class IconLayerOp extends Operator<IconLayerOp> {
         accessor: true,
         optional: true,
         accept: '.png,.jpg,.jpeg,.gif,.webp,.svg',
+        defaultAttribute: 'icon',
       }), // Can be: uploaded file URL, external URL, or accessor function returning {url, width?, height?}
-      getSize: new NumberField(1, { min: 0, softMax: 100, accessor: true }),
+      getSize: new NumberField(1, { min: 0, softMax: 100, accessor: true, defaultAttribute: 'size' }),
       sizeUnits: new StringLiteralField('pixels', {
         values: ['pixels', 'meters', 'common'],
         showByDefault: false,
@@ -6166,10 +6167,10 @@ export class IconLayerOp extends Operator<IconLayerOp> {
       sizeMaxPixels: new NumberField(2048, { min: 0, softMax: 10_000, showByDefault: false }),
       getPixelOffset: new Vec2Field(
         { x: 0, y: 0 },
-        { returnType: 'tuple', accessor: true, showByDefault: false }
+        { returnType: 'tuple', accessor: true, showByDefault: false, defaultAttribute: 'pixelOffset' }
       ),
-      getColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
-      getAngle: new NumberField(0, { accessor: true }),
+      getColor: new ColorField('#fff', { accessor: true, transform: hexToColor, defaultAttribute: 'color' }),
+      getAngle: new NumberField(0, { accessor: true, defaultAttribute: 'angle' }),
       sizeBasis: new StringLiteralField('height', {
         values: ['height', 'width'],
         showByDefault: false,
@@ -6192,7 +6193,8 @@ export class IconLayerOp extends Operator<IconLayerOp> {
   async execute(
     _props: ExtractProps<typeof this.inputs>
   ): Promise<ExtractProps<typeof this.outputs>> {
-    const { getIcon, iconMapping, iconAtlas, sizeMaxPixels, ...rest } = _props
+    const { rows, attributes } = extractAttributeData(_props.data)
+    const { getIcon, iconMapping, iconAtlas, sizeMaxPixels, ...rest } = { ..._props, data: rows }
 
     // Helper to resolve @/ URLs to blob URLs with proper MIME type
     const resolveProjectUrl = async (url: string): Promise<string> => {
@@ -6331,13 +6333,16 @@ export class IconLayerOp extends Operator<IconLayerOp> {
       sizeMaxPixels,
     }
 
-    const layer = {
+    const baseLayerProps = {
       ...parseLayerProps<IconLayerProps>(props),
       type: 'IconLayer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
     }
-    return { layer }
+
+    const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
+
+    return { layer: layerProps }
   }
 }
 
