@@ -7,6 +7,7 @@ import { forwardRef, useCallback, useEffect, useRef, useState } from 'react'
 import ReactMapGL, { type MapProps, useControl } from 'react-map-gl/maplibre'
 import { Layout } from './layout'
 import { ErrorBoundary } from './noodles/components/error-boundary'
+import { SpreadsheetPane } from './noodles/components/spreadsheet-pane/spreadsheet-pane'
 import { TopMenuBar } from './noodles/components/top-menu-bar'
 import { ExportActionsProvider } from './noodles/contexts/export-actions-context'
 import { useActiveStorageType, useCurrentDirectory } from './noodles/filesystem-store'
@@ -89,6 +90,9 @@ export default function TimelineEditor() {
 
   const noodles = getNoodles()
   const { flowGraph, nodeSidebar, propertiesPanel, layoutMode, ...visualization } = noodles
+
+  // Get selected nodes for spreadsheet pane
+  const selectedNodeIds = noodles.nodes.filter(n => n.selected).map(n => n.id)
 
   // Render settings are now stored as OutOp inputs
   const renderSettings = useRenderSettings()
@@ -576,6 +580,8 @@ export default function TimelineEditor() {
       onChangeShowOverlay={noodles.onChangeShowOverlay}
       showDebugInfo={noodles.showDebugInfo}
       onChangeShowDebugInfo={noodles.onChangeShowDebugInfo}
+      spreadsheetVisible={noodles.spreadsheetVisible}
+      onChangeSpreadsheetVisible={noodles.onChangeSpreadsheetVisible}
       layoutMode={noodles.layoutMode}
       onChangeLayoutMode={noodles.onChangeLayoutMode}
     />
@@ -606,6 +612,7 @@ export default function TimelineEditor() {
             right={propertiesPanel}
             bottom={<CollapsibleTimelinePanel />}
             flowGraph={flowGraph}
+            spreadsheet={<SpreadsheetPane selectedNodeIds={selectedNodeIds} />}
             layoutMode={layoutMode}
           >
             {isFixedMode ? (

@@ -1739,6 +1739,14 @@ export function getNoodles(): Visualization {
     onChangeShowOverlay: setShowOverlay,
     showDebugInfo,
     onChangeShowDebugInfo: setShowDebugInfo,
+    spreadsheetVisible: useUIStore.getState().spreadsheetVisible,
+    onChangeSpreadsheetVisible: (visible: boolean) => {
+      useUIStore.getState().setSpreadsheetVisible(visible)
+      // Auto-switch to split mode when enabling spreadsheet
+      if (visible && layoutMode !== 'split') {
+        setLayoutMode('split')
+      }
+    },
     // Render settings are now read from OutOp via useRenderSettings() hook
     // Export these so timeline-editor can create the menu with render actions
     projectName:

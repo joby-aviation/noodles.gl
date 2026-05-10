@@ -9,8 +9,8 @@ import {
   type Message,
   MessageMatcher,
   MessageType,
-  parseMessage,
   type PingMessage,
+  parseMessage,
   serializeMessage,
 } from './message-protocol'
 
