@@ -244,7 +244,6 @@ function DefaultEdgeComponent({
   // Edge is targeted if either connection drag or node drag is targeting it
   const isConnectionTarget = targetedEdge?.id === id
   const isNodeDropTarget = nodeDragState?.targetedEdge?.id === id
-  const _isTarget = isConnectionTarget || isNodeDropTarget
 
   let edgeClassName: string | undefined
   if (isConnectionTarget) {
@@ -1850,7 +1849,11 @@ function ArrowTablePreview({ table, maxRows = 20 }: { table: unknown; maxRows?: 
             <tr key={i}>
               {columns.map(col => (
                 <td key={col}>
-                  {typeof row[col] === 'string' ? row[col] : JSON.stringify(row[col])}
+                  {typeof row[col] === 'string'
+                    ? row[col]
+                    : JSON.stringify(row[col], (_k, v) =>
+                        typeof v === 'bigint' ? v.toString() : v
+                      )}
                 </td>
               ))}
             </tr>
