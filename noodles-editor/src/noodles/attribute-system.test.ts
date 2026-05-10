@@ -492,4 +492,112 @@ describe('Attribute System', () => {
       expect(Array.from(layerResult.layer.getLineWidth.values)).toEqual([2, 5])
     })
   })
+
+  describe('Edge Cases', () => {
+    let op: CreateAttributeOp
+
+    beforeEach(() => {
+      op = new CreateAttributeOp('/test/create-attr')
+      op.createListeners()
+    })
+
+    it('should throw on invalid expressions', () => {
+      const data = [{ value: 10 }, { value: 20 }]
+
+      op.inputs.data.setValue(data)
+      op.inputs.name.setValue('result')
+      op.inputs.expression.setValue('d.value * 1 +') // Invalid: incomplete expression
+      op.inputs.size.setValue(1)
+
+      // Should throw SyntaxError with friendly message
+      expect(() => op.execute(op.data)).toThrow(/Expression incomplete/)
+    })
+
+    it('should handle empty Arrow tables', () => {
+      const emptyTable = tableFromArrays({
+        value: [],
+      })
+
+      op.inputs.data.setValue(emptyTable)
+      op.inputs.name.setValue('doubled')
+      op.inputs.expression.setValue('d.value * 2')
+      op.inputs.size.setValue(1)
+
+      const result = op.execute(op.data)
+      expect(result.data.attributes.doubled.values).toHaveLength(0)
+    })
+
+    it('should handle non-existent column references', () => {
+      const data = [{ x: 1 }, { x: 2 }]
+
+      op.inputs.data.setValue(data)
+      op.inputs.name.setValue('missing')
+      op.inputs.expression.setValue('d.nonexistent || 0') // Fallback to 0
+      op.inputs.size.setValue(1)
+
+      const result = op.execute(op.data)
+      expect(Array.from(result.data.attributes.missing.values)).toEqual([0, 0])
+    })
+
+    it('should handle type coercion in expressions', () => {
+      const data = [{ str: '10' }, { str: '20' }]
+
+      op.inputs.data.setValue(data)
+      op.inputs.name.setValue('number')
+      op.inputs.expression.setValue('Number(d.str)')
+      op.inputs.size.setValue(1)
+
+      const result = op.execute(op.data)
+      expect(Array.from(result.data.attributes.number.values)).toEqual([10, 20])
+    })
+
+    it('should handle nested property access', () => {
+      const data = [{ coords: { x: 1, y: 2 } }, { coords: { x: 3, y: 4 } }]
+
+      op.inputs.data.setValue(data)
+      op.inputs.name.setValue('position')
+      op.inputs.expression.setValue('[d.coords.x, d.coords.y, 0]')
+      op.inputs.size.setValue(3)
+
+      const result = op.execute(op.data)
+      expect(Array.from(result.data.attributes.position.values)).toEqual([1, 2, 0, 3, 4, 0])
+    })
+
+    it('should handle chained CreateAttributeOps without collision', () => {
+      const data = [{ value: 10 }]
+
+      // First attribute op
+      op.inputs.data.setValue(data)
+      op.inputs.name.setValue('doubled')
+      op.inputs.expression.setValue('d.value * 2')
+      op.inputs.size.setValue(1)
+
+      const result1 = op.execute(op.data)
+
+      // Second attribute op using first's output
+      const op2 = new CreateAttributeOp('/test/create-attr-2')
+      op2.createListeners()
+      op2.inputs.data.setValue(result1.data)
+      op2.inputs.name.setValue('tripled')
+      op2.inputs.expression.setValue('d.value * 3')
+      op2.inputs.size.setValue(1)
+
+      const result2 = op2.execute(op2.data)
+      expect(result2.data.attributes).toHaveProperty('doubled')
+      expect(result2.data.attributes).toHaveProperty('tripled')
+      expect(Array.from(result2.data.attributes.tripled.values)).toEqual([30])
+    })
+
+    it('should handle sparse arrays with undefined values', () => {
+      const data = [{ value: 10 }, { value: undefined }, { value: 30 }]
+
+      op.inputs.data.setValue(data)
+      op.inputs.name.setValue('safe')
+      op.inputs.expression.setValue('d.value || 0')
+      op.inputs.size.setValue(1)
+
+      const result = op.execute(op.data)
+      expect(Array.from(result.data.attributes.safe.values)).toEqual([10, 0, 30])
+    })
+  })
 })
