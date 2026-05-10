@@ -11,7 +11,7 @@ describe('AttributeToggle', () => {
     const onChange = vi.fn()
     render(<AttributeToggle mode="uniform" onChange={onChange} />)
 
-    const button = screen.getByRole('button', { name: 'Uniform value' })
+    const button = screen.getByRole('button', { name: /Uniform value/ })
     expect(button).toBeInTheDocument()
     expect(button).not.toBeDisabled()
   })
@@ -20,7 +20,7 @@ describe('AttributeToggle', () => {
     const onChange = vi.fn()
     render(<AttributeToggle mode="attribute" onChange={onChange} />)
 
-    const button = screen.getByRole('button', { name: 'Read from attribute' })
+    const button = screen.getByRole('button', { name: /Read from attribute/ })
     expect(button).toBeInTheDocument()
   })
 
@@ -28,7 +28,7 @@ describe('AttributeToggle', () => {
     const onChange = vi.fn()
     render(<AttributeToggle mode="expression" onChange={onChange} />)
 
-    const button = screen.getByRole('button', { name: 'Expression' })
+    const button = screen.getByRole('button', { name: /Expression/ })
     expect(button).toBeInTheDocument()
   })
 
@@ -36,7 +36,7 @@ describe('AttributeToggle', () => {
     const onChange = vi.fn()
     render(<AttributeToggle mode="uniform" onChange={onChange} />)
 
-    const button = screen.getByRole('button', { name: 'Uniform value' })
+    const button = screen.getByRole('button', { name: /Uniform value/ })
     fireEvent.click(button)
 
     expect(onChange).toHaveBeenCalledTimes(1)
@@ -47,7 +47,7 @@ describe('AttributeToggle', () => {
     const onChange = vi.fn()
     render(<AttributeToggle mode="attribute" onChange={onChange} />)
 
-    const button = screen.getByRole('button', { name: 'Read from attribute' })
+    const button = screen.getByRole('button', { name: /Read from attribute/ })
     fireEvent.click(button)
 
     expect(onChange).toHaveBeenCalledTimes(1)
@@ -58,7 +58,7 @@ describe('AttributeToggle', () => {
     const onChange = vi.fn()
     render(<AttributeToggle mode="expression" onChange={onChange} />)
 
-    const button = screen.getByRole('button', { name: 'Expression' })
+    const button = screen.getByRole('button', { name: /Expression/ })
     fireEvent.click(button)
 
     expect(onChange).toHaveBeenCalledTimes(1)
@@ -69,7 +69,7 @@ describe('AttributeToggle', () => {
     const onChange = vi.fn()
     render(<AttributeToggle mode="uniform" onChange={onChange} disabled />)
 
-    const button = screen.getByRole('button', { name: 'Uniform value' })
+    const button = screen.getByRole('button', { name: /Uniform value/ })
     expect(button).toBeDisabled()
 
     fireEvent.click(button)
@@ -80,15 +80,15 @@ describe('AttributeToggle', () => {
     const onChange = vi.fn()
 
     const { rerender } = render(<AttributeToggle mode="uniform" onChange={onChange} />)
-    let button = screen.getByRole('button', { name: 'Uniform value' })
+    let button = screen.getByRole('button', { name: /Uniform value/ })
     expect(button.className).toContain('uniform')
 
     rerender(<AttributeToggle mode="attribute" onChange={onChange} />)
-    button = screen.getByRole('button', { name: 'Read from attribute' })
+    button = screen.getByRole('button', { name: /Read from attribute/ })
     expect(button.className).toContain('attribute')
 
     rerender(<AttributeToggle mode="expression" onChange={onChange} />)
-    button = screen.getByRole('button', { name: 'Expression' })
+    button = screen.getByRole('button', { name: /Expression/ })
     expect(button.className).toContain('expression')
   })
 
@@ -96,7 +96,7 @@ describe('AttributeToggle', () => {
     const onChange = vi.fn()
     render(<AttributeToggle mode="uniform" onChange={onChange} disabled />)
 
-    const button = screen.getByRole('button', { name: 'Uniform value' })
+    const button = screen.getByRole('button', { name: /Uniform value/ })
     expect(button.className).toContain('disabled')
   })
 
@@ -104,30 +104,33 @@ describe('AttributeToggle', () => {
     const onChange = vi.fn()
 
     const { rerender } = render(<AttributeToggle mode="uniform" onChange={onChange} />)
-    expect(screen.getByRole('button', { name: 'Uniform value' })).toHaveAttribute('title', 'Uniform value')
+    const uniformButton = screen.getByRole('button', { name: /Uniform value/ })
+    expect(uniformButton.title).toContain('Uniform value')
 
     rerender(<AttributeToggle mode="attribute" onChange={onChange} />)
-    expect(screen.getByRole('button', { name: 'Read from attribute' })).toHaveAttribute('title', 'Read from attribute')
+    const attributeButton = screen.getByRole('button', { name: /Read from attribute/ })
+    expect(attributeButton.title).toContain('Read from attribute')
 
     rerender(<AttributeToggle mode="expression" onChange={onChange} />)
-    expect(screen.getByRole('button', { name: 'Expression' })).toHaveAttribute('title', 'Expression')
+    const expressionButton = screen.getByRole('button', { name: /Expression/ })
+    expect(expressionButton.title).toContain('Expression')
   })
 
   it('should complete full cycle through all modes', () => {
     const onChange = vi.fn<[AttributeMode], void>()
     const { rerender } = render(<AttributeToggle mode="uniform" onChange={onChange} />)
 
-    let button = screen.getByRole('button', { name: 'Uniform value' })
+    let button = screen.getByRole('button', { name: /Uniform value/ })
     fireEvent.click(button)
     expect(onChange).toHaveBeenCalledWith('attribute')
 
     rerender(<AttributeToggle mode="attribute" onChange={onChange} />)
-    button = screen.getByRole('button', { name: 'Read from attribute' })
+    button = screen.getByRole('button', { name: /Read from attribute/ })
     fireEvent.click(button)
     expect(onChange).toHaveBeenCalledWith('expression')
 
     rerender(<AttributeToggle mode="expression" onChange={onChange} />)
-    button = screen.getByRole('button', { name: 'Expression' })
+    button = screen.getByRole('button', { name: /Expression/ })
     fireEvent.click(button)
     expect(onChange).toHaveBeenCalledWith('uniform')
 

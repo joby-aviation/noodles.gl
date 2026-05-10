@@ -1,6 +1,6 @@
 // Operator categories
 export const categories = {
-  code: ['Accessor', 'Code', 'DuckDb', 'JSON', 'Expression'],
+  code: ['Code', 'DuckDb', 'JSON', 'Expression'],
   grouping: ['Container', 'ForLoop', 'ForLoopBegin', 'ForLoopEnd', 'GraphInput', 'GraphOutput'],
   color: ['CategoricalColorRamp', 'Color', 'ColorRamp', 'CombineRGBA', 'HSL', 'SplitRGBA'],
   data: [

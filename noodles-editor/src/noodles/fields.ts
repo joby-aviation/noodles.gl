@@ -111,6 +111,9 @@ export abstract class Field<
   // When set, enables 3-state toggle: Uniform | Attribute | Expression
   defaultAttribute?: string
 
+  // Was this field's value auto-detected from data schema?
+  autoDetected = false
+
   // Should this field be shown by default in the UI? Defaults to true.
   showByDefault = true
 

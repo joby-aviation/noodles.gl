@@ -36,6 +36,18 @@ const LAYER_OPS = [
   'H3ClusterLayerOp',
   'GreatCircleLayerOp',
   'TripsLayerOp',
+  'BitmapLayerOp',
+  'GeohashLayerOp',
+  'S2LayerOp',
+  'QuadkeyLayerOp',
+  'A5LayerOp',
+  'PointCloudLayerOp',
+  'ScenegraphLayerOp',
+  'SimpleMeshLayerOp',
+  'TileLayerOp',
+  'Tile3DLayerOp',
+  'TerrainLayerOp',
+  'MVTLayerOp',
 ]
 
 const ACCESSOR_FIELD_TO_ATTRIBUTE: Record<string, string> = {

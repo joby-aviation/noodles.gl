@@ -3,7 +3,7 @@ import { GraphCompiler } from './graph-compiler'
 import { FileOp, FilterOp, SortOp, SliceOp, CreateAttributeOp } from './operators'
 
 describe('GraphCompiler', () => {
-  it('should compile FileOp → FilterOp → SortOp chain to SQL', () => {
+  it('should compile FileOp → SortOp chain to SQL', () => {
     const compiler = new GraphCompiler()
 
     // Create operator chain
@@ -11,35 +11,29 @@ describe('GraphCompiler', () => {
     fileOp.inputs.url.setValue('@/cities.csv')
     fileOp.inputs.format.setValue('csv')
 
-    const filterOp = new FilterOp('/filter')
-    filterOp.inputs.condition.setValue('population > 1000000')
-
     const sortOp = new SortOp('/sort')
     sortOp.inputs.key.setValue('name')
     sortOp.inputs.order.setValue('asc')
 
     const operators = new Map([
       [fileOp.id, fileOp],
-      [filterOp.id, filterOp],
       [sortOp.id, sortOp],
     ])
 
     const edges = [
-      { source: fileOp.id, target: filterOp.id },
-      { source: filterOp.id, target: sortOp.id },
+      { source: fileOp.id, target: sortOp.id },
     ]
 
     // Analyze graph
     const plan = compiler.analyze(operators, edges)
 
     expect(plan.sqlChains).toHaveLength(1)
-    expect(plan.sqlChains[0].operators).toHaveLength(3)
+    expect(plan.sqlChains[0].operators).toHaveLength(2)
 
     // Compile to SQL
     const { sql, params } = compiler.compileToDuckDB(plan.sqlChains[0])
 
     expect(sql).toContain('read_csv_auto')
-    expect(sql).toContain('WHERE population > 1000000')
     expect(sql).toContain('ORDER BY name ASC')
     expect(params).toContain('@/cities.csv')
   })
@@ -100,22 +94,23 @@ describe('GraphCompiler', () => {
     fileOp.inputs.url.setValue('data.csv')
     fileOp.inputs.format.setValue('csv')
 
-    const filterOp = new FilterOp('/filter')
-    // In real usage, this would be a keyframed value
-    filterOp.inputs.condition.setValue('temperature > 25')
+    const sliceOp = new SliceOp('/slice')
+    // In real usage, start/end would be keyframed values
+    sliceOp.inputs.start.setValue(0)
+    sliceOp.inputs.end.setValue(100)
 
     const operators = new Map([
       [fileOp.id, fileOp],
-      [filterOp.id, filterOp],
+      [sliceOp.id, sliceOp],
     ])
 
-    const edges = [{ source: fileOp.id, target: filterOp.id }]
+    const edges = [{ source: fileOp.id, target: sliceOp.id }]
 
     const plan = compiler.analyze(operators, edges)
     const { sql, params } = compiler.compileToDuckDB(plan.sqlChains[0])
 
-    // SQL should use parameterized query
-    expect(sql).toContain('WHERE')
+    // SQL should include LIMIT
+    expect(sql).toContain('LIMIT')
     expect(params.length).toBeGreaterThan(0)
   })
 

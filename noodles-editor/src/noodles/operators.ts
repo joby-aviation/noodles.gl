@@ -7640,11 +7640,13 @@ function safeOpGetter(contextOpId: string): (path: string) => Operator<IOperator
   }
 }
 
-// An Accessor is an ExpressionOp that returns a function instead of executing it
+// DEPRECATED: AccessorOp is deprecated in favor of CreateAttributeOp + layer attribute fields
+// Migration 015 automatically converts AccessorOp nodes to CreateAttributeOp on project load
+// This class is kept for backward compatibility with very old projects that haven't been migrated yet
 export class AccessorOp extends Operator<AccessorOp> {
-  static displayName = 'Accessor'
+  static displayName = 'Accessor (Deprecated)'
   static description =
-    'A function called for each row of your data and passed to Deck.gl layer properties. The current row is passed as the `d` variable (e.g., `d.population`, `d.properties.color`). Available variables: `d` (current row), `i` (index), `data` (all rows), `op()` (access operators), `sequenceTime` (timeline position), `frame` (current frame), `totalFrames`, `sequence` (timeline metadata). Includes d3, turf, and other utilities.'
+    'DEPRECATED: Use CreateAttributeOp instead. This operator creates per-row accessor functions. The current row is passed as the `d` variable (e.g., `d.population`, `d.properties.color`). Available variables: `d` (current row), `i` (index), `data` (all rows), `op()` (access operators), `sequenceTime` (timeline position), `frame` (current frame), `totalFrames`, `sequence` (timeline metadata). Includes d3, turf, and other utilities.'
   createInputs() {
     return {
       expression: new ExpressionField(),

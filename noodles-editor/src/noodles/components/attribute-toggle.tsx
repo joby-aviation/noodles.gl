@@ -46,8 +46,8 @@ export function AttributeToggle({ mode, onChange, disabled }: AttributeTogglePro
       })}
       onClick={handleClick}
       disabled={disabled}
-      title={labels[mode]}
-      aria-label={labels[mode]}
+      title={`${labels[mode]}\n\nClick to cycle: Uniform → Attribute → Expression`}
+      aria-label={`${labels[mode]}. Click to cycle.`}
     >
       <Icon className={s.icon} />
     </button>
