@@ -20,10 +20,47 @@ const ATTRIBUTE_MAPPINGS: Record<string, string[]> = {
   targetPosition: ['targetPosition', 'targetPos', 'destination', 'to', 'end'],
 }
 
-// Extract column names from data (Arrow table or object array)
+// Check if data looks like GeoJSON/TopoJSON features
+function isGeoJsonFeatureCollection(data: unknown): boolean {
+  if (!data || typeof data !== 'object') return false
+  const obj = data as Record<string, unknown>
+  return obj.type === 'FeatureCollection' && Array.isArray(obj.features)
+}
+
+function isGeoJsonFeature(data: unknown): boolean {
+  if (!data || typeof data !== 'object') return false
+  const obj = data as Record<string, unknown>
+  return obj.type === 'Feature' && typeof obj.geometry === 'object'
+}
+
+// Extract column names from data (Arrow table, object array, or GeoJSON)
 export function extractSchemaFromData(data: unknown): string[] {
   if (isArrowTable(data)) {
     return arrowColumnNames(data)
+  }
+
+  // Handle GeoJSON FeatureCollection
+  if (isGeoJsonFeatureCollection(data)) {
+    const features = (data as { features: unknown[] }).features
+    if (features.length > 0 && isGeoJsonFeature(features[0])) {
+      const feature = features[0] as { properties?: Record<string, unknown> }
+      const columns = feature.properties ? Object.keys(feature.properties) : []
+      // GeoJSON always has 'geometry' available for position
+      if (!columns.includes('geometry')) {
+        columns.push('geometry')
+      }
+      return columns
+    }
+  }
+
+  // Handle array of GeoJSON features
+  if (Array.isArray(data) && data.length > 0 && isGeoJsonFeature(data[0])) {
+    const feature = data[0] as { properties?: Record<string, unknown> }
+    const columns = feature.properties ? Object.keys(feature.properties) : []
+    if (!columns.includes('geometry')) {
+      columns.push('geometry')
+    }
+    return columns
   }
 
   // Handle attribute-enhanced data format
@@ -61,6 +98,11 @@ export function findBestColumnMatch(
   }
 
   return null
+}
+
+// Special case: detect GeoJSON geometry column
+function detectGeoJsonGeometry(columns: string[]): boolean {
+  return columns.includes('geometry')
 }
 
 // Special case: detect lat/lng pairs and construct position expression
@@ -110,7 +152,8 @@ export function autoFillLayerAccessors(
   const columns = extractSchemaFromData(sourceData)
   if (columns.length === 0) return
 
-  // Check for lat/lng pair first for position fields
+  // Check for GeoJSON geometry first, then lat/lng pair for position fields
+  const hasGeoJsonGeometry = detectGeoJsonGeometry(columns)
   const latLngPair = detectLatLngPair(columns)
 
   for (const [fieldName, field] of Object.entries(targetOp.inputs)) {
@@ -127,6 +170,14 @@ export function autoFillLayerAccessors(
     const isPrimitive = (v: unknown) =>
       typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean' || v === null
     if (isPrimitive(currentValue) && currentValue !== field.defaultValue) {
+      continue
+    }
+
+    // Special handling for position fields with GeoJSON geometry
+    if (field.defaultAttribute === 'position' && hasGeoJsonGeometry) {
+      // Deck.gl GeoJsonLayer automatically extracts position from geometry
+      // Use expression to access geometry.coordinates for point features
+      field.setValue({ expression: 'd.geometry.type === "Point" ? d.geometry.coordinates : d.geometry' })
       continue
     }
 
