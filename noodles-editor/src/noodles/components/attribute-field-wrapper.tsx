@@ -1,5 +1,6 @@
 import { InputText } from 'primereact/inputtext'
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
+import { InfoCircledIcon } from '@radix-ui/react-icons'
 import type { Field, IField } from '../fields'
 import type { OpId } from '../utils/id-utils'
 import { usePropertyHistory } from '../utils/property-history'
@@ -72,14 +73,17 @@ export function AttributeFieldWrapper({
       if (newMode === 'uniform') {
         const defaultValue = (field.constructor as typeof Field).defaultValue
         field.setValue(defaultValue)
+        field.autoDetected = false
       } else if (newMode === 'attribute') {
         const defaultAttr = field.defaultAttribute || 'value'
         setAttributeName(defaultAttr)
         field.setValue({ attributeName: defaultAttr })
+        field.autoDetected = false
       } else if (newMode === 'expression') {
         const defaultExpr = 'd.value'
         setExpressionValue(defaultExpr)
         field.setValue({ expression: defaultExpr })
+        field.autoDetected = false
       }
 
       field.endBatch()
@@ -115,6 +119,19 @@ export function AttributeFieldWrapper({
       <label className={s.fieldLabel} htmlFor={id}>
         {id}
         <AttributeToggle mode={mode} onChange={handleModeChange} disabled={disabled} />
+        {field.autoDetected && (
+          <span
+            style={{
+              fontSize: '0.75rem',
+              color: '#3b82f6',
+              marginLeft: '0.5rem',
+              fontWeight: 'normal',
+            }}
+            title="Auto-detected from data schema"
+          >
+            🔍 auto
+          </span>
+        )}
       </label>
 
       {mode === 'uniform' && children}
@@ -123,28 +140,62 @@ export function AttributeFieldWrapper({
         <InputText
           id={id}
           value={attributeName}
-          onChange={e => handleAttributeNameChange(e.target.value)}
+          onChange={e => {
+            handleAttributeNameChange(e.target.value)
+            field.autoDetected = false
+          }}
           onBlur={() => commitChange('Change attribute name')}
           onFocus={captureStart}
           disabled={disabled}
           placeholder={field.defaultAttribute}
           className={s.fieldInput}
-          title={`Read from attribute: ${attributeName || field.defaultAttribute}`}
+          title={field.autoDetected ? `Auto-detected from '${attributeName}' column` : `Read from attribute: ${attributeName || field.defaultAttribute}`}
         />
       )}
 
       {mode === 'expression' && (
-        <InputText
-          id={id}
-          value={expressionValue}
-          onChange={e => handleExpressionChange(e.target.value)}
-          onBlur={() => commitChange('Change expression')}
-          onFocus={captureStart}
-          disabled={disabled}
-          placeholder="d.value"
-          className={s.fieldInput}
-          title={`Expression: ${expressionValue}`}
-        />
+        <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+          <InputText
+            id={id}
+            value={expressionValue}
+            onChange={e => {
+              handleExpressionChange(e.target.value)
+              field.autoDetected = false
+            }}
+            onBlur={() => commitChange('Change expression')}
+            onFocus={captureStart}
+            disabled={disabled}
+            placeholder="d.value"
+            className={s.fieldInput}
+            style={{ flex: 1 }}
+            title={field.autoDetected ? `Auto-detected expression: ${expressionValue}` : `Expression: ${expressionValue}`}
+          />
+          <InfoCircledIcon
+            style={{
+              width: '16px',
+              height: '16px',
+              color: '#888',
+              cursor: 'help',
+              flexShrink: 0,
+            }}
+            title={`Expression Syntax Help:
+• Access current item: d.columnName
+• Multi-component: [d.lng, d.lat, 0]
+• Conditionals: d.value > 100 ? [255,0,0,255] : [0,255,0,255]
+• Math: d.value * 2 + 10
+
+Available globals:
+• d3 - D3.js library
+• turf - Turf.js geospatial functions
+• deck - Deck.gl utilities
+• utils - Helper functions (getArc, hexToColor, etc.)
+
+Examples:
+• Position: [d.lng, d.lat, 0]
+• Color: [d.r, d.g, d.b, 255]
+• Radius: d.population / 1000`}
+          />
+        </div>
       )}
     </div>
   )

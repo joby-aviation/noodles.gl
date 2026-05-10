@@ -178,12 +178,14 @@ export function autoFillLayerAccessors(
       // Deck.gl GeoJsonLayer automatically extracts position from geometry
       // Use expression to access geometry.coordinates for point features
       field.setValue({ expression: 'd.geometry.type === "Point" ? d.geometry.coordinates : d.geometry' })
+      field.autoDetected = true
       continue
     }
 
     // Special handling for position fields with lat/lng
     if (field.defaultAttribute === 'position' && latLngPair) {
       field.setValue({ expression: `[d.${latLngPair.lng}, d.${latLngPair.lat}, 0]` })
+      field.autoDetected = true
       continue
     }
 
@@ -191,6 +193,7 @@ export function autoFillLayerAccessors(
     const matchedColumn = findBestColumnMatch(field.defaultAttribute, columns)
     if (matchedColumn) {
       field.setValue({ attributeName: matchedColumn })
+      field.autoDetected = true
     }
   }
 }

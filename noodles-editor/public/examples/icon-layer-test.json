@@ -1,5 +1,5 @@
 {
-  "version": 6,
+  "version": 15,
   "nodes": [
     {
       "id": "/maplibre-basemap",
@@ -41,11 +41,13 @@
     },
     {
       "id": "/get-position",
-      "type": "AccessorOp",
+      "type": "CreateAttributeOp",
       "position": { "x": 300, "y": 400 },
       "data": {
         "inputs": {
-          "code": "[d.lng, d.lat]"
+          "name": "position",
+          "expression": "[d.lng, d.lat]",
+          "size": 2
         }
       }
     },
@@ -60,18 +62,18 @@
   ],
   "edges": [
     {
-      "id": "/test-data.out.result->/icon-layer.par.data",
+      "id": "/test-data.out.result->/get-position.par.data",
       "source": "/test-data",
-      "target": "/icon-layer",
+      "target": "/get-position",
       "sourceHandle": "out.result",
       "targetHandle": "par.data"
     },
     {
-      "id": "/get-position.out.result->/icon-layer.par.getPosition",
+      "id": "/get-position.out.data->/icon-layer.par.data",
       "source": "/get-position",
       "target": "/icon-layer",
-      "sourceHandle": "out.result",
-      "targetHandle": "par.getPosition"
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
     },
     {
       "id": "/icon-layer.out.layer->/deck-renderer.par.layers",
