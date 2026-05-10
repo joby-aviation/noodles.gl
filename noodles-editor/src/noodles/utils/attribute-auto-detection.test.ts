@@ -52,6 +52,42 @@ describe('Attribute Auto-Detection', () => {
       expect(columns).toContain('lng')
     })
 
+    it('should extract columns from GeoJSON FeatureCollection', () => {
+      const data = {
+        type: 'FeatureCollection',
+        features: [
+          {
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [-74.0, 40.7] },
+            properties: { name: 'NYC', population: 8000000, color: '#ff0000' },
+          },
+        ],
+      }
+
+      const columns = extractSchemaFromData(data)
+
+      expect(columns).toContain('name')
+      expect(columns).toContain('population')
+      expect(columns).toContain('color')
+      expect(columns).toContain('geometry')
+    })
+
+    it('should extract columns from array of GeoJSON features', () => {
+      const data = [
+        {
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [-74.0, 40.7] },
+          properties: { radius: 50, elevation: 100 },
+        },
+      ]
+
+      const columns = extractSchemaFromData(data)
+
+      expect(columns).toContain('radius')
+      expect(columns).toContain('elevation')
+      expect(columns).toContain('geometry')
+    })
+
     it('should return empty array for empty data', () => {
       expect(extractSchemaFromData([])).toEqual([])
       expect(extractSchemaFromData(null)).toEqual([])
@@ -300,6 +336,45 @@ describe('Attribute Auto-Detection', () => {
       const radiusValue = layerOp.inputs.getRadius.value
       expect(radiusValue).toHaveProperty('attributeName')
       expect(radiusValue.attributeName).toBe('RADIUS')
+    })
+
+    it('should auto-fill position from GeoJSON geometry', () => {
+      const data = {
+        type: 'FeatureCollection',
+        features: [
+          {
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [-74.0, 40.7] },
+            properties: { name: 'NYC' },
+          },
+        ],
+      }
+
+      autoFillLayerAccessors(layerOp, data)
+
+      const positionValue = layerOp.inputs.getPosition.value
+      expect(positionValue).toHaveProperty('expression')
+      expect(positionValue.expression).toContain('d.geometry')
+    })
+
+    it('should auto-fill properties from GeoJSON features', () => {
+      const data = [
+        {
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [-74.0, 40.7] },
+          properties: { radius: 50, color: '#ff0000' },
+        },
+      ]
+
+      autoFillLayerAccessors(layerOp, data)
+
+      const radiusValue = layerOp.inputs.getRadius.value
+      expect(radiusValue).toHaveProperty('attributeName')
+      expect(radiusValue.attributeName).toBe('radius')
+
+      const colorValue = layerOp.inputs.getFillColor.value
+      expect(colorValue).toHaveProperty('attributeName')
+      expect(colorValue.attributeName).toBe('color')
     })
   })
 })
