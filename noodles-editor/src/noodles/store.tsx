@@ -132,15 +132,27 @@ interface UIStoreState {
   triggerSidebarSearch: () => void
   settingsDialogOpen: boolean
   setSettingsDialogOpen: (open: boolean) => void
-  timelineExpanded: boolean
-  setTimelineExpanded: (expanded: boolean) => void
-  timelineHeight: number
-  setTimelineHeight: (height: number) => void
   quickStartModalOpen: boolean
   setQuickStartModalOpen: (open: boolean) => void
+
+  // Panel state for resizable layout
+  panelSizes: {
+    sidebar: number
+    properties: number
+    mainSplit: number
+  }
+  panelCollapsed: {
+    sidebar: boolean
+    properties: boolean
+    timeline: boolean
+  }
+  setPanelSize: (panel: keyof UIStoreState['panelSizes'], size: number) => void
+  setPanelCollapsed: (panel: keyof UIStoreState['panelCollapsed'], collapsed: boolean) => void
+  loadPanelState: () => void
+  savePanelState: () => void
 }
 
-export const useUIStore = create<UIStoreState>(set => ({
+export const useUIStore = create<UIStoreState>((set, get) => ({
   hoveredOutputHandle: null,
   setHoveredOutputHandle: handle => set({ hoveredOutputHandle: handle }),
   connectionDragState: null,
@@ -156,12 +168,55 @@ export const useUIStore = create<UIStoreState>(set => ({
     set(state => ({ sidebarSearchFocusTrigger: state.sidebarSearchFocusTrigger + 1 })),
   settingsDialogOpen: false,
   setSettingsDialogOpen: open => set({ settingsDialogOpen: open }),
-  timelineExpanded: false,
-  setTimelineExpanded: expanded => set({ timelineExpanded: expanded }),
-  timelineHeight: 250,
-  setTimelineHeight: height => set({ timelineHeight: height }),
   quickStartModalOpen: false,
   setQuickStartModalOpen: open => set({ quickStartModalOpen: open }),
+
+  // Panel state defaults
+  panelSizes: {
+    sidebar: 12,
+    properties: 15,
+    mainSplit: 50,
+  },
+  panelCollapsed: {
+    sidebar: false,
+    properties: false,
+    timeline: false,
+  },
+
+  setPanelSize: (panel, size) =>
+    set(state => ({
+      panelSizes: { ...state.panelSizes, [panel]: size },
+    })),
+
+  setPanelCollapsed: (panel, collapsed) =>
+    set(state => ({
+      panelCollapsed: { ...state.panelCollapsed, [panel]: collapsed },
+    })),
+
+  loadPanelState: () => {
+    try {
+      const sizes = localStorage.getItem('noodles-panel-sizes')
+      const collapsed = localStorage.getItem('noodles-panel-collapsed')
+      if (sizes) {
+        set({ panelSizes: JSON.parse(sizes) })
+      }
+      if (collapsed) {
+        set({ panelCollapsed: JSON.parse(collapsed) })
+      }
+    } catch (e) {
+      console.warn('Failed to load panel state:', e)
+    }
+  },
+
+  savePanelState: () => {
+    const { panelSizes, panelCollapsed } = get()
+    try {
+      localStorage.setItem('noodles-panel-sizes', JSON.stringify(panelSizes))
+      localStorage.setItem('noodles-panel-collapsed', JSON.stringify(panelCollapsed))
+    } catch (e) {
+      console.warn('Failed to save panel state:', e)
+    }
+  },
 }))
 
 // ============================================================================

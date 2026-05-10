@@ -42,8 +42,6 @@ interface TopMenuBarProps {
   onChangeShowOverlay?: (show: boolean) => void
   showDebugInfo?: boolean
   onChangeShowDebugInfo?: (show: boolean) => void
-  layoutMode?: 'split' | 'noodles-on-top' | 'output-on-top'
-  onChangeLayoutMode?: (mode: 'split' | 'noodles-on-top' | 'output-on-top') => void
   reactFlowRef?: RefObject<HTMLDivElement>
 }
 
@@ -69,8 +67,6 @@ export function TopMenuBar({
   onChangeShowOverlay,
   showDebugInfo,
   onChangeShowDebugInfo,
-  layoutMode,
-  onChangeLayoutMode,
   reactFlowRef,
 }: TopMenuBarProps) {
   const settingsDialogOpen = useUIStore(state => state.settingsDialogOpen)
@@ -438,54 +434,6 @@ export function TopMenuBar({
                         Show editor debug info
                       </DropdownMenu.CheckboxItem>
 
-                      <DropdownMenu.Separator className={s.dropdownSeparator} />
-
-                      <DropdownMenu.Sub>
-                        <DropdownMenu.SubTrigger className={s.dropdownItem}>
-                          Layout
-                          <i
-                            className="pi pi-chevron-right"
-                            style={{ marginLeft: 'auto', fontSize: '10px' }}
-                          />
-                        </DropdownMenu.SubTrigger>
-                        <DropdownMenu.Portal>
-                          <DropdownMenu.SubContent className={s.dropdownContent} sideOffset={2}>
-                            <DropdownMenu.RadioGroup
-                              value={layoutMode}
-                              onValueChange={value =>
-                                onChangeLayoutMode?.(
-                                  value as 'split' | 'noodles-on-top' | 'output-on-top'
-                                )
-                              }
-                            >
-                              <DropdownMenu.RadioItem className={s.dropdownItem} value="split">
-                                <DropdownMenu.ItemIndicator className={s.itemIndicator}>
-                                  <i className="pi pi-check" style={{ fontSize: '12px' }} />
-                                </DropdownMenu.ItemIndicator>
-                                Split
-                              </DropdownMenu.RadioItem>
-                              <DropdownMenu.RadioItem
-                                className={s.dropdownItem}
-                                value="noodles-on-top"
-                              >
-                                <DropdownMenu.ItemIndicator className={s.itemIndicator}>
-                                  <i className="pi pi-check" style={{ fontSize: '12px' }} />
-                                </DropdownMenu.ItemIndicator>
-                                Noodles on Top
-                              </DropdownMenu.RadioItem>
-                              <DropdownMenu.RadioItem
-                                className={s.dropdownItem}
-                                value="output-on-top"
-                              >
-                                <DropdownMenu.ItemIndicator className={s.itemIndicator}>
-                                  <i className="pi pi-check" style={{ fontSize: '12px' }} />
-                                </DropdownMenu.ItemIndicator>
-                                Output on Top
-                              </DropdownMenu.RadioItem>
-                            </DropdownMenu.RadioGroup>
-                          </DropdownMenu.SubContent>
-                        </DropdownMenu.Portal>
-                      </DropdownMenu.Sub>
                     </DropdownMenu.SubContent>
                   </DropdownMenu.Portal>
                 </DropdownMenu.Sub>

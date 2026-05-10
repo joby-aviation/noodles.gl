@@ -1,130 +1,92 @@
 .layout {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   height: 100vh;
-  grid-template-areas:
-    "top-bar top-bar top-bar"
-    "left-widget fill-widget right-widget"
-    "bottom-widget bottom-widget bottom-widget";
-  grid-template-rows: auto 1fr auto;
-  grid-template-columns: auto 1fr auto;
-  position: relative;
-}
-
-.sidebarContainer {
-  width: 240px;
-  min-width: 240px;
-  max-width: 240px;
-  background: var(--color-bg-base);
-  border-right: 1px solid var(--color-border);
+  width: 100vw;
   overflow: hidden;
 }
 
-.sidebarToggle {
-  position: fixed;
-  left: 240px;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: var(--z-index-chrome);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 40px;
-  padding: 0;
-  background: var(--color-bg-base);
-  border: 1px solid var(--color-border);
-  border-left: none;
-  border-radius: 0 4px 4px 0;
-  cursor: pointer;
-  color: var(--color-text-secondary);
-  transition: all 0.2s ease;
+.topBar {
   flex-shrink: 0;
 }
 
-.sidebarToggle:hover {
-  background: var(--color-bg-hover);
-  color: var(--color-text-primary);
-  width: 24px;
+.mainContent {
+  flex: 1;
+  min-height: 0;
+  display: flex;
 }
 
-.sidebarToggle:active {
-  background: var(--color-bg-active);
-}
-
-.sidebarToggle i {
-  font-size: 10px;
-}
-
-.sidebarToggleCollapsed {
-  left: 0;
-}
-
-.fillWidget {
-  grid-area: fill-widget;
-  position: relative;
+/* Panels */
+.sidebarPanel {
+  background: var(--color-bg-base);
+  border-right: 1px solid var(--color-border);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.rightPanel {
+  background-color: var(--property-panel-background-color);
+  border-left: 1px solid var(--color-border);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .outputArea,
 .noodlesArea {
-  position: absolute;
-  left: 0;
-  right: 0;
   overflow: hidden;
+  position: relative;
 }
 
-/* Split mode: divide space vertically */
-.fillWidget.layoutSplit .outputArea {
-  top: 0;
-  bottom: 50%;
+.timelinePanel {
+  flex-shrink: 0;
+  border-top: 1px solid var(--color-border);
 }
 
-.fillWidget.layoutSplit .noodlesArea {
-  top: 50%;
-  bottom: 0;
+/* Resize Handles */
+.verticalHandle {
+  width: 4px;
+  background: var(--color-border);
+  cursor: col-resize;
+  position: relative;
+  transition: background 150ms ease;
 }
 
-/* Noodles on top mode: noodles overlays output */
-.fillWidget.layoutNoodlesOnTop .outputArea {
-  top: 0;
-  bottom: 0;
-  isolation: isolate;
+.verticalHandle:hover {
+  background: var(--color-bg-hover);
 }
 
-.fillWidget.layoutNoodlesOnTop .noodlesArea {
-  top: 0;
-  bottom: 0;
-  z-index: 1;
+.verticalHandle:active {
+  background: var(--color-accent, #3b82f6);
 }
 
-/* Output on top mode: output overlays noodles */
-.fillWidget.layoutOutputOnTop .outputArea {
-  top: 0;
-  bottom: 0;
-  z-index: 1;
+.verticalHandle::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 2px rgba(0, 0, 0, 0.2);
 }
 
-.fillWidget.layoutOutputOnTop .noodlesArea {
-  top: 0;
-  bottom: 0;
-  isolation: isolate;
+.horizontalHandle {
+  height: 4px;
+  background: var(--color-border);
+  cursor: row-resize;
+  position: relative;
+  transition: background 150ms ease;
 }
 
-/* In output-on-top mode, disable pointer events on the container but enable them on children */
-.fillWidget.layoutOutputOnTop .outputArea {
-  pointer-events: none;
+.horizontalHandle:hover {
+  background: var(--color-bg-hover);
 }
 
-.fillWidget.layoutOutputOnTop .outputArea > * {
-  pointer-events: auto;
+.horizontalHandle:active {
+  background: var(--color-accent, #3b82f6);
 }
 
-/* Right widget wrapper - unified background for Theatre.js and properties panel */
-.rightWidgetWrapper {
-  grid-area: right-widget;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  background-color: var(--property-panel-background-color);
-  width: 296px; /* Fixed width: property panel width (280px) + Theatre panel padding (16px) */
+.horizontalHandle::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 2px rgba(0, 0, 0, 0.2);
 }

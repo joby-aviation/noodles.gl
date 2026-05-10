@@ -1,13 +1,8 @@
-import cx from 'classnames'
 import type { PropsWithChildren, ReactNode } from 'react'
+import { useEffect } from 'react'
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import s from './layout.module.css'
 import { useUIStore } from './noodles/store'
-
-const LAYOUT_CLASSES = {
-  split: s.layoutSplit,
-  'noodles-on-top': s.layoutNoodlesOnTop,
-  'output-on-top': s.layoutOutputOnTop,
-} as const
 
 export function Layout({
   top,
@@ -16,45 +11,97 @@ export function Layout({
   right,
   flowGraph,
   children,
-  layoutMode = 'split',
 }: PropsWithChildren<{
   top?: ReactNode
   bottom?: ReactNode
   left?: ReactNode
   right?: ReactNode
   flowGraph?: ReactNode
-  layoutMode?: 'split' | 'noodles-on-top' | 'output-on-top'
 }>) {
-  const sidebarVisible = useUIStore(state => state.sidebarVisible)
+  const panelSizes = useUIStore(state => state.panelSizes)
+  const panelCollapsed = useUIStore(state => state.panelCollapsed)
+  const setPanelSize = useUIStore(state => state.setPanelSize)
+  const setPanelCollapsed = useUIStore(state => state.setPanelCollapsed)
+  const loadPanelState = useUIStore(state => state.loadPanelState)
+  const savePanelState = useUIStore(state => state.savePanelState)
 
-  const layoutClass = LAYOUT_CLASSES[layoutMode]
-
-  const setSidebarVisible = useUIStore(state => state.setSidebarVisible)
+  // Load panel state on mount
+  useEffect(() => {
+    loadPanelState()
+  }, [loadPanelState])
 
   return (
-    <div className={cx(s.layout, layoutClass)}>
-      <div style={{ gridArea: 'top-bar' }}>{top}</div>
-      {sidebarVisible && (
-        <div className={s.sidebarContainer} style={{ gridArea: 'left-widget', minHeight: 0 }}>
-          {left}
-        </div>
+    <div className={s.layout}>
+      <div className={s.topBar}>{top}</div>
+
+      <div className={s.mainContent}>
+        <PanelGroup direction="horizontal" onLayout={savePanelState}>
+          {/* Left Sidebar */}
+          <Panel
+            id="sidebar"
+            defaultSize={panelSizes.sidebar}
+            minSize={10}
+            maxSize={30}
+            collapsible={true}
+            collapsedSize={0}
+            onCollapse={collapsed => setPanelCollapsed('sidebar', collapsed)}
+            onResize={size => setPanelSize('sidebar', size)}
+            className={s.sidebarPanel}
+          >
+            {left}
+          </Panel>
+
+          <PanelResizeHandle className={s.verticalHandle} />
+
+          {/* Main Content Area (Map + Noodles) */}
+          <Panel id="main" minSize={30}>
+            <PanelGroup direction="vertical" onLayout={savePanelState}>
+              {/* Map Output */}
+              <Panel
+                id="map"
+                defaultSize={panelSizes.mainSplit}
+                minSize={20}
+                onResize={size => setPanelSize('mainSplit', size)}
+                className={s.outputArea}
+              >
+                {children}
+              </Panel>
+
+              <PanelResizeHandle className={s.horizontalHandle} />
+
+              {/* Node Editor */}
+              <Panel id="noodles" minSize={20} className={s.noodlesArea}>
+                {flowGraph}
+              </Panel>
+            </PanelGroup>
+          </Panel>
+
+          <PanelResizeHandle className={s.verticalHandle} />
+
+          {/* Right Properties Panel */}
+          <Panel
+            id="properties"
+            defaultSize={panelSizes.properties}
+            minSize={12}
+            maxSize={30}
+            collapsible={true}
+            collapsedSize={0}
+            onCollapse={collapsed => setPanelCollapsed('properties', collapsed)}
+            onResize={size => setPanelSize('properties', size)}
+            className={s.rightPanel}
+          >
+            {right}
+          </Panel>
+        </PanelGroup>
+      </div>
+
+      {/* Timeline at bottom */}
+      {!panelCollapsed.timeline && bottom && (
+        <>
+          <PanelResizeHandle className={s.horizontalHandle} />
+          <div className={s.timelinePanel}>{bottom}</div>
+        </>
       )}
-      <button
-        type="button"
-        onClick={() => setSidebarVisible(!sidebarVisible)}
-        className={cx(s.sidebarToggle, { [s.sidebarToggleCollapsed]: !sidebarVisible })}
-        title={sidebarVisible ? 'Hide sidebar' : 'Show sidebar'}
-      >
-        <i className={sidebarVisible ? 'pi pi-chevron-left' : 'pi pi-chevron-right'} />
-      </button>
-      <div className={s.rightWidgetWrapper}>
-        <div style={{ flex: 1, minHeight: 0 }}>{right}</div>
-      </div>
-      <div style={{ gridArea: 'bottom-widget' }}>{bottom}</div>
-      <div className={cx(s.fillWidget, layoutClass)}>
-        <div className={s.outputArea}>{children}</div>
-        <div className={s.noodlesArea}>{flowGraph}</div>
-      </div>
     </div>
   )
 }

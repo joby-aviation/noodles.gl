@@ -88,7 +88,7 @@ export default function TimelineEditor() {
   }, [])
 
   const noodles = getNoodles()
-  const { flowGraph, nodeSidebar, propertiesPanel, layoutMode, ...visualization } = noodles
+  const { flowGraph, nodeSidebar, propertiesPanel, ...visualization } = noodles
 
   // Render settings are now stored as OutOp inputs
   const renderSettings = useRenderSettings()
@@ -576,8 +576,6 @@ export default function TimelineEditor() {
       onChangeShowOverlay={noodles.onChangeShowOverlay}
       showDebugInfo={noodles.showDebugInfo}
       onChangeShowDebugInfo={noodles.onChangeShowDebugInfo}
-      layoutMode={noodles.layoutMode}
-      onChangeLayoutMode={noodles.onChangeLayoutMode}
     />
   )
 
@@ -606,7 +604,6 @@ export default function TimelineEditor() {
             right={propertiesPanel}
             bottom={<CollapsibleTimelinePanel />}
             flowGraph={flowGraph}
-            layoutMode={layoutMode}
           >
             {isFixedMode ? (
               <TransformScale scale={renderSettings.scaleControl}>

@@ -28,8 +28,6 @@ export type Visualization = {
   flowGraph?: React.ReactNode
   nodeSidebar?: React.ReactNode
   propertiesPanel?: React.ReactNode
-  layoutMode?: 'split' | 'noodles-on-top' | 'output-on-top'
-  onChangeLayoutMode?: (mode: 'split' | 'noodles-on-top' | 'output-on-top') => void
   showOverlay?: boolean
   onChangeShowOverlay?: (show: boolean) => void
   showDebugInfo?: boolean
