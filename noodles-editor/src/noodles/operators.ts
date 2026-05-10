@@ -2028,7 +2028,7 @@ export class FileOp extends Operator<FileOp> {
   }
 }
 
-const duckDbInstance = (async () => {
+export const duckDbInstance = (async () => {
   // Use CDN bundles for Cloudflare Pages (which has a 25 MiB file size limit)
   // Use local bundles for development and GitHub Actions (which can access local files)
   let bundles: duckdb.DuckDBBundles
