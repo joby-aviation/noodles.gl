@@ -376,5 +376,40 @@ describe('Attribute Auto-Detection', () => {
       expect(colorValue).toHaveProperty('attributeName')
       expect(colorValue.attributeName).toBe('color')
     })
+
+    it('should set autoDetected flag when auto-filling attributes', () => {
+      const data = [
+        { lat: 40.7, lng: -74.0, size: 10 },
+        { lat: 34.0, lng: -118.2, size: 20 },
+      ]
+
+      const scatterplotOp = new ScatterplotLayerOp('/test/scatterplot')
+      scatterplotOp.createListeners()
+
+      autoFillLayerAccessors(scatterplotOp, data)
+
+      expect(scatterplotOp.inputs.getPosition.autoDetected).toBe(true)
+      expect(scatterplotOp.inputs.getRadius.autoDetected).toBe(true)
+    })
+
+    it('should respect cleared autoDetected flag after manual change', () => {
+      const data = [{ lat: 40.7, lng: -74.0, size: 10 }]
+
+      const scatterplotOp = new ScatterplotLayerOp('/test/scatterplot')
+      scatterplotOp.createListeners()
+
+      // First auto-fill
+      autoFillLayerAccessors(scatterplotOp, data)
+      expect(scatterplotOp.inputs.getPosition.autoDetected).toBe(true)
+
+      // User manually changes it
+      scatterplotOp.inputs.getPosition.setValue({ expression: 'd.custom' })
+      scatterplotOp.inputs.getPosition.autoDetected = false
+
+      // Second auto-fill should not overwrite
+      autoFillLayerAccessors(scatterplotOp, data)
+      expect(scatterplotOp.inputs.getPosition.value).toEqual({ expression: 'd.custom' })
+      expect(scatterplotOp.inputs.getPosition.autoDetected).toBe(false)
+    })
   })
 })
