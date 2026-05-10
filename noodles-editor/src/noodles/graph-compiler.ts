@@ -72,18 +72,22 @@ export class GraphCompiler {
         const { url, format } = inputs
 
         // DuckDB read functions
-        const reader = format === 'csv' ? 'read_csv_auto' :
-                      format === 'json' ? 'read_json_auto' :
-                      format === 'parquet' ? 'read_parquet' :
-                      null
+        const reader =
+          format === 'csv'
+            ? 'read_csv_auto'
+            : format === 'json'
+              ? 'read_json_auto'
+              : format === 'parquet'
+                ? 'read_parquet'
+                : null
 
         if (!reader) return {}
 
         return {
-          from: `${reader}(${params.nextParam(url)})`
+          from: `${reader}(${params.nextParam(url)})`,
         }
       },
-      estimateRows: () => 10000 // Default estimate
+      estimateRows: () => 10000, // Default estimate
     })
 
     // FilterOp - WHERE clause
@@ -96,45 +100,45 @@ export class GraphCompiler {
         // Simple expression mode: "population > 1000000"
         if (typeof condition === 'string') {
           return {
-            where: [condition]
+            where: [condition],
           }
         }
 
         // Complex: JS function - cannot compile
         return {}
-      }
+      },
     })
 
     // SortOp - ORDER BY
     this.sqlMetadata.set('SortOp', {
       sqlCompilable: true,
       generateSql: (inputs, _params) => {
-        const { key, order = 'asc' } = inputs as { key: string, order?: 'asc' | 'desc' }
+        const { key, order = 'asc' } = inputs as { key: string; order?: 'asc' | 'desc' }
 
         return {
-          orderBy: [`${key} ${order.toUpperCase()}`]
+          orderBy: [`${key} ${order.toUpperCase()}`],
         }
-      }
+      },
     })
 
     // SliceOp - LIMIT/OFFSET
     this.sqlMetadata.set('SliceOp', {
       sqlCompilable: true,
       generateSql: (inputs, _params) => {
-        const { start = 0, end } = inputs as { start?: number, end?: number }
+        const { start = 0, end } = inputs as { start?: number; end?: number }
 
         return {
           limit: end !== undefined ? end - start : undefined,
-          offset: start > 0 ? start : undefined
+          offset: start > 0 ? start : undefined,
         }
-      }
+      },
     })
 
     // CreateAttributeOp - computed columns
     this.sqlMetadata.set('CreateAttributeOp', {
       sqlCompilable: true,
       generateSql: (inputs, _params) => {
-        const { name, expression } = inputs as { name: string, expression: string }
+        const { name, expression } = inputs as { name: string; expression: string }
 
         // Convert JS expression to SQL
         // Simple cases: "d.lat", "[d.lng, d.lat, 0]"
@@ -143,16 +147,16 @@ export class GraphCompiler {
         if (!sqlExpr) return {}
 
         return {
-          computedColumns: { [`_attr_${name}`]: sqlExpr }
+          computedColumns: { [`_attr_${name}`]: sqlExpr },
         }
-      }
+      },
     })
 
     // MathOp - SQL functions
     this.sqlMetadata.set('MathOp', {
       sqlCompilable: true,
       generateSql: (inputs, params) => {
-        const { operation, a, b } = inputs as { operation: string, a: number, b: number }
+        const { operation, a, b } = inputs as { operation: string; a: number; b: number }
 
         const ops: Record<string, string> = {
           add: `${params.nextParam(a)} + ${params.nextParam(b)}`,
@@ -167,9 +171,9 @@ export class GraphCompiler {
         }
 
         return {
-          select: [ops[operation]]
+          select: [ops[operation]],
         }
-      }
+      },
     })
   }
 
@@ -205,7 +209,7 @@ export class GraphCompiler {
   // Analyze graph and identify SQL-compilable chains
   analyze(
     operators: Map<string, Operator<IOperator>>,
-    edges: Array<{ source: string, target: string }>
+    edges: Array<{ source: string; target: string }>
   ): CompilationPlan {
     const chains: SqlChain[] = []
     const barriers: CompilationBarrier[] = []
@@ -234,10 +238,11 @@ export class GraphCompiler {
     }
 
     // Estimate speedup
-    const estimatedSpeedup = chains.reduce((sum, chain) => {
-      // Rough heuristic: SQL is 10x faster for chains with >1K rows
-      return sum + (chain.estimatedRows > 1000 ? 10 : 1)
-    }, 0) / Math.max(chains.length, 1)
+    const estimatedSpeedup =
+      chains.reduce((sum, chain) => {
+        // Rough heuristic: SQL is 10x faster for chains with >1K rows
+        return sum + (chain.estimatedRows > 1000 ? 10 : 1)
+      }, 0) / Math.max(chains.length, 1)
 
     return { sqlChains: chains, barriers, estimatedSpeedup }
   }
@@ -282,12 +287,12 @@ export class GraphCompiler {
       headOpId: source.id,
       tailOpId: current.id,
       estimatedRows: 10000, // TODO: Better estimation
-      sqlFragment: {} // Will be generated during compilation
+      sqlFragment: {}, // Will be generated during compilation
     }
   }
 
   // Compile SQL chain to DuckDB query
-  compileToDuckDB(chain: SqlChain): { sql: string, params: unknown[] } {
+  compileToDuckDB(chain: SqlChain): { sql: string; params: unknown[] } {
     const params: unknown[] = []
     let paramIndex = 1
 
@@ -297,7 +302,7 @@ export class GraphCompiler {
       nextParam: (value: unknown) => {
         params.push(value)
         return `$${paramIndex++}`
-      }
+      },
     }
 
     // Accumulate SQL fragments
@@ -331,7 +336,10 @@ export class GraphCompiler {
     }
 
     // Build final SQL
-    const selectClause = [...select, ...Object.entries(computedColumns).map(([name, expr]) => `${expr} AS ${name}`)]
+    const selectClause = [
+      ...select,
+      ...Object.entries(computedColumns).map(([name, expr]) => `${expr} AS ${name}`),
+    ]
 
     let sql = `SELECT ${selectClause.join(', ')}\nFROM ${from}`
 

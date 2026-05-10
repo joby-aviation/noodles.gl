@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { GraphCompiler } from './graph-compiler'
-import { FileOp, FilterOp, SortOp, SliceOp, CreateAttributeOp } from './operators'
+import { CreateAttributeOp, FileOp, SliceOp, SortOp } from './operators'
 
 describe('GraphCompiler', () => {
   it('should compile FileOp → SortOp chain to SQL', () => {
@@ -20,9 +20,7 @@ describe('GraphCompiler', () => {
       [sortOp.id, sortOp],
     ])
 
-    const edges = [
-      { source: fileOp.id, target: sortOp.id },
-    ]
+    const edges = [{ source: fileOp.id, target: sortOp.id }]
 
     // Analyze graph
     const plan = compiler.analyze(operators, edges)
