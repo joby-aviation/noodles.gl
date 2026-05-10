@@ -1,6 +1,5 @@
 import type { Table } from 'apache-arrow'
 import { debugApp } from '../utils/debug'
-import type { DataField } from './fields'
 import type { IOperator, Operator } from './operators'
 import { duckDbInstance } from './operators'
 
@@ -90,7 +89,8 @@ export class GraphCompiler {
     // FilterOp - WHERE clause
     this.sqlMetadata.set('FilterOp', {
       sqlCompilable: true,
-      generateSql: (inputs, params) => {
+      generateSql: (inputs, _params) => {
+        // biome-ignore lint/complexity/noBannedTypes: FilterOp condition can be string or function
         const { condition } = inputs as { condition: string | Function }
 
         // Simple expression mode: "population > 1000000"
@@ -108,7 +108,7 @@ export class GraphCompiler {
     // SortOp - ORDER BY
     this.sqlMetadata.set('SortOp', {
       sqlCompilable: true,
-      generateSql: (inputs, params) => {
+      generateSql: (inputs, _params) => {
         const { key, order = 'asc' } = inputs as { key: string, order?: 'asc' | 'desc' }
 
         return {
@@ -120,7 +120,7 @@ export class GraphCompiler {
     // SliceOp - LIMIT/OFFSET
     this.sqlMetadata.set('SliceOp', {
       sqlCompilable: true,
-      generateSql: (inputs, params) => {
+      generateSql: (inputs, _params) => {
         const { start = 0, end } = inputs as { start?: number, end?: number }
 
         return {
@@ -133,7 +133,7 @@ export class GraphCompiler {
     // CreateAttributeOp - computed columns
     this.sqlMetadata.set('CreateAttributeOp', {
       sqlCompilable: true,
-      generateSql: (inputs, params) => {
+      generateSql: (inputs, _params) => {
         const { name, expression } = inputs as { name: string, expression: string }
 
         // Convert JS expression to SQL
@@ -185,9 +185,9 @@ export class GraphCompiler {
     const arrayExpr = expr.match(/^\[([^\]]+)\]$/)
     if (arrayExpr) {
       const elements = arrayExpr[1].split(',').map(e => {
-        e = e.trim()
-        if (e.startsWith('d.')) return e.substring(2)
-        return e
+        const trimmed = e.trim()
+        if (trimmed.startsWith('d.')) return trimmed.substring(2)
+        return trimmed
       })
       return `[${elements.join(', ')}]`
     }
