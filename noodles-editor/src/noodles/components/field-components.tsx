@@ -928,6 +928,7 @@ export function FileUrlFieldComponent({
                 // biome-ignore lint/a11y/useSemanticElements: custom combobox option
                 <li
                   key={val}
+                  role="option"
                   aria-selected={val === value}
                   className={cx(s.fileUrlSuggestion, {
                     [s.fileUrlSuggestionActive]: val === value,
