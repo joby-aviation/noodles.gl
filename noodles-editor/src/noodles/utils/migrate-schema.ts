@@ -40,15 +40,19 @@ export async function migrateProject(
 
   // If we're migrating up
   if (to > project.version) {
+    console.log(`[Migration] Starting migration from v${project.version} to v${to}`)
     for (const { version, migration } of migrationVersions) {
       if (version > migrated.version && version <= to) {
+        console.log(`[Migration] Running migration ${version}`)
         const migrationModule = await (migration as () => Promise<IMigration>)()
         if (migrationModule.up) {
           migrated = await migrationModule.up(migrated)
           migrated = { ...migrated, version }
+          console.log(`[Migration] Completed migration ${version}`)
         }
       }
     }
+    console.log(`[Migration] Migration complete. Final version: v${migrated.version}`)
   }
   // If we're migrating down
   else if (to < project.version) {
