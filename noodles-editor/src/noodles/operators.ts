@@ -4193,7 +4193,14 @@ export class CreateAttributeOp extends Operator<CreateAttributeOp> {
     type,
     size,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    console.log(`[CreateAttributeOp ${this.id}] execute called`, {
+      hasData: !!data,
+      dataType: Array.isArray(data) ? 'array' : typeof data,
+      name,
+      expression
+    })
     if (!data || !name) {
+      console.log(`[CreateAttributeOp ${this.id}] returning early - no data or name`)
       return { data }
     }
 
@@ -4234,7 +4241,7 @@ export class CreateAttributeOp extends Operator<CreateAttributeOp> {
     const TypedArrayClass = type === 'uint8' ? Uint8Array : Float32Array
     const typedArray = new TypedArrayClass(attributeValues)
 
-    return {
+    const result = {
       data: {
         data: existingData,
         attributes: {
@@ -4243,6 +4250,12 @@ export class CreateAttributeOp extends Operator<CreateAttributeOp> {
         },
       },
     }
+    console.log(`[CreateAttributeOp ${this.id}] returning`, {
+      dataLength: Array.isArray(existingData) ? existingData.length : 'not-array',
+      attributeName: name,
+      attributeLength: typedArray.length
+    })
+    return result
   }
 }
 
@@ -4780,6 +4793,10 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
     layerFilter,
     maplibreLayers,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    console.log(`[DeckRendererOp ${this.id}] execute called`, {
+      layersCount: layers?.length || 0,
+      layers: layers?.map(l => l?.type || 'unknown')
+    })
     // Validate the ViewState to ensure lat/lng are within valid bounds
     validateViewState(viewState)
 
@@ -5928,7 +5945,12 @@ export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    console.log(`[ScatterplotLayerOp ${this.id}] execute called`, { hasData: !!props.data })
     const { rows, attributes } = extractAttributeData(props.data)
+    console.log(`[ScatterplotLayerOp ${this.id}] extracted`, {
+      rowsLength: rows.length,
+      attributes: Object.keys(attributes)
+    })
 
     const baseLayerProps = {
       ...parseLayerProps<ScatterplotLayerProps>({ ...props, data: rows }),
@@ -5938,6 +5960,7 @@ export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
     }
 
     const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
+    console.log(`[ScatterplotLayerOp ${this.id}] returning layer with ${rows.length} rows`)
 
     return { layer: layerProps }
   }

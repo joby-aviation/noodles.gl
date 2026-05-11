@@ -145,8 +145,8 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
   const nodesToRemove = new Set<string>()
   const edgesToRemove = new Set<string>()
 
-  // Map: layerId -> list of CreateAttributeOp chains to apply
-  const layerDataUpdates = new Map<string, { source: string; handle: string }>()
+  // Map: layerId -> array of CreateAttributeOp chain endpoints
+  const layerDataChains = new Map<string, Array<{ source: string; handle: string }>>()
 
   // Process each unique accessor usage
   let createAttrIndex = 0
@@ -209,14 +209,59 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
       currentDataHandle = 'out.data'
     }
 
-    // Update all layers using this accessor to read from the final CreateAttributeOp in chain
+    // Track all layers using this accessor and their chain endpoints
     for (const { layerId, edgeId } of layers) {
-      layerDataUpdates.set(layerId, { source: currentDataSource, handle: currentDataHandle })
+      const existing = layerDataChains.get(layerId) || []
+      existing.push({ source: currentDataSource, handle: currentDataHandle })
+      layerDataChains.set(layerId, existing)
       edgesToRemove.add(edgeId)
     }
 
     // Mark accessor node for removal
     nodesToRemove.add(accessorId)
+  }
+
+  // For each layer, chain all its CreateAttributeOps together
+  const layerDataUpdates = new Map<string, { source: string; handle: string }>()
+  for (const [layerId, chains] of layerDataChains) {
+    if (chains.length === 1) {
+      // Single chain, use it directly
+      layerDataUpdates.set(layerId, chains[0])
+    } else {
+      // Multiple chains - need to merge them by chaining them together
+      // The first chain starts from the data source
+      // Each subsequent chain should read from the previous chain's output
+      let finalSource = chains[0].source
+      let finalHandle = chains[0].handle
+
+      for (let i = 1; i < chains.length; i++) {
+        // Get the CreateAttributeOp at the end of this chain
+        const chainEndNode = newNodes.find(n => n.id === chains[i].source)
+        if (chainEndNode && chainEndNode.type === 'CreateAttributeOp') {
+          // Update its data input to come from the previous chain
+          const existingDataEdgeIndex = newEdges.findIndex(
+            e => e.target === chains[i].source && e.targetHandle === 'par.data'
+          )
+          if (existingDataEdgeIndex >= 0) {
+            newEdges[existingDataEdgeIndex] = {
+              ...newEdges[existingDataEdgeIndex],
+              source: finalSource,
+              sourceHandle: finalHandle,
+              id: edgeId({
+                source: finalSource,
+                target: chains[i].source,
+                sourceHandle: finalHandle,
+                targetHandle: 'par.data',
+              }),
+            }
+          }
+          finalSource = chains[i].source
+          finalHandle = chains[i].handle
+        }
+      }
+
+      layerDataUpdates.set(layerId, { source: finalSource, handle: finalHandle })
+    }
   }
 
   // Update layer data connections
