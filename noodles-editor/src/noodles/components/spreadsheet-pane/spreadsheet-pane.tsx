@@ -32,6 +32,10 @@ export function SpreadsheetPane({ selectedNodeIds }: { selectedNodeIds: string[]
     const op = getOp(targetNodeId)
     if (!op) {
       setError('Operator not found')
+      // Clear pinned node if it was deleted
+      if (pinnedNodeId) {
+        setPinnedNodeId(null)
+      }
       return
     }
 
@@ -50,7 +54,7 @@ export function SpreadsheetPane({ selectedNodeIds }: { selectedNodeIds: string[]
     return () => {
       subscriptionRef.current?.unsubscribe()
     }
-  }, [visible, targetNodeId])
+  }, [visible, targetNodeId, pinnedNodeId, setPinnedNodeId])
 
   // Resize handling
   const handleResizeMouseDown = useCallback(

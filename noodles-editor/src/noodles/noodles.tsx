@@ -1739,7 +1739,7 @@ export function getNoodles(): Visualization {
     onChangeShowOverlay: setShowOverlay,
     showDebugInfo,
     onChangeShowDebugInfo: setShowDebugInfo,
-    spreadsheetVisible: useUIStore.getState().spreadsheetVisible,
+    spreadsheetVisible: useUIStore(state => state.spreadsheetVisible),
     onChangeSpreadsheetVisible: (visible: boolean) => {
       useUIStore.getState().setSpreadsheetVisible(visible)
       // Auto-switch to split mode when enabling spreadsheet

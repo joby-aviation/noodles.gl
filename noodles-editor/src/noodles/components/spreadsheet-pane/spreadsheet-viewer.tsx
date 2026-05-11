@@ -6,7 +6,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ColumnSchema } from '../../table-schema'
 import { inferSchema } from '../../table-schema'
 import s from './spreadsheet-viewer.module.css'
@@ -17,6 +17,7 @@ export function SpreadsheetViewer({ data }: { data: unknown }) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({})
   const [visibilityMenuOpen, setVisibilityMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   // Validate data is array of objects
   const { rows, schema } = useMemo(() => {
@@ -65,6 +66,20 @@ export function SpreadsheetViewer({ data }: { data: unknown }) {
     getSortedRowModel: getSortedRowModel(),
   })
 
+  // Close visibility menu when clicking outside
+  useEffect(() => {
+    if (!visibilityMenuOpen) return
+
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setVisibilityMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [visibilityMenuOpen])
+
   if (!schema || rows.length === 0) {
     return (
       <div className={s.emptyState}>
@@ -90,7 +105,7 @@ export function SpreadsheetViewer({ data }: { data: unknown }) {
           <i className="pi pi-filter" />
         </button>
         {visibilityMenuOpen && (
-          <div className={s.visibilityMenu}>
+          <div ref={menuRef} className={s.visibilityMenu}>
             {schema.columns.map(col => (
               <label key={col.name} className={s.visibilityItem}>
                 <input
@@ -156,7 +171,11 @@ function formatCellValue(value: unknown, column: ColumnSchema): string {
 
   switch (column.type) {
     case 'number':
-      return typeof value === 'number' ? value.toFixed(2) : String(value)
+      return typeof value === 'number'
+        ? Number.isInteger(value)
+          ? String(value)
+          : value.toFixed(2)
+        : String(value)
     case 'boolean':
       return value ? '✓' : ''
     case 'color':
