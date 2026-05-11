@@ -209,12 +209,24 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
       currentDataHandle = 'out.data'
     }
 
-    // Track all layers using this accessor and their chain endpoints
-    for (const { layerId, edgeId } of layers) {
-      const existing = layerDataChains.get(layerId) || []
-      existing.push({ source: currentDataSource, handle: currentDataHandle })
-      layerDataChains.set(layerId, existing)
-      edgesToRemove.add(edgeId)
+    // Track all layers using this accessor and map them to the correct CreateAttributeOp
+    // Each layer needs a specific attribute, not necessarily the last one in the chain
+    const attributeNameToNodeId = new Map<string, string>()
+    for (const attributeName of attributeNames) {
+      const nodeId = `${accessorId.replace('/accessor-', '/attr-')}-${attributeName}`
+      attributeNameToNodeId.set(attributeName, nodeId)
+    }
+
+    for (const { layerId, fieldName, edgeId } of layers) {
+      const attributeName = ACCESSOR_FIELD_TO_ATTRIBUTE[fieldName] || fieldName.replace('get', '').toLowerCase()
+      const createAttrNodeId = attributeNameToNodeId.get(attributeName)
+
+      if (createAttrNodeId) {
+        const existing = layerDataChains.get(layerId) || []
+        existing.push({ source: createAttrNodeId, handle: 'out.data' })
+        layerDataChains.set(layerId, existing)
+        edgesToRemove.add(edgeId)
+      }
     }
 
     // Mark accessor node for removal
