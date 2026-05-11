@@ -95,13 +95,8 @@ export function Layout({
         </PanelGroup>
       </div>
 
-      {/* Timeline at bottom */}
-      {!panelCollapsed.timeline && bottom && (
-        <>
-          <PanelResizeHandle className={s.horizontalHandle} />
-          <div className={s.timelinePanel}>{bottom}</div>
-        </>
-      )}
+      {/* Timeline at bottom - has its own resize implementation in CollapsibleTimelinePanel */}
+      {bottom}
     </div>
   )
 }

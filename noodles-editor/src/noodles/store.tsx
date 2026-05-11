@@ -150,6 +150,12 @@ interface UIStoreState {
   setPanelCollapsed: (panel: keyof UIStoreState['panelCollapsed'], collapsed: boolean) => void
   loadPanelState: () => void
   savePanelState: () => void
+
+  // Timeline panel state (kept for CollapsibleTimelinePanel backward compatibility)
+  timelineExpanded: boolean
+  setTimelineExpanded: (expanded: boolean) => void
+  timelineHeight: number
+  setTimelineHeight: (height: number) => void
 }
 
 export const useUIStore = create<UIStoreState>((set, get) => ({
@@ -197,11 +203,22 @@ export const useUIStore = create<UIStoreState>((set, get) => ({
     try {
       const sizes = localStorage.getItem('noodles-panel-sizes')
       const collapsed = localStorage.getItem('noodles-panel-collapsed')
+
+      // Validate and merge with defaults to handle stale localStorage data
+      const defaultSizes = { sidebar: 12, properties: 15, mainSplit: 50 }
+      const defaultCollapsed = { sidebar: false, properties: false, timeline: false }
+
       if (sizes) {
-        set({ panelSizes: JSON.parse(sizes) })
+        const parsed = JSON.parse(sizes)
+        if (parsed && typeof parsed === 'object') {
+          set({ panelSizes: { ...defaultSizes, ...parsed } })
+        }
       }
       if (collapsed) {
-        set({ panelCollapsed: JSON.parse(collapsed) })
+        const parsed = JSON.parse(collapsed)
+        if (parsed && typeof parsed === 'object') {
+          set({ panelCollapsed: { ...defaultCollapsed, ...parsed } })
+        }
       }
     } catch (e) {
       console.warn('Failed to load panel state:', e)
@@ -217,6 +234,12 @@ export const useUIStore = create<UIStoreState>((set, get) => ({
       console.warn('Failed to save panel state:', e)
     }
   },
+
+  // Timeline panel state (backward compatibility with CollapsibleTimelinePanel)
+  timelineExpanded: false,
+  setTimelineExpanded: expanded => set({ timelineExpanded: expanded }),
+  timelineHeight: 250,
+  setTimelineHeight: height => set({ timelineHeight: height }),
 }))
 
 // ============================================================================
