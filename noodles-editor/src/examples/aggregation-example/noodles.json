@@ -1,4 +1,119 @@
 {
+  "edges": [
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    },
+    {
+      "id": "/data-source.out.data->/grid-layer.par.data",
+      "source": "/data-source",
+      "target": "/grid-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/position-accessor.out.accessor->/grid-layer.par.getPosition",
+      "source": "/position-accessor",
+      "target": "/grid-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getPosition"
+    },
+    {
+      "id": "/spaces-accessor.out.accessor->/grid-layer.par.getColorWeight",
+      "source": "/spaces-accessor",
+      "target": "/grid-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getColorWeight"
+    },
+    {
+      "source": "/spaces-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/grid-layer",
+      "targetHandle": "par.getElevationWeight",
+      "id": "/spaces-accessor.out.accessor->/grid-layer.par.getElevationWeight"
+    },
+    {
+      "source": "/maplibre-basemap",
+      "sourceHandle": "out.maplibre",
+      "target": "/deck",
+      "targetHandle": "par.basemap",
+      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap"
+    },
+    {
+      "source": "/switch",
+      "sourceHandle": "out.value",
+      "target": "/deck",
+      "targetHandle": "par.layers",
+      "id": "/switch.out.value->/deck.par.layers"
+    },
+    {
+      "source": "/hexagon-layer",
+      "sourceHandle": "out.layer",
+      "target": "/switch",
+      "targetHandle": "par.values",
+      "id": "/hexagon-layer.out.layer->/switch.par.values"
+    },
+    {
+      "source": "/grid-layer",
+      "sourceHandle": "out.layer",
+      "target": "/switch",
+      "targetHandle": "par.values",
+      "id": "/grid-layer.out.layer->/switch.par.values"
+    },
+    {
+      "source": "/data-source",
+      "sourceHandle": "out.data",
+      "target": "/hexagon-layer",
+      "targetHandle": "par.data",
+      "id": "/data-source.out.data->/hexagon-layer.par.data"
+    },
+    {
+      "source": "/position-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/hexagon-layer",
+      "targetHandle": "par.getPosition",
+      "id": "/position-accessor.out.accessor->/hexagon-layer.par.getPosition"
+    },
+    {
+      "source": "/spaces-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/hexagon-layer",
+      "targetHandle": "par.getColorWeight",
+      "id": "/spaces-accessor.out.accessor->/hexagon-layer.par.getColorWeight"
+    },
+    {
+      "source": "/spaces-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/hexagon-layer",
+      "targetHandle": "par.getElevationWeight",
+      "id": "/spaces-accessor.out.accessor->/hexagon-layer.par.getElevationWeight"
+    }
+  ],
+  "viewport": {
+    "x": 671.0641779964585,
+    "y": 907.0984953781293,
+    "zoom": 0.8019816514742112
+  },
+  "version": 7,
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": [
+      "fBu1FW4HYanu9xRt",
+      "aiRAn66WU7kCXJZh",
+      "mtj8EgxoAJHG9vWu"
+    ]
+  },
+  "name": "SF Bike Parking Aggregation",
   "nodes": [
     {
       "id": "/deck",
@@ -130,120 +245,5 @@
         "locked": false
       }
     }
-  ],
-  "edges": [
-    {
-      "id": "/deck.out.vis->/out.par.vis",
-      "source": "/deck",
-      "target": "/out",
-      "sourceHandle": "out.vis",
-      "targetHandle": "par.vis"
-    },
-    {
-      "id": "/data-source.out.data->/grid-layer.par.data",
-      "source": "/data-source",
-      "target": "/grid-layer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/position-accessor.out.accessor->/grid-layer.par.getPosition",
-      "source": "/position-accessor",
-      "target": "/grid-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getPosition"
-    },
-    {
-      "id": "/spaces-accessor.out.accessor->/grid-layer.par.getColorWeight",
-      "source": "/spaces-accessor",
-      "target": "/grid-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getColorWeight"
-    },
-    {
-      "source": "/spaces-accessor",
-      "sourceHandle": "out.accessor",
-      "target": "/grid-layer",
-      "targetHandle": "par.getElevationWeight",
-      "id": "/spaces-accessor.out.accessor->/grid-layer.par.getElevationWeight"
-    },
-    {
-      "source": "/maplibre-basemap",
-      "sourceHandle": "out.maplibre",
-      "target": "/deck",
-      "targetHandle": "par.basemap",
-      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap"
-    },
-    {
-      "source": "/switch",
-      "sourceHandle": "out.value",
-      "target": "/deck",
-      "targetHandle": "par.layers",
-      "id": "/switch.out.value->/deck.par.layers"
-    },
-    {
-      "source": "/hexagon-layer",
-      "sourceHandle": "out.layer",
-      "target": "/switch",
-      "targetHandle": "par.values",
-      "id": "/hexagon-layer.out.layer->/switch.par.values"
-    },
-    {
-      "source": "/grid-layer",
-      "sourceHandle": "out.layer",
-      "target": "/switch",
-      "targetHandle": "par.values",
-      "id": "/grid-layer.out.layer->/switch.par.values"
-    },
-    {
-      "source": "/data-source",
-      "sourceHandle": "out.data",
-      "target": "/hexagon-layer",
-      "targetHandle": "par.data",
-      "id": "/data-source.out.data->/hexagon-layer.par.data"
-    },
-    {
-      "source": "/position-accessor",
-      "sourceHandle": "out.accessor",
-      "target": "/hexagon-layer",
-      "targetHandle": "par.getPosition",
-      "id": "/position-accessor.out.accessor->/hexagon-layer.par.getPosition"
-    },
-    {
-      "source": "/spaces-accessor",
-      "sourceHandle": "out.accessor",
-      "target": "/hexagon-layer",
-      "targetHandle": "par.getColorWeight",
-      "id": "/spaces-accessor.out.accessor->/hexagon-layer.par.getColorWeight"
-    },
-    {
-      "source": "/spaces-accessor",
-      "sourceHandle": "out.accessor",
-      "target": "/hexagon-layer",
-      "targetHandle": "par.getElevationWeight",
-      "id": "/spaces-accessor.out.accessor->/hexagon-layer.par.getElevationWeight"
-    }
-  ],
-  "viewport": {
-    "x": 671.0641779964585,
-    "y": 907.0984953781293,
-    "zoom": 0.8019816514742112
-  },
-  "version": 6,
-  "timeline": {
-    "sheetsById": {
-      "Noodles": {
-        "staticOverrides": {
-          "byObject": {}
-        }
-      }
-    },
-    "definitionVersion": "0.4.0",
-    "revisionHistory": [
-      "fBu1FW4HYanu9xRt",
-      "aiRAn66WU7kCXJZh",
-      "mtj8EgxoAJHG9vWu"
-    ]
-  },
-  "name": "SF Bike Parking Aggregation"
+  ]
 }

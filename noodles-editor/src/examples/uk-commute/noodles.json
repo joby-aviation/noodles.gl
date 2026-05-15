@@ -1,4 +1,157 @@
 {
+  "edges": [
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    },
+    {
+      "id": "/data-source.out.data->/arc-layer.par.data",
+      "source": "/data-source",
+      "target": "/arc-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/data-source.out.data->/residence-layer.par.data",
+      "source": "/data-source",
+      "target": "/residence-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/data-source.out.data->/workplace-layer.par.data",
+      "source": "/data-source",
+      "target": "/workplace-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/home-position.out.accessor->/arc-layer.par.getSourcePosition",
+      "source": "/home-position",
+      "target": "/arc-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getSourcePosition"
+    },
+    {
+      "id": "/work-position.out.accessor->/arc-layer.par.getTargetPosition",
+      "source": "/work-position",
+      "target": "/arc-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getTargetPosition"
+    },
+    {
+      "id": "/home-position.out.accessor->/residence-layer.par.getPosition",
+      "source": "/home-position",
+      "target": "/residence-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getPosition"
+    },
+    {
+      "id": "/work-position.out.accessor->/workplace-layer.par.getPosition",
+      "source": "/work-position",
+      "target": "/workplace-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getPosition"
+    },
+    {
+      "id": "/source-color.out.color->/arc-layer.par.getSourceColor",
+      "source": "/source-color",
+      "target": "/arc-layer",
+      "sourceHandle": "out.color",
+      "targetHandle": "par.getSourceColor"
+    },
+    {
+      "id": "/target-color.out.color->/arc-layer.par.getTargetColor",
+      "source": "/target-color",
+      "target": "/arc-layer",
+      "sourceHandle": "out.color",
+      "targetHandle": "par.getTargetColor"
+    },
+    {
+      "id": "/source-color.out.color->/residence-layer.par.getFillColor",
+      "source": "/source-color",
+      "target": "/residence-layer",
+      "sourceHandle": "out.color",
+      "targetHandle": "par.getFillColor"
+    },
+    {
+      "id": "/target-color.out.color->/workplace-layer.par.getFillColor",
+      "source": "/target-color",
+      "target": "/workplace-layer",
+      "sourceHandle": "out.color",
+      "targetHandle": "par.getFillColor"
+    },
+    {
+      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
+      "source": "/maplibre-basemap",
+      "target": "/deck",
+      "sourceHandle": "out.maplibre",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/arc-layer.out.layer->/deck.par.layers",
+      "source": "/arc-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/residence-layer.out.layer->/deck.par.layers",
+      "source": "/residence-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/workplace-layer.out.layer->/deck.par.layers",
+      "source": "/workplace-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/blending.out.parameters->/arc-layer.par.parameters",
+      "source": "/blending",
+      "target": "/arc-layer",
+      "sourceHandle": "out.parameters",
+      "targetHandle": "par.parameters"
+    },
+    {
+      "id": "/blending.out.parameters->/residence-layer.par.parameters",
+      "source": "/blending",
+      "target": "/residence-layer",
+      "sourceHandle": "out.parameters",
+      "targetHandle": "par.parameters"
+    },
+    {
+      "id": "/blending.out.parameters->/workplace-layer.par.parameters",
+      "source": "/blending",
+      "target": "/workplace-layer",
+      "sourceHandle": "out.parameters",
+      "targetHandle": "par.parameters"
+    }
+  ],
+  "viewport": {
+    "x": 110.09970280160951,
+    "y": 138.99036470751906,
+    "zoom": 0.46798777100021355
+  },
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": []
+  },
+  "version": 7,
+  "name": "UK Commute Patterns",
   "nodes": [
     {
       "id": "/deck",
@@ -178,158 +331,5 @@
         "locked": false
       }
     }
-  ],
-  "edges": [
-    {
-      "id": "/deck.out.vis->/out.par.vis",
-      "source": "/deck",
-      "target": "/out",
-      "sourceHandle": "out.vis",
-      "targetHandle": "par.vis"
-    },
-    {
-      "id": "/data-source.out.data->/arc-layer.par.data",
-      "source": "/data-source",
-      "target": "/arc-layer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/data-source.out.data->/residence-layer.par.data",
-      "source": "/data-source",
-      "target": "/residence-layer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/data-source.out.data->/workplace-layer.par.data",
-      "source": "/data-source",
-      "target": "/workplace-layer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/home-position.out.accessor->/arc-layer.par.getSourcePosition",
-      "source": "/home-position",
-      "target": "/arc-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getSourcePosition"
-    },
-    {
-      "id": "/work-position.out.accessor->/arc-layer.par.getTargetPosition",
-      "source": "/work-position",
-      "target": "/arc-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getTargetPosition"
-    },
-    {
-      "id": "/home-position.out.accessor->/residence-layer.par.getPosition",
-      "source": "/home-position",
-      "target": "/residence-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getPosition"
-    },
-    {
-      "id": "/work-position.out.accessor->/workplace-layer.par.getPosition",
-      "source": "/work-position",
-      "target": "/workplace-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getPosition"
-    },
-    {
-      "id": "/source-color.out.color->/arc-layer.par.getSourceColor",
-      "source": "/source-color",
-      "target": "/arc-layer",
-      "sourceHandle": "out.color",
-      "targetHandle": "par.getSourceColor"
-    },
-    {
-      "id": "/target-color.out.color->/arc-layer.par.getTargetColor",
-      "source": "/target-color",
-      "target": "/arc-layer",
-      "sourceHandle": "out.color",
-      "targetHandle": "par.getTargetColor"
-    },
-    {
-      "id": "/source-color.out.color->/residence-layer.par.getFillColor",
-      "source": "/source-color",
-      "target": "/residence-layer",
-      "sourceHandle": "out.color",
-      "targetHandle": "par.getFillColor"
-    },
-    {
-      "id": "/target-color.out.color->/workplace-layer.par.getFillColor",
-      "source": "/target-color",
-      "target": "/workplace-layer",
-      "sourceHandle": "out.color",
-      "targetHandle": "par.getFillColor"
-    },
-    {
-      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
-      "source": "/maplibre-basemap",
-      "target": "/deck",
-      "sourceHandle": "out.maplibre",
-      "targetHandle": "par.basemap"
-    },
-    {
-      "id": "/arc-layer.out.layer->/deck.par.layers",
-      "source": "/arc-layer",
-      "target": "/deck",
-      "sourceHandle": "out.layer",
-      "targetHandle": "par.layers"
-    },
-    {
-      "id": "/residence-layer.out.layer->/deck.par.layers",
-      "source": "/residence-layer",
-      "target": "/deck",
-      "sourceHandle": "out.layer",
-      "targetHandle": "par.layers"
-    },
-    {
-      "id": "/workplace-layer.out.layer->/deck.par.layers",
-      "source": "/workplace-layer",
-      "target": "/deck",
-      "sourceHandle": "out.layer",
-      "targetHandle": "par.layers"
-    },
-    {
-      "id": "/blending.out.parameters->/arc-layer.par.parameters",
-      "source": "/blending",
-      "target": "/arc-layer",
-      "sourceHandle": "out.parameters",
-      "targetHandle": "par.parameters"
-    },
-    {
-      "id": "/blending.out.parameters->/residence-layer.par.parameters",
-      "source": "/blending",
-      "target": "/residence-layer",
-      "sourceHandle": "out.parameters",
-      "targetHandle": "par.parameters"
-    },
-    {
-      "id": "/blending.out.parameters->/workplace-layer.par.parameters",
-      "source": "/blending",
-      "target": "/workplace-layer",
-      "sourceHandle": "out.parameters",
-      "targetHandle": "par.parameters"
-    }
-  ],
-  "viewport": {
-    "x": 110.09970280160951,
-    "y": 138.99036470751906,
-    "zoom": 0.46798777100021355
-  },
-  "timeline": {
-    "sheetsById": {
-      "Noodles": {
-        "staticOverrides": {
-          "byObject": {}
-        }
-      }
-    },
-    "definitionVersion": "0.4.0",
-    "revisionHistory": []
-  },
-  "version": 6,
-  "name": "UK Commute Patterns"
+  ]
 }

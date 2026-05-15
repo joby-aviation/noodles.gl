@@ -1,8 +1,8 @@
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { migrateProject } from '../src/visualizations/noodles/utils/migrate-schema.js'
+import { migrateProject } from '../src/noodles/utils/migrate-schema.js'
 
-const EXAMPLES_DIR = './src/examples'
+const EXAMPLES_DIRS = ['./src/examples', './public/examples']
 
 async function getAllFiles(dir: string, extension = '.json'): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true })
@@ -21,34 +21,41 @@ async function getAllFiles(dir: string, extension = '.json'): Promise<string[]> 
 
 async function migrateFiles() {
   try {
-    const files = await getAllFiles(EXAMPLES_DIR)
     let migratedCount = 0
+    let skippedCount = 0
 
-    for (const filePath of files) {
-      try {
-        const content = await readFile(filePath, 'utf8')
-        const projectData = JSON.parse(content)
+    for (const dir of EXAMPLES_DIRS) {
+      console.log(`\nProcessing directory: ${dir}`)
+      const files = await getAllFiles(dir)
 
-        // Check if this is a noodles project file (has version and nodes properties)
-        if (typeof projectData.version === 'number' && Array.isArray(projectData.nodes)) {
-          console.log(`Migrating: ${filePath}`)
-          const migrated = await migrateProject(projectData)
+      for (const filePath of files) {
+        try {
+          const content = await readFile(filePath, 'utf8')
+          const projectData = JSON.parse(content)
 
-          // Only write if the project was actually changed
-          if (JSON.stringify(migrated) !== JSON.stringify(projectData)) {
-            await writeFile(filePath, JSON.stringify(migrated, null, 2))
-            migratedCount++
-            console.log(`✓ Migrated ${filePath}`)
-          } else {
-            console.log(`- No changes needed for ${filePath}`)
+          // Check if this is a noodles project file (has version and nodes properties)
+          if (typeof projectData.version === 'number' && Array.isArray(projectData.nodes)) {
+            const currentVersion = projectData.version
+            const migrated = await migrateProject(projectData)
+            const newVersion = migrated.version
+
+            // Only write if the project was actually changed
+            if (JSON.stringify(migrated) !== JSON.stringify(projectData)) {
+              await writeFile(filePath, JSON.stringify(migrated, null, 2) + '\n')
+              migratedCount++
+              console.log(`✓ Migrated ${filePath} (v${currentVersion} → v${newVersion})`)
+            } else {
+              skippedCount++
+              console.log(`- No changes needed for ${filePath} (already v${currentVersion})`)
+            }
           }
+        } catch (error) {
+          console.log(`Skipping ${filePath}: ${(error as Error).message}`)
         }
-      } catch (error) {
-        console.log(`Skipping ${filePath}: ${(error as Error).message}`)
       }
     }
 
-    console.log(`\nMigration complete. ${migratedCount} file(s) updated.`)
+    console.log(`\nMigration complete. ${migratedCount} file(s) updated, ${skippedCount} file(s) already up to date.`)
     return migratedCount
   } catch (error) {
     console.error('Migration failed:', error)

@@ -1,63 +1,5 @@
 {
-  "version": 6,
-  "nodes": [
-    {
-      "id": "/maplibre-basemap",
-      "type": "MaplibreBasemapOp",
-      "position": { "x": 100, "y": 100 },
-      "data": {
-        "inputs": {
-          "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
-          "viewState": {
-            "latitude": 37.7749,
-            "longitude": -122.4194,
-            "zoom": 10
-          }
-        }
-      }
-    },
-    {
-      "id": "/test-data",
-      "type": "CodeOp",
-      "position": { "x": 100, "y": 300 },
-      "data": {
-        "inputs": {
-          "code": "return [\n  { name: 'Point 1', lat: 37.7849, lng: -122.4294 },\n  { name: 'Point 2', lat: 37.7749, lng: -122.4094 },\n  { name: 'Point 3', lat: 37.7649, lng: -122.4194 }\n]"
-        }
-      }
-    },
-    {
-      "id": "/icon-layer",
-      "type": "IconLayerOp",
-      "position": { "x": 100, "y": 500 },
-      "data": {
-        "inputs": {
-          "visible": true,
-          "opacity": 1,
-          "getSize": 40,
-          "getIcon": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.png"
-        }
-      }
-    },
-    {
-      "id": "/get-position",
-      "type": "AccessorOp",
-      "position": { "x": 300, "y": 400 },
-      "data": {
-        "inputs": {
-          "code": "[d.lng, d.lat]"
-        }
-      }
-    },
-    {
-      "id": "/deck-renderer",
-      "type": "DeckRendererOp",
-      "position": { "x": 500, "y": 300 },
-      "data": {
-        "inputs": {}
-      }
-    }
-  ],
+  "version": 7,
   "edges": [
     {
       "id": "/test-data.out.result->/icon-layer.par.data",
@@ -95,5 +37,82 @@
       "targetHandle": "par.initialViewState"
     }
   ],
-  "viewport": { "x": 0, "y": 0, "zoom": 1 }
+  "viewport": {
+    "x": 0,
+    "y": 0,
+    "zoom": 1
+  },
+  "nodes": [
+    {
+      "id": "/maplibre-basemap",
+      "type": "MaplibreBasemapOp",
+      "position": {
+        "x": 100,
+        "y": 100
+      },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+          "viewState": {
+            "latitude": 37.7749,
+            "longitude": -122.4194,
+            "zoom": 10
+          }
+        }
+      }
+    },
+    {
+      "id": "/test-data",
+      "type": "CodeOp",
+      "position": {
+        "x": 100,
+        "y": 300
+      },
+      "data": {
+        "inputs": {
+          "code": "return [\n  { name: 'Point 1', lat: 37.7849, lng: -122.4294 },\n  { name: 'Point 2', lat: 37.7749, lng: -122.4094 },\n  { name: 'Point 3', lat: 37.7649, lng: -122.4194 }\n]"
+        }
+      }
+    },
+    {
+      "id": "/icon-layer",
+      "type": "IconLayerOp",
+      "position": {
+        "x": 100,
+        "y": 500
+      },
+      "data": {
+        "inputs": {
+          "visible": true,
+          "opacity": 1,
+          "getSize": 40,
+          "getIcon": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.png"
+        }
+      }
+    },
+    {
+      "id": "/get-position",
+      "type": "AccessorOp",
+      "position": {
+        "x": 300,
+        "y": 400
+      },
+      "data": {
+        "inputs": {
+          "code": "[d.lng, d.lat]"
+        }
+      }
+    },
+    {
+      "id": "/deck-renderer",
+      "type": "DeckRendererOp",
+      "position": {
+        "x": 500,
+        "y": 300
+      },
+      "data": {
+        "inputs": {}
+      }
+    }
+  ]
 }

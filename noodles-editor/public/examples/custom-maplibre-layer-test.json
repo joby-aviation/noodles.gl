@@ -1,60 +1,5 @@
 {
-  "version": 6,
-  "nodes": [
-    {
-      "id": "/maplibre-basemap",
-      "type": "MaplibreBasemapOp",
-      "position": { "x": 100, "y": 100 },
-      "data": {
-        "inputs": {
-          "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
-          "projection": "mercator",
-          "viewState": {
-            "latitude": 40.7128,
-            "longitude": -74.0060,
-            "zoom": 13,
-            "pitch": 45,
-            "bearing": 0
-          }
-        }
-      }
-    },
-    {
-      "id": "/custom-layer",
-      "type": "CustomMapLibreLayerOp",
-      "position": { "x": 100, "y": 300 },
-      "data": {
-        "inputs": {
-          "id": "test-custom-layer",
-          "renderingMode": "3d",
-          "code": "{\n  onAdd: function(map, gl) {\n    console.log('Custom layer added:', params);\n    this.map = map;\n    this.gl = gl;\n  },\n  render: function(gl, matrix) {\n    // Simple render - just log once\n    if (!this.hasLogged) {\n      console.log('Custom layer rendering');\n      this.hasLogged = true;\n    }\n  },\n  onRemove: function(map, gl) {\n    console.log('Custom layer removed');\n  }\n}",
-          "params": {
-            "color": "#ff0000",
-            "opacity": 0.5
-          }
-        }
-      }
-    },
-    {
-      "id": "/deck-renderer",
-      "type": "DeckRendererOp",
-      "position": { "x": 400, "y": 200 },
-      "data": {
-        "inputs": {
-          "layers": [],
-          "views": []
-        }
-      }
-    },
-    {
-      "id": "/out",
-      "type": "OutOp",
-      "position": { "x": 700, "y": 200 },
-      "data": {
-        "inputs": {}
-      }
-    }
-  ],
+  "version": 7,
   "edges": [
     {
       "id": "/maplibre-basemap.maplibre->/deck-renderer.basemap",
@@ -78,5 +23,76 @@
       "targetHandle": "par.vis"
     }
   ],
-  "viewport": { "x": 0, "y": 0, "zoom": 1 }
+  "viewport": {
+    "x": 0,
+    "y": 0,
+    "zoom": 1
+  },
+  "nodes": [
+    {
+      "id": "/maplibre-basemap",
+      "type": "MaplibreBasemapOp",
+      "position": {
+        "x": 100,
+        "y": 100
+      },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+          "projection": "mercator",
+          "viewState": {
+            "latitude": 40.7128,
+            "longitude": -74.006,
+            "zoom": 13,
+            "pitch": 45,
+            "bearing": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "/custom-layer",
+      "type": "CustomMapLibreLayerOp",
+      "position": {
+        "x": 100,
+        "y": 300
+      },
+      "data": {
+        "inputs": {
+          "id": "test-custom-layer",
+          "renderingMode": "3d",
+          "code": "{\n  onAdd: function(map, gl) {\n    console.log('Custom layer added:', params);\n    this.map = map;\n    this.gl = gl;\n  },\n  render: function(gl, matrix) {\n    // Simple render - just log once\n    if (!this.hasLogged) {\n      console.log('Custom layer rendering');\n      this.hasLogged = true;\n    }\n  },\n  onRemove: function(map, gl) {\n    console.log('Custom layer removed');\n  }\n}",
+          "params": {
+            "color": "#ff0000",
+            "opacity": 0.5
+          }
+        }
+      }
+    },
+    {
+      "id": "/deck-renderer",
+      "type": "DeckRendererOp",
+      "position": {
+        "x": 400,
+        "y": 200
+      },
+      "data": {
+        "inputs": {
+          "layers": [],
+          "views": []
+        }
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "position": {
+        "x": 700,
+        "y": 200
+      },
+      "data": {
+        "inputs": {}
+      }
+    }
+  ]
 }

@@ -1,4 +1,73 @@
 {
+  "edges": [
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    },
+    {
+      "id": "/data-source.out.data->/geojson-layer.par.data",
+      "source": "/data-source",
+      "target": "/geojson-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/elevation-color.out.color->/geojson-layer.par.getFillColor",
+      "source": "/elevation-color",
+      "target": "/geojson-layer",
+      "sourceHandle": "out.color",
+      "targetHandle": "par.getFillColor"
+    },
+    {
+      "id": "/elevation-color.out.color->/geojson-layer.par.getLineColor",
+      "source": "/elevation-color",
+      "target": "/geojson-layer",
+      "sourceHandle": "out.color",
+      "targetHandle": "par.getLineColor"
+    },
+    {
+      "id": "/elevation-accessor.out.accessor->/elevation-color.par.value",
+      "source": "/elevation-accessor",
+      "target": "/elevation-color",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.value"
+    },
+    {
+      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
+      "source": "/maplibre-basemap",
+      "target": "/deck",
+      "sourceHandle": "out.maplibre",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/geojson-layer.out.layer->/deck.par.layers",
+      "source": "/geojson-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    }
+  ],
+  "viewport": {
+    "x": 149,
+    "y": 48.131400370141876,
+    "zoom": 0.42504626773596543
+  },
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": []
+  },
+  "version": 7,
+  "name": "San Francisco Elevation Contours",
   "nodes": [
     {
       "id": "/deck",
@@ -101,74 +170,5 @@
         "locked": false
       }
     }
-  ],
-  "edges": [
-    {
-      "id": "/deck.out.vis->/out.par.vis",
-      "source": "/deck",
-      "target": "/out",
-      "sourceHandle": "out.vis",
-      "targetHandle": "par.vis"
-    },
-    {
-      "id": "/data-source.out.data->/geojson-layer.par.data",
-      "source": "/data-source",
-      "target": "/geojson-layer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/elevation-color.out.color->/geojson-layer.par.getFillColor",
-      "source": "/elevation-color",
-      "target": "/geojson-layer",
-      "sourceHandle": "out.color",
-      "targetHandle": "par.getFillColor"
-    },
-    {
-      "id": "/elevation-color.out.color->/geojson-layer.par.getLineColor",
-      "source": "/elevation-color",
-      "target": "/geojson-layer",
-      "sourceHandle": "out.color",
-      "targetHandle": "par.getLineColor"
-    },
-    {
-      "id": "/elevation-accessor.out.accessor->/elevation-color.par.value",
-      "source": "/elevation-accessor",
-      "target": "/elevation-color",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.value"
-    },
-    {
-      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
-      "source": "/maplibre-basemap",
-      "target": "/deck",
-      "sourceHandle": "out.maplibre",
-      "targetHandle": "par.basemap"
-    },
-    {
-      "id": "/geojson-layer.out.layer->/deck.par.layers",
-      "source": "/geojson-layer",
-      "target": "/deck",
-      "sourceHandle": "out.layer",
-      "targetHandle": "par.layers"
-    }
-  ],
-  "viewport": {
-    "x": 149,
-    "y": 48.131400370141876,
-    "zoom": 0.42504626773596543
-  },
-  "timeline": {
-    "sheetsById": {
-      "Noodles": {
-        "staticOverrides": {
-          "byObject": {}
-        }
-      }
-    },
-    "definitionVersion": "0.4.0",
-    "revisionHistory": []
-  },
-  "version": 6,
-  "name": "San Francisco Elevation Contours"
+  ]
 }

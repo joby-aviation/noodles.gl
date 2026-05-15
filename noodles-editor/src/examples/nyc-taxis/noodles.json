@@ -1,4 +1,161 @@
 {
+  "edges": [
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    },
+    {
+      "id": "/data-source.out.data->/arc-layer.par.data",
+      "source": "/data-source",
+      "target": "/arc-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/data-source.out.data->/pickup-layer.par.data",
+      "source": "/data-source",
+      "target": "/pickup-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/data-source.out.data->/dropoff-layer.par.data",
+      "source": "/data-source",
+      "target": "/dropoff-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/pickup-position.out.accessor->/arc-layer.par.getSourcePosition",
+      "source": "/pickup-position",
+      "target": "/arc-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getSourcePosition"
+    },
+    {
+      "id": "/dropoff-position.out.accessor->/arc-layer.par.getTargetPosition",
+      "source": "/dropoff-position",
+      "target": "/arc-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getTargetPosition"
+    },
+    {
+      "id": "/pickup-position.out.accessor->/pickup-layer.par.getPosition",
+      "source": "/pickup-position",
+      "target": "/pickup-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getPosition"
+    },
+    {
+      "id": "/dropoff-position.out.accessor->/dropoff-layer.par.getPosition",
+      "source": "/dropoff-position",
+      "target": "/dropoff-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getPosition"
+    },
+    {
+      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
+      "source": "/maplibre-basemap",
+      "target": "/deck",
+      "sourceHandle": "out.maplibre",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/arc-layer.out.layer->/deck.par.layers",
+      "source": "/arc-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/pickup-layer.out.layer->/deck.par.layers",
+      "source": "/pickup-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/dropoff-layer.out.layer->/deck.par.layers",
+      "source": "/dropoff-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "source": "/pickup",
+      "sourceHandle": "out.color",
+      "target": "/arc-layer",
+      "targetHandle": "par.getSourceColor",
+      "id": "/pickup.out.color->/arc-layer.par.getSourceColor"
+    },
+    {
+      "source": "/pickup",
+      "sourceHandle": "out.color",
+      "target": "/pickup-layer",
+      "targetHandle": "par.getFillColor",
+      "id": "/pickup.out.color->/pickup-layer.par.getFillColor"
+    },
+    {
+      "source": "/dropoff",
+      "sourceHandle": "out.color",
+      "target": "/arc-layer",
+      "targetHandle": "par.getTargetColor",
+      "id": "/dropoff.out.color->/arc-layer.par.getTargetColor"
+    },
+    {
+      "source": "/dropoff",
+      "sourceHandle": "out.color",
+      "target": "/dropoff-layer",
+      "targetHandle": "par.getFillColor",
+      "id": "/dropoff.out.color->/dropoff-layer.par.getFillColor"
+    },
+    {
+      "source": "/blending",
+      "sourceHandle": "out.parameters",
+      "target": "/pickup-layer",
+      "targetHandle": "par.parameters",
+      "id": "/blending.out.parameters->/pickup-layer.par.parameters"
+    },
+    {
+      "source": "/blending",
+      "sourceHandle": "out.parameters",
+      "target": "/arc-layer",
+      "targetHandle": "par.parameters",
+      "id": "/blending.out.parameters->/arc-layer.par.parameters"
+    },
+    {
+      "source": "/blending",
+      "sourceHandle": "out.parameters",
+      "target": "/dropoff-layer",
+      "targetHandle": "par.parameters",
+      "id": "/blending.out.parameters->/dropoff-layer.par.parameters"
+    }
+  ],
+  "viewport": {
+    "x": 172.53317127277438,
+    "y": 204.01752158305402,
+    "zoom": 0.467987771000214
+  },
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {
+            "editor": {
+              "layoutMode": "noodles-on-top"
+            }
+          }
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": []
+  },
+  "version": 7,
+  "name": "NYC Taxis",
   "nodes": [
     {
       "id": "/deck",
@@ -176,162 +333,5 @@
         "locked": false
       }
     }
-  ],
-  "edges": [
-    {
-      "id": "/deck.out.vis->/out.par.vis",
-      "source": "/deck",
-      "target": "/out",
-      "sourceHandle": "out.vis",
-      "targetHandle": "par.vis"
-    },
-    {
-      "id": "/data-source.out.data->/arc-layer.par.data",
-      "source": "/data-source",
-      "target": "/arc-layer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/data-source.out.data->/pickup-layer.par.data",
-      "source": "/data-source",
-      "target": "/pickup-layer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/data-source.out.data->/dropoff-layer.par.data",
-      "source": "/data-source",
-      "target": "/dropoff-layer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/pickup-position.out.accessor->/arc-layer.par.getSourcePosition",
-      "source": "/pickup-position",
-      "target": "/arc-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getSourcePosition"
-    },
-    {
-      "id": "/dropoff-position.out.accessor->/arc-layer.par.getTargetPosition",
-      "source": "/dropoff-position",
-      "target": "/arc-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getTargetPosition"
-    },
-    {
-      "id": "/pickup-position.out.accessor->/pickup-layer.par.getPosition",
-      "source": "/pickup-position",
-      "target": "/pickup-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getPosition"
-    },
-    {
-      "id": "/dropoff-position.out.accessor->/dropoff-layer.par.getPosition",
-      "source": "/dropoff-position",
-      "target": "/dropoff-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getPosition"
-    },
-    {
-      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
-      "source": "/maplibre-basemap",
-      "target": "/deck",
-      "sourceHandle": "out.maplibre",
-      "targetHandle": "par.basemap"
-    },
-    {
-      "id": "/arc-layer.out.layer->/deck.par.layers",
-      "source": "/arc-layer",
-      "target": "/deck",
-      "sourceHandle": "out.layer",
-      "targetHandle": "par.layers"
-    },
-    {
-      "id": "/pickup-layer.out.layer->/deck.par.layers",
-      "source": "/pickup-layer",
-      "target": "/deck",
-      "sourceHandle": "out.layer",
-      "targetHandle": "par.layers"
-    },
-    {
-      "id": "/dropoff-layer.out.layer->/deck.par.layers",
-      "source": "/dropoff-layer",
-      "target": "/deck",
-      "sourceHandle": "out.layer",
-      "targetHandle": "par.layers"
-    },
-    {
-      "source": "/pickup",
-      "sourceHandle": "out.color",
-      "target": "/arc-layer",
-      "targetHandle": "par.getSourceColor",
-      "id": "/pickup.out.color->/arc-layer.par.getSourceColor"
-    },
-    {
-      "source": "/pickup",
-      "sourceHandle": "out.color",
-      "target": "/pickup-layer",
-      "targetHandle": "par.getFillColor",
-      "id": "/pickup.out.color->/pickup-layer.par.getFillColor"
-    },
-    {
-      "source": "/dropoff",
-      "sourceHandle": "out.color",
-      "target": "/arc-layer",
-      "targetHandle": "par.getTargetColor",
-      "id": "/dropoff.out.color->/arc-layer.par.getTargetColor"
-    },
-    {
-      "source": "/dropoff",
-      "sourceHandle": "out.color",
-      "target": "/dropoff-layer",
-      "targetHandle": "par.getFillColor",
-      "id": "/dropoff.out.color->/dropoff-layer.par.getFillColor"
-    },
-    {
-      "source": "/blending",
-      "sourceHandle": "out.parameters",
-      "target": "/pickup-layer",
-      "targetHandle": "par.parameters",
-      "id": "/blending.out.parameters->/pickup-layer.par.parameters"
-    },
-    {
-      "source": "/blending",
-      "sourceHandle": "out.parameters",
-      "target": "/arc-layer",
-      "targetHandle": "par.parameters",
-      "id": "/blending.out.parameters->/arc-layer.par.parameters"
-    },
-    {
-      "source": "/blending",
-      "sourceHandle": "out.parameters",
-      "target": "/dropoff-layer",
-      "targetHandle": "par.parameters",
-      "id": "/blending.out.parameters->/dropoff-layer.par.parameters"
-    }
-  ],
-  "viewport": {
-    "x": 172.53317127277438,
-    "y": 204.01752158305402,
-    "zoom": 0.467987771000214
-  },
-  "timeline": {
-    "sheetsById": {
-      "Noodles": {
-        "staticOverrides": {
-          "byObject": {
-            "editor": {
-              "layoutMode": "noodles-on-top"
-            }
-          }
-        }
-      }
-    },
-    "definitionVersion": "0.4.0",
-    "revisionHistory": []
-  },
-  "version": 6,
-  "name": "NYC Taxis"
+  ]
 }
