@@ -1,7 +1,7 @@
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-const EXAMPLES_DIRS = ['./src/examples', './public/examples']
+const EXAMPLES_DIRS = ['./src/examples']
 const TARGET_VERSION = 7
 
 async function getAllFiles(dir, extension = '.json') {
