@@ -1,7 +1,8 @@
 import { basename } from 'node:path'
 import type { InOut } from '../fields'
 import type { OpType } from '../operators'
-import { edgeId, parseHandleId } from './migration-utils'
+import { edgeId } from './migration-utils'
+import { parseHandleId } from './path-utils'
 import type { NoodlesProjectJSON } from './serialization'
 
 const migrations = import.meta.glob(['../__migrations__/*.ts', '!../__migrations__/*.test.ts'])

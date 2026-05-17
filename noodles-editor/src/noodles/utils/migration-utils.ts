@@ -2,7 +2,6 @@
 // This file must have NO dependencies on store, operators, or UI components
 
 import type { Edge as ReactFlowEdge } from '@xyflow/react'
-export { parseHandleId } from './path-utils'
 
 // Generate edge ID from connection
 export function edgeId(connection: Omit<ReactFlowEdge, 'id'>) {

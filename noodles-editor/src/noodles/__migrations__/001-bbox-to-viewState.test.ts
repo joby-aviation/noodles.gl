@@ -15,17 +15,6 @@ const mockEdgeId = vi.hoisted(() => (connection: ConnectionMinimal) => {
 
 vi.mock('../utils/migration-utils', () => ({
   edgeId: mockEdgeId,
-  parseHandleId: (handleId: string) => {
-    if (!handleId) return undefined
-    if (handleId.startsWith('par.') || handleId.startsWith('out.')) {
-      const [namespace, ...fieldParts] = handleId.split('.')
-      const fieldName = fieldParts.join('.')
-      if ((namespace === 'par' || namespace === 'out') && fieldName) {
-        return { namespace: namespace as 'par' | 'out', fieldName }
-      }
-    }
-    return undefined
-  },
 }))
 
 describe('migrations 001', () => {
