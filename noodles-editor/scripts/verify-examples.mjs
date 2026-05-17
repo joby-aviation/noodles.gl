@@ -14,7 +14,7 @@ async function getAllFiles(dir, extension = '.json') {
       const fullPath = join(dir, entry.name)
       if (entry.isDirectory()) {
         files.push(...(await getAllFiles(fullPath, extension)))
-      } else if (entry.name === 'noodles.json' || (dir.includes('public/examples') && entry.name.endsWith(extension))) {
+      } else if (entry.name === 'noodles.json') {
         files.push(fullPath)
       }
     }
@@ -78,6 +78,13 @@ async function verifyExamples() {
             errorCount++
             break
           }
+        }
+
+        // Check timeline uses "Noodles" not "Nodes" (v6+ requirement)
+        if (project.timeline?.sheetsById?.Nodes) {
+          errors.push(`${filePath}: timeline.sheetsById.Nodes should be renamed to timeline.sheetsById.Noodles (v6+ requirement)`)
+          errorCount++
+          continue
         }
 
         validCount++

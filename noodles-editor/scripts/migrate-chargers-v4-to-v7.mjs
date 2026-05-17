@@ -60,8 +60,24 @@ function migrateToQualifiedPaths(project) {
 
 // Migration 006: Rename "Nodes" to "Noodles" (affects timeline/theatre data)
 function migrateNodesToNoodles(project) {
-  // This migration might affect timeline state, but for now we'll just increment version
-  // as the actual field rename is in data we may not need to touch
+  const { timeline, ...rest } = project
+
+  // Rename sheetsById.Nodes to sheetsById.Noodles
+  if (timeline?.sheetsById?.Nodes) {
+    const { Nodes, ...otherSheets } = timeline.sheetsById
+    return {
+      ...rest,
+      timeline: {
+        ...timeline,
+        sheetsById: {
+          ...otherSheets,
+          Noodles: Nodes
+        }
+      },
+      version: 6
+    }
+  }
+
   return {
     ...project,
     version: 6
