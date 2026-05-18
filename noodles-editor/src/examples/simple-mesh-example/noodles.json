@@ -55,27 +55,12 @@
     "y": 608.5965459146154,
     "zoom": 1.2637785153212067
   },
-  "version": 7,
-  "timeline": {
-    "sheetsById": {
-      "Noodles": {
-        "staticOverrides": {
-          "byObject": {}
-        }
-      }
-    },
-    "definitionVersion": "0.4.0",
-    "revisionHistory": [
-      "-4HqGw_hUq1pa55L",
-      "EBEi5VXt4CzCbCdr",
-      "NbvX_508-pqp2M-w",
-      "U0JXRRBXArWC_imO",
-      "IjYmlFFngqi9OGlw",
-      "qU_B0bL0ImX9r18-",
-      "JLOlCBVrfoKUFxpr"
-    ]
-  },
+  "version": 14,
   "name": "Simple Mesh Layer BART Stations",
+  "editorSettings": {
+    "layoutMode": "noodles-on-top",
+    "showOverlay": true
+  },
   "nodes": [
     {
       "id": "/deck",
@@ -93,7 +78,19 @@
       "id": "/out",
       "type": "OutOp",
       "data": {
-        "inputs": {},
+        "inputs": {
+          "display": "fixed",
+          "width": 1920,
+          "height": 1080,
+          "lod": 2,
+          "waitForData": true,
+          "codec": "avc",
+          "bitrateMbps": 10,
+          "bitrateMode": "constant",
+          "scaleControl": 0.3,
+          "framerate": 30,
+          "captureDelay": 50
+        },
         "locked": false
       },
       "position": {
@@ -192,5 +189,24 @@
         "locked": false
       }
     }
-  ]
+  ],
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": [
+      "-4HqGw_hUq1pa55L",
+      "EBEi5VXt4CzCbCdr",
+      "NbvX_508-pqp2M-w",
+      "U0JXRRBXArWC_imO",
+      "IjYmlFFngqi9OGlw",
+      "qU_B0bL0ImX9r18-",
+      "JLOlCBVrfoKUFxpr"
+    ]
+  }
 }

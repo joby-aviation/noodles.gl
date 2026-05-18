@@ -1,5 +1,5 @@
 {
-  "version": 7,
+  "version": 14,
   "edges": [
     {
       "id": "/maplibre-basemap.maplibre->/deck-renderer.basemap",
@@ -27,6 +27,10 @@
     "x": 0,
     "y": 0,
     "zoom": 1
+  },
+  "editorSettings": {
+    "layoutMode": "noodles-on-top",
+    "showOverlay": true
   },
   "nodes": [
     {
@@ -91,8 +95,29 @@
         "y": 200
       },
       "data": {
-        "inputs": {}
+        "inputs": {
+          "display": "fixed",
+          "width": 1920,
+          "height": 1080,
+          "lod": 2,
+          "waitForData": true,
+          "codec": "avc",
+          "bitrateMbps": 10,
+          "bitrateMode": "constant",
+          "scaleControl": 0.3,
+          "framerate": 30,
+          "captureDelay": 50
+        }
       }
     }
-  ]
+  ],
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        }
+      }
+    }
+  }
 }

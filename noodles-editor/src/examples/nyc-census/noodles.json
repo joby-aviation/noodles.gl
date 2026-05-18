@@ -69,19 +69,12 @@
     "y": 75.01093484232683,
     "zoom": 0.4556733508888464
   },
-  "timeline": {
-    "sheetsById": {
-      "Noodles": {
-        "staticOverrides": {
-          "byObject": {}
-        }
-      }
-    },
-    "definitionVersion": "0.4.0",
-    "revisionHistory": []
-  },
-  "version": 7,
+  "version": 14,
   "name": "NYC Census",
+  "editorSettings": {
+    "layoutMode": "noodles-on-top",
+    "showOverlay": true
+  },
   "nodes": [
     {
       "id": "/deck",
@@ -99,7 +92,19 @@
       "id": "/out",
       "type": "OutOp",
       "data": {
-        "inputs": {},
+        "inputs": {
+          "display": "fixed",
+          "width": 1920,
+          "height": 1080,
+          "lod": 2,
+          "waitForData": true,
+          "codec": "avc",
+          "bitrateMbps": 10,
+          "bitrateMode": "constant",
+          "scaleControl": 0.3,
+          "framerate": 30,
+          "captureDelay": 50
+        },
         "locked": false
       },
       "position": {
@@ -231,5 +236,16 @@
         "locked": false
       }
     }
-  ]
+  ],
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": []
+  }
 }

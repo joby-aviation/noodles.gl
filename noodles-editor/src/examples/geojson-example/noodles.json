@@ -55,26 +55,12 @@
     "y": 46.884631018890104,
     "zoom": 0.5895523675768745
   },
-  "timeline": {
-    "sheetsById": {
-      "Noodles": {
-        "staticOverrides": {
-          "byObject": {}
-        }
-      }
-    },
-    "definitionVersion": "0.4.0",
-    "revisionHistory": [
-      "9BkDRYWmSFG43ctt",
-      "2fowPmUFZuTc-Tpb",
-      "gu9E8g8-RbexkhTI",
-      "EeNr7wIUZGeY0pqE",
-      "-AcuXX9WdPaXNlc4",
-      "hPcEOr80dLTuA80M"
-    ]
-  },
-  "version": 7,
+  "version": 14,
   "name": "GeoJSON BART Stations",
+  "editorSettings": {
+    "layoutMode": "noodles-on-top",
+    "showOverlay": true
+  },
   "nodes": [
     {
       "id": "/deck",
@@ -92,7 +78,19 @@
       "id": "/out",
       "type": "OutOp",
       "data": {
-        "inputs": {},
+        "inputs": {
+          "display": "fixed",
+          "width": 1920,
+          "height": 1080,
+          "lod": 2,
+          "waitForData": true,
+          "codec": "avc",
+          "bitrateMbps": 10,
+          "bitrateMode": "constant",
+          "scaleControl": 0.3,
+          "framerate": 30,
+          "captureDelay": 50
+        },
         "locked": false
       },
       "position": {
@@ -197,5 +195,23 @@
         "locked": false
       }
     }
-  ]
+  ],
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": [
+      "9BkDRYWmSFG43ctt",
+      "2fowPmUFZuTc-Tpb",
+      "gu9E8g8-RbexkhTI",
+      "EeNr7wIUZGeY0pqE",
+      "-AcuXX9WdPaXNlc4",
+      "hPcEOr80dLTuA80M"
+    ]
+  }
 }

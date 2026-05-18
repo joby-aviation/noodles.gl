@@ -4,7 +4,7 @@
     "y": 562.2542727922879,
     "zoom": 0.5709600637849074
   },
-  "version": 7,
+  "version": 14,
   "name": "EV Chargers with Live API Data",
   "edges": [
     {
@@ -107,34 +107,9 @@
       "targetHandle": "par.query"
     }
   ],
-  "timeline": {
-    "sheetsById": {
-      "Noodles": {
-        "staticOverrides": {
-          "byObject": {
-            "scatterplotlayer-0": {
-              "getFillColor": {
-                "r": 1,
-                "g": 0.34901960784313724,
-                "b": 0,
-                "a": 1
-              },
-              "getLineColor": {
-                "r": 1,
-                "g": 1,
-                "b": 1,
-                "a": 1
-              }
-            }
-          }
-        }
-      }
-    },
-    "definitionVersion": "0.4.0",
-    "revisionHistory": [
-      "RgR7etiO4UU4Vc5h",
-      "fUMQMdteEoY7aslv"
-    ]
+  "editorSettings": {
+    "layoutMode": "noodles-on-top",
+    "showOverlay": true
   },
   "nodes": [
     {
@@ -294,9 +269,50 @@
         "y": -15.15716566510391
       },
       "data": {
-        "inputs": {},
+        "inputs": {
+          "display": "fixed",
+          "width": 1920,
+          "height": 1080,
+          "lod": 2,
+          "waitForData": true,
+          "codec": "avc",
+          "bitrateMbps": 10,
+          "bitrateMode": "constant",
+          "scaleControl": 0.3,
+          "framerate": 30,
+          "captureDelay": 50
+        },
         "locked": false
       }
     }
-  ]
+  ],
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {
+            "scatterplotlayer-0": {
+              "getFillColor": {
+                "r": 1,
+                "g": 0.34901960784313724,
+                "b": 0,
+                "a": 1
+              },
+              "getLineColor": {
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": [
+      "RgR7etiO4UU4Vc5h",
+      "fUMQMdteEoY7aslv"
+    ]
+  }
 }

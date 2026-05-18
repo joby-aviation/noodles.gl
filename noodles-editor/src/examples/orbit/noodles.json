@@ -34,40 +34,12 @@
     "y": 546.6972278664407,
     "zoom": 0.981085979917294
   },
-  "version": 7,
-  "timeline": {
-    "sheetsById": {
-      "Noodles": {
-        "staticOverrides": {
-          "byObject": {
-            "scenegraphlayer-0": {
-              "getColor": {
-                "r": 1,
-                "g": 1,
-                "b": 1,
-                "a": 1
-              }
-            },
-            "orbitview-0": {
-              "clearColor": {
-                "r": 0.1607843137254902,
-                "g": 0.592156862745098,
-                "b": 1,
-                "a": 1
-              }
-            }
-          }
-        }
-      }
-    },
-    "definitionVersion": "0.4.0",
-    "revisionHistory": [
-      "JtY15U_d_cPZoRLu",
-      "9EsczZKTvYsUK8uR",
-      "R6gN92Yj6dfyRehM"
-    ]
-  },
+  "version": 14,
   "name": "Orbit View 3D Scene",
+  "editorSettings": {
+    "layoutMode": "noodles-on-top",
+    "showOverlay": true
+  },
   "nodes": [
     {
       "id": "/deck",
@@ -87,7 +59,19 @@
       "id": "/out",
       "type": "OutOp",
       "data": {
-        "inputs": {},
+        "inputs": {
+          "display": "fixed",
+          "width": 1920,
+          "height": 1080,
+          "lod": 2,
+          "waitForData": true,
+          "codec": "avc",
+          "bitrateMbps": 10,
+          "bitrateMode": "constant",
+          "scaleControl": 0.3,
+          "framerate": 30,
+          "captureDelay": 50
+        },
         "locked": false
       },
       "position": {
@@ -140,5 +124,37 @@
         "locked": false
       }
     }
-  ]
+  ],
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {
+            "scenegraphlayer-0": {
+              "getColor": {
+                "r": 1,
+                "g": 1,
+                "b": 1,
+                "a": 1
+              }
+            },
+            "orbitview-0": {
+              "clearColor": {
+                "r": 0.1607843137254902,
+                "g": 0.592156862745098,
+                "b": 1,
+                "a": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": [
+      "JtY15U_d_cPZoRLu",
+      "9EsczZKTvYsUK8uR",
+      "R6gN92Yj6dfyRehM"
+    ]
+  }
 }

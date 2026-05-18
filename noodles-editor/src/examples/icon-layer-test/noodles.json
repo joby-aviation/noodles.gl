@@ -1,5 +1,5 @@
 {
-  "version": 7,
+  "version": 14,
   "edges": [
     {
       "id": "/test-data.out.result->/icon-layer.par.data",
@@ -41,6 +41,10 @@
     "x": 0,
     "y": 0,
     "zoom": 1
+  },
+  "editorSettings": {
+    "layoutMode": "noodles-on-top",
+    "showOverlay": true
   },
   "nodes": [
     {
@@ -114,5 +118,14 @@
         "inputs": {}
       }
     }
-  ]
+  ],
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        }
+      }
+    }
+  }
 }
