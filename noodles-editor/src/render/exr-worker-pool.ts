@@ -35,7 +35,7 @@ export class ExrWorkerPool {
       this.workers.push(worker)
       this.idleWorkers.push(worker)
     }
-    console.log(`[ExrWorkerPool] Pool created`)
+    console.log('[ExrWorkerPool] Pool created')
   }
 
   private handleResponse(

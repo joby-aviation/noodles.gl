@@ -107,6 +107,12 @@ export default defineConfig(({ mode }) => {
     resolve: {
       conditions: ['browser', 'import', 'module', 'default'],
     },
+    optimizeDeps: {
+      // exrs uses wasm-bindgen which loads .wasm via import.meta.url.
+      // Vite's dep optimizer bundles the JS but can't relocate the .wasm file,
+      // so exclude these to serve them directly from node_modules.
+      exclude: ['exrs-raw-wasm-bindgen'],
+    },
     plugins: [
       react(),
       nodePolyfills({
