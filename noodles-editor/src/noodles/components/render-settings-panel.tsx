@@ -37,6 +37,9 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
   const [display, setDisplay] = useState(op.inputs.display.value)
   const [width, setWidth] = useState(op.inputs.width.value)
   const [height, setHeight] = useState(op.inputs.height.value)
+  const [isCustomResolution, setIsCustomResolution] = useState(
+    () => getResolutionPresetValue(op.inputs.width.value, op.inputs.height.value) === 'custom'
+  )
   const [lod, setLod] = useState(op.inputs.lod.value)
   const [scaleControl, setScaleControl] = useState(op.inputs.scaleControl.value)
   const [codec, setCodec] = useState(op.inputs.codec.value)
@@ -48,10 +51,20 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
   const [rendersDirectory, setRendersDirectory] = useState(op.inputs.rendersDirectory.value)
 
   useEffect(() => {
+    const syncCustomResolution = (w: number, h: number) => {
+      const matchesPreset = getResolutionPresetValue(w, h) !== 'custom'
+      if (matchesPreset) setIsCustomResolution(false)
+    }
     const subscriptions = [
       op.inputs.display.subscribe(v => setDisplay(v)),
-      op.inputs.width.subscribe(v => setWidth(v)),
-      op.inputs.height.subscribe(v => setHeight(v)),
+      op.inputs.width.subscribe(v => {
+        setWidth(v)
+        syncCustomResolution(v, op.inputs.height.value)
+      }),
+      op.inputs.height.subscribe(v => {
+        setHeight(v)
+        syncCustomResolution(op.inputs.width.value, v)
+      }),
       op.inputs.lod.subscribe(v => setLod(v)),
       op.inputs.scaleControl.subscribe(v => setScaleControl(v)),
       op.inputs.codec.subscribe(v => setCodec(v)),
@@ -69,7 +82,11 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
 
   const handleResolutionPresetChange = useCallback(
     (value: string) => {
-      if (value === 'custom') return
+      if (value === 'custom') {
+        setIsCustomResolution(true)
+        return
+      }
+      setIsCustomResolution(false)
       const [w, h] = value.split('x').map(Number)
       op.inputs.width.setValue(w)
       op.inputs.height.setValue(h)
@@ -134,7 +151,7 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
               <select
                 id="render-resolution-preset"
                 className={s.select}
-                value={getResolutionPresetValue(width, height)}
+                value={isCustomResolution ? 'custom' : getResolutionPresetValue(width, height)}
                 onChange={e => handleResolutionPresetChange(e.target.value)}
               >
                 {RESOLUTION_PRESETS.map(preset => (
@@ -149,7 +166,7 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
               </select>
             </div>
 
-            {getResolutionPresetValue(width, height) === 'custom' && (
+            {isCustomResolution && (
               <div className={s.settingRow}>
                 <label htmlFor="render-resolution-width" className={s.label}>
                   Size

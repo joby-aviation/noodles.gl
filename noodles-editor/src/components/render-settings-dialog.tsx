@@ -1,5 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
+import { useState } from 'react'
 import { DEFAULT_RENDER_SETTINGS, type RenderSettings } from '../noodles/utils/serialization'
 import s from './render-settings-dialog.module.css'
 
@@ -32,16 +33,26 @@ export function RenderSettingsDialog({
   settings,
   onSettingsChange,
 }: RenderSettingsDialogProps) {
+  const [isCustomResolution, setIsCustomResolution] = useState(
+    () =>
+      getResolutionPresetValue(settings.resolution.width, settings.resolution.height) === 'custom'
+  )
+
   const updateSetting = <K extends keyof RenderSettings>(key: K, value: RenderSettings[K]) => {
     onSettingsChange({ ...settings, [key]: value })
   }
 
   const handleResetToDefaults = () => {
+    setIsCustomResolution(false)
     onSettingsChange({ ...DEFAULT_RENDER_SETTINGS })
   }
 
   const handleResolutionPresetChange = (value: string) => {
-    if (value === 'custom') return
+    if (value === 'custom') {
+      setIsCustomResolution(true)
+      return
+    }
+    setIsCustomResolution(false)
     const [width, height] = value.split('x').map(Number)
     updateSetting('resolution', { width, height })
   }
@@ -108,10 +119,14 @@ export function RenderSettingsDialog({
                     <select
                       id="render-resolution-preset"
                       className={s.select}
-                      value={getResolutionPresetValue(
-                        settings.resolution.width,
-                        settings.resolution.height
-                      )}
+                      value={
+                        isCustomResolution
+                          ? 'custom'
+                          : getResolutionPresetValue(
+                              settings.resolution.width,
+                              settings.resolution.height
+                            )
+                      }
                       onChange={e => handleResolutionPresetChange(e.target.value)}
                     >
                       {RESOLUTION_PRESETS.map(preset => (
@@ -126,10 +141,7 @@ export function RenderSettingsDialog({
                     </select>
                   </div>
 
-                  {getResolutionPresetValue(
-                    settings.resolution.width,
-                    settings.resolution.height
-                  ) === 'custom' && (
+                  {isCustomResolution && (
                     <div className={s.settingRow}>
                       <label htmlFor="render-resolution-width" className={s.label}>
                         Custom Size
