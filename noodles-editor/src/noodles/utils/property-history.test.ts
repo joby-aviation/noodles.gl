@@ -380,7 +380,7 @@ describe('captureOperatorInputs performance', () => {
     expect(parsed['/op'].radius).toBe(5)
   })
 
-  it('returns empty JSON object when stringify would throw', () => {
+  it('returns null when stringify would throw', () => {
     const circular: any = {}
     circular.self = circular
     const field = {
@@ -392,7 +392,37 @@ describe('captureOperatorInputs performance', () => {
     mockedGetAllOps.mockReturnValue([op as never])
 
     const result = captureOperatorInputs()
-    expect(result).toBe('{}')
+    expect(result).toBeNull()
+  })
+
+  it('firePropertyMutation skips recording when before is null', () => {
+    const callback = vi.fn()
+    registerPropertyMutationCallback(callback)
+
+    mockedGetAllOps.mockReturnValue([
+      { id: '/op', inputs: { x: { serialize: () => 10, subscriptions: new Map() } } } as never,
+    ])
+
+    firePropertyMutation('Change value', null)
+    expect(callback).not.toHaveBeenCalled()
+  })
+
+  it('firePropertyMutation skips recording when after capture returns null', () => {
+    const callback = vi.fn()
+    registerPropertyMutationCallback(callback)
+
+    const circular: any = {}
+    circular.self = circular
+    const field = {
+      serialize: vi.fn(() => circular),
+      setValue: vi.fn(),
+      subscriptions: new Map(),
+    }
+    const op = mockOp('/op', { bad: field })
+    mockedGetAllOps.mockReturnValue([op as never])
+
+    firePropertyMutation('Change value', JSON.stringify({ '/op': { bad: 'old' } }))
+    expect(callback).not.toHaveBeenCalled()
   })
 })
 
