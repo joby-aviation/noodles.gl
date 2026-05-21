@@ -1,6 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
-import { useState } from 'react'
 import { DEFAULT_RENDER_SETTINGS, type RenderSettings } from '../noodles/utils/serialization'
 import s from './render-settings-dialog.module.css'
 
@@ -33,26 +32,15 @@ export function RenderSettingsDialog({
   settings,
   onSettingsChange,
 }: RenderSettingsDialogProps) {
-  const [isCustomResolution, setIsCustomResolution] = useState(
-    () =>
-      getResolutionPresetValue(settings.resolution.width, settings.resolution.height) === 'custom'
-  )
-
   const updateSetting = <K extends keyof RenderSettings>(key: K, value: RenderSettings[K]) => {
     onSettingsChange({ ...settings, [key]: value })
   }
 
   const handleResetToDefaults = () => {
-    setIsCustomResolution(false)
     onSettingsChange({ ...DEFAULT_RENDER_SETTINGS })
   }
 
   const handleResolutionPresetChange = (value: string) => {
-    if (value === 'custom') {
-      setIsCustomResolution(true)
-      return
-    }
-    setIsCustomResolution(false)
     const [width, height] = value.split('x').map(Number)
     updateSetting('resolution', { width, height })
   }
@@ -113,74 +101,61 @@ export function RenderSettingsDialog({
               {settings.display === 'fixed' && (
                 <>
                   <div className={s.settingRow}>
-                    <label htmlFor="render-resolution-preset" className={s.label}>
+                    <label htmlFor="render-resolution-width" className={s.label}>
                       Resolution
                     </label>
-                    <select
-                      id="render-resolution-preset"
-                      className={s.select}
-                      value={
-                        isCustomResolution
-                          ? 'custom'
-                          : getResolutionPresetValue(
-                              settings.resolution.width,
-                              settings.resolution.height
-                            )
-                      }
-                      onChange={e => handleResolutionPresetChange(e.target.value)}
-                    >
-                      {RESOLUTION_PRESETS.map(preset => (
-                        <option
-                          key={`${preset.width}x${preset.height}`}
-                          value={`${preset.width}x${preset.height}`}
-                        >
-                          {preset.label}
-                        </option>
-                      ))}
-                      <option value="custom">Custom</option>
-                    </select>
-                  </div>
-
-                  {isCustomResolution && (
-                    <div className={s.settingRow}>
-                      <label htmlFor="render-resolution-width" className={s.label}>
-                        Custom Size
-                      </label>
-                      <div className={s.resolutionInputs}>
-                        <input
-                          id="render-resolution-width"
-                          type="number"
-                          className={s.numberInput}
-                          value={settings.resolution.width}
-                          min="1"
-                          max="7680"
-                          onChange={e =>
-                            updateSetting('resolution', {
-                              ...settings.resolution,
-                              width: Number(e.target.value),
-                            })
-                          }
-                          onBlur={e => handleResolutionBlur('width', Number(e.target.value))}
-                        />
-                        <span className={s.separator}>x</span>
-                        <input
-                          id="render-resolution-height"
-                          type="number"
-                          className={s.numberInput}
-                          value={settings.resolution.height}
-                          min="1"
-                          max="4320"
-                          onChange={e =>
-                            updateSetting('resolution', {
-                              ...settings.resolution,
-                              height: Number(e.target.value),
-                            })
-                          }
-                          onBlur={e => handleResolutionBlur('height', Number(e.target.value))}
-                        />
-                      </div>
+                    <div className={s.resolutionInputs}>
+                      <input
+                        id="render-resolution-width"
+                        type="number"
+                        className={s.numberInput}
+                        value={settings.resolution.width}
+                        min="1"
+                        max="7680"
+                        onChange={e =>
+                          updateSetting('resolution', {
+                            ...settings.resolution,
+                            width: Number(e.target.value),
+                          })
+                        }
+                        onBlur={e => handleResolutionBlur('width', Number(e.target.value))}
+                      />
+                      <span className={s.separator}>×</span>
+                      <input
+                        id="render-resolution-height"
+                        type="number"
+                        className={s.numberInput}
+                        value={settings.resolution.height}
+                        min="1"
+                        max="4320"
+                        onChange={e =>
+                          updateSetting('resolution', {
+                            ...settings.resolution,
+                            height: Number(e.target.value),
+                          })
+                        }
+                        onBlur={e => handleResolutionBlur('height', Number(e.target.value))}
+                      />
+                      <select
+                        id="render-resolution-preset"
+                        className={s.presetSelect}
+                        value={getResolutionPresetValue(
+                          settings.resolution.width,
+                          settings.resolution.height
+                        )}
+                        onChange={e => handleResolutionPresetChange(e.target.value)}
+                      >
+                        {RESOLUTION_PRESETS.map(preset => (
+                          <option
+                            key={`${preset.width}x${preset.height}`}
+                            value={`${preset.width}x${preset.height}`}
+                          >
+                            {preset.label}
+                          </option>
+                        ))}
+                      </select>
                     </div>
-                  )}
+                  </div>
 
                   <div className={s.settingRow}>
                     <label htmlFor="render-scale-control" className={s.label}>

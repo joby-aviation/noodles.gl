@@ -37,9 +37,6 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
   const [display, setDisplay] = useState(op.inputs.display.value)
   const [width, setWidth] = useState(op.inputs.width.value)
   const [height, setHeight] = useState(op.inputs.height.value)
-  const [isCustomResolution, setIsCustomResolution] = useState(
-    () => getResolutionPresetValue(op.inputs.width.value, op.inputs.height.value) === 'custom'
-  )
   const [lod, setLod] = useState(op.inputs.lod.value)
   const [scaleControl, setScaleControl] = useState(op.inputs.scaleControl.value)
   const [codec, setCodec] = useState(op.inputs.codec.value)
@@ -72,11 +69,6 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
 
   const handleResolutionPresetChange = useCallback(
     (value: string) => {
-      if (value === 'custom') {
-        setIsCustomResolution(true)
-        return
-      }
-      setIsCustomResolution(false)
       const [w, h] = value.split('x').map(Number)
       op.inputs.width.setValue(w)
       op.inputs.height.setValue(h)
@@ -135,55 +127,46 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
         {display === 'fixed' && (
           <>
             <div className={s.settingRow}>
-              <label htmlFor="render-resolution-preset" className={s.label}>
+              <label htmlFor="render-resolution-width" className={s.label}>
                 Resolution
               </label>
-              <select
-                id="render-resolution-preset"
-                className={s.select}
-                value={isCustomResolution ? 'custom' : getResolutionPresetValue(width, height)}
-                onChange={e => handleResolutionPresetChange(e.target.value)}
-              >
-                {RESOLUTION_PRESETS.map(preset => (
-                  <option
-                    key={`${preset.width}x${preset.height}`}
-                    value={`${preset.width}x${preset.height}`}
-                  >
-                    {preset.label}
-                  </option>
-                ))}
-                <option value="custom">Custom</option>
-              </select>
-            </div>
-
-            {isCustomResolution && (
-              <div className={s.settingRow}>
-                <label htmlFor="render-resolution-width" className={s.label}>
-                  Size
-                </label>
-                <div className={s.resolutionInputs}>
-                  <input
-                    id="render-resolution-width"
-                    type="number"
-                    className={s.numberInput}
-                    value={width}
-                    min="1"
-                    max="7680"
-                    onChange={e => op.inputs.width.setValue(Number(e.target.value))}
-                  />
-                  <span className={s.separator}>×</span>
-                  <input
-                    id="render-resolution-height"
-                    type="number"
-                    className={s.numberInput}
-                    value={height}
-                    min="1"
-                    max="4320"
-                    onChange={e => op.inputs.height.setValue(Number(e.target.value))}
-                  />
-                </div>
+              <div className={s.resolutionInputs}>
+                <input
+                  id="render-resolution-width"
+                  type="number"
+                  className={s.numberInput}
+                  value={width}
+                  min="1"
+                  max="7680"
+                  onChange={e => op.inputs.width.setValue(Number(e.target.value))}
+                />
+                <span className={s.separator}>×</span>
+                <input
+                  id="render-resolution-height"
+                  type="number"
+                  className={s.numberInput}
+                  value={height}
+                  min="1"
+                  max="4320"
+                  onChange={e => op.inputs.height.setValue(Number(e.target.value))}
+                />
+                <select
+                  id="render-resolution-preset"
+                  className={s.presetSelect}
+                  value={getResolutionPresetValue(width, height)}
+                  onChange={e => handleResolutionPresetChange(e.target.value)}
+                >
+                  {RESOLUTION_PRESETS.map(preset => (
+                    <option
+                      key={`${preset.width}x${preset.height}`}
+                      value={`${preset.width}x${preset.height}`}
+                    >
+                      {preset.label}
+                    </option>
+                  ))}
+                </select>
               </div>
-            )}
+            </div>
 
             <div className={s.settingRow}>
               <label htmlFor="render-scale-control" className={s.label}>
