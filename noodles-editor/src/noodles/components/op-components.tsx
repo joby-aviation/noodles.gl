@@ -78,6 +78,7 @@ import {
 import type { NodeType } from '../utils/node-creation-utils'
 import { generateQualifiedPath, getBaseName, getParentPath } from '../utils/path-utils'
 import {
+  type OperatorSnapshot,
   captureOperatorInputs,
   firePropertyMutation,
   usePropertyHistory,
@@ -922,7 +923,7 @@ function RampOpComponent({
   const handleActivate = useCallback((stopId: string) => setActiveStopId(stopId), [])
 
   // Debounced history commit for continuous text input
-  const inputBeforeRef = useRef<string | null>(null)
+  const inputBeforeRef = useRef<OperatorSnapshot | null>(null)
   const inputTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const commitInputDebounced = useCallback((description: string) => {
