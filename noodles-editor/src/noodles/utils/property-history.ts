@@ -31,7 +31,7 @@ export function captureOperatorInputs(): string | null {
   try {
     return JSON.stringify(state)
   } catch {
-    debugHistory('State too large to serialize for property history')
+    debugHistory('Failed to serialize state for property history')
     return null
   }
 }
