@@ -166,9 +166,15 @@ describe('snapshotsEqual', () => {
     expect(snapshotsEqual(a, b)).toBe(true)
   })
 
-  it('arrays with different references are not equal', () => {
+  it('arrays with same content but different references are equal (deep comparison)', () => {
     const a: OperatorSnapshot = { '/op': { data: [1, 2, 3] } }
     const b: OperatorSnapshot = { '/op': { data: [1, 2, 3] } }
+    expect(snapshotsEqual(a, b)).toBe(true)
+  })
+
+  it('arrays with different content are not equal', () => {
+    const a: OperatorSnapshot = { '/op': { data: [1, 2, 3] } }
+    const b: OperatorSnapshot = { '/op': { data: [1, 2, 4] } }
     expect(snapshotsEqual(a, b)).toBe(false)
   })
 
@@ -181,6 +187,18 @@ describe('snapshotsEqual', () => {
   it('plain objects with different properties are not equal', () => {
     const a: OperatorSnapshot = { '/op': { viewState: { lat: 40, lng: -73, zoom: 13 } } }
     const b: OperatorSnapshot = { '/op': { viewState: { lat: 41, lng: -73, zoom: 13 } } }
+    expect(snapshotsEqual(a, b)).toBe(false)
+  })
+
+  it('nested objects are compared deeply', () => {
+    const a: OperatorSnapshot = { '/op': { config: { bounds: { north: 40, south: 30 } } } }
+    const b: OperatorSnapshot = { '/op': { config: { bounds: { north: 40, south: 30 } } } }
+    expect(snapshotsEqual(a, b)).toBe(true)
+  })
+
+  it('nested objects with different values are not equal', () => {
+    const a: OperatorSnapshot = { '/op': { config: { bounds: { north: 40, south: 30 } } } }
+    const b: OperatorSnapshot = { '/op': { config: { bounds: { north: 40, south: 31 } } } }
     expect(snapshotsEqual(a, b)).toBe(false)
   })
 

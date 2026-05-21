@@ -3,29 +3,9 @@ import { debugHistory, debugHistorySnapshot } from '../../utils/debug'
 import type { IField } from '../fields'
 import { getAllOps, getOpStore } from '../store'
 import type { OpId } from './id-utils'
+import { deepEqual } from './deep-equal'
 
 export type OperatorSnapshot = Record<string, Record<string, unknown>>
-
-// Compares two field values: Object.is for primitives and arrays,
-// shallow property comparison for plain objects (handles CompoundPropsField
-// whose getter creates a new object each access).
-function valuesEqual(a: unknown, b: unknown): boolean {
-  if (Object.is(a, b)) return true
-  if (
-    typeof a === 'object' && a !== null && !Array.isArray(a) &&
-    typeof b === 'object' && b !== null && !Array.isArray(b)
-  ) {
-    const aObj = a as Record<string, unknown>
-    const bObj = b as Record<string, unknown>
-    const aKeys = Object.keys(aObj)
-    if (aKeys.length !== Object.keys(bObj).length) return false
-    for (const key of aKeys) {
-      if (!Object.is(aObj[key], bObj[key])) return false
-    }
-    return true
-  }
-  return false
-}
 
 type PropertyMutationCallback = (
   description: string,
@@ -71,7 +51,7 @@ export function snapshotsEqual(a: OperatorSnapshot, b: OperatorSnapshot): boolea
     const bFieldKeys = Object.keys(bInputs)
     if (aFieldKeys.length !== bFieldKeys.length) return false
     for (const fieldName of aFieldKeys) {
-      if (!valuesEqual(aInputs[fieldName], bInputs[fieldName])) return false
+      if (!deepEqual(aInputs[fieldName], bInputs[fieldName])) return false
     }
   }
   return true
@@ -87,7 +67,7 @@ export function applyOperatorInputs(snapshot: OperatorSnapshot): void {
     const opInputs = op.inputs as Record<string, IField>
     for (const [name, value] of Object.entries(inputs)) {
       const field = opInputs[name]
-      if (field && !valuesEqual(field.value, value)) {
+      if (field && !deepEqual(field.value, value)) {
         field.setValue(value)
       }
     }
