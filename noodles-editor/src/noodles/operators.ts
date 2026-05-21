@@ -496,6 +496,10 @@ export abstract class Operator<OP extends IOperator> {
 
     let executionTime = 0
     let startTime = 0
+    // Show executing indicator only for ops taking longer than 200ms
+    const executingTimer = setTimeout(() => {
+      this.executionState.next({ status: 'executing' })
+    }, 200)
 
     try {
       // Pull upstream dependencies first
@@ -522,6 +526,8 @@ export abstract class Operator<OP extends IOperator> {
       if (finalResult === null) {
         throw new Error(`Operator ${this.id} returned null`)
       }
+
+      clearTimeout(executingTimer)
 
       // Cache result and mark clean
       this._cachedOutput = finalResult
@@ -556,6 +562,7 @@ export abstract class Operator<OP extends IOperator> {
 
       return finalResult
     } catch (err) {
+      clearTimeout(executingTimer)
       const error = err instanceof Error ? err : new Error(String(err))
 
       // Calculate actual elapsed time even on error
