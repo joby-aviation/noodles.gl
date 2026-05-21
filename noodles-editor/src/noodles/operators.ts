@@ -6847,6 +6847,126 @@ export class PointOp extends Operator<PointOp> {
   }
 }
 
+export class LineStringOp extends Operator<LineStringOp> {
+  static displayName = 'LineString'
+  static description = 'Create a GeoJSON LineString feature from an array of coordinates'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      coordinates: new DataField([] as [number, number][]),
+      properties: new DataField({}),
+    }
+  }
+  createOutputs() {
+    return {
+      feature: new GeoJsonField(),
+    }
+  }
+  execute({
+    coordinates,
+    properties,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const feature = turf.lineString(coordinates, properties)
+    return { feature }
+  }
+}
+
+export class PolygonOp extends Operator<PolygonOp> {
+  static displayName = 'Polygon'
+  static description = 'Create a GeoJSON Polygon feature from coordinate rings'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      coordinates: new DataField([] as [number, number][][]),
+      properties: new DataField({}),
+    }
+  }
+  createOutputs() {
+    return {
+      feature: new GeoJsonField(),
+    }
+  }
+  execute({
+    coordinates,
+    properties,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const feature = turf.polygon(coordinates, properties)
+    return { feature }
+  }
+}
+
+export class MultiPointOp extends Operator<MultiPointOp> {
+  static displayName = 'MultiPoint'
+  static description = 'Create a GeoJSON MultiPoint feature from an array of coordinates'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      coordinates: new DataField([] as [number, number][]),
+      properties: new DataField({}),
+    }
+  }
+  createOutputs() {
+    return {
+      feature: new GeoJsonField(),
+    }
+  }
+  execute({
+    coordinates,
+    properties,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const feature = turf.multiPoint(coordinates, properties)
+    return { feature }
+  }
+}
+
+export class MultiLineStringOp extends Operator<MultiLineStringOp> {
+  static displayName = 'MultiLineString'
+  static description = 'Create a GeoJSON MultiLineString feature from arrays of coordinates'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      coordinates: new DataField([] as [number, number][][]),
+      properties: new DataField({}),
+    }
+  }
+  createOutputs() {
+    return {
+      feature: new GeoJsonField(),
+    }
+  }
+  execute({
+    coordinates,
+    properties,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const feature = turf.multiLineString(coordinates, properties)
+    return { feature }
+  }
+}
+
+export class MultiPolygonOp extends Operator<MultiPolygonOp> {
+  static displayName = 'MultiPolygon'
+  static description = 'Create a GeoJSON MultiPolygon feature from arrays of polygon coordinate rings'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      coordinates: new DataField([] as [number, number][][][]),
+      properties: new DataField({}),
+    }
+  }
+  createOutputs() {
+    return {
+      feature: new GeoJsonField(),
+    }
+  }
+  execute({
+    coordinates,
+    properties,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const feature = turf.multiPolygon(coordinates, properties)
+    return { feature }
+  }
+}
+
 export class GeoJsonOp extends Operator<GeoJsonOp> {
   static displayName = 'GeoJson'
   static description = 'Create a GeoJSON FeatureCollection from a list of features'
@@ -8198,6 +8318,7 @@ export const opTypes = {
   LayerPropsOp,
   LegendWidgetOp,
   LineLayerOp,
+  LineStringOp,
   MaplibreBasemapOp,
   MapRangeOp,
   MapStyleConfiguratorOp,
@@ -8208,6 +8329,9 @@ export const opTypes = {
   MathOp,
   MergeOp,
   MouseOp,
+  MultiLineStringOp,
+  MultiPointOp,
+  MultiPolygonOp,
   MVTLayerOp,
   NetworkOp,
   NumberOp,
@@ -8218,6 +8342,7 @@ export const opTypes = {
   PathStyleExtensionOp,
   PointCloudLayerOp,
   PointOp,
+  PolygonOp,
   PolygonLayerOp,
   ProjectOp,
   QuadkeyLayerOp,

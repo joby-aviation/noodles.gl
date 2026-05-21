@@ -117,6 +117,144 @@ function createFileDropNodes(url: string, format: string, basePosition: { x: num
   return { nodes, edges }
 }
 
+type GeoJsonFeature = {
+  type: 'Feature'
+  geometry: {
+    type: string
+    coordinates: unknown
+  }
+  properties?: Record<string, unknown>
+}
+
+type GeoJsonData = {
+  type: 'FeatureCollection'
+  features: GeoJsonFeature[]
+}
+
+const GEOMETRY_TYPE_TO_OP: Record<string, OpType> = {
+  Point: 'PointOp',
+  LineString: 'LineStringOp',
+  Polygon: 'PolygonOp',
+  MultiPoint: 'MultiPointOp',
+  MultiLineString: 'MultiLineStringOp',
+  MultiPolygon: 'MultiPolygonOp',
+}
+
+export function createGeoJsonDropNodes(
+  geojson: GeoJsonData,
+  basePosition: { x: number; y: number }
+) {
+  const geojsonId = nodeId('geojson', '/')
+  const geojsonLayerId = nodeId('geojson-layer', '/')
+  const mapId = nodeId('basemap', '/')
+  const deckId = nodeId('deck', '/')
+
+  const nodes: NodeJSON<OpType>[] = []
+  const featureEdges: Array<{
+    source: string
+    target: string
+    sourceHandle: string
+    targetHandle: string
+  }> = []
+
+  // Create a geometry operator for each feature
+  const colSpacing = 350
+  const rowSpacing = 150
+  const maxColumns = 4
+  geojson.features.forEach((feature, i) => {
+    const opType = GEOMETRY_TYPE_TO_OP[feature.geometry.type]
+    if (!opType) return
+
+    const col = i % maxColumns
+    const row = Math.floor(i / maxColumns)
+    const featureId = nodeId(`feature-${i}`, '/')
+
+    const inputs: Record<string, unknown> = {
+      coordinates: feature.geometry.coordinates,
+      properties: feature.properties || {},
+    }
+
+    nodes.push({
+      id: featureId,
+      type: opType,
+      data: { inputs },
+      position: {
+        x: basePosition.x + col * colSpacing,
+        y: basePosition.y + row * rowSpacing,
+      },
+    })
+
+    featureEdges.push({
+      source: featureId,
+      target: geojsonId,
+      sourceHandle: 'out.feature',
+      targetHandle: 'par.features',
+    })
+  })
+
+  const featureRowCount = Math.ceil(geojson.features.length / maxColumns)
+  const geojsonY = basePosition.y + featureRowCount * rowSpacing + 100
+
+  // GeoJsonOp collects all features
+  nodes.push({
+    id: geojsonId,
+    type: 'GeoJsonOp',
+    data: { inputs: {} },
+    position: { x: basePosition.x + colSpacing, y: geojsonY },
+  })
+
+  // GeoJsonLayerOp renders the collection
+  nodes.push({
+    id: geojsonLayerId,
+    type: 'GeoJsonLayerOp',
+    data: { inputs: {} },
+    position: { x: basePosition.x + colSpacing * 2, y: geojsonY },
+  })
+
+  // MaplibreBasemapOp for the map background
+  nodes.push({
+    id: mapId,
+    type: 'MaplibreBasemapOp',
+    data: { inputs: {} },
+    position: { x: basePosition.x + colSpacing * 2, y: geojsonY + 200 },
+  })
+
+  const allEdges = [
+    ...featureEdges,
+    {
+      source: geojsonId,
+      target: geojsonLayerId,
+      sourceHandle: 'out.featureCollection',
+      targetHandle: 'par.data',
+    },
+    {
+      source: geojsonLayerId,
+      target: deckId,
+      sourceHandle: 'out.layer',
+      targetHandle: 'par.layers',
+    },
+    {
+      source: mapId,
+      target: deckId,
+      sourceHandle: 'out.maplibre',
+      targetHandle: 'par.basemap',
+    },
+  ].map(connection => ({ ...connection, id: edgeId(connection) }))
+
+  return { nodes, edges: allEdges }
+}
+
+function isGeoJson(data: unknown): data is GeoJsonData {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    'type' in data &&
+    (data as { type: string }).type === 'FeatureCollection' &&
+    'features' in data &&
+    Array.isArray((data as GeoJsonData).features)
+  )
+}
+
 interface DataImporterToolProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -151,7 +289,6 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
         }
 
         debugUI('File imported:', file.name)
-        const type = file.type.includes('csv') ? 'csv' : 'json'
 
         // Position nodes at center of viewport (same as block library)
         const pane = reactFlowRef.current?.getBoundingClientRect()
@@ -162,14 +299,51 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
           y: pane.top + pane.height / 2,
         })
 
-        const { nodes, edges } = createFileDropNodes(projectScheme + file.name, type, basePosition)
+        // Detect GeoJSON and use specialized import
+        const isGeoJsonFile = file.name.endsWith('.geojson')
+        let format: string
+        let nodes: NodeJSON<OpType>[]
+        let edges: {
+          id: string
+          source: string
+          target: string
+          sourceHandle: string
+          targetHandle: string
+        }[]
+
+        if (isGeoJsonFile || file.type.includes('json')) {
+          try {
+            const parsed = JSON.parse(contents)
+            if (isGeoJson(parsed)) {
+              const result = createGeoJsonDropNodes(parsed, basePosition)
+              nodes = result.nodes
+              edges = result.edges
+              format = 'geojson'
+            } else {
+              format = 'json'
+              const result = createFileDropNodes(projectScheme + file.name, format, basePosition)
+              nodes = result.nodes
+              edges = result.edges
+            }
+          } catch {
+            format = file.type.includes('csv') ? 'csv' : 'json'
+            const result = createFileDropNodes(projectScheme + file.name, format, basePosition)
+            nodes = result.nodes
+            edges = result.edges
+          }
+        } else {
+          format = file.type.includes('csv') ? 'csv' : 'json'
+          const result = createFileDropNodes(projectScheme + file.name, format, basePosition)
+          nodes = result.nodes
+          edges = result.edges
+        }
 
         addNodes(nodes)
         addEdges(edges)
 
         analytics.track('data_imported', {
           source: 'tools_shelf',
-          format: type,
+          format,
         })
 
         // Close dialog on success
@@ -241,7 +415,7 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
         <Dialog.Content className={s.dialogContent}>
           <Dialog.Title className={s.dialogTitle}>Import Data</Dialog.Title>
           <Dialog.Description className={s.dialogDescription}>
-            Upload CSV or JSON files to create a visualization pipeline.
+            Upload CSV, JSON, or GeoJSON files to create a visualization pipeline.
           </Dialog.Description>
 
           {/* biome-ignore lint/a11y/useSemanticElements: div needed for drag-and-drop zone styling */}
@@ -257,7 +431,7 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
             <input
               ref={fileInputRef}
               type="file"
-              accept=".csv,.json"
+              accept=".csv,.json,.geojson"
               onChange={handleFileSelect}
               multiple
               style={{ display: 'none' }}
@@ -275,7 +449,7 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
               >
                 Browse Files
               </button>
-              <div className={s.dropZoneHint}>Supports CSV and JSON files</div>
+              <div className={s.dropZoneHint}>Supports CSV, JSON, and GeoJSON files</div>
             </div>
           </div>
 
