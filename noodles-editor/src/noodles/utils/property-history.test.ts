@@ -291,6 +291,111 @@ describe('registerPropertyMutationCallback and firePropertyMutation', () => {
   })
 })
 
+describe('captureOperatorInputs skips connected fields', () => {
+  it('excludes fields that have active subscriptions (connected inputs)', () => {
+    const connectedField = {
+      serialize: vi.fn(() => Array.from({ length: 50000 }, (_, i) => ({ id: i }))),
+      setValue: vi.fn(),
+      subscriptions: new Map([['edge-1', {}]]),
+    }
+    const localField = mockField(20)
+    const op = mockOp('/scatter', { data: connectedField, getRadius: localField })
+    mockedGetAllOps.mockReturnValue([op as never])
+
+    const result = captureOperatorInputs()
+    const parsed = JSON.parse(result)
+
+    expect(parsed['/scatter'].getRadius).toBe(20)
+    expect(parsed['/scatter'].data).toBeUndefined()
+    expect(connectedField.serialize).not.toHaveBeenCalled()
+  })
+
+  it('includes fields with empty subscriptions (no connections)', () => {
+    const field = {
+      serialize: vi.fn(() => 'test-value'),
+      setValue: vi.fn(),
+      subscriptions: new Map(),
+    }
+    const op = mockOp('/op', { name: field })
+    mockedGetAllOps.mockReturnValue([op as never])
+
+    const result = captureOperatorInputs()
+    const parsed = JSON.parse(result)
+
+    expect(parsed['/op'].name).toBe('test-value')
+  })
+
+  it('includes fields without subscriptions property (legacy/interface fields)', () => {
+    const field = mockField('hello')
+    const op = mockOp('/op', { text: field })
+    mockedGetAllOps.mockReturnValue([op as never])
+
+    const result = captureOperatorInputs()
+    const parsed = JSON.parse(result)
+
+    expect(parsed['/op'].text).toBe('hello')
+  })
+})
+
+describe('captureOperatorInputs performance', () => {
+  it('completes in under 50ms even with many operators and large connected data', () => {
+    const ops = Array.from({ length: 50 }, (_, i) => {
+      const connectedDataField = {
+        serialize: vi.fn(() => Array.from({ length: 100000 }, () => ({ x: 1, y: 2 }))),
+        setValue: vi.fn(),
+        subscriptions: new Map([['edge', {}]]),
+      }
+      const localField = mockField(i)
+      return mockOp(`/op-${i}`, { data: connectedDataField, value: localField })
+    })
+    mockedGetAllOps.mockReturnValue(ops as never[])
+
+    const start = performance.now()
+    const result = captureOperatorInputs()
+    const elapsed = performance.now() - start
+
+    expect(elapsed).toBeLessThan(50)
+    const parsed = JSON.parse(result)
+    expect(Object.keys(parsed)).toHaveLength(50)
+    expect(parsed['/op-0'].value).toBe(0)
+    expect(parsed['/op-0'].data).toBeUndefined()
+  })
+
+  it('does not call serialize() on connected fields', () => {
+    const expensiveSerialize = vi.fn(() => {
+      throw new Error('Should not be called')
+    })
+    const connectedField = {
+      serialize: expensiveSerialize,
+      setValue: vi.fn(),
+      subscriptions: new Map([['edge-1', {}]]),
+    }
+    const op = mockOp('/op', { bigData: connectedField, radius: mockField(5) })
+    mockedGetAllOps.mockReturnValue([op as never])
+
+    const result = captureOperatorInputs()
+    const parsed = JSON.parse(result)
+
+    expect(expensiveSerialize).not.toHaveBeenCalled()
+    expect(parsed['/op'].radius).toBe(5)
+  })
+
+  it('returns empty JSON object when stringify would throw', () => {
+    const circular: any = {}
+    circular.self = circular
+    const field = {
+      serialize: vi.fn(() => circular),
+      setValue: vi.fn(),
+      subscriptions: new Map(),
+    }
+    const op = mockOp('/op', { bad: field })
+    mockedGetAllOps.mockReturnValue([op as never])
+
+    const result = captureOperatorInputs()
+    expect(result).toBe('{}')
+  })
+})
+
 describe('captureOperatorInputs + applyOperatorInputs round-trip', () => {
   it('restores field values to their captured state', () => {
     const field = mockField(42)

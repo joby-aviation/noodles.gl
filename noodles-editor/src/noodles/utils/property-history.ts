@@ -15,18 +15,25 @@ export function registerPropertyMutationCallback(cb: PropertyMutationCallback | 
 
 // Serializes all operator field values using each field's serialize() method.
 // This mirrors captureTimelineState() in timeline-store.ts.
+// Skips connected fields (they receive values from upstream and can hold large datasets).
 export function captureOperatorInputs(): string {
   const ops = getAllOps()
   const state: Record<string, Record<string, unknown>> = {}
   for (const op of ops) {
     const inputs: Record<string, unknown> = {}
     for (const [name, field] of Object.entries(op.inputs as Record<string, IField>)) {
+      if ((field as any).subscriptions?.size > 0) continue
       inputs[name] = field.serialize()
     }
     state[op.id] = inputs
   }
   debugHistorySnapshot('Captured operator inputs for %d ops', ops.length)
-  return JSON.stringify(state)
+  try {
+    return JSON.stringify(state)
+  } catch {
+    debugHistory('State too large to serialize for property history')
+    return '{}'
+  }
 }
 
 // Restores operator field values from a snapshot.
