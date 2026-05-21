@@ -14,11 +14,6 @@ const RESOLUTION_PRESETS = [
   { label: '4K 16:9', width: 3840, height: 2160 },
 ] as const
 
-function getResolutionPresetValue(width: number, height: number): string {
-  const preset = RESOLUTION_PRESETS.find(p => p.width === width && p.height === height)
-  return preset ? `${preset.width}x${preset.height}` : 'custom'
-}
-
 interface RenderSettingsPanelProps {
   op: OutOp
 }
@@ -153,9 +148,10 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
                 <select
                   id="render-resolution-preset"
                   className={s.presetSelect}
-                  value={getResolutionPresetValue(width, height)}
+                  value=""
                   onChange={e => handleResolutionPresetChange(e.target.value)}
                 >
+                  <option value="" disabled hidden />
                   {RESOLUTION_PRESETS.map(preset => (
                     <option
                       key={`${preset.width}x${preset.height}`}

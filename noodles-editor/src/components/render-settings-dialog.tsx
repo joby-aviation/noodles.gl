@@ -21,11 +21,6 @@ interface RenderSettingsDialogProps {
   onSettingsChange: (settings: RenderSettings) => void
 }
 
-function getResolutionPresetValue(width: number, height: number): string {
-  const preset = RESOLUTION_PRESETS.find(p => p.width === width && p.height === height)
-  return preset ? `${preset.width}x${preset.height}` : 'custom'
-}
-
 export function RenderSettingsDialog({
   open,
   setOpen,
@@ -139,12 +134,10 @@ export function RenderSettingsDialog({
                       <select
                         id="render-resolution-preset"
                         className={s.presetSelect}
-                        value={getResolutionPresetValue(
-                          settings.resolution.width,
-                          settings.resolution.height
-                        )}
+                        value=""
                         onChange={e => handleResolutionPresetChange(e.target.value)}
                       >
+                        <option value="" disabled hidden />
                         {RESOLUTION_PRESETS.map(preset => (
                           <option
                             key={`${preset.width}x${preset.height}`}
