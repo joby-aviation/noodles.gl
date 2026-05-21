@@ -1698,10 +1698,7 @@ export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
       spectral: schemeSpectral,
     }
 
-    const allSchemeNames = [
-      ...Object.keys(fixedSchemes),
-      ...Object.keys(steppedSchemes),
-    ]
+    const allSchemeNames = [...Object.keys(fixedSchemes), ...Object.keys(steppedSchemes)]
 
     const colorScheme = new StringLiteralField('accent', allSchemeNames)
     const steps = new NumberField(8, { min: 3, max: 11, step: 1 })
@@ -1714,8 +1711,7 @@ export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
         const full = fixedSchemes[schemeName as keyof typeof fixedSchemes]
         scheme = full.slice(0, Math.min(n, full.length))
       } else {
-        const steppedScheme =
-          steppedSchemes[schemeName as keyof typeof steppedSchemes]
+        const steppedScheme = steppedSchemes[schemeName as keyof typeof steppedSchemes]
         const clamped = Math.min(n, steppedScheme.length - 1)
         scheme = steppedScheme[clamped] as readonly string[]
       }
