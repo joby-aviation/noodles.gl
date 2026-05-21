@@ -51,20 +51,10 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
   const [rendersDirectory, setRendersDirectory] = useState(op.inputs.rendersDirectory.value)
 
   useEffect(() => {
-    const syncCustomResolution = (w: number, h: number) => {
-      const matchesPreset = getResolutionPresetValue(w, h) !== 'custom'
-      if (matchesPreset) setIsCustomResolution(false)
-    }
     const subscriptions = [
       op.inputs.display.subscribe(v => setDisplay(v)),
-      op.inputs.width.subscribe(v => {
-        setWidth(v)
-        syncCustomResolution(v, op.inputs.height.value)
-      }),
-      op.inputs.height.subscribe(v => {
-        setHeight(v)
-        syncCustomResolution(op.inputs.width.value, v)
-      }),
+      op.inputs.width.subscribe(v => setWidth(v)),
+      op.inputs.height.subscribe(v => setHeight(v)),
       op.inputs.lod.subscribe(v => setLod(v)),
       op.inputs.scaleControl.subscribe(v => setScaleControl(v)),
       op.inputs.codec.subscribe(v => setCodec(v)),
