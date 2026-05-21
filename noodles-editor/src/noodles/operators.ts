@@ -1708,17 +1708,16 @@ export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
 
     const updateRamp = () => {
       const schemeName = colorScheme.value
+      const n = Math.max(Math.round(steps.value), 3)
       let scheme: readonly string[]
       if (schemeName in fixedSchemes) {
-        scheme = fixedSchemes[schemeName as keyof typeof fixedSchemes]
+        const full = fixedSchemes[schemeName as keyof typeof fixedSchemes]
+        scheme = full.slice(0, Math.min(n, full.length))
       } else {
         const steppedScheme =
           steppedSchemes[schemeName as keyof typeof steppedSchemes]
-        const n = Math.min(
-          Math.max(Math.round(steps.value), 3),
-          steppedScheme.length - 1
-        )
-        scheme = steppedScheme[n] as readonly string[]
+        const clamped = Math.min(n, steppedScheme.length - 1)
+        scheme = steppedScheme[clamped] as readonly string[]
       }
       const interpolate = scaleOrdinal(scheme)
       colorRamp.count = scheme.length
