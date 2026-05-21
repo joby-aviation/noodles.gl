@@ -546,7 +546,7 @@ export function OutputHandle({ id, field }: { id: string; field: Field<IField> }
 
       // Store the current target immediately
       const currentTarget = e.currentTarget
-      hoverTimerRef.current = setTimeout(async () => {
+      const timerId = setTimeout(async () => {
         // Get the handle's position in the viewport
         const rect = currentTarget.getBoundingClientRect()
         setPreviewPosition({ x: rect.right, y: rect.top })
@@ -559,9 +559,11 @@ export function OutputHandle({ id, field }: { id: string; field: Field<IField> }
           } catch {
             // Ignore pull errors - show whatever value is available
           }
+          if (hoverTimerRef.current !== timerId) return
         }
         setPreviewData(viewerFormatter(field.value))
       }, 1000)
+      hoverTimerRef.current = timerId
     },
     [field, nid, qualifiedFieldId]
   )
