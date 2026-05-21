@@ -140,8 +140,9 @@
 
 .presetSelect {
   flex: 0 0 auto;
+  align-self: stretch;
   width: 28px;
-  padding: 0.5rem 0;
+  padding: 0;
   background-color: rgba(255, 255, 255, 0.05);
   color: var(--color-text-primary);
   border: 1px solid rgba(255, 255, 255, 0.1);
