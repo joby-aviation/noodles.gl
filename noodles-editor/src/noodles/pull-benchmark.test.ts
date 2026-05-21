@@ -1,6 +1,6 @@
 // Performance benchmark tests for pull-based execution model
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DataField, NumberField } from './fields'
 import { GraphExecutor, topologicalSort } from './graph-executor'
 import { Operator, PullExecutionStatus } from './operators'
@@ -397,5 +397,98 @@ describe('Dependency graph (via topologicalSort)', () => {
     // Check that sink nodes have no downstream
     expect(executor.getDownstream('/sink1').size).toBe(0)
     expect(executor.getDownstream('/sink2').size).toBe(0)
+  })
+})
+
+// Operator that takes a configurable amount of time to execute
+class SlowOp extends Operator<SlowOp> {
+  static displayName = 'Slow'
+  delayMs = 0
+
+  createInputs() {
+    return { value: new NumberField(0) }
+  }
+
+  createOutputs() {
+    return { result: new NumberField() }
+  }
+
+  async execute({ value }: ExtractProps<typeof this.inputs>) {
+    if (this.delayMs > 0) {
+      await new Promise(resolve => setTimeout(resolve, this.delayMs))
+    }
+    return { result: value * 2 }
+  }
+}
+
+describe('Execution indicator timing', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('should not show executing indicator for fast ops (<200ms)', async () => {
+    const op = new SlowOp('/fast-op')
+    op.delayMs = 50
+
+    const states: string[] = []
+    const sub = op.executionState.subscribe(s => states.push(s.status))
+
+    const pullPromise = op.pull()
+    // Advance past the op's 50ms delay but not past the 200ms indicator threshold
+    await vi.advanceTimersByTimeAsync(100)
+    await pullPromise
+
+    sub.unsubscribe()
+
+    expect(states).not.toContain('executing')
+    expect(states).toContain('success')
+  })
+
+  it('should show executing indicator for slow ops (>200ms)', async () => {
+    const op = new SlowOp('/slow-op')
+    op.delayMs = 300
+
+    const states: string[] = []
+    const sub = op.executionState.subscribe(s => states.push(s.status))
+
+    const pullPromise = op.pull()
+    // Advance past the 200ms indicator threshold
+    await vi.advanceTimersByTimeAsync(250)
+    expect(states).toContain('executing')
+
+    // Finish execution
+    await vi.advanceTimersByTimeAsync(100)
+    await pullPromise
+
+    sub.unsubscribe()
+
+    expect(states).toContain('success')
+  })
+
+  it('should clear executing indicator on error', async () => {
+    const op = new SlowOp('/error-op')
+    op.delayMs = 300
+    vi.spyOn(op, 'execute').mockImplementation(async () => {
+      await new Promise(resolve => setTimeout(resolve, 300))
+      throw new Error('test error')
+    })
+
+    const states: string[] = []
+    const sub = op.executionState.subscribe(s => states.push(s.status))
+
+    const pullPromise = op.pull().catch(() => {})
+    await vi.advanceTimersByTimeAsync(250)
+    expect(states).toContain('executing')
+
+    await vi.advanceTimersByTimeAsync(100)
+    await pullPromise
+
+    sub.unsubscribe()
+
+    expect(states).toContain('error')
   })
 })
