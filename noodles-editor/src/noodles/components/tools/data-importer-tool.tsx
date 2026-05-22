@@ -118,7 +118,7 @@ function createFileDropNodes(url: string, format: string, basePosition: { x: num
   return { nodes, edges }
 }
 
-function createGeoJsonFileDropNodes(url: string, basePosition: { x: number; y: number }) {
+export function createGeoJsonFileDropNodes(url: string, basePosition: { x: number; y: number }) {
   const dataId = nodeId('data', '/')
   const geojsonLayerId = nodeId('geojson-layer', '/')
 
@@ -302,7 +302,7 @@ interface DataImporterToolProps {
   reactFlowRef: React.RefObject<HTMLDivElement>
 }
 
-const GEOJSON_DECONSTRUCT_LIMIT = 20
+export const GEOJSON_DECONSTRUCT_LIMIT = 20
 
 type GeoJsonPreview = {
   file: File

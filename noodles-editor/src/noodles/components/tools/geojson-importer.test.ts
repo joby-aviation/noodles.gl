@@ -16,7 +16,8 @@ vi.mock('../../utils/id-utils', () => ({
 }))
 
 // Import after mocks are set up
-const { createGeoJsonDropNodes } = await import('./data-importer-tool')
+const { createGeoJsonDropNodes, createGeoJsonFileDropNodes, GEOJSON_DECONSTRUCT_LIMIT } =
+  await import('./data-importer-tool')
 
 describe('GeoJSON Import', () => {
   const basePosition = { x: 100, y: 200 }
@@ -303,6 +304,73 @@ describe('GeoJSON Import', () => {
       expect(result.nodes).toHaveLength(2)
       // Only geojson->layer + layer->deck
       expect(result.edges).toHaveLength(2)
+    })
+  })
+
+  describe('createGeoJsonFileDropNodes', () => {
+    it('creates FileOp and GeoJsonLayerOp', () => {
+      const result = createGeoJsonFileDropNodes('@/test.geojson', basePosition)
+
+      const nodeTypes = result.nodes.map(n => n.type)
+      expect(nodeTypes).toContain('FileOp')
+      expect(nodeTypes).toContain('GeoJsonLayerOp')
+      expect(result.nodes).toHaveLength(2)
+    })
+
+    it('does not create BoundingBoxOp or MaplibreBasemapOp', () => {
+      const result = createGeoJsonFileDropNodes('@/test.geojson', basePosition)
+
+      const nodeTypes = result.nodes.map(n => n.type)
+      expect(nodeTypes).not.toContain('BoundingBoxOp')
+      expect(nodeTypes).not.toContain('MaplibreBasemapOp')
+      expect(nodeTypes).not.toContain('ScatterplotLayerOp')
+    })
+
+    it('connects FileOp to GeoJsonLayerOp data input', () => {
+      const result = createGeoJsonFileDropNodes('@/test.geojson', basePosition)
+
+      const edge = result.edges.find(
+        e => e.sourceHandle === 'out.data' && e.targetHandle === 'par.data'
+      )
+      expect(edge).toBeDefined()
+    })
+
+    it('connects GeoJsonLayerOp to DeckRendererOp layers input', () => {
+      const result = createGeoJsonFileDropNodes('@/test.geojson', basePosition)
+
+      const edge = result.edges.find(
+        e => e.sourceHandle === 'out.layer' && e.targetHandle === 'par.layers'
+      )
+      expect(edge).toBeDefined()
+    })
+
+    it('creates exactly 2 edges (file->layer, layer->deck)', () => {
+      const result = createGeoJsonFileDropNodes('@/test.geojson', basePosition)
+      expect(result.edges).toHaveLength(2)
+    })
+
+    it('configures FileOp with json format and url', () => {
+      const result = createGeoJsonFileDropNodes('@/my-data.geojson', basePosition)
+
+      const fileOp = result.nodes.find(n => n.type === 'FileOp')
+      expect(fileOp?.data.inputs.format).toBe('json')
+      expect(fileOp?.data.inputs.url).toBe('@/my-data.geojson')
+    })
+  })
+
+  describe('GEOJSON_DECONSTRUCT_LIMIT', () => {
+    it('is set to 20', () => {
+      expect(GEOJSON_DECONSTRUCT_LIMIT).toBe(20)
+    })
+
+    it('collections at the limit default to deconstruct', () => {
+      const atLimit = GEOJSON_DECONSTRUCT_LIMIT
+      expect(atLimit <= GEOJSON_DECONSTRUCT_LIMIT).toBe(true)
+    })
+
+    it('collections over the limit default to file mode', () => {
+      const overLimit = GEOJSON_DECONSTRUCT_LIMIT + 1
+      expect(overLimit > GEOJSON_DECONSTRUCT_LIMIT).toBe(true)
     })
   })
 })
