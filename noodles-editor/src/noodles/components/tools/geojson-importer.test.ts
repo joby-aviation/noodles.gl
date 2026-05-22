@@ -16,7 +16,7 @@ vi.mock('../../utils/id-utils', () => ({
 }))
 
 // Import after mocks are set up
-const { createGeoJsonDropNodes, createGeoJsonFileDropNodes, SOFT_LIMIT } =
+const { createGeoJsonDropNodes, createGeoJsonFileDropNodes, GEOJSON_DECONSTRUCT_SOFT_LIMIT } =
   await import('./data-importer-tool')
 
 describe('GeoJSON Import', () => {
@@ -358,19 +358,19 @@ describe('GeoJSON Import', () => {
     })
   })
 
-  describe('SOFT_LIMIT', () => {
+  describe('GEOJSON_DECONSTRUCT_SOFT_LIMIT', () => {
     it('is set to 20', () => {
-      expect(SOFT_LIMIT).toBe(20)
+      expect(GEOJSON_DECONSTRUCT_SOFT_LIMIT).toBe(20)
     })
 
     it('collections at the limit default to deconstruct', () => {
-      const atLimit = SOFT_LIMIT
-      expect(atLimit <= SOFT_LIMIT).toBe(true)
+      const atLimit = GEOJSON_DECONSTRUCT_SOFT_LIMIT
+      expect(atLimit <= GEOJSON_DECONSTRUCT_SOFT_LIMIT).toBe(true)
     })
 
     it('collections over the limit default to file mode', () => {
-      const overLimit = SOFT_LIMIT + 1
-      expect(overLimit > SOFT_LIMIT).toBe(true)
+      const overLimit = GEOJSON_DECONSTRUCT_SOFT_LIMIT + 1
+      expect(overLimit > GEOJSON_DECONSTRUCT_SOFT_LIMIT).toBe(true)
     })
   })
 })

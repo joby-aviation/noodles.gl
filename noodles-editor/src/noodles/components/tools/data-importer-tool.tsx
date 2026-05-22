@@ -302,7 +302,7 @@ interface DataImporterToolProps {
   reactFlowRef: React.RefObject<HTMLDivElement>
 }
 
-export const SOFT_LIMIT = 20
+export const GEOJSON_DECONSTRUCT_SOFT_LIMIT = 20
 
 type GeoJsonPreview = {
   file: File
@@ -421,7 +421,7 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
           try {
             const parsed = JSON.parse(contents)
             if (isGeoJson(parsed)) {
-              setDeconstructFeatures(parsed.features.length <= SOFT_LIMIT)
+              setDeconstructFeatures(parsed.features.length <= GEOJSON_DECONSTRUCT_SOFT_LIMIT)
               setGeojsonPreview({ file, contents, data: parsed })
               setIsImporting(false)
               return
@@ -513,7 +513,7 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
                 <span className={s.featureCount}>
                   {geojsonPreview.data.features.length} features
                 </span>
-                {geojsonPreview.data.features.length > SOFT_LIMIT && (
+                {geojsonPreview.data.features.length > GEOJSON_DECONSTRUCT_SOFT_LIMIT && (
                   <span className={s.featureWarning}>
                     Large file — loading as a single FileOp is recommended
                   </span>
