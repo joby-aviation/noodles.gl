@@ -1,10 +1,24 @@
-import { describe, expect, it } from 'vitest'
-import { edgeId } from '../../utils/id-utils'
+import { describe, expect, it, vi } from 'vitest'
+
+// Auto-mock the store — provides stubs for all exports
+vi.mock('../../store')
+
+// Mock nodeId to return predictable IDs without store dependency
+vi.mock('../../utils/id-utils', () => ({
+  nodeId: (baseName: string) => `/${baseName}`,
+  edgeId: (connection: {
+    source: string
+    target: string
+    sourceHandle: string
+    targetHandle: string
+  }) =>
+    `${connection.source}.${connection.sourceHandle}->${connection.target}.${connection.targetHandle}`,
+}))
+
+// Import after mocks are set up
+const { createGeoJsonDropNodes } = await import('./data-importer-tool')
 
 describe('GeoJSON Import', () => {
-  // Since createGeoJsonDropNodes requires nodeId which depends on the store,
-  // we test the expected behavior based on the implementation
-
   const basePosition = { x: 100, y: 200 }
 
   const sampleGeoJson = {
@@ -44,125 +58,16 @@ describe('GeoJSON Import', () => {
     ],
   }
 
-  // Mock createGeoJsonDropNodes behavior for testing expected structure
-  function createMockGeoJsonDropNodes(
-    geojson: typeof sampleGeoJson,
-    basePosition: { x: number; y: number }
-  ) {
-    const geojsonId = '/geojson'
-    const geojsonLayerId = '/geojson-layer'
-    const deckId = '/deck'
-
-    const geometryTypeToOp: Record<string, string> = {
-      Point: 'PointOp',
-      LineString: 'LineStringOp',
-      Polygon: 'PolygonOp',
-      MultiPoint: 'MultiPointOp',
-      MultiLineString: 'MultiLineStringOp',
-      MultiPolygon: 'MultiPolygonOp',
-    }
-
-    const colSpacing = 350
-    const rowSpacing = 150
-    const maxColumns = 4
-
-    const nodes: Array<{
-      id: string
-      type: string
-      data: { inputs: Record<string, unknown> }
-      position: { x: number; y: number }
-    }> = []
-
-    const featureEdges: Array<{
-      source: string
-      target: string
-      sourceHandle: string
-      targetHandle: string
-    }> = []
-
-    geojson.features.forEach((feature, i) => {
-      const opType = geometryTypeToOp[feature.geometry.type]
-      if (!opType) return
-
-      const col = i % maxColumns
-      const row = Math.floor(i / maxColumns)
-      const featureId = `/feature-${i}`
-
-      const inputs: Record<string, unknown> =
-        opType === 'PointOp'
-          ? {
-              coordinates: feature.geometry.coordinates,
-              properties: feature.properties || {},
-            }
-          : {
-              geometry: JSON.stringify(feature.geometry.coordinates, null, 2),
-              properties: JSON.stringify(feature.properties || {}, null, 2),
-            }
-
-      nodes.push({
-        id: featureId,
-        type: opType,
-        data: { inputs },
-        position: {
-          x: basePosition.x + col * colSpacing,
-          y: basePosition.y + row * rowSpacing,
-        },
-      })
-
-      featureEdges.push({
-        source: featureId,
-        target: geojsonId,
-        sourceHandle: 'out.feature',
-        targetHandle: 'par.features',
-      })
-    })
-
-    const featureRowCount = Math.ceil(geojson.features.length / maxColumns)
-    const geojsonY = basePosition.y + featureRowCount * rowSpacing + 100
-
-    nodes.push({
-      id: geojsonId,
-      type: 'GeoJsonOp',
-      data: { inputs: {} },
-      position: { x: basePosition.x + colSpacing, y: geojsonY },
-    })
-
-    nodes.push({
-      id: geojsonLayerId,
-      type: 'GeoJsonLayerOp',
-      data: { inputs: {} },
-      position: { x: basePosition.x + colSpacing * 2, y: geojsonY },
-    })
-
-    const allEdges = [
-      ...featureEdges,
-      {
-        source: geojsonId,
-        target: geojsonLayerId,
-        sourceHandle: 'out.featureCollection',
-        targetHandle: 'par.data',
-      },
-      {
-        source: geojsonLayerId,
-        target: deckId,
-        sourceHandle: 'out.layer',
-        targetHandle: 'par.layers',
-      },
-    ].map(connection => ({ ...connection, id: edgeId(connection) }))
-
-    return { nodes, edges: allEdges }
-  }
-
   describe('createGeoJsonDropNodes', () => {
-    it('creates a geometry operator for each feature', () => {
-      const result = createMockGeoJsonDropNodes(sampleGeoJson, basePosition)
+    it('creates a geometry operator for each feature plus GeoJsonOp and GeoJsonLayerOp', () => {
+      const result = createGeoJsonDropNodes(sampleGeoJson, basePosition)
 
       // 3 feature ops + GeoJsonOp + GeoJsonLayerOp
       expect(result.nodes).toHaveLength(5)
     })
 
     it('maps geometry types to correct operator types', () => {
-      const result = createMockGeoJsonDropNodes(sampleGeoJson, basePosition)
+      const result = createGeoJsonDropNodes(sampleGeoJson, basePosition)
 
       const nodeTypes = result.nodes.map(n => n.type)
       expect(nodeTypes).toContain('PointOp')
@@ -172,12 +77,16 @@ describe('GeoJSON Import', () => {
       expect(nodeTypes).toContain('GeoJsonLayerOp')
     })
 
-    it('passes coordinates and properties to feature operators', () => {
-      const result = createMockGeoJsonDropNodes(sampleGeoJson, basePosition)
+    it('passes coordinates to PointOp as raw value', () => {
+      const result = createGeoJsonDropNodes(sampleGeoJson, basePosition)
 
       const pointOp = result.nodes.find(n => n.type === 'PointOp')
       expect(pointOp?.data.inputs.coordinates).toEqual([-74.006, 40.7128])
       expect(pointOp?.data.inputs.properties).toEqual({ name: 'New York' })
+    })
+
+    it('passes geometry as JSON string to non-Point operators', () => {
+      const result = createGeoJsonDropNodes(sampleGeoJson, basePosition)
 
       const lineOp = result.nodes.find(n => n.type === 'LineStringOp')
       const lineCoords = JSON.parse(lineOp?.data.inputs.geometry as string)
@@ -190,46 +99,52 @@ describe('GeoJSON Import', () => {
     })
 
     it('connects each feature operator to the GeoJsonOp', () => {
-      const result = createMockGeoJsonDropNodes(sampleGeoJson, basePosition)
+      const result = createGeoJsonDropNodes(sampleGeoJson, basePosition)
 
       const featureToGeoJsonEdges = result.edges.filter(
         e => e.targetHandle === 'par.features' && e.sourceHandle === 'out.feature'
       )
       expect(featureToGeoJsonEdges).toHaveLength(3)
-      expect(featureToGeoJsonEdges.every(e => e.target === '/geojson')).toBe(true)
+
+      const geojsonNode = result.nodes.find(n => n.type === 'GeoJsonOp')
+      expect(featureToGeoJsonEdges.every(e => e.target === geojsonNode?.id)).toBe(true)
     })
 
     it('connects GeoJsonOp to GeoJsonLayerOp', () => {
-      const result = createMockGeoJsonDropNodes(sampleGeoJson, basePosition)
+      const result = createGeoJsonDropNodes(sampleGeoJson, basePosition)
+
+      const geojsonNode = result.nodes.find(n => n.type === 'GeoJsonOp')
+      const layerNode = result.nodes.find(n => n.type === 'GeoJsonLayerOp')
 
       const edge = result.edges.find(
         e => e.sourceHandle === 'out.featureCollection' && e.targetHandle === 'par.data'
       )
       expect(edge).toBeDefined()
-      expect(edge?.source).toBe('/geojson')
-      expect(edge?.target).toBe('/geojson-layer')
+      expect(edge?.source).toBe(geojsonNode?.id)
+      expect(edge?.target).toBe(layerNode?.id)
     })
 
     it('connects GeoJsonLayerOp to DeckRendererOp', () => {
-      const result = createMockGeoJsonDropNodes(sampleGeoJson, basePosition)
+      const result = createGeoJsonDropNodes(sampleGeoJson, basePosition)
+
+      const layerNode = result.nodes.find(n => n.type === 'GeoJsonLayerOp')
 
       const edge = result.edges.find(
         e => e.sourceHandle === 'out.layer' && e.targetHandle === 'par.layers'
       )
       expect(edge).toBeDefined()
-      expect(edge?.source).toBe('/geojson-layer')
-      expect(edge?.target).toBe('/deck')
+      expect(edge?.source).toBe(layerNode?.id)
     })
 
     it('creates correct total number of edges', () => {
-      const result = createMockGeoJsonDropNodes(sampleGeoJson, basePosition)
+      const result = createGeoJsonDropNodes(sampleGeoJson, basePosition)
 
       // 3 feature->geojson + geojson->layer + layer->deck = 5
       expect(result.edges).toHaveLength(5)
     })
 
     it('generates unique edge IDs', () => {
-      const result = createMockGeoJsonDropNodes(sampleGeoJson, basePosition)
+      const result = createGeoJsonDropNodes(sampleGeoJson, basePosition)
 
       const edgeIds = result.edges.map(e => e.id)
       const uniqueIds = new Set(edgeIds)
@@ -237,20 +152,21 @@ describe('GeoJSON Import', () => {
     })
 
     it('positions feature operators in a grid layout', () => {
-      const result = createMockGeoJsonDropNodes(sampleGeoJson, basePosition)
+      const result = createGeoJsonDropNodes(sampleGeoJson, basePosition)
 
       const featureNodes = result.nodes.filter(n =>
         ['PointOp', 'LineStringOp', 'PolygonOp'].includes(n.type)
       )
 
-      // All 3 features should be in the first row (maxColumns = 4)
-      expect(featureNodes[0].position).toEqual({ x: 100, y: 200 })
-      expect(featureNodes[1].position).toEqual({ x: 450, y: 200 })
-      expect(featureNodes[2].position).toEqual({ x: 800, y: 200 })
+      // All 3 features in first row (maxColumns = 4), spaced by colSpacing = 350
+      expect(featureNodes[0].position.x).toBe(100)
+      expect(featureNodes[1].position.x).toBe(450)
+      expect(featureNodes[2].position.x).toBe(800)
+      expect(featureNodes.every(n => n.position.y === 200)).toBe(true)
     })
 
     it('positions GeoJsonOp below feature operators', () => {
-      const result = createMockGeoJsonDropNodes(sampleGeoJson, basePosition)
+      const result = createGeoJsonDropNodes(sampleGeoJson, basePosition)
 
       const geojsonNode = result.nodes.find(n => n.type === 'GeoJsonOp')
       const featureNodes = result.nodes.filter(n =>
@@ -346,7 +262,7 @@ describe('GeoJSON Import', () => {
         ],
       }
 
-      const result = createMockGeoJsonDropNodes(allTypesGeoJson, basePosition)
+      const result = createGeoJsonDropNodes(allTypesGeoJson, basePosition)
 
       const nodeTypes = result.nodes.map(n => n.type)
       expect(nodeTypes).toContain('PointOp')
@@ -369,7 +285,7 @@ describe('GeoJSON Import', () => {
         ],
       }
 
-      const result = createMockGeoJsonDropNodes(unsupportedGeoJson, basePosition)
+      const result = createGeoJsonDropNodes(unsupportedGeoJson, basePosition)
 
       // Only GeoJsonOp + GeoJsonLayerOp (no feature ops)
       expect(result.nodes).toHaveLength(2)
@@ -381,33 +297,12 @@ describe('GeoJSON Import', () => {
         features: [],
       }
 
-      const result = createMockGeoJsonDropNodes(emptyGeoJson, basePosition)
+      const result = createGeoJsonDropNodes(emptyGeoJson, basePosition)
 
       // Only GeoJsonOp + GeoJsonLayerOp
       expect(result.nodes).toHaveLength(2)
       // Only geojson->layer + layer->deck
       expect(result.edges).toHaveLength(2)
-    })
-  })
-
-  describe('GeoJSON detection', () => {
-    it('identifies valid GeoJSON FeatureCollection', () => {
-      const valid = {
-        type: 'FeatureCollection',
-        features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [0, 0] } }],
-      }
-      expect(valid.type).toBe('FeatureCollection')
-      expect(Array.isArray(valid.features)).toBe(true)
-    })
-
-    it('rejects non-GeoJSON objects', () => {
-      const notGeoJson = { name: 'test', data: [1, 2, 3] }
-      expect((notGeoJson as Record<string, unknown>).type).toBeUndefined()
-    })
-
-    it('rejects GeoJSON without features array', () => {
-      const noFeatures = { type: 'FeatureCollection' }
-      expect('features' in noFeatures).toBe(false)
     })
   })
 })

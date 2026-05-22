@@ -277,12 +277,34 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
           throw new Error('No project loaded. Please save or load a project first.')
         }
 
-        // Read file contents and write to project's data directory
         const contents = await file.text()
-        const result = await writeAsset(activeStorageType, currentProjectName, file.name, contents)
 
-        if (!result.success) {
-          throw new Error(result.error?.message || `Failed to write file: ${file.name}`)
+        // Detect GeoJSON before writing to storage (GeoJSON embeds data in nodes directly)
+        const isGeoJsonFile = file.name.endsWith('.geojson')
+        let geojsonData: GeoJsonData | null = null
+
+        if (isGeoJsonFile || file.type.includes('json')) {
+          try {
+            const parsed = JSON.parse(contents)
+            if (isGeoJson(parsed)) {
+              geojsonData = parsed
+            }
+          } catch {
+            // Not valid JSON — will fall through to file-based import
+          }
+        }
+
+        // Only write to project storage for file-based imports (CSV, JSON)
+        if (!geojsonData) {
+          const result = await writeAsset(
+            activeStorageType,
+            currentProjectName,
+            file.name,
+            contents
+          )
+          if (!result.success) {
+            throw new Error(result.error?.message || `Failed to write file: ${file.name}`)
+          }
         }
 
         debugUI('File imported:', file.name)
@@ -296,8 +318,6 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
           y: pane.top + pane.height / 2,
         })
 
-        // Detect GeoJSON and use specialized import
-        const isGeoJsonFile = file.name.endsWith('.geojson')
         let format: string
         let nodes: NodeJSON<OpType>[]
         let edges: {
@@ -308,26 +328,11 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
           targetHandle: string
         }[]
 
-        if (isGeoJsonFile || file.type.includes('json')) {
-          try {
-            const parsed = JSON.parse(contents)
-            if (isGeoJson(parsed)) {
-              const result = createGeoJsonDropNodes(parsed, basePosition)
-              nodes = result.nodes
-              edges = result.edges
-              format = 'geojson'
-            } else {
-              format = 'json'
-              const result = createFileDropNodes(projectScheme + file.name, format, basePosition)
-              nodes = result.nodes
-              edges = result.edges
-            }
-          } catch {
-            format = file.type.includes('csv') ? 'csv' : 'json'
-            const result = createFileDropNodes(projectScheme + file.name, format, basePosition)
-            nodes = result.nodes
-            edges = result.edges
-          }
+        if (geojsonData) {
+          const result = createGeoJsonDropNodes(geojsonData, basePosition)
+          nodes = result.nodes
+          edges = result.edges
+          format = 'geojson'
         } else {
           format = file.type.includes('csv') ? 'csv' : 'json'
           const result = createFileDropNodes(projectScheme + file.name, format, basePosition)
