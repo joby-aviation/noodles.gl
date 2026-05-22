@@ -258,12 +258,100 @@ interface DataImporterToolProps {
   reactFlowRef: React.RefObject<HTMLDivElement>
 }
 
+const GEOJSON_DECONSTRUCT_LIMIT = 20
+
+type GeoJsonPreview = {
+  file: File
+  contents: string
+  data: GeoJsonData
+}
+
 export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImporterToolProps) {
   const { addNodes, addEdges, screenToFlowPosition } = useReactFlow()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isImporting, setIsImporting] = useState(false)
+  const [geojsonPreview, setGeojsonPreview] = useState<GeoJsonPreview | null>(null)
+  const [deconstructFeatures, setDeconstructFeatures] = useState(true)
+
+  const importFile = useCallback(
+    async (file: File, contents: string, geojsonData: GeoJsonData | null, deconstruct: boolean) => {
+      const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
+      if (!currentProjectName) {
+        throw new Error('No project loaded. Please save or load a project first.')
+      }
+
+      // Write to project storage for file-based imports
+      if (!geojsonData || !deconstruct) {
+        const result = await writeAsset(activeStorageType, currentProjectName, file.name, contents)
+        if (!result.success) {
+          throw new Error(result.error?.message || `Failed to write file: ${file.name}`)
+        }
+      }
+
+      debugUI('File imported:', file.name)
+
+      const pane = reactFlowRef.current?.getBoundingClientRect()
+      if (!pane) return
+
+      const basePosition = screenToFlowPosition({
+        x: pane.left + pane.width / 2,
+        y: pane.top + pane.height / 2,
+      })
+
+      let format: string
+      let nodes: NodeJSON<OpType>[]
+      let edges: {
+        id: string
+        source: string
+        target: string
+        sourceHandle: string
+        targetHandle: string
+      }[]
+
+      if (geojsonData && deconstruct) {
+        const result = createGeoJsonDropNodes(geojsonData, basePosition)
+        nodes = result.nodes
+        edges = result.edges
+        format = 'geojson'
+      } else {
+        format = file.type.includes('csv') ? 'csv' : 'json'
+        const result = createFileDropNodes(projectScheme + file.name, format, basePosition)
+        nodes = result.nodes
+        edges = result.edges
+      }
+
+      addNodes(nodes)
+      addEdges(edges)
+
+      analytics.track('data_imported', {
+        source: 'tools_shelf',
+        format: deconstruct ? format : `${format}_file`,
+      })
+    },
+    [addNodes, addEdges, screenToFlowPosition, reactFlowRef]
+  )
+
+  const handleConfirmImport = useCallback(async () => {
+    if (!geojsonPreview) return
+    setError(null)
+    setIsImporting(true)
+    try {
+      await importFile(
+        geojsonPreview.file,
+        geojsonPreview.contents,
+        geojsonPreview.data,
+        deconstructFeatures
+      )
+      setGeojsonPreview(null)
+      onOpenChange(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to import file')
+    } finally {
+      setIsImporting(false)
+    }
+  }, [geojsonPreview, deconstructFeatures, importFile, onOpenChange])
 
   const handleFileImport = useCallback(
     async (file: File) => {
@@ -271,93 +359,38 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
       setIsImporting(true)
 
       try {
-        // Get current project and storage type
-        const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
+        const { currentProjectName } = useFileSystemStore.getState()
         if (!currentProjectName) {
           throw new Error('No project loaded. Please save or load a project first.')
         }
 
         const contents = await file.text()
 
-        // Detect GeoJSON before writing to storage (GeoJSON embeds data in nodes directly)
+        // Detect GeoJSON and show preview
         const isGeoJsonFile = file.name.endsWith('.geojson')
-        let geojsonData: GeoJsonData | null = null
-
         if (isGeoJsonFile || file.type.includes('json')) {
           try {
             const parsed = JSON.parse(contents)
             if (isGeoJson(parsed)) {
-              geojsonData = parsed
+              setDeconstructFeatures(parsed.features.length <= GEOJSON_DECONSTRUCT_LIMIT)
+              setGeojsonPreview({ file, contents, data: parsed })
+              setIsImporting(false)
+              return
             }
           } catch {
-            // Not valid JSON — will fall through to file-based import
+            // Not valid JSON — fall through to direct import
           }
         }
 
-        // Only write to project storage for file-based imports (CSV, JSON)
-        if (!geojsonData) {
-          const result = await writeAsset(
-            activeStorageType,
-            currentProjectName,
-            file.name,
-            contents
-          )
-          if (!result.success) {
-            throw new Error(result.error?.message || `Failed to write file: ${file.name}`)
-          }
-        }
-
-        debugUI('File imported:', file.name)
-
-        // Position nodes at center of viewport (same as block library)
-        const pane = reactFlowRef.current?.getBoundingClientRect()
-        if (!pane) return
-
-        const basePosition = screenToFlowPosition({
-          x: pane.left + pane.width / 2,
-          y: pane.top + pane.height / 2,
-        })
-
-        let format: string
-        let nodes: NodeJSON<OpType>[]
-        let edges: {
-          id: string
-          source: string
-          target: string
-          sourceHandle: string
-          targetHandle: string
-        }[]
-
-        if (geojsonData) {
-          const result = createGeoJsonDropNodes(geojsonData, basePosition)
-          nodes = result.nodes
-          edges = result.edges
-          format = 'geojson'
-        } else {
-          format = file.type.includes('csv') ? 'csv' : 'json'
-          const result = createFileDropNodes(projectScheme + file.name, format, basePosition)
-          nodes = result.nodes
-          edges = result.edges
-        }
-
-        addNodes(nodes)
-        addEdges(edges)
-
-        analytics.track('data_imported', {
-          source: 'tools_shelf',
-          format,
-        })
-
-        // Close dialog on success
+        await importFile(file, contents, null, false)
         onOpenChange(false)
-        setError(null)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to import file')
       } finally {
         setIsImporting(false)
       }
     },
-    [addNodes, addEdges, screenToFlowPosition, reactFlowRef, onOpenChange]
+    [importFile, onOpenChange]
   )
 
   const handleFileSelect = useCallback(
@@ -420,49 +453,116 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
             Upload CSV, JSON, or GeoJSON files to create a visualization pipeline.
           </Dialog.Description>
 
-          {/* biome-ignore lint/a11y/useSemanticElements: div needed for drag-and-drop zone styling */}
-          <div
-            className={`${s.dropZone} ${isDragging ? s.dropZoneDragging : ''}`}
-            role="button"
-            tabIndex={0}
-            onDragEnter={handleDragEnter}
-            onDragLeave={handleDragLeave}
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
-          >
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv,.json,.geojson"
-              onChange={handleFileSelect}
-              multiple
-              style={{ display: 'none' }}
-            />
+          {geojsonPreview ? (
+            <div className={s.geojsonPreview}>
+              <div className={s.previewHeader}>
+                <i className="pi pi-map" />
+                <span>{geojsonPreview.file.name}</span>
+              </div>
 
-            <div className={s.dropZoneContent}>
-              <i className={`pi pi-cloud-upload ${s.uploadIcon}`} />
-              <div className={s.dropZoneText}>Drag and drop files here</div>
-              <div className={s.dropZoneSubtext}>or</div>
-              <button
-                type="button"
-                className={s.uploadButton}
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isImporting}
-              >
-                Browse Files
-              </button>
-              <div className={s.dropZoneHint}>Supports CSV, JSON, and GeoJSON files</div>
+              <div className={s.previewStats}>
+                <span className={s.featureCount}>
+                  {geojsonPreview.data.features.length} features
+                </span>
+                {geojsonPreview.data.features.length > GEOJSON_DECONSTRUCT_LIMIT && (
+                  <span className={s.featureWarning}>
+                    Large file — loading as a single FileOp is recommended
+                  </span>
+                )}
+              </div>
+
+              <div className={s.importModeToggle}>
+                <label className={s.toggleLabel}>
+                  <input
+                    type="radio"
+                    name="importMode"
+                    checked={deconstructFeatures}
+                    onChange={() => setDeconstructFeatures(true)}
+                  />
+                  <span className={s.toggleOption}>
+                    <strong>Deconstruct features</strong>
+                    <span>Create a separate operator for each feature</span>
+                  </span>
+                </label>
+                <label className={s.toggleLabel}>
+                  <input
+                    type="radio"
+                    name="importMode"
+                    checked={!deconstructFeatures}
+                    onChange={() => setDeconstructFeatures(false)}
+                  />
+                  <span className={s.toggleOption}>
+                    <strong>Load as file</strong>
+                    <span>Import with a single FileOp</span>
+                  </span>
+                </label>
+              </div>
+
+              <div className={s.previewActions}>
+                <button
+                  type="button"
+                  className={s.cancelButton}
+                  onClick={() => setGeojsonPreview(null)}
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  className={s.uploadButton}
+                  onClick={handleConfirmImport}
+                  disabled={isImporting}
+                >
+                  {isImporting ? 'Importing...' : 'Import'}
+                </button>
+              </div>
             </div>
-          </div>
+          ) : (
+            <>
+              {/* biome-ignore lint/a11y/useSemanticElements: div needed for drag-and-drop zone styling */}
+              <div
+                className={`${s.dropZone} ${isDragging ? s.dropZoneDragging : ''}`}
+                role="button"
+                tabIndex={0}
+                onDragEnter={handleDragEnter}
+                onDragLeave={handleDragLeave}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv,.json,.geojson"
+                  onChange={handleFileSelect}
+                  multiple
+                  style={{ display: 'none' }}
+                />
+
+                <div className={s.dropZoneContent}>
+                  <i className={`pi pi-cloud-upload ${s.uploadIcon}`} />
+                  <div className={s.dropZoneText}>Drag and drop files here</div>
+                  <div className={s.dropZoneSubtext}>or</div>
+                  <button
+                    type="button"
+                    className={s.uploadButton}
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isImporting}
+                  >
+                    Browse Files
+                  </button>
+                  <div className={s.dropZoneHint}>Supports CSV, JSON, and GeoJSON files</div>
+                </div>
+              </div>
+
+              {isImporting && (
+                <div className={s.importing}>
+                  <i className="pi pi-spin pi-spinner" />
+                  <span>Importing...</span>
+                </div>
+              )}
+            </>
+          )}
 
           {error && <div className={s.error}>{error}</div>}
-
-          {isImporting && (
-            <div className={s.importing}>
-              <i className="pi pi-spin pi-spinner" />
-              <span>Importing...</span>
-            </div>
-          )}
 
           <div className={s.dialogActions}>
             <Dialog.Close asChild>
