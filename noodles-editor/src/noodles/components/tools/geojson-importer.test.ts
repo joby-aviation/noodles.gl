@@ -16,7 +16,7 @@ vi.mock('../../utils/id-utils', () => ({
 }))
 
 // Import after mocks are set up
-const { createGeoJsonDropNodes, createGeoJsonFileDropNodes, GEOJSON_DECONSTRUCT_LIMIT } =
+const { createGeoJsonDropNodes, createGeoJsonFileDropNodes, SOFT_LIMIT } =
   await import('./data-importer-tool')
 
 describe('GeoJSON Import', () => {
@@ -161,8 +161,8 @@ describe('GeoJSON Import', () => {
 
       // All 3 features in first row (maxColumns = 4), spaced by colSpacing = 350
       expect(featureNodes[0].position.x).toBe(100)
-      expect(featureNodes[1].position.x).toBe(450)
-      expect(featureNodes[2].position.x).toBe(800)
+      expect(featureNodes[1].position.x).toBe(500)
+      expect(featureNodes[2].position.x).toBe(900)
       expect(featureNodes.every(n => n.position.y === 200)).toBe(true)
     })
 
@@ -358,19 +358,19 @@ describe('GeoJSON Import', () => {
     })
   })
 
-  describe('GEOJSON_DECONSTRUCT_LIMIT', () => {
+  describe('SOFT_LIMIT', () => {
     it('is set to 20', () => {
-      expect(GEOJSON_DECONSTRUCT_LIMIT).toBe(20)
+      expect(SOFT_LIMIT).toBe(20)
     })
 
     it('collections at the limit default to deconstruct', () => {
-      const atLimit = GEOJSON_DECONSTRUCT_LIMIT
-      expect(atLimit <= GEOJSON_DECONSTRUCT_LIMIT).toBe(true)
+      const atLimit = SOFT_LIMIT
+      expect(atLimit <= SOFT_LIMIT).toBe(true)
     })
 
     it('collections over the limit default to file mode', () => {
-      const overLimit = GEOJSON_DECONSTRUCT_LIMIT + 1
-      expect(overLimit > GEOJSON_DECONSTRUCT_LIMIT).toBe(true)
+      const overLimit = SOFT_LIMIT + 1
+      expect(overLimit > SOFT_LIMIT).toBe(true)
     })
   })
 })
