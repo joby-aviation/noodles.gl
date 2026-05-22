@@ -17,6 +17,7 @@ import type {
   ScatterplotLayerOp,
 } from '../../operators'
 import { writeAsset } from '../../storage'
+import { getOpEntries } from '../../store'
 import { projectScheme } from '../../utils/filesystem'
 import { edgeId, nodeId } from '../../utils/id-utils'
 import s from './data-importer-tool.module.css'
@@ -146,8 +147,12 @@ export function createGeoJsonDropNodes(
 ) {
   const geojsonId = nodeId('geojson', '/')
   const geojsonLayerId = nodeId('geojson-layer', '/')
-  const mapId = nodeId('basemap', '/')
-  const deckId = nodeId('deck', '/')
+
+  // Find existing DeckRendererOp in the graph
+  const existingDeck = getOpEntries().find(
+    ([_, op]) => (op.constructor as { displayName?: string }).displayName === 'DeckRenderer'
+  )
+  const deckId = existingDeck ? existingDeck[0] : nodeId('deck', '/')
 
   const nodes: NodeJSON<OpType>[] = []
   const featureEdges: Array<{
@@ -169,10 +174,16 @@ export function createGeoJsonDropNodes(
     const row = Math.floor(i / maxColumns)
     const featureId = nodeId(`feature-${i}`, '/')
 
-    const inputs: Record<string, unknown> = {
-      coordinates: feature.geometry.coordinates,
-      properties: feature.properties || {},
-    }
+    const inputs: Record<string, unknown> =
+      opType === 'PointOp'
+        ? {
+            coordinates: feature.geometry.coordinates,
+            properties: feature.properties || {},
+          }
+        : {
+            geometry: JSON.stringify(feature.geometry.coordinates, null, 2),
+            properties: JSON.stringify(feature.properties || {}, null, 2),
+          }
 
     nodes.push({
       id: featureId,
@@ -211,14 +222,6 @@ export function createGeoJsonDropNodes(
     position: { x: basePosition.x + colSpacing * 2, y: geojsonY },
   })
 
-  // MaplibreBasemapOp for the map background
-  nodes.push({
-    id: mapId,
-    type: 'MaplibreBasemapOp',
-    data: { inputs: {} },
-    position: { x: basePosition.x + colSpacing * 2, y: geojsonY + 200 },
-  })
-
   const allEdges = [
     ...featureEdges,
     {
@@ -232,12 +235,6 @@ export function createGeoJsonDropNodes(
       target: deckId,
       sourceHandle: 'out.layer',
       targetHandle: 'par.layers',
-    },
-    {
-      source: mapId,
-      target: deckId,
-      sourceHandle: 'out.maplibre',
-      targetHandle: 'par.basemap',
     },
   ].map(connection => ({ ...connection, id: edgeId(connection) }))
 

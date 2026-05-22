@@ -51,7 +51,6 @@ describe('GeoJSON Import', () => {
   ) {
     const geojsonId = '/geojson'
     const geojsonLayerId = '/geojson-layer'
-    const mapId = '/basemap'
     const deckId = '/deck'
 
     const geometryTypeToOp: Record<string, string> = {
@@ -89,15 +88,21 @@ describe('GeoJSON Import', () => {
       const row = Math.floor(i / maxColumns)
       const featureId = `/feature-${i}`
 
+      const inputs: Record<string, unknown> =
+        opType === 'PointOp'
+          ? {
+              coordinates: feature.geometry.coordinates,
+              properties: feature.properties || {},
+            }
+          : {
+              geometry: JSON.stringify(feature.geometry.coordinates, null, 2),
+              properties: JSON.stringify(feature.properties || {}, null, 2),
+            }
+
       nodes.push({
         id: featureId,
         type: opType,
-        data: {
-          inputs: {
-            coordinates: feature.geometry.coordinates,
-            properties: feature.properties || {},
-          },
-        },
+        data: { inputs },
         position: {
           x: basePosition.x + col * colSpacing,
           y: basePosition.y + row * rowSpacing,
@@ -129,13 +134,6 @@ describe('GeoJSON Import', () => {
       position: { x: basePosition.x + colSpacing * 2, y: geojsonY },
     })
 
-    nodes.push({
-      id: mapId,
-      type: 'MaplibreBasemapOp',
-      data: { inputs: {} },
-      position: { x: basePosition.x + colSpacing * 2, y: geojsonY + 200 },
-    })
-
     const allEdges = [
       ...featureEdges,
       {
@@ -150,12 +148,6 @@ describe('GeoJSON Import', () => {
         sourceHandle: 'out.layer',
         targetHandle: 'par.layers',
       },
-      {
-        source: mapId,
-        target: deckId,
-        sourceHandle: 'out.maplibre',
-        targetHandle: 'par.basemap',
-      },
     ].map(connection => ({ ...connection, id: edgeId(connection) }))
 
     return { nodes, edges: allEdges }
@@ -165,8 +157,8 @@ describe('GeoJSON Import', () => {
     it('creates a geometry operator for each feature', () => {
       const result = createMockGeoJsonDropNodes(sampleGeoJson, basePosition)
 
-      // 3 feature ops + GeoJsonOp + GeoJsonLayerOp + MaplibreBasemapOp
-      expect(result.nodes).toHaveLength(6)
+      // 3 feature ops + GeoJsonOp + GeoJsonLayerOp
+      expect(result.nodes).toHaveLength(5)
     })
 
     it('maps geometry types to correct operator types', () => {
@@ -178,7 +170,6 @@ describe('GeoJSON Import', () => {
       expect(nodeTypes).toContain('PolygonOp')
       expect(nodeTypes).toContain('GeoJsonOp')
       expect(nodeTypes).toContain('GeoJsonLayerOp')
-      expect(nodeTypes).toContain('MaplibreBasemapOp')
     })
 
     it('passes coordinates and properties to feature operators', () => {
@@ -189,11 +180,13 @@ describe('GeoJSON Import', () => {
       expect(pointOp?.data.inputs.properties).toEqual({ name: 'New York' })
 
       const lineOp = result.nodes.find(n => n.type === 'LineStringOp')
-      expect(lineOp?.data.inputs.coordinates).toEqual([
+      const lineCoords = JSON.parse(lineOp?.data.inputs.geometry as string)
+      expect(lineCoords).toEqual([
         [-74.006, 40.7128],
         [-118.2437, 34.0522],
       ])
-      expect(lineOp?.data.inputs.properties).toEqual({ name: 'NY to LA' })
+      const lineProps = JSON.parse(lineOp?.data.inputs.properties as string)
+      expect(lineProps).toEqual({ name: 'NY to LA' })
     })
 
     it('connects each feature operator to the GeoJsonOp', () => {
@@ -228,22 +221,11 @@ describe('GeoJSON Import', () => {
       expect(edge?.target).toBe('/deck')
     })
 
-    it('connects MaplibreBasemapOp to DeckRendererOp', () => {
-      const result = createMockGeoJsonDropNodes(sampleGeoJson, basePosition)
-
-      const edge = result.edges.find(
-        e => e.sourceHandle === 'out.maplibre' && e.targetHandle === 'par.basemap'
-      )
-      expect(edge).toBeDefined()
-      expect(edge?.source).toBe('/basemap')
-      expect(edge?.target).toBe('/deck')
-    })
-
     it('creates correct total number of edges', () => {
       const result = createMockGeoJsonDropNodes(sampleGeoJson, basePosition)
 
-      // 3 feature->geojson + geojson->layer + layer->deck + map->deck = 6
-      expect(result.edges).toHaveLength(6)
+      // 3 feature->geojson + geojson->layer + layer->deck = 5
+      expect(result.edges).toHaveLength(5)
     })
 
     it('generates unique edge IDs', () => {
@@ -389,8 +371,8 @@ describe('GeoJSON Import', () => {
 
       const result = createMockGeoJsonDropNodes(unsupportedGeoJson, basePosition)
 
-      // Only GeoJsonOp + GeoJsonLayerOp + MaplibreBasemapOp (no feature ops)
-      expect(result.nodes).toHaveLength(3)
+      // Only GeoJsonOp + GeoJsonLayerOp (no feature ops)
+      expect(result.nodes).toHaveLength(2)
     })
 
     it('handles empty FeatureCollection', () => {
@@ -401,10 +383,10 @@ describe('GeoJSON Import', () => {
 
       const result = createMockGeoJsonDropNodes(emptyGeoJson, basePosition)
 
-      // Only GeoJsonOp + GeoJsonLayerOp + MaplibreBasemapOp
-      expect(result.nodes).toHaveLength(3)
-      // Only geojson->layer + layer->deck + map->deck
-      expect(result.edges).toHaveLength(3)
+      // Only GeoJsonOp + GeoJsonLayerOp
+      expect(result.nodes).toHaveLength(2)
+      // Only geojson->layer + layer->deck
+      expect(result.edges).toHaveLength(2)
     })
   })
 

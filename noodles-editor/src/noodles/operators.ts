@@ -6856,12 +6856,12 @@ export class PointOp extends Operator<PointOp> {
 
 export class LineStringOp extends Operator<LineStringOp> {
   static displayName = 'LineString'
-  static description = 'Create a GeoJSON LineString feature from an array of coordinates'
+  static description = 'Create a GeoJSON LineString feature from coordinates'
   asDownload = () => this.outputData
   createInputs() {
     return {
-      coordinates: new DataField([] as [number, number][]),
-      properties: new DataField({}),
+      geometry: new CodeField('[]', { language: 'json' }),
+      properties: new CodeField('{}', { language: 'json' }),
     }
   }
   createOutputs() {
@@ -6870,10 +6870,12 @@ export class LineStringOp extends Operator<LineStringOp> {
     }
   }
   execute({
-    coordinates,
+    geometry,
     properties,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const feature = turf.lineString(coordinates, properties)
+    const coordinates = JSON.parse(geometry)
+    const props = JSON.parse(properties)
+    const feature = turf.lineString(coordinates, props)
     return { feature }
   }
 }
@@ -6884,8 +6886,8 @@ export class PolygonOp extends Operator<PolygonOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      coordinates: new DataField([] as [number, number][][]),
-      properties: new DataField({}),
+      geometry: new CodeField('[[]]', { language: 'json' }),
+      properties: new CodeField('{}', { language: 'json' }),
     }
   }
   createOutputs() {
@@ -6894,22 +6896,24 @@ export class PolygonOp extends Operator<PolygonOp> {
     }
   }
   execute({
-    coordinates,
+    geometry,
     properties,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const feature = turf.polygon(coordinates, properties)
+    const coordinates = JSON.parse(geometry)
+    const props = JSON.parse(properties)
+    const feature = turf.polygon(coordinates, props)
     return { feature }
   }
 }
 
 export class MultiPointOp extends Operator<MultiPointOp> {
   static displayName = 'MultiPoint'
-  static description = 'Create a GeoJSON MultiPoint feature from an array of coordinates'
+  static description = 'Create a GeoJSON MultiPoint feature from coordinates'
   asDownload = () => this.outputData
   createInputs() {
     return {
-      coordinates: new DataField([] as [number, number][]),
-      properties: new DataField({}),
+      geometry: new CodeField('[]', { language: 'json' }),
+      properties: new CodeField('{}', { language: 'json' }),
     }
   }
   createOutputs() {
@@ -6918,22 +6922,24 @@ export class MultiPointOp extends Operator<MultiPointOp> {
     }
   }
   execute({
-    coordinates,
+    geometry,
     properties,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const feature = turf.multiPoint(coordinates, properties)
+    const coordinates = JSON.parse(geometry)
+    const props = JSON.parse(properties)
+    const feature = turf.multiPoint(coordinates, props)
     return { feature }
   }
 }
 
 export class MultiLineStringOp extends Operator<MultiLineStringOp> {
   static displayName = 'MultiLineString'
-  static description = 'Create a GeoJSON MultiLineString feature from arrays of coordinates'
+  static description = 'Create a GeoJSON MultiLineString feature from coordinates'
   asDownload = () => this.outputData
   createInputs() {
     return {
-      coordinates: new DataField([] as [number, number][][]),
-      properties: new DataField({}),
+      geometry: new CodeField('[]', { language: 'json' }),
+      properties: new CodeField('{}', { language: 'json' }),
     }
   }
   createOutputs() {
@@ -6942,22 +6948,24 @@ export class MultiLineStringOp extends Operator<MultiLineStringOp> {
     }
   }
   execute({
-    coordinates,
+    geometry,
     properties,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const feature = turf.multiLineString(coordinates, properties)
+    const coordinates = JSON.parse(geometry)
+    const props = JSON.parse(properties)
+    const feature = turf.multiLineString(coordinates, props)
     return { feature }
   }
 }
 
 export class MultiPolygonOp extends Operator<MultiPolygonOp> {
   static displayName = 'MultiPolygon'
-  static description = 'Create a GeoJSON MultiPolygon feature from arrays of polygon coordinate rings'
+  static description = 'Create a GeoJSON MultiPolygon feature from coordinates'
   asDownload = () => this.outputData
   createInputs() {
     return {
-      coordinates: new DataField([] as [number, number][][][]),
-      properties: new DataField({}),
+      geometry: new CodeField('[]', { language: 'json' }),
+      properties: new CodeField('{}', { language: 'json' }),
     }
   }
   createOutputs() {
@@ -6966,10 +6974,12 @@ export class MultiPolygonOp extends Operator<MultiPolygonOp> {
     }
   }
   execute({
-    coordinates,
+    geometry,
     properties,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const feature = turf.multiPolygon(coordinates, properties)
+    const coordinates = JSON.parse(geometry)
+    const props = JSON.parse(properties)
+    const feature = turf.multiPolygon(coordinates, props)
     return { feature }
   }
 }
