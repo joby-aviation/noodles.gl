@@ -161,12 +161,12 @@ describe('GeoJSON Import', () => {
 
       // All 3 features in first row (maxColumns = 4), spaced by colSpacing = 350
       expect(featureNodes[0].position.x).toBe(100)
-      expect(featureNodes[1].position.x).toBe(500)
-      expect(featureNodes[2].position.x).toBe(900)
+      expect(featureNodes[1].position.x).toBe(550)
+      expect(featureNodes[2].position.x).toBe(1000)
       expect(featureNodes.every(n => n.position.y === 200)).toBe(true)
     })
 
-    it('positions GeoJsonOp below feature operators', () => {
+    it('positions GeoJsonOp to the right of feature operators', () => {
       const result = createGeoJsonDropNodes(sampleGeoJson, basePosition)
 
       const geojsonNode = result.nodes.find(n => n.type === 'GeoJsonOp')
@@ -174,8 +174,8 @@ describe('GeoJSON Import', () => {
         ['PointOp', 'LineStringOp', 'PolygonOp'].includes(n.type)
       )
 
-      const maxFeatureY = Math.max(...featureNodes.map(n => n.position.y))
-      expect(geojsonNode!.position.y).toBeGreaterThan(maxFeatureY)
+      const maxFeatureX = Math.max(...featureNodes.map(n => n.position.x))
+      expect(geojsonNode!.position.x).toBeGreaterThan(maxFeatureX)
     })
   })
 

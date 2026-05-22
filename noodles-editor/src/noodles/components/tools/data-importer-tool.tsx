@@ -207,7 +207,7 @@ export function createGeoJsonDropNodes(
   }> = []
 
   // Create a geometry operator for each feature
-  const colSpacing = 400
+  const colSpacing = 450
   const rowSpacing = 500
   const maxColumns = 4
   geojson.features.forEach((feature, i) => {
@@ -247,15 +247,15 @@ export function createGeoJsonDropNodes(
     })
   })
 
-  const featureRowCount = Math.ceil(geojson.features.length / maxColumns)
-  const geojsonY = basePosition.y + featureRowCount * rowSpacing + 100
+  const featureColumns = Math.min(geojson.features.length, maxColumns)
+  const geojsonX = basePosition.x + featureColumns * colSpacing
 
-  // GeoJsonOp collects all features
+  // GeoJsonOp collects all features — positioned to the right of feature columns
   nodes.push({
     id: geojsonId,
     type: 'GeoJsonOp',
     data: { inputs: {} },
-    position: { x: basePosition.x + colSpacing, y: geojsonY },
+    position: { x: geojsonX, y: basePosition.y },
   })
 
   // GeoJsonLayerOp renders the collection
@@ -263,7 +263,7 @@ export function createGeoJsonDropNodes(
     id: geojsonLayerId,
     type: 'GeoJsonLayerOp',
     data: { inputs: {} },
-    position: { x: basePosition.x + colSpacing * 2, y: geojsonY },
+    position: { x: geojsonX + colSpacing, y: basePosition.y },
   })
 
   const allEdges = [
