@@ -118,6 +118,50 @@ function createFileDropNodes(url: string, format: string, basePosition: { x: num
   return { nodes, edges }
 }
 
+function createGeoJsonFileDropNodes(url: string, basePosition: { x: number; y: number }) {
+  const dataId = nodeId('data', '/')
+  const geojsonLayerId = nodeId('geojson-layer', '/')
+
+  const existingDeck = getOpEntries().find(
+    ([_, op]) => (op.constructor as { displayName?: string }).displayName === 'DeckRenderer'
+  )
+  const deckId = existingDeck ? existingDeck[0] : nodeId('deck', '/')
+
+  const nodes: NodeJSON<OpType>[] = [
+    {
+      id: dataId,
+      type: 'FileOp',
+      data: {
+        inputs: { format: 'json', url },
+      },
+      position: { x: basePosition.x, y: basePosition.y },
+    },
+    {
+      id: geojsonLayerId,
+      type: 'GeoJsonLayerOp',
+      data: { inputs: {} },
+      position: { x: basePosition.x + 400, y: basePosition.y },
+    },
+  ]
+
+  const edges = [
+    {
+      source: dataId,
+      target: geojsonLayerId,
+      sourceHandle: 'out.data',
+      targetHandle: 'par.data',
+    },
+    {
+      source: geojsonLayerId,
+      target: deckId,
+      sourceHandle: 'out.layer',
+      targetHandle: 'par.layers',
+    },
+  ].map(connection => ({ ...connection, id: edgeId(connection) }))
+
+  return { nodes, edges }
+}
+
 type GeoJsonFeature = {
   type: 'Feature'
   geometry: {
@@ -312,6 +356,11 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
 
       if (geojsonData && deconstruct) {
         const result = createGeoJsonDropNodes(geojsonData, basePosition)
+        nodes = result.nodes
+        edges = result.edges
+        format = 'geojson'
+      } else if (geojsonData && !deconstruct) {
+        const result = createGeoJsonFileDropNodes(projectScheme + file.name, basePosition)
         nodes = result.nodes
         edges = result.edges
         format = 'geojson'
