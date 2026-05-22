@@ -1685,7 +1685,7 @@ export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
     }
 
     const steppedSchemes = {
-      greyscale: d3.schemeGreys,
+      greyscale: schemeGreys,
       BrownGreen: schemeBrBG,
       PurpleGreen: schemePRGn,
       PurpleBlue: schemePuBu,
