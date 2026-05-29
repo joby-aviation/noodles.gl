@@ -49,7 +49,7 @@ describe('Noodles Graph Integration', () => {
       },
     ]
 
-    const operators = transformGraph({ nodes, edges })
+    const { operators } = transformGraph({ nodes, edges })
 
     // Should create 3 operators
     expect(operators).toHaveLength(3)
@@ -129,7 +129,7 @@ describe('Noodles Graph Integration', () => {
 
     // Transform the graph again - this reuses existing operators
     // and cleans up operators that are no longer in the nodes list
-    const newOperators = transformGraph({
+    const { operators: newOperators } = transformGraph({
       nodes: nodesAfterDelete,
       edges: edgesAfterDelete,
     })
@@ -175,7 +175,7 @@ describe('Noodles Graph Integration', () => {
     ]
 
     // Transform again without clearing - operators are reused
-    const operators = transformGraph({ nodes: updatedNodes, edges: [] })
+    const { operators } = transformGraph({ nodes: updatedNodes, edges: [] })
 
     expect(operators).toHaveLength(2)
     expect(hasOp('/num2')).toBe(true)
@@ -290,7 +290,7 @@ describe('Noodles Graph Integration', () => {
       },
     ]
 
-    const operators = transformGraph({ nodes, edges })
+    const { operators } = transformGraph({ nodes, edges })
 
     expect(operators).toHaveLength(4)
 

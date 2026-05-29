@@ -657,6 +657,14 @@ export abstract class Operator<OP extends IOperator> {
     this._downstreamDependents.delete(op)
   }
 
+  getUpstreamDependencies(): Set<Operator<IOperator>> {
+    return this._upstreamDependencies
+  }
+
+  getDownstreamDependents(): Set<Operator<IOperator>> {
+    return this._downstreamDependents
+  }
+
   // Get pull execution status
   get pullExecutionStatus(): PullExecutionStatus {
     return this._pullExecutionStatus

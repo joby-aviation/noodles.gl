@@ -1,11 +1,13 @@
 import { getIncomers, type Node as ReactFlowNode } from '@xyflow/react'
 import { debugExecutor } from '../utils/debug'
+import { CodeField, ExpressionField, getFieldReferences } from './fields'
 import { type Edge as ExecutorEdge, updateGraph } from './graph-executor'
 import type { Edge } from './noodles'
 import type { IOperator, Operator, OpType } from './operators'
 import { ContainerOp, ForLoopEndOp, GraphInputOp, opTypes, type SpecialNodeType } from './operators'
 import { getOpStore } from './store'
 import { validateConnection } from './utils/can-connect'
+import { edgeId } from './utils/id-utils'
 import { getParentPath, isDirectChild, parseHandleId } from './utils/path-utils'
 import { computeVisibilityHeuristic } from './utils/visibility-heuristic'
 
@@ -92,11 +94,60 @@ function topologicalSort<N extends Operator<IOperator>>(
   return sortedNodes.reverse()
 }
 
+// Compute ReferenceEdges by parsing CodeField/ExpressionField values for op() references.
+// These edges establish upstream dependencies so the pull-based executor knows to execute
+// referenced operators before operators that reference them in code.
+function computeReferenceEdges<OP extends Operator<IOperator>, E extends Edge<OP, OP>>(
+  instances: OP[],
+  nodeIds: Set<string>,
+  existingEdgeIds: Set<string>
+): E[] {
+  const referenceEdges: E[] = []
+  for (const op of instances) {
+    for (const [fieldName, field] of Object.entries(op.inputs)) {
+      if (!(field instanceof CodeField) && !(field instanceof ExpressionField)) continue
+      const codeValue = field.value
+      if (typeof codeValue !== 'string' || !codeValue.trim()) continue
+      const thisFieldId = `par.${fieldName}`
+      const refs = getFieldReferences(codeValue, op.id)
+      for (const { opId, handleId } of refs) {
+        if (!nodeIds.has(opId)) continue
+        const connection = {
+          source: opId,
+          sourceHandle: handleId,
+          target: op.id,
+          targetHandle: thisFieldId,
+        }
+        const id = edgeId(connection)
+        if (existingEdgeIds.has(id)) continue
+        referenceEdges.push({
+          id,
+          type: 'ReferenceEdge',
+          source: opId,
+          target: op.id,
+          sourceHandle: handleId,
+          targetHandle: thisFieldId,
+        } as unknown as E)
+      }
+    }
+  }
+  return referenceEdges
+}
+
 export function transformGraph<
   OP extends Operator<IOperator>,
   E extends Edge<OP, OP>,
   T extends OpType,
->({ nodes: _nodes, edges }: { nodes: NodeJSON<unknown>[]; edges: E[] }): OP[] {
+>({
+  nodes: _nodes,
+  edges,
+}: {
+  nodes: NodeJSON<unknown>[]
+  edges: E[]
+}): {
+  operators: OP[]
+  referenceEdges: E[]
+} {
   const nodes = _nodes.filter(n => opTypes[n.type as T] !== undefined) as NodeJSON<OpType>[]
   const store = getOpStore()
 
@@ -202,12 +253,18 @@ export function transformGraph<
     }) as OP[]
   })
 
+  // Compute ReferenceEdges from code field values so the executor knows the
+  // correct dependency order before any UI components mount.
+  const existingEdgeIds = new Set(edges.map(e => e.id))
+  const syntheticRefEdges = computeReferenceEdges<OP, E>(instances, nodeIds, existingEdgeIds)
+  const allEdges = syntheticRefEdges.length > 0 ? [...edges, ...syntheticRefEdges] : edges
+
   // Update dependency graph
-  updateGraph(edges as unknown as ExecutorEdge[])
+  updateGraph(allEdges as unknown as ExecutorEdge[])
 
   // Remove any connections that are not in the edges array.
   // Also clear connection errors for removed edges.
-  const currentEdgeIds = new Set(edges.map(e => e.id))
+  const currentEdgeIds = new Set(allEdges.map(e => e.id))
   for (const op of instances) {
     for (const [_key, field] of Object.entries(op.inputs)) {
       for (const [id] of field.subscriptions) {
@@ -226,7 +283,7 @@ export function transformGraph<
     }
   }
 
-  for (const edge of edges) {
+  for (const edge of allEdges) {
     const sourceOp = instances.find(n => n.id === edge.source)
     const targetOp = instances.find(n => n.id === edge.target)
     if (sourceOp && targetOp) {
@@ -361,5 +418,5 @@ export function transformGraph<
     }
   }
 
-  return instances
+  return { operators: instances, referenceEdges: syntheticRefEdges }
 }

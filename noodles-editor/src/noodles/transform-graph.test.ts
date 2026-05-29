@@ -42,7 +42,7 @@ describe('transform-graph topological sort with missing upstream nodes', () => {
       },
     ]
 
-    const instances = transformGraph({ nodes, edges })
+    const { operators: instances } = transformGraph({ nodes, edges })
 
     expect(instances).toHaveLength(1)
     expect(instances[0].id).toBe('/kml-to-geo-json')
@@ -74,7 +74,7 @@ describe('transform-graph topological sort with missing upstream nodes', () => {
       },
     ]
 
-    const instances = transformGraph({ nodes, edges })
+    const { operators: instances } = transformGraph({ nodes, edges })
 
     expect(instances).toHaveLength(2)
     const { getOp } = getOpStore()
@@ -111,7 +111,7 @@ describe('transform-graph topological sort with missing upstream nodes', () => {
       },
     ]
 
-    const instances = transformGraph({ nodes, edges })
+    const { operators: instances } = transformGraph({ nodes, edges })
 
     expect(instances).toHaveLength(3)
     // /source must come before /downstream in execution order
@@ -136,7 +136,7 @@ describe('transform-graph topological sort with missing upstream nodes', () => {
       },
     ]
 
-    const instances = transformGraph({ nodes, edges })
+    const { operators: instances } = transformGraph({ nodes, edges })
 
     expect(instances).toHaveLength(2)
     const ids = instances.map(op => op.id)
@@ -375,7 +375,7 @@ describe('transform-graph', () => {
       ],
     }
 
-    const instances = transformGraph(graph)
+    const { operators: instances } = transformGraph(graph)
     expect(instances).toHaveLength(2)
 
     const [num, add] = instances
@@ -455,7 +455,7 @@ describe('transform-graph', () => {
       ],
     }
 
-    const instances = transformGraph(graph)
+    const { operators: instances } = transformGraph(graph)
     expect(instances).toHaveLength(2)
 
     const [num, add] = instances
@@ -494,7 +494,7 @@ describe('transform-graph', () => {
       ],
     }
 
-    const instances = transformGraph(graph)
+    const { operators: instances } = transformGraph(graph)
     const code = instances.find(op => op.id === '/code') as CodeOp
     expect(code.hasConnectionErrors()).toBe(false)
   })
@@ -525,7 +525,7 @@ describe('transform-graph', () => {
       ],
     }
 
-    const instances = transformGraph(graph)
+    const { operators: instances } = transformGraph(graph)
     const code = instances.find(op => op.id === '/code') as CodeOp
     expect(code.hasConnectionErrors()).toBe(true)
     const errorMessage = code.connectionErrors.value.get('/num.out.val->/code.par.code')
@@ -563,7 +563,7 @@ describe('transform-graph', () => {
       ],
     }
 
-    const instances = transformGraph(graph)
+    const { operators: instances } = transformGraph(graph)
     const add = instances.find(op => op.id === '/add') as MathOp
 
     // Connection should be established despite type mismatch
@@ -641,7 +641,7 @@ describe('transform-graph', () => {
       ],
     }
 
-    const instances = transformGraph(graphWithValidConnection)
+    const { operators: instances } = transformGraph(graphWithValidConnection)
     const add = instances.find(op => op.id === '/add') as MathOp
 
     // Valid connection should be established
@@ -707,7 +707,7 @@ describe('transform-graph', () => {
       edges: [], // No edges
     }
 
-    const instances = transformGraph(graphWithoutConnection)
+    const { operators: instances } = transformGraph(graphWithoutConnection)
     const add = instances.find(op => op.id === '/add') as MathOp
 
     // No subscriptions should exist
@@ -1041,7 +1041,7 @@ describe('connection error suppression for undefined source fields', () => {
       },
     ]
 
-    const instances = transformGraph({ nodes, edges })
+    const { operators: instances } = transformGraph({ nodes, edges })
     const deck = instances.find(op => op.id === '/deck') as DeckRendererOp
 
     expect(deck.hasConnectionErrors()).toBe(false)
@@ -1075,7 +1075,7 @@ describe('connection error suppression for undefined source fields', () => {
       },
     ]
 
-    const instances = transformGraph({ nodes, edges })
+    const { operators: instances } = transformGraph({ nodes, edges })
     const add = instances.find(op => op.id === '/add') as MathOp
 
     expect(add.hasConnectionErrors()).toBe(false)
@@ -1109,7 +1109,7 @@ describe('connection error suppression for undefined source fields', () => {
       },
     ]
 
-    const instances = transformGraph({ nodes, edges })
+    const { operators: instances } = transformGraph({ nodes, edges })
     const add = instances.find(op => op.id === '/add') as MathOp
 
     expect(add.hasConnectionErrors()).toBe(true)
@@ -1160,5 +1160,243 @@ describe('connection error suppression for undefined source fields', () => {
 
     // Error should be cleared — source has no value, so we cannot confirm the mismatch
     expect(add.hasConnectionErrors()).toBe(false)
+  })
+})
+
+describe('ReferenceEdge synthesis from code fields', () => {
+  afterEach(() => {
+    clearOps()
+  })
+
+  it('creates upstream dependency for op() references in CodeOp', () => {
+    const nodes = [
+      {
+        id: '/source',
+        type: 'NumberOp',
+        data: { inputs: { val: 42 } },
+        position: { x: 0, y: 0 },
+      },
+      {
+        id: '/code',
+        type: 'CodeOp',
+        data: { inputs: { code: ["return op('/source').out.val * 2"] } },
+        position: { x: 200, y: 0 },
+      },
+    ]
+
+    const { operators, referenceEdges } = transformGraph({ nodes, edges: [] })
+
+    expect(referenceEdges).toHaveLength(1)
+    expect(referenceEdges[0].source).toBe('/source')
+    expect(referenceEdges[0].target).toBe('/code')
+    expect(referenceEdges[0].sourceHandle).toBe('out.val')
+    expect(referenceEdges[0].targetHandle).toBe('par.code')
+    expect(referenceEdges[0].type).toBe('ReferenceEdge')
+
+    const codeOp = operators.find(op => op.id === '/code')!
+    const sourceOp = operators.find(op => op.id === '/source')!
+    expect(codeOp.getUpstreamDependencies()).toContain(sourceOp)
+  })
+
+  it('creates upstream dependency for mustache references in DuckDbOp', () => {
+    const nodes = [
+      {
+        id: '/data',
+        type: 'NumberOp',
+        data: { inputs: { val: 10 } },
+        position: { x: 0, y: 0 },
+      },
+      {
+        id: '/sql',
+        type: 'DuckDbOp',
+        data: { inputs: { query: ['SELECT * WHERE x > {{/data.par.val}}'] } },
+        position: { x: 200, y: 0 },
+      },
+    ]
+
+    const { referenceEdges } = transformGraph({ nodes, edges: [] })
+
+    expect(referenceEdges).toHaveLength(1)
+    expect(referenceEdges[0].source).toBe('/data')
+    expect(referenceEdges[0].target).toBe('/sql')
+    expect(referenceEdges[0].sourceHandle).toBe('par.val')
+    expect(referenceEdges[0].targetHandle).toBe('par.query')
+  })
+
+  it('creates upstream dependency for ExpressionOp references', () => {
+    const nodes = [
+      {
+        id: '/num',
+        type: 'NumberOp',
+        data: { inputs: { val: 5 } },
+        position: { x: 0, y: 0 },
+      },
+      {
+        id: '/expr',
+        type: 'ExpressionOp',
+        data: { inputs: { expression: "op('/num').out.val * 2" } },
+        position: { x: 200, y: 0 },
+      },
+    ]
+
+    const { referenceEdges } = transformGraph({ nodes, edges: [] })
+
+    expect(referenceEdges).toHaveLength(1)
+    expect(referenceEdges[0].source).toBe('/num')
+    expect(referenceEdges[0].target).toBe('/expr')
+    expect(referenceEdges[0].sourceHandle).toBe('out.val')
+  })
+
+  it('resolves relative path references', () => {
+    const nodes = [
+      {
+        id: '/sibling',
+        type: 'NumberOp',
+        data: { inputs: { val: 7 } },
+        position: { x: 0, y: 0 },
+      },
+      {
+        id: '/code',
+        type: 'CodeOp',
+        data: { inputs: { code: ["return op('./sibling').out.val"] } },
+        position: { x: 200, y: 0 },
+      },
+    ]
+
+    const { referenceEdges } = transformGraph({ nodes, edges: [] })
+
+    expect(referenceEdges).toHaveLength(1)
+    expect(referenceEdges[0].source).toBe('/sibling')
+    expect(referenceEdges[0].target).toBe('/code')
+  })
+
+  it('handles self-parameter references without creating cycles', () => {
+    const nodes = [
+      {
+        id: '/code',
+        type: 'CodeOp',
+        data: { inputs: { code: ['return {{par.data}}'] } },
+        position: { x: 0, y: 0 },
+      },
+    ]
+
+    const { operators, referenceEdges } = transformGraph({ nodes, edges: [] })
+
+    // Self-parameter reference creates a reference edge
+    expect(referenceEdges).toHaveLength(1)
+    expect(referenceEdges[0].source).toBe('/code')
+    expect(referenceEdges[0].target).toBe('/code')
+
+    // But isSelfParameterReference check prevents adding as upstream dependency
+    const codeOp = operators.find(op => op.id === '/code')!
+    expect(codeOp.getUpstreamDependencies().size).toBe(0)
+  })
+
+  it('skips references to non-existent operators', () => {
+    const nodes = [
+      {
+        id: '/code',
+        type: 'CodeOp',
+        data: { inputs: { code: ["return op('/missing').out.data"] } },
+        position: { x: 0, y: 0 },
+      },
+    ]
+
+    const { referenceEdges } = transformGraph({ nodes, edges: [] })
+
+    expect(referenceEdges).toHaveLength(0)
+  })
+
+  it('creates multiple reference edges for multiple references', () => {
+    const nodes = [
+      {
+        id: '/a',
+        type: 'NumberOp',
+        data: { inputs: { val: 1 } },
+        position: { x: 0, y: 0 },
+      },
+      {
+        id: '/b',
+        type: 'NumberOp',
+        data: { inputs: { val: 2 } },
+        position: { x: 0, y: 100 },
+      },
+      {
+        id: '/code',
+        type: 'CodeOp',
+        data: { inputs: { code: ["return op('/a').out.val + op('/b').out.val"] } },
+        position: { x: 200, y: 0 },
+      },
+    ]
+
+    const { referenceEdges } = transformGraph({ nodes, edges: [] })
+
+    expect(referenceEdges).toHaveLength(2)
+    const sources = referenceEdges.map(e => e.source).sort()
+    expect(sources).toEqual(['/a', '/b'])
+  })
+
+  it('does not duplicate edges that already exist in the input', () => {
+    const nodes = [
+      {
+        id: '/source',
+        type: 'NumberOp',
+        data: { inputs: { val: 42 } },
+        position: { x: 0, y: 0 },
+      },
+      {
+        id: '/code',
+        type: 'CodeOp',
+        data: { inputs: { code: ["return op('/source').out.val * 2"] } },
+        position: { x: 200, y: 0 },
+      },
+    ]
+
+    // Simulate a case where the reference edge already exists in input
+    const existingRefEdge = {
+      id: edgeId({
+        source: '/source',
+        sourceHandle: 'out.val',
+        target: '/code',
+        targetHandle: 'par.code',
+      }),
+      type: 'ReferenceEdge',
+      source: '/source',
+      target: '/code',
+      sourceHandle: 'out.val',
+      targetHandle: 'par.code',
+    }
+
+    const { referenceEdges } = transformGraph({ nodes, edges: [existingRefEdge] as any })
+
+    // Should not produce duplicates
+    expect(referenceEdges).toHaveLength(0)
+  })
+
+  it('ensures referenced operators are pulled before the CodeOp', () => {
+    const nodes = [
+      {
+        id: '/source',
+        type: 'NumberOp',
+        data: { inputs: { val: 42 } },
+        position: { x: 0, y: 0 },
+      },
+      {
+        id: '/code',
+        type: 'CodeOp',
+        data: { inputs: { code: ["return op('/source').out.val * 2"] } },
+        position: { x: 200, y: 0 },
+      },
+    ]
+
+    const { operators } = transformGraph({ nodes, edges: [] })
+
+    const codeOp = operators.find(op => op.id === '/code')!
+    const sourceOp = operators.find(op => op.id === '/source')!
+
+    // CodeOp should have /source as upstream dependency
+    expect(codeOp.getUpstreamDependencies()).toContain(sourceOp)
+    // /source should have /code as downstream dependent
+    expect(sourceOp.getDownstreamDependents()).toContain(codeOp)
   })
 })

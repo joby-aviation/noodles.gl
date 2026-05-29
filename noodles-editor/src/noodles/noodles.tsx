@@ -336,8 +336,15 @@ export function getNoodles(): Visualization {
   useEffect(() => {
     // loadProjectFile already called transformGraph directly, so skip this triggered re-run
     if (isProjectLoadRef.current) return
-    const ops = transformGraph({ nodes, edges })
+    const { operators: ops, referenceEdges } = transformGraph({ nodes, edges })
     setOperators(ops)
+    if (referenceEdges.length > 0) {
+      setEdges(prev => {
+        const existing = new Set(prev.map(e => e.id))
+        const newEdges = referenceEdges.filter(e => !existing.has(e.id))
+        return newEdges.length > 0 ? [...prev, ...newEdges] : prev
+      })
+    }
   }, [graphStructureKey])
 
   // Reset isProjectLoadRef after every render so the flag never gets stuck when
@@ -746,12 +753,12 @@ export function getNoodles(): Visualization {
       }
 
       // Build the operator graph synchronously — operators are ready before any re-render
-      const ops = transformGraph({ nodes, edges })
+      const { operators: ops, referenceEdges } = transformGraph({ nodes, edges })
       setOperators(ops)
 
       // Update React Flow state (for rendering; graph is already set up above)
       setNodes(nodes)
-      setEdges(edges)
+      setEdges(referenceEdges.length > 0 ? [...edges, ...referenceEdges] : edges)
 
       // Load editor settings from project with defaults
       setLayoutMode(editorSettings?.layoutMode ?? 'noodles-on-top')

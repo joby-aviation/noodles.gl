@@ -20,7 +20,7 @@ describe('ContainerOpComponent children count reactivity', () => {
 
   // Helper to setup a graph with operators
   const setupGraph = (nodes: ReactFlowNode<{ inputs: Record<string, unknown> }>[]) => {
-    return transformGraph({ nodes, edges: [] })
+    return transformGraph({ nodes, edges: [] }).operators
   }
 
   // Helper to render ContainerOpComponent within the required contexts

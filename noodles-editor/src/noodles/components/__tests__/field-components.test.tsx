@@ -67,7 +67,7 @@ describe('CodeFieldComponent edge management', () => {
 
   // Helper to setup a graph with operators
   const setupGraph = (nodes: ReactFlowNode<{ inputs: Record<string, unknown> }>[]) => {
-    return transformGraph({ nodes, edges: [] })
+    return transformGraph({ nodes, edges: [] }).operators
   }
 
   // Helper to render CodeFieldComponent within the required contexts
