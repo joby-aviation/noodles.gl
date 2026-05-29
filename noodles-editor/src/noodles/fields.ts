@@ -637,6 +637,42 @@ export class DateField extends Field<
   }
 }
 
+export class DurationField extends Field<
+  z.ZodObject<{
+    value: z.ZodNumber
+    unit: z.ZodUnion<
+      readonly [
+        z.ZodLiteral<'years'>,
+        z.ZodLiteral<'months'>,
+        z.ZodLiteral<'weeks'>,
+        z.ZodLiteral<'days'>,
+        z.ZodLiteral<'hours'>,
+        z.ZodLiteral<'minutes'>,
+        z.ZodLiteral<'seconds'>,
+        z.ZodLiteral<'milliseconds'>,
+      ]
+    >
+  }>
+> {
+  static type = 'duration'
+  static defaultValue = { value: 0, unit: 'milliseconds' }
+  createSchema() {
+    return z.object({
+      value: z.number(),
+      unit: z.union([
+        z.literal('years'),
+        z.literal('months'),
+        z.literal('weeks'),
+        z.literal('days'),
+        z.literal('hours'),
+        z.literal('minutes'),
+        z.literal('seconds'),
+        z.literal('milliseconds'),
+      ]),
+    })
+  }
+}
+
 // DataField represents an array of data items with optional subfield for schema validation
 // The TElement type parameter allows type inference in ExtractProps
 // Usage: new DataField() for untyped data, new DataField(new SomeField()) for schema validation

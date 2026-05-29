@@ -80,7 +80,7 @@ export const categories = {
     'TerrainExtension',
     'VibranceExtension',
   ],
-  number: ['Number', 'MapRange', 'Extent', 'Math', 'BezierCurve', 'Ramp', 'Time'],
+  number: ['Number', 'MapRange', 'Extent', 'Math', 'DateMath', 'BezierCurve', 'Ramp', 'Time'],
   string: ['String'],
   utility: [
     'Blending',
