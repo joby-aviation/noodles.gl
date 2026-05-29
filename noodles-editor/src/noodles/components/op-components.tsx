@@ -43,6 +43,7 @@ import { useKeysStore } from '../keys-store'
 import s from '../noodles.module.css'
 import { inferSchema, type TableSchema } from '../table-schema'
 import type { ExecutionState, IOperator, OpType } from '../operators'
+import { convertViewerToTableEditor } from '../utils/operator-conversion'
 import {
   type ContainerOp,
   type DirectionsOp,
@@ -1825,6 +1826,7 @@ function ViewerOpComponent({
   }
 
   const isDimmed = useNodeDimmed(id)
+  const { setNodes, setEdges } = useReactFlow()
 
   // TODO: use react-flow helpers
   const [viewerData, setViewerData] = useState(viewerFormatter(op.inputs.data.value))
@@ -1835,6 +1837,13 @@ function ViewerOpComponent({
     })
     return () => sub.unsubscribe()
   }, [op])
+
+  const handleConvertToTableEditor = useCallback(() => {
+    const success = convertViewerToTableEditor(id, setNodes, setEdges)
+    if (!success) {
+      console.error('Failed to convert to TableEditor: data is not in a suitable format')
+    }
+  }, [id, setNodes, setEdges])
 
   let content = null
   if (viewerData === null) {
@@ -1893,6 +1902,12 @@ function ViewerOpComponent({
   const locked = useLocked(op)
   useFieldVisibility(op)
 
+  // Show conversion button when viewing tabular data (array of plain objects)
+  const showConversionButton =
+    Array.isArray(viewerData) &&
+    viewerData.length > 0 &&
+    isPlainObject(viewerData[0])
+
   return (
     <div className={cx(s.wrapper, { [s.wrapperDimmed]: isDimmed })}>
       <NodeHeader id={id} type={type} op={op} />
@@ -1910,6 +1925,17 @@ function ViewerOpComponent({
             />
           ))}
         {content}
+        {showConversionButton && (
+          <div style={{ marginTop: '8px', textAlign: 'center' }}>
+            <Button
+              label="Convert to Table Editor"
+              icon="pi pi-table"
+              onClick={handleConvertToTableEditor}
+              size="small"
+              outlined
+            />
+          </div>
+        )}
         <div className={s.outputHandleContainer}>
           {Object.entries(op.outputs).map(([key, field]) => (
             <OutputHandle key={key} id={key} field={field} />
