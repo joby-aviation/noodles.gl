@@ -1903,10 +1903,13 @@ function ViewerOpComponent({
   useFieldVisibility(op)
 
   // Show conversion button when viewing tabular data (array of plain objects)
+  // Match the same conditions used for table rendering
   const showConversionButton =
     Array.isArray(viewerData) &&
     viewerData.length > 0 &&
-    isPlainObject(viewerData[0])
+    viewerData.length < 20 &&
+    isPlainObject(viewerData[0]) &&
+    Object.keys(viewerData[0]).length < 20
 
   return (
     <div className={cx(s.wrapper, { [s.wrapperDimmed]: isDimmed })}>
