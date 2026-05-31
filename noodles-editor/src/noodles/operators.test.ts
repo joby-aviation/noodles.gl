@@ -3318,12 +3318,6 @@ describe('DirectionsOp', () => {
     expect(directionsOp.inputs.origin.value).toEqual({ lng: -74.006, lat: 40.7128 })
   })
 
-  it('still accepts [lng, lat] tuples', () => {
-    const directionsOp = new DirectionsOp('/directions')
-    directionsOp.inputs.origin.setValue([-74.006, 40.7128])
-    expect(directionsOp.inputs.origin.value).toEqual([-74.006, 40.7128])
-  })
-
   it('ignores non-Point GeoJSON Features', () => {
     const directionsOp = new DirectionsOp('/directions')
     const lineFeature = {

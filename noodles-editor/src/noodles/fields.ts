@@ -882,7 +882,7 @@ export class Point2DField extends Field<
               obj.geometry !== null
             ) {
               const geom = obj.geometry as Record<string, unknown>
-              if (geom.type === 'Point' && Array.isArray(geom.coordinates)) {
+              if (geom.type === 'Point' && Array.isArray(geom.coordinates) && geom.coordinates.length >= 2) {
                 const coords = geom.coordinates as number[]
                 return { lng: coords[0], lat: coords[1] }
               }
