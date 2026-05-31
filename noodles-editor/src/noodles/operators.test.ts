@@ -11,6 +11,7 @@ import {
   ConcatOp,
   CrossOp,
   DeckRendererOp,
+  DirectionsOp,
   DuckDbOp,
   ExpressionOp,
   FileOp,
@@ -26,6 +27,7 @@ import {
   MergeOp,
   NumberOp,
   Operator,
+  PointOp,
   ProjectOp,
   RampOp,
   RectangleOp,
@@ -3294,5 +3296,80 @@ describe('BitmapOverlayWidgetOp', () => {
     expect(op.outputData.widget.placement).toBe('fill')
     expect(op.outputData.widget.offsetX).toBe(100)
     expect(op.outputData.widget.offsetY).toBe(50)
+  })
+})
+
+describe('DirectionsOp', () => {
+  it('accepts GeoJSON Point Features via Point2DField', () => {
+    const directionsOp = new DirectionsOp('/directions')
+    const feature = {
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [-74.006, 40.7128] },
+      properties: {},
+    }
+
+    directionsOp.inputs.origin.setValue(feature)
+    expect(directionsOp.inputs.origin.value).toEqual({ lng: -74.006, lat: 40.7128 })
+  })
+
+  it('still accepts plain { lng, lat } objects', () => {
+    const directionsOp = new DirectionsOp('/directions')
+    directionsOp.inputs.origin.setValue({ lng: -74.006, lat: 40.7128 })
+    expect(directionsOp.inputs.origin.value).toEqual({ lng: -74.006, lat: 40.7128 })
+  })
+
+  it('ignores non-Point GeoJSON Features', () => {
+    const directionsOp = new DirectionsOp('/directions')
+    const lineFeature = {
+      type: 'Feature',
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [0, 0],
+          [1, 1],
+        ],
+      },
+      properties: {},
+    }
+
+    // Non-Point Feature won't parse — value should remain at default
+    directionsOp.inputs.origin.setValue(lineFeature)
+    expect(directionsOp.inputs.origin.value).toEqual({ lng: 0, lat: 0 })
+  })
+
+  it('integrates PointOp output with DirectionsOp inputs', () => {
+    // Create PointOps for NYC and Brooklyn
+    const pointNyc = new PointOp('/point-nyc')
+    pointNyc.inputs.coordinates.setValue({ lng: -74.006, lat: 40.7128 })
+
+    const pointBrooklyn = new PointOp('/point-brooklyn')
+    pointBrooklyn.inputs.coordinates.setValue({ lng: -73.935242, lat: 40.73061 })
+
+    // Execute the operators to get outputs
+    const nycOutput = pointNyc.execute({
+      coordinates: { lng: -74.006, lat: 40.7128 },
+      properties: {},
+    })
+    const brooklynOutput = pointBrooklyn.execute({
+      coordinates: { lng: -73.935242, lat: 40.73061 },
+      properties: {},
+    })
+
+    const nycFeature = nycOutput.feature
+    const brooklynFeature = brooklynOutput.feature
+
+    // Verify PointOp outputs are GeoJSON Point Features
+    expect(nycFeature.type).toBe('Feature')
+    expect(nycFeature.geometry.type).toBe('Point')
+    expect(nycFeature.geometry.coordinates).toEqual([-74.006, 40.7128])
+
+    // Wire PointOp outputs to DirectionsOp inputs
+    const directionsOp = new DirectionsOp('/directions')
+    directionsOp.inputs.origin.setValue(nycFeature)
+    directionsOp.inputs.destination.setValue(brooklynFeature)
+
+    // Verify DirectionsOp correctly parses the GeoJSON Features
+    expect(directionsOp.inputs.origin.value).toEqual({ lng: -74.006, lat: 40.7128 })
+    expect(directionsOp.inputs.destination.value).toEqual({ lng: -73.935242, lat: 40.73061 })
   })
 })
