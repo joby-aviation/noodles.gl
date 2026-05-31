@@ -3328,7 +3328,13 @@ describe('DirectionsOp', () => {
     const directionsOp = new DirectionsOp('/directions')
     const lineFeature = {
       type: 'Feature',
-      geometry: { type: 'LineString', coordinates: [[0, 0], [1, 1]] },
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [0, 0],
+          [1, 1],
+        ],
+      },
       properties: {},
     }
 
@@ -3346,8 +3352,14 @@ describe('DirectionsOp', () => {
     pointBrooklyn.inputs.coordinates.setValue({ lng: -73.935242, lat: 40.73061 })
 
     // Execute the operators to get outputs
-    const nycOutput = pointNyc.execute({ coordinates: { lng: -74.006, lat: 40.7128 }, properties: {} })
-    const brooklynOutput = pointBrooklyn.execute({ coordinates: { lng: -73.935242, lat: 40.73061 }, properties: {} })
+    const nycOutput = pointNyc.execute({
+      coordinates: { lng: -74.006, lat: 40.7128 },
+      properties: {},
+    })
+    const brooklynOutput = pointBrooklyn.execute({
+      coordinates: { lng: -73.935242, lat: 40.73061 },
+      properties: {},
+    })
 
     const nycFeature = nycOutput.feature
     const brooklynFeature = brooklynOutput.feature
