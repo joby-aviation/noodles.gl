@@ -872,9 +872,23 @@ export class Point2DField extends Field<
       z
         .unknown()
         .transform(val => {
-          // Normalize column names: support Longitude/Latitude, longitude/latitude, lon/lat
           if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
             const obj = val as Record<string, unknown>
+
+            // Handle GeoJSON Point Feature: extract coordinates from geometry
+            if (
+              obj.type === 'Feature' &&
+              typeof obj.geometry === 'object' &&
+              obj.geometry !== null
+            ) {
+              const geom = obj.geometry as Record<string, unknown>
+              if (geom.type === 'Point' && Array.isArray(geom.coordinates)) {
+                const coords = geom.coordinates as number[]
+                return { lng: coords[0], lat: coords[1] }
+              }
+            }
+
+            // Normalize column names: support Longitude/Latitude, longitude/latitude, lon/lat
             const normalized: Record<string, unknown> = {}
             let hasLng = false
             let hasLat = false
