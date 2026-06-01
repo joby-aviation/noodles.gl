@@ -39,7 +39,7 @@ import {
   Tile3DLayerOp,
   TimeSeriesOp,
 } from './operators'
-import { setOp } from './store'
+import { deleteOp, getOpStore, setOp } from './store'
 import { isAccessor } from './utils/accessor-helpers'
 
 describe('basic Operators', () => {
@@ -289,6 +289,65 @@ describe('CodeOp', () => {
   })
 })
 
+describe('CodeOp op() error handling', () => {
+  beforeEach(() => {
+    getOpStore().batch(() => {
+      const numOp = new NumberOp('/num')
+      numOp.inputs.val.setValue(42)
+      setOp('/num', numOp)
+    })
+  })
+
+  afterEach(() => {
+    deleteOp('/num')
+  })
+
+  it('should throw clear error when operator not found with absolute path', async () => {
+    const codeOp = new CodeOp('/code')
+    await expect(
+      codeOp.execute({
+        data: [],
+        code: 'return op("/missing").par.value',
+      })
+    ).rejects.toThrow("Operator '/missing' not found")
+  })
+
+  it('should throw clear error when operator not found with relative path', async () => {
+    const codeOp = new CodeOp('/code')
+    setOp('/code', codeOp)
+
+    try {
+      await expect(
+        codeOp.execute({
+          data: [],
+          code: 'return op("./missing").out.data',
+        })
+      ).rejects.toThrow("Operator './missing' not found")
+    } finally {
+      deleteOp('/code')
+    }
+  })
+
+  it('should throw clear error when operator not found in mustache syntax', async () => {
+    const codeOp = new CodeOp('/code')
+    await expect(
+      codeOp.execute({
+        data: [],
+        code: 'return {{/missing.par.value}}',
+      })
+    ).rejects.toThrow("Operator '/missing' not found")
+  })
+
+  it('should still work with valid operator references', async () => {
+    const codeOp = new CodeOp('/code')
+    const result = await codeOp.execute({
+      data: [],
+      code: 'return op("/num").par.val',
+    })
+    expect(result.data).toBe(42)
+  })
+})
+
 describe('CodeOp self-parameter references', () => {
   it('should allow CodeOp to reference its own custom parameter with shorthand syntax', async () => {
     const codeOp = new CodeOp('/code-self')
@@ -526,6 +585,47 @@ describe('ExpressionOp', () => {
   })
 })
 
+describe('ExpressionOp op() error handling', () => {
+  beforeEach(() => {
+    const numOp = new NumberOp('/num')
+    numOp.inputs.val.setValue(100)
+    setOp('/num', numOp)
+  })
+
+  afterEach(() => {
+    deleteOp('/num')
+  })
+
+  it('should throw clear error when operator not found', () => {
+    const exprOp = new ExpressionOp('/expr')
+    expect(() =>
+      exprOp.execute({
+        data: [],
+        expression: 'op("/nonexistent").par.value',
+      })
+    ).toThrow("Operator '/nonexistent' not found")
+  })
+
+  it('should throw clear error accessing out field of missing operator', () => {
+    const exprOp = new ExpressionOp('/expr')
+    expect(() =>
+      exprOp.execute({
+        data: [],
+        expression: 'op("/missing").out.result',
+      })
+    ).toThrow("Operator '/missing' not found")
+  })
+
+  it('should still work with valid operator references', () => {
+    const exprOp = new ExpressionOp('/expr')
+    const result = exprOp.execute({
+      data: [1],
+      expression: 'd + op("/num").par.val',
+    })
+    expect(result.data).toBe(101)
+  })
+})
+
 describe('AccessorOp', () => {
   it('executes an AccessorOp', () => {
     const operator = new AccessorOp('/expression-0')
@@ -546,6 +646,38 @@ describe('AccessorOp', () => {
       expression: '',
     })
     expect(val.accessor).toEqual(expect.any(Function))
+  })
+})
+
+describe('AccessorOp op() error handling', () => {
+  beforeEach(() => {
+    const numOp = new NumberOp('/num')
+    numOp.inputs.val.setValue(5)
+    setOp('/num', numOp)
+  })
+
+  afterEach(() => {
+    deleteOp('/num')
+  })
+
+  it('should return undefined when operator not found (errors swallowed)', () => {
+    const accessorOp = new AccessorOp('/accessor')
+    const { accessor } = accessorOp.execute({
+      expression: 'op("/missing").par.value',
+    })
+    // AccessorOp has try-catch that swallows errors and returns undefined
+    // to prevent GPU crashes in deck.gl
+    const result = accessor({ value: 10 }, { index: 0, data: [] })
+    expect(result).toBeUndefined()
+  })
+
+  it('should still work with valid operator references', () => {
+    const accessorOp = new AccessorOp('/accessor')
+    const { accessor } = accessorOp.execute({
+      expression: 'd.value * op("/num").par.val',
+    })
+    const result = accessor({ value: 10 }, { index: 0, data: [] })
+    expect(result).toBe(50)
   })
 })
 
