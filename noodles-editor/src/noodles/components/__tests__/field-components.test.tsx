@@ -65,11 +65,6 @@ describe('CodeFieldComponent edge management', () => {
     clearOps()
   })
 
-  // Helper to setup a graph with operators
-  const setupGraph = (nodes: ReactFlowNode<{ inputs: Record<string, unknown> }>[]) => {
-    return transformGraph({ nodes, edges: [] }).operators
-  }
-
   // Helper to render CodeFieldComponent within the required contexts
   const renderCodeFieldComponent = (field: CodeField, disabled = false) => {
     return render(
@@ -101,7 +96,7 @@ describe('CodeFieldComponent edge management', () => {
       },
     ]
 
-    setupGraph(nodes)
+    transformGraph({ nodes, edges: [] })
 
     const queryOp = getOp('/duckdb-query') as DuckDbOp
     expect(queryOp).toBeDefined()
@@ -152,7 +147,7 @@ WHERE
       },
     ]
 
-    setupGraph(nodes)
+    transformGraph({ nodes, edges: [] })
 
     const queryOp = getOp('/duckdb-query') as DuckDbOp
     const queryField = queryOp.inputs.query as CodeField
@@ -198,7 +193,7 @@ WHERE id = {{./source1.out.val}}
       },
     ]
 
-    setupGraph(nodes)
+    transformGraph({ nodes, edges: [] })
 
     const queryOp = getOp('/duckdb-query') as DuckDbOp
     const queryField = queryOp.inputs.query as CodeField
@@ -246,7 +241,7 @@ WHERE id = {{./source1.out.val}}
       },
     ]
 
-    setupGraph(nodes)
+    transformGraph({ nodes, edges: [] })
 
     const queryOp = getOp('/duckdb-query') as DuckDbOp
     const queryField = queryOp.inputs.query as CodeField
@@ -293,7 +288,7 @@ WHERE id = {{./source1.out.val}}
       },
     ]
 
-    setupGraph(nodes)
+    transformGraph({ nodes, edges: [] })
 
     const queryOp = getOp('/duckdb-query') as DuckDbOp
     const queryField = queryOp.inputs.query as CodeField

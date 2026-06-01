@@ -18,11 +18,6 @@ describe('ContainerOpComponent children count reactivity', () => {
     clearOps()
   })
 
-  // Helper to setup a graph with operators
-  const setupGraph = (nodes: ReactFlowNode<{ inputs: Record<string, unknown> }>[]) => {
-    return transformGraph({ nodes, edges: [] }).operators
-  }
-
   // Helper to render ContainerOpComponent within the required contexts
   const renderContainerOpComponent = (containerId: string) => {
     const containerOp = getOp(containerId) as ContainerOp
@@ -55,7 +50,7 @@ describe('ContainerOpComponent children count reactivity', () => {
       },
     ]
 
-    setupGraph(nodes)
+    transformGraph({ nodes, edges: [] })
 
     const { container } = renderContainerOpComponent('/my-container')
 
@@ -85,7 +80,7 @@ describe('ContainerOpComponent children count reactivity', () => {
       },
     ]
 
-    setupGraph(nodes)
+    transformGraph({ nodes, edges: [] })
 
     const { container } = renderContainerOpComponent('/my-container')
 
@@ -110,7 +105,7 @@ describe('ContainerOpComponent children count reactivity', () => {
       },
     ]
 
-    setupGraph(initialNodes)
+    transformGraph({ nodes: initialNodes, edges: [] })
 
     const { container, rerender } = renderContainerOpComponent('/my-container')
 
@@ -129,7 +124,7 @@ describe('ContainerOpComponent children count reactivity', () => {
     ]
 
     // Transform the updated graph to add the new operator to the store
-    setupGraph(updatedNodes)
+    transformGraph({ nodes: updatedNodes, edges: [] })
 
     // Re-render to trigger the component update with Zustand subscription
     const ContainerComponent = nodeComponents.ContainerOp
@@ -173,7 +168,7 @@ describe('ContainerOpComponent children count reactivity', () => {
       },
     ]
 
-    setupGraph(nodes)
+    transformGraph({ nodes, edges: [] })
 
     const { container, rerender } = renderContainerOpComponent('/my-container')
 
@@ -237,7 +232,7 @@ describe('ContainerOpComponent children count reactivity', () => {
       },
     ]
 
-    setupGraph(nodes)
+    transformGraph({ nodes, edges: [] })
 
     const { container } = renderContainerOpComponent('/my-container')
 
@@ -267,7 +262,7 @@ describe('ContainerOpComponent children count reactivity', () => {
       },
     ]
 
-    setupGraph(nodes)
+    transformGraph({ nodes, edges: [] })
 
     // Outer container should have 1 child (the inner container)
     const { container: outerContainer } = renderContainerOpComponent('/outer-container')
