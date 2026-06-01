@@ -954,6 +954,12 @@ describe('Field references', () => {
     expect(references[0].opId).toEqual('/a')
     expect(references[1].opId).toEqual('/b')
   })
+
+  it('does not match mismatched quotes', () => {
+    const src = 'op(\'/path").out.val + op("/other\').par.value'
+    const references = getFieldReferences(src)
+    expect(references.length).toEqual(0)
+  })
 })
 
 describe('getFieldReferences self-parameter shorthand', () => {

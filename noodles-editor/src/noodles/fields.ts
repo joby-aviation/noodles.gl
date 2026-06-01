@@ -339,7 +339,7 @@ export const mustacheRe = new RegExp(
 )
 // Function-style references: op('/path/to/operator').out.val or op("/path/to/operator").out.val
 export const fnRe = new RegExp(
-  `op\\(['"](?<opId>${OPERATOR_ID_PATTERN})['"]\\)\\.(?<inOut>par|out)\\.(?<fieldPath>[\\w-.]+)`,
+  `op\\((?<q>['"])(?<opId>${OPERATOR_ID_PATTERN})\\k<q>\\)\\.(?<inOut>par|out)\\.(?<fieldPath>[\\w-.]+)`,
   'g'
 )
 
