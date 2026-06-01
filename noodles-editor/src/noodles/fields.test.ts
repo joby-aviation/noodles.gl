@@ -929,6 +929,37 @@ describe('Field references', () => {
     expect(references.length).toEqual(1)
     expect(references[0].opId).toEqual('../../grandparent/sibling')
   })
+
+  it('supports double-quoted op() references', () => {
+    const src = 'op("/source").out.data'
+    const references = getFieldReferences(src)
+    expect(references.length).toEqual(1)
+    expect(references[0].opId).toEqual('/source')
+    expect(references[0].inOut).toEqual('out')
+    expect(references[0].fieldPath).toEqual('data')
+  })
+
+  it('supports double-quoted relative path op() references', () => {
+    const src = 'op("./sibling").out.val + op("../parent").par.threshold'
+    const references = getFieldReferences(src)
+    expect(references.length).toEqual(2)
+    expect(references[0].opId).toEqual('./sibling')
+    expect(references[1].opId).toEqual('../parent')
+  })
+
+  it('handles mixed single and double quoted op() references', () => {
+    const src = 'op(\'/a\').out.val + op("/b").out.val'
+    const references = getFieldReferences(src)
+    expect(references.length).toEqual(2)
+    expect(references[0].opId).toEqual('/a')
+    expect(references[1].opId).toEqual('/b')
+  })
+
+  it('does not match mismatched quotes', () => {
+    const src = 'op(\'/path").out.val + op("/other\').par.value'
+    const references = getFieldReferences(src)
+    expect(references.length).toEqual(0)
+  })
 })
 
 describe('getFieldReferences self-parameter shorthand', () => {
