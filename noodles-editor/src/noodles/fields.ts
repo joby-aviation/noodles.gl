@@ -690,8 +690,9 @@ export class GeoJsonField<D extends Field = Field, TElement = unknown> extends F
 // Helper to extract coordinates from GeoJSON Point Features
 // Used by Point2DField and Point3DField to accept PointOp outputs directly
 function extractGeoJsonPointCoordinates(
-  val: unknown
-): { lng: number; lat: number; alt?: number } | null {
+  val: unknown,
+  dimensions: 2 | 3 = 3
+): { lng: number; lat: number; alt: number } | { lng: number; lat: number } | null {
   if (typeof val !== 'object' || val === null || Array.isArray(val)) {
     return null
   }
@@ -708,10 +709,16 @@ function extractGeoJsonPointCoordinates(
   // Extract coordinates from Point geometry
   if (geom.type === 'Point' && Array.isArray(geom.coordinates) && geom.coordinates.length >= 2) {
     const coords = geom.coordinates as number[]
+    if (dimensions === 3) {
+      return {
+        lng: coords[0],
+        lat: coords[1],
+        alt: coords.length >= 3 ? coords[2] : 0,
+      }
+    }
     return {
       lng: coords[0],
       lat: coords[1],
-      alt: coords.length >= 3 ? coords[2] : undefined,
     }
   }
 
@@ -751,14 +758,10 @@ export class Point3DField extends Field<
       z
         .unknown()
         .transform(val => {
-          // Try to extract GeoJSON Point Feature coordinates
-          const geoJsonCoords = extractGeoJsonPointCoordinates(val)
+          // Try to extract GeoJSON Point Feature coordinates (3D)
+          const geoJsonCoords = extractGeoJsonPointCoordinates(val, 3)
           if (geoJsonCoords) {
-            return {
-              lng: geoJsonCoords.lng,
-              lat: geoJsonCoords.lat,
-              alt: geoJsonCoords.alt ?? 0,
-            }
+            return geoJsonCoords
           }
 
           // Normalize column names: support Longitude/Latitude, longitude/latitude, lon/lat
@@ -821,10 +824,10 @@ export class Point3DField extends Field<
       z
         .unknown()
         .transform(val => {
-          // Try to extract GeoJSON Point Feature coordinates
-          const geoJsonCoords = extractGeoJsonPointCoordinates(val)
+          // Try to extract GeoJSON Point Feature coordinates (2D)
+          const geoJsonCoords = extractGeoJsonPointCoordinates(val, 2)
           if (geoJsonCoords) {
-            return { lng: geoJsonCoords.lng, lat: geoJsonCoords.lat }
+            return geoJsonCoords
           }
 
           // Normalize column names for 2D variant
@@ -919,10 +922,10 @@ export class Point2DField extends Field<
       z
         .unknown()
         .transform(val => {
-          // Try to extract GeoJSON Point Feature coordinates
-          const geoJsonCoords = extractGeoJsonPointCoordinates(val)
+          // Try to extract GeoJSON Point Feature coordinates (2D)
+          const geoJsonCoords = extractGeoJsonPointCoordinates(val, 2)
           if (geoJsonCoords) {
-            return { lng: geoJsonCoords.lng, lat: geoJsonCoords.lat }
+            return geoJsonCoords
           }
 
           // Normalize column names: support Longitude/Latitude, longitude/latitude, lon/lat
