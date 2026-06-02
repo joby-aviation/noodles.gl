@@ -2,7 +2,11 @@
 
 import type { Operator } from '../noodles/operators'
 import { getOpStore } from '../noodles/store'
-import { captureTimelineState, fireTimelineMutation, getTimelineStore } from '../timeline/timeline-store'
+import {
+  captureTimelineState,
+  fireTimelineMutation,
+  getTimelineStore,
+} from '../timeline/timeline-store'
 import type { Keyframe } from '../timeline/types'
 import { safeStringify } from '../noodles/utils/serialization'
 import type { ContextLoader } from './context-loader'
@@ -889,7 +893,12 @@ export class MCPTools {
   async getTimeline(): Promise<ToolResult> {
     try {
       const store = getTimelineStore()
-      const tracks: Record<string, { keyframes: Array<{ id: string; position: number; value: unknown; interpolation: string }> }> = {}
+      const tracks: Record<
+        string,
+        {
+          keyframes: Array<{ id: string; position: number; value: unknown; interpolation: string }>
+        }
+      > = {}
 
       for (const [trackId, track] of store.tracks) {
         tracks[trackId] = {
@@ -946,12 +955,20 @@ export class MCPTools {
       // Check for existing keyframe near this position (within 1 frame)
       const fps = store.sequence.fps
       const frameDuration = 1 / fps
-      const existing = track.keyframes.find((kf: Keyframe) => Math.abs(kf.position - position) < frameDuration)
+      const existing = track.keyframes.find(
+        (kf: Keyframe) => Math.abs(kf.position - position) < frameDuration
+      )
 
       if (existing) {
-        store.updateKeyframe(trackId, existing.id, { value: value as number | boolean | string, interpolation })
+        store.updateKeyframe(trackId, existing.id, {
+          value: value as number | boolean | string,
+          interpolation,
+        })
         fireTimelineMutation('Update keyframe via AI', before)
-        return { success: true, data: { keyframeId: existing.id, action: 'updated', trackId, position, value } }
+        return {
+          success: true,
+          data: { keyframeId: existing.id, action: 'updated', trackId, position, value },
+        }
       }
 
       const keyframeId = store.addKeyframe(trackId, {
