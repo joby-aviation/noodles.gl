@@ -890,7 +890,7 @@ export class MCPTools {
   }
 
   // Get the current timeline state
-  async getTimeline(): Promise<ToolResult> {
+  getTimeline(): ToolResult {
     try {
       const store = getTimelineStore()
       const tracks: Record<
@@ -935,12 +935,12 @@ export class MCPTools {
   }
 
   // Add or update a keyframe on an animated field
-  async setKeyframe(params: {
+  setKeyframe(params: {
     trackId: string
     position: number
     value: unknown
     interpolation?: 'bezier' | 'hold'
-  }): Promise<ToolResult> {
+  }): ToolResult {
     try {
       const { trackId, position, value, interpolation = 'bezier' } = params
       const store = getTimelineStore()
@@ -987,7 +987,7 @@ export class MCPTools {
   }
 
   // Delete a keyframe by ID
-  async deleteKeyframe(params: { trackId: string; keyframeId: string }): Promise<ToolResult> {
+  deleteKeyframe(params: { trackId: string; keyframeId: string }): ToolResult {
     try {
       const { trackId, keyframeId } = params
       const store = getTimelineStore()
@@ -1013,7 +1013,7 @@ export class MCPTools {
   }
 
   // Set the current playback position (scrub to a time)
-  async setPlaybackPosition(params: { position: number; play?: boolean }): Promise<ToolResult> {
+  setPlaybackPosition(params: { position: number; play?: boolean }): ToolResult {
     try {
       const store = getTimelineStore()
       const clamped = Math.max(0, Math.min(params.position, store.sequence.length))
