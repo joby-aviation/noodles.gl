@@ -129,25 +129,6 @@
   color: rgba(255, 255, 255, 0.5);
 }
 
-/* Edit mode icon */
-.editIcon {
-  cursor: pointer;
-  color: rgba(255, 255, 255, 0.4);
-  transition: all 0.2s;
-}
-
-.editIcon:hover {
-  color: rgba(255, 255, 255, 0.8);
-}
-
-.editIconActive {
-  color: #3b82f6;
-}
-
-.editIconActive:hover {
-  color: #60a5fa;
-}
-
 /* Add/Remove buttons */
 .addRemoveBtn {
   width: 18px;
