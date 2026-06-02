@@ -5,7 +5,7 @@ import * as Tooltip from '@radix-ui/react-tooltip'
 import {
   BaseEdge,
   type EdgeProps,
-  getBezierPath,
+  getSmoothStepPath,
   getStraightPath,
   Handle,
   NodeResizer,
@@ -229,13 +229,14 @@ function DefaultEdgeComponent({
 }: EdgeProps) {
   const targetedEdge = useUIStore(s => s.targetedEdge)
   const nodeDragState = useUIStore(s => s.nodeDragState)
-  const [edgePath] = getBezierPath({
+  const [edgePath] = getSmoothStepPath({
     sourceX,
     sourceY,
     targetX,
     targetY,
     sourcePosition,
     targetPosition,
+    borderRadius: 8,
   })
 
   // Edge is targeted if either connection drag or node drag is targeting it
