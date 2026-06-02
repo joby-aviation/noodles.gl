@@ -626,7 +626,86 @@ Any field can be keyframed via the native timeline system. Changes in timeline p
 9. **Document edge cases** - Users may not expect implementation-specific behavior
 10. **Keep PRs focused** - Split large changes into reviewable chunks when possible
 
+## Using Claude Code with Noodles.gl
+
+This section covers using Claude Code (the CLI tool) to work directly with projects, as opposed to the in-app Claude chat panel.
+
+### Setup
+
+```bash
+# Start the dev server
+cd noodles-editor && npm start
+
+# Projects are in noodles-editor/public/examples/
+# Each project directory contains a noodles.json and optional data files
+ls noodles-editor/public/examples/
+```
+
+### Editing Project Files Directly
+
+Project files (`noodles.json`) are plain JSON and can be read and written by Claude Code. See the **Project Files** section above for the full schema. Key points:
+
+- Node IDs are Unix-style paths: `/my-node`, `/container/child`
+- Edge handles: `out.fieldName` (source) → `par.fieldName` (target)
+- Only non-default input values need to be serialized
+- Version 6 is current; do not change the version field
+
+### Validating Changes
+
+After editing a project file, run the project's tests to catch schema issues:
+
+```bash
+cd noodles-editor && npm test src/noodles/storage.test.ts
+```
+
+Load it in the browser at `http://localhost:5173/examples/<project-name>` to visually verify.
+
+### Connecting Claude Code to a Running Browser Instance
+
+The MCP proxy bridges Claude Code to a running Noodles browser session, giving access to the same 18+ tools the in-app chat uses:
+
+```bash
+# 1. Start the app with external control enabled
+# Open: http://localhost:5173/examples/nyc-taxis?externalControl=true
+
+# 2. Start the MCP proxy (in a separate terminal)
+node noodles-editor/examples/external-control/mcp-proxy.js
+
+# 3. Add to Claude Desktop config (~/.claude/claude_desktop_config.json):
+{
+  "mcpServers": {
+    "noodles": {
+      "command": "node",
+      "args": ["/path/to/noodles-editor/examples/external-control/mcp-proxy.js"]
+    }
+  }
+}
+```
+
+The proxy exposes tools: `getCurrentProject`, `listNodes`, `createNode`, `connectNodes`, `captureVisualization`, and more — the same surface as the in-app chat.
+
+### Graph Design Guidelines for Claude Code
+
+When generating or modifying `noodles.json` programmatically:
+
+- **Keep graphs simple** — aim for 5–8 nodes. A human must be able to read and modify the result.
+- **Prefer CodeOp for data transformation** over chaining FilterOp → MapOp → SortOp. One CodeOp node with a few lines of JavaScript is more reliable and easier to inspect:
+  ```json
+  {
+    "id": "/transform",
+    "type": "CodeOp",
+    "data": { "inputs": { "code": "return data.filter(d => d.value > 0).sort((a,b) => b.value - a.value)" } }
+  }
+  ```
+- **Standard pipeline**: FileOp/DuckDbOp → CodeOp (transform) → AccessorOp (position) → LayerOp → DeckRendererOp
+- **Always include MaplibreBasemapOp** for geographic visualizations
+- **Verify handle names** using `get_operator_schema` or the operator registry before writing edges
+
+### Timeline / Animation
+
+The timeline is serialized inside `noodles.json` under the `"timeline"` key. The structure is complex — prefer using the in-app chat's `set_keyframe` / `get_timeline` tools rather than editing the timeline JSON directly.
+
 ---
 
-**Last Updated**: 2025-12-01
+**Last Updated**: 2026-06-02
 **Version**: Based on project version 6 schema

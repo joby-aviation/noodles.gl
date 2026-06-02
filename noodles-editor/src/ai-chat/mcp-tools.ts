@@ -2,6 +2,8 @@
 
 import type { Operator } from '../noodles/operators'
 import { getOpStore } from '../noodles/store'
+import { captureTimelineState, fireTimelineMutation, getTimelineStore } from '../timeline/timeline-store'
+import type { Keyframe } from '../timeline/types'
 import { safeStringify } from '../noodles/utils/serialization'
 import type { ContextLoader } from './context-loader'
 import type {
@@ -879,6 +881,133 @@ export class MCPTools {
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to get node info',
+      }
+    }
+  }
+
+  // Get the current timeline state
+  async getTimeline(): Promise<ToolResult> {
+    try {
+      const store = getTimelineStore()
+      const tracks: Record<string, { keyframes: Array<{ id: string; position: number; value: unknown; interpolation: string }> }> = {}
+
+      for (const [trackId, track] of store.tracks) {
+        tracks[trackId] = {
+          keyframes: track.keyframes.map((kf: Keyframe) => ({
+            id: kf.id,
+            position: kf.position,
+            value: kf.value,
+            interpolation: kf.interpolation,
+          })),
+        }
+      }
+
+      return {
+        success: true,
+        data: {
+          sequence: {
+            length: store.sequence.length,
+            fps: store.sequence.fps,
+            inPoint: store.sequence.inPoint,
+            outPoint: store.sequence.outPoint,
+          },
+          position: store.position,
+          playing: store.playing,
+          trackCount: store.tracks.size,
+          tracks,
+        },
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to get timeline state',
+      }
+    }
+  }
+
+  // Add or update a keyframe on an animated field
+  async setKeyframe(params: {
+    trackId: string
+    position: number
+    value: unknown
+    interpolation?: 'bezier' | 'hold'
+  }): Promise<ToolResult> {
+    try {
+      const { trackId, position, value, interpolation = 'bezier' } = params
+      const store = getTimelineStore()
+
+      const before = captureTimelineState()
+
+      let track = store.tracks.get(trackId)
+      if (!track) {
+        track = store.getOrCreateTrack(trackId, value as number | boolean | string)
+      }
+
+      // Check for existing keyframe near this position (within 1 frame)
+      const fps = store.sequence.fps
+      const frameDuration = 1 / fps
+      const existing = track.keyframes.find((kf: Keyframe) => Math.abs(kf.position - position) < frameDuration)
+
+      if (existing) {
+        store.updateKeyframe(trackId, existing.id, { value: value as number | boolean | string, interpolation })
+        fireTimelineMutation('Update keyframe via AI', before)
+        return { success: true, data: { keyframeId: existing.id, action: 'updated', trackId, position, value } }
+      }
+
+      const keyframeId = store.addKeyframe(trackId, {
+        position,
+        value: value as number | boolean | string,
+        interpolation,
+      })
+
+      return { success: true, data: { keyframeId, action: 'added', trackId, position, value } }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to set keyframe',
+      }
+    }
+  }
+
+  // Delete a keyframe by ID
+  async deleteKeyframe(params: { trackId: string; keyframeId: string }): Promise<ToolResult> {
+    try {
+      const { trackId, keyframeId } = params
+      const store = getTimelineStore()
+      const track = store.tracks.get(trackId)
+
+      if (!track) {
+        return { success: false, error: `Track not found: ${trackId}` }
+      }
+
+      const exists = track.keyframes.some((kf: Keyframe) => kf.id === keyframeId)
+      if (!exists) {
+        return { success: false, error: `Keyframe not found: ${keyframeId}` }
+      }
+
+      store.deleteKeyframe(trackId, keyframeId)
+      return { success: true, data: { deleted: keyframeId, trackId } }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to delete keyframe',
+      }
+    }
+  }
+
+  // Set the current playback position (scrub to a time)
+  async setPlaybackPosition(params: { position: number; play?: boolean }): Promise<ToolResult> {
+    try {
+      const store = getTimelineStore()
+      const clamped = Math.max(0, Math.min(params.position, store.sequence.length))
+      store.setPosition(clamped)
+      if (params.play === true) store.play()
+      else if (params.play === false) store.pause()
+      return { success: true, data: { position: clamped, playing: store.playing } }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to set playback position',
       }
     }
   }
