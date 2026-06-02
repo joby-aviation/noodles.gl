@@ -26,9 +26,16 @@ jobs:
           fi
           page=1
           while true; do
-            response=$(curl -sf \
+            response=$(curl -sS \
               "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/pages/projects/$CF_PROJECT/deployments?per_page=25&page=$page" \
-              -H "Authorization: Bearer $CF_API_TOKEN")
+              -H "Authorization: Bearer $CF_API_TOKEN") || true
+
+            # Check if API call succeeded
+            if ! echo "$response" | jq -e '.success == true' > /dev/null 2>&1; then
+              echo "Warning: Cloudflare API error on page $page"
+              echo "$response" | jq -r '.errors[]?.message // "Unknown error"' 2>/dev/null || echo "Could not parse error response"
+              break
+            fi
 
             echo "$response" | jq -r \
               --arg branch "$BRANCH" \
@@ -41,10 +48,17 @@ jobs:
               ) | .id' \
             | while read -r id; do
                 echo "Cancelling deployment $id for branch $BRANCH"
-                curl -sf -X POST \
+                cancel_response=$(curl -sS -X POST \
                   "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/pages/projects/$CF_PROJECT/deployments/$id/cancel" \
                   -H "Authorization: Bearer $CF_API_TOKEN" \
-                  -H "Content-Type: application/json"
+                  -H "Content-Type: application/json") || true
+
+                if ! echo "$cancel_response" | jq -e '.success == true' > /dev/null 2>&1; then
+                  echo "Warning: Failed to cancel deployment $id"
+                  echo "$cancel_response" | jq -r '.errors[]?.message // "Unknown error"' 2>/dev/null || true
+                else
+                  echo "Successfully cancelled deployment $id"
+                fi
               done
 
             total=$(echo "$response" | jq '.result_info.total_count')
