@@ -824,13 +824,8 @@ export class Point3DField extends Field<
       z
         .unknown()
         .transform(val => {
-          // Try to extract GeoJSON Point Feature coordinates (2D)
-          const geoJsonCoords = extractGeoJsonPointCoordinates(val, 2)
-          if (geoJsonCoords) {
-            return geoJsonCoords
-          }
-
-          // Normalize column names for 2D variant
+          // Normalize column names for 2D variant (no altitude)
+          // Note: GeoJSON Features are handled by the first union arm
           if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
             const obj = val as Record<string, unknown>
             const normalized: Record<string, unknown> = {}
