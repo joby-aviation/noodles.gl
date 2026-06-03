@@ -197,6 +197,19 @@ import { projectScheme } from './utils/filesystem'
 import type { OpId } from './utils/id-utils'
 import { isDirectChild } from './utils/path-utils'
 import { pick } from './utils/pick'
+import type { CompilationContext, SQLCompilable, SQLFragment } from './sql-compiler/types'
+import {
+  castOpToSQL,
+  coalesceOpToSQL,
+  fillNullsOpToSQL,
+  groupByOpToSQL,
+  joinOpToSQL,
+  pivotOpToSQL,
+  stringTransformOpToSQL,
+  uniqueOpToSQL,
+  unpivotOpToSQL,
+  windowOpToSQL,
+} from './sql-compiler/sql-operators'
 import { getTimelineContext } from './utils/timeline-context'
 import { subscribeOpToTimeline, unsubscribeOpFromTimeline } from './utils/timeline-dependencies'
 import { validateViewState } from './utils/viewstate-helpers'
@@ -3374,6 +3387,557 @@ export class SortOp extends Operator<SortOp> {
     return { data: sorted }
   }
 }
+
+// --- SQL-Native Operators ---
+// These operators have both execute() (POJO fallback) and toSQL() (SQL compilation)
+
+function sqlGetUpstreamId(op: any): string {
+  const deps: Set<any> = op._upstreamDependencies
+  if (deps?.size > 0) return deps.values().next().value.id
+  return ''
+}
+
+function sqlParseAggregations(str: string): Array<{ column: string; function: string; alias?: string }> {
+  if (!str) return []
+  return str.split(';').map(s => s.trim()).filter(Boolean).map(spec => {
+    const match = spec.match(/^(\w+)\(([^)]+)\)(?:\s+as\s+(\w+))?$/i)
+    if (match) return { function: match[1].toLowerCase(), column: match[2], alias: match[3] }
+    return { function: 'count', column: '*', alias: spec }
+  })
+}
+
+function sqlComputeAgg(rows: any[], agg: { column: string; function: string }): number {
+  if (agg.column === '*' && agg.function === 'count') return rows.length
+  const vals = rows.map(r => Number(r[agg.column])).filter(v => !Number.isNaN(v))
+  switch (agg.function) {
+    case 'sum': return vals.reduce((a, b) => a + b, 0)
+    case 'avg': return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0
+    case 'min': return Math.min(...vals)
+    case 'max': return Math.max(...vals)
+    case 'count': return vals.length
+    default: return 0
+  }
+}
+
+function sqlWindowAgg(vals: number[], fn: string): number {
+  switch (fn) {
+    case 'sum': return vals.reduce((a, b) => a + b, 0)
+    case 'avg': return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0
+    case 'min': return Math.min(...vals)
+    case 'max': return Math.max(...vals)
+    default: return 0
+  }
+}
+
+export class GroupByOp extends Operator<GroupByOp> implements SQLCompilable {
+  static displayName = 'GroupBy'
+  static description = 'Group data by columns and compute aggregations (e.g. sum(price) as total; count(*) as n)'
+
+  createInputs() {
+    const data = new DataField(new ArrayField(new UnknownField()))
+    const groupByColumns = new StringField('')
+    const aggregations = new StringField('')
+    return { data, groupByColumns, aggregations }
+  }
+
+  createOutputs() {
+    return { data: new DataField() }
+  }
+
+  execute({ data, groupByColumns, aggregations }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!data?.length || !groupByColumns) return { data: [] }
+    const groupCols = (groupByColumns as string).split(',').map(s => s.trim()).filter(Boolean)
+    const aggs = sqlParseAggregations(aggregations as string)
+
+    const groups = new Map<string, any[]>()
+    for (const row of data) {
+      const key = groupCols.map(c => row[c]).join('|')
+      if (!groups.has(key)) groups.set(key, [])
+      groups.get(key)!.push(row)
+    }
+
+    const result: any[] = []
+    for (const [, rows] of groups) {
+      const out: any = {}
+      for (const col of groupCols) out[col] = rows[0][col]
+      for (const agg of aggs) out[agg.alias || `${agg.function}_${agg.column}`] = sqlComputeAgg(rows, agg)
+      result.push(out)
+    }
+    return { data: result }
+  }
+
+  toSQL(ctx: CompilationContext): SQLFragment {
+    const groupCols = (this.inputs.groupByColumns.value as string).split(',').map(s => s.trim()).filter(Boolean)
+    const aggs = sqlParseAggregations(this.inputs.aggregations.value as string)
+    return groupByOpToSQL(this.id, { groupByColumns: groupCols, aggregations: aggs }, sqlGetUpstreamId(this), ctx)
+  }
+}
+
+export class JoinOp extends Operator<JoinOp> implements SQLCompilable {
+  static displayName = 'Join'
+  static description = 'Join two datasets on matching keys'
+
+  createInputs() {
+    return {
+      left: new DataField(new ArrayField(new UnknownField())),
+      right: new DataField(new ArrayField(new UnknownField())),
+      leftKey: new StringField(''),
+      rightKey: new StringField(''),
+      joinType: new StringLiteralField('left', { values: ['inner', 'left', 'right', 'full', 'cross'] }),
+    }
+  }
+
+  createOutputs() {
+    return { data: new DataField() }
+  }
+
+  execute({ left, right, leftKey, rightKey, joinType }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!left?.length || !right?.length) return { data: [] }
+
+    if (joinType === 'cross') {
+      const result: any[] = []
+      for (const l of left) for (const r of right) result.push({ ...l, ...r })
+      return { data: result }
+    }
+
+    const rightIndex = new Map<unknown, any[]>()
+    for (const row of right) {
+      const key = row[rightKey as string]
+      if (!rightIndex.has(key)) rightIndex.set(key, [])
+      rightIndex.get(key)!.push(row)
+    }
+
+    const result: any[] = []
+    for (const l of left) {
+      const matches = rightIndex.get(l[leftKey as string]) || []
+      if (matches.length > 0) {
+        for (const r of matches) result.push({ ...l, ...r })
+      } else if (joinType === 'left' || joinType === 'full') {
+        result.push({ ...l })
+      }
+    }
+    if (joinType === 'right' || joinType === 'full') {
+      const leftKeys = new Set(left.map(l => l[leftKey as string]))
+      for (const r of right) {
+        if (!leftKeys.has(r[rightKey as string])) result.push({ ...r })
+      }
+    }
+    return { data: result }
+  }
+
+  toSQL(ctx: CompilationContext): SQLFragment {
+    const deps = Array.from((this as any)._upstreamDependencies || [])
+    const leftId = deps[0]?.id ?? ''
+    const rightId = deps[1]?.id ?? ''
+    return joinOpToSQL(this.id, {
+      leftKey: this.inputs.leftKey.value as string,
+      rightKey: this.inputs.rightKey.value as string,
+      joinType: this.inputs.joinType.value as any,
+    }, leftId, rightId, ctx)
+  }
+}
+
+export class UniqueOp extends Operator<UniqueOp> implements SQLCompilable {
+  static displayName = 'Unique'
+  static description = 'Remove duplicate rows'
+
+  createInputs() {
+    return {
+      data: new DataField(new ArrayField(new UnknownField())),
+      columns: new StringField(''),
+    }
+  }
+
+  createOutputs() {
+    return { data: new DataField() }
+  }
+
+  execute({ data, columns }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!data?.length) return { data: [] }
+    const cols = columns ? (columns as string).split(',').map(s => s.trim()).filter(Boolean) : null
+    const seen = new Set<string>()
+    const result: any[] = []
+    for (const row of data) {
+      const key = cols ? cols.map(c => JSON.stringify(row[c])).join('|') : JSON.stringify(row)
+      if (!seen.has(key)) { seen.add(key); result.push(row) }
+    }
+    return { data: result }
+  }
+
+  toSQL(ctx: CompilationContext): SQLFragment {
+    const cols = (this.inputs.columns.value as string).split(',').map(s => s.trim()).filter(Boolean)
+    return uniqueOpToSQL(this.id, { columns: cols.length > 0 ? cols : undefined }, sqlGetUpstreamId(this), ctx)
+  }
+}
+
+export class PivotOp extends Operator<PivotOp> implements SQLCompilable {
+  static displayName = 'Pivot'
+  static description = 'Pivot rows into columns (wide format)'
+
+  createInputs() {
+    return {
+      data: new DataField(new ArrayField(new UnknownField())),
+      pivotColumn: new StringField(''),
+      valueColumn: new StringField(''),
+      indexColumn: new StringField(''),
+      aggregation: new StringLiteralField('sum', { values: ['sum', 'avg', 'count', 'min', 'max', 'first', 'last'] }),
+    }
+  }
+
+  createOutputs() {
+    return { data: new DataField() }
+  }
+
+  execute({ data, pivotColumn, valueColumn, indexColumn, aggregation }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!data?.length || !pivotColumn || !valueColumn || !indexColumn) return { data: [] }
+    const groups = new Map<unknown, Map<unknown, number[]>>()
+    for (const row of data) {
+      const idx = row[indexColumn as string]
+      const piv = row[pivotColumn as string]
+      const val = Number(row[valueColumn as string])
+      if (!groups.has(idx)) groups.set(idx, new Map())
+      const pivMap = groups.get(idx)!
+      if (!pivMap.has(piv)) pivMap.set(piv, [])
+      pivMap.get(piv)!.push(val)
+    }
+    const result: any[] = []
+    for (const [idx, pivMap] of groups) {
+      const out: any = { [indexColumn as string]: idx }
+      for (const [piv, vals] of pivMap) {
+        const fn = aggregation as string
+        let v = 0
+        switch (fn) {
+          case 'sum': v = vals.reduce((a, b) => a + b, 0); break
+          case 'avg': v = vals.reduce((a, b) => a + b, 0) / vals.length; break
+          case 'min': v = Math.min(...vals); break
+          case 'max': v = Math.max(...vals); break
+          case 'count': v = vals.length; break
+          case 'first': v = vals[0]; break
+          case 'last': v = vals[vals.length - 1]; break
+        }
+        out[String(piv)] = v
+      }
+      result.push(out)
+    }
+    return { data: result }
+  }
+
+  toSQL(ctx: CompilationContext): SQLFragment {
+    return pivotOpToSQL(this.id, {
+      pivotColumn: this.inputs.pivotColumn.value as string,
+      valueColumn: this.inputs.valueColumn.value as string,
+      indexColumn: this.inputs.indexColumn.value as string,
+      aggregation: this.inputs.aggregation.value as string,
+    }, sqlGetUpstreamId(this), ctx)
+  }
+}
+
+export class UnpivotOp extends Operator<UnpivotOp> implements SQLCompilable {
+  static displayName = 'Unpivot'
+  static description = 'Unpivot columns into rows (long format)'
+
+  createInputs() {
+    return {
+      data: new DataField(new ArrayField(new UnknownField())),
+      valueColumns: new StringField(''),
+      variableName: new StringField('variable'),
+      valueName: new StringField('value'),
+    }
+  }
+
+  createOutputs() {
+    return { data: new DataField() }
+  }
+
+  execute({ data, valueColumns, variableName, valueName }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!data?.length || !valueColumns) return { data: [] }
+    const valCols = (valueColumns as string).split(',').map(s => s.trim()).filter(Boolean)
+    const result: any[] = []
+    for (const row of data) {
+      const base: any = {}
+      for (const [k, v] of Object.entries(row)) {
+        if (!valCols.includes(k)) base[k] = v
+      }
+      for (const col of valCols) {
+        result.push({ ...base, [variableName as string]: col, [valueName as string]: row[col] })
+      }
+    }
+    return { data: result }
+  }
+
+  toSQL(ctx: CompilationContext): SQLFragment {
+    const valCols = (this.inputs.valueColumns.value as string).split(',').map(s => s.trim()).filter(Boolean)
+    return unpivotOpToSQL(this.id, {
+      valueColumns: valCols,
+      variableName: this.inputs.variableName.value as string,
+      valueName: this.inputs.valueName.value as string,
+    }, sqlGetUpstreamId(this), ctx)
+  }
+}
+
+export class WindowOp extends Operator<WindowOp> implements SQLCompilable {
+  static displayName = 'Window'
+  static description = 'Apply window functions (rolling aggregates, rank, lag/lead)'
+
+  createInputs() {
+    return {
+      data: new DataField(new ArrayField(new UnknownField())),
+      column: new StringField(''),
+      function: new StringLiteralField('row_number', {
+        values: ['row_number', 'rank', 'dense_rank', 'lag', 'lead', 'sum', 'avg', 'min', 'max'],
+      }),
+      partitionBy: new StringField(''),
+      orderBy: new StringField(''),
+      order: new StringLiteralField('asc', { values: ['asc', 'desc'] }),
+      windowSize: new NumberField(0, { min: 0, step: 1 }),
+      outputColumn: new StringField(''),
+    }
+  }
+
+  createOutputs() {
+    return { data: new DataField() }
+  }
+
+  execute({ data, column, function: fn, partitionBy, orderBy, order, windowSize, outputColumn }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!data?.length) return { data: [] }
+    const outCol = (outputColumn as string) || `${fn}_${column}`
+    const partCols = partitionBy ? (partitionBy as string).split(',').map(s => s.trim()).filter(Boolean) : []
+    const orderKey = orderBy as string
+
+    const sorted = [...data].sort((a, b) => {
+      for (const p of partCols) { if (a[p] < b[p]) return -1; if (a[p] > b[p]) return 1 }
+      if (orderKey) { const cmp = a[orderKey] < b[orderKey] ? -1 : a[orderKey] > b[orderKey] ? 1 : 0; return order === 'desc' ? -cmp : cmp }
+      return 0
+    })
+
+    const partitions = new Map<string, any[]>()
+    for (const row of sorted) {
+      const key = partCols.map(c => row[c]).join('|')
+      if (!partitions.has(key)) partitions.set(key, [])
+      partitions.get(key)!.push(row)
+    }
+
+    const result: any[] = []
+    for (const [, rows] of partitions) {
+      for (let i = 0; i < rows.length; i++) {
+        const out = { ...rows[i] }
+        switch (fn) {
+          case 'row_number': out[outCol] = i + 1; break
+          case 'rank': case 'dense_rank': out[outCol] = i + 1; break
+          case 'lag': out[outCol] = i > 0 ? rows[i - 1][column as string] : null; break
+          case 'lead': out[outCol] = i < rows.length - 1 ? rows[i + 1][column as string] : null; break
+          case 'sum': case 'avg': case 'min': case 'max': {
+            const size = (windowSize as number) || rows.length
+            const start = Math.max(0, i - size + 1)
+            const vals = rows.slice(start, i + 1).map(r => Number(r[column as string]))
+            out[outCol] = sqlWindowAgg(vals, fn as string)
+            break
+          }
+        }
+        result.push(out)
+      }
+    }
+    return { data: result }
+  }
+
+  toSQL(ctx: CompilationContext): SQLFragment {
+    const partCols = (this.inputs.partitionBy.value as string).split(',').map(s => s.trim()).filter(Boolean)
+    return windowOpToSQL(this.id, {
+      column: this.inputs.column.value as string,
+      function: this.inputs.function.value as any,
+      partitionBy: partCols.length > 0 ? partCols : undefined,
+      orderBy: this.inputs.orderBy.value as string,
+      order: this.inputs.order.value as 'asc' | 'desc',
+      windowSize: (this.inputs.windowSize.value as number) || undefined,
+      outputColumn: (this.inputs.outputColumn.value as string) || undefined,
+    }, sqlGetUpstreamId(this), ctx)
+  }
+}
+
+export class CastOp extends Operator<CastOp> implements SQLCompilable {
+  static displayName = 'Cast'
+  static description = 'Cast a column to a different type'
+
+  createInputs() {
+    return {
+      data: new DataField(new ArrayField(new UnknownField())),
+      column: new StringField(''),
+      targetType: new StringLiteralField('INTEGER', { values: ['INTEGER', 'DOUBLE', 'VARCHAR', 'BOOLEAN', 'DATE', 'TIMESTAMP', 'BIGINT'] }),
+      outputColumn: new StringField(''),
+    }
+  }
+
+  createOutputs() {
+    return { data: new DataField() }
+  }
+
+  execute({ data, column, targetType, outputColumn }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!data?.length || !column) return { data: [] }
+    const outCol = (outputColumn as string) || (column as string)
+    return {
+      data: data.map(row => {
+        let val: unknown = row[column as string]
+        if (val == null) return { ...row, [outCol]: null }
+        switch (targetType) {
+          case 'INTEGER': case 'BIGINT': val = Math.round(Number(val)); break
+          case 'DOUBLE': val = Number(val); break
+          case 'VARCHAR': val = String(val); break
+          case 'BOOLEAN': val = Boolean(val); break
+          case 'DATE': case 'TIMESTAMP': val = new Date(val as string).toISOString(); break
+        }
+        return { ...row, [outCol]: val }
+      }),
+    }
+  }
+
+  toSQL(ctx: CompilationContext): SQLFragment {
+    return castOpToSQL(this.id, {
+      column: this.inputs.column.value as string,
+      targetType: this.inputs.targetType.value as string,
+      outputColumn: (this.inputs.outputColumn.value as string) || undefined,
+    }, sqlGetUpstreamId(this), ctx)
+  }
+}
+
+export class StringTransformOp extends Operator<StringTransformOp> implements SQLCompilable {
+  static displayName = 'StringTransform'
+  static description = 'Apply string transformations (upper, lower, trim, regex, etc.)'
+
+  createInputs() {
+    return {
+      data: new DataField(new ArrayField(new UnknownField())),
+      column: new StringField(''),
+      operation: new StringLiteralField('upper', {
+        values: ['upper', 'lower', 'trim', 'title', 'length', 'reverse', 'hash_md5', 'regex_extract', 'regex_replace'],
+      }),
+      pattern: new StringField(''),
+      replacement: new StringField(''),
+      outputColumn: new StringField(''),
+    }
+  }
+
+  createOutputs() {
+    return { data: new DataField() }
+  }
+
+  execute({ data, column, operation, pattern, replacement, outputColumn }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!data?.length || !column) return { data: [] }
+    const outCol = (outputColumn as string) || (column as string)
+    return {
+      data: data.map(row => {
+        const val = String(row[column as string] ?? '')
+        let result: unknown
+        switch (operation) {
+          case 'upper': result = val.toUpperCase(); break
+          case 'lower': result = val.toLowerCase(); break
+          case 'trim': result = val.trim(); break
+          case 'title': result = val.replace(/\b\w/g, c => c.toUpperCase()); break
+          case 'length': result = val.length; break
+          case 'reverse': result = val.split('').reverse().join(''); break
+          case 'regex_extract': { const m = val.match(new RegExp(pattern as string)); result = m?.[1] ?? m?.[0] ?? null; break }
+          case 'regex_replace': result = val.replace(new RegExp(pattern as string, 'g'), replacement as string); break
+          default: result = val
+        }
+        return { ...row, [outCol]: result }
+      }),
+    }
+  }
+
+  toSQL(ctx: CompilationContext): SQLFragment {
+    return stringTransformOpToSQL(this.id, {
+      column: this.inputs.column.value as string,
+      operation: this.inputs.operation.value as string,
+      pattern: (this.inputs.pattern.value as string) || undefined,
+      replacement: (this.inputs.replacement.value as string) || undefined,
+      outputColumn: (this.inputs.outputColumn.value as string) || undefined,
+    }, sqlGetUpstreamId(this), ctx)
+  }
+}
+
+export class CoalesceOp extends Operator<CoalesceOp> implements SQLCompilable {
+  static displayName = 'Coalesce'
+  static description = 'Return first non-null value across columns'
+
+  createInputs() {
+    return {
+      data: new DataField(new ArrayField(new UnknownField())),
+      columns: new StringField(''),
+      outputColumn: new StringField('coalesced'),
+    }
+  }
+
+  createOutputs() {
+    return { data: new DataField() }
+  }
+
+  execute({ data, columns, outputColumn }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!data?.length || !columns) return { data: [] }
+    const cols = (columns as string).split(',').map(s => s.trim()).filter(Boolean)
+    return {
+      data: data.map(row => ({
+        ...row,
+        [outputColumn as string]: cols.reduce((acc: unknown, col) => acc ?? row[col], null),
+      })),
+    }
+  }
+
+  toSQL(ctx: CompilationContext): SQLFragment {
+    const cols = (this.inputs.columns.value as string).split(',').map(s => s.trim()).filter(Boolean)
+    return coalesceOpToSQL(this.id, { columns: cols, outputColumn: this.inputs.outputColumn.value as string }, sqlGetUpstreamId(this), ctx)
+  }
+}
+
+export class FillNullsOp extends Operator<FillNullsOp> implements SQLCompilable {
+  static displayName = 'FillNulls'
+  static description = 'Fill null values using forward fill, backward fill, or a constant'
+
+  createInputs() {
+    return {
+      data: new DataField(new ArrayField(new UnknownField())),
+      column: new StringField(''),
+      strategy: new StringLiteralField('forward', { values: ['forward', 'backward', 'constant'] }),
+      constantValue: new StringField(''),
+      orderBy: new StringField(''),
+    }
+  }
+
+  createOutputs() {
+    return { data: new DataField() }
+  }
+
+  execute({ data, column, strategy, constantValue, orderBy }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!data?.length || !column) return { data: [] }
+    const col = column as string
+    const sorted = orderBy
+      ? [...data].sort((a, b) => (a[orderBy as string] < b[orderBy as string] ? -1 : 1))
+      : [...data]
+
+    if (strategy === 'constant') {
+      return { data: sorted.map(row => ({ ...row, [col]: row[col] ?? constantValue })) }
+    }
+
+    const result = sorted.map(row => ({ ...row }))
+    if (strategy === 'forward') {
+      let last: unknown = null
+      for (const row of result) { if (row[col] != null) last = row[col]; else row[col] = last }
+    } else {
+      let last: unknown = null
+      for (let i = result.length - 1; i >= 0; i--) { if (result[i][col] != null) last = result[i][col]; else result[i][col] = last }
+    }
+    return { data: result }
+  }
+
+  toSQL(ctx: CompilationContext): SQLFragment {
+    return fillNullsOpToSQL(this.id, {
+      column: this.inputs.column.value as string,
+      strategy: this.inputs.strategy.value as 'forward' | 'backward' | 'constant',
+      constantValue: (this.inputs.constantValue.value as string) || undefined,
+      orderBy: (this.inputs.orderBy.value as string) || undefined,
+    }, sqlGetUpstreamId(this), ctx)
+  }
+}
+
+// --- End SQL-Native Operators ---
 
 export class RandomizeAttributeOp extends Operator<RandomizeAttributeOp> {
   static displayName = 'RandomizeAttribute'
@@ -8160,9 +8724,11 @@ export const opTypes = {
   BoundsOp,
   BrightnessContrastExtensionOp,
   BrushingExtensionOp,
+  CastOp,
   CategoricalColorRampOp,
   ChartOp,
   ClipExtensionOp,
+  CoalesceOp,
   CodeOp,
   CollisionFilterExtensionOp,
   CompassWidgetOp,
@@ -8185,6 +8751,7 @@ export const opTypes = {
   ExpressionOp,
   ExtentOp,
   FileOp,
+  FillNullsOp,
   FillStyleExtensionOp,
   FilterOp,
   FirstPersonViewOp,
@@ -8204,6 +8771,7 @@ export const opTypes = {
   GreatCircleLayerOp,
   GridCellLayerOp,
   GridLayerOp,
+  GroupByOp,
   H3ClusterLayerOp,
   H3HexagonLayerOp,
   HeatmapLayerOp,
@@ -8211,6 +8779,7 @@ export const opTypes = {
   HSLOp,
   HueSaturationExtensionOp,
   IconLayerOp,
+  JoinOp,
   JSONOp,
   KmlToGeoJsonOp,
   LayerPropsOp,
@@ -8234,6 +8803,7 @@ export const opTypes = {
   OutOp,
   PathLayerOp,
   PathStyleExtensionOp,
+  PivotOp,
   PointCloudLayerOp,
   PointOp,
   PolygonLayerOp,
@@ -8258,6 +8828,7 @@ export const opTypes = {
   SolidPolygonLayerOp,
   SortOp,
   SplitRGBAOp,
+  StringTransformOp,
   SplitMapViewStateOp,
   SplitXYOp,
   SplitXYZOp,
@@ -8272,9 +8843,12 @@ export const opTypes = {
   TimeOp,
   TimeSeriesOp,
   TripsLayerOp,
+  UniqueOp,
+  UnpivotOp,
   UnprojectOp,
   VibranceExtensionOp,
   ViewerOp,
+  WindowOp,
   ZoomWidgetOp,
 } as const // as Record<OpType, typeof Operator>
 
