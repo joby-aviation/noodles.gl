@@ -43,18 +43,22 @@ export type OperatorTemplate = StaticTemplate | DynamicTemplate
 
 // --- Static Templates ---
 
-export const fileOpTemplate: StaticTemplate = {
-  sql: 'SELECT * FROM read_csv_auto({{$url}}, header=true, auto_detect=true)',
-  params: [{ field: 'url', type: 'string' }],
-  identifiers: [],
+export const fileOpTemplate: DynamicTemplate = {
+  dynamic: true,
   upstreamCount: 0,
-}
-
-export const fileOpJsonTemplate: StaticTemplate = {
-  sql: 'SELECT * FROM read_json_auto({{$url}})',
-  params: [{ field: 'url', type: 'string' }],
-  identifiers: [],
-  upstreamCount: 0,
+  generate: ctx => {
+    const format = ctx.params.format as string
+    const urlParam = ctx.allocParam('url', 'string')
+    let sql: string
+    if (format === 'json') {
+      sql = `SELECT * FROM read_json_auto(${urlParam})`
+    } else if (format === 'tsv') {
+      sql = `SELECT * FROM read_csv_auto(${urlParam}, header=true, auto_detect=true, delim='\\t')`
+    } else {
+      sql = `SELECT * FROM read_csv_auto(${urlParam}, header=true, auto_detect=true)`
+    }
+    return { sql }
+  },
 }
 
 export const sortOpTemplate: StaticTemplate = {

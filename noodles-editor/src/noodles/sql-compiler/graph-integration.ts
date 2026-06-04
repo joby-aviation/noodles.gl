@@ -96,6 +96,7 @@ export class SQLGraphIntegration {
           })
         } catch (e) {
           debugSQL('execution failed for %s: %O', upstreamId, e)
+          this.executedPipelines.add(upstreamId)
         }
       }
     }
