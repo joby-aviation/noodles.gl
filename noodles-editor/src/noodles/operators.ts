@@ -499,6 +499,10 @@ export abstract class Operator<OP extends IOperator> {
 
     let executionTime = 0
     let startTime = 0
+    // Show executing indicator only for ops taking longer than 200ms
+    const executingTimer = setTimeout(() => {
+      this.executionState.next({ status: 'executing' })
+    }, 200)
 
     try {
       // Pull upstream dependencies first
@@ -525,6 +529,8 @@ export abstract class Operator<OP extends IOperator> {
       if (finalResult === null) {
         throw new Error(`Operator ${this.id} returned null`)
       }
+
+      clearTimeout(executingTimer)
 
       // Cache result and mark clean
       this._cachedOutput = finalResult
@@ -559,6 +565,7 @@ export abstract class Operator<OP extends IOperator> {
 
       return finalResult
     } catch (err) {
+      clearTimeout(executingTimer)
       const error = err instanceof Error ? err : new Error(String(err))
 
       // Calculate actual elapsed time even on error
@@ -6940,9 +6947,21 @@ export function fnWithSource(args: string[], body: string, id: string): Function
   }
 }
 
+// Creates a safe wrapper around getOp that throws a clear error when operator not found.
+function safeOpGetter(contextOpId: string): (path: string) => Operator<IOperator> {
+  return (path: string) => {
+    const op = getOp(path, contextOpId)
+    if (!op) {
+      throw new Error(`Operator '${path}' not found`)
+    }
+    return op
+  }
+}
+
 // DEPRECATED: AccessorOp is deprecated in favor of CreateAttributeOp + layer attribute fields
 // Migration 015 automatically converts AccessorOp nodes to CreateAttributeOp on project load
 // This class is kept for backward compatibility with very old projects that haven't been migrated yet
+// An Accessor is an ExpressionOp that returns a function instead of executing it
 export class AccessorOp extends Operator<AccessorOp> {
   static displayName = 'Accessor (Deprecated)'
   static description =
@@ -6979,7 +6998,7 @@ export class AccessorOp extends Operator<AccessorOp> {
 
     // https://deck.gl/docs/developer-guide/using-layers#accessors
     const accessor = (d: unknown, dInfo: { index: number; data: unknown; target: number[] }) => {
-      const contextualGetOp = (path: string) => getOp(path, this.id)
+      const contextualGetOp = safeOpGetter(this.id)
       // Get fresh timeline values for each accessor call
       const timelineContext = getTimelineContext()
       try {
@@ -7045,7 +7064,7 @@ export class CodeOp extends Operator<CodeOp> {
     subscribeOpToTimeline(this)
 
     // Create a context-aware getOp function for the code execution
-    const contextualGetOp = (path: string) => getOp(path, this.id)
+    const contextualGetOp = safeOpGetter(this.id)
     const fn = fnWithSource(
       [
         'data',
@@ -7144,7 +7163,7 @@ export class ExpressionOp extends Operator<ExpressionOp> {
       this.id
     )
     // Create a context-aware getOp function for the expression execution
-    const contextualGetOp = (path: string) => getOp(path, this.id)
+    const contextualGetOp = safeOpGetter(this.id)
 
     // Check if any data items are accessor functions
     const hasAccessors = data.some(isAccessor)

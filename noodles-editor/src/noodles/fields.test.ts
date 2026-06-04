@@ -930,6 +930,37 @@ describe('Field references', () => {
     expect(references.length).toEqual(1)
     expect(references[0].opId).toEqual('../../grandparent/sibling')
   })
+
+  it('supports double-quoted op() references', () => {
+    const src = 'op("/source").out.data'
+    const references = getFieldReferences(src)
+    expect(references.length).toEqual(1)
+    expect(references[0].opId).toEqual('/source')
+    expect(references[0].inOut).toEqual('out')
+    expect(references[0].fieldPath).toEqual('data')
+  })
+
+  it('supports double-quoted relative path op() references', () => {
+    const src = 'op("./sibling").out.val + op("../parent").par.threshold'
+    const references = getFieldReferences(src)
+    expect(references.length).toEqual(2)
+    expect(references[0].opId).toEqual('./sibling')
+    expect(references[1].opId).toEqual('../parent')
+  })
+
+  it('handles mixed single and double quoted op() references', () => {
+    const src = 'op(\'/a\').out.val + op("/b").out.val'
+    const references = getFieldReferences(src)
+    expect(references.length).toEqual(2)
+    expect(references[0].opId).toEqual('/a')
+    expect(references[1].opId).toEqual('/b')
+  })
+
+  it('does not match mismatched quotes', () => {
+    const src = 'op(\'/path").out.val + op("/other\').par.value'
+    const references = getFieldReferences(src)
+    expect(references.length).toEqual(0)
+  })
 })
 
 describe('getFieldReferences self-parameter shorthand', () => {
@@ -1096,6 +1127,48 @@ describe('Point2DField', () => {
     field2.setValue([1, 2, 3])
     expect(field2.value).toEqual({ lng: 1, lat: 2 })
   })
+
+  it('extracts coordinates from GeoJSON Point Feature', () => {
+    const field = new Point2DField(undefined, { returnType: 'object' })
+    const geoJsonFeature = {
+      type: 'Feature',
+      properties: {},
+      geometry: {
+        type: 'Point',
+        coordinates: [-118.4182302, 34.0576856],
+      },
+    }
+    field.setValue(geoJsonFeature)
+    expect(field.value).toEqual({ lng: -118.4182302, lat: 34.0576856 })
+  })
+
+  it('extracts coordinates from GeoJSON Point Feature with 3D coordinates', () => {
+    const field = new Point2DField(undefined, { returnType: 'object' })
+    const geoJsonFeature = {
+      type: 'Feature',
+      properties: { name: 'Test Point' },
+      geometry: {
+        type: 'Point',
+        coordinates: [-117.8719428, 33.6784913, 100],
+      },
+    }
+    field.setValue(geoJsonFeature)
+    expect(field.value).toEqual({ lng: -117.8719428, lat: 33.6784913 })
+  })
+
+  it('extracts coordinates from GeoJSON Point Feature to tuple', () => {
+    const field = new Point2DField(undefined, { returnType: 'tuple' })
+    const geoJsonFeature = {
+      type: 'Feature',
+      properties: {},
+      geometry: {
+        type: 'Point',
+        coordinates: [-118.4182302, 34.0576856],
+      },
+    }
+    field.setValue(geoJsonFeature)
+    expect(field.value).toEqual([-118.4182302, 34.0576856])
+  })
 })
 
 describe('Point3DField', () => {
@@ -1179,6 +1252,62 @@ describe('Point3DField', () => {
     const field = new Point3DField(undefined, { returnType: 'tuple' })
     field.setValue({ Longitude: 1, Latitude: 2, Altitude: 3 })
     expect(field.value).toEqual([1, 2, 3])
+  })
+
+  it('extracts coordinates from GeoJSON Point Feature', () => {
+    const field = new Point3DField(undefined, { returnType: 'object' })
+    const geoJsonFeature = {
+      type: 'Feature',
+      properties: {},
+      geometry: {
+        type: 'Point',
+        coordinates: [-118.4182302, 34.0576856],
+      },
+    }
+    field.setValue(geoJsonFeature)
+    expect(field.value).toEqual({ lng: -118.4182302, lat: 34.0576856, alt: 0 })
+  })
+
+  it('extracts 3D coordinates from GeoJSON Point Feature', () => {
+    const field = new Point3DField(undefined, { returnType: 'object' })
+    const geoJsonFeature = {
+      type: 'Feature',
+      properties: { name: 'Airport' },
+      geometry: {
+        type: 'Point',
+        coordinates: [-117.8719428, 33.6784913, 100],
+      },
+    }
+    field.setValue(geoJsonFeature)
+    expect(field.value).toEqual({ lng: -117.8719428, lat: 33.6784913, alt: 100 })
+  })
+
+  it('extracts coordinates from GeoJSON Point Feature to tuple', () => {
+    const field = new Point3DField(undefined, { returnType: 'tuple' })
+    const geoJsonFeature = {
+      type: 'Feature',
+      properties: {},
+      geometry: {
+        type: 'Point',
+        coordinates: [-118.4182302, 34.0576856, 50],
+      },
+    }
+    field.setValue(geoJsonFeature)
+    expect(field.value).toEqual([-118.4182302, 34.0576856, 50])
+  })
+
+  it('extracts 2D coordinates from GeoJSON Point Feature to tuple with alt=0', () => {
+    const field = new Point3DField(undefined, { returnType: 'tuple' })
+    const geoJsonFeature = {
+      type: 'Feature',
+      properties: {},
+      geometry: {
+        type: 'Point',
+        coordinates: [-118.4182302, 34.0576856],
+      },
+    }
+    field.setValue(geoJsonFeature)
+    expect(field.value).toEqual([-118.4182302, 34.0576856, 0])
   })
 })
 
