@@ -5792,7 +5792,11 @@ function extractAttributeData(data: unknown): {
   if (dataObj.data && dataObj.attributes) {
     // Extract rows from nested data (could be Arrow table or array)
     const nestedData = dataObj.data
-    const rows = isArrowTable(nestedData) ? arrowToRows(nestedData) : (Array.isArray(nestedData) ? nestedData : [])
+    const rows = isArrowTable(nestedData)
+      ? arrowToRows(nestedData)
+      : Array.isArray(nestedData)
+        ? nestedData
+        : []
 
     return {
       rows,
