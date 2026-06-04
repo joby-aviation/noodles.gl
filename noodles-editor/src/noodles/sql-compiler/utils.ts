@@ -1,24 +1,26 @@
 const SQL_RESERVED = new Set([
-  'all', 'alter', 'and', 'as', 'between', 'by', 'case', 'cast', 'check',
-  'column', 'create', 'cross', 'current', 'default', 'delete', 'distinct',
-  'drop', 'else', 'end', 'exists', 'false', 'filter', 'for', 'foreign',
-  'from', 'full', 'group', 'having', 'if', 'in', 'index', 'inner', 'insert',
-  'into', 'is', 'join', 'left', 'like', 'limit', 'not', 'null', 'offset',
-  'on', 'or', 'order', 'outer', 'pivot', 'primary', 'references', 'right',
-  'select', 'set', 'table', 'then', 'true', 'union', 'unique', 'unpivot',
-  'update', 'using', 'values', 'when', 'where', 'with',
+  'select', 'from', 'where', 'group', 'order', 'limit', 'offset', 'join',
+  'inner', 'left', 'right', 'full', 'cross', 'on', 'as', 'and', 'or', 'not',
+  'in', 'is', 'null', 'true', 'false', 'between', 'like', 'case', 'when',
+  'then', 'else', 'end', 'having', 'union', 'all', 'distinct', 'insert',
+  'update', 'delete', 'create', 'drop', 'alter', 'table', 'index', 'view',
+  'with', 'recursive', 'values', 'set', 'into', 'exists', 'cast', 'filter',
+  'over', 'partition', 'window', 'rows', 'range', 'unbounded', 'preceding',
+  'following', 'current', 'row', 'rank', 'count', 'sum', 'avg', 'min', 'max',
 ])
 
 export function operatorIdToAlias(id: string): string {
-  const base = id
+  let alias = id
     .replace(/^\//, '')
-    .replace(/[^a-zA-Z0-9]/g, '_')
+    .replace(/[^a-zA-Z0-9_]/g, '_')
     .replace(/_+/g, '_')
     .replace(/^_|_$/g, '')
     .toLowerCase()
 
-  if (SQL_RESERVED.has(base)) return `${base}_op`
-  return base
+  if (!alias || /^\d/.test(alias)) alias = `op_${alias}`
+  if (SQL_RESERVED.has(alias)) alias = `${alias}_op`
+
+  return alias
 }
 
 export function escapeIdentifier(name: string): string {
@@ -29,6 +31,5 @@ export function escapeLiteral(value: unknown): string {
   if (value === null || value === undefined) return 'NULL'
   if (typeof value === 'number') return String(value)
   if (typeof value === 'boolean') return value ? 'TRUE' : 'FALSE'
-  if (typeof value === 'string') return `'${value.replace(/'/g, "''")}'`
   return `'${String(value).replace(/'/g, "''")}'`
 }

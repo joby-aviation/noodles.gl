@@ -197,19 +197,6 @@ import { projectScheme } from './utils/filesystem'
 import type { OpId } from './utils/id-utils'
 import { isDirectChild } from './utils/path-utils'
 import { pick } from './utils/pick'
-import type { CompilationContext, SQLCompilable, SQLFragment } from './sql-compiler/types'
-import {
-  castOpToSQL,
-  coalesceOpToSQL,
-  fillNullsOpToSQL,
-  groupByOpToSQL,
-  joinOpToSQL,
-  pivotOpToSQL,
-  stringTransformOpToSQL,
-  uniqueOpToSQL,
-  unpivotOpToSQL,
-  windowOpToSQL,
-} from './sql-compiler/sql-operators'
 import { getTimelineContext } from './utils/timeline-context'
 import { subscribeOpToTimeline, unsubscribeOpFromTimeline } from './utils/timeline-dependencies'
 import { validateViewState } from './utils/viewstate-helpers'
@@ -3378,7 +3365,7 @@ export class SortOp extends Operator<SortOp> {
     key,
     order,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const sorted = data.sort((a, b) => {
+    const sorted = [...data].sort((a, b) => {
       if (order === 'asc') {
         return a[key] - b[key]
       }
@@ -3389,13 +3376,8 @@ export class SortOp extends Operator<SortOp> {
 }
 
 // --- SQL-Native Operators ---
-// These operators have both execute() (POJO fallback) and toSQL() (SQL compilation)
-
-function sqlGetUpstreamId(op: any): string {
-  const deps: Set<any> = op._upstreamDependencies
-  if (deps?.size > 0) return deps.values().next().value.id
-  return ''
-}
+// These operators have execute() for standalone JS use.
+// SQL compilation is handled by the template registry in sql-compiler/templates.ts.
 
 function sqlParseAggregations(str: string): Array<{ column: string; function: string; alias?: string }> {
   if (!str) return []
@@ -3429,7 +3411,7 @@ function sqlWindowAgg(vals: number[], fn: string): number {
   }
 }
 
-export class GroupByOp extends Operator<GroupByOp> implements SQLCompilable {
+export class GroupByOp extends Operator<GroupByOp> {
   static displayName = 'GroupBy'
   static description = 'Group data by columns and compute aggregations (e.g. sum(price) as total; count(*) as n)'
 
@@ -3465,15 +3447,9 @@ export class GroupByOp extends Operator<GroupByOp> implements SQLCompilable {
     }
     return { data: result }
   }
-
-  toSQL(ctx: CompilationContext): SQLFragment {
-    const groupCols = (this.inputs.groupByColumns.value as string).split(',').map(s => s.trim()).filter(Boolean)
-    const aggs = sqlParseAggregations(this.inputs.aggregations.value as string)
-    return groupByOpToSQL(this.id, { groupByColumns: groupCols, aggregations: aggs }, sqlGetUpstreamId(this), ctx)
-  }
 }
 
-export class JoinOp extends Operator<JoinOp> implements SQLCompilable {
+export class JoinOp extends Operator<JoinOp> {
   static displayName = 'Join'
   static description = 'Join two datasets on matching keys'
 
@@ -3524,20 +3500,9 @@ export class JoinOp extends Operator<JoinOp> implements SQLCompilable {
     }
     return { data: result }
   }
-
-  toSQL(ctx: CompilationContext): SQLFragment {
-    const deps = Array.from((this as any)._upstreamDependencies || [])
-    const leftId = deps[0]?.id ?? ''
-    const rightId = deps[1]?.id ?? ''
-    return joinOpToSQL(this.id, {
-      leftKey: this.inputs.leftKey.value as string,
-      rightKey: this.inputs.rightKey.value as string,
-      joinType: this.inputs.joinType.value as any,
-    }, leftId, rightId, ctx)
-  }
 }
 
-export class UniqueOp extends Operator<UniqueOp> implements SQLCompilable {
+export class UniqueOp extends Operator<UniqueOp> {
   static displayName = 'Unique'
   static description = 'Remove duplicate rows'
 
@@ -3563,14 +3528,9 @@ export class UniqueOp extends Operator<UniqueOp> implements SQLCompilable {
     }
     return { data: result }
   }
-
-  toSQL(ctx: CompilationContext): SQLFragment {
-    const cols = (this.inputs.columns.value as string).split(',').map(s => s.trim()).filter(Boolean)
-    return uniqueOpToSQL(this.id, { columns: cols.length > 0 ? cols : undefined }, sqlGetUpstreamId(this), ctx)
-  }
 }
 
-export class PivotOp extends Operator<PivotOp> implements SQLCompilable {
+export class PivotOp extends Operator<PivotOp> {
   static displayName = 'Pivot'
   static description = 'Pivot rows into columns (wide format)'
 
@@ -3621,18 +3581,9 @@ export class PivotOp extends Operator<PivotOp> implements SQLCompilable {
     }
     return { data: result }
   }
-
-  toSQL(ctx: CompilationContext): SQLFragment {
-    return pivotOpToSQL(this.id, {
-      pivotColumn: this.inputs.pivotColumn.value as string,
-      valueColumn: this.inputs.valueColumn.value as string,
-      indexColumn: this.inputs.indexColumn.value as string,
-      aggregation: this.inputs.aggregation.value as string,
-    }, sqlGetUpstreamId(this), ctx)
-  }
 }
 
-export class UnpivotOp extends Operator<UnpivotOp> implements SQLCompilable {
+export class UnpivotOp extends Operator<UnpivotOp> {
   static displayName = 'Unpivot'
   static description = 'Unpivot columns into rows (long format)'
 
@@ -3664,18 +3615,9 @@ export class UnpivotOp extends Operator<UnpivotOp> implements SQLCompilable {
     }
     return { data: result }
   }
-
-  toSQL(ctx: CompilationContext): SQLFragment {
-    const valCols = (this.inputs.valueColumns.value as string).split(',').map(s => s.trim()).filter(Boolean)
-    return unpivotOpToSQL(this.id, {
-      valueColumns: valCols,
-      variableName: this.inputs.variableName.value as string,
-      valueName: this.inputs.valueName.value as string,
-    }, sqlGetUpstreamId(this), ctx)
-  }
 }
 
-export class WindowOp extends Operator<WindowOp> implements SQLCompilable {
+export class WindowOp extends Operator<WindowOp> {
   static displayName = 'Window'
   static description = 'Apply window functions (rolling aggregates, rank, lag/lead)'
 
@@ -3739,22 +3681,9 @@ export class WindowOp extends Operator<WindowOp> implements SQLCompilable {
     }
     return { data: result }
   }
-
-  toSQL(ctx: CompilationContext): SQLFragment {
-    const partCols = (this.inputs.partitionBy.value as string).split(',').map(s => s.trim()).filter(Boolean)
-    return windowOpToSQL(this.id, {
-      column: this.inputs.column.value as string,
-      function: this.inputs.function.value as any,
-      partitionBy: partCols.length > 0 ? partCols : undefined,
-      orderBy: this.inputs.orderBy.value as string,
-      order: this.inputs.order.value as 'asc' | 'desc',
-      windowSize: (this.inputs.windowSize.value as number) || undefined,
-      outputColumn: (this.inputs.outputColumn.value as string) || undefined,
-    }, sqlGetUpstreamId(this), ctx)
-  }
 }
 
-export class CastOp extends Operator<CastOp> implements SQLCompilable {
+export class CastOp extends Operator<CastOp> {
   static displayName = 'Cast'
   static description = 'Cast a column to a different type'
 
@@ -3790,16 +3719,9 @@ export class CastOp extends Operator<CastOp> implements SQLCompilable {
     }
   }
 
-  toSQL(ctx: CompilationContext): SQLFragment {
-    return castOpToSQL(this.id, {
-      column: this.inputs.column.value as string,
-      targetType: this.inputs.targetType.value as string,
-      outputColumn: (this.inputs.outputColumn.value as string) || undefined,
-    }, sqlGetUpstreamId(this), ctx)
-  }
 }
 
-export class StringTransformOp extends Operator<StringTransformOp> implements SQLCompilable {
+export class StringTransformOp extends Operator<StringTransformOp> {
   static displayName = 'StringTransform'
   static description = 'Apply string transformations (upper, lower, trim, regex, etc.)'
 
@@ -3843,18 +3765,9 @@ export class StringTransformOp extends Operator<StringTransformOp> implements SQ
     }
   }
 
-  toSQL(ctx: CompilationContext): SQLFragment {
-    return stringTransformOpToSQL(this.id, {
-      column: this.inputs.column.value as string,
-      operation: this.inputs.operation.value as string,
-      pattern: (this.inputs.pattern.value as string) || undefined,
-      replacement: (this.inputs.replacement.value as string) || undefined,
-      outputColumn: (this.inputs.outputColumn.value as string) || undefined,
-    }, sqlGetUpstreamId(this), ctx)
-  }
 }
 
-export class CoalesceOp extends Operator<CoalesceOp> implements SQLCompilable {
+export class CoalesceOp extends Operator<CoalesceOp> {
   static displayName = 'Coalesce'
   static description = 'Return first non-null value across columns'
 
@@ -3881,13 +3794,9 @@ export class CoalesceOp extends Operator<CoalesceOp> implements SQLCompilable {
     }
   }
 
-  toSQL(ctx: CompilationContext): SQLFragment {
-    const cols = (this.inputs.columns.value as string).split(',').map(s => s.trim()).filter(Boolean)
-    return coalesceOpToSQL(this.id, { columns: cols, outputColumn: this.inputs.outputColumn.value as string }, sqlGetUpstreamId(this), ctx)
-  }
 }
 
-export class FillNullsOp extends Operator<FillNullsOp> implements SQLCompilable {
+export class FillNullsOp extends Operator<FillNullsOp> {
   static displayName = 'FillNulls'
   static description = 'Fill null values using forward fill, backward fill, or a constant'
 
@@ -3927,14 +3836,6 @@ export class FillNullsOp extends Operator<FillNullsOp> implements SQLCompilable 
     return { data: result }
   }
 
-  toSQL(ctx: CompilationContext): SQLFragment {
-    return fillNullsOpToSQL(this.id, {
-      column: this.inputs.column.value as string,
-      strategy: this.inputs.strategy.value as 'forward' | 'backward' | 'constant',
-      constantValue: (this.inputs.constantValue.value as string) || undefined,
-      orderBy: (this.inputs.orderBy.value as string) || undefined,
-    }, sqlGetUpstreamId(this), ctx)
-  }
 }
 
 // --- End SQL-Native Operators ---
