@@ -92,11 +92,31 @@ export class SQLGraphIntegration {
           debugSQL('executed %s → %d rows', upstreamId, result.table.numRows)
           this.executedPipelines.add(upstreamId)
 
+          // Extract layer attributes if present
+          let data = result.table
+          if (compiled.layerAttributes && compiled.layerAttributes.length > 0) {
+            const { extractLayerAttributes } = await import('./layer-attribute-detector')
+            const attributes = extractLayerAttributes(result.table, compiled.layerAttributes)
+
+            // If attributes were extracted, wrap table with attributes
+            if (Object.keys(attributes).length > 0) {
+              debugSQL(
+                'extracted %d layer attributes from SQL for %s',
+                Object.keys(attributes).length,
+                upstreamId
+              )
+              data = {
+                data: result.table,
+                attributes,
+              }
+            }
+          }
+
           // Pass Arrow table directly for zero-copy data flow
           // Downstream operators handle both Arrow tables and JS arrays
           results.set(upstreamId, {
             operatorId: upstreamId,
-            data: result.table,
+            data,
             arrowTable: result.table,
           })
         } catch (e) {
