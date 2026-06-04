@@ -1,3 +1,4 @@
+import type * as arrow from 'apache-arrow'
 import { debugSQL } from '../../utils/debug'
 import type { IOperator, Operator } from '../operators'
 import { getDuckDbInstance } from './executor'
@@ -10,8 +11,10 @@ import type { CompiledQuery } from './types'
 
 export type SQLExecutionResult = {
   operatorId: string
-  data: unknown[]
-  arrowTable: unknown
+  // Primary data - now an Arrow table for zero-copy access
+  data: arrow.Table | unknown[]
+  // Deprecated: Use data directly (kept for backwards compatibility)
+  arrowTable: arrow.Table | unknown
 }
 
 // Integrates SQL compilation into the pull-based graph executor.
@@ -86,12 +89,13 @@ export class SQLGraphIntegration {
         try {
           const paramValues = resolveParamValues(compiled, getOperator)
           const result = await this.cache.executeCompiled(upstreamId, compiled, paramValues)
-          const rows = result.toArray()
-          debugSQL('executed %s → %d rows', upstreamId, rows.length)
+          debugSQL('executed %s → %d rows', upstreamId, result.table.numRows)
           this.executedPipelines.add(upstreamId)
           results.set(upstreamId, {
             operatorId: upstreamId,
-            data: rows,
+            // Store Arrow table directly for zero-copy access
+            data: result.table,
+            // Keep deprecated field for backwards compatibility
             arrowTable: result.table,
           })
         } catch (e) {

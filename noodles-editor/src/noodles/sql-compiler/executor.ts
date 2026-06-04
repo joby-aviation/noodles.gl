@@ -69,6 +69,8 @@ export async function execute(
     }
     return {
       table,
+      // DEPRECATED: Use table directly for zero-copy access
+      // Only call toArray() when you need JS objects (converts from columnar format)
       toArray() {
         return table.toArray().map((row: any) => ({ ...row }))
       },
