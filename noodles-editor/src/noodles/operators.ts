@@ -4193,24 +4193,122 @@ export class CreateAttributeOp extends Operator<CreateAttributeOp> {
     type,
     size,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    console.log(`[CreateAttributeOp ${this.id}] execute called`, {
-      hasData: !!data,
-      dataType: Array.isArray(data) ? 'array' : typeof data,
-      name,
-      expression,
-    })
     if (!data || !name) {
-      console.log(`[CreateAttributeOp ${this.id}] returning early - no data or name`)
       return { data }
     }
 
+    // Fast path: Arrow table with simple column access pattern
+    if (isArrowTable(data)) {
+      const existingAttributes =
+        (data as unknown as { attributes?: Record<string, unknown> }).attributes || {}
+
+      // Pattern 1: "d.columnName" - single column access
+      const singleColumnMatch = /^d\.(\w+)$/.exec(expression.trim())
+      if (singleColumnMatch) {
+        const columnName = singleColumnMatch[1]
+        try {
+          const typedArray = arrowGetColumnAsTypedArray(data, columnName)
+          return {
+            data: {
+              data,
+              attributes: {
+                ...existingAttributes,
+                [name]: { values: typedArray, size: 1 },
+              },
+            },
+          }
+        } catch (_e) {
+          // Column not found, fall through to slow path
+        }
+      }
+
+      // Pattern 2: "[d.col1, d.col2]" or "[d.col1, d.col2, d.col3]" - multi-column
+      const multiColumnMatch = /^\[d\.(\w+),\s*d\.(\w+)(?:,\s*d\.(\w+))?(?:,\s*d\.(\w+))?\]$/.exec(
+        expression.trim()
+      )
+      if (multiColumnMatch) {
+        const columnNames = multiColumnMatch.slice(1).filter(Boolean)
+        if (columnNames.length === size) {
+          try {
+            const columns = columnNames.map(col => arrowGetColumnAsTypedArray(data, col))
+            // Interleave columns: [x1, y1, z1, x2, y2, z2, ...]
+            const numRows = data.numRows
+            const TypedArrayClass = type === 'uint8' ? Uint8Array : Float32Array
+            const interleaved = new TypedArrayClass(numRows * size)
+            for (let i = 0; i < numRows; i++) {
+              for (let j = 0; j < size; j++) {
+                interleaved[i * size + j] = columns[j][i]
+              }
+            }
+            return {
+              data: {
+                data,
+                attributes: {
+                  ...existingAttributes,
+                  [name]: { values: interleaved, size },
+                },
+              },
+            }
+          } catch (_e) {
+            // Column not found, fall through to slow path
+          }
+        }
+      }
+
+      // Pattern 3: "[d.col1, d.col2, constant]" - mixed columns and constants
+      const mixedMatch = /^\[([^\]]+)\]$/.exec(expression.trim())
+      if (mixedMatch) {
+        const parts = mixedMatch[1].split(',').map(s => s.trim())
+        if (parts.length === size) {
+          try {
+            const extractors: Array<(i: number) => number> = []
+            for (const part of parts) {
+              const colMatch = /^d\.(\w+)$/.exec(part)
+              if (colMatch) {
+                const column = arrowGetColumnAsTypedArray(data, colMatch[1])
+                extractors.push((i: number) => column[i])
+              } else {
+                const constant = Number(part)
+                if (!Number.isNaN(constant)) {
+                  extractors.push(() => constant)
+                } else {
+                  throw new Error('Not a constant')
+                }
+              }
+            }
+
+            const numRows = data.numRows
+            const TypedArrayClass = type === 'uint8' ? Uint8Array : Float32Array
+            const interleaved = new TypedArrayClass(numRows * size)
+            for (let i = 0; i < numRows; i++) {
+              for (let j = 0; j < size; j++) {
+                interleaved[i * size + j] = extractors[j](i)
+              }
+            }
+            return {
+              data: {
+                data,
+                attributes: {
+                  ...existingAttributes,
+                  [name]: { values: interleaved, size },
+                },
+              },
+            }
+          } catch (_e) {
+            // Fall through to slow path
+          }
+        }
+      }
+    }
+
+    // Slow path: materialize and evaluate JS expression
     let dataArray: unknown[]
     let existingData: unknown
     let existingAttributes: Record<string, unknown> = {}
 
     if (isArrowTable(data)) {
       dataArray = arrowToRows(data)
-      existingData = dataArray
+      existingData = data // Keep Arrow table as data
       existingAttributes =
         (data as unknown as { attributes?: Record<string, unknown> }).attributes || {}
     } else if (Array.isArray(data)) {
@@ -4241,7 +4339,7 @@ export class CreateAttributeOp extends Operator<CreateAttributeOp> {
     const TypedArrayClass = type === 'uint8' ? Uint8Array : Float32Array
     const typedArray = new TypedArrayClass(attributeValues)
 
-    const result = {
+    return {
       data: {
         data: existingData,
         attributes: {
@@ -4250,12 +4348,6 @@ export class CreateAttributeOp extends Operator<CreateAttributeOp> {
         },
       },
     }
-    console.log(`[CreateAttributeOp ${this.id}] returning`, {
-      dataLength: Array.isArray(existingData) ? existingData.length : 'not-array',
-      attributeName: name,
-      attributeLength: typedArray.length,
-    })
-    return result
   }
 }
 
