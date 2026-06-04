@@ -1,3 +1,4 @@
+import { debugSQL } from '../../utils/debug'
 import type { IOperator, Operator } from '../operators'
 import { getDuckDbInstance } from './executor'
 import {
@@ -50,8 +51,10 @@ export class SQLGraphIntegration {
       this.lastTopologyVersion = topologyVersion
 
       const compiled = detectCompilableSubgraphs(sinkOperatorIds, getOperator, getUpstreamIds)
+      debugSQL('recompiled %d subgraphs (topology v%d)', compiled.size, topologyVersion)
 
       for (const [opId, query] of compiled) {
+        debugSQL('  compiled %s: %s', opId, query.sql.slice(0, 120))
         this.cache.setCompiledQuery(opId, query)
       }
     }
@@ -68,9 +71,11 @@ export class SQLGraphIntegration {
         try {
           const paramValues = resolveParamValues(compiled, getOperator)
           const result = await this.cache.executeCompiled(upstreamId, compiled, paramValues)
+          const rows = result.toArray()
+          debugSQL('executed %s → %d rows', upstreamId, rows.length)
           results.set(upstreamId, {
             operatorId: upstreamId,
-            data: result.toArray(),
+            data: rows,
             arrowTable: result.table,
           })
         } catch (e) {

@@ -188,6 +188,7 @@ import {
 } from './fields'
 import { DEFAULT_LATITUDE, DEFAULT_LONGITUDE, safeMode } from './globals'
 import { getKeysStore } from './keys-store'
+import { setDuckDbInstance } from './sql-compiler/executor'
 import { getAllOps, getOp } from './store'
 import { prepareTableDataForOutput, type TableSchema } from './table-schema'
 import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
@@ -2107,6 +2108,7 @@ const duckDbInstance = (async () => {
   `)
   await conn.close()
 
+  setDuckDbInstance(db)
   return db
 })()
 
