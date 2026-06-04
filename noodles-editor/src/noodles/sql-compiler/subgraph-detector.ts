@@ -1,4 +1,8 @@
 import type { IOperator, Operator } from '../operators'
+import {
+  detectDownstreamAttributes,
+  generateAttributeColumns,
+} from './attribute-detector'
 import type { CompilableNode } from './compiler'
 import { collectSubgraph, compile } from './compiler'
 import { collectParamValues, PreparedPipeline } from './executor'
@@ -41,6 +45,18 @@ export function detectCompilableSubgraphs(
 ): Map<string, CompiledQuery> {
   const compiledPipelines = new Map<string, CompiledQuery>()
 
+  // Helper to get downstream operators
+  const getDownstreamIds = (opId: string): string[] => {
+    const downstreams: string[] = []
+    for (const sinkId of sinkIds) {
+      const upstreams = getUpstreamIds(sinkId)
+      if (upstreams.includes(opId)) {
+        downstreams.push(sinkId)
+      }
+    }
+    return downstreams
+  }
+
   for (const sinkId of sinkIds) {
     const sinkOp = getOperator(sinkId)
     if (!sinkOp) continue
@@ -57,7 +73,22 @@ export function detectCompilableSubgraphs(
 
       if (subgraph.length > 0) {
         try {
-          const compiled = compile(subgraph)
+          // Detect CreateAttributeOp nodes downstream that can be SQL-computed
+          const attributes = detectDownstreamAttributes(
+            upstreamId,
+            getOperator,
+            getDownstreamIds
+          )
+
+          // Generate additional SQL columns for attributes
+          const additionalColumns = attributes.length > 0
+            ? generateAttributeColumns(attributes)
+            : undefined
+
+          const compiled = compile(subgraph, {
+            additionalColumns,
+          })
+
           compiledPipelines.set(upstreamId, compiled)
         } catch (e) {
           // Compilation failed — fall back to normal execution

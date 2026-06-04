@@ -195,7 +195,12 @@ import { getAllOps, getOp } from './store'
 import { prepareTableDataForOutput, type TableSchema } from './table-schema'
 import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
 import { composeAccessor, isAccessor } from './utils/accessor-helpers'
-import { arrowGetColumnAsTypedArray, arrowToRows, isArrowTable } from './utils/arrow-utils'
+import {
+  arrowGetColumnAsTypedArray,
+  arrowToRows,
+  hasColumn,
+  isArrowTable,
+} from './utils/arrow-utils'
 import type { ExtractProps } from './utils/extract-props'
 import { projectScheme } from './utils/filesystem'
 import type { OpId } from './utils/id-utils'
@@ -4195,6 +4200,55 @@ export class CreateAttributeOp extends Operator<CreateAttributeOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!data || !name) {
       return { data }
+    }
+
+    // Ultra-fast path: Check if SQL already computed this attribute
+    if (isArrowTable(data)) {
+      const existingAttributes =
+        (data as unknown as { attributes?: Record<string, unknown> }).attributes || {}
+
+      // Check for __attr_{name}_* columns from SQL
+      const attrColumnPrefix = `__attr_${name}_`
+      const attrColumns: Float32Array[] = []
+
+      try {
+        // Try to find all attribute columns for this name
+        for (let i = 0; i < size; i++) {
+          const columnName = `${attrColumnPrefix}${i}`
+          if (hasColumn(data, columnName)) {
+            const column = arrowGetColumnAsTypedArray(data, columnName)
+            attrColumns.push(column as Float32Array)
+          } else {
+            break // No more columns
+          }
+        }
+
+        // If we found all expected columns, use them directly (SQL-computed)
+        if (attrColumns.length === size) {
+          // Interleave columns into single typed array
+          const numRows = data.numRows
+          const TypedArrayClass = type === 'uint8' ? Uint8Array : Float32Array
+          const interleaved = new TypedArrayClass(numRows * size)
+
+          for (let row = 0; row < numRows; row++) {
+            for (let col = 0; col < size; col++) {
+              interleaved[row * size + col] = attrColumns[col][row]
+            }
+          }
+
+          return {
+            data: {
+              data,
+              attributes: {
+                ...existingAttributes,
+                [name]: { values: interleaved, size },
+              },
+            },
+          }
+        }
+      } catch (_e) {
+        // Column not found or error, fall through to regular computation
+      }
     }
 
     // Fast path: Arrow table with simple column access pattern
