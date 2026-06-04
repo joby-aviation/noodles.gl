@@ -15,13 +15,12 @@
 import type * as arrow from 'apache-arrow'
 import type { ArrowOrArray } from './arrow-data'
 import {
-  isArrowTable,
-  arrowToArray,
-  getRowCount,
-  hasColumn,
-  getColumn,
-  SQL_ARROW_CAPABILITIES,
   type ArrowCapabilities,
+  arrowToArray,
+  getColumn,
+  hasColumn,
+  isArrowTable,
+  SQL_ARROW_CAPABILITIES,
 } from './arrow-data'
 
 /**
