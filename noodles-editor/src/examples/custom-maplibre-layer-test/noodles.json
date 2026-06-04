@@ -1,37 +1,5 @@
 {
-  "version": 14,
-  "edges": [
-    {
-      "id": "/maplibre-basemap.maplibre->/deck-renderer.basemap",
-      "source": "/maplibre-basemap",
-      "target": "/deck-renderer",
-      "sourceHandle": "out.maplibre",
-      "targetHandle": "par.basemap"
-    },
-    {
-      "id": "/custom-layer.layer->/deck-renderer.maplibreLayers",
-      "source": "/custom-layer",
-      "target": "/deck-renderer",
-      "sourceHandle": "out.layer",
-      "targetHandle": "par.maplibreLayers"
-    },
-    {
-      "id": "/deck-renderer.vis->/out.vis",
-      "source": "/deck-renderer",
-      "target": "/out",
-      "sourceHandle": "out.vis",
-      "targetHandle": "par.vis"
-    }
-  ],
-  "viewport": {
-    "x": 0,
-    "y": 0,
-    "zoom": 1
-  },
-  "editorSettings": {
-    "layoutMode": "noodles-on-top",
-    "showOverlay": true
-  },
+  "version": 6,
   "nodes": [
     {
       "id": "/maplibre-basemap",
@@ -77,8 +45,8 @@
       "id": "/deck-renderer",
       "type": "DeckRendererOp",
       "position": {
-        "x": 400,
-        "y": 200
+        "x": 450,
+        "y": 100
       },
       "data": {
         "inputs": {
@@ -91,33 +59,40 @@
       "id": "/out",
       "type": "OutOp",
       "position": {
-        "x": 700,
-        "y": 200
+        "x": 800,
+        "y": 100
       },
       "data": {
-        "inputs": {
-          "display": "fixed",
-          "width": 1920,
-          "height": 1080,
-          "lod": 2,
-          "waitForData": true,
-          "codec": "avc",
-          "bitrateMbps": 10,
-          "bitrateMode": "constant",
-          "scaleControl": 0.3,
-          "framerate": 30,
-          "captureDelay": 50
-        }
+        "inputs": {}
       }
     }
   ],
-  "timeline": {
-    "sheetsById": {
-      "Noodles": {
-        "staticOverrides": {
-          "byObject": {}
-        }
-      }
+  "edges": [
+    {
+      "id": "/maplibre-basemap.maplibre->/deck-renderer.basemap",
+      "source": "/maplibre-basemap",
+      "target": "/deck-renderer",
+      "sourceHandle": "out.maplibre",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/custom-layer.layer->/deck-renderer.maplibreLayers",
+      "source": "/custom-layer",
+      "target": "/deck-renderer",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.maplibreLayers"
+    },
+    {
+      "id": "/deck-renderer.vis->/out.vis",
+      "source": "/deck-renderer",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
     }
+  ],
+  "viewport": {
+    "x": 0,
+    "y": 0,
+    "zoom": 1
   }
 }

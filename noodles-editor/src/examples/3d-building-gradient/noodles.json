@@ -1,44 +1,5 @@
 {
-  "version": 14,
-  "edges": [
-    {
-      "id": "/maplibre-basemap.maplibre->/deck-renderer.basemap",
-      "source": "/maplibre-basemap",
-      "target": "/deck-renderer",
-      "sourceHandle": "out.maplibre",
-      "targetHandle": "par.basemap"
-    },
-    {
-      "id": "/gradient-params.json->/building-layer.params",
-      "source": "/gradient-params",
-      "target": "/building-layer",
-      "sourceHandle": "out.json",
-      "targetHandle": "par.params"
-    },
-    {
-      "id": "/building-layer.layer->/deck-renderer.maplibreLayers",
-      "source": "/building-layer",
-      "target": "/deck-renderer",
-      "sourceHandle": "out.layer",
-      "targetHandle": "par.maplibreLayers"
-    },
-    {
-      "id": "/deck-renderer.vis->/out.vis",
-      "source": "/deck-renderer",
-      "target": "/out",
-      "sourceHandle": "out.vis",
-      "targetHandle": "par.vis"
-    }
-  ],
-  "viewport": {
-    "x": 0,
-    "y": 0,
-    "zoom": 1
-  },
-  "editorSettings": {
-    "layoutMode": "noodles-on-top",
-    "showOverlay": true
-  },
+  "version": 6,
   "nodes": [
     {
       "id": "/maplibre-basemap",
@@ -78,8 +39,8 @@
       "id": "/building-layer",
       "type": "CustomMapLibreLayerOp",
       "position": {
-        "x": 100,
-        "y": 500
+        "x": 450,
+        "y": 100
       },
       "data": {
         "inputs": {
@@ -94,8 +55,8 @@
       "id": "/deck-renderer",
       "type": "DeckRendererOp",
       "position": {
-        "x": 500,
-        "y": 300
+        "x": 800,
+        "y": 100
       },
       "data": {
         "inputs": {
@@ -108,33 +69,47 @@
       "id": "/out",
       "type": "OutOp",
       "position": {
-        "x": 800,
-        "y": 300
+        "x": 1150,
+        "y": 100
       },
       "data": {
-        "inputs": {
-          "display": "fixed",
-          "width": 1920,
-          "height": 1080,
-          "lod": 2,
-          "waitForData": true,
-          "codec": "avc",
-          "bitrateMbps": 10,
-          "bitrateMode": "constant",
-          "scaleControl": 0.3,
-          "framerate": 30,
-          "captureDelay": 50
-        }
+        "inputs": {}
       }
     }
   ],
-  "timeline": {
-    "sheetsById": {
-      "Noodles": {
-        "staticOverrides": {
-          "byObject": {}
-        }
-      }
+  "edges": [
+    {
+      "id": "/maplibre-basemap.maplibre->/deck-renderer.basemap",
+      "source": "/maplibre-basemap",
+      "target": "/deck-renderer",
+      "sourceHandle": "out.maplibre",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/gradient-params.json->/building-layer.params",
+      "source": "/gradient-params",
+      "target": "/building-layer",
+      "sourceHandle": "out.json",
+      "targetHandle": "par.params"
+    },
+    {
+      "id": "/building-layer.layer->/deck-renderer.maplibreLayers",
+      "source": "/building-layer",
+      "target": "/deck-renderer",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.maplibreLayers"
+    },
+    {
+      "id": "/deck-renderer.vis->/out.vis",
+      "source": "/deck-renderer",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
     }
+  ],
+  "viewport": {
+    "x": 0,
+    "y": 0,
+    "zoom": 1
   }
 }
