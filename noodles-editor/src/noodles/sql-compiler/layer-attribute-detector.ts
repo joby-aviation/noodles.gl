@@ -186,7 +186,6 @@ export function extractLayerAttributes(
 
   // For each layer attribute, check if SQL-computed columns exist
   for (const attr of layerAttributes) {
-    const columnPrefix = `__attr_${attr.attributeName}_`
     const columns: (Float32Array | Uint8Array)[] = []
 
     // Try to extract all components
