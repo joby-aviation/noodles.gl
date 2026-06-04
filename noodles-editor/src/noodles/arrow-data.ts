@@ -130,9 +130,7 @@ export function sortData<T = unknown>(
  * Convert JS array to Arrow table
  * Useful for CodeOp/custom operators that produce JS data
  */
-export async function arrayToArrow<T = unknown>(
-  data: T[]
-): Promise<arrow.Table> {
+export async function arrayToArrow<T = unknown>(data: T[]): Promise<arrow.Table> {
   // Dynamic import to avoid loading Arrow in all contexts
   const { tableFromJSON } = await import('apache-arrow')
   return tableFromJSON(data)

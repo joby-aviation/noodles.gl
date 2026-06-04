@@ -3781,7 +3781,7 @@ export class WindowOp extends Operator<WindowOp> {
     for (const [, rows] of partitions) {
       let currentRank = 1
       let currentDenseRank = 1
-      let prevOrderValue: unknown = undefined
+      let prevOrderValue: unknown
       let tieCount = 0
 
       for (let i = 0; i < rows.length; i++) {
