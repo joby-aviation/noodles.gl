@@ -714,8 +714,8 @@ describe('End-to-End: JS execution vs SQL execution', () => {
       // Verify the operator now has cached output from SQL
       expect(sortOp.cachedOutput).toBeDefined()
       expect(sortOp.cachedOutput.data.numRows).toBe(4)
-      const rows = sortOp.cachedOutput.data.toArray()
-      expect(rows[0].name).toBe('Charlie')
+      const cachedRows = sortOp.cachedOutput.data.toArray()
+      expect(cachedRows[0].name).toBe('Charlie')
     })
 
     it('full path with topology change triggers recompilation', async () => {
