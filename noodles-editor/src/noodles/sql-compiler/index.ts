@@ -1,26 +1,37 @@
-export type {
-  CompiledQuery,
-  CompilationContext,
-  ExecutionResult,
-  ParamSlot,
-  SQLCompilable,
-  SQLTemplate,
-} from './types'
-
-export { compile, collectSubgraph, isCompilable } from './compiler'
 export type { CompilableNode } from './compiler'
-export { execute, collectParamValues, setDuckDbInstance, getDuckDbInstance, PreparedPipeline } from './executor'
-export { templateRegistry } from './templates'
-export { operatorIdToAlias, escapeIdentifier, escapeLiteral } from './utils'
-export { parseDuckDbSQL, parseMustacheRefs, classifyRef, extractOperatorId } from './mustache-parser'
+
+export { collectSubgraph, compile, isCompilable } from './compiler'
+export {
+  collectParamValues,
+  execute,
+  getDuckDbInstance,
+  PreparedPipeline,
+  setDuckDbInstance,
+} from './executor'
+export {
+  getSQLIntegration,
+  resetSQLIntegration,
+  SQLGraphIntegration,
+} from './graph-integration'
+export {
+  classifyRef,
+  extractOperatorId,
+  parseDuckDbSQL,
+  parseMustacheRefs,
+} from './mustache-parser'
 export {
   adaptOperator,
   detectCompilableSubgraphs,
   resolveParamValues,
   SQLExecutionCache,
 } from './subgraph-detector'
-export {
-  SQLGraphIntegration,
-  getSQLIntegration,
-  resetSQLIntegration,
-} from './graph-integration'
+export { templateRegistry } from './templates'
+export type {
+  CompilationContext,
+  CompiledQuery,
+  ExecutionResult,
+  ParamSlot,
+  SQLCompilable,
+  SQLTemplate,
+} from './types'
+export { escapeIdentifier, escapeLiteral, operatorIdToAlias } from './utils'

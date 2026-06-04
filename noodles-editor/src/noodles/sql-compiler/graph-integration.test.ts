@@ -1,8 +1,7 @@
-import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
 import * as duckdb from '@duckdb/duckdb-wasm'
-import { SQLGraphIntegration, getSQLIntegration, resetSQLIntegration } from './graph-integration'
-import { setDuckDbInstance, getDuckDbInstance } from './executor'
-import { templateRegistry } from './templates'
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { setDuckDbInstance } from './executor'
+import { getSQLIntegration, resetSQLIntegration, SQLGraphIntegration } from './graph-integration'
 
 function makeMockOp(id: string, type: string, inputs: Record<string, unknown>): any {
   const inputFields: Record<string, { value: unknown }> = {}
@@ -18,7 +17,7 @@ function makeMockOp(id: string, type: string, inputs: Record<string, unknown>): 
   op.constructor = MockCtor
   op._cachedOutput = null
   op.cachedOutput = null
-  op.setCachedOutput = function(output: any) {
+  op.setCachedOutput = function (output: any) {
     this._cachedOutput = output
     this.cachedOutput = output
   }
@@ -29,12 +28,19 @@ describe('SQLGraphIntegration', () => {
   beforeAll(async () => {
     const DUCKDB_BUNDLES = await duckdb.selectBundle({
       mvp: {
-        mainModule: new URL('@aspect-build/aspect-duckdb-wasm/dist/duckdb-mvp.wasm', import.meta.url).href,
-        mainWorker: new URL('@aspect-build/aspect-duckdb-wasm/dist/duckdb-browser-mvp.worker.js', import.meta.url).href,
+        mainModule: new URL(
+          '@aspect-build/aspect-duckdb-wasm/dist/duckdb-mvp.wasm',
+          import.meta.url
+        ).href,
+        mainWorker: new URL(
+          '@aspect-build/aspect-duckdb-wasm/dist/duckdb-browser-mvp.worker.js',
+          import.meta.url
+        ).href,
       },
       eh: {
         mainModule: new URL('@duckdb/duckdb-wasm/dist/duckdb-eh.wasm', import.meta.url).href,
-        mainWorker: new URL('@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js', import.meta.url).href,
+        mainWorker: new URL('@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js', import.meta.url)
+          .href,
       },
     })
     const logger = new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING)
@@ -79,7 +85,7 @@ describe('SQLGraphIntegration', () => {
         ['/scatter'],
         () => undefined,
         () => [],
-        1,
+        1
       )
       expect(results.size).toBe(0)
     })
@@ -92,7 +98,7 @@ describe('SQLGraphIntegration', () => {
       // Instead of relying on FileOp (which would try read_csv_auto),
       // we directly set a compiled query that references our test table
       const compiled = {
-        sql: `WITH filtered AS (SELECT * FROM integration_data WHERE department = $1), sorted AS (SELECT * FROM filtered ORDER BY salary DESC) SELECT * FROM sorted`,
+        sql: 'WITH filtered AS (SELECT * FROM integration_data WHERE department = $1), sorted AS (SELECT * FROM filtered ORDER BY salary DESC) SELECT * FROM sorted',
         paramSlots: [{ index: 1, fieldPath: '/filter.value', type: 'string' as const }],
         operatorAliases: new Map([
           ['/filter', 'filtered'],
@@ -101,7 +107,14 @@ describe('SQLGraphIntegration', () => {
       }
 
       const ops = new Map<string, any>([
-        ['/filter', makeMockOp('/filter', 'FilterOp', { columnName: 'department', condition: 'equals', value: 'Engineering' })],
+        [
+          '/filter',
+          makeMockOp('/filter', 'FilterOp', {
+            columnName: 'department',
+            condition: 'equals',
+            value: 'Engineering',
+          }),
+        ],
         ['/sort', makeMockOp('/sort', 'Sort', { key: 'salary', order: 'desc' })],
         ['/scatter', makeMockOp('/scatter', 'ScatterplotLayerOp', { data: [] })],
       ])
@@ -112,9 +125,9 @@ describe('SQLGraphIntegration', () => {
 
       const results = await integration.executeSQLSubgraphs(
         ['/scatter'],
-        (id) => ops.get(id),
-        (id) => id === '/scatter' ? ['/sort'] : id === '/sort' ? ['/filter'] : [],
-        1, // same topology version — uses cached query
+        id => ops.get(id),
+        id => (id === '/scatter' ? ['/sort'] : id === '/sort' ? ['/filter'] : []),
+        1 // same topology version — uses cached query
       )
 
       expect(results.size).toBe(1)
@@ -128,13 +141,20 @@ describe('SQLGraphIntegration', () => {
       const integration = new SQLGraphIntegration()
 
       const compiled = {
-        sql: `WITH filtered AS (SELECT * FROM integration_data WHERE department = $1) SELECT * FROM filtered`,
+        sql: 'WITH filtered AS (SELECT * FROM integration_data WHERE department = $1) SELECT * FROM filtered',
         paramSlots: [{ index: 1, fieldPath: '/filter.value', type: 'string' as const }],
         operatorAliases: new Map([['/filter', 'filtered']]),
       }
 
       const ops = new Map<string, any>([
-        ['/filter', makeMockOp('/filter', 'FilterOp', { columnName: 'department', condition: 'equals', value: 'Engineering' })],
+        [
+          '/filter',
+          makeMockOp('/filter', 'FilterOp', {
+            columnName: 'department',
+            condition: 'equals',
+            value: 'Engineering',
+          }),
+        ],
         ['/scatter', makeMockOp('/scatter', 'ScatterplotLayerOp', { data: [] })],
       ])
 
@@ -143,18 +163,20 @@ describe('SQLGraphIntegration', () => {
 
       // First execution
       const r1 = await integration.executeSQLSubgraphs(
-        ['/scatter'], (id) => ops.get(id),
-        (id) => id === '/scatter' ? ['/filter'] : [],
-        1,
+        ['/scatter'],
+        id => ops.get(id),
+        id => (id === '/scatter' ? ['/filter'] : []),
+        1
       )
       expect(r1.get('/filter')!.data.length).toBe(3) // Engineering
 
       // Change param value
       ops.get('/filter')!.inputs.value.value = 'Marketing'
       const r2 = await integration.executeSQLSubgraphs(
-        ['/scatter'], (id) => ops.get(id),
-        (id) => id === '/scatter' ? ['/filter'] : [],
-        1,
+        ['/scatter'],
+        id => ops.get(id),
+        id => (id === '/scatter' ? ['/filter'] : []),
+        1
       )
       expect(r2.get('/filter')!.data.length).toBe(2) // Marketing
     })
@@ -164,13 +186,20 @@ describe('SQLGraphIntegration', () => {
 
       // Set up initial compiled query
       const compiled1 = {
-        sql: `WITH filtered AS (SELECT * FROM integration_data WHERE age > $1) SELECT * FROM filtered`,
+        sql: 'WITH filtered AS (SELECT * FROM integration_data WHERE age > $1) SELECT * FROM filtered',
         paramSlots: [{ index: 1, fieldPath: '/filter.value', type: 'number' as const }],
         operatorAliases: new Map([['/filter', 'filtered']]),
       }
 
       const ops = new Map<string, any>([
-        ['/filter', makeMockOp('/filter', 'FilterOp', { columnName: 'age', condition: 'greater than', value: '30' })],
+        [
+          '/filter',
+          makeMockOp('/filter', 'FilterOp', {
+            columnName: 'age',
+            condition: 'greater than',
+            value: '30',
+          }),
+        ],
         ['/scatter', makeMockOp('/scatter', 'ScatterplotLayerOp', { data: [] })],
       ])
 
@@ -178,9 +207,10 @@ describe('SQLGraphIntegration', () => {
       integration['lastTopologyVersion'] = 1
 
       const r1 = await integration.executeSQLSubgraphs(
-        ['/scatter'], (id) => ops.get(id),
-        (id) => id === '/scatter' ? ['/filter'] : [],
-        1,
+        ['/scatter'],
+        id => ops.get(id),
+        id => (id === '/scatter' ? ['/filter'] : []),
+        1
       )
       expect(r1.get('/filter')!.data.length).toBe(2) // Charlie(35), Eve(32)
 
@@ -188,9 +218,10 @@ describe('SQLGraphIntegration', () => {
       // Since detectCompilableSubgraphs won't find 'integration_data' as a FileOp,
       // it will produce 0 results (operators mock doesn't have valid chain for auto-detection)
       const r2 = await integration.executeSQLSubgraphs(
-        ['/scatter'], (id) => ops.get(id),
-        (id) => id === '/scatter' ? ['/filter'] : [],
-        2, // different topology version
+        ['/scatter'],
+        id => ops.get(id),
+        id => (id === '/scatter' ? ['/filter'] : []),
+        2 // different topology version
       )
       // After topology change, detection re-runs. Without FileOp in chain, nothing compiles
       expect(r2.size).toBe(0)
@@ -200,19 +231,33 @@ describe('SQLGraphIntegration', () => {
       const integration = new SQLGraphIntegration()
 
       const compiled1 = {
-        sql: `WITH f AS (SELECT * FROM integration_data WHERE department = $1) SELECT * FROM f`,
+        sql: 'WITH f AS (SELECT * FROM integration_data WHERE department = $1) SELECT * FROM f',
         paramSlots: [{ index: 1, fieldPath: '/filter1.value', type: 'string' as const }],
         operatorAliases: new Map([['/filter1', 'f']]),
       }
       const compiled2 = {
-        sql: `WITH f AS (SELECT * FROM integration_data WHERE department = $1) SELECT * FROM f`,
+        sql: 'WITH f AS (SELECT * FROM integration_data WHERE department = $1) SELECT * FROM f',
         paramSlots: [{ index: 1, fieldPath: '/filter2.value', type: 'string' as const }],
         operatorAliases: new Map([['/filter2', 'f']]),
       }
 
       const ops = new Map<string, any>([
-        ['/filter1', makeMockOp('/filter1', 'FilterOp', { columnName: 'department', condition: 'equals', value: 'Engineering' })],
-        ['/filter2', makeMockOp('/filter2', 'FilterOp', { columnName: 'department', condition: 'equals', value: 'Marketing' })],
+        [
+          '/filter1',
+          makeMockOp('/filter1', 'FilterOp', {
+            columnName: 'department',
+            condition: 'equals',
+            value: 'Engineering',
+          }),
+        ],
+        [
+          '/filter2',
+          makeMockOp('/filter2', 'FilterOp', {
+            columnName: 'department',
+            condition: 'equals',
+            value: 'Marketing',
+          }),
+        ],
         ['/scatter1', makeMockOp('/scatter1', 'ScatterplotLayerOp', { data: [] })],
         ['/scatter2', makeMockOp('/scatter2', 'ScatterplotLayerOp', { data: [] })],
       ])
@@ -223,13 +268,13 @@ describe('SQLGraphIntegration', () => {
 
       const results = await integration.executeSQLSubgraphs(
         ['/scatter1', '/scatter2'],
-        (id) => ops.get(id),
-        (id) => {
+        id => ops.get(id),
+        id => {
           if (id === '/scatter1') return ['/filter1']
           if (id === '/scatter2') return ['/filter2']
           return []
         },
-        1,
+        1
       )
       expect(results.size).toBe(2)
       expect(results.get('/filter1')!.data.length).toBe(3) // Engineering
@@ -243,7 +288,7 @@ describe('SQLGraphIntegration', () => {
       const sortOp = makeMockOp('/sort', 'Sort', { key: 'age', order: 'asc' })
 
       const compiled = {
-        sql: `WITH sorted AS (SELECT * FROM integration_data ORDER BY age ASC) SELECT * FROM sorted`,
+        sql: 'WITH sorted AS (SELECT * FROM integration_data ORDER BY age ASC) SELECT * FROM sorted',
         paramSlots: [],
         operatorAliases: new Map([['/sort', 'sorted']]),
       }
@@ -257,12 +302,13 @@ describe('SQLGraphIntegration', () => {
       integration['lastTopologyVersion'] = 1
 
       const results = await integration.executeSQLSubgraphs(
-        ['/scatter'], (id) => ops.get(id),
-        (id) => id === '/scatter' ? ['/sort'] : [],
-        1,
+        ['/scatter'],
+        id => ops.get(id),
+        id => (id === '/scatter' ? ['/sort'] : []),
+        1
       )
 
-      const injected = integration.injectResults(results, (id) => ops.get(id))
+      const injected = integration.injectResults(results, id => ops.get(id))
       expect(injected.has('/sort')).toBe(true)
       expect(sortOp._cachedOutput).toBeDefined()
       expect(sortOp._cachedOutput.data.length).toBe(5)
@@ -273,10 +319,12 @@ describe('SQLGraphIntegration', () => {
       const integration = new SQLGraphIntegration()
       let dataReceived: unknown = null
       const sortOp = makeMockOp('/sort', 'Sort', { key: 'age', order: 'asc' })
-      sortOp.outputs.data.next = (val: unknown) => { dataReceived = val }
+      sortOp.outputs.data.next = (val: unknown) => {
+        dataReceived = val
+      }
 
       const compiled = {
-        sql: `WITH sorted AS (SELECT * FROM integration_data ORDER BY age ASC) SELECT * FROM sorted`,
+        sql: 'WITH sorted AS (SELECT * FROM integration_data ORDER BY age ASC) SELECT * FROM sorted',
         paramSlots: [],
         operatorAliases: new Map([['/sort', 'sorted']]),
       }
@@ -290,11 +338,12 @@ describe('SQLGraphIntegration', () => {
       integration['lastTopologyVersion'] = 1
 
       const results = await integration.executeSQLSubgraphs(
-        ['/scatter'], (id) => ops.get(id),
-        (id) => id === '/scatter' ? ['/sort'] : [],
-        1,
+        ['/scatter'],
+        id => ops.get(id),
+        id => (id === '/scatter' ? ['/sort'] : []),
+        1
       )
-      integration.injectResults(results, (id) => ops.get(id))
+      integration.injectResults(results, id => ops.get(id))
 
       expect(dataReceived).not.toBeNull()
       expect(Array.isArray(dataReceived)).toBe(true)
@@ -303,11 +352,15 @@ describe('SQLGraphIntegration', () => {
 
     it('marks chain operators as clean', async () => {
       const integration = new SQLGraphIntegration()
-      const filterOp = makeMockOp('/filter', 'FilterOp', { columnName: 'department', condition: 'equals', value: 'Engineering' })
+      const filterOp = makeMockOp('/filter', 'FilterOp', {
+        columnName: 'department',
+        condition: 'equals',
+        value: 'Engineering',
+      })
       const sortOp = makeMockOp('/sort', 'Sort', { key: 'salary', order: 'desc' })
 
       const compiled = {
-        sql: `WITH filtered AS (SELECT * FROM integration_data WHERE department = $1), sorted AS (SELECT * FROM filtered ORDER BY salary DESC) SELECT * FROM sorted`,
+        sql: 'WITH filtered AS (SELECT * FROM integration_data WHERE department = $1), sorted AS (SELECT * FROM filtered ORDER BY salary DESC) SELECT * FROM sorted',
         paramSlots: [{ index: 1, fieldPath: '/filter.value', type: 'string' as const }],
         operatorAliases: new Map([
           ['/filter', 'filtered'],
@@ -325,12 +378,13 @@ describe('SQLGraphIntegration', () => {
       integration['lastTopologyVersion'] = 1
 
       const results = await integration.executeSQLSubgraphs(
-        ['/scatter'], (id) => ops.get(id),
-        (id) => id === '/scatter' ? ['/sort'] : id === '/sort' ? ['/filter'] : [],
-        1,
+        ['/scatter'],
+        id => ops.get(id),
+        id => (id === '/scatter' ? ['/sort'] : id === '/sort' ? ['/filter'] : []),
+        1
       )
 
-      const injected = integration.injectResults(results, (id) => ops.get(id))
+      const injected = integration.injectResults(results, id => ops.get(id))
       expect(injected.has('/sort')).toBe(true)
       expect(injected.has('/filter')).toBe(true)
       // Both operators have cached output set
@@ -359,13 +413,20 @@ describe('SQLGraphIntegration', () => {
       const integration = new SQLGraphIntegration()
 
       const compiled = {
-        sql: `WITH filtered AS (SELECT * FROM integration_data WHERE age > $1) SELECT * FROM filtered`,
+        sql: 'WITH filtered AS (SELECT * FROM integration_data WHERE age > $1) SELECT * FROM filtered',
         paramSlots: [{ index: 1, fieldPath: '/filter.value', type: 'number' as const }],
         operatorAliases: new Map([['/filter', 'filtered']]),
       }
 
       const ops = new Map<string, any>([
-        ['/filter', makeMockOp('/filter', 'FilterOp', { columnName: 'age', condition: 'greater than', value: '25' })],
+        [
+          '/filter',
+          makeMockOp('/filter', 'FilterOp', {
+            columnName: 'age',
+            condition: 'greater than',
+            value: '25',
+          }),
+        ],
         ['/scatter', makeMockOp('/scatter', 'ScatterplotLayerOp', { data: [] })],
       ])
 
@@ -374,9 +435,10 @@ describe('SQLGraphIntegration', () => {
 
       // Warm up
       await integration.executeSQLSubgraphs(
-        ['/scatter'], (id) => ops.get(id),
-        (id) => id === '/scatter' ? ['/filter'] : [],
-        1,
+        ['/scatter'],
+        id => ops.get(id),
+        id => (id === '/scatter' ? ['/filter'] : []),
+        1
       )
 
       // Measure 30 frames with changing param
@@ -384,9 +446,10 @@ describe('SQLGraphIntegration', () => {
       for (let i = 0; i < 30; i++) {
         ops.get('/filter')!.inputs.value.value = String(20 + i)
         await integration.executeSQLSubgraphs(
-          ['/scatter'], (id) => ops.get(id),
-          (id) => id === '/scatter' ? ['/filter'] : [],
-          1,
+          ['/scatter'],
+          id => ops.get(id),
+          id => (id === '/scatter' ? ['/filter'] : []),
+          1
         )
       }
       const elapsed = performance.now() - start
@@ -403,7 +466,7 @@ describe('SQLGraphIntegration', () => {
         ['/nonexistent'],
         () => undefined,
         () => [],
-        1,
+        1
       )
       expect(results.size).toBe(0)
     })
@@ -412,13 +475,16 @@ describe('SQLGraphIntegration', () => {
       const integration = new SQLGraphIntegration()
 
       const compiled = {
-        sql: `WITH bad AS (SELECT * FROM nonexistent_table_xyz_404) SELECT * FROM bad`,
+        sql: 'WITH bad AS (SELECT * FROM nonexistent_table_xyz_404) SELECT * FROM bad',
         paramSlots: [],
         operatorAliases: new Map([['/bad', 'bad']]),
       }
 
       const ops = new Map<string, any>([
-        ['/bad', makeMockOp('/bad', 'FilterOp', { columnName: 'x', condition: 'equals', value: '1' })],
+        [
+          '/bad',
+          makeMockOp('/bad', 'FilterOp', { columnName: 'x', condition: 'equals', value: '1' }),
+        ],
         ['/scatter', makeMockOp('/scatter', 'ScatterplotLayerOp', { data: [] })],
       ])
 
@@ -427,9 +493,10 @@ describe('SQLGraphIntegration', () => {
 
       // Should not throw
       const results = await integration.executeSQLSubgraphs(
-        ['/scatter'], (id) => ops.get(id),
-        (id) => id === '/scatter' ? ['/bad'] : [],
-        1,
+        ['/scatter'],
+        id => ops.get(id),
+        id => (id === '/scatter' ? ['/bad'] : []),
+        1
       )
       expect(results.size).toBe(0) // Error caught, no result
     })
@@ -438,7 +505,7 @@ describe('SQLGraphIntegration', () => {
       const integration = new SQLGraphIntegration()
 
       const compiled = {
-        sql: `WITH src AS (SELECT * FROM integration_data) SELECT * FROM src`,
+        sql: 'WITH src AS (SELECT * FROM integration_data) SELECT * FROM src',
         paramSlots: [],
         operatorAliases: new Map([['/file', 'src']]),
       }
@@ -480,9 +547,9 @@ describe('SQLGraphIntegration', () => {
       // So this tests the "graceful empty" path
       const results = await integration.executeSQLSubgraphs(
         ['/scatter'],
-        (id) => ops.get(id),
-        (id) => upstreamMap.get(id) || [],
-        1,
+        id => ops.get(id),
+        id => upstreamMap.get(id) || [],
+        1
       )
 
       // Without a data source, detection won't produce compilable chains

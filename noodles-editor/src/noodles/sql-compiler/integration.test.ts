@@ -1,10 +1,15 @@
-import { describe, it, expect, beforeAll } from 'vitest'
 import * as duckdb from '@duckdb/duckdb-wasm'
+import { beforeAll, describe, expect, it } from 'vitest'
+import type { CompilableNode } from './compiler'
 import { compile } from './compiler'
 import { execute, setDuckDbInstance } from './executor'
-import type { CompilableNode } from './compiler'
 
-function makeNode(id: string, type: string, inputs: Record<string, unknown>, upstreamIds: string[] = []): CompilableNode {
+function makeNode(
+  id: string,
+  type: string,
+  inputs: Record<string, unknown>,
+  upstreamIds: string[] = []
+): CompilableNode {
   const inputFields: Record<string, { value: unknown }> = {}
   for (const [key, val] of Object.entries(inputs)) {
     inputFields[key] = { value: val }
@@ -21,12 +26,19 @@ describe('SQL Compiler Integration (DuckDB)', () => {
   beforeAll(async () => {
     const DUCKDB_BUNDLES = await duckdb.selectBundle({
       mvp: {
-        mainModule: new URL('@aspect-build/aspect-duckdb-wasm/dist/duckdb-mvp.wasm', import.meta.url).href,
-        mainWorker: new URL('@aspect-build/aspect-duckdb-wasm/dist/duckdb-browser-mvp.worker.js', import.meta.url).href,
+        mainModule: new URL(
+          '@aspect-build/aspect-duckdb-wasm/dist/duckdb-mvp.wasm',
+          import.meta.url
+        ).href,
+        mainWorker: new URL(
+          '@aspect-build/aspect-duckdb-wasm/dist/duckdb-browser-mvp.worker.js',
+          import.meta.url
+        ).href,
       },
       eh: {
         mainModule: new URL('@duckdb/duckdb-wasm/dist/duckdb-eh.wasm', import.meta.url).href,
-        mainWorker: new URL('@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js', import.meta.url).href,
+        mainWorker: new URL('@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js', import.meta.url)
+          .href,
       },
     })
     const logger = new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING)
@@ -51,9 +63,7 @@ describe('SQL Compiler Integration (DuckDB)', () => {
 
   it('executes a simple query from a FileOp-like source', async () => {
     // Use inline SQL since we can't read files in test env
-    const nodes = [
-      makeNode('/src', 'File', { url: 'test_data', format: 'csv' }),
-    ]
+    const nodes = [makeNode('/src', 'File', { url: 'test_data', format: 'csv' })]
     // Override: just use the table name directly for testing
     const compiled = compile(nodes)
     // Rewrite the compiled SQL to use our test table
@@ -69,7 +79,10 @@ describe('SQL Compiler Integration (DuckDB)', () => {
     const compiled = {
       sql: 'WITH src AS (SELECT * FROM test_data), filtered AS (SELECT * FROM src WHERE age > $1) SELECT * FROM filtered',
       paramSlots: [{ index: 1, fieldPath: '/filter.value', type: 'number' as const }],
-      operatorAliases: new Map([['src', 'src'], ['filtered', 'filtered']]),
+      operatorAliases: new Map([
+        ['src', 'src'],
+        ['filtered', 'filtered'],
+      ]),
     }
     const result = await execute(compiled, [30])
     const rows = result.toArray()
@@ -213,7 +226,12 @@ describe('SQL Compiler Integration (DuckDB)', () => {
         { index: 2, fieldPath: '/top.end', type: 'number' as const },
         { index: 3, fieldPath: '/top.start', type: 'number' as const },
       ],
-      operatorAliases: new Map([['src', 'src'], ['filtered', 'filtered'], ['sorted', 'sorted'], ['top_op', 'top_op']]),
+      operatorAliases: new Map([
+        ['src', 'src'],
+        ['filtered', 'filtered'],
+        ['sorted', 'sorted'],
+        ['top_op', 'top_op'],
+      ]),
     }
     const result = await execute(compiled, ['Engineering', 2, 0])
     const rows = result.toArray()

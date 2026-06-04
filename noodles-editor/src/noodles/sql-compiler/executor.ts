@@ -18,7 +18,7 @@ export function getDuckDbInstance(): AsyncDuckDB | null {
 // This is the key function for timeline scrubbing — it reads live field values.
 export function collectParamValues(
   paramSlots: ParamSlot[],
-  getFieldValue: (fieldPath: string) => unknown,
+  getFieldValue: (fieldPath: string) => unknown
 ): unknown[] {
   const values: unknown[] = new Array(paramSlots.length)
   for (let i = 0; i < paramSlots.length; i++) {
@@ -35,7 +35,6 @@ export function collectParamValues(
       case 'json':
         value = typeof value === 'string' ? value : JSON.stringify(value)
         break
-      case 'string':
       default:
         value = String(value ?? '')
         break
@@ -49,7 +48,7 @@ export function collectParamValues(
 // Returns an Arrow table (zero-copy from DuckDB).
 export async function execute(
   compiled: CompiledQuery,
-  paramValues: unknown[],
+  paramValues: unknown[]
 ): Promise<ExecutionResult> {
   if (!duckDbInstance) throw new Error('DuckDB not initialized. Call setDuckDbInstance() first.')
 
@@ -96,9 +95,8 @@ export class PreparedPipeline {
 
   async execute(paramValues: unknown[]): Promise<ExecutionResult> {
     if (!this.stmt) await this.prepare()
-    const table: arrow.Table = paramValues.length > 0
-      ? await this.stmt.query(...paramValues)
-      : await this.stmt.query()
+    const table: arrow.Table =
+      paramValues.length > 0 ? await this.stmt.query(...paramValues) : await this.stmt.query()
     return {
       table,
       toArray() {
@@ -108,7 +106,13 @@ export class PreparedPipeline {
   }
 
   async close(): Promise<void> {
-    if (this.stmt) { await this.stmt.close(); this.stmt = null }
-    if (this.conn) { await this.conn.close(); this.conn = null }
+    if (this.stmt) {
+      await this.stmt.close()
+      this.stmt = null
+    }
+    if (this.conn) {
+      await this.conn.close()
+      this.conn = null
+    }
   }
 }

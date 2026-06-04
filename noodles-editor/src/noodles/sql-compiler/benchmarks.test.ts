@@ -1,12 +1,17 @@
-import { describe, it, expect, beforeAll } from 'vitest'
 import * as duckdb from '@duckdb/duckdb-wasm'
-import { compile } from './compiler'
-import { execute, setDuckDbInstance, PreparedPipeline } from './executor'
-import { SQLGraphIntegration } from './graph-integration'
+import { beforeAll, describe, expect, it } from 'vitest'
 import type { CompilableNode } from './compiler'
+import { compile } from './compiler'
+import { execute, PreparedPipeline, setDuckDbInstance } from './executor'
+import { SQLGraphIntegration } from './graph-integration'
 import type { CompiledQuery } from './types'
 
-function makeNode(id: string, type: string, inputs: Record<string, unknown>, upstreamIds: string[] = []): CompilableNode {
+function makeNode(
+  id: string,
+  type: string,
+  inputs: Record<string, unknown>,
+  upstreamIds: string[] = []
+): CompilableNode {
   const inputFields: Record<string, { value: unknown }> = {}
   for (const [key, val] of Object.entries(inputs)) {
     inputFields[key] = { value: val }
@@ -18,12 +23,19 @@ describe('Performance Benchmarks', () => {
   beforeAll(async () => {
     const DUCKDB_BUNDLES = await duckdb.selectBundle({
       mvp: {
-        mainModule: new URL('@aspect-build/aspect-duckdb-wasm/dist/duckdb-mvp.wasm', import.meta.url).href,
-        mainWorker: new URL('@aspect-build/aspect-duckdb-wasm/dist/duckdb-browser-mvp.worker.js', import.meta.url).href,
+        mainModule: new URL(
+          '@aspect-build/aspect-duckdb-wasm/dist/duckdb-mvp.wasm',
+          import.meta.url
+        ).href,
+        mainWorker: new URL(
+          '@aspect-build/aspect-duckdb-wasm/dist/duckdb-browser-mvp.worker.js',
+          import.meta.url
+        ).href,
       },
       eh: {
         mainModule: new URL('@duckdb/duckdb-wasm/dist/duckdb-eh.wasm', import.meta.url).href,
-        mainWorker: new URL('@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js', import.meta.url).href,
+        mainWorker: new URL('@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js', import.meta.url)
+          .href,
       },
     })
     const logger = new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING)
@@ -77,9 +89,23 @@ describe('Performance Benchmarks', () => {
     it('5-operator chain compiles in <5ms', () => {
       const nodes = [
         makeNode('/file', 'File', { url: 'data.csv', format: 'csv' }),
-        makeNode('/filter', 'FilterOp', { columnName: 'age', condition: 'greater than', value: '30' }, ['/file']),
+        makeNode(
+          '/filter',
+          'FilterOp',
+          { columnName: 'age', condition: 'greater than', value: '30' },
+          ['/file']
+        ),
         makeNode('/sort', 'Sort', { key: 'salary', order: 'desc' }, ['/filter']),
-        makeNode('/group', 'GroupBy', { groupByColumns: 'department', aggregations: 'sum:salary', outputColumns: 'total_salary' }, ['/sort']),
+        makeNode(
+          '/group',
+          'GroupBy',
+          {
+            groupByColumns: 'department',
+            aggregations: 'sum:salary',
+            outputColumns: 'total_salary',
+          },
+          ['/sort']
+        ),
         makeNode('/slice', 'Slice', { start: '0', end: '10' }, ['/group']),
       ]
 
@@ -96,7 +122,17 @@ describe('Performance Benchmarks', () => {
       const nodes: CompilableNode[] = [
         makeNode('/file', 'File', { url: 'data.csv', format: 'csv' }),
       ]
-      const types = ['FilterOp', 'Sort', 'Slice', 'Unique', 'FilterOp', 'Sort', 'Slice', 'Unique', 'Sort']
+      const types = [
+        'FilterOp',
+        'Sort',
+        'Slice',
+        'Unique',
+        'FilterOp',
+        'Sort',
+        'Slice',
+        'Unique',
+        'Sort',
+      ]
       const filterInputs = { columnName: 'age', condition: 'greater than', value: '25' }
       const sortInputs = { key: 'age', order: 'asc' }
       const sliceInputs = { start: '0', end: '100' }
@@ -108,11 +144,20 @@ describe('Performance Benchmarks', () => {
         const id = `/op${i + 1}`
         let inputs: Record<string, unknown>
         switch (type) {
-          case 'FilterOp': inputs = filterInputs; break
-          case 'Sort': inputs = sortInputs; break
-          case 'Slice': inputs = sliceInputs; break
-          case 'Unique': inputs = uniqueInputs; break
-          default: inputs = sortInputs
+          case 'FilterOp':
+            inputs = filterInputs
+            break
+          case 'Sort':
+            inputs = sortInputs
+            break
+          case 'Slice':
+            inputs = sliceInputs
+            break
+          case 'Unique':
+            inputs = uniqueInputs
+            break
+          default:
+            inputs = sortInputs
         }
         nodes.push(makeNode(id, type, inputs, [prevId]))
       }
@@ -134,11 +179,12 @@ describe('Performance Benchmarks', () => {
         const prevId = i === 1 ? '/file' : `/n${i - 1}`
         const id = `/n${i}`
         const type = i % 3 === 0 ? 'Sort' : i % 3 === 1 ? 'FilterOp' : 'Slice'
-        const inputs = type === 'FilterOp'
-          ? { columnName: 'age', condition: 'greater than', value: String(i) }
-          : type === 'Sort'
-            ? { key: 'age', order: 'asc' }
-            : { start: '0', end: '1000' }
+        const inputs =
+          type === 'FilterOp'
+            ? { columnName: 'age', condition: 'greater than', value: String(i) }
+            : type === 'Sort'
+              ? { key: 'age', order: 'asc' }
+              : { start: '0', end: '1000' }
         nodes.push(makeNode(id, type, inputs, [prevId]))
       }
 
@@ -155,7 +201,7 @@ describe('Performance Benchmarks', () => {
   describe('Execution Time: Single CTE Query vs Sequential', () => {
     it('1K rows: filter+sort+limit in single query', async () => {
       const compiled: CompiledQuery = {
-        sql: `WITH filtered AS (SELECT * FROM bench_1k WHERE age > $1), sorted AS (SELECT * FROM filtered ORDER BY salary DESC), limited AS (SELECT * FROM sorted LIMIT $2) SELECT * FROM limited`,
+        sql: 'WITH filtered AS (SELECT * FROM bench_1k WHERE age > $1), sorted AS (SELECT * FROM filtered ORDER BY salary DESC), limited AS (SELECT * FROM sorted LIMIT $2) SELECT * FROM limited',
         paramSlots: [
           { index: 1, fieldPath: '/f.value', type: 'number' },
           { index: 2, fieldPath: '/s.end', type: 'number' },
@@ -169,12 +215,14 @@ describe('Performance Benchmarks', () => {
 
       expect(result.toArray().length).toBeLessThanOrEqual(100)
       expect(elapsed).toBeLessThan(50)
-      console.log(`  1K rows (filter+sort+limit): ${elapsed.toFixed(2)}ms, ${result.table.numRows} rows`)
+      console.log(
+        `  1K rows (filter+sort+limit): ${elapsed.toFixed(2)}ms, ${result.table.numRows} rows`
+      )
     })
 
     it('10K rows: filter+sort+limit in single query', async () => {
       const compiled: CompiledQuery = {
-        sql: `WITH filtered AS (SELECT * FROM bench_10k WHERE age > $1), sorted AS (SELECT * FROM filtered ORDER BY salary DESC), limited AS (SELECT * FROM sorted LIMIT $2) SELECT * FROM limited`,
+        sql: 'WITH filtered AS (SELECT * FROM bench_10k WHERE age > $1), sorted AS (SELECT * FROM filtered ORDER BY salary DESC), limited AS (SELECT * FROM sorted LIMIT $2) SELECT * FROM limited',
         paramSlots: [
           { index: 1, fieldPath: '/f.value', type: 'number' },
           { index: 2, fieldPath: '/s.end', type: 'number' },
@@ -188,12 +236,14 @@ describe('Performance Benchmarks', () => {
 
       expect(result.toArray().length).toBeLessThanOrEqual(100)
       expect(elapsed).toBeLessThan(100)
-      console.log(`  10K rows (filter+sort+limit): ${elapsed.toFixed(2)}ms, ${result.table.numRows} rows`)
+      console.log(
+        `  10K rows (filter+sort+limit): ${elapsed.toFixed(2)}ms, ${result.table.numRows} rows`
+      )
     })
 
     it('100K rows: filter+sort+limit in single query', async () => {
       const compiled: CompiledQuery = {
-        sql: `WITH filtered AS (SELECT * FROM bench_100k WHERE age > $1), sorted AS (SELECT * FROM filtered ORDER BY salary DESC), limited AS (SELECT * FROM sorted LIMIT $2) SELECT * FROM limited`,
+        sql: 'WITH filtered AS (SELECT * FROM bench_100k WHERE age > $1), sorted AS (SELECT * FROM filtered ORDER BY salary DESC), limited AS (SELECT * FROM sorted LIMIT $2) SELECT * FROM limited',
         paramSlots: [
           { index: 1, fieldPath: '/f.value', type: 'number' },
           { index: 2, fieldPath: '/s.end', type: 'number' },
@@ -207,12 +257,14 @@ describe('Performance Benchmarks', () => {
 
       expect(result.toArray().length).toBeLessThanOrEqual(100)
       expect(elapsed).toBeLessThan(200)
-      console.log(`  100K rows (filter+sort+limit): ${elapsed.toFixed(2)}ms, ${result.table.numRows} rows`)
+      console.log(
+        `  100K rows (filter+sort+limit): ${elapsed.toFixed(2)}ms, ${result.table.numRows} rows`
+      )
     })
 
     it('100K rows: group by + aggregate', async () => {
       const compiled: CompiledQuery = {
-        sql: `WITH grouped AS (SELECT department, COUNT(*) AS n, AVG(salary) AS avg_salary, MAX(salary) AS max_salary FROM bench_100k GROUP BY department) SELECT * FROM grouped ORDER BY n DESC`,
+        sql: 'WITH grouped AS (SELECT department, COUNT(*) AS n, AVG(salary) AS avg_salary, MAX(salary) AS max_salary FROM bench_100k GROUP BY department) SELECT * FROM grouped ORDER BY n DESC',
         paramSlots: [],
         operatorAliases: new Map(),
       }
@@ -228,7 +280,7 @@ describe('Performance Benchmarks', () => {
 
     it('100K rows: window function', async () => {
       const compiled: CompiledQuery = {
-        sql: `WITH windowed AS (SELECT *, ROW_NUMBER() OVER (PARTITION BY department ORDER BY salary DESC) AS rank FROM bench_100k) SELECT * FROM windowed WHERE rank <= $1`,
+        sql: 'WITH windowed AS (SELECT *, ROW_NUMBER() OVER (PARTITION BY department ORDER BY salary DESC) AS rank FROM bench_100k) SELECT * FROM windowed WHERE rank <= $1',
         paramSlots: [{ index: 1, fieldPath: '/w.limit', type: 'number' }],
         operatorAliases: new Map(),
       }
@@ -239,7 +291,9 @@ describe('Performance Benchmarks', () => {
 
       expect(result.toArray().length).toBe(30) // 10 per department
       expect(elapsed).toBeLessThan(300)
-      console.log(`  100K rows (window rank): ${elapsed.toFixed(2)}ms, ${result.table.numRows} rows`)
+      console.log(
+        `  100K rows (window rank): ${elapsed.toFixed(2)}ms, ${result.table.numRows} rows`
+      )
     })
 
     it('100K rows: sequential individual queries (baseline comparison)', async () => {
@@ -247,28 +301,37 @@ describe('Performance Benchmarks', () => {
       const start = performance.now()
 
       // Step 1: Filter
-      const r1 = await execute({
-        sql: 'SELECT * FROM bench_100k WHERE age > $1',
-        paramSlots: [{ index: 1, fieldPath: '/f.value', type: 'number' }],
-        operatorAliases: new Map(),
-      }, [30])
+      const _r1 = await execute(
+        {
+          sql: 'SELECT * FROM bench_100k WHERE age > $1',
+          paramSlots: [{ index: 1, fieldPath: '/f.value', type: 'number' }],
+          operatorAliases: new Map(),
+        },
+        [30]
+      )
 
       // Step 2: Sort (operating on full filtered set)
-      const r2 = await execute({
-        sql: `WITH src AS (SELECT * FROM bench_100k WHERE age > $1) SELECT * FROM src ORDER BY salary DESC`,
-        paramSlots: [{ index: 1, fieldPath: '/f.value', type: 'number' }],
-        operatorAliases: new Map(),
-      }, [30])
+      const _r2 = await execute(
+        {
+          sql: 'WITH src AS (SELECT * FROM bench_100k WHERE age > $1) SELECT * FROM src ORDER BY salary DESC',
+          paramSlots: [{ index: 1, fieldPath: '/f.value', type: 'number' }],
+          operatorAliases: new Map(),
+        },
+        [30]
+      )
 
       // Step 3: Limit
-      const r3 = await execute({
-        sql: `WITH src AS (SELECT * FROM bench_100k WHERE age > $1), sorted AS (SELECT * FROM src ORDER BY salary DESC) SELECT * FROM sorted LIMIT $2`,
-        paramSlots: [
-          { index: 1, fieldPath: '/f.value', type: 'number' },
-          { index: 2, fieldPath: '/s.end', type: 'number' },
-        ],
-        operatorAliases: new Map(),
-      }, [30, 100])
+      const _r3 = await execute(
+        {
+          sql: 'WITH src AS (SELECT * FROM bench_100k WHERE age > $1), sorted AS (SELECT * FROM src ORDER BY salary DESC) SELECT * FROM sorted LIMIT $2',
+          paramSlots: [
+            { index: 1, fieldPath: '/f.value', type: 'number' },
+            { index: 2, fieldPath: '/s.end', type: 'number' },
+          ],
+          operatorAliases: new Map(),
+        },
+        [30, 100]
+      )
 
       const elapsed = performance.now() - start
       console.log(`  100K rows (3 sequential queries): ${elapsed.toFixed(2)}ms`)
@@ -279,7 +342,7 @@ describe('Performance Benchmarks', () => {
   describe('Timeline Scrubbing: Prepared Statement Reuse', () => {
     it('60 frames with changing filter threshold (1K rows)', async () => {
       const compiled: CompiledQuery = {
-        sql: `WITH filtered AS (SELECT * FROM bench_1k WHERE age > $1), sorted AS (SELECT * FROM filtered ORDER BY salary DESC) SELECT * FROM sorted LIMIT 50`,
+        sql: 'WITH filtered AS (SELECT * FROM bench_1k WHERE age > $1), sorted AS (SELECT * FROM filtered ORDER BY salary DESC) SELECT * FROM sorted LIMIT 50',
         paramSlots: [{ index: 1, fieldPath: '/f.value', type: 'number' }],
         operatorAliases: new Map(),
       }
@@ -289,7 +352,7 @@ describe('Performance Benchmarks', () => {
 
       const frameTimes: number[] = []
       for (let frame = 0; frame < 60; frame++) {
-        const threshold = 20 + (frame * 60 / 60) // 20 → 80 over 60 frames
+        const threshold = 20 + (frame * 60) / 60 // 20 → 80 over 60 frames
         const start = performance.now()
         const result = await pipeline.execute([threshold])
         frameTimes.push(performance.now() - start)
@@ -303,12 +366,14 @@ describe('Performance Benchmarks', () => {
       const p95 = frameTimes.sort((a, b) => a - b)[Math.floor(frameTimes.length * 0.95)]
 
       expect(avg).toBeLessThan(16) // Under 16ms avg for 60fps
-      console.log(`  1K timeline scrub: avg=${avg.toFixed(2)}ms, p95=${p95.toFixed(2)}ms, max=${max.toFixed(2)}ms`)
+      console.log(
+        `  1K timeline scrub: avg=${avg.toFixed(2)}ms, p95=${p95.toFixed(2)}ms, max=${max.toFixed(2)}ms`
+      )
     })
 
     it('60 frames with changing filter threshold (10K rows)', async () => {
       const compiled: CompiledQuery = {
-        sql: `WITH filtered AS (SELECT * FROM bench_10k WHERE age > $1), sorted AS (SELECT * FROM filtered ORDER BY salary DESC) SELECT * FROM sorted LIMIT 50`,
+        sql: 'WITH filtered AS (SELECT * FROM bench_10k WHERE age > $1), sorted AS (SELECT * FROM filtered ORDER BY salary DESC) SELECT * FROM sorted LIMIT 50',
         paramSlots: [{ index: 1, fieldPath: '/f.value', type: 'number' }],
         operatorAliases: new Map(),
       }
@@ -318,7 +383,7 @@ describe('Performance Benchmarks', () => {
 
       const frameTimes: number[] = []
       for (let frame = 0; frame < 60; frame++) {
-        const threshold = 20 + (frame * 60 / 60)
+        const threshold = 20 + (frame * 60) / 60
         const start = performance.now()
         await pipeline.execute([threshold])
         frameTimes.push(performance.now() - start)
@@ -331,12 +396,14 @@ describe('Performance Benchmarks', () => {
       const p95 = frameTimes.sort((a, b) => a - b)[Math.floor(frameTimes.length * 0.95)]
 
       expect(avg).toBeLessThan(16)
-      console.log(`  10K timeline scrub: avg=${avg.toFixed(2)}ms, p95=${p95.toFixed(2)}ms, max=${max.toFixed(2)}ms`)
+      console.log(
+        `  10K timeline scrub: avg=${avg.toFixed(2)}ms, p95=${p95.toFixed(2)}ms, max=${max.toFixed(2)}ms`
+      )
     })
 
     it('60 frames with changing filter threshold (100K rows)', async () => {
       const compiled: CompiledQuery = {
-        sql: `WITH filtered AS (SELECT * FROM bench_100k WHERE age > $1), sorted AS (SELECT * FROM filtered ORDER BY salary DESC) SELECT * FROM sorted LIMIT 200`,
+        sql: 'WITH filtered AS (SELECT * FROM bench_100k WHERE age > $1), sorted AS (SELECT * FROM filtered ORDER BY salary DESC) SELECT * FROM sorted LIMIT 200',
         paramSlots: [{ index: 1, fieldPath: '/f.value', type: 'number' }],
         operatorAliases: new Map(),
       }
@@ -346,7 +413,7 @@ describe('Performance Benchmarks', () => {
 
       const frameTimes: number[] = []
       for (let frame = 0; frame < 60; frame++) {
-        const threshold = 20 + (frame * 60 / 60)
+        const threshold = 20 + (frame * 60) / 60
         const start = performance.now()
         await pipeline.execute([threshold])
         frameTimes.push(performance.now() - start)
@@ -360,12 +427,14 @@ describe('Performance Benchmarks', () => {
 
       // 100K with filter+sort+limit: allow more headroom
       expect(avg).toBeLessThan(50)
-      console.log(`  100K timeline scrub: avg=${avg.toFixed(2)}ms, p95=${p95.toFixed(2)}ms, max=${max.toFixed(2)}ms`)
+      console.log(
+        `  100K timeline scrub: avg=${avg.toFixed(2)}ms, p95=${p95.toFixed(2)}ms, max=${max.toFixed(2)}ms`
+      )
     })
 
     it('reuse vs fresh: prepared statement saves time', async () => {
       const compiled: CompiledQuery = {
-        sql: `WITH filtered AS (SELECT * FROM bench_10k WHERE age > $1) SELECT * FROM filtered ORDER BY salary DESC LIMIT 100`,
+        sql: 'WITH filtered AS (SELECT * FROM bench_10k WHERE age > $1) SELECT * FROM filtered ORDER BY salary DESC LIMIT 100',
         paramSlots: [{ index: 1, fieldPath: '/f.value', type: 'number' }],
         operatorAliases: new Map(),
       }
@@ -393,7 +462,9 @@ describe('Performance Benchmarks', () => {
       const preparedAvg = preparedTimes.reduce((a, b) => a + b, 0) / preparedTimes.length
 
       // Prepared should be faster or at least as fast
-      console.log(`  Fresh avg: ${freshAvg.toFixed(2)}ms, Prepared avg: ${preparedAvg.toFixed(2)}ms, Speedup: ${(freshAvg / preparedAvg).toFixed(2)}x`)
+      console.log(
+        `  Fresh avg: ${freshAvg.toFixed(2)}ms, Prepared avg: ${preparedAvg.toFixed(2)}ms, Speedup: ${(freshAvg / preparedAvg).toFixed(2)}x`
+      )
     })
   })
 
@@ -411,7 +482,9 @@ describe('Performance Benchmarks', () => {
       op.outputs = { data: { next: () => {} } }
       op.constructor = MockCtor
       op._cachedOutput = null
-      op.setCachedOutput = function(o: any) { this._cachedOutput = o }
+      op.setCachedOutput = function (o: any) {
+        this._cachedOutput = o
+      }
       return op
     }
 
@@ -419,7 +492,7 @@ describe('Performance Benchmarks', () => {
       const integration = new SQLGraphIntegration()
 
       const compiled: CompiledQuery = {
-        sql: `WITH filtered AS (SELECT * FROM bench_10k WHERE salary > $1), sorted AS (SELECT * FROM filtered ORDER BY age ASC) SELECT * FROM sorted LIMIT 200`,
+        sql: 'WITH filtered AS (SELECT * FROM bench_10k WHERE salary > $1), sorted AS (SELECT * FROM filtered ORDER BY age ASC) SELECT * FROM sorted LIMIT 200',
         paramSlots: [{ index: 1, fieldPath: '/filter.value', type: 'number' }],
         operatorAliases: new Map([
           ['/filter', 'filtered'],
@@ -428,7 +501,14 @@ describe('Performance Benchmarks', () => {
       }
 
       const ops = new Map<string, any>([
-        ['/filter', makeMockOp('/filter', 'FilterOp', { columnName: 'salary', condition: 'greater than', value: '50000' })],
+        [
+          '/filter',
+          makeMockOp('/filter', 'FilterOp', {
+            columnName: 'salary',
+            condition: 'greater than',
+            value: '50000',
+          }),
+        ],
         ['/sort', makeMockOp('/sort', 'Sort', { key: 'age', order: 'asc' })],
         ['/scatter', makeMockOp('/scatter', 'ScatterplotLayerOp', { data: [] })],
       ])
@@ -440,29 +520,38 @@ describe('Performance Benchmarks', () => {
       const start = performance.now()
       const results = await integration.executeSQLSubgraphs(
         ['/scatter'],
-        (id) => ops.get(id),
-        (id) => id === '/scatter' ? ['/sort'] : id === '/sort' ? ['/filter'] : [],
-        1,
+        id => ops.get(id),
+        id => (id === '/scatter' ? ['/sort'] : id === '/sort' ? ['/filter'] : []),
+        1
       )
-      integration.injectResults(results, (id) => ops.get(id))
+      integration.injectResults(results, id => ops.get(id))
       const elapsed = performance.now() - start
 
       expect(results.size).toBe(1)
       expect(elapsed).toBeLessThan(50)
-      console.log(`  Full integration (10K): ${elapsed.toFixed(2)}ms, ${results.get('/sort')!.data.length} rows`)
+      console.log(
+        `  Full integration (10K): ${elapsed.toFixed(2)}ms, ${results.get('/sort')!.data.length} rows`
+      )
     })
 
     it('30 frames of parameter scrubbing through integration layer', async () => {
       const integration = new SQLGraphIntegration()
 
       const compiled: CompiledQuery = {
-        sql: `WITH filtered AS (SELECT * FROM bench_10k WHERE age > $1) SELECT COUNT(*) AS n FROM filtered`,
+        sql: 'WITH filtered AS (SELECT * FROM bench_10k WHERE age > $1) SELECT COUNT(*) AS n FROM filtered',
         paramSlots: [{ index: 1, fieldPath: '/filter.value', type: 'number' }],
         operatorAliases: new Map([['/filter', 'filtered']]),
       }
 
       const ops = new Map<string, any>([
-        ['/filter', makeMockOp('/filter', 'FilterOp', { columnName: 'age', condition: 'greater than', value: '25' })],
+        [
+          '/filter',
+          makeMockOp('/filter', 'FilterOp', {
+            columnName: 'age',
+            condition: 'greater than',
+            value: '25',
+          }),
+        ],
         ['/scatter', makeMockOp('/scatter', 'ScatterplotLayerOp', { data: [] })],
       ])
 
@@ -475,9 +564,9 @@ describe('Performance Benchmarks', () => {
         const start = performance.now()
         await integration.executeSQLSubgraphs(
           ['/scatter'],
-          (id) => ops.get(id),
-          (id) => id === '/scatter' ? ['/filter'] : [],
-          1,
+          id => ops.get(id),
+          id => (id === '/scatter' ? ['/filter'] : []),
+          1
         )
         frameTimes.push(performance.now() - start)
       }
@@ -486,14 +575,16 @@ describe('Performance Benchmarks', () => {
       const max = Math.max(...frameTimes)
 
       expect(avg).toBeLessThan(16)
-      console.log(`  Integration scrub (30 frames): avg=${avg.toFixed(2)}ms, max=${max.toFixed(2)}ms`)
+      console.log(
+        `  Integration scrub (30 frames): avg=${avg.toFixed(2)}ms, max=${max.toFixed(2)}ms`
+      )
     })
   })
 
   describe('Memory and Correctness', () => {
     it('results are consistent across repeated executions', async () => {
       const compiled: CompiledQuery = {
-        sql: `WITH src AS (SELECT * FROM bench_1k WHERE age > $1 ORDER BY id) SELECT * FROM src`,
+        sql: 'WITH src AS (SELECT * FROM bench_1k WHERE age > $1 ORDER BY id) SELECT * FROM src',
         paramSlots: [{ index: 1, fieldPath: '/f.value', type: 'number' }],
         operatorAliases: new Map(),
       }
@@ -513,7 +604,7 @@ describe('Performance Benchmarks', () => {
 
     it('Arrow table row counts match expectations', async () => {
       const compiled: CompiledQuery = {
-        sql: `SELECT COUNT(*) AS n FROM bench_100k`,
+        sql: 'SELECT COUNT(*) AS n FROM bench_100k',
         paramSlots: [],
         operatorAliases: new Map(),
       }
@@ -523,9 +614,9 @@ describe('Performance Benchmarks', () => {
       expect(Number(rows[0].n)).toBe(100000)
     })
 
-    it('prepared pipeline doesn\'t leak connections on close', async () => {
+    it("prepared pipeline doesn't leak connections on close", async () => {
       const compiled: CompiledQuery = {
-        sql: `SELECT 1 AS x`,
+        sql: 'SELECT 1 AS x',
         paramSlots: [],
         operatorAliases: new Map(),
       }

@@ -2388,8 +2388,12 @@ describe('findSQLBoundarySinks', () => {
     op._cachedOutput = null
     op._pullExecutionStatus = 'clean'
     op.pull = async () => ({})
-    op.setCachedOutput = function(o: any) { this._cachedOutput = o }
-    op.markDirty = function() { this.dirty = true }
+    op.setCachedOutput = function (o: any) {
+      this._cachedOutput = o
+    }
+    op.markDirty = function () {
+      this.dirty = true
+    }
     return op
   }
 

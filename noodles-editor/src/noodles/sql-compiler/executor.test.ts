@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeAll } from 'vitest'
 import * as duckdb from '@duckdb/duckdb-wasm'
-import { collectParamValues, setDuckDbInstance, PreparedPipeline } from './executor'
+import { beforeAll, describe, expect, it } from 'vitest'
+import { collectParamValues, PreparedPipeline, setDuckDbInstance } from './executor'
 import type { ParamSlot } from './types'
 
 describe('collectParamValues', () => {
@@ -25,7 +25,7 @@ describe('collectParamValues', () => {
       { index: 2, fieldPath: '/b', type: 'string' },
       { index: 3, fieldPath: '/c', type: 'json' },
     ]
-    const values = collectParamValues(slots, (path) => {
+    const values = collectParamValues(slots, path => {
       if (path === '/a') return '3.14'
       if (path === '/b') return 123
       if (path === '/c') return { x: 1 }
@@ -37,9 +37,7 @@ describe('collectParamValues', () => {
   })
 
   it('handles null/undefined values', () => {
-    const slots: ParamSlot[] = [
-      { index: 1, fieldPath: '/missing', type: 'string' },
-    ]
+    const slots: ParamSlot[] = [{ index: 1, fieldPath: '/missing', type: 'string' }]
     const values = collectParamValues(slots, () => undefined)
     expect(values[0]).toBe('')
   })
@@ -49,12 +47,19 @@ describe('PreparedPipeline (timeline scrubbing)', () => {
   beforeAll(async () => {
     const DUCKDB_BUNDLES = await duckdb.selectBundle({
       mvp: {
-        mainModule: new URL('@aspect-build/aspect-duckdb-wasm/dist/duckdb-mvp.wasm', import.meta.url).href,
-        mainWorker: new URL('@aspect-build/aspect-duckdb-wasm/dist/duckdb-browser-mvp.worker.js', import.meta.url).href,
+        mainModule: new URL(
+          '@aspect-build/aspect-duckdb-wasm/dist/duckdb-mvp.wasm',
+          import.meta.url
+        ).href,
+        mainWorker: new URL(
+          '@aspect-build/aspect-duckdb-wasm/dist/duckdb-browser-mvp.worker.js',
+          import.meta.url
+        ).href,
       },
       eh: {
         mainModule: new URL('@duckdb/duckdb-wasm/dist/duckdb-eh.wasm', import.meta.url).href,
-        mainWorker: new URL('@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js', import.meta.url).href,
+        mainWorker: new URL('@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js', import.meta.url)
+          .href,
       },
     })
     const logger = new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING)
@@ -85,7 +90,7 @@ describe('PreparedPipeline (timeline scrubbing)', () => {
       for (let threshold = 10; threshold <= 100; threshold += 10) {
         const result = await pipeline.execute([threshold])
         const rows = result.toArray()
-        const expectedCount = 10 - (threshold / 10)
+        const expectedCount = 10 - threshold / 10
         expect(rows).toHaveLength(expectedCount)
       }
     } finally {

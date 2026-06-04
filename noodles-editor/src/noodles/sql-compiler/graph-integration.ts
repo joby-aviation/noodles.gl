@@ -1,8 +1,11 @@
-import type { CompiledQuery } from './types'
-import type { Operator, IOperator } from '../operators'
-import { adaptOperator, detectCompilableSubgraphs, resolveParamValues, SQLExecutionCache } from './subgraph-detector'
+import type { IOperator, Operator } from '../operators'
 import { getDuckDbInstance } from './executor'
-import { templateRegistry } from './templates'
+import {
+  detectCompilableSubgraphs,
+  resolveParamValues,
+  SQLExecutionCache,
+} from './subgraph-detector'
+import type { CompiledQuery } from './types'
 
 export type SQLExecutionResult = {
   operatorId: string
@@ -37,7 +40,7 @@ export class SQLGraphIntegration {
     sinkOperatorIds: string[],
     getOperator: (id: string) => Operator<IOperator> | undefined,
     getUpstreamIds: (opId: string) => string[],
-    topologyVersion: number,
+    topologyVersion: number
   ): Promise<Map<string, SQLExecutionResult>> {
     if (!this.isEnabled()) return new Map()
 
@@ -46,11 +49,7 @@ export class SQLGraphIntegration {
       this.cache.invalidate()
       this.lastTopologyVersion = topologyVersion
 
-      const compiled = detectCompilableSubgraphs(
-        sinkOperatorIds,
-        getOperator,
-        getUpstreamIds,
-      )
+      const compiled = detectCompilableSubgraphs(sinkOperatorIds, getOperator, getUpstreamIds)
 
       for (const [opId, query] of compiled) {
         this.cache.setCompiledQuery(opId, query)
@@ -87,7 +86,7 @@ export class SQLGraphIntegration {
   // This makes downstream operators see the SQL-computed data when they pull.
   injectResults(
     results: Map<string, SQLExecutionResult>,
-    getOperator: (id: string) => Operator<IOperator> | undefined,
+    getOperator: (id: string) => Operator<IOperator> | undefined
   ): Set<string> {
     const injectedIds = new Set<string>()
 
@@ -141,7 +140,7 @@ export class SQLGraphIntegration {
   }
 
   private countCompiledPipelines(): number {
-    let count = 0
+    const count = 0
     // Count by trying known IDs — we don't expose the internal map directly
     return count
   }
