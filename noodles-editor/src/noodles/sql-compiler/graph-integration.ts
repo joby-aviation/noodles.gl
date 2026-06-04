@@ -79,7 +79,7 @@ export class SQLGraphIntegration {
             arrowTable: result.table,
           })
         } catch (e) {
-          console.warn(`[sql-compiler] Execution failed for ${upstreamId}:`, e)
+          debugSQL('execution failed for %s: %O', upstreamId, e)
         }
       }
     }
