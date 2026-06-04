@@ -2374,3 +2374,91 @@ describe('GraphExecutor - ForLoopMetaOp accumulator and iteration metadata', () 
     expect(lastIsLast).toBe(true)
   })
 })
+
+describe('findSQLBoundarySinks', () => {
+  function makeMockOpWithType(id: string, type: string): any {
+    function Ctor() {}
+    Object.defineProperty(Ctor, 'displayName', { value: type, writable: true })
+    const op = Object.create(Ctor.prototype)
+    op.id = id
+    op.constructor = Ctor
+    op.inputs = {}
+    op.outputs = {}
+    op.dirty = false
+    op._cachedOutput = null
+    op._pullExecutionStatus = 'clean'
+    op.pull = async () => ({})
+    op.setCachedOutput = function(o: any) { this._cachedOutput = o }
+    op.markDirty = function() { this.dirty = true }
+    return op
+  }
+
+  it('identifies non-compilable operators with compilable upstream', () => {
+    const executor = new GraphExecutor()
+
+    const fileOp = makeMockOpWithType('/file', 'File')
+    const filterOp = makeMockOpWithType('/filter', 'FilterOp')
+    const scatterOp = makeMockOpWithType('/scatter', 'ScatterplotLayerOp')
+
+    executor.addNode(fileOp)
+    executor.addNode(filterOp)
+    executor.addNode(scatterOp)
+    executor.addEdge('/file', '/filter')
+    executor.addEdge('/filter', '/scatter')
+
+    const sinks = (executor as any).findSQLBoundarySinks()
+    expect(sinks).toContain('/scatter')
+  })
+
+  it('does not include operators whose upstream is all non-compilable', () => {
+    const executor = new GraphExecutor()
+
+    const codeOp = makeMockOpWithType('/code', 'CodeOp')
+    const scatterOp = makeMockOpWithType('/scatter', 'ScatterplotLayerOp')
+
+    executor.addNode(codeOp)
+    executor.addNode(scatterOp)
+    executor.addEdge('/code', '/scatter')
+
+    const sinks = (executor as any).findSQLBoundarySinks()
+    expect(sinks).not.toContain('/scatter')
+  })
+
+  it('does not include compilable operators themselves', () => {
+    const executor = new GraphExecutor()
+
+    const fileOp = makeMockOpWithType('/file', 'File')
+    const filterOp = makeMockOpWithType('/filter', 'FilterOp')
+
+    executor.addNode(fileOp)
+    executor.addNode(filterOp)
+    executor.addEdge('/file', '/filter')
+
+    const sinks = (executor as any).findSQLBoundarySinks()
+    expect(sinks).not.toContain('/filter')
+    expect(sinks).not.toContain('/file')
+  })
+
+  it('handles mixed chains: compilable → non-compilable → compilable', () => {
+    const executor = new GraphExecutor()
+
+    const fileOp = makeMockOpWithType('/file', 'File')
+    const codeOp = makeMockOpWithType('/code', 'CodeOp')
+    const filterOp = makeMockOpWithType('/filter', 'FilterOp')
+    const scatterOp = makeMockOpWithType('/scatter', 'ScatterplotLayerOp')
+
+    executor.addNode(fileOp)
+    executor.addNode(codeOp)
+    executor.addNode(filterOp)
+    executor.addNode(scatterOp)
+    executor.addEdge('/file', '/code')
+    executor.addEdge('/code', '/filter')
+    executor.addEdge('/filter', '/scatter')
+
+    const sinks = (executor as any).findSQLBoundarySinks()
+    // /code is non-compilable, has compilable upstream /file
+    expect(sinks).toContain('/code')
+    // /scatter is non-compilable, has compilable upstream /filter
+    expect(sinks).toContain('/scatter')
+  })
+})

@@ -1,97 +1,207 @@
-import type { Operator } from '../operators'
-import {
-  type CompilationContext,
-  type CompiledPipeline,
-  type ParamRef,
-  type SQLFragment,
-  type UDFDef,
-  isSQLCompilable,
-} from './types'
-import { operatorIdToAlias } from './utils'
+import type { CompiledQuery, CompilationContext, ParamSlot } from './types'
+import type { DynamicTemplate, GeneratedSQL, OperatorTemplate, StaticTemplate } from './templates'
+import { templateRegistry } from './templates'
+import { operatorIdToAlias, escapeIdentifier } from './utils'
 
-export function createCompilationContext(): CompilationContext {
-  const aliases = new Map<string, string>()
-  const params: ParamRef[] = []
-  const udfs: UDFDef[] = []
-  let paramCounter = 0
+// Minimal operator interface the compiler needs
+export interface CompilableNode {
+  id: string
+  type: string
+  inputs: Record<string, { value: unknown }>
+  getUpstreamDataIds(): string[]
+}
+
+// Check if a node's operator type has a SQL template
+export function isCompilable(node: CompilableNode): boolean {
+  return templateRegistry.has(node.type)
+}
+
+// Compile a subgraph of SQL-compilable nodes into a single CTE-based query.
+// Nodes must be in topological order (sources first).
+export function compile(nodes: CompilableNode[]): CompiledQuery {
+  if (nodes.length === 0) throw new Error('Cannot compile empty node list')
+
+  const ctx: CompilationContext = {
+    paramSlots: [],
+    nextParamIndex: 1,
+    aliases: new Map(),
+  }
+
+  // Assign aliases
+  for (const node of nodes) {
+    ctx.aliases.set(node.id, operatorIdToAlias(node.id))
+  }
+
+  const ctes: string[] = []
+  const operatorAliases = new Map<string, string>()
+
+  for (const node of nodes) {
+    const alias = ctx.aliases.get(node.id)!
+    operatorAliases.set(node.id, alias)
+
+    const template = templateRegistry.get(node.type)
+    if (!template) throw new Error(`No SQL template for operator type: ${node.type}`)
+
+    const sql = resolveTemplate(template, node, ctx)
+    ctes.push(`${alias} AS (${sql})`)
+  }
+
+  const lastAlias = ctx.aliases.get(nodes[nodes.length - 1].id)!
+  const fullSql = ctes.length === 1
+    ? `WITH ${ctes[0]} SELECT * FROM ${lastAlias}`
+    : `WITH\n  ${ctes.join(',\n  ')}\nSELECT * FROM ${lastAlias}`
 
   return {
-    aliases,
-    params,
-    udfs,
-    nextParamIndex() {
-      return ++paramCounter
-    },
-    getUpstreamAlias(operatorId: string) {
-      return aliases.get(operatorId) ?? null
-    },
+    sql: fullSql,
+    paramSlots: ctx.paramSlots,
+    operatorAliases,
   }
 }
 
-// Walk backward from a sink operator, collecting all SQL-compilable ancestors
-// in topological order. Stops at non-compilable operators (JS boundary).
-export function collectSQLSubgraph(
-  sink: Operator<any>,
-  getOperator: (id: string) => Operator<any> | undefined
-): Operator<any>[] {
-  const visited = new Set<string>()
-  const sorted: Operator<any>[] = []
+function resolveTemplate(
+  template: OperatorTemplate,
+  node: CompilableNode,
+  ctx: CompilationContext,
+): string {
+  const upstreamIds = node.getUpstreamDataIds()
+  const upstream = upstreamIds[0] ? ctx.aliases.get(upstreamIds[0]) || operatorIdToAlias(upstreamIds[0]) : ''
+  const upstream2 = upstreamIds[1] ? ctx.aliases.get(upstreamIds[1]) || operatorIdToAlias(upstreamIds[1]) : undefined
 
-  function visit(op: Operator<any>) {
-    if (visited.has(op.id)) return
-    visited.add(op.id)
-
-    if (!isSQLCompilable(op)) return
-
-    // Visit upstream dependencies first (topological order)
-    for (const dep of (op as any)._upstreamDependencies) {
-      visit(dep)
-    }
-
-    sorted.push(op)
+  if (template.dynamic) {
+    return resolveDynamic(template, node, upstream, upstream2, ctx)
   }
 
-  visit(sink)
-  return sorted
+  return resolveStatic(template, node, upstream, ctx)
 }
 
-// Compile a subgraph of SQL-compilable operators into a single SQL statement
-export function compilePipeline(
-  operators: Operator<any>[],
-  ctx?: CompilationContext
-): CompiledPipeline {
-  const context = ctx ?? createCompilationContext()
-  const ctes: string[] = []
-  let lastAlias = ''
+function resolveStatic(
+  template: StaticTemplate,
+  node: CompilableNode,
+  upstream: string,
+  ctx: CompilationContext,
+): string {
+  let sql = template.sql
 
-  for (const op of operators) {
-    if (!isSQLCompilable(op)) continue
+  // Replace {{upstream}}
+  sql = sql.replace(/\{\{upstream\}\}/g, upstream)
 
-    const alias = operatorIdToAlias(op.id)
-    context.aliases.set(op.id, alias)
-
-    const fragment: SQLFragment = (op as any).toSQL(context)
-    ctes.push(`${fragment.alias} AS (\n    ${fragment.cte}\n  )`)
-    lastAlias = fragment.alias
-
-    for (const param of fragment.params) {
-      context.params.push(param)
+  // Replace {{$fieldName}} with parameter placeholders
+  for (const param of template.params) {
+    const placeholder = `{{$${param.field}}}`
+    if (sql.includes(placeholder)) {
+      const idx = ctx.nextParamIndex++
+      ctx.paramSlots.push({
+        index: idx,
+        fieldPath: `${node.id}.${param.field}`,
+        type: param.type,
+      })
+      sql = sql.replace(placeholder, `$${idx}`)
     }
-    for (const udf of fragment.udfs) {
-      if (!context.udfs.some(u => u.name === udf.name)) {
-        context.udfs.push(udf)
+  }
+
+  // Replace {{ident:hole}} with escaped identifiers
+  for (const ident of template.identifiers) {
+    const placeholder = `{{ident:${ident.hole}}}`
+    if (sql.includes(placeholder)) {
+      const value = node.inputs[ident.field]?.value
+      if (ident.multi && typeof value === 'string') {
+        const cols = value.split(',').map(s => s.trim()).filter(Boolean)
+        sql = sql.replace(placeholder, cols.map(escapeIdentifier).join(', '))
+      } else {
+        // For order direction (ASC/DESC) don't escape
+        const strVal = String(value || '')
+        if (['asc', 'desc', 'ASC', 'DESC'].includes(strVal)) {
+          sql = sql.replace(placeholder, strVal.toUpperCase())
+        } else {
+          sql = sql.replace(placeholder, escapeIdentifier(strVal))
+        }
       }
     }
   }
 
-  const sql = ctes.length > 0
-    ? `WITH\n  ${ctes.join(',\n  ')}\nSELECT * FROM ${lastAlias}`
-    : `SELECT 1`
+  return sql
+}
 
-  return {
-    sql,
-    params: context.params,
-    udfs: context.udfs,
-    sinkAlias: lastAlias,
+function resolveDynamic(
+  template: DynamicTemplate,
+  node: CompilableNode,
+  upstream: string,
+  upstream2: string | undefined,
+  ctx: CompilationContext,
+): string {
+  // Collect param values from node inputs
+  const params: Record<string, unknown> = {}
+  for (const [key, field] of Object.entries(node.inputs)) {
+    params[key] = field.value
   }
+
+  // Collect identifier values
+  const identifiers: Record<string, string | string[]> = {}
+  for (const [key, field] of Object.entries(node.inputs)) {
+    const val = field.value
+    if (typeof val === 'string') {
+      // Check if it's a comma-separated multi-value
+      if (key.toLowerCase().includes('columns') || key === 'partitionBy' || key === 'groupByColumns') {
+        identifiers[key] = val.split(',').map(s => s.trim()).filter(Boolean)
+      } else {
+        identifiers[key] = val
+      }
+    }
+  }
+
+  const allocParam = (field: string, type: 'string' | 'number' | 'boolean' | 'json'): string => {
+    const idx = ctx.nextParamIndex++
+    ctx.paramSlots.push({
+      index: idx,
+      fieldPath: `${node.id}.${field}`,
+      type,
+    })
+    return `$${idx}`
+  }
+
+  const result: GeneratedSQL = template.generate({
+    upstream,
+    upstream2,
+    params,
+    identifiers,
+    allocParam,
+  })
+
+  // Handle any extra params from the generator (e.g., IN lists)
+  if (result.extraParams) {
+    for (const extra of result.extraParams) {
+      // Already allocated by allocParam during generation
+    }
+  }
+
+  return result.sql
+}
+
+// Collect all nodes in a SQL-compilable subgraph by walking backward from a sink.
+// Returns nodes in topological order (sources first).
+export function collectSubgraph(
+  sinkId: string,
+  getNode: (id: string) => CompilableNode | undefined,
+): CompilableNode[] {
+  const visited = new Set<string>()
+  const result: CompilableNode[] = []
+
+  function walk(id: string): boolean {
+    if (visited.has(id)) return true
+    visited.add(id)
+
+    const node = getNode(id)
+    if (!node || !isCompilable(node)) return false
+
+    const upstreamIds = node.getUpstreamDataIds()
+    for (const uid of upstreamIds) {
+      if (!walk(uid)) return false
+    }
+
+    result.push(node)
+    return true
+  }
+
+  walk(sinkId)
+  return result
 }

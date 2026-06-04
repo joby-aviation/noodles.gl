@@ -5,6 +5,8 @@ import { debugExecutor, debugExecutorFrame } from '../utils/debug'
 import { visibilityAdaptiveLoop } from '../utils/worker-timer'
 import type { Field } from './fields'
 import type { ForLoopBeginOp, ForLoopEndOp, ForLoopMetaOp, IOperator, Operator } from './operators'
+import { getSQLIntegration } from './sql-compiler/graph-integration'
+import { templateRegistry } from './sql-compiler/templates'
 import { getAllOps } from './store'
 import type { OpId } from './utils/id-utils'
 
@@ -156,6 +158,7 @@ export class GraphExecutor {
   // Dirty tracking
   private dirtyNodes: Set<string> = new Set()
   private batchTimeout: number | null = null
+  private topologyVersion = 0
 
   // Performance tracking
   private metrics: PerformanceMetrics = {
@@ -319,6 +322,7 @@ export class GraphExecutor {
     this.sortedOrder = sorted
     this.executionLevels = this.computeExecutionLevels(sorted)
     this.isDirty = false
+    this.topologyVersion++
   }
 
   // Compute parallel execution levels
@@ -405,6 +409,28 @@ export class GraphExecutor {
           changed: false,
           error: error instanceof Error ? error : new Error(String(error)),
         })
+      }
+    }
+
+    // SQL compilation: detect and execute compilable subgraphs before pulling
+    const sqlIntegration = getSQLIntegration()
+    if (sqlIntegration.isEnabled()) {
+      try {
+        const sinkIds = this.findSQLBoundarySinks()
+        if (sinkIds.length > 0) {
+          const sqlResults = await sqlIntegration.executeSQLSubgraphs(
+            sinkIds,
+            (id) => this.nodes.get(id),
+            (id) => [...(this.upstream.get(id) || [])],
+            this.topologyVersion,
+          )
+          if (sqlResults.size > 0) {
+            sqlIntegration.injectResults(sqlResults, (id) => this.nodes.get(id))
+          }
+        }
+      } catch (e) {
+        // SQL execution is best-effort — fall back to JS pulling
+        debugExecutor('SQL execution failed, falling back to JS: %O', e)
       }
     }
 
@@ -598,6 +624,31 @@ export class GraphExecutor {
     }
 
     return roots
+  }
+
+  private findSQLBoundarySinks(): string[] {
+    const sinks: string[] = []
+
+    for (const [id, op] of this.nodes) {
+      const opType = (op.constructor as { displayName?: string }).displayName
+      if (!opType || templateRegistry.has(opType)) continue
+
+      // This operator is non-compilable; check if it has compilable upstream
+      const upstreamIds = this.upstream.get(id)
+      if (!upstreamIds || upstreamIds.size === 0) continue
+
+      for (const uid of upstreamIds) {
+        const upOp = this.nodes.get(uid)
+        if (!upOp) continue
+        const upType = (upOp.constructor as { displayName?: string }).displayName
+        if (upType && templateRegistry.has(upType)) {
+          sinks.push(id)
+          break
+        }
+      }
+    }
+
+    return sinks
   }
 
   // Execute a ForLoop scope - handles iteration with accumulator (reduce-like semantics)
