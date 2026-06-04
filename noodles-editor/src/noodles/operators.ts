@@ -3458,6 +3458,15 @@ export class GroupByOp extends Operator<GroupByOp> {
       .filter(Boolean)
     const aggs = sqlParseAggregations(aggregations as string)
 
+    if (data.length > 0) {
+      const sampleRow = data[0]
+      for (const col of groupCols) {
+        if (!(col in sampleRow)) {
+          throw new Error(`GroupBy column '${col}' does not exist in data`)
+        }
+      }
+    }
+
     const groups = new Map<string, any[]>()
     for (const row of data) {
       const key = groupCols.map(c => row[c]).join('|')
@@ -3506,9 +3515,24 @@ export class JoinOp extends Operator<JoinOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!left?.length || !right?.length) return { data: [] }
 
+    const mergeRows = (l: any, r: any) => {
+      const leftCols = new Set(Object.keys(l))
+      const rightCols = new Set(Object.keys(r))
+      const overlap = [...leftCols].filter(k => rightCols.has(k) && k !== leftKey)
+      const merged = { ...l }
+      for (const key of Object.keys(r)) {
+        if (overlap.includes(key)) {
+          merged[`${key}_right`] = r[key]
+        } else {
+          merged[key] = r[key]
+        }
+      }
+      return merged
+    }
+
     if (joinType === 'cross') {
       const result: any[] = []
-      for (const l of left) for (const r of right) result.push({ ...l, ...r })
+      for (const l of left) for (const r of right) result.push(mergeRows(l, r))
       return { data: result }
     }
 
@@ -3523,7 +3547,7 @@ export class JoinOp extends Operator<JoinOp> {
     for (const l of left) {
       const matches = rightIndex.get(l[leftKey as string]) || []
       if (matches.length > 0) {
-        for (const r of matches) result.push({ ...l, ...r })
+        for (const r of matches) result.push(mergeRows(l, r))
       } else if (joinType === 'left' || joinType === 'full') {
         result.push({ ...l })
       }
@@ -3755,16 +3779,40 @@ export class WindowOp extends Operator<WindowOp> {
 
     const result: any[] = []
     for (const [, rows] of partitions) {
+      let currentRank = 1
+      let currentDenseRank = 1
+      let prevOrderValue: unknown = undefined
+      let tieCount = 0
+
       for (let i = 0; i < rows.length; i++) {
         const out = { ...rows[i] }
+        const orderValue = orderKey ? rows[i][orderKey] : undefined
+
         switch (fn) {
           case 'row_number':
             out[outCol] = i + 1
             break
-          case 'rank':
-          case 'dense_rank':
-            out[outCol] = i + 1
+          case 'rank': {
+            if (orderKey && i > 0) {
+              if (orderValue === prevOrderValue) {
+                tieCount++
+              } else {
+                currentRank += tieCount + 1
+                tieCount = 0
+              }
+            }
+            out[outCol] = currentRank
+            prevOrderValue = orderValue
             break
+          }
+          case 'dense_rank': {
+            if (orderKey && i > 0 && orderValue !== prevOrderValue) {
+              currentDenseRank++
+            }
+            out[outCol] = currentDenseRank
+            prevOrderValue = orderValue
+            break
+          }
           case 'lag':
             out[outCol] = i > 0 ? rows[i - 1][column as string] : null
             break
@@ -3836,7 +3884,16 @@ export class CastOp extends Operator<CastOp> {
             break
           case 'DATE':
           case 'TIMESTAMP':
-            val = new Date(val as string).toISOString()
+            try {
+              const d = new Date(val as string)
+              if (Number.isNaN(d.getTime())) {
+                val = null
+              } else {
+                val = d.toISOString()
+              }
+            } catch {
+              val = null
+            }
             break
         }
         return { ...row, [outCol]: val }
@@ -3861,7 +3918,6 @@ export class StringTransformOp extends Operator<StringTransformOp> {
           'title',
           'length',
           'reverse',
-          'hash_md5',
           'regex_extract',
           'regex_replace',
         ],
@@ -3910,12 +3966,20 @@ export class StringTransformOp extends Operator<StringTransformOp> {
             result = val.split('').reverse().join('')
             break
           case 'regex_extract': {
-            const m = val.match(new RegExp(pattern as string))
-            result = m?.[1] ?? m?.[0] ?? null
+            try {
+              const m = val.match(new RegExp(pattern as string))
+              result = m?.[1] ?? m?.[0] ?? null
+            } catch {
+              result = null
+            }
             break
           }
           case 'regex_replace':
-            result = val.replace(new RegExp(pattern as string, 'g'), replacement as string)
+            try {
+              result = val.replace(new RegExp(pattern as string, 'g'), replacement as string)
+            } catch {
+              result = val
+            }
             break
           default:
             result = val

@@ -75,7 +75,11 @@ export function resolveParamValues(
   compiled: CompiledQuery,
   getOperator: (id: string) => Operator<IOperator> | undefined
 ): unknown[] {
-  return collectParamValues(compiled.paramSlots, fieldPath => {
+  return collectParamValues(compiled.paramSlots, (fieldPath, slot) => {
+    // If the slot has a direct value (e.g., from IN clause extraParams), use it
+    if (slot?.value !== undefined) {
+      return slot.value
+    }
     // fieldPath format: "/opId.fieldName"
     const dotIdx = fieldPath.indexOf('.')
     if (dotIdx === -1) return undefined

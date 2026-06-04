@@ -72,6 +72,12 @@ function resolveTemplate(
     ? ctx.aliases.get(upstreamIds[1]) || operatorIdToAlias(upstreamIds[1])
     : undefined
 
+  if (template.upstreamCount === 2 && upstreamIds.length < 2) {
+    throw new Error(
+      `Operator ${node.type} at ${node.id} requires ${template.upstreamCount} upstream(s) but has ${upstreamIds.length}`
+    )
+  }
+
   if (template.dynamic) {
     return resolveDynamic(template, node, upstream, upstream2, ctx)
   }
@@ -109,18 +115,33 @@ function resolveStatic(
     const placeholder = `{{ident:${ident.hole}}}`
     if (sql.includes(placeholder)) {
       const value = node.inputs[ident.field]?.value
+      if (value === undefined || value === null) {
+        throw new Error(
+          `Missing required field '${ident.field}' for operator ${node.type} at ${node.id}`
+        )
+      }
       if (ident.multi && typeof value === 'string') {
         const cols = value
           .split(',')
           .map(s => s.trim())
           .filter(Boolean)
+        if (cols.length === 0) {
+          throw new Error(
+            `Field '${ident.field}' in operator ${node.type} at ${node.id} cannot be empty`
+          )
+        }
         sql = sql.replace(placeholder, cols.map(escapeIdentifier).join(', '))
       } else {
         // For order direction (ASC/DESC) don't escape
-        const strVal = String(value || '')
+        const strVal = String(value)
         if (['asc', 'desc', 'ASC', 'DESC'].includes(strVal)) {
           sql = sql.replace(placeholder, strVal.toUpperCase())
         } else {
+          if (strVal === '') {
+            throw new Error(
+              `Field '${ident.field}' in operator ${node.type} at ${node.id} cannot be empty`
+            )
+          }
           sql = sql.replace(placeholder, escapeIdentifier(strVal))
         }
       }
@@ -184,8 +205,15 @@ function resolveDynamic(
 
   // Handle any extra params from the generator (e.g., IN lists)
   if (result.extraParams) {
-    for (const _extra of result.extraParams) {
-      // Already allocated by allocParam during generation
+    for (const extra of result.extraParams) {
+      const idx = ctx.nextParamIndex++
+      ctx.paramSlots.push({
+        index: idx,
+        fieldPath: `${node.id}.${extra.field}`,
+        type: extra.type,
+        value: extra.value,
+      })
+      result.sql = result.sql.replace(`$${extra.field}`, `$${idx}`)
     }
   }
 

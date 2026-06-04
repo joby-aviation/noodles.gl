@@ -361,4 +361,36 @@ describe('collectSubgraph', () => {
     expect(result.map(n => n.id)).toContain('/airports')
     expect(result[result.length - 1].id).toBe('/join')
   })
+
+  it('handles empty IN clause', () => {
+    const nodes = [
+      makeNode('/data', 'File', { url: 'data.csv', format: 'csv' }, []),
+      makeNode('/filter', 'FilterOp', { columnName: 'name', condition: 'in', value: '' }, ['/data']),
+    ]
+    const result = compile(nodes)
+    expect(result.sql).toContain('WHERE FALSE')
+    expect(result.sql).not.toContain('IN ()')
+  })
+
+  it('handles whitespace-only IN clause', () => {
+    const nodes = [
+      makeNode('/data', 'File', { url: 'data.csv', format: 'csv' }, []),
+      makeNode('/filter', 'FilterOp', { columnName: 'name', condition: 'in', value: '  , , ' }, [
+        '/data',
+      ]),
+    ]
+    const result = compile(nodes)
+    expect(result.sql).toContain('WHERE FALSE')
+  })
+
+  it('handles empty NOT IN clause', () => {
+    const nodes = [
+      makeNode('/data', 'File', { url: 'data.csv', format: 'csv' }, []),
+      makeNode('/filter', 'FilterOp', { columnName: 'name', condition: 'not in', value: '' }, [
+        '/data',
+      ]),
+    ]
+    const result = compile(nodes)
+    expect(result.sql).toContain('WHERE TRUE')
+  })
 })
