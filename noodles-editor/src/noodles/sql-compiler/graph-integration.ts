@@ -21,6 +21,7 @@ export class SQLGraphIntegration {
   private cache = new SQLExecutionCache()
   private lastTopologyVersion = -1
   private enabled = true
+  private executedPipelines = new Set<string>()
 
   setEnabled(enabled: boolean) {
     this.enabled = enabled
@@ -32,6 +33,7 @@ export class SQLGraphIntegration {
 
   invalidate() {
     this.cache.invalidate()
+    this.executedPipelines.clear()
     this.lastTopologyVersion++
   }
 
@@ -61,18 +63,32 @@ export class SQLGraphIntegration {
 
     const results = new Map<string, SQLExecutionResult>()
 
-    // Execute each compiled pipeline
+    // Execute each compiled pipeline (only if any operator in the chain is dirty)
     for (const sinkId of sinkOperatorIds) {
       const upstreamIds = getUpstreamIds(sinkId)
       for (const upstreamId of upstreamIds) {
         const compiled = this.cache.getCompiledQuery(upstreamId)
         if (!compiled) continue
 
+        // Skip execution if already run and no operator in this chain is dirty
+        if (this.executedPipelines.has(upstreamId)) {
+          let anyDirty = false
+          for (const chainOpId of compiled.operatorAliases.keys()) {
+            const chainOp = getOperator(chainOpId)
+            if (chainOp?.dirty) {
+              anyDirty = true
+              break
+            }
+          }
+          if (!anyDirty) continue
+        }
+
         try {
           const paramValues = resolveParamValues(compiled, getOperator)
           const result = await this.cache.executeCompiled(upstreamId, compiled, paramValues)
           const rows = result.toArray()
           debugSQL('executed %s → %d rows', upstreamId, rows.length)
+          this.executedPipelines.add(upstreamId)
           results.set(upstreamId, {
             operatorId: upstreamId,
             data: rows,
