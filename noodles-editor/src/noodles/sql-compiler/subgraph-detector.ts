@@ -3,6 +3,11 @@ import {
   detectDownstreamAttributes,
   generateAttributeColumns,
 } from './attribute-detector'
+import {
+  detectLayerAttributes,
+  generateLayerAttributeColumns,
+  type LayerAttributeSpec,
+} from './layer-attribute-detector'
 import type { CompilableNode } from './compiler'
 import { collectSubgraph, compile } from './compiler'
 import { collectParamValues, PreparedPipeline } from './executor'
@@ -74,20 +79,33 @@ export function detectCompilableSubgraphs(
       if (subgraph.length > 0) {
         try {
           // Detect CreateAttributeOp nodes downstream that can be SQL-computed
-          const attributes = detectDownstreamAttributes(
+          const createAttrAttributes = detectDownstreamAttributes(
             upstreamId,
             getOperator,
             getDownstreamIds
           )
 
-          // Generate additional SQL columns for attributes
-          const additionalColumns = attributes.length > 0
-            ? generateAttributeColumns(attributes)
-            : undefined
+          // Detect layer operator accessor fields that can be SQL-computed
+          const layerAttributes = detectLayerAttributes(
+            upstreamId,
+            getOperator,
+            getDownstreamIds
+          )
+
+          // Generate additional SQL columns for both types of attributes
+          const additionalColumns = [
+            ...generateAttributeColumns(createAttrAttributes),
+            ...generateLayerAttributeColumns(layerAttributes),
+          ]
 
           const compiled = compile(subgraph, {
-            additionalColumns,
+            additionalColumns: additionalColumns.length > 0 ? additionalColumns : undefined,
           })
+
+          // Store layer attributes metadata for later extraction
+          if (layerAttributes.length > 0) {
+            compiled.layerAttributes = layerAttributes
+          }
 
           compiledPipelines.set(upstreamId, compiled)
         } catch (e) {

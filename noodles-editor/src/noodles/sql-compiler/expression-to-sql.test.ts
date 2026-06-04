@@ -35,6 +35,22 @@ describe('expressionToSql', () => {
     })
   })
 
+  it('transpiles expressions without d. prefix', () => {
+    // Layer accessor fields don't require d. prefix
+    expect(expressionToSql('population')).toEqual({
+      sql: 'population',
+      isTranslatable: true,
+    })
+    expect(expressionToSql('value * 50')).toEqual({
+      sql: '(value * 50)',
+      isTranslatable: true,
+    })
+    expect(expressionToSql('x + y')).toEqual({
+      sql: '(x + y)',
+      isTranslatable: true,
+    })
+  })
+
   it('transpiles Math.sqrt', () => {
     expect(expressionToSql('Math.sqrt(d.value)')).toEqual({
       sql: 'SQRT(value)',

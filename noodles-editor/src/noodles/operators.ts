@@ -5786,16 +5786,26 @@ function extractAttributeData(data: unknown): {
     return { rows: Array.isArray(data) ? data : [], attributes: {} }
   }
 
-  const dataObj = data as { data?: unknown[]; attributes?: Record<string, unknown> }
+  const dataObj = data as { data?: unknown; attributes?: Record<string, unknown> }
 
+  // Handle {data, attributes} wrapper (from SQL compilation or CreateAttributeOp)
   if (dataObj.data && dataObj.attributes) {
+    // Extract rows from nested data (could be Arrow table or array)
+    const nestedData = dataObj.data
+    const rows = isArrowTable(nestedData) ? arrowToRows(nestedData) : (Array.isArray(nestedData) ? nestedData : [])
+
     return {
-      rows: dataObj.data,
+      rows,
       attributes: dataObj.attributes as Record<
         string,
         { values: Float32Array | Uint8Array; size: number }
       >,
     }
+  }
+
+  // Handle plain Arrow table
+  if (isArrowTable(data)) {
+    return { rows: arrowToRows(data), attributes: {} }
   }
 
   return { rows: Array.isArray(data) ? data : [], attributes: {} }
