@@ -5,6 +5,12 @@ import { collectParamValues, PreparedPipeline } from './executor'
 import { templateRegistry } from './templates'
 import type { CompiledQuery, ExecutionResult } from './types'
 
+// FileOp with @/ URLs can't be compiled — DuckDB can't access browser virtual filesystems
+function hasProjectLocalUrl(op: Operator<IOperator>): boolean {
+  const url = op.inputs?.url?.value
+  return typeof url === 'string' && url.startsWith('@/')
+}
+
 // Adapt a real Operator to the CompilableNode interface the compiler expects
 export function adaptOperator(
   op: Operator<IOperator>,
@@ -12,6 +18,7 @@ export function adaptOperator(
 ): CompilableNode | undefined {
   const opType = (op.constructor as { displayName?: string }).displayName
   if (!opType || !templateRegistry.has(opType)) return undefined
+  if (hasProjectLocalUrl(op)) return undefined
 
   return {
     id: op.id,
