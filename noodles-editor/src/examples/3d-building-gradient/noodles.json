@@ -27,7 +27,7 @@
       "type": "JSONOp",
       "position": {
         "x": 100,
-        "y": 300
+        "y": 550
       },
       "data": {
         "inputs": {
@@ -39,7 +39,7 @@
       "id": "/building-layer",
       "type": "CustomMapLibreLayerOp",
       "position": {
-        "x": 450,
+        "x": 650,
         "y": 100
       },
       "data": {
@@ -55,7 +55,7 @@
       "id": "/deck-renderer",
       "type": "DeckRendererOp",
       "position": {
-        "x": 800,
+        "x": 1200,
         "y": 100
       },
       "data": {
@@ -69,7 +69,7 @@
       "id": "/out",
       "type": "OutOp",
       "position": {
-        "x": 1150,
+        "x": 1750,
         "y": 100
       },
       "data": {

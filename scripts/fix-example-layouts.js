@@ -9,10 +9,10 @@ const fs = require('fs')
 const path = require('path')
 
 // Layout configuration
-const NODE_WIDTH = 200
-const NODE_HEIGHT = 100
-const HORIZONTAL_SPACING = 150
-const VERTICAL_SPACING = 100
+const NODE_WIDTH = 300
+const NODE_HEIGHT = 200
+const HORIZONTAL_SPACING = 250
+const VERTICAL_SPACING = 250
 const START_X = 100
 const START_Y = 100
 
@@ -149,29 +149,58 @@ function layoutProject(projectData) {
  * Process all example files
  */
 function processExamples() {
-  const examplesDir = path.join(__dirname, '../noodles-editor/public/examples')
+  // Process both public/examples and src/examples
+  const examplesDirs = [
+    path.join(__dirname, '../noodles-editor/public/examples'),
+    path.join(__dirname, '../noodles-editor/src/examples')
+  ]
 
-  if (!fs.existsSync(examplesDir)) {
-    console.error(`Examples directory not found: ${examplesDir}`)
-    return
-  }
+  let totalFiles = 0
 
-  const files = fs.readdirSync(examplesDir).filter(f => f.endsWith('.json'))
+  for (const examplesDir of examplesDirs) {
+    if (!fs.existsSync(examplesDir)) {
+      console.log(`Skipping ${examplesDir} (not found)`)
+      continue
+    }
 
-  console.log(`Found ${files.length} example files\n`)
+    console.log(`\nProcessing directory: ${examplesDir}`)
 
-  for (const file of files) {
-    const filePath = path.join(examplesDir, file)
-    console.log(`Processing: ${file}`)
+    // For src/examples, look in subdirectories
+    const isSourceExamples = examplesDir.includes('src/examples')
+    let filesToProcess = []
 
-    try {
-      const content = fs.readFileSync(filePath, 'utf8')
-      const projectData = JSON.parse(content)
+    if (isSourceExamples) {
+      const subdirs = fs.readdirSync(examplesDir).filter(f => {
+        const fullPath = path.join(examplesDir, f)
+        return fs.statSync(fullPath).isDirectory()
+      })
 
-      if (projectData.version === undefined) {
-        console.warn(`  Skipping ${file}: not a valid project file`)
-        continue
+      for (const subdir of subdirs) {
+        const noodlesPath = path.join(examplesDir, subdir, 'noodles.json')
+        if (fs.existsSync(noodlesPath)) {
+          filesToProcess.push({ name: `${subdir}/noodles.json`, path: noodlesPath })
+        }
       }
+    } else {
+      const files = fs.readdirSync(examplesDir).filter(f => f.endsWith('.json'))
+      filesToProcess = files.map(f => ({ name: f, path: path.join(examplesDir, f) }))
+    }
+
+    console.log(`Found ${filesToProcess.length} example files\n`)
+    totalFiles += filesToProcess.length
+
+    for (const { name, path: filePath } of filesToProcess) {
+      console.log(`Processing: ${name}`)
+
+      try {
+        const content = fs.readFileSync(filePath, 'utf8')
+        const projectData = JSON.parse(content)
+
+        // Some older examples don't have version field
+        if (!projectData.nodes) {
+          console.warn(`  Skipping ${name}: not a valid project file`)
+          continue
+        }
 
       const layoutedData = layoutProject(projectData)
 
@@ -185,13 +214,14 @@ function processExamples() {
         'utf8'
       )
 
-      console.log(`  ✓ Layouted ${layoutedData.nodes?.length || 0} nodes in ${layers.length} layers`)
-    } catch (error) {
-      console.error(`  ✗ Error processing ${file}:`, error.message)
+        console.log(`  ✓ Layouted ${layoutedData.nodes?.length || 0} nodes in ${layers.length} layers`)
+      } catch (error) {
+        console.error(`  ✗ Error processing ${name}:`, error.message)
+      }
     }
   }
 
-  console.log('\nDone!')
+  console.log(`\nDone! Processed ${totalFiles} example files.`)
 }
 
 // Run if called directly

@@ -45,8 +45,8 @@
       "id": "/basemap",
       "type": "MaplibreBasemapOp",
       "position": {
-        "x": 300,
-        "y": 300
+        "x": 100,
+        "y": 100
       },
       "data": {
         "inputs": {
@@ -66,8 +66,8 @@
       "id": "/point-cloud",
       "type": "Tile3DLayerOp",
       "position": {
-        "x": -50,
-        "y": -180
+        "x": 100,
+        "y": 550
       },
       "data": {
         "inputs": {
@@ -81,8 +81,8 @@
       "id": "/video-spheres",
       "type": "CodeOp",
       "position": {
-        "x": -400,
-        "y": 60
+        "x": 100,
+        "y": 1000
       },
       "width": 900,
       "height": 680,
@@ -172,8 +172,8 @@
       "id": "/renderer",
       "type": "DeckRendererOp",
       "position": {
-        "x": 800,
-        "y": 60
+        "x": 650,
+        "y": 100
       },
       "data": {
         "inputs": {},
@@ -184,8 +184,8 @@
       "id": "/out",
       "type": "OutOp",
       "position": {
-        "x": 1100,
-        "y": 60
+        "x": 1200,
+        "y": 100
       },
       "data": {
         "inputs": {
