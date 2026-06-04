@@ -139,6 +139,7 @@ describe('SQLGraphIntegration', () => {
       expect(rows[0].name).toBe('Charlie') // Highest salary first
     })
 
+    // TODO: Fix parameter re-execution - this test reveals a real issue
     it.skip('re-executes with changed params without recompilation', async () => {
       const integration = new SQLGraphIntegration()
 
