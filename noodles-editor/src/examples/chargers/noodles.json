@@ -8,16 +8,16 @@
         "locked": false
       },
       "position": {
-        "x": 621.0648631276329,
-        "y": -15.15716566510391
+        "x": 2850,
+        "y": 100
       }
     },
     {
       "id": "duckdb-0",
       "type": "DuckDbOp",
       "position": {
-        "x": -1264.3775772798185,
-        "y": -102.49235227489045
+        "x": 650,
+        "y": 100
       },
       "resizing": false,
       "data": {
@@ -42,8 +42,8 @@
       "id": "centroid",
       "type": "GeocoderOp",
       "position": {
-        "x": -1628.0833659498644,
-        "y": -92.14066297377941
+        "x": 100,
+        "y": 100
       },
       "data": {
         "inputs": {
@@ -56,8 +56,8 @@
       "id": "boundingbox-0",
       "type": "BoundingBoxOp",
       "position": {
-        "x": -707.2197014646986,
-        "y": -209.733438472903
+        "x": 1200,
+        "y": 100
       },
       "data": {
         "inputs": {
@@ -70,8 +70,8 @@
       "id": "scatterplotlayer-0",
       "type": "ScatterplotLayerOp",
       "position": {
-        "x": -443.51651196326486,
-        "y": 42.81912717553373
+        "x": 1200,
+        "y": 550
       },
       "data": {
         "inputs": {
@@ -86,8 +86,8 @@
       "id": "accessor-0",
       "type": "AccessorOp",
       "position": {
-        "x": -987.3019403521371,
-        "y": 455.41361700547714
+        "x": 100,
+        "y": 550
       },
       "data": {
         "inputs": {
@@ -100,8 +100,8 @@
       "id": "viewstate-0",
       "type": "MapViewStateOp",
       "position": {
-        "x": -322.94795308841765,
-        "y": -212.49515765894387
+        "x": 1750,
+        "y": 100
       },
       "data": {
         "inputs": {
@@ -114,8 +114,8 @@
       "id": "switch-0",
       "type": "SwitchOp",
       "position": {
-        "x": 137.09785434585186,
-        "y": 67.59016854354427
+        "x": 1750,
+        "y": 550
       },
       "data": {
         "inputs": {},
@@ -126,8 +126,8 @@
       "id": "heatmaplayer-0",
       "type": "HeatmapLayerOp",
       "position": {
-        "x": -440.1008136696714,
-        "y": 476.821166774823
+        "x": 1200,
+        "y": 1000
       },
       "data": {
         "inputs": {
@@ -141,8 +141,8 @@
       "id": "basemap-0",
       "type": "MaplibreBasemapOp",
       "position": {
-        "x": 621.0648631276329,
-        "y": 214.84283433489608
+        "x": 2300,
+        "y": 100
       },
       "data": {
         "inputs": {},
@@ -153,8 +153,8 @@
       "id": "out",
       "type": "OutOp",
       "position": {
-        "x": 871.0648631276329,
-        "y": -15.15716566510391
+        "x": 3400,
+        "y": 100
       },
       "data": {
         "inputs": {},

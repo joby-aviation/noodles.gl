@@ -20,7 +20,7 @@
         "locked": false
       },
       "position": {
-        "x": 1500,
+        "x": 1750,
         "y": 100
       }
     },
@@ -35,8 +35,8 @@
         "locked": false
       },
       "position": {
-        "x": 0,
-        "y": 0
+        "x": 100,
+        "y": 100
       }
     },
     {
@@ -55,8 +55,8 @@
         "locked": false
       },
       "position": {
-        "x": 900,
-        "y": 0
+        "x": 650,
+        "y": 100
       }
     },
     {
@@ -69,16 +69,16 @@
         "locked": false
       },
       "position": {
-        "x": 600,
-        "y": 0
+        "x": 100,
+        "y": 550
       }
     },
     {
       "type": "MaplibreBasemapOp",
       "id": "/maplibre-basemap",
       "position": {
-        "x": 900,
-        "y": 200
+        "x": 100,
+        "y": 1000
       },
       "data": {
         "inputs": {
