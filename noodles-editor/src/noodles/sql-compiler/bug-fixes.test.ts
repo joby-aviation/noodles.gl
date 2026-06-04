@@ -4,7 +4,9 @@ import {
   FileOp,
   GroupByOp,
   JoinOp,
+  PivotOp,
   StringTransformOp,
+  UnpivotOp,
   WindowOp,
 } from '../operators'
 
@@ -235,6 +237,104 @@ describe('Bug Fixes', () => {
           aggregations: 'COUNT(*) as count',
         } as any)
       ).toThrow("GroupBy column 'category' does not exist in data")
+    })
+  })
+
+  describe('PivotOp basic functionality', () => {
+    it('pivots rows into columns with sum aggregation', () => {
+      const op = new PivotOp('/pivot')
+      const result = op.execute({
+        data: [
+          { product: 'A', region: 'East', sales: 100 },
+          { product: 'A', region: 'West', sales: 150 },
+          { product: 'B', region: 'East', sales: 200 },
+          { product: 'B', region: 'West', sales: 250 },
+        ],
+        pivotColumn: 'region',
+        valueColumn: 'sales',
+        indexColumn: 'product',
+        aggregation: 'sum',
+      } as any)
+
+      expect(result.data.length).toBe(2)
+      expect(result.data[0]).toMatchObject({ product: 'A', East: 100, West: 150 })
+      expect(result.data[1]).toMatchObject({ product: 'B', East: 200, West: 250 })
+    })
+
+    it('handles avg aggregation', () => {
+      const op = new PivotOp('/pivot')
+      const result = op.execute({
+        data: [
+          { id: 1, category: 'X', value: 10 },
+          { id: 1, category: 'X', value: 20 },
+          { id: 1, category: 'Y', value: 30 },
+        ],
+        pivotColumn: 'category',
+        valueColumn: 'value',
+        indexColumn: 'id',
+        aggregation: 'avg',
+      } as any)
+
+      expect(result.data[0]).toMatchObject({ id: 1, X: 15, Y: 30 })
+    })
+
+    it('returns empty for missing columns', () => {
+      const op = new PivotOp('/pivot')
+      const result = op.execute({
+        data: [{ a: 1 }],
+        pivotColumn: '',
+        valueColumn: 'value',
+        indexColumn: 'id',
+        aggregation: 'sum',
+      } as any)
+
+      expect(result.data).toEqual([])
+    })
+  })
+
+  describe('UnpivotOp basic functionality', () => {
+    it('unpivots columns into rows', () => {
+      const op = new UnpivotOp('/unpivot')
+      const result = op.execute({
+        data: [
+          { product: 'A', Q1: 100, Q2: 150, Q3: 120 },
+          { product: 'B', Q1: 200, Q2: 250, Q3: 220 },
+        ],
+        valueColumns: 'Q1,Q2,Q3',
+        variableName: 'quarter',
+        valueName: 'sales',
+      } as any)
+
+      expect(result.data.length).toBe(6)
+      expect(result.data[0]).toMatchObject({ product: 'A', quarter: 'Q1', sales: 100 })
+      expect(result.data[1]).toMatchObject({ product: 'A', quarter: 'Q2', sales: 150 })
+      expect(result.data[3]).toMatchObject({ product: 'B', quarter: 'Q1', sales: 200 })
+    })
+
+    it('preserves non-value columns', () => {
+      const op = new UnpivotOp('/unpivot')
+      const result = op.execute({
+        data: [{ id: 1, name: 'Test', value1: 10, value2: 20 }],
+        valueColumns: 'value1,value2',
+        variableName: 'metric',
+        valueName: 'amount',
+      } as any)
+
+      expect(result.data.length).toBe(2)
+      expect(result.data[0]).toMatchObject({ id: 1, name: 'Test', metric: 'value1', amount: 10 })
+      expect(result.data[1]).toMatchObject({ id: 1, name: 'Test', metric: 'value2', amount: 20 })
+    })
+
+    it('returns empty for missing columns', () => {
+      const op = new UnpivotOp('/unpivot')
+      const result = op.execute({
+        data: [{ a: 1 }],
+        valueColumns: '',
+        variableName: 'var',
+        valueName: 'val',
+      } as any)
+
+      expect(result.data).toEqual([])
     })
   })
 })
