@@ -1,7 +1,7 @@
-import type { CompiledQuery, CompilationContext, ParamSlot } from './types'
 import type { DynamicTemplate, GeneratedSQL, OperatorTemplate, StaticTemplate } from './templates'
 import { templateRegistry } from './templates'
-import { operatorIdToAlias, escapeIdentifier } from './utils'
+import type { CompilationContext, CompiledQuery } from './types'
+import { escapeIdentifier, operatorIdToAlias } from './utils'
 
 // Minimal operator interface the compiler needs
 export interface CompilableNode {
@@ -47,9 +47,10 @@ export function compile(nodes: CompilableNode[]): CompiledQuery {
   }
 
   const lastAlias = ctx.aliases.get(nodes[nodes.length - 1].id)!
-  const fullSql = ctes.length === 1
-    ? `WITH ${ctes[0]} SELECT * FROM ${lastAlias}`
-    : `WITH\n  ${ctes.join(',\n  ')}\nSELECT * FROM ${lastAlias}`
+  const fullSql =
+    ctes.length === 1
+      ? `WITH ${ctes[0]} SELECT * FROM ${lastAlias}`
+      : `WITH\n  ${ctes.join(',\n  ')}\nSELECT * FROM ${lastAlias}`
 
   return {
     sql: fullSql,
@@ -61,11 +62,15 @@ export function compile(nodes: CompilableNode[]): CompiledQuery {
 function resolveTemplate(
   template: OperatorTemplate,
   node: CompilableNode,
-  ctx: CompilationContext,
+  ctx: CompilationContext
 ): string {
   const upstreamIds = node.getUpstreamDataIds()
-  const upstream = upstreamIds[0] ? ctx.aliases.get(upstreamIds[0]) || operatorIdToAlias(upstreamIds[0]) : ''
-  const upstream2 = upstreamIds[1] ? ctx.aliases.get(upstreamIds[1]) || operatorIdToAlias(upstreamIds[1]) : undefined
+  const upstream = upstreamIds[0]
+    ? ctx.aliases.get(upstreamIds[0]) || operatorIdToAlias(upstreamIds[0])
+    : ''
+  const upstream2 = upstreamIds[1]
+    ? ctx.aliases.get(upstreamIds[1]) || operatorIdToAlias(upstreamIds[1])
+    : undefined
 
   if (template.dynamic) {
     return resolveDynamic(template, node, upstream, upstream2, ctx)
@@ -78,7 +83,7 @@ function resolveStatic(
   template: StaticTemplate,
   node: CompilableNode,
   upstream: string,
-  ctx: CompilationContext,
+  ctx: CompilationContext
 ): string {
   let sql = template.sql
 
@@ -105,7 +110,10 @@ function resolveStatic(
     if (sql.includes(placeholder)) {
       const value = node.inputs[ident.field]?.value
       if (ident.multi && typeof value === 'string') {
-        const cols = value.split(',').map(s => s.trim()).filter(Boolean)
+        const cols = value
+          .split(',')
+          .map(s => s.trim())
+          .filter(Boolean)
         sql = sql.replace(placeholder, cols.map(escapeIdentifier).join(', '))
       } else {
         // For order direction (ASC/DESC) don't escape
@@ -127,7 +135,7 @@ function resolveDynamic(
   node: CompilableNode,
   upstream: string,
   upstream2: string | undefined,
-  ctx: CompilationContext,
+  ctx: CompilationContext
 ): string {
   // Collect param values from node inputs
   const params: Record<string, unknown> = {}
@@ -141,8 +149,15 @@ function resolveDynamic(
     const val = field.value
     if (typeof val === 'string') {
       // Check if it's a comma-separated multi-value
-      if (key.toLowerCase().includes('columns') || key === 'partitionBy' || key === 'groupByColumns') {
-        identifiers[key] = val.split(',').map(s => s.trim()).filter(Boolean)
+      if (
+        key.toLowerCase().includes('columns') ||
+        key === 'partitionBy' ||
+        key === 'groupByColumns'
+      ) {
+        identifiers[key] = val
+          .split(',')
+          .map(s => s.trim())
+          .filter(Boolean)
       } else {
         identifiers[key] = val
       }
@@ -169,7 +184,7 @@ function resolveDynamic(
 
   // Handle any extra params from the generator (e.g., IN lists)
   if (result.extraParams) {
-    for (const extra of result.extraParams) {
+    for (const _extra of result.extraParams) {
       // Already allocated by allocParam during generation
     }
   }
@@ -181,7 +196,7 @@ function resolveDynamic(
 // Returns nodes in topological order (sources first).
 export function collectSubgraph(
   sinkId: string,
-  getNode: (id: string) => CompilableNode | undefined,
+  getNode: (id: string) => CompilableNode | undefined
 ): CompilableNode[] {
   const visited = new Set<string>()
   const result: CompilableNode[] = []

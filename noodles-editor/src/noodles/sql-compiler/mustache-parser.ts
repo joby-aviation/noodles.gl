@@ -27,14 +27,15 @@ const MUSTACHE_RE = /\{\{([^}]+)\}\}/g
 
 export function parseMustacheRefs(sql: string): MustacheRef[] {
   const refs: MustacheRef[] = []
-  let match: RegExpExecArray | null
-  while ((match = MUSTACHE_RE.exec(sql)) !== null) {
+  let match: RegExpExecArray | null = MUSTACHE_RE.exec(sql)
+  while (match !== null) {
     refs.push({
       raw: match[0],
       path: match[1].trim(),
       start: match.index,
       end: match.index + match[0].length,
     })
+    match = MUSTACHE_RE.exec(sql)
   }
   return refs
 }
@@ -68,7 +69,7 @@ export function extractOperatorId(path: string): string {
 export function parseDuckDbSQL(
   sql: string,
   startParamIndex: number,
-  resolveOperatorAlias: (opId: string) => string | undefined,
+  resolveOperatorAlias: (opId: string) => string | undefined
 ): ParsedDuckDbSQL {
   const refs = parseMustacheRefs(sql)
   const params: ParsedDuckDbSQL['params'] = []
@@ -92,7 +93,7 @@ export function parseDuckDbSQL(
     } else {
       const idx = paramIndex++
       params.push({ index: idx, path: ref.path })
-      result = result.substring(0, ref.start) + `$${idx}` + result.substring(ref.end)
+      result = `${result.substring(0, ref.start)}$${idx}${result.substring(ref.end)}`
     }
   }
 

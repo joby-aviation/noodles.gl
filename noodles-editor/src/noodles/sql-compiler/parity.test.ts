@@ -1,13 +1,17 @@
-import { describe, it, expect, beforeAll } from 'vitest'
 import * as duckdb from '@duckdb/duckdb-wasm'
-import { compile } from './compiler'
-import { execute, setDuckDbInstance } from './executor'
+import { beforeAll, describe, expect, it } from 'vitest'
 import type { CompilableNode } from './compiler'
+import { execute, setDuckDbInstance } from './executor'
 
 // Parity tests: verify SQL compilation produces identical results to JS execute()
 // This ensures the refactored SQL templates don't change behavior.
 
-function makeNode(id: string, type: string, inputs: Record<string, unknown>, upstreamIds: string[] = []): CompilableNode {
+function _makeNode(
+  id: string,
+  type: string,
+  inputs: Record<string, unknown>,
+  upstreamIds: string[] = []
+): CompilableNode {
   const inputFields: Record<string, { value: unknown }> = {}
   for (const [key, val] of Object.entries(inputs)) {
     inputFields[key] = { value: val }
@@ -19,12 +23,19 @@ describe('Parity: SQL output matches JS execute() output', () => {
   beforeAll(async () => {
     const DUCKDB_BUNDLES = await duckdb.selectBundle({
       mvp: {
-        mainModule: new URL('@aspect-build/aspect-duckdb-wasm/dist/duckdb-mvp.wasm', import.meta.url).href,
-        mainWorker: new URL('@aspect-build/aspect-duckdb-wasm/dist/duckdb-browser-mvp.worker.js', import.meta.url).href,
+        mainModule: new URL(
+          '@aspect-build/aspect-duckdb-wasm/dist/duckdb-mvp.wasm',
+          import.meta.url
+        ).href,
+        mainWorker: new URL(
+          '@aspect-build/aspect-duckdb-wasm/dist/duckdb-browser-mvp.worker.js',
+          import.meta.url
+        ).href,
       },
       eh: {
         mainModule: new URL('@duckdb/duckdb-wasm/dist/duckdb-eh.wasm', import.meta.url).href,
-        mainWorker: new URL('@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js', import.meta.url).href,
+        mainWorker: new URL('@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js', import.meta.url)
+          .href,
       },
     })
     const logger = new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING)
@@ -59,13 +70,16 @@ describe('Parity: SQL output matches JS execute() output', () => {
     const jsResult = data.filter(d => d.department === 'Engineering')
 
     // SQL
-    const sqlResult = await execute({
-      sql: `WITH src AS (SELECT * FROM parity_data WHERE name IN ('Alice', 'Bob', 'Charlie')),
+    const sqlResult = await execute(
+      {
+        sql: `WITH src AS (SELECT * FROM parity_data WHERE name IN ('Alice', 'Bob', 'Charlie')),
             filtered AS (SELECT * FROM src WHERE department = $1)
             SELECT * FROM filtered`,
-      paramSlots: [{ index: 1, fieldPath: '/f.value', type: 'string' }],
-      operatorAliases: new Map(),
-    }, ['Engineering'])
+        paramSlots: [{ index: 1, fieldPath: '/f.value', type: 'string' }],
+        operatorAliases: new Map(),
+      },
+      ['Engineering']
+    )
 
     const sqlRows = sqlResult.toArray()
     expect(sqlRows).toHaveLength(jsResult.length)
@@ -73,22 +87,28 @@ describe('Parity: SQL output matches JS execute() output', () => {
   })
 
   it('FilterOp: greater than', async () => {
-    const sqlResult = await execute({
-      sql: `WITH src AS (SELECT * FROM parity_data), filtered AS (SELECT * FROM src WHERE age > $1) SELECT * FROM filtered`,
-      paramSlots: [{ index: 1, fieldPath: '/f.value', type: 'number' }],
-      operatorAliases: new Map(),
-    }, [30])
+    const sqlResult = await execute(
+      {
+        sql: 'WITH src AS (SELECT * FROM parity_data), filtered AS (SELECT * FROM src WHERE age > $1) SELECT * FROM filtered',
+        paramSlots: [{ index: 1, fieldPath: '/f.value', type: 'number' }],
+        operatorAliases: new Map(),
+      },
+      [30]
+    )
     const rows = sqlResult.toArray()
     expect(rows.every((r: any) => r.age > 30)).toBe(true)
     expect(rows).toHaveLength(4) // Charlie(35), Frank(45), Eve(32), Henry(38)
   })
 
   it('FilterOp: contains', async () => {
-    const sqlResult = await execute({
-      sql: `WITH src AS (SELECT * FROM parity_data), filtered AS (SELECT * FROM src WHERE name LIKE '%' || $1 || '%') SELECT * FROM filtered`,
-      paramSlots: [{ index: 1, fieldPath: '/f.value', type: 'string' }],
-      operatorAliases: new Map(),
-    }, ['a'])
+    const sqlResult = await execute(
+      {
+        sql: `WITH src AS (SELECT * FROM parity_data), filtered AS (SELECT * FROM src WHERE name LIKE '%' || $1 || '%') SELECT * FROM filtered`,
+        paramSlots: [{ index: 1, fieldPath: '/f.value', type: 'string' }],
+        operatorAliases: new Map(),
+      },
+      ['a']
+    )
     const rows = sqlResult.toArray()
     // Names containing 'a': Diana, Frank, Grace (case-sensitive in DuckDB by default)
     expect(rows.length).toBeGreaterThan(0)
@@ -96,11 +116,14 @@ describe('Parity: SQL output matches JS execute() output', () => {
   })
 
   it('SortOp: ascending', async () => {
-    const sqlResult = await execute({
-      sql: `WITH src AS (SELECT * FROM parity_data), sorted AS (SELECT * FROM src ORDER BY age ASC) SELECT * FROM sorted`,
-      paramSlots: [],
-      operatorAliases: new Map(),
-    }, [])
+    const sqlResult = await execute(
+      {
+        sql: 'WITH src AS (SELECT * FROM parity_data), sorted AS (SELECT * FROM src ORDER BY age ASC) SELECT * FROM sorted',
+        paramSlots: [],
+        operatorAliases: new Map(),
+      },
+      []
+    )
     const rows = sqlResult.toArray()
     for (let i = 1; i < rows.length; i++) {
       expect(rows[i].age).toBeGreaterThanOrEqual(rows[i - 1].age)
@@ -108,11 +131,14 @@ describe('Parity: SQL output matches JS execute() output', () => {
   })
 
   it('SortOp: descending', async () => {
-    const sqlResult = await execute({
-      sql: `WITH src AS (SELECT * FROM parity_data), sorted AS (SELECT * FROM src ORDER BY salary DESC) SELECT * FROM sorted`,
-      paramSlots: [],
-      operatorAliases: new Map(),
-    }, [])
+    const sqlResult = await execute(
+      {
+        sql: 'WITH src AS (SELECT * FROM parity_data), sorted AS (SELECT * FROM src ORDER BY salary DESC) SELECT * FROM sorted',
+        paramSlots: [],
+        operatorAliases: new Map(),
+      },
+      []
+    )
     const rows = sqlResult.toArray()
     for (let i = 1; i < rows.length; i++) {
       expect(rows[i].salary).toBeLessThanOrEqual(rows[i - 1].salary)
@@ -120,26 +146,32 @@ describe('Parity: SQL output matches JS execute() output', () => {
   })
 
   it('SliceOp: limit and offset', async () => {
-    const sqlResult = await execute({
-      sql: `WITH src AS (SELECT * FROM parity_data ORDER BY name), sliced AS (SELECT * FROM src LIMIT $1 OFFSET $2) SELECT * FROM sliced`,
-      paramSlots: [
-        { index: 1, fieldPath: '/s.end', type: 'number' },
-        { index: 2, fieldPath: '/s.start', type: 'number' },
-      ],
-      operatorAliases: new Map(),
-    }, [3, 2])
+    const sqlResult = await execute(
+      {
+        sql: 'WITH src AS (SELECT * FROM parity_data ORDER BY name), sliced AS (SELECT * FROM src LIMIT $1 OFFSET $2) SELECT * FROM sliced',
+        paramSlots: [
+          { index: 1, fieldPath: '/s.end', type: 'number' },
+          { index: 2, fieldPath: '/s.start', type: 'number' },
+        ],
+        operatorAliases: new Map(),
+      },
+      [3, 2]
+    )
     const rows = sqlResult.toArray()
     expect(rows).toHaveLength(3)
   })
 
   it('GroupByOp: sum aggregation', async () => {
-    const sqlResult = await execute({
-      sql: `WITH src AS (SELECT * FROM parity_data),
+    const sqlResult = await execute(
+      {
+        sql: `WITH src AS (SELECT * FROM parity_data),
             grouped AS (SELECT department, SUM(salary) AS total_salary, COUNT(*) AS n FROM src GROUP BY department)
             SELECT * FROM grouped ORDER BY department`,
-      paramSlots: [],
-      operatorAliases: new Map(),
-    }, [])
+        paramSlots: [],
+        operatorAliases: new Map(),
+      },
+      []
+    )
     const rows = sqlResult.toArray()
     expect(rows.length).toBeGreaterThan(0)
     const eng = rows.find((r: any) => r.department === 'Engineering')
@@ -150,13 +182,16 @@ describe('Parity: SQL output matches JS execute() output', () => {
   })
 
   it('GroupByOp: avg aggregation', async () => {
-    const sqlResult = await execute({
-      sql: `WITH src AS (SELECT * FROM parity_data),
+    const sqlResult = await execute(
+      {
+        sql: `WITH src AS (SELECT * FROM parity_data),
             grouped AS (SELECT department, AVG(salary) AS avg_salary FROM src GROUP BY department)
             SELECT * FROM grouped ORDER BY department`,
-      paramSlots: [],
-      operatorAliases: new Map(),
-    }, [])
+        paramSlots: [],
+        operatorAliases: new Map(),
+      },
+      []
+    )
     const rows = sqlResult.toArray()
     const mkt = rows.find((r: any) => r.department === 'Marketing')
     expect(mkt).toBeDefined()
@@ -165,11 +200,14 @@ describe('Parity: SQL output matches JS execute() output', () => {
   })
 
   it('UniqueOp: distinct rows', async () => {
-    const sqlResult = await execute({
-      sql: `WITH src AS (SELECT department FROM parity_data), unique_deps AS (SELECT DISTINCT * FROM src) SELECT * FROM unique_deps ORDER BY department`,
-      paramSlots: [],
-      operatorAliases: new Map(),
-    }, [])
+    const sqlResult = await execute(
+      {
+        sql: 'WITH src AS (SELECT department FROM parity_data), unique_deps AS (SELECT DISTINCT * FROM src) SELECT * FROM unique_deps ORDER BY department',
+        paramSlots: [],
+        operatorAliases: new Map(),
+      },
+      []
+    )
     const rows = sqlResult.toArray()
     expect(rows).toHaveLength(3) // Engineering, Marketing, Sales
     const depts = rows.map((r: any) => r.department)
@@ -177,13 +215,16 @@ describe('Parity: SQL output matches JS execute() output', () => {
   })
 
   it('WindowOp: row_number', async () => {
-    const sqlResult = await execute({
-      sql: `WITH src AS (SELECT * FROM parity_data),
+    const sqlResult = await execute(
+      {
+        sql: `WITH src AS (SELECT * FROM parity_data),
             windowed AS (SELECT *, ROW_NUMBER() OVER (PARTITION BY department ORDER BY salary DESC) AS rank FROM src)
             SELECT * FROM windowed WHERE rank = 1 ORDER BY department`,
-      paramSlots: [],
-      operatorAliases: new Map(),
-    }, [])
+        paramSlots: [],
+        operatorAliases: new Map(),
+      },
+      []
+    )
     const rows = sqlResult.toArray()
     expect(rows).toHaveLength(3) // One top earner per department
     const eng = rows.find((r: any) => r.department === 'Engineering')
@@ -191,36 +232,45 @@ describe('Parity: SQL output matches JS execute() output', () => {
   })
 
   it('WindowOp: rolling sum', async () => {
-    const sqlResult = await execute({
-      sql: `WITH src AS (SELECT * FROM parity_data WHERE department = 'Engineering' ORDER BY salary),
+    const sqlResult = await execute(
+      {
+        sql: `WITH src AS (SELECT * FROM parity_data WHERE department = 'Engineering' ORDER BY salary),
             windowed AS (SELECT *, SUM(salary) OVER (ORDER BY salary ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS rolling_sum FROM src)
             SELECT * FROM windowed`,
-      paramSlots: [],
-      operatorAliases: new Map(),
-    }, [])
+        paramSlots: [],
+        operatorAliases: new Map(),
+      },
+      []
+    )
     const rows = sqlResult.toArray()
     expect(rows).toHaveLength(4)
     // Each rolling sum should be sum of current + previous row
   })
 
   it('CastOp: string to integer', async () => {
-    const sqlResult = await execute({
-      sql: `WITH src AS (SELECT '42' AS str_val), casted AS (SELECT *, CAST(str_val AS INTEGER) AS int_val FROM src) SELECT * FROM casted`,
-      paramSlots: [],
-      operatorAliases: new Map(),
-    }, [])
+    const sqlResult = await execute(
+      {
+        sql: `WITH src AS (SELECT '42' AS str_val), casted AS (SELECT *, CAST(str_val AS INTEGER) AS int_val FROM src) SELECT * FROM casted`,
+        paramSlots: [],
+        operatorAliases: new Map(),
+      },
+      []
+    )
     const rows = sqlResult.toArray()
     expect(rows[0].int_val).toBe(42)
   })
 
   it('CoalesceOp: first non-null', async () => {
-    const sqlResult = await execute({
-      sql: `WITH src AS (SELECT * FROM (VALUES (NULL, 'b', 'c'), ('a', NULL, 'c'), (NULL, NULL, 'c')) AS t(x, y, z)),
+    const sqlResult = await execute(
+      {
+        sql: `WITH src AS (SELECT * FROM (VALUES (NULL, 'b', 'c'), ('a', NULL, 'c'), (NULL, NULL, 'c')) AS t(x, y, z)),
             coalesced AS (SELECT *, COALESCE(x, y, z) AS result FROM src)
             SELECT * FROM coalesced`,
-      paramSlots: [],
-      operatorAliases: new Map(),
-    }, [])
+        paramSlots: [],
+        operatorAliases: new Map(),
+      },
+      []
+    )
     const rows = sqlResult.toArray()
     expect(rows[0].result).toBe('b')
     expect(rows[1].result).toBe('a')
@@ -228,57 +278,69 @@ describe('Parity: SQL output matches JS execute() output', () => {
   })
 
   it('StringTransformOp: upper', async () => {
-    const sqlResult = await execute({
-      sql: `WITH src AS (SELECT * FROM parity_data), transformed AS (SELECT *, UPPER(name) AS upper_name FROM src) SELECT * FROM transformed`,
-      paramSlots: [],
-      operatorAliases: new Map(),
-    }, [])
+    const sqlResult = await execute(
+      {
+        sql: 'WITH src AS (SELECT * FROM parity_data), transformed AS (SELECT *, UPPER(name) AS upper_name FROM src) SELECT * FROM transformed',
+        paramSlots: [],
+        operatorAliases: new Map(),
+      },
+      []
+    )
     const rows = sqlResult.toArray()
     expect(rows[0].upper_name).toBe(rows[0].name.toUpperCase())
   })
 
   it('StringTransformOp: regex_replace', async () => {
-    const sqlResult = await execute({
-      sql: `WITH src AS (SELECT 'hello world 123' AS text), transformed AS (SELECT *, regexp_replace(text, $1, $2) AS cleaned FROM src) SELECT * FROM transformed`,
-      paramSlots: [
-        { index: 1, fieldPath: '/s.pattern', type: 'string' },
-        { index: 2, fieldPath: '/s.replacement', type: 'string' },
-      ],
-      operatorAliases: new Map(),
-    }, ['\\d+', 'NUM'])
+    const sqlResult = await execute(
+      {
+        sql: `WITH src AS (SELECT 'hello world 123' AS text), transformed AS (SELECT *, regexp_replace(text, $1, $2) AS cleaned FROM src) SELECT * FROM transformed`,
+        paramSlots: [
+          { index: 1, fieldPath: '/s.pattern', type: 'string' },
+          { index: 2, fieldPath: '/s.replacement', type: 'string' },
+        ],
+        operatorAliases: new Map(),
+      },
+      ['\\d+', 'NUM']
+    )
     const rows = sqlResult.toArray()
     expect(rows[0].cleaned).toBe('hello world NUM')
   })
 
   it('FillNullsOp: constant fill', async () => {
-    const sqlResult = await execute({
-      sql: `WITH src AS (SELECT * FROM (VALUES (1, 'a'), (2, NULL), (3, 'c')) AS t(id, val)),
+    const sqlResult = await execute(
+      {
+        sql: `WITH src AS (SELECT * FROM (VALUES (1, 'a'), (2, NULL), (3, 'c')) AS t(id, val)),
             filled AS (SELECT *, COALESCE(val, $1) AS filled_val FROM src)
             SELECT * FROM filled`,
-      paramSlots: [{ index: 1, fieldPath: '/f.constantValue', type: 'string' }],
-      operatorAliases: new Map(),
-    }, ['DEFAULT'])
+        paramSlots: [{ index: 1, fieldPath: '/f.constantValue', type: 'string' }],
+        operatorAliases: new Map(),
+      },
+      ['DEFAULT']
+    )
     const rows = sqlResult.toArray()
     expect(rows[1].filled_val).toBe('DEFAULT')
     expect(rows[0].filled_val).toBe('a')
   })
 
   it('Full pipeline parity: filter → sort → group → slice', async () => {
-    const sqlResult = await execute({
-      sql: `WITH
+    const sqlResult = await execute(
+      {
+        sql: `WITH
         src AS (SELECT * FROM parity_data),
         filtered AS (SELECT * FROM src WHERE age >= $1),
         grouped AS (SELECT department, SUM(salary) AS total, COUNT(*) AS n FROM filtered GROUP BY department),
         sorted AS (SELECT * FROM grouped ORDER BY total DESC),
         top AS (SELECT * FROM sorted LIMIT $2 OFFSET $3)
       SELECT * FROM top`,
-      paramSlots: [
-        { index: 1, fieldPath: '/filter.value', type: 'number' },
-        { index: 2, fieldPath: '/slice.end', type: 'number' },
-        { index: 3, fieldPath: '/slice.start', type: 'number' },
-      ],
-      operatorAliases: new Map(),
-    }, [28, 2, 0])
+        paramSlots: [
+          { index: 1, fieldPath: '/filter.value', type: 'number' },
+          { index: 2, fieldPath: '/slice.end', type: 'number' },
+          { index: 3, fieldPath: '/slice.start', type: 'number' },
+        ],
+        operatorAliases: new Map(),
+      },
+      [28, 2, 0]
+    )
 
     const rows = sqlResult.toArray()
     expect(rows).toHaveLength(2)
@@ -302,25 +364,31 @@ describe('Parity: SQL output matches JS execute() output', () => {
     await conn.close()
 
     // Left join
-    const leftResult = await execute({
-      sql: `WITH l AS (SELECT * FROM join_left), r AS (SELECT * FROM join_right),
+    const leftResult = await execute(
+      {
+        sql: `WITH l AS (SELECT * FROM join_left), r AS (SELECT * FROM join_right),
             joined AS (SELECT l.id, l.name, r.score FROM l LEFT JOIN r ON l.id = r.id)
             SELECT * FROM joined ORDER BY id`,
-      paramSlots: [],
-      operatorAliases: new Map(),
-    }, [])
+        paramSlots: [],
+        operatorAliases: new Map(),
+      },
+      []
+    )
     const leftRows = leftResult.toArray()
     expect(leftRows).toHaveLength(3)
     expect(leftRows[2].score).toBeNull() // Charlie has no match
 
     // Inner join
-    const innerResult = await execute({
-      sql: `WITH l AS (SELECT * FROM join_left), r AS (SELECT * FROM join_right),
+    const innerResult = await execute(
+      {
+        sql: `WITH l AS (SELECT * FROM join_left), r AS (SELECT * FROM join_right),
             joined AS (SELECT * FROM l INNER JOIN r ON l.id = r.id)
             SELECT * FROM joined`,
-      paramSlots: [],
-      operatorAliases: new Map(),
-    }, [])
+        paramSlots: [],
+        operatorAliases: new Map(),
+      },
+      []
+    )
     expect(innerResult.toArray()).toHaveLength(2) // Only Alice and Bob match
   })
 })

@@ -1,14 +1,14 @@
+import type { IOperator, Operator } from '../operators'
 import type { CompilableNode } from './compiler'
-import { compile, collectSubgraph, isCompilable } from './compiler'
-import { execute, collectParamValues, PreparedPipeline } from './executor'
+import { collectSubgraph, compile } from './compiler'
+import { collectParamValues, PreparedPipeline } from './executor'
 import { templateRegistry } from './templates'
 import type { CompiledQuery, ExecutionResult } from './types'
-import type { Operator, IOperator } from '../operators'
 
 // Adapt a real Operator to the CompilableNode interface the compiler expects
 export function adaptOperator(
   op: Operator<IOperator>,
-  getUpstreamIds: (opId: string) => string[],
+  getUpstreamIds: (opId: string) => string[]
 ): CompilableNode | undefined {
   const opType = (op.constructor as { displayName?: string }).displayName
   if (!opType || !templateRegistry.has(opType)) return undefined
@@ -26,7 +26,7 @@ export function adaptOperator(
 export function detectCompilableSubgraphs(
   sinkIds: string[],
   getOperator: (id: string) => Operator<IOperator> | undefined,
-  getUpstreamIds: (opId: string) => string[],
+  getUpstreamIds: (opId: string) => string[]
 ): Map<string, CompiledQuery> {
   const compiledPipelines = new Map<string, CompiledQuery>()
 
@@ -38,7 +38,7 @@ export function detectCompilableSubgraphs(
     const upstreamIds = getUpstreamIds(sinkId)
     for (const upstreamId of upstreamIds) {
       // Try to collect a subgraph from each upstream
-      const subgraph = collectSubgraph(upstreamId, (id) => {
+      const subgraph = collectSubgraph(upstreamId, id => {
         const op = getOperator(id)
         if (!op) return undefined
         return adaptOperator(op, getUpstreamIds)
@@ -62,9 +62,9 @@ export function detectCompilableSubgraphs(
 // Resolve parameter values from a compiled query using live operator field values
 export function resolveParamValues(
   compiled: CompiledQuery,
-  getOperator: (id: string) => Operator<IOperator> | undefined,
+  getOperator: (id: string) => Operator<IOperator> | undefined
 ): unknown[] {
-  return collectParamValues(compiled.paramSlots, (fieldPath) => {
+  return collectParamValues(compiled.paramSlots, fieldPath => {
     // fieldPath format: "/opId.fieldName"
     const dotIdx = fieldPath.indexOf('.')
     if (dotIdx === -1) return undefined
@@ -81,7 +81,6 @@ export function resolveParamValues(
 export class SQLExecutionCache {
   private pipelines = new Map<string, PreparedPipeline>()
   private compiledQueries = new Map<string, CompiledQuery>()
-  private topologyVersion = 0
 
   invalidate() {
     this.topologyVersion++
@@ -113,7 +112,7 @@ export class SQLExecutionCache {
   async executeCompiled(
     sinkId: string,
     compiled: CompiledQuery,
-    paramValues: unknown[],
+    paramValues: unknown[]
   ): Promise<ExecutionResult> {
     const pipeline = await this.getOrCreatePipeline(sinkId, compiled)
     return pipeline.execute(paramValues)

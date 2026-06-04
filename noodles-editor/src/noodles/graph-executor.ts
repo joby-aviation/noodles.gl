@@ -420,12 +420,12 @@ export class GraphExecutor {
         if (sinkIds.length > 0) {
           const sqlResults = await sqlIntegration.executeSQLSubgraphs(
             sinkIds,
-            (id) => this.nodes.get(id),
-            (id) => [...(this.upstream.get(id) || [])],
-            this.topologyVersion,
+            id => this.nodes.get(id),
+            id => [...(this.upstream.get(id) || [])],
+            this.topologyVersion
           )
           if (sqlResults.size > 0) {
-            sqlIntegration.injectResults(sqlResults, (id) => this.nodes.get(id))
+            sqlIntegration.injectResults(sqlResults, id => this.nodes.get(id))
           }
         }
       } catch (e) {

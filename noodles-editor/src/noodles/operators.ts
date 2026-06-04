@@ -3379,41 +3379,59 @@ export class SortOp extends Operator<SortOp> {
 // These operators have execute() for standalone JS use.
 // SQL compilation is handled by the template registry in sql-compiler/templates.ts.
 
-function sqlParseAggregations(str: string): Array<{ column: string; function: string; alias?: string }> {
+function sqlParseAggregations(
+  str: string
+): Array<{ column: string; function: string; alias?: string }> {
   if (!str) return []
-  return str.split(';').map(s => s.trim()).filter(Boolean).map(spec => {
-    const match = spec.match(/^(\w+)\(([^)]+)\)(?:\s+as\s+(\w+))?$/i)
-    if (match) return { function: match[1].toLowerCase(), column: match[2], alias: match[3] }
-    return { function: 'count', column: '*', alias: spec }
-  })
+  return str
+    .split(';')
+    .map(s => s.trim())
+    .filter(Boolean)
+    .map(spec => {
+      const match = spec.match(/^(\w+)\(([^)]+)\)(?:\s+as\s+(\w+))?$/i)
+      if (match) return { function: match[1].toLowerCase(), column: match[2], alias: match[3] }
+      return { function: 'count', column: '*', alias: spec }
+    })
 }
 
 function sqlComputeAgg(rows: any[], agg: { column: string; function: string }): number {
   if (agg.column === '*' && agg.function === 'count') return rows.length
   const vals = rows.map(r => Number(r[agg.column])).filter(v => !Number.isNaN(v))
   switch (agg.function) {
-    case 'sum': return vals.reduce((a, b) => a + b, 0)
-    case 'avg': return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0
-    case 'min': return Math.min(...vals)
-    case 'max': return Math.max(...vals)
-    case 'count': return vals.length
-    default: return 0
+    case 'sum':
+      return vals.reduce((a, b) => a + b, 0)
+    case 'avg':
+      return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0
+    case 'min':
+      return Math.min(...vals)
+    case 'max':
+      return Math.max(...vals)
+    case 'count':
+      return vals.length
+    default:
+      return 0
   }
 }
 
 function sqlWindowAgg(vals: number[], fn: string): number {
   switch (fn) {
-    case 'sum': return vals.reduce((a, b) => a + b, 0)
-    case 'avg': return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0
-    case 'min': return Math.min(...vals)
-    case 'max': return Math.max(...vals)
-    default: return 0
+    case 'sum':
+      return vals.reduce((a, b) => a + b, 0)
+    case 'avg':
+      return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0
+    case 'min':
+      return Math.min(...vals)
+    case 'max':
+      return Math.max(...vals)
+    default:
+      return 0
   }
 }
 
 export class GroupByOp extends Operator<GroupByOp> {
   static displayName = 'GroupBy'
-  static description = 'Group data by columns and compute aggregations (e.g. sum(price) as total; count(*) as n)'
+  static description =
+    'Group data by columns and compute aggregations (e.g. sum(price) as total; count(*) as n)'
 
   createInputs() {
     const data = new DataField(new ArrayField(new UnknownField()))
@@ -3426,9 +3444,16 @@ export class GroupByOp extends Operator<GroupByOp> {
     return { data: new DataField() }
   }
 
-  execute({ data, groupByColumns, aggregations }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  execute({
+    data,
+    groupByColumns,
+    aggregations,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!data?.length || !groupByColumns) return { data: [] }
-    const groupCols = (groupByColumns as string).split(',').map(s => s.trim()).filter(Boolean)
+    const groupCols = (groupByColumns as string)
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean)
     const aggs = sqlParseAggregations(aggregations as string)
 
     const groups = new Map<string, any[]>()
@@ -3442,7 +3467,8 @@ export class GroupByOp extends Operator<GroupByOp> {
     for (const [, rows] of groups) {
       const out: any = {}
       for (const col of groupCols) out[col] = rows[0][col]
-      for (const agg of aggs) out[agg.alias || `${agg.function}_${agg.column}`] = sqlComputeAgg(rows, agg)
+      for (const agg of aggs)
+        out[agg.alias || `${agg.function}_${agg.column}`] = sqlComputeAgg(rows, agg)
       result.push(out)
     }
     return { data: result }
@@ -3459,7 +3485,9 @@ export class JoinOp extends Operator<JoinOp> {
       right: new DataField(new ArrayField(new UnknownField())),
       leftKey: new StringField(''),
       rightKey: new StringField(''),
-      joinType: new StringLiteralField('left', { values: ['inner', 'left', 'right', 'full', 'cross'] }),
+      joinType: new StringLiteralField('left', {
+        values: ['inner', 'left', 'right', 'full', 'cross'],
+      }),
     }
   }
 
@@ -3467,7 +3495,13 @@ export class JoinOp extends Operator<JoinOp> {
     return { data: new DataField() }
   }
 
-  execute({ left, right, leftKey, rightKey, joinType }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  execute({
+    left,
+    right,
+    leftKey,
+    rightKey,
+    joinType,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!left?.length || !right?.length) return { data: [] }
 
     if (joinType === 'cross') {
@@ -3519,12 +3553,20 @@ export class UniqueOp extends Operator<UniqueOp> {
 
   execute({ data, columns }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!data?.length) return { data: [] }
-    const cols = columns ? (columns as string).split(',').map(s => s.trim()).filter(Boolean) : null
+    const cols = columns
+      ? (columns as string)
+          .split(',')
+          .map(s => s.trim())
+          .filter(Boolean)
+      : null
     const seen = new Set<string>()
     const result: any[] = []
     for (const row of data) {
       const key = cols ? cols.map(c => JSON.stringify(row[c])).join('|') : JSON.stringify(row)
-      if (!seen.has(key)) { seen.add(key); result.push(row) }
+      if (!seen.has(key)) {
+        seen.add(key)
+        result.push(row)
+      }
     }
     return { data: result }
   }
@@ -3540,7 +3582,9 @@ export class PivotOp extends Operator<PivotOp> {
       pivotColumn: new StringField(''),
       valueColumn: new StringField(''),
       indexColumn: new StringField(''),
-      aggregation: new StringLiteralField('sum', { values: ['sum', 'avg', 'count', 'min', 'max', 'first', 'last'] }),
+      aggregation: new StringLiteralField('sum', {
+        values: ['sum', 'avg', 'count', 'min', 'max', 'first', 'last'],
+      }),
     }
   }
 
@@ -3548,7 +3592,13 @@ export class PivotOp extends Operator<PivotOp> {
     return { data: new DataField() }
   }
 
-  execute({ data, pivotColumn, valueColumn, indexColumn, aggregation }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  execute({
+    data,
+    pivotColumn,
+    valueColumn,
+    indexColumn,
+    aggregation,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!data?.length || !pivotColumn || !valueColumn || !indexColumn) return { data: [] }
     const groups = new Map<unknown, Map<unknown, number[]>>()
     for (const row of data) {
@@ -3567,13 +3617,27 @@ export class PivotOp extends Operator<PivotOp> {
         const fn = aggregation as string
         let v = 0
         switch (fn) {
-          case 'sum': v = vals.reduce((a, b) => a + b, 0); break
-          case 'avg': v = vals.reduce((a, b) => a + b, 0) / vals.length; break
-          case 'min': v = Math.min(...vals); break
-          case 'max': v = Math.max(...vals); break
-          case 'count': v = vals.length; break
-          case 'first': v = vals[0]; break
-          case 'last': v = vals[vals.length - 1]; break
+          case 'sum':
+            v = vals.reduce((a, b) => a + b, 0)
+            break
+          case 'avg':
+            v = vals.reduce((a, b) => a + b, 0) / vals.length
+            break
+          case 'min':
+            v = Math.min(...vals)
+            break
+          case 'max':
+            v = Math.max(...vals)
+            break
+          case 'count':
+            v = vals.length
+            break
+          case 'first':
+            v = vals[0]
+            break
+          case 'last':
+            v = vals[vals.length - 1]
+            break
         }
         out[String(piv)] = v
       }
@@ -3600,9 +3664,17 @@ export class UnpivotOp extends Operator<UnpivotOp> {
     return { data: new DataField() }
   }
 
-  execute({ data, valueColumns, variableName, valueName }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  execute({
+    data,
+    valueColumns,
+    variableName,
+    valueName,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!data?.length || !valueColumns) return { data: [] }
-    const valCols = (valueColumns as string).split(',').map(s => s.trim()).filter(Boolean)
+    const valCols = (valueColumns as string)
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean)
     const result: any[] = []
     for (const row of data) {
       const base: any = {}
@@ -3640,15 +3712,35 @@ export class WindowOp extends Operator<WindowOp> {
     return { data: new DataField() }
   }
 
-  execute({ data, column, function: fn, partitionBy, orderBy, order, windowSize, outputColumn }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  execute({
+    data,
+    column,
+    function: fn,
+    partitionBy,
+    orderBy,
+    order,
+    windowSize,
+    outputColumn,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!data?.length) return { data: [] }
     const outCol = (outputColumn as string) || `${fn}_${column}`
-    const partCols = partitionBy ? (partitionBy as string).split(',').map(s => s.trim()).filter(Boolean) : []
+    const partCols = partitionBy
+      ? (partitionBy as string)
+          .split(',')
+          .map(s => s.trim())
+          .filter(Boolean)
+      : []
     const orderKey = orderBy as string
 
     const sorted = [...data].sort((a, b) => {
-      for (const p of partCols) { if (a[p] < b[p]) return -1; if (a[p] > b[p]) return 1 }
-      if (orderKey) { const cmp = a[orderKey] < b[orderKey] ? -1 : a[orderKey] > b[orderKey] ? 1 : 0; return order === 'desc' ? -cmp : cmp }
+      for (const p of partCols) {
+        if (a[p] < b[p]) return -1
+        if (a[p] > b[p]) return 1
+      }
+      if (orderKey) {
+        const cmp = a[orderKey] < b[orderKey] ? -1 : a[orderKey] > b[orderKey] ? 1 : 0
+        return order === 'desc' ? -cmp : cmp
+      }
       return 0
     })
 
@@ -3664,11 +3756,23 @@ export class WindowOp extends Operator<WindowOp> {
       for (let i = 0; i < rows.length; i++) {
         const out = { ...rows[i] }
         switch (fn) {
-          case 'row_number': out[outCol] = i + 1; break
-          case 'rank': case 'dense_rank': out[outCol] = i + 1; break
-          case 'lag': out[outCol] = i > 0 ? rows[i - 1][column as string] : null; break
-          case 'lead': out[outCol] = i < rows.length - 1 ? rows[i + 1][column as string] : null; break
-          case 'sum': case 'avg': case 'min': case 'max': {
+          case 'row_number':
+            out[outCol] = i + 1
+            break
+          case 'rank':
+          case 'dense_rank':
+            out[outCol] = i + 1
+            break
+          case 'lag':
+            out[outCol] = i > 0 ? rows[i - 1][column as string] : null
+            break
+          case 'lead':
+            out[outCol] = i < rows.length - 1 ? rows[i + 1][column as string] : null
+            break
+          case 'sum':
+          case 'avg':
+          case 'min':
+          case 'max': {
             const size = (windowSize as number) || rows.length
             const start = Math.max(0, i - size + 1)
             const vals = rows.slice(start, i + 1).map(r => Number(r[column as string]))
@@ -3691,7 +3795,9 @@ export class CastOp extends Operator<CastOp> {
     return {
       data: new DataField(new ArrayField(new UnknownField())),
       column: new StringField(''),
-      targetType: new StringLiteralField('INTEGER', { values: ['INTEGER', 'DOUBLE', 'VARCHAR', 'BOOLEAN', 'DATE', 'TIMESTAMP', 'BIGINT'] }),
+      targetType: new StringLiteralField('INTEGER', {
+        values: ['INTEGER', 'DOUBLE', 'VARCHAR', 'BOOLEAN', 'DATE', 'TIMESTAMP', 'BIGINT'],
+      }),
       outputColumn: new StringField(''),
     }
   }
@@ -3700,7 +3806,12 @@ export class CastOp extends Operator<CastOp> {
     return { data: new DataField() }
   }
 
-  execute({ data, column, targetType, outputColumn }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  execute({
+    data,
+    column,
+    targetType,
+    outputColumn,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!data?.length || !column) return { data: [] }
     const outCol = (outputColumn as string) || (column as string)
     return {
@@ -3708,17 +3819,28 @@ export class CastOp extends Operator<CastOp> {
         let val: unknown = row[column as string]
         if (val == null) return { ...row, [outCol]: null }
         switch (targetType) {
-          case 'INTEGER': case 'BIGINT': val = Math.round(Number(val)); break
-          case 'DOUBLE': val = Number(val); break
-          case 'VARCHAR': val = String(val); break
-          case 'BOOLEAN': val = Boolean(val); break
-          case 'DATE': case 'TIMESTAMP': val = new Date(val as string).toISOString(); break
+          case 'INTEGER':
+          case 'BIGINT':
+            val = Math.round(Number(val))
+            break
+          case 'DOUBLE':
+            val = Number(val)
+            break
+          case 'VARCHAR':
+            val = String(val)
+            break
+          case 'BOOLEAN':
+            val = Boolean(val)
+            break
+          case 'DATE':
+          case 'TIMESTAMP':
+            val = new Date(val as string).toISOString()
+            break
         }
         return { ...row, [outCol]: val }
       }),
     }
   }
-
 }
 
 export class StringTransformOp extends Operator<StringTransformOp> {
@@ -3730,7 +3852,17 @@ export class StringTransformOp extends Operator<StringTransformOp> {
       data: new DataField(new ArrayField(new UnknownField())),
       column: new StringField(''),
       operation: new StringLiteralField('upper', {
-        values: ['upper', 'lower', 'trim', 'title', 'length', 'reverse', 'hash_md5', 'regex_extract', 'regex_replace'],
+        values: [
+          'upper',
+          'lower',
+          'trim',
+          'title',
+          'length',
+          'reverse',
+          'hash_md5',
+          'regex_extract',
+          'regex_replace',
+        ],
       }),
       pattern: new StringField(''),
       replacement: new StringField(''),
@@ -3742,7 +3874,14 @@ export class StringTransformOp extends Operator<StringTransformOp> {
     return { data: new DataField() }
   }
 
-  execute({ data, column, operation, pattern, replacement, outputColumn }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  execute({
+    data,
+    column,
+    operation,
+    pattern,
+    replacement,
+    outputColumn,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!data?.length || !column) return { data: [] }
     const outCol = (outputColumn as string) || (column as string)
     return {
@@ -3750,21 +3889,39 @@ export class StringTransformOp extends Operator<StringTransformOp> {
         const val = String(row[column as string] ?? '')
         let result: unknown
         switch (operation) {
-          case 'upper': result = val.toUpperCase(); break
-          case 'lower': result = val.toLowerCase(); break
-          case 'trim': result = val.trim(); break
-          case 'title': result = val.replace(/\b\w/g, c => c.toUpperCase()); break
-          case 'length': result = val.length; break
-          case 'reverse': result = val.split('').reverse().join(''); break
-          case 'regex_extract': { const m = val.match(new RegExp(pattern as string)); result = m?.[1] ?? m?.[0] ?? null; break }
-          case 'regex_replace': result = val.replace(new RegExp(pattern as string, 'g'), replacement as string); break
-          default: result = val
+          case 'upper':
+            result = val.toUpperCase()
+            break
+          case 'lower':
+            result = val.toLowerCase()
+            break
+          case 'trim':
+            result = val.trim()
+            break
+          case 'title':
+            result = val.replace(/\b\w/g, c => c.toUpperCase())
+            break
+          case 'length':
+            result = val.length
+            break
+          case 'reverse':
+            result = val.split('').reverse().join('')
+            break
+          case 'regex_extract': {
+            const m = val.match(new RegExp(pattern as string))
+            result = m?.[1] ?? m?.[0] ?? null
+            break
+          }
+          case 'regex_replace':
+            result = val.replace(new RegExp(pattern as string, 'g'), replacement as string)
+            break
+          default:
+            result = val
         }
         return { ...row, [outCol]: result }
       }),
     }
   }
-
 }
 
 export class CoalesceOp extends Operator<CoalesceOp> {
@@ -3783,9 +3940,16 @@ export class CoalesceOp extends Operator<CoalesceOp> {
     return { data: new DataField() }
   }
 
-  execute({ data, columns, outputColumn }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  execute({
+    data,
+    columns,
+    outputColumn,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!data?.length || !columns) return { data: [] }
-    const cols = (columns as string).split(',').map(s => s.trim()).filter(Boolean)
+    const cols = (columns as string)
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean)
     return {
       data: data.map(row => ({
         ...row,
@@ -3793,7 +3957,6 @@ export class CoalesceOp extends Operator<CoalesceOp> {
       })),
     }
   }
-
 }
 
 export class FillNullsOp extends Operator<FillNullsOp> {
@@ -3814,7 +3977,13 @@ export class FillNullsOp extends Operator<FillNullsOp> {
     return { data: new DataField() }
   }
 
-  execute({ data, column, strategy, constantValue, orderBy }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  execute({
+    data,
+    column,
+    strategy,
+    constantValue,
+    orderBy,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!data?.length || !column) return { data: [] }
     const col = column as string
     const sorted = orderBy
@@ -3828,14 +3997,19 @@ export class FillNullsOp extends Operator<FillNullsOp> {
     const result = sorted.map(row => ({ ...row }))
     if (strategy === 'forward') {
       let last: unknown = null
-      for (const row of result) { if (row[col] != null) last = row[col]; else row[col] = last }
+      for (const row of result) {
+        if (row[col] != null) last = row[col]
+        else row[col] = last
+      }
     } else {
       let last: unknown = null
-      for (let i = result.length - 1; i >= 0; i--) { if (result[i][col] != null) last = result[i][col]; else result[i][col] = last }
+      for (let i = result.length - 1; i >= 0; i--) {
+        if (result[i][col] != null) last = result[i][col]
+        else result[i][col] = last
+      }
     }
     return { data: result }
   }
-
 }
 
 // --- End SQL-Native Operators ---

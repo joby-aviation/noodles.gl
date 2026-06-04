@@ -1,5 +1,10 @@
-import { describe, it, expect } from 'vitest'
-import { parseMustacheRefs, classifyRef, extractOperatorId, parseDuckDbSQL } from './mustache-parser'
+import { describe, expect, it } from 'vitest'
+import {
+  classifyRef,
+  extractOperatorId,
+  parseDuckDbSQL,
+  parseMustacheRefs,
+} from './mustache-parser'
 
 describe('parseMustacheRefs', () => {
   it('extracts simple refs', () => {
@@ -9,7 +14,9 @@ describe('parseMustacheRefs', () => {
   })
 
   it('extracts multiple refs', () => {
-    const refs = parseMustacheRefs('SELECT * FROM {{/source.out.data}} WHERE x > {{/threshold.par.value}}')
+    const refs = parseMustacheRefs(
+      'SELECT * FROM {{/source.out.data}} WHERE x > {{/threshold.par.value}}'
+    )
     expect(refs).toHaveLength(2)
     expect(refs[0].path).toBe('/source.out.data')
     expect(refs[1].path).toBe('/threshold.par.value')
@@ -73,9 +80,9 @@ describe('extractOperatorId', () => {
 describe('parseDuckDbSQL', () => {
   it('replaces value refs with parameter placeholders', () => {
     const result = parseDuckDbSQL(
-      'SELECT * FROM read_csv_auto(\'data.csv\') WHERE age > {{/threshold.par.value}}',
+      "SELECT * FROM read_csv_auto('data.csv') WHERE age > {{/threshold.par.value}}",
       1,
-      () => undefined,
+      () => undefined
     )
     expect(result.sql).toBe("SELECT * FROM read_csv_auto('data.csv') WHERE age > $1")
     expect(result.params).toHaveLength(1)
@@ -83,10 +90,8 @@ describe('parseDuckDbSQL', () => {
   })
 
   it('replaces data refs with CTE aliases', () => {
-    const result = parseDuckDbSQL(
-      'SELECT * FROM {{/source}} WHERE x = 1',
-      1,
-      (id) => id === '/source' ? 'source' : undefined,
+    const result = parseDuckDbSQL('SELECT * FROM {{/source}} WHERE x = 1', 1, id =>
+      id === '/source' ? 'source' : undefined
     )
     expect(result.sql).toBe('SELECT * FROM source WHERE x = 1')
     expect(result.upstreamRefs).toEqual(['/source'])
@@ -97,7 +102,7 @@ describe('parseDuckDbSQL', () => {
     const result = parseDuckDbSQL(
       'SELECT * FROM {{/flights.out.data}} WHERE delay > {{/threshold.par.value}} AND airline = {{/config.par.airline}}',
       1,
-      (id) => id === '/flights' ? 'flights' : undefined,
+      id => (id === '/flights' ? 'flights' : undefined)
     )
     expect(result.sql).toContain('FROM flights')
     expect(result.sql).toMatch(/delay > \$\d/)
@@ -107,11 +112,7 @@ describe('parseDuckDbSQL', () => {
   })
 
   it('starts param index from provided value', () => {
-    const result = parseDuckDbSQL(
-      'SELECT * WHERE x > {{/op.par.value}}',
-      5,
-      () => undefined,
-    )
+    const result = parseDuckDbSQL('SELECT * WHERE x > {{/op.par.value}}', 5, () => undefined)
     expect(result.sql).toContain('$5')
     expect(result.params[0].index).toBe(5)
   })
@@ -120,7 +121,7 @@ describe('parseDuckDbSQL', () => {
     const result = parseDuckDbSQL(
       'SELECT * WHERE x > {{/a.par.v1}} AND y < {{/b.par.v2}}',
       3,
-      () => undefined,
+      () => undefined
     )
     expect(result.sql).toContain('$3')
     expect(result.sql).toContain('$4')

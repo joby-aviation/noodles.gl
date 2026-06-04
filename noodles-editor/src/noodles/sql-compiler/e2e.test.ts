@@ -1,14 +1,13 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import * as duckdb from '@duckdb/duckdb-wasm'
-import { FileOp, FilterOp, SortOp, SliceOp, GroupByOp, UniqueOp, JoinOp, CodeOp, ScatterplotLayerOp } from '../operators'
-import { GraphExecutor } from '../graph-executor'
-import { compile, collectSubgraph, isCompilable } from './compiler'
-import { execute, setDuckDbInstance, getDuckDbInstance } from './executor'
-import { adaptOperator, detectCompilableSubgraphs, resolveParamValues } from './subgraph-detector'
-import { SQLGraphIntegration, resetSQLIntegration } from './graph-integration'
-import { templateRegistry } from './templates'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { CodeOp, FileOp, FilterOp, ScatterplotLayerOp, SliceOp, SortOp } from '../operators'
 import type { CompilableNode } from './compiler'
-import type { OperatorTemplate, StaticTemplate } from './templates'
+import { compile } from './compiler'
+import { execute, setDuckDbInstance } from './executor'
+import { resetSQLIntegration, SQLGraphIntegration } from './graph-integration'
+import { adaptOperator, detectCompilableSubgraphs, resolveParamValues } from './subgraph-detector'
+import type { StaticTemplate } from './templates'
+import { templateRegistry } from './templates'
 
 // End-to-end tests: real operators, real DuckDB, comparing JS path vs SQL path.
 // These verify that the SQL compilation engine produces identical results
@@ -29,12 +28,19 @@ describe('End-to-End: JS execution vs SQL execution', () => {
   beforeAll(async () => {
     const DUCKDB_BUNDLES = await duckdb.selectBundle({
       mvp: {
-        mainModule: new URL('@aspect-build/aspect-duckdb-wasm/dist/duckdb-mvp.wasm', import.meta.url).href,
-        mainWorker: new URL('@aspect-build/aspect-duckdb-wasm/dist/duckdb-browser-mvp.worker.js', import.meta.url).href,
+        mainModule: new URL(
+          '@aspect-build/aspect-duckdb-wasm/dist/duckdb-mvp.wasm',
+          import.meta.url
+        ).href,
+        mainWorker: new URL(
+          '@aspect-build/aspect-duckdb-wasm/dist/duckdb-browser-mvp.worker.js',
+          import.meta.url
+        ).href,
       },
       eh: {
         mainModule: new URL('@duckdb/duckdb-wasm/dist/duckdb-eh.wasm', import.meta.url).href,
-        mainWorker: new URL('@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js', import.meta.url).href,
+        mainWorker: new URL('@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js', import.meta.url)
+          .href,
       },
     })
     const logger = new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING)
@@ -71,11 +77,14 @@ describe('End-to-End: JS execution vs SQL execution', () => {
       const jsResult = await filterOp.pull()
 
       // SQL execution
-      const sqlResult = await execute({
-        sql: `SELECT * FROM e2e_data WHERE department = $1`,
-        paramSlots: [{ index: 1, fieldPath: '/filter.value', type: 'string' }],
-        operatorAliases: new Map(),
-      }, ['Engineering'])
+      const sqlResult = await execute(
+        {
+          sql: 'SELECT * FROM e2e_data WHERE department = $1',
+          paramSlots: [{ index: 1, fieldPath: '/filter.value', type: 'string' }],
+          operatorAliases: new Map(),
+        },
+        ['Engineering']
+      )
 
       const sqlRows = sqlResult.toArray()
       expect(sqlRows.length).toBe(jsResult.data.length)
@@ -92,11 +101,14 @@ describe('End-to-End: JS execution vs SQL execution', () => {
 
       const jsResult = await filterOp.pull()
 
-      const sqlResult = await execute({
-        sql: `SELECT * FROM e2e_data WHERE age > $1`,
-        paramSlots: [{ index: 1, fieldPath: '/filter.value', type: 'number' }],
-        operatorAliases: new Map(),
-      }, [30])
+      const sqlResult = await execute(
+        {
+          sql: 'SELECT * FROM e2e_data WHERE age > $1',
+          paramSlots: [{ index: 1, fieldPath: '/filter.value', type: 'number' }],
+          operatorAliases: new Map(),
+        },
+        [30]
+      )
 
       const sqlRows = sqlResult.toArray()
       expect(sqlRows.length).toBe(jsResult.data.length)
@@ -113,11 +125,14 @@ describe('End-to-End: JS execution vs SQL execution', () => {
 
       const jsResult = await filterOp.pull()
 
-      const sqlResult = await execute({
-        sql: `SELECT * FROM e2e_data WHERE name LIKE '%' || $1 || '%'`,
-        paramSlots: [{ index: 1, fieldPath: '/filter.value', type: 'string' }],
-        operatorAliases: new Map(),
-      }, ['ar'])
+      const sqlResult = await execute(
+        {
+          sql: `SELECT * FROM e2e_data WHERE name LIKE '%' || $1 || '%'`,
+          paramSlots: [{ index: 1, fieldPath: '/filter.value', type: 'string' }],
+          operatorAliases: new Map(),
+        },
+        ['ar']
+      )
 
       const sqlRows = sqlResult.toArray()
       expect(sqlRows.length).toBe(jsResult.data.length)
@@ -133,14 +148,17 @@ describe('End-to-End: JS execution vs SQL execution', () => {
 
       const jsResult = await filterOp.pull()
 
-      const sqlResult = await execute({
-        sql: `SELECT * FROM e2e_data WHERE department IN ($1, $2)`,
-        paramSlots: [
-          { index: 1, fieldPath: '/filter.value.0', type: 'string' },
-          { index: 2, fieldPath: '/filter.value.1', type: 'string' },
-        ],
-        operatorAliases: new Map(),
-      }, ['Engineering', 'Sales'])
+      const sqlResult = await execute(
+        {
+          sql: 'SELECT * FROM e2e_data WHERE department IN ($1, $2)',
+          paramSlots: [
+            { index: 1, fieldPath: '/filter.value.0', type: 'string' },
+            { index: 2, fieldPath: '/filter.value.1', type: 'string' },
+          ],
+          operatorAliases: new Map(),
+        },
+        ['Engineering', 'Sales']
+      )
 
       const sqlRows = sqlResult.toArray()
       expect(sqlRows.length).toBe(jsResult.data.length)
@@ -156,11 +174,14 @@ describe('End-to-End: JS execution vs SQL execution', () => {
 
       const jsResult = await sortOp.pull()
 
-      const sqlResult = await execute({
-        sql: `SELECT * FROM e2e_data ORDER BY age ASC`,
-        paramSlots: [],
-        operatorAliases: new Map(),
-      }, [])
+      const sqlResult = await execute(
+        {
+          sql: 'SELECT * FROM e2e_data ORDER BY age ASC',
+          paramSlots: [],
+          operatorAliases: new Map(),
+        },
+        []
+      )
 
       const sqlRows = sqlResult.toArray()
       expect(sqlRows.length).toBe(jsResult.data.length)
@@ -179,11 +200,14 @@ describe('End-to-End: JS execution vs SQL execution', () => {
 
       const jsResult = await sortOp.pull()
 
-      const sqlResult = await execute({
-        sql: `SELECT * FROM e2e_data ORDER BY salary DESC`,
-        paramSlots: [],
-        operatorAliases: new Map(),
-      }, [])
+      const sqlResult = await execute(
+        {
+          sql: 'SELECT * FROM e2e_data ORDER BY salary DESC',
+          paramSlots: [],
+          operatorAliases: new Map(),
+        },
+        []
+      )
 
       const sqlRows = sqlResult.toArray()
       for (let i = 0; i < sqlRows.length; i++) {
@@ -204,14 +228,17 @@ describe('End-to-End: JS execution vs SQL execution', () => {
 
       const jsResult = await sliceOp.pull()
 
-      const sqlResult = await execute({
-        sql: `WITH sorted AS (SELECT * FROM e2e_data ORDER BY age ASC) SELECT * FROM sorted LIMIT $1 OFFSET $2`,
-        paramSlots: [
-          { index: 1, fieldPath: '/slice.end', type: 'number' },
-          { index: 2, fieldPath: '/slice.start', type: 'number' },
-        ],
-        operatorAliases: new Map(),
-      }, [3, 0])
+      const sqlResult = await execute(
+        {
+          sql: 'WITH sorted AS (SELECT * FROM e2e_data ORDER BY age ASC) SELECT * FROM sorted LIMIT $1 OFFSET $2',
+          paramSlots: [
+            { index: 1, fieldPath: '/slice.end', type: 'number' },
+            { index: 2, fieldPath: '/slice.start', type: 'number' },
+          ],
+          operatorAliases: new Map(),
+        },
+        [3, 0]
+      )
 
       const sqlRows = sqlResult.toArray()
       expect(sqlRows.length).toBe(jsResult.data.length)
@@ -231,14 +258,17 @@ describe('End-to-End: JS execution vs SQL execution', () => {
 
       const jsResult = await sliceOp.pull()
 
-      const sqlResult = await execute({
-        sql: `WITH sorted AS (SELECT * FROM e2e_data ORDER BY age ASC) SELECT * FROM sorted LIMIT $1 OFFSET $2`,
-        paramSlots: [
-          { index: 1, fieldPath: '/slice.end', type: 'number' },
-          { index: 2, fieldPath: '/slice.start', type: 'number' },
-        ],
-        operatorAliases: new Map(),
-      }, [3, 2]) // LIMIT 3 OFFSET 2 = slice(2, 5)
+      const sqlResult = await execute(
+        {
+          sql: 'WITH sorted AS (SELECT * FROM e2e_data ORDER BY age ASC) SELECT * FROM sorted LIMIT $1 OFFSET $2',
+          paramSlots: [
+            { index: 1, fieldPath: '/slice.end', type: 'number' },
+            { index: 2, fieldPath: '/slice.start', type: 'number' },
+          ],
+          operatorAliases: new Map(),
+        },
+        [3, 2]
+      ) // LIMIT 3 OFFSET 2 = slice(2, 5)
 
       const sqlRows = sqlResult.toArray()
       expect(sqlRows.length).toBe(jsResult.data.length)
@@ -268,18 +298,21 @@ describe('End-to-End: JS execution vs SQL execution', () => {
       const jsResult = await sortOp.pull()
 
       // SQL path: compiled CTE query
-      const sqlResult = await execute({
-        sql: `WITH filtered AS (SELECT * FROM e2e_data WHERE department = $1), sorted AS (SELECT * FROM filtered ORDER BY salary DESC) SELECT * FROM sorted`,
-        paramSlots: [{ index: 1, fieldPath: '/filter.value', type: 'string' }],
-        operatorAliases: new Map(),
-      }, ['Engineering'])
+      const sqlResult = await execute(
+        {
+          sql: 'WITH filtered AS (SELECT * FROM e2e_data WHERE department = $1), sorted AS (SELECT * FROM filtered ORDER BY salary DESC) SELECT * FROM sorted',
+          paramSlots: [{ index: 1, fieldPath: '/filter.value', type: 'string' }],
+          operatorAliases: new Map(),
+        },
+        ['Engineering']
+      )
 
       const sqlRows = sqlResult.toArray()
       expect(sqlRows.length).toBe(jsResult.data.length)
       expect(sqlRows.length).toBe(4) // 4 Engineering employees
       // Verify same order (descending salary)
       expect(sqlRows[0].name).toBe('Charlie') // 110000
-      expect(sqlRows[1].name).toBe('Henry')   // 105000
+      expect(sqlRows[1].name).toBe('Henry') // 105000
       expect(jsResult.data[0].name).toBe('Charlie')
       expect(jsResult.data[1].name).toBe('Henry')
     })
@@ -310,15 +343,18 @@ describe('End-to-End: JS execution vs SQL execution', () => {
       const jsResult = await sliceOp.pull()
 
       // SQL path
-      const sqlResult = await execute({
-        sql: `WITH filtered AS (SELECT * FROM e2e_data WHERE age > $1), sorted AS (SELECT * FROM filtered ORDER BY salary DESC), sliced AS (SELECT * FROM sorted LIMIT $2 OFFSET $3) SELECT * FROM sliced`,
-        paramSlots: [
-          { index: 1, fieldPath: '/filter.value', type: 'number' },
-          { index: 2, fieldPath: '/slice.end', type: 'number' },
-          { index: 3, fieldPath: '/slice.start', type: 'number' },
-        ],
-        operatorAliases: new Map(),
-      }, [28, 3, 0])
+      const sqlResult = await execute(
+        {
+          sql: 'WITH filtered AS (SELECT * FROM e2e_data WHERE age > $1), sorted AS (SELECT * FROM filtered ORDER BY salary DESC), sliced AS (SELECT * FROM sorted LIMIT $2 OFFSET $3) SELECT * FROM sliced',
+          paramSlots: [
+            { index: 1, fieldPath: '/filter.value', type: 'number' },
+            { index: 2, fieldPath: '/slice.end', type: 'number' },
+            { index: 3, fieldPath: '/slice.start', type: 'number' },
+          ],
+          operatorAliases: new Map(),
+        },
+        [28, 3, 0]
+      )
 
       const sqlRows = sqlResult.toArray()
       expect(sqlRows.length).toBe(jsResult.data.length)
@@ -352,7 +388,7 @@ describe('End-to-End: JS execution vs SQL execution', () => {
 
       // Now simulate SQL path: compile and execute the equivalent query
       const compiled = {
-        sql: `WITH filtered AS (SELECT * FROM e2e_data WHERE department = $1), sorted AS (SELECT * FROM filtered ORDER BY salary DESC) SELECT * FROM sorted`,
+        sql: 'WITH filtered AS (SELECT * FROM e2e_data WHERE department = $1), sorted AS (SELECT * FROM filtered ORDER BY salary DESC) SELECT * FROM sorted',
         paramSlots: [{ index: 1, fieldPath: '/filter.value', type: 'string' }],
         operatorAliases: new Map([
           ['/filter', 'filtered'],
@@ -370,9 +406,9 @@ describe('End-to-End: JS execution vs SQL execution', () => {
 
       const sqlResults = await integration.executeSQLSubgraphs(
         ['/scatter'],
-        (id) => ops.get(id),
-        (id) => id === '/scatter' ? ['/sort'] : id === '/sort' ? ['/filter'] : [],
-        1,
+        id => ops.get(id),
+        id => (id === '/scatter' ? ['/sort'] : id === '/sort' ? ['/filter'] : []),
+        1
       )
 
       expect(sqlResults.has('/sort')).toBe(true)
@@ -396,7 +432,7 @@ describe('End-to-End: JS execution vs SQL execution', () => {
 
       // SQL path injects data
       const compiled = {
-        sql: `WITH sorted AS (SELECT * FROM e2e_data ORDER BY age ASC) SELECT * FROM sorted`,
+        sql: 'WITH sorted AS (SELECT * FROM e2e_data ORDER BY age ASC) SELECT * FROM sorted',
         paramSlots: [],
         operatorAliases: new Map([['/sort', 'sorted']]),
       }
@@ -408,12 +444,12 @@ describe('End-to-End: JS execution vs SQL execution', () => {
 
       const sqlResults = await integration.executeSQLSubgraphs(
         ['/scatter'],
-        (id) => ops.get(id),
-        (id) => id === '/scatter' ? ['/sort'] : [],
-        1,
+        id => ops.get(id),
+        id => (id === '/scatter' ? ['/sort'] : []),
+        1
       )
 
-      integration.injectResults(sqlResults, (id) => ops.get(id))
+      integration.injectResults(sqlResults, id => ops.get(id))
 
       // Now pull() should return cached SQL result without re-executing
       const pullResult = await sortOp.pull()
@@ -484,8 +520,8 @@ describe('End-to-End: JS execution vs SQL execution', () => {
 
       const compiled = detectCompilableSubgraphs(
         ['/scatter'],
-        (id) => ops.get(id),
-        (id) => upstreamMap.get(id) || [],
+        id => ops.get(id),
+        id => upstreamMap.get(id) || []
       )
 
       // FilterOp with 0 upstreams is a valid leaf — compiles as a standalone CTE
@@ -528,8 +564,8 @@ describe('End-to-End: JS execution vs SQL execution', () => {
 
       const compiled = detectCompilableSubgraphs(
         ['/scatter'],
-        (id) => ops.get(id),
-        (id) => upstreamMap.get(id) || [],
+        id => ops.get(id),
+        id => upstreamMap.get(id) || []
       )
 
       expect(compiled.size).toBe(1)
@@ -573,8 +609,8 @@ describe('End-to-End: JS execution vs SQL execution', () => {
 
       const compiled = detectCompilableSubgraphs(
         ['/scatter'],
-        (id) => ops.get(id),
-        (id) => upstreamMap.get(id) || [],
+        id => ops.get(id),
+        id => upstreamMap.get(id) || []
       )
 
       // FilterOp's upstream is CodeOp (non-compilable), so collectSubgraph
@@ -623,8 +659,8 @@ describe('End-to-End: JS execution vs SQL execution', () => {
       // Step 1: Detection (no cache pre-set — this is the real detection path)
       const compiled = detectCompilableSubgraphs(
         ['/scatter'],
-        (id) => ops.get(id),
-        (id) => upstreamMap.get(id) || [],
+        id => ops.get(id),
+        id => upstreamMap.get(id) || []
       )
 
       // Should have detected the FilterOp → SortOp chain
@@ -638,21 +674,18 @@ describe('End-to-End: JS execution vs SQL execution', () => {
       // Step 2: Rewrite the first CTE to use our test table instead of a non-existent upstream
       // In production, this CTE would be read_csv_auto($url). Here we substitute e2e_data.
       // This simulates what happens when FileOp's template resolves to an actual data source.
-      const rewrittenSql = query.sql.replace(
-        /WITH\s+\w+ AS \(([^)]+)\)/,
-        (match, body) => {
-          // Replace the first CTE body to read from our test table
-          const alias = match.match(/WITH\s+(\w+)/)?.[1]
-          return `WITH ${alias} AS (SELECT * FROM e2e_data WHERE department = $1)`
-        }
-      )
+      const rewrittenSql = query.sql.replace(/WITH\s+\w+ AS \(([^)]+)\)/, (match, _body) => {
+        // Replace the first CTE body to read from our test table
+        const alias = match.match(/WITH\s+(\w+)/)?.[1]
+        return `WITH ${alias} AS (SELECT * FROM e2e_data WHERE department = $1)`
+      })
       const rewrittenQuery = {
         ...query,
         sql: rewrittenSql,
       }
 
       // Step 3: Execute (resolve params from real operators)
-      const paramValues = resolveParamValues(rewrittenQuery, (id) => ops.get(id))
+      const paramValues = resolveParamValues(rewrittenQuery, id => ops.get(id))
       const result = await execute(rewrittenQuery, paramValues)
 
       // Verify execution produced correct results
@@ -667,13 +700,13 @@ describe('End-to-End: JS execution vs SQL execution', () => {
 
       const sqlResults = await integration.executeSQLSubgraphs(
         ['/scatter'],
-        (id) => ops.get(id),
-        (id) => upstreamMap.get(id) || [],
-        1,
+        id => ops.get(id),
+        id => upstreamMap.get(id) || [],
+        1
       )
 
       expect(sqlResults.has('/sort')).toBe(true)
-      const injected = integration.injectResults(sqlResults, (id) => ops.get(id))
+      const injected = integration.injectResults(sqlResults, id => ops.get(id))
       expect(injected.has('/sort')).toBe(true)
 
       // Verify the operator now has cached output from SQL
@@ -708,11 +741,11 @@ describe('End-to-End: JS execution vs SQL execution', () => {
       ])
 
       // First call at topology version 1 — triggers detection
-      const r1 = await integration.executeSQLSubgraphs(
+      const _r1 = await integration.executeSQLSubgraphs(
         ['/scatter'],
-        (id) => ops.get(id),
-        (id) => upstreamMap.get(id) || [],
-        1,
+        id => ops.get(id),
+        id => upstreamMap.get(id) || [],
+        1
       )
 
       // Detection finds the chain, but the generated SQL uses a WHERE clause
@@ -725,11 +758,11 @@ describe('End-to-End: JS execution vs SQL execution', () => {
       expect(compiledQuery!.sql).toContain('ORDER BY')
 
       // Second call at topology version 2 — invalidates and re-detects
-      const r2 = await integration.executeSQLSubgraphs(
+      const _r2 = await integration.executeSQLSubgraphs(
         ['/scatter'],
-        (id) => ops.get(id),
-        (id) => upstreamMap.get(id) || [],
-        2,
+        id => ops.get(id),
+        id => upstreamMap.get(id) || [],
+        2
       )
 
       // Re-detection should find the same chain
@@ -750,12 +783,12 @@ describe('End-to-End: JS execution vs SQL execution', () => {
         operatorAliases: new Map(),
       }
 
-      const values = resolveParamValues(compiled, (id) => ops.get(id))
+      const values = resolveParamValues(compiled, id => ops.get(id))
       expect(values).toEqual(['42'])
 
       // Change the field value (simulating timeline scrub)
       filterOp.inputs.value.setValue('99')
-      const values2 = resolveParamValues(compiled, (id) => ops.get(id))
+      const values2 = resolveParamValues(compiled, id => ops.get(id))
       expect(values2).toEqual(['99'])
     })
 
@@ -782,7 +815,7 @@ describe('End-to-End: JS execution vs SQL execution', () => {
         operatorAliases: new Map(),
       }
 
-      const values = resolveParamValues(compiled, (id) => ops.get(id))
+      const values = resolveParamValues(compiled, id => ops.get(id))
       expect(values).toEqual(['Engineering', 10, 5])
     })
   })
@@ -853,19 +886,22 @@ describe('End-to-End: JS execution vs SQL execution', () => {
       // The compiled SQL has FilterOp as first CTE which references no upstream,
       // so it tries to use the template's standalone pattern. Let's execute a
       // manually constructed equivalent that uses the test table:
-      const sqlResult = await execute({
-        sql: `WITH
+      const sqlResult = await execute(
+        {
+          sql: `WITH
           filter AS (SELECT * FROM e2e_data WHERE salary > $1),
           sort AS (SELECT * FROM filter ORDER BY salary DESC),
           slice AS (SELECT * FROM sort LIMIT $2 OFFSET $3)
         SELECT * FROM slice`,
-        paramSlots: [
-          { index: 1, fieldPath: '/filter.value', type: 'number' },
-          { index: 2, fieldPath: '/slice.end', type: 'number' },
-          { index: 3, fieldPath: '/slice.start', type: 'number' },
-        ],
-        operatorAliases: new Map(),
-      }, [70000, 3, 0])
+          paramSlots: [
+            { index: 1, fieldPath: '/filter.value', type: 'number' },
+            { index: 2, fieldPath: '/slice.end', type: 'number' },
+            { index: 3, fieldPath: '/slice.start', type: 'number' },
+          ],
+          operatorAliases: new Map(),
+        },
+        [70000, 3, 0]
+      )
 
       const sqlRows = sqlResult.toArray()
       expect(sqlRows.length).toBe(jsResult.data.length)
@@ -879,7 +915,7 @@ describe('End-to-End: JS execution vs SQL execution', () => {
   describe('Parameter changes: same compiled query, different results', () => {
     it('changing filter threshold produces different results (timeline scrubbing)', async () => {
       const compiled = {
-        sql: `WITH filtered AS (SELECT * FROM e2e_data WHERE age > $1) SELECT * FROM filtered ORDER BY name`,
+        sql: 'WITH filtered AS (SELECT * FROM e2e_data WHERE age > $1) SELECT * FROM filtered ORDER BY name',
         paramSlots: [{ index: 1, fieldPath: '/filter.value', type: 'number' }],
         operatorAliases: new Map(),
       }
@@ -925,24 +961,30 @@ describe('End-to-End: JS execution vs SQL execution', () => {
 
       const jsResult = await filterOp.pull()
 
-      const sqlResult = await execute({
-        sql: `SELECT * FROM e2e_data WHERE department = $1`,
-        paramSlots: [{ index: 1, fieldPath: '/filter.value', type: 'string' }],
-        operatorAliases: new Map(),
-      }, ['NonexistentDept'])
+      const sqlResult = await execute(
+        {
+          sql: 'SELECT * FROM e2e_data WHERE department = $1',
+          paramSlots: [{ index: 1, fieldPath: '/filter.value', type: 'string' }],
+          operatorAliases: new Map(),
+        },
+        ['NonexistentDept']
+      )
 
       expect(jsResult.data.length).toBe(0)
       expect(sqlResult.toArray().length).toBe(0)
     })
 
-    it('sort on non-existent column doesn\'t crash (SQL path)', async () => {
+    it("sort on non-existent column doesn't crash (SQL path)", async () => {
       // SQL will error on non-existent column — verify graceful handling
       try {
-        await execute({
-          sql: `SELECT * FROM e2e_data ORDER BY nonexistent_col`,
-          paramSlots: [],
-          operatorAliases: new Map(),
-        }, [])
+        await execute(
+          {
+            sql: 'SELECT * FROM e2e_data ORDER BY nonexistent_col',
+            paramSlots: [],
+            operatorAliases: new Map(),
+          },
+          []
+        )
         // If it didn't throw, that's fine too (column might be nullable)
       } catch (e) {
         // Expected: DuckDB throws on invalid column
@@ -958,14 +1000,17 @@ describe('End-to-End: JS execution vs SQL execution', () => {
 
       const jsResult = await sliceOp.pull()
 
-      const sqlResult = await execute({
-        sql: `SELECT * FROM e2e_data LIMIT $1 OFFSET $2`,
-        paramSlots: [
-          { index: 1, fieldPath: '/s.end', type: 'number' },
-          { index: 2, fieldPath: '/s.start', type: 'number' },
-        ],
-        operatorAliases: new Map(),
-      }, [100, 100])
+      const sqlResult = await execute(
+        {
+          sql: 'SELECT * FROM e2e_data LIMIT $1 OFFSET $2',
+          paramSlots: [
+            { index: 1, fieldPath: '/s.end', type: 'number' },
+            { index: 2, fieldPath: '/s.start', type: 'number' },
+          ],
+          operatorAliases: new Map(),
+        },
+        [100, 100]
+      )
 
       expect(jsResult.data.length).toBe(0)
       expect(sqlResult.toArray().length).toBe(0)
@@ -989,14 +1034,17 @@ describe('End-to-End: JS execution vs SQL execution', () => {
       const jsResult = await filter2.pull()
 
       // SQL
-      const sqlResult = await execute({
-        sql: `WITH f1 AS (SELECT * FROM e2e_data WHERE age > $1), f2 AS (SELECT * FROM f1 WHERE department = $2) SELECT * FROM f2`,
-        paramSlots: [
-          { index: 1, fieldPath: '/f1.value', type: 'number' },
-          { index: 2, fieldPath: '/f2.value', type: 'string' },
-        ],
-        operatorAliases: new Map(),
-      }, [28, 'Engineering'])
+      const sqlResult = await execute(
+        {
+          sql: 'WITH f1 AS (SELECT * FROM e2e_data WHERE age > $1), f2 AS (SELECT * FROM f1 WHERE department = $2) SELECT * FROM f2',
+          paramSlots: [
+            { index: 1, fieldPath: '/f1.value', type: 'number' },
+            { index: 2, fieldPath: '/f2.value', type: 'string' },
+          ],
+          operatorAliases: new Map(),
+        },
+        [28, 'Engineering']
+      )
 
       const sqlRows = sqlResult.toArray()
       expect(sqlRows.length).toBe(jsResult.data.length)
@@ -1015,7 +1063,7 @@ describe('End-to-End: JS execution vs SQL execution', () => {
     // This lets us test the full wiring without network dependencies.
 
     const TEST_SOURCE_TEMPLATE: StaticTemplate = {
-      sql: `SELECT * FROM e2e_data`,
+      sql: 'SELECT * FROM e2e_data',
       params: [],
       identifiers: [],
       upstreamCount: 0,
@@ -1031,7 +1079,7 @@ describe('End-to-End: JS execution vs SQL execution', () => {
       op.outputs = { data: { next: () => {} } }
       op._cachedOutput = null
       op.cachedOutput = null
-      op.setCachedOutput = function(output: any) {
+      op.setCachedOutput = function (output: any) {
         this._cachedOutput = output
         this.cachedOutput = output
       }
@@ -1081,9 +1129,9 @@ describe('End-to-End: JS execution vs SQL execution', () => {
       // this triggers the REAL detection + compilation path (no pre-set cache)
       const results = await integration.executeSQLSubgraphs(
         ['/scatter'],
-        (id) => ops.get(id),
-        (id) => upstreamMap.get(id) || [],
-        1, // first topology version triggers fresh detection
+        id => ops.get(id),
+        id => upstreamMap.get(id) || [],
+        1 // first topology version triggers fresh detection
       )
 
       // Verify the SQL path actually executed and produced real data
@@ -1093,13 +1141,13 @@ describe('End-to-End: JS execution vs SQL execution', () => {
       const sqlData = results.get('/sort')!.data
       expect(sqlData.length).toBe(4) // 4 Engineering employees
       // Sorted by salary DESC
-      expect(sqlData[0].name).toBe('Charlie')   // 110000
-      expect(sqlData[1].name).toBe('Henry')     // 105000
-      expect(sqlData[2].name).toBe('Eve')       // 95000
-      expect(sqlData[3].name).toBe('Alice')     // 90000
+      expect(sqlData[0].name).toBe('Charlie') // 110000
+      expect(sqlData[1].name).toBe('Henry') // 105000
+      expect(sqlData[2].name).toBe('Eve') // 95000
+      expect(sqlData[3].name).toBe('Alice') // 90000
 
       // Verify inject works
-      const injected = integration.injectResults(results, (id) => ops.get(id))
+      const injected = integration.injectResults(results, id => ops.get(id))
       expect(injected.has('/sort')).toBe(true)
       expect(sortOp.cachedOutput).toBeDefined()
       expect(sortOp.cachedOutput.data.length).toBe(4)
@@ -1138,9 +1186,9 @@ describe('End-to-End: JS execution vs SQL execution', () => {
       // First execution — triggers detection + compilation + execution
       const r1 = await integration.executeSQLSubgraphs(
         ['/scatter'],
-        (id) => ops.get(id),
-        (id) => upstreamMap.get(id) || [],
-        1,
+        id => ops.get(id),
+        id => upstreamMap.get(id) || [],
+        1
       )
       expect(r1.get('/sort')!.data.length).toBe(4) // Engineering
 
@@ -1150,9 +1198,9 @@ describe('End-to-End: JS execution vs SQL execution', () => {
       // Same topology version — no recompilation, just re-execution with new params
       const r2 = await integration.executeSQLSubgraphs(
         ['/scatter'],
-        (id) => ops.get(id),
-        (id) => upstreamMap.get(id) || [],
-        1, // same topology version
+        id => ops.get(id),
+        id => upstreamMap.get(id) || [],
+        1 // same topology version
       )
       expect(r2.get('/sort')!.data.length).toBe(2) // Marketing: Bob, Diana
 
@@ -1160,9 +1208,9 @@ describe('End-to-End: JS execution vs SQL execution', () => {
       filterOp.inputs.value.setValue('Sales')
       const r3 = await integration.executeSQLSubgraphs(
         ['/scatter'],
-        (id) => ops.get(id),
-        (id) => upstreamMap.get(id) || [],
-        1,
+        id => ops.get(id),
+        id => upstreamMap.get(id) || [],
+        1
       )
       expect(r3.get('/sort')!.data.length).toBe(2) // Sales: Frank, Grace
     })
@@ -1194,9 +1242,9 @@ describe('End-to-End: JS execution vs SQL execution', () => {
       // Version 1: TestSource → FilterOp → scatter
       const r1 = await integration.executeSQLSubgraphs(
         ['/scatter'],
-        (id) => ops.get(id),
-        (id) => upstreamMap1.get(id) || [],
-        1,
+        id => ops.get(id),
+        id => upstreamMap1.get(id) || [],
+        1
       )
       expect(r1.get('/filter')!.data.length).toBe(4) // age > 30: Alice(30 excluded), Charlie(35), Eve(32), Henry(38), Frank(45)
       // Actually age > 30: Eve(32), Charlie(35), Henry(38), Frank(45) = 4
@@ -1216,9 +1264,9 @@ describe('End-to-End: JS execution vs SQL execution', () => {
       // Version 2: new topology — triggers recompilation
       const r2 = await integration.executeSQLSubgraphs(
         ['/scatter'],
-        (id) => ops.get(id),
-        (id) => upstreamMap2.get(id) || [],
-        2, // different version triggers recompilation
+        id => ops.get(id),
+        id => upstreamMap2.get(id) || [],
+        2 // different version triggers recompilation
       )
       expect(r2.has('/sort')).toBe(true)
       const sortedData = r2.get('/sort')!.data
@@ -1261,9 +1309,9 @@ describe('End-to-End: JS execution vs SQL execution', () => {
 
       const results = await integration.executeSQLSubgraphs(
         ['/scatter'],
-        (id) => ops.get(id),
-        (id) => upstreamMap.get(id) || [],
-        1,
+        id => ops.get(id),
+        id => upstreamMap.get(id) || [],
+        1
       )
 
       // No SQL results because the chain is broken by CodeOp
@@ -1308,9 +1356,9 @@ describe('End-to-End: JS execution vs SQL execution', () => {
 
       const sqlResults = await integration.executeSQLSubgraphs(
         ['/scatter'],
-        (id) => ops.get(id),
-        (id) => upstreamMap.get(id) || [],
-        1,
+        id => ops.get(id),
+        id => upstreamMap.get(id) || [],
+        1
       )
 
       expect(sqlResults.has('/slice')).toBe(true)

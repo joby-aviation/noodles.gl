@@ -32,7 +32,11 @@ export interface TemplateGeneratorContext {
 
 export interface GeneratedSQL {
   sql: string
-  extraParams?: Array<{ field: string; type: 'string' | 'number' | 'boolean' | 'json'; value: unknown }>
+  extraParams?: Array<{
+    field: string
+    type: 'string' | 'number' | 'boolean' | 'json'
+    value: unknown
+  }>
 }
 
 export type OperatorTemplate = StaticTemplate | DynamicTemplate
@@ -40,21 +44,21 @@ export type OperatorTemplate = StaticTemplate | DynamicTemplate
 // --- Static Templates ---
 
 export const fileOpTemplate: StaticTemplate = {
-  sql: `SELECT * FROM read_csv_auto({{$url}}, header=true, auto_detect=true)`,
+  sql: 'SELECT * FROM read_csv_auto({{$url}}, header=true, auto_detect=true)',
   params: [{ field: 'url', type: 'string' }],
   identifiers: [],
   upstreamCount: 0,
 }
 
 export const fileOpJsonTemplate: StaticTemplate = {
-  sql: `SELECT * FROM read_json_auto({{$url}})`,
+  sql: 'SELECT * FROM read_json_auto({{$url}})',
   params: [{ field: 'url', type: 'string' }],
   identifiers: [],
   upstreamCount: 0,
 }
 
 export const sortOpTemplate: StaticTemplate = {
-  sql: `SELECT * FROM {{upstream}} ORDER BY {{ident:key}} {{ident:order}}`,
+  sql: 'SELECT * FROM {{upstream}} ORDER BY {{ident:key}} {{ident:order}}',
   params: [],
   identifiers: [
     { field: 'key', hole: 'key' },
@@ -64,7 +68,7 @@ export const sortOpTemplate: StaticTemplate = {
 }
 
 export const sliceOpTemplate: StaticTemplate = {
-  sql: `SELECT * FROM {{upstream}} LIMIT {{$end}} OFFSET {{$start}}`,
+  sql: 'SELECT * FROM {{upstream}} LIMIT {{$end}} OFFSET {{$start}}',
   params: [
     { field: 'end', type: 'number' },
     { field: 'start', type: 'number' },
@@ -125,33 +129,64 @@ export const filterOpTemplate: DynamicTemplate = {
 
     let whereClause: string
     switch (condition) {
-      case 'equals': whereClause = `${col} = ${valueParam}`; break
-      case 'not equals': whereClause = `${col} != ${valueParam}`; break
-      case 'greater than': whereClause = `${col} > ${valueParam}`; break
-      case 'less than': whereClause = `${col} < ${valueParam}`; break
-      case 'greater than or equal to': whereClause = `${col} >= ${valueParam}`; break
-      case 'less than or equal to': whereClause = `${col} <= ${valueParam}`; break
-      case 'contains': whereClause = `${col} LIKE '%' || ${valueParam} || '%'`; break
-      case 'not contains': whereClause = `${col} NOT LIKE '%' || ${valueParam} || '%'`; break
+      case 'equals':
+        whereClause = `${col} = ${valueParam}`
+        break
+      case 'not equals':
+        whereClause = `${col} != ${valueParam}`
+        break
+      case 'greater than':
+        whereClause = `${col} > ${valueParam}`
+        break
+      case 'less than':
+        whereClause = `${col} < ${valueParam}`
+        break
+      case 'greater than or equal to':
+        whereClause = `${col} >= ${valueParam}`
+        break
+      case 'less than or equal to':
+        whereClause = `${col} <= ${valueParam}`
+        break
+      case 'contains':
+        whereClause = `${col} LIKE '%' || ${valueParam} || '%'`
+        break
+      case 'not contains':
+        whereClause = `${col} NOT LIKE '%' || ${valueParam} || '%'`
+        break
       case 'in': {
-        const values = String(params.value || '').split(',').map(s => s.trim())
+        const values = String(params.value || '')
+          .split(',')
+          .map(s => s.trim())
         const placeholders = values.map((_, i) => allocParam(`value_in_${i}`, 'string')).join(', ')
         whereClause = `${col} IN (${placeholders})`
         return {
           sql: `SELECT * FROM ${upstream} WHERE ${whereClause}`,
-          extraParams: values.map((v, i) => ({ field: `value_in_${i}`, type: 'string' as const, value: v })),
+          extraParams: values.map((v, i) => ({
+            field: `value_in_${i}`,
+            type: 'string' as const,
+            value: v,
+          })),
         }
       }
       case 'not in': {
-        const values = String(params.value || '').split(',').map(s => s.trim())
-        const placeholders = values.map((_, i) => allocParam(`value_notin_${i}`, 'string')).join(', ')
+        const values = String(params.value || '')
+          .split(',')
+          .map(s => s.trim())
+        const placeholders = values
+          .map((_, i) => allocParam(`value_notin_${i}`, 'string'))
+          .join(', ')
         whereClause = `${col} NOT IN (${placeholders})`
         return {
           sql: `SELECT * FROM ${upstream} WHERE ${whereClause}`,
-          extraParams: values.map((v, i) => ({ field: `value_notin_${i}`, type: 'string' as const, value: v })),
+          extraParams: values.map((v, i) => ({
+            field: `value_notin_${i}`,
+            type: 'string' as const,
+            value: v,
+          })),
         }
       }
-      default: whereClause = 'TRUE'
+      default:
+        whereClause = 'TRUE'
     }
 
     return { sql: `SELECT * FROM ${upstream} WHERE ${whereClause}` }
@@ -169,11 +204,13 @@ export const groupByOpTemplate: DynamicTemplate = {
 
     const groupList = groupCols.map(c => `"${c.replace(/"/g, '""')}"`).join(', ')
     const aggSpecs = parseAggregationString(aggs as unknown as string)
-    const aggExprs = aggSpecs.map(a => {
-      const col = a.column === '*' ? '*' : `"${a.column.replace(/"/g, '""')}"`
-      const alias = a.alias || `${a.function}_${a.column}`
-      return `${a.function.toUpperCase()}(${col}) AS "${alias.replace(/"/g, '""')}"`
-    }).join(', ')
+    const aggExprs = aggSpecs
+      .map(a => {
+        const col = a.column === '*' ? '*' : `"${a.column.replace(/"/g, '""')}"`
+        const alias = a.alias || `${a.function}_${a.column}`
+        return `${a.function.toUpperCase()}(${col}) AS "${alias.replace(/"/g, '""')}"`
+      })
+      .join(', ')
 
     const selectList = aggExprs ? `${groupList}, ${aggExprs}` : groupList
     return { sql: `SELECT ${selectList} FROM ${upstream} GROUP BY ${groupList}` }
@@ -246,15 +283,26 @@ export const windowOpTemplate: DynamicTemplate = {
     let fnExpr: string
     const escapedCol = `"${col.replace(/"/g, '""')}"`
     switch (fn) {
-      case 'row_number': fnExpr = 'ROW_NUMBER()'; break
-      case 'rank': fnExpr = 'RANK()'; break
-      case 'dense_rank': fnExpr = 'DENSE_RANK()'; break
-      case 'lag': fnExpr = `LAG(${escapedCol})`; break
-      case 'lead': fnExpr = `LEAD(${escapedCol})`; break
+      case 'row_number':
+        fnExpr = 'ROW_NUMBER()'
+        break
+      case 'rank':
+        fnExpr = 'RANK()'
+        break
+      case 'dense_rank':
+        fnExpr = 'DENSE_RANK()'
+        break
+      case 'lag':
+        fnExpr = `LAG(${escapedCol})`
+        break
+      case 'lead':
+        fnExpr = `LEAD(${escapedCol})`
+        break
       default: {
-        const frame = windowSize > 0
-          ? `ROWS BETWEEN ${windowSize - 1} PRECEDING AND CURRENT ROW`
-          : 'ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW'
+        const frame =
+          windowSize > 0
+            ? `ROWS BETWEEN ${windowSize - 1} PRECEDING AND CURRENT ROW`
+            : 'ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW'
         fnExpr = `${fn.toUpperCase()}(${escapedCol})`
         const fullWindow = `${windowClause} ${frame}`.trim()
         const outEscaped = `"${outputCol.replace(/"/g, '""')}"`
@@ -277,13 +325,27 @@ export const stringTransformOpTemplate: DynamicTemplate = {
 
     let expr: string
     switch (operation) {
-      case 'upper': expr = `UPPER(${col})`; break
-      case 'lower': expr = `LOWER(${col})`; break
-      case 'trim': expr = `TRIM(${col})`; break
-      case 'title': expr = `INITCAP(${col})`; break
-      case 'length': expr = `LENGTH(${col})`; break
-      case 'reverse': expr = `REVERSE(${col})`; break
-      case 'hash_md5': expr = `MD5(${col})`; break
+      case 'upper':
+        expr = `UPPER(${col})`
+        break
+      case 'lower':
+        expr = `LOWER(${col})`
+        break
+      case 'trim':
+        expr = `TRIM(${col})`
+        break
+      case 'title':
+        expr = `INITCAP(${col})`
+        break
+      case 'length':
+        expr = `LENGTH(${col})`
+        break
+      case 'reverse':
+        expr = `REVERSE(${col})`
+        break
+      case 'hash_md5':
+        expr = `MD5(${col})`
+        break
       case 'regex_extract': {
         const patternParam = allocParam('pattern', 'string')
         expr = `regexp_extract(${col}, ${patternParam})`
@@ -295,7 +357,8 @@ export const stringTransformOpTemplate: DynamicTemplate = {
         expr = `regexp_replace(${col}, ${patternParam}, ${replacementParam})`
         break
       }
-      default: expr = col
+      default:
+        expr = col
     }
     return { sql: `SELECT *, ${expr} AS ${outEscaped} FROM ${upstream}` }
   },
@@ -332,13 +395,19 @@ export const fillNullsOpTemplate: DynamicTemplate = {
 
 // --- Helpers ---
 
-function parseAggregationString(str: string): Array<{ column: string; function: string; alias?: string }> {
+function parseAggregationString(
+  str: string
+): Array<{ column: string; function: string; alias?: string }> {
   if (!str) return []
-  return str.split(';').map(s => s.trim()).filter(Boolean).map(spec => {
-    const match = spec.match(/^(\w+)\(([^)]+)\)(?:\s+as\s+(\w+))?$/i)
-    if (match) return { function: match[1].toLowerCase(), column: match[2], alias: match[3] }
-    return { function: 'count', column: '*', alias: spec }
-  })
+  return str
+    .split(';')
+    .map(s => s.trim())
+    .filter(Boolean)
+    .map(spec => {
+      const match = spec.match(/^(\w+)\(([^)]+)\)(?:\s+as\s+(\w+))?$/i)
+      if (match) return { function: match[1].toLowerCase(), column: match[2], alias: match[3] }
+      return { function: 'count', column: '*', alias: spec }
+    })
 }
 
 // Template registry for looking up templates by operator type
