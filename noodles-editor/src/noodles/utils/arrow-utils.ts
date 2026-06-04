@@ -31,6 +31,10 @@ export function arrowNumRows(table: Table): number {
   return table.numRows
 }
 
+export function hasColumn(table: Table, columnName: string): boolean {
+  return table.schema.fields.some(f => f.name === columnName)
+}
+
 export function arrowSlice(table: Table, start: number, end: number): Table {
   return table.slice(start, end)
 }
