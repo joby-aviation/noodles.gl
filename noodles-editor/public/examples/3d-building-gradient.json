@@ -4,14 +4,17 @@
     {
       "id": "/maplibre-basemap",
       "type": "MaplibreBasemapOp",
-      "position": { "x": 100, "y": 100 },
+      "position": {
+        "x": 100,
+        "y": 100
+      },
       "data": {
         "inputs": {
           "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
           "projection": "mercator",
           "viewState": {
             "latitude": 40.7128,
-            "longitude": -74.0060,
+            "longitude": -74.006,
             "zoom": 15,
             "pitch": 60,
             "bearing": -17.6
@@ -22,7 +25,10 @@
     {
       "id": "/gradient-params",
       "type": "JSONOp",
-      "position": { "x": 100, "y": 300 },
+      "position": {
+        "x": 100,
+        "y": 300
+      },
       "data": {
         "inputs": {
           "json": "{\n  \"baseColor\": [0.2, 0.3, 0.5],\n  \"topColor\": [0.8, 0.9, 1.0],\n  \"heightScale\": 0.01\n}"
@@ -32,7 +38,10 @@
     {
       "id": "/building-layer",
       "type": "CustomMapLibreLayerOp",
-      "position": { "x": 100, "y": 500 },
+      "position": {
+        "x": 450,
+        "y": 100
+      },
       "data": {
         "inputs": {
           "id": "3d-buildings",
@@ -45,7 +54,10 @@
     {
       "id": "/deck-renderer",
       "type": "DeckRendererOp",
-      "position": { "x": 500, "y": 300 },
+      "position": {
+        "x": 800,
+        "y": 100
+      },
       "data": {
         "inputs": {
           "layers": [],
@@ -56,7 +68,10 @@
     {
       "id": "/out",
       "type": "OutOp",
-      "position": { "x": 800, "y": 300 },
+      "position": {
+        "x": 1150,
+        "y": 100
+      },
       "data": {
         "inputs": {}
       }
@@ -92,5 +107,9 @@
       "targetHandle": "par.vis"
     }
   ],
-  "viewport": { "x": 0, "y": 0, "zoom": 1 }
+  "viewport": {
+    "x": 0,
+    "y": 0,
+    "zoom": 1
+  }
 }
