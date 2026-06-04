@@ -92,15 +92,11 @@ export class SQLGraphIntegration {
           debugSQL('executed %s → %d rows', upstreamId, result.table.numRows)
           this.executedPipelines.add(upstreamId)
 
-          // Convert Arrow table to JS array for backwards compatibility
-          // TODO: Update operators to work with Arrow tables directly for zero-copy
-          const jsArray = result.table.toArray().map((row: any) => ({ ...row }))
-
+          // Pass Arrow table directly for zero-copy data flow
+          // Downstream operators handle both Arrow tables and JS arrays
           results.set(upstreamId, {
             operatorId: upstreamId,
-            // Currently returning JS array for backwards compatibility
-            data: jsArray,
-            // Keep Arrow table available for future zero-copy optimizations
+            data: result.table,
             arrowTable: result.table,
           })
         } catch (e) {
