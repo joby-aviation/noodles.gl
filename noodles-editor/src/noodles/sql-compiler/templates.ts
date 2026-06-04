@@ -161,12 +161,19 @@ export const filterOpTemplate: DynamicTemplate = {
         const values = String(params.value || '')
           .split(',')
           .map(s => s.trim())
-        const placeholders = values.map((_, i) => allocParam(`value_in_${i}`, 'string')).join(', ')
+          .filter(Boolean)
+        if (values.length === 0) {
+          return { sql: `SELECT * FROM ${upstream} WHERE FALSE` }
+        }
+        const timestamp = Date.now()
+        const placeholders = values
+          .map((_, i) => allocParam(`value_in_${timestamp}_${i}`, 'string'))
+          .join(', ')
         whereClause = `${col} IN (${placeholders})`
         return {
           sql: `SELECT * FROM ${upstream} WHERE ${whereClause}`,
           extraParams: values.map((v, i) => ({
-            field: `value_in_${i}`,
+            field: `value_in_${timestamp}_${i}`,
             type: 'string' as const,
             value: v,
           })),
@@ -176,21 +183,26 @@ export const filterOpTemplate: DynamicTemplate = {
         const values = String(params.value || '')
           .split(',')
           .map(s => s.trim())
+          .filter(Boolean)
+        if (values.length === 0) {
+          return { sql: `SELECT * FROM ${upstream} WHERE TRUE` }
+        }
+        const timestamp = Date.now()
         const placeholders = values
-          .map((_, i) => allocParam(`value_notin_${i}`, 'string'))
+          .map((_, i) => allocParam(`value_notin_${timestamp}_${i}`, 'string'))
           .join(', ')
         whereClause = `${col} NOT IN (${placeholders})`
         return {
           sql: `SELECT * FROM ${upstream} WHERE ${whereClause}`,
           extraParams: values.map((v, i) => ({
-            field: `value_notin_${i}`,
+            field: `value_notin_${timestamp}_${i}`,
             type: 'string' as const,
             value: v,
           })),
         }
       }
       default:
-        whereClause = 'TRUE'
+        throw new Error(`Unknown filter condition: ${condition}`)
     }
 
     return { sql: `SELECT * FROM ${upstream} WHERE ${whereClause}` }

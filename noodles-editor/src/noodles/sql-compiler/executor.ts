@@ -18,12 +18,17 @@ export function getDuckDbInstance(): AsyncDuckDB | null {
 // This is the key function for timeline scrubbing — it reads live field values.
 export function collectParamValues(
   paramSlots: ParamSlot[],
-  getFieldValue: (fieldPath: string) => unknown
+  getFieldValue: (fieldPath: string, slot?: ParamSlot) => unknown
 ): unknown[] {
   const values: unknown[] = new Array(paramSlots.length)
   for (let i = 0; i < paramSlots.length; i++) {
     const slot = paramSlots[i]
-    let value = getFieldValue(slot.fieldPath)
+    // If slot has a direct value, use it (already coerced)
+    if (slot.value !== undefined) {
+      values[i] = slot.value
+      continue
+    }
+    let value = getFieldValue(slot.fieldPath, slot)
     // Coerce to expected type
     switch (slot.type) {
       case 'number':

@@ -34,6 +34,7 @@ export interface ParamSlot {
   index: number
   fieldPath: string
   type: ParamDeclaration['type']
+  value?: unknown
 }
 
 // Result of compiling a subgraph
