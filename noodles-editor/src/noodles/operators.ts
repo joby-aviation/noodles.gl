@@ -5815,17 +5815,28 @@ function applyBinaryAttributes<P extends LayerProps>(
   layerProps: P,
   attributes: Record<string, { values: Float32Array | Uint8Array; size: number }>
 ): P {
-  const result = { ...layerProps }
-
-  for (const [attrName, attrValue] of Object.entries(attributes)) {
-    const propName = `get${attrName.charAt(0).toUpperCase()}${attrName.slice(1)}` as keyof P
-    // Deck.gl expects binary attributes with lowercase 'value', not 'values'
-    const deckglAttribute = { value: attrValue.values, size: attrValue.size }
-    // Set the binary attribute even if the prop doesn't exist in the base layer props
-    result[propName] = deckglAttribute as P[typeof propName]
+  if (Object.keys(attributes).length === 0) {
+    return layerProps
   }
 
-  return result
+  // Deck.gl binary attributes must be passed in data.attributes, not as layer props
+  // Format: data: {length: N, attributes: {getPosition: {value: TypedArray, size: N}}}
+  const data = layerProps.data as unknown[]
+  const length = Array.isArray(data) ? data.length : 0
+
+  const deckglAttributes: Record<string, { value: Float32Array | Uint8Array; size: number }> = {}
+  for (const [attrName, attrValue] of Object.entries(attributes)) {
+    const propName = `get${attrName.charAt(0).toUpperCase()}${attrName.slice(1)}`
+    deckglAttributes[propName] = { value: attrValue.values, size: attrValue.size }
+  }
+
+  return {
+    ...layerProps,
+    data: {
+      length,
+      attributes: deckglAttributes
+    }
+  } as P
 }
 
 function normalizeDataInput(input: unknown): unknown[] {
