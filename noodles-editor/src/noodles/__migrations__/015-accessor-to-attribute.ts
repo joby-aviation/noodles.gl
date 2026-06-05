@@ -203,6 +203,7 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
       }
 
       newNodes.push(createAttrNode)
+      console.log('[Migration 015] Created node:', JSON.stringify(createAttrNode, null, 2))
       createAttrIndex++
 
       // Connect data source to CreateAttributeOp
