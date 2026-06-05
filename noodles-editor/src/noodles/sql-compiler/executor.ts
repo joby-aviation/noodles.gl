@@ -95,9 +95,16 @@ export class PreparedPipeline {
   }
 
   async prepare(): Promise<void> {
+    if (this.stmt) return // already prepared
     if (!duckDbInstance) throw new Error('DuckDB not initialized.')
-    this.conn = await duckDbInstance.connect()
-    this.stmt = await this.conn.prepare(this._compiled.sql)
+    const conn = await duckDbInstance.connect()
+    try {
+      this.stmt = await conn.prepare(this._compiled.sql)
+      this.conn = conn
+    } catch (e) {
+      await conn.close()
+      throw e
+    }
   }
 
   async execute(paramValues: unknown[]): Promise<ExecutionResult> {

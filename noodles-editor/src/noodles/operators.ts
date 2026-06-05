@@ -4939,10 +4939,6 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
     layerFilter,
     maplibreLayers,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    console.log(`[DeckRendererOp ${this.id}] execute called`, {
-      layersCount: layers?.length || 0,
-      layers: layers?.map(l => l?.type || 'unknown'),
-    })
     // Validate the ViewState to ensure lat/lng are within valid bounds
     validateViewState(viewState)
 
@@ -6105,12 +6101,7 @@ export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    console.log(`[ScatterplotLayerOp ${this.id}] execute called`, { hasData: !!props.data })
     const { rows, attributes } = extractAttributeData(props.data)
-    console.log(`[ScatterplotLayerOp ${this.id}] extracted`, {
-      rowsLength: rows.length,
-      attributes: Object.keys(attributes),
-    })
 
     const baseLayerProps = {
       ...parseLayerProps<ScatterplotLayerProps>({ ...props, data: rows }),
@@ -6120,7 +6111,6 @@ export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
     }
 
     const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
-    console.log(`[ScatterplotLayerOp ${this.id}] returning layer with ${rows.length} rows`)
 
     return { layer: layerProps }
   }

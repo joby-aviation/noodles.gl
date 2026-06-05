@@ -56,19 +56,32 @@ export function arrowGetColumnAsTypedArray(
 
   const values = column.toArray()
 
-  if (type.typeId === 2 || type.typeId === 3) {
+  // Apache Arrow Type enum values:
+  // typeId 2 = Int (Int8/16/32/64, Uint8/16/32/64)
+  // typeId 3 = Float (Float16/32/64)
+  // typeId 4 = Binary
+  // typeId 5 = Utf8
+
+  // Handle Float types (typeId 3)
+  if (type.typeId === 3) {
+    const precision = (type as any).precision ?? 1
+    // precision 2 = Float64, precision 1 = Float32, precision 0 = Float16
+    if (precision === 2) return new Float64Array(values as number[])
     return new Float32Array(values as number[])
   }
-  if (type.typeId === 4 || type.typeId === 5) {
-    return new Float64Array(values as number[])
-  }
-  if (type.typeId === 6 || type.typeId === 7 || type.typeId === 8) {
+
+  // Handle Int types (typeId 2)
+  if (type.typeId === 2) {
+    const isSigned = (type as any).isSigned !== false
+    const bitWidth = (type as any).bitWidth ?? 32
+    if (!isSigned && bitWidth <= 8) return new Uint8Array(values as number[])
+    if (!isSigned) return new Uint32Array(values as number[])
+    if (bitWidth <= 8) return new Int8Array(values as number[])
+    if (bitWidth <= 16) return new Int16Array(values as number[])
     return new Int32Array(values as number[])
   }
-  if (type.typeId === 9 || type.typeId === 10 || type.typeId === 11) {
-    return new Uint8Array(values as number[])
-  }
 
+  // Fallback for other types - attempt float32
   return new Float32Array(values as number[])
 }
 
@@ -106,17 +119,22 @@ export function arrowGetNestedColumn(
 export function arrowTypeToGLFormat(type: DataType): { type: string; size: number } {
   const typeId = type.typeId
 
-  if (typeId === 2 || typeId === 3) {
+  // typeId 3 = Float (Float16/32/64)
+  if (typeId === 3) {
+    const precision = (type as any).precision ?? 1
+    if (precision === 2) return { type: 'float64', size: 1 }
     return { type: 'float32', size: 1 }
   }
-  if (typeId === 4 || typeId === 5) {
-    return { type: 'float64', size: 1 }
-  }
-  if (typeId === 6 || typeId === 7 || typeId === 8) {
+
+  // typeId 2 = Int (Int8/16/32/64, Uint8/16/32/64)
+  if (typeId === 2) {
+    const isSigned = (type as any).isSigned !== false
+    const bitWidth = (type as any).bitWidth ?? 32
+    if (!isSigned && bitWidth <= 8) return { type: 'uint8', size: 1 }
+    if (!isSigned) return { type: 'uint32', size: 1 }
+    if (bitWidth <= 8) return { type: 'int8', size: 1 }
+    if (bitWidth <= 16) return { type: 'int16', size: 1 }
     return { type: 'int32', size: 1 }
-  }
-  if (typeId === 9 || typeId === 10 || typeId === 11) {
-    return { type: 'uint8', size: 1 }
   }
 
   return { type: 'float32', size: 1 }

@@ -71,14 +71,18 @@ export const sortOpTemplate: StaticTemplate = {
   upstreamCount: 1,
 }
 
-export const sliceOpTemplate: StaticTemplate = {
-  sql: 'SELECT * FROM {{upstream}} LIMIT {{$end}} OFFSET {{$start}}',
-  params: [
-    { field: 'end', type: 'number' },
-    { field: 'start', type: 'number' },
-  ],
-  identifiers: [],
+export const sliceOpTemplate: DynamicTemplate = {
+  dynamic: true,
   upstreamCount: 1,
+  generate({ upstream, params }) {
+    const start = Math.max(0, Number(params.start ?? 0))
+    const end = params.end !== undefined ? Number(params.end) : undefined
+    const limit = end !== undefined ? end - start : undefined
+    const parts = [`SELECT * FROM ${upstream}`]
+    if (limit !== undefined && limit > 0) parts.push(`LIMIT ${limit}`)
+    if (start > 0) parts.push(`OFFSET ${start}`)
+    return { sql: parts.join(' ') }
+  },
 }
 
 export const uniqueOpTemplate: DynamicTemplate = {
