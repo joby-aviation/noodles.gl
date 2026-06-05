@@ -6101,7 +6101,15 @@ export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const { rows, attributes } = extractAttributeData(props.data)
+    let { rows, attributes } = extractAttributeData(props.data)
+
+    // FIX: If position attribute has wrong size, remove it to fall back to accessor function
+    // Position attributes should be size 2 (lng,lat) or 3 (lng,lat,elevation), never size 1
+    if (attributes.position && attributes.position.size === 1) {
+      console.warn('[ScatterplotLayerOp] Detected malformed position attribute with size=1, removing it to use accessor instead')
+      const { position, ...otherAttributes } = attributes
+      attributes = otherAttributes
+    }
 
     const baseLayerProps = {
       ...parseLayerProps<ScatterplotLayerProps>({ ...props, data: rows }),
@@ -6111,6 +6119,15 @@ export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
     }
 
     const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
+
+    console.log('[ScatterplotLayerOp] Final layer props:', {
+      id: layerProps.id,
+      type: layerProps.type,
+      dataLength: layerProps.data?.length,
+      hasGetPosition: !!layerProps.getPosition,
+      getPositionType: typeof layerProps.getPosition,
+      visible: layerProps.visible
+    })
 
     return { layer: layerProps }
   }
