@@ -171,6 +171,25 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
 
       const createAttrNodeId = `${accessorId.replace('/accessor-', '/attr-')}-${attributeName}`
 
+      // Infer size and type from attribute name
+      const inputs: Record<string, unknown> = {
+        name: attributeName,
+        expression,
+      }
+
+      // Position attributes need size 2 or 3 (x,y or x,y,z)
+      if (isPosition) {
+        // Check if expression looks like it has 3 components (e.g., [x, y, z])
+        const has3Components = /\[.*,.*,.*\]/.test(expression)
+        inputs.size = has3Components ? 3 : 2
+      }
+
+      // Color attributes need size 4 (RGBA) and type uint8
+      if (isColor) {
+        inputs.size = 4
+        inputs.type = 'uint8'
+      }
+
       const createAttrNode = {
         id: createAttrNodeId,
         type: 'CreateAttributeOp',
@@ -179,10 +198,7 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
           y: accessorNode.position.y + createAttrIndex * 120,
         },
         data: {
-          inputs: {
-            name: attributeName,
-            expression,
-          },
+          inputs,
         },
       }
 
