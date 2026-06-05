@@ -1,4 +1,136 @@
 {
+  "nodes": [
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 1540,
+        "y": 100
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 2020,
+        "y": 100
+      }
+    },
+    {
+      "id": "/data-source",
+      "type": "FileOp",
+      "data": {
+        "inputs": {
+          "url": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/sf-bike-parking.json"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 100,
+        "y": 100
+      }
+    },
+    {
+      "id": "/grid-layer",
+      "type": "GridLayerOp",
+      "data": {
+        "inputs": {
+          "cellSize": 200,
+          "elevationScale": 4
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 580,
+        "y": 100
+      }
+    },
+    {
+      "id": "/position-accessor",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "d.COORDINATES"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 100,
+        "y": 400
+      }
+    },
+    {
+      "id": "/spaces-accessor",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "d.SPACES"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 100,
+        "y": 700
+      }
+    },
+    {
+      "type": "MaplibreBasemapOp",
+      "id": "/maplibre-basemap",
+      "position": {
+        "x": 100,
+        "y": 1000
+      },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
+          "viewState": {
+            "latitude": 37.74,
+            "longitude": -122.4,
+            "zoom": 13,
+            "pitch": 30,
+            "bearing": 0
+          }
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "HexagonLayerOp",
+      "id": "/hexagon-layer",
+      "position": {
+        "x": 580,
+        "y": 400
+      },
+      "data": {
+        "inputs": {
+          "radius": 200,
+          "extruded": true,
+          "elevationScale": 4
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "SwitchOp",
+      "id": "/switch",
+      "position": {
+        "x": 1060,
+        "y": 100
+      },
+      "data": {
+        "inputs": {},
+        "locked": false
+      }
+    }
+  ],
   "edges": [
     {
       "id": "/deck.out.vis->/out.par.vis",
@@ -97,156 +229,7 @@
     "y": 907.0984953781293,
     "zoom": 0.8019816514742112
   },
-  "version": 14,
-  "name": "SF Bike Parking Aggregation",
-  "editorSettings": {
-    "layoutMode": "noodles-on-top",
-    "showOverlay": true
-  },
-  "nodes": [
-    {
-      "id": "/deck",
-      "type": "DeckRendererOp",
-      "data": {
-        "inputs": {},
-        "locked": false
-      },
-      "position": {
-        "x": 1750,
-        "y": 100
-      }
-    },
-    {
-      "id": "/out",
-      "type": "OutOp",
-      "data": {
-        "inputs": {
-          "display": "fixed",
-          "width": 1920,
-          "height": 1080,
-          "lod": 2,
-          "waitForData": true,
-          "codec": "avc",
-          "bitrateMbps": 10,
-          "bitrateMode": "constant",
-          "scaleControl": 0.3,
-          "framerate": 30,
-          "captureDelay": 50
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 2300,
-        "y": 100
-      }
-    },
-    {
-      "id": "/data-source",
-      "type": "FileOp",
-      "data": {
-        "inputs": {
-          "url": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/sf-bike-parking.json"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 100,
-        "y": 100
-      }
-    },
-    {
-      "id": "/grid-layer",
-      "type": "GridLayerOp",
-      "data": {
-        "inputs": {
-          "cellSize": 200,
-          "elevationScale": 4
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 650,
-        "y": 100
-      }
-    },
-    {
-      "id": "/position-accessor",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "d.COORDINATES"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 100,
-        "y": 550
-      }
-    },
-    {
-      "id": "/spaces-accessor",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "d.SPACES"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 100,
-        "y": 1000
-      }
-    },
-    {
-      "type": "MaplibreBasemapOp",
-      "id": "/maplibre-basemap",
-      "position": {
-        "x": 100,
-        "y": 1450
-      },
-      "data": {
-        "inputs": {
-          "mapStyle": "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
-          "viewState": {
-            "latitude": 37.74,
-            "longitude": -122.4,
-            "zoom": 13,
-            "pitch": 30,
-            "bearing": 0
-          }
-        },
-        "locked": false
-      }
-    },
-    {
-      "type": "HexagonLayerOp",
-      "id": "/hexagon-layer",
-      "position": {
-        "x": 650,
-        "y": 550
-      },
-      "data": {
-        "inputs": {
-          "radius": 200,
-          "extruded": true,
-          "elevationScale": 4
-        },
-        "locked": false
-      }
-    },
-    {
-      "type": "SwitchOp",
-      "id": "/switch",
-      "position": {
-        "x": 1200,
-        "y": 100
-      },
-      "data": {
-        "inputs": {},
-        "locked": false
-      }
-    }
-  ],
+  "version": 6,
   "timeline": {
     "sheetsById": {
       "Noodles": {
@@ -261,5 +244,6 @@
       "aiRAn66WU7kCXJZh",
       "mtj8EgxoAJHG9vWu"
     ]
-  }
+  },
+  "name": "SF Bike Parking Aggregation"
 }

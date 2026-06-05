@@ -1,4 +1,77 @@
 {
+  "nodes": [
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "data": {
+        "inputs": {
+          "basemap": null
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 1060,
+        "y": 100
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 1540,
+        "y": 100
+      }
+    },
+    {
+      "id": "/orbitview-0",
+      "type": "OrbitViewOp",
+      "position": {
+        "x": 100,
+        "y": 100
+      },
+      "data": {
+        "inputs": {
+          "clear": true,
+          "clearColor": "#2997ffff",
+          "fovy": 50
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/scenegraphlayer-0",
+      "type": "ScenegraphLayerOp",
+      "position": {
+        "x": 580,
+        "y": 100
+      },
+      "data": {
+        "inputs": {
+          "sizeMinPixels": 10,
+          "getColor": "#ffffffff"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/expression-0",
+      "type": "ExpressionOp",
+      "position": {
+        "x": 100,
+        "y": 400
+      },
+      "data": {
+        "inputs": {
+          "expression": "[null]"
+        },
+        "locked": false
+      }
+    }
+  ],
   "edges": [
     {
       "id": "/deck.out.vis->/out.par.vis",
@@ -34,97 +107,7 @@
     "y": 546.6972278664407,
     "zoom": 0.981085979917294
   },
-  "version": 14,
-  "name": "Orbit View 3D Scene",
-  "editorSettings": {
-    "layoutMode": "noodles-on-top",
-    "showOverlay": true
-  },
-  "nodes": [
-    {
-      "id": "/deck",
-      "type": "DeckRendererOp",
-      "data": {
-        "inputs": {
-          "basemap": null
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 1200,
-        "y": 100
-      }
-    },
-    {
-      "id": "/out",
-      "type": "OutOp",
-      "data": {
-        "inputs": {
-          "display": "fixed",
-          "width": 1920,
-          "height": 1080,
-          "lod": 2,
-          "waitForData": true,
-          "codec": "avc",
-          "bitrateMbps": 10,
-          "bitrateMode": "constant",
-          "scaleControl": 0.3,
-          "framerate": 30,
-          "captureDelay": 50
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 1750,
-        "y": 100
-      }
-    },
-    {
-      "id": "/orbitview-0",
-      "type": "OrbitViewOp",
-      "position": {
-        "x": 100,
-        "y": 100
-      },
-      "data": {
-        "inputs": {
-          "clear": true,
-          "clearColor": "#2997ffff",
-          "fovy": 50
-        },
-        "locked": false
-      }
-    },
-    {
-      "id": "/scenegraphlayer-0",
-      "type": "ScenegraphLayerOp",
-      "position": {
-        "x": 650,
-        "y": 100
-      },
-      "data": {
-        "inputs": {
-          "sizeMinPixels": 10,
-          "getColor": "#ffffffff"
-        },
-        "locked": false
-      }
-    },
-    {
-      "id": "/expression-0",
-      "type": "ExpressionOp",
-      "position": {
-        "x": 100,
-        "y": 550
-      },
-      "data": {
-        "inputs": {
-          "expression": "[null]"
-        },
-        "locked": false
-      }
-    }
-  ],
+  "version": 6,
   "timeline": {
     "sheetsById": {
       "Noodles": {
@@ -156,5 +139,6 @@
       "9EsczZKTvYsUK8uR",
       "R6gN92Yj6dfyRehM"
     ]
-  }
+  },
+  "name": "Orbit View 3D Scene"
 }

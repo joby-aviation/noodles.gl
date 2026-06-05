@@ -120,7 +120,7 @@
         "locked": false
       },
       "position": {
-        "x": 2850,
+        "x": 2500,
         "y": 100
       }
     },
@@ -128,7 +128,7 @@
       "id": "/duckdb-0",
       "type": "DuckDbOp",
       "position": {
-        "x": 650,
+        "x": 580,
         "y": 100
       },
       "resizing": false,
@@ -168,7 +168,7 @@
       "id": "/boundingbox-0",
       "type": "BoundingBoxOp",
       "position": {
-        "x": 1200,
+        "x": 1060,
         "y": 100
       },
       "data": {
@@ -182,8 +182,8 @@
       "id": "/scatterplotlayer-0",
       "type": "ScatterplotLayerOp",
       "position": {
-        "x": 1200,
-        "y": 550
+        "x": 1060,
+        "y": 400
       },
       "data": {
         "inputs": {
@@ -199,7 +199,7 @@
       "type": "AccessorOp",
       "position": {
         "x": 100,
-        "y": 550
+        "y": 400
       },
       "data": {
         "inputs": {
@@ -212,7 +212,7 @@
       "id": "/viewstate-0",
       "type": "MapViewStateOp",
       "position": {
-        "x": 1750,
+        "x": 1540,
         "y": 100
       },
       "data": {
@@ -226,8 +226,8 @@
       "id": "/switch-0",
       "type": "SwitchOp",
       "position": {
-        "x": 1750,
-        "y": 550
+        "x": 1540,
+        "y": 400
       },
       "data": {
         "inputs": {},
@@ -238,8 +238,8 @@
       "id": "/heatmaplayer-0",
       "type": "HeatmapLayerOp",
       "position": {
-        "x": 1200,
-        "y": 1000
+        "x": 1060,
+        "y": 700
       },
       "data": {
         "inputs": {
@@ -253,7 +253,7 @@
       "id": "/basemap-0",
       "type": "MaplibreBasemapOp",
       "position": {
-        "x": 2300,
+        "x": 2020,
         "y": 100
       },
       "data": {
@@ -265,7 +265,7 @@
       "id": "/out",
       "type": "OutOp",
       "position": {
-        "x": 3400,
+        "x": 2980,
         "y": 100
       },
       "data": {

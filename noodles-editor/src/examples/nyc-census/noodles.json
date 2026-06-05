@@ -84,7 +84,7 @@
         "locked": false
       },
       "position": {
-        "x": 2300,
+        "x": 2020,
         "y": 100
       }
     },
@@ -108,7 +108,7 @@
         "locked": false
       },
       "position": {
-        "x": 2850,
+        "x": 2500,
         "y": 100
       }
     },
@@ -140,7 +140,7 @@
         "locked": false
       },
       "position": {
-        "x": 1750,
+        "x": 1540,
         "y": 100
       }
     },
@@ -154,7 +154,7 @@
         "locked": false
       },
       "position": {
-        "x": 1200,
+        "x": 1060,
         "y": 100
       }
     },
@@ -169,7 +169,7 @@
       },
       "position": {
         "x": 100,
-        "y": 550
+        "y": 400
       }
     },
     {
@@ -183,7 +183,7 @@
       },
       "position": {
         "x": 100,
-        "y": 1000
+        "y": 700
       }
     },
     {
@@ -191,7 +191,7 @@
       "id": "/maplibre-basemap",
       "position": {
         "x": 100,
-        "y": 1450
+        "y": 1000
       },
       "data": {
         "inputs": {
@@ -211,7 +211,7 @@
       "type": "MapRangeOp",
       "id": "/map-range",
       "position": {
-        "x": 650,
+        "x": 580,
         "y": 100
       },
       "data": {
@@ -225,8 +225,8 @@
       "type": "MapRangeOp",
       "id": "/map-range-1",
       "position": {
-        "x": 650,
-        "y": 550
+        "x": 580,
+        "y": 400
       },
       "data": {
         "inputs": {

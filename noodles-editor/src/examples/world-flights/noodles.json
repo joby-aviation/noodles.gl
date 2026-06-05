@@ -175,7 +175,7 @@
         "locked": false
       },
       "position": {
-        "x": 2300,
+        "x": 2020,
         "y": 100
       }
     },
@@ -199,7 +199,7 @@
         "locked": false
       },
       "position": {
-        "x": 2850,
+        "x": 2500,
         "y": 100
       }
     },
@@ -230,8 +230,8 @@
         "locked": false
       },
       "position": {
-        "x": 1200,
-        "y": 550
+        "x": 1060,
+        "y": 400
       }
     },
     {
@@ -246,8 +246,8 @@
         "locked": false
       },
       "position": {
-        "x": 1200,
-        "y": 1000
+        "x": 1060,
+        "y": 700
       }
     },
     {
@@ -261,7 +261,7 @@
       },
       "position": {
         "x": 100,
-        "y": 550
+        "y": 400
       }
     },
     {
@@ -274,8 +274,8 @@
         "locked": false
       },
       "position": {
-        "x": 650,
-        "y": 550
+        "x": 580,
+        "y": 400
       }
     },
     {
@@ -283,7 +283,7 @@
       "id": "/maplibre-basemap",
       "position": {
         "x": 100,
-        "y": 1000
+        "y": 700
       },
       "data": {
         "inputs": {
@@ -303,7 +303,7 @@
       "type": "TimeSeriesOp",
       "id": "/time-series",
       "position": {
-        "x": 1200,
+        "x": 1060,
         "y": 100
       },
       "data": {
@@ -316,7 +316,7 @@
       "id": "/time",
       "position": {
         "x": 100,
-        "y": 1450
+        "y": 1000
       },
       "data": {
         "inputs": {
@@ -330,7 +330,7 @@
       "id": "/timestamps",
       "position": {
         "x": 100,
-        "y": 1900
+        "y": 1300
       },
       "data": {
         "inputs": {
@@ -344,7 +344,7 @@
       "id": "/path",
       "position": {
         "x": 100,
-        "y": 2350
+        "y": 1600
       },
       "data": {
         "inputs": {
@@ -358,7 +358,7 @@
       "id": "/properties",
       "position": {
         "x": 100,
-        "y": 2800
+        "y": 1900
       },
       "data": {
         "inputs": {
@@ -371,7 +371,7 @@
       "type": "CodeOp",
       "id": "/code",
       "position": {
-        "x": 650,
+        "x": 580,
         "y": 100
       },
       "resizing": false,
@@ -401,7 +401,7 @@
       "id": "/position",
       "position": {
         "x": 100,
-        "y": 3250
+        "y": 2200
       },
       "data": {
         "inputs": {
@@ -414,7 +414,7 @@
       "type": "ScatterplotLayerOp",
       "id": "/scatterplot-layer",
       "position": {
-        "x": 1750,
+        "x": 1540,
         "y": 100
       },
       "data": {
