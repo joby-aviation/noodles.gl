@@ -247,10 +247,7 @@ export function ExpressionFieldComponent({
   field: ExpressionField
   disabled: boolean
 }) {
-  const [value, setValue] = useState(() => {
-    console.log('[ExpressionField] Initial field.value:', field.value, 'for op:', id)
-    return field.value ?? ''
-  })
+  const [value, setValue] = useState(() => field.value ?? '')
   const [overlayOpen, setOverlayOpen] = useState(false)
   const [validationError, setValidationError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)

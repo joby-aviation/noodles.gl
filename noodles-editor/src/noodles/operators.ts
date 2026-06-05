@@ -338,7 +338,6 @@ export abstract class Operator<OP extends IOperator> {
         if (key in this.inputs) {
           const field = this.inputs[key]
           const parsed = field.constructor.deserialize(value)
-          console.log('[Operator constructor] Setting', key, '=', parsed, 'for', id)
           field.setValue(parsed)
         }
       }
@@ -4199,9 +4198,7 @@ export class CreateAttributeOp extends Operator<CreateAttributeOp> {
     type,
     size,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    console.log('[CreateAttributeOp execute]', this.id, { name, expression, type, size, dataType: data?.constructor?.name })
     if (!data || !name) {
-      console.log('[CreateAttributeOp] Early return: no data or name')
       return { data }
     }
 
@@ -4396,7 +4393,7 @@ export class CreateAttributeOp extends Operator<CreateAttributeOp> {
     const TypedArrayClass = type === 'uint8' ? Uint8Array : Float32Array
     const typedArray = new TypedArrayClass(attributeValues)
 
-    const result = {
+    return {
       data: {
         data: existingData,
         attributes: {
@@ -4405,13 +4402,6 @@ export class CreateAttributeOp extends Operator<CreateAttributeOp> {
         },
       },
     }
-    console.log('[CreateAttributeOp] Returning:', this.id, {
-      attributeName: name,
-      size,
-      arrayLength: typedArray.length,
-      dataLength: Array.isArray(existingData) ? existingData.length : 'not array'
-    })
-    return result
   }
 }
 
@@ -5829,9 +5819,10 @@ function applyBinaryAttributes<P extends LayerProps>(
 
   for (const [attrName, attrValue] of Object.entries(attributes)) {
     const propName = `get${attrName.charAt(0).toUpperCase()}${attrName.slice(1)}` as keyof P
-    if (propName in result) {
-      result[propName] = attrValue as P[typeof propName]
-    }
+    // Deck.gl expects binary attributes with lowercase 'value', not 'values'
+    const deckglAttribute = { value: attrValue.values, size: attrValue.size }
+    // Set the binary attribute even if the prop doesn't exist in the base layer props
+    result[propName] = deckglAttribute as P[typeof propName]
   }
 
   return result
@@ -6112,13 +6103,6 @@ export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     let { rows, attributes } = extractAttributeData(props.data)
-    const getPositionInfo = props.getPosition ? {
-      type: typeof props.getPosition,
-      isArray: Array.isArray(props.getPosition),
-      isTypedArray: ArrayBuffer.isView(props.getPosition),
-      first3: ArrayBuffer.isView(props.getPosition) ? Array.from((props.getPosition as Float32Array).slice(0, 6)) : null
-    } : null
-    console.log('[ScatterplotLayerOp] props.getPosition:', getPositionInfo)
 
     // FIX: If position attribute has wrong size, remove it to fall back to accessor function
     // Position attributes should be size 2 (lng,lat) or 3 (lng,lat,elevation), never size 1
@@ -6131,41 +6115,31 @@ export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
     // Also check if props.getPosition is a typed array or regular array (attribute values)
     // instead of the expected accessor function. This happens when malformed attributes
     // get passed directly as prop values instead of being applied via applyBinaryAttributes
+    // When props.getPosition is an array/TypedArray (malformed - should be function or undefined),
+    // remove it so applyBinaryAttributes can set the correct binary attribute
     if (props.getPosition && typeof props.getPosition !== 'function' && (
       ArrayBuffer.isView(props.getPosition) || Array.isArray(props.getPosition)
     )) {
-      console.log('[ScatterplotLayerOp] EARLY RETURN: props.getPosition is array/TypedArray')
       const { getPosition, ...propsWithoutGetPosition } = props
-      // Pass { data, attributes } structure to Deck.gl
-      const dataWithAttributes = Object.keys(attributes).length > 0 ? { data: rows, attributes } : rows
       const baseLayerProps = {
-        ...parseLayerProps<ScatterplotLayerProps>({ ...propsWithoutGetPosition, data: dataWithAttributes }),
+        ...parseLayerProps<ScatterplotLayerProps>({ ...propsWithoutGetPosition, data: rows }),
         type: 'ScatterplotLayer' as const,
         id: this.id,
         updateTriggers: gatherTriggers(this.inputs, props),
       }
-      console.log('[ScatterplotLayerOp] baseLayerProps:', {
-        dataHasAttributes: !!(baseLayerProps.data as any)?.attributes,
-        dataLength: Array.isArray(baseLayerProps.data) ? baseLayerProps.data.length : (baseLayerProps.data as any)?.data?.length,
-      })
-      return { layer: baseLayerProps }
+      const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
+      return { layer: layerProps }
     }
 
-    // Pass { data, attributes } structure to Deck.gl when attributes exist
-    const dataWithAttributes = Object.keys(attributes).length > 0 ? { data: rows, attributes } : rows
     const baseLayerProps = {
-      ...parseLayerProps<ScatterplotLayerProps>({ ...props, data: dataWithAttributes }),
+      ...parseLayerProps<ScatterplotLayerProps>({ ...props, data: rows }),
       type: 'ScatterplotLayer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
     }
 
-    console.log('[ScatterplotLayerOp] Final layer props:', {
-      dataHasAttributes: !!(baseLayerProps.data as any)?.attributes,
-      dataLength: Array.isArray(baseLayerProps.data) ? baseLayerProps.data.length : (baseLayerProps.data as any)?.data?.length,
-    })
-
-    return { layer: baseLayerProps }
+    const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
+    return { layer: layerProps }
   }
 }
 
