@@ -8,7 +8,7 @@
         "locked": false
       },
       "position": {
-        "x": 1200,
+        "x": 1060,
         "y": 100
       }
     },
@@ -20,7 +20,7 @@
         "locked": false
       },
       "position": {
-        "x": 1750,
+        "x": 1540,
         "y": 100
       }
     },
@@ -55,7 +55,7 @@
         "locked": false
       },
       "position": {
-        "x": 650,
+        "x": 580,
         "y": 100
       }
     },
@@ -70,7 +70,7 @@
       },
       "position": {
         "x": 100,
-        "y": 550
+        "y": 400
       }
     },
     {
@@ -78,7 +78,7 @@
       "id": "/maplibre-basemap",
       "position": {
         "x": 100,
-        "y": 1000
+        "y": 700
       },
       "data": {
         "inputs": {

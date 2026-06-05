@@ -24,7 +24,7 @@
       "type": "CodeOp",
       "position": {
         "x": 100,
-        "y": 550
+        "y": 400
       },
       "data": {
         "inputs": {
@@ -36,7 +36,7 @@
       "id": "/icon-layer",
       "type": "IconLayerOp",
       "position": {
-        "x": 1200,
+        "x": 1060,
         "y": 100
       },
       "data": {
@@ -52,7 +52,7 @@
       "id": "/get-position",
       "type": "CreateAttributeOp",
       "position": {
-        "x": 650,
+        "x": 580,
         "y": 100
       },
       "data": {
@@ -67,7 +67,7 @@
       "id": "/deck-renderer",
       "type": "DeckRendererOp",
       "position": {
-        "x": 1750,
+        "x": 1540,
         "y": 100
       },
       "data": {

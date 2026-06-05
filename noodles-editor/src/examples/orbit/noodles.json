@@ -10,7 +10,7 @@
         "locked": false
       },
       "position": {
-        "x": 1200,
+        "x": 1060,
         "y": 100
       }
     },
@@ -22,7 +22,7 @@
         "locked": false
       },
       "position": {
-        "x": 1750,
+        "x": 1540,
         "y": 100
       }
     },
@@ -46,7 +46,7 @@
       "id": "/scenegraphlayer-0",
       "type": "ScenegraphLayerOp",
       "position": {
-        "x": 650,
+        "x": 580,
         "y": 100
       },
       "data": {
@@ -62,7 +62,7 @@
       "type": "ExpressionOp",
       "position": {
         "x": 100,
-        "y": 550
+        "y": 400
       },
       "data": {
         "inputs": {

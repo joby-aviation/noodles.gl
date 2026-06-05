@@ -9,10 +9,10 @@ const fs = require('fs')
 const path = require('path')
 
 // Layout configuration
-const NODE_WIDTH = 300
-const NODE_HEIGHT = 200
-const HORIZONTAL_SPACING = 250
-const VERTICAL_SPACING = 250
+const NODE_WIDTH = 280
+const NODE_HEIGHT = 150
+const HORIZONTAL_SPACING = 200
+const VERTICAL_SPACING = 150
 const START_X = 100
 const START_Y = 100
 
