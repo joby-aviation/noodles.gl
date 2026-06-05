@@ -10,11 +10,24 @@ const path = require('path')
 
 // Layout configuration
 const NODE_WIDTH = 280
-const NODE_HEIGHT = 150
+const BASE_NODE_HEIGHT = 80 // Minimum height for collapsed nodes
+const FIELD_HEIGHT = 28 // Height per input/output field
+const NODE_PADDING = 40 // Extra padding (header, footer, margins)
 const HORIZONTAL_SPACING = 200
-const VERTICAL_SPACING = 150
+const MIN_VERTICAL_SPACING = 80 // Minimum gap between nodes
 const START_X = 100
 const START_Y = 100
+
+/**
+ * Estimate node height based on inputs/outputs
+ * This is approximate - actual heights vary by operator type
+ */
+function estimateNodeHeight(node) {
+  const inputCount = node.data?.inputs ? Object.keys(node.data.inputs).length : 0
+  // Most nodes show ~5-8 fields when expanded, minimum is collapsed height
+  const visibleFields = Math.max(3, Math.min(inputCount, 8))
+  return BASE_NODE_HEIGHT + visibleFields * FIELD_HEIGHT + NODE_PADDING
+}
 
 /**
  * Build a dependency graph from edges
@@ -94,28 +107,42 @@ function calculateNodeLayers(nodes, edges) {
 }
 
 /**
- * Calculate positions for nodes based on layers
+ * Calculate positions for nodes based on layers with size-aware spacing
  */
 function calculateNodePositions(nodes, edges) {
   const { layers, nodeToLayer } = calculateNodeLayers(nodes, edges)
   const positions = new Map()
 
+  // Build node lookup map
+  const nodeMap = new Map(nodes.map(n => [n.id, n]))
+
   // Calculate positions layer by layer
   for (let layerIndex = 0; layerIndex < layers.length; layerIndex++) {
     const layer = layers[layerIndex]
-    const layerNodeCount = layer.length
 
     // Calculate X position for this layer
     const x = START_X + layerIndex * (NODE_WIDTH + HORIZONTAL_SPACING)
 
-    // Center nodes vertically in their layer
-    const totalLayerHeight = layerNodeCount * NODE_HEIGHT + (layerNodeCount - 1) * VERTICAL_SPACING
-    const startY = START_Y
+    // Calculate Y positions with size-aware spacing
+    let currentY = START_Y
 
-    for (let i = 0; i < layerNodeCount; i++) {
+    for (let i = 0; i < layer.length; i++) {
       const nodeId = layer[i]
-      const y = startY + i * (NODE_HEIGHT + VERTICAL_SPACING)
-      positions.set(nodeId, { x, y })
+      const node = nodeMap.get(nodeId)
+
+      if (!node) {
+        // Fallback for missing nodes
+        positions.set(nodeId, { x, y: currentY })
+        currentY += BASE_NODE_HEIGHT + MIN_VERTICAL_SPACING
+        continue
+      }
+
+      // Place node at current Y
+      positions.set(nodeId, { x, y: currentY })
+
+      // Calculate this node's height and advance Y for next node
+      const nodeHeight = estimateNodeHeight(node)
+      currentY += nodeHeight + MIN_VERTICAL_SPACING
     }
   }
 

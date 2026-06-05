@@ -71,7 +71,7 @@
       "type": "ScatterplotLayerOp",
       "position": {
         "x": 1060,
-        "y": 400
+        "y": 384
       },
       "data": {
         "inputs": {
@@ -87,7 +87,7 @@
       "type": "AccessorOp",
       "position": {
         "x": 100,
-        "y": 400
+        "y": 384
       },
       "data": {
         "inputs": {
@@ -115,7 +115,7 @@
       "type": "SwitchOp",
       "position": {
         "x": 1540,
-        "y": 400
+        "y": 384
       },
       "data": {
         "inputs": {},
@@ -127,7 +127,7 @@
       "type": "HeatmapLayerOp",
       "position": {
         "x": 1060,
-        "y": 700
+        "y": 668
       },
       "data": {
         "inputs": {

@@ -70,7 +70,7 @@
       },
       "position": {
         "x": 100,
-        "y": 400
+        "y": 384
       }
     },
     {
@@ -78,7 +78,7 @@
       "id": "/maplibre-basemap",
       "position": {
         "x": 100,
-        "y": 700
+        "y": 668
       },
       "data": {
         "inputs": {

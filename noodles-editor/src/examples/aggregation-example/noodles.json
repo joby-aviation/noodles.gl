@@ -64,7 +64,7 @@
       },
       "position": {
         "x": 100,
-        "y": 400
+        "y": 384
       }
     },
     {
@@ -78,7 +78,7 @@
       },
       "position": {
         "x": 100,
-        "y": 700
+        "y": 668
       }
     },
     {
@@ -86,7 +86,7 @@
       "id": "/maplibre-basemap",
       "position": {
         "x": 100,
-        "y": 1000
+        "y": 952
       },
       "data": {
         "inputs": {
@@ -107,7 +107,7 @@
       "id": "/hexagon-layer",
       "position": {
         "x": 580,
-        "y": 400
+        "y": 384
       },
       "data": {
         "inputs": {
