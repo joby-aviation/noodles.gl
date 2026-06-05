@@ -1,4 +1,52 @@
 {
+  "edges": [
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    },
+    {
+      "id": "/data-source.out.data->/hexagon-layer.par.data",
+      "source": "/data-source",
+      "target": "/hexagon-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/position-accessor.out.accessor->/hexagon-layer.par.getPosition",
+      "source": "/position-accessor",
+      "target": "/hexagon-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getPosition"
+    },
+    {
+      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
+      "source": "/maplibre-basemap",
+      "target": "/deck",
+      "sourceHandle": "out.maplibre",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/hexagon-layer.out.layer->/deck.par.layers",
+      "source": "/hexagon-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    }
+  ],
+  "viewport": {
+    "x": 600,
+    "y": 400,
+    "zoom": 0.8
+  },
+  "version": 14,
+  "name": "San Francisco Street Trees",
+  "editorSettings": {
+    "layoutMode": "noodles-on-top",
+    "showOverlay": true
+  },
   "nodes": [
     {
       "id": "/deck",
@@ -16,7 +64,19 @@
       "id": "/out",
       "type": "OutOp",
       "data": {
-        "inputs": {},
+        "inputs": {
+          "display": "fixed",
+          "width": 1920,
+          "height": 1080,
+          "lod": 2,
+          "waitForData": true,
+          "codec": "avc",
+          "bitrateMbps": 10,
+          "bitrateMode": "constant",
+          "scaleControl": 0.3,
+          "framerate": 30,
+          "captureDelay": 50
+        },
         "locked": false
       },
       "position": {
@@ -95,49 +155,6 @@
       }
     }
   ],
-  "edges": [
-    {
-      "id": "/deck.out.vis->/out.par.vis",
-      "source": "/deck",
-      "target": "/out",
-      "sourceHandle": "out.vis",
-      "targetHandle": "par.vis"
-    },
-    {
-      "id": "/data-source.out.data->/hexagon-layer.par.data",
-      "source": "/data-source",
-      "target": "/hexagon-layer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/position-accessor.out.accessor->/hexagon-layer.par.getPosition",
-      "source": "/position-accessor",
-      "target": "/hexagon-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getPosition"
-    },
-    {
-      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
-      "source": "/maplibre-basemap",
-      "target": "/deck",
-      "sourceHandle": "out.maplibre",
-      "targetHandle": "par.basemap"
-    },
-    {
-      "id": "/hexagon-layer.out.layer->/deck.par.layers",
-      "source": "/hexagon-layer",
-      "target": "/deck",
-      "sourceHandle": "out.layer",
-      "targetHandle": "par.layers"
-    }
-  ],
-  "viewport": {
-    "x": 600,
-    "y": 400,
-    "zoom": 0.8
-  },
-  "version": 6,
   "timeline": {
     "sheetsById": {
       "Noodles": {
@@ -148,6 +165,5 @@
     },
     "definitionVersion": "0.4.0",
     "revisionHistory": []
-  },
-  "name": "San Francisco Street Trees"
+  }
 }
