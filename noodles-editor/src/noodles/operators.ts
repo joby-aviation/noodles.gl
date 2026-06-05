@@ -6105,10 +6105,27 @@ export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
 
     // FIX: If position attribute has wrong size, remove it to fall back to accessor function
     // Position attributes should be size 2 (lng,lat) or 3 (lng,lat,elevation), never size 1
+    // This can happen when AccessorOp is migrated to CreateAttributeOp without size param
     if (attributes.position && attributes.position.size === 1) {
-      console.warn('[ScatterplotLayerOp] Detected malformed position attribute with size=1, removing it to use accessor instead')
       const { position, ...otherAttributes } = attributes
       attributes = otherAttributes
+    }
+
+    // Also check if props.getPosition is a typed array or regular array (attribute values)
+    // instead of the expected accessor function. This happens when malformed attributes
+    // get passed directly as prop values instead of being applied via applyBinaryAttributes
+    if (props.getPosition && typeof props.getPosition !== 'function' && (
+      ArrayBuffer.isView(props.getPosition) || Array.isArray(props.getPosition)
+    )) {
+      const { getPosition, ...propsWithoutGetPosition } = props
+      const baseLayerProps = {
+        ...parseLayerProps<ScatterplotLayerProps>({ ...propsWithoutGetPosition, data: rows }),
+        type: 'ScatterplotLayer' as const,
+        id: this.id,
+        updateTriggers: gatherTriggers(this.inputs, props),
+      }
+      const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
+      return { layer: layerProps }
     }
 
     const baseLayerProps = {
@@ -6119,15 +6136,6 @@ export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
     }
 
     const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
-
-    console.log('[ScatterplotLayerOp] Final layer props:', {
-      id: layerProps.id,
-      type: layerProps.type,
-      dataLength: layerProps.data?.length,
-      hasGetPosition: !!layerProps.getPosition,
-      getPositionType: typeof layerProps.getPosition,
-      visible: layerProps.visible
-    })
 
     return { layer: layerProps }
   }
