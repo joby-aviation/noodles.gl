@@ -6113,7 +6113,30 @@ export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    console.log('[ScatterplotLayerOp] EXECUTE CALLED', this.id)
     let { rows, attributes } = extractAttributeData(props.data)
+    console.log('[ScatterplotLayerOp] Data extracted:', { rowsLength: rows?.length, attributeKeys: Object.keys(attributes) })
+
+    // Defensive: Replace invalid color values with defaults
+    const cleanProps = { ...props }
+    if (!Array.isArray(props.getFillColor) && typeof props.getFillColor !== 'function') {
+      console.warn('[ScatterplotLayerOp] Invalid getFillColor:', props.getFillColor, '- using orange default')
+      cleanProps.getFillColor = [255, 140, 0, 200] // Default orange
+    }
+    if (!Array.isArray(props.getLineColor) && typeof props.getLineColor !== 'function') {
+      console.warn('[ScatterplotLayerOp] Invalid getLineColor:', props.getLineColor, '- using white default')
+      cleanProps.getLineColor = [255, 255, 255, 255] // Default white
+    }
+
+    // Also check for hex strings that should have been transformed
+    if (typeof cleanProps.getFillColor === 'string') {
+      console.warn('[ScatterplotLayerOp] getFillColor is string (should be array):', cleanProps.getFillColor)
+      cleanProps.getFillColor = [255, 140, 0, 200]
+    }
+    if (typeof cleanProps.getLineColor === 'string') {
+      console.warn('[ScatterplotLayerOp] getLineColor is string (should be array):', cleanProps.getLineColor)
+      cleanProps.getLineColor = [255, 255, 255, 255]
+    }
 
     // FIX: If position attribute has wrong size, remove it to fall back to accessor function
     // Position attributes should be size 2 (lng,lat) or 3 (lng,lat,elevation), never size 1
@@ -6126,28 +6149,37 @@ export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
     // Also check if props.getPosition is a typed array or regular array (attribute values)
     // instead of the expected accessor function. This happens when malformed attributes
     // get passed directly as prop values instead of being applied via applyBinaryAttributes
-    // When props.getPosition is an array/TypedArray (malformed - should be function or undefined),
+    // When cleanProps.getPosition is an array/TypedArray (malformed - should be function or undefined),
     // remove it so applyBinaryAttributes can set the correct binary attribute
-    if (props.getPosition && typeof props.getPosition !== 'function' && (
-      ArrayBuffer.isView(props.getPosition) || Array.isArray(props.getPosition)
+    if (cleanProps.getPosition && typeof cleanProps.getPosition !== 'function' && (
+      ArrayBuffer.isView(cleanProps.getPosition) || Array.isArray(cleanProps.getPosition)
     )) {
-      const { getPosition, ...propsWithoutGetPosition } = props
+      const { getPosition, ...propsWithoutGetPosition } = cleanProps
       const baseLayerProps = {
         ...parseLayerProps<ScatterplotLayerProps>({ ...propsWithoutGetPosition, data: rows }),
         type: 'ScatterplotLayer' as const,
         id: this.id,
-        updateTriggers: gatherTriggers(this.inputs, props),
+        updateTriggers: gatherTriggers(this.inputs, cleanProps),
       }
       const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
       return { layer: layerProps }
     }
 
     const baseLayerProps = {
-      ...parseLayerProps<ScatterplotLayerProps>({ ...props, data: rows }),
+      ...parseLayerProps<ScatterplotLayerProps>({ ...cleanProps, data: rows }),
       type: 'ScatterplotLayer' as const,
       id: this.id,
-      updateTriggers: gatherTriggers(this.inputs, props),
+      updateTriggers: gatherTriggers(this.inputs, cleanProps),
     }
+
+    console.log('[ScatterplotLayerOp] baseLayerProps keys:', Object.keys(baseLayerProps).filter(k => k.includes('olor')))
+    console.log('[ScatterplotLayerOp] All color props:', {
+      getFillColor: baseLayerProps.getFillColor,
+      getLineColor: baseLayerProps.getLineColor,
+      lineColor: (baseLayerProps as any).lineColor,
+      fillColor: (baseLayerProps as any).fillColor,
+      color: (baseLayerProps as any).color
+    })
 
     const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
     return { layer: layerProps }

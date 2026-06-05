@@ -183,13 +183,6 @@
       "id": "/multiply.out.result->/scatterplot-layer.par.getRadius"
     },
     {
-      "source": "/magnitude-color",
-      "sourceHandle": "out.color",
-      "target": "/scatterplot-layer",
-      "targetHandle": "par.getFillColor",
-      "id": "/magnitude-color.out.color->/scatterplot-layer.par.getFillColor"
-    },
-    {
       "source": "/map-range",
       "sourceHandle": "out.scaled",
       "target": "/magnitude-color",
