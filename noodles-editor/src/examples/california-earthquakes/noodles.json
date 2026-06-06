@@ -47,7 +47,8 @@
           "stroked": false,
           "billboard": true,
           "getLineColor": "#ffffffff",
-          "radiusUnits": "meters"
+          "radiusUnits": "meters",
+          "getRadius": 5000
         },
         "locked": false
       },
@@ -159,8 +160,8 @@
       "data": {
         "inputs": {
           "name": "position",
-          "expression": "[d.Longitude, d.Latitude]",
-          "size": 2,
+          "expression": "[d.Longitude, d.Latitude, 0]",
+          "size": 3,
           "type": "float"
         },
         "locked": false
@@ -174,13 +175,6 @@
       "target": "/out",
       "sourceHandle": "out.vis",
       "targetHandle": "par.vis"
-    },
-    {
-      "source": "/multiply",
-      "sourceHandle": "out.result",
-      "target": "/scatterplot-layer",
-      "targetHandle": "par.getRadius",
-      "id": "/multiply.out.result->/scatterplot-layer.par.getRadius"
     },
     {
       "source": "/map-range",
