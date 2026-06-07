@@ -292,9 +292,11 @@ export function getNoodles(): Visualization {
 
   // Warn before leaving page with unsaved changes
   useEffect(() => {
+    const isExampleRoute = location.startsWith('/examples/')
+
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       // Don't warn for examples - they're read-only demos
-      if (location.startsWith('/examples/')) {
+      if (isExampleRoute) {
         return
       }
       if (hasUnsavedChanges || storageType === 'memory') {
@@ -308,8 +310,7 @@ export function getNoodles(): Visualization {
         ? memoryProjectStore.getDisplayName(projectName || '') || 'Untitled'
         : projectName
     // Don't show asterisk for examples - they're read-only
-    const showAsterisk =
-      !location.startsWith('/examples/') && (hasUnsavedChanges || storageType === 'memory')
+    const showAsterisk = !isExampleRoute && (hasUnsavedChanges || storageType === 'memory')
     document.title = displayName ? `Noodles.gl - ${displayName}${showAsterisk ? ' *' : ''}` : 'Noodles.gl'
 
     window.addEventListener('beforeunload', handleBeforeUnload)
