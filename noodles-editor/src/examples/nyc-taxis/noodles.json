@@ -8,16 +8,37 @@
       "targetHandle": "par.vis"
     },
     {
-      "id": "/data-source.out.data->/pickup-position.par.data",
+      "id": "/data-source.out.data->/source-position.par.data",
       "source": "/data-source",
-      "target": "/pickup-position",
+      "target": "/source-position",
       "sourceHandle": "out.data",
       "targetHandle": "par.data"
     },
     {
-      "id": "/data-source.out.data->/dropoff-position.par.data",
-      "source": "/data-source",
-      "target": "/dropoff-position",
+      "id": "/source-position.out.data->/target-position.par.data",
+      "source": "/source-position",
+      "target": "/target-position",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/target-position.out.data->/arc-layer.par.data",
+      "source": "/target-position",
+      "target": "/arc-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/target-position.out.data->/pickup-layer.par.data",
+      "source": "/target-position",
+      "target": "/pickup-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/target-position.out.data->/dropoff-layer.par.data",
+      "source": "/target-position",
+      "target": "/dropoff-layer",
       "sourceHandle": "out.data",
       "targetHandle": "par.data"
     },
@@ -97,34 +118,6 @@
       "target": "/dropoff-layer",
       "targetHandle": "par.parameters",
       "id": "/blending.out.parameters->/dropoff-layer.par.parameters"
-    },
-    {
-      "id": "/pickup-position.out.data->/arc-layer.par.data",
-      "source": "/pickup-position",
-      "sourceHandle": "out.data",
-      "target": "/arc-layer",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/pickup-position.out.data->/pickup-layer.par.data",
-      "source": "/pickup-position",
-      "sourceHandle": "out.data",
-      "target": "/pickup-layer",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/dropoff-position.out.data->/arc-layer.par.data",
-      "source": "/dropoff-position",
-      "sourceHandle": "out.data",
-      "target": "/arc-layer",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/dropoff-position.out.data->/dropoff-layer.par.data",
-      "source": "/dropoff-position",
-      "sourceHandle": "out.data",
-      "target": "/dropoff-layer",
-      "targetHandle": "par.data"
     }
   ],
   "viewport": {
@@ -218,7 +211,7 @@
       }
     },
     {
-      "id": "/pickup-position",
+      "id": "/source-position",
       "type": "CreateAttributeOp",
       "position": {
         "x": 500,
@@ -226,7 +219,7 @@
       },
       "data": {
         "inputs": {
-          "name": "position",
+          "name": "sourcePosition",
           "expression": "[d.pickup_longitude, d.pickup_latitude]",
           "size": 3,
           "type": "float"
@@ -235,15 +228,15 @@
       }
     },
     {
-      "id": "/dropoff-position",
+      "id": "/target-position",
       "type": "CreateAttributeOp",
       "position": {
-        "x": 500,
-        "y": 480
+        "x": 900,
+        "y": 100
       },
       "data": {
         "inputs": {
-          "name": "position",
+          "name": "targetPosition",
           "expression": "[d.dropoff_longitude, d.dropoff_latitude]",
           "size": 3,
           "type": "float"
@@ -261,7 +254,7 @@
         "locked": false
       },
       "position": {
-        "x": 900,
+        "x": 1300,
         "y": 100
       }
     },
@@ -272,12 +265,13 @@
         "inputs": {
           "opacity": 0.8,
           "getLineColor": "#ffffffff",
-          "getRadius": 10
+          "getRadius": 10,
+          "getPosition": "sourcePosition"
         },
         "locked": false
       },
       "position": {
-        "x": 900,
+        "x": 1300,
         "y": 580
       }
     },
@@ -288,12 +282,13 @@
         "inputs": {
           "opacity": 0.8,
           "getLineColor": "#ffffffff",
-          "getRadius": 10
+          "getRadius": 10,
+          "getPosition": "targetPosition"
         },
         "locked": false
       },
       "position": {
-        "x": 900,
+        "x": 1300,
         "y": 1080
       }
     },
@@ -305,7 +300,7 @@
         "locked": false
       },
       "position": {
-        "x": 1300,
+        "x": 1700,
         "y": 100
       }
     },
@@ -329,7 +324,7 @@
         "locked": false
       },
       "position": {
-        "x": 1700,
+        "x": 2100,
         "y": 100
       }
     }
