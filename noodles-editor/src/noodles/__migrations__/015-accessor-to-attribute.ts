@@ -51,10 +51,11 @@ const LAYER_OPS = [
 ]
 
 // Fields that should NOT be migrated to binary attributes
+// These MUST remain as AccessorOp functions
 const SKIP_MIGRATION_FIELDS = new Set([
   'getText',           // TextLayer - returns strings, not numbers
   'getIcon',           // IconLayer - returns icon names (strings)
-  'getPixelOffset',    // TextLayer - pixel-space coordinates, not data
+  'getPixelOffset',    // TextLayer - pixel-space coordinates, not data attributes
   'getFilterValue',    // DataFilterExtension - used for filtering, not rendering
 ])
 
@@ -126,12 +127,10 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
         continue
       }
 
-      // Skip pass-through accessors (expression is just "d")
-      const expression = (sourceNode.data.inputs?.expression as string) || ''
-      if (expression.trim() === 'd') {
-        console.log(`[Migration 015] Skipping ${accessorId} -> ${layerId}.${fieldName} (pass-through accessor, expression is just "d")`)
-        continue
-      }
+      // Note: We NO LONGER skip pass-through accessors (expression: "d")
+      // Reason: These should remain as AccessorOps in the project file since
+      // they can't be converted to binary attributes, but the skip happens
+      // at the field level (getText, getPixelOffset) rather than expression level
 
       // Find the data source for this layer
       const dataEdge = edges.find(e => e.target === layerId && e.targetHandle === 'par.data')
