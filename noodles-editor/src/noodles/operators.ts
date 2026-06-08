@@ -206,6 +206,13 @@ import { projectScheme } from './utils/filesystem'
 import type { OpId } from './utils/id-utils'
 import { isDirectChild } from './utils/path-utils'
 import { pick } from './utils/pick'
+import {
+  extractAttributes,
+  resolveNumericField,
+  transformAttribute,
+  transformAttributeMulti,
+  withAttribute,
+} from './utils/resolve-attribute'
 import { getTimelineContext } from './utils/timeline-context'
 import { subscribeOpToTimeline, unsubscribeOpFromTimeline } from './utils/timeline-dependencies'
 import { validateViewState } from './utils/viewstate-helpers'
@@ -991,12 +998,10 @@ export class NumberOp extends Operator<NumberOp> {
 export class MapRangeOp extends Operator<MapRangeOp> {
   static displayName = 'MapRange'
   static description =
-    'Remap a number from one range to another (e.g., map 0-100 to 0-1, or temperature to color intensity). Supports both single values and attribute-based data flow.'
+    'Remap a number from one range to another (e.g., map 0-100 to 0-1, or temperature to color intensity). Connect data and set val to an attribute name to transform an entire column.'
   public createInputs() {
     return {
       data: new DataField({ optional: true }),
-      inputAttribute: new StringField('', { optional: true, showByDefault: false }),
-      outputAttribute: new StringField('', { optional: true, showByDefault: false }),
       val: new NumberField(0, { step: 0.01, accessor: true }),
       inMin: new NumberField(0, { step: 0.1 }),
       inMax: new NumberField(1, { step: 0.1 }),
@@ -1012,8 +1017,6 @@ export class MapRangeOp extends Operator<MapRangeOp> {
   }
   execute({
     data,
-    inputAttribute,
-    outputAttribute,
     val,
     inMin,
     inMax,
@@ -1022,45 +1025,20 @@ export class MapRangeOp extends Operator<MapRangeOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const scale = scaleLinear().domain([inMin, inMax]).range([outMin, outMax])
 
-    // Attribute mode: process attribute-enhanced data
-    if (data && inputAttribute) {
-      const { rows, attributes } = extractAttributeData(data)
+    // Resolve val: could be a uniform number or an attribute reference (string)
+    const attrData = data ? extractAttributes(data) : undefined
+    const resolved = resolveNumericField(val, attrData)
 
-      // Read the input attribute
-      const inputAttr = attributes[inputAttribute]
-      if (!inputAttr) {
-        console.warn(`[MapRangeOp] Input attribute "${inputAttribute}" not found`)
-        return { data, scaled: scale(val) }
-      }
-
-      // Map the values
-      const inputValues = inputAttr.values as Float32Array
-      const outputValues = new Float32Array(inputValues.length)
-
-      for (let i = 0; i < inputValues.length; i++) {
-        outputValues[i] = scale(inputValues[i])
-      }
-
-      // Create output attribute
-      const outputAttrName = outputAttribute || inputAttribute
-      const newAttributes = {
-        ...attributes,
-        [outputAttrName]: {
-          values: outputValues,
-          size: 1,
-          type: 'number' as const,
-        },
-      }
-
+    if (resolved.mode === 'attribute' && attrData) {
+      const output = transformAttribute(resolved.values as Float32Array, v => scale(v))
       return {
-        data: { data: rows, attributes: newAttributes },
-        scaled: scale(val),
+        data: withAttribute(attrData, resolved.name, output, 1),
+        scaled: scale(0),
       }
     }
 
-    // Single value mode: use composeAccessor for backward compatibility
-    const scaled = composeAccessor(val, (v: number) => scale(v))
-    return { data, scaled }
+    // Uniform mode
+    return { data, scaled: scale(resolved.value) }
   }
 }
 
@@ -1174,9 +1152,11 @@ export type MathOpType = keyof typeof mathOps
 
 export class MathOp extends Operator<MathOp> {
   static displayName = 'Math'
-  static description = 'Perform a mathematical operation'
+  static description =
+    'Perform a mathematical operation. Connect data and set a/b to attribute names to transform entire columns.'
   public createInputs() {
     return {
+      data: new DataField({ optional: true }),
       operator: new StringLiteralField('add', {
         values: [
           'add',
@@ -1206,12 +1186,17 @@ export class MathOp extends Operator<MathOp> {
   }
   createOutputs() {
     return {
+      data: new DataField({ optional: true }),
       result: new NumberField(),
     }
   }
-  execute({ operator, a, b }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // Determine if operation is unary or binary
-    const unaryOperators = new Set([
+  execute({
+    data,
+    operator,
+    a,
+    b,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const unaryOps = new Set([
       'sine',
       'cosine',
       'tan',
@@ -1224,9 +1209,8 @@ export class MathOp extends Operator<MathOp> {
       'rad',
       'deg',
     ])
-    const isUnary = unaryOperators.has(operator)
+    const isUnary = unaryOps.has(operator)
 
-    // Define the transformation function
     const transform = (aVal: number, bVal: number) => {
       switch (operator) {
         case 'add':
@@ -1272,39 +1256,46 @@ export class MathOp extends Operator<MathOp> {
       }
     }
 
-    // Handle accessor composition
-    const aIsAccessor = isAccessor(a)
-    const bIsAccessor = isAccessor(b)
+    const attrData = data ? extractAttributes(data) : undefined
+    const resolvedA = resolveNumericField(a, attrData)
+    const resolvedB = resolveNumericField(b, attrData)
 
-    if (isUnary) {
-      // Unary operation - only use 'a'
-      const result = composeAccessor(a, (aVal: number) => transform(aVal, 0))
-      return { result }
-    }
+    // Attribute mode: at least one input is an attribute column
+    if (resolvedA.mode === 'attribute' || resolvedB.mode === 'attribute') {
+      if (!attrData) return { data, result: 0 }
 
-    // Binary operation - handle both a and b
-    if (!aIsAccessor && !bIsAccessor) {
-      // Both static values
-      return { result: transform(a as number, b as number) }
-    }
+      const len =
+        resolvedA.mode === 'attribute'
+          ? resolvedA.values.length
+          : resolvedB.mode === 'attribute'
+            ? resolvedB.values.length
+            : 0
 
-    if (aIsAccessor && bIsAccessor) {
-      // Both are accessors
-      const result = (...args: unknown[]) => {
-        const aVal = (a as (...args: unknown[]) => number)(...args)
-        const bVal = (b as (...args: unknown[]) => number)(...args)
-        return transform(aVal, bVal)
+      const output = new Float32Array(len)
+      for (let i = 0; i < len; i++) {
+        const aVal = resolvedA.mode === 'attribute' ? resolvedA.values[i] : resolvedA.value
+        const bVal = resolvedB.mode === 'attribute' ? resolvedB.values[i] : resolvedB.value
+        output[i] = transform(aVal, bVal)
       }
-      return { result }
+
+      // Output attribute name: use 'a' attribute name if available, else 'result'
+      const outName =
+        resolvedA.mode === 'attribute'
+          ? resolvedA.name
+          : resolvedB.mode === 'attribute'
+            ? resolvedB.name
+            : 'result'
+      return {
+        data: withAttribute(attrData, outName, output, 1),
+        result: transform(resolvedA.value ?? 0, resolvedB.value ?? 0),
+      }
     }
 
-    // One is accessor, one is static
-    const result = (...args: unknown[]) => {
-      const aVal = aIsAccessor ? (a as (...args: unknown[]) => number)(...args) : (a as number)
-      const bVal = bIsAccessor ? (b as (...args: unknown[]) => number)(...args) : (b as number)
-      return transform(aVal, bVal)
-    }
-    return { result }
+    // Uniform mode: both are scalars
+    const result = isUnary
+      ? transform(resolvedA.value, 0)
+      : transform(resolvedA.value, resolvedB.value)
+    return { data, result }
   }
 }
 
@@ -1639,7 +1630,8 @@ const JOBY_COLORS = [
 
 export class ColorRampOp extends Operator<ColorRampOp> {
   static displayName = 'ColorRamp'
-  static description = 'Interpolate a color from a color ramp, value range 0-1. Supports both single values and attribute-based data flow.'
+  static description =
+    'Interpolate a color from a color ramp, value range 0-1. Supports both single values and attribute-based data flow.'
   createInputs() {
     const colorRamp = new ColorRampField()
 
@@ -1690,7 +1682,6 @@ export class ColorRampOp extends Operator<ColorRampOp> {
 
     return {
       data: new DataField({ optional: true }),
-      inputAttribute: new StringField('', { optional: true, showByDefault: false }),
       outputAttribute: new StringField('fillColor', { optional: true, showByDefault: false }),
       colorRamp,
       colorScheme,
@@ -1706,66 +1697,37 @@ export class ColorRampOp extends Operator<ColorRampOp> {
   }
   execute({
     data,
-    inputAttribute,
     outputAttribute,
     colorRamp,
     colorScheme: _,
     value,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // Normalize all color formats to hex for consistency
     const normalizedRamp = (val: number) => {
       const c = colorRamp(val)
       return d3Color(c)?.formatHex() ?? c
     }
 
-    // Attribute mode: process attribute-enhanced data
-    if (data && inputAttribute) {
-      const { rows, attributes } = extractAttributeData(data)
+    // Resolve value field: can be a uniform number or an attribute reference
+    const attrData = data ? extractAttributes(data) : undefined
+    const resolved = resolveNumericField(value, attrData)
 
-      // Read the input attribute
-      const inputAttr = attributes[inputAttribute]
-      if (!inputAttr) {
-        console.warn(`[ColorRampOp] Input attribute "${inputAttribute}" not found`)
-        return { data, color: normalizedRamp(value), colorRamp: normalizedRamp }
-      }
+    if (resolved.mode === 'attribute' && attrData) {
+      const colors = transformAttributeMulti(resolved.values as Float32Array, 4, v => {
+        const hex = normalizedRamp(v)
+        const rgb = d3Color(hex)?.rgb()
+        return rgb ? [rgb.r, rgb.g, rgb.b, 255] : [0, 0, 0, 255]
+      })
 
-      // Generate colors from input values
-      const inputValues = inputAttr.values as Float32Array
-      const colors = new Uint8Array(inputValues.length * 4)
-
-      for (let i = 0; i < inputValues.length; i++) {
-        const val = inputValues[i]
-        const hexColor = normalizedRamp(val)
-        const rgb = d3Color(hexColor)?.rgb()
-        if (rgb) {
-          colors[i * 4] = rgb.r
-          colors[i * 4 + 1] = rgb.g
-          colors[i * 4 + 2] = rgb.b
-          colors[i * 4 + 3] = 255
-        }
-      }
-
-      // Create output attribute
       const outputAttrName = outputAttribute || 'fillColor'
-      const newAttributes = {
-        ...attributes,
-        [outputAttrName]: {
-          values: colors,
-          size: 4,
-          type: 'uint8' as const,
-        },
-      }
-
       return {
-        data: { data: rows, attributes: newAttributes },
-        color: normalizedRamp(value),
+        data: withAttribute(attrData, outputAttrName, colors as Uint8Array, 4),
+        color: normalizedRamp(resolved.value || 0),
         colorRamp: normalizedRamp,
       }
     }
 
-    // Single value mode: use composeAccessor for backward compatibility
-    const color = composeAccessor(value, normalizedRamp)
-    return { data, color, colorRamp: normalizedRamp }
+    // Uniform mode
+    return { data, color: normalizedRamp(resolved.value), colorRamp: normalizedRamp }
   }
 }
 
