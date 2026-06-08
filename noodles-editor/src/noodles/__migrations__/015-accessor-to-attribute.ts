@@ -50,6 +50,14 @@ const LAYER_OPS = [
   'MVTLayerOp',
 ]
 
+// Fields that should NOT be migrated to binary attributes
+const SKIP_MIGRATION_FIELDS = new Set([
+  'getText',           // TextLayer - returns strings, not numbers
+  'getIcon',           // IconLayer - returns icon names (strings)
+  'getPixelOffset',    // TextLayer - pixel-space coordinates, not data
+  'getFilterValue',    // DataFilterExtension - used for filtering, not rendering
+])
+
 const ACCESSOR_FIELD_TO_ATTRIBUTE: Record<string, string> = {
   getPosition: 'position',
   getFillColor: 'fillColor',
@@ -111,6 +119,19 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
       const layerId = edge.target
       const accessorId = edge.source
       const fieldName = edge.targetHandle.replace('par.', '')
+
+      // Skip fields that can't be binary attributes (text, icons, etc.)
+      if (SKIP_MIGRATION_FIELDS.has(fieldName)) {
+        console.log(`[Migration 015] Skipping ${accessorId} -> ${layerId}.${fieldName} (not compatible with binary attributes)`)
+        continue
+      }
+
+      // Skip pass-through accessors (expression is just "d")
+      const expression = (sourceNode.data.inputs?.expression as string) || ''
+      if (expression.trim() === 'd') {
+        console.log(`[Migration 015] Skipping ${accessorId} -> ${layerId}.${fieldName} (pass-through accessor, expression is just "d")`)
+        continue
+      }
 
       // Find the data source for this layer
       const dataEdge = edges.find(e => e.target === layerId && e.targetHandle === 'par.data')
