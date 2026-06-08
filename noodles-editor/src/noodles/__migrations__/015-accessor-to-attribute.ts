@@ -50,13 +50,10 @@ const LAYER_OPS = [
   'MVTLayerOp',
 ]
 
-// Fields that should NOT be migrated to binary attributes
-// These MUST remain as AccessorOp functions
+// Fields that should NOT be migrated
+// Note: getText and getIcon are NOW migrated as string attributes (Houdini-style)
 const SKIP_MIGRATION_FIELDS = new Set([
-  'getText',           // TextLayer - returns strings, not numbers
-  'getIcon',           // IconLayer - returns icon names (strings)
-  'getPixelOffset',    // TextLayer - pixel-space coordinates, not data attributes
-  'getFilterValue',    // DataFilterExtension - used for filtering, not rendering
+  'getFilterValue',    // DataFilterExtension - special filtering semantics
 ])
 
 const ACCESSOR_FIELD_TO_ATTRIBUTE: Record<string, string> = {
@@ -127,10 +124,13 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
         continue
       }
 
-      // Note: We NO LONGER skip pass-through accessors (expression: "d")
-      // Reason: These should remain as AccessorOps in the project file since
-      // they can't be converted to binary attributes, but the skip happens
-      // at the field level (getText, getPixelOffset) rather than expression level
+      // Skip pass-through accessors (expression is just "d")
+      // These pass entire objects and can't be meaningfully converted to attributes
+      const expression = (sourceNode.data.inputs?.expression as string) || ''
+      if (expression.trim() === 'd') {
+        console.log(`[Migration 015] Skipping ${accessorId} -> ${layerId}.${fieldName} (pass-through accessor, expression is just "d")`)
+        continue
+      }
 
       // Find the data source for this layer
       const dataEdge = edges.find(e => e.target === layerId && e.targetHandle === 'par.data')
@@ -191,23 +191,41 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
 
       const createAttrNodeId = `${accessorId.replace('/accessor-', '/attr-')}-${attributeName}`
 
-      // Infer size and type from attribute name
+      // Infer size, type, and outputType from attribute name and field type
       const inputs: Record<string, unknown> = {
         name: attributeName,
         expression,
       }
 
-      // Position attributes need size 2 or 3 (x,y or x,y,z)
-      if (isPosition) {
-        // Check if expression looks like it has 3 components (e.g., [x, y, z])
-        const has3Components = /\[.*,.*,.*\]/.test(expression)
-        inputs.size = has3Components ? 3 : 2
-      }
+      // Determine if this is a string/boolean attribute (Houdini-style)
+      const isText = attributeName === 'text' || layers[0]?.fieldName === 'getText'
+      const isIcon = attributeName === 'icon' || layers[0]?.fieldName === 'getIcon'
+      const isPixelOffset = attributeName === 'pixelOffset' || layers[0]?.fieldName === 'getPixelOffset'
 
-      // Color attributes need size 4 (RGBA) and type uint8
-      if (isColor) {
-        inputs.size = 4
-        inputs.type = 'uint8'
+      if (isText || isIcon) {
+        // String attribute
+        inputs.outputType = 'string'
+        inputs.size = 1
+      } else if (isPixelOffset) {
+        // Pixel offset is numeric but not GPU-bound
+        inputs.outputType = 'number'
+        inputs.size = 2
+      } else {
+        // Numeric GPU attributes
+        inputs.outputType = 'number'
+
+        // Position attributes need size 2 or 3 (x,y or x,y,z)
+        if (isPosition) {
+          // Check if expression looks like it has 3 components (e.g., [x, y, z])
+          const has3Components = /\[.*,.*,.*\]/.test(expression)
+          inputs.size = has3Components ? 3 : 2
+        }
+
+        // Color attributes need size 4 (RGBA) and type uint8
+        if (isColor) {
+          inputs.size = 4
+          inputs.type = 'uint8'
+        }
       }
 
       const createAttrNode = {

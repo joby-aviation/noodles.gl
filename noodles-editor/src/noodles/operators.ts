@@ -4171,15 +4171,18 @@ export class RandomizeAttributeOp extends Operator<RandomizeAttributeOp> {
 export class CreateAttributeOp extends Operator<CreateAttributeOp> {
   static displayName = 'Create Attribute'
   static description =
-    'Create a named binary attribute from data for GPU rendering. Use JavaScript expressions to compute attributes (e.g., d.columnName for column access, [d.lng, d.lat, 0] for positions).'
+    'Create a named attribute from data. Supports numeric (GPU-ready binary) and string attributes. Use JavaScript expressions to compute values (e.g., d.name for strings, [d.lng, d.lat, 0] for positions).'
 
   createInputs() {
     return {
       data: new DataField(),
       name: new StringField('position'),
       expression: new ExpressionField('d.value'),
+      outputType: new StringLiteralField('number', {
+        values: ['number', 'string', 'boolean'],
+      }),
       type: new StringLiteralField('float', {
-        values: ['float', 'uint8'],
+        values: ['float', 'uint8', 'int32'],
       }),
       size: new NumberField(1, { min: 1, max: 4, step: 1 }),
     }
@@ -4195,11 +4198,17 @@ export class CreateAttributeOp extends Operator<CreateAttributeOp> {
     data,
     name,
     expression,
+    outputType,
     type,
     size,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!data || !name) {
       return { data }
+    }
+
+    // Handle string/boolean attributes (skip binary optimization paths)
+    if (outputType === 'string' || outputType === 'boolean') {
+      return this.executeNonNumeric(data, name, expression, outputType)
     }
 
     // Ultra-fast path: Check if SQL already computed this attribute
@@ -4390,7 +4399,7 @@ export class CreateAttributeOp extends Operator<CreateAttributeOp> {
       }
     }
 
-    const TypedArrayClass = type === 'uint8' ? Uint8Array : Float32Array
+    const TypedArrayClass = type === 'uint8' ? Uint8Array : type === 'int32' ? Int32Array : Float32Array
     const typedArray = new TypedArrayClass(attributeValues)
 
     return {
@@ -4399,6 +4408,65 @@ export class CreateAttributeOp extends Operator<CreateAttributeOp> {
         attributes: {
           ...existingAttributes,
           [name]: { values: typedArray, size },
+        },
+      },
+    }
+  }
+
+  /**
+   * Execute for string/boolean attributes (Houdini-style)
+   */
+  private executeNonNumeric(
+    data: unknown,
+    name: string,
+    expression: string,
+    outputType: 'string' | 'boolean'
+  ): ExtractProps<typeof this.outputs> {
+    let dataArray: unknown[]
+    let existingData: unknown
+    let existingAttributes: Record<string, unknown> = {}
+
+    // Extract data array
+    if (isArrowTable(data)) {
+      dataArray = arrowToRows(data)
+      existingData = data
+      existingAttributes =
+        (data as unknown as { attributes?: Record<string, unknown> }).attributes || {}
+    } else if (Array.isArray(data)) {
+      dataArray = data
+      existingData = data
+    } else {
+      dataArray = (data as { data: unknown[] }).data || []
+      existingData = (data as { data?: unknown[] }).data || data
+      existingAttributes = (data as { attributes?: Record<string, unknown> }).attributes || {}
+    }
+
+    // Evaluate expression for each row
+    const fn = fnWithSource(['d', 'i', 'data', ...Object.keys(freeExports)], `return ${expression}`, this.id)
+    const attributeValues: (string | boolean)[] = []
+
+    for (let i = 0; i < dataArray.length; i++) {
+      const result = fn(dataArray[i], i, dataArray, ...Object.values(freeExports))
+
+      if (outputType === 'string') {
+        // Convert result to string
+        attributeValues.push(result == null ? '' : String(result))
+      } else {
+        // Convert result to boolean
+        attributeValues.push(Boolean(result))
+      }
+    }
+
+    return {
+      data: {
+        data: existingData,
+        attributes: {
+          ...existingAttributes,
+          [name]: {
+            values: attributeValues,
+            type: outputType,
+            size: 1,
+          },
         },
       },
     }
@@ -5813,7 +5881,7 @@ function extractAttributeData(data: unknown): {
 
 function applyBinaryAttributes<P extends LayerProps>(
   layerProps: P,
-  attributes: Record<string, { values: Float32Array | Uint8Array; size: number }>
+  attributes: Record<string, { values: Float32Array | Uint8Array | string[] | boolean[]; size: number; type?: string }>
 ): P {
   if (Object.keys(attributes).length === 0) {
     return layerProps
@@ -5824,14 +5892,26 @@ function applyBinaryAttributes<P extends LayerProps>(
   const data = layerProps.data as unknown[]
   const length = Array.isArray(data) ? data.length : 0
 
-  const deckglAttributes: Record<string, { value: Float32Array | Uint8Array; size: number }> = {}
+  const deckglAttributes: Record<string, { value: Float32Array | Uint8Array | string[] | boolean[]; size: number }> = {}
+  const accessorOverrides: Record<string, unknown> = {}
+
   for (const [attrName, attrValue] of Object.entries(attributes)) {
     const propName = `get${attrName.charAt(0).toUpperCase()}${attrName.slice(1)}`
-    deckglAttributes[propName] = { value: attrValue.values, size: attrValue.size }
+
+    // Handle string/boolean attributes (Houdini-style)
+    if (attrValue.type === 'string' || attrValue.type === 'boolean') {
+      // For string/boolean, create an accessor function that reads from the values array
+      const values = attrValue.values as (string | boolean)[]
+      accessorOverrides[propName] = (_d: unknown, info: { index: number }) => values[info.index]
+    } else {
+      // Binary numeric attributes go into data.attributes for GPU
+      deckglAttributes[propName] = { value: attrValue.values as Float32Array | Uint8Array, size: attrValue.size }
+    }
   }
 
   return {
     ...layerProps,
+    ...accessorOverrides, // Override accessor props for string/boolean
     data: {
       length,
       attributes: deckglAttributes
