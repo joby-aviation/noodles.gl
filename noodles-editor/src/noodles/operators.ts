@@ -991,9 +991,12 @@ export class NumberOp extends Operator<NumberOp> {
 export class MapRangeOp extends Operator<MapRangeOp> {
   static displayName = 'MapRange'
   static description =
-    'Remap a number from one range to another (e.g., map 0-100 to 0-1, or temperature to color intensity)'
+    'Remap a number from one range to another (e.g., map 0-100 to 0-1, or temperature to color intensity). Supports both single values and attribute-based data flow.'
   public createInputs() {
     return {
+      data: new DataField({ optional: true }),
+      inputAttribute: new StringField('', { optional: true, showByDefault: false }),
+      outputAttribute: new StringField('', { optional: true, showByDefault: false }),
       val: new NumberField(0, { step: 0.01, accessor: true }),
       inMin: new NumberField(0, { step: 0.1 }),
       inMax: new NumberField(1, { step: 0.1 }),
@@ -1003,10 +1006,14 @@ export class MapRangeOp extends Operator<MapRangeOp> {
   }
   public createOutputs() {
     return {
+      data: new DataField({ optional: true }),
       scaled: new NumberField(),
     }
   }
   execute({
+    data,
+    inputAttribute,
+    outputAttribute,
     val,
     inMin,
     inMax,
@@ -1014,9 +1021,46 @@ export class MapRangeOp extends Operator<MapRangeOp> {
     outMax,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const scale = scaleLinear().domain([inMin, inMax]).range([outMin, outMax])
-    // Use composeAccessor helper to handle both static values and accessor functions
+
+    // Attribute mode: process attribute-enhanced data
+    if (data && inputAttribute) {
+      const { rows, attributes } = extractAttributeData(data)
+
+      // Read the input attribute
+      const inputAttr = attributes[inputAttribute]
+      if (!inputAttr) {
+        console.warn(`[MapRangeOp] Input attribute "${inputAttribute}" not found`)
+        return { data, scaled: scale(val) }
+      }
+
+      // Map the values
+      const inputValues = inputAttr.values as Float32Array
+      const outputValues = new Float32Array(inputValues.length)
+
+      for (let i = 0; i < inputValues.length; i++) {
+        outputValues[i] = scale(inputValues[i])
+      }
+
+      // Create output attribute
+      const outputAttrName = outputAttribute || inputAttribute
+      const newAttributes = {
+        ...attributes,
+        [outputAttrName]: {
+          values: outputValues,
+          size: 1,
+          type: 'number' as const,
+        },
+      }
+
+      return {
+        data: { data: rows, attributes: newAttributes },
+        scaled: scale(val),
+      }
+    }
+
+    // Single value mode: use composeAccessor for backward compatibility
     const scaled = composeAccessor(val, (v: number) => scale(v))
-    return { scaled }
+    return { data, scaled }
   }
 }
 
@@ -1595,7 +1639,7 @@ const JOBY_COLORS = [
 
 export class ColorRampOp extends Operator<ColorRampOp> {
   static displayName = 'ColorRamp'
-  static description = 'Interpolate a color from a color ramp, value range 0-1'
+  static description = 'Interpolate a color from a color ramp, value range 0-1. Supports both single values and attribute-based data flow.'
   createInputs() {
     const colorRamp = new ColorRampField()
 
@@ -1645,6 +1689,9 @@ export class ColorRampOp extends Operator<ColorRampOp> {
     const value = new NumberField(0, { min: 0, max: 1, step: 0.01, accessor: true })
 
     return {
+      data: new DataField({ optional: true }),
+      inputAttribute: new StringField('', { optional: true, showByDefault: false }),
+      outputAttribute: new StringField('fillColor', { optional: true, showByDefault: false }),
       colorRamp,
       colorScheme,
       value,
@@ -1652,26 +1699,73 @@ export class ColorRampOp extends Operator<ColorRampOp> {
   }
   createOutputs() {
     return {
+      data: new DataField({ optional: true }),
       color: new ColorField(),
       colorRamp: new ColorRampField(),
     }
   }
   execute({
+    data,
+    inputAttribute,
+    outputAttribute,
     colorRamp,
     colorScheme: _,
     value,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     // Normalize all color formats to hex for consistency
-    // TODO: VIS-813: Make all colors d3 Colors?
     const normalizedRamp = (val: number) => {
       const c = colorRamp(val)
       return d3Color(c)?.formatHex() ?? c
     }
 
-    // Use composeAccessor helper to handle both static values and accessor functions
-    const color = composeAccessor(value, normalizedRamp)
+    // Attribute mode: process attribute-enhanced data
+    if (data && inputAttribute) {
+      const { rows, attributes } = extractAttributeData(data)
 
-    return { color, colorRamp: normalizedRamp }
+      // Read the input attribute
+      const inputAttr = attributes[inputAttribute]
+      if (!inputAttr) {
+        console.warn(`[ColorRampOp] Input attribute "${inputAttribute}" not found`)
+        return { data, color: normalizedRamp(value), colorRamp: normalizedRamp }
+      }
+
+      // Generate colors from input values
+      const inputValues = inputAttr.values as Float32Array
+      const colors = new Uint8Array(inputValues.length * 4)
+
+      for (let i = 0; i < inputValues.length; i++) {
+        const val = inputValues[i]
+        const hexColor = normalizedRamp(val)
+        const rgb = d3Color(hexColor)?.rgb()
+        if (rgb) {
+          colors[i * 4] = rgb.r
+          colors[i * 4 + 1] = rgb.g
+          colors[i * 4 + 2] = rgb.b
+          colors[i * 4 + 3] = 255
+        }
+      }
+
+      // Create output attribute
+      const outputAttrName = outputAttribute || 'fillColor'
+      const newAttributes = {
+        ...attributes,
+        [outputAttrName]: {
+          values: colors,
+          size: 4,
+          type: 'uint8' as const,
+        },
+      }
+
+      return {
+        data: { data: rows, attributes: newAttributes },
+        color: normalizedRamp(value),
+        colorRamp: normalizedRamp,
+      }
+    }
+
+    // Single value mode: use composeAccessor for backward compatibility
+    const color = composeAccessor(value, normalizedRamp)
+    return { data, color, colorRamp: normalizedRamp }
   }
 }
 

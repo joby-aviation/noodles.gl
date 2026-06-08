@@ -45,11 +45,32 @@ export function AttributeFieldWrapper({
   children,
 }: AttributeFieldWrapperProps) {
   const { captureStart, commitChange } = usePropertyHistory()
-  const [mode, setMode] = useState<AttributeMode>(() => getAttributeMode(field.value))
-  const [attributeName, setAttributeName] = useState<string>('')
-  const [expressionValue, setExpressionValue] = useState<string>('')
+
+  // Initialize mode from field value, but also initialize attribute/expression values
+  const initialValue = field.value
+  const initialMode = getAttributeMode(initialValue)
+
+  const [mode, setMode] = useState<AttributeMode>(initialMode)
+  const [attributeName, setAttributeName] = useState<string>(() =>
+    isAttributeReference(initialValue) ? (initialValue as { attributeName: string }).attributeName : ''
+  )
+  const [expressionValue, setExpressionValue] = useState<string>(() =>
+    isExpression(initialValue) ? (initialValue as { expression: string }).expression : ''
+  )
 
   useEffect(() => {
+    // Immediately sync with current field value on mount to handle deserialized state
+    const currentValue = field.value
+    const currentMode = getAttributeMode(currentValue)
+    setMode(currentMode)
+
+    if (isAttributeReference(currentValue)) {
+      setAttributeName((currentValue as { attributeName: string }).attributeName)
+    } else if (isExpression(currentValue)) {
+      setExpressionValue((currentValue as { expression: string }).expression)
+    }
+
+    // Subscribe to future changes
     const sub = field.subscribe(newVal => {
       const newMode = getAttributeMode(newVal)
       setMode(newMode)

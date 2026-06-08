@@ -68,7 +68,7 @@
       "data": {
         "inputs": {
           "name": "fillColor",
-          "expression": "d3.color(d3.interpolateTurbo((d.Magnitude - 2.5) / 4.5)).rgb().values().concat(255)",
+          "expression": "(() => { const rgb = d3.color(d3.interpolateTurbo((d.Magnitude - 2.5) / 4.5)).rgb(); return [rgb.r, rgb.g, rgb.b, 255]; })()",
           "size": 4,
           "type": "uint8"
         }
