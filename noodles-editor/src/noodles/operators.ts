@@ -1002,6 +1002,8 @@ export class MapRangeOp extends Operator<MapRangeOp> {
   public createInputs() {
     return {
       data: new DataField({ optional: true }),
+      inputAttribute: new StringField('', { optional: true, showByDefault: false }),
+      outputAttribute: new StringField('', { optional: true, showByDefault: false }),
       val: new NumberField(0, { step: 0.01, accessor: true }),
       inMin: new NumberField(0, { step: 0.1 }),
       inMax: new NumberField(1, { step: 0.1 }),
@@ -1017,6 +1019,8 @@ export class MapRangeOp extends Operator<MapRangeOp> {
   }
   execute({
     data,
+    inputAttribute,
+    outputAttribute,
     val,
     inMin,
     inMax,
@@ -1025,14 +1029,18 @@ export class MapRangeOp extends Operator<MapRangeOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const scale = scaleLinear().domain([inMin, inMax]).range([outMin, outMax])
 
-    // Resolve val: could be a uniform number or an attribute reference (string)
     const attrData = data ? extractAttributes(data) : undefined
-    const resolved = resolveNumericField(val, attrData)
+
+    // Resolve val: string = attribute name, number = uniform
+    // Also support legacy inputAttribute field for backward compatibility
+    const attrName = typeof val === 'string' && val ? val : inputAttribute || ''
+    const resolved = resolveNumericField(attrName || val, attrData)
 
     if (resolved.mode === 'attribute' && attrData) {
       const output = transformAttribute(resolved.values as Float32Array, v => scale(v))
+      const outName = outputAttribute || resolved.name
       return {
-        data: withAttribute(attrData, resolved.name, output, 1),
+        data: withAttribute(attrData, outName, output, 1),
         scaled: scale(0),
       }
     }
@@ -1824,6 +1832,7 @@ export class ColorRampOp extends Operator<ColorRampOp> {
 
     return {
       data: new DataField({ optional: true }),
+      inputAttribute: new StringField('', { optional: true, showByDefault: false }),
       outputAttribute: new StringField('fillColor', { optional: true, showByDefault: false }),
       colorRamp,
       colorScheme,
@@ -1839,6 +1848,7 @@ export class ColorRampOp extends Operator<ColorRampOp> {
   }
   execute({
     data,
+    inputAttribute,
     outputAttribute,
     colorRamp,
     colorScheme: _,
@@ -1849,9 +1859,11 @@ export class ColorRampOp extends Operator<ColorRampOp> {
       return d3Color(c)?.formatHex() ?? c
     }
 
-    // Resolve value field: can be a uniform number or an attribute reference
     const attrData = data ? extractAttributes(data) : undefined
-    const resolved = resolveNumericField(value, attrData)
+
+    // Resolve: string value = attribute name. Also support legacy inputAttribute field.
+    const attrName = typeof value === 'string' && value ? value : inputAttribute || ''
+    const resolved = resolveNumericField(attrName || value, attrData)
 
     if (resolved.mode === 'attribute' && attrData) {
       const colors = transformAttributeMulti(resolved.values as Float32Array, 4, v => {
@@ -1863,7 +1875,7 @@ export class ColorRampOp extends Operator<ColorRampOp> {
       const outputAttrName = outputAttribute || 'fillColor'
       return {
         data: withAttribute(attrData, outputAttrName, colors as Uint8Array, 4),
-        color: normalizedRamp(resolved.value || 0),
+        color: normalizedRamp(0),
         colorRamp: normalizedRamp,
       }
     }

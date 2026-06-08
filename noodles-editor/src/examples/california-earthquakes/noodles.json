@@ -107,10 +107,10 @@
         "inputs": {
           "inputAttribute": "magnitude",
           "outputAttribute": "radius",
-          "fromMin": 2.5,
-          "fromMax": 7,
-          "toMin": 500,
-          "toMax": 10000
+          "inMin": 2.5,
+          "inMax": 7,
+          "outMin": 500,
+          "outMax": 10000
         }
       },
       "position": {
@@ -125,10 +125,10 @@
         "inputs": {
           "inputAttribute": "magnitude",
           "outputAttribute": "normalizedMagnitude",
-          "fromMin": 2.5,
-          "fromMax": 7,
-          "toMin": 0,
-          "toMax": 1
+          "inMin": 2.5,
+          "inMax": 7,
+          "outMin": 0,
+          "outMax": 1
         }
       },
       "position": {
@@ -222,5 +222,6 @@
     "y": -50,
     "zoom": 0.5
   },
-  "version": 14
+  "version": 14,
+  "name": "California Earthquakes"
 }
