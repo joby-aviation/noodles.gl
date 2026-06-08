@@ -50,13 +50,13 @@ describe('015-accessor-to-attribute migration', () => {
     // AccessorOp should be removed
     expect(migrated.nodes.find(n => n.id === '/accessor-position')).toBeUndefined()
 
-    // CreateAttributeOp should be added (expression-only mode, no type/size)
+    // CreateAttributeOp should be added with proper size inference
     const createAttrNode = migrated.nodes.find(n => n.type === 'CreateAttributeOp')
     expect(createAttrNode).toBeDefined()
     expect(createAttrNode?.data.inputs.name).toBe('position')
     expect(createAttrNode?.data.inputs.expression).toBe('[d.lng, d.lat, 0]')
-    expect(createAttrNode?.data.inputs.type).toBeUndefined()
-    expect(createAttrNode?.data.inputs.size).toBeUndefined()
+    expect(createAttrNode?.data.inputs.size).toBe(3)  // 3D position
+    expect(createAttrNode?.data.inputs.outputType).toBe('number')
 
     // Old accessor edge should be removed
     expect(migrated.edges.find(e => e.sourceHandle === 'out.accessor')).toBeUndefined()
@@ -227,8 +227,8 @@ describe('015-accessor-to-attribute migration', () => {
 
     const createAttrNode = migrated.nodes.find(n => n.type === 'CreateAttributeOp')
     expect(createAttrNode?.data.inputs.name).toBe('color')
-    expect(createAttrNode?.data.inputs.type).toBeUndefined()
-    expect(createAttrNode?.data.inputs.size).toBeUndefined()
+    expect(createAttrNode?.data.inputs.size).toBe(4)  // RGBA
+    expect(createAttrNode?.data.inputs.type).toBe('uint8')  // uint8 for colors
   })
 
   it('should not migrate if no AccessorOps present', async () => {
@@ -343,7 +343,7 @@ describe('015-accessor-to-attribute migration', () => {
     expect(migrated.nodes.filter(n => n.type === 'CreateAttributeOp')).toHaveLength(0)
   })
 
-  it('should handle re-layout with proper y positioning', async () => {
+  it('should handle multiple accessors with the same expression on different attributes', async () => {
     const project: NoodlesProjectJSON = {
       version: 14,
       nodes: [
@@ -357,13 +357,13 @@ describe('015-accessor-to-attribute migration', () => {
           id: '/acc1',
           type: 'AccessorOp',
           position: { x: 200, y: 50 },
-          data: { inputs: { expression: 'd.a' } },
+          data: { inputs: { expression: 'd.value' } },
         },
         {
           id: '/acc2',
           type: 'AccessorOp',
-          position: { x: 200, y: 50 },
-          data: { inputs: { expression: 'd.b' } },
+          position: { x: 200, y: 200 },
+          data: { inputs: { expression: 'd.value' } },
         },
         {
           id: '/layer',
@@ -381,18 +381,18 @@ describe('015-accessor-to-attribute migration', () => {
           targetHandle: 'par.data',
         },
         {
-          id: '/acc1.out.accessor->/layer.par.getPosition',
+          id: '/acc1.out.accessor->/layer.par.getRadius',
           source: '/acc1',
           target: '/layer',
           sourceHandle: 'out.accessor',
-          targetHandle: 'par.getPosition',
+          targetHandle: 'par.getRadius',
         },
         {
-          id: '/acc2.out.accessor->/layer.par.getRadius',
+          id: '/acc2.out.accessor->/layer.par.getElevation',
           source: '/acc2',
           target: '/layer',
           sourceHandle: 'out.accessor',
-          targetHandle: 'par.getRadius',
+          targetHandle: 'par.getElevation',
         },
       ],
       viewport: { x: 0, y: 0, zoom: 1 },
@@ -400,14 +400,20 @@ describe('015-accessor-to-attribute migration', () => {
 
     const migrated = await up(project)
 
-    const createAttrNodes = migrated.nodes
-      .filter(n => n.type === 'CreateAttributeOp')
-      .sort((a, b) => a.position.y - b.position.y)
-
+    // Should create two CreateAttributeOps (one for radius, one for elevation)
+    const createAttrNodes = migrated.nodes.filter(n => n.type === 'CreateAttributeOp')
     expect(createAttrNodes).toHaveLength(2)
 
-    // Nodes should be vertically spaced by 120px
-    expect(createAttrNodes[1].position.y).toBeGreaterThan(createAttrNodes[0].position.y)
+    // Should have different attribute names
+    const names = createAttrNodes.map(n => n.data.inputs.name).sort()
+    expect(names).toEqual(['elevation', 'radius'])
+
+    // Both should have position information
+    for (const node of createAttrNodes) {
+      expect(node.position).toBeDefined()
+      expect(node.position.x).toBeGreaterThan(0)
+      expect(node.position.y).toBeGreaterThanOrEqual(0)
+    }
   })
 
   it('should deduplicate CreateAttributeOps when same accessor is used by multiple layers', async () => {
@@ -501,5 +507,303 @@ describe('015-accessor-to-attribute migration', () => {
 
     const migrated = await down(project)
     expect(migrated).toEqual(project)
+  })
+
+  it('should properly layout CreateAttributeOp nodes', async () => {
+    const project: NoodlesProjectJSON = {
+      version: 14,
+      nodes: [
+        {
+          id: '/data',
+          type: 'FileOp',
+          position: { x: 100, y: 100 },
+          data: { inputs: {} },
+        },
+        {
+          id: '/accessor',
+          type: 'AccessorOp',
+          position: { x: 200, y: 100 },
+          data: { inputs: { expression: '[d.x, d.y]' } },
+        },
+        {
+          id: '/layer',
+          type: 'ScatterplotLayerOp',
+          position: { x: 400, y: 100 },
+          data: { inputs: {} },
+        },
+      ],
+      edges: [
+        {
+          id: '/data.out.data->/layer.par.data',
+          source: '/data',
+          target: '/layer',
+          sourceHandle: 'out.data',
+          targetHandle: 'par.data',
+        },
+        {
+          id: '/accessor.out.accessor->/layer.par.getPosition',
+          source: '/accessor',
+          target: '/layer',
+          sourceHandle: 'out.accessor',
+          targetHandle: 'par.getPosition',
+        },
+      ],
+      viewport: { x: 0, y: 0, zoom: 1 },
+    }
+
+    const migrated = await up(project)
+
+    const createAttrNode = migrated.nodes.find(n => n.type === 'CreateAttributeOp')
+    expect(createAttrNode).toBeDefined()
+
+    // Should be positioned relative to data source
+    expect(createAttrNode?.position.x).toBeGreaterThan(100)
+    expect(createAttrNode?.position.y).toBeGreaterThanOrEqual(100)
+  })
+
+  it('should infer size=3 for 3D position expressions', async () => {
+    const project: NoodlesProjectJSON = {
+      version: 14,
+      nodes: [
+        {
+          id: '/data',
+          type: 'FileOp',
+          position: { x: 0, y: 0 },
+          data: { inputs: {} },
+        },
+        {
+          id: '/accessor',
+          type: 'AccessorOp',
+          position: { x: 200, y: 0 },
+          data: { inputs: { expression: '[d.lng, d.lat, d.elevation]' } },
+        },
+        {
+          id: '/layer',
+          type: 'ScatterplotLayerOp',
+          position: { x: 400, y: 0 },
+          data: { inputs: {} },
+        },
+      ],
+      edges: [
+        {
+          id: '/data.out.data->/layer.par.data',
+          source: '/data',
+          target: '/layer',
+          sourceHandle: 'out.data',
+          targetHandle: 'par.data',
+        },
+        {
+          id: '/accessor.out.accessor->/layer.par.getPosition',
+          source: '/accessor',
+          target: '/layer',
+          sourceHandle: 'out.accessor',
+          targetHandle: 'par.getPosition',
+        },
+      ],
+      viewport: { x: 0, y: 0, zoom: 1 },
+    }
+
+    const migrated = await up(project)
+
+    const createAttrNode = migrated.nodes.find(n => n.type === 'CreateAttributeOp')
+    expect(createAttrNode?.data.inputs.size).toBe(3)
+    expect(createAttrNode?.data.inputs.name).toBe('position')
+  })
+
+  it('should infer size=2 for 2D position expressions', async () => {
+    const project: NoodlesProjectJSON = {
+      version: 14,
+      nodes: [
+        {
+          id: '/data',
+          type: 'FileOp',
+          position: { x: 0, y: 0 },
+          data: { inputs: {} },
+        },
+        {
+          id: '/accessor',
+          type: 'AccessorOp',
+          position: { x: 200, y: 0 },
+          data: { inputs: { expression: '[d.lng, d.lat]' } },
+        },
+        {
+          id: '/layer',
+          type: 'ScatterplotLayerOp',
+          position: { x: 400, y: 0 },
+          data: { inputs: {} },
+        },
+      ],
+      edges: [
+        {
+          id: '/data.out.data->/layer.par.data',
+          source: '/data',
+          target: '/layer',
+          sourceHandle: 'out.data',
+          targetHandle: 'par.data',
+        },
+        {
+          id: '/accessor.out.accessor->/layer.par.getPosition',
+          source: '/accessor',
+          target: '/layer',
+          sourceHandle: 'out.accessor',
+          targetHandle: 'par.getPosition',
+        },
+      ],
+      viewport: { x: 0, y: 0, zoom: 1 },
+    }
+
+    const migrated = await up(project)
+
+    const createAttrNode = migrated.nodes.find(n => n.type === 'CreateAttributeOp')
+    expect(createAttrNode?.data.inputs.size).toBe(2)
+  })
+
+  it('should infer size=4 and type=uint8 for color attributes', async () => {
+    const project: NoodlesProjectJSON = {
+      version: 14,
+      nodes: [
+        {
+          id: '/data',
+          type: 'FileOp',
+          position: { x: 0, y: 0 },
+          data: { inputs: {} },
+        },
+        {
+          id: '/accessor',
+          type: 'AccessorOp',
+          position: { x: 200, y: 0 },
+          data: { inputs: { expression: '[d.r, d.g, d.b, 255]' } },
+        },
+        {
+          id: '/layer',
+          type: 'ScatterplotLayerOp',
+          position: { x: 400, y: 0 },
+          data: { inputs: {} },
+        },
+      ],
+      edges: [
+        {
+          id: '/data.out.data->/layer.par.data',
+          source: '/data',
+          target: '/layer',
+          sourceHandle: 'out.data',
+          targetHandle: 'par.data',
+        },
+        {
+          id: '/accessor.out.accessor->/layer.par.getFillColor',
+          source: '/accessor',
+          target: '/layer',
+          sourceHandle: 'out.accessor',
+          targetHandle: 'par.getFillColor',
+        },
+      ],
+      viewport: { x: 0, y: 0, zoom: 1 },
+    }
+
+    const migrated = await up(project)
+
+    const createAttrNode = migrated.nodes.find(n => n.type === 'CreateAttributeOp')
+    expect(createAttrNode?.data.inputs.size).toBe(4)
+    expect(createAttrNode?.data.inputs.type).toBe('uint8')
+    expect(createAttrNode?.data.inputs.name).toBe('fillColor')
+  })
+
+  it('should skip pass-through accessors (expression is just "d")', async () => {
+    const project: NoodlesProjectJSON = {
+      version: 14,
+      nodes: [
+        {
+          id: '/data',
+          type: 'FileOp',
+          position: { x: 0, y: 0 },
+          data: { inputs: {} },
+        },
+        {
+          id: '/accessor',
+          type: 'AccessorOp',
+          position: { x: 200, y: 0 },
+          data: { inputs: { expression: 'd' } },
+        },
+        {
+          id: '/layer',
+          type: 'GeoJsonLayerOp',
+          position: { x: 400, y: 0 },
+          data: { inputs: {} },
+        },
+      ],
+      edges: [
+        {
+          id: '/data.out.data->/layer.par.data',
+          source: '/data',
+          target: '/layer',
+          sourceHandle: 'out.data',
+          targetHandle: 'par.data',
+        },
+        {
+          id: '/accessor.out.accessor->/layer.par.getPolygon',
+          source: '/accessor',
+          target: '/layer',
+          sourceHandle: 'out.accessor',
+          targetHandle: 'par.getPolygon',
+        },
+      ],
+      viewport: { x: 0, y: 0, zoom: 1 },
+    }
+
+    const migrated = await up(project)
+
+    // Should not create any CreateAttributeOp for pass-through
+    expect(migrated.nodes.filter(n => n.type === 'CreateAttributeOp')).toHaveLength(0)
+    // Accessor should still exist
+    expect(migrated.nodes.find(n => n.id === '/accessor')).toBeDefined()
+  })
+
+  it('should handle scalar expressions (size=1)', async () => {
+    const project: NoodlesProjectJSON = {
+      version: 14,
+      nodes: [
+        {
+          id: '/data',
+          type: 'FileOp',
+          position: { x: 0, y: 0 },
+          data: { inputs: {} },
+        },
+        {
+          id: '/accessor',
+          type: 'AccessorOp',
+          position: { x: 200, y: 0 },
+          data: { inputs: { expression: 'd.value * 100' } },
+        },
+        {
+          id: '/layer',
+          type: 'ScatterplotLayerOp',
+          position: { x: 400, y: 0 },
+          data: { inputs: {} },
+        },
+      ],
+      edges: [
+        {
+          id: '/data.out.data->/layer.par.data',
+          source: '/data',
+          target: '/layer',
+          sourceHandle: 'out.data',
+          targetHandle: 'par.data',
+        },
+        {
+          id: '/accessor.out.accessor->/layer.par.getRadius',
+          source: '/accessor',
+          target: '/layer',
+          sourceHandle: 'out.accessor',
+          targetHandle: 'par.getRadius',
+        },
+      ],
+      viewport: { x: 0, y: 0, zoom: 1 },
+    }
+
+    const migrated = await up(project)
+
+    const createAttrNode = migrated.nodes.find(n => n.type === 'CreateAttributeOp')
+    expect(createAttrNode?.data.inputs.size).toBe(1)
+    expect(createAttrNode?.data.inputs.name).toBe('radius')
   })
 })

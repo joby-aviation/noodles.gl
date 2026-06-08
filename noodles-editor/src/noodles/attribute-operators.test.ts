@@ -2,16 +2,21 @@ import { describe, expect, it } from 'vitest'
 import type { AttributeEnhancedData } from './fields'
 import {
   BezierCurveOp,
+  CategoricalColorRampOp,
   ColorRampOp,
   CombineRGBAOp,
   CombineXYOp,
   CombineXYZOp,
+  ConcatOp,
   HSLOp,
   MapRangeOp,
   MathOp,
+  MergeOp,
+  RampOp,
   SplitRGBAOp,
   SplitXYOp,
   SplitXYZOp,
+  SwitchOp,
 } from './operators'
 
 function makeAttrData(
@@ -329,6 +334,128 @@ describe('Attribute-first operators', () => {
       // Bezier curve should map [0,1] to [0,1] with some easing
       expect(outAttr!.values[0]).toBeCloseTo(0, 1)
       expect(outAttr!.values[4]).toBeCloseTo(1, 1)
+    })
+  })
+
+  describe('CategoricalColorRampOp', () => {
+    it('maps a static string value to a color', () => {
+      const op = new CategoricalColorRampOp('/test')
+      const result = op.execute({
+        data: undefined,
+        outputAttribute: 'fillColor',
+        colorRamp: op.inputs.colorRamp.value,
+        colorScheme: 'category10',
+        value: 'categoryA',
+      })
+      expect(result.color).toMatch(/^#[0-9a-f]{6}$/i)
+    })
+
+    it('maps a data column to a RGBA color attribute', () => {
+      const op = new CategoricalColorRampOp('/test')
+      const data: AttributeEnhancedData = {
+        data: [{ type: 'bus' }, { type: 'train' }, { type: 'bus' }],
+        attributes: {},
+      }
+      const result = op.execute({
+        data,
+        outputAttribute: 'fillColor',
+        colorRamp: op.inputs.colorRamp.value,
+        colorScheme: 'category10',
+        value: 'type',
+      })
+      const outAttr = (result.data as AttributeEnhancedData).attributes?.fillColor
+      expect(outAttr).toBeDefined()
+      expect(outAttr!.size).toBe(4)
+      expect(outAttr!.values.length).toBe(12)
+      // Same category should produce same color
+      expect(outAttr!.values[0]).toBe(outAttr!.values[8]) // bus r == bus r
+      expect(outAttr!.values[1]).toBe(outAttr!.values[9]) // bus g == bus g
+    })
+  })
+
+  describe('RampOp', () => {
+    it('maps a uniform position through the ramp', () => {
+      const op = new RampOp('/test')
+      const result = op.execute({ data: undefined, position: 0.5, stops: undefined })
+      expect(typeof result.value).toBe('number')
+      expect(result.value).toBeGreaterThanOrEqual(0)
+      expect(result.value).toBeLessThanOrEqual(1)
+    })
+
+    it('maps an attribute column through the ramp', () => {
+      const op = new RampOp('/test')
+      const data = makeAttrData({
+        t: { values: new Float32Array([0, 0.5, 1]), size: 1 },
+      })
+      const result = op.execute({ data, position: 't' as any, stops: undefined })
+      const outAttr = (result.data as AttributeEnhancedData).attributes?.t
+      expect(outAttr).toBeDefined()
+      expect(outAttr!.values[0]).toBeCloseTo(0, 1)
+      expect(outAttr!.values[2]).toBeCloseTo(1, 1)
+    })
+
+    it('uses custom stops', () => {
+      const op = new RampOp('/test')
+      const stops = [
+        { pos: 0, val: 10, interp: 'linear' },
+        { pos: 1, val: 20, interp: 'linear' },
+      ]
+      const result = op.execute({ data: undefined, position: 0.5, stops })
+      expect(result.value).toBeCloseTo(15)
+    })
+  })
+
+  describe('SwitchOp', () => {
+    it('selects a value by index', () => {
+      const op = new SwitchOp('/test')
+      const result = op.execute({ values: ['a', 'b', 'c'], index: 1, blend: false })
+      expect(result.value).toBe('b')
+    })
+
+    it('clamps out-of-bounds indices', () => {
+      const op = new SwitchOp('/test')
+      expect(op.execute({ values: ['a', 'b'], index: 5, blend: false }).value).toBe('b')
+      expect(op.execute({ values: ['a', 'b'], index: -1, blend: false }).value).toBe('a')
+    })
+
+    it('blends between numeric values', () => {
+      const op = new SwitchOp('/test')
+      const result = op.execute({ values: [0, 100], index: 0.5, blend: true })
+      expect(result.value).toBeCloseTo(50)
+    })
+  })
+
+  describe('ConcatOp', () => {
+    it('concatenates arrays', () => {
+      const op = new ConcatOp('/test')
+      const result = op.execute({
+        values: [
+          [1, 2],
+          [3, 4],
+        ],
+        depth: 1,
+      })
+      expect(result.data).toEqual([1, 2, 3, 4])
+    })
+
+    it('respects depth parameter', () => {
+      const op = new ConcatOp('/test')
+      const result = op.execute({ values: [[[1, 2]], [[3, 4]]], depth: 2 })
+      expect(result.data).toEqual([1, 2, 3, 4])
+    })
+  })
+
+  describe('MergeOp', () => {
+    it('merges objects', () => {
+      const op = new MergeOp('/test')
+      const result = op.execute({ objects: [{ a: 1 }, { b: 2 }, { c: 3 }] })
+      expect(result.object).toEqual({ a: 1, b: 2, c: 3 })
+    })
+
+    it('later objects override earlier ones', () => {
+      const op = new MergeOp('/test')
+      const result = op.execute({ objects: [{ a: 1 }, { a: 2 }] })
+      expect(result.object).toEqual({ a: 2 })
     })
   })
 })

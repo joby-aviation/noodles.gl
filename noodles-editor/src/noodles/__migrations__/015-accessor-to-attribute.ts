@@ -1,19 +1,20 @@
 import type { NoodlesProjectJSON } from '../utils/serialization'
 import { edgeId } from '../utils/id-utils'
 
-// Migration to convert AccessorOp nodes to CreateAttributeOp (expression-only mode)
+// Migration 015: Convert AccessorOp nodes to CreateAttributeOp (expression-only mode)
 //
-// This migration transforms the old accessor-based pattern:
+// Transforms the old accessor-based pattern:
 //   Data -> AccessorOp(expression) -> Layer.getPosition
 //
 // Into the new attribute-based pattern:
-//   Data -> CreateAttributeOp(name, expression) -> Layer.data
+//   Data -> CreateAttributeOp(name, expression, size, type) -> Layer.data
 //
 // Key improvements:
 // 1. Deduplicates CreateAttributeOps - creates ONE per unique AccessorOp/data source combo
-// 2. Uses expression-only mode (no source/column inputs)
-// 3. Shares CreateAttributeOp outputs across multiple layers
-// 4. Updates connections to pass attribute-enhanced data to layers
+// 2. Properly infers size and type from attribute names and expressions
+// 3. Chains multiple CreateAttributeOps for the same data source
+// 4. Lays out nodes in a readable horizontal flow
+// 5. Updates connections to pass attribute-enhanced data to layers
 
 const LAYER_OPS = [
   'ScatterplotLayerOp',
@@ -168,8 +169,13 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
   // Map: layerId -> array of CreateAttributeOp chain endpoints
   const layerDataChains = new Map<string, Array<{ source: string; handle: string }>>()
 
+  // Layout configuration for new CreateAttributeOp nodes
+  const LAYOUT = {
+    HORIZONTAL_OFFSET: 300,  // Space between source and first CreateAttributeOp
+    VERTICAL_SPACING: 150,   // Space between chained CreateAttributeOps
+  }
+
   // Process each unique accessor usage
-  let createAttrIndex = 0
   for (const [key, usage] of accessorUsages) {
     const { accessorId, accessorNode, dataSourceId, dataSourceHandle, layers } = usage
 
@@ -180,12 +186,18 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
 
     const expression = (accessorNode.data.inputs?.expression as string) || 'd'
 
-    // Create ONE CreateAttributeOp per unique attribute name
+    // Find the data source node for positioning
+    const dataSourceNode = nodes.find(n => n.id === dataSourceId)
+    const baseX = dataSourceNode?.position?.x ?? accessorNode.position.x
+    const baseY = dataSourceNode?.position?.y ?? accessorNode.position.y
+
+    // Create ONE CreateAttributeOp per unique attribute name, positioned in a vertical chain
     let currentDataSource = dataSourceId
     let currentDataHandle = dataSourceHandle
+    let chainIndex = 0
 
     for (const attributeName of attributeNames) {
-      // Determine type/size based on attribute name
+      // Determine type/size based on attribute name and expression
       const isColor = attributeName.includes('Color') || attributeName === 'color'
       const isPosition = attributeName === 'position' || attributeName === 'sourcePosition' || attributeName === 'targetPosition'
 
@@ -211,12 +223,11 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
         inputs.outputType = 'number'
         inputs.size = 2
       } else {
-        // Numeric GPU attributes
+        // Numeric GPU attributes - infer size and type
         inputs.outputType = 'number'
 
-        // Position attributes need size 2 or 3 (x,y or x,y,z)
+        // Position attributes: infer size from expression
         if (isPosition) {
-          // Check if expression looks like it has 3 components (e.g., [x, y, z])
           const has3Components = /\[.*,.*,.*\]/.test(expression)
           inputs.size = has3Components ? 3 : 2
         }
@@ -226,14 +237,21 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
           inputs.size = 4
           inputs.type = 'uint8'
         }
+
+        // For other attributes, try to infer from expression
+        if (!inputs.size) {
+          // Default to size 1 for scalar expressions
+          inputs.size = 1
+        }
       }
 
+      // Position nodes in a readable horizontal chain
       const createAttrNode = {
         id: createAttrNodeId,
         type: 'CreateAttributeOp',
         position: {
-          x: accessorNode.position.x,
-          y: accessorNode.position.y + createAttrIndex * 120,
+          x: baseX + LAYOUT.HORIZONTAL_OFFSET,
+          y: baseY + chainIndex * LAYOUT.VERTICAL_SPACING,
         },
         data: {
           inputs,
@@ -241,8 +259,7 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
       }
 
       newNodes.push(createAttrNode)
-      console.log('[Migration 015] Created node:', JSON.stringify(createAttrNode, null, 2))
-      createAttrIndex++
+      chainIndex++
 
       // Connect data source to CreateAttributeOp
       const dataInputEdge = {

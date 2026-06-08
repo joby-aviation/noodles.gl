@@ -243,5 +243,6 @@
     },
     "definitionVersion": "0.4.0",
     "revisionHistory": []
-  }
+  },
+  "name": "US County Unemployment"
 }

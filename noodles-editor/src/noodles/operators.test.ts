@@ -40,7 +40,6 @@ import {
   TimeSeriesOp,
 } from './operators'
 import { deleteOp, getOpStore, setOp } from './store'
-import { isAccessor } from './utils/accessor-helpers'
 
 describe('basic Operators', () => {
   it('creates an Operator', () => {
@@ -1910,53 +1909,6 @@ describe('Viral Accessor Tests', () => {
       const result = op.execute({ operator: 'add', a: 5, b: 3 })
 
       expect(result.result).toBe(8)
-      expect(isAccessor(result.result)).toBe(false)
-    })
-
-    it('should handle accessor function for a', () => {
-      const op = new MathOp('test-math-2')
-
-      const accessor = (d: { value: number }) => d.value
-      const result = op.execute({ operator: 'add', a: accessor, b: 10 })
-
-      expect(isAccessor(result.result)).toBe(true)
-      expect((result.result as unknown as (d: { value: number }) => number)({ value: 5 })).toBe(15)
-    })
-
-    it('should handle accessor function for b', () => {
-      const op = new MathOp('test-math-3')
-
-      const accessor = (d: { value: number }) => d.value
-      const result = op.execute({ operator: 'multiply', a: 3, b: accessor })
-
-      expect(isAccessor(result.result)).toBe(true)
-      expect((result.result as unknown as (d: { value: number }) => number)({ value: 4 })).toBe(12)
-    })
-
-    it('should handle accessor functions for both a and b', () => {
-      const op = new MathOp('test-math-4')
-
-      const accessorA = (d: { x: number }) => d.x
-      const accessorB = (d: { y: number }) => d.y
-      const result = op.execute({ operator: 'subtract', a: accessorA, b: accessorB })
-
-      expect(isAccessor(result.result)).toBe(true)
-      expect(
-        (result.result as unknown as (d: { x: number; y: number }) => number)({ x: 10, y: 3 })
-      ).toBe(7)
-    })
-
-    it('should handle unary operations with accessor', () => {
-      const op = new MathOp('test-math-5')
-
-      const accessor = (d: { angle: number }) => d.angle
-      const result = op.execute({ operator: 'sine', a: accessor, b: 0 })
-
-      expect(isAccessor(result.result)).toBe(true)
-      expect((result.result as unknown as (d: { angle: number }) => number)({ angle: 0 })).toBe(0)
-      expect(
-        (result.result as unknown as (d: { angle: number }) => number)({ angle: Math.PI / 2 })
-      ).toBeCloseTo(1, 5)
     })
   })
 
@@ -1967,46 +1919,6 @@ describe('Viral Accessor Tests', () => {
       const result = op.execute({ data: [10, 20, 30], expression: 'd * 2' })
 
       expect(result.data).toBe(20)
-      expect(isAccessor(result.data)).toBe(false)
-    })
-
-    it('should handle accessor function in data', () => {
-      const op = new ExpressionOp('test-expr-2')
-
-      const accessor = (d: { count: number }) => d.count
-      const result = op.execute({ data: [accessor, 10], expression: 'd + 5' })
-
-      expect(isAccessor(result.data)).toBe(true)
-      expect((result.data as unknown as (d: { count: number }) => number)({ count: 15 })).toBe(20)
-    })
-
-    it('should handle multiple accessor functions in data', () => {
-      const op = new ExpressionOp('test-expr-3')
-
-      const accessor1 = (d: { x: number }) => d.x
-      const accessor2 = (d: { y: number }) => d.y
-      const result = op.execute({
-        data: [accessor1, accessor2],
-        expression: 'data[0] + data[1]',
-      })
-
-      expect(isAccessor(result.data)).toBe(true)
-      expect(
-        (result.data as unknown as (d: { x: number; y: number }) => number)({ x: 5, y: 10 })
-      ).toBe(15)
-    })
-
-    it('should handle mixed static and accessor values', () => {
-      const op = new ExpressionOp('test-expr-4')
-
-      const accessor = (d: { value: number }) => d.value
-      const result = op.execute({
-        data: [accessor, 100, 50],
-        expression: 'd * data[1] / data[2]',
-      })
-
-      expect(isAccessor(result.data)).toBe(true)
-      expect((result.data as unknown as (d: { value: number }) => number)({ value: 10 })).toBe(20)
     })
   })
 
@@ -2023,64 +1935,6 @@ describe('Viral Accessor Tests', () => {
       })
 
       expect(result.data).toEqual([1, 2, 3, 4])
-      expect(isAccessor(result.data)).toBe(false)
-    })
-
-    it('should handle accessor function in values', () => {
-      const op = new ConcatOp('test-concat-2')
-
-      const accessor = (d: { items: number[] }) => d.items
-      const result = op.execute({ values: [accessor, [7, 8]], depth: 1 })
-
-      expect(isAccessor(result.data)).toBe(true)
-      expect(
-        (result.data as unknown as (d: { items: number[] }) => number[])({ items: [5, 6] })
-      ).toEqual([5, 6, 7, 8])
-    })
-
-    it('should handle multiple accessor functions in values', () => {
-      const op = new ConcatOp('test-concat-3')
-
-      const accessor1 = (d: { first: number[] }) => d.first
-      const accessor2 = (d: { second: number[] }) => d.second
-      const result = op.execute({ values: [accessor1, accessor2], depth: 1 })
-
-      expect(isAccessor(result.data)).toBe(true)
-      expect(
-        (result.data as unknown as (d: { first: number[]; second: number[] }) => number[])({
-          first: [1, 2],
-          second: [3, 4],
-        })
-      ).toEqual([1, 2, 3, 4])
-    })
-
-    it('should handle depth parameter with accessors', () => {
-      const op = new ConcatOp('test-concat-4')
-
-      const accessor = (d: { nested: number[][] }) => d.nested
-      const result = op.execute({ values: [accessor, [[7, 8]]], depth: 2 })
-
-      expect(isAccessor(result.data)).toBe(true)
-      expect(
-        (result.data as unknown as (d: { nested: number[][] }) => number[])({
-          nested: [
-            [1, 2],
-            [3, 4],
-          ],
-        })
-      ).toEqual([1, 2, 3, 4, 7, 8])
-    })
-
-    it('should handle mixed static and accessor values', () => {
-      const op = new ConcatOp('test-concat-5')
-
-      const accessor = (d: { dynamic: number[] }) => d.dynamic
-      const result = op.execute({ values: [[1, 2], accessor, [5, 6]], depth: 1 })
-
-      expect(isAccessor(result.data)).toBe(true)
-      expect(
-        (result.data as unknown as (d: { dynamic: number[] }) => number[])({ dynamic: [3, 4] })
-      ).toEqual([1, 2, 3, 4, 5, 6])
     })
   })
 
@@ -2124,44 +1978,6 @@ describe('Viral Accessor Tests', () => {
     })
   })
 
-  describe('Chained Viral Accessors', () => {
-    it('should chain MathOp with ExpressionOp', () => {
-      const mathOp = new MathOp('test-chain-1')
-
-      const accessor = (d: { price: number }) => d.price
-      const mathResult = mathOp.execute({ operator: 'multiply', a: accessor, b: 1.1 })
-
-      const exprOp = new ExpressionOp('test-chain-2')
-
-      const exprResult = exprOp.execute({
-        data: [mathResult.result],
-        expression: 'Math.round(d)',
-      })
-
-      expect(isAccessor(exprResult.data)).toBe(true)
-      expect((exprResult.data as unknown as (d: { price: number }) => number)({ price: 100 })).toBe(
-        110
-      )
-    })
-
-    it('should chain accessor functions through ConcatOp', () => {
-      const accessor1 = (d: { x: number }) => [d.x, d.x + 1]
-      const accessor2 = (d: { y: number }) => [d.y * 2]
-
-      const concatOp = new ConcatOp('test-chain-5')
-
-      const concatResult = concatOp.execute({
-        values: [accessor1, accessor2],
-        depth: 1,
-      })
-
-      expect(isAccessor(concatResult.data)).toBe(true)
-      expect(
-        (concatResult.data as unknown as (d: { x: number; y: number }) => number[])({ x: 5, y: 10 })
-      ).toEqual([5, 6, 20])
-    })
-  })
-
   describe('MergeOp', () => {
     it('should handle static objects', () => {
       const op = new MergeOp('test-merge-1')
@@ -2169,66 +1985,6 @@ describe('Viral Accessor Tests', () => {
       const result = op.execute({ objects: [{ a: 1 }, { b: 2 }] })
 
       expect(result.object).toEqual({ a: 1, b: 2 })
-      expect(isAccessor(result.object)).toBe(false)
-    })
-
-    it('should handle accessor function in objects', () => {
-      const op = new MergeOp('test-merge-2')
-
-      const accessor = (d: { x: number }) => ({ a: d.x })
-      const result = op.execute({ objects: [accessor, { b: 2 }] })
-
-      expect(isAccessor(result.object)).toBe(true)
-      expect(
-        (result.object as unknown as (d: { x: number }) => Record<string, number>)({ x: 5 })
-      ).toEqual({ a: 5, b: 2 })
-    })
-
-    it('should handle multiple accessor functions in objects', () => {
-      const op = new MergeOp('test-merge-3')
-
-      const accessor1 = (d: { x: number }) => ({ a: d.x })
-      const accessor2 = (d: { y: number }) => ({ b: d.y })
-      const result = op.execute({ objects: [accessor1, accessor2] })
-
-      expect(isAccessor(result.object)).toBe(true)
-      expect(
-        (result.object as unknown as (d: { x: number; y: number }) => Record<string, number>)({
-          x: 5,
-          y: 10,
-        })
-      ).toEqual({ a: 5, b: 10 })
-    })
-
-    it('should handle overlapping properties with accessors', () => {
-      const op = new MergeOp('test-merge-4')
-
-      const accessor = (d: { value: number }) => ({ a: d.value })
-      const result = op.execute({ objects: [{ a: 1, b: 2 }, accessor] })
-
-      expect(isAccessor(result.object)).toBe(true)
-      // Later objects override earlier ones (Object.assign behavior)
-      expect(
-        (result.object as unknown as (d: { value: number }) => Record<string, number>)({
-          value: 10,
-        })
-      ).toEqual({ a: 10, b: 2 })
-    })
-
-    it('should handle mixed static and accessor values', () => {
-      const op = new MergeOp('test-merge-5')
-
-      const accessor1 = (d: { x: number }) => ({ x: d.x })
-      const accessor2 = (d: { y: number }) => ({ y: d.y })
-      const result = op.execute({ objects: [accessor1, { z: 3 }, accessor2] })
-
-      expect(isAccessor(result.object)).toBe(true)
-      expect(
-        (result.object as unknown as (d: { x: number; y: number }) => Record<string, number>)({
-          x: 1,
-          y: 2,
-        })
-      ).toEqual({ x: 1, z: 3, y: 2 })
     })
   })
 })

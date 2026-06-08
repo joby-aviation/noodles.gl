@@ -194,7 +194,6 @@ import { setDuckDbInstance } from './sql-compiler/executor'
 import { getAllOps, getOp } from './store'
 import { prepareTableDataForOutput, type TableSchema } from './table-schema'
 import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
-import { composeAccessor, isAccessor } from './utils/accessor-helpers'
 import {
   arrowGetColumnAsTypedArray,
   arrowToRows,
@@ -208,6 +207,7 @@ import { isDirectChild } from './utils/path-utils'
 import { pick } from './utils/pick'
 import {
   extractAttributes,
+  isAttributeReference,
   resolveNumericField,
   transformAttribute,
   transformAttributeMulti,
@@ -1929,6 +1929,8 @@ export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
     const value = new StringField('', { accessor: true })
 
     return {
+      data: new DataField(undefined, { hidden: true }),
+      outputAttribute: new StringField('fillColor', { hidden: true }),
       colorRamp,
       colorScheme,
       value,
@@ -1937,24 +1939,48 @@ export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
   createOutputs() {
     return {
       color: new ColorField(),
+      data: new DataField(),
     }
   }
   execute({
+    data: rawData,
+    outputAttribute,
     colorRamp,
     value,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const scale = (val: string) => {
       const color = colorRamp(val)
-
-      // Some return values are in rgb, some are in hex. Convert them all to be safe
-      // TODO: VIS-813: Make all colors d3 Colors?
       return d3Color(color)?.formatHex()
     }
 
-    // Use composeAccessor helper to handle both static values and accessor functions
-    const color = composeAccessor(value, scale)
+    const data = rawData ? extractAttributes(rawData) : undefined
 
-    return { color }
+    // Attribute mode: value is a string naming a column in the raw data
+    if (data && isAttributeReference(value)) {
+      const items = data.data as Record<string, unknown>[]
+      const attrName = outputAttribute || 'fillColor'
+      const len = items.length
+      const output = new Uint8Array(len * 4)
+      for (let i = 0; i < len; i++) {
+        const category = String(items[i]?.[value] ?? '')
+        const hex = scale(category) || '#000000'
+        const r = parseInt(hex.slice(1, 3), 16)
+        const g = parseInt(hex.slice(3, 5), 16)
+        const b = parseInt(hex.slice(5, 7), 16)
+        output[i * 4] = r
+        output[i * 4 + 1] = g
+        output[i * 4 + 2] = b
+        output[i * 4 + 3] = 255
+      }
+      return {
+        color: scale('') || '#000000',
+        data: withAttribute(data, attrName, output, 4),
+      }
+    }
+
+    // Uniform mode
+    const color = scale(value as string) || '#000000'
+    return { color, data: data || rawData }
   }
 }
 
@@ -3075,7 +3101,6 @@ export class SwitchOp extends Operator<SwitchOp> {
     index,
     blend,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // Define helper functions
     const selectValue = (values: unknown[], index: number): unknown => {
       if (values.length === 0) return undefined
       const clampedIndex = Math.max(0, Math.min(index, values.length - 1))
@@ -3103,19 +3128,7 @@ export class SwitchOp extends Operator<SwitchOp> {
       return interpolate(lowerValue, upperValue)(t)
     }
 
-    // Choose function based on blend mode
     const selectFn = blend ? blendValues : selectValue
-
-    // Handle accessor input
-    if (isAccessor(index)) {
-      const value = (...args: unknown[]) => {
-        const idx = (index as (...args: unknown[]) => number)(...args)
-        return selectFn(values, idx)
-      }
-      return { value }
-    }
-
-    // Handle static input (unchanged behavior)
     const value = selectFn(values, index as number)
     return { value }
   }
@@ -4741,19 +4754,6 @@ export class ConcatOp extends Operator<ConcatOp> {
     }
   }
   execute({ values, depth }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // Check if any values are accessor functions
-    const hasAccessors = values.some(isAccessor)
-
-    if (hasAccessors) {
-      // Return an accessor function that evaluates all values and merges them
-      const result = (...args: unknown[]) => {
-        const evaluatedValues = values.map(item => (isAccessor(item) ? item(...args) : item))
-        return evaluatedValues.flat(depth)
-      }
-      return { data: result }
-    }
-
-    // Static evaluation
     return { data: values.flat(depth) }
   }
 }
@@ -4791,19 +4791,6 @@ export class MergeOp extends Operator<MergeOp> {
     }
   }
   execute({ objects }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // Check if any objects are accessor functions
-    const hasAccessors = objects.some(isAccessor)
-
-    if (hasAccessors) {
-      // Return an accessor function that evaluates all objects and merges them
-      const result = (...args: unknown[]) => {
-        const evaluatedObjects = objects.map(item => (isAccessor(item) ? item(...args) : item))
-        return Object.assign({}, ...evaluatedObjects)
-      }
-      return { object: result }
-    }
-
-    // Static evaluation
     const object = Object.assign({}, ...objects)
     return { object }
   }
@@ -8456,34 +8443,8 @@ export class ExpressionOp extends Operator<ExpressionOp> {
       `return ${expression}`,
       this.id
     )
-    // Create a context-aware getOp function for the expression execution
     const contextualGetOp = safeOpGetter(this.id)
 
-    // Check if any data items are accessor functions
-    const hasAccessors = data.some(isAccessor)
-
-    if (hasAccessors) {
-      // Return an accessor function that evaluates all data items and applies the expression
-      const result = (...args: unknown[]) => {
-        const evaluatedData = data.map(item => (isAccessor(item) ? item(...args) : item))
-        // Get fresh timeline values for each accessor call
-        const freshTimeline = getTimelineContext()
-        return fn(
-          evaluatedData,
-          evaluatedData[0],
-          contextualGetOp,
-          freshTimeline.sequenceTime,
-          freshTimeline.frame,
-          freshTimeline.totalFrames,
-          freshTimeline.sequence,
-          ...Object.values(freeExports)
-        )
-      }
-
-      return { data: result }
-    }
-
-    // Static evaluation
     const result = fn(
       data,
       data[0],
@@ -8578,7 +8539,7 @@ export class RampOp extends Operator<RampOp> {
 
   createInputs() {
     return {
-      // softMin/softMax suggests 0-1 in the UI without hard-clamping accessor functions
+      data: new DataField(undefined, { hidden: true }),
       position: new NumberField(0, { softMin: 0, softMax: 1, step: 0.01, accessor: true }),
       stops: new DataField(),
     }
@@ -8587,10 +8548,12 @@ export class RampOp extends Operator<RampOp> {
   createOutputs() {
     return {
       value: new NumberField(),
+      data: new DataField(),
     }
   }
 
   execute({
+    data: rawData,
     position,
     stops,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -8604,8 +8567,20 @@ export class RampOp extends Operator<RampOp> {
             (a, b) => a.pos - b.pos
           )
 
-    const value = composeAccessor(position, (p: number) => interpolateRamp(p, rampStops))
-    return { value }
+    const rampFn = (p: number) => interpolateRamp(p, rampStops)
+
+    const data = rawData ? extractAttributes(rawData) : undefined
+    const resolved = resolveNumericField(position, data)
+
+    if (resolved.mode === 'attribute') {
+      const output = transformAttribute(resolved.values as Float32Array, rampFn)
+      return {
+        value: rampFn(0),
+        data: withAttribute(data!, resolved.name, output, 1),
+      }
+    }
+
+    return { value: rampFn(resolved.value), data: data || rawData }
   }
 }
 

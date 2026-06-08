@@ -5,7 +5,7 @@
   "workspaces": ["website", "noodles-editor"],
   "scripts": {
     "postinstall": "node scripts/patch-vitest-browser-playwright.cjs",
-    "validate:examples": "node validate-examples.js",
+    "validate:examples": "node scripts/validate-examples.js",
     "build:app": "(cd noodles-editor && npm run build)",
     "build:app:cloudflare": "(cd noodles-editor && npm run generate:context && VITE_USE_CDN_DUCKDB=true npm run build)",
     "build:website": "(cd website && npm run build)",

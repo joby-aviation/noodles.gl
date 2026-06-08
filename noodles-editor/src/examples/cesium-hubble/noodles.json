@@ -784,5 +784,6 @@
     },
     "definitionVersion": "0.4.0",
     "revisionHistory": []
-  }
+  },
+  "name": "Cesium + Hubble Video Spheres"
 }
