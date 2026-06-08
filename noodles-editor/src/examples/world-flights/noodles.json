@@ -132,6 +132,41 @@
       "sourceHandle": "out.data",
       "target": "/scatterplot-layer",
       "targetHandle": "par.data"
+    },
+    {
+      "id": "/data-source.out.data->/origin-country.par.data",
+      "source": "/data-source",
+      "sourceHandle": "out.data",
+      "target": "/origin-country",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/data-source.out.data->/timestamps.par.data",
+      "source": "/data-source",
+      "sourceHandle": "out.data",
+      "target": "/timestamps",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/data-source.out.data->/path.par.data",
+      "source": "/data-source",
+      "sourceHandle": "out.data",
+      "target": "/path",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/data-source.out.data->/properties.par.data",
+      "source": "/data-source",
+      "sourceHandle": "out.data",
+      "target": "/properties",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/data-source.out.data->/position.par.data",
+      "source": "/data-source",
+      "sourceHandle": "out.data",
+      "target": "/position",
+      "targetHandle": "par.data"
     }
   ],
   "viewport": {

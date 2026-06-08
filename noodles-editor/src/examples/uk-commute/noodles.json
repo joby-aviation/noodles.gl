@@ -111,6 +111,20 @@
       "sourceHandle": "out.data",
       "target": "/workplace-layer",
       "targetHandle": "par.data"
+    },
+    {
+      "id": "/data-source.out.data->/home-position.par.data",
+      "source": "/data-source",
+      "sourceHandle": "out.data",
+      "target": "/home-position",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/data-source.out.data->/work-position.par.data",
+      "source": "/data-source",
+      "sourceHandle": "out.data",
+      "target": "/work-position",
+      "targetHandle": "par.data"
     }
   ],
   "viewport": {

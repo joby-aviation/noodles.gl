@@ -214,6 +214,20 @@
       "sourceHandle": "out.data",
       "target": "/hexagon-layer",
       "targetHandle": "par.data"
+    },
+    {
+      "id": "/data-source.out.data->/position.par.data",
+      "source": "/data-source",
+      "sourceHandle": "out.data",
+      "target": "/position",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/data-source.out.data->/spaces.par.data",
+      "source": "/data-source",
+      "sourceHandle": "out.data",
+      "target": "/spaces",
+      "targetHandle": "par.data"
     }
   ],
   "viewport": {

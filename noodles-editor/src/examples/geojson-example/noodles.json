@@ -41,6 +41,20 @@
       "sourceHandle": "out.data",
       "target": "/geojson-layer",
       "targetHandle": "par.data"
+    },
+    {
+      "id": "/data-source.out.data->/line-color.par.data",
+      "source": "/data-source",
+      "sourceHandle": "out.data",
+      "target": "/line-color",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/data-source.out.data->/text.par.data",
+      "source": "/data-source",
+      "sourceHandle": "out.data",
+      "target": "/text",
+      "targetHandle": "par.data"
     }
   ],
   "viewport": {

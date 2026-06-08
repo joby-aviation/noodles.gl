@@ -91,6 +91,13 @@
       "sourceHandle": "out.data",
       "target": "/heatmaplayer-0",
       "targetHandle": "par.data"
+    },
+    {
+      "id": "/duckdb-0.out.data->/accessor-0.par.data",
+      "source": "/duckdb-0",
+      "sourceHandle": "out.data",
+      "target": "/accessor-0",
+      "targetHandle": "par.data"
     }
   ],
   "editorSettings": {
