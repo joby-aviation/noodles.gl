@@ -8,11 +8,14 @@
       "data": {
         "inputs": {
           "data": [
-            { "id": 1, "x": -122.4, "y": 37.8, "value": 10 },
-            { "id": 2, "x": -122.5, "y": 37.9, "value": 20 },
-            { "id": 3, "x": -122.6, "y": 38.0, "value": 30 },
-            { "id": 4, "x": -122.7, "y": 38.1, "value": 40 },
-            { "id": 5, "x": -122.8, "y": 38.2, "value": 50 }
+            { "id": 1, "name": "Point A", "x": -122.4, "y": 37.8, "value": 10, "category": "type1" },
+            { "id": 2, "name": "Point B", "x": -122.5, "y": 37.9, "value": 20, "category": "type2" },
+            { "id": 3, "name": "Point C", "x": -122.6, "y": 38.0, "value": 30, "category": "type1" },
+            { "id": 4, "name": "Point D", "x": -122.7, "y": 38.1, "value": 40, "category": "type3" },
+            { "id": 5, "name": "Point E", "x": -122.8, "y": 38.2, "value": 50, "category": "type2" },
+            { "id": 6, "name": "Point F", "x": -122.9, "y": 38.3, "value": 60, "category": "type1" },
+            { "id": 7, "name": "Point G", "x": -123.0, "y": 38.4, "value": 70, "category": "type3" },
+            { "id": 8, "name": "Point H", "x": -123.1, "y": 38.5, "value": 80, "category": "type2" }
           ]
         }
       }

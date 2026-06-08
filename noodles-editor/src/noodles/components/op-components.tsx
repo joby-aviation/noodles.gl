@@ -1914,22 +1914,44 @@ function AttributeTablePreview({
   const startIdx = currentPage * pageSize
   const endIdx = Math.min(startIdx + pageSize, rowCount)
 
-  // De-interleave attributes into rows for the current page
+  // Get data columns (original table properties)
+  const dataColumns: string[] = []
+  let dataRows: Record<string, unknown>[] = []
+
+  if (isArrowTable(data)) {
+    const t = data as Parameters<typeof arrowNumRows>[0]
+    const columns = arrowColumnNames(t)
+    // Filter out internal attribute columns (__attr_*)
+    dataColumns.push(...columns.filter(col => !col.startsWith('__attr_')))
+    dataRows = arrowToRows(arrowSlice(t, startIdx, endIdx))
+  } else if (Array.isArray(data) && data.length > 0) {
+    // For plain arrays, derive columns from first object
+    const firstRow = data[0]
+    if (firstRow && typeof firstRow === 'object') {
+      dataColumns.push(...Object.keys(firstRow))
+    }
+    dataRows = data.slice(startIdx, endIdx)
+  }
+
+  // Build combined rows with both data properties and attributes
   const attributeNames = Object.keys(attributes)
   const rows: Record<string, unknown>[] = []
 
-  for (let i = startIdx; i < endIdx; i++) {
-    const row: Record<string, unknown> = {}
+  for (let i = 0; i < dataRows.length; i++) {
+    const row: Record<string, unknown> = { ...dataRows[i] }
+    const globalIdx = startIdx + i
+
+    // Add de-interleaved attributes
     for (const name of attributeNames) {
       const attr = attributes[name]
       if (attr.type === 'string' || attr.type === 'boolean') {
         // Simple array access
-        row[name] = (attr.values as unknown[])[i]
+        row[name] = (attr.values as unknown[])[globalIdx]
       } else {
         // De-interleave TypedArray
         const values: number[] = []
         for (let j = 0; j < attr.size; j++) {
-          values.push((attr.values as TypedArray)[i * attr.size + j])
+          values.push((attr.values as TypedArray)[globalIdx * attr.size + j])
         }
         row[name] = attr.size === 1 ? values[0] : values
       }
@@ -1945,23 +1967,35 @@ function AttributeTablePreview({
     if (typeof val === 'number') {
       return val.toFixed(3)
     }
+    if (typeof val === 'bigint') {
+      return val.toString()
+    }
+    if (val === null || val === undefined) {
+      return ''
+    }
     return String(val)
   }
+
+  const totalColumns = dataColumns.length + attributeNames.length
 
   return (
     <div>
       <div style={{ fontSize: '11px', opacity: 0.7, marginBottom: 4 }}>
-        Attribute Data: {rowCount.toLocaleString()} rows × {attributeNames.length} attributes
+        {rowCount.toLocaleString()} rows × {totalColumns} columns ({dataColumns.length} data,{' '}
+        {attributeNames.length} attributes)
       </div>
       <table>
         <thead>
           <tr>
             <th style={{ width: '50px' }}>#</th>
+            {dataColumns.map(col => (
+              <th key={col}>{col}</th>
+            ))}
             {attributeNames.map(name => (
-              <th key={name}>
+              <th key={`attr-${name}`}>
                 {name}
                 <span style={{ fontSize: '10px', opacity: 0.5, marginLeft: '4px' }}>
-                  (size: {attributes[name].size})
+                  (attr: {attributes[name].size})
                 </span>
               </th>
             ))}
@@ -1971,8 +2005,11 @@ function AttributeTablePreview({
           {rows.map((row, idx) => (
             <tr key={startIdx + idx}>
               <td style={{ opacity: 0.5, fontSize: '10px' }}>{startIdx + idx}</td>
+              {dataColumns.map(col => (
+                <td key={col}>{formatValue(row[col])}</td>
+              ))}
               {attributeNames.map(name => (
-                <td key={name}>{formatValue(row[name])}</td>
+                <td key={`attr-${name}`}>{formatValue(row[name])}</td>
               ))}
             </tr>
           ))}
