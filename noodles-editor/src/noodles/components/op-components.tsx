@@ -1780,6 +1780,16 @@ const viewerFormatter = (value: unknown) => {
   if (isArrowTable(value)) {
     return value
   }
+  // Detect attribute-wrapped data from CreateAttributeOp
+  if (
+    value &&
+    typeof value === 'object' &&
+    'data' in value &&
+    'attributes' in value &&
+    typeof (value as { attributes: unknown }).attributes === 'object'
+  ) {
+    return value
+  }
   if (value instanceof Layer) {
     // Guard against ReactJson crash since layer.props has no `hasOwnProperty` method
     const { lifecycle, count, isLoaded, props } = value
@@ -1812,6 +1822,8 @@ const viewerFormatter = (value: unknown) => {
   }
   return value
 }
+
+type TypedArray = Float32Array | Uint8Array | Int32Array | Uint16Array | Int16Array | Uint32Array | Int32Array
 
 function ViewerDOMContent({ content }: { content: Element }) {
   const contentRef = useRef<HTMLDivElement>(null)
@@ -1870,6 +1882,156 @@ function ArrowTablePreview({ table, maxRows = 20 }: { table: unknown; maxRows?: 
   )
 }
 
+function AttributeTablePreview({
+  attributeData,
+}: {
+  attributeData: {
+    data: unknown
+    attributes: Record<
+      string,
+      {
+        values: TypedArray | unknown[]
+        size: number
+        type?: 'string' | 'boolean'
+      }
+    >
+  }
+}) {
+  const [pageSize, setPageSize] = useState(20)
+  const [currentPage, setCurrentPage] = useState(0)
+
+  const { data, attributes } = attributeData
+
+  // Determine row count
+  const rowCount = isArrowTable(data)
+    ? arrowNumRows(data as Parameters<typeof arrowNumRows>[0])
+    : Array.isArray(data)
+      ? data.length
+      : 0
+
+  // Calculate pagination
+  const totalPages = Math.ceil(rowCount / pageSize)
+  const startIdx = currentPage * pageSize
+  const endIdx = Math.min(startIdx + pageSize, rowCount)
+
+  // De-interleave attributes into rows for the current page
+  const attributeNames = Object.keys(attributes)
+  const rows: Record<string, unknown>[] = []
+
+  for (let i = startIdx; i < endIdx; i++) {
+    const row: Record<string, unknown> = {}
+    for (const name of attributeNames) {
+      const attr = attributes[name]
+      if (attr.type === 'string' || attr.type === 'boolean') {
+        // Simple array access
+        row[name] = (attr.values as unknown[])[i]
+      } else {
+        // De-interleave TypedArray
+        const values: number[] = []
+        for (let j = 0; j < attr.size; j++) {
+          values.push((attr.values as TypedArray)[i * attr.size + j])
+        }
+        row[name] = attr.size === 1 ? values[0] : values
+      }
+    }
+    rows.push(row)
+  }
+
+  const formatValue = (val: unknown): string => {
+    if (Array.isArray(val)) {
+      // Format as [x, y, z] with limited precision for floats
+      return `[${val.map(v => (typeof v === 'number' ? v.toFixed(3) : String(v))).join(', ')}]`
+    }
+    if (typeof val === 'number') {
+      return val.toFixed(3)
+    }
+    return String(val)
+  }
+
+  return (
+    <div>
+      <div style={{ fontSize: '11px', opacity: 0.7, marginBottom: 4 }}>
+        Attribute Data: {rowCount.toLocaleString()} rows × {attributeNames.length} attributes
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th style={{ width: '50px' }}>#</th>
+            {attributeNames.map(name => (
+              <th key={name}>
+                {name}
+                <span style={{ fontSize: '10px', opacity: 0.5, marginLeft: '4px' }}>
+                  (size: {attributes[name].size})
+                </span>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, idx) => (
+            <tr key={startIdx + idx}>
+              <td style={{ opacity: 0.5, fontSize: '10px' }}>{startIdx + idx}</td>
+              {attributeNames.map(name => (
+                <td key={name}>{formatValue(row[name])}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginTop: '8px',
+          fontSize: '11px',
+        }}
+      >
+        <div style={{ opacity: 0.7 }}>
+          Showing {startIdx + 1}-{endIdx} of {rowCount.toLocaleString()} rows
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            Page size:
+            <select
+              value={pageSize}
+              onChange={e => {
+                setPageSize(Number(e.target.value))
+                setCurrentPage(0) // Reset to first page
+              }}
+              style={{ padding: '2px 4px' }}
+            >
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+          </label>
+          <div style={{ display: 'flex', gap: '4px' }}>
+            <button
+              onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
+              disabled={currentPage === 0}
+              style={{ padding: '2px 8px' }}
+            >
+              ← Prev
+            </button>
+            <span style={{ padding: '2px 8px' }}>
+              Page {currentPage + 1} of {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))}
+              disabled={currentPage >= totalPages - 1}
+              style={{ padding: '2px 8px' }}
+            >
+              Next →
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function ViewerOpComponent({
   id,
   type,
@@ -1905,6 +2067,25 @@ function ViewerOpComponent({
     content = <div>No data</div>
   } else if (viewerData instanceof Element) {
     content = <ViewerDOMContent content={viewerData} />
+  } else if (
+    viewerData &&
+    typeof viewerData === 'object' &&
+    'data' in viewerData &&
+    'attributes' in viewerData
+  ) {
+    content = (
+      <AttributeTablePreview
+        attributeData={
+          viewerData as {
+            data: unknown
+            attributes: Record<
+              string,
+              { values: TypedArray | unknown[]; size: number; type?: 'string' | 'boolean' }
+            >
+          }
+        }
+      />
+    )
   } else if (isArrowTable(viewerData)) {
     content = <ArrowTablePreview table={viewerData} maxRows={20} />
   } else if (viewerData instanceof Set) {
