@@ -43,25 +43,11 @@
       "targetHandle": "par.layers"
     },
     {
-      "source": "/unemployment-accessor",
-      "sourceHandle": "out.accessor",
-      "target": "/map-range",
-      "targetHandle": "par.val",
-      "id": "/unemployment-accessor.out.accessor->/map-range.par.val"
-    },
-    {
       "source": "/expression",
       "sourceHandle": "out.data",
       "target": "/extent",
       "targetHandle": "par.data",
       "id": "/expression.out.data->/extent.par.data"
-    },
-    {
-      "source": "/unemployment-accessor",
-      "sourceHandle": "out.accessor",
-      "target": "/extent",
-      "targetHandle": "par.accessor",
-      "id": "/unemployment-accessor.out.accessor->/extent.par.accessor"
     },
     {
       "source": "/data-source",
@@ -98,7 +84,7 @@
         "locked": false
       },
       "position": {
-        "x": 2980,
+        "x": 2500,
         "y": 100
       }
     },
@@ -122,7 +108,7 @@
         "locked": false
       },
       "position": {
-        "x": 3460,
+        "x": 2900,
         "y": 100
       }
     },
@@ -152,7 +138,7 @@
         "locked": false
       },
       "position": {
-        "x": 2500,
+        "x": 2100,
         "y": 100
       }
     },
@@ -164,22 +150,8 @@
         "locked": false
       },
       "position": {
-        "x": 2020,
+        "x": 1700,
         "y": 100
-      }
-    },
-    {
-      "id": "/unemployment-accessor",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "d.properties.unemployment_rate ?? 0"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 100,
-        "y": 384
       }
     },
     {
@@ -187,7 +159,7 @@
       "id": "/maplibre-basemap",
       "position": {
         "x": 100,
-        "y": 668
+        "y": 450
       },
       "data": {
         "inputs": {
@@ -207,7 +179,7 @@
       "type": "MapRangeOp",
       "id": "/map-range",
       "position": {
-        "x": 1540,
+        "x": 1300,
         "y": 100
       },
       "data": {
@@ -221,7 +193,7 @@
       "type": "ExtentOp",
       "id": "/extent",
       "position": {
-        "x": 1060,
+        "x": 900,
         "y": 100
       },
       "data": {
@@ -233,12 +205,29 @@
       "type": "ExpressionOp",
       "id": "/expression",
       "position": {
-        "x": 580,
+        "x": 500,
         "y": 100
       },
       "data": {
         "inputs": {
           "expression": "d.features"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/unemployment",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 100,
+        "y": 850
+      },
+      "data": {
+        "inputs": {
+          "name": "val",
+          "expression": "d.properties.unemployment_rate ?? 0",
+          "size": 1,
+          "type": "float"
         },
         "locked": false
       }

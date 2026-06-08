@@ -15,13 +15,6 @@
       "targetHandle": "par.data"
     },
     {
-      "id": "/position-accessor.out.accessor->/hexagon-layer.par.getPosition",
-      "source": "/position-accessor",
-      "target": "/hexagon-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getPosition"
-    },
-    {
       "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
       "source": "/maplibre-basemap",
       "target": "/deck",
@@ -34,6 +27,13 @@
       "target": "/deck",
       "sourceHandle": "out.layer",
       "targetHandle": "par.layers"
+    },
+    {
+      "id": "/position.out.data->/hexagon-layer.par.data",
+      "source": "/position",
+      "sourceHandle": "out.data",
+      "target": "/hexagon-layer",
+      "targetHandle": "par.data"
     }
   ],
   "viewport": {
@@ -56,7 +56,7 @@
         "locked": false
       },
       "position": {
-        "x": 1060,
+        "x": 900,
         "y": 100
       }
     },
@@ -80,7 +80,7 @@
         "locked": false
       },
       "position": {
-        "x": 1540,
+        "x": 1300,
         "y": 100
       }
     },
@@ -115,22 +115,8 @@
         "locked": false
       },
       "position": {
-        "x": 580,
+        "x": 500,
         "y": 100
-      }
-    },
-    {
-      "id": "/position-accessor",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "[d.longitude, d.latitude]"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 100,
-        "y": 384
       }
     },
     {
@@ -138,7 +124,7 @@
       "id": "/maplibre-basemap",
       "position": {
         "x": 100,
-        "y": 668
+        "y": 450
       },
       "data": {
         "inputs": {
@@ -150,6 +136,23 @@
             "pitch": 40,
             "bearing": 0
           }
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/position",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 100,
+        "y": 850
+      },
+      "data": {
+        "inputs": {
+          "name": "position",
+          "expression": "[d.longitude, d.latitude]",
+          "size": 3,
+          "type": "float"
         },
         "locked": false
       }

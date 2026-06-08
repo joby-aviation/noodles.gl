@@ -29,13 +29,6 @@
       "targetHandle": "par.getLineColor"
     },
     {
-      "id": "/elevation-accessor.out.accessor->/elevation-color.par.value",
-      "source": "/elevation-accessor",
-      "target": "/elevation-color",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.value"
-    },
-    {
       "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
       "source": "/maplibre-basemap",
       "target": "/deck",
@@ -70,7 +63,7 @@
         "locked": false
       },
       "position": {
-        "x": 1540,
+        "x": 900,
         "y": 100
       }
     },
@@ -94,7 +87,7 @@
         "locked": false
       },
       "position": {
-        "x": 2020,
+        "x": 1300,
         "y": 100
       }
     },
@@ -124,7 +117,7 @@
         "locked": false
       },
       "position": {
-        "x": 1060,
+        "x": 500,
         "y": 100
       }
     },
@@ -136,22 +129,8 @@
         "locked": false
       },
       "position": {
-        "x": 580,
-        "y": 100
-      }
-    },
-    {
-      "id": "/elevation-accessor",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "d.properties.elevation"
-        },
-        "locked": false
-      },
-      "position": {
         "x": 100,
-        "y": 384
+        "y": 450
       }
     },
     {
@@ -159,7 +138,7 @@
       "id": "/maplibre-basemap",
       "position": {
         "x": 100,
-        "y": 668
+        "y": 800
       },
       "data": {
         "inputs": {
@@ -171,6 +150,23 @@
             "pitch": 52.59,
             "bearing": 25.07
           }
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/elevation",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 100,
+        "y": 1200
+      },
+      "data": {
+        "inputs": {
+          "name": "value",
+          "expression": "d.properties.elevation",
+          "size": 1,
+          "type": "float"
         },
         "locked": false
       }

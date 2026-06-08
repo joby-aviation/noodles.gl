@@ -29,34 +29,6 @@
       "targetHandle": "par.data"
     },
     {
-      "id": "/pickup-position.out.accessor->/arc-layer.par.getSourcePosition",
-      "source": "/pickup-position",
-      "target": "/arc-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getSourcePosition"
-    },
-    {
-      "id": "/dropoff-position.out.accessor->/arc-layer.par.getTargetPosition",
-      "source": "/dropoff-position",
-      "target": "/arc-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getTargetPosition"
-    },
-    {
-      "id": "/pickup-position.out.accessor->/pickup-layer.par.getPosition",
-      "source": "/pickup-position",
-      "target": "/pickup-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getPosition"
-    },
-    {
-      "id": "/dropoff-position.out.accessor->/dropoff-layer.par.getPosition",
-      "source": "/dropoff-position",
-      "target": "/dropoff-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getPosition"
-    },
-    {
       "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
       "source": "/maplibre-basemap",
       "target": "/deck",
@@ -132,6 +104,34 @@
       "target": "/dropoff-layer",
       "targetHandle": "par.parameters",
       "id": "/blending.out.parameters->/dropoff-layer.par.parameters"
+    },
+    {
+      "id": "/pickup-position.out.data->/arc-layer.par.data",
+      "source": "/pickup-position",
+      "sourceHandle": "out.data",
+      "target": "/arc-layer",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/pickup-position.out.data->/pickup-layer.par.data",
+      "source": "/pickup-position",
+      "sourceHandle": "out.data",
+      "target": "/pickup-layer",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/dropoff-position.out.data->/arc-layer.par.data",
+      "source": "/dropoff-position",
+      "sourceHandle": "out.data",
+      "target": "/arc-layer",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/dropoff-position.out.data->/dropoff-layer.par.data",
+      "source": "/dropoff-position",
+      "sourceHandle": "out.data",
+      "target": "/dropoff-layer",
+      "targetHandle": "par.data"
     }
   ],
   "viewport": {
@@ -154,7 +154,7 @@
         "locked": false
       },
       "position": {
-        "x": 1060,
+        "x": 900,
         "y": 100
       }
     },
@@ -178,7 +178,7 @@
         "locked": false
       },
       "position": {
-        "x": 1540,
+        "x": 1300,
         "y": 100
       }
     },
@@ -207,8 +207,8 @@
         "locked": false
       },
       "position": {
-        "x": 580,
-        "y": 384
+        "x": 500,
+        "y": 600
       }
     },
     {
@@ -223,7 +223,7 @@
         "locked": false
       },
       "position": {
-        "x": 580,
+        "x": 500,
         "y": 100
       }
     },
@@ -239,36 +239,8 @@
         "locked": false
       },
       "position": {
-        "x": 580,
-        "y": 668
-      }
-    },
-    {
-      "id": "/pickup-position",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "[d.pickup_longitude, d.pickup_latitude]"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 100,
-        "y": 384
-      }
-    },
-    {
-      "id": "/dropoff-position",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "[d.dropoff_longitude, d.dropoff_latitude]"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 100,
-        "y": 668
+        "x": 500,
+        "y": 1080
       }
     },
     {
@@ -276,7 +248,7 @@
       "id": "/maplibre-basemap",
       "position": {
         "x": 100,
-        "y": 952
+        "y": 450
       },
       "data": {
         "inputs": {
@@ -297,7 +269,7 @@
       "id": "/pickup",
       "position": {
         "x": 100,
-        "y": 1236
+        "y": 850
       },
       "data": {
         "inputs": {
@@ -311,7 +283,7 @@
       "id": "/dropoff",
       "position": {
         "x": 100,
-        "y": 1520
+        "y": 1200
       },
       "data": {
         "inputs": {
@@ -325,11 +297,45 @@
       "id": "/blending",
       "position": {
         "x": 100,
-        "y": 1804
+        "y": 1550
       },
       "data": {
         "inputs": {
           "mode": "additive"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/pickup-position",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 100,
+        "y": 1900
+      },
+      "data": {
+        "inputs": {
+          "name": "position",
+          "expression": "[d.pickup_longitude, d.pickup_latitude]",
+          "size": 3,
+          "type": "float"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/dropoff-position",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 100,
+        "y": 2280
+      },
+      "data": {
+        "inputs": {
+          "name": "position",
+          "expression": "[d.dropoff_longitude, d.dropoff_latitude]",
+          "size": 3,
+          "type": "float"
         },
         "locked": false
       }

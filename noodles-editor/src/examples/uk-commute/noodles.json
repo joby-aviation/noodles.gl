@@ -29,34 +29,6 @@
       "targetHandle": "par.data"
     },
     {
-      "id": "/home-position.out.accessor->/arc-layer.par.getSourcePosition",
-      "source": "/home-position",
-      "target": "/arc-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getSourcePosition"
-    },
-    {
-      "id": "/work-position.out.accessor->/arc-layer.par.getTargetPosition",
-      "source": "/work-position",
-      "target": "/arc-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getTargetPosition"
-    },
-    {
-      "id": "/home-position.out.accessor->/residence-layer.par.getPosition",
-      "source": "/home-position",
-      "target": "/residence-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getPosition"
-    },
-    {
-      "id": "/work-position.out.accessor->/workplace-layer.par.getPosition",
-      "source": "/work-position",
-      "target": "/workplace-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getPosition"
-    },
-    {
       "id": "/source-color.out.color->/arc-layer.par.getSourceColor",
       "source": "/source-color",
       "target": "/arc-layer",
@@ -132,6 +104,34 @@
       "target": "/workplace-layer",
       "sourceHandle": "out.parameters",
       "targetHandle": "par.parameters"
+    },
+    {
+      "id": "/home-position.out.data->/arc-layer.par.data",
+      "source": "/home-position",
+      "sourceHandle": "out.data",
+      "target": "/arc-layer",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/home-position.out.data->/residence-layer.par.data",
+      "source": "/home-position",
+      "sourceHandle": "out.data",
+      "target": "/residence-layer",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/work-position.out.data->/arc-layer.par.data",
+      "source": "/work-position",
+      "sourceHandle": "out.data",
+      "target": "/arc-layer",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/work-position.out.data->/workplace-layer.par.data",
+      "source": "/work-position",
+      "sourceHandle": "out.data",
+      "target": "/workplace-layer",
+      "targetHandle": "par.data"
     }
   ],
   "viewport": {
@@ -154,7 +154,7 @@
         "locked": false
       },
       "position": {
-        "x": 1060,
+        "x": 900,
         "y": 100
       }
     },
@@ -178,7 +178,7 @@
         "locked": false
       },
       "position": {
-        "x": 1540,
+        "x": 1300,
         "y": 100
       }
     },
@@ -209,8 +209,8 @@
         "locked": false
       },
       "position": {
-        "x": 580,
-        "y": 100
+        "x": 500,
+        "y": 600
       }
     },
     {
@@ -225,8 +225,8 @@
         "locked": false
       },
       "position": {
-        "x": 580,
-        "y": 384
+        "x": 500,
+        "y": 100
       }
     },
     {
@@ -241,36 +241,8 @@
         "locked": false
       },
       "position": {
-        "x": 580,
-        "y": 668
-      }
-    },
-    {
-      "id": "/home-position",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "[d.residence_lng, d.residence_lat]"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 100,
-        "y": 384
-      }
-    },
-    {
-      "id": "/work-position",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "[d.workplace_lng, d.workplace_lat]"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 100,
-        "y": 668
+        "x": 500,
+        "y": 1080
       }
     },
     {
@@ -284,7 +256,7 @@
       },
       "position": {
         "x": 100,
-        "y": 952
+        "y": 450
       }
     },
     {
@@ -298,7 +270,7 @@
       },
       "position": {
         "x": 100,
-        "y": 1236
+        "y": 800
       }
     },
     {
@@ -306,7 +278,7 @@
       "id": "/blending",
       "position": {
         "x": 100,
-        "y": 1520
+        "y": 1150
       },
       "data": {
         "inputs": {
@@ -320,7 +292,7 @@
       "id": "/maplibre-basemap",
       "position": {
         "x": 100,
-        "y": 1804
+        "y": 1500
       },
       "data": {
         "inputs": {
@@ -332,6 +304,40 @@
             "pitch": 49.18,
             "bearing": 0
           }
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/home-position",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 100,
+        "y": 1900
+      },
+      "data": {
+        "inputs": {
+          "name": "position",
+          "expression": "[d.residence_lng, d.residence_lat]",
+          "size": 3,
+          "type": "float"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/work-position",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 100,
+        "y": 2280
+      },
+      "data": {
+        "inputs": {
+          "name": "position",
+          "expression": "[d.workplace_lng, d.workplace_lat]",
+          "size": 3,
+          "type": "float"
         },
         "locked": false
       }

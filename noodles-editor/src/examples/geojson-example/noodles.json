@@ -22,20 +22,6 @@
       "targetHandle": "par.getFillColor"
     },
     {
-      "id": "/line-color-accessor.out.accessor->/geojson-layer.par.getLineColor",
-      "source": "/line-color-accessor",
-      "target": "/geojson-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getLineColor"
-    },
-    {
-      "id": "/text-accessor.out.accessor->/geojson-layer.par.getText",
-      "source": "/text-accessor",
-      "target": "/geojson-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getText"
-    },
-    {
       "id": "/geojson-layer.out.layer->/deck.par.layers",
       "source": "/geojson-layer",
       "target": "/deck",
@@ -48,6 +34,20 @@
       "target": "/deck",
       "targetHandle": "par.basemap",
       "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap"
+    },
+    {
+      "id": "/line-color.out.data->/geojson-layer.par.data",
+      "source": "/line-color",
+      "sourceHandle": "out.data",
+      "target": "/geojson-layer",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/text.out.data->/geojson-layer.par.data",
+      "source": "/text",
+      "sourceHandle": "out.data",
+      "target": "/geojson-layer",
+      "targetHandle": "par.data"
     }
   ],
   "viewport": {
@@ -70,7 +70,7 @@
         "locked": false
       },
       "position": {
-        "x": 1060,
+        "x": 900,
         "y": 100
       }
     },
@@ -94,7 +94,7 @@
         "locked": false
       },
       "position": {
-        "x": 1540,
+        "x": 1300,
         "y": 100
       }
     },
@@ -128,7 +128,7 @@
         "locked": false
       },
       "position": {
-        "x": 580,
+        "x": 500,
         "y": 100
       }
     },
@@ -143,35 +143,7 @@
       },
       "position": {
         "x": 100,
-        "y": 384
-      }
-    },
-    {
-      "id": "/line-color-accessor",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "d.properties.color || '#000'"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 100,
-        "y": 668
-      }
-    },
-    {
-      "id": "/text-accessor",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "d.properties.name"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 100,
-        "y": 952
+        "y": 450
       }
     },
     {
@@ -179,7 +151,7 @@
       "id": "/maplibre-basemap",
       "position": {
         "x": 100,
-        "y": 1236
+        "y": 800
       },
       "data": {
         "inputs": {
@@ -191,6 +163,40 @@
             "pitch": 34,
             "bearing": 0
           }
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/line-color",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 100,
+        "y": 1200
+      },
+      "data": {
+        "inputs": {
+          "name": "linecolor",
+          "expression": "d.properties.color || '#000'",
+          "size": 4,
+          "type": "uint8"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/text",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 100,
+        "y": 1580
+      },
+      "data": {
+        "inputs": {
+          "name": "text",
+          "expression": "d.properties.name",
+          "size": 1,
+          "type": "float"
         },
         "locked": false
       }

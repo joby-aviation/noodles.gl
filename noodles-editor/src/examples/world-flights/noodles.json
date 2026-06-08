@@ -8,13 +8,6 @@
       "targetHandle": "par.vis"
     },
     {
-      "id": "/origin-country.out.accessor->/color-ramp.par.value",
-      "source": "/origin-country",
-      "target": "/color-ramp",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.value"
-    },
-    {
       "id": "/color-ramp.out.color->/geojson-layer.par.getLineColor",
       "source": "/color-ramp",
       "target": "/geojson-layer",
@@ -43,20 +36,6 @@
       "id": "/time.out.val->/time-series.par.currentTime"
     },
     {
-      "source": "/properties",
-      "sourceHandle": "out.accessor",
-      "target": "/time-series",
-      "targetHandle": "par.getProperties",
-      "id": "/properties.out.accessor->/time-series.par.getProperties"
-    },
-    {
-      "source": "/path",
-      "sourceHandle": "out.accessor",
-      "target": "/time-series",
-      "targetHandle": "par.getValues",
-      "id": "/path.out.accessor->/time-series.par.getValues"
-    },
-    {
       "source": "/data-source",
       "sourceHandle": "out.data",
       "target": "/code",
@@ -69,13 +48,6 @@
       "target": "/time-series",
       "targetHandle": "par.data",
       "id": "/code.out.data->/time-series.par.data"
-    },
-    {
-      "source": "/position",
-      "sourceHandle": "out.accessor",
-      "target": "/scatterplot-layer",
-      "targetHandle": "par.getPosition",
-      "id": "/position.out.accessor->/scatterplot-layer.par.getPosition"
     },
     {
       "source": "/time-series",
@@ -97,27 +69,6 @@
       "target": "/trips-layer",
       "targetHandle": "par.data",
       "id": "/code.out.data->/trips-layer.par.data"
-    },
-    {
-      "source": "/path",
-      "sourceHandle": "out.accessor",
-      "target": "/trips-layer",
-      "targetHandle": "par.getPath",
-      "id": "/path.out.accessor->/trips-layer.par.getPath"
-    },
-    {
-      "source": "/timestamps",
-      "sourceHandle": "out.accessor",
-      "target": "/trips-layer",
-      "targetHandle": "par.getTimestamps",
-      "id": "/timestamps.out.accessor->/trips-layer.par.getTimestamps"
-    },
-    {
-      "source": "/timestamps",
-      "sourceHandle": "out.accessor",
-      "target": "/time-series",
-      "targetHandle": "par.getTimestamps",
-      "id": "/timestamps.out.accessor->/time-series.par.getTimestamps"
     },
     {
       "source": "/trips-layer",
@@ -153,6 +104,55 @@
       "target": "/scatterplot-layer",
       "targetHandle": "par.getFillColor",
       "id": "/color-ramp.out.color->/scatterplot-layer.par.getFillColor"
+    },
+    {
+      "id": "/origin-country.out.data->/color-ramp.par.data",
+      "source": "/origin-country",
+      "sourceHandle": "out.data",
+      "target": "/color-ramp",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/timestamps.out.data->/trips-layer.par.data",
+      "source": "/timestamps",
+      "sourceHandle": "out.data",
+      "target": "/trips-layer",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/timestamps.out.data->/time-series.par.data",
+      "source": "/timestamps",
+      "sourceHandle": "out.data",
+      "target": "/time-series",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/path.out.data->/time-series.par.data",
+      "source": "/path",
+      "sourceHandle": "out.data",
+      "target": "/time-series",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/path.out.data->/trips-layer.par.data",
+      "source": "/path",
+      "sourceHandle": "out.data",
+      "target": "/trips-layer",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/properties.out.data->/time-series.par.data",
+      "source": "/properties",
+      "sourceHandle": "out.data",
+      "target": "/time-series",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/position.out.data->/scatterplot-layer.par.data",
+      "source": "/position",
+      "sourceHandle": "out.data",
+      "target": "/scatterplot-layer",
+      "targetHandle": "par.data"
     }
   ],
   "viewport": {
@@ -175,7 +175,7 @@
         "locked": false
       },
       "position": {
-        "x": 2020,
+        "x": 1700,
         "y": 100
       }
     },
@@ -199,7 +199,7 @@
         "locked": false
       },
       "position": {
-        "x": 2500,
+        "x": 2100,
         "y": 100
       }
     },
@@ -230,8 +230,8 @@
         "locked": false
       },
       "position": {
-        "x": 1060,
-        "y": 384
+        "x": 900,
+        "y": 450
       }
     },
     {
@@ -246,22 +246,8 @@
         "locked": false
       },
       "position": {
-        "x": 1060,
-        "y": 696
-      }
-    },
-    {
-      "id": "/origin-country",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "d.properties.origin_country"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 100,
-        "y": 384
+        "x": 900,
+        "y": 950
       }
     },
     {
@@ -274,8 +260,8 @@
         "locked": false
       },
       "position": {
-        "x": 580,
-        "y": 384
+        "x": 500,
+        "y": 1200
       }
     },
     {
@@ -283,7 +269,7 @@
       "id": "/maplibre-basemap",
       "position": {
         "x": 100,
-        "y": 668
+        "y": 450
       },
       "data": {
         "inputs": {
@@ -303,7 +289,7 @@
       "type": "TimeSeriesOp",
       "id": "/time-series",
       "position": {
-        "x": 1060,
+        "x": 900,
         "y": 100
       },
       "data": {
@@ -316,7 +302,7 @@
       "id": "/time",
       "position": {
         "x": 100,
-        "y": 952
+        "y": 850
       },
       "data": {
         "inputs": {
@@ -326,52 +312,10 @@
       }
     },
     {
-      "type": "AccessorOp",
-      "id": "/timestamps",
-      "position": {
-        "x": 100,
-        "y": 1236
-      },
-      "data": {
-        "inputs": {
-          "expression": "d.timestamps"
-        },
-        "locked": false
-      }
-    },
-    {
-      "type": "AccessorOp",
-      "id": "/path",
-      "position": {
-        "x": 100,
-        "y": 1520
-      },
-      "data": {
-        "inputs": {
-          "expression": "d.path"
-        },
-        "locked": false
-      }
-    },
-    {
-      "type": "AccessorOp",
-      "id": "/properties",
-      "position": {
-        "x": 100,
-        "y": 1804
-      },
-      "data": {
-        "inputs": {
-          "expression": "{properties: d.properties}"
-        },
-        "locked": false
-      }
-    },
-    {
       "type": "CodeOp",
       "id": "/code",
       "position": {
-        "x": 580,
+        "x": 500,
         "y": 100
       },
       "resizing": false,
@@ -397,24 +341,10 @@
       }
     },
     {
-      "type": "AccessorOp",
-      "id": "/position",
-      "position": {
-        "x": 100,
-        "y": 2088
-      },
-      "data": {
-        "inputs": {
-          "expression": "[d[0], d[1], d[2]]"
-        },
-        "locked": false
-      }
-    },
-    {
       "type": "ScatterplotLayerOp",
       "id": "/scatterplot-layer",
       "position": {
-        "x": 1540,
+        "x": 1300,
         "y": 100
       },
       "data": {
@@ -422,6 +352,91 @@
           "opacity": 0.6,
           "getLineColor": "#ffffffff",
           "getRadius": 6
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/origin-country",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 100,
+        "y": 1200
+      },
+      "data": {
+        "inputs": {
+          "name": "value",
+          "expression": "d.properties.origin_country",
+          "size": 1,
+          "type": "float"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/timestamps",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 100,
+        "y": 1580
+      },
+      "data": {
+        "inputs": {
+          "name": "timestamps",
+          "expression": "d.timestamps",
+          "size": 1,
+          "type": "float"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/path",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 100,
+        "y": 1960
+      },
+      "data": {
+        "inputs": {
+          "name": "values",
+          "expression": "d.path",
+          "size": 1,
+          "type": "float"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/properties",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 100,
+        "y": 2340
+      },
+      "data": {
+        "inputs": {
+          "name": "properties",
+          "expression": "{properties: d.properties}",
+          "size": 1,
+          "type": "float"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/position",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 100,
+        "y": 2720
+      },
+      "data": {
+        "inputs": {
+          "name": "position",
+          "expression": "[d[0], d[1], d[2]]",
+          "size": 3,
+          "type": "float"
         },
         "locked": false
       }

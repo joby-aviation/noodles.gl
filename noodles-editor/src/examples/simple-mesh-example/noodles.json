@@ -15,27 +15,6 @@
       "targetHandle": "par.data"
     },
     {
-      "id": "/position-accessor.out.accessor->/mesh-layer.par.getPosition",
-      "source": "/position-accessor",
-      "target": "/mesh-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getPosition"
-    },
-    {
-      "id": "/color-accessor.out.accessor->/mesh-layer.par.getColor",
-      "source": "/color-accessor",
-      "target": "/mesh-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getColor"
-    },
-    {
-      "id": "/orientation-accessor.out.accessor->/mesh-layer.par.getOrientation",
-      "source": "/orientation-accessor",
-      "target": "/mesh-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getOrientation"
-    },
-    {
       "id": "/mesh-layer.out.layer->/deck.par.layers",
       "source": "/mesh-layer",
       "target": "/deck",
@@ -48,6 +27,27 @@
       "target": "/deck",
       "targetHandle": "par.basemap",
       "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap"
+    },
+    {
+      "id": "/position.out.data->/mesh-layer.par.data",
+      "source": "/position",
+      "sourceHandle": "out.data",
+      "target": "/mesh-layer",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/color.out.data->/mesh-layer.par.data",
+      "source": "/color",
+      "sourceHandle": "out.data",
+      "target": "/mesh-layer",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/orientation.out.data->/mesh-layer.par.data",
+      "source": "/orientation",
+      "sourceHandle": "out.data",
+      "target": "/mesh-layer",
+      "targetHandle": "par.data"
     }
   ],
   "viewport": {
@@ -70,7 +70,7 @@
         "locked": false
       },
       "position": {
-        "x": 1060,
+        "x": 900,
         "y": 100
       }
     },
@@ -94,7 +94,7 @@
         "locked": false
       },
       "position": {
-        "x": 1540,
+        "x": 1300,
         "y": 100
       }
     },
@@ -122,50 +122,8 @@
         "locked": false
       },
       "position": {
-        "x": 580,
+        "x": 500,
         "y": 100
-      }
-    },
-    {
-      "id": "/position-accessor",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "d.coordinates"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 100,
-        "y": 384
-      }
-    },
-    {
-      "id": "/color-accessor",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "utils.colorToHex([Math.sqrt(d.exits), 140, 0])"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 100,
-        "y": 668
-      }
-    },
-    {
-      "id": "/orientation-accessor",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "[0, Math.random() * 180, 0]"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 100,
-        "y": 952
       }
     },
     {
@@ -173,7 +131,7 @@
       "id": "/maplibre-basemap",
       "position": {
         "x": 100,
-        "y": 1236
+        "y": 450
       },
       "data": {
         "inputs": {
@@ -185,6 +143,57 @@
             "pitch": 30,
             "bearing": 0
           }
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/position",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 100,
+        "y": 850
+      },
+      "data": {
+        "inputs": {
+          "name": "position",
+          "expression": "d.coordinates",
+          "size": 3,
+          "type": "float"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/color",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 100,
+        "y": 1230
+      },
+      "data": {
+        "inputs": {
+          "name": "color",
+          "expression": "utils.colorToHex([Math.sqrt(d.exits), 140, 0])",
+          "size": 4,
+          "type": "uint8"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/orientation",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 100,
+        "y": 1610
+      },
+      "data": {
+        "inputs": {
+          "name": "orientation",
+          "expression": "[0, Math.random() * 180, 0]",
+          "size": 1,
+          "type": "float"
         },
         "locked": false
       }

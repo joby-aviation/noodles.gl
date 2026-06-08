@@ -48,20 +48,6 @@
       "target": "/deck",
       "sourceHandle": "out.layer",
       "targetHandle": "par.layers"
-    },
-    {
-      "source": "/population-accessor",
-      "sourceHandle": "out.accessor",
-      "target": "/map-range",
-      "targetHandle": "par.val",
-      "id": "/population-accessor.out.accessor->/map-range.par.val"
-    },
-    {
-      "source": "/elevation-accessor",
-      "sourceHandle": "out.accessor",
-      "target": "/map-range-1",
-      "targetHandle": "par.val",
-      "id": "/elevation-accessor.out.accessor->/map-range-1.par.val"
     }
   ],
   "viewport": {
@@ -84,7 +70,7 @@
         "locked": false
       },
       "position": {
-        "x": 2020,
+        "x": 1300,
         "y": 100
       }
     },
@@ -108,7 +94,7 @@
         "locked": false
       },
       "position": {
-        "x": 2500,
+        "x": 1700,
         "y": 100
       }
     },
@@ -140,7 +126,7 @@
         "locked": false
       },
       "position": {
-        "x": 1540,
+        "x": 900,
         "y": 100
       }
     },
@@ -154,36 +140,8 @@
         "locked": false
       },
       "position": {
-        "x": 1060,
-        "y": 100
-      }
-    },
-    {
-      "id": "/population-accessor",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "d.properties.Population"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 100,
-        "y": 384
-      }
-    },
-    {
-      "id": "/elevation-accessor",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "d.properties.Population"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 100,
-        "y": 668
+        "x": 500,
+        "y": 850
       }
     },
     {
@@ -191,7 +149,7 @@
       "id": "/maplibre-basemap",
       "position": {
         "x": 100,
-        "y": 952
+        "y": 450
       },
       "data": {
         "inputs": {
@@ -211,8 +169,8 @@
       "type": "MapRangeOp",
       "id": "/map-range",
       "position": {
-        "x": 580,
-        "y": 100
+        "x": 100,
+        "y": 850
       },
       "data": {
         "inputs": {
@@ -225,13 +183,47 @@
       "type": "MapRangeOp",
       "id": "/map-range-1",
       "position": {
-        "x": 580,
-        "y": 384
+        "x": 100,
+        "y": 1230
       },
       "data": {
         "inputs": {
           "inMax": 10000,
           "outMax": 200
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/population",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 100,
+        "y": 1610
+      },
+      "data": {
+        "inputs": {
+          "name": "val",
+          "expression": "d.properties.Population",
+          "size": 1,
+          "type": "float"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/elevation",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 100,
+        "y": 1990
+      },
+      "data": {
+        "inputs": {
+          "name": "val",
+          "expression": "d.properties.Population",
+          "size": 1,
+          "type": "float"
         },
         "locked": false
       }

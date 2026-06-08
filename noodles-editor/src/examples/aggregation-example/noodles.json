@@ -8,7 +8,7 @@
         "locked": false
       },
       "position": {
-        "x": 1540,
+        "x": 1300,
         "y": 100
       }
     },
@@ -20,7 +20,7 @@
         "locked": false
       },
       "position": {
-        "x": 2020,
+        "x": 1700,
         "y": 100
       }
     },
@@ -49,36 +49,8 @@
         "locked": false
       },
       "position": {
-        "x": 580,
+        "x": 500,
         "y": 100
-      }
-    },
-    {
-      "id": "/position-accessor",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "d.COORDINATES"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 100,
-        "y": 384
-      }
-    },
-    {
-      "id": "/spaces-accessor",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "d.SPACES"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 100,
-        "y": 668
       }
     },
     {
@@ -86,7 +58,7 @@
       "id": "/maplibre-basemap",
       "position": {
         "x": 100,
-        "y": 952
+        "y": 450
       },
       "data": {
         "inputs": {
@@ -106,8 +78,8 @@
       "type": "HexagonLayerOp",
       "id": "/hexagon-layer",
       "position": {
-        "x": 580,
-        "y": 384
+        "x": 500,
+        "y": 450
       },
       "data": {
         "inputs": {
@@ -122,11 +94,45 @@
       "type": "SwitchOp",
       "id": "/switch",
       "position": {
-        "x": 1060,
+        "x": 900,
         "y": 100
       },
       "data": {
         "inputs": {},
+        "locked": false
+      }
+    },
+    {
+      "id": "/position",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 100,
+        "y": 850
+      },
+      "data": {
+        "inputs": {
+          "name": "position",
+          "expression": "d.COORDINATES",
+          "size": 3,
+          "type": "float"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/spaces",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 100,
+        "y": 1230
+      },
+      "data": {
+        "inputs": {
+          "name": "colorweight",
+          "expression": "d.SPACES",
+          "size": 4,
+          "type": "uint8"
+        },
         "locked": false
       }
     }
@@ -145,27 +151,6 @@
       "target": "/grid-layer",
       "sourceHandle": "out.data",
       "targetHandle": "par.data"
-    },
-    {
-      "id": "/position-accessor.out.accessor->/grid-layer.par.getPosition",
-      "source": "/position-accessor",
-      "target": "/grid-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getPosition"
-    },
-    {
-      "id": "/spaces-accessor.out.accessor->/grid-layer.par.getColorWeight",
-      "source": "/spaces-accessor",
-      "target": "/grid-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getColorWeight"
-    },
-    {
-      "source": "/spaces-accessor",
-      "sourceHandle": "out.accessor",
-      "target": "/grid-layer",
-      "targetHandle": "par.getElevationWeight",
-      "id": "/spaces-accessor.out.accessor->/grid-layer.par.getElevationWeight"
     },
     {
       "source": "/maplibre-basemap",
@@ -203,25 +188,46 @@
       "id": "/data-source.out.data->/hexagon-layer.par.data"
     },
     {
-      "source": "/position-accessor",
-      "sourceHandle": "out.accessor",
-      "target": "/hexagon-layer",
-      "targetHandle": "par.getPosition",
-      "id": "/position-accessor.out.accessor->/hexagon-layer.par.getPosition"
+      "id": "/position.out.data->/grid-layer.par.data",
+      "source": "/position",
+      "sourceHandle": "out.data",
+      "target": "/grid-layer",
+      "targetHandle": "par.data"
     },
     {
-      "source": "/spaces-accessor",
-      "sourceHandle": "out.accessor",
+      "id": "/position.out.data->/hexagon-layer.par.data",
+      "source": "/position",
+      "sourceHandle": "out.data",
       "target": "/hexagon-layer",
-      "targetHandle": "par.getColorWeight",
-      "id": "/spaces-accessor.out.accessor->/hexagon-layer.par.getColorWeight"
+      "targetHandle": "par.data"
     },
     {
-      "source": "/spaces-accessor",
-      "sourceHandle": "out.accessor",
+      "id": "/spaces.out.data->/grid-layer.par.data",
+      "source": "/spaces",
+      "sourceHandle": "out.data",
+      "target": "/grid-layer",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/spaces.out.data->/grid-layer.par.data",
+      "source": "/spaces",
+      "sourceHandle": "out.data",
+      "target": "/grid-layer",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/spaces.out.data->/hexagon-layer.par.data",
+      "source": "/spaces",
+      "sourceHandle": "out.data",
       "target": "/hexagon-layer",
-      "targetHandle": "par.getElevationWeight",
-      "id": "/spaces-accessor.out.accessor->/hexagon-layer.par.getElevationWeight"
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/spaces.out.data->/hexagon-layer.par.data",
+      "source": "/spaces",
+      "sourceHandle": "out.data",
+      "target": "/hexagon-layer",
+      "targetHandle": "par.data"
     }
   ],
   "viewport": {
