@@ -133,13 +133,10 @@ describe('SQLGraphIntegration', () => {
       expect(results.size).toBe(1)
       expect(results.has('/sort')).toBe(true)
       const sortResult = results.get('/sort')!
-      // Data is now Arrow table, convert to check results
-      const rows = sortResult.data.toArray()
-      expect(rows.length).toBe(3) // 3 Engineering employees
-      expect(rows[0].name).toBe('Charlie') // Highest salary first
+      expect(sortResult.data.length).toBe(3) // 3 Engineering employees
+      expect(sortResult.data[0].name).toBe('Charlie') // Highest salary first
     })
 
-    // TODO: Fix parameter re-execution - this test reveals a real issue
     it.skip('re-executes with changed params without recompilation', async () => {
       const integration = new SQLGraphIntegration()
 
@@ -171,7 +168,7 @@ describe('SQLGraphIntegration', () => {
         id => (id === '/scatter' ? ['/filter'] : []),
         1
       )
-      expect(r1.get('/filter')!.data.numRows).toBe(3) // Engineering
+      expect(r1.get('/filter')!.data.length).toBe(3) // Engineering
 
       // Change param value
       ops.get('/filter')!.inputs.value.value = 'Marketing'
@@ -181,7 +178,7 @@ describe('SQLGraphIntegration', () => {
         id => (id === '/scatter' ? ['/filter'] : []),
         1
       )
-      expect(r2.get('/filter')!.data.numRows).toBe(2) // Marketing
+      expect(r2.get('/filter')!.data.length).toBe(2) // Marketing
     })
 
     it('recompiles on topology version change', async () => {
@@ -215,7 +212,7 @@ describe('SQLGraphIntegration', () => {
         id => (id === '/scatter' ? ['/filter'] : []),
         1
       )
-      expect(r1.get('/filter')!.data.numRows).toBe(2) // Charlie(35), Eve(32)
+      expect(r1.get('/filter')!.data.length).toBe(2) // Charlie(35), Eve(32)
 
       // Topology change invalidates cache — new detection runs
       // Since detectCompilableSubgraphs won't find 'integration_data' as a FileOp,
@@ -280,8 +277,8 @@ describe('SQLGraphIntegration', () => {
         1
       )
       expect(results.size).toBe(2)
-      expect(results.get('/filter1')!.data.numRows).toBe(3) // Engineering
-      expect(results.get('/filter2')!.data.numRows).toBe(2) // Marketing
+      expect(results.get('/filter1')!.data.length).toBe(3) // Engineering
+      expect(results.get('/filter2')!.data.length).toBe(2) // Marketing
     })
   })
 
@@ -314,10 +311,8 @@ describe('SQLGraphIntegration', () => {
       const injected = integration.injectResults(results, id => ops.get(id))
       expect(injected.has('/sort')).toBe(true)
       expect(sortOp._cachedOutput).toBeDefined()
-      // Cached output now contains Arrow table
-      expect(sortOp._cachedOutput.data.numRows).toBe(5)
-      const rows = sortOp._cachedOutput.data.toArray()
-      expect(rows[0].age).toBe(25) // Bob first (youngest)
+      expect(sortOp._cachedOutput.data.length).toBe(5)
+      expect(sortOp._cachedOutput.data[0].age).toBe(25) // Bob first (youngest)
     })
 
     it('fires output.data.next() for downstream subscriptions', async () => {
@@ -351,8 +346,8 @@ describe('SQLGraphIntegration', () => {
       integration.injectResults(results, id => ops.get(id))
 
       expect(dataReceived).not.toBeNull()
-      // Data is now Arrow table
-      expect((dataReceived as any).numRows).toBe(5)
+      expect(Array.isArray(dataReceived)).toBe(true)
+      expect((dataReceived as any[]).length).toBe(5)
     })
 
     it('marks chain operators as clean', async () => {

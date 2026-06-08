@@ -1,13 +1,4 @@
 import type { IOperator, Operator } from '../operators'
-import {
-  detectDownstreamAttributes,
-  generateAttributeColumns,
-} from './attribute-detector'
-import {
-  detectLayerAttributes,
-  generateLayerAttributeColumns,
-  type LayerAttributeSpec,
-} from './layer-attribute-detector'
 import type { CompilableNode } from './compiler'
 import { collectSubgraph, compile } from './compiler'
 import { collectParamValues, PreparedPipeline } from './executor'
@@ -50,18 +41,6 @@ export function detectCompilableSubgraphs(
 ): Map<string, CompiledQuery> {
   const compiledPipelines = new Map<string, CompiledQuery>()
 
-  // Helper to get downstream operators
-  const getDownstreamIds = (opId: string): string[] => {
-    const downstreams: string[] = []
-    for (const sinkId of sinkIds) {
-      const upstreams = getUpstreamIds(sinkId)
-      if (upstreams.includes(opId)) {
-        downstreams.push(sinkId)
-      }
-    }
-    return downstreams
-  }
-
   for (const sinkId of sinkIds) {
     const sinkOp = getOperator(sinkId)
     if (!sinkOp) continue
@@ -78,35 +57,7 @@ export function detectCompilableSubgraphs(
 
       if (subgraph.length > 0) {
         try {
-          // Detect CreateAttributeOp nodes downstream that can be SQL-computed
-          const createAttrAttributes = detectDownstreamAttributes(
-            upstreamId,
-            getOperator,
-            getDownstreamIds
-          )
-
-          // Detect layer operator accessor fields that can be SQL-computed
-          const layerAttributes = detectLayerAttributes(
-            upstreamId,
-            getOperator,
-            getDownstreamIds
-          )
-
-          // Generate additional SQL columns for both types of attributes
-          const additionalColumns = [
-            ...generateAttributeColumns(createAttrAttributes),
-            ...generateLayerAttributeColumns(layerAttributes),
-          ]
-
-          const compiled = compile(subgraph, {
-            additionalColumns: additionalColumns.length > 0 ? additionalColumns : undefined,
-          })
-
-          // Store layer attributes metadata for later extraction
-          if (layerAttributes.length > 0) {
-            compiled.layerAttributes = layerAttributes
-          }
-
+          const compiled = compile(subgraph)
           compiledPipelines.set(upstreamId, compiled)
         } catch (e) {
           // Compilation failed — fall back to normal execution

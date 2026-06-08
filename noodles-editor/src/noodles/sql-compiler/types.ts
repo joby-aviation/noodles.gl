@@ -1,5 +1,4 @@
 import type * as arrow from 'apache-arrow'
-import type { LayerAttributeSpec } from './layer-attribute-detector'
 
 // A SQL template declares how an operator type maps to SQL.
 // Templates use named holes that the compiler resolves.
@@ -44,8 +43,6 @@ export interface CompiledQuery {
   paramSlots: ParamSlot[]
   // Maps operator ID → CTE alias for error attribution
   operatorAliases: Map<string, string>
-  // Layer attributes detected for SQL compilation (optional)
-  layerAttributes?: LayerAttributeSpec[]
 }
 
 // Result of executing a compiled query

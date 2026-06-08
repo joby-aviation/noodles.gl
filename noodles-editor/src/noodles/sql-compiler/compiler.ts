@@ -18,12 +18,7 @@ export function isCompilable(node: CompilableNode): boolean {
 
 // Compile a subgraph of SQL-compilable nodes into a single CTE-based query.
 // Nodes must be in topological order (sources first).
-export function compile(
-  nodes: CompilableNode[],
-  options?: {
-    additionalColumns?: string[] // Extra computed columns to add to final SELECT
-  }
-): CompiledQuery {
+export function compile(nodes: CompilableNode[]): CompiledQuery {
   if (nodes.length === 0) throw new Error('Cannot compile empty node list')
 
   const ctx: CompilationContext = {
@@ -52,17 +47,10 @@ export function compile(
   }
 
   const lastAlias = ctx.aliases.get(nodes[nodes.length - 1].id)!
-
-  // Build SELECT clause
-  let selectClause = '*'
-  if (options?.additionalColumns && options.additionalColumns.length > 0) {
-    selectClause = `*, ${options.additionalColumns.join(', ')}`
-  }
-
   const fullSql =
     ctes.length === 1
-      ? `WITH ${ctes[0]} SELECT ${selectClause} FROM ${lastAlias}`
-      : `WITH\n  ${ctes.join(',\n  ')}\nSELECT ${selectClause} FROM ${lastAlias}`
+      ? `WITH ${ctes[0]} SELECT * FROM ${lastAlias}`
+      : `WITH\n  ${ctes.join(',\n  ')}\nSELECT * FROM ${lastAlias}`
 
   return {
     sql: fullSql,

@@ -1,4 +1,3 @@
-import type * as arrow from 'apache-arrow'
 import { debugSQL } from '../../utils/debug'
 import type { IOperator, Operator } from '../operators'
 import { getDuckDbInstance } from './executor'
@@ -11,10 +10,8 @@ import type { CompiledQuery } from './types'
 
 export type SQLExecutionResult = {
   operatorId: string
-  // Primary data - now an Arrow table for zero-copy access
-  data: arrow.Table | unknown[]
-  // Deprecated: Use data directly (kept for backwards compatibility)
-  arrowTable: arrow.Table | unknown
+  data: unknown[]
+  arrowTable: unknown
 }
 
 // Integrates SQL compilation into the pull-based graph executor.
@@ -89,34 +86,12 @@ export class SQLGraphIntegration {
         try {
           const paramValues = resolveParamValues(compiled, getOperator)
           const result = await this.cache.executeCompiled(upstreamId, compiled, paramValues)
-          debugSQL('executed %s → %d rows', upstreamId, result.table.numRows)
+          const rows = result.toArray()
+          debugSQL('executed %s → %d rows', upstreamId, rows.length)
           this.executedPipelines.add(upstreamId)
-
-          // Extract layer attributes if present
-          let data = result.table
-          if (compiled.layerAttributes && compiled.layerAttributes.length > 0) {
-            const { extractLayerAttributes } = await import('./layer-attribute-detector')
-            const attributes = extractLayerAttributes(result.table, compiled.layerAttributes)
-
-            // If attributes were extracted, wrap table with attributes
-            if (Object.keys(attributes).length > 0) {
-              debugSQL(
-                'extracted %d layer attributes from SQL for %s',
-                Object.keys(attributes).length,
-                upstreamId
-              )
-              data = {
-                data: result.table,
-                attributes,
-              }
-            }
-          }
-
-          // Pass Arrow table directly for zero-copy data flow
-          // Downstream operators handle both Arrow tables and JS arrays
           results.set(upstreamId, {
             operatorId: upstreamId,
-            data,
+            data: rows,
             arrowTable: result.table,
           })
         } catch (e) {

@@ -69,8 +69,6 @@ export async function execute(
     }
     return {
       table,
-      // DEPRECATED: Use table directly for zero-copy access
-      // Only call toArray() when you need JS objects (converts from columnar format)
       toArray() {
         return table.toArray().map((row: any) => ({ ...row }))
       },
@@ -95,16 +93,9 @@ export class PreparedPipeline {
   }
 
   async prepare(): Promise<void> {
-    if (this.stmt) return // already prepared
     if (!duckDbInstance) throw new Error('DuckDB not initialized.')
-    const conn = await duckDbInstance.connect()
-    try {
-      this.stmt = await conn.prepare(this._compiled.sql)
-      this.conn = conn
-    } catch (e) {
-      await conn.close()
-      throw e
-    }
+    this.conn = await duckDbInstance.connect()
+    this.stmt = await this.conn.prepare(this._compiled.sql)
   }
 
   async execute(paramValues: unknown[]): Promise<ExecutionResult> {

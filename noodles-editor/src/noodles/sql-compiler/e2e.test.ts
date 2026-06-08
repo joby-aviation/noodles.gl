@@ -412,7 +412,7 @@ describe('End-to-End: JS execution vs SQL execution', () => {
       )
 
       expect(sqlResults.has('/sort')).toBe(true)
-      const sqlData = sqlResults.get('/sort')!.data.toArray()
+      const sqlData = sqlResults.get('/sort')!.data
 
       // Verify SQL result matches JS result
       expect(sqlData.length).toBe(jsResult.data.length)
@@ -453,10 +453,8 @@ describe('End-to-End: JS execution vs SQL execution', () => {
 
       // Now pull() should return cached SQL result without re-executing
       const pullResult = await sortOp.pull()
-      // Pull result now contains Arrow table
-      expect(pullResult.data.numRows).toBe(8)
-      const rows = pullResult.data.toArray()
-      expect(rows[0].name).toBe('Bob') // youngest (age 25)
+      expect(pullResult.data.length).toBe(8)
+      expect(pullResult.data[0].name).toBe('Bob') // youngest (age 25)
     })
   })
 
@@ -713,9 +711,8 @@ describe('End-to-End: JS execution vs SQL execution', () => {
 
       // Verify the operator now has cached output from SQL
       expect(sortOp.cachedOutput).toBeDefined()
-      expect(sortOp.cachedOutput.data.numRows).toBe(4)
-      const cachedRows = sortOp.cachedOutput.data.toArray()
-      expect(cachedRows[0].name).toBe('Charlie')
+      expect(sortOp.cachedOutput.data.length).toBe(4)
+      expect(sortOp.cachedOutput.data[0].name).toBe('Charlie')
     })
 
     it('full path with topology change triggers recompilation', async () => {
@@ -1142,19 +1139,18 @@ describe('End-to-End: JS execution vs SQL execution', () => {
       expect(results.has('/sort')).toBe(true)
 
       const sqlData = results.get('/sort')!.data
-      expect(sqlData.numRows).toBe(4) // 4 Engineering employees
+      expect(sqlData.length).toBe(4) // 4 Engineering employees
       // Sorted by salary DESC
-      const rows = sqlData.toArray()
-      expect(rows[0].name).toBe('Charlie') // 110000
-      expect(rows[1].name).toBe('Henry') // 105000
-      expect(rows[2].name).toBe('Eve') // 95000
-      expect(rows[3].name).toBe('Alice') // 90000
+      expect(sqlData[0].name).toBe('Charlie') // 110000
+      expect(sqlData[1].name).toBe('Henry') // 105000
+      expect(sqlData[2].name).toBe('Eve') // 95000
+      expect(sqlData[3].name).toBe('Alice') // 90000
 
       // Verify inject works
       const injected = integration.injectResults(results, id => ops.get(id))
       expect(injected.has('/sort')).toBe(true)
       expect(sortOp.cachedOutput).toBeDefined()
-      expect(sortOp.cachedOutput.data.numRows).toBe(4)
+      expect(sortOp.cachedOutput.data.length).toBe(4)
     })
 
     it('param change re-executes without recompilation', async () => {
@@ -1194,7 +1190,7 @@ describe('End-to-End: JS execution vs SQL execution', () => {
         id => upstreamMap.get(id) || [],
         1
       )
-      expect(r1.get('/sort')!.data.numRows).toBe(4) // Engineering
+      expect(r1.get('/sort')!.data.length).toBe(4) // Engineering
 
       // Change filter value (simulating timeline scrub or user edit)
       filterOp.inputs.value.setValue('Marketing')
@@ -1206,7 +1202,7 @@ describe('End-to-End: JS execution vs SQL execution', () => {
         id => upstreamMap.get(id) || [],
         1 // same topology version
       )
-      expect(r2.get('/sort')!.data.numRows).toBe(2) // Marketing: Bob, Diana
+      expect(r2.get('/sort')!.data.length).toBe(2) // Marketing: Bob, Diana
 
       // Change again
       filterOp.inputs.value.setValue('Sales')
@@ -1216,7 +1212,7 @@ describe('End-to-End: JS execution vs SQL execution', () => {
         id => upstreamMap.get(id) || [],
         1
       )
-      expect(r3.get('/sort')!.data.numRows).toBe(2) // Sales: Frank, Grace
+      expect(r3.get('/sort')!.data.length).toBe(2) // Sales: Frank, Grace
     })
 
     it('topology change triggers recompilation and uses new chain', async () => {
@@ -1250,7 +1246,7 @@ describe('End-to-End: JS execution vs SQL execution', () => {
         id => upstreamMap1.get(id) || [],
         1
       )
-      expect(r1.get('/filter')!.data.numRows).toBe(4) // age > 30: Alice(30 excluded), Charlie(35), Eve(32), Henry(38), Frank(45)
+      expect(r1.get('/filter')!.data.length).toBe(4) // age > 30: Alice(30 excluded), Charlie(35), Eve(32), Henry(38), Frank(45)
       // Actually age > 30: Eve(32), Charlie(35), Henry(38), Frank(45) = 4
 
       // Now add a SortOp to the chain (topology change)
@@ -1274,11 +1270,10 @@ describe('End-to-End: JS execution vs SQL execution', () => {
       )
       expect(r2.has('/sort')).toBe(true)
       const sortedData = r2.get('/sort')!.data
-      expect(sortedData.numRows).toBe(4)
+      expect(sortedData.length).toBe(4)
       // Sorted by age ASC: Eve(32), Charlie(35), Henry(38), Frank(45)
-      const rows = sortedData.toArray()
-      expect(rows[0].name).toBe('Eve')
-      expect(rows[3].name).toBe('Frank')
+      expect(sortedData[0].name).toBe('Eve')
+      expect(sortedData[3].name).toBe('Frank')
     })
 
     it('boundary operator correctly breaks the chain', async () => {
@@ -1367,7 +1362,7 @@ describe('End-to-End: JS execution vs SQL execution', () => {
       )
 
       expect(sqlResults.has('/slice')).toBe(true)
-      const sqlData = sqlResults.get('/slice')!.data.toArray()
+      const sqlData = sqlResults.get('/slice')!.data
 
       // JS path: same operations on same data
       const jsFilterOp = new FilterOp('/js-filter')
