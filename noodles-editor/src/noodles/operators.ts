@@ -6229,12 +6229,7 @@ export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    console.log('[ScatterplotLayerOp] EXECUTE CALLED', this.id)
     let { rows, attributes } = extractAttributeData(props.data)
-    console.log('[ScatterplotLayerOp] Data extracted:', {
-      rowsLength: rows?.length,
-      attributeKeys: Object.keys(attributes),
-    })
 
     // Defensive: Replace invalid color values with defaults
     const cleanProps = { ...props }
@@ -6279,53 +6274,59 @@ export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
       attributes = otherAttributes
     }
 
+    // Handle string attribute references (e.g., getPosition: "sourcePosition")
+    // When an accessor prop is a string, it's a reference to an attribute name
+    // We need to rename that attribute to match what the layer expects
+    const attributeRenames: Record<string, string> = {}
+    const propsToRemove: string[] = []
+
+    if (typeof cleanProps.getPosition === 'string') {
+      const attrName = cleanProps.getPosition
+      if (attributes[attrName]) {
+        attributeRenames['position'] = attrName
+        propsToRemove.push('getPosition')
+      }
+    }
+
+    // Apply attribute renames
+    const renamedAttributes = { ...attributes }
+    for (const [targetName, sourceName] of Object.entries(attributeRenames)) {
+      if (attributes[sourceName]) {
+        renamedAttributes[targetName] = attributes[sourceName]
+        if (targetName !== sourceName) {
+          delete renamedAttributes[sourceName]
+        }
+      }
+    }
+
+    // Remove props that are attribute references
+    const cleanedProps = { ...cleanProps }
+    for (const propName of propsToRemove) {
+      delete cleanedProps[propName]
+    }
+
     // Also check if props.getPosition is a typed array or regular array (attribute values)
     // instead of the expected accessor function. This happens when malformed attributes
     // get passed directly as prop values instead of being applied via applyBinaryAttributes
-    // When cleanProps.getPosition is an array/TypedArray (malformed - should be function or undefined),
-    // remove it so applyBinaryAttributes can set the correct binary attribute
     if (
-      cleanProps.getPosition &&
-      typeof cleanProps.getPosition !== 'function' &&
-      (ArrayBuffer.isView(cleanProps.getPosition) || Array.isArray(cleanProps.getPosition))
+      cleanedProps.getPosition &&
+      typeof cleanedProps.getPosition !== 'function' &&
+      (ArrayBuffer.isView(cleanedProps.getPosition) || Array.isArray(cleanedProps.getPosition))
     ) {
-      const { getPosition, ...propsWithoutGetPosition } = cleanProps
-      const baseLayerProps = {
-        ...parseLayerProps<ScatterplotLayerProps>({ ...propsWithoutGetPosition, data: rows }),
-        type: 'ScatterplotLayer' as const,
-        id: this.id,
-        updateTriggers: gatherTriggers(this.inputs, cleanProps),
-      }
-      const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
-      return { layer: layerProps }
+      delete cleanedProps.getPosition
     }
 
     // biome-ignore lint/suspicious/noExplicitAny: Layer props spread with dynamic types
     const baseLayerProps = {
       // biome-ignore lint/suspicious/noExplicitAny: Layer props spread with dynamic types
-      ...parseLayerProps<ScatterplotLayerProps>({ ...cleanProps, data: rows }),
+      ...parseLayerProps<ScatterplotLayerProps>({ ...cleanedProps, data: rows }),
       type: 'ScatterplotLayer' as const,
       id: this.id,
       // biome-ignore lint/suspicious/noExplicitAny: Layer props spread with dynamic types
-      updateTriggers: gatherTriggers(this.inputs, cleanProps),
+      updateTriggers: gatherTriggers(this.inputs, cleanedProps),
     }
 
-    console.log(
-      '[ScatterplotLayerOp] baseLayerProps keys:',
-      Object.keys(baseLayerProps).filter(k => k.includes('olor'))
-    )
-    console.log('[ScatterplotLayerOp] All color props:', {
-      getFillColor: baseLayerProps.getFillColor,
-      getLineColor: baseLayerProps.getLineColor,
-      // biome-ignore lint/suspicious/noExplicitAny: Debugging dynamic layer props
-      lineColor: (baseLayerProps as any).lineColor,
-      // biome-ignore lint/suspicious/noExplicitAny: Debugging dynamic layer props
-      fillColor: (baseLayerProps as any).fillColor,
-      // biome-ignore lint/suspicious/noExplicitAny: Debugging dynamic layer props
-      color: (baseLayerProps as any).color,
-    })
-
-    const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
+    const layerProps = applyBinaryAttributes(baseLayerProps, renamedAttributes)
     return { layer: layerProps }
   }
 }

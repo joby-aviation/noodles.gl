@@ -857,6 +857,8 @@ export class Point3DField extends Field<
   createSchema({ returnType }: PointFieldOptions = { returnType: 'object' }) {
     const noop = (val: unknown) => val
     return z.union([
+      // Accept strings as attribute name references (for accessor fields)
+      z.string(),
       z
         .unknown()
         .transform(val => {
