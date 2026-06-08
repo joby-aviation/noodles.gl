@@ -58,7 +58,7 @@
         }
       },
       "position": {
-        "x": 1900,
+        "x": 2500,
         "y": 100
       }
     },
@@ -69,7 +69,7 @@
         "inputs": {}
       },
       "position": {
-        "x": 2100,
+        "x": 2900,
         "y": 100
       }
     },
@@ -80,7 +80,7 @@
         "inputs": {}
       },
       "position": {
-        "x": 2500,
+        "x": 3300,
         "y": 100
       }
     },
@@ -96,7 +96,7 @@
         }
       },
       "position": {
-        "x": 700,
+        "x": 900,
         "y": 100
       }
     },
@@ -114,7 +114,7 @@
         }
       },
       "position": {
-        "x": 1100,
+        "x": 1300,
         "y": 100
       }
     },
@@ -132,8 +132,8 @@
         }
       },
       "position": {
-        "x": 1100,
-        "y": 250
+        "x": 1700,
+        "y": 100
       }
     },
     {
@@ -143,11 +143,11 @@
         "inputs": {
           "inputAttribute": "normalizedMagnitude",
           "outputAttribute": "fillColor",
-          "interpolator": "interpolateTurbo"
+          "colorScheme": "turbo"
         }
       },
       "position": {
-        "x": 1500,
+        "x": 2100,
         "y": 100
       }
     }
@@ -218,9 +218,9 @@
     }
   ],
   "viewport": {
-    "x": 0,
-    "y": 0,
-    "zoom": 0.8
+    "x": -200,
+    "y": -50,
+    "zoom": 0.5
   },
   "version": 14
 }
