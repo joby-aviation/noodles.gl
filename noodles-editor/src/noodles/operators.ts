@@ -1355,43 +1355,55 @@ export class DateTimeOp extends Operator<DateTimeOp> {
 
 export class CombineXYOp extends Operator<CombineXYOp> {
   static displayName = 'CombineXY'
-  static description = 'Combine x and y into a 2D vector'
+  static description =
+    'Combine x and y into a 2D vector. Set x/y to attribute names to produce a 2-component attribute.'
   createInputs() {
     return {
+      data: new DataField({ optional: true }),
       x: new NumberField(0, { step: 0.01, accessor: true }),
       y: new NumberField(0, { step: 0.01, accessor: true }),
     }
   }
   createOutputs() {
     return {
+      data: new DataField({ optional: true }),
       xy: new Vec2Field(),
     }
   }
-  execute({ x, y }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // Check if any inputs are accessor functions
-    const xIsAccessor = isAccessor(x)
-    const yIsAccessor = isAccessor(y)
+  execute({ data, x, y }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const attrData = data ? extractAttributes(data) : undefined
+    const resolvedX = resolveNumericField(x, attrData)
+    const resolvedY = resolveNumericField(y, attrData)
 
-    if (!xIsAccessor && !yIsAccessor) {
-      // Both static values
-      return { xy: { x: x as number, y: y as number } }
+    if ((resolvedX.mode === 'attribute' || resolvedY.mode === 'attribute') && attrData) {
+      const len =
+        resolvedX.mode === 'attribute'
+          ? resolvedX.values.length
+          : resolvedY.mode === 'attribute'
+            ? resolvedY.values.length
+            : 0
+      const output = new Float32Array(len * 2)
+      for (let i = 0; i < len; i++) {
+        output[i * 2] = resolvedX.mode === 'attribute' ? resolvedX.values[i] : resolvedX.value
+        output[i * 2 + 1] = resolvedY.mode === 'attribute' ? resolvedY.values[i] : resolvedY.value
+      }
+      return {
+        data: withAttribute(attrData, 'position', output, 2),
+        xy: { x: resolvedX.value ?? 0, y: resolvedY.value ?? 0 },
+      }
     }
 
-    // At least one is an accessor - return accessor function
-    const xy = (...args: unknown[]) => {
-      const xVal = xIsAccessor ? (x as (...args: unknown[]) => unknown)(...args) : (x as number)
-      const yVal = yIsAccessor ? (y as (...args: unknown[]) => unknown)(...args) : (y as number)
-      return { x: xVal, y: yVal }
-    }
-    return { xy }
+    return { data, xy: { x: resolvedX.value, y: resolvedY.value } }
   }
 }
 
 export class CombineXYZOp extends Operator<CombineXYZOp> {
   static displayName = 'CombineXYZ'
-  static description = 'Combine x, y, and z into a 3D vector'
+  static description =
+    'Combine x, y, and z into a 3D vector. Set x/y/z to attribute names to produce a 3-component position attribute.'
   createInputs() {
     return {
+      data: new DataField({ optional: true }),
       x: new NumberField(0, { step: 0.01, accessor: true }),
       y: new NumberField(0, { step: 0.01, accessor: true }),
       z: new NumberField(0, { step: 0.01, accessor: true }),
@@ -1399,164 +1411,265 @@ export class CombineXYZOp extends Operator<CombineXYZOp> {
   }
   createOutputs() {
     return {
+      data: new DataField({ optional: true }),
       xyz: new Vec3Field(),
     }
   }
-  execute({ x, y, z }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // Check if any inputs are accessor functions
-    const xIsAccessor = isAccessor(x)
-    const yIsAccessor = isAccessor(y)
-    const zIsAccessor = isAccessor(z)
+  execute({ data, x, y, z }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const attrData = data ? extractAttributes(data) : undefined
+    const resolvedX = resolveNumericField(x, attrData)
+    const resolvedY = resolveNumericField(y, attrData)
+    const resolvedZ = resolveNumericField(z, attrData)
 
-    if (!xIsAccessor && !yIsAccessor && !zIsAccessor) {
-      // All static values
-      return { xyz: { x: x as number, y: y as number, z: z as number } }
+    const anyAttr =
+      resolvedX.mode === 'attribute' ||
+      resolvedY.mode === 'attribute' ||
+      resolvedZ.mode === 'attribute'
+    if (anyAttr && attrData) {
+      const len =
+        resolvedX.mode === 'attribute'
+          ? resolvedX.values.length
+          : resolvedY.mode === 'attribute'
+            ? resolvedY.values.length
+            : resolvedZ.mode === 'attribute'
+              ? resolvedZ.values.length
+              : 0
+      const output = new Float32Array(len * 3)
+      for (let i = 0; i < len; i++) {
+        output[i * 3] = resolvedX.mode === 'attribute' ? resolvedX.values[i] : resolvedX.value
+        output[i * 3 + 1] = resolvedY.mode === 'attribute' ? resolvedY.values[i] : resolvedY.value
+        output[i * 3 + 2] = resolvedZ.mode === 'attribute' ? resolvedZ.values[i] : resolvedZ.value
+      }
+      return {
+        data: withAttribute(attrData, 'position', output, 3),
+        xyz: { x: resolvedX.value ?? 0, y: resolvedY.value ?? 0, z: resolvedZ.value ?? 0 },
+      }
     }
 
-    // At least one is an accessor - return accessor function
-    const xyz = (...args: unknown[]) => {
-      const xVal = xIsAccessor ? (x as (...args: unknown[]) => unknown)(...args) : (x as number)
-      const yVal = yIsAccessor ? (y as (...args: unknown[]) => unknown)(...args) : (y as number)
-      const zVal = zIsAccessor ? (z as (...args: unknown[]) => unknown)(...args) : (z as number)
-      return { x: xVal, y: yVal, z: zVal }
-    }
-    return { xyz }
+    return { data, xyz: { x: resolvedX.value, y: resolvedY.value, z: resolvedZ.value } }
   }
 }
 
 export class SplitXYOp extends Operator<SplitXYOp> {
   static displayName = 'SplitXY'
-  static description = 'Split a 2D vector into its x and y components'
+  static description = 'Split a 2D vector or 2-component attribute into x and y'
   createInputs() {
     return {
-      vec: new Vec2Field({ x: 0, y: 0 }, { accessor: true }),
+      data: new DataField({ optional: true }),
+      attribute: new StringField('', { optional: true, showByDefault: false }),
+      vec: new Vec2Field({ x: 0, y: 0 }),
     }
   }
   createOutputs() {
     return {
+      data: new DataField({ optional: true }),
       x: new NumberField(),
       y: new NumberField(),
     }
   }
-  execute({ vec }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    if (isAccessor(vec)) {
-      // Return accessor functions for each component
-      const x = composeAccessor(vec, (v: { x: number; y: number }) => v.x)
-      const y = composeAccessor(vec, (v: { x: number; y: number }) => v.y)
-      return { x, y } as ExtractProps<typeof this.outputs>
+  execute({
+    data,
+    attribute,
+    vec,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (data && attribute) {
+      const attrData = extractAttributes(data)
+      const attr = attrData.attributes?.[attribute]
+      if (attr && attr.size === 2) {
+        const values = attr.values as Float32Array
+        const len = values.length / 2
+        const xOut = new Float32Array(len)
+        const yOut = new Float32Array(len)
+        for (let i = 0; i < len; i++) {
+          xOut[i] = values[i * 2]
+          yOut[i] = values[i * 2 + 1]
+        }
+        let result = withAttribute(attrData, 'x', xOut, 1)
+        result = withAttribute(result, 'y', yOut, 1)
+        return { data: result, x: 0, y: 0 }
+      }
     }
 
-    // Static value
     const { x, y } = vec as { x: number; y: number }
-    return { x, y }
+    return { data, x, y }
   }
 }
 
 export class SplitXYZOp extends Operator<SplitXYZOp> {
   static displayName = 'SplitXYZ'
-  static description = 'Split a 3D vector into its x, y, and z components'
+  static description = 'Split a 3D vector or 3-component attribute into x, y, and z'
   createInputs() {
     return {
-      vec: new Vec3Field({ x: 0, y: 0, z: 0 }, { accessor: true }),
+      data: new DataField({ optional: true }),
+      attribute: new StringField('', { optional: true, showByDefault: false }),
+      vec: new Vec3Field({ x: 0, y: 0, z: 0 }),
     }
   }
   createOutputs() {
     return {
+      data: new DataField({ optional: true }),
       x: new NumberField(),
       y: new NumberField(),
       z: new NumberField(),
     }
   }
-  execute({ vec }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    if (isAccessor(vec)) {
-      // Return accessor functions for each component
-      const x = composeAccessor(vec, (v: { x: number; y: number; z: number }) => v.x)
-      const y = composeAccessor(vec, (v: { x: number; y: number; z: number }) => v.y)
-      const z = composeAccessor(vec, (v: { x: number; y: number; z: number }) => v.z)
-      return { x, y, z } as ExtractProps<typeof this.outputs>
+  execute({
+    data,
+    attribute,
+    vec,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (data && attribute) {
+      const attrData = extractAttributes(data)
+      const attr = attrData.attributes?.[attribute]
+      if (attr && attr.size === 3) {
+        const values = attr.values as Float32Array
+        const len = values.length / 3
+        const xOut = new Float32Array(len)
+        const yOut = new Float32Array(len)
+        const zOut = new Float32Array(len)
+        for (let i = 0; i < len; i++) {
+          xOut[i] = values[i * 3]
+          yOut[i] = values[i * 3 + 1]
+          zOut[i] = values[i * 3 + 2]
+        }
+        let result = withAttribute(attrData, 'x', xOut, 1)
+        result = withAttribute(result, 'y', yOut, 1)
+        result = withAttribute(result, 'z', zOut, 1)
+        return { data: result, x: 0, y: 0, z: 0 }
+      }
     }
 
-    // Static value
     const { x, y, z } = vec as { x: number; y: number; z: number }
-    return { x, y, z }
+    return { data, x, y, z }
   }
 }
 
 export class CombineRGBAOp extends Operator<CombineRGBAOp> {
   static displayName = 'CombineRGBA'
-  static description = 'Combine r, g, b, and a into a color (range 0-255)'
+  static description =
+    'Combine r, g, b, and a into a color (range 0-255). Set channels to attribute names to produce a color attribute.'
   createInputs() {
     return {
+      data: new DataField({ optional: true }),
+      outputAttribute: new StringField('fillColor', { optional: true, showByDefault: false }),
       r: new NumberField(0, { accessor: true }),
       g: new NumberField(0, { accessor: true }),
       b: new NumberField(0, { accessor: true }),
-      a: new NumberField(1, { accessor: true }),
+      a: new NumberField(255, { accessor: true }),
     }
   }
   createOutputs() {
     return {
+      data: new DataField({ optional: true }),
       color: new ColorField(),
     }
   }
-  execute({ r, g, b, a }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // Check if any inputs are accessor functions
-    const rIsAccessor = isAccessor(r)
-    const gIsAccessor = isAccessor(g)
-    const bIsAccessor = isAccessor(b)
-    const aIsAccessor = isAccessor(a)
+  execute({
+    data,
+    outputAttribute,
+    r,
+    g,
+    b,
+    a,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const attrData = data ? extractAttributes(data) : undefined
+    const resolvedR = resolveNumericField(r, attrData)
+    const resolvedG = resolveNumericField(g, attrData)
+    const resolvedB = resolveNumericField(b, attrData)
+    const resolvedA = resolveNumericField(a, attrData)
 
-    if (!rIsAccessor && !gIsAccessor && !bIsAccessor && !aIsAccessor) {
-      // All static values
-      return { color: colorToHex([r as number, g as number, b as number, a as number]) }
+    const anyAttr =
+      resolvedR.mode === 'attribute' ||
+      resolvedG.mode === 'attribute' ||
+      resolvedB.mode === 'attribute' ||
+      resolvedA.mode === 'attribute'
+
+    if (anyAttr && attrData) {
+      const len =
+        [resolvedR, resolvedG, resolvedB, resolvedA]
+          .filter(r => r.mode === 'attribute')
+          .map(r => (r as { values: Float32Array }).values.length)[0] ?? 0
+      const colors = new Uint8Array(len * 4)
+      for (let i = 0; i < len; i++) {
+        colors[i * 4] = resolvedR.mode === 'attribute' ? resolvedR.values[i] : resolvedR.value
+        colors[i * 4 + 1] = resolvedG.mode === 'attribute' ? resolvedG.values[i] : resolvedG.value
+        colors[i * 4 + 2] = resolvedB.mode === 'attribute' ? resolvedB.values[i] : resolvedB.value
+        colors[i * 4 + 3] = resolvedA.mode === 'attribute' ? resolvedA.values[i] : resolvedA.value
+      }
+      const outName = outputAttribute || 'fillColor'
+      const rVal = resolvedR.mode === 'uniform' ? resolvedR.value : 0
+      const gVal = resolvedG.mode === 'uniform' ? resolvedG.value : 0
+      const bVal = resolvedB.mode === 'uniform' ? resolvedB.value : 0
+      const aVal = resolvedA.mode === 'uniform' ? resolvedA.value : 255
+      return {
+        data: withAttribute(attrData, outName, colors, 4),
+        color: colorToHex([rVal, gVal, bVal, aVal]),
+      }
     }
 
-    // At least one is an accessor - return accessor function
-    const color = (...args: unknown[]) => {
-      const rVal = rIsAccessor ? (r as (...args: unknown[]) => unknown)(...args) : (r as number)
-      const gVal = gIsAccessor ? (g as (...args: unknown[]) => unknown)(...args) : (g as number)
-      const bVal = bIsAccessor ? (b as (...args: unknown[]) => unknown)(...args) : (b as number)
-      const aVal = aIsAccessor ? (a as (...args: unknown[]) => unknown)(...args) : (a as number)
-      return colorToHex([rVal as number, gVal as number, bVal as number, aVal as number])
+    return {
+      data,
+      color: colorToHex([resolvedR.value, resolvedG.value, resolvedB.value, resolvedA.value]),
     }
-    return { color } as ExtractProps<typeof this.outputs>
   }
 }
 
 export class SplitRGBAOp extends Operator<SplitRGBAOp> {
   static displayName = 'SplitRGBA'
-  static description = 'Split a color into its red, green, blue, and alpha components (range 0-255)'
+  static description = 'Split a color attribute (4-component Uint8Array) into r, g, b, a channels'
   createInputs() {
     return {
-      color: new ColorField({ accessor: true }),
+      data: new DataField({ optional: true }),
+      attribute: new StringField('fillColor', { optional: true, showByDefault: false }),
+      color: new ColorField(),
     }
   }
   createOutputs() {
     return {
+      data: new DataField({ optional: true }),
       r: new NumberField(),
       g: new NumberField(),
       b: new NumberField(),
       a: new NumberField(),
     }
   }
-  execute({ color }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  execute({
+    data,
+    attribute,
+    color,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (data && attribute) {
+      const attrData = extractAttributes(data)
+      const attr = attrData.attributes?.[attribute]
+      if (attr && attr.size === 4) {
+        const values = attr.values as Uint8Array
+        const len = values.length / 4
+        const rOut = new Float32Array(len)
+        const gOut = new Float32Array(len)
+        const bOut = new Float32Array(len)
+        const aOut = new Float32Array(len)
+        for (let i = 0; i < len; i++) {
+          rOut[i] = values[i * 4]
+          gOut[i] = values[i * 4 + 1]
+          bOut[i] = values[i * 4 + 2]
+          aOut[i] = values[i * 4 + 3]
+        }
+        let result = withAttribute(attrData, 'r', rOut, 1)
+        result = withAttribute(result, 'g', gOut, 1)
+        result = withAttribute(result, 'b', bOut, 1)
+        result = withAttribute(result, 'a', aOut, 1)
+        return { data: result, r: 0, g: 0, b: 0, a: 0 }
+      }
+    }
+
     const parseColor = (c: string) => {
       const [r, g, b, a] = hexToColor(c)
         .split(',')
         .map((v: string) => parseInt(v, 10))
       return { r, g, b, a }
     }
-
-    if (isAccessor(color)) {
-      // Return accessor functions for each component
-      const r = composeAccessor(color, (c: string) => parseColor(c).r)
-      const g = composeAccessor(color, (c: string) => parseColor(c).g)
-      const b = composeAccessor(color, (c: string) => parseColor(c).b)
-      const a = composeAccessor(color, (c: string) => parseColor(c).a)
-      return { r, g, b, a } as ExtractProps<typeof this.outputs>
-    }
-
-    // Static value
-    return parseColor(color as string)
+    const { r, g, b, a } = parseColor(color as string)
+    return { data, r, g, b, a }
   }
 }
 
@@ -1580,9 +1693,12 @@ export class ColorOp extends Operator<ColorOp> {
 
 export class HSLOp extends Operator<HSLOp> {
   static displayName = 'HSL'
-  static description = 'A color in HSL (hue, saturation, lightness) format'
+  static description =
+    'A color in HSL (hue, saturation, lightness) format. Set h/s/l to attribute names to produce a color attribute.'
   createInputs() {
     return {
+      data: new DataField({ optional: true }),
+      outputAttribute: new StringField('fillColor', { optional: true, showByDefault: false }),
       h: new NumberField(0, { min: 0, max: 360, step: 1, accessor: true }),
       s: new NumberField(0.5, { min: 0, max: 1, step: 0.01, accessor: true }),
       l: new NumberField(0.8, { min: 0, max: 1, step: 0.01, accessor: true }),
@@ -1590,28 +1706,54 @@ export class HSLOp extends Operator<HSLOp> {
   }
   createOutputs() {
     return {
+      data: new DataField({ optional: true }),
       color: new ColorField(),
     }
   }
-  execute({ h, s, l }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // Check if any inputs are accessor functions
-    const hIsAccessor = isAccessor(h)
-    const sIsAccessor = isAccessor(s)
-    const lIsAccessor = isAccessor(l)
+  execute({
+    data,
+    outputAttribute,
+    h,
+    s,
+    l,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const attrData = data ? extractAttributes(data) : undefined
+    const resolvedH = resolveNumericField(h, attrData)
+    const resolvedS = resolveNumericField(s, attrData)
+    const resolvedL = resolveNumericField(l, attrData)
 
-    if (!hIsAccessor && !sIsAccessor && !lIsAccessor) {
-      // All static values
-      return { color: hsl(h as number, s as number, l as number).formatHex() }
+    const anyAttr =
+      resolvedH.mode === 'attribute' ||
+      resolvedS.mode === 'attribute' ||
+      resolvedL.mode === 'attribute'
+    if (anyAttr && attrData) {
+      const len =
+        resolvedH.mode === 'attribute'
+          ? resolvedH.values.length
+          : resolvedS.mode === 'attribute'
+            ? resolvedS.values.length
+            : resolvedL.mode === 'attribute'
+              ? resolvedL.values.length
+              : 0
+      const colors = new Uint8Array(len * 4)
+      for (let i = 0; i < len; i++) {
+        const hVal = resolvedH.mode === 'attribute' ? resolvedH.values[i] : resolvedH.value
+        const sVal = resolvedS.mode === 'attribute' ? resolvedS.values[i] : resolvedS.value
+        const lVal = resolvedL.mode === 'attribute' ? resolvedL.values[i] : resolvedL.value
+        const rgb = hsl(hVal, sVal, lVal).rgb()
+        colors[i * 4] = rgb.r
+        colors[i * 4 + 1] = rgb.g
+        colors[i * 4 + 2] = rgb.b
+        colors[i * 4 + 3] = 255
+      }
+      const outName = outputAttribute || 'fillColor'
+      return {
+        data: withAttribute(attrData, outName, colors, 4),
+        color: hsl(resolvedH.value, resolvedS.value, resolvedL.value).formatHex(),
+      }
     }
 
-    // At least one is an accessor - return accessor function
-    const color = (...args: unknown[]) => {
-      const hVal = hIsAccessor ? (h as (...args: unknown[]) => unknown)(...args) : (h as number)
-      const sVal = sIsAccessor ? (s as (...args: unknown[]) => unknown)(...args) : (s as number)
-      const lVal = lIsAccessor ? (l as (...args: unknown[]) => unknown)(...args) : (l as number)
-      return hsl(hVal as number, sVal as number, lVal as number).formatHex()
-    }
-    return { color } as ExtractProps<typeof this.outputs>
+    return { data, color: hsl(resolvedH.value, resolvedS.value, resolvedL.value).formatHex() }
   }
 }
 
@@ -1878,26 +2020,41 @@ export class TimeOp extends Operator<TimeOp> {
 
 export class BezierCurveOp extends Operator<BezierCurveOp> {
   static displayName = 'BezierCurve'
-  static description = 'Bezier curve for mapping input values using an interactive graph editor'
+  static description =
+    'Bezier curve for mapping input values using an interactive graph editor. Set factor to an attribute name to remap an entire column.'
   createInputs() {
     return {
+      data: new DataField({ optional: true }),
       factor: new NumberField(0.5, { min: 0, max: 1, step: 0.01, accessor: true }),
       curve: new BezierCurveField(),
     }
   }
   createOutputs() {
     return {
+      data: new DataField({ optional: true }),
       value: new NumberField(),
     }
   }
   execute({
+    data,
     factor,
     curve: _curve,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const curveField = this.inputs.curve as BezierCurveField
-    // Use composeAccessor helper to handle both static values and accessor functions
-    const value = composeAccessor(factor, (f: number) => curveField.evaluate(f))
-    return { value } as ExtractProps<typeof this.outputs>
+    const attrData = data ? extractAttributes(data) : undefined
+    const resolved = resolveNumericField(factor, attrData)
+
+    if (resolved.mode === 'attribute' && attrData) {
+      const output = transformAttribute(resolved.values as Float32Array, v =>
+        curveField.evaluate(v)
+      )
+      return {
+        data: withAttribute(attrData, resolved.name, output, 1),
+        value: curveField.evaluate(0.5),
+      }
+    }
+
+    return { data, value: curveField.evaluate(resolved.value) }
   }
 }
 
