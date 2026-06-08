@@ -63,6 +63,109 @@
   },
   "nodes": [
     {
+      "id": "/data-source",
+      "type": "FileOp",
+      "data": {
+        "inputs": {
+          "url": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/bart.geo.json"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 100,
+        "y": 100
+      }
+    },
+    {
+      "id": "/fill-color",
+      "type": "ColorOp",
+      "data": {
+        "inputs": {
+          "color": "#01017e"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 100,
+        "y": 450
+      }
+    },
+    {
+      "type": "MaplibreBasemapOp",
+      "id": "/maplibre-basemap",
+      "position": {
+        "x": 100,
+        "y": 800
+      },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
+          "viewState": {
+            "latitude": 37.74,
+            "longitude": -122.169,
+            "zoom": 11,
+            "pitch": 34,
+            "bearing": 0
+          }
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/line-color",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 100,
+        "y": 1200
+      },
+      "data": {
+        "inputs": {
+          "name": "linecolor",
+          "expression": "d.properties.color || '#000'",
+          "size": 4,
+          "type": "uint8"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/text",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 100,
+        "y": 1580
+      },
+      "data": {
+        "inputs": {
+          "name": "text",
+          "expression": "d.properties.name",
+          "size": 1,
+          "type": "float"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/geojson-layer",
+      "type": "GeoJsonLayerOp",
+      "data": {
+        "inputs": {
+          "pointType": "circle+text",
+          "getPointRadius": 4,
+          "stroked": false,
+          "getLineWidth": 100,
+          "lineWidthMinPixels": 4,
+          "extruded": true,
+          "getElevation": 30
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 500,
+        "y": 100
+      }
+    },
+    {
       "id": "/deck",
       "type": "DeckRendererOp",
       "data": {
@@ -96,109 +199,6 @@
       "position": {
         "x": 1300,
         "y": 100
-      }
-    },
-    {
-      "id": "/data-source",
-      "type": "FileOp",
-      "data": {
-        "inputs": {
-          "url": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/bart.geo.json"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 100,
-        "y": 100
-      }
-    },
-    {
-      "id": "/geojson-layer",
-      "type": "GeoJsonLayerOp",
-      "data": {
-        "inputs": {
-          "pointType": "circle+text",
-          "getPointRadius": 4,
-          "stroked": false,
-          "getLineWidth": 100,
-          "lineWidthMinPixels": 4,
-          "extruded": true,
-          "getElevation": 30
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 500,
-        "y": 100
-      }
-    },
-    {
-      "id": "/fill-color",
-      "type": "ColorOp",
-      "data": {
-        "inputs": {
-          "color": "#01017e"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 100,
-        "y": 450
-      }
-    },
-    {
-      "type": "MaplibreBasemapOp",
-      "id": "/maplibre-basemap",
-      "position": {
-        "x": 500,
-        "y": 600
-      },
-      "data": {
-        "inputs": {
-          "mapStyle": "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
-          "viewState": {
-            "latitude": 37.74,
-            "longitude": -122.169,
-            "zoom": 11,
-            "pitch": 34,
-            "bearing": 0
-          }
-        },
-        "locked": false
-      }
-    },
-    {
-      "id": "/line-color",
-      "type": "CreateAttributeOp",
-      "position": {
-        "x": 100,
-        "y": 800
-      },
-      "data": {
-        "inputs": {
-          "name": "linecolor",
-          "expression": "d.properties.color || '#000'",
-          "size": 4,
-          "type": "uint8"
-        },
-        "locked": false
-      }
-    },
-    {
-      "id": "/text",
-      "type": "CreateAttributeOp",
-      "position": {
-        "x": 100,
-        "y": 1180
-      },
-      "data": {
-        "inputs": {
-          "name": "text",
-          "expression": "d.properties.name",
-          "size": 1,
-          "type": "float"
-        },
-        "locked": false
       }
     }
   ],

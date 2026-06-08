@@ -5,7 +5,7 @@
       "id": "/maplibre-basemap",
       "type": "MaplibreBasemapOp",
       "position": {
-        "x": 900,
+        "x": 100,
         "y": 100
       },
       "data": {
@@ -24,27 +24,11 @@
       "type": "CodeOp",
       "position": {
         "x": 100,
-        "y": 100
-      },
-      "data": {
-        "inputs": {
-          "code": "return [\n  { name: 'Point 1', lat: 37.7849, lng: -122.4294 },\n  { name: 'Point 2', lat: 37.7749, lng: -122.4094 },\n  { name: 'Point 3', lat: 37.7649, lng: -122.4194 }\n]"
-        }
-      }
-    },
-    {
-      "id": "/icon-layer",
-      "type": "IconLayerOp",
-      "position": {
-        "x": 900,
         "y": 500
       },
       "data": {
         "inputs": {
-          "visible": true,
-          "opacity": 1,
-          "getSize": 40,
-          "getIcon": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.png"
+          "code": "return [\n  { name: 'Point 1', lat: 37.7849, lng: -122.4294 },\n  { name: 'Point 2', lat: 37.7749, lng: -122.4094 },\n  { name: 'Point 3', lat: 37.7649, lng: -122.4194 }\n]"
         }
       }
     },
@@ -60,6 +44,22 @@
           "name": "position",
           "expression": "[d.lng, d.lat]",
           "size": 2
+        }
+      }
+    },
+    {
+      "id": "/icon-layer",
+      "type": "IconLayerOp",
+      "position": {
+        "x": 900,
+        "y": 100
+      },
+      "data": {
+        "inputs": {
+          "visible": true,
+          "opacity": 1,
+          "getSize": 40,
+          "getIcon": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.png"
         }
       }
     },

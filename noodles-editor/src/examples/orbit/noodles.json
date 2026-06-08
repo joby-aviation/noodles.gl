@@ -1,6 +1,51 @@
 {
   "nodes": [
     {
+      "id": "/orbitview-0",
+      "type": "OrbitViewOp",
+      "position": {
+        "x": 100,
+        "y": 100
+      },
+      "data": {
+        "inputs": {
+          "clear": true,
+          "clearColor": "#2997ffff",
+          "fovy": 50
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/expression-0",
+      "type": "ExpressionOp",
+      "position": {
+        "x": 100,
+        "y": 450
+      },
+      "data": {
+        "inputs": {
+          "expression": "[null]"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/scenegraphlayer-0",
+      "type": "ScenegraphLayerOp",
+      "position": {
+        "x": 500,
+        "y": 100
+      },
+      "data": {
+        "inputs": {
+          "sizeMinPixels": 10,
+          "getColor": "#ffffffff"
+        },
+        "locked": false
+      }
+    },
+    {
       "id": "/deck",
       "type": "DeckRendererOp",
       "data": {
@@ -24,51 +69,6 @@
       "position": {
         "x": 1300,
         "y": 100
-      }
-    },
-    {
-      "id": "/orbitview-0",
-      "type": "OrbitViewOp",
-      "position": {
-        "x": 500,
-        "y": 100
-      },
-      "data": {
-        "inputs": {
-          "clear": true,
-          "clearColor": "#2997ffff",
-          "fovy": 50
-        },
-        "locked": false
-      }
-    },
-    {
-      "id": "/scenegraphlayer-0",
-      "type": "ScenegraphLayerOp",
-      "position": {
-        "x": 500,
-        "y": 450
-      },
-      "data": {
-        "inputs": {
-          "sizeMinPixels": 10,
-          "getColor": "#ffffffff"
-        },
-        "locked": false
-      }
-    },
-    {
-      "id": "/expression-0",
-      "type": "ExpressionOp",
-      "position": {
-        "x": 100,
-        "y": 100
-      },
-      "data": {
-        "inputs": {
-          "expression": "[null]"
-        },
-        "locked": false
       }
     }
   ],

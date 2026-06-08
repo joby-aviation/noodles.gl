@@ -56,6 +56,86 @@
   },
   "nodes": [
     {
+      "id": "/data-source",
+      "type": "FileOp",
+      "data": {
+        "inputs": {
+          "url": "https://raw.githubusercontent.com/keplergl/kepler.gl-data/master/sfcontour/data.json"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 100,
+        "y": 100
+      }
+    },
+    {
+      "id": "/elevation-color",
+      "type": "ColorRampOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 100,
+        "y": 450
+      }
+    },
+    {
+      "type": "MaplibreBasemapOp",
+      "id": "/maplibre-basemap",
+      "position": {
+        "x": 100,
+        "y": 800
+      },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+          "viewState": {
+            "latitude": 37.75,
+            "longitude": -122.46,
+            "zoom": 14.1,
+            "pitch": 52.59,
+            "bearing": 25.07
+          }
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/elevation",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 100,
+        "y": 1200
+      },
+      "data": {
+        "inputs": {
+          "name": "value",
+          "expression": "d.properties.elevation",
+          "size": 1,
+          "type": "float"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/geojson-layer",
+      "type": "GeoJsonLayerOp",
+      "data": {
+        "inputs": {
+          "opacity": 0.38,
+          "lineWidthScale": 8,
+          "lineWidthMinPixels": 0.2
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 500,
+        "y": 100
+      }
+    },
+    {
       "id": "/deck",
       "type": "DeckRendererOp",
       "data": {
@@ -89,86 +169,6 @@
       "position": {
         "x": 1300,
         "y": 100
-      }
-    },
-    {
-      "id": "/data-source",
-      "type": "FileOp",
-      "data": {
-        "inputs": {
-          "url": "https://raw.githubusercontent.com/keplergl/kepler.gl-data/master/sfcontour/data.json"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 100,
-        "y": 100
-      }
-    },
-    {
-      "id": "/geojson-layer",
-      "type": "GeoJsonLayerOp",
-      "data": {
-        "inputs": {
-          "opacity": 0.38,
-          "lineWidthScale": 8,
-          "lineWidthMinPixels": 0.2
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 500,
-        "y": 100
-      }
-    },
-    {
-      "id": "/elevation-color",
-      "type": "ColorRampOp",
-      "data": {
-        "inputs": {},
-        "locked": false
-      },
-      "position": {
-        "x": 100,
-        "y": 450
-      }
-    },
-    {
-      "type": "MaplibreBasemapOp",
-      "id": "/maplibre-basemap",
-      "position": {
-        "x": 500,
-        "y": 600
-      },
-      "data": {
-        "inputs": {
-          "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
-          "viewState": {
-            "latitude": 37.75,
-            "longitude": -122.46,
-            "zoom": 14.1,
-            "pitch": 52.59,
-            "bearing": 25.07
-          }
-        },
-        "locked": false
-      }
-    },
-    {
-      "id": "/elevation",
-      "type": "CreateAttributeOp",
-      "position": {
-        "x": 1300,
-        "y": 380
-      },
-      "data": {
-        "inputs": {
-          "name": "value",
-          "expression": "d.properties.elevation",
-          "size": 1,
-          "type": "float"
-        },
-        "locked": false
       }
     }
   ],

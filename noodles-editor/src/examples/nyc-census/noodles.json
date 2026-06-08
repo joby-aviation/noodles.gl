@@ -63,6 +63,136 @@
   },
   "nodes": [
     {
+      "id": "/data-source",
+      "type": "FileOp",
+      "data": {
+        "inputs": {
+          "url": "@/data.json"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 100,
+        "y": 100
+      }
+    },
+    {
+      "type": "MaplibreBasemapOp",
+      "id": "/maplibre-basemap",
+      "position": {
+        "x": 100,
+        "y": 450
+      },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
+          "viewState": {
+            "latitude": 40.70103,
+            "longitude": -73.91554,
+            "zoom": 11.98,
+            "pitch": 59.11,
+            "bearing": -91.5
+          }
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "MapRangeOp",
+      "id": "/map-range",
+      "position": {
+        "x": 100,
+        "y": 850
+      },
+      "data": {
+        "inputs": {
+          "inMax": 10000
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "MapRangeOp",
+      "id": "/map-range-1",
+      "position": {
+        "x": 100,
+        "y": 1200
+      },
+      "data": {
+        "inputs": {
+          "inMax": 10000,
+          "outMax": 200
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/population",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 100,
+        "y": 1550
+      },
+      "data": {
+        "inputs": {
+          "name": "val",
+          "expression": "d.properties.Population",
+          "size": 1,
+          "type": "float"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/elevation",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 100,
+        "y": 1930
+      },
+      "data": {
+        "inputs": {
+          "name": "val",
+          "expression": "d.properties.Population",
+          "size": 1,
+          "type": "float"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/population-color",
+      "type": "ColorRampOp",
+      "data": {
+        "inputs": {
+          "colorScheme": "turbo"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 500,
+        "y": 100
+      }
+    },
+    {
+      "id": "/geojson-layer",
+      "type": "GeoJsonLayerOp",
+      "data": {
+        "inputs": {
+          "opacity": 0.7,
+          "stroked": false,
+          "getLineColor": "#000000ff",
+          "extruded": true,
+          "elevationScale": 11
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 900,
+        "y": 100
+      }
+    },
+    {
       "id": "/deck",
       "type": "DeckRendererOp",
       "data": {
@@ -96,136 +226,6 @@
       "position": {
         "x": 1700,
         "y": 100
-      }
-    },
-    {
-      "id": "/data-source",
-      "type": "FileOp",
-      "data": {
-        "inputs": {
-          "url": "@/data.json"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 500,
-        "y": 100
-      }
-    },
-    {
-      "id": "/geojson-layer",
-      "type": "GeoJsonLayerOp",
-      "data": {
-        "inputs": {
-          "opacity": 0.7,
-          "stroked": false,
-          "getLineColor": "#000000ff",
-          "extruded": true,
-          "elevationScale": 11
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 900,
-        "y": 100
-      }
-    },
-    {
-      "id": "/population-color",
-      "type": "ColorRampOp",
-      "data": {
-        "inputs": {
-          "colorScheme": "turbo"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 500,
-        "y": 450
-      }
-    },
-    {
-      "type": "MaplibreBasemapOp",
-      "id": "/maplibre-basemap",
-      "position": {
-        "x": 900,
-        "y": 600
-      },
-      "data": {
-        "inputs": {
-          "mapStyle": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
-          "viewState": {
-            "latitude": 40.70103,
-            "longitude": -73.91554,
-            "zoom": 11.98,
-            "pitch": 59.11,
-            "bearing": -91.5
-          }
-        },
-        "locked": false
-      }
-    },
-    {
-      "type": "MapRangeOp",
-      "id": "/map-range",
-      "position": {
-        "x": 100,
-        "y": 100
-      },
-      "data": {
-        "inputs": {
-          "inMax": 10000
-        },
-        "locked": false
-      }
-    },
-    {
-      "type": "MapRangeOp",
-      "id": "/map-range-1",
-      "position": {
-        "x": 500,
-        "y": 800
-      },
-      "data": {
-        "inputs": {
-          "inMax": 10000,
-          "outMax": 200
-        },
-        "locked": false
-      }
-    },
-    {
-      "id": "/population",
-      "type": "CreateAttributeOp",
-      "position": {
-        "x": 1700,
-        "y": 380
-      },
-      "data": {
-        "inputs": {
-          "name": "val",
-          "expression": "d.properties.Population",
-          "size": 1,
-          "type": "float"
-        },
-        "locked": false
-      }
-    },
-    {
-      "id": "/elevation",
-      "type": "CreateAttributeOp",
-      "position": {
-        "x": 1700,
-        "y": 760
-      },
-      "data": {
-        "inputs": {
-          "name": "val",
-          "expression": "d.properties.Population",
-          "size": 1,
-          "type": "float"
-        },
-        "locked": false
       }
     }
   ],

@@ -63,42 +63,6 @@
   },
   "nodes": [
     {
-      "id": "/deck",
-      "type": "DeckRendererOp",
-      "data": {
-        "inputs": {},
-        "locked": false
-      },
-      "position": {
-        "x": 2100,
-        "y": 100
-      }
-    },
-    {
-      "id": "/out",
-      "type": "OutOp",
-      "data": {
-        "inputs": {
-          "display": "fixed",
-          "width": 1920,
-          "height": 1080,
-          "lod": 2,
-          "waitForData": true,
-          "codec": "avc",
-          "bitrateMbps": 10,
-          "bitrateMode": "constant",
-          "scaleControl": 0.3,
-          "framerate": 30,
-          "captureDelay": 50
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 2500,
-        "y": 100
-      }
-    },
-    {
       "id": "/data-source",
       "type": "FileOp",
       "data": {
@@ -113,24 +77,10 @@
       }
     },
     {
-      "id": "/mesh-layer",
-      "type": "SimpleMeshLayerOp",
-      "data": {
-        "inputs": {
-          "sizeScale": 30
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 1700,
-        "y": 100
-      }
-    },
-    {
       "type": "MaplibreBasemapOp",
       "id": "/maplibre-basemap",
       "position": {
-        "x": 1700,
+        "x": 100,
         "y": 450
       },
       "data": {
@@ -196,6 +146,56 @@
           "type": "float"
         },
         "locked": false
+      }
+    },
+    {
+      "id": "/mesh-layer",
+      "type": "SimpleMeshLayerOp",
+      "data": {
+        "inputs": {
+          "sizeScale": 30
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 1700,
+        "y": 100
+      }
+    },
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 2100,
+        "y": 100
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "data": {
+        "inputs": {
+          "display": "fixed",
+          "width": 1920,
+          "height": 1080,
+          "lod": 2,
+          "waitForData": true,
+          "codec": "avc",
+          "bitrateMbps": 10,
+          "bitrateMode": "constant",
+          "scaleControl": 0.3,
+          "framerate": 30,
+          "captureDelay": 50
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 2500,
+        "y": 100
       }
     }
   ],

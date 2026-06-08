@@ -49,6 +49,79 @@
   },
   "nodes": [
     {
+      "id": "/data-source",
+      "type": "FileOp",
+      "data": {
+        "inputs": {
+          "url": "@/data.csv",
+          "format": "csv"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 100,
+        "y": 100
+      }
+    },
+    {
+      "type": "MaplibreBasemapOp",
+      "id": "/maplibre-basemap",
+      "position": {
+        "x": 100,
+        "y": 450
+      },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+          "viewState": {
+            "latitude": 37.759,
+            "longitude": -122.448,
+            "zoom": 12.51,
+            "pitch": 40,
+            "bearing": 0
+          }
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/position",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 100,
+        "y": 850
+      },
+      "data": {
+        "inputs": {
+          "name": "position",
+          "expression": "[d.longitude, d.latitude]",
+          "size": 3,
+          "type": "float"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/hexagon-layer",
+      "type": "HexagonLayerOp",
+      "data": {
+        "inputs": {
+          "radius": 200,
+          "extruded": true,
+          "elevationScale": 5,
+          "coverage": 1,
+          "upperPercentile": 100,
+          "colorAggregation": "MEAN",
+          "elevationAggregation": "SUM"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 500,
+        "y": 100
+      }
+    },
+    {
       "id": "/deck",
       "type": "DeckRendererOp",
       "data": {
@@ -82,79 +155,6 @@
       "position": {
         "x": 1300,
         "y": 100
-      }
-    },
-    {
-      "id": "/data-source",
-      "type": "FileOp",
-      "data": {
-        "inputs": {
-          "url": "@/data.csv",
-          "format": "csv"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 100,
-        "y": 100
-      }
-    },
-    {
-      "id": "/hexagon-layer",
-      "type": "HexagonLayerOp",
-      "data": {
-        "inputs": {
-          "radius": 200,
-          "extruded": true,
-          "elevationScale": 5,
-          "coverage": 1,
-          "upperPercentile": 100,
-          "colorAggregation": "MEAN",
-          "elevationAggregation": "SUM"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 500,
-        "y": 100
-      }
-    },
-    {
-      "type": "MaplibreBasemapOp",
-      "id": "/maplibre-basemap",
-      "position": {
-        "x": 500,
-        "y": 450
-      },
-      "data": {
-        "inputs": {
-          "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
-          "viewState": {
-            "latitude": 37.759,
-            "longitude": -122.448,
-            "zoom": 12.51,
-            "pitch": 40,
-            "bearing": 0
-          }
-        },
-        "locked": false
-      }
-    },
-    {
-      "id": "/position",
-      "type": "CreateAttributeOp",
-      "position": {
-        "x": 100,
-        "y": 450
-      },
-      "data": {
-        "inputs": {
-          "name": "position",
-          "expression": "[d.longitude, d.latitude]",
-          "size": 3,
-          "type": "float"
-        },
-        "locked": false
       }
     }
   ],

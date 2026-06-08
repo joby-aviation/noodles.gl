@@ -168,6 +168,244 @@
   },
   "nodes": [
     {
+      "id": "/data-source",
+      "type": "FileOp",
+      "data": {
+        "inputs": {
+          "url": "https://raw.githubusercontent.com/keplergl/kepler.gl-data/master/world_flights/world_flights_soei4h.json"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 100,
+        "y": 100
+      }
+    },
+    {
+      "type": "MaplibreBasemapOp",
+      "id": "/maplibre-basemap",
+      "position": {
+        "x": 100,
+        "y": 450
+      },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+          "viewState": {
+            "latitude": 38.69,
+            "longitude": -1.76,
+            "zoom": 2.62,
+            "pitch": 0,
+            "bearing": 0
+          }
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "NumberOp",
+      "id": "/time",
+      "position": {
+        "x": 100,
+        "y": 850
+      },
+      "data": {
+        "inputs": {
+          "val": 1567555200.276152
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/origin-country",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 100,
+        "y": 1200
+      },
+      "data": {
+        "inputs": {
+          "name": "value",
+          "expression": "d.properties.origin_country",
+          "size": 1,
+          "type": "float"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/timestamps",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 100,
+        "y": 1580
+      },
+      "data": {
+        "inputs": {
+          "name": "timestamps",
+          "expression": "d.timestamps",
+          "size": 1,
+          "type": "float"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/path",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 100,
+        "y": 1960
+      },
+      "data": {
+        "inputs": {
+          "name": "values",
+          "expression": "d.path",
+          "size": 1,
+          "type": "float"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/properties",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 100,
+        "y": 2340
+      },
+      "data": {
+        "inputs": {
+          "name": "properties",
+          "expression": "{properties: d.properties}",
+          "size": 1,
+          "type": "float"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/position",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 100,
+        "y": 2720
+      },
+      "data": {
+        "inputs": {
+          "name": "position",
+          "expression": "[d[0], d[1], d[2]]",
+          "size": 3,
+          "type": "float"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/color-ramp",
+      "type": "CategoricalColorRampOp",
+      "data": {
+        "inputs": {
+          "colorScheme": "category10"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 500,
+        "y": 100
+      }
+    },
+    {
+      "type": "CodeOp",
+      "id": "/code",
+      "position": {
+        "x": 500,
+        "y": 450
+      },
+      "resizing": false,
+      "data": {
+        "inputs": {
+          "code": [
+            "return d.features.map(({",
+            "  geometry: {coordinates}, properties",
+            "}) => ({",
+            "  path: coordinates.map(([lng, lat, alt]) => [lng, lat, alt]),",
+            "  timestamps: coordinates.map(([_0, _1, _2, t]) => t),",
+            "  properties",
+            "}))"
+          ]
+        },
+        "locked": false
+      },
+      "width": 643,
+      "height": 253,
+      "measured": {
+        "width": 643,
+        "height": 253
+      }
+    },
+    {
+      "id": "/geojson-layer",
+      "type": "GeoJsonLayerOp",
+      "data": {
+        "inputs": {
+          "opacity": 0.6,
+          "filled": false,
+          "getFillColor": "#006ac6ff",
+          "lineWidthMinPixels": 0.5
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 900,
+        "y": 100
+      }
+    },
+    {
+      "id": "/trips-layer",
+      "type": "TripsLayerOp",
+      "data": {
+        "inputs": {
+          "opacity": 0.8,
+          "getWidth": 10,
+          "trailLength": 336
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 900,
+        "y": 600
+      }
+    },
+    {
+      "type": "TimeSeriesOp",
+      "id": "/time-series",
+      "position": {
+        "x": 900,
+        "y": 1080
+      },
+      "data": {
+        "inputs": {},
+        "locked": false
+      }
+    },
+    {
+      "type": "ScatterplotLayerOp",
+      "id": "/scatterplot-layer",
+      "position": {
+        "x": 1300,
+        "y": 100
+      },
+      "data": {
+        "inputs": {
+          "opacity": 0.6,
+          "getLineColor": "#ffffffff",
+          "getRadius": 6
+        },
+        "locked": false
+      }
+    },
+    {
       "id": "/deck",
       "type": "DeckRendererOp",
       "data": {
@@ -201,244 +439,6 @@
       "position": {
         "x": 2100,
         "y": 100
-      }
-    },
-    {
-      "id": "/data-source",
-      "type": "FileOp",
-      "data": {
-        "inputs": {
-          "url": "https://raw.githubusercontent.com/keplergl/kepler.gl-data/master/world_flights/world_flights_soei4h.json"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 100,
-        "y": 100
-      }
-    },
-    {
-      "id": "/geojson-layer",
-      "type": "GeoJsonLayerOp",
-      "data": {
-        "inputs": {
-          "opacity": 0.6,
-          "filled": false,
-          "getFillColor": "#006ac6ff",
-          "lineWidthMinPixels": 0.5
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 1300,
-        "y": 100
-      }
-    },
-    {
-      "id": "/trips-layer",
-      "type": "TripsLayerOp",
-      "data": {
-        "inputs": {
-          "opacity": 0.8,
-          "getWidth": 10,
-          "trailLength": 336
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 1300,
-        "y": 600
-      }
-    },
-    {
-      "id": "/color-ramp",
-      "type": "CategoricalColorRampOp",
-      "data": {
-        "inputs": {
-          "colorScheme": "category10"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 900,
-        "y": 100
-      }
-    },
-    {
-      "type": "MaplibreBasemapOp",
-      "id": "/maplibre-basemap",
-      "position": {
-        "x": 1300,
-        "y": 1080
-      },
-      "data": {
-        "inputs": {
-          "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
-          "viewState": {
-            "latitude": 38.69,
-            "longitude": -1.76,
-            "zoom": 2.62,
-            "pitch": 0,
-            "bearing": 0
-          }
-        },
-        "locked": false
-      }
-    },
-    {
-      "type": "TimeSeriesOp",
-      "id": "/time-series",
-      "position": {
-        "x": 900,
-        "y": 450
-      },
-      "data": {
-        "inputs": {},
-        "locked": false
-      }
-    },
-    {
-      "type": "NumberOp",
-      "id": "/time",
-      "position": {
-        "x": 500,
-        "y": 100
-      },
-      "data": {
-        "inputs": {
-          "val": 1567555200.276152
-        },
-        "locked": false
-      }
-    },
-    {
-      "type": "CodeOp",
-      "id": "/code",
-      "position": {
-        "x": 500,
-        "y": 450
-      },
-      "resizing": false,
-      "data": {
-        "inputs": {
-          "code": [
-            "return d.features.map(({",
-            "  geometry: {coordinates}, properties",
-            "}) => ({",
-            "  path: coordinates.map(([lng, lat, alt]) => [lng, lat, alt]),",
-            "  timestamps: coordinates.map(([_0, _1, _2, t]) => t),",
-            "  properties",
-            "}))"
-          ]
-        },
-        "locked": false
-      },
-      "width": 643,
-      "height": 253,
-      "measured": {
-        "width": 643,
-        "height": 253
-      }
-    },
-    {
-      "type": "ScatterplotLayerOp",
-      "id": "/scatterplot-layer",
-      "position": {
-        "x": 1300,
-        "y": 1480
-      },
-      "data": {
-        "inputs": {
-          "opacity": 0.6,
-          "getLineColor": "#ffffffff",
-          "getRadius": 6
-        },
-        "locked": false
-      }
-    },
-    {
-      "id": "/origin-country",
-      "type": "CreateAttributeOp",
-      "position": {
-        "x": 500,
-        "y": 800
-      },
-      "data": {
-        "inputs": {
-          "name": "value",
-          "expression": "d.properties.origin_country",
-          "size": 1,
-          "type": "float"
-        },
-        "locked": false
-      }
-    },
-    {
-      "id": "/timestamps",
-      "type": "CreateAttributeOp",
-      "position": {
-        "x": 500,
-        "y": 1180
-      },
-      "data": {
-        "inputs": {
-          "name": "timestamps",
-          "expression": "d.timestamps",
-          "size": 1,
-          "type": "float"
-        },
-        "locked": false
-      }
-    },
-    {
-      "id": "/path",
-      "type": "CreateAttributeOp",
-      "position": {
-        "x": 500,
-        "y": 1560
-      },
-      "data": {
-        "inputs": {
-          "name": "values",
-          "expression": "d.path",
-          "size": 1,
-          "type": "float"
-        },
-        "locked": false
-      }
-    },
-    {
-      "id": "/properties",
-      "type": "CreateAttributeOp",
-      "position": {
-        "x": 500,
-        "y": 1940
-      },
-      "data": {
-        "inputs": {
-          "name": "properties",
-          "expression": "{properties: d.properties}",
-          "size": 1,
-          "type": "float"
-        },
-        "locked": false
-      }
-    },
-    {
-      "id": "/position",
-      "type": "CreateAttributeOp",
-      "position": {
-        "x": 900,
-        "y": 800
-      },
-      "data": {
-        "inputs": {
-          "name": "position",
-          "expression": "[d[0], d[1], d[2]]",
-          "size": 3,
-          "type": "float"
-        },
-        "locked": false
       }
     }
   ],

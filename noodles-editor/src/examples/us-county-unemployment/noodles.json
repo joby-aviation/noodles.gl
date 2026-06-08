@@ -77,6 +77,126 @@
   },
   "nodes": [
     {
+      "id": "/data-source",
+      "type": "FileOp",
+      "data": {
+        "inputs": {
+          "url": "@/data.geojson"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 100,
+        "y": 100
+      }
+    },
+    {
+      "type": "MaplibreBasemapOp",
+      "id": "/maplibre-basemap",
+      "position": {
+        "x": 100,
+        "y": 450
+      },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
+          "viewState": {
+            "latitude": 40.017,
+            "longitude": -94.347,
+            "zoom": 5.45,
+            "pitch": 0,
+            "bearing": 0
+          }
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/unemployment",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 100,
+        "y": 850
+      },
+      "data": {
+        "inputs": {
+          "name": "val",
+          "expression": "d.properties.unemployment_rate ?? 0",
+          "size": 1,
+          "type": "float"
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "ExpressionOp",
+      "id": "/expression",
+      "position": {
+        "x": 500,
+        "y": 100
+      },
+      "data": {
+        "inputs": {
+          "expression": "d.features"
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "ExtentOp",
+      "id": "/extent",
+      "position": {
+        "x": 900,
+        "y": 100
+      },
+      "data": {
+        "inputs": {},
+        "locked": false
+      }
+    },
+    {
+      "type": "MapRangeOp",
+      "id": "/map-range",
+      "position": {
+        "x": 1300,
+        "y": 100
+      },
+      "data": {
+        "inputs": {
+          "inMin": 0.1
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/unemployment-color",
+      "type": "ColorRampOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 1700,
+        "y": 100
+      }
+    },
+    {
+      "id": "/geojson-layer",
+      "type": "GeoJsonLayerOp",
+      "data": {
+        "inputs": {
+          "opacity": 0.8,
+          "stroked": false,
+          "getLineColor": "#000000ff"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 2100,
+        "y": 100
+      }
+    },
+    {
       "id": "/deck",
       "type": "DeckRendererOp",
       "data": {
@@ -110,126 +230,6 @@
       "position": {
         "x": 2900,
         "y": 100
-      }
-    },
-    {
-      "id": "/data-source",
-      "type": "FileOp",
-      "data": {
-        "inputs": {
-          "url": "@/data.geojson"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 100,
-        "y": 100
-      }
-    },
-    {
-      "id": "/geojson-layer",
-      "type": "GeoJsonLayerOp",
-      "data": {
-        "inputs": {
-          "opacity": 0.8,
-          "stroked": false,
-          "getLineColor": "#000000ff"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 2100,
-        "y": 100
-      }
-    },
-    {
-      "id": "/unemployment-color",
-      "type": "ColorRampOp",
-      "data": {
-        "inputs": {},
-        "locked": false
-      },
-      "position": {
-        "x": 1700,
-        "y": 100
-      }
-    },
-    {
-      "type": "MaplibreBasemapOp",
-      "id": "/maplibre-basemap",
-      "position": {
-        "x": 2100,
-        "y": 600
-      },
-      "data": {
-        "inputs": {
-          "mapStyle": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
-          "viewState": {
-            "latitude": 40.017,
-            "longitude": -94.347,
-            "zoom": 5.45,
-            "pitch": 0,
-            "bearing": 0
-          }
-        },
-        "locked": false
-      }
-    },
-    {
-      "type": "MapRangeOp",
-      "id": "/map-range",
-      "position": {
-        "x": 1300,
-        "y": 100
-      },
-      "data": {
-        "inputs": {
-          "inMin": 0.1
-        },
-        "locked": false
-      }
-    },
-    {
-      "type": "ExtentOp",
-      "id": "/extent",
-      "position": {
-        "x": 900,
-        "y": 100
-      },
-      "data": {
-        "inputs": {},
-        "locked": false
-      }
-    },
-    {
-      "type": "ExpressionOp",
-      "id": "/expression",
-      "position": {
-        "x": 500,
-        "y": 100
-      },
-      "data": {
-        "inputs": {
-          "expression": "d.features"
-        },
-        "locked": false
-      }
-    },
-    {
-      "id": "/unemployment",
-      "type": "CreateAttributeOp",
-      "position": {
-        "x": 2900,
-        "y": 380
-      },
-      "data": {
-        "inputs": {
-          "name": "val",
-          "expression": "d.properties.unemployment_rate ?? 0",
-          "size": 1,
-          "type": "float"
-        },
-        "locked": false
       }
     }
   ],

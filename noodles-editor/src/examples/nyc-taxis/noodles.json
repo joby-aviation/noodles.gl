@@ -8,23 +8,16 @@
       "targetHandle": "par.vis"
     },
     {
-      "id": "/data-source.out.data->/arc-layer.par.data",
+      "id": "/data-source.out.data->/pickup-position.par.data",
       "source": "/data-source",
-      "target": "/arc-layer",
+      "target": "/pickup-position",
       "sourceHandle": "out.data",
       "targetHandle": "par.data"
     },
     {
-      "id": "/data-source.out.data->/pickup-layer.par.data",
+      "id": "/data-source.out.data->/dropoff-position.par.data",
       "source": "/data-source",
-      "target": "/pickup-layer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/data-source.out.data->/dropoff-layer.par.data",
-      "source": "/data-source",
-      "target": "/dropoff-layer",
+      "target": "/dropoff-position",
       "sourceHandle": "out.data",
       "targetHandle": "par.data"
     },
@@ -147,6 +140,164 @@
   },
   "nodes": [
     {
+      "id": "/data-source",
+      "type": "FileOp",
+      "data": {
+        "inputs": {
+          "format": "csv",
+          "url": "@/data.csv"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 100,
+        "y": 100
+      }
+    },
+    {
+      "type": "MaplibreBasemapOp",
+      "id": "/maplibre-basemap",
+      "position": {
+        "x": 100,
+        "y": 450
+      },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+          "viewState": {
+            "latitude": 40.74,
+            "longitude": -73.98,
+            "zoom": 12.09,
+            "pitch": 56,
+            "bearing": -15.25
+          }
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "ColorOp",
+      "id": "/pickup",
+      "position": {
+        "x": 100,
+        "y": 850
+      },
+      "data": {
+        "inputs": {
+          "color": "#8d12af"
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "ColorOp",
+      "id": "/dropoff",
+      "position": {
+        "x": 100,
+        "y": 1200
+      },
+      "data": {
+        "inputs": {
+          "color": "#105b89"
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "BlendingOp",
+      "id": "/blending",
+      "position": {
+        "x": 100,
+        "y": 1550
+      },
+      "data": {
+        "inputs": {
+          "mode": "additive"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/pickup-position",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 500,
+        "y": 100
+      },
+      "data": {
+        "inputs": {
+          "name": "position",
+          "expression": "[d.pickup_longitude, d.pickup_latitude]",
+          "size": 3,
+          "type": "float"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/dropoff-position",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 500,
+        "y": 480
+      },
+      "data": {
+        "inputs": {
+          "name": "position",
+          "expression": "[d.dropoff_longitude, d.dropoff_latitude]",
+          "size": 3,
+          "type": "float"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/arc-layer",
+      "type": "ArcLayerOp",
+      "data": {
+        "inputs": {
+          "getWidth": 4
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 900,
+        "y": 100
+      }
+    },
+    {
+      "id": "/pickup-layer",
+      "type": "ScatterplotLayerOp",
+      "data": {
+        "inputs": {
+          "opacity": 0.8,
+          "getLineColor": "#ffffffff",
+          "getRadius": 10
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 900,
+        "y": 580
+      }
+    },
+    {
+      "id": "/dropoff-layer",
+      "type": "ScatterplotLayerOp",
+      "data": {
+        "inputs": {
+          "opacity": 0.8,
+          "getLineColor": "#ffffffff",
+          "getRadius": 10
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 900,
+        "y": 1080
+      }
+    },
+    {
       "id": "/deck",
       "type": "DeckRendererOp",
       "data": {
@@ -154,7 +305,7 @@
         "locked": false
       },
       "position": {
-        "x": 900,
+        "x": 1300,
         "y": 100
       }
     },
@@ -178,166 +329,8 @@
         "locked": false
       },
       "position": {
-        "x": 1300,
+        "x": 1700,
         "y": 100
-      }
-    },
-    {
-      "id": "/data-source",
-      "type": "FileOp",
-      "data": {
-        "inputs": {
-          "format": "csv",
-          "url": "@/data.csv"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 100,
-        "y": 100
-      }
-    },
-    {
-      "id": "/arc-layer",
-      "type": "ArcLayerOp",
-      "data": {
-        "inputs": {
-          "getWidth": 4
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 500,
-        "y": 100
-      }
-    },
-    {
-      "id": "/pickup-layer",
-      "type": "ScatterplotLayerOp",
-      "data": {
-        "inputs": {
-          "opacity": 0.8,
-          "getLineColor": "#ffffffff",
-          "getRadius": 10
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 500,
-        "y": 580
-      }
-    },
-    {
-      "id": "/dropoff-layer",
-      "type": "ScatterplotLayerOp",
-      "data": {
-        "inputs": {
-          "opacity": 0.8,
-          "getLineColor": "#ffffffff",
-          "getRadius": 10
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 500,
-        "y": 1080
-      }
-    },
-    {
-      "type": "MaplibreBasemapOp",
-      "id": "/maplibre-basemap",
-      "position": {
-        "x": 500,
-        "y": 1580
-      },
-      "data": {
-        "inputs": {
-          "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
-          "viewState": {
-            "latitude": 40.74,
-            "longitude": -73.98,
-            "zoom": 12.09,
-            "pitch": 56,
-            "bearing": -15.25
-          }
-        },
-        "locked": false
-      }
-    },
-    {
-      "type": "ColorOp",
-      "id": "/pickup",
-      "position": {
-        "x": 100,
-        "y": 450
-      },
-      "data": {
-        "inputs": {
-          "color": "#8d12af"
-        },
-        "locked": false
-      }
-    },
-    {
-      "type": "ColorOp",
-      "id": "/dropoff",
-      "position": {
-        "x": 100,
-        "y": 800
-      },
-      "data": {
-        "inputs": {
-          "color": "#105b89"
-        },
-        "locked": false
-      }
-    },
-    {
-      "type": "BlendingOp",
-      "id": "/blending",
-      "position": {
-        "x": 100,
-        "y": 1150
-      },
-      "data": {
-        "inputs": {
-          "mode": "additive"
-        },
-        "locked": false
-      }
-    },
-    {
-      "id": "/pickup-position",
-      "type": "CreateAttributeOp",
-      "position": {
-        "x": 100,
-        "y": 1500
-      },
-      "data": {
-        "inputs": {
-          "name": "position",
-          "expression": "[d.pickup_longitude, d.pickup_latitude]",
-          "size": 3,
-          "type": "float"
-        },
-        "locked": false
-      }
-    },
-    {
-      "id": "/dropoff-position",
-      "type": "CreateAttributeOp",
-      "position": {
-        "x": 100,
-        "y": 1880
-      },
-      "data": {
-        "inputs": {
-          "name": "position",
-          "expression": "[d.dropoff_longitude, d.dropoff_latitude]",
-          "size": 3,
-          "type": "float"
-        },
-        "locked": false
       }
     }
   ],

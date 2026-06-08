@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 
 /**
- * Fix Example Layouts - Apply proper left-to-right layout
+ * Fix Example Layouts - Simple left-to-right layout matching nyc-taxis style
  *
- * Ensures:
- * - OutOp on the far right
- * - Each dependency level aligned horizontally
- * - FileOps on the far left
- * - Single-connection chains maintain vertical alignment
+ * Layout style:
+ * - 400px horizontal spacing between columns
+ * - 200px vertical spacing between nodes
+ * - Simple topological sort (longest path from sources)
+ * - No forced vertical centering or alignment
  */
 
 import fs from 'fs'
@@ -24,6 +24,8 @@ const DRY_RUN = process.argv.includes('--dry-run')
 const NODE_SIZES = {
   FileOp: { width: 200, height: 150 },
   CreateAttributeOp: { width: 250, height: 180 },
+  CodeOp: { width: 400, height: 300 },
+  TableEditorOp: { width: 300, height: 250 },
   ScatterplotLayerOp: { width: 250, height: 300 },
   PathLayerOp: { width: 250, height: 280 },
   ArcLayerOp: { width: 250, height: 280 },
@@ -45,152 +47,124 @@ function getNodeSize(nodeType) {
   return NODE_SIZES[nodeType] || NODE_SIZES.default
 }
 
-function buildDependencyGraph(nodes, edges) {
+/**
+ * Simple topological sort: assign each node to a column based on longest path from sources
+ */
+function computeLayers(nodes, edges) {
   const graph = new Map()
-  const reverseGraph = new Map()
+  const inDegree = new Map()
+  const layer = new Map()
 
+  // Initialize
   for (const node of nodes) {
     graph.set(node.id, [])
-    reverseGraph.set(node.id, [])
+    inDegree.set(node.id, 0)
+    layer.set(node.id, 0)
   }
 
+  // Build adjacency list and count in-degrees
   for (const edge of edges) {
     if (graph.has(edge.source) && graph.has(edge.target)) {
       graph.get(edge.source).push(edge.target)
-      reverseGraph.get(edge.target).push(edge.source)
+      inDegree.set(edge.target, inDegree.get(edge.target) + 1)
     }
   }
 
-  return { graph, reverseGraph }
-}
-
-function applySmartLayout(nodes, edges) {
-  const { graph, reverseGraph } = buildDependencyGraph(nodes, edges)
-
-  // Calculate longest path from each node to sinks (OutOp, etc.)
-  const longestPath = new Map()
-
-  // Find sink nodes (nodes with no outgoing edges)
-  const sinks = []
+  // Find source nodes (no incoming edges)
+  const sources = []
   for (const node of nodes) {
-    const hasOutgoing = graph.get(node.id).length > 0
-    if (!hasOutgoing) {
-      sinks.push(node.id)
-      longestPath.set(node.id, 0)
+    if (inDegree.get(node.id) === 0) {
+      sources.push(node.id)
+      layer.set(node.id, 0)
     }
   }
 
-  // BFS from sinks backwards to calculate longest path
-  const queue = [...sinks]
-  const visited = new Set()
+  // Topological sort with longest path
+  const queue = [...sources]
+  const processed = new Set()
 
   while (queue.length > 0) {
     const nodeId = queue.shift()
-    if (visited.has(nodeId)) continue
-    visited.add(nodeId)
+    if (processed.has(nodeId)) continue
+    processed.add(nodeId)
 
-    const currentPath = longestPath.get(nodeId) || 0
-    const parents = reverseGraph.get(nodeId) || []
+    const currentLayer = layer.get(nodeId)
+    const children = graph.get(nodeId) || []
 
-    for (const parent of parents) {
-      const newPath = currentPath + 1
-      const existingPath = longestPath.get(parent) || 0
-      if (newPath > existingPath) {
-        longestPath.set(parent, newPath)
+    for (const child of children) {
+      // Child must be at least one layer to the right
+      const newLayer = Math.max(layer.get(child), currentLayer + 1)
+      layer.set(child, newLayer)
+
+      // Add to queue when all parents processed
+      const parentsProcessed = edges
+        .filter(e => e.target === child)
+        .every(e => processed.has(e.source))
+
+      if (parentsProcessed && !processed.has(child)) {
+        queue.push(child)
       }
-      queue.push(parent)
     }
   }
 
-  // Group nodes by layer (distance from sinks)
-  const maxLayer = Math.max(...Array.from(longestPath.values()), 0)
-  const layers = Array.from({ length: maxLayer + 1 }, () => [])
+  return layer
+}
 
-  for (const node of nodes) {
-    const path = longestPath.get(node.id) || 0
-    const layer = maxLayer - path
-    layers[layer].push(node)
+/**
+ * Apply simple layout: stack nodes in columns with consistent spacing
+ */
+function applySimpleLayout(nodes, edges) {
+  const layer = computeLayers(nodes, edges)
+
+  // Group nodes by layer
+  const maxLayer = Math.max(...Array.from(layer.values()))
+  const layers = []
+
+  for (let i = 0; i <= maxLayer; i++) {
+    layers.push([])
   }
 
-  // Layout parameters
-  const HORIZONTAL_SPACING = 400
+  for (const node of nodes) {
+    const l = layer.get(node.id)
+    layers[l].push(node)
+  }
+
+  const HORIZONTAL_SPACING = 400  // Match nyc-taxis style
   const VERTICAL_SPACING = 200
   const START_X = 100
   const START_Y = 100
 
-  const nodePositions = new Map()
-
-  // Process each layer
+  // Assign positions: simple stacking
+  const updatedNodes = []
   for (let layerIndex = 0; layerIndex < layers.length; layerIndex++) {
     const layerNodes = layers[layerIndex]
     const x = START_X + layerIndex * HORIZONTAL_SPACING
 
-    // Group nodes by their immediate downstream target
-    const nodesByTarget = new Map()
-
+    let y = START_Y
     for (const node of layerNodes) {
-      const targets = graph.get(node.id) || []
+      updatedNodes.push({
+        ...node,
+        position: { x, y }
+      })
 
-      if (targets.length === 1) {
-        const target = targets[0]
-        if (!nodesByTarget.has(target)) {
-          nodesByTarget.set(target, [])
-        }
-        nodesByTarget.get(target).push(node)
-      } else {
-        // Multiple or no targets
-        const key = `_branch_${node.id}`
-        nodesByTarget.set(key, [node])
-      }
-    }
-
-    // Assign Y positions
-    let currentY = START_Y
-
-    for (const [targetId, nodeGroup] of nodesByTarget) {
-      if (nodeGroup.length === 1 && !targetId.startsWith('_branch_')) {
-        // Single node feeding into one target - try to align
-        const targetPos = nodePositions.get(targetId)
-
-        if (targetPos) {
-          // Align with target's Y position
-          nodePositions.set(nodeGroup[0].id, { x, y: targetPos.y })
-          const size = getNodeSize(nodeGroup[0].type)
-          currentY = Math.max(currentY, targetPos.y + size.height + VERTICAL_SPACING)
-        } else {
-          // Target not positioned yet, use currentY
-          nodePositions.set(nodeGroup[0].id, { x, y: currentY })
-          const size = getNodeSize(nodeGroup[0].type)
-          currentY += size.height + VERTICAL_SPACING
-        }
-      } else {
-        // Multiple nodes or branching - stack vertically
-        for (const node of nodeGroup) {
-          nodePositions.set(node.id, { x, y: currentY })
-          const size = getNodeSize(node.type)
-          currentY += size.height + VERTICAL_SPACING
-        }
-      }
+      const size = getNodeSize(node.type)
+      y += size.height + VERTICAL_SPACING
     }
   }
 
-  // Apply positions
-  return nodes.map(node => {
-    const pos = nodePositions.get(node.id)
-    return pos ? { ...node, position: { x: pos.x, y: pos.y } } : node
-  })
+  return updatedNodes
 }
 
 function fixProjectLayout(projectPath) {
   const content = fs.readFileSync(projectPath, 'utf-8')
   const project = JSON.parse(content)
 
-  const layoutedNodes = applySmartLayout(project.nodes, project.edges)
+  const layoutedNodes = applySimpleLayout(project.nodes, project.edges)
 
   const updatedProject = {
     ...project,
     nodes: layoutedNodes,
-    viewport: { x: 0, y: 0, zoom: 0.8 } // Reset viewport
+    viewport: { x: 0, y: 0, zoom: 0.8 }
   }
 
   if (!DRY_RUN) {
