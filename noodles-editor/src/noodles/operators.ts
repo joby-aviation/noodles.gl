@@ -3454,6 +3454,7 @@ function sqlParseAggregations(
     })
 }
 
+// biome-ignore lint/suspicious/noExplicitAny: Dynamic row type from SQL results
 function sqlComputeAgg(rows: any[], agg: { column: string; function: string }): number {
   if (agg.column === '*' && agg.function === 'count') return rows.length
   const vals = rows.map(r => Number(r[agg.column])).filter(v => !Number.isNaN(v))
@@ -3525,6 +3526,7 @@ export class GroupByOp extends Operator<GroupByOp> {
       }
     }
 
+    // biome-ignore lint/suspicious/noExplicitAny: Dynamic row type from SQL results
     const groups = new Map<string, any[]>()
     for (const row of data) {
       const key = groupCols.map(c => row[c]).join('|')
@@ -3532,8 +3534,10 @@ export class GroupByOp extends Operator<GroupByOp> {
       groups.get(key)!.push(row)
     }
 
+    // biome-ignore lint/suspicious/noExplicitAny: Dynamic row type from SQL results
     const result: any[] = []
     for (const [, rows] of groups) {
+      // biome-ignore lint/suspicious/noExplicitAny: Dynamic row type from SQL results
       const out: any = {}
       for (const col of groupCols) out[col] = rows[0][col]
       for (const agg of aggs)
@@ -3573,6 +3577,7 @@ export class JoinOp extends Operator<JoinOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!left?.length || !right?.length) return { data: [] }
 
+    // biome-ignore lint/suspicious/noExplicitAny: Dynamic row type from join inputs
     const mergeRows = (l: any, r: any) => {
       const leftCols = new Set(Object.keys(l))
       const rightCols = new Set(Object.keys(r))
@@ -3589,11 +3594,13 @@ export class JoinOp extends Operator<JoinOp> {
     }
 
     if (joinType === 'cross') {
+      // biome-ignore lint/suspicious/noExplicitAny: Dynamic row type from join inputs
       const result: any[] = []
       for (const l of left) for (const r of right) result.push(mergeRows(l, r))
       return { data: result }
     }
 
+    // biome-ignore lint/suspicious/noExplicitAny: Dynamic row type from join inputs
     const rightIndex = new Map<unknown, any[]>()
     for (const row of right) {
       const key = row[rightKey as string]
@@ -3601,6 +3608,7 @@ export class JoinOp extends Operator<JoinOp> {
       rightIndex.get(key)!.push(row)
     }
 
+    // biome-ignore lint/suspicious/noExplicitAny: Dynamic row type from join inputs
     const result: any[] = []
     for (const l of left) {
       const matches = rightIndex.get(l[leftKey as string]) || []
@@ -3644,6 +3652,7 @@ export class UniqueOp extends Operator<UniqueOp> {
           .filter(Boolean)
       : null
     const seen = new Set<string>()
+    // biome-ignore lint/suspicious/noExplicitAny: Dynamic row type from input data
     const result: any[] = []
     for (const row of data) {
       const key = cols ? cols.map(c => JSON.stringify(row[c])).join('|') : JSON.stringify(row)
@@ -3689,13 +3698,18 @@ export class PivotOp extends Operator<PivotOp> {
       const idx = row[indexColumn as string]
       const piv = row[pivotColumn as string]
       const val = Number(row[valueColumn as string])
+      // biome-ignore lint/suspicious/noExplicitAny: Dynamic pivot column values
       if (!groups.has(idx)) groups.set(idx, new Map())
+      // biome-ignore lint/suspicious/noExplicitAny: Dynamic pivot column values
       const pivMap = groups.get(idx)!
       if (!pivMap.has(piv)) pivMap.set(piv, [])
       pivMap.get(piv)!.push(val)
     }
+    // biome-ignore lint/suspicious/noExplicitAny: Dynamic row type from pivot results
+    // biome-ignore lint/suspicious/noExplicitAny: Dynamic row type from pivot results
     const result: any[] = []
     for (const [idx, pivMap] of groups) {
+      // biome-ignore lint/suspicious/noExplicitAny: Dynamic row type from pivot results
       const out: any = { [indexColumn as string]: idx }
       for (const [piv, vals] of pivMap) {
         const fn = aggregation as string
@@ -3759,8 +3773,10 @@ export class UnpivotOp extends Operator<UnpivotOp> {
       .split(',')
       .map(s => s.trim())
       .filter(Boolean)
+    // biome-ignore lint/suspicious/noExplicitAny: Dynamic row type from melt results
     const result: any[] = []
     for (const row of data) {
+      // biome-ignore lint/suspicious/noExplicitAny: Dynamic row type from melt results
       const base: any = {}
       for (const [k, v] of Object.entries(row)) {
         if (!valCols.includes(k)) base[k] = v
@@ -3828,6 +3844,7 @@ export class WindowOp extends Operator<WindowOp> {
       return 0
     })
 
+    // biome-ignore lint/suspicious/noExplicitAny: Dynamic row type from window results
     const partitions = new Map<string, any[]>()
     for (const row of sorted) {
       const key = partCols.map(c => row[c]).join('|')
@@ -3835,6 +3852,7 @@ export class WindowOp extends Operator<WindowOp> {
       partitions.get(key)!.push(row)
     }
 
+    // biome-ignore lint/suspicious/noExplicitAny: Dynamic row type from window results
     const result: any[] = []
     for (const [, rows] of partitions) {
       let currentRank = 1
@@ -6282,10 +6300,13 @@ export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
       return { layer: layerProps }
     }
 
+    // biome-ignore lint/suspicious/noExplicitAny: Layer props spread with dynamic types
     const baseLayerProps = {
+      // biome-ignore lint/suspicious/noExplicitAny: Layer props spread with dynamic types
       ...parseLayerProps<ScatterplotLayerProps>({ ...cleanProps, data: rows }),
       type: 'ScatterplotLayer' as const,
       id: this.id,
+      // biome-ignore lint/suspicious/noExplicitAny: Layer props spread with dynamic types
       updateTriggers: gatherTriggers(this.inputs, cleanProps),
     }
 
@@ -6296,8 +6317,11 @@ export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
     console.log('[ScatterplotLayerOp] All color props:', {
       getFillColor: baseLayerProps.getFillColor,
       getLineColor: baseLayerProps.getLineColor,
+      // biome-ignore lint/suspicious/noExplicitAny: Debugging dynamic layer props
       lineColor: (baseLayerProps as any).lineColor,
+      // biome-ignore lint/suspicious/noExplicitAny: Debugging dynamic layer props
       fillColor: (baseLayerProps as any).fillColor,
+      // biome-ignore lint/suspicious/noExplicitAny: Debugging dynamic layer props
       color: (baseLayerProps as any).color,
     })
 

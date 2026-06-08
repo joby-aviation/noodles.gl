@@ -103,7 +103,11 @@
       }
     },
     {
-      "includes": ["src/noodles/arrow-data.ts", "src/noodles/arrow-operators.ts"],
+      "includes": [
+        "src/noodles/arrow-data.ts",
+        "src/noodles/arrow-operators.ts",
+        "src/noodles/sql-compiler/**"
+      ],
       "linter": {
         "rules": {
           "suspicious": {
