@@ -107,7 +107,7 @@
       "data": {
         "inputs": {
           "name": "position",
-          "expression": "d.coordinates",
+          "expression": "[d.coordinates[0], d.coordinates[1], 0]",
           "size": 3,
           "type": "float"
         },
@@ -124,7 +124,7 @@
       "data": {
         "inputs": {
           "name": "color",
-          "expression": "utils.colorToHex([Math.sqrt(d.exits), 140, 0])",
+          "expression": "[Math.sqrt(d.exits), 140, 0, 255]",
           "size": 4,
           "type": "uint8"
         },
@@ -142,7 +142,7 @@
         "inputs": {
           "name": "orientation",
           "expression": "[0, Math.random() * 180, 0]",
-          "size": 1,
+          "size": 3,
           "type": "float"
         },
         "locked": false
@@ -153,6 +153,7 @@
       "type": "SimpleMeshLayerOp",
       "data": {
         "inputs": {
+          "mesh": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/humanoid_quad.obj",
           "sizeScale": 30
         },
         "locked": false
