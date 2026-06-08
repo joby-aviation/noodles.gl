@@ -36,7 +36,15 @@ function toArrayBuffer(value: unknown): ArrayBuffer {
     copy.set(new Uint8Array(value.buffer, value.byteOffset, value.byteLength), 0)
     return copy.buffer
   }
-  throw new Error('Value is not an ArrayBuffer or TypedArray')
+  // Handle Arrow Binary type which returns Uint8Array directly
+  if (value instanceof Uint8Array) {
+    return value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength)
+  }
+  // Handle plain arrays (for test compatibility)
+  if (Array.isArray(value)) {
+    return new Uint8Array(value).buffer
+  }
+  throw new Error(`Value is not an ArrayBuffer or TypedArray: ${typeof value}`)
 }
 
 // Parse WKB header (byte order + geometry type)

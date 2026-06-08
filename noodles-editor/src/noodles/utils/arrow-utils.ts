@@ -50,7 +50,7 @@ export function arrowGetColumn(table: Table, columnName: string): Vector {
 export function arrowGetColumnAsTypedArray(
   table: Table,
   columnName: string
-): Float32Array | Float64Array | Int32Array | Uint8Array {
+): Float32Array | Int32Array | Uint8Array {
   const column = arrowGetColumn(table, columnName)
   const type = column.type
 
@@ -63,10 +63,8 @@ export function arrowGetColumnAsTypedArray(
   // typeId 5 = Utf8
 
   // Handle Float types (typeId 3)
+  // Always convert to Float32Array for GPU compatibility (Deck.gl requires Float32)
   if (type.typeId === 3) {
-    const precision = (type as any).precision ?? 1
-    // precision 2 = Float64, precision 1 = Float32, precision 0 = Float16
-    if (precision === 2) return new Float64Array(values as number[])
     return new Float32Array(values as number[])
   }
 
@@ -88,7 +86,7 @@ export function arrowGetColumnAsTypedArray(
 export function arrowGetNestedColumn(
   table: Table,
   path: string
-): Float32Array | Float64Array | Int32Array | Uint8Array {
+): Float32Array | Int32Array | Uint8Array {
   const parts = path.split('.')
   const columnName = parts[0]
   const column = arrowGetColumn(table, columnName)
