@@ -4375,10 +4375,10 @@ export class CreateAttributeOp extends Operator<CreateAttributeOp> {
     }
 
     const attributeValues: number[] = []
-    const fn = fnWithSource(['d', 'i', 'data'], `return ${expression}`, this.id)
+    const fn = fnWithSource(['d', 'i', 'data', ...Object.keys(freeExports)], `return ${expression}`, this.id)
 
     for (let i = 0; i < dataArray.length; i++) {
-      const result = fn(dataArray[i], i, dataArray)
+      const result = fn(dataArray[i], i, dataArray, ...Object.values(freeExports))
       if (typeof result === 'number') {
         attributeValues.push(result)
       } else if (Array.isArray(result)) {
