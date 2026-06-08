@@ -8,10 +8,31 @@
       "targetHandle": "par.vis"
     },
     {
-      "id": "/data-source.out.data->/mesh-layer.par.data",
+      "id": "/data-source.out.data->/position.par.data",
       "source": "/data-source",
-      "target": "/mesh-layer",
+      "target": "/position",
       "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/position.out.data->/color.par.data",
+      "source": "/position",
+      "target": "/color",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/color.out.data->/orientation.par.data",
+      "source": "/color",
+      "target": "/orientation",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/orientation.out.data->/mesh-layer.par.data",
+      "source": "/orientation",
+      "sourceHandle": "out.data",
+      "target": "/mesh-layer",
       "targetHandle": "par.data"
     },
     {
@@ -27,33 +48,12 @@
       "target": "/deck",
       "targetHandle": "par.basemap",
       "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap"
-    },
-    {
-      "id": "/position.out.data->/mesh-layer.par.data",
-      "source": "/position",
-      "sourceHandle": "out.data",
-      "target": "/mesh-layer",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/color.out.data->/mesh-layer.par.data",
-      "source": "/color",
-      "sourceHandle": "out.data",
-      "target": "/mesh-layer",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/orientation.out.data->/mesh-layer.par.data",
-      "source": "/orientation",
-      "sourceHandle": "out.data",
-      "target": "/mesh-layer",
-      "targetHandle": "par.data"
     }
   ],
   "viewport": {
-    "x": 679.3077440622253,
-    "y": 608.5965459146154,
-    "zoom": 1.2637785153212067
+    "x": 0,
+    "y": 0,
+    "zoom": 0.8
   },
   "version": 14,
   "name": "Simple Mesh Layer BART Stations",
@@ -70,7 +70,7 @@
         "locked": false
       },
       "position": {
-        "x": 900,
+        "x": 2100,
         "y": 100
       }
     },
@@ -94,7 +94,7 @@
         "locked": false
       },
       "position": {
-        "x": 1300,
+        "x": 2500,
         "y": 100
       }
     },
@@ -122,7 +122,7 @@
         "locked": false
       },
       "position": {
-        "x": 500,
+        "x": 1700,
         "y": 100
       }
     },
@@ -130,7 +130,7 @@
       "type": "MaplibreBasemapOp",
       "id": "/maplibre-basemap",
       "position": {
-        "x": 100,
+        "x": 1700,
         "y": 450
       },
       "data": {
@@ -151,8 +151,8 @@
       "id": "/position",
       "type": "CreateAttributeOp",
       "position": {
-        "x": 100,
-        "y": 850
+        "x": 500,
+        "y": 100
       },
       "data": {
         "inputs": {
@@ -168,8 +168,8 @@
       "id": "/color",
       "type": "CreateAttributeOp",
       "position": {
-        "x": 100,
-        "y": 1230
+        "x": 900,
+        "y": 100
       },
       "data": {
         "inputs": {
@@ -185,8 +185,8 @@
       "id": "/orientation",
       "type": "CreateAttributeOp",
       "position": {
-        "x": 100,
-        "y": 1610
+        "x": 1300,
+        "y": 100
       },
       "data": {
         "inputs": {

@@ -31,9 +31,9 @@
     }
   ],
   "viewport": {
-    "x": 200,
-    "y": 200,
-    "zoom": 0.75
+    "x": 0,
+    "y": 0,
+    "zoom": 0.8
   },
   "name": "Cesium + Hubble Video Spheres",
   "editorSettings": {
@@ -67,7 +67,7 @@
       "type": "Tile3DLayerOp",
       "position": {
         "x": 100,
-        "y": 384
+        "y": 500
       },
       "data": {
         "inputs": {
@@ -82,7 +82,7 @@
       "type": "CodeOp",
       "position": {
         "x": 100,
-        "y": 668
+        "y": 850
       },
       "width": 900,
       "height": 680,
@@ -172,7 +172,7 @@
       "id": "/renderer",
       "type": "DeckRendererOp",
       "position": {
-        "x": 580,
+        "x": 500,
         "y": 100
       },
       "data": {
@@ -184,7 +184,7 @@
       "id": "/out",
       "type": "OutOp",
       "position": {
-        "x": 1060,
+        "x": 900,
         "y": 100
       },
       "data": {

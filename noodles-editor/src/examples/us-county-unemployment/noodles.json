@@ -65,9 +65,9 @@
     }
   ],
   "viewport": {
-    "x": 32.46497320518563,
-    "y": 206.86749887589406,
-    "zoom": 0.6158038261288714
+    "x": 0,
+    "y": 0,
+    "zoom": 0.8
   },
   "version": 14,
   "name": "US County Unemployment",
@@ -158,8 +158,8 @@
       "type": "MaplibreBasemapOp",
       "id": "/maplibre-basemap",
       "position": {
-        "x": 100,
-        "y": 450
+        "x": 2100,
+        "y": 600
       },
       "data": {
         "inputs": {
@@ -219,8 +219,8 @@
       "id": "/unemployment",
       "type": "CreateAttributeOp",
       "position": {
-        "x": 100,
-        "y": 850
+        "x": 2900,
+        "y": 380
       },
       "data": {
         "inputs": {

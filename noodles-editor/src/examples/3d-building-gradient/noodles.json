@@ -5,7 +5,7 @@
       "id": "/maplibre-basemap",
       "type": "MaplibreBasemapOp",
       "position": {
-        "x": 100,
+        "x": 500,
         "y": 100
       },
       "data": {
@@ -27,7 +27,7 @@
       "type": "JSONOp",
       "position": {
         "x": 100,
-        "y": 384
+        "y": 100
       },
       "data": {
         "inputs": {
@@ -39,8 +39,8 @@
       "id": "/building-layer",
       "type": "CustomMapLibreLayerOp",
       "position": {
-        "x": 580,
-        "y": 100
+        "x": 500,
+        "y": 500
       },
       "data": {
         "inputs": {
@@ -55,7 +55,7 @@
       "id": "/deck-renderer",
       "type": "DeckRendererOp",
       "position": {
-        "x": 1060,
+        "x": 900,
         "y": 100
       },
       "data": {
@@ -69,7 +69,7 @@
       "id": "/out",
       "type": "OutOp",
       "position": {
-        "x": 1540,
+        "x": 1300,
         "y": 100
       },
       "data": {
@@ -110,6 +110,6 @@
   "viewport": {
     "x": 0,
     "y": 0,
-    "zoom": 1
+    "zoom": 0.8
   }
 }

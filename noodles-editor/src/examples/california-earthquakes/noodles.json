@@ -9,7 +9,10 @@
           "url": "@/data.csv"
         }
       },
-      "position": { "x": 100, "y": 100 }
+      "position": {
+        "x": 100,
+        "y": 100
+      }
     },
     {
       "id": "/create-position",
@@ -21,7 +24,10 @@
           "size": 3
         }
       },
-      "position": { "x": 400, "y": 100 }
+      "position": {
+        "x": 500,
+        "y": 100
+      }
     },
     {
       "id": "/create-radius",
@@ -33,7 +39,10 @@
           "size": 1
         }
       },
-      "position": { "x": 400, "y": 300 }
+      "position": {
+        "x": 900,
+        "y": 100
+      }
     },
     {
       "id": "/create-color",
@@ -46,7 +55,10 @@
           "type": "uint8"
         }
       },
-      "position": { "x": 400, "y": 500 }
+      "position": {
+        "x": 1300,
+        "y": 100
+      }
     },
     {
       "id": "/scatterplot-layer",
@@ -58,7 +70,10 @@
           "radiusUnits": "meters"
         }
       },
-      "position": { "x": 800, "y": 100 }
+      "position": {
+        "x": 1700,
+        "y": 100
+      }
     },
     {
       "id": "/maplibre-basemap",
@@ -73,19 +88,32 @@
           }
         }
       },
-      "position": { "x": 100, "y": 500 }
+      "position": {
+        "x": 1700,
+        "y": 600
+      }
     },
     {
       "id": "/deck",
       "type": "DeckRendererOp",
-      "data": { "inputs": {} },
-      "position": { "x": 1200, "y": 100 }
+      "data": {
+        "inputs": {}
+      },
+      "position": {
+        "x": 2100,
+        "y": 100
+      }
     },
     {
       "id": "/out",
       "type": "OutOp",
-      "data": { "inputs": {} },
-      "position": { "x": 1600, "y": 100 }
+      "data": {
+        "inputs": {}
+      },
+      "position": {
+        "x": 2500,
+        "y": 100
+      }
     }
   ],
   "edges": [
@@ -139,5 +167,9 @@
       "targetHandle": "par.vis"
     }
   ],
-  "viewport": { "x": 0, "y": 0, "zoom": 1 }
+  "viewport": {
+    "x": 0,
+    "y": 0,
+    "zoom": 0.8
+  }
 }

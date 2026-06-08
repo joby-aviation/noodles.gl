@@ -51,9 +51,9 @@
     }
   ],
   "viewport": {
-    "x": 47.242109497431784,
-    "y": 75.01093484232683,
-    "zoom": 0.4556733508888464
+    "x": 0,
+    "y": 0,
+    "zoom": 0.8
   },
   "version": 14,
   "name": "NYC Census",
@@ -108,7 +108,7 @@
         "locked": false
       },
       "position": {
-        "x": 100,
+        "x": 500,
         "y": 100
       }
     },
@@ -141,15 +141,15 @@
       },
       "position": {
         "x": 500,
-        "y": 850
+        "y": 450
       }
     },
     {
       "type": "MaplibreBasemapOp",
       "id": "/maplibre-basemap",
       "position": {
-        "x": 100,
-        "y": 450
+        "x": 900,
+        "y": 600
       },
       "data": {
         "inputs": {
@@ -170,7 +170,7 @@
       "id": "/map-range",
       "position": {
         "x": 100,
-        "y": 850
+        "y": 100
       },
       "data": {
         "inputs": {
@@ -183,8 +183,8 @@
       "type": "MapRangeOp",
       "id": "/map-range-1",
       "position": {
-        "x": 100,
-        "y": 1230
+        "x": 500,
+        "y": 800
       },
       "data": {
         "inputs": {
@@ -198,8 +198,8 @@
       "id": "/population",
       "type": "CreateAttributeOp",
       "position": {
-        "x": 100,
-        "y": 1610
+        "x": 1700,
+        "y": 380
       },
       "data": {
         "inputs": {
@@ -215,8 +215,8 @@
       "id": "/elevation",
       "type": "CreateAttributeOp",
       "position": {
-        "x": 100,
-        "y": 1990
+        "x": 1700,
+        "y": 760
       },
       "data": {
         "inputs": {

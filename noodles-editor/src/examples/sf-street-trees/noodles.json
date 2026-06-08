@@ -37,8 +37,8 @@
     }
   ],
   "viewport": {
-    "x": 600,
-    "y": 400,
+    "x": 0,
+    "y": 0,
     "zoom": 0.8
   },
   "version": 14,
@@ -123,7 +123,7 @@
       "type": "MaplibreBasemapOp",
       "id": "/maplibre-basemap",
       "position": {
-        "x": 100,
+        "x": 500,
         "y": 450
       },
       "data": {
@@ -145,7 +145,7 @@
       "type": "CreateAttributeOp",
       "position": {
         "x": 100,
-        "y": 850
+        "y": 450
       },
       "data": {
         "inputs": {

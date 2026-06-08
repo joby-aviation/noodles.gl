@@ -156,9 +156,9 @@
     }
   ],
   "viewport": {
-    "x": 371.10759039675463,
-    "y": 461.29570352289136,
-    "zoom": 0.5265126624852493
+    "x": 0,
+    "y": 0,
+    "zoom": 0.8
   },
   "version": 14,
   "name": "World Flights",
@@ -230,8 +230,8 @@
         "locked": false
       },
       "position": {
-        "x": 900,
-        "y": 450
+        "x": 1300,
+        "y": 100
       }
     },
     {
@@ -246,8 +246,8 @@
         "locked": false
       },
       "position": {
-        "x": 900,
-        "y": 950
+        "x": 1300,
+        "y": 600
       }
     },
     {
@@ -260,16 +260,16 @@
         "locked": false
       },
       "position": {
-        "x": 500,
-        "y": 1200
+        "x": 900,
+        "y": 100
       }
     },
     {
       "type": "MaplibreBasemapOp",
       "id": "/maplibre-basemap",
       "position": {
-        "x": 100,
-        "y": 450
+        "x": 1300,
+        "y": 1080
       },
       "data": {
         "inputs": {
@@ -290,7 +290,7 @@
       "id": "/time-series",
       "position": {
         "x": 900,
-        "y": 100
+        "y": 450
       },
       "data": {
         "inputs": {},
@@ -301,8 +301,8 @@
       "type": "NumberOp",
       "id": "/time",
       "position": {
-        "x": 100,
-        "y": 850
+        "x": 500,
+        "y": 100
       },
       "data": {
         "inputs": {
@@ -316,7 +316,7 @@
       "id": "/code",
       "position": {
         "x": 500,
-        "y": 100
+        "y": 450
       },
       "resizing": false,
       "data": {
@@ -345,7 +345,7 @@
       "id": "/scatterplot-layer",
       "position": {
         "x": 1300,
-        "y": 100
+        "y": 1480
       },
       "data": {
         "inputs": {
@@ -360,8 +360,8 @@
       "id": "/origin-country",
       "type": "CreateAttributeOp",
       "position": {
-        "x": 100,
-        "y": 1200
+        "x": 500,
+        "y": 800
       },
       "data": {
         "inputs": {
@@ -377,8 +377,8 @@
       "id": "/timestamps",
       "type": "CreateAttributeOp",
       "position": {
-        "x": 100,
-        "y": 1580
+        "x": 500,
+        "y": 1180
       },
       "data": {
         "inputs": {
@@ -394,8 +394,8 @@
       "id": "/path",
       "type": "CreateAttributeOp",
       "position": {
-        "x": 100,
-        "y": 1960
+        "x": 500,
+        "y": 1560
       },
       "data": {
         "inputs": {
@@ -411,8 +411,8 @@
       "id": "/properties",
       "type": "CreateAttributeOp",
       "position": {
-        "x": 100,
-        "y": 2340
+        "x": 500,
+        "y": 1940
       },
       "data": {
         "inputs": {
@@ -428,8 +428,8 @@
       "id": "/position",
       "type": "CreateAttributeOp",
       "position": {
-        "x": 100,
-        "y": 2720
+        "x": 900,
+        "y": 800
       },
       "data": {
         "inputs": {

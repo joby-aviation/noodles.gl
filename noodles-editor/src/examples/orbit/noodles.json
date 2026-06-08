@@ -10,7 +10,7 @@
         "locked": false
       },
       "position": {
-        "x": 1060,
+        "x": 900,
         "y": 100
       }
     },
@@ -22,7 +22,7 @@
         "locked": false
       },
       "position": {
-        "x": 1540,
+        "x": 1300,
         "y": 100
       }
     },
@@ -30,7 +30,7 @@
       "id": "/orbitview-0",
       "type": "OrbitViewOp",
       "position": {
-        "x": 100,
+        "x": 500,
         "y": 100
       },
       "data": {
@@ -46,8 +46,8 @@
       "id": "/scenegraphlayer-0",
       "type": "ScenegraphLayerOp",
       "position": {
-        "x": 580,
-        "y": 100
+        "x": 500,
+        "y": 450
       },
       "data": {
         "inputs": {
@@ -62,7 +62,7 @@
       "type": "ExpressionOp",
       "position": {
         "x": 100,
-        "y": 384
+        "y": 100
       },
       "data": {
         "inputs": {
@@ -103,9 +103,9 @@
     }
   ],
   "viewport": {
-    "x": 1368.6650642622628,
-    "y": 546.6972278664407,
-    "zoom": 0.981085979917294
+    "x": 0,
+    "y": 0,
+    "zoom": 0.8
   },
   "version": 6,
   "timeline": {

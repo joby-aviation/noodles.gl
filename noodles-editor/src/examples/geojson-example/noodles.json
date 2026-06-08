@@ -51,9 +51,9 @@
     }
   ],
   "viewport": {
-    "x": 545.8912906768109,
-    "y": 46.884631018890104,
-    "zoom": 0.5895523675768745
+    "x": 0,
+    "y": 0,
+    "zoom": 0.8
   },
   "version": 14,
   "name": "GeoJSON BART Stations",
@@ -150,8 +150,8 @@
       "type": "MaplibreBasemapOp",
       "id": "/maplibre-basemap",
       "position": {
-        "x": 100,
-        "y": 800
+        "x": 500,
+        "y": 600
       },
       "data": {
         "inputs": {
@@ -172,7 +172,7 @@
       "type": "CreateAttributeOp",
       "position": {
         "x": 100,
-        "y": 1200
+        "y": 800
       },
       "data": {
         "inputs": {
@@ -189,7 +189,7 @@
       "type": "CreateAttributeOp",
       "position": {
         "x": 100,
-        "y": 1580
+        "y": 1180
       },
       "data": {
         "inputs": {

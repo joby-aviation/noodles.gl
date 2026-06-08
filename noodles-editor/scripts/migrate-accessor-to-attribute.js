@@ -165,113 +165,153 @@ function buildDependencyGraph(nodes, edges) {
 }
 
 /**
- * Apply intelligent left-to-right layout with vertical alignment
+ * Apply intelligent left-to-right layout with proper horizontal alignment
+ * - OutOp on the far right
+ * - Each dependency level aligned horizontally
+ * - FileOps and data sources on the far left
  */
 function applySmartLayout(nodes, edges) {
   const { graph, inDegree } = buildDependencyGraph(nodes, edges)
 
-  // Topological sort to determine horizontal layers
-  const layers = []
-  const nodeToLayer = new Map()
-  const queue = []
-  const inDegreeClone = new Map(inDegree)
+  // Calculate longest path to each node (reverse topological order)
+  const longestPath = new Map()
+  const reverseGraph = new Map()
 
-  // Start with nodes that have no dependencies
-  for (const [nodeId, degree] of inDegreeClone) {
-    if (degree === 0) {
-      queue.push(nodeId)
+  // Build reverse graph (target -> sources)
+  for (const node of nodes) {
+    reverseGraph.set(node.id, [])
+    longestPath.set(node.id, 0)
+  }
+
+  for (const edge of edges) {
+    if (reverseGraph.has(edge.target)) {
+      reverseGraph.get(edge.target).push(edge.source)
     }
   }
 
-  let currentLayer = 0
+  // Find nodes with no outgoing edges (sinks like OutOp, ViewerOp)
+  const sinks = []
+  for (const node of nodes) {
+    const hasOutgoing = edges.some(e => e.source === node.id)
+    if (!hasOutgoing) {
+      sinks.push(node.id)
+    }
+  }
+
+  // BFS from sinks to calculate longest path to each node
+  const queue = [...sinks]
+  const visited = new Set()
+
+  for (const sink of sinks) {
+    longestPath.set(sink, 0)
+  }
+
   while (queue.length > 0) {
-    const layerSize = queue.length
-    const currentLayerNodes = []
+    const nodeId = queue.shift()
+    if (visited.has(nodeId)) continue
+    visited.add(nodeId)
 
-    for (let i = 0; i < layerSize; i++) {
-      const nodeId = queue.shift()
-      currentLayerNodes.push(nodeId)
-      nodeToLayer.set(nodeId, currentLayer)
+    const currentPath = longestPath.get(nodeId)
+    const parents = reverseGraph.get(nodeId) || []
 
-      // Process downstream nodes
-      const neighbors = graph.get(nodeId) || []
-      for (const neighbor of neighbors) {
-        const newDegree = inDegreeClone.get(neighbor) - 1
-        inDegreeClone.set(neighbor, newDegree)
-        if (newDegree === 0) {
-          queue.push(neighbor)
-        }
+    for (const parent of parents) {
+      const newPath = currentPath + 1
+      if (newPath > longestPath.get(parent)) {
+        longestPath.set(parent, newPath)
+      }
+      if (!visited.has(parent)) {
+        queue.push(parent)
       }
     }
-
-    layers.push(currentLayerNodes)
-    currentLayer++
   }
 
-  // Calculate vertical positions with alignment
+  // Group nodes by their layer (distance from sink)
+  const maxLayer = Math.max(...Array.from(longestPath.values()))
+  const layers = []
+
+  for (let i = 0; i <= maxLayer; i++) {
+    layers.push([])
+  }
+
+  for (const node of nodes) {
+    const layer = maxLayer - longestPath.get(node.id)
+    layers[layer].push(node.id)
+  }
+
+  // Calculate positions
   const HORIZONTAL_SPACING = 400
   const VERTICAL_SPACING = 200
-  const VERTICAL_ALIGNMENT_THRESHOLD = 150
+  const START_X = 100
+  const START_Y = 100
 
   const nodePositions = new Map()
-  const layerHeights = new Map()
 
-  // Process each layer
+  // Process each layer right-to-left (OutOp is in layer 0)
   for (let layerIndex = 0; layerIndex < layers.length; layerIndex++) {
     const layerNodes = layers[layerIndex]
-    const x = layerIndex * HORIZONTAL_SPACING + 100
+    const x = START_X + layerIndex * HORIZONTAL_SPACING
 
-    // Group nodes by their upstream parent (for vertical alignment)
-    const nodeGroups = new Map()
+    // Sort nodes within layer for better vertical alignment
+    // Group nodes by their downstream target for alignment
+    const nodesByTarget = new Map()
 
     for (const nodeId of layerNodes) {
       const node = nodes.find(n => n.id === nodeId)
       if (!node) continue
 
-      // Find upstream parent(s)
-      const upstreamEdges = edges.filter(e => e.target === nodeId)
+      // Find immediate downstream nodes
+      const downstreamEdges = edges.filter(e => e.source === nodeId)
 
-      if (upstreamEdges.length === 1) {
-        // Single parent - candidate for vertical alignment
-        const parentId = upstreamEdges[0].source
-        if (!nodeGroups.has(parentId)) {
-          nodeGroups.set(parentId, [])
+      if (downstreamEdges.length === 1) {
+        const target = downstreamEdges[0].target
+        if (!nodesByTarget.has(target)) {
+          nodesByTarget.set(target, [])
         }
-        nodeGroups.get(parentId).push({ nodeId, node })
+        nodesByTarget.get(target).push({ nodeId, node })
       } else {
-        // Multiple parents or no parent - separate group
-        nodeGroups.set(`_orphan_${nodeId}`, [{ nodeId, node }])
+        // Multiple or no targets
+        const key = `_multi_${nodeId}`
+        if (!nodesByTarget.has(key)) {
+          nodesByTarget.set(key, [])
+        }
+        nodesByTarget.get(key).push({ nodeId, node })
       }
     }
 
-    // Calculate positions for each group
-    let currentY = 100
+    // Assign vertical positions
+    let currentY = START_Y
 
-    for (const [parentId, group] of nodeGroups) {
-      if (group.length === 1 && parentId !== `_orphan_${group[0].nodeId}`) {
-        // Single child - try to align with parent
-        const parentPos = nodePositions.get(parentId)
-        if (parentPos) {
-          const y = parentPos.y
-          nodePositions.set(group[0].nodeId, { x, y })
-          const size = getNodeSize(group[0].node.type)
-          currentY = Math.max(currentY, y + size.height + VERTICAL_SPACING)
-        } else {
-          nodePositions.set(group[0].nodeId, { x, y: currentY })
-          const size = getNodeSize(group[0].node.type)
-          currentY += size.height + VERTICAL_SPACING
+    for (const [targetId, group] of nodesByTarget) {
+      // Try to align with target's Y position if available
+      let alignY = currentY
+
+      if (!targetId.startsWith('_multi_')) {
+        const targetPos = nodePositions.get(targetId)
+        if (targetPos && group.length === 1) {
+          // Align single node with its target
+          alignY = targetPos.y
         }
-      } else {
-        // Multiple children or orphan - stack vertically
-        for (const { nodeId, node } of group) {
+      }
+
+      // Position nodes in this group
+      for (const { nodeId, node } of group) {
+        if (group.length === 1 && !targetId.startsWith('_multi_')) {
+          // Single node aligned with target
+          nodePositions.set(nodeId, { x, y: alignY })
+        } else {
+          // Stack multiple nodes
           nodePositions.set(nodeId, { x, y: currentY })
           const size = getNodeSize(node.type)
           currentY += size.height + VERTICAL_SPACING
         }
       }
-    }
 
-    layerHeights.set(layerIndex, currentY)
+      // Update currentY for next group
+      if (group.length === 1 && !targetId.startsWith('_multi_')) {
+        const size = getNodeSize(group[0].node.type)
+        currentY = Math.max(currentY, alignY + size.height + VERTICAL_SPACING)
+      }
+    }
   }
 
   // Apply positions to nodes

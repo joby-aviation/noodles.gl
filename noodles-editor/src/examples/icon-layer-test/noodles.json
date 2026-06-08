@@ -5,7 +5,7 @@
       "id": "/maplibre-basemap",
       "type": "MaplibreBasemapOp",
       "position": {
-        "x": 100,
+        "x": 900,
         "y": 100
       },
       "data": {
@@ -24,7 +24,7 @@
       "type": "CodeOp",
       "position": {
         "x": 100,
-        "y": 384
+        "y": 100
       },
       "data": {
         "inputs": {
@@ -36,8 +36,8 @@
       "id": "/icon-layer",
       "type": "IconLayerOp",
       "position": {
-        "x": 1060,
-        "y": 100
+        "x": 900,
+        "y": 500
       },
       "data": {
         "inputs": {
@@ -52,7 +52,7 @@
       "id": "/get-position",
       "type": "CreateAttributeOp",
       "position": {
-        "x": 580,
+        "x": 500,
         "y": 100
       },
       "data": {
@@ -67,7 +67,7 @@
       "id": "/deck-renderer",
       "type": "DeckRendererOp",
       "position": {
-        "x": 1540,
+        "x": 1300,
         "y": 100
       },
       "data": {
@@ -115,6 +115,6 @@
   "viewport": {
     "x": 0,
     "y": 0,
-    "zoom": 1
+    "zoom": 0.8
   }
 }

@@ -27,7 +27,7 @@
       "type": "CustomMapLibreLayerOp",
       "position": {
         "x": 100,
-        "y": 384
+        "y": 500
       },
       "data": {
         "inputs": {
@@ -45,7 +45,7 @@
       "id": "/deck-renderer",
       "type": "DeckRendererOp",
       "position": {
-        "x": 580,
+        "x": 500,
         "y": 100
       },
       "data": {
@@ -59,7 +59,7 @@
       "id": "/out",
       "type": "OutOp",
       "position": {
-        "x": 1060,
+        "x": 900,
         "y": 100
       },
       "data": {
@@ -93,6 +93,6 @@
   "viewport": {
     "x": 0,
     "y": 0,
-    "zoom": 1
+    "zoom": 0.8
   }
 }
