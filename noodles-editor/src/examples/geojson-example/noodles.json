@@ -8,13 +8,6 @@
       "targetHandle": "par.vis"
     },
     {
-      "id": "/data-source.out.data->/geojson-layer.par.data",
-      "source": "/data-source",
-      "target": "/geojson-layer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
       "id": "/fill-color.out.color->/geojson-layer.par.getFillColor",
       "source": "/fill-color",
       "target": "/geojson-layer",

@@ -146,13 +146,6 @@
       "targetHandle": "par.vis"
     },
     {
-      "id": "/data-source.out.data->/grid-layer.par.data",
-      "source": "/data-source",
-      "target": "/grid-layer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
       "source": "/maplibre-basemap",
       "sourceHandle": "out.maplibre",
       "target": "/deck",
@@ -179,13 +172,6 @@
       "target": "/switch",
       "targetHandle": "par.values",
       "id": "/grid-layer.out.layer->/switch.par.values"
-    },
-    {
-      "source": "/data-source",
-      "sourceHandle": "out.data",
-      "target": "/hexagon-layer",
-      "targetHandle": "par.data",
-      "id": "/data-source.out.data->/hexagon-layer.par.data"
     },
     {
       "id": "/position.out.data->/grid-layer.par.data",

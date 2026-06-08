@@ -8,27 +8,6 @@
       "targetHandle": "par.vis"
     },
     {
-      "id": "/data-source.out.data->/arc-layer.par.data",
-      "source": "/data-source",
-      "target": "/arc-layer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/data-source.out.data->/residence-layer.par.data",
-      "source": "/data-source",
-      "target": "/residence-layer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/data-source.out.data->/workplace-layer.par.data",
-      "source": "/data-source",
-      "target": "/workplace-layer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
       "id": "/source-color.out.color->/arc-layer.par.getSourceColor",
       "source": "/source-color",
       "target": "/arc-layer",

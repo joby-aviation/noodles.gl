@@ -8,13 +8,6 @@
       "targetHandle": "par.vis"
     },
     {
-      "id": "/data-source.out.data->/hexagon-layer.par.data",
-      "source": "/data-source",
-      "target": "/hexagon-layer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
       "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
       "source": "/maplibre-basemap",
       "target": "/deck",

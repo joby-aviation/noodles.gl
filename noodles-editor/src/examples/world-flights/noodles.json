@@ -43,32 +43,11 @@
       "id": "/data-source.out.data->/code.par.data"
     },
     {
-      "source": "/code",
-      "sourceHandle": "out.data",
-      "target": "/time-series",
-      "targetHandle": "par.data",
-      "id": "/code.out.data->/time-series.par.data"
-    },
-    {
-      "source": "/time-series",
-      "sourceHandle": "out.data",
-      "target": "/scatterplot-layer",
-      "targetHandle": "par.data",
-      "id": "/time-series.out.data->/scatterplot-layer.par.data"
-    },
-    {
       "source": "/scatterplot-layer",
       "sourceHandle": "out.layer",
       "target": "/deck",
       "targetHandle": "par.layers",
       "id": "/scatterplot-layer.out.layer->/deck.par.layers"
-    },
-    {
-      "source": "/code",
-      "sourceHandle": "out.data",
-      "target": "/trips-layer",
-      "targetHandle": "par.data",
-      "id": "/code.out.data->/trips-layer.par.data"
     },
     {
       "source": "/trips-layer",

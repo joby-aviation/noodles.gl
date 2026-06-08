@@ -15,13 +15,6 @@
       "id": "/duckdb-0.out.data->/boundingbox-0.par.data"
     },
     {
-      "source": "/duckdb-0",
-      "sourceHandle": "out.data",
-      "target": "/scatterplotlayer-0",
-      "targetHandle": "par.data",
-      "id": "/duckdb-0.out.data->/scatterplotlayer-0.par.data"
-    },
-    {
       "source": "/boundingbox-0",
       "sourceHandle": "out.longitude",
       "target": "/viewstate-0",
@@ -55,13 +48,6 @@
       "target": "/deck",
       "targetHandle": "par.layers",
       "id": "/switch-0.out.value->/deck.par.layers"
-    },
-    {
-      "source": "/duckdb-0",
-      "sourceHandle": "out.data",
-      "target": "/heatmaplayer-0",
-      "targetHandle": "par.data",
-      "id": "/duckdb-0.out.data->/heatmaplayer-0.par.data"
     },
     {
       "source": "/heatmaplayer-0",
