@@ -4384,7 +4384,11 @@ export class CreateAttributeOp extends Operator<CreateAttributeOp> {
     }
 
     const attributeValues: number[] = []
-    const fn = fnWithSource(['d', 'i', 'data', ...Object.keys(freeExports)], `return ${expression}`, this.id)
+    const fn = fnWithSource(
+      ['d', 'i', 'data', ...Object.keys(freeExports)],
+      `return ${expression}`,
+      this.id
+    )
 
     for (let i = 0; i < dataArray.length; i++) {
       const result = fn(dataArray[i], i, dataArray, ...Object.values(freeExports))
@@ -4399,7 +4403,8 @@ export class CreateAttributeOp extends Operator<CreateAttributeOp> {
       }
     }
 
-    const TypedArrayClass = type === 'uint8' ? Uint8Array : type === 'int32' ? Int32Array : Float32Array
+    const TypedArrayClass =
+      type === 'uint8' ? Uint8Array : type === 'int32' ? Int32Array : Float32Array
     const typedArray = new TypedArrayClass(attributeValues)
 
     return {
@@ -4442,7 +4447,11 @@ export class CreateAttributeOp extends Operator<CreateAttributeOp> {
     }
 
     // Evaluate expression for each row
-    const fn = fnWithSource(['d', 'i', 'data', ...Object.keys(freeExports)], `return ${expression}`, this.id)
+    const fn = fnWithSource(
+      ['d', 'i', 'data', ...Object.keys(freeExports)],
+      `return ${expression}`,
+      this.id
+    )
     const attributeValues: (string | boolean)[] = []
 
     for (let i = 0; i < dataArray.length; i++) {
@@ -5881,7 +5890,10 @@ function extractAttributeData(data: unknown): {
 
 function applyBinaryAttributes<P extends LayerProps>(
   layerProps: P,
-  attributes: Record<string, { values: Float32Array | Uint8Array | string[] | boolean[]; size: number; type?: string }>
+  attributes: Record<
+    string,
+    { values: Float32Array | Uint8Array | string[] | boolean[]; size: number; type?: string }
+  >
 ): P {
   if (Object.keys(attributes).length === 0) {
     return layerProps
@@ -5892,7 +5904,10 @@ function applyBinaryAttributes<P extends LayerProps>(
   const data = layerProps.data as unknown[]
   const length = Array.isArray(data) ? data.length : 0
 
-  const deckglAttributes: Record<string, { value: Float32Array | Uint8Array | string[] | boolean[]; size: number }> = {}
+  const deckglAttributes: Record<
+    string,
+    { value: Float32Array | Uint8Array | string[] | boolean[]; size: number }
+  > = {}
   const accessorOverrides: Record<string, unknown> = {}
 
   for (const [attrName, attrValue] of Object.entries(attributes)) {
@@ -5905,7 +5920,10 @@ function applyBinaryAttributes<P extends LayerProps>(
       accessorOverrides[propName] = (_d: unknown, info: { index: number }) => values[info.index]
     } else {
       // Binary numeric attributes go into data.attributes for GPU
-      deckglAttributes[propName] = { value: attrValue.values as Float32Array | Uint8Array, size: attrValue.size }
+      deckglAttributes[propName] = {
+        value: attrValue.values as Float32Array | Uint8Array,
+        size: attrValue.size,
+      }
     }
   }
 
@@ -5914,8 +5932,8 @@ function applyBinaryAttributes<P extends LayerProps>(
     ...accessorOverrides, // Override accessor props for string/boolean
     data: {
       length,
-      attributes: deckglAttributes
-    }
+      attributes: deckglAttributes,
+    },
   } as P
 }
 
@@ -6195,26 +6213,43 @@ export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     console.log('[ScatterplotLayerOp] EXECUTE CALLED', this.id)
     let { rows, attributes } = extractAttributeData(props.data)
-    console.log('[ScatterplotLayerOp] Data extracted:', { rowsLength: rows?.length, attributeKeys: Object.keys(attributes) })
+    console.log('[ScatterplotLayerOp] Data extracted:', {
+      rowsLength: rows?.length,
+      attributeKeys: Object.keys(attributes),
+    })
 
     // Defensive: Replace invalid color values with defaults
     const cleanProps = { ...props }
     if (!Array.isArray(props.getFillColor) && typeof props.getFillColor !== 'function') {
-      console.warn('[ScatterplotLayerOp] Invalid getFillColor:', props.getFillColor, '- using orange default')
+      console.warn(
+        '[ScatterplotLayerOp] Invalid getFillColor:',
+        props.getFillColor,
+        '- using orange default'
+      )
       cleanProps.getFillColor = [255, 140, 0, 200] // Default orange
     }
     if (!Array.isArray(props.getLineColor) && typeof props.getLineColor !== 'function') {
-      console.warn('[ScatterplotLayerOp] Invalid getLineColor:', props.getLineColor, '- using white default')
+      console.warn(
+        '[ScatterplotLayerOp] Invalid getLineColor:',
+        props.getLineColor,
+        '- using white default'
+      )
       cleanProps.getLineColor = [255, 255, 255, 255] // Default white
     }
 
     // Also check for hex strings that should have been transformed
     if (typeof cleanProps.getFillColor === 'string') {
-      console.warn('[ScatterplotLayerOp] getFillColor is string (should be array):', cleanProps.getFillColor)
+      console.warn(
+        '[ScatterplotLayerOp] getFillColor is string (should be array):',
+        cleanProps.getFillColor
+      )
       cleanProps.getFillColor = [255, 140, 0, 200]
     }
     if (typeof cleanProps.getLineColor === 'string') {
-      console.warn('[ScatterplotLayerOp] getLineColor is string (should be array):', cleanProps.getLineColor)
+      console.warn(
+        '[ScatterplotLayerOp] getLineColor is string (should be array):',
+        cleanProps.getLineColor
+      )
       cleanProps.getLineColor = [255, 255, 255, 255]
     }
 
@@ -6231,9 +6266,11 @@ export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
     // get passed directly as prop values instead of being applied via applyBinaryAttributes
     // When cleanProps.getPosition is an array/TypedArray (malformed - should be function or undefined),
     // remove it so applyBinaryAttributes can set the correct binary attribute
-    if (cleanProps.getPosition && typeof cleanProps.getPosition !== 'function' && (
-      ArrayBuffer.isView(cleanProps.getPosition) || Array.isArray(cleanProps.getPosition)
-    )) {
+    if (
+      cleanProps.getPosition &&
+      typeof cleanProps.getPosition !== 'function' &&
+      (ArrayBuffer.isView(cleanProps.getPosition) || Array.isArray(cleanProps.getPosition))
+    ) {
       const { getPosition, ...propsWithoutGetPosition } = cleanProps
       const baseLayerProps = {
         ...parseLayerProps<ScatterplotLayerProps>({ ...propsWithoutGetPosition, data: rows }),
@@ -6252,13 +6289,16 @@ export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
       updateTriggers: gatherTriggers(this.inputs, cleanProps),
     }
 
-    console.log('[ScatterplotLayerOp] baseLayerProps keys:', Object.keys(baseLayerProps).filter(k => k.includes('olor')))
+    console.log(
+      '[ScatterplotLayerOp] baseLayerProps keys:',
+      Object.keys(baseLayerProps).filter(k => k.includes('olor'))
+    )
     console.log('[ScatterplotLayerOp] All color props:', {
       getFillColor: baseLayerProps.getFillColor,
       getLineColor: baseLayerProps.getLineColor,
       lineColor: (baseLayerProps as any).lineColor,
       fillColor: (baseLayerProps as any).fillColor,
-      color: (baseLayerProps as any).color
+      color: (baseLayerProps as any).color,
     })
 
     const layerProps = applyBinaryAttributes(baseLayerProps, attributes)

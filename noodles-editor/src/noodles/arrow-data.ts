@@ -11,7 +11,7 @@ import type * as arrow from 'apache-arrow'
 /**
  * Data can be either an Arrow Table (zero-copy, columnar) or JS array (flexible, slower)
  */
-export type ArrowOrArray<T = unknown> = arrow.Table<any> | T[]
+export type ArrowOrArray<T = unknown> = arrow.Table<any> // biome-ignore lint/suspicious/noExplicitAny: Arrow table requires any | T[]
 
 /**
  * Check if data is an Arrow Table
@@ -27,7 +27,7 @@ export function isArrowTable(data: unknown): data is arrow.Table {
 export function arrowToArray<T = unknown>(data: ArrowOrArray<T>): T[] {
   if (isArrowTable(data)) {
     // Spread operator creates new objects to avoid Arrow proxy issues
-    return data.toArray().map((row: any) => ({ ...row })) as T[]
+    return data.toArray().map((row: any) // biome-ignore lint/suspicious/noExplicitAny: Dynamic row type => ({ ...row })) as T[]
   }
   return data as T[]
 }
@@ -74,7 +74,7 @@ export function getColumn<T = unknown>(data: ArrowOrArray, columnName: string): 
     // Return the underlying typed array (zero-copy)
     return column.toArray() as T[]
   }
-  return (data as any[]).map(row => row[columnName]) as T[]
+  return (data as unknown[]).map(row => row[columnName]) as T[]
 }
 
 /**
@@ -171,14 +171,14 @@ export const SQL_ARROW_CAPABILITIES: ArrowCapabilities = {
 /**
  * Type guard for Arrow-aware operators
  */
-export function hasArrowCapabilities(op: any): op is { arrowCapabilities: ArrowCapabilities } {
+export function hasArrowCapabilities(op: unknown): op is { arrowCapabilities: ArrowCapabilities } {
   return op != null && 'arrowCapabilities' in op
 }
 
 /**
  * Get Arrow capabilities for an operator (with defaults)
  */
-export function getArrowCapabilities(op: any): ArrowCapabilities {
+export function getArrowCapabilities(op: unknown): ArrowCapabilities {
   if (hasArrowCapabilities(op)) {
     return op.arrowCapabilities
   }

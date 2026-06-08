@@ -101,6 +101,16 @@
           }
         }
       }
+    },
+    {
+      "includes": ["src/noodles/arrow-data.ts", "src/noodles/arrow-operators.ts"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noExplicitAny": "off"
+          }
+        }
+      }
     }
   ]
 }

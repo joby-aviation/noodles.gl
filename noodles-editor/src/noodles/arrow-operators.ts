@@ -83,45 +83,45 @@ function filterJSArray<T = unknown>(
   let fn = (_d: unknown) => true
   switch (condition) {
     case 'equals':
-      fn = (d: any) => d[columnName] === value
+      fn = (d: Record<string, unknown>) => d[columnName] === value
       break
     case 'not equals':
-      fn = (d: any) => d[columnName] !== value
+      fn = (d: Record<string, unknown>) => d[columnName] !== value
       break
     case 'greater than':
-      fn = (d: any) => d[columnName] > value
+      fn = (d: Record<string, unknown>) => d[columnName] > value
       break
     case 'less than':
-      fn = (d: any) => d[columnName] < value
+      fn = (d: Record<string, unknown>) => d[columnName] < value
       break
     case 'greater than or equal to':
-      fn = (d: any) => d[columnName] >= value
+      fn = (d: Record<string, unknown>) => d[columnName] >= value
       break
     case 'less than or equal to':
-      fn = (d: any) => d[columnName] <= value
+      fn = (d: Record<string, unknown>) => d[columnName] <= value
       break
     case 'contains':
-      fn = (d: any) => String(d[columnName]).includes(String(value))
+      fn = (d: Record<string, unknown>) => String(d[columnName]).includes(String(value))
       break
     case 'not contains':
-      fn = (d: any) => !String(d[columnName]).includes(String(value))
+      fn = (d: Record<string, unknown>) => !String(d[columnName]).includes(String(value))
       break
     case 'in': {
       const values = String(value)
         .split(',')
         .map(s => s.trim())
-      fn = (d: any) => values.includes(String(d[columnName]))
+      fn = (d: Record<string, unknown>) => values.includes(String(d[columnName]))
       break
     }
     case 'not in': {
       const values = String(value)
         .split(',')
         .map(s => s.trim())
-      fn = (d: any) => !values.includes(String(d[columnName]))
+      fn = (d: Record<string, unknown>) => !values.includes(String(d[columnName]))
       break
     }
   }
-  return data.filter(fn as any)
+  return data.filter(fn as (d: unknown) => boolean)
 }
 
 /**
@@ -134,13 +134,13 @@ function matchesCondition(cellValue: unknown, condition: string, value: unknown)
     case 'not equals':
       return cellValue !== value
     case 'greater than':
-      return (cellValue as any) > value
+      return (cellValue as number) > value
     case 'less than':
-      return (cellValue as any) < value
+      return (cellValue as number) < value
     case 'greater than or equal to':
-      return (cellValue as any) >= value
+      return (cellValue as number) >= value
     case 'less than or equal to':
-      return (cellValue as any) <= value
+      return (cellValue as number) <= value
     case 'contains':
       return String(cellValue).includes(String(value))
     case 'not contains':

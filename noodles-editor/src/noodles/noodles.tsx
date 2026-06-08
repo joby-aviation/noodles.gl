@@ -309,7 +309,9 @@ export function getNoodles(): Visualization {
         : projectName
     // Don't show asterisk for examples - they're read-only
     const showAsterisk = !isExamplesRoute && (hasUnsavedChanges || storageType === 'memory')
-    document.title = displayName ? `Noodles.gl - ${displayName}${showAsterisk ? ' *' : ''}` : 'Noodles.gl'
+    document.title = displayName
+      ? `Noodles.gl - ${displayName}${showAsterisk ? ' *' : ''}`
+      : 'Noodles.gl'
 
     window.addEventListener('beforeunload', handleBeforeUnload)
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
