@@ -15,7 +15,7 @@ describe('SQL Compilation Snapshots', () => {
       fileOp.inputs.url.setValue('test.csv')
       fileOp.inputs.format.setValue('csv')
 
-      const adapted = adaptOperator(fileOp as any, () => [])
+      const adapted = adaptOperator(fileOp as unknown, () => [])
       const compiled = compile([adapted!])
 
       expect(compiled.sql).toMatchInlineSnapshot(`
@@ -41,7 +41,7 @@ describe('SQL Compilation Snapshots', () => {
       fileOp.inputs.url.setValue('data.json')
       fileOp.inputs.format.setValue('json')
 
-      const adapted = adaptOperator(fileOp as any, () => [])
+      const adapted = adaptOperator(fileOp as unknown, () => [])
       const compiled = compile([adapted!])
 
       expect(compiled.sql).toMatchInlineSnapshot(`
@@ -58,7 +58,7 @@ describe('SQL Compilation Snapshots', () => {
       fileOp.inputs.url.setValue('data.parquet')
       fileOp.inputs.format.setValue('parquet')
 
-      const adapted = adaptOperator(fileOp as any, () => [])
+      const adapted = adaptOperator(fileOp as unknown, () => [])
       const compiled = compile([adapted!])
 
       expect(compiled.sql).toMatchInlineSnapshot(`
@@ -76,7 +76,7 @@ describe('SQL Compilation Snapshots', () => {
       filterOp.inputs.condition.setValue('equals')
       filterOp.inputs.value.setValue('active')
 
-      const adapted = adaptOperator(filterOp as any, () => [])
+      const adapted = adaptOperator(filterOp as unknown, () => [])
       const compiled = compile([adapted!])
 
       expect(compiled.sql).toMatchInlineSnapshot(`
@@ -103,7 +103,7 @@ describe('SQL Compilation Snapshots', () => {
       filterOp.inputs.condition.setValue('greater than')
       filterOp.inputs.value.setValue('25')
 
-      const adapted = adaptOperator(filterOp as any, () => [])
+      const adapted = adaptOperator(filterOp as unknown, () => [])
       const compiled = compile([adapted!])
 
       expect(compiled.sql).toMatchInlineSnapshot(`
@@ -121,7 +121,7 @@ describe('SQL Compilation Snapshots', () => {
       filterOp.inputs.condition.setValue('less than or equal')
       filterOp.inputs.value.setValue('100')
 
-      const adapted = adaptOperator(filterOp as any, () => [])
+      const adapted = adaptOperator(filterOp as unknown, () => [])
       const compiled = compile([adapted!])
 
       expect(compiled.sql).toMatchInlineSnapshot(`
@@ -139,7 +139,7 @@ describe('SQL Compilation Snapshots', () => {
       filterOp.inputs.condition.setValue('contains')
       filterOp.inputs.value.setValue('smith')
 
-      const adapted = adaptOperator(filterOp as any, () => [])
+      const adapted = adaptOperator(filterOp as unknown, () => [])
       const compiled = compile([adapted!])
 
       expect(compiled.sql).toMatchInlineSnapshot(`
@@ -157,7 +157,7 @@ describe('SQL Compilation Snapshots', () => {
       filterOp.inputs.condition.setValue('starts with')
       filterOp.inputs.value.setValue('US')
 
-      const adapted = adaptOperator(filterOp as any, () => [])
+      const adapted = adaptOperator(filterOp as unknown, () => [])
       const compiled = compile([adapted!])
 
       expect(compiled.sql).toMatchInlineSnapshot(`
@@ -175,7 +175,7 @@ describe('SQL Compilation Snapshots', () => {
       filterOp.inputs.condition.setValue('in')
       filterOp.inputs.value.setValue('USA,Canada,Mexico')
 
-      const adapted = adaptOperator(filterOp as any, () => [])
+      const adapted = adaptOperator(filterOp as unknown, () => [])
       const compiled = compile([adapted!])
 
       expect(compiled.sql).toMatchInlineSnapshot(`
@@ -195,7 +195,7 @@ describe('SQL Compilation Snapshots', () => {
       filterOp.inputs.condition.setValue('not in')
       filterOp.inputs.value.setValue('deleted,archived')
 
-      const adapted = adaptOperator(filterOp as any, () => [])
+      const adapted = adaptOperator(filterOp as unknown, () => [])
       const compiled = compile([adapted!])
 
       expect(compiled.sql).toMatchInlineSnapshot(`
@@ -212,7 +212,7 @@ describe('SQL Compilation Snapshots', () => {
       sortOp.inputs.key.setValue('timestamp')
       sortOp.inputs.order.setValue('asc')
 
-      const adapted = adaptOperator(sortOp as any, () => [])
+      const adapted = adaptOperator(sortOp as unknown, () => [])
       const compiled = compile([adapted!])
 
       expect(compiled.sql).toMatchInlineSnapshot(`
@@ -230,7 +230,7 @@ describe('SQL Compilation Snapshots', () => {
       sortOp.inputs.key.setValue('score')
       sortOp.inputs.order.setValue('desc')
 
-      const adapted = adaptOperator(sortOp as any, () => [])
+      const adapted = adaptOperator(sortOp as unknown, () => [])
       const compiled = compile([adapted!])
 
       expect(compiled.sql).toMatchInlineSnapshot(`
@@ -247,7 +247,7 @@ describe('SQL Compilation Snapshots', () => {
       sliceOp.inputs.start.setValue(0)
       sliceOp.inputs.end.setValue(100)
 
-      const adapted = adaptOperator(sliceOp as any, () => [])
+      const adapted = adaptOperator(sliceOp as unknown, () => [])
       const compiled = compile([adapted!])
 
       expect(compiled.sql).toMatchInlineSnapshot(`
@@ -278,7 +278,7 @@ describe('SQL Compilation Snapshots', () => {
       sliceOp.inputs.start.setValue(50)
       sliceOp.inputs.end.setValue(75)
 
-      const adapted = adaptOperator(sliceOp as any, () => [])
+      const adapted = adaptOperator(sliceOp as unknown, () => [])
       const compiled = compile([adapted!])
 
       expect(compiled.sql).toContain('LIMIT $1 OFFSET $2')
@@ -288,7 +288,7 @@ describe('SQL Compilation Snapshots', () => {
       const uniqueOp = new UniqueOp('/unique')
       uniqueOp.inputs.columns.setValue('user_id,session_id')
 
-      const adapted = adaptOperator(uniqueOp as any, () => [])
+      const adapted = adaptOperator(uniqueOp as unknown, () => [])
       const compiled = compile([adapted!])
 
       expect(compiled.sql).toMatchInlineSnapshot(`
@@ -304,7 +304,7 @@ describe('SQL Compilation Snapshots', () => {
       const uniqueOp = new UniqueOp('/unique')
       uniqueOp.inputs.columns.setValue('')
 
-      const adapted = adaptOperator(uniqueOp as any, () => [])
+      const adapted = adaptOperator(uniqueOp as unknown, () => [])
       const compiled = compile([adapted!])
 
       expect(compiled.sql).toMatchInlineSnapshot(`
@@ -321,7 +321,7 @@ describe('SQL Compilation Snapshots', () => {
       groupByOp.inputs.groupByColumns.setValue('region')
       groupByOp.inputs.aggregations.setValue('sum(sales) as total_sales')
 
-      const adapted = adaptOperator(groupByOp as any, () => [])
+      const adapted = adaptOperator(groupByOp as unknown, () => [])
       const compiled = compile([adapted!])
 
       expect(compiled.sql).toMatchInlineSnapshot(`
@@ -338,7 +338,7 @@ describe('SQL Compilation Snapshots', () => {
       groupByOp.inputs.groupByColumns.setValue('category,region')
       groupByOp.inputs.aggregations.setValue('sum(revenue) as total; count(*) as count; avg(price) as avg_price')
 
-      const adapted = adaptOperator(groupByOp as any, () => [])
+      const adapted = adaptOperator(groupByOp as unknown, () => [])
       const compiled = compile([adapted!])
 
       expect(compiled.sql).toContain('GROUP BY "category", "region"')
@@ -357,7 +357,7 @@ describe('SQL Compilation Snapshots', () => {
       windowOp.inputs.windowSize.setValue(7)
       windowOp.inputs.outputColumn.setValue('rolling_7day')
 
-      const adapted = adaptOperator(windowOp as any, () => [])
+      const adapted = adaptOperator(windowOp as unknown, () => [])
       const compiled = compile([adapted!])
 
       expect(compiled.sql).toContain('SUM("revenue") OVER (')
@@ -373,7 +373,7 @@ describe('SQL Compilation Snapshots', () => {
       joinOp.inputs.rightKey.setValue('id')
       joinOp.inputs.joinType.setValue('inner')
 
-      const adapted = adaptOperator(joinOp as any, () => ['/left', '/right'])
+      const adapted = adaptOperator(joinOp as unknown, () => ['/left', '/right'])
       const compiled = compile([adapted!])
 
       expect(compiled.sql).toContain('INNER JOIN')
@@ -387,7 +387,7 @@ describe('SQL Compilation Snapshots', () => {
       joinOp.inputs.rightKey.setValue('id')
       joinOp.inputs.joinType.setValue('left')
 
-      const adapted = adaptOperator(joinOp as any, () => ['/orders', '/products'])
+      const adapted = adaptOperator(joinOp as unknown, () => ['/orders', '/products'])
       const compiled = compile([adapted!])
 
       expect(compiled.sql).toContain('LEFT JOIN')
@@ -405,8 +405,8 @@ describe('SQL Compilation Snapshots', () => {
       filterOp.inputs.condition.setValue('equals')
       filterOp.inputs.value.setValue('true')
 
-      const adaptedFile = adaptOperator(fileOp as any, () => [])
-      const adaptedFilter = adaptOperator(filterOp as any, () => ['/data'])
+      const adaptedFile = adaptOperator(fileOp as unknown, () => [])
+      const adaptedFilter = adaptOperator(filterOp as unknown, () => ['/data'])
 
       const compiled = compile([adaptedFile!, adaptedFilter!])
 
@@ -443,9 +443,9 @@ describe('SQL Compilation Snapshots', () => {
       sortOp.inputs.key.setValue('amount')
       sortOp.inputs.order.setValue('desc')
 
-      const adaptedFile = adaptOperator(fileOp as any, () => [])
-      const adaptedFilter = adaptOperator(filterOp as any, () => ['/data'])
-      const adaptedSort = adaptOperator(sortOp as any, () => ['/filter'])
+      const adaptedFile = adaptOperator(fileOp as unknown, () => [])
+      const adaptedFilter = adaptOperator(filterOp as unknown, () => ['/data'])
+      const adaptedSort = adaptOperator(sortOp as unknown, () => ['/filter'])
 
       const compiled = compile([adaptedFile!, adaptedFilter!, adaptedSort!])
 
@@ -488,10 +488,10 @@ describe('SQL Compilation Snapshots', () => {
       sliceOp.inputs.start.setValue(0)
       sliceOp.inputs.end.setValue(10)
 
-      const adaptedFile = adaptOperator(fileOp as any, () => [])
-      const adaptedFilter = adaptOperator(filterOp as any, () => ['/data'])
-      const adaptedSort = adaptOperator(sortOp as any, () => ['/filter'])
-      const adaptedSlice = adaptOperator(sliceOp as any, () => ['/sort'])
+      const adaptedFile = adaptOperator(fileOp as unknown, () => [])
+      const adaptedFilter = adaptOperator(filterOp as unknown, () => ['/data'])
+      const adaptedSort = adaptOperator(sortOp as unknown, () => ['/filter'])
+      const adaptedSlice = adaptOperator(sliceOp as unknown, () => ['/sort'])
 
       const compiled = compile([adaptedFile!, adaptedFilter!, adaptedSort!, adaptedSlice!])
 
@@ -535,9 +535,9 @@ describe('SQL Compilation Snapshots', () => {
       sortOp.inputs.key.setValue('total')
       sortOp.inputs.order.setValue('desc')
 
-      const adaptedFile = adaptOperator(fileOp as any, () => [])
-      const adaptedGroup = adaptOperator(groupByOp as any, () => ['/data'])
-      const adaptedSort = adaptOperator(sortOp as any, () => ['/group'])
+      const adaptedFile = adaptOperator(fileOp as unknown, () => [])
+      const adaptedGroup = adaptOperator(groupByOp as unknown, () => ['/data'])
+      const adaptedSort = adaptOperator(sortOp as unknown, () => ['/group'])
 
       const compiled = compile([adaptedFile!, adaptedGroup!, adaptedSort!])
 
@@ -558,9 +558,9 @@ describe('SQL Compilation Snapshots', () => {
       sortOp.inputs.key.setValue('timestamp')
       sortOp.inputs.order.setValue('asc')
 
-      const adaptedFile = adaptOperator(fileOp as any, () => [])
-      const adaptedUnique = adaptOperator(uniqueOp as any, () => ['/data'])
-      const adaptedSort = adaptOperator(sortOp as any, () => ['/unique'])
+      const adaptedFile = adaptOperator(fileOp as unknown, () => [])
+      const adaptedUnique = adaptOperator(uniqueOp as unknown, () => ['/data'])
+      const adaptedSort = adaptOperator(sortOp as unknown, () => ['/unique'])
 
       const compiled = compile([adaptedFile!, adaptedUnique!, adaptedSort!])
 
@@ -587,9 +587,9 @@ describe('SQL Compilation Snapshots', () => {
       filterOp.inputs.condition.setValue('greater than')
       filterOp.inputs.value.setValue('100')
 
-      const adaptedFile = adaptOperator(fileOp as any, () => [])
-      const adaptedWindow = adaptOperator(windowOp as any, () => ['/data'])
-      const adaptedFilter = adaptOperator(filterOp as any, () => ['/window'])
+      const adaptedFile = adaptOperator(fileOp as unknown, () => [])
+      const adaptedWindow = adaptOperator(windowOp as unknown, () => ['/data'])
+      const adaptedFilter = adaptOperator(filterOp as unknown, () => ['/window'])
 
       const compiled = compile([adaptedFile!, adaptedWindow!, adaptedFilter!])
 
@@ -640,8 +640,8 @@ describe('SQL Compilation Snapshots', () => {
       groupByOp.inputs.groupByColumns.setValue('category')
       groupByOp.inputs.aggregations.setValue('count(*) as product_count; sum(price) as total_price')
 
-      const adaptedJoin = adaptOperator(joinOp as any, () => ['/orders', '/products'])
-      const adaptedGroup = adaptOperator(groupByOp as any, () => ['/join'])
+      const adaptedJoin = adaptOperator(joinOp as unknown, () => ['/orders', '/products'])
+      const adaptedGroup = adaptOperator(groupByOp as unknown, () => ['/join'])
 
       const compiled = compile([adaptedJoin!, adaptedGroup!])
 
@@ -659,7 +659,7 @@ describe('SQL Compilation Snapshots', () => {
       filterOp.inputs.condition.setValue('in')
       filterOp.inputs.value.setValue('')
 
-      const adapted = adaptOperator(filterOp as any, () => [])
+      const adapted = adaptOperator(filterOp as unknown, () => [])
       const compiled = compile([adapted!])
 
       expect(compiled.sql).toContain('WHERE FALSE')
@@ -671,7 +671,7 @@ describe('SQL Compilation Snapshots', () => {
       filterOp.inputs.condition.setValue('not in')
       filterOp.inputs.value.setValue('')
 
-      const adapted = adaptOperator(filterOp as any, () => [])
+      const adapted = adaptOperator(filterOp as unknown, () => [])
       const compiled = compile([adapted!])
 
       expect(compiled.sql).toContain('WHERE TRUE')
@@ -683,7 +683,7 @@ describe('SQL Compilation Snapshots', () => {
       filterOp.inputs.condition.setValue('equals')
       filterOp.inputs.value.setValue('1')
 
-      const adapted = adaptOperator(filterOp as any, () => [])
+      const adapted = adaptOperator(filterOp as unknown, () => [])
       const compiled = compile([adapted!])
 
       expect(compiled.operatorAliases.get('/my-filter/nested')).toMatch(/^my_filter_nested$/)
@@ -695,7 +695,7 @@ describe('SQL Compilation Snapshots', () => {
       filterOp.inputs.condition.setValue('equals')
       filterOp.inputs.value.setValue('1')
 
-      const adapted = adaptOperator(filterOp as any, () => [])
+      const adapted = adaptOperator(filterOp as unknown, () => [])
       const compiled = compile([adapted!])
 
       expect(compiled.operatorAliases.get('/select')).toBe('select_op')

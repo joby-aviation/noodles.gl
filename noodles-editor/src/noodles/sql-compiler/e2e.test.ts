@@ -32,7 +32,7 @@ const TEST_SOURCE_TEMPLATE: StaticTemplate = {
   upstreamCount: 0,
 }
 
-function makeTestSourceOp(id: string): any {
+function makeTestSourceOp(id: string): unknown {
   function TestSourceCtor() {}
   Object.defineProperty(TestSourceCtor, 'displayName', { value: 'TestSource', writable: true })
   const op = Object.create(TestSourceCtor.prototype)
@@ -42,7 +42,7 @@ function makeTestSourceOp(id: string): any {
   op.outputs = { data: { next: () => {} } }
   op._cachedOutput = null
   op.cachedOutput = null
-  op.setCachedOutput = function (output: any) {
+  op.setCachedOutput = function (output: unknown) {
     this._cachedOutput = output
     this.cachedOutput = output
   }
@@ -107,8 +107,8 @@ describe('End-to-End: Graph→SQL Compilation Validation', () => {
       filterOp.inputs.condition.setValue('equals')
       filterOp.inputs.value.setValue('Engineering')
 
-      const adaptedSource = adaptOperator(sourceOp as any, () => [])
-      const adaptedFilter = adaptOperator(filterOp as any, () => ['/source'])
+      const adaptedSource = adaptOperator(sourceOp as unknown, () => [])
+      const adaptedFilter = adaptOperator(filterOp as unknown, () => ['/source'])
 
       const compiled = compile([adaptedSource!, adaptedFilter!])
 
@@ -131,7 +131,7 @@ describe('End-to-End: Graph→SQL Compilation Validation', () => {
       const sqlRows = sqlResult.toArray()
 
       expect(sqlRows.length).toBe(jsResult.data.length)
-      expect(sqlRows.every((r: any) => r.department === 'Engineering')).toBe(true)
+      expect(sqlRows.every((r: Record<string, unknown>) => r.department === 'Engineering')).toBe(true)
     })
 
     it('FilterOp: compiles "greater than" to correct WHERE clause', async () => {
@@ -143,8 +143,8 @@ describe('End-to-End: Graph→SQL Compilation Validation', () => {
       filterOp.inputs.condition.setValue('greater than')
       filterOp.inputs.value.setValue('30')
 
-      const adaptedSource = adaptOperator(sourceOp as any, () => [])
-      const adaptedFilter = adaptOperator(filterOp as any, () => ['/source'])
+      const adaptedSource = adaptOperator(sourceOp as unknown, () => [])
+      const adaptedFilter = adaptOperator(filterOp as unknown, () => ['/source'])
 
       const compiled = compile([adaptedSource!, adaptedFilter!])
 
@@ -172,8 +172,8 @@ describe('End-to-End: Graph→SQL Compilation Validation', () => {
       filterOp.inputs.condition.setValue('contains')
       filterOp.inputs.value.setValue('ar')
 
-      const adaptedSource = adaptOperator(sourceOp as any, () => [])
-      const adaptedFilter = adaptOperator(filterOp as any, () => ['/source'])
+      const adaptedSource = adaptOperator(sourceOp as unknown, () => [])
+      const adaptedFilter = adaptOperator(filterOp as unknown, () => ['/source'])
 
       const compiled = compile([adaptedSource!, adaptedFilter!])
 
@@ -201,8 +201,8 @@ describe('End-to-End: Graph→SQL Compilation Validation', () => {
       filterOp.inputs.condition.setValue('in')
       filterOp.inputs.value.setValue('Engineering,Sales')
 
-      const adaptedSource = adaptOperator(sourceOp as any, () => [])
-      const adaptedFilter = adaptOperator(filterOp as any, () => ['/source'])
+      const adaptedSource = adaptOperator(sourceOp as unknown, () => [])
+      const adaptedFilter = adaptOperator(filterOp as unknown, () => ['/source'])
 
       const compiled = compile([adaptedSource!, adaptedFilter!])
 
@@ -226,8 +226,8 @@ describe('End-to-End: Graph→SQL Compilation Validation', () => {
       sortOp.inputs.key.setValue('age')
       sortOp.inputs.order.setValue('asc')
 
-      const adaptedSource = adaptOperator(sourceOp as any, () => [])
-      const adaptedSort = adaptOperator(sortOp as any, () => ['/source'])
+      const adaptedSource = adaptOperator(sourceOp as unknown, () => [])
+      const adaptedSort = adaptOperator(sortOp as unknown, () => ['/source'])
 
       const compiled = compile([adaptedSource!, adaptedSort!])
 
@@ -253,8 +253,8 @@ describe('End-to-End: Graph→SQL Compilation Validation', () => {
       sortOp.inputs.key.setValue('salary')
       sortOp.inputs.order.setValue('desc')
 
-      const adaptedSource = adaptOperator(sourceOp as any, () => [])
-      const adaptedSort = adaptOperator(sortOp as any, () => ['/source'])
+      const adaptedSource = adaptOperator(sourceOp as unknown, () => [])
+      const adaptedSort = adaptOperator(sortOp as unknown, () => ['/source'])
 
       const compiled = compile([adaptedSource!, adaptedSort!])
 
@@ -283,9 +283,9 @@ describe('End-to-End: Graph→SQL Compilation Validation', () => {
       sliceOp.inputs.start.setValue(2)
       sliceOp.inputs.end.setValue(5)
 
-      const adaptedSource = adaptOperator(sourceOp as any, () => [])
-      const adaptedSort = adaptOperator(sortOp as any, () => ['/source'])
-      const adaptedSlice = adaptOperator(sliceOp as any, () => ['/sort'])
+      const adaptedSource = adaptOperator(sourceOp as unknown, () => [])
+      const adaptedSort = adaptOperator(sortOp as unknown, () => ['/source'])
+      const adaptedSlice = adaptOperator(sliceOp as unknown, () => ['/sort'])
 
       const compiled = compile([adaptedSource!, adaptedSort!, adaptedSlice!])
 
@@ -338,9 +338,9 @@ describe('End-to-End: Graph→SQL Compilation Validation', () => {
       sortOp.addUpstreamDependency(filterOp)
       filterOp.addDownstreamDependent(sortOp)
 
-      const adaptedSource = adaptOperator(sourceOp as any, () => [])
-      const adaptedFilter = adaptOperator(filterOp as any, () => ['/source'])
-      const adaptedSort = adaptOperator(sortOp as any, () => ['/filter'])
+      const adaptedSource = adaptOperator(sourceOp as unknown, () => [])
+      const adaptedFilter = adaptOperator(filterOp as unknown, () => ['/source'])
+      const adaptedSort = adaptOperator(sortOp as unknown, () => ['/filter'])
 
       const compiled = compile([adaptedSource!, adaptedFilter!, adaptedSort!])
 
@@ -400,10 +400,10 @@ describe('End-to-End: Graph→SQL Compilation Validation', () => {
       sliceOp.addUpstreamDependency(sortOp)
       sortOp.addDownstreamDependent(sliceOp)
 
-      const adaptedSource = adaptOperator(sourceOp as any, () => [])
-      const adaptedFilter = adaptOperator(filterOp as any, () => ['/source'])
-      const adaptedSort = adaptOperator(sortOp as any, () => ['/filter'])
-      const adaptedSlice = adaptOperator(sliceOp as any, () => ['/sort'])
+      const adaptedSource = adaptOperator(sourceOp as unknown, () => [])
+      const adaptedFilter = adaptOperator(filterOp as unknown, () => ['/source'])
+      const adaptedSort = adaptOperator(sortOp as unknown, () => ['/filter'])
+      const adaptedSlice = adaptOperator(sliceOp as unknown, () => ['/sort'])
 
       const compiled = compile([adaptedSource!, adaptedFilter!, adaptedSort!, adaptedSlice!])
 
@@ -452,7 +452,7 @@ describe('End-to-End: Graph→SQL Compilation Validation', () => {
 
       const scatterOp = new ScatterplotLayerOp('/scatter')
 
-      const ops = new Map<string, any>([
+      const ops = new Map<string, unknown>([
         ['/filter', filterOp],
         ['/sort', sortOp],
         ['/scatter', scatterOp],
@@ -493,7 +493,7 @@ describe('End-to-End: Graph→SQL Compilation Validation', () => {
 
       const scatterOp = new ScatterplotLayerOp('/scatter')
 
-      const ops = new Map<string, any>([
+      const ops = new Map<string, unknown>([
         ['/source', sourceOp],
         ['/filter', filterOp],
         ['/sort', sortOp],
@@ -534,7 +534,7 @@ describe('End-to-End: Graph→SQL Compilation Validation', () => {
 
       const scatterOp = new ScatterplotLayerOp('/scatter')
 
-      const ops = new Map<string, any>([
+      const ops = new Map<string, unknown>([
         ['/source', sourceOp],
         ['/code', codeOp],
         ['/filter', filterOp],
@@ -576,7 +576,7 @@ describe('End-to-End: Graph→SQL Compilation Validation', () => {
 
       const scatterOp = new ScatterplotLayerOp('/scatter')
 
-      const ops = new Map<string, any>([
+      const ops = new Map<string, unknown>([
         ['/source', sourceOp],
         ['/filter', filterOp],
         ['/sort', sortOp],
@@ -632,7 +632,7 @@ describe('End-to-End: Graph→SQL Compilation Validation', () => {
 
       const scatterOp = new ScatterplotLayerOp('/scatter')
 
-      const ops = new Map<string, any>([
+      const ops = new Map<string, unknown>([
         ['/source', sourceOp],
         ['/filter', filterOp],
         ['/sort', sortOp],
@@ -695,7 +695,7 @@ describe('End-to-End: Graph→SQL Compilation Validation', () => {
 
       const scatterOp = new ScatterplotLayerOp('/scatter')
 
-      const ops = new Map<string, any>([
+      const ops = new Map<string, unknown>([
         ['/source', sourceOp],
         ['/filter', filterOp],
         ['/scatter', scatterOp],
@@ -772,7 +772,7 @@ describe('End-to-End: Graph→SQL Compilation Validation', () => {
 
       const scatterOp = new ScatterplotLayerOp('/scatter')
 
-      const ops = new Map<string, any>([
+      const ops = new Map<string, unknown>([
         ['/source', sourceOp],
         ['/filter', filterOp],
         ['/sort', sortOp],
@@ -843,7 +843,7 @@ describe('End-to-End: Graph→SQL Compilation Validation', () => {
       filterOp.inputs.condition.setValue('greater than')
       filterOp.inputs.value.setValue('42')
 
-      const ops = new Map<string, any>([['/filter', filterOp]])
+      const ops = new Map<string, unknown>([['/filter', filterOp]])
 
       const compiled = {
         sql: 'SELECT * FROM t WHERE age > $1',
@@ -868,7 +868,7 @@ describe('End-to-End: Graph→SQL Compilation Validation', () => {
       sliceOp.inputs.start.setValue(5)
       sliceOp.inputs.end.setValue(10)
 
-      const ops = new Map<string, any>([
+      const ops = new Map<string, unknown>([
         ['/filter', filterOp],
         ['/slice', sliceOp],
       ])
@@ -895,7 +895,7 @@ describe('End-to-End: Graph→SQL Compilation Validation', () => {
       filterOp.inputs.condition.setValue('greater than')
       filterOp.inputs.value.setValue('30')
 
-      const adapted = adaptOperator(filterOp as any, () => ['/source'])
+      const adapted = adaptOperator(filterOp as unknown, () => ['/source'])
       expect(adapted).toBeDefined()
       expect(adapted!.id).toBe('/filter')
       expect(adapted!.type).toBe('FilterOp')
@@ -910,7 +910,7 @@ describe('End-to-End: Graph→SQL Compilation Validation', () => {
       sortOp.inputs.key.setValue('salary')
       sortOp.inputs.order.setValue('desc')
 
-      const adapted = adaptOperator(sortOp as any, () => ['/filter'])
+      const adapted = adaptOperator(sortOp as unknown, () => ['/filter'])
       expect(adapted).toBeDefined()
       expect(adapted!.type).toBe('Sort')
       expect(adapted!.inputs.key.value).toBe('salary')
@@ -921,7 +921,7 @@ describe('End-to-End: Graph→SQL Compilation Validation', () => {
       const codeOp = new CodeOp('/code')
       codeOp.inputs.code.setValue('return data')
 
-      const adapted = adaptOperator(codeOp as any, () => [])
+      const adapted = adaptOperator(codeOp as unknown, () => [])
       expect(adapted).toBeUndefined()
     })
   })
