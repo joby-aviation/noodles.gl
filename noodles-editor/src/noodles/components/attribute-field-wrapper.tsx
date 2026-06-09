@@ -1,5 +1,5 @@
 import { InputText } from 'primereact/inputtext'
-import { type ReactNode, cloneElement, isValidElement, useCallback, useEffect, useState } from 'react'
+import { type ReactNode, cloneElement, isValidElement, useCallback, useEffect, useRef, useState } from 'react'
 import { InfoCircledIcon } from '@radix-ui/react-icons'
 import type { Field, IField } from '../fields'
 import type { OpId } from '../utils/id-utils'
@@ -50,6 +50,11 @@ export function AttributeFieldWrapper({
   const currentValue = field.value
   const mode = getAttributeMode(currentValue)
 
+  // Track last known uniform value to restore when switching back from attribute/expression mode
+  const lastUniformValueRef = useRef(
+    mode === 'uniform' ? currentValue : (field.constructor as typeof Field).defaultValue
+  )
+
   const [attributeName, setAttributeName] = useState<string>(() =>
     isAttributeReference(currentValue) ? (currentValue as { attributeName: string }).attributeName : ''
   )
@@ -60,10 +65,14 @@ export function AttributeFieldWrapper({
   useEffect(() => {
     // Subscribe to field changes to keep local state in sync
     const sub = field.subscribe(newVal => {
+      const newMode = getAttributeMode(newVal)
       if (isAttributeReference(newVal)) {
         setAttributeName((newVal as { attributeName: string }).attributeName)
       } else if (isExpression(newVal)) {
         setExpressionValue((newVal as { expression: string }).expression)
+      } else if (newMode === 'uniform') {
+        // Update the last known uniform value when in uniform mode
+        lastUniformValueRef.current = newVal
       }
     })
     return () => sub.unsubscribe()
@@ -77,8 +86,8 @@ export function AttributeFieldWrapper({
       field.beginBatch()
 
       if (newMode === 'uniform') {
-        const defaultValue = (field.constructor as typeof Field).defaultValue
-        field.setValue(defaultValue)
+        // Restore the last known uniform value instead of resetting to default
+        field.setValue(lastUniformValueRef.current)
         field.autoDetected = false
       } else if (newMode === 'attribute') {
         const defaultAttr = field.defaultAttribute || 'value'
