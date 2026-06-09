@@ -42,8 +42,8 @@
       "data": {
         "inputs": {
           "name": "position",
-          "expression": "[d.lng, d.lat]",
-          "size": 2
+          "expression": "[d.lng, d.lat, 0]",
+          "size": 3
         }
       }
     },

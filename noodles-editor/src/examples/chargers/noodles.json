@@ -129,7 +129,7 @@
       "data": {
         "inputs": {
           "name": "position",
-          "expression": "[d.lng, d.lat]",
+          "expression": "[d.lng, d.lat, 0]",
           "size": 3,
           "type": "float"
         },

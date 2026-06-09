@@ -94,8 +94,8 @@
       "data": {
         "inputs": {
           "name": "position",
-          "expression": "[d.longitude, d.latitude]",
-          "size": 2,
+          "expression": "[d.longitude, d.latitude, 0]",
+          "size": 3,
           "type": "float"
         },
         "locked": false
