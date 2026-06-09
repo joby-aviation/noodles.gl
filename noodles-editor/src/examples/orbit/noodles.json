@@ -1,37 +1,11 @@
 {
   "nodes": [
     {
-      "id": "/deck",
-      "type": "DeckRendererOp",
-      "data": {
-        "inputs": {
-          "basemap": null
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 0,
-        "y": 0
-      }
-    },
-    {
-      "id": "/out",
-      "type": "OutOp",
-      "data": {
-        "inputs": {},
-        "locked": false
-      },
-      "position": {
-        "x": 390,
-        "y": 0
-      }
-    },
-    {
       "id": "/orbitview-0",
       "type": "OrbitViewOp",
       "position": {
-        "x": -565.1875,
-        "y": 169.25
+        "x": 200,
+        "y": 100
       },
       "data": {
         "inputs": {
@@ -43,11 +17,25 @@
       }
     },
     {
+      "id": "/expression-0",
+      "type": "ExpressionOp",
+      "position": {
+        "x": 200,
+        "y": 100
+      },
+      "data": {
+        "inputs": {
+          "expression": "[null]"
+        },
+        "locked": false
+      }
+    },
+    {
       "id": "/scenegraphlayer-0",
       "type": "ScenegraphLayerOp",
       "position": {
-        "x": -539.9180707890639,
-        "y": -285.7888584218722
+        "x": 1000,
+        "y": 100
       },
       "data": {
         "inputs": {
@@ -58,17 +46,29 @@
       }
     },
     {
-      "id": "/expression-0",
-      "type": "ExpressionOp",
-      "position": {
-        "x": -1013.8408708542686,
-        "y": -139.4872739249836
-      },
+      "id": "/deck",
+      "type": "DeckRendererOp",
       "data": {
         "inputs": {
-          "expression": "[null]"
+          "basemap": null
         },
         "locked": false
+      },
+      "position": {
+        "x": 1400,
+        "y": 100
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 1800,
+        "y": 100
       }
     }
   ],
@@ -103,11 +103,11 @@
     }
   ],
   "viewport": {
-    "x": 1368.6650642622628,
-    "y": 546.6972278664407,
-    "zoom": 0.981085979917294
+    "x": 0,
+    "y": 0,
+    "zoom": 0.8
   },
-  "version": 6,
+  "version": 15,
   "timeline": {
     "sheetsById": {
       "Noodles": {

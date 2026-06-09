@@ -1,182 +1,4 @@
 {
-  "nodes": [
-    {
-      "id": "/deck",
-      "type": "DeckRendererOp",
-      "data": {
-        "inputs": {},
-        "locked": false
-      },
-      "position": {
-        "x": 1200,
-        "y": 200
-      }
-    },
-    {
-      "id": "/out",
-      "type": "OutOp",
-      "data": {
-        "inputs": {},
-        "locked": false
-      },
-      "position": {
-        "x": 1500,
-        "y": 200
-      }
-    },
-    {
-      "id": "/data-source",
-      "type": "FileOp",
-      "data": {
-        "inputs": {
-          "format": "csv",
-          "url": "@/data.csv"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 0,
-        "y": 200
-      }
-    },
-    {
-      "id": "/arc-layer",
-      "type": "ArcLayerOp",
-      "data": {
-        "inputs": {
-          "getWidth": 4
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 897.6842857142857,
-        "y": -143.5742857142857
-      }
-    },
-    {
-      "id": "/pickup-layer",
-      "type": "ScatterplotLayerOp",
-      "data": {
-        "inputs": {
-          "opacity": 0.8,
-          "getLineColor": "#ffffffff",
-          "getRadius": 10
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 837.4757142857144,
-        "y": 195.36857142857144
-      }
-    },
-    {
-      "id": "/dropoff-layer",
-      "type": "ScatterplotLayerOp",
-      "data": {
-        "inputs": {
-          "opacity": 0.8,
-          "getLineColor": "#ffffffff",
-          "getRadius": 10
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 851.3700000000001,
-        "y": 589.8885714285714
-      }
-    },
-    {
-      "id": "/pickup-position",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "[d.pickup_longitude, d.pickup_latitude]"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 352.2185714285714,
-        "y": 157.89285714285714
-      }
-    },
-    {
-      "id": "/dropoff-position",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "[d.dropoff_longitude, d.dropoff_latitude]"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 352.2185714285714,
-        "y": 274.52714285714285
-      }
-    },
-    {
-      "type": "MaplibreBasemapOp",
-      "id": "/maplibre-basemap",
-      "position": {
-        "x": 1184.8328571428572,
-        "y": 484.2142857142857
-      },
-      "data": {
-        "inputs": {
-          "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
-          "viewState": {
-            "latitude": 40.74,
-            "longitude": -73.98,
-            "zoom": 12.09,
-            "pitch": 56,
-            "bearing": -15.25
-          }
-        },
-        "locked": false
-      }
-    },
-    {
-      "type": "ColorOp",
-      "id": "/pickup",
-      "position": {
-        "x": 471.3628571428572,
-        "y": 62.52428571428571
-      },
-      "data": {
-        "inputs": {
-          "color": "#8d12af"
-        },
-        "locked": false
-      }
-    },
-    {
-      "type": "ColorOp",
-      "id": "/dropoff",
-      "position": {
-        "x": 443.5742857142857,
-        "y": 420.8414285714286
-      },
-      "data": {
-        "inputs": {
-          "color": "#105b89"
-        },
-        "locked": false
-      }
-    },
-    {
-      "type": "BlendingOp",
-      "id": "/blending",
-      "position": {
-        "x": 272.8555514364492,
-        "y": 705.7558236067697
-      },
-      "data": {
-        "inputs": {
-          "mode": "additive"
-        },
-        "locked": false
-      }
-    }
-  ],
   "edges": [
     {
       "id": "/deck.out.vis->/out.par.vis",
@@ -186,53 +8,39 @@
       "targetHandle": "par.vis"
     },
     {
-      "id": "/data-source.out.data->/arc-layer.par.data",
+      "id": "/data-source.out.data->/source-position.par.data",
       "source": "/data-source",
+      "target": "/source-position",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/source-position.out.data->/target-position.par.data",
+      "source": "/source-position",
+      "target": "/target-position",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/target-position.out.data->/arc-layer.par.data",
+      "source": "/target-position",
       "target": "/arc-layer",
       "sourceHandle": "out.data",
       "targetHandle": "par.data"
     },
     {
-      "id": "/data-source.out.data->/pickup-layer.par.data",
-      "source": "/data-source",
+      "id": "/target-position.out.data->/pickup-layer.par.data",
+      "source": "/target-position",
       "target": "/pickup-layer",
       "sourceHandle": "out.data",
       "targetHandle": "par.data"
     },
     {
-      "id": "/data-source.out.data->/dropoff-layer.par.data",
-      "source": "/data-source",
+      "id": "/target-position.out.data->/dropoff-layer.par.data",
+      "source": "/target-position",
       "target": "/dropoff-layer",
       "sourceHandle": "out.data",
       "targetHandle": "par.data"
-    },
-    {
-      "id": "/pickup-position.out.accessor->/arc-layer.par.getSourcePosition",
-      "source": "/pickup-position",
-      "target": "/arc-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getSourcePosition"
-    },
-    {
-      "id": "/dropoff-position.out.accessor->/arc-layer.par.getTargetPosition",
-      "source": "/dropoff-position",
-      "target": "/arc-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getTargetPosition"
-    },
-    {
-      "id": "/pickup-position.out.accessor->/pickup-layer.par.getPosition",
-      "source": "/pickup-position",
-      "target": "/pickup-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getPosition"
-    },
-    {
-      "id": "/dropoff-position.out.accessor->/dropoff-layer.par.getPosition",
-      "source": "/dropoff-position",
-      "target": "/dropoff-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getPosition"
     },
     {
       "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
@@ -263,6 +71,27 @@
       "targetHandle": "par.layers"
     },
     {
+      "source": "/blending",
+      "sourceHandle": "out.parameters",
+      "target": "/pickup-layer",
+      "targetHandle": "par.parameters",
+      "id": "/blending.out.parameters->/pickup-layer.par.parameters"
+    },
+    {
+      "source": "/blending",
+      "sourceHandle": "out.parameters",
+      "target": "/arc-layer",
+      "targetHandle": "par.parameters",
+      "id": "/blending.out.parameters->/arc-layer.par.parameters"
+    },
+    {
+      "source": "/blending",
+      "sourceHandle": "out.parameters",
+      "target": "/dropoff-layer",
+      "targetHandle": "par.parameters",
+      "id": "/blending.out.parameters->/dropoff-layer.par.parameters"
+    },
+    {
       "source": "/pickup",
       "sourceHandle": "out.color",
       "target": "/arc-layer",
@@ -289,49 +118,232 @@
       "target": "/dropoff-layer",
       "targetHandle": "par.getFillColor",
       "id": "/dropoff.out.color->/dropoff-layer.par.getFillColor"
-    },
-    {
-      "source": "/blending",
-      "sourceHandle": "out.parameters",
-      "target": "/pickup-layer",
-      "targetHandle": "par.parameters",
-      "id": "/blending.out.parameters->/pickup-layer.par.parameters"
-    },
-    {
-      "source": "/blending",
-      "sourceHandle": "out.parameters",
-      "target": "/arc-layer",
-      "targetHandle": "par.parameters",
-      "id": "/blending.out.parameters->/arc-layer.par.parameters"
-    },
-    {
-      "source": "/blending",
-      "sourceHandle": "out.parameters",
-      "target": "/dropoff-layer",
-      "targetHandle": "par.parameters",
-      "id": "/blending.out.parameters->/dropoff-layer.par.parameters"
     }
   ],
   "viewport": {
-    "x": 172.53317127277438,
-    "y": 204.01752158305402,
-    "zoom": 0.467987771000214
+    "x": 0,
+    "y": 0,
+    "zoom": 0.8
   },
+  "version": 15,
+  "name": "NYC Taxis",
+  "editorSettings": {
+    "layoutMode": "noodles-on-top",
+    "showOverlay": true
+  },
+  "nodes": [
+    {
+      "id": "/data-source",
+      "type": "FileOp",
+      "data": {
+        "inputs": {
+          "format": "csv",
+          "url": "@/data.csv"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 200,
+        "y": 460
+      }
+    },
+    {
+      "type": "MaplibreBasemapOp",
+      "id": "/maplibre-basemap",
+      "position": {
+        "x": 2200,
+        "y": 700
+      },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+          "viewState": {
+            "latitude": 40.74,
+            "longitude": -73.98,
+            "zoom": 12.09,
+            "pitch": 56,
+            "bearing": -15.25
+          }
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "ColorOp",
+      "id": "/pickup",
+      "position": {
+        "x": 1400,
+        "y": 700
+      },
+      "data": {
+        "inputs": {
+          "color": "#8d12af"
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "ColorOp",
+      "id": "/dropoff",
+      "position": {
+        "x": 1400,
+        "y": 820
+      },
+      "data": {
+        "inputs": {
+          "color": "#105b89"
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "BlendingOp",
+      "id": "/blending",
+      "position": {
+        "x": 1400,
+        "y": 1060
+      },
+      "data": {
+        "inputs": {
+          "mode": "additive"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/source-position",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 600,
+        "y": 460
+      },
+      "data": {
+        "inputs": {
+          "name": "sourcePosition",
+          "expression": "[d.pickup_longitude, d.pickup_latitude, 0]",
+          "size": 3,
+          "type": "float"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/target-position",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 1000,
+        "y": 460
+      },
+      "data": {
+        "inputs": {
+          "name": "targetPosition",
+          "expression": "[d.dropoff_longitude, d.dropoff_latitude, 0]",
+          "size": 3,
+          "type": "float"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/arc-layer",
+      "type": "ArcLayerOp",
+      "data": {
+        "inputs": {
+          "getWidth": 4
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 1800,
+        "y": 100
+      }
+    },
+    {
+      "id": "/pickup-layer",
+      "type": "ScatterplotLayerOp",
+      "data": {
+        "inputs": {
+          "opacity": 0.8,
+          "filled": true,
+          "getLineColor": "#ffffffff",
+          "getRadius": 10,
+          "getPosition": {
+            "attributeName": "sourcePosition"
+          }
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 1800,
+        "y": 460
+      }
+    },
+    {
+      "id": "/dropoff-layer",
+      "type": "ScatterplotLayerOp",
+      "data": {
+        "inputs": {
+          "opacity": 0.8,
+          "filled": true,
+          "getLineColor": "#ffffffff",
+          "getRadius": 10,
+          "getPosition": {
+            "attributeName": "targetPosition"
+          }
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 1800,
+        "y": 820
+      }
+    },
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 2200,
+        "y": 460
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "data": {
+        "inputs": {
+          "display": "fixed",
+          "width": 1920,
+          "height": 1080,
+          "lod": 2,
+          "waitForData": true,
+          "codec": "avc",
+          "bitrateMbps": 10,
+          "bitrateMode": "constant",
+          "scaleControl": 0.3,
+          "framerate": 30,
+          "captureDelay": 50
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 2600,
+        "y": 460
+      }
+    }
+  ],
   "timeline": {
     "sheetsById": {
       "Noodles": {
         "staticOverrides": {
-          "byObject": {
-            "editor": {
-              "layoutMode": "noodles-on-top"
-            }
-          }
+          "byObject": {}
         }
       }
     },
     "definitionVersion": "0.4.0",
     "revisionHistory": []
-  },
-  "version": 6,
-  "name": "NYC Taxis"
+  }
 }

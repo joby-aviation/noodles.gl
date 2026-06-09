@@ -117,7 +117,7 @@ export class SQLGraphIntegration {
       if (!op) continue
 
       // Inject the computed data as cached output
-      op.setCachedOutput({ data: result.data } as any)
+      op.setCachedOutput({ data: result.data } as { data: ArrowOrArray })
 
       // Push data to output fields so downstream subscriptions fire
       const dataOutput = op.outputs?.data
@@ -135,7 +135,7 @@ export class SQLGraphIntegration {
           if (chainOpId === opId) continue
           const chainOp = getOperator(chainOpId)
           if (chainOp) {
-            chainOp.setCachedOutput(chainOp.cachedOutput ?? ({ data: [] } as any))
+            chainOp.setCachedOutput(chainOp.cachedOutput ?? ({ data: [] } as { data: ArrowOrArray }))
             injectedIds.add(chainOpId)
           }
         }

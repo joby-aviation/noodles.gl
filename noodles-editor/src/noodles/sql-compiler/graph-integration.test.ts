@@ -3,7 +3,7 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { setDuckDbInstance } from './executor'
 import { getSQLIntegration, resetSQLIntegration, SQLGraphIntegration } from './graph-integration'
 
-function makeMockOp(id: string, type: string, inputs: Record<string, unknown>): any {
+function makeMockOp(id: string, type: string, inputs: Record<string, unknown>): unknown {
   const inputFields: Record<string, { value: unknown }> = {}
   for (const [key, val] of Object.entries(inputs)) {
     inputFields[key] = { value: val }
@@ -17,7 +17,7 @@ function makeMockOp(id: string, type: string, inputs: Record<string, unknown>): 
   op.constructor = MockCtor
   op._cachedOutput = null
   op.cachedOutput = null
-  op.setCachedOutput = function (output: any) {
+  op.setCachedOutput = function (output: unknown) {
     this._cachedOutput = output
     this.cachedOutput = output
   }
@@ -106,7 +106,7 @@ describe('SQLGraphIntegration', () => {
         ]),
       }
 
-      const ops = new Map<string, any>([
+      const ops = new Map<string, unknown>([
         [
           '/filter',
           makeMockOp('/filter', 'FilterOp', {
@@ -146,7 +146,7 @@ describe('SQLGraphIntegration', () => {
         operatorAliases: new Map([['/filter', 'filtered']]),
       }
 
-      const ops = new Map<string, any>([
+      const ops = new Map<string, unknown>([
         [
           '/filter',
           makeMockOp('/filter', 'FilterOp', {
@@ -191,7 +191,7 @@ describe('SQLGraphIntegration', () => {
         operatorAliases: new Map([['/filter', 'filtered']]),
       }
 
-      const ops = new Map<string, any>([
+      const ops = new Map<string, unknown>([
         [
           '/filter',
           makeMockOp('/filter', 'FilterOp', {
@@ -241,7 +241,7 @@ describe('SQLGraphIntegration', () => {
         operatorAliases: new Map([['/filter2', 'f']]),
       }
 
-      const ops = new Map<string, any>([
+      const ops = new Map<string, unknown>([
         [
           '/filter1',
           makeMockOp('/filter1', 'FilterOp', {
@@ -293,7 +293,7 @@ describe('SQLGraphIntegration', () => {
         operatorAliases: new Map([['/sort', 'sorted']]),
       }
 
-      const ops = new Map<string, any>([
+      const ops = new Map<string, unknown>([
         ['/sort', sortOp],
         ['/scatter', makeMockOp('/scatter', 'ScatterplotLayerOp', { data: [] })],
       ])
@@ -329,7 +329,7 @@ describe('SQLGraphIntegration', () => {
         operatorAliases: new Map([['/sort', 'sorted']]),
       }
 
-      const ops = new Map<string, any>([
+      const ops = new Map<string, unknown>([
         ['/sort', sortOp],
         ['/scatter', makeMockOp('/scatter', 'ScatterplotLayerOp', { data: [] })],
       ])
@@ -368,7 +368,7 @@ describe('SQLGraphIntegration', () => {
         ]),
       }
 
-      const ops = new Map<string, any>([
+      const ops = new Map<string, unknown>([
         ['/filter', filterOp],
         ['/sort', sortOp],
         ['/scatter', makeMockOp('/scatter', 'ScatterplotLayerOp', { data: [] })],
@@ -418,7 +418,7 @@ describe('SQLGraphIntegration', () => {
         operatorAliases: new Map([['/filter', 'filtered']]),
       }
 
-      const ops = new Map<string, any>([
+      const ops = new Map<string, unknown>([
         [
           '/filter',
           makeMockOp('/filter', 'FilterOp', {
@@ -480,7 +480,7 @@ describe('SQLGraphIntegration', () => {
         operatorAliases: new Map([['/bad', 'bad']]),
       }
 
-      const ops = new Map<string, any>([
+      const ops = new Map<string, unknown>([
         [
           '/bad',
           makeMockOp('/bad', 'FilterOp', { columnName: 'x', condition: 'equals', value: '1' }),
@@ -531,7 +531,7 @@ describe('SQLGraphIntegration', () => {
       const sortOp = makeMockOp('/sort', 'Sort', { key: 'name', order: 'asc' })
       const scatterOp = makeMockOp('/scatter', 'ScatterplotLayerOp', { data: [] })
 
-      const ops = new Map<string, any>([
+      const ops = new Map<string, unknown>([
         ['/filter', filterOp],
         ['/sort', sortOp],
         ['/scatter', scatterOp],

@@ -1,10 +1,13 @@
 {
-  "version": 6,
+  "version": 15,
   "nodes": [
     {
       "id": "/maplibre-basemap",
       "type": "MaplibreBasemapOp",
-      "position": { "x": 100, "y": 100 },
+      "position": {
+        "x": 1800,
+        "y": 340
+      },
       "data": {
         "inputs": {
           "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
@@ -19,7 +22,10 @@
     {
       "id": "/test-data",
       "type": "CodeOp",
-      "position": { "x": 100, "y": 300 },
+      "position": {
+        "x": 200,
+        "y": 100
+      },
       "data": {
         "inputs": {
           "code": "return [\n  { name: 'Point 1', lat: 37.7849, lng: -122.4294 },\n  { name: 'Point 2', lat: 37.7749, lng: -122.4094 },\n  { name: 'Point 3', lat: 37.7649, lng: -122.4194 }\n]"
@@ -27,9 +33,27 @@
       }
     },
     {
+      "id": "/get-position",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 600,
+        "y": 100
+      },
+      "data": {
+        "inputs": {
+          "name": "position",
+          "expression": "[d.lng, d.lat, 0]",
+          "size": 3
+        }
+      }
+    },
+    {
       "id": "/icon-layer",
       "type": "IconLayerOp",
-      "position": { "x": 100, "y": 500 },
+      "position": {
+        "x": 1400,
+        "y": 100
+      },
       "data": {
         "inputs": {
           "visible": true,
@@ -40,19 +64,12 @@
       }
     },
     {
-      "id": "/get-position",
-      "type": "AccessorOp",
-      "position": { "x": 300, "y": 400 },
-      "data": {
-        "inputs": {
-          "code": "[d.lng, d.lat]"
-        }
-      }
-    },
-    {
       "id": "/deck-renderer",
       "type": "DeckRendererOp",
-      "position": { "x": 500, "y": 300 },
+      "position": {
+        "x": 1800,
+        "y": 100
+      },
       "data": {
         "inputs": {}
       }
@@ -60,18 +77,18 @@
   ],
   "edges": [
     {
-      "id": "/test-data.out.result->/icon-layer.par.data",
+      "id": "/test-data.out.result->/get-position.par.data",
       "source": "/test-data",
-      "target": "/icon-layer",
+      "target": "/get-position",
       "sourceHandle": "out.result",
       "targetHandle": "par.data"
     },
     {
-      "id": "/get-position.out.result->/icon-layer.par.getPosition",
+      "id": "/get-position.out.data->/icon-layer.par.data",
       "source": "/get-position",
       "target": "/icon-layer",
-      "sourceHandle": "out.result",
-      "targetHandle": "par.getPosition"
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
     },
     {
       "id": "/icon-layer.out.layer->/deck-renderer.par.layers",
@@ -95,5 +112,9 @@
       "targetHandle": "par.initialViewState"
     }
   ],
-  "viewport": { "x": 0, "y": 0, "zoom": 1 }
+  "viewport": {
+    "x": 0,
+    "y": 0,
+    "zoom": 0.8
+  }
 }

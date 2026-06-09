@@ -1,16 +1,18 @@
 // Operator categories
 export const categories = {
-  code: ['Accessor', 'Code', 'DuckDb', 'JSON', 'Expression'],
+  code: ['Code', 'DuckDb', 'JSON', 'Expression'],
   grouping: ['Container', 'ForLoop', 'ForLoopBegin', 'ForLoopEnd', 'GraphInput', 'GraphOutput'],
   color: ['CategoricalColorRamp', 'Color', 'ColorRamp', 'CombineRGBA', 'HSL', 'SplitRGBA'],
   data: [
     'Arc',
+    'ArrowColumn',
     'BoundingBox',
     'Bounds',
     'Cast',
     'Chart',
     'Coalesce',
     'Concat',
+    'CreateAttribute',
     'Cross',
     'DateTime',
     'DeckRenderer',

@@ -1,8 +1,8 @@
 import type * as arrow from 'apache-arrow'
+import type { AsyncDuckDB } from '@duckdb/duckdb-wasm'
+import type { AsyncDuckDBConnection, AsyncPreparedStatement } from '@duckdb/duckdb-wasm'
 import type { CompiledQuery, ExecutionResult, ParamSlot } from './types'
-
-type AsyncDuckDB = any
-type AsyncDuckDBConnection = any
+import { attributeError, enrichErrorContext } from './error-attribution'
 
 let duckDbInstance: AsyncDuckDB | null = null
 
@@ -70,9 +70,13 @@ export async function execute(
     return {
       table,
       toArray() {
-        return table.toArray().map((row: any) => ({ ...row }))
+        return table.toArray().map((row) => ({ ...row }))
       },
     }
+  } catch (error) {
+    // Attribute SQL errors to specific operators
+    const opError = attributeError(error as Error, compiled)
+    throw enrichErrorContext(opError, compiled, paramValues)
   } finally {
     await conn.close()
   }
@@ -81,7 +85,7 @@ export async function execute(
 // Cached prepared statement for repeated execution (timeline scrubbing)
 export class PreparedPipeline {
   private conn: AsyncDuckDBConnection | null = null
-  private stmt: any = null
+  private stmt: AsyncPreparedStatement | null = null
   private _compiled: CompiledQuery
 
   constructor(compiled: CompiledQuery) {
@@ -100,13 +104,19 @@ export class PreparedPipeline {
 
   async execute(paramValues: unknown[]): Promise<ExecutionResult> {
     if (!this.stmt) await this.prepare()
-    const table: arrow.Table =
-      paramValues.length > 0 ? await this.stmt.query(...paramValues) : await this.stmt.query()
-    return {
-      table,
-      toArray() {
-        return table.toArray().map((row: any) => ({ ...row }))
-      },
+    try {
+      const table: arrow.Table =
+        paramValues.length > 0 ? await this.stmt.query(...paramValues) : await this.stmt.query()
+      return {
+        table,
+        toArray() {
+          return table.toArray().map((row) => ({ ...row }))
+        },
+      }
+    } catch (error) {
+      // Attribute SQL errors to specific operators
+      const opError = attributeError(error as Error, this._compiled)
+      throw enrichErrorContext(opError, this._compiled, paramValues)
     }
   }
 

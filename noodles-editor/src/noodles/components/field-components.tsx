@@ -8,8 +8,8 @@ import { Button } from 'primereact/button'
 import { InputText } from 'primereact/inputtext'
 import {
   Fragment,
-  Suspense,
   lazy,
+  Suspense,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -21,9 +21,10 @@ import {
 const CodeiumEditor = lazy(() =>
   import('@codeium/react-code-editor').then(m => ({ default: m.CodeiumEditor }))
 )
+
 import { Temporal } from 'temporal-polyfill'
-import { getFieldPath } from '../../timeline/field-bindings'
 import { VectorKeyframeIndicator } from '../../timeline/components/KeyframeIndicator'
+import { getFieldPath } from '../../timeline/field-bindings'
 import { useTimelineStore } from '../../timeline/timeline-store'
 import {
   type BezierCurveField,
@@ -58,6 +59,7 @@ import { getExpressionContext } from '../utils/expression-context'
 import { projectScheme } from '../utils/filesystem'
 import { edgeId, type OpId } from '../utils/id-utils'
 import { usePropertyHistory } from '../utils/property-history'
+import { AttributeFieldWrapper } from './attribute-field-wrapper'
 import { ColorSwatch } from './color-swatch'
 import { ExpressionEditorOverlay } from './ExpressionEditorOverlay'
 import { GeocodingDialog } from './geocoding-dialog'
@@ -68,6 +70,7 @@ type InputComponent = React.ComponentType<{
   id: OpId
   field: Field
   disabled: boolean
+  hideLabel?: boolean
 }>
 
 export interface HandleOptions {
@@ -85,6 +88,7 @@ export const inputComponents = {
   code: CodeFieldComponent,
   compound: CompoundFieldComponent,
   data: EmptyFieldComponent,
+  'arrow-data': EmptyFieldComponent,
   date: DateFieldComponent,
   effect: EmptyFieldComponent,
   expression: ExpressionFieldComponent,
@@ -244,7 +248,7 @@ export function ExpressionFieldComponent({
   field: ExpressionField
   disabled: boolean
 }) {
-  const [value, setValue] = useState(field.value ?? '')
+  const [value, setValue] = useState(() => field.value ?? '')
   const [overlayOpen, setOverlayOpen] = useState(false)
   const [validationError, setValidationError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -417,6 +421,7 @@ export function VectorFieldComponent({
   opId,
   fieldName,
   expandTimeline,
+  hideLabel,
 }: {
   id: OpId
   field: Vec2Field | Vec3Field | Point2DField | Point3DField
@@ -424,6 +429,7 @@ export function VectorFieldComponent({
   opId?: string
   fieldName?: string
   expandTimeline?: () => void
+  hideLabel?: boolean
 }) {
   const [value, setValue] = useState<
     { [key: string]: number } | [number, number] | [number, number, number]
@@ -507,6 +513,71 @@ export function VectorFieldComponent({
     },
     [field, isPoint3D, commitChange]
   )
+
+  // Guard against non-uniform mode values (attribute/expression objects)
+  const isValidVectorValue = Array.isArray(value) || (typeof value === 'object' && value !== null)
+  if (!isValidVectorValue || typeof value === 'function') {
+    return null
+  }
+
+  if (hideLabel) {
+    return (
+      <>
+        <div id={id} className={cx(s.fieldInputWrapper, s.fieldInputWrapperVector)} style={{ flex: 1 }}>
+          {keys.map((key, i) => {
+            const objectKey = field.returnType === 'tuple' ? i : key
+            return (
+              <VectorNumberInput
+                key={key}
+                keyName={key}
+                value={value[objectKey]}
+                objectKey={objectKey}
+                disabled={disabled}
+                onChange={onChange}
+                onCommit={onCommit}
+                onInteractionStart={captureStart}
+              />
+            )
+          })}
+          {isPointField && (
+            <Button
+              icon="pi pi-map-marker"
+              className={s.fieldLookupButton}
+              onClick={() => {
+                captureStart()
+                setGeocodingOpen(true)
+              }}
+              title="Lookup Location"
+              size="small"
+              disabled={disabled}
+              severity="secondary"
+              text
+            />
+          )}
+          {opId && fieldName && (
+            <VectorKeyframeIndicator
+              opId={opId}
+              fieldName={fieldName}
+              keys={keys}
+              value={value as Record<string | number, number>}
+              returnType={field.returnType}
+              disabled={disabled}
+              onKeyframeAdded={expandTimeline}
+            />
+          )}
+        </div>
+        {isPointField && (
+          <GeocodingDialog
+            open={geocodingOpen}
+            onOpenChange={setGeocodingOpen}
+            mode="update-field"
+            initialValue={getCurrentCoordinates()}
+            onLocationSelected={handleLocationSelected}
+          />
+        )}
+      </>
+    )
+  }
 
   return (
     <div className={s.fieldWrapper}>
@@ -1582,10 +1653,12 @@ export function NumberFieldComponent({
   id,
   field,
   disabled,
+  hideLabel,
 }: {
   id: OpId
   field: NumberField
   disabled: boolean
+  hideLabel?: boolean
 }) {
   const [value, setValue] = useState<number>(guardAccessorFallback(field.value))
   const { captureStart, commitChange } = usePropertyHistory()
@@ -1605,6 +1678,32 @@ export function NumberFieldComponent({
     },
     [field]
   )
+
+  // Guard against non-uniform mode values (attribute/expression objects)
+  if (typeof value !== 'number') {
+    return null
+  }
+
+  if (hideLabel) {
+    return (
+      <DraggableNumberInput
+        id={id}
+        value={value}
+        disabled={disabled}
+        onChange={handleChange}
+        onCommit={() => commitChange('Change value')}
+        onInteractionStart={captureStart}
+        min={field.min}
+        max={field.max}
+        softMin={field.softMin}
+        softMax={field.softMax}
+        step={field.step}
+        className={cx(s.fieldInput, s.fieldInputNumber)}
+        title={value.toString()}
+        style={{ flex: 1 }}
+      />
+    )
+  }
 
   return (
     <div className={s.fieldWrapper}>
@@ -1736,10 +1835,12 @@ export function ColorFieldComponent({
   id,
   field,
   disabled,
+  hideLabel,
 }: {
   id: OpId
   field: ColorField
   disabled: boolean
+  hideLabel?: boolean
 }) {
   const [value, setValue] = useState(guardAccessorFallback(field.value))
   const { captureStart, commitChange } = usePropertyHistory()
@@ -1758,6 +1859,27 @@ export function ColorFieldComponent({
     },
     [field]
   )
+
+  // Guard against non-uniform mode values (attribute/expression objects)
+  // This can happen during mode transitions when the field value changes before React unmounts the component
+  const isValidColorValue = typeof value === 'string' || (Array.isArray(value) && value.length >= 3)
+  if (!isValidColorValue) {
+    return null
+  }
+
+  if (hideLabel) {
+    return (
+      <div className={s.fieldInputWrapper} style={{ flex: 1 }}>
+        <ColorSwatch
+          value={value}
+          onChange={handleColorChange}
+          disabled={disabled}
+          onPickerOpen={captureStart}
+          onPickerClose={() => commitChange('Change color')}
+        />
+      </div>
+    )
+  }
 
   return (
     <div className={s.fieldWrapper}>
@@ -1910,7 +2032,7 @@ export function BezierCurveFieldComponent({
       width: svgSize.width - padding.left - padding.right,
       height: svgSize.height - padding.top - padding.bottom,
     }),
-    []
+    [padding.bottom, padding.left, padding.right, padding.top, svgSize.height, svgSize.width]
   )
 
   // Convert SVG coordinates to curve coordinates (0-1, 0-1)
@@ -1923,7 +2045,7 @@ export function BezierCurveFieldComponent({
         y: Math.max(0, Math.min(1, curveY)),
       }
     },
-    [graphArea.width, graphArea.height]
+    [graphArea.width, graphArea.height, padding.left, padding.top]
   )
 
   // Convert curve coordinates to SVG coordinates
@@ -1932,7 +2054,7 @@ export function BezierCurveFieldComponent({
       x: padding.left + x * graphArea.width,
       y: padding.top + (1 - y) * graphArea.height, // Flip Y axis
     }),
-    [graphArea.width, graphArea.height]
+    [graphArea.width, graphArea.height, padding.left, padding.top]
   )
 
   // Generate SVG path for the bezier curve
@@ -2002,7 +2124,7 @@ export function BezierCurveFieldComponent({
     }
 
     return lines
-  }, [graphArea])
+  }, [graphArea, padding.left, padding.top])
 
   // Find what the user is trying to interact with
   const getInteractionTarget = useCallback(
@@ -2480,6 +2602,28 @@ export function FieldComponent({
     ? { transform: 'translate(-17px, -50%)' }
     : { transform: 'translate(-17px, 15px)' }
 
+  const renderFieldInput = () => {
+    if (hasIncomingConnection) {
+      return <EmptyFieldComponent id={fieldId} field={field} />
+    }
+
+    const inputComponent = <InputComp id={fieldId} field={field} disabled={disabled} />
+
+    if (field.defaultAttribute) {
+      return (
+        <AttributeFieldWrapper id={fieldId} field={field} disabled={disabled}>
+          {inputComponent}
+        </AttributeFieldWrapper>
+      )
+    }
+
+    if (hasKeyframes) {
+      return <div className={s.keyframedFieldInput}>{inputComponent}</div>
+    }
+
+    return inputComponent
+  }
+
   return (
     <div style={{ position: 'relative' }}>
       {handle && (
@@ -2491,16 +2635,7 @@ export function FieldComponent({
           position={Position.Left}
         />
       )}
-      {renderInput &&
-        (hasIncomingConnection ? (
-          <EmptyFieldComponent id={fieldId} field={field} />
-        ) : hasKeyframes ? (
-          <div className={s.keyframedFieldInput}>
-            <InputComp id={fieldId} field={field} disabled={disabled} />
-          </div>
-        ) : (
-          <InputComp id={fieldId} field={field} disabled={disabled} />
-        ))}
+      {renderInput && renderFieldInput()}
     </div>
   )
 }

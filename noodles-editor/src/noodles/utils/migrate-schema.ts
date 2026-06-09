@@ -1,7 +1,7 @@
 import { basename } from 'node:path'
 import type { InOut } from '../fields'
 import type { OpType } from '../operators'
-import { edgeId } from './id-utils'
+import { edgeId } from './migration-utils'
 import { parseHandleId } from './path-utils'
 import type { NoodlesProjectJSON } from './serialization'
 
@@ -40,15 +40,19 @@ export async function migrateProject(
 
   // If we're migrating up
   if (to > project.version) {
+    console.log(`[Migration] Starting migration from v${project.version} to v${to}`)
     for (const { version, migration } of migrationVersions) {
       if (version > migrated.version && version <= to) {
+        console.log(`[Migration] Running migration ${version}`)
         const migrationModule = await (migration as () => Promise<IMigration>)()
         if (migrationModule.up) {
           migrated = await migrationModule.up(migrated)
           migrated = { ...migrated, version }
+          console.log(`[Migration] Completed migration ${version}`)
         }
       }
     }
+    console.log(`[Migration] Migration complete. Final version: v${migrated.version}`)
   }
   // If we're migrating down
   else if (to < project.version) {
@@ -127,14 +131,16 @@ export function renameHandle({
 
     const { [oldFieldName as InputKey]: oldValue, ...restOfInputs } = node.data.inputs
 
+    // Only add the new field if the old value existed
+    const newInputs = oldValue !== undefined
+      ? { ...restOfInputs, [newFieldName as InputKey]: oldValue }
+      : restOfInputs
+
     const newNode = {
       ...node,
       data: {
         ...node.data,
-        inputs: {
-          ...restOfInputs,
-          [newFieldName as InputKey]: oldValue,
-        },
+        inputs: newInputs,
       },
     }
 

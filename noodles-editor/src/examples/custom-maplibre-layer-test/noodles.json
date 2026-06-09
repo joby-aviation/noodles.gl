@@ -1,17 +1,20 @@
 {
-  "version": 6,
+  "version": 15,
   "nodes": [
     {
       "id": "/maplibre-basemap",
       "type": "MaplibreBasemapOp",
-      "position": { "x": 100, "y": 100 },
+      "position": {
+        "x": 1000,
+        "y": 340
+      },
       "data": {
         "inputs": {
           "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
           "projection": "mercator",
           "viewState": {
             "latitude": 40.7128,
-            "longitude": -74.0060,
+            "longitude": -74.006,
             "zoom": 13,
             "pitch": 45,
             "bearing": 0
@@ -22,7 +25,10 @@
     {
       "id": "/custom-layer",
       "type": "CustomMapLibreLayerOp",
-      "position": { "x": 100, "y": 300 },
+      "position": {
+        "x": 600,
+        "y": 100
+      },
       "data": {
         "inputs": {
           "id": "test-custom-layer",
@@ -38,7 +44,10 @@
     {
       "id": "/deck-renderer",
       "type": "DeckRendererOp",
-      "position": { "x": 400, "y": 200 },
+      "position": {
+        "x": 1000,
+        "y": 100
+      },
       "data": {
         "inputs": {
           "layers": [],
@@ -49,7 +58,10 @@
     {
       "id": "/out",
       "type": "OutOp",
-      "position": { "x": 700, "y": 200 },
+      "position": {
+        "x": 1400,
+        "y": 100
+      },
       "data": {
         "inputs": {}
       }
@@ -78,5 +90,9 @@
       "targetHandle": "par.vis"
     }
   ],
-  "viewport": { "x": 0, "y": 0, "zoom": 1 }
+  "viewport": {
+    "x": 0,
+    "y": 0,
+    "zoom": 0.8
+  }
 }

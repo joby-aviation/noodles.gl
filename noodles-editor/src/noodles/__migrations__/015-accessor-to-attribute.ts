@@ -1,0 +1,387 @@
+import type { NoodlesProjectJSON } from '../utils/serialization'
+import { edgeId } from '../utils/id-utils'
+
+// Migration 015: Convert AccessorOp nodes to CreateAttributeOp (expression-only mode)
+//
+// Transforms the old accessor-based pattern:
+//   Data -> AccessorOp(expression) -> Layer.getPosition
+//
+// Into the new attribute-based pattern:
+//   Data -> CreateAttributeOp(name, expression, size, type) -> Layer.data
+//
+// Key improvements:
+// 1. Deduplicates CreateAttributeOps - creates ONE per unique AccessorOp/data source combo
+// 2. Properly infers size and type from attribute names and expressions
+// 3. Chains multiple CreateAttributeOps for the same data source
+// 4. Lays out nodes in a readable horizontal flow
+// 5. Updates connections to pass attribute-enhanced data to layers
+
+const LAYER_OPS = [
+  'ScatterplotLayerOp',
+  'PathLayerOp',
+  'ArcLayerOp',
+  'LineLayerOp',
+  'IconLayerOp',
+  'TextLayerOp',
+  'PolygonLayerOp',
+  'SolidPolygonLayerOp',
+  'GeoJsonLayerOp',
+  'ColumnLayerOp',
+  'GridLayerOp',
+  'GridCellLayerOp',
+  'HexagonLayerOp',
+  'ContourLayerOp',
+  'ScreenGridLayerOp',
+  'HeatmapLayerOp',
+  'H3HexagonLayerOp',
+  'H3ClusterLayerOp',
+  'GreatCircleLayerOp',
+  'TripsLayerOp',
+  'BitmapLayerOp',
+  'GeohashLayerOp',
+  'S2LayerOp',
+  'QuadkeyLayerOp',
+  'A5LayerOp',
+  'PointCloudLayerOp',
+  'ScenegraphLayerOp',
+  'SimpleMeshLayerOp',
+  'TileLayerOp',
+  'Tile3DLayerOp',
+  'TerrainLayerOp',
+  'MVTLayerOp',
+]
+
+// Fields that should NOT be migrated
+// Note: getText and getIcon are NOW migrated as string attributes (Houdini-style)
+const SKIP_MIGRATION_FIELDS = new Set([
+  'getFilterValue',    // DataFilterExtension - special filtering semantics
+])
+
+const ACCESSOR_FIELD_TO_ATTRIBUTE: Record<string, string> = {
+  getPosition: 'position',
+  getFillColor: 'fillColor',
+  getLineColor: 'lineColor',
+  getColor: 'color',
+  getRadius: 'radius',
+  getLineWidth: 'lineWidth',
+  getWidth: 'width',
+  getHeight: 'height',
+  getElevation: 'elevation',
+  getSize: 'size',
+  getAngle: 'angle',
+  getPath: 'path',
+  getSourcePosition: 'sourcePosition',
+  getTargetPosition: 'targetPosition',
+  getSourceColor: 'sourceColor',
+  getTargetColor: 'targetColor',
+  getTimestamps: 'timestamps',
+}
+
+interface AccessorUsage {
+  accessorId: string
+  accessorNode: NoodlesProjectJSON['nodes'][0]
+  dataSourceId: string
+  dataSourceHandle: string
+  layers: Array<{
+    layerId: string
+    fieldName: string
+    edgeId: string
+  }>
+}
+
+export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSON> {
+  const { nodes, edges } = project
+
+  // Find all AccessorOp nodes
+  const accessorNodes = new Map(
+    nodes.filter(n => n.type === 'AccessorOp').map(n => [n.id, n])
+  )
+
+  if (accessorNodes.size === 0) {
+    return project
+  }
+
+  const layerNodes = new Map(
+    nodes.filter(n => LAYER_OPS.includes(n.type as string)).map(n => [n.id, n])
+  )
+
+  // Group accessor usage by unique (accessorId, dataSource) combinations
+  // This ensures we deduplicate: same accessor + same data = one CreateAttributeOp
+  const accessorUsages = new Map<string, AccessorUsage>()
+
+  for (const edge of edges) {
+    // Find AccessorOp -> Layer accessor field connections
+    const targetNode = layerNodes.get(edge.target)
+    const sourceNode = accessorNodes.get(edge.source)
+
+    if (targetNode && sourceNode && edge.targetHandle?.startsWith('par.get')) {
+      const layerId = edge.target
+      const accessorId = edge.source
+      const fieldName = edge.targetHandle.replace('par.', '')
+
+      // Skip fields that can't be binary attributes (text, icons, etc.)
+      if (SKIP_MIGRATION_FIELDS.has(fieldName)) {
+        console.log(`[Migration 015] Skipping ${accessorId} -> ${layerId}.${fieldName} (not compatible with binary attributes)`)
+        continue
+      }
+
+      // Skip pass-through accessors (expression is just "d")
+      // These pass entire objects and can't be meaningfully converted to attributes
+      const expression = (sourceNode.data.inputs?.expression as string) || ''
+      if (expression.trim() === 'd') {
+        console.log(`[Migration 015] Skipping ${accessorId} -> ${layerId}.${fieldName} (pass-through accessor, expression is just "d")`)
+        continue
+      }
+
+      // Find the data source for this layer
+      const dataEdge = edges.find(e => e.target === layerId && e.targetHandle === 'par.data')
+      if (!dataEdge) continue
+
+      // Key: unique combo of accessor + data source
+      const key = `${accessorId}:${dataEdge.source}:${dataEdge.sourceHandle}`
+
+      const existing = accessorUsages.get(key)
+      if (existing) {
+        // Add this layer to existing accessor usage
+        existing.layers.push({ layerId, fieldName, edgeId: edge.id })
+      } else {
+        // Create new accessor usage entry
+        accessorUsages.set(key, {
+          accessorId,
+          accessorNode: sourceNode,
+          dataSourceId: dataEdge.source,
+          dataSourceHandle: dataEdge.sourceHandle || 'out.data',
+          layers: [{ layerId, fieldName, edgeId: edge.id }],
+        })
+      }
+    }
+  }
+
+  if (accessorUsages.size === 0) {
+    return project
+  }
+
+  const newNodes = [...nodes]
+  const newEdges = [...edges]
+  const nodesToRemove = new Set<string>()
+  const edgesToRemove = new Set<string>()
+
+  // Map: layerId -> array of CreateAttributeOp chain endpoints
+  const layerDataChains = new Map<string, Array<{ source: string; handle: string }>>()
+
+  // Layout configuration for new CreateAttributeOp nodes
+  const LAYOUT = {
+    HORIZONTAL_OFFSET: 300,  // Space between source and first CreateAttributeOp
+    VERTICAL_SPACING: 150,   // Space between chained CreateAttributeOps
+  }
+
+  // Process each unique accessor usage
+  for (const [key, usage] of accessorUsages) {
+    const { accessorId, accessorNode, dataSourceId, dataSourceHandle, layers } = usage
+
+    // Collect all attribute names needed for this accessor across all layers
+    const attributeNames = new Set(
+      layers.map(l => ACCESSOR_FIELD_TO_ATTRIBUTE[l.fieldName] || l.fieldName.replace('get', '').toLowerCase())
+    )
+
+    const expression = (accessorNode.data.inputs?.expression as string) || 'd'
+
+    // Find the data source node for positioning
+    const dataSourceNode = nodes.find(n => n.id === dataSourceId)
+    const baseX = dataSourceNode?.position?.x ?? accessorNode.position.x
+    const baseY = dataSourceNode?.position?.y ?? accessorNode.position.y
+
+    // Create ONE CreateAttributeOp per unique attribute name, positioned in a vertical chain
+    let currentDataSource = dataSourceId
+    let currentDataHandle = dataSourceHandle
+    let chainIndex = 0
+
+    for (const attributeName of attributeNames) {
+      // Determine type/size based on attribute name and expression
+      const isColor = attributeName.includes('Color') || attributeName === 'color'
+      const isPosition = attributeName === 'position' || attributeName === 'sourcePosition' || attributeName === 'targetPosition'
+
+      const createAttrNodeId = `${accessorId.replace('/accessor-', '/attr-')}-${attributeName}`
+
+      // Infer size, type, and outputType from attribute name and field type
+      const inputs: Record<string, unknown> = {
+        name: attributeName,
+        expression,
+      }
+
+      // Determine if this is a string/boolean attribute (Houdini-style)
+      const isText = attributeName === 'text' || layers[0]?.fieldName === 'getText'
+      const isIcon = attributeName === 'icon' || layers[0]?.fieldName === 'getIcon'
+      const isPixelOffset = attributeName === 'pixelOffset' || layers[0]?.fieldName === 'getPixelOffset'
+
+      if (isText || isIcon) {
+        // String attribute
+        inputs.outputType = 'string'
+        inputs.size = 1
+      } else if (isPixelOffset) {
+        // Pixel offset is numeric but not GPU-bound
+        inputs.outputType = 'number'
+        inputs.size = 2
+      } else {
+        // Numeric GPU attributes - infer size and type
+        inputs.outputType = 'number'
+
+        // Position attributes: infer size from expression
+        if (isPosition) {
+          const has3Components = /\[.*,.*,.*\]/.test(expression)
+          inputs.size = has3Components ? 3 : 2
+        }
+
+        // Color attributes need size 4 (RGBA) and type uint8
+        if (isColor) {
+          inputs.size = 4
+          inputs.type = 'uint8'
+        }
+
+        // For other attributes, try to infer from expression
+        if (!inputs.size) {
+          // Default to size 1 for scalar expressions
+          inputs.size = 1
+        }
+      }
+
+      // Position nodes in a readable horizontal chain
+      const createAttrNode = {
+        id: createAttrNodeId,
+        type: 'CreateAttributeOp',
+        position: {
+          x: baseX + LAYOUT.HORIZONTAL_OFFSET,
+          y: baseY + chainIndex * LAYOUT.VERTICAL_SPACING,
+        },
+        data: {
+          inputs,
+        },
+      }
+
+      newNodes.push(createAttrNode)
+      chainIndex++
+
+      // Connect data source to CreateAttributeOp
+      const dataInputEdge = {
+        id: edgeId({
+          source: currentDataSource,
+          target: createAttrNodeId,
+          sourceHandle: currentDataHandle,
+          targetHandle: 'par.data',
+        }),
+        source: currentDataSource,
+        target: createAttrNodeId,
+        sourceHandle: currentDataHandle,
+        targetHandle: 'par.data',
+      }
+      newEdges.push(dataInputEdge)
+
+      // Chain for next CreateAttributeOp (if multiple attributes from same accessor)
+      currentDataSource = createAttrNodeId
+      currentDataHandle = 'out.data'
+    }
+
+    // Track all layers using this accessor and map them to the correct CreateAttributeOp
+    // Each layer needs a specific attribute, not necessarily the last one in the chain
+    const attributeNameToNodeId = new Map<string, string>()
+    for (const attributeName of attributeNames) {
+      const nodeId = `${accessorId.replace('/accessor-', '/attr-')}-${attributeName}`
+      attributeNameToNodeId.set(attributeName, nodeId)
+    }
+
+    for (const { layerId, fieldName, edgeId } of layers) {
+      const attributeName = ACCESSOR_FIELD_TO_ATTRIBUTE[fieldName] || fieldName.replace('get', '').toLowerCase()
+      const createAttrNodeId = attributeNameToNodeId.get(attributeName)
+
+      if (createAttrNodeId) {
+        const existing = layerDataChains.get(layerId) || []
+        existing.push({ source: createAttrNodeId, handle: 'out.data' })
+        layerDataChains.set(layerId, existing)
+        edgesToRemove.add(edgeId)
+      }
+    }
+
+    // Mark accessor node for removal
+    nodesToRemove.add(accessorId)
+  }
+
+  // For each layer, chain all its CreateAttributeOps together
+  const layerDataUpdates = new Map<string, { source: string; handle: string }>()
+  for (const [layerId, chains] of layerDataChains) {
+    if (chains.length === 1) {
+      // Single chain, use it directly
+      layerDataUpdates.set(layerId, chains[0])
+    } else {
+      // Multiple chains - need to merge them by chaining them together
+      // The first chain starts from the data source
+      // Each subsequent chain should read from the previous chain's output
+      let finalSource = chains[0].source
+      let finalHandle = chains[0].handle
+
+      for (let i = 1; i < chains.length; i++) {
+        // Get the CreateAttributeOp at the end of this chain
+        const chainEndNode = newNodes.find(n => n.id === chains[i].source)
+        if (chainEndNode && chainEndNode.type === 'CreateAttributeOp') {
+          // Update its data input to come from the previous chain
+          const existingDataEdgeIndex = newEdges.findIndex(
+            e => e.target === chains[i].source && e.targetHandle === 'par.data'
+          )
+          if (existingDataEdgeIndex >= 0) {
+            newEdges[existingDataEdgeIndex] = {
+              ...newEdges[existingDataEdgeIndex],
+              source: finalSource,
+              sourceHandle: finalHandle,
+              id: edgeId({
+                source: finalSource,
+                target: chains[i].source,
+                sourceHandle: finalHandle,
+                targetHandle: 'par.data',
+              }),
+            }
+          }
+          finalSource = chains[i].source
+          finalHandle = chains[i].handle
+        }
+      }
+
+      layerDataUpdates.set(layerId, { source: finalSource, handle: finalHandle })
+    }
+  }
+
+  // Update layer data connections
+  for (const [layerId, { source, handle }] of layerDataUpdates) {
+    const layerDataEdgeIndex = newEdges.findIndex(
+      e => e.target === layerId && e.targetHandle === 'par.data'
+    )
+    if (layerDataEdgeIndex >= 0) {
+      const oldEdge = newEdges[layerDataEdgeIndex]
+      newEdges[layerDataEdgeIndex] = {
+        ...oldEdge,
+        source,
+        sourceHandle: handle,
+        id: edgeId({
+          source,
+          target: layerId,
+          sourceHandle: handle,
+          targetHandle: 'par.data',
+        }),
+      }
+    }
+  }
+
+  // Remove old accessor nodes and edges
+  const filteredNodes = newNodes.filter(n => !nodesToRemove.has(n.id))
+  const filteredEdges = newEdges.filter(e => !edgesToRemove.has(e.id))
+
+  return {
+    ...project,
+    nodes: filteredNodes,
+    edges: filteredEdges,
+  }
+}
+
+export async function down(project: NoodlesProjectJSON): Promise<NoodlesProjectJSON> {
+  // Downgrade is not supported for this migration as it would require
+  // converting attribute names back to accessor expressions, which may lose information
+  return project
+}

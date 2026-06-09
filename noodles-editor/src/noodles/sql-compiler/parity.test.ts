@@ -83,7 +83,7 @@ describe('Parity: SQL output matches JS execute() output', () => {
 
     const sqlRows = sqlResult.toArray()
     expect(sqlRows).toHaveLength(jsResult.length)
-    expect(sqlRows.every((r: any) => r.department === 'Engineering')).toBe(true)
+    expect(sqlRows.every((r: Record<string, unknown>) => r.department === 'Engineering')).toBe(true)
   })
 
   it('FilterOp: greater than', async () => {
@@ -96,7 +96,7 @@ describe('Parity: SQL output matches JS execute() output', () => {
       [30]
     )
     const rows = sqlResult.toArray()
-    expect(rows.every((r: any) => r.age > 30)).toBe(true)
+    expect(rows.every((r: Record<string, unknown>) => r.age > 30)).toBe(true)
     expect(rows).toHaveLength(4) // Charlie(35), Frank(45), Eve(32), Henry(38)
   })
 
@@ -112,7 +112,7 @@ describe('Parity: SQL output matches JS execute() output', () => {
     const rows = sqlResult.toArray()
     // Names containing 'a': Diana, Frank, Grace (case-sensitive in DuckDB by default)
     expect(rows.length).toBeGreaterThan(0)
-    expect(rows.every((r: any) => r.name.includes('a'))).toBe(true)
+    expect(rows.every((r: Record<string, unknown>) => r.name.includes('a'))).toBe(true)
   })
 
   it('SortOp: ascending', async () => {
@@ -174,7 +174,7 @@ describe('Parity: SQL output matches JS execute() output', () => {
     )
     const rows = sqlResult.toArray()
     expect(rows.length).toBeGreaterThan(0)
-    const eng = rows.find((r: any) => r.department === 'Engineering')
+    const eng = rows.find((r: Record<string, unknown>) => r.department === 'Engineering')
     expect(eng).toBeDefined()
     // 90000 + 110000 + 95000 + 105000 = 400000
     expect(Number(eng!.total_salary)).toBe(400000)
@@ -193,7 +193,7 @@ describe('Parity: SQL output matches JS execute() output', () => {
       []
     )
     const rows = sqlResult.toArray()
-    const mkt = rows.find((r: any) => r.department === 'Marketing')
+    const mkt = rows.find((r: Record<string, unknown>) => r.department === 'Marketing')
     expect(mkt).toBeDefined()
     // (60000 + 65000) / 2 = 62500
     expect(Number(mkt!.avg_salary)).toBe(62500)
@@ -210,7 +210,7 @@ describe('Parity: SQL output matches JS execute() output', () => {
     )
     const rows = sqlResult.toArray()
     expect(rows).toHaveLength(3) // Engineering, Marketing, Sales
-    const depts = rows.map((r: any) => r.department)
+    const depts = rows.map((r: Record<string, unknown>) => r.department)
     expect(new Set(depts).size).toBe(depts.length) // All unique
   })
 
@@ -227,7 +227,7 @@ describe('Parity: SQL output matches JS execute() output', () => {
     )
     const rows = sqlResult.toArray()
     expect(rows).toHaveLength(3) // One top earner per department
-    const eng = rows.find((r: any) => r.department === 'Engineering')
+    const eng = rows.find((r: Record<string, unknown>) => r.department === 'Engineering')
     expect(eng!.name).toBe('Charlie') // Highest salary
   })
 

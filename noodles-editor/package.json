@@ -6,6 +6,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",
     "@codeium/react-code-editor": "^1.0.12",
+    "apache-arrow": "^17.0.0",
     "@duckdb/duckdb-wasm": "1.32.0",
     "@loaders.gl/3d-tiles": "^4.3.4",
     "@loaders.gl/obj": "^4.3.4",
@@ -71,6 +72,7 @@
     "build": "NODE_ENV=development vite build",
     "serve": "vite preview",
     "test": "vitest",
+    "test:integration": "vitest run src/__tests__/examples-integration.test.ts",
     "lint": "biome lint ./src/**/*.ts ./src/**/*.tsx",
     "format:check": "biome format ./src/**/*.ts ./src/**/*.tsx",
     "fix-lint": "biome check --write --unsafe ./src/**/*.ts ./src/**/*.tsx",

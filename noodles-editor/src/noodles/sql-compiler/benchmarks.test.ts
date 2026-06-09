@@ -469,7 +469,7 @@ describe('Performance Benchmarks', () => {
   })
 
   describe('Graph Integration Performance', () => {
-    function makeMockOp(id: string, type: string, inputs: Record<string, unknown>): any {
+    function makeMockOp(id: string, type: string, inputs: Record<string, unknown>): unknown {
       const inputFields: Record<string, { value: unknown }> = {}
       for (const [key, val] of Object.entries(inputs)) {
         inputFields[key] = { value: val }
@@ -482,7 +482,7 @@ describe('Performance Benchmarks', () => {
       op.outputs = { data: { next: () => {} } }
       op.constructor = MockCtor
       op._cachedOutput = null
-      op.setCachedOutput = function (o: any) {
+      op.setCachedOutput = function (o: unknown) {
         this._cachedOutput = o
       }
       return op
@@ -500,7 +500,7 @@ describe('Performance Benchmarks', () => {
         ]),
       }
 
-      const ops = new Map<string, any>([
+      const ops = new Map<string, unknown>([
         [
           '/filter',
           makeMockOp('/filter', 'FilterOp', {
@@ -543,7 +543,7 @@ describe('Performance Benchmarks', () => {
         operatorAliases: new Map([['/filter', 'filtered']]),
       }
 
-      const ops = new Map<string, any>([
+      const ops = new Map<string, unknown>([
         [
           '/filter',
           makeMockOp('/filter', 'FilterOp', {
