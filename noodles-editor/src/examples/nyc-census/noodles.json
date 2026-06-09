@@ -66,7 +66,7 @@
       },
       "position": {
         "x": 200,
-        "y": 40
+        "y": 100
       }
     },
     {
@@ -74,7 +74,7 @@
       "id": "/maplibre-basemap",
       "position": {
         "x": 1400,
-        "y": 280
+        "y": 340
       },
       "data": {
         "inputs": {
@@ -108,8 +108,8 @@
       "type": "MapRangeOp",
       "id": "/map-range-1",
       "position": {
-        "x": 200,
-        "y": 160
+        "x": 600,
+        "y": 340
       },
       "data": {
         "inputs": {

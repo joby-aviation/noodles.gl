@@ -109,8 +109,8 @@
       "id": "/centroid",
       "type": "GeocoderOp",
       "position": {
-        "x": 200,
-        "y": 100
+        "x": 1400,
+        "y": 700
       },
       "data": {
         "inputs": {
@@ -124,7 +124,7 @@
       "type": "CreateAttributeOp",
       "position": {
         "x": 1000,
-        "y": 160
+        "y": 280
       },
       "data": {
         "inputs": {
@@ -141,7 +141,7 @@
       "type": "DuckDbOp",
       "position": {
         "x": 600,
-        "y": 100
+        "y": 280
       },
       "resizing": false,
       "data": {
@@ -197,7 +197,7 @@
       "type": "HeatmapLayerOp",
       "position": {
         "x": 1800,
-        "y": 220
+        "y": 460
       },
       "data": {
         "inputs": {
@@ -238,7 +238,7 @@
       "type": "MaplibreBasemapOp",
       "position": {
         "x": 1800,
-        "y": 340
+        "y": 580
       },
       "data": {
         "inputs": {},
@@ -254,7 +254,7 @@
       },
       "position": {
         "x": 2200,
-        "y": 160
+        "y": 280
       }
     },
     {
@@ -262,7 +262,7 @@
       "type": "OutOp",
       "position": {
         "x": 2600,
-        "y": 160
+        "y": 280
       },
       "data": {
         "inputs": {

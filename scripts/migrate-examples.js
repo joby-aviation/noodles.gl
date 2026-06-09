@@ -59,13 +59,13 @@ function layoutNodes(project) {
     incoming.set(edge.target, inc)
   }
 
-  // Calculate depth for each node (longest path from root)
+  // Calculate depth for each node (longest path from any root)
   const depths = new Map()
   const visited = new Set()
 
   function calculateDepth(nodeId) {
     if (depths.has(nodeId)) return depths.get(nodeId)
-    if (visited.has(nodeId)) return 0 // Cycle detection
+    if (visited.has(nodeId)) return 0
     visited.add(nodeId)
 
     const parents = incoming.get(nodeId) || []
@@ -80,113 +80,73 @@ function layoutNodes(project) {
 
   nodes.forEach(n => calculateDepth(n.id))
 
-  // Group nodes by type and depth
-  const layers = []
+  // Identify special node types
   const layerNodes = nodes.filter(isLayerOp)
   const deckNode = nodes.find(n => n.type === 'DeckRendererOp')
   const basemapNode = nodes.find(isBasemap)
   const outNode = nodes.find(n => n.type === 'OutOp' || n.type === 'ViewerOp')
 
-  // Find data pipeline nodes (FileOp, CreateAttributeOp, DuckDbOp, etc.)
+  // Find nodes that feed into layers (data pipeline)
+  function feedsIntoLayers(nodeId, visited = new Set()) {
+    if (visited.has(nodeId)) return false
+    visited.add(nodeId)
+
+    const node = nodeMap.get(nodeId)
+    if (isLayerOp(node)) return true
+
+    const targets = outgoing.get(nodeId) || []
+    return targets.some(t => feedsIntoLayers(t, visited))
+  }
+
   const dataPipelineNodes = nodes.filter(n => {
     if (isLayerOp(n) || isRenderer(n) || isBasemap(n)) return false
-    // Check if this feeds into layers
-    const descendants = outgoing.get(n.id) || []
-    return descendants.some(d => isLayerOp(nodeMap.get(d)))
+    return feedsIntoLayers(n.id)
   })
 
-  // Find shared utility nodes (ColorOp, BlendingOp, etc. that feed into layers)
-  const utilityNodes = nodes.filter(n => {
-    if (isLayerOp(n) || isRenderer(n) || isBasemap(n) || dataPipelineNodes.includes(n)) return false
-    // Check if this node or its descendants feed into layers
+  // Separate data pipeline into primary (feeds data) vs utility (feeds parameters/colors)
+  const primaryDataNodes = dataPipelineNodes.filter(n => {
     const targets = outgoing.get(n.id) || []
-    return targets.some(t => isLayerOp(nodeMap.get(t)))
+    // Check if any target receives data on par.data
+    return edges.some(e => e.source === n.id && e.targetHandle === 'par.data')
   })
 
-  // Assign to columns
-  // Column layout: Data pipeline → Utility → Layers → Deck → Out
+  const utilityNodes = dataPipelineNodes.filter(n => !primaryDataNodes.includes(n))
 
-  const positions = new Map()
+  // Calculate column positions
+  // Primary data flows left to right by depth
+  const maxDataDepth = Math.max(...primaryDataNodes.map(n => depths.get(n.id)), -1)
 
-  // Position data pipeline nodes by depth
-  const maxDataDepth = Math.max(...dataPipelineNodes.map(n => depths.get(n.id)), -1)
-  dataPipelineNodes.forEach(n => {
-    const depth = depths.get(n.id)
-    const col = depth
-    if (!positions.has(col)) positions.set(col, [])
-    positions.get(col).push(n)
-  })
-
-  // Layer column comes after data pipeline
   const layerCol = maxDataDepth + 2
-
-  // Utility nodes go in column right before layers
   const utilityCol = layerCol - 1
-  utilityNodes.forEach(n => {
-    if (!positions.has(utilityCol)) positions.set(utilityCol, [])
-    positions.get(utilityCol).push(n)
-  })
-
-  // Position layer nodes
-  layerNodes.forEach(n => {
-    if (!positions.has(layerCol)) positions.set(layerCol, [])
-    positions.get(layerCol).push(n)
-  })
-
-  // Position Deck renderer in next column
   const deckCol = layerCol + 1
-  if (deckNode) {
-    if (!positions.has(deckCol)) positions.set(deckCol, [])
-    positions.get(deckCol).push(deckNode)
-  }
-
-  // Position Out in next column
   const outCol = deckCol + 1
-  if (outNode) {
-    if (!positions.has(outCol)) positions.set(outCol, [])
-    positions.get(outCol).push(outNode)
-  }
 
-  // Calculate Y positions - center Deck vertically with layers
-  const layerYPositions = []
-  if (positions.has(layerCol)) {
-    const layerCount = positions.get(layerCol).length
-    const layerStartY = LAYOUT.CHAIN_START_Y
-    positions.get(layerCol).forEach((n, i) => {
-      const y = layerStartY + i * LAYOUT.VERTICAL_SPACING
-      layerYPositions.push(y)
-      n.position = {
-        x: LAYOUT.CHAIN_START_X + layerCol * LAYOUT.HORIZONTAL_SPACING,
-        y
-      }
-    })
-  }
+  // Assign Y positions for layers first (they anchor everything)
+  layerNodes.sort((a, b) => depths.get(a.id) - depths.get(b.id))
+  const layerYs = layerNodes.map((n, i) => LAYOUT.CHAIN_START_Y + i * LAYOUT.VERTICAL_SPACING * 3)
+  const layerMinY = Math.min(...layerYs)
+  const layerMaxY = Math.max(...layerYs)
+  const layerMidY = (layerMinY + layerMaxY) / 2
 
-  // Calculate vertical midpoint of layers
-  const layerMidY = layerYPositions.length > 0
-    ? (layerYPositions[0] + layerYPositions[layerYPositions.length - 1]) / 2
-    : LAYOUT.CHAIN_START_Y
-
-  // Position Deck at layer midpoint
-  if (deckNode) {
-    deckNode.position = {
-      x: LAYOUT.CHAIN_START_X + deckCol * LAYOUT.HORIZONTAL_SPACING,
-      y: layerMidY
+  // Position layers
+  layerNodes.forEach((n, i) => {
+    n.position = {
+      x: LAYOUT.CHAIN_START_X + layerCol * LAYOUT.HORIZONTAL_SPACING,
+      y: layerYs[i]
     }
-  }
+  })
 
-  // Position Out slightly offset from Deck
-  if (outNode) {
-    outNode.position = {
-      x: LAYOUT.CHAIN_START_X + outCol * LAYOUT.HORIZONTAL_SPACING,
-      y: layerMidY
-    }
-  }
+  // Position primary data nodes by depth, centered vertically
+  const dataByCol = new Map()
+  primaryDataNodes.forEach(n => {
+    const col = depths.get(n.id)
+    if (!dataByCol.has(col)) dataByCol.set(col, [])
+    dataByCol.get(col).push(n)
+  })
 
-  // Position data pipeline nodes (centered with layers)
   for (let col = 0; col <= maxDataDepth; col++) {
-    if (!positions.has(col)) continue
-    const colNodes = positions.get(col)
+    if (!dataByCol.has(col)) continue
+    const colNodes = dataByCol.get(col)
     const colStartY = layerMidY - ((colNodes.length - 1) * LAYOUT.VERTICAL_SPACING) / 2
     colNodes.forEach((n, i) => {
       n.position = {
@@ -196,11 +156,10 @@ function layoutNodes(project) {
     })
   }
 
-  // Position utility nodes (centered with layers)
-  if (positions.has(utilityCol)) {
-    const utilNodes = positions.get(utilityCol)
-    const utilStartY = layerMidY - ((utilNodes.length - 1) * LAYOUT.VERTICAL_SPACING) / 2
-    utilNodes.forEach((n, i) => {
+  // Position utility nodes (colors, blending) - place BELOW layers, near them
+  if (utilityNodes.length > 0) {
+    const utilStartY = layerMaxY + LAYOUT.VERTICAL_SPACING * 2
+    utilityNodes.forEach((n, i) => {
       n.position = {
         x: LAYOUT.CHAIN_START_X + utilityCol * LAYOUT.HORIZONTAL_SPACING,
         y: utilStartY + i * LAYOUT.VERTICAL_SPACING
@@ -208,24 +167,37 @@ function layoutNodes(project) {
     })
   }
 
-  // Position basemap: if it has dependencies, put it with layers at bottom; otherwise dock below Deck
+  // Position Deck at layer midpoint
+  if (deckNode) {
+    deckNode.position = {
+      x: LAYOUT.CHAIN_START_X + deckCol * LAYOUT.HORIZONTAL_SPACING,
+      y: layerMidY
+    }
+  }
+
+  // Position basemap: dock below Deck if no dependencies, otherwise with layers at bottom
   if (basemapNode) {
     const basemapDeps = incoming.get(basemapNode.id) || []
     if (basemapDeps.length > 0) {
-      // Has upstream dependencies - put in layer column at bottom
-      const bottomY = layerYPositions.length > 0
-        ? layerYPositions[layerYPositions.length - 1] + LAYOUT.VERTICAL_SPACING
-        : LAYOUT.CHAIN_START_Y
+      // Has dependencies - put in layer column at bottom
       basemapNode.position = {
         x: LAYOUT.CHAIN_START_X + layerCol * LAYOUT.HORIZONTAL_SPACING,
-        y: bottomY
+        y: layerMaxY + LAYOUT.VERTICAL_SPACING
       }
     } else {
       // No dependencies - dock below Deck
       basemapNode.position = {
         x: LAYOUT.CHAIN_START_X + deckCol * LAYOUT.HORIZONTAL_SPACING,
-        y: layerMidY + LAYOUT.VERTICAL_SPACING * 1.5
+        y: layerMidY + LAYOUT.VERTICAL_SPACING * 2
       }
+    }
+  }
+
+  // Position Out
+  if (outNode) {
+    outNode.position = {
+      x: LAYOUT.CHAIN_START_X + outCol * LAYOUT.HORIZONTAL_SPACING,
+      y: layerMidY
     }
   }
 
