@@ -18,7 +18,13 @@ describe('SQL Compilation Snapshots', () => {
       const adapted = adaptOperator(fileOp as any, () => [])
       const compiled = compile([adapted!])
 
-      expect(compiled.sql).toMatchInlineSnapshot(`"WITH data AS (SELECT * FROM read_csv_auto($1, header=true, auto_detect=true)) SELECT * FROM data"`)
+      expect(compiled.sql).toMatchInlineSnapshot(`
+        "WITH data AS (
+        /* operator: /data */
+        /* type: File */
+        SELECT * FROM read_csv_auto($1, header=true, auto_detect=true)
+        ) SELECT * FROM data"
+      `)
       expect(compiled.paramSlots).toMatchInlineSnapshot(`
         [
           {
@@ -38,7 +44,13 @@ describe('SQL Compilation Snapshots', () => {
       const adapted = adaptOperator(fileOp as any, () => [])
       const compiled = compile([adapted!])
 
-      expect(compiled.sql).toMatchInlineSnapshot(`"WITH data AS (SELECT * FROM read_json_auto($1)) SELECT * FROM data"`)
+      expect(compiled.sql).toMatchInlineSnapshot(`
+        "WITH data AS (
+        /* operator: /data */
+        /* type: File */
+        SELECT * FROM read_json_auto($1)
+        ) SELECT * FROM data"
+      `)
     })
 
     it('FileOp: Parquet', () => {
@@ -49,7 +61,13 @@ describe('SQL Compilation Snapshots', () => {
       const adapted = adaptOperator(fileOp as any, () => [])
       const compiled = compile([adapted!])
 
-      expect(compiled.sql).toMatchInlineSnapshot(`"WITH data AS (SELECT * FROM read_json_auto($1)) SELECT * FROM data"`)
+      expect(compiled.sql).toMatchInlineSnapshot(`
+        "WITH data AS (
+        /* operator: /data */
+        /* type: File */
+        SELECT * FROM read_json_auto($1)
+        ) SELECT * FROM data"
+      `)
     })
 
     it('FilterOp: equals', () => {
@@ -61,7 +79,13 @@ describe('SQL Compilation Snapshots', () => {
       const adapted = adaptOperator(filterOp as any, () => [])
       const compiled = compile([adapted!])
 
-      expect(compiled.sql).toMatchInlineSnapshot(`"WITH filter_op AS (SELECT * FROM  WHERE "status" = $1) SELECT * FROM filter_op"`)
+      expect(compiled.sql).toMatchInlineSnapshot(`
+        "WITH filter_op AS (
+        /* operator: /filter */
+        /* type: FilterOp */
+        SELECT * FROM  WHERE "status" = $1
+        ) SELECT * FROM filter_op"
+      `)
       expect(compiled.paramSlots).toMatchInlineSnapshot(`
         [
           {
@@ -82,7 +106,13 @@ describe('SQL Compilation Snapshots', () => {
       const adapted = adaptOperator(filterOp as any, () => [])
       const compiled = compile([adapted!])
 
-      expect(compiled.sql).toMatchInlineSnapshot(`"WITH filter_op AS (SELECT * FROM  WHERE "age" > $1) SELECT * FROM filter_op"`)
+      expect(compiled.sql).toMatchInlineSnapshot(`
+        "WITH filter_op AS (
+        /* operator: /filter */
+        /* type: FilterOp */
+        SELECT * FROM  WHERE "age" > $1
+        ) SELECT * FROM filter_op"
+      `)
     })
 
     it('FilterOp: less than or equal', () => {
@@ -94,7 +124,13 @@ describe('SQL Compilation Snapshots', () => {
       const adapted = adaptOperator(filterOp as any, () => [])
       const compiled = compile([adapted!])
 
-      expect(compiled.sql).toMatchInlineSnapshot(`"WITH filter_op AS (SELECT * FROM  WHERE "price" = $1) SELECT * FROM filter_op"`)
+      expect(compiled.sql).toMatchInlineSnapshot(`
+        "WITH filter_op AS (
+        /* operator: /filter */
+        /* type: FilterOp */
+        SELECT * FROM  WHERE "price" = $1
+        ) SELECT * FROM filter_op"
+      `)
     })
 
     it('FilterOp: contains', () => {
@@ -106,7 +142,13 @@ describe('SQL Compilation Snapshots', () => {
       const adapted = adaptOperator(filterOp as any, () => [])
       const compiled = compile([adapted!])
 
-      expect(compiled.sql).toMatchInlineSnapshot(`"WITH filter_op AS (SELECT * FROM  WHERE "name" LIKE '%' || $1 || '%') SELECT * FROM filter_op"`)
+      expect(compiled.sql).toMatchInlineSnapshot(`
+        "WITH filter_op AS (
+        /* operator: /filter */
+        /* type: FilterOp */
+        SELECT * FROM  WHERE "name" LIKE '%' || $1 || '%'
+        ) SELECT * FROM filter_op"
+      `)
     })
 
     it('FilterOp: starts with', () => {
@@ -118,7 +160,13 @@ describe('SQL Compilation Snapshots', () => {
       const adapted = adaptOperator(filterOp as any, () => [])
       const compiled = compile([adapted!])
 
-      expect(compiled.sql).toMatchInlineSnapshot(`"WITH filter_op AS (SELECT * FROM  WHERE "code" = $1) SELECT * FROM filter_op"`)
+      expect(compiled.sql).toMatchInlineSnapshot(`
+        "WITH filter_op AS (
+        /* operator: /filter */
+        /* type: FilterOp */
+        SELECT * FROM  WHERE "code" = $1
+        ) SELECT * FROM filter_op"
+      `)
     })
 
     it('FilterOp: in', () => {
@@ -130,7 +178,13 @@ describe('SQL Compilation Snapshots', () => {
       const adapted = adaptOperator(filterOp as any, () => [])
       const compiled = compile([adapted!])
 
-      expect(compiled.sql).toMatchInlineSnapshot(`"WITH filter_op AS (SELECT * FROM  WHERE "country" IN ($2, $3, $4)) SELECT * FROM filter_op"`)
+      expect(compiled.sql).toMatchInlineSnapshot(`
+        "WITH filter_op AS (
+        /* operator: /filter */
+        /* type: FilterOp */
+        SELECT * FROM  WHERE "country" IN ($2, $3, $4)
+        ) SELECT * FROM filter_op"
+      `)
       // IN clause generates extra params for each value + the original value field
       expect(compiled.paramSlots.length).toBeGreaterThanOrEqual(3)
     })
@@ -144,7 +198,13 @@ describe('SQL Compilation Snapshots', () => {
       const adapted = adaptOperator(filterOp as any, () => [])
       const compiled = compile([adapted!])
 
-      expect(compiled.sql).toMatchInlineSnapshot(`"WITH filter_op AS (SELECT * FROM  WHERE "status" NOT IN ($2, $3)) SELECT * FROM filter_op"`)
+      expect(compiled.sql).toMatchInlineSnapshot(`
+        "WITH filter_op AS (
+        /* operator: /filter */
+        /* type: FilterOp */
+        SELECT * FROM  WHERE "status" NOT IN ($2, $3)
+        ) SELECT * FROM filter_op"
+      `)
     })
 
     it('SortOp: ascending', () => {
@@ -155,7 +215,13 @@ describe('SQL Compilation Snapshots', () => {
       const adapted = adaptOperator(sortOp as any, () => [])
       const compiled = compile([adapted!])
 
-      expect(compiled.sql).toMatchInlineSnapshot(`"WITH sort AS (SELECT * FROM  ORDER BY "timestamp" ASC) SELECT * FROM sort"`)
+      expect(compiled.sql).toMatchInlineSnapshot(`
+        "WITH sort AS (
+        /* operator: /sort */
+        /* type: Sort */
+        SELECT * FROM  ORDER BY "timestamp" ASC
+        ) SELECT * FROM sort"
+      `)
       expect(compiled.paramSlots).toEqual([])
     })
 
@@ -167,7 +233,13 @@ describe('SQL Compilation Snapshots', () => {
       const adapted = adaptOperator(sortOp as any, () => [])
       const compiled = compile([adapted!])
 
-      expect(compiled.sql).toMatchInlineSnapshot(`"WITH sort AS (SELECT * FROM  ORDER BY "score" DESC) SELECT * FROM sort"`)
+      expect(compiled.sql).toMatchInlineSnapshot(`
+        "WITH sort AS (
+        /* operator: /sort */
+        /* type: Sort */
+        SELECT * FROM  ORDER BY "score" DESC
+        ) SELECT * FROM sort"
+      `)
     })
 
     it('SliceOp: first 100 rows', () => {
@@ -178,7 +250,13 @@ describe('SQL Compilation Snapshots', () => {
       const adapted = adaptOperator(sliceOp as any, () => [])
       const compiled = compile([adapted!])
 
-      expect(compiled.sql).toMatchInlineSnapshot(`"WITH slice AS (SELECT * FROM  LIMIT $1 OFFSET $2) SELECT * FROM slice"`)
+      expect(compiled.sql).toMatchInlineSnapshot(`
+        "WITH slice AS (
+        /* operator: /slice */
+        /* type: Slice */
+        SELECT * FROM  LIMIT $1 OFFSET $2
+        ) SELECT * FROM slice"
+      `)
       expect(compiled.paramSlots).toMatchInlineSnapshot(`
         [
           {
@@ -213,7 +291,13 @@ describe('SQL Compilation Snapshots', () => {
       const adapted = adaptOperator(uniqueOp as any, () => [])
       const compiled = compile([adapted!])
 
-      expect(compiled.sql).toMatchInlineSnapshot(`"WITH unique AS (SELECT DISTINCT ON ("user_id", "session_id") * FROM ) SELECT * FROM unique"`)
+      expect(compiled.sql).toMatchInlineSnapshot(`
+        "WITH unique AS (
+        /* operator: /unique */
+        /* type: Unique */
+        SELECT DISTINCT ON ("user_id", "session_id") * FROM 
+        ) SELECT * FROM unique"
+      `)
     })
 
     it('UniqueOp: all columns', () => {
@@ -223,7 +307,13 @@ describe('SQL Compilation Snapshots', () => {
       const adapted = adaptOperator(uniqueOp as any, () => [])
       const compiled = compile([adapted!])
 
-      expect(compiled.sql).toMatchInlineSnapshot(`"WITH unique AS (SELECT DISTINCT * FROM ) SELECT * FROM unique"`)
+      expect(compiled.sql).toMatchInlineSnapshot(`
+        "WITH unique AS (
+        /* operator: /unique */
+        /* type: Unique */
+        SELECT DISTINCT * FROM 
+        ) SELECT * FROM unique"
+      `)
     })
 
     it('GroupByOp: single aggregation', () => {
@@ -234,7 +324,13 @@ describe('SQL Compilation Snapshots', () => {
       const adapted = adaptOperator(groupByOp as any, () => [])
       const compiled = compile([adapted!])
 
-      expect(compiled.sql).toMatchInlineSnapshot(`"WITH group_op AS (SELECT "region", SUM("sales") AS "total_sales" FROM  GROUP BY "region") SELECT * FROM group_op"`)
+      expect(compiled.sql).toMatchInlineSnapshot(`
+        "WITH group_op AS (
+        /* operator: /group */
+        /* type: GroupBy */
+        SELECT "region", SUM("sales") AS "total_sales" FROM  GROUP BY "region"
+        ) SELECT * FROM group_op"
+      `)
     })
 
     it('GroupByOp: multiple aggregations', () => {
@@ -316,8 +412,16 @@ describe('SQL Compilation Snapshots', () => {
 
       expect(compiled.sql).toMatchInlineSnapshot(`
         "WITH
-          data AS (SELECT * FROM read_csv_auto($1, header=true, auto_detect=true)),
-          filter_op AS (SELECT * FROM data WHERE "active" = $2)
+          data AS (
+        /* operator: /data */
+        /* type: File */
+        SELECT * FROM read_csv_auto($1, header=true, auto_detect=true)
+        ),
+          filter_op AS (
+        /* operator: /filter */
+        /* type: FilterOp */
+        SELECT * FROM data WHERE "active" = $2
+        )
         SELECT * FROM filter_op"
       `)
       expect(compiled.paramSlots).toHaveLength(2)
@@ -347,9 +451,21 @@ describe('SQL Compilation Snapshots', () => {
 
       expect(compiled.sql).toMatchInlineSnapshot(`
         "WITH
-          data AS (SELECT * FROM read_csv_auto($1, header=true, auto_detect=true)),
-          filter_op AS (SELECT * FROM data WHERE "amount" > $2),
-          sort AS (SELECT * FROM filter_op ORDER BY "amount" DESC)
+          data AS (
+        /* operator: /data */
+        /* type: File */
+        SELECT * FROM read_csv_auto($1, header=true, auto_detect=true)
+        ),
+          filter_op AS (
+        /* operator: /filter */
+        /* type: FilterOp */
+        SELECT * FROM data WHERE "amount" > $2
+        ),
+          sort AS (
+        /* operator: /sort */
+        /* type: Sort */
+        SELECT * FROM filter_op ORDER BY "amount" DESC
+        )
         SELECT * FROM sort"
       `)
     })
@@ -381,10 +497,26 @@ describe('SQL Compilation Snapshots', () => {
 
       expect(compiled.sql).toMatchInlineSnapshot(`
         "WITH
-          data AS (SELECT * FROM read_csv_auto($1, header=true, auto_detect=true)),
-          filter_op AS (SELECT * FROM data WHERE "valid" = $2),
-          sort AS (SELECT * FROM filter_op ORDER BY "score" DESC),
-          slice AS (SELECT * FROM sort LIMIT $3 OFFSET $4)
+          data AS (
+        /* operator: /data */
+        /* type: File */
+        SELECT * FROM read_csv_auto($1, header=true, auto_detect=true)
+        ),
+          filter_op AS (
+        /* operator: /filter */
+        /* type: FilterOp */
+        SELECT * FROM data WHERE "valid" = $2
+        ),
+          sort AS (
+        /* operator: /sort */
+        /* type: Sort */
+        SELECT * FROM filter_op ORDER BY "score" DESC
+        ),
+          slice AS (
+        /* operator: /slice */
+        /* type: Slice */
+        SELECT * FROM sort LIMIT $3 OFFSET $4
+        )
         SELECT * FROM slice"
       `)
       expect(compiled.paramSlots).toHaveLength(4)

@@ -516,7 +516,7 @@ describe('End-to-End: Graph→SQL Compilation Validation', () => {
       expect(compiled.has('/sort')).toBe(true)
 
       const query = compiled.get('/sort')!
-      expect(query.sql).toContain('source AS (SELECT * FROM e2e_data)')
+      expect(query.sql).toContain('SELECT * FROM e2e_data')
       expect(query.sql).toContain('WHERE')
       expect(query.sql).toContain('ORDER BY')
     })
@@ -610,7 +610,7 @@ describe('End-to-End: Graph→SQL Compilation Validation', () => {
       // Verify compiled query structure
       const compiledQuery = integration.getCompiledQuery('/sort')
       expect(compiledQuery).toBeDefined()
-      expect(compiledQuery!.sql).toContain('source AS (SELECT * FROM e2e_data)')
+      expect(compiledQuery!.sql).toContain('SELECT * FROM e2e_data')
       expect(compiledQuery!.sql).toContain('WHERE "department" = $1')
       expect(compiledQuery!.sql).toContain('ORDER BY "salary" DESC')
     })
@@ -820,7 +820,7 @@ describe('End-to-End: Graph→SQL Compilation Validation', () => {
 
       // Validate compiled SQL structure
       const compiledQuery = integration.getCompiledQuery('/slice')!
-      expect(compiledQuery.sql).toContain('source AS (SELECT * FROM e2e_data)')
+      expect(compiledQuery.sql).toContain('SELECT * FROM e2e_data')
       expect(compiledQuery.sql).toContain('WHERE "salary" > $1')
       expect(compiledQuery.sql).toContain('ORDER BY "salary" DESC')
       expect(compiledQuery.sql).toContain('LIMIT')

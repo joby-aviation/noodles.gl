@@ -1,5 +1,6 @@
 import type * as arrow from 'apache-arrow'
 import type { CompiledQuery, ExecutionResult, ParamSlot } from './types'
+import { attributeError, enrichErrorContext } from './error-attribution'
 
 type AsyncDuckDB = any
 type AsyncDuckDBConnection = any
@@ -73,6 +74,10 @@ export async function execute(
         return table.toArray().map((row: any) => ({ ...row }))
       },
     }
+  } catch (error) {
+    // Attribute SQL errors to specific operators
+    const opError = attributeError(error as Error, compiled)
+    throw enrichErrorContext(opError, compiled, paramValues)
   } finally {
     await conn.close()
   }
@@ -100,13 +105,19 @@ export class PreparedPipeline {
 
   async execute(paramValues: unknown[]): Promise<ExecutionResult> {
     if (!this.stmt) await this.prepare()
-    const table: arrow.Table =
-      paramValues.length > 0 ? await this.stmt.query(...paramValues) : await this.stmt.query()
-    return {
-      table,
-      toArray() {
-        return table.toArray().map((row: any) => ({ ...row }))
-      },
+    try {
+      const table: arrow.Table =
+        paramValues.length > 0 ? await this.stmt.query(...paramValues) : await this.stmt.query()
+      return {
+        table,
+        toArray() {
+          return table.toArray().map((row: any) => ({ ...row }))
+        },
+      }
+    } catch (error) {
+      // Attribute SQL errors to specific operators
+      const opError = attributeError(error as Error, this._compiled)
+      throw enrichErrorContext(opError, this._compiled, paramValues)
     }
   }
 
