@@ -514,6 +514,12 @@ export function VectorFieldComponent({
     [field, isPoint3D, commitChange]
   )
 
+  // Guard against non-uniform mode values (attribute/expression objects)
+  const isValidVectorValue = Array.isArray(value) || (typeof value === 'object' && value !== null)
+  if (!isValidVectorValue || typeof value === 'function') {
+    return null
+  }
+
   if (hideLabel) {
     return (
       <>
@@ -1673,6 +1679,11 @@ export function NumberFieldComponent({
     [field]
   )
 
+  // Guard against non-uniform mode values (attribute/expression objects)
+  if (typeof value !== 'number') {
+    return null
+  }
+
   if (hideLabel) {
     return (
       <DraggableNumberInput
@@ -1848,6 +1859,13 @@ export function ColorFieldComponent({
     },
     [field]
   )
+
+  // Guard against non-uniform mode values (attribute/expression objects)
+  // This can happen during mode transitions when the field value changes before React unmounts the component
+  const isValidColorValue = typeof value === 'string' || (Array.isArray(value) && value.length >= 3)
+  if (!isValidColorValue) {
+    return null
+  }
 
   if (hideLabel) {
     return (
